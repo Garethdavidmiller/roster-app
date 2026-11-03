@@ -363,11 +363,13 @@ jobs:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     # UBUNTU 24.04, NOT -LATEST (30 Oct 2026). ubuntu-latest moved to Ubuntu 26.04 that week, and Playwright 1.56.1
-    # supports nothing newer than 24.04: `install-deps` printed "Cannot install dependencies for ubuntu26.04-x64" and
+    # supported nothing newer than 24.04: `install-deps` printed "Cannot install dependencies for ubuntu26.04-x64" and
     # exited 0, so the libraries step passed and every WebKit test then failed at browser launch (408 of 409 in one
     # shard), while both visual lanes, whose baselines are drawn on 24.04, reported drift. Every job that starts a
     # browser is pinned — this one, webkit, csp, visual, visual-webkit, and the deploy gate, live-health, offline and
-    # warm-browser-cache. Move them on together when Playwright supports the newer image.
+    # warm-browser-cache. Playwright 1.63.0 (3 Nov 2026) supports 26.04, so what holds them now is the baselines: they
+    # are drawn on 24.04, in a dev container that is 24.04. Move all nine together, with every baseline redrawn on the
+    # new image, as a change of its own (KNOWN_LIMITATIONS.md).
     runs-on: ubuntu-24.04
     # ── ONE JOB PER SCREEN SIZE (3 Nov 2026) ─────────────────────────────────────────────────────
     #
@@ -525,7 +527,7 @@ jobs:
   webkit:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
-    # ubuntu-24.04, not -latest: Playwright 1.56.1 cannot install its libraries on 26.04 (e2e.yml's smoke job says why)
+    # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -645,7 +647,7 @@ jobs:
   csp:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
-    # ubuntu-24.04, not -latest: Playwright 1.56.1 cannot install its libraries on 26.04 (e2e.yml's smoke job says why)
+    # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -727,7 +729,7 @@ jobs:
   visual-webkit:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
-    # ubuntu-24.04, not -latest: Playwright 1.56.1 cannot install its libraries on 26.04 (e2e.yml's smoke job says why)
+    # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     continue-on-error: true
@@ -913,7 +915,7 @@ jobs:
   visual:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
-    # ubuntu-24.04, not -latest: Playwright 1.56.1 cannot install its libraries on 26.04 (e2e.yml's smoke job says why)
+    # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
     # 25, not 15 (7 Oct 2026): the Chromium install alone ran for the whole of a 15-minute cap on a
     # slow runner, cancelling the job before a single baseline was compared. The cap is a backstop

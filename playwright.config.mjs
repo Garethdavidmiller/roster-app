@@ -50,8 +50,8 @@ export default defineConfig({
     //
     // The old comment's two objections were checked rather than inherited:
     //   · The "exit-code-1-on-pass" behaviour of Playwright 1.51+ does NOT occur at the pinned
-    //     1.56.1. Measured with a spec that fails once and passes on retry: reported as `1 flaky`,
-    //     process exits 0.
+    //     1.63.0. Measured with a spec that fails once and passes on retry: reported as `1 flaky`,
+    //     process exits 0 — first at 1.56.1, and again at the 1.63.0 upgrade (3 Nov 2026).
     //   · A retry does not LAUNDER a flaky test. That same run prints `1 flaky` rather than
     //     `1 passed`, so the signal survives — which is the property that makes this safe and the
     //     reason the count is worth reading when a job takes longer than usual.

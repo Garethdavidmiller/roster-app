@@ -135,14 +135,29 @@ import { devices } from '@playwright/test';
 // is 390×844; every iPhone Pro since the 15 — the 16 Pro, the 17 Pro and the 18 Pro, which is to a
 // web page the same device as the 17 Pro — is 402×874 at the same density. The user agent and DPR
 // stay the descriptor's, because the ENGINE is what this lane tests and a UA string changes no
-// layout. Playwright 1.56 has no 17 Pro descriptor; the upgrade that carries one (and a newer WebKit)
-// is its own change, with the Chromium baseline churn it brings — KNOWN_LIMITATIONS.md, "The test
-// matrix and the phones staff carry".
+// layout. Playwright 1.63 carries a 17 Pro descriptor (1.56 had none). Swapping to it would change only
+// the iOS number in the user agent (15_0 to 18_7), which the app never reads — print-guard.js says why
+// it stopped — so the lane keeps the 13's descriptor under this override. KNOWN_LIMITATIONS.md, "The
+// test matrix and the phones staff carry".
 export const IPHONE_PRO_VIEWPORT = { width: 402, height: 874 };
 
 export default {
     ...base,
     retries: process.env.CI ? 1 : 0,
+    /* ── A LONGER BUDGET PER TEST, NOT PER ASSERTION (3 Nov 2026, the Playwright 1.63 upgrade) ──────
+     *
+     * The base config's 30s is for a whole TEST, and the longest specs here are flows of twenty-odd
+     * steps that were already close to it on this engine. On WebKit 2215 (Playwright 1.56) the iPhone
+     * project took 26.1s for "links: declining an unsaved-changes switch…", 24.4s for "every
+     * line-order switch OFF…" and 21.6s for Trains' "the admin sees what changes…". WebKit 2359 runs
+     * those 10–50% slower (30.6, 26.1, 26.5s), and the first ran out on CI. The time goes to
+     * Playwright's own wait before each click on this engine, not to the app: measured inside the
+     * Trains page, a tab's handler plus the next paint takes 30–170ms on WebKit, as on Chromium.
+     *
+     * So a long FLOW gets room, and no STEP does: `expect` below stays at 15s, which is the
+     * sensitivity the note under it protects, and Chromium (the deploy gate) keeps the base 30s. A
+     * test that hangs now takes 60s to fail instead of 30; that is the whole cost. */
+    timeout: 60_000,
     /* ── WHY THIS ENGINE GETS A LONGER EXPECT BUDGET (v22.36) ────────────────────────────────────
      *
      * Playwright's 5s default is a statement about how long a correct app should take to reach a

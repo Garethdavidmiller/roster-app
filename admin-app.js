@@ -359,13 +359,13 @@ export function init() {
         return false;   // no matching option — caller may need to handle (e.g. a hidden/leaver member)
     }
 
-    // Restore last used member — prefer the shared cross-page key (written by both index and admin)
-    // so navigating between pages keeps the same person selected. Fall back to admin-only key.
-    // The member must still be SELECTABLE (exists AND not hidden): populateMemberDropdown omits
-    // hidden members, so a stale saved name pointing at a colleague who has since left or been
-    // hidden would set the <select> to a value with no matching <option> — leaving the STAFF
-    // MEMBER dropdown blank. Reject and clear stale names so the field falls back to a real
-    // member and the bad value can't recur. (v12.32)
+    // Restore the last-used member from the shared cross-page key (written by both index and admin)
+    // so navigating between pages keeps the same person selected. It must still be SELECTABLE
+    // (exists AND not hidden): populateMemberDropdown omits hidden members, so a stale name would
+    // leave the STAFF MEMBER dropdown blank — reject and clear it (v12.32). With nothing to restore,
+    // the first member is chosen HERE, not left to the engine (v25.24): Chromium skips the disabled
+    // "— Select member —" by itself, but WebKit 2359 (Safari 26.6) does not, which gave an admin or
+    // manager a blank member and no week. applyPermissions still locks staff to their own name.
     const _savedMember = lsGet(SELECTED_MEMBER);
     const lastMember = (_savedMember && teamMembers.find(m => m.name === _savedMember && !m.hidden))
         ? _savedMember : null;
@@ -374,9 +374,9 @@ export function init() {
         // Persist the member so the reverse journey (admin → index) restores it.
         lsSet(SELECTED_MEMBER, lastMember);
     } else if (_savedMember) {
-        // Stale (hidden/left) — clear it so the dropdown keeps its valid default.
-        lsDel(SELECTED_MEMBER);
+        lsDel(SELECTED_MEMBER);   // stale (hidden/left)
     }
+    if (!fieldMember.value) _setSelectValue(fieldMember, Array.from(fieldMember.options).find(o => !o.disabled && o.value)?.value);
 
     // Default date = today, or the date passed from index.html via ?date=YYYY-MM-DD.
     // This preserves the month the staff member was viewing when they tapped Admin.

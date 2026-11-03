@@ -22,7 +22,7 @@ on:
 
 jobs:
   offline:
-    # ubuntu-24.04, not -latest: Playwright 1.56.1 cannot install its libraries on 26.04 (e2e.yml's smoke job says why)
+    # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:

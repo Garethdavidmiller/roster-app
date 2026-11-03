@@ -262,28 +262,69 @@ shared by `playwright.visual-webkit.mjs`, and by the four visual tests that grow
 tall surface — a 24-hour review found those still at 390 after the first pass); the six WebKit
 baselines were regenerated and the full WebKit smoke suite re-run at the new width before this shipped.
 
-**Not done, deliberately: the Playwright upgrade.** The repo pins `@playwright/test` 1.56.1, whose
-newest iPhone descriptor is the 15 Pro; 1.63.0 carries 17 Pro descriptors and a newer WebKit build
-(2359, nearer Safari 27 than the 2215 run here, which identifies as Safari 26). Two things make that
-its own change rather than a line in this one:
+**The Playwright upgrade: 1.56.1 → 1.63.0 (3 Nov 2026, owner: "Can you update the version of
+playwright in the repo?"),** in a pull request whose only subject it is, as this paragraph asked. It
+brings Chromium 1243 (Chromium 153), WebKit 2359 (Safari 26.6, against the 2215 that identified as
+Safari 26.0) and an iPhone 17 Pro descriptor. The paragraph used to say why it waited; both reasons
+moved:
 
-- **It moves the Chromium the deploy gate runs on** (1194 → 1243, Chromium 153), and every one of
-  the 51 committed Chromium visual baselines (3 Nov 2026) was rendered on 1194. They would all drift at once, and
-  the dev container's pre-installed Chromium is 1194, so they cannot be regenerated here to match
-  what CI would render — the regeneration has to happen on the CI renderer, reviewed as one commit.
-- **A geometry override already delivers the audit's point.** A descriptor is a viewport, a density
-  and a user-agent string; the string changes no layout, and the engine is the same binary whatever
-  it claims to be. The upgrade's real value is the newer WebKit, which is a reason to do it, in a
-  pull request whose only subject it is.
+- **The baselines came from CI's own render — and that is the lesson worth keeping.** They were
+  first redrawn in the dev container, whose pre-installed Chromium is now 1243, the very build CI
+  runs, on the same Ubuntu 24.04. All 51 still failed on CI. Same build, different machine: the
+  container breaks some lines of Inter a word differently (it drew the App Speed card 17 px
+  taller), so a matching version number did not make a matching render. They were redrawn instead
+  from the actual screenshots in the pull request's own `visual-diffs` artifact, whose digest was
+  checked. On CI, Chromium 153 left 17 of the 51 pixel-for-pixel as they were on 1194 (kept
+  byte-for-byte) and moved the other 34 slightly: the blurred backdrop behind every overlay and
+  lightbox (31% of the tips overlay's pixels, each by a little), glyph edges, the Team View's
+  emoji. The largest were looked at; nothing moved but rendering. **When the lane on a pull request
+  disagrees with a baseline drawn here, believe the lane** and take the artifact's actuals.
+- **WebKit 2359 met the suite first in CI.** It is not pre-installed in the container (the session
+  hook never runs `playwright install`), but `npx playwright install webkit` fetches it in about a
+  minute, which is how the two findings below were reproduced and their fixes proven before a
+  push. Its six baselines came from CI's render, as above. Under Safari 26.6 line heights moved by
+  a pixel or two (the railcard guide's sections sit a few pixels higher, the day panel is 2 px
+  taller); nothing else.
+- **It found one real Admin defect.** With no member remembered on the device, an admin or manager
+  opening Admin got no member and no week: the list's first entry is a disabled "— Select member
+  —", and 2359 does not pass over it to the first real member, as Chromium does and 2215 did. Admin
+  now chooses that member itself (`admin-app.js`, v25.24), which changes nothing wherever the engine
+  already did. Whether an iPhone's Safari does the same is not known, since Playwright's WebKit is
+  its own build; the fix covers it either way. Four Admin tests failed on it, on both WebKit
+  projects. With the new line removed (`scripts/mutate.mjs`) two of them fail again on 2359, and
+  with it they pass.
+- **And one test race.** Under 2359 the Links first-visit panel opens late enough to cover the
+  burger in Overtime's every-page sweep, which closed it only if it was already up. `seedSession`
+  now suppresses it alongside the Calendar's notices, and the one spec about the panel re-enables it.
+- **And two measurements the tests had to learn.** On the iPhone project, 2359 hands back a STALE
+  computed style for the Pay Calculator's `body` (the browser's defaults) from load until something
+  restyles it, while the page on screen is navy and in Inter. Nothing in the app reads that value,
+  so the typeface sweep now forces a fresh computation before it reads, and still fails on a page
+  with no body font (mutation-checked). And the WebKit config's budget per TEST is now 60s, not 30:
+  its longest flows were already at 22–26s on 2215 and run 10–50% slower on 2359, which is
+  Playwright's own wait before each click on this engine, not the app (a Trains tab's handler and
+  the next paint take 30–170ms on WebKit, as on Chromium). The 15s budget per assertion is untouched
+  (`playwright.webkit.mjs` says why).
+- **Not 1.64.1, the newest.** 1.63.0 is what the container carries, so every local Playwright run
+  works with no browser workaround. Moving on is a one-line change once the container carries 1.64.
+- **Chromium 153 raises one new browser error under test.** It abandons the declarative page-to-page
+  view transition (`@view-transition` in `shared.css`) when a test navigates mid-transition —
+  "Transition was aborted because of invalid state" — as Android Chrome 152 already did on real
+  phones, and the Error Log already ignores it (`client-errors.js`). Four smoke tests that assert no
+  uncaught errors met it on the first run. `collectFatalErrors` (`e2e/helpers.js`) now asks the same
+  rule, `shouldReport`, so a test fails on exactly what the app would log.
+- **The 17 Pro descriptor is not used.** A descriptor is a viewport, a density and a user-agent
+  string; the WebKit lane keeps the 13's under its 402×874 override, because a swap would change only
+  the user agent's iOS number, which the app never reads (`playwright.webkit.mjs`).
 
 Landscape (874×402, 956×440) is NOT in the matrix either, on purpose: Playwright's Linux WebKit
 reports every safe-area inset as zero, so a landscape baseline would prove nothing about the Dynamic
 Island insets the audit's B11 added, and the smoke suite's layout assertions are written for
 portrait. A real iPhone in landscape is on the device checklist in the audit, not in CI.
 
-### Every browser job is pinned to Ubuntu 24.04 until Playwright moves on (30 Oct 2026, v25.01)
+### Every browser job is pinned to Ubuntu 24.04 (30 Oct 2026, v25.01; Playwright no longer the reason since 3 Nov)
 
-GitHub's `ubuntu-latest` became **Ubuntu 26.04** in the last week of October 2026, and Playwright 1.56.1 supports
+GitHub's `ubuntu-latest` became **Ubuntu 26.04** in the last week of October 2026, and Playwright 1.56.1 supported
 nothing newer than 24.04. On the new image `npx playwright install-deps` prints "Cannot install dependencies for
 ubuntu26.04-x64" and **exits 0**, so the libraries step passed, and every WebKit test then failed at browser launch
 (408 of 409 in one shard) — while Chromium happened to launch, and both visual lanes, drawn on 24.04, reported drift.
@@ -292,19 +333,21 @@ visual-webkit; the deploy gate in deploy-hosting.yml; live-health, offline and w
 written once, on e2e.yml's smoke job.
 
 **Deferred:**
-- When a Playwright release supports 26.04, upgrade it and move all nine back together. One job left on 24.04 would
-  test a browser the others do not, and the WebKit and visual baselines would need regenerating on the new image anyway.
+- **Playwright 1.63.0 supports 26.04** (the repo's since 3 Nov 2026), so what holds the nine now is the baselines:
+  they are drawn on 24.04, in a dev container that is 24.04. Move all nine together, as their own change, with every
+  Chromium and WebKit baseline redrawn on the new image — from CI's own render, since nothing here draws 26.04's.
+  One job left on 24.04 would test a browser the others do not.
 - `install-browser-deps` still reports success when Playwright declines to install. Its fallback `exec`s the plain
   command, whose exit status is 0 here; a check that the browser launches would name the failure at the step that
   caused it, rather than four hundred tests later. `workflow-hygiene.test.mjs` pins the fallback's shape, so that is a
   change to the test as well.
 
-### Playwright's WebKit crashes when a page leaves after two history entries and a Back (measured Oct 2026, v24.97)
+### Playwright's WebKit crashed when a page left after two history entries and a Back (Oct 2026, v24.97; not in 2359)
 
-The WebKit that Playwright 1.56.1 runs here (build 2215, "Safari 26.0") **crashes its web process**
+The WebKit that Playwright 1.56.1 ran (build 2215, "Safari 26.0") **crashed its web process**
 on a cross-document navigation made after two `history.pushState` calls and a `history.back()`. It
-crashes on `assign` and `replace` alike, on both WebKit projects, here and on CI. The page never
-commits. Playwright reports *"waiting for … navigation to finish"* until the assertion times out,
+crashed on `assign` and `replace` alike, on both WebKit projects, here and on CI. The page never
+committed. Playwright reported *"waiting for … navigation to finish"* until the assertion timed out,
 and *"Target crashed"* after that.
 
 **It is the test browser, not the app.** A standalone script reproduces it with no app code and no
@@ -333,8 +376,10 @@ logo asks before leaving staged edits` and the test after it in `e2e/pages.spec.
 this. **Never skip such a test on WebKit**: it is the lane's only view of the dialog, the drawer and
 the guard on Safari's engine.
 
-**When Playwright is upgraded** (the change described above), run those four lines again. If WebKit
-navigates, this entry can go, and the Leave test can let the Calendar load again.
+**Re-run on 3 Nov 2026 under the repo's Playwright 1.63.0: WebKit 2359 navigates, three runs out of
+three.** The test browser no longer has the fault, so this entry stays only for the device question
+above. The Leave test keeps its stop at the network: it is correct on either build, and letting the
+Calendar load would only repeat the next test, which opens the Calendar on that month already.
 
 ## Security
 

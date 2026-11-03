@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, perfSamples, stubUsageReads, usageStats, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
+import { collectFatalErrors, clearNoticeFlags, seedSession, seedSessionOnce, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, perfSamples, stubUsageReads, usageStats, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -1467,10 +1467,12 @@ test('links: a first-time designer gets the orientation, and can always get it b
     // first-ever visitor was flagged and shown nothing. Expiry is right for an announcement and
     // wrong for a mental model, so the two were split.
     //
-    // Deliberately NOT seeding `myb_links_welcome_seen`, which every other Links spec does: this one
-    // is about the designer who has never opened the page.
+    // Deliberately UN-seeding `myb_links_welcome_seen`, which every other Links spec sets and
+    // `seedSession` has set too since the Playwright 1.63 upgrade: this one is about the designer who
+    // has never opened the page. The clear is a later init script, so it runs after the seed.
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
+    await clearNoticeFlags(page, ['myb_links_welcome_seen']);
     await page.goto('/links.html');
 
     const panel = page.locator('#linksWelcomeLb');
@@ -2573,15 +2575,15 @@ test('admin: a drawer pill or the logo asks before leaving staged edits', async 
     // Leave, from the drawer, runs the pill's own work too: the navigation it starts names the
     // edited month.
     //
-    // STOPPED AT THE NETWORK, ON PURPOSE (v24.97). Playwright 1.56's WebKit crashes its web process on
-    // any cross-document navigation made after two pushState calls and a history.back(), and this
+    // STOPPED AT THE NETWORK, ON PURPOSE (v24.97). Playwright 1.56's WebKit crashed its web process
+    // on any cross-document navigation made after two pushState calls and a history.back(), and this
     // flow is exactly that: the drawer's entry, the dialog's entry, the dialog closing. Four lines
-    // with nothing of the app in them crash it the same way, on both WebKit projects, here and on
-    // CI; Playwright 1.63's WebKit does not (KNOWN_LIMITATIONS.md → "Playwright's WebKit crashes").
-    // So the Calendar is answered 204 No Content, which every browser treats as "stay on this
-    // page", and the test reads what Leave asked for. Letting the Calendar load would fail every
-    // WebKit run for a fault the app does not have; whether the Calendar honours the month is the
-    // next test, which opens it without a dialog.
+    // with nothing of the app in them crashed it the same way, on both WebKit projects, here and on
+    // CI. Playwright 1.63's WebKit (2359) does not — re-run 3 Nov 2026, three out of three
+    // (KNOWN_LIMITATIONS.md → "Playwright's WebKit crashed"). The stop stays because it is right on
+    // either build: the Calendar is answered 204 No Content, which every browser treats as "stay on
+    // this page", and the test reads what Leave asked for. Whether the Calendar honours the month is
+    // the next test, which opens it without a dialog.
     const leaving = page.waitForRequest((req) => req.isNavigationRequest() && !req.url().includes('admin.html'));
     await page.route((url) => url.pathname === '/', (route) => route.fulfill({ status: 204 }));
     await page.locator('#navMenuBtn').click();
@@ -6573,10 +6575,26 @@ test('every page renders in Inter, not a browser default', async ({ page }) => {
         await page.goto(url);
         // `body` carries it for the page; `h1` is checked too because the header is shared chrome —
         // if it ever stopped inheriting, every page's masthead would go serif at once.
-        const seen = await page.evaluate(() => ({
-            body: getComputedStyle(document.body).fontFamily,
-            h1: document.querySelector('h1') ? getComputedStyle(document.querySelector('h1')).fontFamily : 'Inter',
-        }));
+        //
+        // A FRESH COMPUTATION, NEVER A CACHED ONE (3 Nov 2026, the Playwright 1.63 upgrade). WebKit
+        // 2359 under the iPhone profile hands back a STALE computed style for the Pay Calculator's
+        // body: the browser's defaults (`-webkit-standard`, no background, 16px), on every load, while
+        // the page on screen is navy and in Inter — a screenshot taken at that instant shows it, with
+        // JavaScript off the reading is right, and it comes right by itself ~1.8s later, the moment
+        // the sticky bar first writes a class to body. Nothing in the app reads that value. A
+        // throwaway custom property set inline forces WebKit to compute body afresh (four loads out
+        // of four; a made-up CLASS does not, because no rule names it). It cannot supply a typeface
+        // the stylesheet does not, so a page with no body font still fails here — mutation-checked.
+        const seen = await page.evaluate(() => {
+            document.body.style.setProperty('--e2e-restyle', '1');
+            const found = {
+                body: getComputedStyle(document.body).fontFamily,
+                h1: document.querySelector('h1') ? getComputedStyle(/** @type {Element} */ (document.querySelector('h1'))).fontFamily : 'Inter',
+            };
+            document.body.style.removeProperty('--e2e-restyle');
+            if (!document.body.getAttribute('style')) document.body.removeAttribute('style');
+            return found;
+        });
         if (!/^Inter\b/.test(seen.body)) wrong.push(`${url} body → ${seen.body}`);
         if (!/^Inter\b/.test(seen.h1))   wrong.push(`${url} h1 → ${seen.h1}`);
     }

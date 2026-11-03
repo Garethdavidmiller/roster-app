@@ -4,6 +4,7 @@
 
 import { expect } from '@playwright/test';
 import { ROTATING_LINES } from '../links-design.js';
+import { shouldReport } from '../client-errors.js';
 
 // Collect uncaught JS exceptions on a page. Firebase network/auth errors are
 // filtered out — they're expected when running against localhost with no valid
@@ -18,6 +19,15 @@ export function collectFatalErrors(page) {
             msg.toLowerCase().includes('network request failed') ||
             msg.toLowerCase().includes('failed to fetch')
         ) return;
+        // WHAT THE APP'S OWN ERROR LOG IGNORES, THIS IGNORES TOO (3 Nov 2026, Playwright 1.63). Chromium
+        // 153 rejects the declarative page-to-page view transition (`@view-transition` in shared.css)
+        // when a test navigates mid-transition — "Transition was aborted because of invalid state" —
+        // which Android Chrome 152 already did on real phones; Chromium 141 never did under test.
+        // client-errors.js keeps exactly that out of the Error Log, with the reasoning, so this asks
+        // the same rule rather than restating it. Called with the message alone, it drops only
+        // browser noise (that, "Script error.", ResizeObserver loops, a service-worker update that
+        // failed on a network blip): any error the app would log still fails the test.
+        if (!shouldReport(msg.trim(), '', 'localhost')) return;
         errors.push(msg);
     });
     return errors;
@@ -62,6 +72,12 @@ export function seedSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 6–12 Dec 2026: left out until the 72-hour review (v24.96)
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        // The Links first-visit panel ("How Links works") joined them at the 1.63 upgrade, for the
+        // reason above: it opens after load and covers the burger, and Overtime's every-page sweep
+        // dismissed it only if it was ALREADY up — under WebKit 2359 it opened a moment later, every
+        // time. The Links specs set this key themselves, which is why only a sweep passing THROUGH
+        // Links met the panel; the one spec ABOUT it re-enables it with clearNoticeFlags.
+        localStorage.setItem('myb_links_welcome_seen', '1');
     }, name);
 }
 
