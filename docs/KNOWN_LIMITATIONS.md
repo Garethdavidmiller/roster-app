@@ -1,10 +1,39 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v25.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.20 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
 ---
+
+## Left open by the full check of 3 November 2026 (v25.20) — each an owner decision
+
+The bug, regression and technical-debt check behind v25.20 fixed what was plainly broken. These it
+left, each for a decision rather than a default:
+
+- **Windows High Contrast hides most chosen states.** In forced colours a chosen button and an
+  unchosen one look alike, except Trains' view tabs and New link's tiles, which carry a forced-colours
+  rule. Older than the v25.16 recolour: navy and the gold underline vanished there too. It matters
+  if anybody uses High Contrast; the station PC is Windows. `e2e/forced-colors.spec.js` is the place
+  to extend.
+- **Two colour questions.** Operations' roster review fills every chosen type pill orange, where
+  Admin gives each type its own colour, and answers "Swapped / Rest day" in orange in one place and
+  green in another (Admin: leave's teal). A date picker's chosen day is still navy, the last navy
+  choice (`.claude/rules/css-tokens.md` → "Whatever you have chosen").
+- **CI actions still target Node 20**: `actions/cache` v4.3.0 (nine uses) and
+  `google-github-actions/auth` v2.1.13 (four, every deploy). GitHub forces them onto Node 24 today;
+  they stop when Node 20 is removed.
+- **The deploy tool runs on Node 20** (end of life April 2026). The recorded reason, a "Failed to
+  authenticate" on Node 22 (`deploy-functions.yml`), dates from the key-file sign-in that keyless
+  deploys replaced, and was never retested.
+- **CLAUDE.md is at its 125,000-character cap**, so every correction there is paid for by a cut.
+- **Weight**: `.git` is 1.4 GB; `docs/links-24` holds 34 MB that nothing reads; the 18 MB Links 26
+  zip is in 19 commits.
+- **Size**: ten of the 28 modules in `coordinator-ratchet.test.mjs` sit exactly at their cap;
+  stylesheets have no cap (`index.css` 3,842 lines); `e2e/pages.spec.js` is 10,491 lines.
+- **Unguarded twins**: `withTimeout` (`login-overlay.js`, `password-force.js` — drifted, harmlessly:
+  only the second sets `myb/timeout`, and only its own callers read it), `isRest`, `minutesOf` and
+  `adjustScrollOffsets`. About 150 colours written as `rgb()`/`rgba()` pass `css-hex-parity` unseen.
 
 ## The Pages mirror costs every cold load 21% more bytes (measured 5 Sep 2026)
 

@@ -1368,7 +1368,7 @@ body.auth-ready .container { display: grid; }
 }
 
 /* ---- Page identity ---- */
-/* The page's colour, purple: the header badge, the About badge and the card-title tiles all
+/* The page's colour, purple: the header badge, the About badge and every chosen control all
    read it (shared.css :root → "Page identity", v25.14). Declared once, here.
    (The About badge carried a full-strength purple border until then, where every other page's
    was a 35% tint — the drift one shared rule exists to stop.) */
@@ -1604,7 +1604,9 @@ body.auth-ready .container { display: grid; }
 .dm-menu-btn--danger { color: var(--error-red); }
 .dm-menu-btn--danger .dm-menu-ic { background: color-mix(in oklch, var(--error-red) 9%, white); color: var(--error-red); }
 @media (hover: hover) and (pointer: fine) { .dm-menu-btn--danger:hover:not(:disabled) { background: color-mix(in oklch, var(--error-red) 9%, white); } }
-.dm-menu-btn.compare-active .dm-menu-ic { background: color-mix(in oklch, var(--accent-gold) 22%, white); color: var(--gold-text); }
+/* Compare mode ON is a state, so its tile takes the page's colour (v25.20 — it was the gold of the PRIMARY
+   item above, an emphasis, not a choice). The primary tile keeps its gold: it marks an action. */
+.dm-menu-btn.compare-active .dm-menu-ic { background: color-mix(in oklch, var(--page-accent) 22%, white); color: var(--page-accent-text); }
 
 /* Recently-deleted panel.
    `.lb-content` alone is only the base — transform/scroll/cursor. Every real overlay in the app

@@ -1217,7 +1217,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 /* The inline email Set/Edit form sits full-width under the email line inside the row. */
 .acct-row .email-set-form { margin: 2px 0 0; }
 
-/* The page's colour, orange: the header badge, the About badge and the card-title tiles all
+/* The page's colour, orange: the header badge, the About badge and every chosen control all
    read it (shared.css :root → "Page identity", v25.14). Declared once, here.
    Navy text on the bright orange, and --orange-text where it is read on a pale tint — bright
    orange on its own tint was 1.93:1; --orange-text is 7.26:1 (v25.12). */
@@ -1917,9 +1917,12 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     color: var(--text-mid);
     cursor: pointer;
 }
+/* The month it shows is a CHOICE, so it wears the page's colour (v25.20 — it was navy, the colour of a
+   button that does something, beside this page's orange chosen pills; the v25.16 sweep missed it because
+   its state is spelled `--on`, which page-identity-parity's walk did not read until then). */
 .speed-toggle-btn--on {
-    background: var(--primary-blue);
-    color: white;
+    background: var(--page-accent);
+    color: var(--page-accent-ink);
 }
 
 /* The three "opening a page" moments (✨ First appears / 📦 Code loaded / ✅ Usable) and "By page" —

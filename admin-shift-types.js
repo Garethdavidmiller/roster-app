@@ -37,7 +37,7 @@ export const TYPES = {
     // Legacy types — no pill buttons; kept so old Saved Changes records display correctly.
     // SUNSET: these are display-only (never creatable). Delete this block + the `legacyToShift` map +
     // the `isLegacyType` guard + 'allocated'/'overtime'/'swap' from `WORKED_OVERRIDE_TYPES` (search
-    // those symbol names — line anchors drift in this ~1700-line file) once a one-time Firestore
+    // those symbol names — line anchors drift) once a one-time Firestore
     // migration rewrites any surviving legacy-typed override docs to their modern equivalents
     // (allocated/overtime→shift, swap→shift). Until that migration runs, removing these would make
     // old records render as UNKNOWN.

@@ -46,7 +46,7 @@ body {
    intentionally has NO colour override, so its action buttons match every
    other page (the old gold-text override broke page-to-page consistency). */
 
-/* The page's colour, indigo: the header badge, the About badge and the card-title tiles all
+/* The page's colour, indigo: the header badge, the About badge and any chosen control all
    read it (shared.css :root → "Page identity", v25.14). Declared once, here. */
 :root {
     --page-accent:      var(--indigo);
@@ -324,8 +324,8 @@ body {
 /* The ROW carries the field's bottom margin, not the input (polish pass). With the margin on the
    input, `align-items: stretch` made the domain box stretch through it — the suffix measured 56px
    against a 42px field, hanging 14px below the box it labels. The domain also takes the FIELD's
-   radius (`--radius-sm`), not `--radius-md`, so the joined pair reads as one control with two
-   matching ends rather than a square-ish field glued to a rounder tab. */
+   radius (`--radius-field`), so the joined pair reads as one control with two matching ends rather
+   than a square-ish field glued to a rounder tab. */
 .contact-email-row { display: flex; align-items: stretch; gap: 0; margin-bottom: 14px; }
 .contact-email-row .contact-email-input {
     flex: 1 1 auto;
@@ -351,13 +351,17 @@ body {
     white-space: nowrap;
 }
 /* Below ~380px the domain and a usable field cannot share a row, so it drops beneath — still
-   visible, which is the whole requirement, without squeezing the field it labels. */
+   visible, which is the whole requirement, without squeezing the field it labels. Stacked, each is a
+   whole box again, with the field's edge and corner on all four sides: this block still said
+   `--radius-sm` and a 1.5px pale left edge after v25.12 moved the fields to `--radius-field` and
+   `--field-border`, so at 360 and 375px — the commonest phones — the email box had 8px corners beside
+   the password boxes' 12px, and the domain a fainter left edge than its other three (fixed v25.20). */
 @media (max-width: 380px) {
     .contact-email-row { flex-direction: column; }
-    .contact-email-row .contact-email-input { border-radius: var(--radius-sm); }
+    .contact-email-row .contact-email-input { border-radius: var(--radius-field); }
     .contact-email-domain {
-        border-left: 1.5px solid var(--border-light);
-        border-radius: var(--radius-sm);
+        border-left: var(--field-border);
+        border-radius: var(--radius-field);
         margin-top: 4px;
         padding: 4px 10px;
     }

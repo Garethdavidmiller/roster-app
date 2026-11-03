@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v25.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.20 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -1140,7 +1140,9 @@ about it is live: it reads no network, and its times change only when somebody r
 - **Christmas and New Year are not in the books.** Chiltern's timetable page says it will still
   change times between 13 December and 10 January, "including significant changes over the Christmas
   and New Year period", so the overview says Christmas and New Year are not on the page until
-  `FURTHER_CHANGES_UNTIL` (10 January 2027), then drops the note by itself.
+  `FURTHER_CHANGES_UNTIL` (10 January 2027), then drops the note by itself. The note sits above the
+  overview's fold, so it shows on every visit, not only the first (v25.20 — inside the fold, a
+  returning member never saw it).
 - **Never commit the inputs.** The PDFs and the simplifier spreadsheets stay out of the repository
   (the tooling's `.gitignore` refuses them); the spreadsheets hold platforms, lengths and diagrams
   that are not passenger facts.

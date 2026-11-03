@@ -2433,7 +2433,7 @@
             box-shadow: inset 0 0 0 1.5px var(--accent-gold);
         }
         /* Admin's colour is gold, and it is declared like every other page's (v25.14 — shared.css
-           :root → "Page identity"): the About badge and the card-title tiles read it. The header
+           :root → "Page identity"): the About badge and every chosen control read it. The header
            badge above is the one place it is worn differently, for the reason given there. */
         :root {
             --page-accent:      var(--accent-gold);
@@ -2507,7 +2507,11 @@
         .staged-discard-btn:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
         .staged-save-btn:focus-visible    { outline: var(--focus-outline); outline-offset: 2px; }
 
-        /* ---- "All staff" toggle button in the overrides list toolbar ---- */
+        /* ---- "All staff" toggle button in the overrides list toolbar ----
+           It says what pressing it DOES ("All staff" ↔ "This member only", admin-saved-changes.js)
+           rather than lighting up, so it has no chosen fill. An `.active` rule sat here from its first
+           version to v25.16 and nothing ever set the class; it was recoloured at v25.16 with the
+           app's other chosen states and only then found unused, so it went at v25.20. */
         .btn-show-all-overrides {
             background: white;
             border: 1.5px solid var(--border-light);
@@ -2521,13 +2525,8 @@
             font-family: inherit;
             transition: all 0.12s;
         }
-        .btn-show-all-overrides.active {   /* chosen: the page's colour (v25.16 — was navy) */
-            background: var(--page-accent);
-            border-color: var(--page-accent);
-            color: var(--page-accent-ink);
-        }
         @media (hover: hover) and (pointer: fine) {
-            .btn-show-all-overrides:not(.active):hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+            .btn-show-all-overrides:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
         }
         .btn-show-all-overrides:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 

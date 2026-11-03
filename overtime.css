@@ -102,7 +102,7 @@ body {
    This file once defined NO colour rule, so the header chip fell back to the
    shared default — GOLD, the Calendar's colour — and the page wore two identity
    colours, neither of which was its own; the About badge had the same fall-through
-   until v25.12. Every page now declares its colour once, here in :root: the header badge, the About badge and the card-title tiles all read it (shared.css :root → "Page identity", v25.14). Declared once, here.
+   until v25.12. Every page now declares its colour once, here in :root: the header badge, the About badge and every chosen control all read it (shared.css :root → "Page identity", v25.14). Declared once, here.
    `--ot` is the app's overtime colour and predates this page entirely. --ot on its
    15% tint is 4.68:1. */
 :root {
@@ -362,7 +362,10 @@ body {
     font-weight: 700;
     cursor: pointer;
     white-space: nowrap;
-    transition: background var(--dur-fast) var(--ease-standard);
+    /* The colour moves WITH the fill (v25.20): "View" is pressed in place, and white text arriving
+       before its dark ground left a moment of white on white (css-tokens.md → "turns DARK when chosen"). */
+    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+                border-color var(--dur-fast) var(--ease-standard);
 }
 
 .ot-row-btn:hover  { background: var(--bg-light); }
