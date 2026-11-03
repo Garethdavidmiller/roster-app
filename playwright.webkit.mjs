@@ -135,9 +135,10 @@ import { devices } from '@playwright/test';
 // is 390×844; every iPhone Pro since the 15 — the 16 Pro, the 17 Pro and the 18 Pro, which is to a
 // web page the same device as the 17 Pro — is 402×874 at the same density. The user agent and DPR
 // stay the descriptor's, because the ENGINE is what this lane tests and a UA string changes no
-// layout. Playwright 1.56 has no 17 Pro descriptor; the upgrade that carries one (and a newer WebKit)
-// is its own change, with the Chromium baseline churn it brings — KNOWN_LIMITATIONS.md, "The test
-// matrix and the phones staff carry".
+// layout. Playwright 1.63 carries a 17 Pro descriptor (1.56 had none). Swapping to it would change only
+// the iOS number in the user agent (15_0 to 18_7), which the app never reads — print-guard.js says why
+// it stopped — so the lane keeps the 13's descriptor under this override. KNOWN_LIMITATIONS.md, "The
+// test matrix and the phones staff carry".
 export const IPHONE_PRO_VIEWPORT = { width: 402, height: 874 };
 
 export default {

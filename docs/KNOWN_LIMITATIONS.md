@@ -262,28 +262,40 @@ shared by `playwright.visual-webkit.mjs`, and by the four visual tests that grow
 tall surface — a 24-hour review found those still at 390 after the first pass); the six WebKit
 baselines were regenerated and the full WebKit smoke suite re-run at the new width before this shipped.
 
-**Not done, deliberately: the Playwright upgrade.** The repo pins `@playwright/test` 1.56.1, whose
-newest iPhone descriptor is the 15 Pro; 1.63.0 carries 17 Pro descriptors and a newer WebKit build
-(2359, nearer Safari 27 than the 2215 run here, which identifies as Safari 26). Two things make that
-its own change rather than a line in this one:
+**The Playwright upgrade: 1.56.1 → 1.63.0 (3 Nov 2026, owner: "Can you update the version of
+playwright in the repo?"),** in a pull request whose only subject it is, as this paragraph asked. It
+brings Chromium 1243 (Chromium 153), WebKit 2359 (Safari 26.6, against the 2215 that identified as
+Safari 26.0) and an iPhone 17 Pro descriptor. The paragraph used to say why it waited; both reasons
+moved:
 
-- **It moves the Chromium the deploy gate runs on** (1194 → 1243, Chromium 153), and every one of
-  the 51 committed Chromium visual baselines (3 Nov 2026) was rendered on 1194. They would all drift at once, and
-  the dev container's pre-installed Chromium is 1194, so they cannot be regenerated here to match
-  what CI would render — the regeneration has to happen on the CI renderer, reviewed as one commit.
-- **A geometry override already delivers the audit's point.** A descriptor is a viewport, a density
-  and a user-agent string; the string changes no layout, and the engine is the same binary whatever
-  it claims to be. The upgrade's real value is the newer WebKit, which is a reason to do it, in a
-  pull request whose only subject it is.
+- **The baselines were redrawn on the Chromium CI now runs.** The dev container's pre-installed
+  Playwright had become 1.63.0, with Chromium 1243, on the same Ubuntu 24.04 as the runners — so the
+  obstacle (a container on 1194) was gone, and the repo moved to the container rather than past it.
+  All 51 Chromium baselines drifted, as predicted: Chromium 153 measures Inter slightly differently,
+  so some lines break a word earlier or later (the App Speed card grew 17 px) and glyph edges moved
+  everywhere else. The biggest were looked at; nothing moved but text. **Not 1.64.1, the newest**,
+  for the same reason: it would put CI on a Chromium nobody can redraw a baseline on here. Moving on
+  is a one-line change once the container carries it.
+- **WebKit 2359 met the suite first in CI.** It is not pre-installed in the container, which never
+  runs `playwright install` (`.claude/hooks/session-start.sh`).
+- **Chromium 153 raises one new browser error under test.** It abandons the declarative page-to-page
+  view transition (`@view-transition` in `shared.css`) when a test navigates mid-transition —
+  "Transition was aborted because of invalid state" — as Android Chrome 152 already did on real
+  phones, and the Error Log already ignores it (`client-errors.js`). Four smoke tests that assert no
+  uncaught errors met it on the first run. `collectFatalErrors` (`e2e/helpers.js`) now asks the same
+  rule, `shouldReport`, so a test fails on exactly what the app would log.
+- **The 17 Pro descriptor is not used.** A descriptor is a viewport, a density and a user-agent
+  string; the WebKit lane keeps the 13's under its 402×874 override, because a swap would change only
+  the user agent's iOS number, which the app never reads (`playwright.webkit.mjs`).
 
 Landscape (874×402, 956×440) is NOT in the matrix either, on purpose: Playwright's Linux WebKit
 reports every safe-area inset as zero, so a landscape baseline would prove nothing about the Dynamic
 Island insets the audit's B11 added, and the smoke suite's layout assertions are written for
 portrait. A real iPhone in landscape is on the device checklist in the audit, not in CI.
 
-### Every browser job is pinned to Ubuntu 24.04 until Playwright moves on (30 Oct 2026, v25.01)
+### Every browser job is pinned to Ubuntu 24.04 (30 Oct 2026, v25.01; Playwright no longer the reason since 3 Nov)
 
-GitHub's `ubuntu-latest` became **Ubuntu 26.04** in the last week of October 2026, and Playwright 1.56.1 supports
+GitHub's `ubuntu-latest` became **Ubuntu 26.04** in the last week of October 2026, and Playwright 1.56.1 supported
 nothing newer than 24.04. On the new image `npx playwright install-deps` prints "Cannot install dependencies for
 ubuntu26.04-x64" and **exits 0**, so the libraries step passed, and every WebKit test then failed at browser launch
 (408 of 409 in one shard) — while Chromium happened to launch, and both visual lanes, drawn on 24.04, reported drift.
@@ -292,8 +304,10 @@ visual-webkit; the deploy gate in deploy-hosting.yml; live-health, offline and w
 written once, on e2e.yml's smoke job.
 
 **Deferred:**
-- When a Playwright release supports 26.04, upgrade it and move all nine back together. One job left on 24.04 would
-  test a browser the others do not, and the WebKit and visual baselines would need regenerating on the new image anyway.
+- **Playwright 1.63.0 supports 26.04** (the repo's since 3 Nov 2026), so what holds the nine now is the baselines:
+  they are drawn on 24.04, in a dev container that is 24.04. Move all nine together, as their own change, with every
+  Chromium and WebKit baseline redrawn on the new image — from CI's own render, since nothing here draws 26.04's.
+  One job left on 24.04 would test a browser the others do not.
 - `install-browser-deps` still reports success when Playwright declines to install. Its fallback `exec`s the plain
   command, whose exit status is 0 here; a check that the browser launches would name the failure at the step that
   caused it, rather than four hundred tests later. `workflow-hygiene.test.mjs` pins the fallback's shape, so that is a
@@ -301,7 +315,7 @@ written once, on e2e.yml's smoke job.
 
 ### Playwright's WebKit crashes when a page leaves after two history entries and a Back (measured Oct 2026, v24.97)
 
-The WebKit that Playwright 1.56.1 runs here (build 2215, "Safari 26.0") **crashes its web process**
+The WebKit that Playwright 1.56.1 ran (build 2215, "Safari 26.0") **crashes its web process**
 on a cross-document navigation made after two `history.pushState` calls and a `history.back()`. It
 crashes on `assign` and `replace` alike, on both WebKit projects, here and on CI. The page never
 commits. Playwright reports *"waiting for … navigation to finish"* until the assertion times out,
@@ -333,8 +347,10 @@ logo asks before leaving staged edits` and the test after it in `e2e/pages.spec.
 this. **Never skip such a test on WebKit**: it is the lane's only view of the dialog, the drawer and
 the guard on Safari's engine.
 
-**When Playwright is upgraded** (the change described above), run those four lines again. If WebKit
-navigates, this entry can go, and the Leave test can let the Calendar load again.
+**Playwright was upgraded to 1.63.0 on 3 Nov 2026 (WebKit 2359), and those four lines have not been
+re-run yet.** 2359 is not pre-installed in the dev container, which never runs `playwright install`. Run
+them wherever it is installed. If WebKit navigates, this entry can go, and the Leave test can let the
+Calendar load again; until then the test stays as it is, which is correct on either build.
 
 ## Security
 

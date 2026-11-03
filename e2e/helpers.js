@@ -4,6 +4,7 @@
 
 import { expect } from '@playwright/test';
 import { ROTATING_LINES } from '../links-design.js';
+import { shouldReport } from '../client-errors.js';
 
 // Collect uncaught JS exceptions on a page. Firebase network/auth errors are
 // filtered out — they're expected when running against localhost with no valid
@@ -18,6 +19,15 @@ export function collectFatalErrors(page) {
             msg.toLowerCase().includes('network request failed') ||
             msg.toLowerCase().includes('failed to fetch')
         ) return;
+        // WHAT THE APP'S OWN ERROR LOG IGNORES, THIS IGNORES TOO (3 Nov 2026, Playwright 1.63). Chromium
+        // 153 rejects the declarative page-to-page view transition (`@view-transition` in shared.css)
+        // when a test navigates mid-transition — "Transition was aborted because of invalid state" —
+        // which Android Chrome 152 already did on real phones; Chromium 141 never did under test.
+        // client-errors.js keeps exactly that out of the Error Log, with the reasoning, so this asks
+        // the same rule rather than restating it. Called with the message alone, it drops only
+        // browser noise (that, "Script error.", ResizeObserver loops, a service-worker update that
+        // failed on a network blip): any error the app would log still fails the test.
+        if (!shouldReport(msg.trim(), '', 'localhost')) return;
         errors.push(msg);
     });
     return errors;
