@@ -23,13 +23,25 @@ left, each for a decision rather than a default:
   retired key file; if a deploy ever fails to authenticate, the comment at the top of
   `deploy-functions.yml` names the lines to set back to '20'.
 - **CLAUDE.md is at its 125,000-character cap**, so every correction there is paid for by a cut.
-- **Weight**: `.git` is 1.4 GB; `docs/links-24` holds 34 MB that nothing reads but two `links-compare-analysis.test.mjs` fixtures (`docs/links-24/proposals/` — move those first); the 18 MB Links 26
-  zip is in 19 commits.
+- **Weight**: `.git` is 1.4 GB. **The Links 26 pack zip is built on demand since 3 Nov 2026** (owner):
+  each committed copy had added ~15 MB to the history, sixteen times; it is untracked now (`*.zip` was
+  already ignored — it had been force-added) and `tooling/pack.py` says to run the script and send the
+  file. The copies already committed stay in history; rewriting it was ruled out. `docs/links-24` is
+  read by more than this line used to say: its proposal files are fixtures for
+  `links-compare-analysis.test.mjs` AND `links-compare.test.mjs`, and the Links 26 tooling reuses its
+  scripts. Its own 13 MB zip no longer changes, so it costs checkout size and nothing more.
 - **Size**: ten of the 28 modules in `coordinator-ratchet.test.mjs` sit exactly at their cap;
   stylesheets have no cap (`index.css` 3,861 lines on 3 Nov 2026); `e2e/pages.spec.js` is 10,580 lines.
-- **Unguarded twins**: `withTimeout` (`login-overlay.js`, `password-force.js` — drifted, harmlessly:
-  only the second sets `myb/timeout`, and only its own callers read it), `isRest`, `minutesOf` and
-  `adjustScrollOffsets`. About 150 colours written as `rgb()`/`rgba()` pass `css-hex-parity` unseen.
+- **Twins, settled the same day.** `isRest` and the window-row conversion are one copy each now
+  (`links-design.js`; `rowMinutes` in `links-window.js`). Two stay apart on purpose: `withTimeout`
+  (`login-overlay.js`, `password-force.js`) — login's copy ignores the error and the other's callers
+  read its `myb/timeout` code, and sharing one would pull the Firebase module graph into the sign-in
+  overlay's unit tests or need a new module, for six lines; and `adjustScrollOffsets`, one idea with a
+  different target per guide (`railcard-guide.js`, `rangers-guide.js`), in classic scripts with no
+  shared module. About 150 colours written as `rgb()`/`rgba()` pass `css-hex-parity` unseen.
+- **Overtime stays paused** (owner, 3 Nov 2026). Its page, Cloud Functions and tests — about 19,000
+  lines — are kept and keep running in CI, so it can be switched back on; removing it was offered and
+  declined.
 
 ## The Pages mirror costs every cold load 21% more bytes (measured 5 Sep 2026)
 

@@ -79,7 +79,7 @@
  * estimate. `hoursAreFloor` is returned so the UI can say so rather than imply precision.
  */
 
-import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, runLengthsWhere, SPARE_WORKED_DAYS, spareDrawsOnFour } from './links-design.js';
+import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, runLengthsWhere, SPARE_WORKED_DAYS, spareDrawsOnFour, isRest } from './links-design.js';
 // FF18 is the one factor here whose subject is what happens BETWEEN lines, so it is the one that
 // needs the adjacency maths. Direction is fatigue → adjacency → design; `links-adjacency.js` imports
 // only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
@@ -101,8 +101,9 @@ function _hm(mins) {
     return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
-/** @param {any} s */
-export function isRest(s) { return !s || s === 'RD' || s === 'OFF'; }
+// The rest predicate lives in links-design.js (v25.23), re-exported here for the readers that import it
+// from this module; links-adjacency.js reads the same one.
+export { isRest };
 /** @param {any} s */
 export function isWorked(s) { return !isRest(s); }
 

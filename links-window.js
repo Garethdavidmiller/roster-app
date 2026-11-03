@@ -55,6 +55,16 @@ export function windowMinutes(value) {
 }
 
 /**
+ * A window row's staffed span, in minutes since midnight. The one conversion both Coverage readings
+ * make — links-analysis.js for one design, links-compare-analysis.js for two — which each kept a
+ * private copy until v25.23. Call it on a NORMALISED row: its times are already valid.
+ * @param {{start: string, end: string}} row
+ */
+export function rowMinutes(row) {
+    return { start: /** @type {number} */ (windowMinutes(row.start)), end: /** @type {number} */ (windowMinutes(row.end)) };
+}
+
+/**
  * Pad a typed time to the canonical "HH:MM".
  *
  * The editor uses TEXT inputs, not `<input type="time">`: Chromium renders that widget in the OS's
