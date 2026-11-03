@@ -119,12 +119,13 @@ body {
    the top of the page read as dark gaps with faint words in them, and only the chosen tab looked
    pressable. Now:
    · the VIEW tabs are white raised tiles with navy type at full strength — the app's buttons, Layer 2 —
-     and the chosen view is Trains' own raspberry (its header badge, its drawer pill) with the gold edge
-     the app gives an active highlight (the December link page's tiles carry the same edge). Navy cannot
-     mark the chosen tab here as it does inside a card: on the navy canvas a navy tab is a hole;
-   · the DAY is one white track of three quieter segments, the chosen one navy with the same gold edge —
-     a qualifier, drawn differently so the six never read as one six-button grid.
-   Gold stays an EDGE, never a fill: a gold slab was the loudest thing on the page when it was tried. */
+     and the chosen view is Trains' own raspberry (its header badge, its drawer pill);
+   · the DAY is one white track of three quieter segments — a qualifier, drawn differently so the six
+     never read as one six-button grid — and its chosen day is the same raspberry.
+   EVERY chosen control on this page is that raspberry, flat (v25.16; shared.css → "CHOSEN = THE PAGE'S
+   COLOUR"). Until then the view was raspberry and the day navy, both with a gold underline, so the
+   two rows answering the one question "which?" disagreed about it (owner, with a screenshot). The gold
+   underline went too: it was a second signal on a choice the fill already makes. */
 .tr-controls {
     display: flex;
     flex-direction: column;
@@ -151,10 +152,10 @@ body {
 }
 .tr-tab:active { transform: scale(var(--press-scale)); }
 .tr-tab[aria-pressed="true"] {
-    background: var(--raspberry);
-    border-color: var(--raspberry);
-    color: white;
-    box-shadow: inset 0 -3px 0 var(--accent-gold), var(--shadow-1);
+    background: var(--page-accent);
+    border-color: var(--page-accent);
+    color: var(--page-accent-ink);
+    box-shadow: var(--shadow-1);
 }
 @media (hover: hover) and (pointer: fine) {
     .tr-tab:not([aria-pressed="true"]):hover { background: white; border-color: white; }
@@ -177,11 +178,11 @@ body {
 }
 .tr-tabs--seg .tr-tab { padding: 5px 8px; border-color: transparent; background: transparent; box-shadow: none; font-weight: 600; }
 .tr-tabs--seg .tr-tab[aria-pressed="true"] {
-    background: var(--primary-blue);
-    border-color: var(--primary-blue);
-    color: white;
+    background: var(--page-accent);
+    border-color: var(--page-accent);
+    color: var(--page-accent-ink);
     font-weight: 700;
-    box-shadow: inset 0 -3px 0 var(--accent-gold);
+    box-shadow: none;
 }
 @media (hover: hover) and (pointer: fine) {
     .tr-tabs--seg .tr-tab:not([aria-pressed="true"]):hover { background: var(--bg-faint); border-color: var(--bg-faint); }
@@ -215,10 +216,11 @@ body {
     text-transform: uppercase;
 }
 /* A tab strip INSIDE a card (direction, Now / From 13 Dec) sits on the card surface: white raised
-tabs with navy type, the chosen one navy with the gold edge — the December link page's in-card choice
-(2 Nov 2026, the same "lack pop" note). It was the Pay Calculator's outlined tabs, whose unchosen one is
-grey type on no fill — readable, and the least pressable-looking thing on the card. Until v24.93 it was
-a sunken track whose chosen tab went white, a third recipe for one job. */
+tabs with navy type, the chosen one the page's raspberry like every other choice here (v25.16 — it was
+navy with a gold edge). The raised tabs came on 2 Nov 2026, the same "lack pop" note; before that it
+was the Pay Calculator's outlined tabs, whose unchosen one is grey type on no fill — readable, and the
+least pressable-looking thing on the card. Until v24.93 it was a sunken track whose chosen tab went
+white, a third recipe for one job. */
 .tr-tabs--in-card { margin: 12px 0; }
 @media (min-width: 1024px) { .tr-tabs--in-card { max-width: 420px; } }
 .tr-tabs--in-card[hidden] { display: none !important; }
@@ -228,10 +230,10 @@ a sunken track whose chosen tab went white, a third recipe for one job. */
     color: var(--primary-blue);
 }
 .tr-tabs--in-card .tr-tab[aria-pressed="true"] {
-    background: var(--primary-blue);
-    border-color: var(--primary-blue);
-    color: white;
-    box-shadow: inset 0 -3px 0 var(--accent-gold), var(--shadow-1);
+    background: var(--page-accent);
+    border-color: var(--page-accent);
+    color: var(--page-accent-ink);
+    box-shadow: var(--shadow-1);
 }
 @media (hover: hover) and (pointer: fine) {
     .tr-tabs--in-card .tr-tab:not([aria-pressed="true"]):hover { background: var(--bg-faint); border-color: var(--primary-blue); }
@@ -511,7 +513,7 @@ v24.93 they were sunken capsules at 13px, a recipe no other page has. */
                 transform var(--dur-fast) var(--ease-standard);
 }
 .tr-pick:active { transform: scale(var(--press-scale)); }
-.tr-pick[aria-pressed="true"] { background: var(--primary-blue); border-color: var(--primary-blue); color: white; }
+.tr-pick[aria-pressed="true"] { background: var(--page-accent); border-color: var(--page-accent); color: var(--page-accent-ink); }
 .tr-pick:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .tr-pick:not([aria-pressed="true"]):hover { color: var(--primary-blue); } }
 /* Density is a pointer decision, not a width one (css-tokens.md): on a mouse the pills take Admin's

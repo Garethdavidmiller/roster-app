@@ -6,7 +6,8 @@
  * header badge and the About badge — and the copies had already drifted: Links' About badge had a
  * full-strength border where every other page's was a 35% tint. v25.14 made the colour three tokens
  * each page declares in its own `:root` (shared.css → "Page identity"), read by the header badge,
- * the About badge and the card-title icon tiles. Three things keep that true, one test each:
+ * the About badge, a picker sheet's current row and — since v25.16 — every chosen control. Four
+ * things keep that true, one test each:
  *
  *   1. Every card page declares the whole trio, once, at the top level of its own stylesheet. A
  *      missing token is not an error anything reports — the browser falls back to the default, so a
@@ -17,10 +18,16 @@
  *   3. The colour a page declares is the colour of the drawer pill that takes you there. The pill you
  *      tap and the badge you arrive at are one identity held in two hand-written places — the page
  *      stylesheets and the drawer's pill rules — so only a check keeps them in step.
+ *   4. A CHOSEN control fills with its page's colour (v25.16). Before, a chosen tab was navy on most
+ *      pages, raspberry on one Trains row and a gold tint on Links, so one screen could show two
+ *      colours for one idea — the owner's screenshots showed Trains' raspberry view above a navy day.
+ *      Each chosen colour was right where it was written; only reading them all together showed the
+ *      drift, so that is what the test does. A choice with a MEANING (a shift type, yes or no) keeps
+ *      its meaning's colour, and is named below with the reason.
  *
  * Admin is the one exception to 2 and 3, by decision: its header badge and its drawer pill are navy
  * with gold text rather than a gold fill (admin.css → #adminBadge says why). It still declares the
- * trio, because its About badge and its card tiles are gold like everything else gold.
+ * trio, because its About badge and its chosen controls are gold like everything else gold.
  *
  * Part of `npm run test:hygiene`.
  */
@@ -97,7 +104,7 @@ test('shared.css declares the page-identity defaults, and they are the Calendar\
         'shared.css :root must declare all three defaults — every rule that wears a page colour reads them');
 });
 
-test('shared.css\'s badge rules and the card-title tile read the page\'s tokens', () => {
+test('shared.css\'s badge rules and the picker\'s current row read the page\'s tokens', () => {
     // The other half of the wiring. The page declares; these rules must READ — a badge rule that
     // went back to a literal gold would make every page gold while every declaration stayed right.
     const shared = read('shared.css');
@@ -105,13 +112,13 @@ test('shared.css\'s badge rules and the card-title tile read the page\'s tokens'
     assert.equal(declared(shared, '.badge-page', 'color'), 'var(--page-accent-ink)');
     assert.equal(declared(shared, '.lightbox-badge', 'color'), 'var(--page-accent-text)');
     assert.match(declared(shared, '.lightbox-badge', 'background') ?? '', /var\(--page-accent\)/);
-    // The tile's selector is the exact shape card-header-parity.test.mjs pins in the markup, so the
-    // two halves are each held by text: change either and one of the two files fails.
-    const tile = '.card-header h2 > span[aria-hidden="true"]:first-child';
-    const bg = declared(shared, tile, 'background');
-    assert.ok(bg, `shared.css must keep the tile rule on exactly ${tile}`);
-    assert.match(bg, /^color-mix\(in oklch, var\(--page-accent\) \d+%, white\)$/,
-        'the tile is the page\'s colour mixed with WHITE — an oklch mix towards --surface drags every tint blue');
+    // A picker sheet's current row (v25.16 — both were the Calendar's gold on every page). The tint
+    // is mixed with WHITE: an oklch mix towards --surface drags every tint blue.
+    assert.match(declared(shared, '.picker-opt.is-current', 'background') ?? '',
+        /^color-mix\(in oklch, var\(--page-accent\) \d+%, white\)$/,
+        'the current row is a pale tint of the page\'s colour, mixed with white');
+    assert.equal(declared(shared, '.picker-opt-tick', 'color'), 'var(--page-accent-text)',
+        'the tick beside the current row is the page\'s colour as text — the token made for text on its own tint');
 });
 
 test('every card page declares its colour — all three tokens, once — at the top of its own stylesheet', () => {
@@ -170,4 +177,115 @@ test('the colour a page declares is the colour of the drawer pill that takes you
         assert.equal(declared(shared, `.${pill}`, 'color'), trio['--page-accent-ink'],
             `${page}: the drawer pill's text and the page's --page-accent-ink must match`);
     }
+});
+
+// ── 4. A chosen control wears its page's colour ──────────────────────────────────────────────────
+
+/** What says "this one is chosen" in a selector: the pressed, selected and checked states, and the
+ *  classes the pages use for the same idea. `.is-current-week` is a marker, not a choice, and the
+ *  lookahead keeps it out. */
+const CHOSEN = /\[aria-(?:pressed|selected|checked)="true"\]|\.(?:active|is-active|is-on|is-chosen|is-current)(?![\w-])|--active(?![\w-])/;
+
+/** A rule FILLS a control when it declares a background. A ring, an edge or a text colour is not a
+ *  fill, and the brush chips' armed ring (links.css) is one of those, deliberately. */
+const FILL = /(?:^|[;\s])background(?:-color)?\s*:\s*([^;]+)/;
+
+/**
+ * Every chosen fill that does NOT read --page-accent, by stylesheet and exact selector, each with its
+ * reason. A selector here that stops existing fails the test too, so the list cannot outlive its rules.
+ */
+const MEANING = {
+    'admin.css': {
+        'a shift TYPE: the colour is the type, the same one the Calendar shows for that day': [
+            '.pill-shift.active', '.pill-rdw.active', '.pill-annual_leave.active', '.pill-sick.active',
+            '.pill-correction.active', '.pill-other.active',
+        ],
+        'an Other flavour: a kind of day, coloured as that kind of day (Spare is purple everywhere)': [
+            '.other-flavour-btn.active', '.other-flavour-spare.active',
+        ],
+        'an answer about ANNUAL LEAVE (was this day swapped?), in leave\'s own colour': [
+            '.al-swap-btn[aria-pressed="true"]', '.swapday-opt[aria-pressed="true"]',
+        ],
+        'the week grid\'s ROW being edited: a row state, not a chosen control': [
+            '.day-row.active', '.day-row.has-override.active', '.day-row.active .overwrite-badge',
+        ],
+    },
+    'operations.css': {
+        'an Other flavour: a kind of day, coloured as that kind of day': ['.roster-entry-flavour.is-on'],
+        'enter or skip an unreadable cell: green for the one that writes, grey for the one that does not': [
+            '.roster-choice-btn.is-chosen', '.roster-choice-btn--skip.is-chosen',
+        ],
+        'a choice the review has BLOCKED: sunken, because it cannot be acted on': [
+            '.roster-blocked .roster-choice-btn.is-chosen',
+        ],
+    },
+    'overtime.css': {
+        'available or not: a yes and a no, which are not the same kind of answer': [
+            '.ot-mode--yes[aria-checked="true"]', '.ot-mode--no[aria-checked="true"]',
+        ],
+        'a FOLDER tab: the chosen tab is the card surface it opens onto, joined to the panel below': [
+            '.ot-tab[aria-selected="true"]',
+        ],
+    },
+};
+
+/** `sel` with every `:not(...)` removed — a `:not(.active)` hover rule is about the UNCHOSEN ones. */
+function dropNot(/** @type {string} */ sel) {
+    let out = '';
+    for (let i = 0; i < sel.length;) {
+        if (sel.startsWith(':not(', i)) {
+            let depth = 0, j = i + 4;
+            for (; j < sel.length; j++) {
+                if (sel[j] === '(') depth++;
+                else if (sel[j] === ')' && --depth === 0) break;
+            }
+            i = j + 1;
+        } else out += sel[i++];
+    }
+    return out;
+}
+
+/** A selector list split at its top-level commas. */
+function selectorsOf(/** @type {string} */ list) {
+    const out = []; let depth = 0, cur = '';
+    for (const ch of list) {
+        if (ch === '(') depth++;
+        if (ch === ')') depth--;
+        if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; } else cur += ch;
+    }
+    out.push(cur.trim());
+    return out;
+}
+
+test('a chosen control fills with its page\'s colour — or is a choice with a meaning, named here', () => {
+    const sheets = new Set(['shared.css', ...Object.values(SHEETS)]);
+    const offenders = [], seen = new Set();
+    let accented = 0;
+    for (const sheet of sheets) {
+        for (const r of rules(read(sheet))) {
+            if (r.selector.startsWith('@')) continue;
+            const fill = FILL.exec(r.body);
+            if (!fill) continue;
+            for (const sel of selectorsOf(r.selector)) {
+                if (!CHOSEN.test(dropNot(sel))) continue;
+                // NEVER NAVY, exceptions included: navy is the colour of a button that does something,
+                // and a chosen state in it is the very confusion this rule ended. A named exception is
+                // trusted with its colour, but not with that one.
+                if (/var\(--primary-blue/.test(fill[1])) { offenders.push(`${sheet}: ${sel} → ${fill[1].trim()} (navy)`); continue; }
+                if (/var\(--page-accent\)/.test(fill[1])) { accented++; continue; }
+                const named = Object.values(MEANING[sheet] ?? {}).some(list => list.includes(sel));
+                if (named) seen.add(`${sheet} ${sel}`);
+                else offenders.push(`${sheet}: ${sel} → ${fill[1].trim()}`);
+            }
+        }
+    }
+    assert.deepEqual(offenders, [],
+        'a chosen control fills with var(--page-accent) and takes var(--page-accent-ink) for its text ' +
+        '(shared.css → "CHOSEN = THE PAGE\'S COLOUR"). Navy is for a button that DOES something, so a ' +
+        'navy chosen state looks like an action. If this choice has a MEANING of its own — a shift ' +
+        'type, a yes or a no — add it to MEANING in this file with the reason.');
+    const stale = Object.entries(MEANING).flatMap(([sheet, groups]) =>
+        Object.values(groups).flat().map(sel => `${sheet} ${sel}`)).filter(k => !seen.has(k));
+    assert.deepEqual(stale, [], 'these exceptions no longer match a chosen fill in their stylesheet — remove them');
+    assert.ok(accented >= 15, `only ${accented} chosen fills read --page-accent — the walk has stopped finding them`);
 });

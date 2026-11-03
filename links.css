@@ -1306,12 +1306,18 @@ body.auth-ready .container { display: grid; }
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
-    transition: background var(--dur-fast) var(--ease-standard);
+    /* Colour and edge move WITH the fill. With the fill alone animated, pressing the only-what-differs
+       filter (v25.16: a purple fill under white words) put white text on a still-pale ground for a
+       tenth of a second — the frame WebKit's accessibility scan caught. */
+    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+                border-color var(--dur-fast) var(--ease-standard);
 }
 .btn-set--primary { border-color: var(--primary-blue); color: var(--primary-blue); font-weight: 600; }
 .btn-set--danger  { color: var(--text-light); }
+/* Hover never repaints a PRESSED button: this rule out-specifies `.compare-filter-btn[aria-pressed]`,
+   so until v25.16 the filter you had just switched on turned grey under the pointer that switched it. */
 @media (hover: hover) and (pointer: fine) {
-    .btn-set:hover:not(:disabled)          { background: var(--surface-sunken); color: var(--text-dark); }
+    .btn-set:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--surface-sunken); color: var(--text-dark); }
     .btn-set--danger:hover:not(:disabled)  { color: var(--error-red); border-color: var(--error-red); }
 }
 .btn-set:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
@@ -1422,9 +1428,9 @@ body.auth-ready .container { display: grid; }
     }
 }
 .design-chip--active {
-    background: var(--primary-blue);
-    color: white;
-    border-color: var(--primary-blue);
+    background: var(--page-accent);
+    color: var(--page-accent-ink);
+    border-color: var(--page-accent);
 }
 
 /* =====================================================================================
@@ -1679,10 +1685,13 @@ body.auth-ready .container { display: grid; }
     background: white;
     border-color: var(--border-light);
 }
+/* The design you are comparing with: the page's purple, like every choice in the app (v25.16 — it was a
+   gold tint, the only chosen state in the app drawn that way). It needs this rule, not just the one
+   above, to beat the white `.design-chips--compare .design-chip` sets on every chip. */
 .design-chips--compare .design-chip--active {
-    background: color-mix(in srgb, var(--accent-gold) 20%, white);
-    border-color: var(--accent-gold-dark);
-    color: var(--text-dark);
+    background: var(--page-accent);
+    border-color: var(--page-accent);
+    color: var(--page-accent-ink);
 }
 
 /* ---- Compare mode: two read-only grids side by side ---- */
@@ -2543,10 +2552,10 @@ body.auth-ready .container { display: grid; }
 /* Load-bearing: `display: flex` above out-specifies the UA `[hidden]` rule, which is the trap this
    file has hit twice. Same fix as `.card-member-for[hidden]` on the admin page. */
 .compare-filter[hidden] { display: none !important; }
-.compare-filter-btn[aria-pressed="true"] {
-    background: color-mix(in oklch, var(--accent-gold) 15%, white);
-    border-color: var(--accent-gold);
-    color: var(--text-dark);
+.compare-filter-btn[aria-pressed="true"] {   /* on: the page's purple (v25.16 — was a gold tint) */
+    background: var(--page-accent);
+    border-color: var(--page-accent);
+    color: var(--page-accent-ink);
     font-weight: 600;
 }
 .compare-filter-note {

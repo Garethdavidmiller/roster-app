@@ -6,8 +6,9 @@
 
    THE CONTROLS ARE BUTTONS THAT LOOK LIKE BUTTONS (owner, 2 Nov 2026, of the Trains page's tabs: "they lack pop — don't
    make this mistake with the new page"). Every choice here is a WHITE RAISED tile on the card — Layer 2 of the
-   three-surface model, the layer a button belongs on — with navy type at full strength, and the chosen one turns navy
-   with the gold edge the app gives its active highlights. Nothing a reader can press is grey-on-grey or translucent.
+   three-surface model, the layer a button belongs on — with navy type at full strength, and the chosen one fills with
+   the page's teal (v25.16; it was navy with a gold edge — shared.css → "CHOSEN = THE PAGE'S COLOUR"). Nothing a reader
+   can press is grey-on-grey or translucent.
    ========================================================================= */
 
 body {
@@ -172,8 +173,7 @@ body {
 }
 
 /* ── The choices ──────────────────────────────────────────────────────────────────────────────── */
-/* WHITE, RAISED, NAVY TYPE — and navy with a gold edge once chosen (see the header). The gold is an EDGE, not a fill:
-   a gold slab was the loudest thing on the Trains page when it was tried, and the edge is the app's own "active" mark. */
+/* WHITE, RAISED, NAVY TYPE — and the page's teal once chosen (see the header, and the chosen rule below). */
 .nl-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; }
 .nl-tile--all { grid-column: 1 / -1; }
 @media (min-width: 600px) {
@@ -223,11 +223,13 @@ body {
 .nl-tile { flex-direction: column; gap: 3px; padding: 10px 6px; }
 .nl-tile-icon { font-size: var(--type-large); line-height: 1.1; }
 .nl-tile:active, .nl-tab:active { transform: scale(var(--press-scale)); }
+/* The chosen tile and tab wear the page's teal, flat (v25.16 — they were navy with a gold underline on a
+   teal page; shared.css → "CHOSEN = THE PAGE'S COLOUR"). The raised shadow stays: every tile has it. */
 .nl-tile[aria-pressed="true"], .nl-tab[aria-pressed="true"] {
-    background: var(--primary-blue);
-    border-color: var(--primary-blue);
-    color: white;
-    box-shadow: inset 0 -3px 0 var(--accent-gold), var(--shadow-1);
+    background: var(--page-accent);
+    border-color: var(--page-accent);
+    color: var(--page-accent-ink);
+    box-shadow: var(--shadow-1);
 }
 @media (hover: hover) and (pointer: fine) {
     .nl-tile:not([aria-pressed="true"]):hover, .nl-tab:not([aria-pressed="true"]):hover { border-color: var(--primary-blue); background: var(--bg-faint); }

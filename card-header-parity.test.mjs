@@ -12,9 +12,12 @@
  *   2. Every card title carries a leading emoji. "Change a Shift" — the Admin page's primary card —
  *      was the ONLY one in the app without one, so the odd one out was also the most prominent.
  *
- *   3. That emoji is the heading's FIRST element, as `<span aria-hidden="true">` (v25.14). The
- *      icon tile in the page's colour hooks on exactly that, and `:first-child` cannot see text —
- *      so a bare emoji gets no tile, and a span placed after the words would tile the wrong thing.
+ *   3. That emoji is the heading's FIRST element, as `<span aria-hidden="true">` (v25.14). shared.css
+ *      hangs a wrapped title's words from it — every line starting at one x, beside the emoji — and
+ *      hooks on exactly that shape. `:first-child` cannot see text, so a bare emoji would leave its
+ *      title to wrap back under it, and a span placed after the words would hang the wrong thing.
+ *      (It hooked the page-colour icon tile from v25.14 to v25.15; the tile went at v25.16, the
+ *      hanging layout and this shape stayed.)
  *
  * Part of `npm run test:hygiene`.
  */
@@ -109,14 +112,14 @@ test('every card title leads with an emoji', () => {
     }
 });
 
-test('every card title\'s emoji is its FIRST element, wrapped as the icon tile expects', () => {
-    // shared.css hangs the page-colour tile on `.card-header h2 > span[aria-hidden="true"]:first-child`.
-    // A title that misses this shape is not broken on screen — it is the one card on its page with
-    // a bare emoji and no tile, which is the odd-one-out convention 2 above was written against.
+test('every card title\'s emoji is its FIRST element, wrapped as the hanging layout expects', () => {
+    // shared.css hangs a wrapped title from `.card-header h2 > span[aria-hidden="true"]:first-child`.
+    // A title that misses this shape is not broken on one line — it is the one card on its page whose
+    // second line runs back under its emoji, the odd-one-out convention 2 above was written against.
     const WRAPPED = /^\s*<span\b[^>]*\baria-hidden="true"[^>]*>\s*(\p{Extended_Pictographic}|\p{Regional_Indicator})[^<]*<\/span>/u;
     for (const page of PAGES) {
         const bad = cardHeadings(read(page)).filter(h => !WRAPPED.test(h.text)).map(h => visible(h.text));
         assert.deepEqual(bad, [],
-            `${page}: a card title must begin <span aria-hidden="true">EMOJI</span>, or it gets no tile → ${bad.join(' · ')}`);
+            `${page}: a card title must begin <span aria-hidden="true">EMOJI</span>, or a wrapped title runs back under it → ${bad.join(' · ')}`);
     }
 });

@@ -196,7 +196,7 @@ export function renderPersonas(personas, columns, chosen) {
 
 /**
  * The tiles that choose a kind of colleague, plus "Everything": each the app's emoji over a short label, white and raised
- * on the card, navy with a gold edge once chosen — a picker that looks pressable before it is pressed.
+ * on the card, the page's teal once chosen — a picker that looks pressable before it is pressed.
  * @param {ReadonlyArray<Persona>} personas @param {string|null} chosen
  */
 export function renderPersonaChips(personas, chosen) {

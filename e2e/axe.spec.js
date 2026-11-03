@@ -72,6 +72,21 @@ async function scan(page, { pageWaivers = [], exclude = [] } = {}) {
         // element that never existed. A timeout here means one genuinely never came down — let the
         // scan run and report whatever it finds rather than failing with a harness error.
     });
+    // ── NOR THROUGH A TRANSITION (v25.16) — the same race, one control at a time ────────────────
+    //
+    // A scan that follows a click lands inside whatever that click set fading. v25.16 made chosen
+    // controls a dark fill under white text, and a control's text can arrive before its fill does,
+    // so for a tenth of a second the new white words sit on the old pale ground. WebKit in CI scanned
+    // exactly that frame on Links' only-what-differs filter and reported the button the settled page
+    // gives 8.2:1 — while Chromium, faster, scanned the settled page. Nobody reads that frame; the
+    // scan's job is the page a reader is left with. CSS TRANSITIONS only, never every animation: an
+    // infinite one (a spinner) would never finish, and a bounded wait would still be a wait on it.
+    await page.evaluate(() => Promise.race([
+        Promise.all(document.getAnimations()
+            .filter(a => typeof CSSTransition !== 'undefined' && a instanceof CSSTransition)
+            .map(a => a.finished.catch(() => {}))),
+        new Promise(r => setTimeout(r, 3_000)),
+    ]));
     let builder = new AxeBuilder({ page })
         .withTags(WCAG_TAGS)
         .disableRules([...GLOBAL_WAIVERS, ...pageWaivers]);

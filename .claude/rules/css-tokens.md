@@ -75,28 +75,30 @@ best-practice, not WCAG A/AA, so the a11y gate never saw it), and "Change a Shif
 card header in the app without a leading emoji. The `h3` half of the shared selector was removed so
 a stray `h3` now looks wrong immediately rather than hiding.
 
-**The emoji sits on a tile in the page's colour (v25.14).** Every card title's emoji is wrapped as the
-heading's FIRST element, `<span aria-hidden="true">`, and shared.css draws a 28px rounded tile behind it
-mixed from the page's `--page-accent` (mint on Pay, peach on Operations, lavender on Settings …). It is
-what carries a page's colour into its cards, which were otherwise the same white on every page. Three
-things go with it, each easy to undo:
-- **Mixed with white, never with `--surface`.** `--surface` carries the navy's hue, and an oklch mix
-  towards it turns every tint blue.
-- **A wrapped title hangs from its tile** — the h2 becomes a flex row, so a second line starts where
-  the words start rather than under the tile. ONLY where the tile is the title's sole element: flex
-  makes every child an item, so "Link design — `<span>`26`</span>` lines" would come apart. The three
-  titles holding a second element stay inline, and are short enough never to wrap.
-- **The tile costs Pay's "🏖️ Holiday Pay Premium (HPP)" its one line at 375px** (measured: any tile
-  22px or wider does). Accepted: it balances onto two lines, hangs, and nothing is hidden or
-  shortened (paycalc.md invariant 16). The way back is a smaller tile, not a shorter title.
-- **The tile stays INSIDE its title — never a negative margin (v25.15).** v25.14 shipped `-3px`
-  top and bottom to keep the headers short, so the 28px tile hung 3px out of the h2 and onto the
-  hint line under every card title. It read as "close" in a 1x screenshot and as an overlap on the
-  owner's phone. The title line grows to 28px instead; that height is the price. `e2e/pages.spec.js`
-  → "a card title's icon tile stays inside its title" measures every tile against its own h2 on
-  every card page — a picture is not evidence for a 3px overlap.
-`card-header-parity.test.mjs` pins the markup shape (convention 3) and `page-identity-parity.test.mjs`
-pins the selector and the white mix, so the two halves are each held by text.
+**No tile behind the emoji (v25.16) — and a wrapped title hangs from it.** v25.14 sat every card
+title's emoji on a 28px rounded tile in a pale tint of the page's colour; v25.15 had to stop it hanging
+onto the hint line; v25.16 removed it, on the owner's doubt that the tint was an improvement, confirmed
+by side-by-side screenshots. Ten-plus pastel squares a page were the busiest thing on a calm screen,
+they repeated the badge's colour without saying anything new, every title line grew to 28px, and the
+square tipped Pay's "🏖️ Holiday Pay Premium (HPP)" onto two lines at 375px. The page's colour now goes
+on what you have CHOSEN (below). **Do not bring the tile back to "add colour"** — that is the case it
+was built on, and the screenshots are the answer to it.
+What stayed:
+- **The emoji is the heading's FIRST element, `<span aria-hidden="true">`** — `card-header-parity.test.mjs`
+  convention 3. It is what the hanging layout hooks on.
+- **A wrapped title hangs from its emoji** — the h2 is a flex row (`align-items: baseline`, `gap: 0.25em`),
+  so a second line starts where the words start rather than back under the emoji, and the emoji stays
+  on the FIRST line rather than floating between the two. ONLY where the emoji is the title's sole
+  element: flex makes every child an item, so "Link design — `<span>`26`</span>` lines" would come
+  apart. The three titles holding a second element stay inline, and are short enough never to wrap.
+- **The gap is a space, measured.** A space in Inter 700 at 14px is 3.19px; 0.25em is 3.5px. Pay's HPP
+  title fits one line at 375px with **2px** to spare (and wraps at 360px, as it always has), so a
+  wider gap, a wider header chip or a bigger title size spends that line — the trade v25.14 made
+  knowingly and v25.16 took back.
+- **Nothing hangs out of a title** (v25.15's lesson, when a negative margin let the tile sit on the hint
+  line and a 1x screenshot read it as "close"). `e2e/pages.spec.js` → "a card title's emoji sits
+  inside its title, on its first line, and a wrapped title hangs from it" measures all three on every
+  card page at 360px — geometry, because each is a few pixels and under any pixel tolerance.
 
 **Settings' four status chips are coloured by their card's state (v25.14)** — `data-tone`, written by
 `reportSetting` beside the words, and coloured by the SAME declarations as the summary strip
@@ -311,7 +313,7 @@ One type scale in `shared.css :root`:
 
 The four sub-pages (admin, paycalc, operations, settings) use **identical sizes for the same conceptual element**:
 - `body` base → `--type-body`
-- card-header `h2` → `--type-body` (14px/700, `-0.01em`, `text-wrap: balance` — v25.12; was `--type-label`, 13px). **15px was measured and declined**: across every card page at 360/375/390px it tipped paycalc's "🏖️ Holiday Pay Premium (HPP)" onto two lines at 375px, the width v18.53 trimmed a chip to protect — and that title may not be shortened (paycalc.md invariant 16). (The v25.14 icon tile then spent that 375px line knowingly — see the card-header system above)
+- card-header `h2` → `--type-body` (14px/700, `-0.01em`, `text-wrap: balance` — v25.12; was `--type-label`, 13px). **15px was measured and declined**: across every card page at 360/375/390px it tipped paycalc's "🏖️ Holiday Pay Premium (HPP)" onto two lines at 375px, the width v18.53 trimmed a chip to protect — and that title may not be shortened (paycalc.md invariant 16). (The v25.14 icon tile spent that 375px line knowingly and v25.16 took it back by removing the tile — 2px to spare, measured; see the card-header system above)
 - card `.hint` → `--type-small`
 - form/eyebrow labels → `--type-small`
 - inputs/selects → `--type-medium` (16px also stops iOS focus-zoom — **never go below 16px on a focusable field**)
@@ -427,13 +429,44 @@ a text symbol (£, ⚙, ⏱) where the pill carried the emoji (💷, ⚙️, ⏱
 
 **A page's colour is declared ONCE (v25.14)** — three tokens in its own stylesheet's top-level
 `:root`: `--page-accent` (the colour), `--page-accent-ink` (text on it) and `--page-accent-text` (the
-colour as text on a pale tint of itself). The header badge, the About badge and the card-title tiles
-all read them; no page rule colours a badge any more. Before, every page restated its colour in two
+colour as text on a pale tint of itself). The header badge, the About badge, a picker sheet's current
+row and every chosen control read them; no page rule colours a badge any more. Before, every page restated its colour in two
 hand-written rules, and they had drifted — Links' About badge had a full-strength border where every
 other page's was a 35% tint. Admin declares gold like the rest; only its header badge is worn
 differently (navy, gold ring), by decision. `page-identity-parity.test.mjs` requires the trio on every
 card page, refuses a page rule that colours a badge, and checks each page's colour against its drawer
 pill — the two hand-written places this identity lives.
+
+**Whatever you have chosen wears the page's colour (v25.16).** A chosen tab, segment, chip or toggle
+fills with `--page-accent`, its text `--page-accent-ink`, and carries nothing else — no gold underline,
+no darker edge. A raised control keeps its siblings' `--shadow-1`; colour alone marks the choice.
+Before, a chosen control was navy on most pages, raspberry on Trains' view tabs, gold on the Calendar's
+Team button and a gold tint on Links, so one screen could show two colours for one idea (owner, with
+screenshots: Trains' raspberry view above a navy day; New link's navy chip on a teal page).
+- **Navy is for a button that DOES something** (Save, View-as-an-action, Answer). With chosen also
+  navy, a selected tab and an action button looked alike. No chosen fill is navy now, exceptions
+  included.
+- **A choice with a MEANING keeps its meaning's colour** — admin's shift-type pills and Other
+  flavours, leave's swapped-day answer, Operations' enter (green) and skip (grey), Overtime's yes and
+  no. Each is named, with its reason, in `page-identity-parity.test.mjs` → `MEANING`.
+- **A tick box, a radio and the option row built round one keep their own recipe** — the box's mark
+  carries the state (`.gen-obj`, `.bp-mode-opt`/`.hpp-mode-opt`). A RING on a coloured chip is a
+  marker, not a fill (Links' armed brush), and stays navy.
+- **Small text inside a chosen fill is re-measured on the new colour.** Overtime's glance-day name was
+  75% white, fine on navy (9.8:1) and 4.07:1 on blue-violet; it is 90% now (5.07:1). Every ink-on-accent
+  pair is AA: 5.19:1 (New link's teal, the lowest) to 10.5:1 (gold).
+- **Hover never repaints a chosen control.** Every hover rule on a control that can be chosen either
+  excludes the chosen state (`:not([aria-pressed="true"])`, `:not(.active)`) or loses to the chosen
+  rule on order at equal specificity. Links' `.btn-set:hover:not(:disabled)` did neither, so the
+  only-what-differs filter turned grey under the very pointer that switched it on — invisible while
+  "on" was a pale gold tint, obvious once it was purple. Pinned by `e2e/pages.spec.js` → "links
+  compare: the filter hides the identical lines" (mutation-checked).
+- **A control that turns DARK when chosen animates its text with its fill.** `.btn-set` animated only
+  its background, so for a tenth of a second the new white words sat on the old pale ground — the
+  frame WebKit's accessibility scan caught in CI. `e2e/axe.spec.js` → `scan()` now waits for running
+  CSS transitions before it measures, as it already waited for the splash.
+`page-identity-parity.test.mjs` refuses a chosen fill that does not read `--page-accent` unless it is
+in `MEANING`, refuses navy on any chosen fill, and fails on a `MEANING` entry whose rule has gone.
 
 ## Desktop layout — content width + reading measure (v15.90)
 

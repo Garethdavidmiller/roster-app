@@ -397,14 +397,15 @@ body {
     color: var(--text-mid);
 }
 
-/* The week currently being shown. It was GOLD — which was tolerable while nothing was selected
-   until you pressed something, and became the loudest element on the card the moment a week
-   auto-opened. Gold is the Calendar's accent and the app's small highlight, not a fill for a
-   button that is simply "the one you are looking at". Navy says selected in the app's own voice. */
+/* The week currently being shown wears the PAGE's colour (v25.16; shared.css → "CHOSEN = THE PAGE'S
+   COLOUR"). Its history is two lessons. It was GOLD first, and became the loudest element on the card
+   the moment a week auto-opened: gold is the Calendar's colour, and a slab of it shouts. It was then
+   NAVY — but navy is also `.ot-row-btn--primary`, the button that DOES something, so the chosen week
+   and the action beside it looked alike. Overtime's own blue-violet says "chosen" without either. */
 .ot-row-btn[aria-pressed="true"] {
-    background: var(--primary-blue);
-    border-color: var(--primary-blue);
-    color: white;
+    background: var(--page-accent);
+    border-color: var(--page-accent);
+    color: var(--page-accent-ink);
 }
 
 /* ── States: loading, empty, error ──────────────────────────────────────────
@@ -1284,10 +1285,10 @@ body[data-ot-paused] #otMineToggleHeader { cursor: default; }
 .ot-grade:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .ot-grade:hover { background: var(--bg-light); } }
 
-.ot-grade[aria-pressed="true"] {
-    background: var(--primary-blue);
-    border-color: var(--primary-blue);
-    color: white;
+.ot-grade[aria-pressed="true"] {   /* chosen: the page's colour (v25.16 — was navy) */
+    background: var(--page-accent);
+    border-color: var(--page-accent);
+    color: var(--page-accent-ink);
 }
 
 .ot-detail-meta,
@@ -1606,12 +1607,15 @@ body[data-ot-paused] #otMineToggleHeader { cursor: default; }
     line-height: 1.4;
 }
 
+/* The chosen day: the page's colour (v25.16 — was navy). Its name line is the ink at 90%, not the
+   75% it was on navy: MEASURED on Overtime's blue-violet, 75% white is 4.07:1, under AA for text this
+   small, and 90% is 5.07:1. */
 .ot-glance-day[aria-pressed="true"] {
-    background: var(--primary-blue);
-    border-color: var(--primary-blue);
+    background: var(--page-accent);
+    border-color: var(--page-accent);
 }
-.ot-glance-day[aria-pressed="true"] .ot-glance-name  { color: rgba(255, 255, 255, 0.75); }
-.ot-glance-day[aria-pressed="true"] .ot-glance-count { color: white; }
+.ot-glance-day[aria-pressed="true"] .ot-glance-name  { color: color-mix(in srgb, var(--page-accent-ink) 90%, transparent); }
+.ot-glance-day[aria-pressed="true"] .ot-glance-count { color: var(--page-accent-ink); }
 
 .ot-glance-day--all { justify-content: center; }
 .ot-glance-day--all .ot-glance-name { font-size: var(--type-small); font-weight: 700; }
