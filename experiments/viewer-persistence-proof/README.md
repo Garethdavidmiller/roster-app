@@ -61,7 +61,7 @@ bytes, not inferred from behaviour.
 ## The fix, and its self-healing property
 
 `authReady` now resolves the restored user FIRST — free, because `setPersistence` already queues
-behind the SDK's initialization and that initialization IS the restore — and only then chooses:
+behind the SDK's initialisation and that initialisation IS the restore — and only then chooses:
 the shared viewer (`isViewerUser`, the same predicate `session.js` imports) re-asserts session-only
 persistence; everyone else gets the member chain exactly as before.
 

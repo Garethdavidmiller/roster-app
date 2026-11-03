@@ -165,9 +165,11 @@ node rules-sheet.mjs
 default is 7,440 a weekday and 6,900 on a Saturday; sweep it with `TOTAL=` as the 24-line work did. ANNEAL=1 found no
 Saturday at 6,900; the exhaustive search (the default) did, in 92 seconds.
 
-## Second Nature — the first 26-line design (1 Oct 2026)
+## Second Nature — the first 26-line design (1 Oct 2026; withdrawn 3 Nov 2026)
 
-**`proposals/Second-Nature-SN-26-F2-a52d0f20.pdf`** (grid `proposals/Second-Nature-SN-26-F2.json`). The owner asked for a roster built
+**Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): its sheet, grid and import file left `proposals/`, the summary and the pack. Its grid (`second-nature.json`) and searches stay in `tooling/`, and this section stays as the record.
+
+Formerly **`proposals/Second-Nature-SN-26-F2-a52d0f20.pdf`** (grid `proposals/Second-Nature-SN-26-F2.json`). The owner asked for a roster built
 "the same way as Familiar Nine" and for every possibility to be tried; the name is Claude's, chosen for a link built
 around the shift times people already work. It meets **all 9 December rules and all 3 flexible rules**, every hard
 limit, and has **no avoidable fatigue warnings**, even with a cover week placed as badly as it can be. Against today's link:
@@ -285,7 +287,9 @@ sheet does not show directly:
   still on at 22:00 instead (7 · 5 · 5 on all three, today 4 · 2 · 3), so a deck slide that says its figures are all on the
   sheet quotes that one.
 
-## Second Wind — Second Nature with the weekends spread (2 Oct 2026)
+## Second Wind — Second Nature with the weekends spread (2 Oct 2026; withdrawn 3 Nov 2026)
+
+**Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): its sheet, grid and import file left `proposals/`, the summary and the pack. Its grid (`second-wind.json`) stays in `tooling/`, and this section stays as the record.
 
 An external review rated Second Nature "remarkably strong ... about 9.2/10 as a first draft", and asked for one more pass
 before calling it finished. Its priorities, in order:
@@ -304,7 +308,7 @@ day's duties, and with them priorities 1 and 5, cannot change.
   full weekend cannot start in a cover week or the week before one, which leaves 16 of the 26 weeks that can. The
   closest seven of those can be is **five weeks apart**, the best possible.
 - **The revision reaches it, and ships as Second Wind** (owner, 2 Oct 2026: "give it a different name and add it alongside
-Second Nature ... the same family"). `proposals/Second-Wind-SW-26-F1-4bec8d8e.pdf`, grid `tooling/second-wind.json`.
+Second Nature ... the same family"). Formerly `proposals/Second-Wind-SW-26-F1-4bec8d8e.pdf`, grid `tooling/second-wind.json`.
   Against Second Nature:
 
 | | Second Nature | **Second Wind** | Familiar Nine (24) | Today |
@@ -351,7 +355,9 @@ REST_MIN=860 WKENDS_MIN=7 ONE_MIN=16 HEAVY_MAX=42.5 STEP_MAX=128 ISO_MAX=4 GAP_M
   node space-polish.mjs /tmp/r7.closest.json second-wind.json 1 300000
 ```
 
-## Second Sight — a fresh search with the weekends spread from the start (2 Oct 2026)
+## Second Sight — a fresh search with the weekends spread from the start (2 Oct 2026; withdrawn 3 Nov 2026)
+
+**Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): its sheet, grid and import file left `proposals/`, the summary and the pack. Its grid (`second-sight.json`) stays in `tooling/`, and this section stays as the record.
 
 The owner asked to start the search again "from a different angle", the way Familiar Nine was started: every rule, plus
 one flexible aim, that full weekends off are four weeks apart or as spread out as possible. With 14 on a Saturday there
@@ -369,7 +375,7 @@ weekends, never more than four apart, would need 13 on a Saturday; the owner kep
   mixed weeks, the heaviest week at most 43h 40m, 20 days off from 14 days' leave at worst, and no fatigue warning. The
   best of them, seed 111, met every floor but one: it has 5 single rest days, not 4.
 - **Put forward as its own design** (owner, 2 Oct 2026: "turn start 111 into its own proposal sheet with its own name,
-  but continue the search"). `proposals/Second-Sight-SS-26-F1-3c6aac4d.pdf`, grid `tooling/second-sight.json`, in the
+  but continue the search"). Formerly `proposals/Second-Sight-SS-26-F1-3c6aac4d.pdf`, grid `tooling/second-sight.json`, in the
   Second Nature family. Its presentations followed the same day (owner, on the recommendation that it was then the
   strongest of the six) and were deleted on 3 Oct 2026 with Second Nature's and Second Wind's, when the owner kept only
   the shortlist's (Second Edition, Even Keel, Short Run).
@@ -402,7 +408,9 @@ FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MA
   LEAVE_WORST_MIN=20 node space-polish.mjs results/second-sight-start.json /tmp/ss.json 1 300000   # → /tmp/ss.closest.json
 ```
 
-## Second Look and Second Gear — the same restart, on two variations of the duty table (2 Oct 2026)
+## Second Look and Second Gear — the same restart, on two variations of the duty table (2 Oct 2026; Second Gear withdrawn 3 Nov 2026)
+
+**Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): Second Gear's sheet, grid and import file left `proposals/`, the summary and the pack; Second Look stays. Its grid (`second-gear.json`) stays in `tooling/`, and this section stays as the record.
 
 The restart did not stop at Second Nature's table. Five variations of it were built (`assemble-table.mjs`, the same
 pins and nine-hour cap) and searched the same way: G1, G2 and G3 keep the 42 late finishes a year, H1 and H2 cost 44.
@@ -2769,6 +2777,186 @@ page's 219-day row gave its basis as *Chiltern December 2026 link rules*; it now
 
 **The plan's dates.** `../LINKS_DEC2026_PLAN.md` counts back from the timetable, so its deadlines are about three weeks
 earlier than the link itself needs; it says so, and keeps them.
+
+## Clean Slate and Next Step — shift times chosen afresh, and Even Step with three retimed (3 Nov 2026)
+
+**The question** (owner, 2 Nov 2026): *"If you were creating a roster links proposal where today's shift times were not
+a league weighting factor but the rest of the rules must apply. Please create that proposal. Check every possibility.
+The closer shift must start at 15.45 or later and you must have at least 30 13:45 opener finishes and no shift above 9
+hours. These are weekday extra rules."* Then *"There should only be 2 per weekday"*, and *"8 hours 30 openers maximum
+on a weekday."* It was an idea, kept out of the repo and the pack until the owner chose otherwise (below).
+
+**Clean Sheet, not shipped.** Two 06:20–13:45 finishes every weekday leave the rest of the contract's 44,100
+Monday-to-Saturday minutes to the other duties, and the best tables met it only with two 9-hour lates every weekday.
+With today's times given no weight it led the league; the owner judged it did not look as good as what the pack had.
+
+**Clean Slate** (`CS-26-N2` · **`dc175c36`**). The second brief: *"do the same idea with only 10 1345 finish
+openers"* — one 06:20–13:45 a weekday, ten a year each, and no other weekday opener finishing before 14:00. With one
+short early a day instead of two, nothing has to go over 8h 30m from Monday to Saturday.
+- **The search.** 200 `final-table.mjs` searches scored 13.4 million candidate tables. The weekday ran every total from
+  7,300 to 7,640 minutes under six settings: earlies at most 8h 30m, or only the openers (later earlies to 9h); nothing
+  over 8h 30m at all; closers from 15:45 or from 16:00. The Saturday ran inside start bands (earlies by 08:20, lates
+  from 12:30), and the Sunday came from an exhaustive Sunday search. The best 16 tables were laid on the twelve distinct sets of
+  weeks among the proposals: 192 layouts, 48 of them feasible.
+- **What it found.** The weekday came out as Even Step's with three shifts moved: one 07:15–15:45 becomes 06:20–14:50,
+  and two of the floor's 14:00–22:30 become 14:15–22:45. The Saturday is its own. The Sunday is the shortlist's, with
+  its four 07:15 openers ending at 15:30 rather than 15:45; S7 still holds, since each stays until 15 minutes after the
+  last closer arrives.
+
+| Day | Clean Slate's duties |
+|---|---|
+| Weekday (7,450 minutes) | 06:20–13:45, 06:20–14:20 ×2, 06:20–14:50 ×3, 07:15–15:45, 12:15–20:30, 14:00–22:30 ×2, 14:15–22:45 ×2, 15:45–23:55 ×3 |
+| Saturday (6,850) | 06:20–13:30, 06:20–14:50 ×3, 07:00–15:30, 08:00–16:30 ×2, 14:30–22:00 ×2, 14:30–22:45 ×2, 15:45–23:55 ×3 |
+| Sunday (4,950) | the shortlist's ten duties, its four 07:15 openers ending at 15:30 |
+
+- **The weeks** are Home Grown's: its rest days and its early and late weeks held while `exact-rota.py` chose every
+  time, the most weeks on one shift time first, then the gentlest week-to-week change, under In Step's limits
+  (`SKELETON=home-grown.json FAMILY=1 LIGHT=1530 FF17=-3 H7=3060 OBJ=both`): 19 weeks on one shift time, a 1h 21m change.
+- **How far it is proven.** The weekday at 7,450 minutes was searched exhaustively (`final-table.mjs` without `ANNEAL`:
+  257,727 feasible tables, 126 seconds). Its best on its own measure is worse on the sheets' (26.83 against 26.61, over
+  the week) and lays with a 1h 23m change of start against 1h 21m, so the weekday stands. The Saturday was then searched
+  exhaustively too, bounded at Clean Slate's own (the anneal's settings: earlies by 08:20, lates from 12:30, earlies at
+  most 8h 30m, nothing over 9 hours). A first run did not finish in 25 minutes; given two hours it did: 128,732,758
+  feasible tables in 1h 58m, and the best is Clean Slate's own Saturday, duty for duty. No Saturday under those settings
+  fits better on the search's measure.
+
+**Next Step** (`NS-26-T6` · **`d53e1533`**). Asked whether Clean Slate would then be the best proposal, the answer was
+no: it costs ten new shift times, four of them on a Saturday, and three quarters of its closer fit to the trains,
+counted over the week, comes from the three weekday shifts above. Next Step is Even Step's table with only those three
+changed; its Saturday and Sunday are Even Step's. Laid on Home Grown's weeks the same way, it has 18 weeks on one shift
+time and a 1h 18m change of start; on Even Step's own weeks (`SKELETON=closing-time.json`) the same table gives 17 and
+1h 14m, proven. Every figure the New link page shows colleagues is Even Step's (all 24 rows checked).
+
+The owner then asked whether familiar times should not weigh far less than fatigue, rest and the fit to the trains:
+*"familiar times are a nice to have, but fatigue factors, rest, fit to trains etc should weigh much more heavily
+shouldn't they?"* Under every weighting tried with familiarity counting less, the order was Clean Slate, Next Step,
+Even Step. Asked what to add to the pack, the owner chose both, with the shortlist, the recommendation and the New link
+page left as they were.
+
+**How they compare.** The same on all three: 9 of 9 rules and all three flexible ones; no fatigue factor on the fixed
+rota, up to 1 at worst (the 55-hour week a badly placed cover week can make: 56.8, 56.3 and 56.7 hours); 5 days in a
+row, up to 7; 7 full weekends at most 5 weeks apart; 4 single rest days; no mixed week; the closers, 8h 10m every day;
+weeks of 41h 30m at most and 25h 30m at least; a 14h 35m shortest rest; 14 days' leave buying 28 days off at best and
+20 at worst, and 15 days' leave for four weeks off; 42 finishes a year at 23:00 or later and 94 at 22:00 or later; 218.6
+days.
+
+| | Even Step | Next Step | Clean Slate |
+|---|---|---|---|
+| Shifts over 8h 30m, Monday to Saturday, each a year (today 31) | 0 | 0 | 0 |
+| Fit to the trains, weekday · Saturday · Sunday (0 = exact) | 32.6 · 10.0 · 29.0 | 30.3 · 10.0 · 29.0 | **30.3 · 8.4 · 26.4** |
+| Weeks on one shift time, of 21 | 18 | 18 | **19** |
+| Week-to-week change of start | 1h 31m | **1h 18m** | 1h 21m |
+| Shift times (new) | **13 (5)** | 14 (6) | 17 (10) |
+| New shift times on a Saturday | **1** | **1** | 4 |
+| Earlies finishing before 14:00, each a year (today 26) | 10 | 10 | **12** |
+| Starting at 06:20, each a year (today 62) | 60 | 70 | 68 |
+| Its weeks | In Step's | Home Grown's | Home Grown's |
+
+Familiar times aside, Next Step and Clean Slate are each as good as Even Step or better on every measure the shortlist
+sheet weighs designs by, but one: Even Step has fewer 06:20 starts, 60 a year each against 70 and 68. Against Next
+Step, that and one fewer new shift time are all Even Step keeps.
+
+**The leagues** (17 designs; score, then place):
+
+| Version | Next Step | Even Step | Clean Slate | First, if another |
+|---|---|---|---|---|
+| Main | **84.5 · 1st** | 84.1 · 2nd | 83.6 · 4th | |
+| Main, the proposals setting the scale | **77.0 · 1st** | 75.1 · 4th | 76.6 · 3rd | |
+| Main, without familiar times | 87.8 · 2nd | 87.0 · 3rd | **88.5 · 1st** | |
+| Main, the run on the fixed rota | **85.4 · 1st** | 85.1 · 2nd | 84.5 · 4th | |
+| Main, six-factor | 67.4 · 9th | 64.7 · 14th | 65.0 · 13th | Second Look, 92.7 |
+| Weighted as before | 86.5 · 3rd | 86.5 · 2nd | 85.7 · 6th | In Step, 87.4 |
+| — the proposals setting the scale | 87.7 · 3rd | 87.0 · 4th | 87.9 · 2nd | In Step, 89.1 |
+| — without familiar times | 90.3 · 3rd | 89.8 · 4th | **91.1 · 1st** | |
+| — the run on the fixed rota | 87.5 · 3rd | 87.5 · 2nd | 86.7 · 5th | In Step, 88.4 |
+| — six-factor | 86.4 · 3rd | 86.2 · 10th | 85.0 · 11th | Second Look, 89.2 |
+
+**The pack.**
+- `regenerate.mjs` lists both in `SUPPLIED`, after Even Step, so each ships its sheet, grid and import file in
+  `proposals/` and `pack.py` packs them. `fresh.mjs` has their one-line descriptions, Clean Slate as a family of its
+  own (its table was searched afresh, not from Second Nature's or today's) and Next Step in Home Grown's, and both
+  first drawn on 3 Nov.
+- `final-table.mjs` gained seven switches, every one off unless set, so every committed search runs as before:
+  `EARLY_HI` and `OPENER_HI` (caps on the earlies and on the 06:20 openers), `EARLY_START_MAX` and `LATE_START_MIN` (the
+  start bands), `ONLY_REQUIRED_EARLY_FINISH` (no opener finishing before 14:00 but the required ones), `WK_CLOSER_MIN`
+  (closers from a time, not one fixed closer) and `REQUIRE_MAX` (at most so many of the required times); `TOPN_OUT`
+  writes the best tables found.
+- **The proposal sheets.** `plain.mjs` sets a page 4 with ten or more new times six, five or four to a row, whichever
+  leaves no box alone, so Clean Slate's ten fit; no earlier design has ten. The fifteen other sheets were re-rendered and
+  only their Prepared date moved, so the committed files stand; so did the rules sheet's.
+- **The summary** lists seventeen.
+- **The shortlist sheet** keeps its three and the recommendation. Four things it said were true of fifteen designs and
+  not of seventeen, and changed (`shortlist-sheet.mjs`'s header has the reasons):
+  - Closing Time has "a closer Saturday fit", no longer "the best": Clean Slate's is the best of all.
+  - The recommendation says Even Step is alone **of the three** with no shift over 8h 30m Monday to Saturday; Clean
+    Slate and Next Step have none either.
+  - The league paragraph puts Even Step second of seventeen, between Next Step (84.5) and Closing Time (84.0).
+  - Both pages say the three were shortlisted (on 31 Oct 2026, the day Even Step joined) before the two came, where they
+    said the three "balance best what weighs most here".
+
+  Page 2's table has a row for each, dated. To keep page 2 on its page, "a new Saturday time, its closer" reads "a new
+  Saturday closer", the league paragraph is shorter, and the alternatives' rows are a pixel tighter.
+- **The read-me** names the two as coming after the shortlist, gives them a paragraph in *How the shortlist came
+  about*, and says Even Step is alone of the three with no long shift.
+- **Not changed:** the decks and "What it means if you…" (the shortlist's three), and the app: the New link page and the
+  Links designer's built-in examples are the shortlist's.
+
+**For the owner.** Next Step is first in the main league, and in three of its five versions, and is Even Step with a closer
+weekday fit and a gentler change of start for one more new shift time and more 06:20 starts. Whether it joins the
+shortlist, or takes the recommendation, is the owner's decision; nothing here assumes either.
+
+## UK English, the decks included (3 Nov 2026)
+
+The owner: *"Can you use UK English when communicating with me and throughout the app please".* The words already were:
+the text of all 27 PDFs in this folder, read back, holds no American spelling. The six decks were not, underneath. Their
+template tagged every run of text US English — 2,704 runs across the six — so PowerPoint spell-checked British spelling as
+American and a screen reader would have read the slides in an American voice; each deck PDF carried `/Lang(en-US)` from
+the same source.
+- **The decks** now tag every run `en-GB`, and each PDF says `/Lang(en-GB)`; nothing else in them changed
+  (`deck-check.mjs`: 162 rows agree, before and after).
+- **`deck-polish.py`** writes the runs it adds as `en-GB`, as `second-nature-decks.py` now does, and a final step
+  (`uk_language`) converts whatever a template still carries; `polish()` refuses a deck with a US tag left.
+- **"What it means if you…"** was re-rendered against the converted decks to check it still agrees with them. It does, and
+  only its date moved, so the committed sheet stands.
+- **The app's side** — every page now declares `<html lang="en-GB">`, and `uk-english-parity.test.mjs` keeps American
+  spelling out of the pages, the Cloud Functions and the scripts in this folder — is v25.17's.
+
+## Four designs withdrawn — Second Nature, Second Wind, Second Sight and Second Gear (3 Nov 2026)
+
+Asked whether any proposal was now too weak to stay in the pack, the analysis found three weak by every test and a
+fourth on the border. The owner: *"Remove the four weak proposals please and reengineer the pack"*. No design was beaten by
+another on every measure, so this was a judgement; the evidence it rests on:
+
+| Design | Main league, of 17 | What it had that others did not | What matched it otherwise |
+|---|---|---|---|
+| Second Nature (`SN-26-F2` · `a52d0f20`) | 17th, and last in 8 of the 10 league tables | blocks a week shorter: at most 6 weeks of earlies, or of lates, against 7 (Second Look has it too) | Second Edition: as good on every measure but that, and better on six — full weekends at most 5 weeks apart, not 10; a 42h 00m heaviest week, not 43h 40m; 18 weeks on one shift time, not 15; a gentler change of start, fewer mixed weeks and a lower 55-hour worst case |
+| Second Wind (`SW-26-F1` · `4bec8d8e`) | 16th | the same | Second Edition and Short Run: better on seven, among them the change of start (1h 01m and 1h 13m, against 2h 01m) |
+| Second Sight (`SS-26-F1` · `3c6aac4d`) | 15th | the same | Second Edition and Long Break: better on five; it had a fifth single rest day and a 22h 30m lightest week |
+| Second Gear (`SG-26-H1` · `8d61e5c3`) | 12th | a lighter lightest week, 25h 30m against 24h 30m | Even Keel: 18 weeks on one shift time, not 16, a gentler change of start (1h 16m, not 1h 25m) and fewer mixed weeks; its fourth person at the Saturday close is Even Keel's and Fine Tune's too |
+
+The one league that ranked the first three well was the six-factor one (Second Nature 2nd, Second Wind 3rd, Second Sight
+4th, all far behind Second Look), which leaves out long days, the closers, weeks on one shift time and the change of start:
+where they were weakest.
+
+**What changed.**
+- Their sheets, grids and import files left `proposals/`. `regenerate.mjs` no longer lists them, with a comment saying how
+  to restore one, and `fresh.mjs` drops their descriptions, families and dates. Their grids stay in `tooling/`
+  (`second-nature.json` and the rest), their searches in `results/`, and their sections above as the record. The family
+  keeps the name Second Nature: it is named for where its designs started, and six of them still start there.
+- **The summary** lists thirteen, and fits at 93% where seventeen needed 82%.
+- **The shortlist sheet** compares the three with "the other ten". Its alternatives table lost the four from two rows, and
+  Second Look's row now names what it alone has, no 55-hour week at all, however the cover weeks fall, where it had named
+  the shorter blocks it shared with three of them. The guide's fourth-at-the-close row lost Second Gear. The shortlist
+  and the recommendation stand.
+- **The read-me** counts thirteen candidate links and names the four, saying why they went.
+- **The zip** holds 45 files, not 53.
+- **The leagues, on thirteen.** The main league's scale is set by today's link and Familiar Nine, so its scores did not
+  move: Next Step 84.5, Even Step 84.1, Closing Time 84.0, then Clean Slate; Short Run is 9th and In Step 11th. Weighted
+  as before, In Step still leads (87.4, Even Step 86.5). Without familiar times Clean Slate leads (88.5), Next Step second;
+  the six-factor league is Second Look's, with Second Edition and Short Run next.
+- **Nothing else named them.** The other thirteen sheets, the six decks (every slide and every speaker note) and "What it
+  means if you…" were read for the four names and none was found; "What it means" and the New link page were re-checked
+  against the thirteen and are unchanged.
 
 ## Notes for the whole set
 

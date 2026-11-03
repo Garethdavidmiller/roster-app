@@ -62,7 +62,7 @@ if not any(dst == COLLEAGUES_FIRST for _, dst in files): raise SystemExit(f'pack
 # its own, and refuses to build if the sheet stops saying what it repeats
 SHEET = open(f'{ROOT}/tooling/shortlist-sheet.mjs', encoding='utf-8').read()
 for said in ['it equals both — days in a row, weekends, weeks on one shift time, late finishes and the leave',
-             'Monday to Saturday it alone has no shift over 8h&nbsp;30m', 'every early is one of today’s times',
+             'Alone of the three it has no shift over 8h&nbsp;30m Monday to Saturday', 'every early is one of today’s times',
              'Its costs: weekday lates near today’s', 'a slightly weaker weekday fit', 'change of start (the others']:
     if said not in SHEET: raise SystemExit(f'pack: the read-me repeats the shortlist sheet\'s recommendation, which no longer says "{said}"')
 # the count is the SUPPLIED list's, never typed: "Ten candidate links" stayed ten for three designs (26 Oct 2026)
@@ -76,6 +76,23 @@ if 'In Step' not in SHORTLIST:   # the 30 Oct paragraph below says it is
     raise SystemExit(f'pack: the read-me says In Step is shortlisted; SHORTLIST is {SHORTLIST}')
 if 'Even Step' not in SHORTLIST or RECOMMENDED != 'Even Step':   # the 31 Oct paragraph below says it is both, and the recommendation is its case
     raise SystemExit(f'pack: the read-me says Even Step is shortlisted and recommended; SHORTLIST is {SHORTLIST}, RECOMMENDED {RECOMMENDED}')
+# THE TWO THAT CAME AFTER THE SHORTLIST (3 Nov 2026, owner: add Clean Slate and Next Step to the pack, the shortlist and the
+# recommendation unchanged). Read from fresh.mjs's FIRST, as the shortlist sheet reads them: every design first drawn after
+# the last shortlisted one. The 3 Nov paragraph below says neither is shortlisted and says what each is, so it refuses any
+# other set, and a shortlist that takes one of them in
+import datetime
+FIRST = dict(re.findall(r"'([A-Z]{2}-26-[A-Z0-9]+)': '([^']+)'", re.search(r'export const FIRST = \{([^}]*)\}', FRESH).group(1)))
+_day = lambda code: datetime.datetime.strptime(FIRST[code], '%d %b %Y')
+_drawn = max(_day(c) for n, c, _ in proposals if n in SHORTLIST)
+LATE = sorted(n for n, c, _ in proposals if _day(c) > _drawn)
+if LATE and LATE != ['Clean Slate', 'Next Step']:
+    raise SystemExit(f'pack: the read-me describes Clean Slate and Next Step as the designs after the shortlist; they are {LATE}')
+LATE_WORDS = ' and '.join(LATE)
+# THE FOUR WITHDRAWN (3 Nov 2026, owner: "Remove the four weak proposals please and reengineer the pack"). Named here, and
+# refused if any is back in SUPPLIED, because the paragraph below says they left the pack
+WITHDRAWN = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear']
+if any(n in names.split(', ') for n in WITHDRAWN):
+    raise SystemExit(f'pack: the read-me says {WITHDRAWN} were withdrawn; regenerate.mjs SUPPLIED lists one of them')
 built_in = open('links-proposals.js', encoding='utf-8').read()
 missing = [n for n, c, _ in proposals if n in SHORTLIST and f"code: '{c}'" not in built_in]
 if missing: raise SystemExit(f'pack: the read-me says every shortlisted design is built into the app; links-proposals.js lacks {missing}')
@@ -130,10 +147,11 @@ readme = '\n'.join([
     'THE RECOMMENDATION',
     para(f'{RECOMMENDED}. {WORDS[len(proposals)].capitalize()} candidate links were drawn up and {WORDS[len(SHORTLIST)]} '
          f'shortlisted: {", ".join(SHORTLIST[:-1])} and {SHORTLIST[-1]}. On what weighs most here Even Step equals the '
-         'other two - days in a row, weekends, weeks on one shift time, late finishes and leave. Monday to Saturday it '
-         'alone has no shift over 8h 30m, and every early is one of today\'s times. What it gives up against the other '
+         'other two - days in a row, weekends, weeks on one shift time, late finishes and leave. Alone of the three it '
+         'has no shift over 8h 30m Monday to Saturday, and every early is one of today\'s times. What it gives up against the other '
          'two: weekday lates nearly as long as today\'s, a slightly weaker weekday fit to the trains, and start times '
-         'that change more from week to week. Page 2 of the shortlist sheet sets out the case, and the costs.'),
+         'that change more from week to week. Page 2 of the shortlist sheet sets out the case, and the costs.'
+         + (f' {LATE_WORDS} came after the shortlist; see how the shortlist came about, below.' if LATE else '')),
     '',
     'WHAT IS ASKED',
     item('Managers', f'Which of the {WORDS[len(SHORTLIST)]} shortlisted links goes to colleagues for their views.'),
@@ -211,6 +229,15 @@ readme = '\n'.join([
             'and late weeks - with the shift times chosen again. It joined the shortlist the same day, beside In Step '
             'and Short Run, and is the one recommended.'), '']
       if 'Even Step' in names_in else []),
+    *([para('Clean Slate and Next Step (3 November 2026) came after the shortlist, and neither is on it. Clean Slate '
+            'chooses every shift time afresh for the trains, with no shift over 8h 30m Monday to Saturday, one 13:45 '
+            'finish and a closer from 15:45 every weekday. Next Step is Even Step with three weekday shifts retimed for '
+            'the trains, still with no shift over 8h 30m Monday to Saturday. Page 2 of the shortlist sheet sets each '
+            'beside the three.'), '']
+      if LATE else []),
+    *([para(f'Four more were drawn up and withdrawn on 3 November 2026 as the weakest in the pack: {", ".join(WITHDRAWN[:-1])} '
+            f'and {WITHDRAWN[-1]}. Each was the same as or worse than a design still here on everything the sheets measure '
+            'but one; the technical notes keep them.'), ''] if WITHDRAWN else []),
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
          'reference.'),
     '',

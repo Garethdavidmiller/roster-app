@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- MYB Roster — Admin -->
-<html lang="en">
+<html lang="en-GB">
 <head>
     <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
@@ -298,6 +298,17 @@
             <div class="al-preview" id="alPreview" role="status" aria-live="polite"></div>
             <button type="button" class="btn-save" id="alSaveBtn" disabled>Record annual leave</button>
             <div class="feedback" id="alFeedback" role="status" aria-live="polite"></div>
+
+            <!-- WHICH YEAR'S ALLOWANCE (v25.18). January leave comes out of that year's allowance
+                 unless it is moved to the year before (owner, 3 Nov 2026 — leave-year.js). Drawn by
+                 admin-leave-year.js; hidden while the switch is off, while the member's records are
+                 unread, and when they have no January leave that costs a day. A tap is the save. -->
+            <div class="al-leaveyear" id="alLeaveYear" hidden>
+                <div class="al-leaveyear-title"><span aria-hidden="true">🗓️</span> Which year’s allowance</div>
+                <p class="al-leaveyear-hint">January leave comes out of that year’s allowance. A day can come out of the year before instead, while that year still has days left.</p>
+                <div id="alLeaveYearBody"></div>
+                <div class="feedback" id="alLeaveYearFeedback" role="status" aria-live="polite"></div>
+            </div>
 
             <!-- Collapsible: all booked AL dates for the selected member -->
             <div class="al-booked-box" id="alBookedBox" hidden>

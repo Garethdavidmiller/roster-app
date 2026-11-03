@@ -2364,6 +2364,94 @@ test('admin: the AL banner counts leave that is already on record', async ({ pag
         .toBe(booked.entitlement - booked.taken - booked.booked);
 });
 
+// ── WHICH YEAR'S ALLOWANCE (v25.18) ─────────────────────────────────────────────────────────────
+// A January leave day may come out of the previous year's allowance (owner, 3 Nov 2026 —
+// leave-year.js). The panel ships switched OFF until the rules that accept the field are deployed;
+// the test seam turns it on, so the real panel is driven while it waits (the Overtime shape). The
+// rule and the markup are unit-tested; this proves the WIRING — that a tap reaches the save with the
+// right year, and that the figures the panel and the banner read move together.
+test('admin: a January leave day can be moved to last year\'s allowance, and back', async ({ page }) => {
+    const DAY = '2027-01-05';                        // a worked Tuesday on his line
+    const REC = { memberName: 'G. Miller', date: DAY, type: 'annual_leave', value: 'AL', note: '', source: 'manual' };
+    await page.clock.setFixedTime(new Date('2026-11-03T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((rec) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.leaveYearChoice = true;
+        w.__E2E.authUser = true;          // a write needs the signed-in Firebase user, as every save test here
+        w.__E2E.docs = [{ id: 'm_2027-01-05_G.%20Miller', ...rec }];
+    }, REC);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+
+    const panel = page.locator('#alLeaveYear');
+    await expect(panel).toBeVisible();
+    const figures = panel.locator('.ly-figures');
+    await expect(figures).toHaveText('2026: 32 days left · 2027: 31 days left');
+    const y2026 = panel.locator(`.leaveyear-opt[data-date="${DAY}"][data-year="2026"]`);
+    const y2027 = panel.locator(`.leaveyear-opt[data-date="${DAY}"][data-year="2027"]`);
+    await expect(y2027).toHaveAttribute('aria-pressed', 'true');
+
+    // The save re-reads the day from the server first; seeded only now, so nothing else reads it.
+    await page.evaluate((rec) => { /** @type {any} */ (window).__E2E.getDocData = rec; }, REC);
+    await y2026.click();
+    await expect(y2026).toHaveAttribute('aria-pressed', 'true');
+    await expect(figures).toHaveText('2026: 31 days left · 2027: 32 days left');
+    await expect(page.locator('#alLeaveYearFeedback')).toContainText('now comes out of 2026’s allowance');
+    const moved = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.at(-1));
+    expect(moved).toMatchObject({ date: DAY, type: 'annual_leave', value: 'AL', leaveYear: 2026, source: 'manual', changedBy: 'G. Miller' });
+
+});
+
+// The way back, from a fresh load of a day already moved — the stub's `doc()` mints no id, so a
+// second save on the same page would see its own first write as a record it never loaded and be
+// (rightly) refused. Real Firestore refs carry their id; the stale-page refusal is unit-tested.
+test('admin: a moved January day moves forward again, recorded as nothing', async ({ page }) => {
+    const MOVED = { memberName: 'G. Miller', date: '2027-01-05', type: 'annual_leave', value: 'AL', note: '',
+        source: 'manual', leaveYear: 2026 };
+    await page.clock.setFixedTime(new Date('2026-11-03T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((rec) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.leaveYearChoice = true;
+        w.__E2E.authUser = true;
+        w.__E2E.docs = [{ id: 'm_2027-01-05_G.%20Miller', ...rec }];
+    }, MOVED);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    const panel = page.locator('#alLeaveYear');
+    await expect(panel.locator('.ly-figures')).toHaveText('2026: 31 days left · 2027: 32 days left');
+    const y2027 = panel.locator('.leaveyear-opt[data-date="2027-01-05"][data-year="2027"]');
+    await page.evaluate((rec) => { /** @type {any} */ (window).__E2E.getDocData = rec; }, MOVED);
+    await y2027.click();
+    await expect(y2027).toHaveAttribute('aria-pressed', 'true');
+    await expect(panel.locator('.ly-figures')).toHaveText('2026: 32 days left · 2027: 31 days left');
+    const back = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.at(-1));
+    expect(back).toMatchObject({ date: '2027-01-05', type: 'annual_leave' });
+    expect('leaveYear' in back, 'its own year is the default, and the default is no record').toBe(false);
+});
+
+test('admin: with the switch off, the year panel is not there at all', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-03T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'm_2027-01-05_G.%20Miller', memberName: 'G. Miller', date: '2027-01-05',
+            type: 'annual_leave', value: 'AL', note: '', source: 'manual' }];
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alBanner')).toBeVisible();     // the card did load his leave…
+    await expect(page.locator('#alLeaveYear')).toBeHidden();   // …and offers no choice
+    await expect(page.locator('#alLeaveYear')).toHaveCSS('display', 'none');
+});
+
 // ── THE WEEK GRID'S TIME BOXES, TYPED (admin-time-inputs.js, v24.64) ──────────────────────────
 // Nothing drove these before: the formatting, the focus move and the blur check were wired in the
 // editor and no spec typed into them. The keypad an iPhone shows for `inputmode="numeric"` has no

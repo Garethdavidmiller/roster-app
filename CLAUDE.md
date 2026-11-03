@@ -169,6 +169,7 @@ Gareth built this app through extended Claude.ai collaboration. He has strong op
 - **Name the pattern** — name any design pattern and say why it fits
 - **Flag trade-offs** — briefly note what the other option was
 - **Never assume prior knowledge** of cloud services, auth patterns, or backend concepts
+- **UK English** — British spelling, 3 November 2026 dates, 24-hour times: in all app copy and every message to the owner (owner, 3 Nov 2026; `uk-english-parity.test.mjs`)
 
 ---
 
@@ -303,7 +304,7 @@ npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # the no-emulator, no-mock suites — the authoritative list is package.json `test:hygiene`. It is NOT enumerated here: this line used to list most-but-not-all of them while naming package.json as authoritative in its own parenthetical — a 1,085-character restatement asking not to be trusted.
+npm run test:hygiene  # the no-emulator, no-mock suites; the list is package.json `test:hygiene`, not restated here.
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 # EVERY SUITE THAT NEEDS NOTHING INSTALLED — for a reviewer working from a GitHub ZIP.

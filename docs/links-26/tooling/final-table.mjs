@@ -94,7 +94,7 @@ const MID_END_MAX = Number(process.env.MID_END_MAX ?? CLOSE - 15);
 //     (FIXED=) duty of a named time counts like any other.
 //   · LATE_MAX=<n> — at most n duties that are NOT closers finishing at or after 23:00 (the late finishes a sheet counts),
 //     so a table that buys minutes with late finishes says how many it bought.
-const REQUIRE = process.env.REQUIRE ? { times: new Set(process.env.REQUIRE.split('|')), n: Number(process.env.REQUIRE_N ?? 1) } : null;
+const REQUIRE = process.env.REQUIRE ? { times: new Set(process.env.REQUIRE.split('|')), n: Number(process.env.REQUIRE_N ?? 1), max: Number(process.env.REQUIRE_MAX ?? Infinity) } : null;
 if (REQUIRE && !(REQUIRE.n >= 1)) { console.error(`REQUIRE_N must be a whole number of at least 1 (got ${process.env.REQUIRE_N})`); process.exit(2); }
 const LATE_MAX = process.env.LATE_MAX !== undefined ? Number(process.env.LATE_MAX) : Infinity;
 const MAX_TURNS = Number(process.env.MAX_TURNS ?? 99);
@@ -113,7 +113,8 @@ const BEST0 = Number(process.env.BEST0 ?? Infinity);
 const parse = v => v.split(',').filter(Boolean).map(x => { const [t, n] = x.split('x'); return [t, Number(n ?? 1)]; });
 const FIXED = process.env.FIXED !== undefined ? (process.env.FIXED === 'none' ? [] : parse(process.env.FIXED))
   : { weekday: [['06:20-14:20', 2], ['14:00-22:30', 2]], sat: [['06:20-14:50', 2], ['14:30-22:00', 2]], sun: [] }[CLS];
-const CLOSER_ONLY = CLS === 'weekday' ? (process.env.WK_CLOSER ?? '15:45-23:55') : null;
+const CLOSER_MIN = CLS === 'weekday' && process.env.WK_CLOSER_MIN ? mm(process.env.WK_CLOSER_MIN) : null;   // WK_CLOSER_MIN (3 Nov 2026), below
+const CLOSER_ONLY = CLS === 'weekday' && CLOSER_MIN === null ? (process.env.WK_CLOSER ?? '15:45-23:55') : null;
 // TOTAL: the day's duty minutes. Five weekdays and a Saturday must make CONTRACT_MINUTES (44,100 at 26 lines) exactly, so
 // the split is a choice to sweep, as it was at 24 lines (README there). The default is the even split at link.mjs's
 // headcounts — 7,440 a weekday (15 × 8h 16m) and 6,900 on a Saturday — and 5 × 7,440 + 6,900 = 44,100.
@@ -128,7 +129,25 @@ const extraOpenerEnds = [14 * 60 + 20, 14 * 60 + 50];
 const TODAY_TIMES = process.env.TODAY === '1' ? new Set(todayRows.map(r => r.time)) : new Set();
 const KNOWN = new Set(todayRows.map(r => r.time)); const NEWPEN = Number(process.env.NEWPEN ?? 0);
 const POOL = []; const seenT = new Set();
+// SEVEN SWITCHES ADDED 3 NOV 2026 (Clean Slate, README.md → "Clean Slate and Next Step"), all off by default, so every table
+// built before is built the same way:
+//   · EARLY_HI=<min> — a length cap for the earlies alone (a start before 11:00), beside HI for every duty;
+//   · OPENER_HI=<min> — a length cap for the duties that start at the open (owner: "8 hours 30 openers maximum on a weekday");
+//   · EARLY_START_MAX=<hh:mm> and LATE_START_MIN=<hh:mm> — start bands. A start more than two hours from the starts beside
+//     it cannot be laid on a week (exact-rota.py forbids it, FF19), so an 11:15 late among 14:00 lates is a table no rota
+//     takes; Even Step's search left 11:00–11:59 out of its pool by hand for the same reason;
+//   · REQUIRE_MAX=<n> — at most n duties among the REQUIRE times, beside REQUIRE_N's at least n ("only 10 13:45 finish
+//     openers": exactly one a weekday);
+//   · ONLY_REQUIRED_EARLY_FINISH=1 — no opener finishing before 14:00 but the REQUIRE times, so the count above is the
+//     day's only early finish;
+//   · WK_CLOSER_MIN=<hh:mm> — weekday closers starting at or after a time (F3: 15:45 or later), instead of WK_CLOSER's one time;
+//   · TOPN=<n> with TOPN_OUT=<file> — keep the n best tables by the search's own key, to rescore on the sheets' measure.
+const EARLY_HI = Number(process.env.EARLY_HI ?? Infinity), OPENER_HI = Number(process.env.OPENER_HI ?? Infinity);
+const EARLY_START_MAX = process.env.EARLY_START_MAX ? mm(process.env.EARLY_START_MAX) : Infinity, LATE_START_MIN = process.env.LATE_START_MIN ? mm(process.env.LATE_START_MIN) : 0;
+const onlyRequiredEarly = process.env.ONLY_REQUIRED_EARLY_FINISH === '1';
 const addTurn = (s, e) => { const L = e - s, t = `${hm(s)}-${hm(e)}`; if (seenT.has(t) || L < LO || L > HI || !legalStartMin(s) || e > CLOSE) return;
+  if ((s < 660 && L > EARLY_HI) || (s === OPEN && L > OPENER_HI) || (s < 660 && s > EARLY_START_MAX) || (s >= 660 && s < LATE_START_MIN)) return;
+  if (onlyRequiredEarly && s === OPEN && e < 840 && !(REQUIRE && REQUIRE.times.has(t))) return;
   const isC = e === CLOSE, isO = s === OPEN; 
   seenT.add(t); POOL.push({ s, e, L, t }); };
 for (let s = OPEN; s < CLOSE; s++) { if (s !== OPEN && !onGrid(s)) continue; for (let e = s + LO; e <= CLOSE; e++) { if (e !== CLOSE && !onGrid(e)) continue; addTurn(s, e); } }
@@ -194,7 +213,7 @@ function evaluate(counts, cov, total, floorMin, floorSlots, fixedCounts) {
     n += k; turns++; starts.add(p.s); ends.add(p.e); if (p.s === OPEN) nO += k; if (p.e === CLOSE) nC += k; }
   if (n !== N || nO < OPENERS_MIN || nO > OPENERS_MAX || nC < CLOSERS_MIN || nC > CLOSERS_MAX || turns > MAX_TURNS) return null;
   if (!handoverOk(counts, fixedCounts)) return null;
-  if (REQUIRE) { let k = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && REQUIRE.times.has(POOL[i].t)) k += counts[i]; if (k < REQUIRE.n) return null; }
+  if (REQUIRE) { let k = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && REQUIRE.times.has(POOL[i].t)) k += counts[i]; if (k < REQUIRE.n || k > REQUIRE.max) return null; }
   if (LATE_MAX < Infinity) { let k = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && POOL[i].e !== CLOSE && POOL[i].e >= 1380) k += counts[i]; if (k > LATE_MAX) return null; }
   if (process.env.AT22_STRICT === '1') { let at22 = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && POOL[i].s <= 1320 && POOL[i].e > 1320) at22 += counts[i]; if (at22 < 5) return null; }   // five on AFTER 22:00, counted as currentRules counts them
   let thin = Infinity; for (let k = SLOT0; k < SLOT1; k++) if (floorSlots[k] < thin) thin = floorSlots[k]; if (thin < FLOOR_MIN) return null;
@@ -205,7 +224,9 @@ function evaluate(counts, cov, total, floorMin, floorSlots, fixedCounts) {
 }
 const keyOf = r => (r.fitRaw + NEWPEN * r.newT) * 1e4 + r.turns * 10 + (r.starts + r.ends);
 let best = null, feasible = 0, nodes = 0, pruned = 0; const byTurns = {};
-const offer = rec => { if (!rec) return; feasible++; if (!byTurns[rec.turns] || keyOf(rec) < keyOf(byTurns[rec.turns])) byTurns[rec.turns] = rec; if (!best || keyOf(rec) < keyOf(best)) best = rec; };
+const TOPN = Number(process.env.TOPN ?? 0), TOP = [];   // TOPN (3 Nov 2026), above
+const offer = rec => { if (!rec) return; feasible++; if (!byTurns[rec.turns] || keyOf(rec) < keyOf(byTurns[rec.turns])) byTurns[rec.turns] = rec; if (!best || keyOf(rec) < keyOf(best)) best = rec;
+  if (TOPN) { TOP.push(rec); if (TOP.length > 2 * TOPN) { TOP.sort((a, b) => keyOf(a) - keyOf(b)); TOP.length = TOPN; } } };
 
 function multisets(pool, k, maxPer) { const out = []; const rec = (i, left, cur) => { if (!left) { out.push(cur.slice()); return; } if (i === pool.length) return; for (let n = Math.min(maxPer, left); n >= 0; n--) { for (let x = 0; x < n; x++) cur.push(pool[i]); rec(i + 1, left - n, cur); for (let x = 0; x < n; x++) cur.pop(); } }; rec(0, k, []); return out; }
 
@@ -223,7 +244,7 @@ function solve(fixed, total, exclude) {
   const floorFixed = office.minutes - fixedMin;   // add to a day's total to get its FLOOR minutes
   const ex = new Set(exclude);
   const openersPool = POOL.filter(p => p.s === OPEN && p.e !== CLOSE && !ex.has(p.t));
-  const closersPool = POOL.filter(p => p.e === CLOSE && p.s !== OPEN && !ex.has(p.t) && (!CLOSER_ONLY || p.t === CLOSER_ONLY));
+  const closersPool = POOL.filter(p => p.e === CLOSE && p.s !== OPEN && !ex.has(p.t) && (!CLOSER_ONLY || p.t === CLOSER_ONLY) && (CLOSER_MIN === null || p.s >= CLOSER_MIN));
   const midPool = POOL.filter(p => p.s !== OPEN && p.e !== CLOSE && p.e <= MID_END_MAX && !ex.has(p.t));
 
   const midByL = {}; for (const p of midPool) (midByL[p.L] ??= []).push(p); const Ls = Object.keys(midByL).map(Number).sort((a, b) => a - b);
@@ -266,7 +287,7 @@ function solve(fixed, total, exclude) {
 function annealSolve(fixed, total, exclude) {
   const ex = new Set(exclude);
   const openersPool = POOL.filter(p => p.s === OPEN && p.e !== CLOSE && !ex.has(p.t));
-  const closersPool = POOL.filter(p => p.e === CLOSE && p.s !== OPEN && !ex.has(p.t) && (!CLOSER_ONLY || p.t === CLOSER_ONLY));
+  const closersPool = POOL.filter(p => p.e === CLOSE && p.s !== OPEN && !ex.has(p.t) && (!CLOSER_ONLY || p.t === CLOSER_ONLY) && (CLOSER_MIN === null || p.s >= CLOSER_MIN));
   const midPool = POOL.filter(p => p.s !== OPEN && p.e !== CLOSE && p.e <= MID_END_MAX && !ex.has(p.t));
   const fixedItems = []; for (const [t, n] of fixed) for (let x = 0; x < n; x++) fixedItems.push(byT[t]);
   const fixedMin = fixedItems.reduce((a, p) => a + p.L, 0), fixedO = fixedItems.filter(p => p.s === OPEN).length, fixedC = fixedItems.filter(p => p.e === CLOSE).length;
@@ -325,4 +346,5 @@ console.log(`${CLS}: cap ${MAX_TURNS < 99 ? MAX_TURNS : 'none'} · fixed ${FIXED
 show('best', best);
 if (process.env.LADDER === '1') for (const k of Object.keys(byTurns).sort((a, b) => a - b)) show(`${k} turns`, byTurns[k]);
 if (process.env.OUT && best) writeFileSync(process.env.OUT, JSON.stringify({ cls: CLS, newT: best.newT, total: best.total, fit: best.fit, turns: best.turns, closers: best.closers, duties: best.duties, cap: MAX_TURNS, LO, HI, floorMin: FLOOR_MIN, feasible }, null, 1));
+if (TOPN && process.env.TOPN_OUT) { TOP.sort((a, b) => keyOf(a) - keyOf(b)); TOP.length = Math.min(TOP.length, TOPN); writeFileSync(process.env.TOPN_OUT, JSON.stringify(TOP.map(r => ({ fit: r.fit, duties: r.duties })))); }
 if (!best) process.exit(1);

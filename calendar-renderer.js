@@ -6,7 +6,7 @@
  *   buildCalendarContainer.
  * Does NOT own: display state (calendar-app.js), override fetching (calendar-overrides.js),
  *   member selection (calendar-member.js).
- * Edit here for: day cell HTML, calendar grid structure, month header, swipe math.
+ * Edit here for: day cell HTML, calendar grid structure, month header, swipe maths.
  */
 
 import {
@@ -17,6 +17,7 @@ import {
     SWIPE_THRESHOLD, SWIPE_VELOCITY, escapeHtml,
 } from './roster-data.js';
 import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
+import { carriedFrom } from './leave-year.js';
 import { getCurrentMember } from './calendar-member.js';
 import { rosterOverridesCache, monthKey } from './calendar-overrides.js';
 import { knowledgeOf, decideDisplay } from './calendar-data-state.js';
@@ -607,6 +608,11 @@ export function buildCalendarContainer(month, year, opts = {}) {
             // too, and `weekContext`'s whole design is that the two surfaces cannot disagree.
             dayCell.dataset.detailAsRostered = '1';
         }
+        // A January leave day that comes out of LAST year's allowance (v25.18, leave-year.js). Asked
+        // of the effective value as well as the record, so a suppressed or superseded override can
+        // never put the line under a day that is not leave.
+        const fromYear = shift === 'AL' ? carriedFrom(override, dateStr) : null;
+        if (fromYear) dayCell.dataset.detailLeaveYear = String(fromYear);
         if (extras)       dayCell.dataset.detailExtras = extras;
         // JSON rather than a re-parse of the sentence above: the panel needs the icons, and
         // matching them back out of "Bank holiday, Christmas Day" would be a second, silent copy of

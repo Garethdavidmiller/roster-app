@@ -28,23 +28,17 @@ const fingerprint = p => createHash('sha256')
 // 26 LINES (1 Oct 2026; nine by 3 Oct). Each 26-line design is one entry, in the shape the 24-line list used
 // (../../links-24/tooling/regenerate.mjs): { file, name, code, fp, strap }, the code carrying -26- (e.g. AB-26-EXT).
 export const SUPPLIED = [
-    // Second Nature (1 Oct 2026): the first 26-line design, built the Familiar Nine way — a duty table chosen from the
-    // final-table.mjs sweep (results/second-nature-*.json), Silva Lining's week structure grown to 26 lines, then searched
-    // and polished. README.md → "Second Nature" has every step and command.
-    { file: 'second-nature.json',          name: 'Second Nature',  code: 'SN-26-F2',   fp: 'a52d0f20', strap: 'No duty over nine hours, seven full weekends off, and no more late finishes than three to the close needs' },
-    // Second Wind (2 Oct 2026): Second Nature with its weeks reordered so the full weekends are never more than five weeks
-    // apart, after an external review (README.md → "The review"). Same duty table, so same rules, times and late finishes.
-    { file: 'second-wind.json',            name: 'Second Wind',    code: 'SW-26-F1',   fp: '4bec8d8e', strap: 'No duty over nine hours, and seven full weekends off never more than five weeks apart' },
-    // Second Sight (2 Oct 2026): the same duty table again, its weeks searched afresh with the weekend gap capped at five
-    // from the start (the restart the owner asked for, "the way we started Familiar Nine"), then polished with every
-    // Second Nature / Second Wind figure as a floor. No week mixes earlies and lates. README.md → "Second Sight".
-    { file: 'second-sight.json',           name: 'Second Sight',   code: 'SS-26-F1',   fp: '3c6aac4d', strap: 'No duty over nine hours, weekends never more than five weeks apart, and no week mixing earlies and lates' },
-    // Second Look and Second Gear (2 Oct 2026): from the same restart as Second Sight, on two variations of Second Nature's
-    // duty table, and the only rotas in it that met every floor. Second Look (table G3: the Saturday 08:00-16:30 pair moved
-    // to 07:15-15:45) keeps the 42 late finishes; Second Gear (table H1) has the lightest weeks and costs two more a year.
-    // README.md → "Second Look and Second Gear".
+    // FOUR WITHDRAWN ON 3 NOV 2026 (owner: "Remove the four weak proposals please and reengineer the pack"): Second Nature
+    // (SN-26-F2 · a52d0f20), Second Wind (SW-26-F1 · 4bec8d8e), Second Sight (SS-26-F1 · 3c6aac4d) and Second Gear
+    // (SG-26-H1 · 8d61e5c3), the bottom four of the main league, each matched or beaten on all but one measure by a design
+    // that stays (README.md → "Four designs withdrawn"). Their grids stay in tooling/ (second-nature.json and the rest)
+    // and their searches in results/; to rebuild one, restore its entry here and its strap, family and date in fresh.mjs
+    // from git history. The designs that grew from them — Second Look, Second Edition, Short Run, Long Break, Fine Tune and
+    // Even Keel — keep their comments below, which say so.
+    // Second Look (2 Oct 2026): from the same restart as Second Sight, on a variation of Second Nature's duty table (table
+    // G3: the Saturday 08:00-16:30 pair moved to 07:15-15:45), one of the only two rotas in it that met every floor (the
+    // other, Second Gear, is withdrawn). README.md → "Second Look and Second Gear".
     { file: 'second-look.json',            name: 'Second Look',    code: 'SL-26-G3',   fp: '7095fdda', strap: 'Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates' },
-    { file: 'second-gear.json',            name: 'Second Gear',    code: 'SG-26-H1',   fp: '8d61e5c3', strap: 'Weekends never more than five weeks apart, no Mon–Sat week over 41h 30m, and a week-to-week change of 1h 25m' },
     // Second Edition (2 Oct 2026): the owner asked for a roster stronger than any so far, at 219 days. Same duty table as
     // Second Nature; the weeks were built from a rest-day SKELETON (skeleton.mjs) that carries every rule a finished rota
     // must meet, then the times were searched. Weekends at most five apart, four single rest days, no mixed week, 18 of 21
@@ -90,6 +84,12 @@ export const SUPPLIED = [
     // weeks (Closing Time's rest days and early and late weeks) with every duty Monday to Saturday 8h 30m or less, every
     // early one of today's times and every closer still 15:45; the lates take the half hour. README.md → "Even Step".
     { file: 'even-step.json',              name: 'Even Step',      code: 'ES-26-T5',   fp: 'd1921b7a', strap: 'No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday' },
+    // Clean Slate (3 Nov 2026): the owner's question — the link if today's shift times carried no weight in the league, every
+    // other rule applying, with the weekday rules closers from 15:45, nothing over 9 hours, openers at most 8h 30m, and one
+    // 13:45 a weekday. Searched afresh and laid on Home Grown's weeks: nothing over 8h 30m Monday to Saturday, 19 weeks on one
+    // shift time. Next Step is Even Step with only Clean Slate's three weekday changes. README.md → "Clean Slate and Next Step".
+    { file: 'clean-slate.json',            name: 'Clean Slate',    code: 'CS-26-N2',   fp: 'dc175c36', strap: 'Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday' },
+    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'Even Step with three weekday shifts retimed for the trains: no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

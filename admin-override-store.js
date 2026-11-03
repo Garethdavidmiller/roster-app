@@ -377,6 +377,45 @@ export async function assertDeletable(items) {
     if (line) throw Object.assign(new Error(line), { code: DELETE_REFUSED, line });
 }
 
+// ── MOVING A DAY BETWEEN ALLOWANCES REWRITES IT AS LEAVE, SO IT CHECKS FIRST (v25.18) ────────────
+// The choice of which year's allowance a January leave day comes out of (leave-year.js) is saved as
+// a fresh annual-leave record for the day. On a page loaded this morning that would RESURRECT leave
+// cancelled on another device since, or write leave over a shift a manager has just given — a
+// stale page creating a day off nobody booked. So the day is re-read from the server first, and the
+// save refused unless it is still the leave on screen. Two ids are read: the record shown, and the
+// fixed manual id the save lands on, because a record there that this page never loaded is itself a
+// newer edit. Same read-then-write footing as `assertDeletable`, for the same reasons.
+
+/** What a refused choice says when the day has changed since the page loaded. */
+export const LEAVE_YEAR_CHANGED_LINE = 'This day has changed since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.';
+/** What a refused choice says when the check could not reach the server. */
+export const LEAVE_YEAR_UNCHECKED_LINE = "Couldn't check this day is still annual leave, so nothing was saved. Reconnect and try again.";
+
+/**
+ * Throw (with a `line` to show) unless the day is still, on the server, the annual leave this page
+ * shows.
+ * @param {string} memberName @param {string} date `YYYY-MM-DD`
+ * @param {{id: string}} shown the winning record on screen
+ * @returns {Promise<void>}
+ */
+export async function assertStillLeave(memberName, date, shown) {
+    const refuse = (/** @type {string} */ line) => Object.assign(new Error(line), { code: DELETE_REFUSED, line });
+    const fixedId = manualOverrideId(memberName, date);
+    const ids = [...new Set([shown.id, fixedId])];
+    /** @type {any[]} */
+    let snaps;
+    try {
+        snaps = await Promise.all(ids.map(id => getDoc(doc(db, COLLECTIONS.overrides, id))));
+        snaps.forEach(refuseCachedRead);
+    } catch {
+        throw refuse(LEAVE_YEAR_UNCHECKED_LINE);
+    }
+    const now = snaps[0].exists() ? snaps[0].data() : null;
+    const stillLeave = !!now && now.type === 'annual_leave' && now.memberName === memberName && now.date === date;
+    const unseen = ids.length > 1 && snaps[1].exists();
+    if (!stillLeave || unseen) throw refuse(LEAVE_YEAR_CHANGED_LINE);
+}
+
 /** @param {{ everyone: boolean, member: string }} opts @returns {Promise<void>} */
 async function _loadOverridesInner(opts) {
     const member = opts.member ?? '';

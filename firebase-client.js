@@ -210,7 +210,7 @@ function _firstAuthUserAtBoot() {
 // restart → still signed in; without the reload, correctly gone.
 //
 // So the boot now waits for the restore FIRST — which costs nothing, because setPersistence already
-// queues behind the SDK's initialization and that initialization IS the restore — and only then
+// queues behind the SDK's initialisation and that initialisation IS the restore — and only then
 // chooses: the viewer re-asserts session-only persistence (a no-op when it is already there, and a
 // MIGRATION BACK OUT of IndexedDB for any browser the old behaviour has already leaked into, which
 // is what heals the office PCs affected before this fix); everyone else gets the member chain
