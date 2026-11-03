@@ -28,6 +28,7 @@ import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './f
 
 const BULK_DELETE_CHUNK = 200;   // per committed batch — under Firestore's 500, as the range booking
 import { TYPES, rowValueText } from './admin-shift-types.js';
+import { LEGACY_OVERRIDE_TYPES } from './override-utils.js';
 import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates, assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
 
 import { setStatus } from './status-text.js';
@@ -197,7 +198,7 @@ export function renderTable() {
 
     rows.forEach(o => {
         const typeMeta     = TYPES[o.type];
-        const isLegacyType = ['allocated', 'overtime', 'swap'].includes(o.type);
+        const isLegacyType = LEGACY_OVERRIDE_TYPES.includes(o.type);
         const eid   = escapeHtml(o.id   || '');
         const edate = escapeHtml(o.date || '');
         const etype = escapeHtml(o.type || '');

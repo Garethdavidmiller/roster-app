@@ -38,9 +38,11 @@ export const TYPES = {
     // SUNSET: these are display-only (never creatable). Delete this block + the `legacyToShift` map +
     // the `isLegacyType` guard + 'allocated'/'overtime'/'swap' from `WORKED_OVERRIDE_TYPES` (search
     // those symbol names — line anchors drift) once a one-time Firestore
-    // migration rewrites any surviving legacy-typed override docs to their modern equivalents
-    // (allocated/overtime→shift, swap→shift). Until that migration runs, removing these would make
-    // old records render as UNKNOWN.
+    // migration rewrites any surviving legacy-typed override docs to their modern equivalents. WHICH
+    // equivalents is the owner's decision (v25.23): `allocated` and `swap` are contracted like `shift`,
+    // but `overtime` is classed as VOLUNTARY, like `rdw` (override-utils.js), so "→ shift" is not safe
+    // to assume for it. The names are declared once, as `LEGACY_OVERRIDE_TYPES` (override-utils.js).
+    // Until that migration runs, removing these would make old records render as UNKNOWN.
     allocated:    { label: 'Allocated shift',  fixed: false },
     overtime:     { label: 'Overtime',         fixed: false },
     swap:         { label: 'Swap',             fixed: false },

@@ -8,7 +8,9 @@ import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMem
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
          buildOverrideWrite, buildOverrideCacheRecord, collectOverrideRecords, SUNDAY_FORBIDDEN_TYPES, isForbiddenOnSunday, sundaySafeValue,
          CONTRACTED_WORK_TYPES, VOLUNTARY_WORK_TYPES, isContractedWorkOverride, nextReplacedType, manualCellValue,
+         LEGACY_OVERRIDE_TYPES,
 } from './override-utils.js';
+import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
 
 /** Build a fake Firestore QuerySnapshot from an array of {id, ...data} rows. */
 function fakeSnapshot(rows) {
@@ -1470,5 +1472,33 @@ describe('manualCellValue — a real clock time, not the shape of one', () => {
         assert.equal(manualCellValue('shift', '15:00', '00:00'), '15:00-00:00');
         assert.equal(manualCellValue('shift', '06:20', '14:20'), '06:20-14:20');
         assert.equal(manualCellValue('rdw',   '22:30', '07:00'), 'RDW|22:30-07:00');
+    });
+});
+
+// ── The legacy override types: declared once, and every list that names one agrees (v25.23) ─────
+// `allocated`, `overtime` and `swap` are still in data and no longer creatable. They were written out
+// in four places — two classifying sets here, Admin's worked-type set, and an inline array in Saved
+// Changes — so a fourth legacy type, or a tidy that removed one, had four lists to keep in step.
+describe('LEGACY_OVERRIDE_TYPES', () => {
+    it('names the three legacy types, frozen', () => {
+        assert.deepEqual([...LEGACY_OVERRIDE_TYPES].sort(), ['allocated', 'overtime', 'swap']);
+        assert.ok(Object.isFrozen(LEGACY_OVERRIDE_TYPES));
+    });
+    it('classifies each one EXACTLY once — contracted or volunteered, never both and never neither', () => {
+        for (const t of LEGACY_OVERRIDE_TYPES) {
+            const n = Number(CONTRACTED_WORK_TYPES.has(t)) + Number(VOLUNTARY_WORK_TYPES.has(t));
+            assert.equal(n, 1, `${t} is in ${n} of the two classifying sets — leave would be charged wrongly for it`);
+        }
+    });
+    it('counts each one as a worked day on Admin, and has a row in the type table', () => {
+        for (const t of LEGACY_OVERRIDE_TYPES) {
+            assert.ok(WORKED_OVERRIDE_TYPES.has(t), `${t} is missing from WORKED_OVERRIDE_TYPES — a Sunday correction could overwrite it`);
+            assert.ok(TYPES[t], `${t} has no row in admin-shift-types.js TYPES — its records would render as UNKNOWN`);
+        }
+    });
+    it('is not restated inline where it is used', () => {
+        const src = readFileSync(new URL('./admin-saved-changes.js', import.meta.url), 'utf8');
+        assert.match(src, /LEGACY_OVERRIDE_TYPES\.includes\(/, 'Saved Changes reads the declaration');
+        assert.doesNotMatch(src, /\[\s*'allocated'\s*,\s*'overtime'\s*,\s*'swap'\s*\]/, 'Saved Changes restates the trio');
     });
 });

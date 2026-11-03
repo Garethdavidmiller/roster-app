@@ -34,6 +34,13 @@ export function isRestShift(shift) {
  * overtime, which is why this is its own set rather than a filter over that one. The legacy pair
  * splits the same way: `swap`/`allocated` are contracted, `overtime` is not.
  */
+/** The override types still in data but no longer creatable (DATA_MODEL.md) — declared ONCE (v25.23).
+ *  The sets here classify each one, Admin's Saved Changes labels them "old format", and
+ *  override-utils.test.mjs holds every list that names one to this declaration. What each should
+ *  become in a one-time tidy is an OWNER question, not a default: `overtime` reads as rest-day work
+ *  below, and `admin-shift-types.js`'s sunset note once said it would become a plain `shift`. */
+export const LEGACY_OVERRIDE_TYPES = Object.freeze(['allocated', 'overtime', 'swap']);
+
 export const CONTRACTED_WORK_TYPES = new Set([
     'shift', 'spare_shift', 'other',
     'allocated', 'swap',              // legacy, still in data — contracted, like `shift`
