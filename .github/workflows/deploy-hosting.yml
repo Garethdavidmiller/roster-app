@@ -132,8 +132,8 @@ jobs:
       # THE GATE RUNS ON NODE 22, like every PR test lane (48-hour review). The PR lanes moved to 22
       # on 26 Sep 2026 while this job kept testing on 20, so a suite green on 22 and red on 20 passed
       # the PR and failed only here, after the merge — the exact split e2e.yml's comment says it
-      # removed. Only firebase-tools needs 20 (its WIF auth), so the job steps back just before it,
-      # exactly as deploy-functions.yml does.
+      # removed. firebase-tools stepped back to 20 for its sign-in until 3 Nov 2026; the whole job
+      # runs on 22 now (deploy-functions.yml has the history).
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
@@ -163,7 +163,7 @@ jobs:
       # hold up the release for the job's whole 40 minutes.
       - name: Restore Playwright Chromium from the cache
         id: pw-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-chromium-${{ hashFiles('node_modules/@playwright/test/package.json') }}
@@ -203,13 +203,14 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-      # ── BACK TO NODE 20 FOR THE DEPLOY TOOL ─────────────────────────────────────────────────
-      # Everything from here on is firebase-tools, pinned to 20 for its WIF auth (see
-      # deploy-functions.yml, where the failure is recorded).
-      - name: Switch back to the deploy-tool Node version
+      # ── THE DEPLOY TOOL'S NODE ──────────────────────────────────────────────────────────────
+      # Everything from here on is firebase-tools. Node 22 since 3 Nov 2026; it was held on 20 for
+      # its sign-in (deploy-functions.yml records why, and why that reason no longer held). Kept as
+      # its own step so that going back to 20, if a deploy ever fails to authenticate, is one line.
+      - name: Deploy-tool Node version
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       # Authenticate to Google Cloud via Workload Identity Federation — no long-lived key.
       # GitHub's per-run OIDC token is exchanged for short-lived credentials for the
@@ -217,7 +218,7 @@ jobs:
       # which the Firebase CLI picks up automatically. Migrated after deploy-rules.yml
       # proved WIF in production. See SECURITY_RELEASE_PLAN.md → Appendix A2.
       - name: Authenticate to Google Cloud (Workload Identity Federation)
-        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: 'projects/532910998075/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
           service_account: 'github-deploy@myb-roster.iam.gserviceaccount.com'

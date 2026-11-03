@@ -20,12 +20,11 @@ left, each for a decision rather than a default:
   Admin gives each type its own colour, and answers "Swapped / Rest day" in orange in one place and
   green in another (Admin: leave's teal). A date picker's chosen day is still navy, the last navy
   choice (`.claude/rules/css-tokens.md` → "Whatever you have chosen").
-- **CI actions still target Node 20**: `actions/cache` v4.3.0 (nine uses) and
-  `google-github-actions/auth` v2.1.13 (four, every deploy). GitHub forces them onto Node 24 today;
-  they stop when Node 20 is removed.
-- **The deploy tool runs on Node 20** (end of life April 2026). The recorded reason, a "Failed to
-  authenticate" on Node 22 (`deploy-functions.yml`), dates from the key-file sign-in that keyless
-  deploys replaced, and was never retested.
+- **Done the same day — CI and the deploy tool off Node 20.** `actions/cache` v6.1.0 (was v4.3.0)
+  and `google-github-actions/auth` v3.0.0 (was v2.1.13) both run on Node 24, and firebase-tools runs
+  on Node 22 in all three deploys. Its Node 20 pin dated from a "Failed to authenticate" under the
+  retired key file; if a deploy ever fails to authenticate, the comment at the top of
+  `deploy-functions.yml` names the lines to set back to '20'.
 - **CLAUDE.md is at its 125,000-character cap**, so every correction there is paid for by a cut.
 - **Weight**: `.git` is 1.4 GB; `docs/links-24` holds 34 MB that nothing reads but two `links-compare-analysis.test.mjs` fixtures (`docs/links-24/proposals/` — move those first); the 18 MB Links 26
   zip is in 19 commits.
