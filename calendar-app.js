@@ -130,10 +130,10 @@ let _teamView = null;
 // ============================================
 // CEA ROSTER CALENDAR
 // ============================================
-// Performance Optimizations:
+// Performance optimisations:
 // - Member fetched once per render (not 31+ times)
 // - Bank holidays computed on demand from roster-data.js
-// - Pure functions for predictable behavior
+// - Pure functions for predictable behaviour
 // - CSS variables for instant theme changes
 // ============================================
 
@@ -942,7 +942,7 @@ try {
         });
 
 } catch (error) {
-    console.error('[calendar] Initialization error:', error);
+    console.error('[calendar] Initialisation error:', error);
     // Always hide the splash — an error banner is more useful than an infinite loading screen
     const splashEl = document.getElementById('splash');
     if (splashEl) splashEl.remove();

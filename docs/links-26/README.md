@@ -2895,6 +2895,22 @@ Step, that and one fewer new shift time are all Even Step keeps.
 weekday fit and a gentler change of start for one more new shift time and more 06:20 starts. Whether it joins the
 shortlist, or takes the recommendation, is the owner's decision; nothing here assumes either.
 
+## UK English, the decks included (3 Nov 2026)
+
+The owner: *"Can you use UK English when communicating with me and throughout the app please".* The words already were:
+the text of all 27 PDFs in this folder, read back, holds no American spelling. The six decks were not, underneath. Their
+template tagged every run of text US English — 2,704 runs across the six — so PowerPoint spell-checked British spelling as
+American and a screen reader would have read the slides in an American voice; each deck PDF carried `/Lang(en-US)` from
+the same source.
+- **The decks** now tag every run `en-GB`, and each PDF says `/Lang(en-GB)`; nothing else in them changed
+  (`deck-check.mjs`: 162 rows agree, before and after).
+- **`deck-polish.py`** writes the runs it adds as `en-GB`, as `second-nature-decks.py` now does, and a final step
+  (`uk_language`) converts whatever a template still carries; `polish()` refuses a deck with a US tag left.
+- **"What it means if you…"** was re-rendered against the converted decks to check it still agrees with them. It does, and
+  only its date moved, so the committed sheet stands.
+- **The app's side** — every page now declares `<html lang="en-GB">`, and `uk-english-parity.test.mjs` keeps American
+  spelling out of the pages, the Cloud Functions and the scripts in this folder — is v25.17's.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

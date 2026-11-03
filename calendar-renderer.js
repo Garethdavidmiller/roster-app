@@ -6,7 +6,7 @@
  *   buildCalendarContainer.
  * Does NOT own: display state (calendar-app.js), override fetching (calendar-overrides.js),
  *   member selection (calendar-member.js).
- * Edit here for: day cell HTML, calendar grid structure, month header, swipe math.
+ * Edit here for: day cell HTML, calendar grid structure, month header, swipe maths.
  */
 
 import {

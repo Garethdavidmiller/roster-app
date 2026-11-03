@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '25.16';
+const APP_VERSION = '25.17';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -699,7 +699,7 @@ self.addEventListener("fetch", event => {
         // ignoreSearch: navigations are cached under the bare path (no ?query — see the
         // network handler), so a deep link like paycalc.html?payday=… must match it.
         // Every cache lookup below is .catch-guarded (v16.23): a rejecting openCache/match on
-        // broken storage previously rejected the WHOLE fallback chain — skipping the synthesized
+        // broken storage previously rejected the WHOLE fallback chain — skipping the synthesised
         // offline page exactly when it was designed to appear (the rejection then landed in the
         // untimed outer network backstop). The offline page must always be reachable.
         /** The best cached copy for this navigation, or null when there is NONE (v24.61). */
@@ -714,7 +714,7 @@ self.addEventListener("fetch", event => {
         const offlinePage = () => {
             if (!isDoc) return Response.error();
             return new Response(
-                `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Offline — Marylebone Roster</title></head><body style="font-family:sans-serif;padding:20px"><h1>Offline</h1><p>${offlineMsg}</p><p><button type="button" onclick="location.reload()" style="font:inherit;padding:8px 14px">Try again</button></p></body></html>`,
+                `<!DOCTYPE html><html lang="en-GB"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Offline — Marylebone Roster</title></head><body style="font-family:sans-serif;padding:20px"><h1>Offline</h1><p>${offlineMsg}</p><p><button type="button" onclick="location.reload()" style="font:inherit;padding:8px 14px">Try again</button></p></body></html>`,
                 { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }, status: 200 }
             );
         };

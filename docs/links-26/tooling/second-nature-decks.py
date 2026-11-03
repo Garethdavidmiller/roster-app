@@ -78,7 +78,7 @@ class Slide:
                f'<p:sp><p:nvSpPr><p:cNvPr id="{j}" name="Banner text"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="640080" y="4160520"/>'
                '<a:ext cx="7863840" cy="548640"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr><p:txBody>'
                '<a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" rtlCol="0" anchor="ctr"/><a:lstStyle/><a:p><a:pPr indent="0" marL="0"><a:buNone/></a:pPr>'
-               '<a:r><a:rPr lang="en-US" sz="1400" b="1" dirty="0"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:latin typeface="Inter" pitchFamily="34" charset="0"/>'
+               '<a:r><a:rPr lang="en-GB" sz="1400" b="1" dirty="0"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:latin typeface="Inter" pitchFamily="34" charset="0"/>'
                f'<a:ea typeface="Inter" pitchFamily="34" charset="-122"/><a:cs typeface="Inter" pitchFamily="34" charset="-120"/></a:rPr><a:t>{escape(text)}</a:t></a:r></a:p></p:txBody></p:sp>')
         foot = [(a, b) for a, b in spans(self.x) if '<a:off x="457200" y="4800600"/>' in self.x[a:b]]
         if len(foot) != 1 or '<a:off x="457200" y="4160520"/>' in self.x: raise SystemExit(f'{self.path}: no footer, or a banner already')

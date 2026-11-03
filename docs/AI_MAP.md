@@ -574,7 +574,7 @@ Calendar cell and grid building for `index.html` — extracted from `calendar-ap
   `onRetryMonth(year, month)` is omitted — and then no button is drawn — while the initial 3-month fetch is running: the sync chip is already the retry for that window, and a per-month fetch racing the in-flight range fetch is the v18.76 two-authoritative-reconcilers eviction bug.
 - `createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year)` — pure; returns HTML string for the month/week header
 - `createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime)` — pure; returns HTML string for a single day cell's interior
-- `getSwipeDirection(startX, startY, endX, endY, elapsed)` — pure math; returns `'left'`, `'right'`, or `null`
+- `getSwipeDirection(startX, startY, endX, endY, elapsed)` — pure maths; returns `'left'`, `'right'`, or `null`
 
 ### `calendar-huddle-viewer.js`
 Huddle viewer overlay — extracted from `calendar-app.js` at v11.40. Exports `initHuddleViewer({ authReady, docAccess })` and `wrapTables(root)` (the old `applyHuddleButtonState()` export was removed at v12.57 — the `#huddleBtn` it updated no longer exists; the viewer is opened solely via the `#huddle` hash).
