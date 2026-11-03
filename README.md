@@ -1,7 +1,7 @@
 # Marylebone Roster
 
 A staff roster app for Chiltern Railways' Marylebone station: shifts, annual leave, overtime
-availability, a pay estimator, and the daily operational documents. It is an offline-first
+availability (built, and paused for now), a pay estimator, and the daily operational documents. It is an offline-first
 Progressive Web App — **vanilla JavaScript with no framework and no build step** — served as static
 files, with Firebase (Auth, Firestore, Storage, Cloud Functions) behind it.
 
@@ -53,8 +53,10 @@ recorded, with the measurements behind that decision, in `typecheck-scope.test.m
 
 The repository is public and holds no credentials. Deploys authenticate through Workload Identity
 Federation rather than a stored key; the Firebase API key is referrer-restricted; the shared
-Calendar PIN lives only in Secret Manager, and `calendar-viewer-parity.test.mjs` fails the build if
-it ever appears in the source, tests or documentation.
+Calendar PIN lives only in Secret Manager. No test can look for the digits themselves (a test that knew
+them would be the leak), so `calendar-viewer-parity.test.mjs` checks the shapes a leak would take — a
+client file naming the secret, a comparison in the browser, a stored verifier. Keeping the digits out of
+the repository is a rule, not a guard.
 
 ## Where to read next
 

@@ -17,8 +17,9 @@
                      `normaliseSurname` in auth-identity.js — if you are unsure,
                      run that rather than guessing (hyphens and apostrophes go).
     {{STAFF_PIN}}    the four digits. ⚠️ NEVER COMMIT THE REAL PIN. It lives only
-                     in the CALENDAR_VIEWER_PIN secret, and
-                     calendar-viewer-parity.test.mjs fails if it enters the repo.
+                     in the CALENDAR_VIEWER_PIN secret, and NOTHING
+                     automated would catch it in this file — no test
+                     can look for the digits themselves.
                      Fill it in the mail client, not in this file.
 
   ── CHOOSE ───────────────────────────────────────────────────────────────────

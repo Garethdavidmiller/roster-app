@@ -43,7 +43,7 @@ of a single record — *not* a full database restore. Reach for a full restore l
 | Cloud Functions (europe-west2) | **Do not keep a second list here.** `functions-surface.test.mjs` pins the whole deploy surface in CI and is the only copy that cannot fall behind — read it. (This row named 8 of the 18 until v21.63; playbook E was written against that short list, so a rollback scoped from it would have missed every Overtime endpoint, the PIN exchange and the reset queue.) |
 | Live site (primary) | `https://myb-roster.web.app` (Firebase Hosting) |
 | Live site (mirror) | `https://garethdavidmiller.github.io/roster-app/` (GitHub Pages, built from `main`) |
-| Deploy mechanism | GitHub Actions via Workload Identity Federation → `github-deploy@myb-roster.iam.gserviceaccount.com`. Workflows: `deploy-functions.yml`, `deploy-hosting.yml`, `deploy-rules.yml` |
+| Deploy mechanism | GitHub Actions via Workload Identity Federation → `github-deploy@myb-roster.iam.gserviceaccount.com`. Workflows: `deploy-functions.yml`, `deploy-hosting.yml`, `deploy-rules.yml`, and `deploy-mirror.yml` (the Pages mirror, once its source is switched to GitHub Actions) |
 | Source of truth for a rollback | this git repo — `main` is what deploys |
 | **IAM prerequisite for `unlockCalendarViewer`** | The Cloud Run runtime service account — currently `532910998075-compute@developer.gserviceaccount.com` — must hold **`roles/iam.serviceAccountTokenCreator` on itself**, and `iamcredentials.googleapis.com` must be enabled. Under Application Default Credentials `createCustomToken` cannot sign locally; it calls the IAM Credentials API. **Gen-2 does not grant this by default and nothing in the repo can enforce it** — its absence caused the 10 Aug 2026 outage, in which every correct PIN returned 500 while every wrong one returned a healthy 401. Re-apply it if the runtime service account changes, if the function is given its own service account, or if the project is rebuilt. |
 
@@ -249,9 +249,11 @@ repository schedules the drill — adding a row to `MAINTENANCE_CALENDAR.md` is 
 
 1. **If you know what it should be — just re-enter it.** This is the normal, fastest fix:
    Admin → **Change a Shift** (or the AL / Absence card) → set the correct value → save.
-   Overrides are one document per member+date (Firestore auto-generated IDs — the
-   `memberName|YYYY-MM-DD` string is only the client cache key); re-creating one is a
-   normal save, not a "restore".
+   A manual save goes to ONE fixed document per member and date, `m_<date>_<encoded name>`
+   (`manualOverrideId`, override-id.js, v24.48); roster imports keep random ids and may sit beside
+   it, the manual one winning. Re-creating one is a normal save, not a "restore" — and if you ever
+   copy a record back by hand, keep its ORIGINAL id: a manual record under a random id is the
+   duplicate that counts a day of leave twice.
 2. **If you don't know the old value and PITR is on**, export a snapshot from before the
    change and read it:
    ```
@@ -270,9 +272,9 @@ repository schedules the drill — adding a row to `MAINTENANCE_CALENDAR.md` is 
 **removes the stale imported overrides and re-applies the corrected ones**. Manual changes
 (`source: 'manual'`) are preserved and surface as conflicts for you to choose.
 
-1. Re-upload the **correct** PDF for the same week via Operations → Weekly Roster Upload.
-2. Review the table: MATCH rows are already right; DIFF/CONFLICT rows let you keep the
-   correct value. Save.
+1. Re-upload the **correct** PDF for the same week via Operations → **Weekly Roster**.
+2. Review the changes — only the days that differ are listed; on a conflict choose **Keep saved**
+   or **Use new roster**. Save.
 3. If a wrong value was already *manually* re-saved on top, fix that day via **Change a
    Shift** (playbook A).
 4. Only if the correct source PDF is unavailable *and* PITR is on: export a pre-upload
@@ -282,7 +284,8 @@ repository schedules the drill — adding a row to `MAINTENANCE_CALENDAR.md` is 
 
 **Symptom:** a design in the Links workspace is gone or scrambled.
 
-- `linkDesigns` docs are `{ name, patterns, window, updatedAt, updatedBy }` — the shape is
+- `linkDesigns` docs are `{ name, patterns, window, updatedAt, updatedBy }` plus the `revision` the
+  store stamps on every save (copy it back too: it is the co-editing identity) — the shape is
   `docPayload` in `links-design-doc.js`, which exists precisely so nobody hand-builds a sixth copy
   of it. **`window` is load-bearing and this playbook omitted it until v21.63.** A design restored
   without its window comes back wearing the app default, the heat map then measures its gaps
@@ -319,15 +322,18 @@ Each document is a Firestore doc (`circulars/{date}` etc.) **plus** a Storage fi
    git revert <bad-commit-sha>
    git push origin main        # triggers deploy-functions.yml
    ```
-   Watch the Actions run to green.
+   Watch the Actions run to green. **If `main` carries the status-check ruleset**
+   (OPERATIONS_REFERENCE.md → "The Pages mirror — putting it behind the Hosting gate", step 1), a
+   direct push is refused unless you are on its bypass list: push the revert to a branch and merge
+   it as a pull request once CI passes. The same applies to every `git push origin main` below.
 2. **Emergency local redeploy** (if Actions itself is the problem), from a good checkout:
    ```
    firebase deploy --only functions --project myb-roster
    ```
 3. Check function logs to confirm recovery: **Console → Functions → Logs**, or
    `firebase functions:log`.
-4. Secrets (`HUDDLE_SECRET`, `ANTHROPIC_API_KEY`, `VAPID_*`) live in Firebase Secret
-   Manager — a deploy doesn't wipe them; a broken function is almost always code, not secrets.
+4. Secrets (`HUDDLE_SECRET`, `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `CALENDAR_VIEWER_PIN`) live in
+   Firebase Secret Manager — a deploy doesn't wipe them; a broken function is almost always code, not secrets.
 
 ### F. A Firestore / Storage Rules deploy locked people out (or opened access)
 
@@ -362,11 +368,15 @@ look fine **even when the live site is completely broken**. Always verify in a *
 private window** (no cache, no SW): does `https://myb-roster.web.app` load *past* the splash
 to the calendar, with no red console errors?
 
-1. **Hosting rollback (fastest):** **Console → Hosting → release history → Rollback** to the
-   previous release. (There is **no `firebase hosting:rollback` CLI command** — the Console
-   button is the rollback path. The nearest CLI equivalent is `firebase hosting:clone` from a
-   known-good preview channel, which only helps if one exists.)
-2. **Or revert the commit** and let `deploy-hosting.yml` redeploy.
+1. **Revert the commit** and let `deploy-hosting.yml` redeploy — **the only route that reaches BOTH
+   origins.** Most staff open the GitHub Pages mirror, which builds from `main` (or, once its source
+   is switched, follows a completed Hosting workflow run — `deploy-mirror.yml`). A Console rollback
+   runs neither, so the mirror keeps serving the broken release.
+2. **Hosting rollback (fastest, `myb-roster.web.app` ONLY):** **Console → Hosting → release history →
+   Rollback** to the previous release — a stopgap while the revert deploys, never the whole fix.
+   (There is **no `firebase hosting:rollback` CLI command** — the Console button is the rollback
+   path. The nearest CLI equivalent is `firebase hosting:clone` from a known-good preview channel,
+   which only helps if one exists.) Verify BOTH live URLs afterwards.
 3. After recovery, re-check the deployment health list in `CLAUDE.md` (the live-URL checks),
    especially if the change touched `firebase.json` (CSP/headers) or the Firebase SDK version.
 
@@ -432,13 +442,13 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 | Symptom | First action | Where |
 |---------|-------------|-------|
 | One shift/AL/absence wrong or deleted | Re-enter it | Admin → Change a Shift |
-| Bad roster upload | Re-upload correct PDF (self-heals imports) | Operations → Weekly Roster Upload |
+| Bad roster upload | Re-upload correct PDF (self-heals imports) | Operations → Weekly Roster |
 | Link design lost | Regenerate, or read old `patterns` from a PITR snapshot | Links workspace |
 | Doc won't open / wrong date | Re-upload for the correct date | Operations |
 | Bad Functions deploy | `git revert` + push, or `firebase deploy --only functions` | git / CLI |
 | Bad Rules deploy | Console → Rules → Rollback to the previous version (seconds) — never past v24.23 | Firebase Console |
 | Members denied everywhere after a claims change | Set up accounts (read failed/taken-back lines + audit), then wait ≤1h or bump `CLAIM_EPOCH` — not a rules rollback | Operations |
-| Broken live site | Console → Hosting → Rollback | Firebase Console |
+| Broken live site | Revert the commit (reaches both origins); Console → Hosting → Rollback fixes `web.app` only | git + Firebase Console |
 | Hosting infra down | Point staff at the `/roster-app/` GitHub mirror | — |
 | Everything failing at once | Check status pages; wait; don't redeploy | status.firebase.google.com |
 | Auth silently failing | Check API-key referrer allowlist | GCP → Credentials |
@@ -595,17 +605,21 @@ a deploy cycle.
 
 ### If viewer authentication fails in production
 
-**Restore availability first.** An unreadable Calendar is obvious; a Calendar quietly showing the
-base roster without overrides shows somebody a shift they are not working, and they will act on it.
+**Restore access through the sign-in card, not through the rules.** A member signing in with their own
+password never touches `unlockCalendarViewer`, so their way in still works. Opening the `overrides` read
+rule (`allow read;`) would restore NOTHING: the Calendar decides access in the browser and draws the PIN
+card for anyone who is not a member or a viewer, whatever the rules say (`decideAccess`,
+`calendar-access-core.js`). It could not ship through the pipeline either — `calendar-viewer-parity.test.mjs`
+fails a bare `allow read;` that nothing declares, and `deploy-rules.yml` runs `npm run check` first.
 
-1. In `firestore.rules`, replace the `overrides` read rule with `allow read;` and deploy rules.
-   The Calendar is public again and correct again. Say so to staff — it is a real, if temporary,
-   loss of the protection.
+1. Tell staff to use the sign-in card with their own password. A shared station PC has no way in until
+   the exchange is fixed — say so plainly rather than leaving them to retry.
 2. Diagnose from the Cloud Function logs (`unlockCalendarViewer`). A locked Calendar has no Firebase
    identity, so **nothing appears in the Operations Error Log** — do not read its silence as health.
    The usual causes are an unset or un-redeployed secret (`503`, or every PIN rejected) and a
    claim/uid mismatch between the function and the rules (unlock succeeds, no shifts appear).
-3. Fix, redeploy the function, confirm from a fresh private window, then re-tighten the rule.
+3. Fix (the IAM grant in the project facts table above, the secret, a redeploy), then confirm the
+   PIN from a fresh private window.
 
 Do **not** leave it half-working: a Calendar that renders without its overrides is the one outcome
 worse than a Calendar that will not open.

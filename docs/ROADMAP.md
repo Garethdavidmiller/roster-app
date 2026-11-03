@@ -251,7 +251,7 @@ fraction of Calendar opens actually follow a release, which turns this from a pl
 into a sized one.
 
 ### Calendar start — the identity round trip
-**Status:** DECIDED and SHIPPED (v22.97) · **Decided by:** Gareth, 5 Sep 2026 · **Where it lives now:** `CALENDAR_DATA.md` invariant 13
+**Status:** SHIPPED (v22.97), RETIRED 26 Sep 2026, REPLACED at v24.59 · **Decided by:** Gareth, 5 Sep 2026 · **Where it lives now:** `CALENDAR_DATA.md` invariant 17 (13, the paint's own, is retired)
 
 The owner's answer was **option 2 — yes, for a named member with a live local session only**: a
 returning member is shown their own already authorised cached roster while Firebase revalidates the
@@ -273,8 +273,8 @@ overtake (`DECISIONS.md` → "The provisional paint"). **Its replacement SHIPPED
 owner decision):** an app-owned copy of the member's own months in plain storage, painted labelled
 before the lookup answers — the one shape that entry said could beat it (`CALENDAR_DATA.md` 17,
 `calendar-snapshot.js`). **What to read next:** whether a returning member's open now SHOWS a roster
-well inside a second. The App Speed card's milestones were built around the grant, so it measures the
-copy only indirectly; a direct milestone is the next instrument if the field reports stay mixed.
+well inside a second. The App Speed card's milestones were built around the grant, so it measured the
+copy only indirectly until v24.85 added a direct milestone (`rosterSnapshot` — "Own roster" on the card).
 
 The whole entry as it stood when the decision was taken — the field confirmation, the offline
 measurement, the two couplings and all three candidate answers — is in `ROADMAP_HISTORY.md`, moved
@@ -291,7 +291,8 @@ invariant 1's failure reached from a new direction. Those members boot exactly a
 not be needed: phase 1 already notes the months `cached`, so the grid is drawn as a cached grid by
 machinery staff have read for months, and phase 2 confirms it. Whether that is enough, or whether
 the paint deserves to say so in its own words, is a question to answer from use rather than from
-first principles. **Read `LATENCY.md` for what the change is worth before revisiting it** — the
+first principles. (The replacement answers it for itself: the own-roster copy is drawn `stale`, with
+"Checking for changes…" — `CALENDAR_DATA.md` 17.) **Read `LATENCY.md` for what the change is worth before revisiting it** — the
 closing read there is the evidence, and it found the path rarely fires.
 
 ### Track C5 — retire the surname default
@@ -336,7 +337,7 @@ reason this section exists — so the next review's re-raises cost a link rather
 |---|---|
 | Did the cached-roster fast path actually work? | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: one open in roughly 800 eligible, row one of the pre-registered table, so the identity diagnosis stands. Kept by owner decision the same day, then **RETIRED 26 Sep 2026** (it could not beat Auth start-up, and shipped two defects); replaced at v24.59 by the own-roster copy, which does not wait on Auth. `LATENCY.md` → THE CLOSING READ · `DECISIONS.md` → "The provisional paint" |
 | Is the service-worker revalidation storm costing staff anything? | **ANSWERED — no**, 12 Sep 2026. A full sweep (31+ files) was running on 78% of Calendar opens, and the card's own test is whether those boots are slower: **Worker busy 78% over a second against Shifts shown 78%.** Identical. The storm is real and costs the member nothing measurable. `LATENCY.md` → THE FULL-MONTH READ → item 4 |
-| Move staff off the Pages mirror onto `myb-roster.web.app` | **NEW — no home before this row.** `web.app` is already canonical and the notification target (v14.29); what is undecided is moving the staff who still open the mirror. KNOWN_LIMITATIONS measures the mirror's 21% byte penalty; nothing recorded the decision that measurement prices. It is the one change with two payoffs — fewer bytes on every cold load, and headers and redirects reaching the half of the staff that has neither. The cost is operational, not technical: telling colleagues and reinstalling from the canonical URL (see Address migration campaign) |
+| Move staff off the Pages mirror onto `myb-roster.web.app` | **NEW — no home before this row.** `web.app` is already canonical and the notification target (v14.29); what is undecided is moving the staff who still open the mirror. A first step has shipped: the `install-app-2026` notice (v24.91) sends phone users on the mirror to install from `myb-roster.web.app`, moving their Pay data first. KNOWN_LIMITATIONS measures the mirror's 21% byte penalty; nothing recorded the decision that measurement prices. It is the one change with two payoffs — fewer bytes on every cold load, and headers and redirects reaching the half of the staff that has neither. The cost is operational, not technical: telling colleagues and reinstalling from the canonical URL (see Address migration campaign) |
 | Pay Calculator progressive disclosure on phones | **ALREADY DECLINED**, 3 Sep 2026 — see DECISIONS.md → "Pay Calculator — "More pay tools" grouping on phones — DECLINED", which took the same proposal through four drafts and a measured prototype. The review restates the observation the prototype answered (the page is long on a phone) and brings no new evidence, so the recorded trigger stands: **a staff report about the tail of the page**, which does not exist. Do not add instrumentation to test it |
 | Links generator — Recommended first, Advanced second | Already an entry below, unchanged by this review |
 | A small WebKit visual smoke set | **DONE — v23.71, 12 Sep 2026.** Six baselines on mobile-safari, report-only in branch CI (`e2e/visual-webkit.spec.js`, `npm run test:visual:webkit`), under `e2e/visual-baselines/webkit/`. **Calendar mobile is the one this row named that was NOT taken**: its fractional 390/7 columns are exactly why the Chromium lane excludes the month grid, a second engine does not repair that, and a flaky baseline is worse than none — the Calendar is represented by the day panel instead, which is a fixed-width overlay. Measured rather than assumed: six consecutive runs green and a full `=all` regeneration byte-identical, so the tolerance is Chromium's 0.001 and not the looser one the config first claimed was needed. ~15s per run |
@@ -461,8 +462,8 @@ preview items shipped". They are recorded so the page grows toward a plan rather
   Oxford…) and a hand at the current minute. Tap a dot for that train.
 - **Where to?** — one button per destination: the next three trains, the minutes it usually leaves
   at, and first and last today. With calling points (December's are in since v24.80), "also stops at…".
-- **Last trains tonight** — from about 20:00 this moves to the top with a countdown to each last
-  train, the after-midnight ones labelled "tonight, just after midnight".
+- **Last trains tonight** — a Last trains card shipped at v24.94; what remains is the evening move
+  to the top (from about 20:00) with a countdown to each last train, the after-midnight ones labelled "tonight, just after midnight".
 - **Your shift** — for a signed-in member the Calendar already knows today's shift, so: "You're on
   15:45–23:55. Busiest spell 17:00–18:59. Last trains you'll see: …". No other tool can say this.
 - **Busy times strip** — a 24-hour bar shaded by trains per hour with a "now" marker, reusing the
@@ -504,10 +505,10 @@ preview items shipped". They are recorded so the page grows toward a plan rather
 ## NEXT — likely, but a trigger is required
 
 ### Overtime full launch — the three things the beta must answer first
-**Status:** Watching the restricted beta · **Owner:** Gareth (the launch decision) · **Trigger:** each item names its own, below
+**Status:** PAUSED since v25.05 — closed to everyone, the admin included (`OVERTIME_AVAILABILITY.md` → Paused) · **Owner:** Gareth (the launch decision) · **Trigger:** each item names its own, below
 
-The feature is live for a restricted beta (`CONFIG.OVERTIME_BETA` + the reviewers) and the design
-record is `OVERTIME_AVAILABILITY.md`. Three items were flagged in the Aug 2026 external review of
+The feature ran as a restricted beta (`CONFIG.OVERTIME_BETA` + the reviewers; the beta list has been
+empty since 7 Oct 2026) until it was paused, and the design record is `OVERTIME_AVAILABILITY.md`. Three items were flagged in the Aug 2026 external review of
 v21.53 as *pre-full-launch* considerations rather than defects — recorded here so the launch
 decision is made against them rather than rediscovering them:
 
@@ -537,7 +538,9 @@ decision is made against them rather than rediscovering them:
 
 Staff do not generally know the app has two addresses (`myb-roster.web.app` and the
 `garethdavidmiller.github.io/roster-app/` mirror), so moving them across needs a real campaign, not a
-notice.
+notice. (One notice has gone out all the same: `install-app-2026`, v24.91, asks phone users on the
+mirror to install from `myb-roster.web.app` and to move their Pay data first. The campaign is still
+the rest.)
 
 **Why AFTER the password plan, concretely.** The forced set-password overlay fires at next sign-in and
 completes itself within 60 days (sessions cap at 60 days since v20.47). A new address is a NEW ORIGIN,
@@ -592,8 +595,8 @@ a member (deep dive) and may never hide the first (that the thing exists). "Reco
 names what is happening; the five switches are depth.
 
 **The trigger is the owner.** It is a visible change to the card a designer uses most, the December
-2026 proposals are being settled against its checks right now (drawn by `docs/links-24/tooling`
-running the Links modules under Node, or supplied as grids and imported — not in this card), and two of this app's collapse decisions have been
+2026 proposals are being settled against its checks right now (drawn by the `docs/links-26/tooling`
+scripts running the Links modules under Node — `docs/links-24/` has been frozen since 1 Oct 2026 — or supplied as grids and imported — not in this card), and two of this app's collapse decisions have been
 reverted after shipping (the admin task navigator, the drawer's notification row). It wants a
 decision, not a sweep. If it goes ahead, `links-tips.js`'s "The default table" section and the
 generator card's one `.links-desc` sentence move with it — the desktop left-edge e2e check counts
@@ -622,7 +625,8 @@ enforced. D2 (enforce) must not start until D1 has run long enough to know what 
 ### Dispatcher pay calculator support
 **Status:** Blocked · **Owner:** Chiltern payroll (via Gareth) · **Evidence required:** class B
 
-Add Dispatcher pay rates to `GRADES` in `paycalc-calc.js` so Dispatcher staff can use the calculator.
+Add Dispatcher pay rates to `GRADES` in `paycalc-calc.js`, and let `gradeForRole` (`roster-data.js`)
+return a grade for a Dispatcher — it refuses one today — so Dispatcher staff can use the calculator.
 **Blocked on** confirmed Dispatcher hourly rate, contracted hours and pension contribution. **Do not
 add placeholder rates** — the calculator must be accurate or it misleads staff about their pay.
 
@@ -739,7 +743,7 @@ sunken) maps cleanly onto dark.
 **If it is ever built, a toggle is essential.** Do **not** ship it as a silent `prefers-color-scheme`
 switch: ship it behind an explicit on/off (ideally on/off/auto) control in Settings, defaulting to
 today's light theme, so nobody is surprised by a changed app. Today `shared.css` forces
-`color-scheme: light`; that opt-out is what a dark theme would replace, gated behind the toggle.
+`color-scheme: only light`; that opt-out is what a dark theme would replace, gated behind the toggle.
 
 **Effort/risk when scoped:** medium effort (every surface/text token needs a dark counterpart, AA
 re-verified in both themes), low risk (additive, behind the toggle).
@@ -852,7 +856,7 @@ both would need the governance gate answered before that changed.
 | ~~`firebase-admin` v14~~ | **DONE v22.01** — `14.3.0` + `firebase-functions` `7.3.2`. v14 removes the namespaced `admin.*` API, so 59 call sites moved to the modular entry points first (on v13, green) and the version bump changed no code. The `uuid` override is still needed: `gaxios@6.7.1` under `@google-cloud/storage` declares `uuid ^9.0.1` | `KNOWN_LIMITATIONS.md`, `SECURITY_RELEASE_PLAN.md` → A1 |
 | `npm audit --omit=dev` in `functions/` | The weekly workflow runs `--audit-level=high`, so low/moderate drift does **not** fail CI — it is caught only by looking | `SECURITY_RELEASE_PLAN.md` → A1 |
 | App Speed card — the **Usable** milestone | Added v20.80, and the first figure that describes what a member actually waits for. The two older milestones cannot: "First appears" is the splash painting, and "Code loaded" fires while the Calendar can still be blank. Watch this one, not those | Operations → App Speed |
-| App Speed card, calendar tail | The only trigger that would reopen the bundler or SDK-deferral question | This file → Build tooling |
+| App Speed card, calendar tail | The measured half of ONE of the four Build-tooling triggers (load time on staff phones) | This file → Build tooling |
 | Per-address counters | The signal for the migration campaign — read the mirror going down | Operations → Usage |
 
 ---

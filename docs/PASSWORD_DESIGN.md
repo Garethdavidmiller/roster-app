@@ -133,7 +133,11 @@ session, login screen skipped) — with **no password available**:
   branch needs no password. Unchanged.
 - **Firebase session evicted, member un-migrated:** the automatic surname attempt still works
   (no typed value to gate here — this is automated re-auth of an existing session, the same trust
-  model as today, not an attacker at a keyboard).
+  model as today, not an attacker at a keyboard) — **except in three cases since Oct 2026**
+  (AUTH_AND_SESSIONS.md invariant 23): it is REFUSED when this device's session began before the
+  admin's last reset of the account (`resetAt`), HELD when that time cannot be confirmed, and SKIPPED
+  after a definitive rejection on this device. Without the first, a reset's sign-out of other devices
+  (§5, `revoke: true`) would be undone by the very next load.
 - **Firebase session evicted, member migrated:** they **cannot be silently re-authenticated —
   ever.** The named session fails → the existing enforce plumbing re-shows the login overlay.
   **Honest UX cost, stated up front:** migrated members will occasionally be asked to sign in
@@ -262,7 +266,7 @@ dashboard and, later, **the ≥90% metric that gates C5** — measured from day 
 |-------|----------|-------|
 | **0 — enabler** | §3 sign-in rework (gated dual-attempt, flag-independent rejection, page-load path) | Ships **atomically with Phase 1** — alone it is risk without capability |
 | **1 — capability + recovery + visibility** | Settings set-password card · `resetMemberPassword` + Operations reset button · `passwordStatus` + rules · **Operations Account status table** · Settings nudge banner | **This alone delivers the security win.** Migration voluntary |
-| **2 — compel + measure** | Forced set-password overlay, gated on `!isPasswordMigrated(status)` | ✅ **SHIPPED v18.92** as `password-force.js` in all seven page coordinators, kill-switched by `CONFIG.FORCE_PASSWORD_SET`. Applied to EVERYONE at once rather than owner → managers → staff (owner, 25 Jul 2026): the session model staggers it anyway, so a tiered rollout would have added releases for no reduction in peak load. ~~staged compel via `resetMemberPassword(revoke:false)`~~ — **struck v18.88, see below** |
+| **2 — compel + measure** | Forced set-password overlay, gated on `!isPasswordMigrated(status)` | ✅ **SHIPPED v18.92** as `password-force.js` in every page coordinator (seven then, nine today), kill-switched by `CONFIG.FORCE_PASSWORD_SET`. Applied to EVERYONE at once rather than owner → managers → staff (owner, 25 Jul 2026): the session model staggers it anyway, so a tiered rollout would have added releases for no reduction in peak load. ~~staged compel via `resetMemberPassword(revoke:false)`~~ — **struck v18.88, see below** |
 | **3 — retire the surname (later, optional, C5)** | Stop seeding surname passwords for new starters; delete the surname fallback + padding | **Irreversible.** Gated on ≥90% migrated. Out of scope for this plan; the door is left open |
 
 > **Correction (v18.88) — the "staged compel via reset" step did nothing.** Phase 2 originally
@@ -448,8 +452,9 @@ meaningfully better than a saved password, and it is the only reason to prefer B
 ### Recommended ordering
 
 Do **A** (the ten-minute check) first. Then settle the mirror, because until that is decided the
-question "who can even use this?" has no answer. **C5 is the higher-value item and is unblocked
-today** — passkeys do not replace it, though they make its endgame considerably more attractive.
+question "who can even use this?" has no answer. **C5 is the higher-value item, and passkeys do
+not block it** — it stays gated as the canonical table in SECURITY_RELEASE_PLAN.md says (on Track E).
+Passkeys do not replace it, though they make its endgame considerably more attractive.
 
 ---
 
@@ -775,8 +780,9 @@ depend on a read the incident might be affecting.
 ### Still accepted, unchanged
 
 §13 stands in full. A request still proves nothing about who sent it; coalescing bounds the *noise*
-of a forged burst, not the forgery. App Check (Track D) remains the real control, and the public
-absence data remains a deliberate, documented trade.
+of a forged burst, not the forgery. App Check (Track D) remains the real control. (This line also
+accepted "the public absence data" as a deliberate trade; absence has been behind a named session or
+the staff PIN since 26 Aug 2026.)
 
 ### Test gaps the same review listed, closed at v18.98
 
@@ -798,8 +804,8 @@ Two fixture capabilities were needed and are worth knowing about: `deleteDoc` no
 seeded row (so a ghost row and a cleared row look different), and `__E2E.docsDelayMs` / 
 `__E2E.hangPasswordWrite` make the two races reproducible instead of timing-dependent.
 
-**Still open from the review, by choice not oversight:** App Check (Track D — an owner decision, and
-the reason it was declined in June 2026 still stands on its own terms); INDIVIDUAL authentication
+**Still open from the review, by choice not oversight:** App Check (Track D — deferred and sequenced,
+not closed; SECURITY_RELEASE_PLAN.md is authoritative); INDIVIDUAL authentication
 (Track E, undecided — absence data itself has been behind a named session or the staff PIN since
 26 Aug 2026, so what remains open is whether each person signs in rather than a station sharing a
 code); and the remaining FIP country source URLs, which need one verified per-country link each

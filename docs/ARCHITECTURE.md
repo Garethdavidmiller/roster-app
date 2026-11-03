@@ -100,18 +100,19 @@ move its content there — do not create a second archive.
       │                    │                   │
       └──────────┬─────────┴─────────┬─────────┘
                  │                   │
-        the six protected pages   the Calendar
+        the eight sign-in pages   the Calendar
         admin · operations ·      index.html
         settings · paycalc ·      (+ its access gate)
-        links · overtime
+        links · overtime ·
+        trains · newlink
 ```
 
-A reading map, not the import graph — `override-utils.js` and `ls.js` import nothing, and
-`roster-data.js` itself imports `override-utils.js`.
+A reading map, not the import graph — `ls.js` imports nothing, `override-utils.js` imports only two
+leaf modules (`clock-input.js`, `leave-year.js`), and `roster-data.js` itself imports `override-utils.js`.
 
 Three edits reach further than they look, and each has a row in `CLAUDE.md` → *Change impact*:
-`resolveEffectiveShift` (every surface that shows a shift), the three auth modules (all six protected
-pages at once), and `firestore.rules` (client and server together).
+`resolveEffectiveShift` (every surface that shows a shift), the auth modules (all eight sign-in
+pages at once, and the Calendar), and `firestore.rules` (client and server together).
 
 ---
 
@@ -138,7 +139,7 @@ question it exists for, which is what is true right now.
 |---|---|---|---|
 | **EXC-003** | **Overtime is paused** (owner, Nov 2026). Built, proven and switched off: no pill for anyone, the admin included; the page says it is paused; only the retention purge is deployed, so no week is made and nobody is asked. It returns as the restricted beta it was — reviewing for admin/manager, participating for the admin plus `CONFIG.OVERTIME_BETA` (empty since 7 Oct 2026). | `CONFIG.OVERTIME_ENABLED` · `functions/roster-members.json` (`overtimeEnabled`) · `functions/index.js` | The owner switches it back on (`OVERTIME_AVAILABILITY.md` → Paused) — then the beta's own closure, full launch, applies |
 | **EXC-005** | **The surname default is still a valid password.** Members who have set their own have a real secret; everyone else can still sign in with their surname, and an admin reset returns an account to it. | `auth-identity.js` (`credentialCandidatesFor`) | Track C5 — gated on ≥90% migrated **and** on Track E. Irreversible |
-| **EXC-007** | **Document bearer URLs already in circulation stay live.** Since v23.17 the Huddle, Circular and Newsletter are behind the PIN or a password in the app, and their Firestore reads were closed at v23.18; but each file is fetched by a permanent tokenised Storage URL that bypasses rules, so anyone who obtained one before (browser history, a forwarded link, Microsoft's Office viewer cache) can still open that file. New readers cannot discover a URL; old holders keep theirs. | `storage.rules` header · AUTH_PLAN.md §5 (E6) | **The existing objects are rotated** (the client has called `getDocumentUrl` since v24.19). The Office viewer STAYS — the owner refused both routes that would have removed it (AUTH_PLAN §5, DECIDED 19 Sep 2026), so the closure condition is no longer "replace the delivery for `.docx`"; it is that the URL handed to that viewer becomes short-lived. The SERVER half is built and deployed (v24.16–18) and the CLIENT half shipped at v24.19 — the nav drawer, `calendar-doc-viewer.js` and `calendar-huddle-viewer.js` all fetch the short-lived URL, falling back to the stored one only if the server refuses. **What keeps this row open is rotation alone** — the only step that reaches an object already orphaned by a partial prune — and it has not been taken |
+| **EXC-007** | **Document bearer URLs already in circulation stay live.** Since v23.17 the Huddle, Circular and Newsletter are behind the PIN or a password in the app, and their Firestore reads were closed at v23.18; but each file is fetched by a permanent tokenised Storage URL that bypasses rules, so anyone who obtained one before (browser history, a forwarded link, Microsoft's Office viewer cache) can still open that file. New readers cannot discover a URL; old holders keep theirs. | `storage.rules` header · AUTH_PLAN.md §5 (E6) | **The existing objects are rotated** (the client has called `getDocumentUrl` since v24.19). The Office viewer STAYS — the owner refused both routes that would have removed it (AUTH_PLAN §5, DECIDED 19 Sep 2026), so the closure condition is no longer "replace the delivery for `.docx`"; it is that the URL handed to that viewer becomes short-lived. The SERVER half is built and deployed (v24.16–18) and the CLIENT half shipped at v24.19 — the nav drawer, `calendar-doc-viewer.js` and `calendar-huddle-viewer.js` all fetch the short-lived URL, falling back to the stored one only if the server refuses. **Two things keep this row open.** Rotation — the only step that reaches an object already orphaned by a partial prune — has not been taken; and the stored permanent link stays as the FALLBACK when a short-lived one cannot be fetched (owner, 7 Oct 2026 — DECISIONS.md), so a reader offline or meeting a 503 is still handed a link that does not expire |
 | **EXC-006** | **Two origins serve the app.** `myb-roster.web.app` is canonical and is the notification target; the GitHub Pages mirror is still where the MAJORITY of staff open it (owner, Sep 2026 — a gradual changeover, not a rump). It serves **no redirects and no HTTP headers**, so anything relying on either reaches the smaller half: the `<meta>` CSP and the `guide.html`/`fip.html` redirect stubs both exist for that reason. The per-address counters measure the changeover. | `firebase.json` · Pages settings | The mirror is retired — watch `analytics/origins` |
 | **EXC-008** | **The Pages mirror is published without a test.** GitHub builds it straight from `main`, so a release the Firebase Hosting gate refuses still reaches the origin most staff open — v24.94 did exactly that for about three hours on 24 Oct 2026. `main` also requires no checks before a merge. `deploy-mirror.yml` (whole-app review, Oct 2026) publishes the mirror only from a commit a passing Hosting run released, and stands down until Pages is switched to it. | GitHub → Settings → Pages · Settings → Rules · `deploy-mirror.yml` | The owner sets **Pages → Source to GitHub Actions** and requires the core CI checks on `main` (OPERATIONS_REFERENCE.md → "The Pages mirror") |
 

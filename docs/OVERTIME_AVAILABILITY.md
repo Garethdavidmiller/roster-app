@@ -51,7 +51,7 @@ change to the code it shares (the menu, sign-in, the rules, the service worker) 
 1. Set `OVERTIME_ENABLED: true` in `roster-data.js`, and run `npm run generate:roster-members` **in the same commit** —
    the server reads the generated copy, so an un-regenerated switch is a page whose every call 404s.
 2. Bump and release as usual. The deploy re-creates the five endpoints and the 05:00 creator; the creator makes the
-   six-week horizon on its first morning.
+   five-week horizon (`PLANNING_WEEKS`) on its first morning.
 3. Decide the audience: the beta list (`CONFIG.OVERTIME_BETA`, regenerated the same way) or the full launch
    (`currentAudience()` in `functions/overtime.js`). Until then only the admin is asked, as before the pause.
 4. Read this document's Invariants again before changing anything, and re-check the timetable against the roster
@@ -73,7 +73,7 @@ module beside the code.
 | 3 | **The client never refuses a submission near a deadline.** Inside the grace band it sends and lets the server decide — a client that refuses has denied somebody who was in time. | `overtime-clock.js` (`submitDisposition`) |
 | 4 | **A timed-out write goes into RECONCILIATION, never reported as failed.** Aborting stops us waiting; it does not stop the server writing. `clientMutationId` is generated in one place so no call site can forget it. | `overtime-form.js` · `overtime-data.js` |
 | 5 | **The participant snapshot is frozen at creation.** Its one exception is a leaver: a flag, never a delete, refused on a closed week, idempotent both ways (a second withdrawal must not re-stamp `withdrawnAt`, which restore is decided from), and removing the flag rather than writing `withdrawn: false` — because `where('withdrawn','==',true)` never matches a missing field. Creation uses `create`, not `set`, so a second concurrent creator cannot overwrite a frozen population. | `functions/overtime.js` (`withdrawOvertimeParticipant`) |
-| 6 | **Identity is always `decoded.name`, never the request body.** | `functions/overtime.js` |
+| 6 | **Identity is always `memberNameFromClaims(decoded)` — never `decoded.name` alone, never the request body.** | `functions/overtime.js` |
 | 7 | **Deadlines are stored, never recomputed.** A window keeps the timetable it ran under; `policyVersion` records which. | `functions/overtime-core.js` |
 | 8 | **`initialRevision` and `lateInitial` are derived, never stored.** A stored summary is a second answer that can disagree with the history it summarises — and it exists twice, so it may not drift. | `overtime-format.js` · `overtime-parity.test.mjs` |
 | 9 | **Retention is filtered in the endpoints, not in the rules.** Rules are not filters: a `resource.data` condition fails the whole query rather than dropping a row, so one expired document would blank a reviewer's workspace. | `functions/overtime.js` |
@@ -257,7 +257,9 @@ reads "0 of 0 received", which looks like a completed week.
 ## Identity, naming and the rename route
 
 Every endpoint verifies the ID token with `checkRevoked: true` and takes the member from
-`decoded.name` — the claim `setupRosterAuth` sets from the server-owned roster. **A body-supplied
+`memberNameFromClaims(decoded)` — the `name` claim `setupRosterAuth` sets from the server-owned roster,
+believed only on the member's own password account (`functions/member-identity.js`), never `decoded.name`
+alone. **A body-supplied
 member name is never read.** Master Admin has no override here either: oversight is not permission to
 submit somebody else's declaration about their own life.
 

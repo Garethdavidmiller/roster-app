@@ -108,6 +108,14 @@ The user reads the notice and closes it. `archiveNotice()` fires in `onClose` be
 
 ## JS pattern — actionable notice (has CTA + "Not now")
 
+> **What the live notices actually do (Nov 2026): every `index.html` notice is a ONE-OFF.** On the rule
+> the owner set for the leave reminder (10 Sep 2026), every dismissal — the ×, the backdrop, Escape,
+> "Not now" and the link — sets the DONE key, and no notice declares a snooze key
+> (`calendar-notices.js`). Use the snooze below only for a notice the owner has asked to come back.
+> **And on `index.html`, drop the `getSession()` line:** a member who signs in at the Calendar's front
+> door has no session yet when notices are wired, so it would skip them on that load —
+> `_openWhenAudienceAllows` is the gate there (see Audience, below).
+
 The user may navigate away before closing. `archiveNotice()` fires in `onOpen` to guarantee the record is written regardless of which path the user takes. A snooze mechanism prevents re-showing before the user has had time to act.
 
 ```javascript
@@ -225,8 +233,8 @@ Notices on other pages need no audience: those pages already require a session.
 |------|-------|
 | Audience (index.html) | `'members'` unless the notice exists to reach people who have not signed in — see above |
 | `archiveNotice()` timing | `onClose` for close-only notices · `onOpen` for notices with a navigation CTA |
-| Snooze on close (×, backdrop, Escape, "Not now") | 7 days |
-| Snooze on CTA navigation | 1 day |
+| Snooze on close (×, backdrop, Escape, "Not now") | 7 days — snooze pattern only; the live notices are one-offs |
+| Snooze on CTA navigation | 1 day — snooze pattern only |
 | Permanent dismiss key | `myb_notice_[id]_done` — set when the user completes the action (e.g. in the target page) |
 | Snooze key | `myb_notice_[id]_snooze` — ISO date string |
 | Notice ID naming | `[section]-[year]` or `[topic]_[tax-year]` — e.g. `links-beta-2026`, `ytd_2627` |

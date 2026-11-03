@@ -69,10 +69,10 @@ All five guide pages share one chrome for consistent behaviour on iOS, Android, 
 - **Print:** `.page-header { position: static; print-color-adjust: exact }` and `.btn-back, .btn-pdf { display: none }`. railcard/fip/rangers print the sticky header as their title banner; on staff-guide/paycalc-guide the header is `.no-print` so these rules are inert there (they print their own in-document `.guide-header` banner instead — `print-color-adjust: exact` on that banner stays inline).
 
 **Still per-page in each page's own CSS file (keep aligned by eye):**
-- **Background:** flat `#f4f5f8` edge-to-edge. No white "page" card.
+- **Background:** flat, edge-to-edge — `#f4f5f8` on the FIP, Railcard and Rangers guides, `#eef1f6` (`--page-bg`, `guide-doc.css`) on the Staff and Pay Calculator guides. No white "page" card.
 - **Content width:** `max-width: 760px`, centred. For `staff-guide.html`/`paycalc-guide.html` the 760px wrapper **and** the two-column `.cols` print grid live in the shared **`guide-doc.css`** (not the page's own file); `railcard-guide.html`/`fip-guide.html`/`rangers-guide.html` set their own 760px single-column width in their page CSS.
 - **Safe-area:** side insets `max(16px, env(safe-area-inset-*))` on the content wrapper; bottom `max(40px, env(safe-area-inset-bottom))`.
-- **PDF button markup:** `<button id="savePdfBtn" class="btn-print btn-pdf">⤓ PDF</button>`. Wired by `guide-print.js` (`.btn-print`) on all five guides (v24.61). No page script wires `#savePdfBtn` itself — this line said the Railcard and Rangers guides did until the whole-app review (Oct 2026).
+- **PDF button markup:** `<button id="savePdfBtn" class="btn-print btn-pdf">⤓ PDF</button>`. Wired by `guide-print.js` (`.btn-print`) on all five guides (v24.61). No page script PRINTS from it — this line said the Railcard and Rangers guides did until the whole-app review (Oct 2026) — but `fip-guide.js` adds a capture-phase click listener on the same button that prepares the page (expands every country) before `guide-print.js` prints.
 
 ## Source governance — GUIDE_SOURCES.md (v17.50)
 
@@ -110,6 +110,7 @@ history it would have been invisible to whoever adds a sixth.
 
 | # | File | What |
 |---|---|---|
+| 0 | `scripts/app-pages.mjs` | a `GUIDE_PAGES` entry — `page-contract-parity.test.mjs` fails on an undeclared page — then `npm run generate:guide-index` (`guide-index-parity.test.mjs` checks it) |
 | 1 | `nav-panel.js` | `NAV_GUIDES` entry — icon, label, url, **`openId`** |
 | 2 | `firestore.rules` | analytics counter id, in **two** places (the `hasOnly` allowlist and the per-id int check) |
 | 3 | `firestore-contract-parity.test.mjs` | asserts `NAV_GUIDES` openIds match the rules list, both ways |
@@ -124,13 +125,13 @@ history it would have been invisible to whoever adds a sixth.
 | 12 | `guide-sources.test.mjs` | the two-way `data-guide-source` contract — a row with no block fails, and vice-versa |
 | 13 | `guide-shell.css` | nothing to change, but confirm nothing new is needed |
 | 14 | `guide-back.js` | already generic; confirm the new page is in scope |
-| 15 | `e2e/visual.spec.js` + baselines | the four static guides are baselined; a fifth should be |
+| 15 | `e2e/visual.spec.js` + baselines | all five guides are baselined; a sixth should be |
 | 16 | `.claude/rules/guide-pages.md` | its `paths:` globs **and** its per-guide section (this file) |
-| 17 | `CLAUDE.md` + `AI_MAP.md` | file structure, same-commit rule |
+| 17 | `docs/FILE_INDEX.md` + `docs/AI_MAP.md` | the file catalogue, same-commit rule |
 
 Every row above was checked against the code, not assumed: `firestore-contract-parity.test.mjs`
 reads `NAV_GUIDES` and the rules allowlist and compares them **both ways**; `e2e/calendar.spec.js`
-drives each guide's drawer link and asserts the id it records; each guide page carries three
+drives each guide's drawer link and asserts the id it records; each guide page carries the two
 `noindex`/`color-scheme` metas; and the four guides that existed when this was written were visually baselined (two at
 desktop 900, two at mobile 390 — pick the width that shows this page's densest state). The Rangers
 guide has since joined them at mobile 390.
@@ -396,8 +397,8 @@ that are sound or miss the one that is not. A disputed claim now takes its **own
 id and its own `.rr-unresolved` callout, and the card keeps whatever state its own sourcing earned.
 The register test accepts a card-level marker **or** a claim-level one.
 
-The same pass split `rr-shakespeare` into `-core` (**Draft** — no current page exists, which is an
-absence, not a disagreement) and `-boj` (**Conflict**), and `rr-thames-7` into `-geography`
+The same pass split `rr-shakespeare` into `-core` (**Draft** then — no current page existed, which is an
+absence, not a disagreement; re-sourced and restored to **National** at v20.43, `GUIDE_SOURCES.md`) and `-boj` (**Conflict**), and `rr-thames-7` into `-geography`
 (**National** — settled) and `-operator` (**Conflict**).
 
 ### State a BOUNDARY, not a station list (v20.37)
@@ -473,15 +474,16 @@ cited, which is what made the plan safe to retire):
   layout. What shipped with it was an inference: "if it is not one of these five, the answer is
   almost certainly no", and the review named three more products reported to reach us. Of the two
   failures available at a gateline, refusing a valid pass is the worse one and the only one this page
-  can cause. **Not on the list means CHECK.** Step 1 of "How to check one" routes there, and the
-  three reported products are named under `#rr-reported` with **no rules attached** — a card states
+  can cause. **Not on the list means CHECK.** (Step 1 of "How to check one" used to route to a list of the
+  three reported products under `#rr-reported`, with **no rules attached**; they became full cards at
+  v20.10, and the list left the page.) A list carried no rules — a card states
   days, area, time bars and break of journey, and each is a rule a passenger could be refused travel
   by, i.e. exactly what the A/B evidence gate covers.
 - **An unresolved rule is rendered as unresolved, and it does not wear the amber Chiltern callout**
   (`.rr-unresolved`, red). Amber means "here is the local answer no national page gives" — something
   to act on. A rule whose published wording contradicts itself is the opposite. Two live cases: the
-  Shakespeare Explorer break of journey, and which operators the Cotswolds Discoverer names (the
-  Chiltern answer there does not depend on it, so the refusal stands and the list is not quoted).
+  Shakespeare Explorer break of journey (`rr-shakespeare-boj`), and whether Chiltern is an operator on
+  the Thames Rover 7 Day (`rr-thames-7-operator` — the Marylebone answer is a clean no either way).
 - **The near-misses section is the point of the page**, not an appendix. Cotswolds Discoverer and
   Freedom of Severn & Solent both reach stations on our map and are not valid on us; saying so quickly
   is the answer no national page gives.

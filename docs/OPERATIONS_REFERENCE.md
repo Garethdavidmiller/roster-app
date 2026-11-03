@@ -246,8 +246,8 @@ Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window
 - **Region:** `europe-west2` (London)
 - **Auth:** Firebase ID token — browser sends `Authorization: Bearer <idToken>` where idToken comes from `auth.currentUser.getIdToken()`. The function validates via Firebase Admin SDK. `ROSTER_SECRET` is no longer used anywhere — both `parseRosterPDF` and `setupRosterAuth` use Firebase ID token auth with an admin custom claim.
 - **CORS:** `cors: ADMIN_FUNCTION_ORIGINS` — an explicit origin allowlist (`functions/index.js`): `https://garethdavidmiller.github.io`, `https://myb-roster.web.app`, `https://myb-roster.firebaseapp.com`. This is defence-in-depth; the real control is the Firebase ID token + admin claim, so a browser from an unlisted origin is blocked at preflight *and* would fail auth. `setupRosterAuth` uses the same allowlist. Add any new hosting domain to the `ADMIN_FUNCTION_ORIGINS` array. (`ingestHuddle` keeps `cors: false` — server-to-server.)
-- **AI model:** the `CLAUDE_MODEL` constant in `functions/index.js` — currently `claude-sonnet-5`, `max_tokens: 16000`, `thinking: { type: 'disabled' }`, non-streaming `messages.create`, `timeoutSeconds: 120`. Note this is an unversioned alias (it tracks the latest Sonnet 5 snapshot), not a dated pin; switch to a dated snapshot if reproducibility matters. **`thinking` is explicitly disabled** — Sonnet 5 runs adaptive thinking by DEFAULT when `thinking` is omitted (Sonnet 4.6 ran thinking-off), which — combined with Sonnet 5's ~30% higher token count — truncated the roster JSON past `max_tokens` and surfaced as "The AI returned an unreadable response". Disabling thinking restores the deterministic-extraction behaviour; `max_tokens` was raised 8192 → 16000 for headroom. **History (v16.27 → rolled back v16.28):** thinking was briefly re-enabled via streaming to improve day-column reading accuracy, but the live thinking+streaming call failed in production ("Couldn't read the roster — unexpected error"), so it was reverted. The day-shift accuracy issue is instead handled deterministically server-side, which does not depend on the model — so reading accuracy is protected without touching the AI call. Two server layers (v16.68): `applySundayScanCorrections` (the original Sunday-anchored Case A/B repair) and **`applyColumnScanCrossCheck`** — the prompt demands a second, column-by-column read of the whole table (`columnScan`) and every cell is cross-checked against the row read. Agreement → keep; a disagreement realigning exactly under a one-day suffix shift (anchored at the first disagreeing day, ≥2 disagreements, ≥5 signalled days) → deterministic repair; anything else → the cell becomes a skip-only `UNKNOWN|row or col? (PDF unclear)` UNREADABLE review cell carrying both readings. Fails open if the AI omits `columnScan`. A third, AI-independent layer runs client-side: `assessRosterAlignment` (roster-alignment.js) correlates each parsed week against the member's own base roster at ±1-day offsets, and REFUSES the whole read when three or more members drift the same way — catching the residual case where both AI reads misread identically. **Read "cross-check" carefully: the row read and `columnScan` are not independent WITNESSES.** They are two readings by one model of one PDF in one call, so they agree with each other precisely when the model has collapsed a blank cell — which is the failure they exist to catch. That is why the third layer compares against something the PDF cannot influence, and why it is a refusal rather than a warning. The strong witness is the PDF's own drawn grid: `experiments/roster-pdf-geometry/` finds every column boundary present, with nothing at all inside the Sunday cell that drifts — measured across **12 real documents** (three roster types x three week-endings, draft and final), zero of which failed to carry the grid. That witness is now the FOURTH layer and the last to run (v22.31, `functions/roster-geometry.js`): `parseRosterPDF` reads the drawn rules and text positions from the PDF bytes (in parallel with the model call — no added latency), and after the column cross-check and the Sunday corrections it refuses any AI day that lands in a physically EMPTY cell — the cell becomes an `UNKNOWN|…` UNREADABLE review cell and the member is returned in `geometryRefused`, which the review treats exactly like a base-roster drift (row unticked; three trip the breaker). It never repairs and never weighs. It fails open at every step — no `pdfjs-dist`, a page without the nine-column grid, a scanned sheet with no text layer, a name the PDF spells differently — and REPORTS that it did in `geometry.status`, so a witness that did not run is visible on the response rather than assumed. Zero false refusals measured on the corpus; what it cannot see (a fully occupied week, an `RD` written into an occupied cell) is in KNOWN_LIMITATIONS.md. Promotion to a positional AUTHORITY (phase 2) is not built. See ROADMAP.md → "Roster import".
-- **Why direct PDF input:** Text extraction (pdf-parse) destroys table column structure and causes day-column misalignment. Claude reads the visual layout directly.
+- **AI model:** the `CLAUDE_MODEL` constant in `functions/index.js` — currently `claude-sonnet-5`, `max_tokens: 16000`, `thinking: { type: 'disabled' }`, non-streaming `messages.create`, `timeoutSeconds: 120`. Note this is an unversioned alias (it tracks the latest Sonnet 5 snapshot), not a dated pin; switch to a dated snapshot if reproducibility matters. **`thinking` is explicitly disabled** — Sonnet 5 runs adaptive thinking by DEFAULT when `thinking` is omitted (Sonnet 4.6 ran thinking-off), which — combined with Sonnet 5's ~30% higher token count — truncated the roster JSON past `max_tokens` and surfaced as "The AI returned an unreadable response". Disabling thinking restores the deterministic-extraction behaviour; `max_tokens` was raised 8192 → 16000 for headroom. **History (v16.27 → rolled back v16.28):** thinking was briefly re-enabled via streaming to improve day-column reading accuracy, but the live thinking+streaming call failed in production ("Couldn't read the roster — unexpected error"), so it was reverted. The day-shift accuracy issue is instead handled deterministically server-side, which does not depend on the model — so reading accuracy is protected without touching the AI call. Two server layers (v16.68): `applySundayScanCorrections` (the original Sunday-anchored Case A/B repair) and **`applyColumnScanCrossCheck`** — the prompt demands a second, column-by-column read of the whole table (`columnScan`) and every cell is cross-checked against the row read. Agreement → keep; a disagreement realigning exactly under a one-day suffix shift (anchored at the first disagreeing day, ≥2 disagreements, ≥5 signalled days) → deterministic repair; anything else → the cell becomes a skip-only `UNKNOWN|row or col? (PDF unclear)` UNREADABLE review cell carrying both readings. Fails open if the AI omits `columnScan`. A third, AI-independent layer runs client-side: `assessRosterAlignment` (roster-alignment.js) correlates each parsed week against the member's own base roster at ±1-day offsets, and REFUSES the whole read when three or more members drift the same way — catching the residual case where both AI reads misread identically. **Read "cross-check" carefully: the row read and `columnScan` are not independent WITNESSES.** They are two readings by one model of one PDF in one call, so they agree with each other precisely when the model has collapsed a blank cell — which is the failure they exist to catch. That is why the third layer compares against something the PDF cannot influence, and why it is a refusal rather than a warning. The strong witness is the PDF's own drawn grid: `experiments/roster-pdf-geometry/` finds every column boundary present, with nothing at all inside the Sunday cell that drifts — measured across **12 real documents** (three roster types x three week-endings, draft and final), zero of which failed to carry the grid. That witness is now the FOURTH layer and the last to run (v22.31, `functions/roster-geometry.js`): `parseRosterPDF` reads the drawn rules and text positions from the PDF bytes (before the model call since v24.04, inside a time budget — `awaitGeometryWithin`), and after the column cross-check and the Sunday corrections it refuses any AI day that lands in a physically EMPTY cell — the cell becomes an `UNKNOWN|…` UNREADABLE review cell and the member is returned in `geometryRefused`, which the review treats exactly like a base-roster drift (row unticked; three trip the breaker). It never repairs and never weighs. It fails open at every step — no `pdfjs-dist`, a page without the nine-column grid, a scanned sheet with no text layer, a name the PDF spells differently — and REPORTS that it did in `geometry.status`, so a witness that did not run is visible on the response rather than assumed. Zero false refusals measured on the corpus; what it cannot see (a fully occupied week, an `RD` written into an occupied cell) is in KNOWN_LIMITATIONS.md. **Phase 2 is built (v24.04):** when the grid places every member, the cells are extracted by coordinate and the model only normalises them — it never assigns a day and is sent no PDF (`buildCellTable`, `functions/roster-prompt.js`); one unplaced name falls the whole document back to the PDF path described here. Detail: `.claude/rules/roster-import.md` → Phase 2.
+- **Why direct PDF input (the fallback path since v24.04):** Text extraction (pdf-parse) destroys table column structure and causes day-column misalignment. Claude reads the visual layout directly.
 
 **Request format:**
 
@@ -289,7 +289,7 @@ Body:
 
 - **`geometry`** (v22.31) — `{ status, checked, total, pagesRead, pagesRejected }` for the PDF's-own-grid witness (`functions/roster-geometry.js`): `status` is `"complete"` (every returned member was matched to a geometry row and checked), `"partial"` (some — the rest are named in the Functions log as unmatched) or `"unavailable"` (no grid found, no text layer, `pdfjs-dist` absent, or nobody matched — the witness did not run for this read). Unlike `crossCheck`, this IS an independent witness: it reads the file's coordinates, not the model.
 - **`geometryRefused`** (v22.31) — the member names whose rows the witness refused (a claim read where the PDF's cell is empty), filtered to names on the review. Consumed by `assessRosterAlignment` (roster-alignment.js): such a row starts unticked with its own wording, and refusals count toward the three-member breaker. The refused cells themselves are already `UNKNOWN|…` in `parsed`.
-- **`crossCheck`** (v16.70) — the column-scan cross-check status: `"complete"` (every returned member re-verified against a SECOND column-by-column read — by the same model, of the same PDF, in the same call, so it is a second reading and **not** an independent witness; see the note above), `"partial"` (some), or `"unavailable"` (the AI omitted/garbled `columnScan` so the check never ran). The review UI shows an advisory note when it isn't `"complete"`.
+- **`crossCheck`** (v16.70) — the column-scan cross-check status: `"complete"` (every returned member re-verified against a SECOND column-by-column read — by the same model, of the same PDF, in the same call, so it is a second reading and **not** an independent witness; see the note above), `"partial"` (some), or `"unavailable"` (the AI omitted/garbled `columnScan` so the check never ran), or `"not-applicable"` on the geometry path (v24.23 — that prompt asks for no column re-read). The review UI shows an advisory note when it isn't `"complete"`.
 - **`missingMembers`** (v16.98) — roster members of this `rosterType` the AI returned NO row for (advisory: could be a dropped row OR a genuine absence — leaver/new starter/other page). The review UI lists them so a silently-dropped member is visible.
 
 ### AI prompt key rules (do not weaken without testing)
@@ -462,8 +462,8 @@ for the browser's only destructive operation on shared data, so it is worth re-r
 ### Locked-out member → reset request queue (v18.93–95)
 
 The one flow that starts with **no identity at all**: a member who has forgotten a self-set password
-has no Firebase session, so they cannot write anything — which is why this runs through the app's only
-public unauthenticated endpoint rather than a client write.
+has no Firebase session, so they cannot write anything — which is why this runs through a public
+unauthenticated endpoint (one of two, with `unlockCalendarViewer`) rather than a client write.
 
 1. **Member** taps "Can't get in?" on the login overlay — **always available there since v20.48**,
    under the Sign in button; before that it appeared only after two failed attempts, so a member who
@@ -497,8 +497,9 @@ public unauthenticated endpoint rather than a client write.
    member with no subscription is a legitimate `false`, and that case — signed out AND not told — is
    the admin's cue to reach them another way.
 
-**Accepted cost:** an admin device that subscribed to push before v17.76 (when `owner` was first
-stamped on subscriptions) gets no notification until the bell is toggled off and on.
+**A device that subscribed before v17.76** (when `owner` was first stamped on subscriptions) needs
+nothing doing: `notif.js` re-saves the record with its owner at the next load, outside its 24-hour
+throttle.
 
 ### Sign-in statistics (v18.96)
 
@@ -613,7 +614,7 @@ complete, and quietly has nobody rostered on their line.
 
 **2. Set `hidden: true`, regenerate, ship.**
 
-Edit the `teamMembers` entry in `roster-data.js`, then `npm run generate:roster-members` **in the same
+Edit the `teamMembers` entry in `roster-member-data.js`, then `npm run generate:roster-members` **in the same
 commit** — `sw-asset-check.test.mjs` fails if the two drift. Bump and deploy as usual.
 
 There is no end-date field — `startDate` has no counterpart — so until this lands their base roster keeps producing
@@ -632,7 +633,15 @@ It is also the one failure in this sequence that **step 4 cannot catch**: the au
 Auth against the server's active set, and as far as the server is concerned they are still active. So
 it reads as a clean bill. Check the three lists by hand when the leaver held a role.
 
-**3. Operations → Set up accounts → "Disable accounts for leavers".**
+**3. Operations → Staff Login Accounts: tick "Disable accounts for anyone no longer on the roster
+(leavers)", press Set up accounts, read the dry-run preview, then press Confirm.** Nothing is disabled
+until Confirm.
+
+**A manager or clerk (`managerOnly`) is the exception to step 2: remove their ROW from `teamMembers`.**
+Every active Management row already carries `hidden: true` (it keeps them off the Calendar's member
+selector), so `getMembersForGrade('Management')` does not filter on it — hiding one changes nothing,
+they stay in `activeMembers`, this step never disables them and step 4 reads clean. Their rows hold no
+roster to resolve. Take them out of `CONFIG.MANAGER_NAMES` in the same commit (step 2b).
 
 Hiding them removes them from `activeMembers`, which is the server-owned list `setupRosterAuth`
 trusts — but that governs PROVISIONING, not revocation. The Firebase Auth account keeps working until
@@ -694,7 +703,7 @@ docs/DATA_MODEL.md.
 
 **ON since v25.19 (3 Nov 2026).** It shipped switched OFF at v25.18, because the database rules that
 accept `leaveYear` and the app that writes it deploy in parallel from one push; v25.19 turned it on
-once **Deploy Firestore Rules** had finished green (13:19 UTC). The switch is `LEAVE_YEAR_CHOICE` in
+once **Deploy Firestore and Storage Rules** had finished green (13:19 UTC). The switch is `LEAVE_YEAR_CHOICE` in
 `leave-year.js`, and the assertion in `leave-year.test.mjs` changes with it, deliberately.
 
 Check it: Admin → Record Annual Leave, for somebody with leave booked in January 2027 — the panel
@@ -715,8 +724,9 @@ differs by exactly the moved days (AL_WORKBOOK.md §9).
 
 The Calendar opens for **either** a signed-in member **or** the shared staff PIN. Everything
 privileged — Admin, Settings, Operations, Links — still needs a real member sign-in; the PIN grants
-one capability and one only: *read the Calendar's override data*. The one other page it opens is
-**Trains** (v24.84, owner, 22 Oct 2026), which reads nothing at all — the timetable is public — and
+reads, not identity: *the Calendar's override data* and the three documents (the Huddle, Circular and
+Newsletter); its only writes are the error log and the usage counters (`isKnownIdentity`). The one
+other page it opens is **Trains** (v24.84, owner, 22 Oct 2026), which reads nothing at all — the timetable is public — and
 was admitted because the staff customers ask are the station's (AUTH_AND_SESSIONS.md invariant 24).
 
 ### Why it exists
@@ -836,7 +846,7 @@ the new PIN. Member sessions are untouched.
 4. `firestore.rules` allows `overrides` reads for a bound member identity (`isMember()`: a password
    sign-in on the name's derived email, carrying the server-set `member` claim) or `calendarViewer`
    on a custom-token sign-in.
-   The viewer can write nothing, anywhere.
+   The viewer writes nothing a member owns: its only writes are the error log and the usage counters.
 
 ### Abuse protection
 
@@ -876,9 +886,14 @@ and the roster come back together.
 
 ### Diagnosing a problem
 
-- **"PIN not recognised" for everybody** → the secret is unset or was changed without redeploying
-  the function. Check `firebase functions:secrets:access CALENDAR_VIEWER_PIN` and redeploy.
-- **"Calendar access is not configured" (503)** → the secret is genuinely missing.
+- **"PIN not recognised" for everybody** → the PIN was rotated without redeploying the function,
+  which still holds the old value. Check `firebase functions:secrets:access CALENDAR_VIEWER_PIN` and
+  redeploy.
+- **"Calendar couldn't be unlocked. Try again shortly." for everybody** → the function is failing,
+  not refusing. A 503 whose body and log say "Calendar access is not configured" is an unset or
+  malformed secret; a 500 on every CORRECT PIN is the missing IAM grant (`roles/iam.serviceAccountTokenCreator`
+  on the runtime service account — RECOVERY_RUNBOOK.md project facts), which is what broke the
+  10 Aug 2026 rollout. Neither message names the cause on screen; the Cloud Function log does.
 - **Unlock succeeds, Calendar shows no shifts** → the token minted without its claim, or the rules
   and the client disagree about the claim name. `calendar-viewer-parity.test.mjs` is the guard for
   the second; the Cloud Function log line `[unlockCalendarViewer] unlocked <hash>` confirms the first.
@@ -998,7 +1013,7 @@ Dispatcher*, whichever are actually in it. Picking one narrows **everything**: t
 forms-received line and the name rows all recompute for that grade alone. That is the point rather
 than a nicety — a CEA gap is not filled by an available CES, so "Tuesday has four" is only an answer
 once you know what those four are. A week with only one grade in it shows no chips — which is why
-the restricted beta, currently CEAs only, shows none at all; they appear by themselves once a second
+a one-grade beta showed none at all (the beta list has been empty since 7 Oct 2026, and the page is paused); they appear by themselves once a second
 grade is in the week.
 
 Your grade choice **follows you between weeks** (v20.89). The day filter does not, because its
@@ -1204,7 +1219,9 @@ pill flag in `nav-panel.js` first; `newlink-config.test.mjs` refuses any other `
 cannot be flipped open to people who cannot reach it.
 
 **Its PDFs come from the GitHub Pages mirror** (`PACK_BASE`), because Firebase Hosting serves nothing under `docs/`.
-Retiring the mirror breaks those links — move the files into a served folder first.
+Retiring the mirror breaks those links — move the files into a served folder first. And once the
+mirror follows the Hosting gate, a `docs/`-only push republishes nothing (`docs/**` is in the Hosting
+deploy's `paths-ignore`), so a changed PDF reaches the page only with the next app release.
 
 ### Keep only the shortlist (Links, v25.09)
 
