@@ -88,6 +88,11 @@ LATE = sorted(n for n, c, _ in proposals if _day(c) > _drawn)
 if LATE and LATE != ['Clean Slate', 'Next Step']:
     raise SystemExit(f'pack: the read-me describes Clean Slate and Next Step as the designs after the shortlist; they are {LATE}')
 LATE_WORDS = ' and '.join(LATE)
+# THE FOUR WITHDRAWN (3 Nov 2026, owner: "Remove the four weak proposals please and reengineer the pack"). Named here, and
+# refused if any is back in SUPPLIED, because the paragraph below says they left the pack
+WITHDRAWN = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear']
+if any(n in names.split(', ') for n in WITHDRAWN):
+    raise SystemExit(f'pack: the read-me says {WITHDRAWN} were withdrawn; regenerate.mjs SUPPLIED lists one of them')
 built_in = open('links-proposals.js', encoding='utf-8').read()
 missing = [n for n, c, _ in proposals if n in SHORTLIST and f"code: '{c}'" not in built_in]
 if missing: raise SystemExit(f'pack: the read-me says every shortlisted design is built into the app; links-proposals.js lacks {missing}')
@@ -230,6 +235,9 @@ readme = '\n'.join([
             'the trains, still with no shift over 8h 30m Monday to Saturday. Page 2 of the shortlist sheet sets each '
             'beside the three.'), '']
       if LATE else []),
+    *([para(f'Four more were drawn up and withdrawn on 3 November 2026 as the weakest in the pack: {", ".join(WITHDRAWN[:-1])} '
+            f'and {WITHDRAWN[-1]}. Each was the same as or worse than a design still here on everything the sheets measure '
+            'but one; the technical notes keep them.'), ''] if WITHDRAWN else []),
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
          'reference.'),
     '',

@@ -37,6 +37,11 @@
 // never typed (`LATE`), and each has its row on page 2. Next Step keeps nothing that none of the three has on any single
 // measure, and pays with nothing either: it is Even Step with a closer weekday fit, a gentler change of start and one
 // more new time, every other figure the same — which is asserted, measure by measure, because its row says so.
+// THIRTEEN SINCE 3 NOV 2026 (owner: "Remove the four weak proposals please and reengineer the pack"). Second Nature, Second
+// Wind, Second Sight and Second Gear left the pack. The alternatives table lost them from two of its rows, and Second Look's
+// row now names what it alone has (no 55-hour week, however the cover weeks fall) where it had named the shorter blocks it
+// shared with three of them; the guide's fourth-at-the-close row lost Second Gear. The rows, the claims and the league are
+// read from the folder, so nothing else was typed for fifteen or seventeen; the shortlist and the recommendation stand.
 //   node shortlist-sheet.mjs        → ../links-26-shortlist.pdf (the .html stays in tooling/, gitignored)
 import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -188,17 +193,16 @@ const loses = d => { const x = measure(d.F); return Object.keys(DIR).filter(k =>
 const O = Object.fromEntries(others.map(d => [d.name, d])), K = Object.fromEntries(others.map(d => [d.name, keeps(d).join()]));
 const NAMED = { 'Both Ways': 'closerSat,closerWk,earlyOff,heavy,newT', 'Clean Slate': 'fitSat,fitSun,one', 'Closing Time': 'closerSat,closerWk,fitSat,light,step',
   'Even Keel': '', 'Fine Tune': 'step', 'Home Grown': 'closerWk,longEarly,newT,times', 'Long Break': 'lvBest,lvFour', 'Next Step': '',
-  'Second Edition': 'step', 'Second Gear': '', 'Second Look': 'block,worstRun', 'Second Nature': 'block', 'Second Sight': 'block', 'Second Wind': 'block' };
+  'Second Edition': 'step', 'Second Look': 'block,worstRun' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
 const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k => loses(O[n]).includes(k)));
 // what each pays, on the five priorities the paragraph names wherever it pays on them (days in a row, weekends, one turn,
 // late finishes, the closing shift), and its main other cost
 pays('Closing Time', 'fitWk', 'one', 'late22'); pays('Both Ways', 'one', 'longShift', 'fitSat', 'fitSun'); pays('Home Grown', 'closerSat', 'one', 'fitWk', 'fitSat', 'fitSun');
-const ekfg = ['Even Keel', 'Fine Tune', 'Second Gear']; ekfg.forEach(n => pays(n, 'late23', 'mixed', 'block', 'fitSat')); pays('Fine Tune', 'one'); pays('Second Gear', 'one');
+const ekft = ['Even Keel', 'Fine Tune']; ekft.forEach(n => pays(n, 'late23', 'mixed', 'block', 'fitSat')); pays('Fine Tune', 'one');
 pays('Second Edition', 'fixedRun'); pays('Long Break', 'fixedRun', 'iso', 'one', 'step'); pays('Clean Slate', 'newT', 'times', 'satNew');
-const LB = O['Long Break'].F, sec = ['Second Look', 'Second Nature', 'Second Sight', 'Second Wind'];
-sec.forEach(n => pays(n, 'fixedRun', 'one'));
-const secRun = (v => { if (new Set(v).size !== 1) throw new Error(`the four Second designs' runs differ: ${v}`); return v[0]; })(sec.map(n => O[n].F.fixedRun));   // one figure, read, for the table's row pays('Second Sight', 'step', 'iso'); pays('Second Wind', 'step'); pays('Second Nature', 'gap');
+const LB = O['Long Break'].F, SL = O['Second Look'].F;
+pays('Second Look', 'fixedRun', 'one');
 const PACK = [...D, ...others], CT = O['Closing Time'].F, HG = O['Home Grown'].F, CS = O['Clean Slate'].F, NX = O['Next Step'].F;
 // THE TWO THAT JOINED AFTER THE SHORTLIST (3 Nov 2026), read from fresh.mjs's FIRST: every design first drawn after the last
 // shortlisted one. The page-1 lead and the page-2 table name them; a third would need its own row before the sheet prints
@@ -220,8 +224,10 @@ claim('Next Step: Even Step’s figures but a closer weekday fit, a gentler chan
 claim('Next Step: a weekday fit closer than Even Step’s, not than In Step’s or Short Run’s — so its row says which', [IS, SR].every(d => d.F.fit[0] < NX.fit[0]));
 claim('Home Grown: the only design with no early over 8h 30m on any day', PACK.every(d => d.name === 'Home Grown' || longEarly(d.F) > 0) && longEarly(HG) === 0);
 claim('Home Grown: today’s Saturday closer', HG.closers[1] === TF.closers[1]);
-claim('Even Keel, Fine Tune and Second Gear: four to the Saturday close, where the three have three', ekfg.every(n => O[n].F.A.heads.close.sat === 4) && D.every(d => d.F.A.heads.close.sat === 3));
-claim('the four Second designs: blocks a week shorter', sec.every(n => O[n].F.block.worst === lowest(F => F.block.worst) - 1));
+claim('Even Keel and Fine Tune: four to the Saturday close, where the three have three', ekft.every(n => O[n].F.A.heads.close.sat === 4) && D.every(d => d.F.A.heads.close.sat === 3));
+// SECOND LOOK'S ROW SAYS WHAT IT ALONE HAS (3 Nov 2026): "blocks a week shorter" was shared with the three Second designs
+// withdrawn that day; what no other design has is a worst case with no 55-hour week, however the cover weeks fall
+claim('Second Look: the only design where a badly placed cover week makes no 55-hour week', PACK.every(d => d.name === 'Second Look' ? !h55Of(d.F)?.adds : !!h55Of(d.F)?.adds));
 claim('Closing Time: more even weeks', (O['Closing Time'].F.heavy - O['Closing Time'].F.light) < lowest(F => F.heavy - F.light));
 claim('Home Grown: the fewest new times of all', others.every(d => d.name === 'Home Grown' || d.F.newT > O['Home Grown'].F.newT) && O['Home Grown'].F.newT < lowest(F => F.newT));
 claim('Long Break: a fifth single rest day', LB.A.feel.isolatedRest === iso + 1);
@@ -255,7 +261,6 @@ claim('every other rest-day break two days on all three; today has longer ones',
 const blockF = shared('longest block, fixed rota', F => F.block.fixed), blockW = shared('longest block, cover weeks joining', F => F.block.worst);
 claim('blocks longer than today’s on all three', blockF > TF.block.fixed && blockW > TF.block.worst);
 const longRestYear = F => Math.round(longRest(F) * 52 / Object.keys(F.p).length);
-claim('Second Sight: a fifth single rest day, as Long Break', O['Second Sight'].F.A.feel.isolatedRest === iso + 1);
 claim('In Step: the lightest heaviest week, the best Saturday fit, the most early finishes before 14:00 of the three', D.every(d => d === IS || d.F.heavy > IF.heavy) && D.every(d => d === IS || d.F.fit[1] > IF.fit[1])
   && D.every(d => d === IS || earlyOff(d.F) < earlyOff(IF)));
 claim('In Step: on Even Step’s weeks, shorter lates for longer earlies', lateAvg(IF) < lateAvg(EF) && longEarlyMS(IF) > longEarlyMS(EF));
@@ -297,7 +302,7 @@ const allD = stats.map(s => design(s.name)), strongest = (test) => { const has =
 const minClose = Math.min(...allD.map(d => d.F.closers[0] + d.F.closers[1]));
 const shortClosers = strongest(F => F.closers[0] + F.closers[1] === minClose), fourth = strongest(F => F.A.heads.close.sat === 4);
 claim('the shortest closers: Closing Time, then Both Ways', shortClosers.join() === 'Closing Time,Both Ways');
-claim('a fourth to the Saturday close: Even Keel, then Fine Tune and Second Gear', fourth.join() === 'Even Keel,Fine Tune,Second Gear');
+claim('a fourth to the Saturday close: Even Keel, then Fine Tune', fourth.join() === 'Even Keel,Fine Tune');
 claim('the steadiest start times: Second Edition', allD.every(d => d.name === 'Second Edition' || d.F.step > O['Second Edition'].F.step));
 claim('four weeks off for today’s 14 days: Long Break alone', allD.filter(d => d.F.lv.fourWeeks <= TF.lv.fourWeeks).map(d => d.name).join() === 'Long Break' && TF.lv.fourWeeks === 14);
 claim('the fewest new shift times: Home Grown, two', allD.every(d => d.name === 'Home Grown' || d.F.newT > HG.newT) && HG.newT === 2);
@@ -469,7 +474,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Of these three, the closest weekday fit and the shortest weekday lates</td><td><b>Short Run</b></td></tr>
     <tr><td>The shortest closers of all: 16:00 Monday to Saturday</td><td><b>Closing Time</b> <span class="muted">· outside the shortlist, as is Both Ways</span></td></tr>
     <tr><td>The fewest new shift times: two</td><td><b>Home Grown</b> <span class="muted">· outside the shortlist</span></td></tr>
-    <tr><td>A fourth person to the Saturday close</td><td><b>Even Keel</b> <span class="muted">· outside the shortlist, as are Fine Tune and Second Gear</span></td></tr>
+    <tr><td>A fourth person to the Saturday close</td><td><b>Even Keel</b> <span class="muted">· outside the shortlist, as is Fine Tune</span></td></tr>
     <tr><td>The steadiest start times from week to week</td><td><b>Second Edition</b> <span class="muted">· outside the shortlist</span></td></tr>
     <tr><td>Four weeks off for 14 days’ leave, as today</td><td><b>Long Break</b> <span class="muted">· outside the shortlist</span></td></tr>
   </tbody></table>
@@ -490,10 +495,10 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Closing Time</td><td>shorter closers and a closer Saturday fit — but fewer weeks on one turn and a weaker weekday fit</td></tr>
     <tr><td>Both Ways</td><td>shorter closers and more early finishes — but fewer weeks on one turn and more long shifts</td></tr>
     <tr><td>Home Grown</td><td>the fewest new times, ${word(HG.newT)}, and no early over 8h&nbsp;30m on any day — but today’s ${hm(HG.closers[1])} Saturday closer and a weaker fit</td></tr>
-    <tr><td>Even Keel, Fine Tune, Second Gear</td><td>four at the Saturday close — but weeks mixing earlies and lates, and longer blocks</td></tr>
+    <tr><td>Even Keel, Fine Tune</td><td>four at the Saturday close — but weeks mixing earlies and lates, and longer blocks</td></tr>
     <tr><td>Second Edition</td><td>the steadiest start times from week to week — but ${word(O['Second Edition'].F.fixedRun)} days in a row, cover weeks aside</td></tr>
     <tr><td>Long Break</td><td>four weeks off for ${LB.lv.fourWeeks} days’ leave — but ${word(LB.fixedRun)} days in a row and a ${ord(LB.A.feel.isolatedRest)} single rest day</td></tr>
-    <tr><td>Second Look, Nature, Sight, Wind</td><td>blocks a week shorter — but ${word(secRun)} days in a row and fewer weeks on one turn</td></tr>
+    <tr><td>Second Look</td><td>no 55-hour week at all — but ${word(SL.fixedRun)} days in a row and fewer weeks on one turn</td></tr>
     <tr><td>Clean Slate${joined('Clean Slate')}</td><td>the best weekend fit of all and the most weeks on one turn — but ${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday</td></tr>
     <tr><td>Next Step${joined('Next Step')}</td><td>Even Step with a closer weekday fit and a gentler change of start — but one more new time</td></tr>
   </tbody></table>

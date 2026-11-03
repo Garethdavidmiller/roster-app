@@ -165,9 +165,11 @@ node rules-sheet.mjs
 default is 7,440 a weekday and 6,900 on a Saturday; sweep it with `TOTAL=` as the 24-line work did. ANNEAL=1 found no
 Saturday at 6,900; the exhaustive search (the default) did, in 92 seconds.
 
-## Second Nature — the first 26-line design (1 Oct 2026)
+## Second Nature — the first 26-line design (1 Oct 2026; withdrawn 3 Nov 2026)
 
-**`proposals/Second-Nature-SN-26-F2-a52d0f20.pdf`** (grid `proposals/Second-Nature-SN-26-F2.json`). The owner asked for a roster built
+**Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): its sheet, grid and import file left `proposals/`, the summary and the pack. Its grid (`second-nature.json`) and searches stay in `tooling/`, and this section stays as the record.
+
+Formerly **`proposals/Second-Nature-SN-26-F2-a52d0f20.pdf`** (grid `proposals/Second-Nature-SN-26-F2.json`). The owner asked for a roster built
 "the same way as Familiar Nine" and for every possibility to be tried; the name is Claude's, chosen for a link built
 around the shift times people already work. It meets **all 9 December rules and all 3 flexible rules**, every hard
 limit, and has **no avoidable fatigue warnings**, even with a cover week placed as badly as it can be. Against today's link:
@@ -285,7 +287,9 @@ sheet does not show directly:
   still on at 22:00 instead (7 · 5 · 5 on all three, today 4 · 2 · 3), so a deck slide that says its figures are all on the
   sheet quotes that one.
 
-## Second Wind — Second Nature with the weekends spread (2 Oct 2026)
+## Second Wind — Second Nature with the weekends spread (2 Oct 2026; withdrawn 3 Nov 2026)
+
+**Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): its sheet, grid and import file left `proposals/`, the summary and the pack. Its grid (`second-wind.json`) stays in `tooling/`, and this section stays as the record.
 
 An external review rated Second Nature "remarkably strong ... about 9.2/10 as a first draft", and asked for one more pass
 before calling it finished. Its priorities, in order:
@@ -304,7 +308,7 @@ day's duties, and with them priorities 1 and 5, cannot change.
   full weekend cannot start in a cover week or the week before one, which leaves 16 of the 26 weeks that can. The
   closest seven of those can be is **five weeks apart**, the best possible.
 - **The revision reaches it, and ships as Second Wind** (owner, 2 Oct 2026: "give it a different name and add it alongside
-Second Nature ... the same family"). `proposals/Second-Wind-SW-26-F1-4bec8d8e.pdf`, grid `tooling/second-wind.json`.
+Second Nature ... the same family"). Formerly `proposals/Second-Wind-SW-26-F1-4bec8d8e.pdf`, grid `tooling/second-wind.json`.
   Against Second Nature:
 
 | | Second Nature | **Second Wind** | Familiar Nine (24) | Today |
@@ -351,7 +355,9 @@ REST_MIN=860 WKENDS_MIN=7 ONE_MIN=16 HEAVY_MAX=42.5 STEP_MAX=128 ISO_MAX=4 GAP_M
   node space-polish.mjs /tmp/r7.closest.json second-wind.json 1 300000
 ```
 
-## Second Sight — a fresh search with the weekends spread from the start (2 Oct 2026)
+## Second Sight — a fresh search with the weekends spread from the start (2 Oct 2026; withdrawn 3 Nov 2026)
+
+**Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): its sheet, grid and import file left `proposals/`, the summary and the pack. Its grid (`second-sight.json`) stays in `tooling/`, and this section stays as the record.
 
 The owner asked to start the search again "from a different angle", the way Familiar Nine was started: every rule, plus
 one flexible aim, that full weekends off are four weeks apart or as spread out as possible. With 14 on a Saturday there
@@ -369,7 +375,7 @@ weekends, never more than four apart, would need 13 on a Saturday; the owner kep
   mixed weeks, the heaviest week at most 43h 40m, 20 days off from 14 days' leave at worst, and no fatigue warning. The
   best of them, seed 111, met every floor but one: it has 5 single rest days, not 4.
 - **Put forward as its own design** (owner, 2 Oct 2026: "turn start 111 into its own proposal sheet with its own name,
-  but continue the search"). `proposals/Second-Sight-SS-26-F1-3c6aac4d.pdf`, grid `tooling/second-sight.json`, in the
+  but continue the search"). Formerly `proposals/Second-Sight-SS-26-F1-3c6aac4d.pdf`, grid `tooling/second-sight.json`, in the
   Second Nature family. Its presentations followed the same day (owner, on the recommendation that it was then the
   strongest of the six) and were deleted on 3 Oct 2026 with Second Nature's and Second Wind's, when the owner kept only
   the shortlist's (Second Edition, Even Keel, Short Run).
@@ -402,7 +408,9 @@ FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MA
   LEAVE_WORST_MIN=20 node space-polish.mjs results/second-sight-start.json /tmp/ss.json 1 300000   # → /tmp/ss.closest.json
 ```
 
-## Second Look and Second Gear — the same restart, on two variations of the duty table (2 Oct 2026)
+## Second Look and Second Gear — the same restart, on two variations of the duty table (2 Oct 2026; Second Gear withdrawn 3 Nov 2026)
+
+**Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): Second Gear's sheet, grid and import file left `proposals/`, the summary and the pack; Second Look stays. Its grid (`second-gear.json`) stays in `tooling/`, and this section stays as the record.
 
 The restart did not stop at Second Nature's table. Five variations of it were built (`assemble-table.mjs`, the same
 pins and nine-hour cap) and searched the same way: G1, G2 and G3 keep the 42 late finishes a year, H1 and H2 cost 44.
@@ -2910,6 +2918,43 @@ the same source.
   only its date moved, so the committed sheet stands.
 - **The app's side** — every page now declares `<html lang="en-GB">`, and `uk-english-parity.test.mjs` keeps American
   spelling out of the pages, the Cloud Functions and the scripts in this folder — is v25.17's.
+
+## Four designs withdrawn — Second Nature, Second Wind, Second Sight and Second Gear (3 Nov 2026)
+
+Asked whether any proposal was now too weak to stay in the pack, the analysis found three weak by every test and a
+fourth on the border. The owner: *"Remove the four weak proposals please and reengineer the pack"*. No design was beaten by
+another on every measure, so this was a judgement; the evidence it rests on:
+
+| Design | Main league, of 17 | What it had that others did not | What matched it otherwise |
+|---|---|---|---|
+| Second Nature (`SN-26-F2` · `a52d0f20`) | 17th, and last in 8 of the 10 league tables | blocks a week shorter: at most 6 weeks of earlies, or of lates, against 7 (Second Look has it too) | Second Edition: as good on every measure but that, and better on six — full weekends at most 5 weeks apart, not 10; a 42h 00m heaviest week, not 43h 40m; 18 weeks on one shift time, not 15; a gentler change of start, fewer mixed weeks and a lower 55-hour worst case |
+| Second Wind (`SW-26-F1` · `4bec8d8e`) | 16th | the same | Second Edition and Short Run: better on seven, among them the change of start (1h 01m and 1h 13m, against 2h 01m) |
+| Second Sight (`SS-26-F1` · `3c6aac4d`) | 15th | the same | Second Edition and Long Break: better on five; it had a fifth single rest day and a 22h 30m lightest week |
+| Second Gear (`SG-26-H1` · `8d61e5c3`) | 12th | a lighter lightest week, 25h 30m against 24h 30m | Even Keel: 18 weeks on one shift time, not 16, a gentler change of start (1h 16m, not 1h 25m) and fewer mixed weeks; its fourth person at the Saturday close is Even Keel's and Fine Tune's too |
+
+The one league that ranked the first three well was the six-factor one (Second Nature 2nd, Second Wind 3rd, Second Sight
+4th, all far behind Second Look), which leaves out long days, the closers, weeks on one shift time and the change of start:
+where they were weakest.
+
+**What changed.**
+- Their sheets, grids and import files left `proposals/`. `regenerate.mjs` no longer lists them, with a comment saying how
+  to restore one, and `fresh.mjs` drops their descriptions, families and dates. Their grids stay in `tooling/`
+  (`second-nature.json` and the rest), their searches in `results/`, and their sections above as the record. The family
+  keeps the name Second Nature: it is named for where its designs started, and six of them still start there.
+- **The summary** lists thirteen, and fits at 93% where seventeen needed 82%.
+- **The shortlist sheet** compares the three with "the other ten". Its alternatives table lost the four from two rows, and
+  Second Look's row now names what it alone has, no 55-hour week at all, however the cover weeks fall, where it had named
+  the shorter blocks it shared with three of them. The guide's fourth-at-the-close row lost Second Gear. The shortlist
+  and the recommendation stand.
+- **The read-me** counts thirteen candidate links and names the four, saying why they went.
+- **The zip** holds 45 files, not 53.
+- **The leagues, on thirteen.** The main league's scale is set by today's link and Familiar Nine, so its scores did not
+  move: Next Step 84.5, Even Step 84.1, Closing Time 84.0, then Clean Slate; Short Run is 9th and In Step 11th. Weighted
+  as before, In Step still leads (87.4, Even Step 86.5). Without familiar times Clean Slate leads (88.5), Next Step second;
+  the six-factor league is Second Look's, with Second Edition and Short Run next.
+- **Nothing else named them.** The other thirteen sheets, the six decks (every slide and every speaker note) and "What it
+  means if you…" were read for the four names and none was found; "What it means" and the New link page were re-checked
+  against the thirteen and are unchanged.
 
 ## Notes for the whole set
 
