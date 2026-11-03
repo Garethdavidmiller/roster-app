@@ -21,6 +21,10 @@ long earlies and the closing shift counted, the fit by days, the 55-hour cover w
 reweighted one the main league, keeping the one before it as the alternative (`OLD_READINGS=1` rebuilds it). The
 sections below keep the scores they were written with; the shortlist sheet and *The league reweighted* have both.
 
+**Main-league scores dated 31 Oct to 3 Nov 2026 count each design's Sunday duties in familiar shift times.** The owner
+took them out on 3 Nov, which put Even Step first again (`FAM_SUNDAY=1` rebuilds the scores before). *Familiar shift
+times count the Monday-to-Saturday duties only* has both.
+
 ## What is in this folder
 
 The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, owner: "consistent naming"):
@@ -2957,6 +2961,59 @@ where they were weakest.
 - **Nothing else named them.** The other thirteen sheets, the six decks (every slide and every speaker note) and "What it
   means if you…" were read for the four names and none was found; "What it means" and the New link page were re-checked
   against the thirteen and are unchanged.
+
+## Familiar shift times count the Monday-to-Saturday duties only (3 Nov 2026)
+
+The owner asked whether the Sundays are the same on the current shortlist and the planned one, and then said *"Familiar
+shift times shouldn't apply to Sunday in the league"*. Across those six the Sundays are all but the same: the same ten
+weeks and the same ten duties (four 07:15–15:45, one 09:00–18:00, two 14:30–22:30 and three 15:15–23:25), bar Clean
+Slate, whose four openers end at 15:30. Only which week each time falls in differs. Across the pack every design has ten
+Sunday duties: ten designs on exactly those times, Clean Slate on its 15:30 openers, and Both Ways and Home Grown on
+today's 08:00–16:30 and 14:00–22:30 in place of the 09:00–18:00 and 14:30–22:30. And Sunday is overtime, not a
+contracted day. Counted in, a design's Sunday duties moved its familiar share by an amount that said nothing about its
+Monday to Saturday.
+
+**What changed.** Only `league.mjs`, whose header has the reasoning. The factor is now the share of a design's
+Monday-to-Saturday shift times that are one of today's times. A time worked only on the design's Sunday is left out,
+whether new or familiar. "Today's times" is unchanged: any time today's link works, Sunday included. So a weekday
+07:15–15:45, worked today only on a Sunday, still counts as familiar, as this folder has always called it "one of
+today's times". Taking today's Sundays out as well would have made it new on the eight designs that work it on a
+weekday; that was not asked, so it was not done. The weight is unchanged (6 of 108). The league weighted before 31 Oct
+reads familiar times as it always did (`OLD_READINGS=1`), and `FAM_SUNDAY=1` rebuilds the main league as it was read
+from 31 Oct to 3 Nov. Both were checked to reproduce their earlier output exactly.
+
+**The main league** (`REF_IN_RANGE=1 node league.mjs`), before and after:
+
+| Design | Familiar shift times, before → after | Before | After |
+|---|---|---|---|
+| ★ Even Step | 8 of 13 → 8 of 10 | 2nd · 84.1 | **1st · 85.4** |
+| Next Step | 8 of 14 → 8 of 11 | 1st · 84.5 | 2nd · 85.2 |
+| Closing Time | 8 of 13 → 8 of 10 | 3rd · 84.0 | 3rd · 85.2 |
+| Clean Slate | 7 of 17 → 7 of 13 | 4th · 83.6 | 4th · 83.6 |
+| Home Grown | 10 of 12 → 10 of 11 | 5th · 82.4 | 5th · 82.8 |
+| Second Edition | 9 of 15 → 8 of 11 | 6th · 81.7 | 6th · 82.2 |
+| Even Keel | 8 of 15 → 8 of 12 | 7th · 81.7 | 7th · 82.1 |
+| ★ Short Run | 9 of 15 → 8 of 11 | 9th · 81.1 | 8th · 81.6 |
+| Fine Tune | 8 of 15 → 8 of 12 | 10th · 80.9 | 9th · 81.3 |
+| Second Look | 8 of 14 → 8 of 11 | 13th · 80.2 | 10th · 80.9 |
+| Both Ways | 10 of 14 → 8 of 11 | 8th · 81.4 | 11th · 80.8 |
+| Long Break | 9 of 15 → 8 of 11 | 12th · 80.2 | 12th · 80.7 |
+| ★ In Step | 9 of 15 → 8 of 12 | 11th · 80.7 | 13th · 80.5 |
+
+★ shortlisted. Next Step's 85.220 and Closing Time's 85.215 round alike; Even Step leads them by 0.14. Unranked, for
+reference: Familiar Nine 70.4 (69.7 before), today's link 16.7. The points are read across the range, so a design whose
+share rose less than the others' can lose points. Both Ways and In Step did. Their shares rose least (Both Ways from 71%
+to 73%, In Step from 60% to 67%), partly because one or two of today's times that they work only on a Sunday no longer
+count. Weighted as before, nothing moved: In Step 87.4, Even Step 86.5.
+
+**What moved with it.**
+- **The shortlist sheet's "judgement" paragraph** now reads Even Step first, just ahead of Next Step and Closing Time,
+  level on 85.2, with Short Run eighth and In Step thirteenth. Its claim pins that order and the two level to a tenth.
+  The paragraph's note on the weights became "as revised on 31 Oct and 3 Nov 2026": the longer wording ran page 2 11 px
+  into its footer, and the sheet refused to print it.
+- **The zip** re-packed with the new sheet and this README.
+- **Nothing else reads the league.** The summary, the proposal sheets, the decks and "What it means if you…" are
+  unchanged, as are the shortlist and the recommendation.
 
 ## Notes for the whole set
 

@@ -42,6 +42,10 @@
 // row now names what it alone has (no 55-hour week, however the cover weeks fall) where it had named the shorter blocks it
 // shared with three of them; the guide's fourth-at-the-close row lost Second Gear. The rows, the claims and the league are
 // read from the folder, so nothing else was typed for fifteen or seventeen; the shortlist and the recommendation stand.
+// FAMILIAR TIMES ON MONDAY-TO-SATURDAY DUTIES SINCE 3 NOV 2026 (owner: "Familiar shift times shouldn't apply to Sunday in
+// the league"). The main league leaves each design's Sunday duties out of familiar shift times (league.mjs), and Even
+// Step is first again, just ahead of Next Step and Closing Time, which are level to a tenth: the "judgement" paragraph and
+// its claim say so. The league weighted before 31 Oct reads familiar times as it always did.
 //   node shortlist-sheet.mjs        → ../links-26-shortlist.pdf (the .html stays in tooling/, gitignored)
 import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -290,11 +294,13 @@ claim('the league scores all three shortlisted designs, and every design, both w
 claim('the main league counts long earlies and the closing shift; the one before it neither', ['lerl', 'close'].every(k => k in LJ.weights && !(k in LO.weights)));
 // the league's long earlies are the sheet's own, Monday to Saturday, a year each — one definition, not two
 claim('the league’s long earlies are the sheet’s', PACK.every(d => Math.round(LGall.find(r => r.name === d.name).raw.lerl) === longEarlyMS(d.F)));
-// NEXT STEP FIRST SINCE 3 NOV 2026, having joined after the shortlist: the paragraph puts Even Step second, between it and
-// Closing Time, each under a point apart — which is what makes it "a judgement". Every place is read (ord(rankOf)), never typed
-const lead = total('Even Step') - total('Closing Time'), behind = total('Next Step') - total('Even Step'), leadOld = totalIn(LO, 'In Step') - totalIn(LO, 'Even Step');
-claim('the main league: Next Step, Even Step and Closing Time the first three, each under a point from the next; Short Run, then In Step, lower', rankOf('Next Step') === 1
-  && rankOf('Even Step') === 2 && rankOf('Closing Time') === 3 && rankOf('Short Run') > 3 && rankOf('In Step') > rankOf('Short Run') && lead > 0 && lead < 1 && behind > 0 && behind < 1);
+// EVEN STEP FIRST AGAIN SINCE 3 NOV 2026, once familiar shift times left the Sunday duties out (league.mjs; Next Step had
+// led for the few hours before): the paragraph puts Next Step and Closing Time just behind it, level to a tenth and each
+// under a point behind — which is what makes it "a judgement". Every place and score is read (ord(rankOf), f1(total)), never typed
+const lead = total('Even Step') - Math.max(total('Next Step'), total('Closing Time')), leadOld = totalIn(LO, 'In Step') - totalIn(LO, 'Even Step');
+claim('the main league: Even Step first; Next Step and Closing Time next, level to a tenth and under a point behind; Short Run, then In Step, lower', rankOf('Even Step') === 1
+  && [rankOf('Next Step'), rankOf('Closing Time')].sort().join() === '2,3' && total('Next Step').toFixed(1) === total('Closing Time').toFixed(1) && lead > 0 && lead < 1
+  && rankOf('Short Run') > 3 && rankOf('In Step') > rankOf('Short Run'));
 claim('weighted as before: In Step first, under a point ahead of Even Step', rankIn(LO, 'In Step') === 1 && rankIn(LO, 'Even Step') === 2 && leadOld > 0 && leadOld < 1);
 claim('In Step has the most long earlies of any design here', stats.every(s => s.name === 'In Step' || longEarly(design(s.name).F) < longEarly(IF)));
 // the guide's rows for designs outside the shortlist: each the strongest in the league of those that have its edge
@@ -516,7 +522,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 
   <h2>Recommendation</h2>
   <div class="callout pick"><b>Even Step.</b> In Step’s weeks without the long earlies. On what weighs most here it equals both — days in a row, weekends, weeks on one shift time, late finishes and the leave — with In Step’s closers, every one Monday to Saturday ${hm(EF.closers[0])} (Short Run’s Saturday one ${hm(SF.closers[1])}). Alone of the three it has no shift over 8h&nbsp;30m Monday to Saturday (In Step ${longMS(IF)} a year each, Short Run ${longMS(SF)}, today ${longMS(TF)}) and every early is one of today’s times; the 13:45 stays every weekday; it has the fewest shift times of the three, ${EF.times} with ${EF.newT} new. It equals In Step’s lightest week and ${hm(EF.A.rest.minutes)} rest; its heaviest week (${hm(EF.heavy)}), early finishes (${earlyOff(EF)} a year) and Saturday fit (${f1(EF.fit[1])}) sit between the other two. Its costs: weekday lates near today’s, ${hm(lateAvg(EF))} on average (In Step’s ${hm(lateAvg(IF))}, Short Run’s ${hm(lateAvg(SF))}), a slightly weaker weekday fit (${f1(EF.fit[0])}, against ${f1(IF.fit[0])} and ${f1(SF.fit[0])}), a ${hm(Math.round(EF.step))} change of start (the others ${hm(Math.round(IF.step))}) and, as on In Step, a new Saturday closer.</div>
-  <p class="lead" style="margin-top:8px"><b>But it is a judgement.</b> In the pack’s weighted league (the owner’s weights, counting long earlies and the closing shift since 31&nbsp;Oct 2026) Even Step is ${ord(rankOf('Even Step'))} of ${word(LGall.length)}, on ${f1(total('Even Step'))}, between Next Step (${f1(total('Next Step'))}) and Closing Time (${f1(total('Closing Time'))}); Short Run is ${ord(rankOf('Short Run'))} and In Step ${ord(rankOf('In Step'))}. Weighted as before, In Step led Even Step by under a point (${f1(totalIn(LO, 'In Step'))} against ${f1(totalIn(LO, 'Even Step'))}). So choose by what matters here:</p>
+  <p class="lead" style="margin-top:8px"><b>But it is a judgement.</b> In the pack’s weighted league (the owner’s weights, as revised on 31&nbsp;Oct and 3&nbsp;Nov 2026) Even Step is ${ord(rankOf('Even Step'))} of ${word(LGall.length)}, on ${f1(total('Even Step'))}, just ahead of Next Step and Closing Time, level on ${f1(total('Next Step'))}; Short Run is ${ord(rankOf('Short Run'))} and In Step ${ord(rankOf('In Step'))}. Weighted as before, In Step led Even Step by under a point (${f1(totalIn(LO, 'In Step'))} against ${f1(totalIn(LO, 'Even Step'))}). So choose by what matters here:</p>
   <ul class="list">
     <li><b>Choose Even Step</b> if avoiding long days, Monday to Saturday, matters most — for lates near today’s ${hm(lateAvg(TF))}, a slightly weaker weekday fit and a ${hm(Math.round(EF.step))} change of start.</li>
     <li><b>Choose In Step</b> if, on the same weeks, short lates matter more than short earlies — for ${longEarlyMS(IF)} earlies a year each over 8h&nbsp;30m.</li>
