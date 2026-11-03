@@ -387,7 +387,7 @@ describe('3 · one notice silencing another', () => {
     test('a missing overlay element skips only its own notice', async () => {
         // With one notice this proves the skip is clean — no open, no write, no throw. With two or
         // more it proves the stronger thing: the notice whose markup IS present still runs.
-        const [first, ...rest] = NOTICES;
+        const [first] = NOTICES;
         await wire({ accessType: SHOWING_ACCESS, present: [first.overlay] });   // any rest's markup absent
         await settleAccess();
         assert.equal(_openedViaHelper.length, noticeAudienceAllows(first.audience, SHOWING_ACCESS) ? 1 : 0,
@@ -397,7 +397,6 @@ describe('3 · one notice silencing another', () => {
         await settleAccess();
         assert.equal(_openedViaHelper.length, 0, 'no markup, no notice — and no throw');
         assert.deepEqual(_writes, [], 'a notice with no markup must not flag the device seen');
-        assert.equal(rest.length >= 0, true);
     });
 });
 

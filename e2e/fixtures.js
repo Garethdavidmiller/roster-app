@@ -572,6 +572,13 @@ export const test = base.extend({
             await route.fulfill({ response: res, body, contentType: 'text/javascript' });
         });
         await use(page);
+        // A test that ends mid-navigation leaves this route's `route.fetch()` in flight when the context
+        // closes, and Playwright fails the TEST for it ("Target page, context or browser has been closed")
+        // although every assertion passed — once in a full run (3 Nov 2026), on a spec whose last step was a
+        // link to the Calendar. Dropping the routes first, ignoring what is still in flight, is the
+        // remedy Playwright's own message names. It runs after the test body, so it hides nothing a test
+        // could have asserted.
+        await page.unrouteAll({ behavior: 'ignoreErrors' });
     },
 });
 

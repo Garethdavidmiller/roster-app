@@ -1130,8 +1130,7 @@ body.lb-open #stickyTotal { display: none !important; }
     background: var(--primary-blue);
     color: white;
 }
-.dialog-btn-confirm.danger,
-.panel-btn-confirm.danger { background: var(--error-red); }
+.dialog-btn-confirm.danger { background: var(--error-red); }
 @media (hover: hover) and (pointer: fine) {
     .dialog-btn-cancel:hover,
     .panel-btn-cancel:hover  { background: var(--bg-light); }
@@ -1554,7 +1553,9 @@ button.lightbox-bug-link {
     border-radius: var(--radius); font-family: inherit; cursor: pointer;
     transition: background var(--dur-fast) var(--ease-standard);
 }
-@media (hover: hover) and (pointer: fine) { .picker-opt:hover:not(:disabled) { background: var(--surface-sunken); } }
+/* Hover never repaints the CURRENT row (v25.20): at (0,3,0) this beat `.is-current`'s (0,2,0) tint below,
+   so pointing at the ticked row turned it grey — the page's colour gone from the one row that wears it. */
+@media (hover: hover) and (pointer: fine) { .picker-opt:hover:not(:disabled):not(.is-current) { background: var(--surface-sunken); } }
 .picker-opt:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
 .picker-opt:disabled { opacity: 0.45; cursor: default; }
 .picker-opt-text { min-width: 0; }
@@ -3683,7 +3684,7 @@ body.auth-ready .boot-placeholder { display: none; }
     align-items: center;
     justify-content: center;
     /* 24px and --type-small since v25.12 — the size of the shared `.help-btn`, the app's other "?"
-       circle. They were the same control at two sizes (20px and 24px), and beside the 15px card title
+       circle. They were the same control at two sizes (20px and 24px), and beside the 14px card title
        a 20px circle with an 11px glyph read as an afterthought. */
     width: 24px;
     height: 24px;

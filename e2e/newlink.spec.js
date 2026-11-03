@@ -159,10 +159,15 @@ test.describe('new link', () => {
         await expect(page.locator('#iconLightbox .lightbox-badge')).toHaveText('New link');
         await page.locator('#iconLightboxClose').click();
 
-        // the header logo goes back to the Calendar, as its alt text has always said
+        // the header logo goes back to the Calendar, as its alt text has always said — and the test waits
+        // for the Calendar to DRAW: it used to end the moment the URL changed, with the Calendar's modules
+        // still loading through the suite's routes, which failed it once in a full run (v25.20). Its grid
+        // or its member card, whichever this harness earns: there is no Firebase identity here, so the
+        // Calendar asks this member to sign in again, which is the right answer to that.
         await expect(page.locator('#appIcon')).toHaveAttribute('role', 'button');
         await page.locator('#appIcon').click();
         await expect(page).toHaveURL(/\/$/);
+        await expect(page.locator('.calendar-day, #calLockWhy:not(:empty)').first()).toBeVisible();
         expect(errors).toEqual([]);
     });
 

@@ -183,8 +183,10 @@ test('the colour a page declares is the colour of the drawer pill that takes you
 
 /** What says "this one is chosen" in a selector: the pressed, selected and checked states, and the
  *  classes the pages use for the same idea. `.is-current-week` is a marker, not a choice, and the
- *  lookahead keeps it out. */
-const CHOSEN = /\[aria-(?:pressed|selected|checked)="true"\]|\.(?:active|is-active|is-on|is-chosen|is-current)(?![\w-])|--active(?![\w-])/;
+ *  lookahead keeps it out. `--on` and `.compare-active` joined at v25.20: Operations' month toggle and
+ *  Links' compare-mode tile were still navy and gold after v25.16, unseen, because the walk could not
+ *  read how they spelled "chosen". */
+const CHOSEN = /\[aria-(?:pressed|selected|checked)="true"\]|\.(?:active|is-active|is-on|is-chosen|is-current|compare-active)(?![\w-])|--(?:active|on)(?![\w-])/;
 
 /** A rule FILLS a control when it declares a background. A ring, an edge or a text colour is not a
  *  fill, and the brush chips' armed ring (links.css) is one of those, deliberately. */

@@ -93,7 +93,8 @@
          OPEN ONCE, THEN COLLAPSED (v24.92): trains-app.js folds this card on a return visit, because
          its prose stood between a member and the first answer (the first headline began at 589px of a
          727px phone screen); the header carries everything it still needs to say. The one caveat a
-         member must not miss is not in here any more — it is the line beneath the tabs, on every view. -->
+         member must not miss — Christmas — sits between the header and the fold, so a folded card
+         still shows it (v25.20). -->
     <div class="card" id="trOverviewCard">
         <div class="card-header card-header-toggle" id="trOverviewToggleHeader">
             <div>
@@ -107,6 +108,13 @@
                 <span class="collapse-chevron open" id="trOverviewChevron">▾</span>
             </div>
         </div>
+        <!-- Chiltern's books say nothing about Christmas, and its timetable page says more changes come
+             between 13 December and 10 January. Shown until then (FURTHER_CHANGES_UNTIL), and OUTSIDE the
+             fold (v25.20): it was inside it, so from the second visit — when the card opens folded — nobody
+             saw it, and from v25.13 nothing else on the page said it either. -->
+        <p class="card-explainer tr-festive" id="trFestive" hidden><strong>Christmas and New Year are not on
+            this page.</strong> Chiltern is changing times again between 13&nbsp;December and 10&nbsp;January, with big
+            changes over the holidays.</p>
         <div class="card-collapsible-body open" id="trOverviewBody">
             <!-- Three short lines, then the trains. A paragraph about the page, a totals table and two rows
                  of controls once stood between a reader and the first answer (v24.72–v24.77). -->
@@ -121,11 +129,6 @@
                 <!-- After December's books expire (DEC_VALID_UNTIL) neither column is running any more. -->
                 <p class="card-explainer tr-caveat" id="trEnded" hidden><strong>Both timetables on this page have
                     ended.</strong> Check the journey planner for today’s trains.</p>
-                <!-- Chiltern's books say nothing about Christmas, and its timetable page says more changes
-                     come between 13 December and 10 January. Shown until then (FURTHER_CHANGES_UNTIL). -->
-                <p class="card-explainer tr-note" id="trFestive" hidden><strong>Christmas and New Year are not on
-                    this page.</strong> Chiltern is changing times again between 13&nbsp;December and 10&nbsp;January, with big
-                    changes over the holidays.</p>
                 </div>
                 <div class="tr-ov-side">
                 <p class="card-explainer tr-note" id="trPartial" hidden>Where December’s trains stop is not published yet,
