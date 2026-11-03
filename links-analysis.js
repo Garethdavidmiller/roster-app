@@ -36,7 +36,7 @@ import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, calcHourlyCoverage, runDesignChe
     weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
-import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, windowMinutes } from './links-window.js';
+import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, rowMinutes } from './links-window.js';
 import {
     DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, DAY_CLASSES,
     demandAt, demandBucket, peakCars, peakHours, summariseDemand, describeHours, describeMovements,
@@ -68,12 +68,6 @@ const NIGHT_FAMILY = 'Night shifts';
  * row shows is its own shape, and it is the shapes a reader puts side by side.
  */
 const DEMAND_PEAK = peakCars(DEC_2026_DEMAND);
-
-/** A window row's staffed span, in minutes since midnight. */
-const minutesOf = (/** @type {{start: string, end: string}} */ row) => ({
-    start: /** @type {number} */ (windowMinutes(row.start)),
-    end:   /** @type {number} */ (windowMinutes(row.end)),
-});
 
 /** "17:00" from an hour index. */
 const hhmm = (/** @type {number|null} */ h) => `${String(h ?? 0).padStart(2, '0')}:00`;
@@ -130,7 +124,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             movements: DEC_2026_MOVEMENTS,
             hourly,
             days: DAYS,
-            windowFor: (day) => minutesOf(windowForDay(win, day)),
+            windowFor: (day) => rowMinutes(windowForDay(win, day)),
         });
 
         let gapCount = 0, outsideCount = 0;
@@ -339,7 +333,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             movements: DEC_2026_MOVEMENTS,
             hourly,
             days: DAYS,
-            windowFor: (day) => minutesOf(windowForDay(win, day)),
+            windowFor: (day) => rowMinutes(windowForDay(win, day)),
         });
         const fat = assessFatigue(design.patterns, ROTATING_LINES);
 

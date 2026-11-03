@@ -85,6 +85,13 @@ const JS_EXEMPT = new Map([
 
 const HEX = /#[0-9a-fA-F]{3,8}\b/g;
 
+/** A colour written as rgb()/rgba(); group 1 is what is inside the brackets. */
+const RGB = /rgba?\(\s*([^)]*)\)/g;
+/** Pure black or white, comma or space syntax, any alpha — neutral, like the `black`/`white` keywords. */
+const NEUTRAL_RGB = /^(0\s*[, ]\s*0\s*[, ]\s*0|255\s*[, ]\s*255\s*[, ]\s*255)(\s*[,/]|$)/;
+/** Coloured rgb() literals each sheet held on 3 Nov 2026 — may only go DOWN (see the rgb() test). */
+const RGB_BASELINE = /** @type {Record<string, number>} */ ({ 'index.css': 8, 'links.css': 6, 'shared.css': 3 });
+
 /** Blank out comments, keeping every byte and newline so offsets and line numbers still hold. */
 const blankComments = (/** @type {string} */ src) =>
     src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
@@ -202,6 +209,41 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
         }
     });
 
+    // ── rgb() — the same rule, the other spelling (3 Nov 2026) ─────────────────────────────────
+    // The full check that day found ~220 colours written as rgb()/rgba() that this file could not
+    // see, because it only read `#…`. Most are pure white or black at some alpha, which is NEUTRAL —
+    // the same as the `white`/`black` keywords the app already uses for highlight and shade — and is
+    // not a colour choice. The rest are typed tints, nearly all one navy shadow (`rgba(0, 30, 60, …)`)
+    // written out rule by rule. They are a RATCHET, not a pardon: each sheet may hold no more coloured
+    // rgb() than it did, a sheet not listed may hold none, and a count that falls must come down here.
+    test('no app stylesheet adds a coloured rgb() literal — and the ones it held only go down', () => {
+        const counts = /** @type {Record<string, number>} */ ({});
+        const found = /** @type {Record<string, string[]>} */ ({});
+        for (const file of SHEETS) {
+            const css = blankComments(readFileSync(file, 'utf8'));
+            const prints = printRegions(css);
+            for (const m of css.matchAll(RGB)) {
+                if (NEUTRAL_RGB.test(m[1].trim())) continue;                    // white or black, any alpha
+                const at = m.index;
+                if (prints.some(([s, e]) => at >= s && at < e)) continue;      // 4. paper
+                const decl = declarationAt(css, at);
+                if (decl.split(':')[0].trim().startsWith('--')) continue;        // 1. the definition
+                const declStart = css.lastIndexOf(decl, at);
+                if (insideVar(decl, at - declStart)) continue;                  // 2. a fallback
+                counts[file] = (counts[file] || 0) + 1;
+                (found[file] ||= []).push(`${file}:${lineOf(css, at)}  ${m[0]}`);
+            }
+        }
+        const over = SHEETS.filter(f => (counts[f] || 0) > (RGB_BASELINE[f] || 0))
+            .map(f => `${f}: ${counts[f]} coloured rgb() literals, ${RGB_BASELINE[f] || 0} allowed\n    ${found[f].join('\n    ')}`);
+        assert.deepEqual(over, [],
+            'a colour typed as rgb() stops tracking the token system exactly as a hex one does:\n  '
+            + over.join('\n  ') + '\nRead a token — for a tint, `color-mix(in oklch, var(--token) N%, transparent)`.');
+        const loose = Object.entries(RGB_BASELINE).filter(([f, n]) => (counts[f] || 0) < n)
+            .map(([f, n]) => `${f}: holds ${counts[f] || 0}, baseline still says ${n}`);
+        assert.deepEqual(loose, [], 'lower these baselines — a ratchet left loose banks the saving:\n  ' + loose.join('\n  '));
+    });
+
     // ── Guard the guard ────────────────────────────────────────────────────────────────────────
     // Every assertion above passes if the extractor finds NOTHING, which is indistinguishable from
     // a stylesheet with no literals. These pin the machinery to literals that ARE there, so a
@@ -227,6 +269,14 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
         // 3 · a mask channel is exempt, and only a mask channel.
         assert.match('-webkit-mask-image', /^(-webkit-)?mask(-image)?$/);
         assert.doesNotMatch('background-image', /^(-webkit-)?mask(-image)?$/);
+
+        // rgb(): neutral is white or black only, and the extractor sees a tint.
+        assert.match('255, 255, 255, 0.65', NEUTRAL_RGB);
+        assert.match('0 0 0 / 0.12', NEUTRAL_RGB);
+        assert.doesNotMatch('0, 30, 60, 0.05', NEUTRAL_RGB, 'the navy shadow tint is a COLOUR, not neutral');
+        assert.doesNotMatch('255, 200, 0', NEUTRAL_RGB);
+        assert.equal([...'a { box-shadow: 0 1px 2px rgba(0, 30, 60, 0.05) }'.matchAll(RGB)].length, 1,
+            'the rgb() extractor sees nothing — every sheet would pass');
 
         // 4 · @media print is exempt, and the region ends where the block ends.
         const sample = '@media print { .a { color: #999; } }\n.b { color: #123456; }';

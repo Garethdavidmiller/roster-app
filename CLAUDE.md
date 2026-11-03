@@ -528,56 +528,34 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 
 ## One-time notice pattern
 
-Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and monthly cleanup instructions are in `.claude/skills/new-notice/` — invoke `/new-notice` when adding a notice.
+Full HTML template, JS patterns (close-only and CTA+snooze), rules table, monthly cleanup, and the **lessons of past notices** (re-posting on a new key, orientation versus announcement, retiring one early) are in `.claude/skills/new-notice/` — invoke `/new-notice` when adding, re-posting or retiring a notice.
 
 **Current notices** (keep this table current — monthly cleanup removes entries older than 180 days):
 
-> **Every notice declares an AUDIENCE** (v21.81, third value v21.84) — `'members'` (a signed-in
-> member; the default, and where anything about pay, settings or an account belongs), `'signed-out'`
-> (only where nobody is signed in on this device — a PIN unlock; for a notice about signing in, which
-> then retires ITSELF the moment they do, since the audience is re-checked every load), or
-> `'everyone'` (both; rarely right). The rule is `noticeAudienceAllows` in `calendar-access-core.js`;
-> a refused notice is left unflagged, so it arrives when that device's position changes. Below,
-> every live notice is `'members'`: `sign-in-2026` was the only `'signed-out'` one and was retired at
-> v23.23, so **the positive direction of the gate has nothing exercising it** until the next such
-> notice — `.claude/skills/new-notice/` names the two tests that come back with it.
+> **Every notice declares an AUDIENCE** (v21.81) — `'members'` (the default: anything about pay,
+> settings or an account), `'signed-out'` (only where nobody is signed in on this device — a PIN
+> unlock) or `'everyone'` (rarely right). The rule is `noticeAudienceAllows` in
+> `calendar-access-core.js`; a refused notice is left unflagged, so it arrives when that device's
+> position changes. Every live notice is `'members'`, so **the positive direction of the gate has
+> nothing exercising it** until the next `'signed-out'` notice — the skill names the two tests that
+> come back with it.
 
-> **The Status column is load-bearing — keep it accurate** (added v19.51). A notice goes INERT the
-> moment `isNoticeExpired` fires: the IIFE marks it seen and returns *without showing it*, so on any
-> device that has not already opened that page it is dead code. But the removal rule above only
-> fires at **180 days**, so a notice spends a long stretch expired-but-still-listed, and the table
-> read as though both rows were live when in fact **neither had shown to anyone for weeks**. That is
-> not merely untidy — it hides a real question. `ytd_2627` is the case in point: it prompts a member
-> to enter their Year-to-Date figures at the start of the tax year, and a **new starter or a new
-> device from July onwards gets no prompt at all**, which is exactly when accurate tax estimates
-> need those figures. Expiring is right for an announcement; it may be wrong for a recurring
-> seasonal prompt. Decide that rather than inherit it.
+> **The Status column is load-bearing — keep it accurate** (v19.51). A notice goes INERT the moment
+> `isNoticeExpired` fires: it is marked seen *without being shown*, while the removal rule only fires
+> at 180 days — so a row can read as live while nobody has seen it for weeks. Say so in the column.
 
 | ID | Page | Title | Badge | Posted | Expiry | Status | Dismiss mechanism |
 |----|------|-------|-------|--------|--------|--------|-------------------|
-| `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | **RE-POSTED 28 Aug 2026** (first run 6 Apr) | 90 days | ✅ live until ~26 Nov 2026 — a ONE-OFF restart on a NEW key (`myb_pc_ytd_notice_2_shown`; run 1's key is retired, not deleted). Re-dating alone would have reached nobody: the expiry branch flags a device silently, so everyone who arrived after ~5 Jul was already marked "shown" for a notice they never saw. **It opens LAST on the page** — behind the data-ownership prompt and the forced set-password overlay. **When this run lapses, decide rather than re-date**: a seasonal prompt wants to key off whether the member has entered YTD figures for the current tax year, which is not the one-time notice pattern | One-time; `NOTICE_YTD_KEY` set on close |
-| `links-workspace-2026` | `links.html` | Links Workspace | 🔗 Links | 2 Aug 2026 | **none — the expiry was REMOVED at v22.59** | ✅ **converted to permanent ORIENTATION** (external review). The v21.50 sweep called expiring "right for this one" on the reading that it welcomed a designer to a workspace they had been using for a fortnight — true of the welcome, and false of what the panel actually holds: nothing here touches the live roster, the fatigue checks report rather than approve, and designs are shared. Those are the facts a FIRST-TIME designer needs, and from 16 Aug a first-time designer was flagged seen and shown nothing. The announcement half stays archived exactly once; the orientation half never expires and `#linksHowBtn` reopens it — a ROW IN THE ABOUT PANEL since v22.83, beside 🔧 Operations and 🐛 Report a bug, because that is where this app already keeps a page's own links. It was a control of its own on the page for three releases (`.header-end`, above the header, below the header) and read as foreign in all three; the lesson was that no other page has a standalone help control, not that this one was styled wrongly. **Not a candidate for the 180-day removal** — it is no longer a notice | One-time on first visit; `myb_links_welcome_seen` set on close. The button ignores the flag |
-| `timetable-2026` | `index.html` | A new timetable starts on 13 December | 🚆 Trains | 21 Oct 2026 | **ends 31 Oct 2026** (owner, 22 Oct; it ran to 13 Dec until v24.86) — `OCTOBER_LAST_DAY` | ⛔ **ended 31 Oct — inert**: a device that never saw it is flagged and shown nothing. Was `'members'`. A one-off from the start: no snooze key. Its body names the menu route (☰ then 🚆 Trains), so "Not now" loses nothing. The first `notice-badge--trains` | One-time; `myb_notice_timetable_2026_done` set on any dismissal, the link included |
-| `ytd-figures-2026` | `index.html` | Make your pay estimates more accurate | 💷 Pay | 22 Oct 2026 | ends 31 Oct 2026, with the timetable notice | ⛔ **ended 31 Oct — inert**. Was `'members'`, and only where the Pay Calculator prices (`gradeForRole`). Owner request: comes the load AFTER the timetable notice is dismissed (`FOLLOWS`), never the same one. Its link opens the Year to Date card (`paycalc.html#payslipCard`), and arriving that way counts as `ytd_2627` seen | One-time; `myb_notice_ytd_figures_2026_done` set on any dismissal, the link included |
-| `install-app-2026` | `index.html` | Put the roster on your home screen | 📣 General | 22 Oct 2026 | 90 days (~20 Jan 2027) | ✅ live — `'members'`, on a phone or tablet in a browser only (`installRoute`, install-prompt.js). Third in line: after the timetable notice, and after the Year to Date one where that is the member's. Its "how" is chosen as it opens; on the Pages mirror it sends staff to myb-roster.web.app, never installing there. Answering it retires the install strip | One-time; `myb_notice_install_app_2026_done` set on any dismissal, its button and link included |
+| `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | **RE-POSTED 28 Aug 2026** (first run 6 Apr) | 90 days | ✅ live until ~26 Nov 2026 — run 2, on a NEW key (`myb_pc_ytd_notice_2_shown`); it opens LAST on the page. **When it lapses, decide rather than re-date** (skill → Lessons) | One-time; `NOTICE_YTD_KEY` set on close |
+| `links-workspace-2026` | `links.html` | Links Workspace | 🔗 Links | 2 Aug 2026 | **none — removed at v22.59** | ✅ permanent ORIENTATION, reopened from the About panel (`#linksHowBtn`). **Not a candidate for the 180-day removal** — it is no longer a notice (skill → Lessons) | One-time on first visit; `myb_links_welcome_seen` set on close. The button ignores the flag |
+| `timetable-2026` | `index.html` | A new timetable starts on 13 December | 🚆 Trains | 21 Oct 2026 | **ends 31 Oct 2026** (`OCTOBER_LAST_DAY`) | ⛔ **ended 31 Oct — inert**. Was `'members'`; a one-off, no snooze key. The first `notice-badge--trains` | One-time; `myb_notice_timetable_2026_done` set on any dismissal, the link included |
+| `ytd-figures-2026` | `index.html` | Make your pay estimates more accurate | 💷 Pay | 22 Oct 2026 | ends 31 Oct 2026, with the timetable notice | ⛔ **ended 31 Oct — inert**. Was `'members'`, only where the Pay Calculator prices (`gradeForRole`); came the load AFTER the timetable notice (`FOLLOWS`); its link counted as `ytd_2627` seen | One-time; `myb_notice_ytd_figures_2026_done` set on any dismissal, the link included |
+| `install-app-2026` | `index.html` | Put the roster on your home screen | 📣 General | 22 Oct 2026 | 90 days (~20 Jan 2027) | ✅ live — `'members'`, on a phone or tablet in a browser only (`installRoute`, install-prompt.js). Third in line, after the two above. On the Pages mirror it sends staff to myb-roster.web.app, never installing there. Answering it retires the install strip | One-time; `myb_notice_install_app_2026_done` set on any dismissal, its button and link included |
 | `timetable-soon-2026` | `index.html` | The new timetable starts on Sunday | 🚆 Trains | 6 Dec 2026 | ends 12 Dec 2026 | ⏳ **starts 6 Dec** — `'members'`; the first notice with a START date (`STARTS`; an early device is left unflagged, not dismissed). A push goes out on the Saturday evening too | One-time; `myb_notice_timetable_soon_2026_done` set on any dismissal |
 
-The retired `links-beta-2026` (9 Jun 2026) was replaced at v19.51 on a **new storage key**
-(`myb_links_welcome_seen`): reusing the old one would have hidden the replacement from every designer
-who had already closed the beta notice. The rest of that story is in git.
-
-The retired `sign-in-2026` (posted 27 Aug 2026, `'signed-out'`) was deleted at **v23.23 by owner
-decision, seven weeks before its 90-day expiry** — the one notice here retired for being WRONG
-rather than old, and the reason is worth keeping because it is a shape that recurs. v23.19 made the
-Calendar's front door a sign-in card; from that release its entire audience — somebody reading the
-roster on the staff PIN — had already been shown that card and had chosen the PIN, so the notice
-spent its life re-offering a choice the reader declined a moment earlier. Two of its three claims
-had also moved house: the PIN card itself now states the code lasts only while the browser stays
-open, and its CTA pointed at Settings for a sign-in that is on the page underneath it. **The general
-rule: when a notice's ask becomes a control on the same screen, the notice is arguing with the app.**
-Its two guards did not survive it — no live notice declares `'signed-out'`, and it was the only one
-the accessibility suite scanned (that scan moved to `backpay-2026`, to `al-booking-2026` at v23.31, and to `install-app-2026` at v24.91, when the leave reminder was retired early by owner decision, 22 Oct 2026). Both are recorded in
-`.claude/skills/new-notice/` for whoever adds the next one.
+Retired early or replaced: `links-beta-2026` (replaced at v19.51 on a new key) and `sign-in-2026`
+(retired at v23.23 for being WRONG rather than old). Both stories, and the rule each one left, are in
+the skill.
 
 **Monthly cleanup:** on the 1st of each month, remove any notice from the table where `(today − Posted) > 180 days` — delete the HTML block, JS IIFE, and bump the version.
 

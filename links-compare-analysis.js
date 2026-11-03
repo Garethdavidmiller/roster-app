@@ -33,17 +33,11 @@
 import { DAYS, ROTATING_LINES, calcHourlyCoverage } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits } from './links-limits.js';
-import { normaliseWindow, windowForDay, windowMinutes, windowsDiffer } from './links-window.js';
+import { normaliseWindow, windowForDay, windowsDiffer, rowMinutes } from './links-window.js';
 import { DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DAY_CLASSES, peakHours, summariseDemand } from './links-demand.js';
 
 /** The five days the weekday demand class stands for. */
 const WEEKDAYS = Object.freeze(['mon', 'tue', 'wed', 'thu', 'fri']);
-
-/** A window row's staffed span, in minutes — the same conversion links-analysis.js makes. */
-const minutesOf = (/** @type {{start: string, end: string}} */ row) => ({
-    start: /** @type {number} */ (windowMinutes(row.start)),
-    end:   /** @type {number} */ (windowMinutes(row.end)),
-});
 
 /**
  * One design read against the service, exactly as the Coverage card reads it.
@@ -58,7 +52,7 @@ function readAgainstService(design, lines) {
         movements: DEC_2026_MOVEMENTS,
         hourly,
         days: DAYS,
-        windowFor: (day) => minutesOf(windowForDay(win, day)),
+        windowFor: (day) => rowMinutes(windowForDay(win, day)),
     });
     return { hourly, sum };
 }
