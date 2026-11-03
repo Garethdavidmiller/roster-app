@@ -400,7 +400,7 @@
     --type-micro:  10px;
     --type-badge:  11px;   /* badges + dense rows (v17.72 — the most-used off-scale size, ~80 places) */
     --type-small:  12px;
-    --type-label:  13px;   /* card headers, dense row text */
+    --type-label:  13px;   /* dense row text (card headers moved to --type-body at v25.12) */
     --type-body:   14px;
     --type-button: 15px;   /* primary action buttons */
     --type-medium: 16px;
@@ -1259,12 +1259,11 @@ button.lightbox-bug-link {
     font-size: var(--type-badge);
     line-height: 1.5;
     color: rgba(255,255,255,0.6);
-    /* CENTRED by default (v18.91 — v18.89 left-aligned all of them). The class has two consumers and
-       they want different things: in the paycalc ABOUT panel the note is 2 lines among entirely
-       centred siblings (version, status chip, badge, buttons, and the print caption right below it),
-       so left-aligning it alone left "never shared." hanging flush-left in a centred column. The
-       3-line welcome-dialog instance is the one the ~2-line rule actually applies to, and it opts in
-       below. */
+    /* CENTRED by default (v18.91 — v18.89 left-aligned all of them). Its one consumer now is the
+       paycalc ABOUT panel, where the note is 2 lines among entirely centred siblings (version,
+       status chip, badge, buttons, and the print caption right below it), so left-aligning it alone
+       left "never shared." hanging flush-left in a centred column. A 3-line welcome-dialog instance
+       once opted out of this below, for the ~2-line rule; the dialog and its rule have since gone. */
     text-align: center;
     text-wrap: pretty;
 }

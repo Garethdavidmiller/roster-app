@@ -12,7 +12,7 @@
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
-import { unconfirmedWriteLine } from './claim-retry.js';
+import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
 import { initErrorLog } from './operations-errors.js';
 import { createAttentionStrip } from './operations-attention.js';
@@ -66,10 +66,15 @@ export function init() {
     // Asked again at the moment of reloading (v24.61): the `{ once: true }` listener this replaced
     // reloaded on the FIRST hide whether or not the review, parse or upload had finished — and if it
     // had not, the one chance was spent and the page never reloaded for that release at all.
+    // And a write whose outcome is UNKNOWN holds it for good (v25.21; AUTH_AND_SESSIONS invariant
+    // 22): a roster import closes its review on one, and in a second tab Firestore holds the pending
+    // write in memory only, so a reload here could lose it. The reader was told to reload; that is
+    // theirs to do. Admin and Settings already held it; this page did not.
     const _opsBusy = () =>
         !!document.getElementById('rosterReviewSection')?.classList.contains('visible')
         || !!/** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
-        || !!document.querySelector('[data-uploading]');
+        || !!document.querySelector('[data-uploading]')
+        || hasUnconfirmedWrite();
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_opsBusy), isBusy: _opsBusy });
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).

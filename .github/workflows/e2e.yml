@@ -800,7 +800,7 @@ jobs:
           If the change is intended, regenerate — and then review what came back:
 
           ```
-          npm run test:visual:webkit -- --update-snapshots=all
+          npm run test:visual:webkit -- --update-snapshots
           git status e2e/visual-baselines/webkit/
           ```
           MD
@@ -1044,14 +1044,13 @@ jobs:
           If the change is intended, regenerate — and then review what came back:
 
           ```
-          npm run test:visual -- --update-snapshots=all
-          git status e2e/visual-baselines/
+          npm run test:visual:refresh
           ```
 
-          `=all` is load-bearing (a bare `--update-snapshots` only rewrites baselines whose comparison
-          FAILED, so one that drifted inside the tolerance could never be refreshed) — but it rewrites the
-          ones that PASSED too. Revert anything you cannot explain and re-run: still green means it was
-          rendering noise and does not belong in the diff.
+          It rewrites only the baselines that FAILED and names them (`scripts/refresh-visual-baselines.mjs`).
+          Keep `npm run test:visual -- --update-snapshots=all` for a deliberate sweep of drift inside the
+          tolerance: it rewrites the ones that PASSED too, so revert anything you cannot explain and re-run —
+          still green means it was rendering noise and does not belong in the diff.
           MD
           else
             cat >> "$BODY" <<'MD'

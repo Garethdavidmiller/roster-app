@@ -149,8 +149,8 @@ export const PENSION_STEPS = [
 //            the OLD rate for that year's back-pay. null = not on record (falls back to manual).
 // Payslip-confirmed values: CEA 2024/25 = £20.06 (reference payslip 09/05/2025, "Basic Pay @20.06").
 // Each April, when the new award is agreed: set that year's `rate`, and add the next year with
-// `pre` = this year's rate. Consumed ONLY by paycalc-backpay.js (the main calculator's per-year
-// rate still comes from GRADES + the localStorage per-year override — unchanged).
+// `pre` = this year's rate. Consumed by paycalc-backpay.js, and by getRateForPeriod for a period
+// paid before its year's award (the `pre` rate); otherwise the rate comes from GRADES as before.
 // `pre` = the rate paid BEFORE the year's award was applied (the prior year's rate). The DATE the
 // award was applied is NOT stored here — it is a property of the tax YEAR (rate + London step on
 // one payslip: 2025/26 = 24 Oct 2025) and lives once as `londonAllowFrom` on TAX_YEARS, read via
@@ -182,7 +182,7 @@ export function awardRatesFor(grade, tyLabel) {
 /**
  * The date a tax year's pay award was APPLIED/paid (the backdated lump lands on this payslip; periods
  * paid before it were still on the old rate). Single source of truth = the year's `londonAllowFrom`
- * (rate + London step together). null when the year has no mid-year step (e.g. the pending 2026/27).
+ * (rate + London step together). null when the year has no mid-year step (a year whose award is pending).
  * INVARIANT: any year with an AWARD_RATES `pre` must have a londonAllowFrom — asserted in paycalc.test.mjs.
  * @param {string} tyLabel
  * @returns {Date|null}
@@ -195,7 +195,7 @@ export function awardFromForYear(tyLabel) {
 /**
  * True if `p` is a period paid BEFORE its tax year's award was applied — i.e. it was paid at the
  * prior year's (pre-award) rate. Requires a recorded `pre` rate AND an award date, AND payday < that
- * date. Single predicate shared by getRateForPeriod (main calc) and saveSettings (the persist guard).
+ * date. Single predicate: getRateForPeriod, updateRateForPeriod and confirmSettings, and the header hint.
  * @param {{ payday: Date }} p
  * @param {string} grade
  * @param {string} tyLabel

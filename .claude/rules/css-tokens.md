@@ -590,7 +590,7 @@ than the purity gain.
   rationale: labelled, low co-visibility.
 
 **Box-shadows are deliberately NOT routed through `--shadow-1/2/3`** (reviewed v17.58): the
-eight app stylesheets `shadow-parity.test.mjs` scans (not `trains.css` or `newlink.css`) carry **27** hand-rolled `rgba()` shadows with varied values, and forcing them
+app stylesheets (`shadow-parity.test.mjs` reads them from `scripts/app-pages.mjs` since v25.21) carry **27** hand-rolled `rgba()` shadows with varied values, and forcing them
 onto the three presets would visibly restyle depth across the app — a redesign, not hygiene. Use the
 `--shadow-*` tokens for NEW shadows; leave existing ones unless intentionally redesigning that
 surface. **The figure is measured, not remembered** — `shadow-parity.test.mjs` counts the recipes
@@ -699,8 +699,8 @@ already failed twice — in opposite ways, neither visible by reading the CSS:
   blob into, which is the worst place for the viewport to jump.
 
 **A static CSS test cannot catch either**: both are cascade outcomes, not text. `e2e/pages.spec.js`
-now scans every `input`/`select`/`textarea` on the seven pages in its hand-written `APP_URLS` list
-(not `trains.html` or `newlink.html`) on **mobile-chrome** (a real coarse
+now scans every `input`/`select`/`textarea` on every app page — read from `scripts/app-pages.mjs` since
+v25.21, when a hand-written seven had missed Trains and New link — on **mobile-chrome** (a real coarse
 pointer), with every collapsible forced open, and asserts the COMPUTED size. Checkboxes, radios and
 file inputs are excluded — none opens a keyboard, so none can trigger the zoom.
 

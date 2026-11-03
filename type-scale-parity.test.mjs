@@ -20,13 +20,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { pageStylesheets } from './scripts/app-pages.mjs';
 
 const read = (f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
-/** The seven stylesheets that import shared.css's :root, so the tokens are in scope. The four guide
- *  stylesheets are deliberately excluded — they do not load shared.css and have no --type-* tokens. */
-const APP_CSS = ['shared.css', 'index.css', 'admin.css', 'paycalc.css',
-    'operations.css', 'settings.css', 'links.css'];
+/** shared.css and every app page's own stylesheet — read from scripts/app-pages.mjs (v25.21: this was a
+ *  hand-written seven that missed overtime, trains and newlink). The guide stylesheets are deliberately
+ *  excluded — they do not load shared.css and have no --type-* tokens. */
+const APP_CSS = ['shared.css', ...Object.values(pageStylesheets())];
 
 /** Parse the scale from its single source rather than restating it here. */
 function typeTokens() {

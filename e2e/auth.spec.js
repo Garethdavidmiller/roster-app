@@ -1,4 +1,6 @@
 import { test, expect, forcePasswordSet } from './fixtures.js';
+import { APP_PAGES } from '../scripts/app-pages.mjs';
+import { CONFIG } from '../roster-data.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay } from './helpers.js';
 
 // ── ADMIN (admin.html) ────────────────────────────────────────────────────
@@ -640,14 +642,18 @@ async function failTwice(page, name) {
 }
 
 // ── The login overlay must look the SAME on every page (v18.95) ────────────────────────────
-// login-overlay.js injects one card and shared.css styles it, so all five protected pages should
+// login-overlay.js injects one card and shared.css styles it, so every protected page should
 // render an identical sign-in. Nothing asserted that, and it broke immediately: a page-local
 // `.login-pw-wrap { margin-bottom }` added for the Settings Password card also matched the login
 // overlay's OWN password wrapper (same class, injected on every page), so settings.html's sign-in
 // card silently grew 14px taller than the other five. Page CSS files are loaded per page, so this
 // class of leak is invisible to any single-page test.
 test('login overlay geometry is identical across every page that shows it', async ({ page }) => {
-    const PAGES = ['/admin.html', '/settings.html', '/operations.html', '/links.html', '/paycalc.html'];
+    // Every page that puts up the shared sign-in, from scripts/app-pages.mjs (v25.21: this list was five
+    // by hand and had missed Trains and New link). Not the Calendar, which opens on its own front door,
+    // nor Overtime while it is paused — it shows its closed page and offers no sign-in.
+    const PAGES = APP_PAGES.filter(p => p.file !== 'index.html'
+        && (p.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true)).map(p => p.url);
     /** Measure the parts a page stylesheet could plausibly reach into. */
     const measure = async (/** @type {string} */ url) => {
         await page.goto(url);
