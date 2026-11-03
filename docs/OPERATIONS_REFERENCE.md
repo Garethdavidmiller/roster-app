@@ -573,7 +573,8 @@ trails Hosting rather than leading it, so "both origins behind" during a release
 1. **Require the checks on `main`.** GitHub → the repo → Settings → Rules → Rulesets → New branch
    ruleset. Target the default branch. Turn on **Require status checks to pass** and **Require
    branches to be up to date before merging**, and add the checks from a recent pull request run:
-   `version`, `unit`, `nodeps`, `functions`, `rules`, `csp` and every `smoke` entry. Leave out
+   `version`, `unit`, `nodeps`, `functions`, `rules`, `csp` and every `smoke` entry (one per screen
+   size since 3 Nov 2026: `smoke (chromium)` and `smoke (mobile-chrome)`). Leave out
    `guard` (it decides whether the others run), and `visual` / `visual-webkit`, which are report-only
    by design. Whether the `webkit` entries gate merging is your call: the deploy gate deliberately
    runs Chromium only (DECISIONS.md, 8 Sep 2026).

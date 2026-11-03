@@ -369,6 +369,25 @@ jobs:
     # browser is pinned — this one, webkit, csp, visual, visual-webkit, and the deploy gate, live-health, offline and
     # warm-browser-cache. Move them on together when Playwright supports the newer image.
     runs-on: ubuntu-24.04
+    # ── ONE JOB PER SCREEN SIZE (3 Nov 2026) ─────────────────────────────────────────────────────
+    #
+    # Both projects — desktop Chrome and a Pixel 5 — ran in this one job, and it had grown into the
+    # limit below: 22.5 and 25.1 minutes on 3 Nov 2026 against 30, and every PR waited on it, the
+    # slowest job in the run by four to ten minutes. So each project is now its own job. It is split by
+    # PROJECT rather than sharded, because the two run the same 900 tests and their summed test time
+    # on v25.23's run was 20.8 and 20.6 minutes — even halves with nothing about how a test runs
+    # changed. Sharding needs `fullyParallel` to balance (pages.spec.js is one file, and Playwright
+    # shards whole files without it; playwright.webkit.mjs has the measurement), which this suite
+    # does not need yet. A failure now also names its screen size. When a half outgrows its box in
+    # turn, shard within the project as the webkit job does.
+    #
+    # The matrix must name every project in playwright.config.mjs: each job runs only its own, so a
+    # project missing here would silently stop running in CI. workflow-hygiene.test.mjs holds the two
+    # lists equal. `fail-fast: false` so a red half never cancels the green one and loses its report.
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, mobile-chrome]
     # 15 → 20 (4 Sep 2026), when a 7-minute `npm ci` cancelled the suite mid-run. 20 → 30 (25 Oct
     # 2026): the suite took ~10 minutes when 20 was set and takes 16–19½ now — the six green runs
     # before v24.98 spent 16m15s–18m48s in the tests, and v24.98's first PR run passed all 1,601 in
@@ -376,6 +395,8 @@ jobs:
     # reads as `cancelled`, not `failure`, as though somebody had stopped it. 30 holds the slowest
     # suite seen with the libraries' own 8-minute ceiling on top; the webkit sibling, sharded, has
     # 35. Still bounded; the point is a bound with margin. Past ~25 minutes, shard it as webkit is.
+    # → It reached 25.1 on 3 Nov 2026 and was split by project (above). Each job now carries half the
+    #   suite, so the same 30 is about twice the margin.
     timeout-minutes: 30
     permissions:
       contents: read
@@ -439,7 +460,7 @@ jobs:
           browser: chromium
 
       - name: Run smoke tests
-        run: npm run test:e2e
+        run: npm run test:e2e -- --project=${{ matrix.project }}
         env:
           CI: true
 
@@ -447,7 +468,9 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: playwright-report
+          # The project in the name: two jobs upload here, and a colliding artifact name fails the
+          # upload of whichever lands second — losing the report for the half that broke.
+          name: playwright-report-${{ matrix.project }}
           path: playwright-report/
           retention-days: 7
 
