@@ -614,7 +614,7 @@ staff-visible change. **Deliberately deferred:**
 ## Appendix: A2 — Workload Identity Federation ✓ COMPLETE (v14.93)
 
 **What it did:** retired the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON key for **short-lived GitHub OIDC
-tokens** on all 3 deploy workflows (`google-github-actions/auth`, pinned `v2.1.13`; provider + SA written
+tokens** on all 3 deploy workflows (`google-github-actions/auth`, pinned `v3.0.0` — `v2.1.13` until 3 Nov 2026; provider + SA written
 directly in each YAML — they aren't secrets; job `permissions: { contents: read, id-token: write }`). No
 standing full-project deploy credential remains in GitHub — the SA JSON key AND the GitHub secret are
 both deleted, and a deploy from `main` was confidence-checked with the key gone. De-risked by migrating
