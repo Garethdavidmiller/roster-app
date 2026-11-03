@@ -554,6 +554,15 @@ export function init() {
     /** The year the AL range picker is SHOWING, or null until it crosses a year (see admin-al-year.js). */
     let alPickerViewYear = /** @type {number|null} */ (null);
 
+    // WHICH YEAR'S ALLOWANCE A JANUARY LEAVE DAY COMES OUT OF (v25.18): admin-leave-year.js. Built
+    // BEFORE `updateALBanner`, which reads it, so no first call can find it uninitialised.
+    const _leaveYearPanel = initLeaveYearPanel({
+        getMember: () => teamMembers.find(m => m.name === alMember?.value) ?? null,
+        hasAuthority: hasOverrideAuthorityFor, getOverrides: getAllOverrides,
+        save: (args) => setLeaveYear({ ...args, changedBy: currentUser ?? '' }),
+        onSaved: () => { updateALBanner(); updateALBookedBox(); },
+    });
+
     /**
      * Refreshes the AL entitlement banner above the Annual Leave card: taken, booked and remaining
      * for the year `admin-al-year.js` picks. Hidden when there is nothing truthful to state.
@@ -652,15 +661,6 @@ export function init() {
                 + (remaining <= 0 ? ' balance-none' : remaining <= 5 ? ' balance-low' : '');
         }
     }
-
-    // WHICH YEAR'S ALLOWANCE A JANUARY LEAVE DAY COMES OUT OF (v25.18): admin-leave-year.js. Built
-    // after `updateALBanner`, which refreshes it, and before anything can call that.
-    const _leaveYearPanel = initLeaveYearPanel({
-        getMember: () => teamMembers.find(m => m.name === alMember?.value) ?? null,
-        hasAuthority: hasOverrideAuthorityFor, getOverrides: getAllOverrides,
-        save: (args) => setLeaveYear({ ...args, changedBy: currentUser ?? '' }),
-        onSaved: () => { updateALBanner(); updateALBookedBox(); },
-    });
 
     // ============================================
     // WEEK GRID
