@@ -480,13 +480,48 @@ screenshots: Trains' raspberry view above a navy day; New link's navy chip on a 
 `page-identity-parity.test.mjs` refuses a chosen fill that does not read `--page-accent` unless it is
 in `MEANING`, refuses navy on any chosen fill, and fails on a `MEANING` entry whose rule has gone.
 **It can only see a choice spelled the way its `CHOSEN` pattern reads** — the aria states, `.active`,
-`.is-active`, `.is-on`, `.is-chosen`, `.is-current`, `.compare-active`, `--active` and `--on`. Operations'
-month toggle (`.speed-toggle-btn--on`) stayed navy through v25.16 and Links' compare-mode tile stayed
-gold, both unseen, because their spellings were not on the list (v25.20). A new spelling joins the
-pattern in the same commit. **Two kinds of choice are deliberately outside it, for now**: a date
-picker's chosen day (`.dp-sel`, admin's `.rp-from`/`.rp-to`), which is still navy, and a chosen
-timetable column on Trains (`.tr-col-on`), a column tint with an underline. Both are open owner
-questions, not oversights.
+`.is-active`, `.is-on`, `.is-chosen`, `.is-current`, `.compare-active`, the date pickers' `.dp-sel`,
+`.dp-inweek`, `.rp-from`, `.rp-to` and `.rp-in-range`, Trains' `.tr-col-on`, `--active` and `--on`.
+Operations' month toggle (`.speed-toggle-btn--on`) stayed navy through v25.16 and Links' compare-mode
+tile stayed gold, both unseen, because their spellings were not on the list (v25.20). A new spelling
+joins the pattern in the same commit. The walk skips a `::before`/`::after`: today's dot on a chosen
+date is drawn ON the control, and is not its fill.
+
+**The last navy choices took the page's colour at v25.21** (owner: "do all your suggestions", 3 Nov
+2026, with before-and-after screenshots):
+- **The date pickers.** The chosen day is the page's colour with its ink; a chosen WEEK is a 20% tint
+  of it across the row, with the chosen day a full-colour disc on the band (a gradient, so its
+  `background-color` reads transparent — `e2e/chosen-colour.spec.js` reads the image); hovering a week
+  is a 10% tint. Admin's range picker is the same recipe: full colour on the two ends, 20% between,
+  10%/30% while a range is still being drawn. Today's dot takes the ink on a chosen day, or a gold dot
+  vanishes on Admin's gold. Their focus rings are the light-surface `--focus-outline` — the gold ring
+  was ~1.5:1 on the white panel and invisible on a gold end.
+- **Trains' chosen timetable column** keeps its light tint down the table (the times must stay
+  readable), and the underline on its heading is the page's raspberry. In `MEANING`, because the
+  column fill is a tint by design.
+- **Operations' hand-entry type pills wear ADMIN'S type colours**, type by type — idle: the type's
+  text colour on an outline of it; chosen: the type's fill under white. From v25.16 every chosen type
+  there was the page's orange, so a chosen AL was orange in Operations and teal in Change a Shift, and
+  orange is Admin's Rest-day colour. The two pages restate the mapping (one keyed on `.pill-<type>`,
+  one on `data-entry-type`), so `page-identity-parity.test.mjs` test 5 compares the tokens.
+- **The swapped-day answer is leave's colour everywhere** (`--al-deep`, Admin's `.al-swap-btn`): in the
+  hand-entry box (was orange) and in a guarded review row (was the review's success green). It is a
+  question about annual leave, and it was three colours for one question across two pages.
+
+`e2e/chosen-colour.spec.js` reads each of these off the rendered control and compares it with the
+token resolved on the same page, because a static check cannot see a rule that LOSES — a later rule,
+a more specific one or a hover. Every case was mutation-checked: put the old colour back and it fails.
+
+**Under Windows High Contrast every chosen control is ringed (v25.21).** A forced-colours theme
+repaints every fill as `Canvas`, and every chosen state above is a fill, so until v25.21 a chosen tab,
+chip or date painted exactly like the one beside it. Trains' view tabs and New link's tiles had border
+rules of their own; Trains' lost to a later rule on its in-card tabs. Now ONE rule in shared.css draws
+a 2px `Highlight` outline on anything pressable whose aria state (pressed, selected, checked, current)
+or chosen class says so. An outline is no element's layout, so it cannot fight a page's borders. Do not
+add a page-level copy: `native-surface-parity.test.mjs` contract 14 refuses one, refuses a brand token
+in any forced-colours block, and `e2e/forced-colors.spec.js` proves the painting on real controls by
+taking the outline away and counting what changed (the emulated `Highlight` is the engine's — here a
+translucent navy — so matching one colour would test the palette, not the page).
 
 ## Desktop layout — content width + reading measure (v15.90)
 

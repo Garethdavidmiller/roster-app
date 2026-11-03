@@ -768,6 +768,33 @@ input[type="checkbox"]:disabled:indeterminate { background-color: var(--check-fi
 }
 
 /* ============================================================
+   A CHOSEN CONTROL IN A FORCED-COLOURS THEME (v25.21)
+   ============================================================
+   Every chosen fill in this app is a BACKGROUND (shared.css → "CHOSEN = THE PAGE'S COLOUR"), and a
+   forced-colours theme (Windows High Contrast; the station PC is Windows) repaints backgrounds as
+   `Canvas` — so a chosen tab, segment, chip, toggle or date painted exactly like the ones beside it.
+   Only Trains' view tabs and New link's tiles said otherwise, each with a border rule of its own, and
+   Trains' lost to a later rule on its in-card tabs. One OUTLINE in the theme's `Highlight` now states
+   the choice everywhere: an outline is no element's layout, so it cannot fight a page's border rules.
+   It reads the pressed/selected/checked/current states on anything a reader can press, and the
+   classes the pages spell "chosen" with too: every chosen control today sets both, on separate
+   lines, and an edit that drops one should not take the outline with it. Only PRESSABLE things:
+   Admin marks a whole day row `.active`, and a row is not a choice. The range picker's days are `role="button"` and every day of a chosen range is pressed,
+   so the outline draws the range itself; the week picker presses only the chosen day.
+   `e2e/forced-colors.spec.js` reads the pixels, because `getComputedStyle` returns the author value
+   and cannot see the forcing. **No `var(--…)` here** — a brand colour would be forced away, the
+   failure this block exists for. */
+@media (forced-colors: active) {
+    :is(button, a, [role="button"], [role="tab"], [role="radio"], [role="option"]):is(
+        [aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], [aria-current="true"],
+        .active, .is-active, .is-on, .is-chosen, .is-current),
+    [aria-current="page"] {
+        outline: 2px solid Highlight;
+        outline-offset: -2px;
+    }
+}
+
+/* ============================================================
    THE PASSWORD FIELD'S OWN BUTTONS (v23.51)
    ============================================================
    The audit that produced v23.50 missed these because they are drawn by only TWO engines and
@@ -1659,25 +1686,38 @@ button.lightbox-bug-link {
     /* Single-day grids only: a week-mode grid bands the whole hovered week instead (below). */
     .dp-grid:not(.dp-week) .dp-day:not(.dp-off):not(.dp-sel):hover { background: var(--bg-light); border-radius: 50%; }
 }
-.dp-day:focus-visible { outline: var(--focus-outline-gold); outline-offset: -2px; border-radius: 50%; }
+/* The light-surface ring (v25.21; it was gold, ~1.5:1 on the white panel and invisible on a gold chosen
+   day once the chosen day took the page's colour — the Calendar's and Admin's colour IS gold). */
+.dp-day:focus-visible { outline: var(--focus-outline); outline-offset: -2px; border-radius: 50%; }
 .dp-day.dp-today { color: var(--primary-blue); font-weight: 700; }
 .dp-day.dp-today::after {
     content: ''; position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%);
     width: 3px; height: 3px; border-radius: 50%; background: var(--accent-gold);
 }
-.dp-day.dp-sel { background: var(--primary-blue); color: white; font-weight: 700; border-radius: 50%; }
+/* The chosen day wears the PAGE's colour (v25.21 — it was navy, the last navy choice in the app, and
+   navy is the colour of a button that does something: shared.css → "CHOSEN = THE PAGE'S COLOUR"). Gold
+   on the Calendar's team-view week and on Admin, orange on Operations. Today's dot takes the ink, or a
+   gold dot on a gold day would vanish. */
+.dp-day.dp-sel { background: var(--page-accent); color: var(--page-accent-ink); font-weight: 700; border-radius: 50%; }
+.dp-day.dp-sel.dp-today::after { background: var(--page-accent-ink); }
 .dp-day.dp-off { color: var(--border-mid); cursor: default; }
 /* WEEK MODE (polish round 2 — Admin's "Jump to a week", `openDatePicker(…, { week: true })`). The
    grid is Sunday-first, so a Sunday–Saturday week is one grid ROW, and it is drawn as a band: the
-   hovered/focused week in a half tint, the chosen week in `--blue-light`, which wins. The
-   ends round where the week's drawn run starts and stops (`dp-wk-first` / `dp-wk-last`). The chosen
-   DAY keeps its navy circle, drawn INSIDE the band so the band stays continuous behind it. */
+   hovered/focused week in a half tint, the chosen week in a pale tint of the page's colour, which wins
+   (v25.21; both were `--blue-light`). The ends round where the week's drawn run starts and stops
+   (`dp-wk-first` / `dp-wk-last`). The chosen DAY is a circle of the page's colour, drawn INSIDE the
+   band so the band stays continuous behind it. The tint is written out each time rather than held in a
+   variable, so page-identity-parity.test.mjs can see the page's colour in it. It mixes with WHITE, as
+   every page-colour tint here does: `--surface` carries a faint hue of its own (250°, blue), and an
+   oklch mix swings the hue between the two — Admin's gold came out pale CYAN until it was caught in a
+   before-and-after screenshot. White has no hue to swing towards. */
 /* The hover band is HALF the chosen week's tint: `--bg-light` (the single-day hover) is 97.9% L on a
    98% panel, which reads as a circle around the pointer and vanishes as a seven-cell band. */
-.dp-week .dp-day.dp-hoverweek:not(.dp-off) { background: color-mix(in oklch, var(--blue-light) 50%, var(--surface)); border-radius: 0; }
-.dp-week .dp-day.dp-inweek:not(.dp-off) { background: var(--blue-light); border-radius: 0; }
+.dp-week .dp-day.dp-hoverweek:not(.dp-off) { background: color-mix(in oklch, var(--page-accent) 10%, white); border-radius: 0; }
+.dp-week .dp-day.dp-inweek:not(.dp-off) { background: color-mix(in oklch, var(--page-accent) 20%, white); border-radius: 0; }
 .dp-week .dp-day.dp-inweek.dp-sel {
-    background: radial-gradient(circle closest-side, var(--primary-blue) 95%, var(--blue-light) 100%);
+    background: radial-gradient(circle closest-side, var(--page-accent) 95%,
+                                color-mix(in oklch, var(--page-accent) 20%, white) 100%);
 }
 .dp-week .dp-day.dp-wk-first:is(.dp-inweek, .dp-hoverweek) {
     border-top-left-radius: var(--radius-pill); border-bottom-left-radius: var(--radius-pill);

@@ -73,6 +73,15 @@
  *     that make the fix robust rather than merely working are shape, and shape is read here.
  *     Teeth-verified five ways, each mutation confirmed applied before the run.
  *
+ * 14. **A CHOSEN control states itself in the theme too, and EVERY forced-colours block is the
+ *     theme's** (v25.21). Contract 13 read the FIRST such block in shared.css, so a block anywhere
+ *     else could carry a brand token unread. Every chosen fill in the app is a background, which the
+ *     theme repaints as Canvas, so until v25.21 a chosen tab, chip or date painted like the ones
+ *     beside it; Trains and New link each carried a border rule of their own, and Trains' lost to a
+ *     later rule on its in-card tabs. The fix is ONE outline in `Highlight` in shared.css, read off
+ *     the aria states — so this checks it is there, covers every state, and is not restated by a
+ *     page. `e2e/forced-colors.spec.js` proves the painting on real controls.
+ *
  * What it cannot see: the surfaces that are the platform's by nature — the file picker, the print
  * dialog, Web Push, the install prompt, and the keyboard with its AutoFill bar. Those are correct
  * and the audit says so; this file is about the ones that were a choice. Note the line contract 10
@@ -215,6 +224,50 @@ test('the checkbox/radio recipe states itself in the user\'s forced-colours pale
     assert.match(block, /background-color:\s*HighlightText\b/, 'the tick must be HighlightText — the pair guaranteed to contrast in every theme');
     assert.match(block, /opacity:\s*1\b/,               'opacity is NOT forced, so the disabled 0.55 must be reset or it mutes a high-contrast theme');
     assert.match(block, /box-shadow:\s*none/,           'box-shadow is normally forced away; the opt-out restores the brand ring unless it is removed');
+});
+
+// ── 14. a chosen control is ringed in the theme's Highlight, and every block is the theme's ─────
+test('every forced-colours block uses the theme\'s colours, and shared.css rings a chosen control in Highlight', () => {
+    /** The body of every `@media (forced-colors: active)` block in a stylesheet. @param {string} src */
+    const blocks = src => {
+        const out = [];
+        for (let at = src.indexOf('@media (forced-colors: active)'); at !== -1; at = src.indexOf('@media (forced-colors: active)', at + 1)) {
+            let i = src.indexOf('{', at), depth = 0;
+            for (let j = i; j < src.length; j++) {
+                if (src[j] === '{') depth++;
+                else if (src[j] === '}' && --depth === 0) { out.push(src.slice(i + 1, j)); break; }
+            }
+        }
+        return out;
+    };
+    const SYSTEM = /^(Canvas|CanvasText|Highlight|HighlightText|GrayText|ButtonFace|ButtonText|ButtonBorder|LinkText|Field|FieldText|SelectedItem|SelectedItemText|Mark|MarkText|AccentColor|AccentColorText|currentColor|none|transparent|inherit)$/;
+    const offenders = [], restated = [];
+    for (const f of CSS) {
+        for (const block of blocks(strip(read(f)))) {
+            if (/var\(--/.test(block)) offenders.push(`${f}: a brand token`);
+            for (const m of block.matchAll(/(?:^|[\s;{])(background-color|background|border-color|color|outline-color|fill|stroke)\s*:\s*([^;}]+)/g)) {
+                if (!SYSTEM.test(m[2].trim())) offenders.push(`${f}: \`${m[1]}: ${m[2].trim()}\``);
+            }
+            for (const m of block.matchAll(/(?:^|[\s;{])(outline|border(?:-(?:top|right|bottom|left))?)\s*:\s*([^;}]+)/g)) {
+                const last = m[2].trim().split(/\s+/).pop() || '';
+                if (!SYSTEM.test(last) && !/^(0|none)$/.test(m[2].trim())) offenders.push(`${f}: \`${m[1]}: ${m[2].trim()}\` does not end in a system colour`);
+            }
+            if (f !== 'shared.css' && /\[aria-(?:pressed|selected|checked|current)=/.test(block)) restated.push(f);
+        }
+    }
+    assert.deepEqual(offenders, [], 'under forced colours only the reader\'s own palette may be painted');
+    assert.deepEqual(restated, [],
+        'a page restates the chosen-control rule in its own forced-colours block — shared.css states it for every page, '
+        + 'and a page\'s copy is the shape that lost to a later rule on Trains');
+
+    const shared = blocks(strip(read('shared.css'))).join('\n');
+    const ring = /([^{}]+)\{[^{}]*outline:\s*2px\s+solid\s+Highlight\b[^{}]*\}/.exec(shared);
+    assert.ok(ring, 'shared.css must ring a chosen control in Highlight under forced colours');
+    for (const state of ['aria-pressed="true"', 'aria-selected="true"', 'aria-checked="true"', 'aria-current="true"', 'aria-current="page"']) {
+        assert.ok(ring[1].includes(state), `the chosen-control ring must cover [${state}]`);
+    }
+    // Only pressable things — a day row marked `.active` is not a choice.
+    assert.match(ring[1], /:is\(button,\s*a,\s*\[role="button"\]/, 'the ring is for things a reader can press');
 });
 
 // ── 5. no resize grip ───────────────────────────────────────────────────────────────────────────

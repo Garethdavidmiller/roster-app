@@ -1678,7 +1678,8 @@
                 border-radius: 50%;
             }
         }
-        .rp-day:focus-visible { outline: var(--focus-outline-gold); outline-offset: -2px; border-radius: 50%; }
+        /* The light-surface ring (v25.21; gold was ~1.5:1 on the white panel and vanishes on a gold end). */
+        .rp-day:focus-visible { outline: var(--focus-outline); outline-offset: -2px; border-radius: 50%; }
         .rp-filler { cursor: default; pointer-events: none; min-height: 44px; }
         .rp-today { color: var(--primary-blue); font-weight: 700; }
         .rp-today::after {
@@ -1692,15 +1693,20 @@
             border-radius: 50%;
             background: var(--accent-gold);
         }
-        .rp-in-range { background: var(--blue-light); color: var(--text-dark); }
-        .rp-preview  { background: color-mix(in oklch, var(--primary-blue) 6%, transparent); }
-        .rp-preview-end { background: color-mix(in oklch, var(--primary-blue) 12%, transparent); border-radius: 50%; }
+        /* The chosen range wears the PAGE's colour, as the date picker's chosen day does (v25.21 — the
+           ends were navy and the run between them `--blue-light`): a pale tint for the days inside, the
+           full colour on the two ends, and fainter tints of it while a range is still being drawn.
+           Today's dot takes the ink on an end, or a gold dot on a gold circle would vanish. */
+        .rp-in-range { background: color-mix(in oklch, var(--page-accent) 20%, white); color: var(--text-dark); }
+        .rp-preview  { background: color-mix(in oklch, var(--page-accent) 10%, transparent); }
+        .rp-preview-end { background: color-mix(in oklch, var(--page-accent) 30%, transparent); border-radius: 50%; }
         .rp-from, .rp-to {
-            background: var(--primary-blue);
-            color: white;
+            background: var(--page-accent);
+            color: var(--page-accent-ink);
             font-weight: 700;
             border-radius: 50%;
         }
+        .rp-from.rp-today::after, .rp-to.rp-today::after { background: var(--page-accent-ink); }
 
         /* ---- Booked AL dates collapsible box ---- */
         .al-booked-box {

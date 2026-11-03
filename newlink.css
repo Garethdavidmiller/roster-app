@@ -455,10 +455,10 @@ body {
     .nl-tile, .nl-tab, .nl-file, .nl-name, .nl-back { transition: none; }
 }
 
-/* A FORCED-COLOURS theme (Windows high contrast) repaints every fill and shadow, so a chosen tile would look like the rest
-   (the review, 2 Nov 2026). The theme's own Highlight states the choice; a `var(--…)` here would be forced away too. */
+/* A FORCED-COLOURS theme (Windows high contrast) repaints every fill and shadow. A chosen tile or tab is stated by
+   shared.css's one rule for every chosen control (v25.21; this block carried its own until then); the best figure's
+   box is this page's alone. A `var(--…)` here would be forced away too. */
 @media (forced-colors: active) {
-    .nl-tile[aria-pressed="true"], .nl-tab[aria-pressed="true"] { border: 3px solid Highlight; }
     .nl-fig .nl-best b { border: 1px solid CanvasText; }
 }
 

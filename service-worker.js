@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '25.21';
+const APP_VERSION = '25.22';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -954,8 +954,8 @@ self.addEventListener("message", event => {
 // ============================================
 // Payload shape (sent by Cloud Functions via buildPushPayload):
 //   { title, body, url, tag }
-// tag is the feature's stable tag (`NOTIFICATION_FEATURES`; notifications.md lists all eight)
-// — or the SW-local fallback 'update' for a
+// tag is the feature's stable tag from notifications.md ('huddle', 'circular',
+// 'newsletter', 'pay-reminder') — or the SW-local fallback 'update' for a
 // data-less/unparseable push. Using the same tag for repeat notifications of the
 // same type means the new one replaces the old one in the Notification Centre
 // rather than stacking.

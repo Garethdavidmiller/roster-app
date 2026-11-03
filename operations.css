@@ -399,12 +399,34 @@ body.auth-ready .container { display: grid; }
     cursor: pointer;
     transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med);
 }
-/* Chosen: the page's orange, navy text (v25.16 — was navy; shared.css → "CHOSEN = THE PAGE'S COLOUR").
-   The Other flavours below keep Other's own green: a flavour is a kind of day, and that colour says so. */
-.roster-entry-pill.is-on, .roster-entry-swap-btn.is-on {
-    background: var(--page-accent);
-    border-color: var(--page-accent);
-    color: var(--page-accent-ink);
+/* A TYPE wears its own colour, exactly as Admin's "Change a Shift" pills do (v25.21). From v25.16 every
+   chosen type here was the page's orange, so a chosen AL was orange here and teal there, and orange is
+   Admin's Rest-day colour. Idle: the type's text colour on an outline of it; chosen: the type's fill
+   under white text. The tokens are Admin's `.pill-*` rules', and page-identity-parity.test.mjs holds
+   the two pages to the same ones, type by type. The Other flavours below keep Other's own green for
+   the same reason: a flavour is a kind of day, and that colour says so. */
+.roster-entry-pill { border-color: currentColor; }
+.roster-entry-pill[data-entry-type="annual_leave"] { color: var(--al-text); }
+.roster-entry-pill[data-entry-type="shift"]        { color: var(--ot-text); }
+.roster-entry-pill[data-entry-type="rdw"]          { color: var(--rdw-text); }
+.roster-entry-pill[data-entry-type="sick"]         { color: var(--absence-text); }
+.roster-entry-pill[data-entry-type="correction"]   { color: var(--orange-text); }
+.roster-entry-pill[data-entry-type="other"]        { color: var(--other-text); }
+.roster-entry-pill.is-on[data-entry-type] { color: white; }
+.roster-entry-pill.is-on[data-entry-type="annual_leave"] { background: var(--al);          border-color: var(--al); }
+.roster-entry-pill.is-on[data-entry-type="shift"]        { background: var(--ot);          border-color: var(--ot); }
+.roster-entry-pill.is-on[data-entry-type="rdw"]          { background: var(--rdw);         border-color: var(--rdw); }
+.roster-entry-pill.is-on[data-entry-type="sick"]         { background: var(--absence);     border-color: var(--absence); }
+.roster-entry-pill.is-on[data-entry-type="correction"]   { background: var(--orange-deep); border-color: var(--orange-deep); }
+.roster-entry-pill.is-on[data-entry-type="other"]        { background: var(--other);       border-color: var(--other); }
+/* "Was it a swapped working day?" is a question about ANNUAL LEAVE, so its answer wears leave's colour —
+   Admin's `.al-swap-btn` exactly, here and in the guarded rows below (v25.21; it was orange here and
+   the review's green there: three colours for one question across two pages). */
+.roster-entry-swap-btn { color: var(--al-deep); border-color: color-mix(in oklch, var(--al-deep) 38%, transparent); }
+.roster-entry-swap-btn.is-on {
+    background: var(--al-deep);
+    border-color: var(--al-deep);
+    color: var(--surface);
 }
 .roster-entry-pill:disabled { opacity: .38; cursor: not-allowed; }
 .roster-entry-pill:focus-visible, .roster-entry-swap-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
@@ -475,8 +497,10 @@ body.auth-ready .container { display: grid; }
 /* A ticked box nobody can untick needs to say why, on screen — it was a `title` too. */
 .roster-entry-lock { color: var(--text-light); font-size: var(--type-badge); }
 @media (hover: hover) and (pointer: fine) {
+    /* A type pill and a swap answer keep their own colour under the pointer and dim instead, as
+       Admin's do (v25.21) — a navy repaint would make the idle AL pill look like a different type. */
     .roster-entry-pill:not(.is-on):not(:disabled):hover,
-    .roster-entry-swap-btn:not(.is-on):hover,
+    .roster-entry-swap-btn:not(.is-on):hover { opacity: .75; }
     .roster-entry-flavour:not(.is-on):hover {
         border-color: var(--primary-blue);
         color: var(--primary-blue);
@@ -552,7 +576,8 @@ body.auth-ready .container { display: grid; }
    one loses its fill. A solid green "Keep saved" on a read that will not be saved reads as a live
    decision, and it is the one control on this page that looks pressed rather than available. */
 .roster-blocked .roster-choice-btn { cursor: not-allowed; }
-.roster-blocked .roster-choice-btn.is-chosen {
+.roster-blocked .roster-choice-btn.is-chosen,
+.roster-blocked .roster-choice-btn[data-swap].is-chosen {
     background: var(--surface-sunken);
     color: var(--text-mid);
     border-color: var(--border-mid);
@@ -700,6 +725,10 @@ body.auth-ready .container { display: grid; }
     transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med);
 }
 .roster-choice-btn.is-chosen { background: var(--success-green); color: white; border-color: var(--success-green); }
+/* The swapped-day answer in a guarded row is a question about ANNUAL LEAVE — leave's colour, as in the
+   hand-entry box and on Admin (v25.21). A blocked row's rule above still wins: it names this selector too. */
+.roster-choice-btn[data-swap] { color: var(--al-deep); border-color: color-mix(in oklch, var(--al-deep) 38%, transparent); }
+.roster-choice-btn[data-swap].is-chosen { background: var(--al-deep); color: var(--surface); border-color: var(--al-deep); }
 /* Skip is the ONE choice that means "write nothing", so it must not wear the success green every
    other chosen button wears — on a flagged row Skip is the DEFAULT, and a green default read as
    "this will be saved" when it means exactly the opposite (caught by rendering it, v19.32). Filled
