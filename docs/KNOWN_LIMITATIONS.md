@@ -38,7 +38,10 @@ left, each for a decision rather than a default:
   read its `myb/timeout` code, and sharing one would pull the Firebase module graph into the sign-in
   overlay's unit tests or need a new module, for six lines; and `adjustScrollOffsets`, one idea with a
   different target per guide (`railcard-guide.js`, `rangers-guide.js`), in classic scripts with no
-  shared module. About 150 colours written as `rgb()`/`rgba()` pass `css-hex-parity` unseen.
+  shared module. Colours written as `rgb()`/`rgba()` are now read by `css-hex-parity` too: pure white
+  or black at any alpha is neutral (like the `white`/`black` keywords), and the 17 coloured ones the
+  app sheets held — nearly all one navy shadow tint — are a ratchet that may only go down (8 in
+  `index.css`, 6 in `links.css`, 3 in `shared.css`). The guide sheets keep their own palette guard.
 - **Overtime stays paused** (owner, 3 Nov 2026). Its page, Cloud Functions and tests — about 19,000
   lines — are kept and keep running in CI, so it can be switched back on; removing it was offered and
   declined.
