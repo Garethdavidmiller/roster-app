@@ -282,14 +282,14 @@ export function runLengthsWhere(seq, counts, { requireMatch = false } = {}) {
     return out;
 }
 
+/** RD, OFF or empty is rest; SPARE is NOT. The Links modules' one copy (v25.23 — fatigue and adjacency each had one). @param {any} s */
+export function isRest(s) { return !s || s === 'RD' || s === 'OFF'; }
+
 /**
  * The worst-case run of consecutive WORKED days from every starting day.
  * Delegates, so the spare-week budget is written once. @param {Array<{shift:any}>} seq
  */
-export function workedRunLengths(seq) {
-    const isRestDay = (/** @type {any} */ s) => !s || s === 'RD' || s === 'OFF';
-    return runLengthsWhere(seq, s => !isRestDay(s));
-}
+export function workedRunLengths(seq) { return runLengthsWhere(seq, s => !isRest(s)); }
 
 /**
  * Classify a shift value into a colour/count class.

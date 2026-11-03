@@ -3011,7 +3011,8 @@ count. Weighted as before, nothing moved: In Step 87.4, Even Step 86.5.
   level on 85.2, with Short Run eighth and In Step thirteenth. Its claim pins that order and the two level to a tenth.
   The paragraph's note on the weights became "as revised on 31 Oct and 3 Nov 2026": the longer wording ran page 2 11 px
   into its footer, and the sheet refused to print it.
-- **The zip** re-packed with the new sheet and this README.
+- **The zip** is no longer committed (the same day, owner: "build it on demand"); `tooling/pack.py` builds it with
+  the new sheet and this README.
 - **Nothing else reads the league.** The summary, the proposal sheets, the decks and "What it means if you…" are
   unchanged, as are the shortlist and the recommendation.
 
@@ -3028,7 +3029,9 @@ starts already were:
 The weighted league scores weekends as a share of weeks for the same reason. The 24-line sheets gained the same per-year line the same day, their one change since that folder was frozen
 (`../links-24/README.md`).
 
-**Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack
+**Everything in one download:** `links-26-proposals.zip`, built on demand by `tooling/pack.py` and **not committed**
+(owner, 3 Nov 2026 — each committed copy added ~15 MB to the repository's history, sixteen times by then; the
+repository ignores `*.zip`, so run the script and send the file). It is laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:
 1. a *Read me first* note;
 2. the one-page summary, and the two-page shortlist sheet;

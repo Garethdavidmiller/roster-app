@@ -79,7 +79,7 @@
  * and attempt 6's three starts all converged into minima that broke the spread. If all three fail,
  * the attempt falls back to attempt 0 and the status line says so.
  */
-import { DAYS, startMinutes, endMinutesAbs, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN, isCoverWeek } from './links-design.js';
+import { DAYS, startMinutes, endMinutesAbs, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN, isCoverWeek, isRest } from './links-design.js';
 
 /** The things the order can be TUNED for — each one a checkbox. Order matters: it is the display
  *  order too. Rest across the week boundary was the sixth until v25.06 and is now a constraint, like
@@ -101,8 +101,7 @@ export const GENTLE_THRESHOLD_MINUTES = 2 * 60;
  *  the main 20-week link's longest is 3 and the bilingual 8-week's is 2. */
 export const DEFAULT_BLOCK_TARGET = 3;
 
-/** Rest is RD/OFF only. SPARE is NOT rest — you are on cover and can be called for any shift. */
-const isRest = (/** @type {any} */ s) => !s || s === 'RD' || s === 'OFF';
+// Rest is RD/OFF only — SPARE is NOT rest. `isRest` is links-design.js's, shared with links-fatigue.js (v25.23).
 
 /**
  * The average start time of a line's worked days, or null when it has none that carry a time.
