@@ -131,6 +131,16 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0        # the diff against main IS the check
+          # ── HISTORY WITHOUT ITS FILES (3 Nov 2026) ──────────────────────────────────────────────
+          # The check needs every COMMIT and TREE (the merge base, and which paths changed) and the
+          # contents of exactly one file on main, `roster-data.js`. A full clone downloads every
+          # version of every file on every branch — 1.4 GB, mostly superseded screenshot baselines —
+          # and its time had drifted from 39 s to 244 s and 254 s across one afternoon's runs, until
+          # the PR run for v25.22 was cancelled by the 5-minute limit while still downloading. A
+          # blob-less clone fetches the commits and trees (about 6 MB), the files of the one commit
+          # it checks out, and `git show` fetches main's one file on demand.
+          # Raising the timeout instead would only move the line the clone is creeping towards.
+          filter: blob:none
 
       - name: A runtime change must claim a version main has not
         run: |
@@ -154,7 +164,13 @@ jobs:
           # Deliberately NOT excluded, because each IS user-facing: firebase.json (CSP headers and
           # cache rules), firestore.rules / storage.rules (CLAUDE.md requires a bump for security
           # rules), and every served .js / .css / .html.
-          RUNTIME=$(git diff --name-only origin/main...HEAD \
+          #
+          # `--no-renames`, here and in the landed check below: rename detection compares file
+          # CONTENTS, which the blob-less clone above does not have, and it was wrong for this check
+          # anyway — a served file moved under `docs/` listed only its new, excluded path, so the
+          # deletion of a served file passed as "nothing served changed". Without it, a rename is a
+          # deletion plus an addition, and both names are judged.
+          RUNTIME=$(git diff --name-only --no-renames origin/main...HEAD \
             | grep -vE "[.]md$|^[.]github/|^docs/|^[.]claude/|[.]test[.]mjs$|^e2e/|^scripts/|^experiments/|^test-fixtures/|^package(-lock)?[.]json$|^jsconfig[.]json$|^eslint[.]config[.]js$|^playwright[^/]*[.]mjs$|^githooks/" || true)
 
           if [ -z "$RUNTIME" ]; then
@@ -186,7 +202,7 @@ jobs:
           # holds identical content for every file the branch touches. A branch that would still
           # change something reaches the comparison below exactly as before — including the case
           # this job exists for, another branch taking your version while you sat in CI.
-          if [ -z "$(git diff --name-only origin/main HEAD -- $(echo "$RUNTIME" | tr "\n" " ") || true)" ]; then
+          if [ -z "$(git diff --name-only --no-renames origin/main HEAD -- $(echo "$RUNTIME" | tr "\n" " ") || true)" ]; then
             echo "main already carries every served change on this branch - it has landed. Nothing left to gate."
             exit 0
           fi
