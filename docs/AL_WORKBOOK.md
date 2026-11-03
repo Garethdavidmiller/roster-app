@@ -597,7 +597,7 @@ difference is.
 |---|---|---|
 | **Over-quota days** | app shows **more** remaining | The day is real leave but exists only in column E. The app cannot know about it unless somebody records it in Change a Shift. |
 | **Sundays inside a block** | agree (both exclude) | Both refuse leave on an uncontracted day. |
-| **Carry-forward** | app shows **less** entitlement | `getALEntitlement` has no c/f input. **This stops being theoretical in January 2027, and the row that will do it is already visible** [owner-confirmed, 14 Sep 2026]: one row has an untouched full allowance that is expected to carry over, so column C on its 2027 row is the c/f value this has been waiting for — at which point the app will state an entitlement lower than the workbook's for as long as the carry-over lasts. Worth deciding BEFORE it appears rather than discovering it as a discrepancy. |
+| **Carry-forward** | app shows **less** entitlement | `getALEntitlement` has no c/f input. **This stops being theoretical in January 2027, and the row that will do it is already visible** [owner-confirmed, 14 Sep 2026]: one row has an untouched full allowance that is expected to carry over, so column C on its 2027 row is the c/f value this has been waiting for — at which point the app will state an entitlement lower than the workbook's for as long as the carry-over lasts. Worth deciding BEFORE it appears rather than discovering it as a discrepancy. **CONFIRMED IN USE [owner, 3 Nov 2026]:** some members are being allowed to take a few 2026 days in early January 2027. The owner's direction for the app is **per DAY, not per year**: from 1 January a leave day counts against the new year by default, and until 31 January an admin can charge a January day to the previous year's allowance instead. That is the opposite bookkeeping to this workbook's c/f column, which ADDS the carried days to the new year's allowance and counts the January days in the new year's grid — so once it is built the two will book the carried days to different years. The app counts them as 2026 days used; the workbook leaves them as 2026 remaining, carries them as c/f, and counts them as 2027 days used against a 2027 allowance raised by the same c/f. **2027's REMAINING agrees; 2026's differs by exactly the carried days** — an explained difference, not a disagreement. Design in progress. |
 | **Pro-rated joining year** | should agree | The workbook's allowance for a joiner should equal the app's `proRatedAL[2026]`. Check it — this is the cheapest real check in the whole reconciliation. |
 | **Dispatcher lieu days** | check | The app adds one lieu day per bank holiday worked. Whether the workbook's allowance for a Dispatcher already includes them is **[unknown]**. |
 | **A SWAPPED working day booked off** | app shows **more** remaining | **The commonest real cause, ANSWERED BY THE OWNER 14 Sep 2026** — see below. |
@@ -719,7 +719,9 @@ them change what a figure MEANS, so an unanswered one is not a tidiness problem.
 3. **Duplicate rows** — is one of each pair authoritative, or is that just untidiness to be ignored?
 4. **Dispatcher allowance** — does the workbook figure already include lieu days for bank holidays
    worked, or is it the base only?
-5. **Carry-forward** — is c/f in use for 2027, and should the app model it?
+5. ~~**Carry-forward** — is c/f in use for 2027, and should the app model it?~~ **Answered [owner, 3 Nov
+   2026]:** yes — a few 2026 days are being taken in early January 2027, and the app should model it
+   per day, with an admin control until 31 January (§9, the carry-forward row).
 6. **`Marylebone Block`** — what is the Week 1–4 grid for?
 7. **Column E** — is "granted when the quota was full" the right description, and is the
    pre-June lump a separate, deliberate use of the same column?
