@@ -2508,3 +2508,104 @@ test('operations: an Old-format count that fails is a Try again, never "None lef
     await expect(content).toContainText('1 left');
     await expect(content).toContainText('Swap: 1 — 2025: 1');
 });
+
+// ── CONVERTING THE OLD-FORMAT RECORDS (v25.31) ─────────────────────────────────────────────────────
+// The owner's mapping, run through the real card against the stub: the preview first, then the
+// press, then the card counting again from what the batch actually left behind (a committed batch
+// lands in the docsByQuery seed). S. Silva's base roster has a rest day on Tue 3 Mar 2026 and a
+// working day on Thu 5 Mar, which is what decides the two Overtime records.
+const T = (iso) => Date.parse(iso);
+const CONVERT_ROWS = [
+    { id: 'a1', memberName: 'S. Silva', date: '2026-03-02', type: 'allocated', value: '06:20-14:20', note: '', source: 'manual', createdAt: T('2026-03-01T09:00:00Z') },
+    { id: 'o1', memberName: 'S. Silva', date: '2026-03-03', type: 'overtime', value: '07:00-15:00', note: '', source: 'manual', createdAt: T('2026-03-01T09:00:00Z') },
+    { id: 'o2', memberName: 'S. Silva', date: '2026-03-05', type: 'overtime', value: '16:30-20:00', note: '', source: 'manual', createdAt: T('2026-03-01T09:00:00Z') },
+    { id: 's1', memberName: 'S. Silva', date: '2026-03-08', type: 'swap', value: '10:00-18:00', note: '', source: 'manual', createdAt: T('2026-03-01T09:00:00Z') },
+    // M. Robson's swap on the 4th has been replaced by a NEWER shift, so it is removed, not revived.
+    { id: 'w1', memberName: 'M. Robson', date: '2026-03-04', type: 'swap', value: '14:00-22:00', note: '', source: 'manual', createdAt: T('2026-03-01T09:00:00Z') },
+    { id: 'n1', memberName: 'M. Robson', date: '2026-03-04', type: 'shift', value: '06:20-14:20', note: '', source: 'manual', createdAt: T('2026-03-02T09:00:00Z') },
+    // Times the rules would refuse: left as it is, and listed.
+    { id: 'b1', memberName: 'M. Robson', date: '2026-03-06', type: 'swap', value: '6:20-14:20', note: '', source: 'manual', createdAt: T('2026-03-01T09:00:00Z') },
+];
+async function openConversion(page, rows = CONVERT_ROWS) {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((r) => { window.__E2E = { ...(window.__E2E || {}), docsByQuery: { overrides: r } }; }, rows);
+    await page.goto('/operations.html');
+    await page.locator('#legacyRecordsToggleHeader').click();
+    const content = page.locator('#legacyRecordsContent');
+    await expect(content).toContainText('6 left');
+    await content.getByRole('button', { name: 'Show what would change' }).click();
+    await expect(content).toContainText('4 to convert, 1 to remove, 1 left as they are.');
+    return content;
+}
+
+test('operations: the conversion previews every record, then writes exactly that and counts again', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    const content = await openConversion(page);
+    // The groups, with the two the owner asked to see first already open.
+    await expect(content.locator('summary', { hasText: 'Become Shift (1)' })).toBeVisible();
+    await expect(content.locator('summary', { hasText: 'Overtime on a rostered working day — becomes Shift (1)' })).toBeVisible();
+    await expect(content.locator('summary', { hasText: 'Become RDW (2)' })).toBeVisible();
+    await expect(content).toContainText('S. Silva · Thu 5 Mar 2026 · Overtime 16:30-20:00 → Shift');
+    await expect(content).toContainText('M. Robson · Wed 4 Mar 2026 · Swap 14:00-22:00');
+    await expect(content).toContainText('M. Robson · Fri 6 Mar 2026 · Swap 6:20-14:20 — its times (“6:20-14:20”) are not in today’s format');
+    // What a member will see afterwards, said before the press: the day panel names the last writer,
+    // and rest-day Overtime starts showing as RDW.
+    await expect(content).toContainText('in the Calendar a day changed by hand will say “Last saved by G. Miller”');
+    await expect(content).toContainText('In the Calendar these show as RDW.');
+    expect(await page.evaluate(() => (window.__E2E.batchSets || []).length), 'the preview writes nothing').toBe(0);
+
+    await content.getByRole('button', { name: 'Convert 4 and remove 1' }).click();
+    await page.locator('.dialog-btn-confirm').click();
+    await expect(content).toContainText('Done: 4 converted, 1 removed.');
+
+    const sent = await page.evaluate(() => ({ sets: window.__E2E.batchSets, deletes: window.__E2E.batchDeletes }));
+    const byPath = Object.fromEntries(sent.sets.map(s => [s.path, s.data]));
+    expect(Object.keys(byPath).sort()).toEqual(['overrides/a1', 'overrides/o1', 'overrides/o2', 'overrides/s1']);
+    expect(byPath['overrides/a1'].type).toBe('shift');
+    expect(byPath['overrides/o1'].type, 'Overtime on a rest day').toBe('rdw');
+    expect(byPath['overrides/o2'].type, 'Overtime on a working day').toBe('shift');
+    expect(byPath['overrides/s1'].type, 'a Sunday is always RDW').toBe('rdw');
+    expect(Object.values(byPath).every(d => d.changedBy === 'G. Miller' && d.note === '')).toBe(true);
+    expect(sent.deletes).toEqual(['overrides/w1']);
+
+    // Counted again from what the batch left: only the one it could not convert remains.
+    await expect(content).toContainText('1 left');
+    await expect(content).toContainText('Swap: 1');
+    await expect(page.locator('#legacyRecordsCountChip')).toHaveText('1');
+    // The one left can only be fixed by hand, and the card says so rather than offering a Convert.
+    await content.getByRole('button', { name: 'Show what would change' }).click();
+    await expect(content).toContainText('None to convert, 1 left as they are.');
+    await expect(content.getByRole('button', { name: /^Convert/ })).toHaveCount(0);
+    expect(errors).toHaveLength(0);
+});
+
+test('operations: a conversion whose records changed since the preview writes nothing, and shows the new list', async ({ page }) => {
+    const content = await openConversion(page);
+    // A manager saves over S. Silva's Monday after the preview was read.
+    await page.evaluate(() => {
+        window.__E2E.docsByQuery.overrides.push({ id: 'late', memberName: 'S. Silva', date: '2026-03-02', type: 'shift',
+            value: '08:00-16:00', note: '', source: 'manual', createdAt: Date.parse('2026-11-04T09:00:00Z') });
+    });
+    await content.getByRole('button', { name: 'Convert 4 and remove 1' }).click();
+    await expect(content).toContainText('The records changed since you looked.');
+    await expect(content).toContainText('3 to convert, 2 to remove, 1 left as they are.');
+    expect(await page.evaluate(() => (window.__E2E.batchSets || []).length), 'nothing was sent').toBe(0);
+    await expect(page.locator('.dialog-btn-confirm')).toHaveCount(0);
+});
+
+test('operations: a conversion that fails says nothing was changed, and keeps the list to try again', async ({ page }) => {
+    const content = await openConversion(page);
+    // Cancel at the question first: nothing may be queued, let alone committed.
+    await content.getByRole('button', { name: 'Convert 4 and remove 1' }).click();
+    await page.locator('.dialog-btn-cancel:visible').click();
+    await expect(content.getByRole('button', { name: 'Convert 4 and remove 1' })).toBeEnabled();
+    expect(await page.evaluate(() => (window.__E2E.batchSets || []).length + (window.__E2E.batchDeletes || []).length),
+        'Cancel writes nothing').toBe(0);
+
+    await page.evaluate(() => { window.__E2E.failCommits = true; });
+    await content.getByRole('button', { name: 'Convert 4 and remove 1' }).click();
+    await page.locator('.dialog-btn-confirm:visible').click();
+    await expect(content).toContainText('Couldn’t convert them — nothing was changed.');
+    await expect(content.getByRole('button', { name: 'Convert 4 and remove 1' })).toBeEnabled();
+    await expect(page.locator('#legacyRecordsCountChip')).toHaveText('6');
+});

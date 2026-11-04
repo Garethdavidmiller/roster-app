@@ -1237,7 +1237,8 @@ The reasoning, including why it is a press and not something that runs on page o
 Three kinds of shift change can still be READ and can no longer be CREATED: **Allocated shift**, **Overtime** and
 **Swap** (`allocated`, `overtime`, `swap` — `LEGACY_OVERRIDE_TYPES` in `override-utils.js`). Today the same days are
 recorded as Shift or RDW. The code that still reads the old three can only be deleted once nothing uses them, so
-**Operations → Monitoring → Old-format records** counts them. It is read-only: it changes no record.
+**Operations → Monitoring → Old-format records** counts them — and since v25.31 converts them, which is the card's only
+write (below).
 
 **Reading it.** The number on the card's header is how many are left (no number means none, or that the count has not
 arrived — open the card to tell which). Open the card for the count of each type and the YEARS they fall in: the year
@@ -1253,5 +1254,37 @@ two-push change for a one-off question.
 | The card says | What happens next |
 |---|---|
 | **None left** | The old-format code can be deleted — the type labels and sunset block in `admin-shift-types.js`, the three names in `override-utils.js`, the "old format" pill in Saved Changes — and this card, its tips entry and its tests go in the same change. |
-| **Some left** | Decide first what each kind becomes. **Overtime** is voluntary work, like RDW; **Allocated shift** and **Swap** are contracted days, like a Shift. The years say whether any fall in a leave year or pay period still in use. A one-off rewrite then turns them into today's types, and the code goes after it. |
+| **Some left** | Convert them on the same card (below). What is left after that is fixed by hand, and then the code goes. |
 | **Couldn't count** | A connection problem; the card offers Try again. It never shows "None left" unless all three counts arrived. |
+
+**Converting them (v25.31).** On 4 Nov 2026 the card counted 131 (6 Allocated shift, 71 Overtime, 54 Swap), all dated
+2026 — inside the leave year and the pay periods still in use, so deleting them was never an option. The owner chose
+what each becomes:
+
+| Old type | Becomes |
+|---|---|
+| Allocated shift, Swap | **Shift** — contracted days, which is how they were already classed |
+| Overtime on a base-roster **rest day** | **RDW** |
+| Overtime on a rostered **working day** | **Shift** — listed in its own group, open, so they are checked first |
+| Any of them on a **Sunday** | **RDW** — a worked Sunday always is, and they already showed as RDW there |
+
+1. Open the card. Once the years have loaded, press **Show what would change**. Nothing is written yet.
+2. Read the groups. Two need no action but are worth knowing: **Removed** (a newer change for that day already shows,
+   so saving the old one again would bring it back — it is deleted instead) and **Left as they are** (the card cannot
+   convert these, and says why).
+3. Press **Convert** and confirm. At the press the card reads the records again; if anything it would write has
+   changed since the preview, it writes nothing and shows the new list. Otherwise everything goes in ONE write — all
+   of it or none of it.
+4. The card counts again from the server. Fix anything left by hand (below), then the old-format code can go.
+
+**What staff see afterwards.** Rest-day Overtime now shows as **RDW** in the Calendar — until now it showed as an
+ordinary Early/Late shift — and the Pay Calculator's "Fill from calendar" counts it as Rest Day Working (on a Mon–Fri
+rest day it skipped old-format Overtime as ambiguous). Tapping a converted day changed by hand says **"Last saved by
+⟨your name⟩"**: the rules accept only the writer's own name, so the original saver's name cannot be kept. Nothing
+else changes in the Calendar. In Admin's Saved Changes each one shows its new type, without the "old format" mark.
+
+**One left as it is.** Save that day again in Admin → Change a Shift with the right times; the save replaces the old
+record. Or remove it with ✕ in Saved Changes, which puts the day back to the base roster.
+
+**Undoing it.** Firestore point-in-time recovery is on (RECOVERY_RUNBOOK.md), so for seven days after a run the
+originals can be read back as they were.

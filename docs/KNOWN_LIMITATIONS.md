@@ -2104,16 +2104,17 @@ Types `"allocated"`, `"overtime"`, `"swap"` are no longer creatable via the UI b
 exist in older Firestore documents. They are displayed with their original labels in
 Saved Changes. Editing them re-saves as `"shift"`.
 
-**How many are left is now on screen** (v25.28): Operations → Old-format records counts each type,
-and on opening lists the years they fall in. When it reads none, this entry, the card and the
-old-format code go together; if some remain, what each becomes is the owner's decision first.
-OPERATIONS_REFERENCE.md → "Old-format records" says what to do with each answer.
+**How many are left is on screen** (v25.28), **and the same card converts them** (v25.31):
+Operations → Old-format records counts each type, lists the years on opening, and converts
+them on the owner's mapping after showing every change first. When it reads none, this entry,
+the card and the old-format code go together. OPERATIONS_REFERENCE.md → "Old-format records"
+has the mapping and the steps.
 
 The pay suggestion engine (`getRosterSuggestion` in `paycalc-roster-suggestions.js`)
 reads the `type` field to classify shifts. Legacy types are treated as plain `"shift"`
 overrides — they will not be miscounted, but any overtime/RDW semantics the original
-type implied are lost. Clean up legacy documents in the Firebase Console to replace
-them with the correct current types if the pay suggestion is producing wrong results.
+type implied are lost: a Mon–Fri rest-day `overtime` contributes nothing. The conversion
+is the clean-up — rest-day Overtime becomes `rdw`, which the engine counts as RDW.
 
 ## Error Log noise filters (v19.20)
 

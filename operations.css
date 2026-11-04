@@ -1494,6 +1494,22 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     line-height: 1.5;
 }
 .legacy-records-note { font-size: var(--type-small); }
+/* The conversion (v25.31, goes with the card): the plan line, then one fold per outcome. A fold's
+   summary is a small heading over its list — the list is the data, so it keeps the list's weight. */
+.legacy-convert { margin-top: 4px; }
+.legacy-records-plan { font-weight: 600; color: var(--text-dark); }
+.legacy-records-result { font-weight: 600; color: var(--success-text); }
+.legacy-group { margin: 0 0 6px; }
+.legacy-group > summary {
+    cursor: pointer;
+    font-size: var(--type-label);
+    font-weight: 600;
+    color: var(--text-dark);
+    padding: 6px 0;
+}
+.legacy-group > summary:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.legacy-group > .legacy-records-note { margin: 0 0 6px; }
+.legacy-group > .legacy-records-list { margin: 2px 0 10px; }
 /* Per-card "Try again" button (B2) — retries just this monitoring card, not a whole-page reload. */
 .card-retry-btn { margin-top: 10px; }
 
