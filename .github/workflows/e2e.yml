@@ -508,8 +508,7 @@ jobs:
   # defaults `workers` to half the CPUs, so two — against ~11.6 WebKit-minutes of serial work, a
   # 2-worker floor of ~5.8 min.
   #
-  # So the second axis shards each engine: two ways at first, THREE since 4 Nov 2026 — six jobs of
-  # roughly a third of the tests each. The wall
+  # So the second axis shards each engine two ways: four jobs of roughly half the tests. The wall
   # clock now falls with the RUNNER count instead of fighting for cores on one machine — which is
   # why this was chosen over raising `workers` to 4. That would nominally reach ~2.9 min on paper,
   # but this is the job carrying the documented flake history that `retries: 1` in
@@ -523,17 +522,9 @@ jobs:
   # pin one shard at ~4 minutes however many shards there are. The reasoning and the measurement
   # behind that flag live beside it, in that file.
   #
-  # THE COST, STATED: six jobs pay the ~1m18s setup instead of two, so total runner minutes go up
+  # THE COST, STATED: four jobs pay the ~1m18s setup instead of two, so total runner minutes go up
   # while wall clock comes down. That is the trade being made deliberately — the scarce thing here
   # is a person waiting on a merge, not runner minutes.
-  #
-  # WHY THREE, NOT TWO (4 Nov 2026). WebKit 2359 (Playwright 1.63) runs this suite's long flows
-  # 10–50% slower (playwright.webkit.mjs has the measurement), and the iPhone half grew to 20–25
-  # minutes against the 25-minute step budget below: it hit that budget on a PR whose only change was
-  # a CI action's version. A third shard takes each job back to roughly two-thirds of that. The budget
-  # stays 25, because it guards against a hang and is not a target to plan up to; raising it to fit
-  # the growth would have hidden the next slowdown as well. More workers on one machine stays
-  # rejected, for the flake reason above.
   webkit:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
@@ -543,8 +534,8 @@ jobs:
       fail-fast: false
       matrix:
         project: [webkit, mobile-safari]
-        shard: [1, 2, 3]
-    # Each job carries ONE engine and a THIRD of its tests. The TEST STEP carries the budget (25 minutes,
+        shard: [1, 2]
+    # Each job carries ONE engine and HALF its tests. The TEST STEP carries the budget (25 minutes,
     # below); this job cap is only the backstop against a hung runner, and it is wider than the
     # step's on purpose. On 7 Oct 2026 the WebKit apt install took 9 minutes three times in one
     # afternoon, and a 20-minute JOB cap spent the test budget on a download — cancelling shards in
@@ -593,7 +584,7 @@ jobs:
 
       - name: Run the smoke suite under WebKit
         timeout-minutes: 25
-        run: npm run test:webkit -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/3
+        run: npm run test:webkit -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2
         env:
           CI: true
 
@@ -601,8 +592,8 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          # Shard in the name too: six jobs upload here, and a colliding artifact name fails the
-          # upload of whichever lands second — losing the report for the shard that broke.
+          # Shard in the name too: four jobs upload here, and a colliding artifact name fails the
+          # upload of whichever lands second — losing the report for the half that broke.
           name: playwright-report-webkit-${{ matrix.project }}-shard${{ matrix.shard }}
           path: playwright-report/
           retention-days: 7
