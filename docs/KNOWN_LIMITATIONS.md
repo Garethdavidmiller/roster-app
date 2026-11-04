@@ -278,29 +278,6 @@ reaches. Not forced with `overrides`: that would run Google's client on versions
 declare, for findings it cannot reach. They clear when `firebase-admin` takes a newer client;
 re-run `npm audit --omit=dev --prefix functions` after each bump of it.
 
-## axe 4.14 and Label in Name — the gate held at axe 4.12 until decided (3 Nov 2026)
-
-**An owner decision.** `@axe-core/playwright` 4.14 runs `label-content-name-mismatch` (WCAG 2.5.3,
-*Label in Name*, Level A) under the WCAG tags the gate uses, where 4.12 did not. It fails **27 of
-the gate's scanned states**, on one pattern: a control whose accessible name does not contain its
-visible text. That is what breaks for somebody driving a phone by voice, who says what they see.
-What it flags:
-
-| Page | Elements |
-|---|---|
-| Calendar (and every state scanned on it) | `#prevMonth`, `#alBtn`, every day cell (`[data-detail-day]`, about 30 a month) |
-| Admin | `#weekNavLabel`, `#thisWeekBtn` |
-| Pay Calculator | the category buttons (`[data-cat]`) |
-| Operations | the Needs-attention links (`#reset-requests`, `#error-log`) |
-| Links | `#designPickerBtn`, the paint buttons (`[data-shift]`) |
-| The five guides | `#savePdfBtn` |
-
-The gate blocks deploys, so the refresh kept axe at 4.12.1, and the update bot skips it. **Either**
-fix the names (the visible text inside each accessible name, page by page, then move axe to 4.14),
-**or** waive the rule in `e2e/axe.spec.js` with the reason recorded in `A11Y_BASELINE.md`. Fixing is
-the better answer, and it is real work: the day cells are the largest part, and their names carry
-the date and the shift on purpose. Remove the `.github/dependabot.yml` entry once decided.
-
 ## The test matrix and the phones staff carry (v24.61)
 
 The iOS 27 / iPhone 18 Pro audit (6 Oct 2026) found the test matrix a generation behind the fleet:

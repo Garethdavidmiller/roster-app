@@ -13,7 +13,7 @@ It is a **floor**: axe catches the machine-checkable ~third of real issues (labe
 ARIA, duplicate ids). It does not replace a manual screen-reader pass.
 
 **Open items: one, and it is not a finding.** Every finding recorded below is fixed (the last,
-BH rate badges, at v21.91). What has never been done is a **manual screen-reader pass** —
+Label in Name, at v25.27). What has never been done is a **manual screen-reader pass** —
 somebody driving the app with VoiceOver or TalkBack and listening to it. That is the only way to
 reach the two-thirds axe cannot: reading ORDER, whether announcements arrive at a useful moment,
 whether a live region interrupts something the user was in the middle of, and whether the app is
@@ -191,6 +191,45 @@ a refused section is a genuinely inactive control — clicks are returned early 
 an inactive user-interface component is the one thing WCAG 1.4.3 exempts. A SKIPPED row is not the
 same case: its content is what the admin re-reads before changing their mind, so it got no exemption
 and was fixed.
+
+## `label-content-name-mismatch` (SERIOUS) — ✅ FIXED (v25.27)
+
+WCAG 2.5.3, *Label in Name*, Level A. axe 4.14 runs it under the gate's WCAG tags, where 4.12 did
+not, and it failed **27 of the gate's states** on one pattern: a control whose accessible name does
+not contain its visible text. That is the failure for somebody driving a phone by voice, who says
+what they see — "tap Prev", "tap AL" — and reaches nothing. The owner chose fixing over a waiver
+(3 Nov 2026).
+
+**axe matches WORDS, in order and side by side.** It splits both strings into words (case folded,
+emoji and punctuation dropped, a bracketed aside removed) and passes only when the visible words are
+one unbroken run inside the name's. So "Prev" is not in "Previous month", and a day cell printing
+"20 Early 06:20-14:00" is not in "Friday 20 November 2026 — Early shift 06:20-14:00": every word is
+there, with "November 2026" and "shift" standing between them.
+
+Three ways the names were fixed. Reach for the first one next time:
+
+- **Build the name from the strings the control shows.** The calendar's day cells (`dayCellParts`
+  feeds both the cell and `dayCellName`), Operations' Needs-attention items (`text` is now
+  `short: badge after`), the Links design picker (eyebrow, count and design name, in the face's
+  order) and Admin's week label (named beside the line that writes its text).
+- **Let the name come from the content**, and put what only an icon said in a visually hidden
+  phrase at the end: the Pay Calculator's calendar rows.
+- **Lead with the visible word** where the name is a fixed string: "Prev month", "AL — view annual
+  leave balance", "Today — jump to current week", "PDF — save or print this guide", the drawer's
+  "Marylebone Roster, Version … — about this app", and the Links paint chips and cells ("Paint: RD,
+  rest day", "Line 9 Sat: SP, spare").
+
+**One was the MARKUP, not the name.** The picker's eyebrow and count were adjacent spans with no
+space between them, so the page's text read "Designs0 saved" — the single word "designs0", which no
+name can contain — while the screen showed "DESIGNS · 0 saved", separated by CSS. A space between
+the spans is not rendered in a flex row, and makes the text say what the screen does. Found by
+asking axe's own functions inside the page; reading the rule said it should already pass.
+
+**The gate sees four kinds of calendar day; a unit test walks all of them.**
+`calendar-renderer.test.mjs` → "a day cell's name contains what it shows" drives every badge, the
+six Other flavours with their three time slots, an unrecognised value and both permanent-shift
+members through the real renderer, and holds each cell's name to what it prints, with axe's word
+rule restated small. Mutation-checked: the old name order fails it on every cell.
 
 ## Known pre-existing (not gate-caught, low priority)
 

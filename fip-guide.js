@@ -61,17 +61,19 @@ var printBtn = document.querySelector('.btn-print');
  * The VISIBLE label stays "⤓ PDF": it is the shared `.btn-print` every guide carries, sitting in a
  * header with a back arrow beside it, and a label that changes length would move the header about
  * as the reader types. The accessible name is where the scope belongs — it is what a screen reader
- * announces and what a long-press or hover surfaces, and it costs the layout nothing.
+ * announces and what a long-press or hover surfaces, and it costs the layout nothing. It STARTS
+ * with "PDF", the word on the button (v25.27): somebody driving the page by voice says what they
+ * see, and WCAG 2.5.3 (Label in Name) needs that word inside the name — axe checks it from 4.14.
  *
  * No page count is written here. The guide's length is measured elsewhere and would rot in a string.
  * @param {number|null} shown — how many countries the filter is showing, or null when unfiltered.
  */
 function describePrintScope(shown) {
     if (!printBtn) return;
-    var label = shown === null ? 'Save or print the whole FIP guide'
-        : shown === 0          ? 'Save or print \u2014 no countries match your search'
-        : shown === 1          ? 'Save or print the 1 country shown'
-        :                        'Save or print the ' + shown + ' countries shown';
+    var label = shown === null ? 'PDF \u2014 save or print the whole FIP guide'
+        : shown === 0          ? 'PDF \u2014 save or print, no countries match your search'
+        : shown === 1          ? 'PDF \u2014 save or print the 1 country shown'
+        :                        'PDF \u2014 save or print the ' + shown + ' countries shown';
     printBtn.setAttribute('aria-label', label);
 }
 describePrintScope(null);

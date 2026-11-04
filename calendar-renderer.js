@@ -228,31 +228,72 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
 }
 
 /**
+ * The WORDS a day cell shows after its date: the badge's word, and the time beneath it when the
+ * cell prints one. ONE answer for the cell and for its name (v25.27), so the name cannot describe a
+ * cell other than the one on screen — `createDayCell` renders from it, `dayCellName` speaks from it.
+ *
+ * RDW and Other days use rdwTime as a side-channel display string (shift itself is a sentinel:
+ * 'RDW', or an Other-family value like 'TRG RDW'). Both always keep their OWN badge regardless of
+ * permanentShift — distinct pay/day categories, never Early/Late.
+ * @param {string} shift
+ * @param {string|undefined} permanentShift
+ * @param {boolean} isWorkedDay
+ * @param {string} [rdwTime]
+ * @returns {{ forced: 'late'|'early'|null, badgeWord: string, timeShown: string }}
+ */
+export function dayCellParts(shift, permanentShift, isWorkedDay, rdwTime = '') {
+    const isOther = isOtherValue(shift);
+    const forced = shift !== 'RDW' && !isOther && isWorkedDay
+        && (permanentShift === 'late' || permanentShift === 'early') ? permanentShift : null;
+    const badgeWord = forced === 'late' ? 'Late' : forced === 'early' ? 'Early' : shiftBadgeParts(shift).word;
+    const displayTime = (shift === 'RDW' || isOther) ? rdwTime : shift;
+    const timeShown = isWorkedDay && (!permanentShift || shift === 'RDW' || isOther) && displayTime ? displayTime : '';
+    return { forced, badgeWord, timeShown };
+}
+
+/**
+ * A day cell's accessible NAME, which CONTAINS WHAT THE CELL SHOWS, in the order it shows it (v25.27).
+ *
+ * WCAG 2.5.3, Label in Name: somebody driving the phone by voice says what they see — "tap 20" —
+ * and that works only if those words are in the name, in that order. axe checks it word by word
+ * from 4.14. The name used to read "Friday 20 November 2026 — Early shift 06:20-14:00": every word
+ * right, and "November 2026" between the day and the badge, "shift" between the badge and the time.
+ *
+ * So the cell's own words come first (weekday, day, badge, time) and the markers and the month
+ * after them. Where the badge abbreviates — AL, RDW, Train, Ind, Unknown — the full words follow it,
+ * so a screen reader still hears "Annual leave" and not "A L" alone. Where they would only add
+ * "shift" or "day" to the badge's word, they are said when no time stands between, and not otherwise.
+ * @param {{ weekday: string, day: number, badgeWord: string, timeShown: string, fullWords: string,
+ *   markers: string, monthYear: string }} p
+ * @returns {string}
+ */
+export function dayCellName({ weekday, day, badgeWord, timeShown, fullWords, markers, monthYear }) {
+    const shown = [badgeWord, timeShown].filter(Boolean).join(' ');
+    const words = splitShiftLine(fullWords).words;
+    const plain = new RegExp(`^${badgeWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( (shift|day))?$`, 'i').test(words);
+    const spoken = plain ? (timeShown ? shown : words) : `${shown}, ${words}`;
+    return `${weekday} ${day} — ${spoken}${markers ? ` — ${markers}` : ''} — ${monthYear}`;
+}
+
+/**
  * Builds the inner HTML for a single day cell. Pure — takes explicit params.
  * rdwTime — actual shift time for RDW overrides, since shift='RDW' sentinel.
  */
 export function createDayCell(/** @type {any} */ date, /** @type {any} */ shift, /** @type {any} */ permanentShift, /** @type {any} */ isWorkedDay, rdwTime = '') {
-    // RDW and Other days use rdwTime as a side-channel display string (shift itself is a
-    // sentinel: 'RDW', or an Other-family value like 'TRG RDW'). Both always keep their OWN
-    // badge regardless of permanentShift — distinct pay/day categories, never Early/Late.
-    const isOther = isOtherValue(shift);
-    let badge;
-    if (shift !== 'RDW' && !isOther && isWorkedDay && permanentShift === 'late') {
-        badge = '<span class="shift-badge badge-late"><span aria-hidden="true">🌙</span><span>Late</span></span>';
-    } else if (shift !== 'RDW' && !isOther && isWorkedDay && permanentShift === 'early') {
-        badge = '<span class="shift-badge badge-early"><span aria-hidden="true">☀️</span><span>Early</span></span>';
-    } else {
-        badge = getShiftBadge(shift);
-    }
-    const displayTime = (shift === 'RDW' || isOther) ? rdwTime : shift;
+    const { forced, timeShown } = dayCellParts(shift, permanentShift, isWorkedDay, rdwTime);
+    const badge = forced === 'late'
+        ? '<span class="shift-badge badge-late"><span aria-hidden="true">🌙</span><span>Late</span></span>'
+        : forced === 'early'
+            ? '<span class="shift-badge badge-early"><span aria-hidden="true">☀️</span><span>Early</span></span>'
+            : getShiftBadge(shift);
     // Escape the override value BEFORE inserting the intentional <wbr> — the value can be an
     // unvalidated legacy/Admin-SDK Firestore value, and this goes into innerHTML (the team view
     // escapes the same field). Word-break after the hyphen so "06:20-14:20" wraps as "06:20-"/"14:20".
-    const displayTimeHtml = displayTime ? escapeHtml(displayTime).replace('-', '-<wbr>') : '';
+    const displayTimeHtml = timeShown ? escapeHtml(timeShown).replace('-', '-<wbr>') : '';
     return `
         <div class="day-number">${date.getDate()}</div>
         ${badge}
-        ${isWorkedDay && (!permanentShift || shift === 'RDW' || isOther) && displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
+        ${displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
     `;
 }
 
@@ -543,9 +584,11 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // chips. They used to be built separately and could name different days.
         const markers = dayMarkers({ isToday, isBH, isXmas, isEaster, isPay, isCutoff });
         const extras  = markers.map(m => m.label).join(', ');
-        dayCell.setAttribute('aria-label',
-            `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year} — ${shiftLabel}${extras ? ' — ' + extras : ''}`
-        );
+        const { badgeWord, timeShown } = dayCellParts(shift, member.permanentShift, isWorkedDay, rdwTime);
+        dayCell.setAttribute('aria-label', dayCellName({
+            weekday: fullDayNames[currentDate.getDay()], day: currentDate.getDate(), badgeWord, timeShown,
+            fullWords: shiftLabel, markers: extras, monthYear: `${MONTH_NAMES[month]} ${year}`,
+        }));
         dayCell.setAttribute('tabindex', '-1');
         const ttShift = shiftLabel + (shift === 'RDW' && rdwTime ? ` ${rdwTime}` : '');
         const ttParts = [ttShift];

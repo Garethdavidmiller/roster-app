@@ -77,7 +77,7 @@ describe('an estimate is never called an actual, and an actual is never called a
         const L = headlineLabels({ hasActual: true, payday: PAYDAY });
         assert.match(L.netLabel, /Actual/);
         assert.match(L.stickyLabelHtml, /Actual take-home/);
-        assert.match(L.stickyAria, /^Actual take-home/);
+        assert.match(L.stickyWords, /Actual take-home/);
         assert.ok(!/[Ee]stimated take-home/.test(L.stickyLabelHtml), 'the strip must not hedge a confirmed figure');
     });
 
@@ -85,7 +85,7 @@ describe('an estimate is never called an actual, and an actual is never called a
         const L = headlineLabels({ hasActual: false, payday: PAYDAY });
         assert.match(L.netLabel, /Estimated/);
         assert.match(L.stickyLabelHtml, /Estimated take-home/);
-        assert.match(L.stickyAria, /^Estimated take-home/);
+        assert.match(L.stickyWords, /Estimated take-home/);
         assert.ok(!/Actual take-home/.test(L.stickyLabelHtml));
     });
 
@@ -94,7 +94,7 @@ describe('an estimate is never called an actual, and an actual is never called a
         // were maintained before this module existed: every fix had to be made twice by hand.
         const a = headlineLabels({ hasActual: true,  payday: PAYDAY });
         const e = headlineLabels({ hasActual: false, payday: PAYDAY });
-        for (const k of /** @type {const} */ (['netLabel', 'stickyLabelHtml', 'stickyAria', 'bdBtnHtml'])) {
+        for (const k of /** @type {const} */ (['netLabel', 'stickyLabelHtml', 'stickyWords', 'bdBtnHtml'])) {
             assert.notEqual(a[k], e[k], `${k} is identical on both paths — one of them is wrong`);
         }
     });
@@ -163,19 +163,51 @@ describe('the visible label and the accessible name say the same thing', () => {
             const L = headlineLabels({ hasActual, payday: PAYDAY });
             const word = hasActual ? 'Actual' : 'Estimated';
             assert.match(L.stickyLabelHtml, new RegExp(word));
-            assert.match(L.stickyAria, new RegExp(word));
+            assert.match(L.stickyWords, new RegExp(word));
             // v18.14: the payday is the load-bearing half — a scrolled-away £ must name WHICH
             // payslip, because the back-pay lump lands on exactly one.
             assert.match(L.stickyLabelHtml, /25 Sep/);
-            assert.match(L.stickyAria, /25 Sep/);
+            assert.match(L.stickyWords, /25 Sep/);
         });
     }
 
     test('with no period selected, neither claims a payslip', () => {
         const L = headlineLabels({ hasActual: false, payday: null });
         assert.ok(!/Paid/.test(L.stickyLabelHtml));
-        assert.ok(!/for the/.test(L.stickyAria), 'an aria-label naming no payslip must not say "for the  payslip"');
+        assert.ok(!/Paid/.test(L.stickyWords), 'the bar\'s name must not claim a payslip either');
     });
+});
+
+// ── THE BAR'S NAME CONTAINS WHAT THE STRIP SHOWS (WCAG 2.5.3 Label in Name, v25.27) ──────────────
+//
+// axe checks it word by word from 4.14: the strip's visible words — its label, then the amount — must
+// stand in the bar's accessible name in that order and side by side, because somebody driving the
+// phone by voice says what they see. Driven through the real render, on every branch the label has,
+// and read off the elements the member reads. axe's word rule restated small: case-folded, a bracketed
+// aside dropped, anything not a letter or a digit a gap (the emoji, the £ and the "·" included).
+describe('the take-home bar is named by what it shows', () => {
+    const words = (/** @type {string} */ t) => t.normalize('NFKD').toLowerCase().replace(/\([^()]*\)/g, ' ')
+        .split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+    const inOrder = (/** @type {string} */ name, /** @type {string} */ shown) => {
+        const n = words(name), v = words(shown);
+        return n.some((_, i) => v.every((w, j) => n[i + j] === w));
+    };
+    const CASES = [
+        ['an actual, with its payday', { actual: ACTUAL, net: 2900, payday: PAYDAY }],
+        ['an estimate, with its payday', { actual: null, net: 2900, payday: PAYDAY }],
+        ['an estimate, no period', { actual: null, net: 2900, payday: null }],
+        ['an estimate carrying back pay, no period', { actual: null, net: 2900, payday: null, bpThisPeriod: 400 }],
+    ];
+    for (const [what, cfg] of CASES) {
+        test(what, () => {
+            const els = fakeDom();
+            renderResultHeadline(/** @type {any} */ (cfg));
+            const shown = `${els.stickyLabel.innerHTML.replace(/<[^>]+>/g, ' ')} ${els.stickyAmount.textContent}`;
+            const name = els.stickyTotal.getAttribute('aria-label');
+            assert.ok(inOrder(name, shown), `the strip shows "${shown.replace(/\s+/g, ' ').trim()}" but is named "${name}"`);
+            assert.match(name, /tap to view the full breakdown$/, 'and the name still says what pressing it does');
+        });
+    }
 });
 
 describe('what the estimate says it INCLUDES', () => {

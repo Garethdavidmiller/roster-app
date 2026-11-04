@@ -242,35 +242,42 @@ export function updateRosterHint() {
       // The meta column is a wrapping flex row (paycalc.css .roster-row-meta), so its text and the
       // chip are SIBLINGS with no typed separator: when the column is too narrow for both, the chip
       // drops to its own line whole. A " · " here used to be the thing left dangling (v23.86).
-      let rowClass, totalText, metaText, arrowHtml, ariaLabel;
+      //
+      // THE ROW'S NAME IS WHAT IT SHOWS, then what pressing it does (v25.27). It carried an
+      // aria-label of its own until then — "Rostered Sat matches your calendar: 15h 30m" over a row
+      // reading "Rostered Sat 15h 30m 2 days ✓" — and a voice user, who says what they see, could
+      // not reach it by those words (WCAG 2.5.3 Label in Name; axe checks it from 4.14). So the
+      // name now comes from the row's own text, and `action` adds the part only the ✓ or → said,
+      // in a visually hidden phrase at the end, where it costs the sighted reader nothing.
+      let rowClass, totalText, metaText, arrowHtml, action;
       if (enteredMins === null) {
         rowClass  = 'roster-row';
         totalText = fmtH(r.h, r.m);
         metaText  = `<span>${dayStr}</span>${confHtml}`;
         arrowHtml = `<span class="roster-cat-arrow" aria-hidden="true">→</span>`;
-        ariaLabel = `Fill ${r.label} hours from your calendar`;
+        action    = 'fill these hours from your calendar';
       } else if (enteredMins === suggestMins) {
         rowClass  = 'roster-row roster-row--matched';
         totalText = fmtH(r.h, r.m);
         metaText  = `<span>${dayStr}</span>`;
         arrowHtml = `<span class="roster-cat-match" aria-hidden="true">✓</span>`;
-        ariaLabel = `${r.label} matches your calendar: ${fmtH(r.h, r.m)}`;
+        action    = 'matches your calendar';
       } else {
         const entH = Math.floor(enteredMins / 60), entM = enteredMins % 60;
         rowClass  = 'roster-row roster-row--differs';
         totalText = `${fmtH(entH, entM)} entered`;
         metaText  = `<span>Calendar: ${fmtH(r.h, r.m)}</span>${confHtml}`;
         arrowHtml = `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>`;
-        ariaLabel = `${r.label}: you have ${fmtH(entH, entM)}, your calendar says ${fmtH(r.h, r.m)}. Tap to use calendar values`;
+        action    = 'tap to use calendar values';
       }
 
-      return `<button class="${rowClass}" type="button" data-cat="${r.cat}" ` +
-          `aria-label="${ariaLabel}">` +
+      return `<button class="${rowClass}" type="button" data-cat="${r.cat}">` +
         `<span class="roster-row-icon" aria-hidden="true">${r.icon}</span>` +
         `<span class="roster-row-label">${r.label}</span>` +
         `<span class="roster-row-total">${totalText}</span>` +
         `<span class="roster-row-meta">${metaText}</span>` +
         arrowHtml +
+        `<span class="visually-hidden"> — ${action}</span>` +
         `</button>`;
     }).join('');
     const body = html || (s.none ? '<p class="roster-none-note">Your calendar has no Saturday, Sunday or bank holiday shifts on this payslip.</p>' : '');

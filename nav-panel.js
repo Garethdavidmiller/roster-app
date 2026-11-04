@@ -1233,7 +1233,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
              aria-label="Navigation menu" aria-hidden="true">
             <div class="nav-panel-head">
                 <button type="button" class="nav-panel-brand" id="navPanelBrand"
-                        aria-label="About this app — version ${APP_VERSION}">
+                        aria-label="Marylebone Roster, Version ${APP_VERSION} — about this app">
                     <img src="./icon-192.png" alt="" class="nav-panel-icon" loading="eager">
                     <span class="nav-panel-brand-text">
                         <span class="nav-panel-title">Marylebone Roster</span>

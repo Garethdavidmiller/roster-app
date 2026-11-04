@@ -51,15 +51,18 @@ import { setStatus } from './status-text.js';
  * @param {number} s.hppForPeriod      holiday pay premium included in the estimate (0 = none)
  * @param {boolean} s.bpIsEstimate     the back-pay figure is not yet confirmed
  * @param {boolean} s.hppIsEstimate    the HPP figure is not yet confirmed
- * @returns {{ netLabel: string, stickyLabelHtml: string, stickyAria: string, bdBtnHtml: string }}
+ * @returns {{ netLabel: string, stickyLabelHtml: string, stickyWords: string, bdBtnHtml: string }}
  */
 export function headlineLabels({ hasActual, payday, bpThisPeriod = 0, hppForPeriod = 0,
                                  bpIsEstimate = false, hppIsEstimate = false }) {
     const when = payday ? fdShort(payday) : null;
     // The accessible name says the same thing as the visible label. It is built from the same
     // branch deliberately: a screen-reader user and a sighted user must not be told different
-    // things about whether the number in front of them is confirmed.
-    const forPayslip = when ? ` for the ${when} payslip` : '';
+    // things about whether the number in front of them is confirmed. `stickyWords` is the strip's
+    // own label as plain text, and the bar's NAME leads with it, then the amount (v25.27, WCAG 2.5.3
+    // Label in Name): somebody driving the phone by voice says what the strip shows. It read
+    // "Estimated take-home for the 25 Sep payslip" over a strip reading "Paid 25 Sep · Estimated
+    // take-home £1,642.07", which held every fact and none of the strip's words in its order.
 
     if (hasActual) {
         return {
@@ -69,7 +72,7 @@ export function headlineLabels({ hasActual, payday, bpThisPeriod = 0, hppForPeri
             stickyLabelHtml: when
                 ? `✅ <span class="s-pay">Paid ${when}</span><span class="s-desc"> · Actual take-home</span>`
                 : '<span class="s-desc">✅ Actual take-home</span>',
-            stickyAria: `Actual take-home${forPayslip} — tap to view the full breakdown`,
+            stickyWords: when ? `Paid ${when}, Actual take-home` : 'Actual take-home',
             // The button changes JOB, not just wording: with an actual on screen the panel below is
             // a comparison against the estimate rather than a breakdown of the figure above.
             bdBtnHtml: 'Compare with estimate &nbsp;<span class="bd-arrow">▼</span>',
@@ -90,7 +93,8 @@ export function headlineLabels({ hasActual, payday, bpThisPeriod = 0, hppForPeri
         stickyLabelHtml: when
             ? `💷 <span class="s-pay">Paid ${when}</span><span class="s-desc"> · Estimated take-home</span>`
             : `<span class="s-desc">💷 ${suffix ? `Estimated take-home (${suffix})` : 'Estimated take-home'}</span>`,
-        stickyAria: `Estimated take-home${forPayslip} — tap to view the full breakdown`,
+        stickyWords: when ? `Paid ${when}, Estimated take-home`
+            : suffix ? `Estimated take-home (${suffix})` : 'Estimated take-home',
         bdBtnHtml: 'Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>',
     };
 }
@@ -144,14 +148,15 @@ export function renderResultHeadline({ actual, net, payday, bpThisPeriod = 0, hp
     const bdBtn = byId('bdBtn');
     if (bdBtn) bdBtn.innerHTML = L.bdBtnHtml;
 
+    const amount = fmt(actual ? actual.net : net);
     const stickyAmt = byId('stickyAmount');
-    if (stickyAmt) stickyAmt.textContent = fmt(actual ? actual.net : net);
+    if (stickyAmt) stickyAmt.textContent = amount;
 
     const stickyLbl = byId('stickyLabel');
     if (stickyLbl) stickyLbl.innerHTML = L.stickyLabelHtml;
 
     const stickyBar = byId('stickyTotal');
-    if (stickyBar) stickyBar.setAttribute('aria-label', L.stickyAria);
+    if (stickyBar) stickyBar.setAttribute('aria-label', `${L.stickyWords} ${amount} — tap to view the full breakdown`);
 
     if (actual) {
         const netDisplay = byId('netDisplay');
