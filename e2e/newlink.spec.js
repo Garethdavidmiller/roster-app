@@ -150,8 +150,8 @@ test.describe('new link', () => {
         await page.locator('#nlStatus [data-open-card="nlSay"]').click();
         await expect(page.locator('#nlSayBody')).toHaveClass(/\bopen\b/);
         await expect(page.locator('#nlSayCard h2')).toBeFocused();
-        // who makes the call: S. Silva, as the RMT rep — never the admin (owner, 4 Nov 2026)
-        await expect(page.locator('#nlSayList')).toContainText('S. Silva, the RMT rep, is leading the change, and makes the final call on which of the three goes to the managers.');
+        // who leads the change: S. Silva, as the RMT rep — never the admin; and how the choice is made is left vague (owner, 4 Nov 2026)
+        await expect(page.locator('#nlSayList')).toContainText('S. Silva, the RMT rep, is leading the change.');
         await expect(page.locator('#nlSayCard')).not.toContainText(/admin|managers decide/i);
         await expect(page.locator('#nlSayCard')).toBeInViewport();
 

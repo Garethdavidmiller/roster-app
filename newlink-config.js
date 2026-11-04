@@ -9,10 +9,12 @@
  *
  * ── WHO IS IN CHARGE ───────────────────────────────────────────────────────────────────────────
  *
- * S. Silva, as the RMT rep, leads the roster change and makes the final call on which proposal goes to the managers. The
- * admin built the page and the tooling, and is in charge of neither the change nor the choice (owner, 4 Nov 2026). Nothing
- * the page says may suggest otherwise: no line names the admin as deciding, recommending or collecting views, and "Have
- * your say" says who makes the call. newlink-config.test.mjs and e2e/newlink.spec.js hold the wording to it.
+ * S. Silva, as the RMT rep, leads the roster change. The admin built the page and the tooling, and is in charge of neither
+ * the change nor the choice (owner, 4 Nov 2026). Nothing the page says may suggest otherwise: no line names the admin as
+ * deciding, recommending or collecting views. "Have your say" says who leads the change AND NO MORE: how the choice is made
+ * is left deliberately vague, on the page as in the pack (owner: "It is deliberately vague"). The process is recorded in
+ * LINKS_DEC2026_PLAN.md's dashboard, not in anything colleagues read. newlink-config.test.mjs and e2e/newlink.spec.js hold
+ * the wording to both.
  *
  * ── THE LIFECYCLE ──────────────────────────────────────────────────────────────────────────────
  *
@@ -46,8 +48,8 @@ export const STARTS = '2027-01-01';
 export const CONTACT = 'S. Silva';
 
 /**
- * What CONTACT is, as the page words it beside the name: the RMT rep, who leads the change and makes the final call on which
- * of the three goes to the managers (owner, 4 Nov 2026). A change of contact is a change of this line too.
+ * What CONTACT is, as the page words it beside the name: the RMT rep, who leads the change (owner, 4 Nov 2026). A change of
+ * contact is a change of this line too.
  */
 export const CONTACT_ROLE = 'the RMT rep';
 
@@ -84,14 +86,14 @@ export function audienceNames() {
 export const PACK_BASE = 'https://garethdavidmiller.github.io/roster-app/docs/links-26/';
 
 /**
- * "Have your say", in the reader's order: what to do, who makes the call, what the page does not do. DRAFTED from the
+ * "Have your say", in the reader's order: what to do, who leads the change, what the page does not do. DRAFTED from the
  * colleague presentations' last slide ("Tell us what worries you, even if it is small — your feedback goes to the managers
- * with the proposal") and CORRECTED by the owner on 4 Nov 2026: the managers do not choose among the three — CONTACT does,
- * as the RMT rep, and one proposal goes to the managers. Who decides is said HERE, beside the views it answers — it sat in
- * the faint last line under the cards until the review of 2 Nov 2026.
+ * with the proposal") and CORRECTED by the owner on 4 Nov 2026: it said the managers decide which link is used, which was
+ * not so. It now says who leads the change and no more — how the choice is made is deliberately left unsaid (the header,
+ * WHO IS IN CHARGE).
  */
 export const HAVE_YOUR_SAY = Object.freeze([
     `Tell ${CONTACT} or your manager what worries you about any of the three, even if it is small.`,
-    `${CONTACT}, ${CONTACT_ROLE}, is leading the change, and makes the final call on which of the three goes to the managers.`,
+    `${CONTACT}, ${CONTACT_ROLE}, is leading the change.`,
     'There is nothing to fill in here: this page does not collect views or votes.',
 ]);
