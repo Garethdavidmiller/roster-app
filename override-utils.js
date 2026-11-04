@@ -35,7 +35,8 @@ export function isRestShift(shift) {
  * splits the same way: `swap`/`allocated` are contracted, `overtime` is not.
  */
 /** The override types still in data but no longer creatable (DATA_MODEL.md) — declared ONCE (v25.23).
- *  The sets here classify each one, Admin's Saved Changes labels them "old format", and
+ *  The sets here classify each one, Admin's Saved Changes labels them "old format", Operations'
+ *  Old-format records card counts what is left (v25.28), and
  *  override-utils.test.mjs holds every list that names one to this declaration. What each should
  *  become in a one-time tidy is an OWNER question, not a default: `overtime` reads as rest-day work
  *  below, and `admin-shift-types.js`'s sunset note once said it would become a plain `shift`. */

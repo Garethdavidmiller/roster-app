@@ -42,6 +42,7 @@ export const TYPES = {
     // equivalents is the owner's decision (v25.23): `allocated` and `swap` are contracted like `shift`,
     // but `overtime` is classed as VOLUNTARY, like `rdw` (override-utils.js), so "→ shift" is not safe
     // to assume for it. The names are declared once, as `LEGACY_OVERRIDE_TYPES` (override-utils.js).
+    // How many survive: Operations → Old-format records (operations-legacy.js, v25.28), which goes too.
     // Until that migration runs, removing these would make old records render as UNKNOWN.
     allocated:    { label: 'Allocated shift',  fixed: false },
     overtime:     { label: 'Overtime',         fixed: false },
