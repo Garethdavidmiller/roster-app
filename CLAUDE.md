@@ -801,7 +801,7 @@ Full flow diagram, request format, gotchas, and Security Rules: **see `OPERATION
 
 ## Weekly Roster Upload
 
-Admin uploads PDF → `parseRosterPDF` (model in `functions/index.js` `CLAUDE_MODEL` — currently `claude-sonnet-5`) → JSON → review UI → Firestore. Works for CEA/Bilingual, CES, and Dispatcher rosters.
+Admin uploads PDF → `parseRosterPDF` (model and settings: `MODEL_REQUEST` in `functions/roster-prompt.js` — currently `claude-sonnet-5-5`) → JSON → review UI → Firestore. Works for CEA/Bilingual, CES, and Dispatcher rosters.
 
 **Critical:** `RDW|HH:MM-HH:MM` pipe encoding — AI returns `"RDW HH:MM-HH:MM"`, normalised to pipe on the server, stripped to plain time on save. Do not strip `RDW` from the AI return value.
 

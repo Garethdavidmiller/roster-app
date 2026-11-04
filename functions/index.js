@@ -41,7 +41,8 @@ const {
 } = require('./roster-parse-helpers');
 const { applySundayScanCorrections, settleDisputedSundays } = require('./roster-sunday-repair');
 const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin, settledGeometry } = require('./roster-geometry');
-const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, reviewBlankReadsOfFilledCells, DAY_LABELS: CELL_DAY_LABELS } = require('./roster-prompt');
+const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, reviewBlankReadsOfFilledCells, DAY_LABELS: CELL_DAY_LABELS,
+    MODEL_REQUEST, DECLINED_ERROR } = require('./roster-prompt');
 const {
     CALENDAR_VIEWER_UID,
     isValidPinShape,
@@ -181,24 +182,6 @@ function nowInLondon() {
         day:   +parts.find(p => p.type === 'day').value,
     };
 }
-
-// Claude model used by parseRosterPDF. Pinned here so a change is explicit and grep-able.
-//
-// **THIS IS THE COMPLETE MODEL ID, NOT AN ALIAS WITH A DATED SNAPSHOT BEHIND IT** (checked
-// 4 Sep 2026). The v22.55 external review recommended pinning to "a dated/stable model revision
-// rather than the current claude-sonnet-5 alias, if the API supports an appropriate fixed
-// snapshot" — reasonable in principle for an operational parser, and not available: the current
-// Anthropic model IDs carry no date suffix, and appending one names a model that does not exist.
-// Recorded here rather than left for the next reviewer to raise again. If dated snapshots are ever
-// offered for this model, pinning one is the right move and this is the line to change.
-//
-// WHAT ACTUALLY PROTECTS THE IMPORT is not the pin, and it is worth knowing which. A parser whose
-// model shifts under it is caught by the evidence around the model rather than by the model string:
-// the PDF-grid geometry witness (roster-geometry.js — the only evidence the model cannot influence),
-// the base-roster correlation in roster-alignment.js, the batch-signature refusal that blocks a whole
-// read when three members drift the same way, and the human review step that no import skips. A pin
-// would make a behaviour change ARRIVE on our schedule; those layers are what make one SURVIVABLE.
-const CLAUDE_MODEL = 'claude-sonnet-5';
 
 // ============================================================================
 // Document-and-notification domain — functions/documents.js (the index.js split)
@@ -539,17 +522,8 @@ columnScan: one key per column header; every staff member appears in every colum
             const { Anthropic } = require('@anthropic-ai/sdk'); // M8: lazy-loaded here only
             const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
 
-            // Thinking DISABLED. Sonnet 5 runs ADAPTIVE THINKING by default when `thinking` is
-            // omitted (Sonnet 4.6 ran thinking-off). Left on, thinking consumes part of max_tokens,
-            // and Sonnet 5's tokenizer emits ~30% more tokens for the same JSON — together they
-            // truncated the roster JSON mid-object, surfacing as "The AI returned an unreadable
-            // response". This is deterministic structured extraction (read the table → JSON), so
-            // disable thinking, with generous max_tokens headroom for large rosters.
-            //
-            // NOTE (v16.28): re-enabling thinking via streaming (v16.27) was ROLLED BACK — the live
-            // thinking+streaming call failed in production ("Couldn't read the roster"). The
-            // day-shift accuracy issue is instead handled server-side by the deterministic
-            // `applySundayScanCorrections` right-shift repair, which does not depend on the model.
+            // HOW the model is asked (which model, thinking off, the effort) is MODEL_REQUEST in
+            // roster-prompt.js, with its reasons; index-endpoints.test.mjs pins it through this call.
             // The geometry path sends NO document block: the cells are the input, so attaching the
             // PDF would put the thing the model must not re-read back in front of it.
             const content = cellTable.usable
@@ -565,12 +539,14 @@ columnScan: one key per column header; every staff member appears in every colum
                     },
                     { type: 'text', text: prompt },
                 ];
-            const message = await client.messages.create({
-                model:      CLAUDE_MODEL,
-                thinking:   { type: 'disabled' },
-                max_tokens: 16000,
-                messages: [{ role: 'user', content }],
-            });
+            const message = await client.messages.create({ ...MODEL_REQUEST, messages: [{ role: 'user', content }] });
+
+            // A decline is an HTTP 200 with no text. Reported as one: DECLINED_ERROR says why.
+            if (message.stop_reason === 'refusal') {
+                console.error('[parseRosterPDF] The model declined:', message.stop_details?.category || 'no category');
+                res.status(502).json({ error: DECLINED_ERROR });
+                return;
+            }
 
             // Scan for the first text block rather than assuming content[0] is text —
             // a leading non-text block (e.g. a thinking block) would otherwise yield
