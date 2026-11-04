@@ -261,6 +261,15 @@ and inside ESLint's own packages, where npm's only offer is a downgrade to ESLin
 moved ESLint to 10.14, four days old, so it was set to 10.13 by hand: the update bot
 (`.github/dependabot.yml`) waits two weeks after any release, and 10.14 will arrive through it.
 
+**TypeScript 7 (v25.26, 4 Nov 2026): the update bot's first major version, taken with the two fixes
+it needed.** TypeScript 7 is a rewrite of the compiler, and it refused two JSDoc spellings that 6
+accepted, seven errors from two causes: a Closure-style function type (`function(number, any):
+string` in `paycalc-app.js`, now `(r: number, mult: any) => string`) and a function named where a
+type belongs (`ReturnType<import('./trains-stations.js').lastTrains>` in `trains-render.js`, now
+`ReturnType<typeof import(…).lastTrains>`). Both are comments, so nothing runs differently; the
+package files are the bot's own, taken unchanged, so its PR closes itself once this lands. Each of
+its other major versions is still a decision of its own.
+
 **The Cloud Functions' production tree no longer reads zero: 6 moderate.** All sit in one chain
 inside Google's Firestore client (`@google-cloud/firestore-api` → `google-gax` → `gaxios` → `rimraf`
 → `glob`/`minimatch`), whose own version ranges do not admit the fixed releases, so
@@ -334,8 +343,16 @@ moved:
   Dependabot run was stopped at that budget with every test it had run passing. The iPhone project
   now runs in four shards and desktop WebKit stays at two. The measurement is beside the job in
   `e2e.yml`, and `workflow-hygiene.test.mjs` fails if a shard or a project is left out of the list.
-- **Not 1.64.1, the newest.** 1.63.0 is what the container carries, so every local Playwright run
-  works with no browser workaround. Moving on is a one-line change once the container carries 1.64.
+- **Not 1.64.1, the newest.** 1.63.0 is what the container the upgrade was made in carries, so
+  there a local Playwright run needs no browser workaround. **Not every container does** (measured
+  3 Nov 2026): one carried Playwright 1.56.1's Chromium (`/opt/pw-browsers/chromium-1194`, no
+  WebKit), where 1.63 finds no browser of its own and every test fails before it starts. The
+  environment's own remedy is to launch Chromium with `executablePath: '/opt/pw-browsers/chromium'`
+  — a scratch config that imports the project's and sets it, giving `testDir` and the web server's
+  `cwd` as absolute paths, is enough, and nothing in the repo changes. That binary is full Chrome
+  rather than the headless shell, so it also asks for `/favicon.ico`, which neither origin serves;
+  the live check's reachability probe now runs in a tab of its own so that request is never counted
+  against a page (`e2e/live.spec.js`). Moving on is a one-line change once the containers carry 1.64.
 - **Chromium 153 raises one new browser error under test.** It abandons the declarative page-to-page
   view transition (`@view-transition` in `shared.css`) when a test navigates mid-transition —
   "Transition was aborted because of invalid state" — as Android Chrome 152 already did on real

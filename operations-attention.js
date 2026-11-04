@@ -22,7 +22,7 @@
  * never surfaces anywhere, which is this feature's own failure mode.
  *
  * Pure half (`buildAttentionItems`) tested by operations-attention.test.mjs (test:hygiene); the
- * wiring — real card loads feeding the strip in a real browser — by e2e/pages.spec.js.
+ * wiring — real card loads feeding the strip in a real browser — by e2e/operations.spec.js.
  */
 
 /**
