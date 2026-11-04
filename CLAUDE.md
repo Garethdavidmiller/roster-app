@@ -352,10 +352,10 @@ npm run test:functions # Cloud Functions tests — the handler and roster-parser
 # Firestore + Storage security rules tests (requires Firebase emulator binary — starts automatically):
 npm run test:rules
 
-# E2E smoke tests (real headless Chromium; uses pre-installed browser in the dev env):
+# E2E smoke tests (real headless Chromium; the dev env's own build only if it matches Playwright's):
 npm run test:e2e
 
-# Accessibility gate (axe-core, WCAG A/AA; one rendered state per page). It is GREEN + BLOCKING and
+# Accessibility gate (axe-core, WCAG A/AA; several states per page). It is GREEN + BLOCKING and
 # runs inside `npm run test:e2e` — `playwright.config.mjs` testIgnores csp/visual/offline, not axe.
 # This said "Opt-in" until v21.63, contradicting the tree entry for axe.spec.js. This script just
 # runs it STANDALONE. Baseline + triage: A11Y_BASELINE.md:
@@ -388,7 +388,7 @@ npm run test:csp
 # guides, the lane commented on the PR naming the two drifted baselines, and the session that
 # shipped it reported the release fully green off the job conclusions and merged the stale
 # baselines to main. Second instance of the same blind spot, first one with a machine reading
-# the wrong field. Regenerate: `npm run test:visual:refresh` — it rewrites only the baselines that FAILED and names them (`scripts/refresh-visual-baselines.mjs`: `=all` once rewrote 21 baselines for one change). Keep `-- --update-snapshots=all` for a deliberate sweep of drift inside the tolerance, **then `git status e2e/visual-baselines/` and revert anything you cannot explain**:
+# the wrong field. Regenerate from the PR's `visual-diffs` artifact: since v25.24 the baselines are CI's render, and a container's differs (KNOWN_LIMITATIONS). `npm run test:visual:refresh` redraws only FAILED ones (`=all` once rewrote 21). Keep `-- --update-snapshots=all` for a deliberate sweep of drift inside the tolerance, **then `git status e2e/visual-baselines/` and revert anything you cannot explain**:
 npm run test:visual
 
 # THE SAME IDEA UNDER SAFARI'S ENGINE, and a deliberately small set (v23.71, the v23.01 review's
@@ -407,7 +407,7 @@ npm run test:visual:webkit
 # The smoke suite under Safari's engine. Runs in branch CI, not the deploy gate. **The browser is
 # NOT in a fresh dev container** — `npx playwright install webkit && npx playwright install-deps
 # webkit` (the second is apt, so it needs root; without it the launch dies listing missing shared
-# objects and reads like "unsupported"). Measured after that: 719 passed in 13.2 min. The standing
+# objects and reads like "unsupported"). The standing
 # "do not run playwright install" advice is about CHROMIUM, which IS pre-installed — reading it as
 # a blanket ban is what left a CSS-adjacent release to meet this engine for the first time on CI:
 npm run test:webkit
