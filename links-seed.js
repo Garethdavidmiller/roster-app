@@ -7,8 +7,8 @@
  *
  * It was already a pure function. It read imported roster constants, touched no DOM, no Firestore
  * and no coordinator state — and it still could not be unit-tested, for the single reason that it
- * was not exported. `.claude/rules/links-design.md` and `e2e/pages.spec.js` both said so out loud,
- * as a justification for covering it with an e2e instead:
+ * was not exported. `.claude/rules/links-design.md` and `e2e/pages.spec.js` (now
+ * `e2e/links.spec.js`) both said so out loud, as a justification for covering it with an e2e instead:
  *
  *     "Pinned by an e2e that drives `↺ Reset targets from current roster`, because the seed lives
  *      in the coordinator and a unit test would be checking its own copy of it."

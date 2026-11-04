@@ -97,10 +97,18 @@ const isNoise = (/** @type {string} */ text) => IGNORED_CONSOLE.some(u => text.i
 let _direct = /** @type {boolean|null} */ (null);
 async function canReachDirectly(/** @type {any} */ page) {
     if (_direct !== null) return _direct;
+    // In a tab of its OWN (4 Nov 2026). The probe's document is not the page under test, and a full
+    // Chrome build asks for /favicon.ico on any page with no icon of its own — robots.txt is one —
+    // then logs that request's 404 as a console error. Opened in the test's tab, that error landed in
+    // the list each test judges, and all six pages failed with nothing wrong on any of them (measured
+    // 3 Nov 2026: Chromium 141 under Playwright 1.63, the route the environment prescribes when the
+    // pinned browser is not installed). The headless shell CI runs fetches no favicon, so the
+    // scheduled check never saw it. Same context, so it still travels the browser's own stack.
+    const probe = await page.context().newPage();
     try {
-        const r = await page.goto(`${FIREBASE}/robots.txt`, { timeout: 20_000 });
+        const r = await probe.goto(`${FIREBASE}/robots.txt`, { timeout: 20_000 });
         _direct = !!r && r.status() === 200;
-    } catch { _direct = false; }
+    } catch { _direct = false; } finally { await probe.close(); }
     return _direct;
 }
 
