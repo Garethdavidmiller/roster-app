@@ -226,7 +226,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          # THE RUNTIME'S NODE ON EVERY TEST JOB (owner, 26 Sep 2026) — 24 since v25.29, the runtime
+          # THE RUNTIME'S NODE ON EVERY TEST JOB (owner, 26 Sep 2026) — 24 since v25.30, the runtime
           # functions/package.json declares. On 20 a suite could pass locally and fail here (Node grew
           # a global `navigator` at 21). The dev container still ships 22: every lane was measured on
           # 22.22.0 and 24.22.2 before the move (4 Nov 2026), identical bar mock-API deprecation
@@ -311,7 +311,7 @@ jobs:
   # with the deploy blocked — production safe, but the wrong end of the merge, and the opposite of
   # how every other suite here is gated. Found by external review, 26 Aug 2026.
   #
-  # THE DEPLOYED RUNTIME'S NODE, deliberately: 24 since v25.29 (functions/package.json `engines`),
+  # THE DEPLOYED RUNTIME'S NODE, deliberately: 24 since v25.30 (functions/package.json `engines`),
   # 22 before. When this job was written every other job pinned 20, and deploy-functions.yml ran on
   # 20 for a specific and separate reason — firebase-tools failed to authenticate on 22 — which was
   # about the deploy TOOL, not the code under test. Left as it was, it meant the handlers were only

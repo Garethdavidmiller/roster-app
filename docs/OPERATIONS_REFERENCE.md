@@ -585,7 +585,7 @@ trails Hosting rather than leading it, so "both origins behind" during a release
    splash, no red errors in the console (the deployment health check at the top of CLAUDE.md).
 
 **What changes afterwards.** The mirror updates a minute or two after a Hosting deploy finishes
-(about twenty minutes after a merge) instead of a minute after the push. A push that changes only
+(about twenty-five minutes after a merge) instead of a minute after the push. A push that changes only
 docs or tests republishes neither origin, exactly as Hosting already behaves. A failed gate leaves
 BOTH origins on the previous release, and the issue says so.
 

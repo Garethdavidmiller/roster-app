@@ -51,7 +51,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          # The deploy TOOL (firebase-tools) runs on Node 24 since v25.29 (4 Nov 2026), with the
+          # The deploy TOOL (firebase-tools) runs on Node 24 since v25.30 (4 Nov 2026), with the
           # runtime. It ran on 22 from 3 Nov, and before that was held on 20 because Functions deploys
           # once failed with a bare "Failed to authenticate" on 22 while Hosting on 20 succeeded —
           # under the retired key file. Every deploy now signs in by Workload Identity Federation,
@@ -93,7 +93,7 @@ jobs:
       # tests (the old order), the surface pin would have failed on every CI run while passing on
       # any dev machine that had ever installed — the classic works-here gap.
       # ── THE RUNTIME'S NODE ──────────────────────────────────────────────────────────────────
-      # The deployed runtime IS Node 24 (functions/package.json, since v25.29; firebase-admin v14
+      # The deployed runtime IS Node 24 (functions/package.json, since v25.30; firebase-admin v14
       # declares `engines: {"node": ">=22"}`). The deploy TOOL below once needed Node 20 (see the
       # setup-node comment at the top of this job), so the two requirements are satisfied in
       # sequence rather than by choosing between them: install and TEST the handlers on the version
@@ -104,7 +104,7 @@ jobs:
       # as advisory with no `.npmrc` engine-strict, so it warns and proceeds) and then exercise
       # every handler on a Node the SDK does not support — a green gate that proves nothing about
       # production. The PR-side `functions` job in e2e.yml has run on the runtime's Node since
-      # v21.82 (24 since v25.29) for the same reason; this closes the same gap on the deploy side.
+      # v21.82 (24 since v25.30) for the same reason; this closes the same gap on the deploy side.
       - name: Switch to the Functions runtime Node version
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -142,7 +142,7 @@ jobs:
         run: bash scripts/audit-functions-deps.sh
 
       # ── THE DEPLOY TOOL'S NODE ──────────────────────────────────────────────────────────────
-      # Everything from here on is firebase-tools: Node 24 since v25.29, 22 from 3 Nov 2026 (the top
+      # Everything from here on is firebase-tools: Node 24 since v25.30, 22 from 3 Nov 2026 (the top
       # of this job has why it was 20, and why that no longer held). Kept as its own step so that
       # going back to 22, if a deploy ever fails to authenticate, is one line.
       - name: Deploy-tool Node version

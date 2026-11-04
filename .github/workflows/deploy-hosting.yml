@@ -129,7 +129,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # THE GATE RUNS ON THE PR LANES' NODE — 24 since v25.29 (48-hour review). The PR lanes moved to
+      # THE GATE RUNS ON THE PR LANES' NODE — 24 since v25.30 (48-hour review). The PR lanes moved to
       # 22 on 26 Sep 2026 while this job kept testing on 20, so a suite green on 22 and red on 20
       # passed the PR and failed only here, after the merge — the exact split e2e.yml's comment says
       # it removed. firebase-tools stepped back to 20 for its sign-in until 3 Nov 2026; the whole job
@@ -204,7 +204,7 @@ jobs:
           retention-days: 7
 
       # ── THE DEPLOY TOOL'S NODE ──────────────────────────────────────────────────────────────
-      # Everything from here on is firebase-tools. Node 24 since v25.29 (22 from 3 Nov 2026); it was
+      # Everything from here on is firebase-tools. Node 24 since v25.30 (22 from 3 Nov 2026); it was
       # held on 20 for its sign-in (deploy-functions.yml records why, and why that reason no longer
       # held). Kept as its own step so that going back to 22, if a deploy ever fails to authenticate,
       # is one line.
