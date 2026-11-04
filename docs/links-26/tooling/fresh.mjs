@@ -42,6 +42,10 @@ export const STRAPS = {
   // 4 Nov 2026: Next Step with its Sunday evened out, so a Sunday early and a Sunday late pay within a few pounds (README.md
   // → "Fair Share"). Not shortlisted
   'FS-26-T7': ['Next Step with an even Sunday: every Sunday duty 8h 10m or 8h 15m, so an early and a late pay within a few pounds', 'search'],
+  // 4 Nov 2026: today's link taken to 26 weeks on the owner's brief — openers finishing 13:45 or 14:20, closers from 15:45,
+  // nothing over 8h 30m on a weekday or 9h at the weekend, an even Sunday, 30 days off for 14 days' leave (README.md →
+  // "Common Ground"). Not shortlisted
+  'CG-26-T8': ['Today’s link on 26 weeks: nothing over 8h 30m on a weekday, a 13:45 finish every weekday, an even Sunday, and 14 days’ leave buys 30 days off, as today', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
@@ -63,8 +67,8 @@ export const SHORTLIST = ['Even Step', 'In Step', 'Short Run'];
 export const RECOMMENDED = 'Even Step';
 if (!SHORTLIST.includes(RECOMMENDED)) throw new Error(`the recommendation ${RECOMMENDED} is not on the shortlist`);
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
-export const FAMILY = { SL: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate' };
-export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026' };
+export const FAMILY = { SL: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CG: 'Home Grown', CS: 'Clean Slate' };
+export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a

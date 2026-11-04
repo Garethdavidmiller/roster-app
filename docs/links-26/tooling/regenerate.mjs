@@ -92,6 +92,9 @@ export const SUPPLIED = [
     { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'Even Step with three weekday shifts retimed for the trains: no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday' },
     // 4 Nov 2026: Fair Share is Next Step with its Sunday evened out, seven Sunday cells retimed (README.md → "Fair Share")
     { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: 'ccf27576', strap: 'Next Step with an even Sunday: every Sunday duty 8h 10m or 8h 15m, so an early and a late pay within a few pounds' },
+    // 4 Nov 2026: Common Ground is today's link taken to 26 weeks on the owner's brief, its weeks the 30-for-14 grid found on
+    // Fair Share's duties (README.md → "Common Ground")
+    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'e02c295f', strap: 'Today’s link on 26 weeks: nothing over 8h 30m on a weekday, a 13:45 finish every weekday, an even Sunday, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
