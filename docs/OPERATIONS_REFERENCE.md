@@ -1203,7 +1203,12 @@ Two reminders run themselves in the week before the change, and nobody presses a
 `newlink.html` shows colleagues the three shortlisted proposals for the new CEA link — **which starts on 1 January
 2027, not with the timetable** (owner, 2 Nov 2026: the timetable changes in December, the link follows on 1 January,
 and today's link carries on until then). It is a **preview**: only the admin and the names in `CONFIG.NEWLINK_PREVIEW` (`roster-data.js`) can open it — S. Silva,
-the new link's contact, since 4 Nov 2026 — and a banner says who else can see it.
+since 4 Nov 2026 — and a banner says who else can see it.
+
+**S. Silva leads the change** (owner, 4 Nov 2026). As the RMT rep, she makes the final call on which proposal goes to
+the managers. The admin built the page and the tooling, and is in charge of neither the change nor the choice, so nothing
+the page says may suggest otherwise: "Have your say" names who makes the call, and no line names the admin as deciding,
+recommending or collecting views (`newlink-config.test.mjs` and `e2e/newlink.spec.js` hold the wording to it).
 
 **Every setting is one line in `newlink-config.js`**, so changing one never means touching the page:
 
@@ -1211,6 +1216,7 @@ the new link's contact, since 4 Nov 2026 — and a banner says who else can see 
 |---|---|---|
 | `STARTS` | when the new link starts | `2027-01-01` |
 | `CONTACT` | who colleagues go to about it, spelt as the roster spells it | `S. Silva` (owner, 2 Nov 2026) |
+| `CONTACT_ROLE` | what the contact is, worded beside the name: who leads the change and makes the final call | `the RMT rep` (owner, 4 Nov 2026) |
 | `CLOSES` | the last day for views | not set — the page says "a date to be agreed" |
 | `AUDIENCE` | who the page is for once it opens | not set — every CEA on the roster |
 | `PHASE` | where the page is in its life | `'preview'` — the admin and `CONFIG.NEWLINK_PREVIEW` |

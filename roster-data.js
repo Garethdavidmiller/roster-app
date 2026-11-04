@@ -57,8 +57,8 @@ export const CONFIG = {
     // already made age out by themselves. The code and its tests stay live while it is off, which is
     // what keeps it ready: OVERTIME_AVAILABILITY.md → "Paused" is the way back.
     OVERTIME_ENABLED:                 false,
-    // Who besides the admin may open the New link page while it is a PREVIEW (newlink-config.js → PHASE): S. Silva, the new
-    // link's contact (owner, 4 Nov 2026). Page access only — the page reads nothing from the server and shows only public
+    // Who besides the admin may open the New link page while it is a PREVIEW (newlink-config.js → PHASE): S. Silva, the RMT
+    // rep who leads the change (owner, 4 Nov 2026). Page access only — the page reads nothing from the server and shows only public
     // files — so it needs no claim and no generated server copy. auth-policy.js → `canOpenNewlink` reads it.
     NEWLINK_PREVIEW:                  ['S. Silva'],
     OVERTIME_BETA:                    /** @type {string[]} */ ([]),                           // CEA beta participants (none since 7 Oct 2026 — T. Bibi and J. Sumaili withdrawn, owner request) — availability only, no reviewer access

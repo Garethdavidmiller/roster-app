@@ -13,7 +13,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as config from './newlink-config.js';
-import { PHASE, CLOSES, STARTS, CONTACT, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
+import { PHASE, CLOSES, STARTS, CONTACT, CONTACT_ROLE, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
 import { PAGE_POLICIES, requirePage, admitsStaffPin, canOpenNewlink } from './auth-policy.js';
 import { teamMembers, CONFIG } from './roster-data.js';
 
@@ -78,7 +78,11 @@ test('the pack base is the served docs folder, over https', () => {
 test('the drafted words promise nothing the page does not do, and name no recommendation', () => {
     const words = HAVE_YOUR_SAY.join(' ');
     assert.doesNotMatch(words, /recommend/i);
-    assert.match(HAVE_YOUR_SAY.join(' '), /managers decide/, 'it says who decides, in the card where views are asked for');
+    // Who decides is said in the card where views are asked for — and it is S. Silva, as the RMT rep, never the admin or
+    // "the managers" (owner, 4 Nov 2026: in charge of the change, and the final call on which one goes to the managers).
+    assert.equal(CONTACT_ROLE, 'the RMT rep');
+    assert.match(words, /S\. Silva, the RMT rep, is leading the change, and makes the final call on which of the three goes to the managers\./);
+    assert.doesNotMatch(words, /\badmin\b|G\. Miller|managers decide/i, 'nothing gives the impression that the admin, or the managers, choose among the three');
     assert.match(words, /does not collect/, 'and that the page itself collects nothing');
 });
 

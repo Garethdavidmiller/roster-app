@@ -26,6 +26,10 @@ and this document had no view that answered "are we ready, and what is stopping 
 **The tool is essentially built. What remains is decisions and a meeting.** Every outstanding row
 below is owned by somebody other than the developer.
 
+**Who leads (owner, 4 Nov 2026): S. Silva, as the RMT rep.** She is in charge of the roster change and makes the final
+call on which proposal goes to Nathan Sobers. The developer built the tool and the pack, and nothing that colleagues or
+managers read may give the impression that the developer is in charge of the change or of the choice.
+
 > ## ⚠️ THE LINK IS 24 LINES, AND EXCLUDES THE BILINGUAL ROSTER (owner, Aug 2026)
 >
 > The plan changed after most of this document was written. The new link **does not include the

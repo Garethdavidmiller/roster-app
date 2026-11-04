@@ -150,7 +150,9 @@ test.describe('new link', () => {
         await page.locator('#nlStatus [data-open-card="nlSay"]').click();
         await expect(page.locator('#nlSayBody')).toHaveClass(/\bopen\b/);
         await expect(page.locator('#nlSayCard h2')).toBeFocused();
-        await expect(page.locator('#nlSayList')).toContainText('the managers decide which link is used');
+        // who makes the call: S. Silva, as the RMT rep — never the admin (owner, 4 Nov 2026)
+        await expect(page.locator('#nlSayList')).toContainText('S. Silva, the RMT rep, is leading the change, and makes the final call on which of the three goes to the managers.');
+        await expect(page.locator('#nlSayCard')).not.toContainText(/admin|managers decide/i);
         await expect(page.locator('#nlSayCard')).toBeInViewport();
 
         // the drawer's logo opens About — it threw, while the page took initAboutLightbox's object for a function

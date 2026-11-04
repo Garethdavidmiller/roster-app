@@ -4,12 +4,20 @@
  *
  * The page presents the three shortlisted 26-week proposals to the colleagues who will work the new link. Everything it
  * SAYS about the proposals is generated (newlink-data.js, from the pack's own tooling); everything here is a DECISION, one
- * line each, so a decision can change without the page being touched. All of them are the owner's, 2 Nov 2026.
+ * line each, so a decision can change without the page being touched. All of them are the owner's, 2 Nov 2026, and who
+ * leads the change is the owner's of 4 Nov 2026 (CONTACT_ROLE).
+ *
+ * ── WHO IS IN CHARGE ───────────────────────────────────────────────────────────────────────────
+ *
+ * S. Silva, as the RMT rep, leads the roster change and makes the final call on which proposal goes to the managers. The
+ * admin built the page and the tooling, and is in charge of neither the change nor the choice (owner, 4 Nov 2026). Nothing
+ * the page says may suggest otherwise: no line names the admin as deciding, recommending or collecting views, and "Have
+ * your say" says who makes the call. newlink-config.test.mjs and e2e/newlink.spec.js hold the wording to it.
  *
  * ── THE LIFECYCLE ──────────────────────────────────────────────────────────────────────────────
  *
  * `PHASE` is the one switch. 'preview' is the only value built: the page is the admin's and the named previewers'
- * (CONFIG.NEWLINK_PREVIEW — S. Silva, its contact, since v25.33), read by auth-policy.js `newlink` and the nav pill's
+ * (CONFIG.NEWLINK_PREVIEW — S. Silva, who leads the change, since v25.33), read by auth-policy.js `newlink` and the nav pill's
  * `newlinkAudienceOnly` through `canOpenNewlink`, and it wears a banner saying so — under which they see exactly what
  * colleagues will. Opening it needs a gate of its own first: a role for AUDIENCE in auth-policy.js and a matching pill
  * flag in nav-panel.js, which page-contract-parity requires to move together. newlink-config.test.mjs refuses any other
@@ -36,6 +44,12 @@ export const STARTS = '2027-01-01';
  * is the primary contact for it not me"). Every line that names a person is built from this one.
  */
 export const CONTACT = 'S. Silva';
+
+/**
+ * What CONTACT is, as the page words it beside the name: the RMT rep, who leads the change and makes the final call on which
+ * of the three goes to the managers (owner, 4 Nov 2026). A change of contact is a change of this line too.
+ */
+export const CONTACT_ROLE = 'the RMT rep';
 
 /** @typedef {'preview'} Phase  'preview' alone until the audience gate exists (see the header) */
 
@@ -70,13 +84,14 @@ export function audienceNames() {
 export const PACK_BASE = 'https://garethdavidmiller.github.io/roster-app/docs/links-26/';
 
 /**
- * "Have your say", in the reader's order: what to do, where it goes and who decides, what the page does not do. DRAFTED from
- * the colleague presentations' last slide ("Tell us what worries you, even if it is small — your feedback goes to the
- * managers with the proposal") for the owner to correct. Who decides is said HERE, beside the views it answers — it sat in
+ * "Have your say", in the reader's order: what to do, who makes the call, what the page does not do. DRAFTED from the
+ * colleague presentations' last slide ("Tell us what worries you, even if it is small — your feedback goes to the managers
+ * with the proposal") and CORRECTED by the owner on 4 Nov 2026: the managers do not choose among the three — CONTACT does,
+ * as the RMT rep, and one proposal goes to the managers. Who decides is said HERE, beside the views it answers — it sat in
  * the faint last line under the cards until the review of 2 Nov 2026.
  */
 export const HAVE_YOUR_SAY = Object.freeze([
     `Tell ${CONTACT} or your manager what worries you about any of the three, even if it is small.`,
-    'Your views go to the managers with the proposals, and the managers decide which link is used.',
+    `${CONTACT}, ${CONTACT_ROLE}, is leading the change, and makes the final call on which of the three goes to the managers.`,
     'There is nothing to fill in here: this page does not collect views or votes.',
 ]);
