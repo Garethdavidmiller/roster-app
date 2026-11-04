@@ -71,7 +71,8 @@
  *     curveTo 2, quadraticCurveTo 3, closePath 4 (renumbered once, at 5.4.394);
  *   · a rectangle arrives as four lines, and must be SKIPPED rather than read as rules: a page clip
  *     or a shaded cell otherwise adds columns;
- *   · the legacy build stays — from 5.x it polyfills what Node 22 lacks;
+ *   · the legacy build stays — from 5.x it polyfills `Map.prototype.getOrInsertComputed`, which
+ *     neither Node 22 nor Node 24.22 has (measured 4 Nov 2026);
  *   · `isEvalSupported` was removed (pdf.js PR 21005), so the option passed below is ignored there.
  *     Find out what replaced it before trusting a PDF's font programs to the new version;
  *   · target 6.5.438 or later, never 6.4.299: that one can HANG synchronously on a malformed
