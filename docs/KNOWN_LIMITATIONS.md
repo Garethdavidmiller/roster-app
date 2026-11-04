@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v25.20 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.30 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -19,9 +19,9 @@ left, each for a decision rather than a default:
   `.claude/rules/css-tokens.md` → "The last navy choices took the page's colour".
 - **Done the same day — CI and the deploy tool off Node 20.** `actions/cache` v6.1.0 (was v4.3.0)
   and `google-github-actions/auth` v3.0.0 (was v2.1.13) both run on Node 24, and firebase-tools runs
-  on Node 22 in all three deploys. Its Node 20 pin dated from a "Failed to authenticate" under the
-  retired key file; if a deploy ever fails to authenticate, the comment at the top of
-  `deploy-functions.yml` names the lines to set back to '20'.
+  on Node 22 in all three deploys (24 since v25.29, with the Functions runtime). Its Node 20 pin
+  dated from a "Failed to authenticate" under the retired key file; if a deploy ever fails to
+  authenticate, the comment at the top of `deploy-functions.yml` names the lines to set back to '22'.
 - **CLAUDE.md is at its 125,000-character cap**, so every correction there is paid for by a cut.
 - **Weight**: `.git` is 1.4 GB. **The Links 26 pack zip is built on demand since 3 Nov 2026** (owner):
   each committed copy had added ~15 MB to the history, sixteen times; it is untracked now (`*.zip` was

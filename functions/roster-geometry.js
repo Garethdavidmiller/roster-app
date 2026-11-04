@@ -62,10 +62,21 @@
  *   · **Three of six pages can be empty** (no text items at all). Skipped by CONTENT, never by
  *     page number.
  *
- * pdfjs is PINNED to v4: this file reads `OPS.constructPath`'s argument shape directly, and pdfjs 6
- * changed that encoding — every document then fails identically with `fns is not iterable`, which
- * looks exactly like a PDF problem. If the dependency is ever bumped, `rulesFromOperatorList` is
- * the function to rewrite first.
+ * pdfjs is PINNED to v4: this file reads `OPS.constructPath`'s argument shape directly, and pdfjs
+ * changed that encoding at 5.1.91 (pdf.js PR 19689). MEASURED on 6.4.299 (4 Nov 2026), this code
+ * does not throw there: every document reports `no-grid`, so the witness would stop SILENTLY, and
+ * only the real-pdfjs test in roster-geometry.test.mjs says so. `rulesFromOperatorList` is the
+ * function to rewrite first, and what the measurement found is the brief for it:
+ *   · each path is ONE Float32Array of op codes and absolute coordinates — moveTo 0, lineTo 1,
+ *     curveTo 2, quadraticCurveTo 3, closePath 4 (renumbered once, at 5.4.394);
+ *   · a rectangle arrives as four lines, and must be SKIPPED rather than read as rules: a page clip
+ *     or a shaded cell otherwise adds columns;
+ *   · the legacy build stays — from 5.x it polyfills what Node 22 lacks;
+ *   · `isEvalSupported` was removed (pdf.js PR 21005), so the option passed below is ignored there.
+ *     Find out what replaced it before trusting a PDF's font programs to the new version;
+ *   · target 6.5.438 or later, never 6.4.299: that one can HANG synchronously on a malformed
+ *     Type 4 function (fixed in pdf.js PR 22365), and no time budget in this file can stop a
+ *     synchronous loop.
  */
 
 'use strict';

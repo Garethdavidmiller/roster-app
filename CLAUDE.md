@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: November 2026 — v25.20 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.30 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Documentation milestone | `25.20` — the 0.10 checkpoint these docs are written against. **This row is deliberately NOT the current version**, and used to be: it read `23.23` while the app shipped 23.24, then 23.25, then 23.26 — a figure that rots on every release and that nobody bumps, because bumping it is not part of shipping. The exact version lives in `roster-data.js`, where `APP_VERSION` is authoritative and is the only place a reader should look for it. What the guard actually requires here is the MILESTONE, so that is what this row now states. The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Documentation milestone | `25.30` — the 0.10 checkpoint these docs are written against. **This row is deliberately NOT the current version**, and used to be: it read `23.23` while the app shipped 23.24, then 23.25, then 23.26 — a figure that rots on every release and that nobody bumps, because bumping it is not part of shipping. The exact version lives in `roster-data.js`, where `APP_VERSION` is authoritative and is the only place a reader should look for it. What the guard actually requires here is the MILESTONE, so that is what this row now states. The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — **still where the MAJORITY of staff open the app** (owner, Sep 2026 — the changeover to the canonical URL is deliberate and gradual, not a rump to be discounted). That matters for any change relying on something only Firebase Hosting can do: this origin serves **no redirects and no HTTP headers**, so a rename protected by a `redirects` entry, or a policy carried by a header, reaches the smaller half of the staff. Weigh such a change against the mirror, not against the canonical URL. The `<meta>` CSP exists for exactly this reason. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -342,7 +342,7 @@ npm run test:nodeps
 npm run test:payslip-local
 
 npm run test:functions # Cloud Functions tests — the handler and roster-parser suites; the authoritative list is package.json `test:functions` — not part of npm test (needs functions/node_modules)
-                       # GATES EVERY BRANCH AND PR since v21.82, as the `functions` job in e2e.yml, ON NODE 22 — the runtime
+                       # GATES EVERY BRANCH AND PR since v21.82, as the `functions` job in e2e.yml, ON NODE 24 — the runtime
                        # functions/package.json declares. Until then it ran ONLY in deploy-functions.yml, which fires on a push
                        # to main: a Functions regression could not fail a PR, and was caught after the merge with the deploy
                        # blocked (production safe, wrong end of the merge). That job ran firebase-tools on Node 20 until 3 Nov 2026,
