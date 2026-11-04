@@ -101,8 +101,9 @@
  *
  * The runner has 4 vCPU and Playwright defaults `workers` to half the CPUs, so TWO. Total serial
  * work for one project is ~11.6 WebKit-minutes, which puts the 2-worker floor at ~5.8 against the
- * 6.9 observed. `e2e.yml` therefore shards each project two ways: four jobs instead of two, and
- * the wall clock falls with the runner count rather than fighting for cores on one machine.
+ * 6.9 observed. `e2e.yml` therefore shards each project (two ways each at first; since 4 Nov 2026
+ * the iPhone project four ways and desktop two, six jobs, and e2e.yml says why), and the wall clock
+ * falls with the runner count rather than fighting for cores on one machine.
  *
  * MORE WORKERS WOULD HAVE BEEN THE WRONG FIX. 4 workers on 4 vCPU nominally gives ~2.9 min, but
  * this is the job with the documented flake history that the `retries: 1` above exists for, and
@@ -118,8 +119,8 @@
  * 197/197 it gives on. But with it off a group is a whole FILE, so every one of `pages.spec.js`'s
  * 143 tests (as it then was; it was split by page on 3 Nov 2026) lands in the same shard AND the
  * same worker, and that shard has a ~4-minute serial
- * critical path however many shards there are. Turning it on lets those tests spread across both
- * shards and both workers, which is the only thing that moves the floor.
+ * critical path however many shards there are. Turning it on lets those tests spread across every
+ * shard and both workers, which is the only thing that moves the floor.
  *
  * The 783-green run is the evidence it is safe to turn on: no spec here uses `beforeAll`,
  * `afterAll`, `describe.serial` or module-level mutable state, so nothing depends on the order
