@@ -522,20 +522,37 @@ jobs:
   # pin one shard at ~4 minutes however many shards there are. The reasoning and the measurement
   # behind that flag live beside it, in that file.
   #
-  # THE COST, STATED: four jobs pay the ~1m18s setup instead of two, so total runner minutes go up
+  # THE IPHONE PROJECT IS SPLIT FOUR WAYS, THE DESKTOP ONE TWO (3 Nov 2026). Playwright cuts a
+  # project into equal COUNTS of tests, in file order, and cannot weight a shard by time. Under
+  # WebKit 2359 (Playwright 1.63, which runs 10–50% slower than 2215) the iPhone project's second
+  # half, where links.spec.js's long flows all fall, took up to 24 minutes of tests against the
+  # 25-minute step budget below, and on 3 Nov one run was stopped at that budget with every test it
+  # had run passing. Simulated from that night's own per-test times: four iPhone shards put the
+  # longest at ~12 minutes (three still leave ~16, because Links sits inside one third), and desktop
+  # WebKit's longest is ~14 at two. Hence a list per project rather than one shard count, and
+  # `shards` carried in each entry so the command can never disagree with the number of jobs.
+  # workflow-hygiene.test.mjs holds the list to playwright.webkit.mjs: every project, every shard.
+  #
+  # THE COST, STATED: six jobs pay the ~1m18s setup instead of two, so total runner minutes go up
   # while wall clock comes down. That is the trade being made deliberately — the scarce thing here
   # is a person waiting on a merge, not runner minutes.
   webkit:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
+    name: webkit (${{ matrix.project }}, ${{ matrix.shard }}/${{ matrix.shards }})
     # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        project: [webkit, mobile-safari]
-        shard: [1, 2]
-    # Each job carries ONE engine and HALF its tests. The TEST STEP carries the budget (25 minutes,
+        include:
+          - { project: webkit, shard: 1, shards: 2 }
+          - { project: webkit, shard: 2, shards: 2 }
+          - { project: mobile-safari, shard: 1, shards: 4 }
+          - { project: mobile-safari, shard: 2, shards: 4 }
+          - { project: mobile-safari, shard: 3, shards: 4 }
+          - { project: mobile-safari, shard: 4, shards: 4 }
+    # Each job carries ONE engine and a share of its tests. The TEST STEP carries the budget (25 minutes,
     # below); this job cap is only the backstop against a hung runner, and it is wider than the
     # step's on purpose. On 7 Oct 2026 the WebKit apt install took 9 minutes three times in one
     # afternoon, and a 20-minute JOB cap spent the test budget on a download — cancelling shards in
@@ -584,7 +601,7 @@ jobs:
 
       - name: Run the smoke suite under WebKit
         timeout-minutes: 25
-        run: npm run test:webkit -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2
+        run: npm run test:webkit -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
         env:
           CI: true
 
