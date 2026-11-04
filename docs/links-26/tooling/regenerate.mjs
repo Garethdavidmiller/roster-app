@@ -92,6 +92,13 @@ export const SUPPLIED = [
     { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'Even Step with three weekday shifts retimed for the trains: no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday' },
     // 4 Nov 2026: Fair Share is Next Step with its Sunday evened out, seven Sunday cells retimed (README.md → "Fair Share")
     { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: 'ccf27576', strap: 'Next Step with an even Sunday: every Sunday duty 8h 10m or 8h 15m, so an early and a late pay within a few pounds' },
+    // 4 Nov 2026 (owner: "Do a proposal sheet for all of today's work. Put them into the repo"): Quarter Past, a one-page roster
+    // supplied as a PDF and read in cell by cell; Quarter Past Relaid, its duties in new weeks so 14 days' leave buys 30 days
+    // off; and Short Openers, the Relaid with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45
+    // (README.md → "Quarter Past", "Quarter Past Relaid", "Short Openers"). Their grids and meta files live in results/
+    { file: 'results/quarter-past.json',         name: 'Quarter Past',         code: 'QP-26-EXT', fp: 'dfdbd724', strap: 'A 16:15 closer every weekday, closing shifts averaging 7h 45m, and every week all earlies or all lates' },
+    { file: 'results/quarter-past-re-laid.json', name: 'Quarter Past Relaid', code: 'QR-26-EXT', fp: '544e1ee8', strap: 'Quarter Past’s shifts in new weeks: 14 days’ leave buys 30 days off, as today, with no fatigue warning and seven full weekends' },
+    { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '38897b91', strap: 'Quarter Past Relaid with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45, and 14 days’ leave still buying 30 days off' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

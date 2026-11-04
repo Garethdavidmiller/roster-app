@@ -89,9 +89,12 @@ _day = lambda code: datetime.datetime.strptime(FIRST[code], '%d %b %Y')
 _drawn = max(_day(c) for n, c, _ in proposals if n in SHORTLIST)
 LATE = sorted(n for n, c, _ in proposals if _day(c) > _drawn)
 # Fair Share joined on 4 Nov 2026 (owner: "add fair share to the repo"): Next Step with an even Sunday. The paragraph says
-# what it is too, so it is in the one set this accepts
-if LATE and LATE != ['Clean Slate', 'Fair Share', 'Next Step']:
-    raise SystemExit(f'pack: the read-me describes Clean Slate, Fair Share and Next Step as the designs after the shortlist; they are {LATE}')
+# what it is too, so it is in the one set this accepts. So are the day's other three (owner, 4 Nov 2026: "Do a proposal
+# sheet for all of today's work. Put them into the repo"): Quarter Past, a one-page roster drawn outside the app, and the
+# two laid from its duties, Quarter Past Relaid and Short Openers; the paragraph names each and what it is
+LATE_SET = ['Clean Slate', 'Fair Share', 'Next Step', 'Quarter Past', 'Quarter Past Relaid', 'Short Openers']
+if LATE and LATE != LATE_SET:
+    raise SystemExit(f'pack: the read-me describes {", ".join(LATE_SET)} as the designs after the shortlist; they are {LATE}')
 LATE_WORDS = ', '.join(LATE[:-1]) + ' and ' + LATE[-1] if len(LATE) > 1 else ''.join(LATE)   # three since 4 Nov: 'A, B and C', never 'A and B and C'
 # THE FOUR WITHDRAWN (3 Nov 2026, owner: "Remove the four weak proposals please and reengineer the pack"). Named here, and
 # refused if any is back in SUPPLIED, because the paragraph below says they left the pack
@@ -234,13 +237,17 @@ readme = '\n'.join([
             'and late weeks - with the shift times chosen again. It joined the shortlist the same day, beside In Step '
             'and Short Run, and is the one recommended.'), '']
       if 'Even Step' in names_in else []),
-    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share (4 November 2026) came after the shortlist, and none is on it. Clean Slate '
+    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Quarter Past, Quarter Past Relaid and Short Openers '
+            '(4 November 2026) came after the shortlist, and none is on it. Clean Slate '
             'chooses every shift time afresh for the trains, with no shift over 8h 30m Monday to Saturday, one 13:45 '
             'finish and a closer from 15:45 every weekday. Next Step is Even Step with three weekday shifts retimed for '
             'the trains, still with no shift over 8h 30m Monday to Saturday. Fair Share is Next Step with an even Sunday: '
             'every Sunday duty is 8h 10m or 8h 15m, so a Sunday early and a Sunday late pay within a few pounds, and no '
-            'shift is over 8h 30m on any day. Page 2 of the shortlist sheet sets each '
-            'beside the three.'), '']
+            'shift is over 8h 30m on any day. Quarter Past is a one-page roster drawn up outside the app and read in as written: its weekday '
+            'closer starts at 16:15, and it has three full weekends off in 26 weeks. Quarter Past Relaid keeps Quarter Past\'s shift '
+            'times in new weeks, so that 14 days\' leave buys 30 days off, as today, with no avoidable fatigue warning. '
+            'Short Openers is Quarter Past Relaid with every weekday 06:20 finishing by 14:20 and every weekday closer at '
+            '15:45. Page 2 of the shortlist sheet sets each beside the three.'), '']
       if LATE else []),
     *([para(f'Four more were drawn up and withdrawn on 3 November 2026 as the weakest in the pack: {", ".join(WITHDRAWN[:-1])} '
             f'and {WITHDRAWN[-1]}. Each was the same as or worse than a design still here on everything the sheets measure '

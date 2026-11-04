@@ -27,7 +27,7 @@ Writes each layout as a pseudo-rota (early cells 06:20-14:20, late 14:00-22:30; 
   python3 leave-layouts.py <outdir> <count> [seconds each]
   env: LV_BEST=30 LV_WORST=14 LV_FOUR=28 SPAN=30 ISO=4 RUN=5 GAP=5 WEEKENDS=7 BLOCK=5 MIN_DUTIES=4 FF11_FIXED=13
        FF11_WORST=13 DIFF=12 FRIOFF= NINE= HINT=<rota.json> FIX=<rota.json> OBJ=cheap WORKERS=4 SEED=0
-  Quarter Past Re-laid's layout (README.md -> "Quarter Past Re-laid"), each step from the one before (HINT=):
+  Quarter Past Relaid's layout (README.md -> "Quarter Past Relaid"), each step from the one before (HINT=):
     OBJ=cheap LV_BEST=0 HINT=../proposals/Even-Step-ES-26-T5.json   (the cheapest 30 days, 4 single rest days: 15)
     ISO=6 OBJ=cheap LV_BEST=0                                       (6 single rest days: 30 days cost 13)
     ISO=6 LV_BEST=30                                                (30 days for 14, the fewest single rest days: 5)

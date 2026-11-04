@@ -25,6 +25,10 @@ sections below keep the scores they were written with; the shortlist sheet and *
 took them out on 3 Nov, which put Even Step first again (`FAM_SUNDAY=1` rebuilds the scores before). *Familiar shift
 times count the Monday-to-Saturday duties only* has both.
 
+**League scores dated before Quarter Past joined the pack (4 Nov 2026) are on the range the designs before it set.**
+Quarter Past is far out on four measures, so with it in the pack every other score rose about 2 points and a few
+mid-table places moved; Even Step stayed first. *Today's three join the pack* has both tables.
+
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
 So a rebuild adds nothing about who decides, votes or recommends — the process is recorded in
@@ -123,7 +127,7 @@ still be rebuilt.
 | options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
 | fatigue values | `factors-like.mjs` | every fatigue factor's own value, on the fixed duties and in the worst case, against a reference grid; exits 1 if any is worse (`space-polish.mjs`'s `FACTORS_LIKE` holds a search to the same comparison) |
 | whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen (see "Closing Time, improved" and "In Step") |
-| rest days with a leave rule | `leave-layouts.py` | the rest days alone for CP-SAT, with what 14 days' leave buys as a rule (`LV_BEST=`, `LV_WORST=`, `LV_FOUR=`), for `exact-rota.py`'s `SKELETON=` to lay a table's times on; `FRIOFF=1` keeps the Friday before every cover week off (no 55-hour week however the cover weeks fall), `HINT=` to climb from a valid layout, `FIX=` to check one (see "Quarter Past Re-laid") |
+| rest days with a leave rule | `leave-layouts.py` | the rest days alone for CP-SAT, with what 14 days' leave buys as a rule (`LV_BEST=`, `LV_WORST=`, `LV_FOUR=`), for `exact-rota.py`'s `SKELETON=` to lay a table's times on; `FRIOFF=1` keeps the Friday before every cover week off (no 55-hour week however the cover weeks fall), `HINT=` to climb from a valid layout, `FIX=` to check one (see "Quarter Past Relaid") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
 - **No 24-line default leaks through.** The app functions that default to 24 lines (`runDesignChecks`, `assessFatigue`,
@@ -3090,7 +3094,8 @@ below every proposal (80.5 to 85.4) and Familiar Nine (70.4), above today's link
 December rules, mixed weeks and the closing shift, and nothing on the fatigue warnings, the weekends and the wait
 between them, single rest days, weeks on one shift time, the start-time change and the leave figures: together 35 of
 the 100 points. Like Same Again and Little and Often, it is a design to look at, not one of the proposals; joining the
-pack would take an entry in `regenerate.mjs`'s `SUPPLIED` and `fresh.mjs`'s `STRAPS`.
+pack would take an entry in `regenerate.mjs`'s `SUPPLIED` and `fresh.mjs`'s `STRAPS`. *It joined the pack later the
+same day, with the two designs below: see* Today's three join the pack.
 
 **The sheet, and the one change it needed.** `supplied.mjs` renders it in eight pages. Page 1 lists every concern a
 colleague may have and never cuts one, and twelve concerns, four of them wrapping, ran the cover 56px onto a second
@@ -3230,7 +3235,7 @@ owner to look at, not a design in the pack: it has no name, sheet or import file
 - **Not changed:** the decks, "What it means if you…", the New link page and the Links designer's built-in examples
   (the shortlist's three).
 
-## Quarter Past Re-laid — 30 days off for 14 days' leave (4 Nov 2026)
+## Quarter Past Relaid — 30 days off for 14 days' leave (4 Nov 2026)
 
 **The question** (owner, 4 Nov 2026, of Quarter Past above): *"Can you adjust quarter past to keep the 14 days off to buy
 30 days annual leave (sundays can be made not available) but meet all the other fatigue rules, maximise weekends off,
@@ -3245,11 +3250,11 @@ double day rest days and weeks on one time. Is this possible? (whilst meeting al
 4. and everything else still holds: every hard limit, all 9 December rules and the 3 flexible ones. The rules about the
    duties hold because the duties are Quarter Past's; the ones that depend on the arrangement were checked again.
 
-**The answer is yes: Quarter Past Re-laid** (`QR-26-EXT` · **`544e1ee8`**; `tooling/results/quarter-past-re-laid.json`,
+**The answer is yes: Quarter Past Relaid** (`QR-26-EXT` · **`544e1ee8`**; `tooling/results/quarter-past-re-laid.json`,
 with a `.meta.json`; its duty table is Quarter Past's, `results/quarter-past-table.json`). Every day has Quarter Past's
 duties; 24 of the 147 working cells are where Quarter Past had them.
 
-| | Today | Quarter Past | **Quarter Past Re-laid** | Even Step |
+| | Today | Quarter Past | **Quarter Past Relaid** | Even Step |
 |---|---|---|---|---|
 | 14 days' leave buys: best · average · worst; leave for four weeks off | 30 · 23.4 · 19 · 14 | 27 · 23.4 · 19 · 15 | **30 · 23.4 · 19 · 14** | 28 · 23.4 · 20 · 15 |
 | Fatigue warnings, fixed duties (up to) | 4 (5) | 3 (5) | **0 (0)** | 0 (1) |
@@ -3309,16 +3314,17 @@ time and 6 single rest days; on Quarter Past's, with 18 and 5.
 **In the league** it scores 80.3, on the range the usual table already uses, as Quarter Past was (49.1), so no other
 score moves: below every proposal (80.5 to 85.4). The gap is mostly Quarter Past's duties — the fit, the new shift
 times, the long earlies — then the 13h 15m rest and the fifth single rest day; it takes full marks on fatigue and on the
-best leave stretch. Like Quarter Past, it is a design to look at, not one of the proposals.
+best leave stretch. Like Quarter Past, it is a design to look at, not one of the proposals. *It joined the pack later
+the same day: see* Today's three join the pack.
 
 **Its sheet** renders as Quarter Past's does, in eight pages; the PDF and its import file are not committed. From
 `tooling/`:
 
 ```
-OUT=/tmp/Quarter-Past-Re-laid.pdf node supplied.mjs results/quarter-past-re-laid.json "Quarter Past Re-laid" "Quarter Past's shifts in new weeks: 14 days' leave buys 30 days off, as today, with no fatigue warning and seven full weekends" QR-26-EXT
+OUT=/tmp/Quarter-Past-Relaid.pdf node supplied.mjs results/quarter-past-re-laid.json "Quarter Past Relaid" "Quarter Past's shifts in new weeks: 14 days' leave buys 30 days off, as today, with no fatigue warning and seven full weekends" QR-26-EXT
 ```
 
-## Short Openers — Quarter Past Re-laid with every weekday opener 8 hours at most (4 Nov 2026)
+## Short Openers — Quarter Past Relaid with every weekday opener 8 hours at most (4 Nov 2026)
 
 **The question** (owner, 4 Nov 2026): *"Can you do the quarter past relaid but all 6.20 starts Monday to Friday must
 finish at 13.45 or 14.20. Keep the 8 hours maximum shift time Mon to Friday and the 14 AL days buys 30 days off."* Then,
@@ -3344,12 +3350,12 @@ CLS=weekday TOTAL=7450 FIXED_FREE=1 WK_CLOSER=15:45-23:55 POOL_ONLY=06:20-13:45,
 ```
 
 **Short Openers** (`SO-26-EXT` · **`38897b91`**; `tooling/results/short-openers.json`, with a `.meta.json`; its duty
-table is `results/short-openers-table.json`). The times were laid on Quarter Past Re-laid's own rest days with
+table is `results/short-openers-table.json`). The times were laid on Quarter Past Relaid's own rest days with
 `exact-rota.py` (`SKELETON=`, `FAMILY=1`): the most weeks on one shift time, then the lightest heaviest week holding
 them, then the gentlest change of start. Every rest day, full weekend, Saturday duty and Sunday duty is where Quarter
-Past Re-laid has it, so its leave figures cannot move.
+Past Relaid has it, so its leave figures cannot move.
 
-| | Quarter Past Re-laid | **Short Openers** | Even Step |
+| | Quarter Past Relaid | **Short Openers** | Even Step |
 |---|---|---|---|
 | Weekday 06:20 starts | 13:45 ×1 · 14:20 ×2 · 14:50 ×2 | **13:45 ×1 · 14:20 ×4** | — |
 | Weekday closers | 16:15 ×3 | **15:45 ×3** | 15:45 ×3 |
@@ -3364,7 +3370,7 @@ Past Re-laid has it, so its leave figures cannot move.
 | Shift times (new to learn) | 16 (8) | **14 (6)** | 13 (5) |
 | Weighted league (`REF_IN_RANGE=1`, the usual table) | 80.3 | **82.8** | 85.4 |
 
-**What it gains against Quarter Past Re-laid:** no opener over 8 hours on a weekday; one closer, 15:45–23:55, every day
+**What it gains against Quarter Past Relaid:** no opener over 8 hours on a weekday; one closer, 15:45–23:55, every day
 Monday to Saturday; no 9-hour weekday shift; ten fewer long shifts a year each; a weekday fit to the trains in the
 shortlist's range (36.3 to 31.3); a heaviest week 45 minutes lighter; a gentler change of start; two shift times fewer.
 **What it costs:** closers 25 minutes longer on average, from 7h 45m to 8h 10m, and the "quarter past" closers it was
@@ -3381,15 +3387,109 @@ against 82.3, at the cost of a heaviest week 15 minutes heavier (41h 45m) and th
 `FIX=` confirms the grid against `exact-rota.py` and `leave-layouts.py`. It fails at 4 single rest days, at 19 weeks
 on one shift time, at a 13h 16m rest and at a heaviest week a minute lighter. In the league it scores 82.8 on the
 usual table's range, so no other score moves: seventh of fifteen, 0.02 behind Home Grown. Like
-Quarter Past and Quarter Past Re-laid, it is a design to look at, not one of the proposals. Its sheet renders the same
-way, and the PDF and import file are not committed:
+Quarter Past and Quarter Past Relaid, it is a design to look at, not one of the proposals (*it joined the pack later the
+same day: see* Today's three join the pack). Its sheet renders the same way, and the PDF and import file are not
+committed:
 
 ```
-OUT=/tmp/Short-Openers.pdf node supplied.mjs results/short-openers.json "Short Openers" "Quarter Past Re-laid with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45, and 14 days' leave still buying 30 days off" SO-26-EXT
+OUT=/tmp/Short-Openers.pdf node supplied.mjs results/short-openers.json "Short Openers" "Quarter Past Relaid with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45, and 14 days' leave still buying 30 days off" SO-26-EXT
 ```
 
 *Short Openers* and not *Quarter Past Short Openers*: that name ran to two lines in page 2's column heading, and the
 renderer refused the page 8px into its footer.
+
+## Today's three join the pack — Quarter Past, Quarter Past Relaid and Short Openers (4 Nov 2026)
+
+**The request** (owner, 4 Nov 2026): *"Do a proposal sheet for all of today's work. Put them into the repo and then give
+me the league table".* Read as: the three designs drawn today join the pack as proposals, as Fair Share did that
+morning, with their sheets in `proposals/` and in every list that names the pack's designs; then the league with them
+in it.
+
+**What joined.** Each has its eight-page sheet, its import file and its JSON in `proposals/` (the PDFs force-added, as
+every sheet is):
+
+| Design | Code · fingerprint | What it is |
+|---|---|---|
+| Quarter Past | `QP-26-EXT` · `dfdbd724` | a one-page roster drawn up outside the app, read in as written |
+| Quarter Past Relaid | `QR-26-EXT` · `544e1ee8` | Quarter Past's duties in new weeks: 14 days' leave buys 30 days off |
+| Short Openers | `SO-26-EXT` · `38897b91` | Quarter Past Relaid with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45 |
+
+- **The lists.** `regenerate.mjs`'s `SUPPLIED` and `fresh.mjs`'s `STRAPS`, `FAMILY` (all three are the Quarter Past
+  family) and `FIRST` (4 Nov 2026). `regenerate.mjs --check` rebuilds all 17 with no fingerprint moved, and `check.mjs`
+  agrees. The fourteen other sheets were re-rendered with the three in the folder, since each sheet's page 2 reads the
+  folder's best and worst: only their Prepared date moved, so the committed files stand, and so does the rules sheet.
+- **The summary sheet** lists 17 and prints at 82% to fit its page (the floor is 80%). Quarter Past comes last: it is
+  the one design in the pack with avoidable fatigue warnings on the fixed duties, 3 (up to 5).
+- **The read-me** names the six designs that came after the shortlist and says what each of today's three is;
+  `pack.py` accepts exactly those six.
+- **Not changed:** the shortlist, the recommendation, the decks, the New link page and the Links designer's built-in
+  examples. *What it means if you…* was rebuilt only because `pack.py` found it older on disk than the colleague decks
+  (their UK English pass, 3 Nov); its text is identical but for the date it was prepared.
+
+**The shortlist sheet** reads every design in the pack, and changed in four places:
+1. **The guide's closers row** read "The shortest closers of all: 16:00 Monday to Saturday". Quarter Past's 16:15
+   weekday closer is shorter than Closing Time's; its 15:45 Saturday closer is longer, and the two are level only when
+   added together. The row now says what Closing Time and Both Ways alone have — "A 16:00 closer Monday to Saturday,
+   shorter than the three's" — and a claim reads it from the grids: every closer Monday to Saturday the 16:00, and
+   each day's shorter than every one of the three's.
+2. **The leave cost** said "of the whole pack, only Long Break keeps four weeks for 14". Quarter Past Relaid and Short
+   Openers keep it too, so the sentence now reads the list.
+3. **Who is outside the shortlist, and who joined after it.** The guide's five rows outside the shortlist sit under one
+   heading row, *Outside the shortlist*, instead of each saying so. Page 2's six late designs sit under one note in
+   their table's heading, *Clean Slate and those below it joined after the shortlist was drawn*, instead of a date on
+   each row: a date beside "Quarter Past Relaid, Short Openers" wrapped its cell. A claim holds the note to the printed
+   table — every other design named once, the late ones last.
+4. **Spacing.** With the new rows page 1 ran 59px and page 2 54px into their footers. With the wording above and a pixel
+   off five spacings (headings, list items, table and list leading, the recommendation's box), page 1 has 8px to
+   spare and page 2 3px.
+
+Mutation checks, each with `scripts/mutate.mjs`: naming another design as the first late one, putting a late design
+above Clean Slate, and letting a design with a longer Saturday closer into the closers row each stop the sheet.
+Typing the old leave sentence back in does not, and cannot: the sentence is no longer typed.
+
+**The league** (`REF_IN_RANGE=1`, the usual table), all 17:
+
+| | Design | Score |
+|---|---|---|
+| 1 | **Even Step** ★ shortlisted, recommended | **87.3** |
+| 2 | Closing Time | 87.1 |
+| 3 | Next Step | 87.1 |
+| 4 | Fair Share | 86.9 |
+| 5 | Short Openers | 85.8 |
+| 6 | Clean Slate | 85.3 |
+| 7 | Home Grown | 85.1 |
+| 8 | Second Edition | 84.1 |
+| 9 | Long Break | 84.1 |
+| 10 | Even Keel | 84.1 |
+| 11 | Fine Tune | 83.6 |
+| 12 | Quarter Past Relaid | 83.6 |
+| 13 | Short Run ★ shortlisted | 83.5 |
+| 14 | Second Look | 83.4 |
+| 15 | Both Ways | 83.0 |
+| 16 | In Step ★ shortlisted | 82.4 |
+| 17 | Quarter Past | 49.1 |
+| — | Familiar Nine (24 lines, for reference) | 76.0 |
+| — | Today's link (for reference) | 29.8 |
+
+Places are by the unrounded score, so designs on the same figure are in order.
+
+**Why every score rose about 2 points.** Each measure is scored on the range from the worst design to the best, and
+Quarter Past is far out on four: 31 single rest days, 20 weeks between full weekends, three full weekends in 26 and 3
+of 21 weeks on one shift time. Those four ranges widen, so the gaps between the other designs on them count for less,
+and every other design gains. Even Step stays first, with Next Step and Closing Time level to a tenth and under a
+point behind, so the shortlist sheet's "judgement" paragraph and its claims hold. Lower down, places move: of the
+fourteen designs already in the pack, Long Break rises from 13th to 8th, because its fifth single rest day costs almost
+nothing beside Quarter Past's 31, and Short Run falls from 9th to 11th.
+
+The method is unchanged: every design in the pack sets the scale, as each one before it did. Scored the way Quarter
+Past was this morning instead — on the range the other designs set, so that it moves nobody — the table reads: Even
+Step 85.0, Next Step 84.9, Closing Time 84.8, Fair Share 84.7, Clean Slate 83.2, Home Grown 82.5, Short Openers 82.5,
+Second Edition 82.0, Even Keel 81.9, Short Run 81.3, Fine Tune 81.0, Second Look 80.6, Long Break 80.4, Both Ways 80.4,
+Quarter Past Relaid 80.3, In Step 80.1, Quarter Past 49.1.
+
+**Why "Relaid"**, not "Re-laid" as it was drawn: the sheets read a design's name back from its file name, a hyphen for
+each space, so a hyphen inside a name came back as a space and the shortlist sheet could not find "Quarter Past Re
+laid". The grid keeps its file name, `results/quarter-past-re-laid.json`; the sections above now say Relaid.
 
 ## Notes for the whole set
 

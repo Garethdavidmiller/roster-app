@@ -53,6 +53,16 @@
 // the league"). The main league leaves each design's Sunday duties out of familiar shift times (league.mjs), and Even
 // Step is first again, just ahead of Next Step and Closing Time, which are level to a tenth: the "judgement" paragraph and
 // its claim say so. The league weighted before 31 Oct reads familiar times as it always did.
+// TODAY'S THREE SINCE 4 NOV 2026 (owner: "Do a proposal sheet for all of today's work. Put them into the repo"): Quarter Past,
+// Quarter Past Relaid and Short Openers joined after the shortlist, seventeen in all. Four things changed with them. The
+// guide's closers row said "the shortest closers of all", and Quarter Past's 16:15 weekday closer is shorter than Closing
+// Time's (its Saturday one longer, the two level only added together), so the row now names what Closing Time and Both Ways
+// alone have: a 16:00 closer Monday to Saturday, shorter than the three's on every one of those days. The leave cost said
+// "only Long Break keeps four weeks for 14", and two of today's do too; it now reads the list. The guide's five rows outside
+// the shortlist sit under one heading row instead of each carrying "outside the shortlist", and page 2's late designs under
+// one note in their heading instead of a date each: a date beside "Quarter Past Relaid, Short Openers" wrapped its cell.
+// And a pixel came off five spacings (headings, list items, table and list leading, the recommendation's box), which with
+// those keeps both pages on their page.
 //   node shortlist-sheet.mjs        → ../links-26-shortlist.pdf (the .html stays in tooling/, gitignored)
 import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -204,7 +214,8 @@ const loses = d => { const x = measure(d.F); return Object.keys(DIR).filter(k =>
 const O = Object.fromEntries(others.map(d => [d.name, d])), K = Object.fromEntries(others.map(d => [d.name, keeps(d).join()]));
 const NAMED = { 'Both Ways': 'closerSat,closerWk,earlyOff,heavy,newT', 'Clean Slate': 'fitSat,fitSun,one', 'Closing Time': 'closerSat,closerWk,fitSat,light,step',
   'Even Keel': '', 'Fine Tune': 'step', 'Home Grown': 'closerWk,longEarly,newT,times', 'Long Break': 'lvBest,lvFour', 'Next Step': '', 'Fair Share': 'longEarly,longShift',
-  'Second Edition': 'step', 'Second Look': 'block,worstRun' };
+  'Second Edition': 'step', 'Second Look': 'block,worstRun', 'Quarter Past': 'block,closerWk', 'Quarter Past Relaid': 'closerWk,lvBest,lvFour,worstRun',
+  'Short Openers': 'lvBest,lvFour,step,worstRun' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
 const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k => loses(O[n]).includes(k)));
 // what each pays, on the five priorities the paragraph names wherever it pays on them (days in a row, weekends, one turn,
@@ -212,17 +223,31 @@ const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k =
 pays('Closing Time', 'fitWk', 'one', 'late22'); pays('Both Ways', 'one', 'longShift', 'fitSat', 'fitSun'); pays('Home Grown', 'closerSat', 'one', 'fitWk', 'fitSat', 'fitSun');
 const ekft = ['Even Keel', 'Fine Tune']; ekft.forEach(n => pays(n, 'late23', 'mixed', 'block', 'fitSat')); pays('Fine Tune', 'one');
 pays('Second Edition', 'fixedRun'); pays('Fair Share', 'newT', 'fitSun'); pays('Long Break', 'fixedRun', 'iso', 'one', 'step'); pays('Clean Slate', 'newT', 'times', 'satNew');
+// TODAY'S THREE (4 Nov 2026, owner: "Do a proposal sheet for all of today's work. Put them into the repo"): Quarter Past, supplied as
+// a one-page roster; Quarter Past Relaid, its duties in new weeks; Short Openers, the Relaid with eight-hour openers and 15:45
+// closers on a weekday. What each pays, as the rows below say
+pays('Quarter Past', 'wkOff', 'gap', 'iso', 'one'); pays('Quarter Past Relaid', 'rest', 'iso', 'newT'); pays('Short Openers', 'rest', 'iso', 'lvWorst');
 const LB = O['Long Break'].F, SL = O['Second Look'].F;
+const QPx = O['Quarter Past'].F, QRx = O['Quarter Past Relaid'].F, SOx = O['Short Openers'].F;
+// page 2's two rows for them, each sentence asserted: Quarter Past's 16:15 weekday closer; the Relaid and Short Openers sharing one
+// row because they share every figure it gives — today's 30 days for 14 days' leave, a fifth single rest day and the 13h 15m rest
+claim('Quarter Past: a 16:15 weekday closer', Object.values(QPx.p).every(r => ['mon', 'tue', 'wed', 'thu', 'fri'].every(d => !String(r[d]).endsWith('23:55') || r[d] === '16:15-23:55')));
+claim('Quarter Past Relaid and Short Openers: today’s 30 days off for 14 days’ leave, a fifth single rest day and a 13h 15m rest, both',
+  TF.lv.best === 30 && [QRx, SOx].every(F => F.lv.best === 30 && F.A.feel.isolatedRest === iso + 1 && F.A.rest.minutes === 795));
 pays('Second Look', 'fixedRun', 'one');
 const PACK = [...D, ...others], CT = O['Closing Time'].F, HG = O['Home Grown'].F, CS = O['Clean Slate'].F, NX = O['Next Step'].F;
 // THE TWO THAT JOINED AFTER THE SHORTLIST (3 Nov 2026), read from fresh.mjs's FIRST: every design first drawn after the last
-// shortlisted one. The page-1 lead and the page-2 table name them; a third would need its own row before the sheet prints
+// shortlisted one. The page-1 lead counts them and the page-2 table names them (six since 4 Nov 2026); another would need its
+// own row before the sheet prints
 const dateOf = code => { const s = FIRST[code]; if (!s) throw new Error(`fresh.mjs has no first date for ${code}`); return new Date(s).getTime(); };
 const drawn = Math.max(...D.map(d => dateOf(d.code))), LATE = others.filter(d => dateOf(d.code) > drawn).map(d => d.name).sort();
-claim('Clean Slate, Fair Share and Next Step joined the pack after the shortlist was drawn, and no other design did', LATE.join() === 'Clean Slate,Fair Share,Next Step');
+claim('Clean Slate, Fair Share, Next Step and today’s three joined the pack after the shortlist was drawn, and no other design did',
+  LATE.join() === 'Clean Slate,Fair Share,Next Step,Quarter Past,Quarter Past Relaid,Short Openers');
 // the shortlist's date is the day its last design joined (Even Step's, read from FIRST, so the lead never types it)
 claim('the shortlist was drawn the day Even Step joined, the last of the three', dateOf(ES.code) === drawn);
-const joined = name => { if (!LATE.includes(name)) throw new Error(`${name} did not join after the shortlist`); return ` <span class="late">· joined ${esc(FIRST[O[name].code])}</span>`; };
+// the late designs are the LAST rows of page 2's table, under one note in its heading that names the first of them (4 Nov
+// 2026: a date on each row wrapped "Quarter Past Relaid, Short Openers"). Typed here, and held to the printed table below
+const FIRST_LATE = 'Clean Slate';
 // Closing Time's Saturday fit was the best of all until Clean Slate (3 Nov 2026): its row now says "a closer Saturday fit",
 // which `keeps` asserts against the three, and Clean Slate's says "the best of all", asserted here
 claim('Clean Slate: the best Saturday and Sunday fit of all, and the most weeks on one turn', PACK.every(d => d.name === 'Clean Slate'
@@ -245,7 +270,10 @@ claim('Fair Share: no shift over 8h 30m on any day — but a weaker Sunday fit t
 claim('Even Keel and Fine Tune: four to the Saturday close, where the three have three', ekft.every(n => O[n].F.A.heads.close.sat === 4) && D.every(d => d.F.A.heads.close.sat === 3));
 // SECOND LOOK'S ROW SAYS WHAT IT ALONE HAS (3 Nov 2026): "blocks a week shorter" was shared with the three Second designs
 // withdrawn that day; what no other design has is a worst case with no 55-hour week, however the cover weeks fall
-claim('Second Look: the only design where a badly placed cover week makes no 55-hour week', PACK.every(d => d.name === 'Second Look' ? !h55Of(d.F)?.adds : !!h55Of(d.F)?.adds));
+// Since 4 Nov 2026 Quarter Past Relaid and Short Openers have none either (the Friday before every cover week is off), so the
+// claim pins who shares it rather than saying "only"
+claim('Second Look, Quarter Past Relaid and Short Openers: the designs where a badly placed cover week makes no 55-hour week',
+  PACK.filter(d => !h55Of(d.F)?.adds).map(d => d.name).sort().join() === 'Quarter Past Relaid,Second Look,Short Openers');
 claim('Closing Time: more even weeks', (O['Closing Time'].F.heavy - O['Closing Time'].F.light) < lowest(F => F.heavy - F.light));
 claim('Home Grown: the fewest new times of all', others.every(d => d.name === 'Home Grown' || d.F.newT > O['Home Grown'].F.newT) && O['Home Grown'].F.newT < lowest(F => F.newT));
 claim('Long Break: a fifth single rest day', LB.A.feel.isolatedRest === iso + 1);
@@ -319,12 +347,19 @@ claim('weighted as before: In Step first, under a point ahead of Even Step', ran
 claim('In Step has the most long earlies of any design here', stats.every(s => s.name === 'In Step' || longEarly(design(s.name).F) < longEarly(IF)));
 // the guide's rows for designs outside the shortlist: each the strongest in the league of those that have its edge
 const allD = stats.map(s => design(s.name)), strongest = (test) => { const has = allD.filter(d => test(d.F)); return has.sort((a, b) => total(b.name) - total(a.name)).map(d => d.name); };
-const minClose = Math.min(...allD.map(d => d.F.closers[0] + d.F.closers[1]));
-const shortClosers = strongest(F => F.closers[0] + F.closers[1] === minClose), fourth = strongest(F => F.A.heads.close.sat === 4);
-claim('the shortest closers: Closing Time, then Both Ways', shortClosers.join() === 'Closing Time,Both Ways');
+// A 16:00 CLOSER MONDAY TO SATURDAY, SHORTER THAN THE THREE'S (4 Nov 2026). The row said "the shortest closers of all" until
+// Quarter Past joined: its 16:15 weekday closer is shorter than Closing Time's and its 15:45 Saturday one longer, the two level
+// only when added together. So the row names what Closing Time and Both Ways alone have, read from the grids: every closer
+// Monday to Saturday the 16:00, and each day's shorter than every one of the three's
+const fourth = strongest(F => F.A.heads.close.sat === 4);
+const shortEvery = strongest(F => F.closers[0] < lowest(G => G.closers[0]) && F.closers[1] < lowest(G => G.closers[1]));
+const closesAt = (F, t) => Object.values(F.p).every(r => MS.every(d => !String(r[d]).endsWith('23:55') || r[d] === t));
+claim('a 16:00 closer Monday to Saturday, shorter than the three’s: Closing Time, Both Ways too', shortEvery.join() === 'Closing Time,Both Ways'
+  && shortEvery.every(n => closesAt(design(n).F, '16:00-23:55')) && !closesAt(O['Quarter Past'].F, '16:00-23:55'));
 claim('a fourth to the Saturday close: Even Keel, then Fine Tune', fourth.join() === 'Even Keel,Fine Tune');
 claim('the steadiest start times: Second Edition', allD.every(d => d.name === 'Second Edition' || d.F.step > O['Second Edition'].F.step));
-claim('four weeks off for today’s 14 days: Long Break alone', allD.filter(d => d.F.lv.fourWeeks <= TF.lv.fourWeeks).map(d => d.name).join() === 'Long Break' && TF.lv.fourWeeks === 14);
+const fourWk = strongest(F => F.lv.fourWeeks <= TF.lv.fourWeeks);
+claim('four weeks off for today’s 14 days: Short Openers first, Long Break and Quarter Past Relaid too', fourWk.join() === 'Short Openers,Long Break,Quarter Past Relaid' && TF.lv.fourWeeks === 14);
 claim('the fewest new shift times: Home Grown, two', allD.every(d => d.name === 'Home Grown' || d.F.newT > HG.newT) && HG.newT === 2);
 
 // page 2, the honest costs all three share
@@ -426,9 +461,9 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast h1 { margin: 2px 0; font-size: 22px; font-weight: 800; color: white; letter-spacing: -.2px; }
 .mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; text-wrap: balance; }
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
-h2 { font-size: 14px; color: var(--primary-blue); margin: 8px 0 3px; font-weight: 800; } h2 .note { font-size: 10.4px; font-weight: 400; color: var(--text-mid); margin-left: 6px; }
+h2 { font-size: 14px; color: var(--primary-blue); margin: 7px 0 2px; font-weight: 800; } h2 .note { font-size: 10.4px; font-weight: 400; color: var(--text-mid); margin-left: 6px; }
 p { margin: 3px 0 6px; } .muted { color: var(--text-mid); } .lead { font-size: 11.6px; }
-table.t { border-collapse: collapse; width: 100%; font-size: 10.2px; line-height: 1.32; }
+table.t { border-collapse: collapse; width: 100%; font-size: 10.2px; line-height: 1.28; }
 table.t th, table.t td { padding: 1.5px 7px 2px; border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: top; }
 table.t th { background: var(--surface-sunken); color: var(--text-mid); font-size: 9.2px; text-transform: uppercase; letter-spacing: .3px; }
 table.t th.num, table.t td.num { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; } table.t th.num { white-space: normal; }   /* a design's name may wrap; its figures never do */
@@ -436,8 +471,8 @@ table.t td.today { color: var(--text-light); }
 table.t td.best, table.t .bestv { font-weight: 800; color: color-mix(in srgb, var(--success-green) 80%, black); }
 table.t td.all { color: var(--text-mid); }
 table.t.t-today3 td.all3 { font-weight: 700; color: var(--text-dark, #1a1a2e); } table.t.t-today3 th:nth-child(2), table.t.t-today3 th:nth-child(3) { width: 22%; }
-table.t.alts td:first-child { width: 30%; font-weight: 700; color: var(--text-dark, #1a1a2e); } table.t.alts .late { font-weight: 400; color: var(--text-light); }   /* the date a design joined after the shortlist */
-table.t.alts td { padding-block: 1px 1.5px; }   /* nine rows since 3 Nov 2026, ten since 4 Nov: a pixel off each keeps page 2 on its page */
+table.t.alts td:first-child { width: 30%; font-weight: 700; color: var(--text-dark, #1a1a2e); }
+table.t.alts td { padding-block: 1px 1.5px; }   /* nine rows since 3 Nov 2026, twelve since 4 Nov: a pixel off each keeps page 2 on its page */
 table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
 /* three cards side by side since 31 Oct 2026: two to a row left the third alone on a row of its own */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; margin: 6px 0 2px; }
@@ -449,9 +484,9 @@ table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surfa
 .card .code { font-size: 9px; color: var(--text-light); }
 .card .edge { margin-right: 3px; } .card .head { display: block; margin-bottom: 1px; }
 .t.guide { margin-top: 4px; } .t.guide td:last-child { white-space: nowrap; }
-.callout { border-left: 3px solid var(--accent-gold); background: var(--surface-sunken); padding: 8px 13px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin: 7px 0; font-size: 10.9px; line-height: 1.42; }
+.callout { border-left: 3px solid var(--accent-gold); background: var(--surface-sunken); padding: 7px 13px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin: 6px 0; font-size: 10.9px; line-height: 1.42; }
 .pick { border-left-color: var(--success-green); }
-ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height: 1.4; } ul.list li { margin: 3px 0; }
+ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height: 1.36; } ul.list li { margin: 2px 0; }
 .shared { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 20px; font-size: 10.5px; line-height: 1.38; margin: 5px 0 3px; } .shared div::before { content: '✓ '; color: var(--success-green); font-weight: 800; }
 .foot { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8.5px; color: var(--text-light); border-top: 1px solid var(--border-light); padding-top: 4px; }
 .foot b { color: var(--primary-blue); }
@@ -466,7 +501,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
 
   <h2>What ${both} share</h2>
-  <p class="lead">${Word(stats.length)} designs are in the pack; these ${N} were shortlisted before ${list(LATE)} joined. Everything below holds for ${both}, each line better than or level with today; what they share that is worse than today is on page 2.</p>
+  <p class="lead">${Word(stats.length)} designs are in the pack; these ${N} were shortlisted before ${word(LATE.length)} more joined. Everything below holds for ${both}, each line better than or level with today; what they share that is worse than today is on page 2.</p>
   <div class="shared">
     <div>All <b>${met} of ${shared('rules scored', F => F.of)}</b> December staffing rules (today ${TF.met}), and all three flexible ones: 14 on a Saturday, evenly spaced cover weeks, weekday closers from 15:45</div>
     <div><b>No avoidable fatigue warning</b>, cover weeks aside; one if a cover week falls badly — over 55 hours in seven days. Never more than <b>${word(run)} days in a row</b>, cover weeks aside; ${word(worstRun)} if a cover week falls badly (today ${TF.A.fixed.present} warnings, up to ${TF.A.fatigue.present}; ${word(TF.fixedRun)} days, up to ${word(TF.worstRun)})</div>
@@ -492,11 +527,12 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Of these three, no shift over 8h&nbsp;30m from Monday to Saturday</td><td><b>Even Step</b></td></tr>
     <tr><td>Of these three, the steadiest weekly hours and the most early finishes</td><td><b>In Step</b></td></tr>
     <tr><td>Of these three, the closest weekday fit and the shortest weekday lates</td><td><b>Short Run</b></td></tr>
-    <tr><td>The shortest closers of all: 16:00 Monday to Saturday</td><td><b>Closing Time</b> <span class="muted">· outside the shortlist, as is Both Ways</span></td></tr>
-    <tr><td>The fewest new shift times: two</td><td><b>Home Grown</b> <span class="muted">· outside the shortlist</span></td></tr>
-    <tr><td>A fourth person to the Saturday close</td><td><b>Even Keel</b> <span class="muted">· outside the shortlist, as is Fine Tune</span></td></tr>
-    <tr><td>The steadiest start times from week to week</td><td><b>Second Edition</b> <span class="muted">· outside the shortlist</span></td></tr>
-    <tr><td>Four weeks off for 14 days’ leave, as today</td><td><b>Long Break</b> <span class="muted">· outside the shortlist</span></td></tr>
+    <tr class="grp"><th colspan="2">Outside the shortlist</th></tr>
+    <tr><td>A 16:00 closer Monday to Saturday, shorter than the ${N}’s</td><td><b>Closing Time</b> <span class="muted">· Both Ways too</span></td></tr>
+    <tr><td>The fewest new shift times: two</td><td><b>Home Grown</b></td></tr>
+    <tr><td>A fourth person to the Saturday close</td><td><b>Even Keel</b> <span class="muted">· Fine Tune too</span></td></tr>
+    <tr><td>The steadiest start times from week to week</td><td><b>Second Edition</b></td></tr>
+    <tr><td>Four weeks off for 14 days’ leave, as today</td><td><b>Short Openers</b> <span class="muted">· Long Break and Quarter Past Relaid too</span></td></tr>
   </tbody></table>
   <div class="foot"><span>Page 1 of 2 — What they share, where they differ, which to choose</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Links designer</span></div>
 </section>
@@ -508,7 +544,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <h2>Against today’s link<span class="note">a year: the rotation’s count scaled to 52 weeks; days a year and full weekends off on page 1, the leave below</span></h2>
   <table class="t${allShared ? ' t-today3' : ''}"><thead><tr>${todayHead}</tr></thead><tbody>${todayHtml}</tbody></table>
 
-  <h2>Why these ${N} and not the other ${word(others.length)}</h2>
+  <h2>Why these ${N} and not the other ${word(others.length)}<span class="note">${FIRST_LATE} and those below it joined after the shortlist was drawn</span></h2>
   <p class="lead">These ${N} were shortlisted on ${FIRST[ES.code]} as balancing best what weighs most here — days in a row, weekends, one shift time a week, late finishes and the closing shift. Each of the others keeps something none of the ${N} has, and pays for it.</p>
   <table class="t alts"><tbody>
     <tr><td>Closing Time</td><td>shorter closers and a closer Saturday fit — but fewer weeks on one turn and a weaker weekday fit</td></tr>
@@ -518,9 +554,11 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Second Edition</td><td>the steadiest start times from week to week — but ${word(O['Second Edition'].F.fixedRun)} days in a row, cover weeks aside</td></tr>
     <tr><td>Long Break</td><td>four weeks off for ${LB.lv.fourWeeks} days’ leave — but ${word(LB.fixedRun)} days in a row and a ${ord(LB.A.feel.isolatedRest)} single rest day</td></tr>
     <tr><td>Second Look</td><td>no 55-hour week at all — but ${word(SL.fixedRun)} days in a row and fewer weeks on one turn</td></tr>
-    <tr><td>Clean Slate${joined('Clean Slate')}</td><td>the best weekend fit of all and the most weeks on one turn — but ${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday</td></tr>
-    <tr><td>Next Step${joined('Next Step')}</td><td>Even Step with a closer weekday fit and a gentler change of start — but one more new time</td></tr>
-    <tr><td>Fair Share${joined('Fair Share')}</td><td>Next Step with an even Sunday and no shift over 8h&nbsp;30m — but a weaker Sunday fit and a new time</td></tr>
+    <tr><td>Clean Slate</td><td>the best weekend fit of all and the most weeks on one turn — but ${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday</td></tr>
+    <tr><td>Next Step</td><td>Even Step with a closer weekday fit and a gentler change of start — but one more new time</td></tr>
+    <tr><td>Fair Share</td><td>Next Step with an even Sunday and no shift over 8h&nbsp;30m — but a weaker Sunday fit and a new time</td></tr>
+    <tr><td>Quarter Past</td><td>a 16:15 weekday closer and shorter blocks — but ${QPx.A.feel.isolatedRest} single rest days and ${word(QPx.A.checks.weekendsOff)} full weekends in ${LINES}</td></tr>
+    <tr><td>Quarter Past Relaid, Short Openers</td><td>${QRx.lv.best} days off for 14 days’ leave, as today — but a ${ord(QRx.A.feel.isolatedRest)} single rest day and a ${hm(QRx.A.rest.minutes)} rest</td></tr>
   </tbody></table>
 
   <h2>The honest costs, shared by ${both}</h2>
@@ -529,7 +567,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <li><b>Longer blocks.</b> Up to ${blockF} weeks in a row of earlies, or of lates, ${blockW} if the cover weeks beside them go the same way (today ${TF.block.fixed}, up to ${TF.block.worst}).</li>
     <li><b>Shorter breaks.</b> Every rest-day break is one day or two; today ${word(longRest(TF))} of its ${TF.A.feel.restIslands} are three or four days, about ${longRestYear(TF)} a year each.</li>
     <li><b>Early finishes.</b> Fewer before 14:00 than today’s ${earlyOff(TF)} a year each: ${earlyOff(EF)} on Even Step, ${earlyOff(IF)} on In Step, none on Short Run.</li>
-    <li><b>Leave.</b> 14 days’ leave buys at best ${shared('best leave stretch', F => F.lv.best)} days off, not today’s ${TF.lv.best}, and four complete weeks off in a row, Sunday to Saturday, take ${shared('leave for four weeks', F => F.lv.fourWeeks)} days’ leave, not ${TF.lv.fourWeeks} — the two that people plan a year around; of the whole pack, only Long Break keeps four weeks for ${TF.lv.fourWeeks}. At worst 14 days buys ${shared('worst leave stretch', F => F.lv.worst)} days off, a day more than today’s ${TF.lv.worst}.</li>
+    <li><b>Leave.</b> 14 days’ leave buys at best ${shared('best leave stretch', F => F.lv.best)} days off, not today’s ${TF.lv.best}, and four complete weeks off in a row, Sunday to Saturday, take ${shared('leave for four weeks', F => F.lv.fourWeeks)} days’ leave, not ${TF.lv.fourWeeks} — the two that people plan a year around; of the whole pack, only ${list([...fourWk].sort())} ${many(fourWk.length, 'keeps', 'keep')} four weeks for ${TF.lv.fourWeeks}. At worst 14 days buys ${shared('worst leave stretch', F => F.lv.worst)} days off, a day more than today’s ${TF.lv.worst}.</li>
     <li><b>Saturdays.</b> About ${shared('Saturdays a year', F => Math.round(F.pp.sat)) - Math.round(TF.pp.sat)} more a year (${Math.round(EF.pp.sat)}, today ${Math.round(TF.pp.sat)}): ${word(shared('Saturday duties', F => F.satDuties))} on a Saturday, the flexible rule, across ${LINES} lines (today ${word(TF.satDuties)} across ${TF.pp.L}).</li>
     <li><b>New times.</b> ${EF.newT} of Even Step’s ${EF.times} shift times are new, ${IF.newT} of ${IF.times} on the other two: on Even Step ${word(shorterLates(EF))} shorter versions of today’s lates, a <span class="nw">12:15–20:30</span> and the Sunday early; on In Step ${word(shorterLates(IF))} shorter lates and ${word(longerEarlies(IF))} longer weekday earlies; on Short Run ${word(shorterLates(SF))} shorter lates and ${word(longerEarlies(SF))} longer weekday ${many(longerEarlies(SF), 'early', 'earlies')}. ${Both} add the 9-hour Sunday early, 09:00–18:00.</li>
   </ul>
@@ -551,6 +589,11 @@ const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace
   .replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt
     .replace(/\b(\d+) (to|in|of) (\d+)\b/g, '$1\u00a0$2\u00a0$3').replace(/\b(\d+) a year\b/g, '$1\u00a0a\u00a0year')
     .replace(/\b(today|Sun|Sat) (?=\d)/g, '$1\u00a0'));
+// page 2's table names every other design once, the late ones last, from FIRST_LATE down — as its heading's note says
+{ const rows = [...html.match(/<table class="t alts">([\s\S]*?)<\/table>/)[1].matchAll(/<tr><td>([^<]+)<\/td>/g)].map(m => m[1].split(', '));
+  const names = rows.flat(), at = names.indexOf(FIRST_LATE);
+  claim(`${FIRST_LATE} and those below it joined after the shortlist was drawn`, at > 0 && rows[0].length
+    && [...names].sort().join() === others.map(d => d.name).sort().join() && names.slice(at).sort().join() === LATE.join()); }
 const htmlOut = new URL('links-26-shortlist.html', import.meta.url).pathname; const htmlTidy = tidy(html); writeFileSync(htmlOut, htmlTidy);   // beside the tooling, gitignored
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
