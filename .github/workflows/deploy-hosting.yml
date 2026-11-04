@@ -127,7 +127,7 @@ jobs:
       contents: read
       id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # THE GATE RUNS ON NODE 22, like every PR test lane (48-hour review). The PR lanes moved to 22
       # on 26 Sep 2026 while this job kept testing on 20, so a suite green on 22 and red on 20 passed
@@ -292,7 +292,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/report-deploy-failure
         with:
           target: 'Firebase Hosting'
