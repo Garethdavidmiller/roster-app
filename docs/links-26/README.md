@@ -123,6 +123,7 @@ still be rebuilt.
 | options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
 | fatigue values | `factors-like.mjs` | every fatigue factor's own value, on the fixed duties and in the worst case, against a reference grid; exits 1 if any is worse (`space-polish.mjs`'s `FACTORS_LIKE` holds a search to the same comparison) |
 | whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen (see "Closing Time, improved" and "In Step") |
+| rest days with a leave rule | `leave-layouts.py` | the rest days alone for CP-SAT, with what 14 days' leave buys as a rule (`LV_BEST=`, `LV_WORST=`, `LV_FOUR=`), for `exact-rota.py`'s `SKELETON=` to lay a table's times on; `FRIOFF=1` keeps the Friday before every cover week off (no 55-hour week however the cover weeks fall), `HINT=` to climb from a valid layout, `FIX=` to check one (see "Quarter Past Re-laid") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
 - **No 24-line default leaks through.** The app functions that default to 24 lines (`runDesignChecks`, `assessFatigue`,
@@ -3228,6 +3229,94 @@ owner to look at, not a design in the pack: it has no name, sheet or import file
   Fair Share is.
 - **Not changed:** the decks, "What it means if you…", the New link page and the Links designer's built-in examples
   (the shortlist's three).
+
+## Quarter Past Re-laid — 30 days off for 14 days' leave (4 Nov 2026)
+
+**The question** (owner, 4 Nov 2026, of Quarter Past above): *"Can you adjust quarter past to keep the 14 days off to buy
+30 days annual leave (sundays can be made not available) but meet all the other fatigue rules, maximise weekends off,
+double day rest days and weeks on one time. Is this possible? (whilst meeting all the other requirements)"*.
+
+**Read as** Quarter Past's duties exactly — every shift time and every day's headcount — laid into new weeks so that:
+1. somewhere in the rotation 14 days' leave buys 30 days off in a row, by `leave.mjs`'s count: a Monday-to-Saturday
+   duty costs a day of leave, a rest day none, a Sunday none (it is overtime, so it can be made not available), and a
+   cover week at most four. Today's link buys 30, Quarter Past as supplied 27, the pack 27 to 29;
+2. there is no fatigue warning in the fixed duties;
+3. then, in the order asked: the most full weekends, the fewest single rest days, the most weeks on one shift time;
+4. and everything else still holds: every hard limit, all 9 December rules and the 3 flexible ones. The rules about the
+   duties hold because the duties are Quarter Past's; the ones that depend on the arrangement were checked again.
+
+**The answer is yes: Quarter Past Re-laid** (`QR-26-EXT` · **`544e1ee8`**; `tooling/results/quarter-past-re-laid.json`,
+with a `.meta.json`; its duty table is Quarter Past's, `results/quarter-past-table.json`). Every day has Quarter Past's
+duties; 24 of the 147 working cells are where Quarter Past had them.
+
+| | Today | Quarter Past | **Quarter Past Re-laid** | Even Step |
+|---|---|---|---|---|
+| 14 days' leave buys: best · average · worst; leave for four weeks off | 30 · 23.4 · 19 · 14 | 27 · 23.4 · 19 · 15 | **30 · 23.4 · 19 · 14** | 28 · 23.4 · 20 · 15 |
+| Fatigue warnings, fixed duties (up to) | 4 (5) | 3 (5) | **0 (0)** | 0 (1) |
+| Worst seven days, a cover week placed every way | 60.8 hours | 57.0 | **51.7** | 56.8 |
+| Full weekends off a year (longest wait) | 10 (7 weeks) | 6 (20) | **14 (5)** | 14 (5) |
+| Single rest days | 4 | 31 | **5** | 4 |
+| Weeks on one shift time | 7 of 16 | 3 of 21 | **18 of 21** | 18 of 21 |
+| Most days in a row, fixed (cover week badly) | 7 (9) | 5 (7) | **5 (6)** | 5 (7) |
+| Shortest rest | 12h 30m | 13h 15m | **13h 15m** | 14h 35m |
+| Heaviest week, Monday to Saturday | 43h 50m | 42h 40m | **42h 30m** | 41h 30m |
+| Start-time change, week to week | 4h 00m | 4h 39m | **1h 17m** | 1h 31m |
+| Weighted league (`REF_IN_RANGE=1`, the usual table) | 16.7 | 49.1 | **80.3** | 85.4 |
+
+**What it gains:**
+- **30 days off for 14 days' leave, as today**, where every design in the pack buys 27 to 29; and today's other three
+  leave figures exactly.
+- **No fatigue warning even if a cover week falls badly.** The Friday before every cover week is off. A worked Friday and
+  Saturday, then a cover week worked Sunday to Thursday, is how the proposals reach 55 hours in seven days (their "up
+  to 1"); here the worst seven days come to 51.7 hours. Second Look is the only other design in the pack with no "up to".
+- **At most 6 days in a row however the cover weeks fall**, where every proposal but Second Look reaches 7.
+
+**What it costs:**
+- **One more single rest day than the proposals: 5, against 4** (today 4). Every layout found with 30 days for 14 had at
+  least 5, in about a dozen searches of up to fifteen minutes each from several starts, including ones allowed a
+  three-day week or a sixth full weekend in place of a seventh. None had 4, and none could show 4 impossible either.
+- **Its shortest rest is Quarter Past's own 13h 15m**: the Sunday 09:00–18:00, then a Monday 07:15. The proposals'
+  are 14h 20m to 14h 35m. Lifting it needs that Sunday on an early week with Monday off; two fifteen-minute searches for
+  such a layout, holding the Friday rule and today's leave figures, found none. It is over the 12 hours of the rule,
+  and no fatigue factor fires.
+- **Quarter Past's duties come with it**: the fit to the trains (36.3 · 10.0 · 29.0, against the shortlist's 29.1 to
+  32.6 on a weekday), 8 shift times new to the station, 40 shifts a year each over 8h 30m Monday to Saturday (today 31),
+  and 42 finishes a year at 23:00 or later. So do its 7h 45m closing shifts, the shortest in the pack.
+
+**18 weeks on one shift time, or a lighter week.** On the first layout found, before the Friday rule, the 18th week on
+one shift time cost 2h 50m on the heaviest week — 43h 45m, against 40h 55m with 17 — because it put one week on
+13:45–22:30 every weekday. The Friday rule's layouts made it 42h 30m with 18, against 41h 30m with 17. The owner asked
+for the most weeks on one shift time, so it has 18.
+
+**How it was laid.** In two stages, because `exact-rota.py`, asked for the 30 days on Quarter Past's times, found nothing
+in twenty minutes:
+1. **The rest days**, with the leave figure as a rule: `leave-layouts.py` (new) — `exact-skeletons.py`'s rules with
+   `exact-rota.py`'s FF11, BLOCK and leave count. From Even Step's layout it climbed to the cheapest 30 days (15 days of
+   leave, with 4 single rest days), let the single rest days go to 6 (13), asked for 30 days for 14 with the fewest
+   single rest days (5), kept every Friday before a cover week off (`FRIOFF=1`), and then held today's worst stretch and
+   four-week figure (`LV_WORST=19 LV_FOUR=14`).
+2. **Quarter Past's times** on that layout, with `exact-rota.py` (`SKELETON=`, `FAMILY=1`): the most weeks on one shift
+   time (18, proved the most that layout allows), then the lightest heaviest week holding 18 (42h 30m, proved), then
+   the gentlest change of start holding both (1h 17m, proved), with the 13h 15m shortest rest the longest that
+   layout allows.
+
+`FIX=` confirms the grid against both models, and that it fails at 4 single rest days, at 31 days for 14 and at a
+13h 16m rest. Every figure on its sheet comes from the cells through the app's own modules, as for every design.
+
+**Beside Fair Share's answer** (above): on Fair Share's duties the same 30 days came with 16 weeks of 21 on one shift
+time and 6 single rest days; on Quarter Past's, with 18 and 5.
+
+**In the league** it scores 80.3, on the range the usual table already uses, as Quarter Past was (49.1), so no other
+score moves: below every proposal (80.5 to 85.4). The gap is mostly Quarter Past's duties — the fit, the new shift
+times, the long earlies — then the 13h 15m rest and the fifth single rest day; it takes full marks on fatigue and on the
+best leave stretch. Like Quarter Past, it is a design to look at, not one of the proposals.
+
+**Its sheet** renders as Quarter Past's does, in eight pages; the PDF and its import file are not committed. From
+`tooling/`:
+
+```
+OUT=/tmp/Quarter-Past-Re-laid.pdf node supplied.mjs results/quarter-past-re-laid.json "Quarter Past Re-laid" "Quarter Past's shifts in new weeks: 14 days' leave buys 30 days off, as today, with no fatigue warning and seven full weekends" QR-26-EXT
+```
 
 ## Notes for the whole set
 
