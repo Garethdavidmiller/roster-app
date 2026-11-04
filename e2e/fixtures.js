@@ -74,23 +74,56 @@ export const serverTimestamp = () => marker('ts');
 // two separate passes over the same state that can disagree (a button promising 4 while 3 are
 // written is exactly the bug worth catching). Recording is additive: every existing caller still
 // sees a working batch.
+// A COMMITTED batch lands in the docsByQuery seed (Nov 2026), the way a real one lands in the
+// database: its sets replace their rows whole and its deletes remove them, in the order they were
+// queued. Opt-in like the seed itself — a collection the seed does not name is untouched, so no
+// spec written before this sees a different page. It is what lets a spec watch the Old-format
+// records card count again AFTER its conversion, rather than only reading what was sent.
+// (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+const landInQuerySeed = (/** @type {any[]} */ ops) => {
+  const seed = (globalThis.__E2E || {}).docsByQuery;
+  if (!seed) return;
+  for (const [kind, ref, data] of ops) {
+    const parts = String((ref && ref.path) || '').split('/');
+    if (parts.length < 2) continue;
+    const id = parts[parts.length - 1];
+    const col = parts[parts.length - 2];
+    if (!Array.isArray(seed[col])) continue;
+    seed[col] = seed[col].filter((/** @type {any} */ r) => r.id !== id);
+    if (kind === 'set') seed[col].push(Object.assign({ id }, data));
+  }
+};
 export const writeBatch = () => {
     const e2e = globalThis.__E2E || (globalThis.__E2E = {});
     e2e.batchWrites = e2e.batchWrites || [];
+    /** @type {any[]} */
+    const queued = [];
     return {
-        set: (/** @type {any} */ _ref, /** @type {any} */ data) => { e2e.batchWrites.push(data); },
+        // batchWrites keeps the payload alone, as every existing spec reads it; batchSets (Nov 2026)
+        // adds the PATH, because a rewrite is only right if it lands on the document it was read from.
+        set: (/** @type {any} */ ref, /** @type {any} */ data) => {
+            e2e.batchWrites.push(data);
+            (e2e.batchSets = e2e.batchSets || []).push({ path: String((ref && ref.path) || ''), data });
+            queued.push(['set', ref, data]);
+        },
         update: noop,
         // RECORDED (Oct 2026), not discarded: the roster re-import defect was a DELETE, and a
         // harness that drops deletes cannot see one happen.
-        delete: (/** @type {any} */ ref) => { (e2e.batchDeletes = e2e.batchDeletes || []).push(String(ref?.path || '')); },
+        delete: (/** @type {any} */ ref) => {
+            (e2e.batchDeletes = e2e.batchDeletes || []).push(String(ref?.path || ''));
+            queued.push(['delete', ref]);
+        },
         // HOLD SEAM (v24.21): with window.__E2E.holdCommits set, a commit stays pending until the
         // test calls window.__E2E.releaseCommits() — the way a real commit waits on a weak signal
         // for the server's answer. That wait is what slow-save.js explains, and without a way to
         // make it happen here the notice could only be tested as a unit, never as wired.
+        // window.__E2E.failCommits makes a commit REJECT and land nothing (Nov 2026) — the atomic
+        // failure a real batch has, which a converter must report as "nothing was changed".
         commit: () => {
-            if (!e2e.holdCommits) return Promise.resolve();
+            if (e2e.failCommits) return Promise.reject(Object.assign(new Error('e2e: commit failed'), { code: 'unavailable' }));
+            if (!e2e.holdCommits) { landInQuerySeed(queued); return Promise.resolve(); }
             return new Promise(resolve => {
-                (e2e._held = e2e._held || []).push(resolve);
+                (e2e._held = e2e._held || []).push(() => { landInQuerySeed(queued); resolve(undefined); });
                 e2e.releaseCommits = () => { const h = e2e._held || []; e2e._held = []; h.forEach(r => r()); };
             });
         },

@@ -162,15 +162,21 @@ export const CARD_TIPS = {
         sections: [
             { heading: 'What it counts', items: [
                 { icon: '🗂️', html: 'Shift changes saved as <strong>Allocated shift</strong>, <strong>Overtime</strong> or <strong>Swap</strong> — types the app once offered and no longer creates. Today the same days are recorded as <strong>Shift</strong> or <strong>RDW</strong>' },
-                { icon: '👀', html: 'They still show in the Calendar, and Admin’s Saved Changes marks each one <strong>old format</strong>. This card only counts them — it changes nothing' },
+                { icon: '👀', html: 'They still show in the Calendar, and Admin’s Saved Changes marks each one <strong>old format</strong>' },
             ]},
             { heading: 'What the figures mean', items: [
                 { icon: '🔢', html: 'The count is taken on the server without downloading the records, so it is cheap and always up to date when the page opens' },
                 { icon: '📅', html: 'Opening the card reads the records themselves to group them by year — the year of the day each change is for. That costs one read per record, so it happens only when you open the card' },
             ]},
+            { heading: 'Converting them', items: [
+                { icon: '🔍', html: '<strong>Show what would change</strong> lists every record and what it would become. Nothing is written until you press <strong>Convert</strong>' },
+                { icon: '🔁', html: 'Allocated shift and Swap become <strong>Shift</strong>. Overtime becomes <strong>RDW</strong> on a rest day and <strong>Shift</strong> on a rostered working day. Any of them on a Sunday becomes RDW, because a worked Sunday always is' },
+                { icon: '🗑️', html: 'A record that a newer change for the same day has already replaced is <strong>removed</strong> instead. It shows nowhere today, and saving it again would bring it back' },
+                { icon: '✋', html: 'A record the card cannot convert is <strong>left as it is</strong>, with the reason. Fix it by saving that day again in Admin’s Change a Shift' },
+                { icon: '🔒', html: 'Everything goes in one write, so if anything fails nothing changes. If any record it would change has changed since you looked, nothing is written and the new list is shown instead' },
+            ]},
             { heading: 'What happens next', items: [
                 { icon: '✅', html: '<strong>None left</strong> — the code that still reads the old formats can be removed, and this card goes with it' },
-                { icon: '🤔', html: '<strong>Some left</strong> — deciding what each type becomes is a choice to make first. Overtime is voluntary work like RDW; Allocated shift and Swap are contracted days like a Shift' },
             ]},
         ],
     },

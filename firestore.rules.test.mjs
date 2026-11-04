@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { nameToEmail } from './auth-identity.js';
 import { buildOverrideWrite } from './override-utils.js';
+import { planLegacyConversion, conversionWrite } from './operations-legacy.js';
 import { manualOverrideId } from './override-id.js';
 import { teamMembers } from './roster-member-data.js';
 import { buildAnalyticsClient } from './analytics-client.js';
@@ -503,6 +504,63 @@ describe('overrides — the real builder, and provenance the writer cannot forge
     test('source roster_import from anyone but the admin is REFUSED', async () => {
         await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), build({ source: 'roster_import' })));
         await assertFails(setDoc(doc(managerDb('S. Stewart'), 'overrides', uid()), build({ source: 'roster_import', changedBy: 'S. Stewart' })));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONVERTING AN OLD-FORMAT RECORD (v25.31). The Operations card rewrites `allocated`, `overtime` and
+// `swap` records as today's types. An old record may carry fields from before `hasOnly` existed and
+// a createdAt from months ago, so the ONLY rewrite the rules accept is a whole new document — which
+// is what the card sends (`conversionWrite`, through the real planner). These prove both halves.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('overrides — converting an old-format record (v25.31)', () => {
+    const namedAdminDb = () => testEnv.authenticatedContext('uid_admin_conv', memberClaims('G. Miller', { admin: true })).firestore();
+    const OLD = {
+        memberName: 'T. Member', date: '2026-03-03', type: 'swap', value: '06:20-14:20', note: 'old',
+        source: 'manual', changedBy: 'T. Member', fromBeforeHasOnly: true,
+    };
+    async function seed(/** @type {string} */ id, /** @type {any} */ extra = {}) {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'overrides', id), { ...OLD, createdAt: Timestamp.fromDate(new Date('2026-03-01T09:00:00Z')), ...extra });
+        });
+    }
+
+    test('patching the type in place is REFUSED — the stray field and the old createdAt both fail the rules', async () => {
+        await seed('conv_patch');
+        await assertFails(updateDoc(doc(namedAdminDb(), 'overrides', 'conv_patch'), { type: 'shift' }));
+    });
+
+    test('the card\'s whole-document rewrite, as the admin, is ACCEPTED', async () => {
+        await seed('conv_whole');
+        const data = { ...OLD, createdAt: Timestamp.fromDate(new Date('2026-03-01T09:00:00Z')) };
+        const plan = planLegacyConversion([{ id: 'conv_whole', data }], { adminName: 'G. Miller' });
+        assert.equal(plan.convert.length, 1);
+        await assertSucceeds(setDoc(doc(namedAdminDb(), 'overrides', 'conv_whole'), conversionWrite(plan.convert[0], serverTimestamp())));
+        /** @type {any} */ let after;   // withSecurityRulesDisabled resolves to nothing, so the read is captured
+        await testEnv.withSecurityRulesDisabled(async ctx => { after = (await getDoc(doc(ctx.firestore(), 'overrides', 'conv_whole'))).data(); });
+        assert.equal(after?.type, 'shift');
+        assert.equal(after?.changedBy, 'G. Miller');
+        assert.equal(after && 'fromBeforeHasOnly' in after, false, 'the stray field is gone');
+    });
+
+    test('a Sunday one becomes RDW, and the rules accept that too', async () => {
+        await seed('conv_sun', { date: '2026-03-01' });
+        const data = { ...OLD, date: '2026-03-01', createdAt: Timestamp.fromDate(new Date('2026-02-20T09:00:00Z')) };
+        const [c] = planLegacyConversion([{ id: 'conv_sun', data }], { adminName: 'G. Miller' }).convert;
+        assert.equal(c.to, 'rdw');
+        await assertSucceeds(setDoc(doc(namedAdminDb(), 'overrides', 'conv_sun'), conversionWrite(c, serverTimestamp())));
+    });
+
+    test('a member cannot run it on somebody else\'s record, even with the card\'s payload', async () => {
+        await seed('conv_member');
+        const data = { ...OLD, createdAt: Timestamp.fromDate(new Date('2026-03-01T09:00:00Z')) };
+        const [c] = planLegacyConversion([{ id: 'conv_member', data }], { adminName: 'S. Stewart' }).convert;
+        await assertFails(setDoc(doc(namedDb('S. Stewart'), 'overrides', 'conv_member'), conversionWrite(c, serverTimestamp())));
+    });
+
+    test('the admin can remove a superseded one', async () => {
+        await seed('conv_gone');
+        await assertSucceeds(deleteDoc(doc(namedAdminDb(), 'overrides', 'conv_gone')));
     });
 });
 

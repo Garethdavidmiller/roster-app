@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
-import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry, db, COLLECTIONS, collection, query, where, limit, getDocs, getCountFromServer } from './firebase-client.js';
+import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry, writeWithClaimRetry, db, COLLECTIONS, collection, query, where, limit, getDocs, getCountFromServer, doc, writeBatch, serverTimestamp } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
 import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
@@ -877,8 +877,10 @@ export function init() {
     initUsageCard();
     initPageSpeedCard();
     legacyCard = initLegacyCard({
-        reader: buildLegacyReader({ db, collectionName: COLLECTIONS.overrides, fs: { collection, query, where, limit, getDocs, getCountFromServer } }),
-        withClaimRetry, sessionReady,
+        reader: buildLegacyReader({ db, collectionName: COLLECTIONS.overrides,
+            fs: { collection, query, where, limit, getDocs, getCountFromServer, doc, writeBatch, serverTimestamp } }),
+        withClaimRetry, writeWithClaimRetry, confirmDialog, sessionReady,
+        getAdminName: () => currentUser,   // the rewrite's changedBy — the rules accept only the writer's own name
     });
 
     // ============================================
