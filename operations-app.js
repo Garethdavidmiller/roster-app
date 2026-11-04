@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
-import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
+import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry, db, COLLECTIONS, collection, query, where, limit, getDocs, getCountFromServer } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
 import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
@@ -18,6 +18,7 @@ import { initErrorLog } from './operations-errors.js';
 import { createAttentionStrip } from './operations-attention.js';
 import { initUsageCard } from './operations-usage.js';
 import { initPageSpeedCard } from './operations-speed.js';
+import { buildLegacyReader, initLegacyCard } from './operations-legacy.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
@@ -199,6 +200,11 @@ export function init() {
     initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
     initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
     initCardCollapse('pageSpeedToggleHeader',   'pageSpeedBody',   'pageSpeedChevron');
+    // Old-format records reads its YEARS on the first open, so its toggle is forwarded (the card
+    // is created further down, with the other monitoring cards; a toggle before then is a no-op).
+    /** @type {{ onToggle: (open: boolean) => void }|null} */
+    let legacyCard = null;
+    initCardCollapse('legacyRecordsToggleHeader', 'legacyRecordsBody', 'legacyRecordsChevron', (/** @type {boolean} */ open) => legacyCard?.onToggle(open));
 
     // Deep link from the reset-request push (v18.95). The notification lands the admin on this page,
     // which has nine collapsed cards — without this they would arrive and still have to go find the
@@ -870,6 +876,10 @@ export function init() {
     initErrorLog({ onAttention: (n, extra) => attention.report('errors', n, extra), onWithdraw: () => attention.withdraw('errors') });
     initUsageCard();
     initPageSpeedCard();
+    legacyCard = initLegacyCard({
+        reader: buildLegacyReader({ db, collectionName: COLLECTIONS.overrides, fs: { collection, query, where, limit, getDocs, getCountFromServer } }),
+        withClaimRetry, sessionReady,
+    });
 
     // ============================================
     // registerServiceWorker() moved to the top of init() (runs before the access gate) — v16.21.

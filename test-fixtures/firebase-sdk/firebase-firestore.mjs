@@ -114,6 +114,16 @@ export async function getDocs(q) {
     return { docs, size: docs.length, empty: docs.length === 0 };
 }
 export const getDocsFromCache = getDocs;
+// A server-side COUNT (Nov 2026 — the Old-format records card): getDocs' own filter, refusing the
+// same operators, and nothing downloaded, so nothing is recorded as a read.
+export async function getCountFromServer(q) {
+    const wheres = (q.constraints || []).filter((c) => c.kind === 'where');
+    for (const w of wheres) if (w.opStr !== '==') throw new Error(`fake getCountFromServer: where('${w.field}', '${w.opStr}') is not implemented`);
+    const count = [...state.docs.keys()]
+        .filter((p) => p.startsWith(`${q.col}/`))
+        .filter((p) => wheres.every((w) => state.docs.get(p)[w.field] === w.value)).length;
+    return { data: () => ({ count }) };
+}
 export function onSnapshot() { return () => {}; }
 export function writeBatch() {
     const pending = [];

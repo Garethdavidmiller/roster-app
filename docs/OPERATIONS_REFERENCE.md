@@ -1231,3 +1231,27 @@ before 2 Nov 2026 to Recently deleted, so the picker offers the three built-in, 
 each design and who last saved it before anything moves. To undo one, restore it from Recently deleted: a restored
 design carries a new save time, so it is never offered again. The row disappears by itself once nothing older is left.
 The reasoning, including why it is a press and not something that runs on page open: `links-shortlist.js`.
+
+## Old-format records (v25.28, temporary)
+
+Three kinds of shift change can still be READ and can no longer be CREATED: **Allocated shift**, **Overtime** and
+**Swap** (`allocated`, `overtime`, `swap` — `LEGACY_OVERRIDE_TYPES` in `override-utils.js`). Today the same days are
+recorded as Shift or RDW. The code that still reads the old three can only be deleted once nothing uses them, so
+**Operations → Monitoring → Old-format records** counts them. It is read-only: it changes no record.
+
+**Reading it.** The number on the card's header is how many are left (no number means none, or that the count has not
+arrived — open the card to tell which). Open the card for the count of each type and the YEARS they fall in: the year
+of the day each change is for, not the day it was saved.
+
+**What it costs.** The counts are taken on the server without downloading anything, on every page load. The years are
+read from the records themselves, one read each, so they load only when the card is OPENED, and never more than 1,000 of
+them (`YEARS_CAP`). A breakdown by year without the download would need a new composite index, which is a
+two-push change for a one-off question.
+
+**What to do with the answer:**
+
+| The card says | What happens next |
+|---|---|
+| **None left** | The old-format code can be deleted — the type labels and sunset block in `admin-shift-types.js`, the three names in `override-utils.js`, the "old format" pill in Saved Changes — and this card, its tips entry and its tests go in the same change. |
+| **Some left** | Decide first what each kind becomes. **Overtime** is voluntary work, like RDW; **Allocated shift** and **Swap** are contracted days, like a Shift. The years say whether any fall in a leave year or pay period still in use. A one-off rewrite then turns them into today's types, and the code goes after it. |
+| **Couldn't count** | A connection problem; the card offers Try again. It never shows "None left" unless all three counts arrived. |
