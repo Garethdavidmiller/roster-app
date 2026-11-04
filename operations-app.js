@@ -34,7 +34,7 @@ import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
-import { requirePage, canOpenOvertime } from './auth-policy.js';
+import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { initCardCollapse, confirmDialog, createLightbox } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -158,7 +158,7 @@ export function init() {
         memberName:  currentUser,
         isAdmin:         true,
         isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
-        canOpenOvertime: canOpenOvertime(currentUser),
+        canOpenOvertime: canOpenOvertime(currentUser), canOpenNewlink: canOpenNewlink(currentUser),
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut:   () => signOutAndLeave({ to: './' }),
     });

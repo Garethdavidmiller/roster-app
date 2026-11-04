@@ -105,13 +105,17 @@ function weeksShape(proposals) {
 }
 
 /**
- * The preview banner — the admin's alone, above everything colleagues will see. It says who the page will reach, because
- * the audience is a setting nobody else can check (newlink-config.js → AUDIENCE).
- * @param {{ audience: string[], decided: boolean }} o  decided: AUDIENCE is a list, not the every-CEA stand-in
+ * The preview banner — for the admin and the named previewers alone, above everything colleagues will see. It says who
+ * the page will reach, because the audience is a setting nobody else can check (newlink-config.js → AUDIENCE), and who
+ * else can see it now, because "only you" stopped being true the day a second person could (v25.33: S. Silva).
+ * @param {{ audience: string[], decided: boolean, others?: string[] }} o  decided: AUDIENCE is a list, not the every-CEA
+ *   stand-in. others: everyone else who can see the preview, as they should be named to this reader ("the admin", a name)
  */
-export function renderPreviewBanner({ audience, decided }) {
+export function renderPreviewBanner({ audience, decided, others = [] }) {
     const who = decided ? `the ${audience.length} people on the new link` : `every CEA on the roster (${audience.length}) until the 26 on the new link are decided`;
-    return `<p class="nl-preview-head"><span aria-hidden="true">👁️</span> <strong>Preview — only you can see this page.</strong></p>
+    const alsoSees = others.length === 0 ? ''
+        : ` and ${others.length === 1 ? others[0] : `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}`}`;
+    return `<p class="nl-preview-head"><span aria-hidden="true">👁️</span> <strong>Preview — only you${esc(alsoSees)} can see this page.</strong></p>
     <p>When it opens it will be for ${esc(who)}. Below is exactly what they will see.</p>
     <details class="nl-preview-who"><summary>Who it would reach</summary><p>${audience.map(esc).join(', ')}</p></details>`;
 }

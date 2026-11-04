@@ -25,6 +25,15 @@ sections below keep the scores they were written with; the shortlist sheet and *
 took them out on 3 Nov, which put Even Step first again (`FAM_SUNDAY=1` rebuilds the scores before). *Familiar shift
 times count the Monday-to-Saturday duties only* has both.
 
+**The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
+leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
+So a rebuild adds nothing about who decides, votes or recommends — the process is recorded in
+`../LINKS_DEC2026_PLAN.md`'s dashboard, and stays there. What the decks and sheets already say on it was left as it is on
+4 Nov, while feedback is still changing the proposals: the colleague decks' "Tell us what worries you" slide, the
+proposal sheets' line about the roster office and a union rep, and the "recommended" marks on the manager decks and
+the shortlist, summary and "What it means" sheets. The owner doubts most of it needs saying, so the next rebuild is
+the time to ask whether it should go.
+
 ## What is in this folder
 
 The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, owner: "consistent naming"):

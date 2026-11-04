@@ -17,7 +17,8 @@ test.describe('new link', () => {
         await page.goto('/newlink.html');
 
         await expect(page.locator('#nlPreview')).toBeVisible();
-        await expect(page.locator('#nlPreview')).toContainText('Preview — only you can see this page');
+        // the admin is told who else can see it: the one named previewer (CONFIG.NEWLINK_PREVIEW)
+        await expect(page.locator('#nlPreview')).toContainText('Preview — only you and S. Silva can see this page.');
         // the stand-in audience: every CEA on the roster, listed for the admin to check
         await expect(page.locator('#nlPreview')).toContainText('every CEA on the roster');
         await expect(page.locator('.nl-name-title')).toHaveText(['Even Step', 'In Step', 'Short Run']);
@@ -121,8 +122,8 @@ test.describe('new link', () => {
         }
     });
 
-    test('a member who is not the admin is sent back to the roster, and never sees the pill', async ({ page }) => {
-        await seedSession(page, 'S. Silva');   // a Links designer, not the admin
+    test('a member who is neither the admin nor a previewer is sent back to the roster, and never sees the pill', async ({ page }) => {
+        await seedSession(page, 'M. Robson');   // a Links designer: not enough — only the admin and CONFIG.NEWLINK_PREVIEW
         await page.goto('/newlink.html');
         await expect(page).toHaveURL(/\/$|\/index\.html$/);
         await page.locator('#navMenuBtn').click();
@@ -149,7 +150,9 @@ test.describe('new link', () => {
         await page.locator('#nlStatus [data-open-card="nlSay"]').click();
         await expect(page.locator('#nlSayBody')).toHaveClass(/\bopen\b/);
         await expect(page.locator('#nlSayCard h2')).toBeFocused();
-        await expect(page.locator('#nlSayList')).toContainText('the managers decide which link is used');
+        // who leads the change: S. Silva, as the RMT rep — never the admin; and how the choice is made is left vague (owner, 4 Nov 2026)
+        await expect(page.locator('#nlSayList')).toContainText('S. Silva, the RMT rep, is leading the change.');
+        await expect(page.locator('#nlSayCard')).not.toContainText(/admin|managers decide/i);
         await expect(page.locator('#nlSayCard')).toBeInViewport();
 
         // the drawer's logo opens About — it threw, while the page took initAboutLightbox's object for a function
@@ -180,5 +183,19 @@ test.describe('new link', () => {
         await pill.click();
         await expect(page).toHaveURL(/newlink\.html$/);
         await expect(page.locator('.nl-name-title').first()).toHaveText('Even Step');
+    });
+
+    // S. Silva is the new link's contact (newlink-config.js → CONTACT), and may see the preview before colleagues do
+    // (owner, 4 Nov 2026: "open up the new links page to S. Silva"; CONFIG.NEWLINK_PREVIEW).
+    test('S. Silva reaches it from the drawer too, and the banner names the admin as the one other reader', async ({ page }) => {
+        await seedSession(page, 'S. Silva');
+        await page.goto('/admin.html');
+        await page.locator('#navMenuBtn').click();
+        const pill = page.locator('.nav-panel-pill--newlink');
+        await expect(pill).toBeVisible();
+        await pill.click();
+        await expect(page).toHaveURL(/newlink\.html$/);
+        await expect(page.locator('.nl-name-title').first()).toHaveText('Even Step');
+        await expect(page.locator('#nlPreview')).toContainText('Preview — only you and the admin can see this page.');
     });
 });

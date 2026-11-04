@@ -101,15 +101,15 @@ builds toward it, and so that nobody is surprised later that the custom work was
 ## NOW — committed, or actively being decided
 
 ### The new CEA link — from 1 January 2027
-**Status:** Committed · **Owner:** S. Silva is the primary contact (owner, 2 Nov 2026); management decides · **Plan:** `LINKS_DEC2026_PLAN.md`
+**Status:** Committed · **Owner:** S. Silva, the RMT rep, who leads the change (owner, 4 Nov 2026) · **Plan:** `LINKS_DEC2026_PLAN.md`
 
 **The link starts on 1 January 2027, not with the timetable** (owner, 2 Nov 2026: the timetable changes on 13 December,
 the link follows on 1 January, and today's link carries on until then). It is 26 weeks with five cover weeks
 (`docs/links-26/RULES.md`), and the shortlist is three — **Even Step** (recommended), **In Step** and **Short Run** —
 built into the Links designer read-only (`links-proposals.js`) and drawn in the pack (`docs/links-26/`). The new link
-page (`newlink.html`, v25.06) presents them evenly to colleagues, as an **admin-only preview** for now.
+page (`newlink.html`, v25.06) presents them evenly to colleagues, as a **preview** for the admin and S. Silva for now.
 
-What remains is a decision, not code: management's review of the shortlist, a controlled source for the company hard
+What remains is a decision, not code — S. Silva's, as the one leading the change, and then the area manager's review (the plan's dashboard) — a controlled source for the company hard
 limits, and then — if colleagues are to see the page — its audience gate (OPERATIONS_REFERENCE.md → "The new link
 page"). The readiness dashboard at the top of the plan is authoritative.
 
