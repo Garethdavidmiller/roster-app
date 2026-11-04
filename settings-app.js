@@ -16,7 +16,7 @@ import { initHuddleNotifications } from './huddle.js';
 import { isIOS } from './notif.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, canOpenOvertime } from './auth-policy.js';
+import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { summarise, shouldOpen } from './settings-status.js';
 import { setStatus } from './status-text.js';
@@ -156,7 +156,7 @@ export function init() {
             memberName:  currentUser,
             isAdmin:         currentUser ? CONFIG.ADMIN_NAMES.includes(currentUser) : false,
             isLinksDesigner: currentUser ? CONFIG.LINKS_DESIGNERS.includes(currentUser) : false,
-            canOpenOvertime: canOpenOvertime(currentUser),
+            canOpenOvertime: canOpenOvertime(currentUser), canOpenNewlink: canOpenNewlink(currentUser),
             onLogoClick: () => openAboutLightbox?.(),
             onSignOut:   currentUser ? () => signOutAndLeave({ to: './' }) : null,
         });

@@ -188,6 +188,17 @@ test('the pack: every file opens in a new tab, with no opener, under the base', 
     assert.match(html, /opens in a new tab/, 'said to a screen reader, not only shown');
 });
 
+test('the preview banner names everyone else who can see the page — never "only you" when somebody else can', () => {
+    const base = { audience: ['A. One', 'B. Two'], decided: false };
+    assert.match(renderPreviewBanner(base), /Preview — only you can see this page\./);
+    // The admin reading it, and S. Silva (CONFIG.NEWLINK_PREVIEW, v25.33): each is told about the other.
+    assert.match(renderPreviewBanner({ ...base, others: ['S. Silva'] }), /Preview — only you and S\. Silva can see this page\./);
+    assert.match(renderPreviewBanner({ ...base, others: ['the admin'] }), /Preview — only you and the admin can see this page\./);
+    assert.match(renderPreviewBanner({ ...base, others: ['the admin', 'A. One', 'B. Two'] }),
+        /only you and the admin, A\. One and B\. Two can see this page\./, 'UK lists: no comma before the "and"');
+    assert.doesNotMatch(renderPreviewBanner({ ...base, others: ['<b>x</b>'] }), /<b>x<\/b>/);
+});
+
 test('everything it prints is escaped', () => {
     assert.equal(renderList(['<img onerror=x>']), '<ul class="nl-list"><li>&lt;img onerror=x&gt;</li></ul>');
     const banner = renderPreviewBanner({ audience: ['<b>x</b>'], decided: true });

@@ -34,19 +34,9 @@ export const TYPES = {
     // `timesOptional` is DESCRIPTIVE metadata — consumers branch on type === 'other'
     // explicitly (collector, validateShiftRules, prefill); keep it for the next such type.
     other:        { label: 'Other',            pill: 'Other',    fixed: false, timesOptional: true },
-    // Legacy types — no pill buttons; kept so old Saved Changes records display correctly.
-    // SUNSET: these are display-only (never creatable). Delete this block + the `legacyToShift` map +
-    // the `isLegacyType` guard + 'allocated'/'overtime'/'swap' from `WORKED_OVERRIDE_TYPES` (search
-    // those symbol names — line anchors drift) once a one-time Firestore
-    // migration rewrites any surviving legacy-typed override docs to their modern equivalents. WHICH
-    // equivalents is the owner's decision (v25.23): `allocated` and `swap` are contracted like `shift`,
-    // but `overtime` is classed as VOLUNTARY, like `rdw` (override-utils.js), so "→ shift" is not safe
-    // to assume for it. The names are declared once, as `LEGACY_OVERRIDE_TYPES` (override-utils.js).
-    // How many survive: Operations → Old-format records (operations-legacy.js, v25.28), which goes too.
-    // Until that migration runs, removing these would make old records render as UNKNOWN.
-    allocated:    { label: 'Allocated shift',  fixed: false },
-    overtime:     { label: 'Overtime',         fixed: false },
-    swap:         { label: 'Swap',             fixed: false },
+    // No rows for `allocated`, `overtime` or `swap`: no record is of those types since the 4 Nov 2026
+    // conversion. Their names live on only as a historic `replacedType` (LEGACY_OVERRIDE_TYPES,
+    // override-utils.js), which nothing here labels.
 };
 
 /** Ordered list of type keys for the per-row and bulk-bar pill buttons (single source of truth).
@@ -59,9 +49,8 @@ export const TYPES = {
 export const PILL_TYPES = ['annual_leave', 'shift', 'rdw', 'sick', 'correction', 'other'];
 
 // Override types that represent genuinely WORKED days — a Sunday RD-correction during an AL/absence
-// booking must never overwrite one of these (real overtime). Covers the current creatable worked
-// types plus the legacy-but-still-in-data ones (see CLAUDE.md → overrides `type`). (v16.19)
-export const WORKED_OVERRIDE_TYPES = new Set(['rdw', 'shift', 'spare_shift', 'allocated', 'overtime', 'swap']);
+// booking must never overwrite one of these (real overtime). (v16.19)
+export const WORKED_OVERRIDE_TYPES = new Set(['rdw', 'shift', 'spare_shift']);
 
 
 /**

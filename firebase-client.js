@@ -15,7 +15,7 @@
 // @ts-ignore
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, getCountFromServer, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported via `_getStorageSdk()` (handed to the shared
 // upload engine in documents-client.js, which is where the huddle/circular/newsletter sequence
 // lives since v21.90) — only
@@ -69,9 +69,6 @@ export {
     // calendar paint before an auth SESSION exists (AUTH_PLAN.md → E1) — but not before Auth has
     // initialised, which for a stored user is after `accounts:lookup` (CALENDAR_DATA.md 10). REJECTS on a miss.
     getDocs, getDocsFromCache, getDoc, onSnapshot,
-    // A server-side COUNT (v25.28): the matching records are counted where they are stored and
-    // never downloaded — Operations' Old-format records card. Server-only, so offline it rejects.
-    getCountFromServer,
     // writes
     addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction,
     // `deleteField` re-exported v19.41 for the Links soft-delete RESTORE: clearing deletedAt/

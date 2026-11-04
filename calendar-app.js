@@ -20,7 +20,7 @@ import { lsGet, lsSet } from './ls.js';
 import { getSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
 import { initPasswordForce } from './password-force.js';
 import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW, SELECTED_MEMBER } from './storage-keys.js';
-import { canOpenOvertime } from './auth-policy.js';       // nav-drawer pill gating only — never a boundary
+import { canOpenOvertime, canOpenNewlink } from './auth-policy.js';       // nav-drawer pill gating only — never a boundary
 import { initTeamView } from './calendar-team-view.js';
 import { initNavPanel } from './nav-panel.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox, confirmDialog } from './overlay.js';
@@ -1098,7 +1098,7 @@ initNavPanel({
     memberName:  _calendarSession?.name || null,
     isAdmin:         CONFIG.ADMIN_NAMES.includes(_calendarSession?.name),
     isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(_calendarSession?.name),
-    canOpenOvertime: canOpenOvertime(_calendarSession?.name),
+    canOpenOvertime: canOpenOvertime(_calendarSession?.name), canOpenNewlink: canOpenNewlink(_calendarSession?.name),
     onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   _calendarSession ? () => signOutAndLeave() : null,
     // "Lock Calendar" — viewer mode only, and the nav drawer is the right home for it: it is a

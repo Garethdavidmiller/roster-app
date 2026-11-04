@@ -15,7 +15,7 @@
  *
  * The contract: a rule whose selector names a badge/chip/pill/tag may not set
  * `border-radius: var(--radius-xl)`. Off-scale literals are NOT policed — `.conf-badge` (3px) and
- * `.legacy-pill`/`.source-pill` (8px) are deliberately squarer, which reads as "data tag, not pill",
+ * `.source-pill` (8px) are deliberately squarer, which reads as "data tag, not pill",
  * and flattening them would change meaning rather than tidy it.
  */
 import { test } from 'node:test';

@@ -24,7 +24,7 @@ import {
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel, lsKeys, requestPersistentStorage } from './ls.js';
 import { getSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, canOpenOvertime } from './auth-policy.js';
+import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
@@ -101,7 +101,7 @@ function _showUnsupportedRole(member) {
         memberName:  member?.name || null,
         isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(member?.name ?? ''),
         isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(member?.name ?? ''),
-        canOpenOvertime: canOpenOvertime(member?.name ?? ''),
+        canOpenOvertime: canOpenOvertime(member?.name ?? ''), canOpenNewlink: canOpenNewlink(member?.name ?? ''),
         onSignOut: () => signOutAndLeave({ to: './' }),
     });
     markPageReady();
@@ -1867,7 +1867,7 @@ export function init() {
         memberName:  _paycalcMember?.name || null,
         isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(_paycalcMember?.name ?? ''),
         isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(_paycalcMember?.name ?? ''),
-        canOpenOvertime: canOpenOvertime(_paycalcMember?.name ?? ''),
+        canOpenOvertime: canOpenOvertime(_paycalcMember?.name ?? ''), canOpenNewlink: canOpenNewlink(_paycalcMember?.name ?? ''),
         onLogoClick: () => openAboutLightbox?.(),
         // signOutAndLeave replaces, not navigates: the pay page leaves the history, so Back cannot
         // restore it (and its figures) from the bfcache for whoever picks the shared device up next.

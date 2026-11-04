@@ -28,7 +28,6 @@ import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './f
 
 const BULK_DELETE_CHUNK = 200;   // per committed batch — under Firestore's 500, as the range booking
 import { TYPES, rowValueText } from './admin-shift-types.js';
-import { LEGACY_OVERRIDE_TYPES } from './override-utils.js';
 import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates, assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
@@ -197,7 +196,6 @@ export function renderTable() {
 
     rows.forEach(o => {
         const typeMeta     = TYPES[o.type];
-        const isLegacyType = LEGACY_OVERRIDE_TYPES.includes(o.type);
         const eid   = escapeHtml(o.id   || '');
         const edate = escapeHtml(o.date || '');
         const etype = escapeHtml(o.type || '');
@@ -208,7 +206,7 @@ export function renderTable() {
             <input type="checkbox" class="row-select" data-id="${eid}" aria-label="Select ${ename} ${edate}">
             <div class="oc-body">
                 <div class="oc-head"><span class="oc-date">${formatDisplay(o.date)}</span><span class="oc-member">${ename}</span></div>
-                <div class="oc-detail"><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${isLegacyType ? '<span class="legacy-pill">old format</span>' : ''}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}${rowValueText(etype, o.value) ? `<span class="oc-value">${escapeHtml(rowValueText(etype, o.value))}</span>` : ''}</div>
+                <div class="oc-detail"><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}${rowValueText(etype, o.value) ? `<span class="oc-value">${escapeHtml(rowValueText(etype, o.value))}</span>` : ''}</div>
             </div>
             <div class="oc-actions">
                 <button type="button" class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${edate}">✎</button>

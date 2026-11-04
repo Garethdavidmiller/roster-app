@@ -1202,8 +1202,14 @@ Two reminders run themselves in the week before the change, and nobody presses a
 
 `newlink.html` shows colleagues the three shortlisted proposals for the new CEA link — **which starts on 1 January
 2027, not with the timetable** (owner, 2 Nov 2026: the timetable changes in December, the link follows on 1 January,
-and today's link carries on until then). It is an **admin-only preview**: only the admin can open it, and it says so
-in a banner.
+and today's link carries on until then). It is a **preview**: only the admin and the names in `CONFIG.NEWLINK_PREVIEW` (`roster-data.js`) can open it — S. Silva,
+since 4 Nov 2026 — and a banner says who else can see it.
+
+**S. Silva leads the change, as the RMT rep** (owner, 4 Nov 2026). The admin built the page and the tooling, and is in
+charge of neither the change nor the choice, so nothing the page says may suggest otherwise: "Have your say" says who
+leads it, and no line names the admin as deciding, recommending or collecting views. How the choice is made is left
+deliberately vague, on the page as in the pack — the process is in LINKS_DEC2026_PLAN.md's dashboard, not in anything
+colleagues read (`newlink-config.test.mjs` and `e2e/newlink.spec.js` hold the wording to both).
 
 **Every setting is one line in `newlink-config.js`**, so changing one never means touching the page:
 
@@ -1211,13 +1217,19 @@ in a banner.
 |---|---|---|
 | `STARTS` | when the new link starts | `2027-01-01` |
 | `CONTACT` | who colleagues go to about it, spelt as the roster spells it | `S. Silva` (owner, 2 Nov 2026) |
+| `CONTACT_ROLE` | what the contact is, worded beside the name: who leads the change | `the RMT rep` (owner, 4 Nov 2026) |
 | `CLOSES` | the last day for views | not set — the page says "a date to be agreed" |
 | `AUDIENCE` | who the page is for once it opens | not set — every CEA on the roster |
-| `PHASE` | where the page is in its life | `'preview'` — the admin alone |
+| `PHASE` | where the page is in its life | `'preview'` — the admin and `CONFIG.NEWLINK_PREVIEW` |
 
 **Opening it to colleagues is not a switch yet.** It needs a role for `AUDIENCE` in `auth-policy.js` and a matching
 pill flag in `nav-panel.js` first; `newlink-config.test.mjs` refuses any other `PHASE` until those exist, so the page
 cannot be flipped open to people who cannot reach it.
+
+**Letting one more person preview it is one line**: add their name, spelt as the roster spells it, to
+`CONFIG.NEWLINK_PREVIEW` in `roster-data.js`, then bump and release. It is page access only — the page reads nothing
+from the server and shows only public files — so there is no claim to set, no `npm run generate:roster-members` and
+no Set up accounts. `newlink-config.test.mjs` refuses a name that is not an active member of the roster.
 
 **Its PDFs come from the GitHub Pages mirror** (`PACK_BASE`), because Firebase Hosting serves nothing under `docs/`.
 Retiring the mirror breaks those links — move the files into a served folder first. And once the
@@ -1231,27 +1243,3 @@ before 2 Nov 2026 to Recently deleted, so the picker offers the three built-in, 
 each design and who last saved it before anything moves. To undo one, restore it from Recently deleted: a restored
 design carries a new save time, so it is never offered again. The row disappears by itself once nothing older is left.
 The reasoning, including why it is a press and not something that runs on page open: `links-shortlist.js`.
-
-## Old-format records (v25.28, temporary)
-
-Three kinds of shift change can still be READ and can no longer be CREATED: **Allocated shift**, **Overtime** and
-**Swap** (`allocated`, `overtime`, `swap` — `LEGACY_OVERRIDE_TYPES` in `override-utils.js`). Today the same days are
-recorded as Shift or RDW. The code that still reads the old three can only be deleted once nothing uses them, so
-**Operations → Monitoring → Old-format records** counts them. It is read-only: it changes no record.
-
-**Reading it.** The number on the card's header is how many are left (no number means none, or that the count has not
-arrived — open the card to tell which). Open the card for the count of each type and the YEARS they fall in: the year
-of the day each change is for, not the day it was saved.
-
-**What it costs.** The counts are taken on the server without downloading anything, on every page load. The years are
-read from the records themselves, one read each, so they load only when the card is OPENED, and never more than 1,000 of
-them (`YEARS_CAP`). A breakdown by year without the download would need a new composite index, which is a
-two-push change for a one-off question.
-
-**What to do with the answer:**
-
-| The card says | What happens next |
-|---|---|
-| **None left** | The old-format code can be deleted — the type labels and sunset block in `admin-shift-types.js`, the three names in `override-utils.js`, the "old format" pill in Saved Changes — and this card, its tips entry and its tests go in the same change. |
-| **Some left** | Decide first what each kind becomes. **Overtime** is voluntary work, like RDW; **Allocated shift** and **Swap** are contracted days, like a Shift. The years say whether any fall in a leave year or pay period still in use. A one-off rewrite then turns them into today's types, and the code goes after it. |
-| **Couldn't count** | A connection problem; the card offers Try again. It never shows "None left" unless all three counts arrived. |

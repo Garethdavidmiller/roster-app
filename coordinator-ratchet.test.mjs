@@ -315,7 +315,10 @@ const CAPS = {
     // stood at EXACTLY its cap. Nothing in those lines is a rule a Node test could hold, and the
     // extraction named above is the way DOWN — it is still the right one, and still not for a pass
     // whose subject is somewhere else. Lower this again when the notices archive leaves.
-    'nav-panel.js':            1350,
+    // 1350 → 1352 at v25.33 — a RAISE of two lines: the New link pill's own gate (S. Silva may preview the page), one
+    // filter in the chain and its parameter's type. page-contract-parity derives the gates FROM that chain, so the
+    // filter cannot fold into another line without hiding the gate from the check that keeps it honest.
+    'nav-panel.js':            1352,
     // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
     // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
     // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix
@@ -422,10 +425,7 @@ const CAPS = {
     // 1100 → 1095 in Oct 2026, a LOWER, as asked: the App Speed review retired the revalidation
     // count and its message reply (the count was the worker process's, not one page's), and 13 lines
     // left. The cap follows them down rather than keeping their room for the next addition.
-    // 1095 → 1096 in Nov 2026, a RAISE of one line: the precache entry for operations-legacy.js,
-    // the TEMPORARY Old-format records card. A list entry, not logic, and it leaves with the card —
-    // bring the cap back to 1095 in the same change.
-    'service-worker.js':       1096,
+    'service-worker.js':       1095,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

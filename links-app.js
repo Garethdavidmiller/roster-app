@@ -15,7 +15,7 @@ import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serv
 import { initNavPanel, archiveNotice } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, canOpenOvertime } from './auth-policy.js';
+import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
 import { openOptionSheet, readGroups } from './select-sheet.js';
 import { MAX_DESIGN_NAME, checkName, proposeCopyName } from './links-design-naming.js';
@@ -173,7 +173,7 @@ export function init() {
         memberName:      currentUser,
         isAdmin,
         isLinksDesigner: true,
-        canOpenOvertime: canOpenOvertime(currentUser),
+        canOpenOvertime: canOpenOvertime(currentUser), canOpenNewlink: canOpenNewlink(currentUser),
         onLogoClick:     () => openAboutLightbox?.(),
         // Asked BEFORE the drawer releases this device's push record, so a cancel leaves it intact.
         beforeSignOut: askBeforeSignOut(() => dirty),

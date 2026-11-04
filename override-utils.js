@@ -31,23 +31,23 @@ export function isRestShift(shift) {
  *     then cannot work it has not taken leave, they have simply not done the overtime.
  *
  * Reusing `WORKED_OVERRIDE_TYPES` here would charge a member a day of annual leave for declining
- * overtime, which is why this is its own set rather than a filter over that one. The legacy pair
- * splits the same way: `swap`/`allocated` are contracted, `overtime` is not.
+ * overtime, which is why this is its own set rather than a filter over that one. The three retired
+ * type names split the same way, and still have to — see `LEGACY_OVERRIDE_TYPES`.
  */
-/** The override types still in data but no longer creatable (DATA_MODEL.md) — declared ONCE (v25.23).
- *  The sets here classify each one, Admin's Saved Changes labels them "old format", Operations'
- *  Old-format records card counts what is left (v25.28), and
- *  override-utils.test.mjs holds every list that names one to this declaration. What each should
- *  become in a one-time tidy is an OWNER question, not a default: `overtime` reads as rest-day work
- *  below, and `admin-shift-types.js`'s sunset note once said it would become a plain `shift`. */
+/** Retired override types: no record is of these TYPES since the 4 Nov 2026 conversion (DATA_MODEL.md).
+ *  THE NAMES SURVIVE AS A HISTORIC `replacedType` on leave and absences recorded over those days, and
+ *  decide whether that leave cost a day (`contractEvidence`), so the sets below still classify them and
+ *  firestore.rules still accepts them (a re-save carries one forward). Dropping them would quietly move
+ *  leave balances; rewriting the data would put the admin's name on leave records to change nothing.
+ *  override-utils.test.mjs holds both sets and the rules' list to this declaration. */
 export const LEGACY_OVERRIDE_TYPES = Object.freeze(['allocated', 'overtime', 'swap']);
 
 export const CONTRACTED_WORK_TYPES = new Set([
     'shift', 'spare_shift', 'other',
-    'allocated', 'swap',              // legacy, still in data — contracted, like `shift`
+    'allocated', 'swap',              // retired — a historic `replacedType` only; contracted, like `shift`
 ]);
 
-/** Work a member VOLUNTEERED for. Declining it is not leave. (`overtime` is the legacy `rdw`.)
+/** Work a member VOLUNTEERED for. Declining it is not leave. (`overtime` is the retired `rdw` — above.)
  *
  *  CONFIRMED BY THE OWNER, 26 Aug 2026 (VAL-AL-001, previously an inference). The operational
  *  answer is narrower than the rule: annual leave reaches a rest day ONLY where a member has
@@ -748,7 +748,7 @@ export function resolveOtherPay(parsed, baseValue) {
 const SHIFT_RANGE_RE = /^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/;
 // Worked override types whose TIMED value on a Sunday must display as RDW (never a plain shift) —
 // see resolveEffectiveShift. `rdw` already resolves to RDW; `spare_shift` is a badge, not a time.
-const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift', 'allocated', 'overtime', 'swap']);
+const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift']);
 
 /**
  * Resolve a Firestore override onto a base shift into ONE canonical display descriptor.
@@ -768,7 +768,7 @@ const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift', 'allocated', 'overtime', 'swa
  *   shift      canonical effective shift: `baseShift` when there is no override or it is
  *              suppressed; `'RDW'` for an rdw override; the raw Other grammar value for a
  *              parseable `other`; otherwise `override.value` (AL→'AL', SICK→'SICK',
- *              correction→'RD', spare_shift→'SPARE', legacy types via their value).
+ *              correction→'RD', spare_shift→'SPARE').
  *   rdwTime    rdw override → `override.value`; parseable Other → its hours-slot string
  *              (actual time → 'RDW' → the base shift's own time → ''); '' otherwise.
  *   derivedRdw parseable Other day only: true when RDW via the explicit flag OR a rest-day base.
@@ -786,8 +786,8 @@ export function resolveEffectiveShift(override, baseShift, sunday) {
     }
     // A worked Sunday is ALWAYS Rest Day Working, never a plain shift — Sundays are non-contracted
     // for every grade. New creation is blocked at every write path (the admin Sunday Shift-pill
-    // guard + bulk skip + roster-upload time→rdw promotion, v18.73), but a legacy / hand-written
-    // worked-type doc (shift or the legacy allocated/overtime/swap) sitting on a Sunday must still
+    // guard + bulk skip + roster-upload time→rdw promotion, v18.73), but an older or hand-written
+    // `shift` doc sitting on a Sunday must still
     // DISPLAY as 💼 RDW, not an Early/Late badge — matching the creation invariant and the pay
     // engine (which already prices any worked Sunday at 1.5× via its own dow===0 branch). A
     // timed value is treated exactly like an `rdw` override; a non-time value falls through.
