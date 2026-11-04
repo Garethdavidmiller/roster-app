@@ -129,15 +129,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # THE GATE RUNS ON NODE 22, like every PR test lane (48-hour review). The PR lanes moved to 22
-      # on 26 Sep 2026 while this job kept testing on 20, so a suite green on 22 and red on 20 passed
-      # the PR and failed only here, after the merge — the exact split e2e.yml's comment says it
-      # removed. firebase-tools stepped back to 20 for its sign-in until 3 Nov 2026; the whole job
-      # runs on 22 now (deploy-functions.yml has the history).
+      # THE GATE RUNS ON THE PR LANES' NODE — 24 since v25.30 (48-hour review). The PR lanes moved to
+      # 22 on 26 Sep 2026 while this job kept testing on 20, so a suite green on 22 and red on 20
+      # passed the PR and failed only here, after the merge — the exact split e2e.yml's comment says
+      # it removed. firebase-tools stepped back to 20 for its sign-in until 3 Nov 2026; the whole job
+      # runs on one Node now (deploy-functions.yml has the history).
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -204,13 +204,14 @@ jobs:
           retention-days: 7
 
       # ── THE DEPLOY TOOL'S NODE ──────────────────────────────────────────────────────────────
-      # Everything from here on is firebase-tools. Node 22 since 3 Nov 2026; it was held on 20 for
-      # its sign-in (deploy-functions.yml records why, and why that reason no longer held). Kept as
-      # its own step so that going back to 20, if a deploy ever fails to authenticate, is one line.
+      # Everything from here on is firebase-tools. Node 24 since v25.30 (22 from 3 Nov 2026); it was
+      # held on 20 for its sign-in (deploy-functions.yml records why, and why that reason no longer
+      # held). Kept as its own step so that going back to 22, if a deploy ever fails to authenticate,
+      # is one line.
       - name: Deploy-tool Node version
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
 
       # Authenticate to Google Cloud via Workload Identity Federation — no long-lived key.
       # GitHub's per-run OIDC token is exchanged for short-lived credentials for the

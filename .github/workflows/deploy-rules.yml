@@ -47,16 +47,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # THE GATES RUN ON 22 — the Node the branch tests use (Oct 2026). They ran on 20 here, and a
-      # test that passed on every PR failed only in this workflow: Node 22 has a `navigator` global
-      # and 20 does not, and because this workflow fires only when the rules change, the mismatch
-      # sat unseen from v24.48 until the v24.56 rules deploy failed twice on it. firebase-tools
-      # stepped back to 20 for its sign-in until 3 Nov 2026; the whole job runs on 22 now
-      # (deploy-functions.yml has the history).
+      # THE GATES RUN ON THE NODE THE BRANCH TESTS USE — 24 since v25.30, 22 from Oct 2026. They ran
+      # on 20 here, and a test that passed on every PR failed only in this workflow: Node 22 has a
+      # `navigator` global and 20 does not, and because this workflow fires only when the rules
+      # change, the mismatch sat unseen from v24.48 until the v24.56 rules deploy failed twice on it.
+      # firebase-tools stepped back to 20 for its sign-in until 3 Nov 2026; the whole job runs on one
+      # Node now (deploy-functions.yml has the history).
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
           # Cache npm's download store (keyed on the lockfile, so a dependency change still
           # invalidates it). This caches ~/.npm, NOT node_modules — `npm ci` still unpacks and
           # links every package, so it removes fetch time and not install time. Measured 4 Sep
@@ -92,13 +92,14 @@ jobs:
         run: npm run test:rules
 
       # ── THE DEPLOY TOOL'S NODE ──────────────────────────────────────────────────────────────
-      # Everything from here on is firebase-tools. Node 22 since 3 Nov 2026; it was held on 20 for
-      # its sign-in (deploy-functions.yml records why, and why that reason no longer held). Kept as
-      # its own step so that going back to 20, if a deploy ever fails to authenticate, is one line.
+      # Everything from here on is firebase-tools. Node 24 since v25.30 (22 from 3 Nov 2026); it was
+      # held on 20 for its sign-in (deploy-functions.yml records why, and why that reason no longer
+      # held). Kept as its own step so that going back to 22, if a deploy ever fails to authenticate,
+      # is one line.
       - name: Deploy-tool Node version
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
 
       # Authenticate to Google Cloud via Workload Identity Federation — no long-lived key.
       # GitHub's per-run OIDC token is exchanged for short-lived credentials for the

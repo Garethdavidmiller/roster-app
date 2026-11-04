@@ -26,7 +26,10 @@ const args = process.argv.slice(2);
 // `--experimental-test-module-mocks`. Forwarding them is not optional: without it the child runs
 // without module mocking, and every suite that mocks an import fails to build… which is exactly the
 // failure this wrapper exists to report, so it would be loud rather than silent, but wrong.
-const child = spawn(process.execPath, [...process.execArgv, '--test', ...args],
+// `--test-reporter=tap` is not optional either (v25.30): from Node 23 a PIPED stdout gets the `spec`
+// reporter by default, which prints no `not ok` lines, so on Node 24 the check below would read
+// nothing and say nothing. Node 22 already chose TAP here; stating it keeps both the same.
+const child = spawn(process.execPath, [...process.execArgv, '--test', '--test-reporter=tap', ...args],
     { stdio: ['inherit', 'pipe', 'inherit'] });
 
 let out = '';

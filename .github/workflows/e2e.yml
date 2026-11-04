@@ -226,10 +226,12 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          # NODE 22 ON EVERY TEST JOB (owner, 26 Sep 2026) — the runtime functions/package.json declares
-          # and what contributors run. On 20 a suite could pass locally and fail here (Node grew a global
-          # `navigator` at 21). Only the DEPLOY workflows keep 20, for firebase-tools auth.
-          node-version: '22'
+          # THE RUNTIME'S NODE ON EVERY TEST JOB (owner, 26 Sep 2026) — 24 since v25.30, the runtime
+          # functions/package.json declares. On 20 a suite could pass locally and fail here (Node grew
+          # a global `navigator` at 21). The dev container still ships 22: every lane was measured on
+          # 22.22.0 and 24.22.2 before the move (4 Nov 2026), identical bar mock-API deprecation
+          # warnings, and this gate is the one that decides. The deploy tool runs on 24 too.
+          node-version: '24'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -280,7 +282,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Prove nothing is installed
         run: |
@@ -309,11 +311,12 @@ jobs:
   # with the deploy blocked — production safe, but the wrong end of the merge, and the opposite of
   # how every other suite here is gated. Found by external review, 26 Aug 2026.
   #
-  # NODE 22, deliberately, and NOT the '20' every other job here pins. 22 is the deployed runtime
-  # (functions/package.json `engines`). deploy-functions.yml runs on 20 for a specific and separate
-  # reason — firebase-tools failed to authenticate on 22 — and that choice is about the deploy TOOL,
-  # not the code under test. Left as it was, it meant the handlers were only ever tested on a
-  # version they never run on. This job is where that is corrected; do not "align" it back to 20.
+  # THE DEPLOYED RUNTIME'S NODE, deliberately: 24 since v25.30 (functions/package.json `engines`),
+  # 22 before. When this job was written every other job pinned 20, and deploy-functions.yml ran on
+  # 20 for a specific and separate reason — firebase-tools failed to authenticate on 22 — which was
+  # about the deploy TOOL, not the code under test. Left as it was, it meant the handlers were only
+  # ever tested on a version they never run on. Keep this job on the runtime's Node; do not "align"
+  # it with anything else.
   functions:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
@@ -334,7 +337,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
 
       - name: Install root dependencies
@@ -408,7 +411,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -568,7 +571,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -634,7 +637,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -676,7 +679,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -766,7 +769,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
 
       - name: Install dependencies
@@ -954,7 +957,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency

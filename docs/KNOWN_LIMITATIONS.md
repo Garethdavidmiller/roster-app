@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v25.20 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.30 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -11,7 +11,7 @@ These are documented decisions, not oversights. Read before filing a bug or sugg
 The bug, regression and technical-debt check behind v25.20 fixed what was plainly broken. These it
 left, each for a decision rather than a default:
 
-- **Done the same day — High Contrast and the colour questions (v25.21).** Under Windows High
+- **Done the same day — High Contrast and the colour questions (v25.22).** Under Windows High
   Contrast a chosen control used to look like an unchosen one; one rule in shared.css now rings every
   chosen control in the theme's `Highlight`. Operations' hand-entry type pills wear Admin's type
   colours, the "Swapped / Rest day" answer is leave's teal in both places it is asked, and the date
@@ -19,10 +19,10 @@ left, each for a decision rather than a default:
   `.claude/rules/css-tokens.md` → "The last navy choices took the page's colour".
 - **Done the same day — CI and the deploy tool off Node 20.** `actions/cache` v6.1.0 (was v4.3.0)
   and `google-github-actions/auth` v3.0.0 (was v2.1.13) both run on Node 24, and firebase-tools runs
-  on Node 22 in all three deploys. Its Node 20 pin dated from a "Failed to authenticate" under the
-  retired key file; if a deploy ever fails to authenticate, the comment at the top of
-  `deploy-functions.yml` names the lines to set back to '20'.
-- **CLAUDE.md is at its 125,000-character cap**, so every correction there is paid for by a cut.
+  on Node 22 in all three deploys (24 since v25.30, with the Functions runtime). Its Node 20 pin
+  dated from a "Failed to authenticate" under the retired key file; if a deploy ever fails to
+  authenticate, the comment at the top of `deploy-functions.yml` names the lines to set back to '22'.
+- **CLAUDE.md came off its 125,000-character cap the same day (v25.23):** the retired notices' histories moved into the new-notice skill (120,880 characters then; 121,745 on 4 Nov 2026).
 - **Weight**: `.git` is 1.4 GB. **The Links 26 pack zip is built on demand since 3 Nov 2026** (owner):
   each committed copy had added ~15 MB to the history, sixteen times; it is untracked now (`*.zip` was
   already ignored — it had been force-added) and `tooling/pack.py` says to run the script and send the
@@ -30,7 +30,7 @@ left, each for a decision rather than a default:
   read by more than this line used to say: its proposal files are fixtures for
   `links-compare-analysis.test.mjs` AND `links-compare.test.mjs`, and the Links 26 tooling reuses its
   scripts. Its own 13 MB zip no longer changes, so it costs checkout size and nothing more.
-- **Size**: ten of the 28 modules in `coordinator-ratchet.test.mjs` sit exactly at their cap. The
+- **Size**: nine of the 28 modules in `coordinator-ratchet.test.mjs` sit exactly at their cap. The
   seven stylesheets over 900 lines are capped since v25.23 (`stylesheet-ratchet.test.mjs`, the same
   ratchet: `index.css` 3,861 lines and `shared.css` 3,852 on 3 Nov 2026). `e2e/pages.spec.js`
   was split by page on 3 Nov 2026: Admin, Links, Operations, Settings and the guides each have
@@ -1555,12 +1555,12 @@ the JSON in the same commit. (The `/new-starter` skill already includes this ste
 
 > **Superseded as a count by "Development-tool advisories that only a downgrade would clear"**
 > (v24.50, near the top of this file), which records what `npm audit fix` and the grpc-js override
-> cleared and what is left. Since that pass the remaining entries ARE all under `firebase-tools`;
+> cleared and what is left. Since that pass the remaining entries sit under `firebase-tools` and, since v25.25, ESLint's own packages;
 > before it, a second path ran through `@firebase/rules-unit-testing` (its Firestore's grpc-js pin),
 > which this section never named. The reasoning below about `gaxios` is still current.
 
 `npm audit` at the root reports a set of advisories that are **all dev-only**, reachable through
-**`firebase-tools`** (root `devDependency`, `^15.22.2`, resolving to 15.32.1 in the lockfile). The original and still the
+**`firebase-tools`** (root `devDependency`, `^15.34.2`, resolving to 15.34.2 in the lockfile). The original and still the
 awkward one is a transitive `gaxios` in the **6.4.0 – 6.7.1** range.
 
 **Do not trust a count written down here — run it.** This paragraph said "5 moderate, all one root

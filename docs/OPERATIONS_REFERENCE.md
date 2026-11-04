@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v25.20 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.30 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -585,7 +585,7 @@ trails Hosting rather than leading it, so "both origins behind" during a release
    splash, no red errors in the console (the deployment health check at the top of CLAUDE.md).
 
 **What changes afterwards.** The mirror updates a minute or two after a Hosting deploy finishes
-(about twenty minutes after a merge) instead of a minute after the push. A push that changes only
+(about twenty-five minutes after a merge) instead of a minute after the push. A push that changes only
 docs or tests republishes neither origin, exactly as Hosting already behaves. A failed gate leaves
 BOTH origins on the previous release, and the issue says so.
 
