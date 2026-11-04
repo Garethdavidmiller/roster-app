@@ -40,7 +40,7 @@ import { CONFIG, escapeHtml as esc } from './roster-data.js';   // esc: every in
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, isOvertimeReviewer, canOpenOvertime, overtimeEnabled } from './auth-policy.js';
+import { requirePage, isOvertimeReviewer, canOpenOvertime, canOpenNewlink, overtimeEnabled } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
@@ -130,7 +130,7 @@ export function init() {
             memberName: currentUser,
             isAdmin: !!currentUser && CONFIG.ADMIN_NAMES.includes(currentUser),
             isLinksDesigner: !!currentUser && CONFIG.LINKS_DESIGNERS.includes(currentUser),
-            canOpenOvertime: canOpenOvertime(currentUser),
+            canOpenOvertime: canOpenOvertime(currentUser), canOpenNewlink: canOpenNewlink(currentUser),
             // An unsaved availability form is asked about BEFORE anything is released (page-session.js).
             beforeSignOut: currentUser ? askBeforeSignOut(() => !!currentForm?.isDirty()) : null,
             onSignOut: currentUser ? () => signOutAndLeave() : null,

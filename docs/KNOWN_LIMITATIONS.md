@@ -2099,22 +2099,6 @@ second, so a range query or a cap would have passed for the wrong reason. The up
 tested through `documents-client.js`. Before adding new behaviour to `firebase-client.js`, add the
 test with it.
 
-### Legacy override types still in Firestore
-Types `"allocated"`, `"overtime"`, `"swap"` are no longer creatable via the UI but
-exist in older Firestore documents. They are displayed with their original labels in
-Saved Changes. Editing them re-saves as `"shift"`.
-
-**How many are left is now on screen** (v25.28): Operations → Old-format records counts each type,
-and on opening lists the years they fall in. When it reads none, this entry, the card and the
-old-format code go together; if some remain, what each becomes is the owner's decision first.
-OPERATIONS_REFERENCE.md → "Old-format records" says what to do with each answer.
-
-The pay suggestion engine (`getRosterSuggestion` in `paycalc-roster-suggestions.js`)
-reads the `type` field to classify shifts. Legacy types are treated as plain `"shift"`
-overrides — they will not be miscounted, but any overtime/RDW semantics the original
-type implied are lost. Clean up legacy documents in the Firebase Console to replace
-them with the correct current types if the pay suggestion is producing wrong results.
-
 ## Error Log noise filters (v19.20)
 
 Not every uncaught error is a fault in this app. Seven classes are suppressed before the Firestore
@@ -2319,6 +2303,6 @@ the run takes it back.
 - **Its PDFs are served by the GitHub Pages mirror** (`PACK_BASE` in `newlink-config.js`), because Firebase Hosting
   serves nothing under `docs/`. Retiring the mirror breaks every pack link on the page; move the files into a served
   folder first.
-- **It is the admin's alone until its audience gate exists.** `PHASE` has one value, and `newlink-config.test.mjs`
+- **It is a preview — the admin and `CONFIG.NEWLINK_PREVIEW` — until its audience gate exists.** `PHASE` has one value, and `newlink-config.test.mjs`
   refuses another until `auth-policy.js` and `nav-panel.js` can admit the colleagues it is for
   (OPERATIONS_REFERENCE.md → "The new link page").

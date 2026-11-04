@@ -19,7 +19,8 @@
  *
  * ── WHO IT IS FOR ──────────────────────────────────────────────────────────────────────────────
  *
- * The admin alone while `PHASE` is 'preview' (auth-policy.js `newlink`, nav-panel.js `adminOnly`). The sign-in is the
+ * The admin and the named previewers (CONFIG.NEWLINK_PREVIEW, v25.33) while `PHASE` is 'preview' (auth-policy.js `newlink`,
+ * nav-panel.js `newlinkAudienceOnly`, both read through `canOpenNewlink`). The sign-in is the
  * app's ordinary front door rather than a protection — the proposals are public files — and the station PIN never reads
  * this page (owner: "No, signed-in only"), so it signs out on arrival like every page that does not ask for it.
  */
@@ -29,7 +30,7 @@ import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
-import { requirePage, canOpenOvertime } from './auth-policy.js';
+import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -89,7 +90,7 @@ function start(member) {
         memberName: member,
         isAdmin: CONFIG.ADMIN_NAMES.includes(member),
         isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(member),
-        canOpenOvertime: canOpenOvertime(member),
+        canOpenOvertime: canOpenOvertime(member), canOpenNewlink: canOpenNewlink(member),
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut: () => signOutAndLeave({ to: './' }),
     });
@@ -99,7 +100,7 @@ function start(member) {
     wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js — the one wiring)
     const cards = Object.fromEntries(CARDS.map(id => [id, initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`)]));
 
-    renderStatic();
+    renderStatic(member);
     wireChoices(cards);
     markPageReady();
 
@@ -111,13 +112,29 @@ function start(member) {
     sessionReady.then(() => initPasswordForce(member)).catch(() => {});
 }
 
-/** Everything that does not depend on a choice: the status, the banner, the lists, the pack, the notes. */
-function renderStatic() {
+/**
+ * Everyone who can see the preview apart from the reader, as the banner words them: "the admin" (never a name — staff
+ * call that role the admin), then each named previewer. Empty for the admin while nobody else is named.
+ * @param {string} member
+ * @returns {string[]}
+ */
+function previewOthers(member) {
+    return [
+        ...(CONFIG.ADMIN_NAMES.includes(member) ? [] : ['the admin']),
+        ...(CONFIG.NEWLINK_PREVIEW || []).filter(name => name !== member),
+    ];
+}
+
+/**
+ * Everything that does not depend on a choice: the status, the banner, the lists, the pack, the notes.
+ * @param {string} member  who is reading: the banner names everyone else who can see the preview
+ */
+function renderStatic(member) {
     setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES, starts: STARTS }));
     const banner = el('nlPreview');
     if (banner) {
         banner.hidden = PHASE !== 'preview';
-        if (PHASE === 'preview') setHTML('nlPreview', renderPreviewBanner({ audience: audienceNames(), decided: !!AUDIENCE }));
+        if (PHASE === 'preview') setHTML('nlPreview', renderPreviewBanner({ audience: audienceNames(), decided: !!AUDIENCE, others: previewOthers(member) }));
     }
     setHTML('nlChangesList', renderList(CHANGES));
     setHTML('nlCommonList', renderCommon({ gains: GAINS, costs: COSTS }));

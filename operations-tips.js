@@ -157,21 +157,4 @@ export const CARD_TIPS = {
             ]},
         ],
     },
-    'old-format': {
-        title: 'Old-format records',
-        sections: [
-            { heading: 'What it counts', items: [
-                { icon: '🗂️', html: 'Shift changes saved as <strong>Allocated shift</strong>, <strong>Overtime</strong> or <strong>Swap</strong> — types the app once offered and no longer creates. Today the same days are recorded as <strong>Shift</strong> or <strong>RDW</strong>' },
-                { icon: '👀', html: 'They still show in the Calendar, and Admin’s Saved Changes marks each one <strong>old format</strong>. This card only counts them — it changes nothing' },
-            ]},
-            { heading: 'What the figures mean', items: [
-                { icon: '🔢', html: 'The count is taken on the server without downloading the records, so it is cheap and always up to date when the page opens' },
-                { icon: '📅', html: 'Opening the card reads the records themselves to group them by year — the year of the day each change is for. That costs one read per record, so it happens only when you open the card' },
-            ]},
-            { heading: 'What happens next', items: [
-                { icon: '✅', html: '<strong>None left</strong> — the code that still reads the old formats can be removed, and this card goes with it' },
-                { icon: '🤔', html: '<strong>Some left</strong> — deciding what each type becomes is a choice to make first. Overtime is voluntary work like RDW; Allocated shift and Swap are contracted days like a Shift' },
-            ]},
-        ],
-    },
 };

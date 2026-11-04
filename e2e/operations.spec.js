@@ -40,7 +40,7 @@ for (const width of [1280, 1440]) {
         // robust to the centred max-width:1100 container + narrow-left/wide-right split.
         // An auto-placement regression (the v14.31 symptom) would break this separation.
         const leftIds  = ['#huddleUploadCard', '#circularUploadCard', '#newsletterUploadCard'];
-        const rightIds = ['#rosterUploadCard', '#accountStatusCard', '#errorLogCard', '#usageCard', '#pageSpeedCard', '#legacyRecordsCard', '#authSetupCard'];
+        const rightIds = ['#rosterUploadCard', '#accountStatusCard', '#errorLogCard', '#usageCard', '#pageSpeedCard', '#authSetupCard'];
         const boxesOf = async ids => Promise.all(ids.map(id => page.locator(id).boundingBox()));
         const leftBoxes  = await boxesOf(leftIds);
         const rightBoxes = await boxesOf(rightIds);
@@ -2437,74 +2437,4 @@ test('operations: confirming the leaver disable keeps the first run\'s report', 
     await expect(result, 'the names only the admin can act on must survive the confirm').toContainText('S. Silva — tell them their password is their surname');
     await expect(result.locator('text=Already existed'), 'the re-run lists the whole roster again; it is not appended').toHaveCount(1);
     await expect(page.locator('#authConfirmOrphans')).toHaveCount(0);
-});
-
-// ── OLD-FORMAT RECORDS (v25.28, temporary) ────────────────────────────────────────────────────────
-// The rule and the reader are unit-tested (operations-legacy.test.mjs). What only a page proves is the
-// WIRING: the real card counts the overrides collection by the three old types and nothing else, and
-// reads the records for their years only once it is opened. The stub's docsByQuery filters by each
-// query's where() constraints, so a query asking for the wrong field or type counts the wrong rows.
-const OLD_FORMAT_ROWS = [
-    { id: 'a1', memberName: 'S. Silva', date: '2025-03-01', type: 'allocated', value: '06:20-14:20' },
-    { id: 'a2', memberName: 'S. Silva', date: '2025-11-30', type: 'allocated', value: '06:20-14:20' },
-    { id: 'a3', memberName: 'M. Robson', date: '2026-01-04', type: 'allocated', value: '14:00-22:00' },
-    { id: 'o1', memberName: 'M. Robson', date: '2025-06-07', type: 'overtime', value: '06:20-14:20' },
-    // Today's types, which must never be counted as old ones.
-    { id: 's1', memberName: 'S. Silva', date: '2026-02-02', type: 'shift', value: '06:20-14:20' },
-    { id: 'r1', memberName: 'S. Silva', date: '2026-02-03', type: 'rdw', value: '06:20-14:20' },
-];
-/** The where() constraints the page has asked for on `type`, by operator. */
-const typeQueries = (page, op) => page.evaluate((o) =>
-    (window.__E2E.whereCalls || []).filter(([f, op2]) => f === 'type' && op2 === o).map(([, , v]) => v), op);
-
-test('operations: Old-format records counts the three old types, and reads their years only on open', async ({ page }) => {
-    const errors = collectFatalErrors(page);
-    await seedSession(page, 'G. Miller');
-    await page.addInitScript((rows) => {
-        window.__E2E = { ...(window.__E2E || {}), docsByQuery: { overrides: rows } };
-    }, OLD_FORMAT_ROWS);
-    await page.goto('/operations.html');
-    await expect(page.locator('#legacyRecordsCountChip'), 'the total, while the card is still closed').toHaveText('4');
-    expect((await typeQueries(page, '==')).sort(), 'one count per old type').toEqual(['allocated', 'overtime', 'swap']);
-    expect(await typeQueries(page, 'in'), 'the records are not read until the card is opened').toEqual([]);
-
-    await page.locator('#legacyRecordsToggleHeader').click();
-    const content = page.locator('#legacyRecordsContent');
-    await expect(content).toContainText('4 left');
-    await expect(content).toContainText('Allocated shift: 3 — 2025: 2 · 2026: 1');
-    await expect(content).toContainText('Overtime: 1 — 2025: 1');
-    await expect(content).toContainText('Swap: none');
-    expect(await typeQueries(page, 'in'), 'one read of the records, on the open').toEqual([['allocated', 'overtime', 'swap']]);
-    expect(errors).toHaveLength(0);
-});
-
-test('operations: Old-format records says "None left" when every count came back zero', async ({ page }) => {
-    await seedSession(page, 'G. Miller');
-    await page.addInitScript((rows) => {
-        window.__E2E = { ...(window.__E2E || {}), docsByQuery: { overrides: rows } };
-    }, OLD_FORMAT_ROWS.filter(r => r.type === 'shift' || r.type === 'rdw'));
-    await page.goto('/operations.html');
-    await page.locator('#legacyRecordsToggleHeader').click();
-    await expect(page.locator('#legacyRecordsContent')).toContainText('None left');
-    await expect(page.locator('#legacyRecordsCountChip')).toBeEmpty();
-    expect(await typeQueries(page, 'in'), 'with none, there is nothing to read the years of').toEqual([]);
-});
-
-test('operations: an Old-format count that fails is a Try again, never "None left"', async ({ page }) => {
-    await seedSession(page, 'G. Miller');
-    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), failCount: true }; });
-    await page.goto('/operations.html');
-    await page.locator('#legacyRecordsToggleHeader').click();
-    const content = page.locator('#legacyRecordsContent');
-    await expect(content).toContainText('Couldn’t count the old-format records');
-    await expect(content).not.toContainText('None left');
-    await expect(page.locator('#legacyRecordsCountChip')).toBeEmpty();
-    // The connection comes back. The card is open, so a recount carries straight on to the years.
-    await page.evaluate(() => {
-        window.__E2E.failCount = false;
-        window.__E2E.docsByQuery = { overrides: [{ id: 'w1', memberName: 'S. Silva', date: '2025-05-05', type: 'swap', value: '06:20-14:20' }] };
-    });
-    await content.getByRole('button', { name: /Try again/ }).click();
-    await expect(content).toContainText('1 left');
-    await expect(content).toContainText('Swap: 1 — 2025: 1');
 });

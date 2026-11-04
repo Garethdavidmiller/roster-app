@@ -33,7 +33,7 @@ describe('rolesFor (real CONFIG)', () => {
     // `roles[r]` for each name in a page's role list, so a flag that quietly stops being returned
     // makes every page requiring it fail closed — and a flag that quietly appears is a new
     // privilege nobody reviewed. Either way the shape is what has to be pinned.
-    const NO_ROLES = { admin: false, manager: false, designer: false, overtimeBeta: false };
+    const NO_ROLES = { admin: false, manager: false, designer: false, overtimeBeta: false, newlinkPreview: false };
     test('a name in no list → all false', () => assert.deepEqual(rolesFor(PLAIN), NO_ROLES));
     test('null/undefined → all false', () => {
         assert.deepEqual(rolesFor(null), NO_ROLES);

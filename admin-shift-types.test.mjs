@@ -26,8 +26,6 @@ test('a value that CARRIES something is always kept', () => {
     assert.equal(rowValueText('shift', '08:00-16:30'), '08:00-16:30');
     assert.equal(rowValueText('rdw', '09:00-17:00'), '09:00-17:00');
     assert.equal(rowValueText('other', 'TRG RDW 09:00-17:00'), 'TRG RDW 09:00-17:00');
-    // Legacy types are not `fixed`, so they keep their times too.
-    assert.equal(rowValueText('allocated', '06:00-14:00'), '06:00-14:00');
 });
 
 test('it fails toward SHOWING — a row that contradicts its own type stays visible', () => {
@@ -49,24 +47,5 @@ test('the rule is the `fixed` flag, so a type added later needs no edit here', (
         const meta = TYPES[type];
         if (!meta?.fixed) continue;
         assert.ok(meta.fixedValue, `${type} is fixed but declares no fixedValue`);
-    }
-});
-
-test('every LEGACY type is mapped to a modern one before the week editor prefills it', async () => {
-    // A legacy type (no pill — allocated/overtime/swap) cannot be written any more: firestore.rules
-    // refuses it on create and update. The week editor prefills an existing row by TYPE, so a legacy
-    // row that is not mapped here opens with no pill lit, and an edit then tries to save the legacy
-    // type itself and is permission-denied. `swap` was missing from the map until the v24.28 review.
-    // The map lives in a DOM module, so it is read from source rather than imported.
-    const { readFileSync } = await import('node:fs');
-    const src = readFileSync(new URL('./admin-week-editor.js', import.meta.url), 'utf8');
-    const m = src.match(/const legacyToShift = (\{[^}]*\});/);
-    assert.ok(m, 'admin-week-editor.js no longer declares legacyToShift — this guard is blind');
-    const map = Function(`return (${m[1]});`)();
-    const legacy = Object.entries(TYPES).filter(([, meta]) => !meta.pill).map(([t]) => t);
-    assert.ok(legacy.length >= 3, `expected the three legacy types, found ${legacy.join(', ')}`);
-    for (const t of legacy) {
-        assert.ok(t in map, `legacy type "${t}" is not in legacyToShift — its row prefills with no pill and saves a type the rules refuse`);
-        assert.ok(TYPES[map[t]]?.pill, `legacy "${t}" maps to "${map[t]}", which is not a creatable (pill) type`);
     }
 });

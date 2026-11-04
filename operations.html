@@ -382,30 +382,6 @@
         </div>
     </div>
 
-    <!-- ==================== OLD-FORMAT RECORDS ==================== -->
-    <!-- TEMPORARY (v25.28): counts the shift changes saved as a type the app can still read but no
-         longer creates, so the code that reads them can go once none are left. Read-only; it goes
-         with that code. operations-legacy.js has the reasoning, including why the years load only
-         when the card is opened. -->
-    <div class="card" id="legacyRecordsCard">
-        <div class="card-header card-header-toggle" id="legacyRecordsToggleHeader">
-            <div>
-                <h2><span aria-hidden="true">🗂️</span> Old-format records</h2>
-                <span class="hint">Shift changes saved in a format the app no longer creates — when none are left, the code that reads them can go</span>
-            </div>
-            <div class="card-header-actions">
-                <span class="card-year-chip" id="legacyRecordsCountChip"></span>
-                <button type="button" class="btn-card-tips" data-card="old-format" aria-label="Tips for Old-format records">?</button>
-                <span class="collapse-chevron" id="legacyRecordsChevron">▾</span>
-            </div>
-        </div>
-        <div class="card-collapsible-body" id="legacyRecordsBody">
-            <div class="card-body" id="legacyRecordsContent" aria-busy="true">
-                <p class="auth-desc">Loading…</p>
-            </div>
-        </div>
-    </div>
-
     <!-- ==================== STAFF LOGIN ACCOUNTS ==================== -->
     </section><!-- /ops-right-column -->
 

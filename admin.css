@@ -1461,25 +1461,6 @@
         .lpill-sick         { background: var(--absence-light); color: var(--absence); }
         .lpill-correction   { background: var(--orange-light); color: var(--correction-text); }
         .lpill-other     { background: var(--other-light);    color: var(--other);      }
-        /* Legacy list-pill colours — old Saved Changes records keep their original styling */
-        .lpill-allocated    { background: var(--green-light);  color: var(--green);    }
-        .lpill-overtime     { background: var(--ot-light);     color: var(--ot);       }
-        .lpill-swap         { background: var(--blue-light);   color: var(--blue-sky); }
-
-        /* Small tag shown on overrides with old pre-v5 type names */
-        .legacy-pill {
-            display: inline-block;
-            font-size: 9px;
-            font-weight: 700;
-            padding: 1px 5px;
-            border-radius: 8px;
-            background: var(--bg-faint);
-            color: var(--text-light);
-            margin-left: 5px;
-            vertical-align: middle;
-            white-space: nowrap;
-        }
-
         /* Small tag shown on overrides written by the weekly PDF upload */
         .source-pill {
             display: inline-block;
