@@ -1,0 +1,8 @@
+{
+ "date": "4 November 2026",
+ "identity": {
+  "table": "Quarter Past's, with the weekday changed: no 06:20–14:50, two closers at 15:45 and one at 16:00, no 13:45–22:30 (results/short-openers-table.json)",
+  "seed": "— (final-table.mjs for the weekday, then exact-rota.py; the grid is the record, and FIX= checks it)",
+  "lineage": "Quarter Past Re-laid (QR-26-EXT · 544e1ee8) with its weekday duties changed on 4 Nov 2026, to the owner's brief: every Monday-to-Friday 06:20 finishes at 13:45 or 14:20, so no opener is over 8 hours, and 14 days' leave still buys 30 days off. The two 06:20–14:50s a weekday became 06:20–14:20s, and the hour that frees went where it fits the trains best (final-table.mjs, Quarter Past's weekday times with closers from 15:45 and the day's total kept): two closers start at 15:45 and one at 16:00, and the 13:45–22:30 becomes a 14:00–22:30. Its rest days, weekends, Saturdays and Sundays are Quarter Past Re-laid's; the times were laid on them again with exact-rota.py (SKELETON= and FAMILY=1)."
+ }
+}
