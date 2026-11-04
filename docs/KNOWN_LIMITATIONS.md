@@ -354,7 +354,7 @@ moved:
   (`/opt/pw-browsers/chromium-1194`, measured 3 Nov 2026): launch Chromium with
   `executablePath: '/opt/pw-browsers/chromium'`. A scratch config that imports the project's and
   sets it, giving `testDir` and the web server's `cwd` as absolute paths, is enough, and nothing in
-  the repo changes; 1.64.1 ran the suite that way on the container's 1.63 Chromium. WebKit takes
+  the repo changes; 1.64.1 ran two specs that way (18 tests) on the container's 1.63 Chromium. WebKit takes
   `npx playwright install webkit`, about a minute. The full Chrome binary also asks for
   `/favicon.ico`, which neither origin serves; the live check's reachability probe runs in a tab of
   its own so that request is never counted against a page (`e2e/live.spec.js`). CI and the deploy
