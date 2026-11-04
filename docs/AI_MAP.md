@@ -1804,7 +1804,7 @@ Coordinator for `paycalc.html`. No pure pay maths, no period arithmetic here.
 
 ### `paycalc-result-headline.js`
 Which figure is the headline, and what it is called (v22.56 — extracted from `calculate()`).
-- `headlineLabels({hasActual, payday, bpThisPeriod, hppForPeriod, bpIsEstimate, hppIsEstimate})` → `{netLabel, stickyLabelHtml, stickyAria, bdBtnHtml}` — PURE, so both branches' wording can be held side by side. The visible label and the accessible name are built from one branch deliberately: a screen-reader user and a sighted user must not disagree about whether the figure is confirmed.
+- `headlineLabels({hasActual, payday, bpThisPeriod, hppForPeriod, bpIsEstimate, hppIsEstimate})` → `{netLabel, stickyLabelHtml, stickyWords, bdBtnHtml}` (`stickyWords`: the strip's label as plain text — the take-home bar's name leads with it and the amount, v25.27) — PURE, so both branches' wording can be held side by side. The visible label and the accessible name are built from one branch deliberately: a screen-reader user and a sighted user must not disagree about whether the figure is confirmed.
 - `renderResultHeadline({actual, net, payday, …})` — paints it. **Every shared target is written on BOTH paths**; that is the contract, because a target left unwritten keeps the previous render's value. `#summary` is the one exception (the estimate path leaves the ordinary rows to paycalc-breakdown.js) and is named rather than left to be noticed.
 - The actuals gate stays with the CALLER — this module takes the resolved value, since who may see device-local payslip figures is a question about identity.
 
