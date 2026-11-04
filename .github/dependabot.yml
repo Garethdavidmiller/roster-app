@@ -7,8 +7,8 @@
 #     app version bump is involved (e2e.yml's `version` job excludes package.json and .github/);
 #   · NOT functions/package.json — a Cloud Functions dependency is runtime, so its PR needs an app version
 #     bump (CLAUDE.md → Version bumping), which a bot cannot make: every one would fail `version`;
-#   · NOT @playwright/test — it moves with the dev container's pre-installed browsers, so the visual
-#     baselines can be redrawn here on the Chromium CI runs (KNOWN_LIMITATIONS.md → the Playwright upgrade);
+#   · NOT @playwright/test — each release brings new browsers, and the visual baselines are redrawn from
+#     the upgrade's own CI render, by hand (KNOWN_LIMITATIONS.md → the Playwright upgrade);
 #   · NOT pdfjs-dist — the root copy must match functions/package.json's exact pin, which this file leaves alone;
 # axe WAS on this list until v25.27: 4.14 added WCAG 2.5.3's Label in Name rule to the gate, which failed 27 of
 # its states until the names were fixed (docs/A11Y_BASELINE.md → label-content-name-mismatch). A future axe that
