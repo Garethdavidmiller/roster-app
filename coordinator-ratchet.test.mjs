@@ -315,7 +315,10 @@ const CAPS = {
     // stood at EXACTLY its cap. Nothing in those lines is a rule a Node test could hold, and the
     // extraction named above is the way DOWN — it is still the right one, and still not for a pass
     // whose subject is somewhere else. Lower this again when the notices archive leaves.
-    'nav-panel.js':            1350,
+    // 1350 → 1352 at v25.33 — a RAISE of two lines: the New link pill's own gate (S. Silva may preview the page), one
+    // filter in the chain and its parameter's type. page-contract-parity derives the gates FROM that chain, so the
+    // filter cannot fold into another line without hiding the gate from the check that keeps it honest.
+    'nav-panel.js':            1352,
     // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
     // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
     // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix

@@ -3,7 +3,8 @@
  * newlink-config.test.mjs — the new link page's settings, and the one switch that must not be flipped alone.
  * Run: node --test newlink-config.test.mjs   (part of `npm run test:hygiene`)
  *
- * `PHASE` is the page's lifecycle switch, and only 'preview' is built: the admin alone. Two failures are possible and
+ * `PHASE` is the page's lifecycle switch, and only 'preview' is built: the admin and the named previewers (CONFIG.NEWLINK_PREVIEW,
+ * S. Silva since v25.33). Two failures are possible and
  * both are silent in the app — a preview leaking to members because the policy was widened ahead of the switch, or the
  * switch flipped to a phase whose gate does not exist, so the page tells colleagues it is open while nobody but the
  * admin can reach it. This file holds the switch, the policy and the pill to one story.
@@ -13,26 +14,40 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as config from './newlink-config.js';
 import { PHASE, CLOSES, STARTS, CONTACT, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
-import { PAGE_POLICIES, requirePageAuth, admitsStaffPin } from './auth-policy.js';
-import { teamMembers } from './roster-data.js';
+import { PAGE_POLICIES, requirePage, admitsStaffPin, canOpenNewlink } from './auth-policy.js';
+import { teamMembers, CONFIG } from './roster-data.js';
 
-test('the preview is the admin\'s alone — the switch, the policy and the pill agree', () => {
+test('the preview is the admin\'s and the named previewers\' — the switch, the policy and the pill agree', () => {
     assert.equal(PHASE, 'preview',
         'only the preview is built. Opening the page needs its audience gate first — a role in auth-policy.js and a pill '
         + 'flag in nav-panel.js (newlink-config.js header) — and then this test widens with it.');
-    const policy = PAGE_POLICIES.newlink;
-    assert.deepEqual(policy.role, ['admin']);
+    assert.deepEqual(PAGE_POLICIES.newlink.role, ['admin', 'newlinkPreview']);
     assert.equal(admitsStaffPin('newlink'), false, 'never the station PIN (owner, 2 Nov 2026: "No, signed-in only")');
     const nav = readFileSync(new URL('./nav-panel.js', import.meta.url), 'utf8');
-    assert.match(nav, /\{\s*id:\s*'newlink',[^}]*adminOnly:\s*true/, 'the pill is the admin\'s alone too');
+    assert.match(nav, /\{\s*id:\s*'newlink',[^}]*newlinkAudienceOnly:\s*true/, 'the pill has its own gate, read through canOpenNewlink');
 
-    // The decision itself, not only the table: the admin in, everybody else out — a designer and a manager included.
-    const named = (/** @type {string} */ member) => ({ status: 'named', member });
-    assert.equal(requirePageAuth(named('G. Miller'), policy, { admin: true }).decision, 'allow');
-    assert.equal(requirePageAuth(named('S. Silva'), policy, { designer: true }).decision, 'forbidden');
-    assert.equal(requirePageAuth(named('D. Watts'), policy, { manager: true }).decision, 'forbidden');
-    assert.equal(requirePageAuth(named('T. Bibi'), policy, {}).decision, 'forbidden');
-    assert.equal(requirePageAuth({ status: 'signedOut', member: null }, policy, {}).decision, 'login');
+    // The decision itself, through the REAL lists (requirePage reads CONFIG), not roles made up for the test: the admin
+    // and S. Silva in; everybody else out — a Links designer and a manager included.
+    const decide = (/** @type {string} */ member) => requirePage({ status: 'named', member }, 'newlink').decision;
+    assert.equal(decide('G. Miller'), 'allow');
+    assert.equal(decide('S. Silva'), 'allow', 'the new link\'s contact (owner, 4 Nov 2026: "open up the new links page to S. Silva")');
+    assert.equal(decide('M. Robson'), 'forbidden', 'a Links designer is not enough');
+    assert.equal(decide('D. Watts'), 'forbidden', 'nor a manager');
+    assert.equal(decide('T. Bibi'), 'forbidden');
+    assert.equal(requirePage({ status: 'signedOut', member: null }, 'newlink').decision, 'login');
+});
+
+test('the pill is offered to exactly the people the page admits — every name on the roster', () => {
+    // Two answers to one question (canOpenNewlink draws the pill on all nine pages; the policy decides who may stay), so
+    // they are compared for every name rather than for the few above: a pill without the page bounces somebody, and a
+    // page without the pill is reachable only by typing its address.
+    const names = [...new Set([...teamMembers.map(m => m.name), ...CONFIG.ADMIN_NAMES, ...CONFIG.NEWLINK_PREVIEW])];
+    const disagree = names.filter(n => canOpenNewlink(n) !== (requirePage({ status: 'named', member: n }, 'newlink').decision === 'allow'));
+    assert.deepEqual(disagree, []);
+    // A name spelt differently from teamMembers would grant nobody, silently.
+    for (const n of CONFIG.NEWLINK_PREVIEW) {
+        assert.ok(teamMembers.some(m => m.name === n && !m.hidden), `${n} is not an active name on the roster — spell it as teamMembers does`);
+    }
 });
 
 test('the closing date is a real day, or null — "a date to be agreed"', () => {

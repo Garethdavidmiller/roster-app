@@ -74,10 +74,11 @@ export const PAGE_POLICIES = Object.freeze({
     // station PIN reads it too since v24.84 (owner, 22 Oct 2026: "the station pin staff should be able
     // to view the trains page"), because the people asked about the timetable are at the station.
     trains:     { requireNamed: true,  role: null, staffPin: true },
-    // The new link (v25.06; the December link until v25.10): the admin's alone while it is a preview (newlink-config.js → PHASE). Opening it to the
-    // colleagues on the new link needs a role for them here and the matching flag on its pill — never `staffPin`
-    // (owner, 2 Nov 2026: "No, signed-in only").
-    newlink:    { requireNamed: true,  role: ['admin'] },
+    // The new link (v25.06; the December link until v25.10): the admin's, and the named previewers' (CONFIG.NEWLINK_PREVIEW:
+    // S. Silva, its contact, since v25.33), while it is a preview (newlink-config.js → PHASE). Opening it to the colleagues
+    // on the new link needs a role for them here and the matching flag on its pill — never `staffPin` (owner, 2 Nov 2026:
+    // "No, signed-in only").
+    newlink:    { requireNamed: true,  role: ['admin', 'newlinkPreview'] },
 });
 
 /**
@@ -102,7 +103,7 @@ function decide(/** @type {AuthDecision['decision']} */ decision, /** @type {str
  *
  * @param {{ status?: string, member?: string|null }} snapshot - from getAuthSnapshot()
  * @param {PagePolicy} policy
- * @param {{ admin?: boolean, manager?: boolean, designer?: boolean, overtimeBeta?: boolean }} [roles]
+ * @param {{ admin?: boolean, manager?: boolean, designer?: boolean, overtimeBeta?: boolean, newlinkPreview?: boolean }} [roles]
  * @returns {AuthDecision}
  */
 export function requirePageAuth(snapshot, policy, roles = {}) {
@@ -152,7 +153,7 @@ export function requirePageAuth(snapshot, policy, roles = {}) {
  * Glue: derive a member's role flags from CONFIG (the role source of truth). Impure only in that
  * it reads CONFIG — deterministic and side-effect-free.
  * @param {string|null|undefined} member
- * @returns {{ admin: boolean, manager: boolean, designer: boolean, overtimeBeta: boolean }}
+ * @returns {{ admin: boolean, manager: boolean, designer: boolean, overtimeBeta: boolean, newlinkPreview: boolean }}
  */
 export function rolesFor(member) {
     const m = member || null;
@@ -161,6 +162,9 @@ export function rolesFor(member) {
         // during the restricted beta. It grants no read of anybody else's, which is why it is a
         // separate flag rather than a widening of `manager`.
         overtimeBeta: !!m && (CONFIG.OVERTIME_BETA || []).includes(m),
+        // Not a claim either: who besides the admin may see the New link page while it is a preview.
+        // The page reads nothing from the server, so there is nothing for a claim to protect.
+        newlinkPreview: !!m && (CONFIG.NEWLINK_PREVIEW || []).includes(m),
         // All three CONFIG lists defensively defaulted so this fail-closed helper never throws if a
         // list were ever absent (uniform with MANAGER_NAMES, which was already guarded).
         admin:    !!m && (CONFIG.ADMIN_NAMES || []).includes(m),
@@ -211,6 +215,20 @@ export function isOvertimeReviewer(member) {
  */
 export function canOpenOvertime(member) {
     return overtimeEnabled() && (isOvertimeReviewer(member) || rolesFor(member).overtimeBeta);
+}
+
+/**
+ * May this member open the New link page — the admin, or a named previewer (CONFIG.NEWLINK_PREVIEW)?
+ *
+ * ONE declaration, like `canOpenOvertime`, for the same reason: every page draws the drawer, and the
+ * pill must be offered from all of them (page-contract-parity fails a page that does not pass it). It
+ * says the same as `PAGE_POLICIES.newlink`, which newlink-config.test.mjs holds it to for every name
+ * on the roster. UX only, like everything here.
+ * @param {string|null|undefined} member
+ */
+export function canOpenNewlink(member) {
+    const r = rolesFor(member);
+    return r.admin || r.newlinkPreview;
 }
 
 /**

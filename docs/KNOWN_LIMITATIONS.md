@@ -2320,6 +2320,6 @@ the run takes it back.
 - **Its PDFs are served by the GitHub Pages mirror** (`PACK_BASE` in `newlink-config.js`), because Firebase Hosting
   serves nothing under `docs/`. Retiring the mirror breaks every pack link on the page; move the files into a served
   folder first.
-- **It is the admin's alone until its audience gate exists.** `PHASE` has one value, and `newlink-config.test.mjs`
+- **It is a preview — the admin and `CONFIG.NEWLINK_PREVIEW` — until its audience gate exists.** `PHASE` has one value, and `newlink-config.test.mjs`
   refuses another until `auth-policy.js` and `nav-panel.js` can admit the colleagues it is for
   (OPERATIONS_REFERENCE.md → "The new link page").

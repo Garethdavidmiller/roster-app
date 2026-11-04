@@ -8,8 +8,9 @@
  *
  * ── THE LIFECYCLE ──────────────────────────────────────────────────────────────────────────────
  *
- * `PHASE` is the one switch. 'preview' is the only value built: the page is the admin's alone (auth-policy.js `newlink`
- * is admin-only and its nav pill `adminOnly`), and it wears a banner saying so — under which the admin sees exactly what
+ * `PHASE` is the one switch. 'preview' is the only value built: the page is the admin's and the named previewers'
+ * (CONFIG.NEWLINK_PREVIEW — S. Silva, its contact, since v25.33), read by auth-policy.js `newlink` and the nav pill's
+ * `newlinkAudienceOnly` through `canOpenNewlink`, and it wears a banner saying so — under which they see exactly what
  * colleagues will. Opening it needs a gate of its own first: a role for AUDIENCE in auth-policy.js and a matching pill
  * flag in nav-panel.js, which page-contract-parity requires to move together. newlink-config.test.mjs refuses any other
  * phase until that gate exists, so the switch cannot be flipped to a page nobody can reach.
