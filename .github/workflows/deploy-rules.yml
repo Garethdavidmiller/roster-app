@@ -45,7 +45,7 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # THE GATES RUN ON 22 — the Node the branch tests use (Oct 2026). They ran on 20 here, and a
       # test that passed on every PR failed only in this workflow: Node 22 has a `navigator` global
@@ -152,7 +152,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/report-deploy-failure
         with:
           target: 'Firestore/Storage rules'
