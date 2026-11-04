@@ -762,6 +762,16 @@ ${meta.page9 ?? `<section class="page">
         const bottom = Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom));
         if (foot.getBoundingClientRect().top - bottom < 8) notes.classList.add('p5notes--dense');
       }
+      // PAGE 5 FITS A ROW PER WEEKDAY, TODAY'S AND THE PROPOSAL'S (4 Nov 2026). Well Kept keeps today's twenty weeks, so both
+      // its weekdays and today's differ day to day, and its weekday table is the tallest any sheet has drawn: with the notes
+      // already tight the page ran 21px onto another sheet. Then, and only then, the Saturday and Sunday tables take the
+      // weekday table's dense rows. Measured, as above, so a page that fits is never touched.
+      for (const sec of document.querySelectorAll('section.page')) {
+        const foot = sec.querySelector(':scope > .foot'); if (!foot || !sec.querySelector('ul.p5notes')) continue;
+        const over = () => sec.getBoundingClientRect().height > 1033
+          || Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom)) > foot.getBoundingClientRect().top - 8;
+        if (over()) for (const t of sec.querySelectorAll('table.p5t.cov-heat:not(.cov-heat--dense)')) t.classList.add('cov-heat--dense');
+      }
       // PAGE 3 FITS 26 LINES (1 Oct 2026). Two more rota rows than at 24 lines pushed the word list under the footer rule.
       // Measured, in two steps, only as far as needed: first the word list is set tighter, then the grid's rows.
       for (const sec of document.querySelectorAll('section.page')) {
@@ -777,6 +787,15 @@ ${meta.page9 ?? `<section class="page">
         const kids = () => [...sec.children].filter(e => e !== foot && getComputedStyle(e).position !== 'absolute');
         const over = () => sec.getBoundingClientRect().height > 1033 || Math.max(...kids().map(e => e.getBoundingClientRect().bottom)) > foot.getBoundingClientRect().top;
         for (const step of ['p1-tight', 'p1-tighter']) { if (!over()) break; sec.classList.add(step); }
+      }
+      // PAGE 8 FITS THE OFFICE NOTE (4 Nov 2026). A rota that does not mark its office duties on every day carries one more
+      // sentence on the ticket-office card, and Well Kept's right-hand column ran 15px under the footer. The same two steps
+      // (plain.mjs says what each does), on the 8px floor page 5 keeps, and only on a page that would otherwise be refused.
+      for (const sec of document.querySelectorAll('section.page')) {
+        const foot = sec.querySelector(':scope > .foot'); if (!foot || !sec.querySelector(':scope > .pcards')) continue;
+        const over = () => sec.getBoundingClientRect().height > 1033
+          || Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom)) > foot.getBoundingClientRect().top - 8;
+        for (const step of ['p8-tight', 'p8-tighter']) { if (!over()) break; sec.classList.add(step); }
       }
       // PAGE 6 TAKES ITS ROOM. The rules page left its bottom sixth empty on every sheet; what is spare (less a margin)
       // is shared out as row padding in the rules table — up to 4px a row, top and bottom alike. No text re-wraps.

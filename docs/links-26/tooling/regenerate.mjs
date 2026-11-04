@@ -105,12 +105,19 @@ export const SUPPLIED = [
     // rather than its parent's; Fair Share's 30-day search result, which had none, is Grand Tour and joins the pack; and the
     // three links where 14 days' leave buys 30 days off ship into 30-days-off/ (README.md → "30 days off for 14 days' leave").
     // The fingerprints did not move: the cells are the same, only the names and the folder.
-    { file: 'results/quarter-past.json',         name: 'Quarter Past',         code: 'QP-26-EXT', fp: 'dfdbd724', strap: 'A 16:15 closer every weekday, closing shifts averaging 7h 45m, and every week all earlies or all lates' },
-    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '544e1ee8', dir: '30-days-off', strap: 'Quarter Past’s shifts in new weeks: 14 days’ leave buys 30 days off, as today, with no fatigue warning and seven full weekends' },
+    // QUARTER PAST TAKEN OUT, 4 NOV 2026 (owner: "Remove quarter past from the pack please"): the one-page roster QP-26-EXT ·
+    // dfdbd724, in the pack for a few hours. Its grid and meta stay in results/ (quarter-past.json); Open Return and Short
+    // Openers keep its shift times and say so in their lineage. To rebuild it, restore its entry here and its strap, family
+    // and date in fresh.mjs from git history.
+    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '544e1ee8', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buying 30 days off, as today, no fatigue warning and seven full weekends' },
     { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '38897b91', dir: '30-days-off', strap: 'Open Return with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45, and 14 days’ leave still buying 30 days off' },
     // Grand Tour (4 Nov 2026): Fair Share's duties in new weeks, so that 14 days' leave buys 30 days off and four weeks off
     // take 14, as today — the answer to the owner's question that morning (README.md → "Fair Share", run e). It was a search
     // result with no name, sheet or import file until the 30-day folder was made
+    // Well Kept (4 Nov 2026, owner: "add any other 30 days off proposals to the subfolder"): drawn on 26 Oct 2026 as Same Again
+    // Tidy, today's twenty weeks with six added, and the one other 26-line link where 14 days' leave buys 30 days off. It misses
+    // two December rules (README.md → "Same Again"), which its sheet and the 30-day folder's README say. Same Again is SA-26-S1
+    { file: 'results/same-again-tidy.json',      name: 'Well Kept',            code: 'WK-26-S2',  fp: '1db1381a', dir: '30-days-off', strap: 'Today’s twenty weeks kept, six added on today’s shift times: 14 days’ leave buys 30 days off, as today, but two December rules are missed' },
     { file: 'results/fair-share-leave30.json',   name: 'Grand Tour',           code: 'GT-26-T7',  fp: '4172f888', dir: '30-days-off', strap: 'Fair Share’s shifts in new weeks: 14 days’ leave buys 30 days off and four weeks off take 14, as today' },
 ];
 

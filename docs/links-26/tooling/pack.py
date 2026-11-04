@@ -104,15 +104,33 @@ LATE = sorted(n for n, c, _ in proposals if _day(c) > _drawn)
 # two laid from its duties, Quarter Past Relaid and Short Openers; the paragraph names each and what it is
 # Quarter Past Relaid was renamed Open Return, and Fair Share's 30-day search result joined as Grand Tour, the same day
 # (owner: "Give all proposals individual names")
-LATE_SET = ['Clean Slate', 'Fair Share', 'Grand Tour', 'Next Step', 'Open Return', 'Quarter Past', 'Short Openers']
+# Quarter Past was taken out the same evening (owner: "Remove quarter past from the pack please"), and Well Kept, drawn up on
+# 26 Oct 2026 as Same Again Tidy, joined the 30-day folder. Well Kept is not a late design; the paragraph names it with the folder
+LATE_SET = ['Clean Slate', 'Fair Share', 'Grand Tour', 'Next Step', 'Open Return', 'Short Openers']
 if LATE and LATE != LATE_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(LATE_SET)} as the designs after the shortlist; they are {LATE}')
+# WELL KEPT'S SENTENCE REPEATS ITS SOURCES (4 Nov 2026): "drawn up on 26 October 2026" is fresh.mjs's FIRST, and "7 of the 9
+# December rules, the only design here that does not meet all nine" is the shortlist sheet's claims, which assert both
+if FIRST.get('WK-26-S2') != '26 Oct 2026' or not all(said in SHEET for said in [
+        "Well Kept: today’s shift times only, 30 days off for 14 days’ leave, two December rules missed",
+        "the guide leaves out only Well Kept, the one design that misses a rule"]):
+    raise SystemExit('pack: the read-me says Well Kept was drawn up on 26 October 2026 and alone misses two December rules; fresh.mjs or the shortlist sheet no longer says so')
 LATE_WORDS = ', '.join(LATE[:-1]) + ' and ' + LATE[-1] if len(LATE) > 1 else ''.join(LATE)   # three since 4 Nov: 'A, B and C', never 'A and B and C'
 # THE FOUR WITHDRAWN (3 Nov 2026, owner: "Remove the four weak proposals please and reengineer the pack"). Named here, and
 # refused if any is back in SUPPLIED, because the paragraph below says they left the pack
 WITHDRAWN = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear']
 if any(n in names.split(', ') for n in WITHDRAWN):
     raise SystemExit(f'pack: the read-me says {WITHDRAWN} were withdrawn; regenerate.mjs SUPPLIED lists one of them')
+# QUARTER PAST, TAKEN OUT (4 Nov 2026, owner: "Remove quarter past from the pack please"). In the pack for an afternoon, so the
+# read-me says it left, as it does for the four above; refused if it is back in SUPPLIED
+TAKEN_OUT = ['Quarter Past']
+if any(n in names.split(', ') for n in TAKEN_OUT):
+    raise SystemExit(f'pack: the read-me says {TAKEN_OUT} was taken out; regenerate.mjs SUPPLIED lists it')
+# THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
+THIRTY_SET = ['Grand Tour', 'Open Return', 'Short Openers', 'Well Kept']
+THIRTY_IN = sorted(n for n, c, _ in proposals if DIR_OF[c] == '30-days-off')
+if THIRTY_IN != THIRTY_SET:
+    raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
 built_in = open('links-proposals.js', encoding='utf-8').read()
 missing = [n for n, c, _ in proposals if n in SHORTLIST and f"code: '{c}'" not in built_in]
 if missing: raise SystemExit(f'pack: the read-me says every shortlisted design is built into the app; links-proposals.js lacks {missing}')
@@ -249,23 +267,25 @@ readme = '\n'.join([
             'and late weeks - with the shift times chosen again. It joined the shortlist the same day, beside In Step '
             'and Short Run, and is the one recommended.'), '']
       if 'Even Step' in names_in else []),
-    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Quarter Past, Open Return, Short Openers and '
+    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Open Return, Short Openers and '
             'Grand Tour (4 November 2026) came after the shortlist, and none is on it. Clean Slate '
             'chooses every shift time afresh for the trains, with no shift over 8h 30m Monday to Saturday, one 13:45 '
             'finish and a closer from 15:45 every weekday. Next Step is Even Step with three weekday shifts retimed for '
             'the trains, still with no shift over 8h 30m Monday to Saturday. Fair Share is Next Step with an even Sunday: '
             'every Sunday duty is 8h 10m or 8h 15m, so a Sunday early and a Sunday late pay within a few pounds, and no '
-            'shift is over 8h 30m on any day. Quarter Past is a one-page roster drawn up outside the app and read in as written: its weekday '
-            'closer starts at 16:15, and it has three full weekends off in 26 weeks. Open Return, Short Openers and Grand '
-            'Tour are the links where 14 days\' leave buys 30 days off, and four weeks off take 14, as today; their sheets '
-            'and import files have a folder of their own, 30 days off. Open Return keeps Quarter Past\'s shift times in new '
-            'weeks, with no avoidable fatigue warning. Short Openers is Open Return with every weekday 06:20 finishing by '
-            '14:20 and every weekday closer at 15:45. Grand Tour keeps Fair Share\'s shift times in new weeks. Page 2 of '
-            'the shortlist sheet sets each beside the three.'), '']
+            'shift is over 8h 30m on any day. Open Return, Short Openers, Grand Tour and Well Kept are the links where '
+            '14 days\' leave buys 30 days off, and four weeks off take 14, as today; their sheets and import files have a '
+            'folder of their own, 30 days off. Open Return has a 16:15 closer every weekday and no avoidable fatigue '
+            'warning. Short Openers is Open Return with every weekday 06:20 finishing by 14:20 and every weekday closer at '
+            '15:45. Grand Tour keeps Fair Share\'s shift times in new weeks. Well Kept, drawn up on 26 October 2026, keeps '
+            'today\'s twenty weeks and adds six on today\'s shift times; it meets 7 of the 9 December rules, the only design '
+            'here that does not meet all nine. Page 2 of the shortlist sheet sets each beside the three.'), '']
       if LATE else []),
     *([para(f'Four more were drawn up and withdrawn on 3 November 2026 as the weakest in the pack: {", ".join(WITHDRAWN[:-1])} '
             f'and {WITHDRAWN[-1]}. Each was the same as or worse than a design still here on everything the sheets measure '
             'but one; the technical notes keep them.'), ''] if WITHDRAWN else []),
+    *([para('Quarter Past, a one-page roster drawn up outside the app and read in on 4 November 2026, was taken out of the '
+            'pack the same day; the technical notes keep it.'), ''] if TAKEN_OUT else []),
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
          'reference.'),
     '',

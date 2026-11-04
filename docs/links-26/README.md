@@ -29,9 +29,14 @@ times count the Monday-to-Saturday duties only* has both.
 Quarter Past is far out on four measures, so with it in the pack every other score rose about 2 points and a few
 mid-table places moved; Even Step stayed first. *Today's three join the pack* has both tables.
 
+**League scores dated 4 Nov 2026 with Quarter Past in the pack are on the range it set.** It was taken out that evening
+and Well Kept joined the 30-day folder; the leaders' scores fell about 1.2 points, Grand Tour's 2.7, and Even Step is
+first again. *Quarter Past out, Well Kept in* has the table and the reason.
+
 **Three designs were renamed on 4 Nov 2026** (owner: "Give all proposals individual names"): Quarter Past Relaid is
 **Open Return** (`OR-26-EXT`, drawn as `QR-26-EXT`), Fair Share's 30-day search result, which had no name, is **Grand
-Tour** (`GT-26-T7`), and Same Again Tidy is **Well Kept**. Each fingerprint is unchanged. The dated sections before
+Tour** (`GT-26-T7`), and Same Again Tidy is **Well Kept** (`WK-26-S2`, since it joined the pack that evening). Each
+fingerprint is unchanged. The dated sections before
 *30 days off for 14 days' leave* keep the names they were written with, and so do the grids in `tooling/results/`.
 
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
@@ -3600,6 +3605,114 @@ its scale.
 **Re-rendered, and kept as committed:** the fifteen sheets in `proposals/` and the rules sheet were re-rendered with
 Grand Tour in the folder, and only their Prepared date moved. Open Return's sheet changed its name and code, and Short
 Openers' its description of where it came from ("Open Return with every weekday 06:20…").
+
+## Quarter Past out, Well Kept in (4 Nov 2026)
+
+**The request** (owner, 4 Nov 2026): *"Remove quarter past from the pack please and add any other 30 days off proposals
+to the subfolder"*.
+
+**Read as two changes.**
+- **Quarter Past leaves the pack.** Its sheet, grid and import file are gone from `proposals/`, and its entry from
+  `regenerate.mjs`'s `SUPPLIED`. Its grid and meta stay in `tooling/results/quarter-past.json`, and the sections above
+  keep it, as they keep every design that has left.
+- **Every other 26-line link where 14 days' leave buys 30 days off joins `30-days-off/`.** The scan in *30 days off for
+  14 days' leave* found one more: Same Again Tidy, left out of the folder earlier the same day. It joins as **Well Kept**
+  (`WK-26-S2` · **`1db1381a`**; `S2` because Same Again was `SA-26-S1`), first drawn 26 Oct 2026, in the Same Again
+  family. Its grid stays `results/same-again-tidy.json`, with its `.meta.json`.
+
+**Well Kept is the one proposal that misses December rules.** It keeps today's twenty weeks and adds six on today's
+shift times:
+- 7 of the 9 December rules; the seventeen others meet all nine;
+- 3 avoidable fatigue warnings in the fixed duties (today 4), up to 5 if a cover week falls badly;
+- 7 days in a row, up to 10;
+- 6 full weekends in 26, a 12h 30m shortest rest, and 10 of 21 weeks on one shift time;
+- 18 shift times, none of them new; 14 days' leave buys 30 · 23.5 · 19, and four weeks off take 14.
+
+It is last in the league. The guide on page 1 of the shortlist sheet ("if the main priority is …, choose …") leaves it
+out, because a design that misses a rule is not one to choose; its heading row now says "Outside the shortlist, meeting
+every rule".
+
+**The league**, `REF_IN_RANGE=1`, places by the unrounded score:
+
+| | Design | Score |
+|---|---|---|
+| 1 | **Even Step** ★ shortlisted, recommended | **86.1** |
+| 2 | Next Step | 85.9 |
+| 3 | Closing Time | 85.8 |
+| 4 | Fair Share | 85.7 |
+| 5 | Grand Tour (30-day folder) | 84.9 |
+| 6 | Clean Slate | 84.3 |
+| 7 | Short Openers (30-day folder) | 83.7 |
+| 8 | Home Grown | 83.5 |
+| 9 | Second Edition | 83.0 |
+| 10 | Even Keel | 82.9 |
+| 11 | Short Run ★ shortlisted | 82.3 |
+| 12 | Fine Tune | 82.1 |
+| 13 | Long Break | 81.9 |
+| 14 | Open Return (30-day folder) | 81.5 |
+| 15 | Second Look | 81.5 |
+| 16 | Both Ways | 81.4 |
+| 17 | In Step ★ shortlisted | 81.2 |
+| 18 | Well Kept (30-day folder) | 34.5 |
+| — | Familiar Nine (24 lines, for reference) | 71.9 |
+| — | Today's link (for reference) | 20.3 |
+
+Weighted as before 31 Oct (`OLD_READINGS=1`), In Step leads on 88.5, with Even Step on 87.7 and Next Step on 87.6;
+Grand Tour is 13th.
+
+**Why Grand Tour fell from first to fifth.** Every measure is scored on the range from the worst design to the best.
+Quarter Past had 31 single rest days and 3 of 21 weeks on one shift time, far beyond any other design, so beside it
+Grand Tour's 6 single rest days (the most of any design that meets every rule) and its 16 weeks on one shift time cost
+little. With Quarter Past gone, the far end on single rest days is Well Kept's 7, and on weeks on one shift time today's
+link's 7 of 16, so Grand Tour's two figures count for more: it lost 2.4 points on single rest days and 0.6 on weeks on
+one shift time, 2.7 in all, where the other leaders lost about 1.2. Measured by scoring the committed tree (Quarter Past
+in) and this one side by side, factor by factor.
+
+Well Kept moves the others less. It sets the far end of four ranges (10 days in a row, 8 weeks between full weekends, 7
+single rest days and a 4h 06m change of start), which lifts every other score by about 0.6 points. Scored without it,
+the order is the same down to 12th; below that, Second Look is 13th, Long Break 14th and Open Return 15th.
+
+**What changed on the sheets.**
+- **Open Return's description** no longer leans on Quarter Past: *"A 16:15 closer every weekday, 14 days' leave buying
+  30 days off, as today, no fatigue warning and seven full weekends"*. It is the only existing sheet whose text changed.
+  Every other sheet, and the rules sheet, was re-rendered and compared: only the Prepared date moved, or nothing, so the
+  committed files stand.
+- **Well Kept's sheet**, rendered for the first time, needed two new measured steps in `render.mjs`. Each is taken only
+  by a page that would otherwise be refused, so no other sheet moved: every other sheet has 76px to spare on page 5 and
+  12px on page 8.
+  - Page 5: its weekday table has a row for every weekday, today's and its own, and the page ran 21px onto another
+    sheet. The Saturday and Sunday tables now take the weekday table's dense rows.
+  - Page 8: a rota that does not mark its office duties on every day adds a sentence to "The ticket office" card, and
+    the right-hand column ran 15px under the footer. The cards' spacing tightens (`p8-tight`), then, only if that is not
+    enough, their line height (`p8-tighter`). Well Kept takes the first step only, and its last line clears the footer
+    by 9px.
+  - Both steps were mutation-checked: with either one deleted, Well Kept's sheet is refused. Page 5 is then 1,053px
+    tall, against 1,032, and page 8 runs 15px under its footer.
+- **The summary** has eighteen rows at 80%, Well Kept last, because the rows are sorted by rules met.
+- **The shortlist sheet:**
+  - Page 1's lead says the three were shortlisted "before six more were drawn up", where it said "before seven more
+    joined": Well Kept was drawn up before the shortlist, so it is not one of them, and page 2's note says "drawn up"
+    too. Home Grown's row says its two new times are "the fewest of any link meeting every rule" (Well Kept has none),
+    and a claim holds that Well Kept is the one design the guide leaves out.
+  - Page 2 has lost the Quarter Past row, and Well Kept has a row of its own above the late designs: *"today's times and
+    30 days off for 14 days' leave — but two rules missed and three fatigue warnings"*. The fuller wording wrapped and
+    ran the page 10px into its footer. The 30-day row still names the three late ones, whose single rest days are the
+    one cost they share. The leave cost reads "of the whole pack, only Long Break and the four links that buy 30 days
+    off keep four weeks for 14".
+  - The judgement paragraph: *"Even Step is first, on 86.1, under half a point ahead of Next Step, Closing Time and Fair
+    Share; Short Run is eleventh and In Step seventeenth."* The three names are read from the league in its order, and a
+    claim holds the gap. Dropping the train fit from the weights (`DROP=fit`) puts Closing Time first, and the sheet
+    refuses to print.
+  - Page 1 has 8px to spare, and page 2 3px.
+- **The read-me** (`pack.py`): Quarter Past leaves the list of late designs, and Open Return is described on its own
+  terms. Well Kept joins the 30-day sentence, with what it is and the fact that it alone misses two rules, and one line
+  says Quarter Past was taken out the same day. Three new refusals, each mutation-checked: Quarter Past back in
+  `SUPPLIED`; a 30-day folder that differs from the read-me's list; and Well Kept's date or rules no longer stated by
+  `fresh.mjs` and the shortlist sheet.
+
+**Checks:** `regenerate.mjs --check`, with all 18 fingerprints unmoved; `check.mjs`; `deck-check.mjs`, with 162 rows
+agreeing; and the pack zip builds. The decks, *What it means if you…* and the New link page do not name Quarter Past or
+Well Kept, and are unchanged.
 
 ## Notes for the whole set
 

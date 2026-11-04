@@ -875,6 +875,13 @@ section.page.p1-tight .pcols .pbox { padding: 9px 14px 10px; }
 section.page.p1-tight .pcols .pbox ul { line-height: 1.28; }
 section.page.p1-tighter .pcols .pbox ul { font-size: 9.6px; line-height: 1.24; }
 section.page.p1-tighter .pbottom { font-size: 12.6px; line-height: 1.45; }
+/* PAGE 8 FITS THE OFFICE NOTE, MEASURED (4 Nov 2026, Well Kept). A rota that does not mark its office duties on every day
+   adds a sentence to "The ticket office" card saying the posts were assumed; Well Kept is the first in the pack to need it,
+   and the right-hand column ran 15px under the footer. The same two steps as pages 1 and 3, only as far as they must go —
+   the spacing first, then the cards' line height — and only on a page render.mjs would otherwise refuse. Nothing is cut. */
+section.page.p8-tight .tboxes { margin: 6px 0 3px; } section.page.p8-tight .tbox { padding: 7px 11px; }
+section.page.p8-tight h2.pmh { margin: 6px 0 3px; } section.page.p8-tight .pcard { padding: 5px 11px; margin-bottom: 4px; }
+section.page.p8-tighter .pcard p { line-height: 1.36; } section.page.p8-tighter .tbox ul { line-height: 1.34; }
 `;
 
 /** Page 5, people on duty hour by hour (owner, 29 Sep 2026: "the table wording is a little confusing"). The tables and
