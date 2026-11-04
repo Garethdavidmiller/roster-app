@@ -119,6 +119,10 @@ export const SUPPLIED = [
     // two December rules (README.md → "Same Again"), which its sheet and the 30-day folder's README say. Same Again is SA-26-S1
     { file: 'results/same-again-tidy.json',      name: 'Well Kept',            code: 'WK-26-S2',  fp: '1db1381a', dir: '30-days-off', strap: 'Today’s twenty weeks kept, six added on today’s shift times: 14 days’ leave buys 30 days off, as today, but two December rules are missed' },
     { file: 'results/fair-share-leave30.json',   name: 'Grand Tour',           code: 'GT-26-T7',  fp: '4172f888', dir: '30-days-off', strap: 'Fair Share’s shifts in new weeks: 14 days’ leave buys 30 days off and four weeks off take 14, as today' },
+    // 4 Nov 2026: Common Ground is today's link taken to 26 weeks on the owner's brief, its weeks the 30-for-14 grid found on
+    // Fair Share's duties (README.md → "Common Ground"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
+    // with the other four (owner, the same evening: "add any other 30 days off proposals to the subfolder")
+    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'e02c295f', dir: '30-days-off', strap: 'Today’s link on 26 weeks: nothing over 8h 30m on a weekday, a 13:45 finish every weekday, an even Sunday, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

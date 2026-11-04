@@ -1,0 +1,124 @@
+{
+ "note": "Common Ground's duty table (4 Nov 2026): today's link taken to 26 weeks under the owner's brief — openers finishing 13:45 or 14:20, closers from 15:45, nothing over 8h 30m Monday to Friday or 9h at the weekend, an even Sunday, every other start and finish on the hour or the half hour. Each day exhaustive (final-table.mjs, POOL_ONLY from half-hour-pool.mjs): the weekday at 7,435 (FIXED_FREE=1 WK_CLOSER=15:45-23:55 REQUIRE=06:20-13:45 REQUIRE_MAX=2 ONLY_REQUIRED_EARLY_FINISH=1 OPENER_HI=480 EARLY_HI=510 HI=510 LATE_MAX=0 AT22_STRICT=1 EARLY_START_MAX=09:00 LATE_START_MIN=11:00 TODAY=1 NEWPEN=1), the Saturday at 6,925 (EARLY_HI=510 HI=540 LATE_MAX=0 AT22_STRICT=1 EARLY_START_MAX=09:00 LATE_START_MIN=11:30 TODAY=1 NEWPEN=1), the Sunday with every duty 8h to 8h 30m (SUN_PLAN=1 LO=480 HI=510). README.md -> \"Common Ground\"",
+ "at22": "exact",
+ "sunTotal": 4920,
+ "totals": {
+  "weekday": 7435,
+  "sat": 6925,
+  "sun": 4920
+ },
+ "fit": {
+  "weekday": 32.4,
+  "sat": 12.1,
+  "sun": 30.5
+ },
+ "distinct": {
+  "weekday": {
+   "starts": 5,
+   "finishes": 6,
+   "turns": 6
+  },
+  "sat": {
+   "starts": 6,
+   "finishes": 8,
+   "turns": 8
+  },
+  "sun": {
+   "starts": 4,
+   "finishes": 4,
+   "turns": 4
+  }
+ },
+ "longest": 540,
+ "offQuarter": [
+  "14:20",
+  "14:50"
+ ],
+ "spareLines": 5,
+ "slots": [
+  {
+   "time": "06:20-13:45",
+   "weekday": 1,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:20",
+   "weekday": 3,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:50",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "07:00-15:30",
+   "weekday": 3,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "07:15-15:30",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 4
+  },
+  {
+   "time": "08:00-16:30",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "09:00-17:30",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "11:00-19:30",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "13:30-22:30",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "14:00-22:30",
+   "weekday": 4,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "14:30-22:00",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "14:30-22:30",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 2
+  },
+  {
+   "time": "15:15-23:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 3
+  },
+  {
+   "time": "15:45-23:55",
+   "weekday": 3,
+   "sat": 3,
+   "sun": 0
+  }
+ ]
+}

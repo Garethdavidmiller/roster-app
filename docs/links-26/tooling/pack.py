@@ -106,7 +106,10 @@ LATE = sorted(n for n, c, _ in proposals if _day(c) > _drawn)
 # (owner: "Give all proposals individual names")
 # Quarter Past was taken out the same evening (owner: "Remove quarter past from the pack please"), and Well Kept, drawn up on
 # 26 Oct 2026 as Same Again Tidy, joined the 30-day folder. Well Kept is not a late design; the paragraph names it with the folder
-LATE_SET = ['Clean Slate', 'Fair Share', 'Grand Tour', 'Next Step', 'Open Return', 'Short Openers']
+# Common Ground joined the same day on main (owner: "give this new proposal a better name and create the sheet and put it in
+# the pack"): today's link taken to 26 weeks on the owner's brief, on Grand Tour's weeks. It buys 30 days off for 14 days'
+# leave, so it is in the 30-day folder too, and it is a late design
+LATE_SET = ['Clean Slate', 'Common Ground', 'Fair Share', 'Grand Tour', 'Next Step', 'Open Return', 'Short Openers']
 if LATE and LATE != LATE_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(LATE_SET)} as the designs after the shortlist; they are {LATE}')
 # WELL KEPT'S SENTENCE REPEATS ITS SOURCES (4 Nov 2026): "drawn up on 26 October 2026" is fresh.mjs's FIRST, and "7 of the 9
@@ -127,7 +130,7 @@ TAKEN_OUT = ['Quarter Past']
 if any(n in names.split(', ') for n in TAKEN_OUT):
     raise SystemExit(f'pack: the read-me says {TAKEN_OUT} was taken out; regenerate.mjs SUPPLIED lists it')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
-THIRTY_SET = ['Grand Tour', 'Open Return', 'Short Openers', 'Well Kept']
+THIRTY_SET = ['Common Ground', 'Grand Tour', 'Open Return', 'Short Openers', 'Well Kept']
 THIRTY_IN = sorted(n for n, c, _ in proposals if DIR_OF[c] == '30-days-off')
 if THIRTY_IN != THIRTY_SET:
     raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
@@ -158,6 +161,7 @@ def whole(t):
     for f in FOLDERS + NAMES + TITLES: t = t.replace(f, f.replace(' ', '\x00'))
     t = re.sub(rf'\b\d{{1,2}} (?:{MONTHS})(?: \d{{4}})?', lambda m: m.group(0).replace(' ', '\x00'), t)
     t = re.sub(r'\bapp version (?=\d)', 'app\x00version\x00', t)
+    t = re.sub(r'\b\d{1,2}h \d{2}m\b', lambda m: m.group(0).replace(' ', '\x00'), t)   # nor a duration (4 Nov 2026: "8h / 10m")
     return t.replace(' - ', '\x00- ')
 para = lambda t: textwrap.fill(whole(' '.join(t.split())), W, break_on_hyphens=False).replace('\x00', ' ')
 def item(label, text, hang=21):
@@ -267,17 +271,21 @@ readme = '\n'.join([
             'and late weeks - with the shift times chosen again. It joined the shortlist the same day, beside In Step '
             'and Short Run, and is the one recommended.'), '']
       if 'Even Step' in names_in else []),
-    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Open Return, Short Openers and '
-            'Grand Tour (4 November 2026) came after the shortlist, and none is on it. Clean Slate '
+    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Open Return, Short Openers, Grand Tour and '
+            'Common Ground (4 November 2026) came after the shortlist, and none is on it. Clean Slate '
             'chooses every shift time afresh for the trains, with no shift over 8h 30m Monday to Saturday, one 13:45 '
             'finish and a closer from 15:45 every weekday. Next Step is Even Step with three weekday shifts retimed for '
             'the trains, still with no shift over 8h 30m Monday to Saturday. Fair Share is Next Step with an even Sunday: '
             'every Sunday duty is 8h 10m or 8h 15m, so a Sunday early and a Sunday late pay within a few pounds, and no '
-            'shift is over 8h 30m on any day. Open Return, Short Openers, Grand Tour and Well Kept are the links where '
+            'shift is over 8h 30m on any day. Open Return, Short Openers, Grand Tour, Common Ground and Well Kept are the '
+            'links where '
             '14 days\' leave buys 30 days off, and four weeks off take 14, as today; their sheets and import files have a '
             'folder of their own, 30 days off. Open Return has a 16:15 closer every weekday and no avoidable fatigue '
             'warning. Short Openers is Open Return with every weekday 06:20 finishing by 14:20 and every weekday closer at '
-            '15:45. Grand Tour keeps Fair Share\'s shift times in new weeks. Well Kept, drawn up on 26 October 2026, keeps '
+            '15:45. Grand Tour keeps Fair Share\'s shift times in new weeks. Common Ground is today\'s link taken to 26 '
+            'weeks, on Grand Tour\'s weeks: today\'s shift times kept where the rules allow, a 13:45 finish every weekday, '
+            'closers from 15:45, nothing over 8h 30m Monday to Friday or 9 hours at the weekend, and an even Sunday. '
+            'Well Kept, drawn up on 26 October 2026, keeps '
             'today\'s twenty weeks and adds six on today\'s shift times; it meets 7 of the 9 December rules, the only design '
             'here that does not meet all nine. Page 2 of the shortlist sheet sets each beside the three.'), '']
       if LATE else []),

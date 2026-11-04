@@ -80,6 +80,8 @@ td.good{color:var(--success-green);font-weight:700} td.bad{color:#B3261E;font-we
 td.good .wv { color: var(--text-mid); font-weight: 400; }
 .foot { text-wrap: pretty; }
 .pfoot{margin-top:6px;padding-top:4px;border-top:1px solid var(--border-light);color:var(--text-light);font-size:8pt;display:flex;justify-content:space-between} .pfoot b{color:var(--primary-blue)}
+/* DENSE ROWS, ONLY WHEN THE FLOOR IS NOT ENOUGH (4 Nov 2026, nineteen proposals): see the loop below */
+body.dense td{padding:0.5px 5px} body.dense .mast{margin-bottom:4px} body.dense .foot,body.dense .pfoot{margin-top:4px}
 </style></head><body>
 <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
 <div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${['no', 'one', 'two', 'three', 'four', 'five', 'six'][SHORTLIST.length] ?? SHORTLIST.length} shortlisted ones marked ★, ${RECOMMENDED} recommended — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
@@ -100,11 +102,16 @@ const OUT = new URL('../links-26-summary.pdf', DIR).pathname;
 const pagesIn = buf => (buf.toString('latin1').match(/\/Type\s*\/Page(?!s)/g) ?? []).length;
 const htmlOut = new URL('links-26-summary.html', import.meta.url).pathname; fs.writeFileSync(htmlOut, html);   // beside the tooling, gitignored
 const b = await chromium.launch(); const pg = await b.newPage(); await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
-let scale = 1, pdf;
+// NINETEEN ROWS (4 Nov 2026): eighteen fitted at the 80% floor and a nineteenth did not, which the note above foresaw ("a
+// nineteenth design will need its layout changed, not its scale"). So at the floor, and only there, the rows are set dense
+// (a pixel less padding above and below each cell, and the gaps round the table) and the scale starts again from 100%, so
+// the dense page prints as large as it can. A page that fits without it never takes it, and the floor is not lowered.
+let scale = 1, pdf, dense = false;
 for (;;) { pdf = await pg.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
-  if (pagesIn(pdf) === 1 || scale <= 0.8) break;
+  if (pagesIn(pdf) === 1) break;
+  if (scale <= 0.8) { if (dense) break; dense = true; scale = 1; await pg.evaluate(() => { document.body.classList.add('dense'); document.body.style.zoom = '1'; }); continue; }
   scale = Math.round((scale - 0.01) * 100) / 100; await pg.evaluate(z => { document.body.style.zoom = String(z); }, scale); }
 await b.close();
 if (pagesIn(pdf) !== 1) { console.error(`summary-sheet: ${pagesIn(pdf)} pages at ${Math.round(scale * 100)}% — the summary must fit one`); process.exit(1); }
 fs.writeFileSync(OUT, pdf);
-console.log(`wrote links-26-summary.pdf — ${rows.length} proposals, today meets ${todayRow.met} of ${todayRow.of}${scale < 1 ? `, scaled to ${Math.round(scale * 100)}% to fit one page` : ''}`);
+console.log(`wrote links-26-summary.pdf — ${rows.length} proposals, today meets ${todayRow.met} of ${todayRow.of}${scale < 1 ? `, scaled to ${Math.round(scale * 100)}% to fit one page` : ''}${dense ? ', its rows set dense' : ''}`);

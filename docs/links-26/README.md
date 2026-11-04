@@ -3714,6 +3714,228 @@ the order is the same down to 12th; below that, Second Look is 13th, Long Break 
 agreeing; and the pack zip builds. The decks, *What it means if you…* and the New link page do not name Quarter Past or
 Well Kept, and are unchanged.
 
+## Common Ground — today's link taken to 26 weeks, on the owner's brief (4 Nov 2026)
+
+**The brief** (owner, 4 Nov 2026): *"Can you take the original 20 week roster and expand it to 26 weeks. Eliminate the
+13.35 finish on Monday to Friday. Start the closing shifts at 1600. Keep the 13.45 and 14.20 shifts as the opening shift
+finish times. Make Sunday shifts fairly even. We need to be able to use 14 days AL to buy 30 days off. Try where possible
+to start/finish on a half hour apart from the open and close. And try and get as close as possible to the shortlisted
+proposals on all the metrics."* Then, one at a time, on the versions it was shown: *"Also 8 hours 30 as the maximum Monday
+to Friday shift time"*; *"Change the closing shift to 1545"* and *"Maximum 9 hour shifts on sat and sun"*; and *"give this
+new proposal a better name and create the sheet and put it in the pack"*. It is **Common Ground** (`CG-26-T8` ·
+**`e02c295f`**): what colleagues know from today's link — its shift times where the rules allow, the 13:45, and 14 days'
+leave buying 30 days off — on weeks that meet every rule. It is in the pack, not on the shortlist; the shortlist, the
+recommendation, the decks and the New link page are unchanged.
+
+**How it was read**, so each reading can be overruled:
+- **Today's shift times, not today's weeks**, as on 26 Oct (*Today's link on 26 lines*, above): today's twenty weeks
+  carry four fatigue factors on the fixed duties and a run of seven, so its times are carried and the weeks rebuilt.
+- **The openers** finish at 13:45 or 14:20 every day, Saturday included, but for the Saturday ticket office's
+  06:20–14:50, which rule S5 fixes. No duty finishes at 13:35.
+- **The closers** are 15:45–23:55 Monday to Saturday. Sunday's start at 15:15: Sunday closes at 23:25 and every Sunday
+  duty is 8 to 9 hours (S8), so a 15:45 start would be 7h 40m; 15:15 also fits the Sunday trains better than 15:00 (30.5
+  against 35.2 on the search's own figure).
+- **A fairly even Sunday**: every Sunday duty 8h to 8h 30m.
+- **The half hour**: every start and finish on the hour or the half hour, but the opens (06:20, Sunday 07:15), the
+  closes (23:55, Sunday 23:25), the closers, the 13:45 and 14:20 openers and the Saturday office's 14:50.
+  `half-hour-pool.mjs`, new, prints those times for `final-table.mjs`'s `POOL_ONLY=`.
+- **The caps**: nothing over 8h 30m Monday to Friday or 9 hours at the weekend, and no early over 8h 30m on any day.
+- **"As close as possible to the shortlist on all the metrics"**: every factor the league scores and every row of the
+  sheets, against Even Step, In Step and Short Run.
+
+**The arithmetic.** Openers finishing by 14:20 and nothing over 8h 30m on a weekday leave the contract little room. On
+15:45 closers a weekday pays at most 7,435 minutes with its 13:45 (the ticket office's four, two floor openers, three
+closers and six duties of 8h 30m), and a Saturday at most 7,050 with nothing over 9 hours, so the week needs at least
+7,410 a weekday. The only split the search finds that pays the 44,100 is **7,435 each weekday and 6,925 on Saturday**,
+two of whose duties are 9 hours: 13:30–22:30, today's 13:30–22:00 half an hour longer. On the brief's first closer,
+16:00–23:55, a weekday with a 13:45 paid at most 7,390 and no Saturday under the caps could make up the rest: the 13:45
+could not have been kept.
+
+**Its duties** (`results/common-ground-table.json`; each day exhaustive, commands below):
+
+| | Shift times | Longest |
+|---|---|---|
+| Monday to Friday, each (7,435 minutes) | 06:20–13:45 · 06:20–14:20 ×3 · 07:00–15:30 ×3 · 11:00–19:30 · 14:00–22:30 ×4 · 15:45–23:55 ×3 | 8h 30m |
+| Saturday (6,925) | 06:20–13:45 · 06:20–14:20 · 06:20–14:50 ×2 · 07:00–15:30 · 08:00–16:30 ×2 · 13:30–22:30 ×2 · 14:30–22:00 ×2 · 15:45–23:55 ×3 | 9h |
+| Sunday (4,920) | 07:15–15:30 ×4 · 09:00–17:30 · 14:30–22:30 ×2 · 15:15–23:25 ×3 | 8h 30m |
+
+Fourteen shift times against today's 18, seven of them today's: 70% of the Monday-to-Saturday times are worked today.
+`NEWPEN=1` keeps today's 11:00–19:30 where 11:30–20:00 fits the weekday a little better (31.6 against 32.4, the search's
+own figure); the familiar time is worth a point in the main league (84.0 against 83.0).
+
+**Its weeks** are those of the 30-for-14 grid, `results/fair-share-leave30.json` (*The leave question*, above): its rest
+days and its early and late weeks held, the solver choosing only the times, so its leave figures are that grid's. Of the
+layouts on those weeks it has the most weeks on one shift time, then the gentlest change of start, with no week under
+25h 30m. CP-SAT need not return the same layout twice, so the grid is committed and `FIX=` checks it against the model:
+
+```
+cd docs/links-26/tooling
+P=$(node half-hour-pool.mjs weekday); CLS=weekday TOTAL=7435 FIXED_FREE=1 POOL_ONLY=$P WK_CLOSER=15:45-23:55 REQUIRE=06:20-13:45 REQUIRE_MAX=2 ONLY_REQUIRED_EARLY_FINISH=1 OPENER_HI=480 EARLY_HI=510 HI=510 LATE_MAX=0 AT22_STRICT=1 EARLY_START_MAX=09:00 LATE_START_MIN=11:00 TODAY=1 NEWPEN=1 node final-table.mjs
+P=$(node half-hour-pool.mjs sat); CLS=sat TOTAL=6925 POOL_ONLY=$P EARLY_HI=510 HI=540 LATE_MAX=0 AT22_STRICT=1 EARLY_START_MAX=09:00 LATE_START_MIN=11:30 TODAY=1 NEWPEN=1 node final-table.mjs
+P=$(node half-hour-pool.mjs sun); CLS=sun SUN_PLAN=1 POOL_ONLY=$P LO=480 HI=510 node final-table.mjs
+SKELETON=results/fair-share-leave30.json FAMILY=1 OBJ=both LV_BEST=30 BEST_LEN=30 ISO=6 HEAVY=2550 LIGHT=1530 python3 exact-rota.py results/common-ground-table.json /tmp/cg.json 200
+FIX=common-ground.json LV_BEST=30 BEST_LEN=30 LV_FOUR=14 ISO=6 HEAVY=2550 LIGHT=1530 ONE_MIN=19 python3 exact-rota.py results/common-ground-table.json /tmp/fix.json 60
+```
+
+**Against the shortlist:**
+
+| | Common Ground | Even Step | In Step | Short Run |
+|---|---|---|---|---|
+| December rules · flexible rules | 9 of 9 · 3 of 3 | 9 · 3 | 9 · 3 | 9 · 3 |
+| Fit to the trains, by days (0 = exact) | 29.0 | 28.9 | 26.8 | 26.7 |
+| Fatigue factors, fixed duties · at worst | 0 · up to 1 | 0 · up to 1 | 0 · up to 1 | 0 · up to 1 |
+| Shortest rest | 14h 35m | 14h 35m | 14h 35m | 14h 20m |
+| Most days in a row, at worst · full weekends | 7 · 7 | 7 · 7 | 7 · 7 | 7 · 7 |
+| Single rest days | 6 | **4** | **4** | **4** |
+| Weeks on one shift time | **19 of 21** | 18 | 18 | 18 |
+| Change of start, week to week | **1h 12m** | 1h 31m | 1h 13m | 1h 13m |
+| Heaviest · lightest week | 42h 30m · 25h 30m | 41h 30m · 25h 30m | 41h 05m · 25h 30m | 42h 30m · 24h 30m |
+| Late finishes a year | 42 | 42 | 42 | 42 |
+| Familiar shift times, Monday to Saturday | 70% | **80%** | 67% | 73% |
+| 14 days' leave buys, at best · four weeks off cost | **30 days · 14** | 28 · 15 | 28 · 15 | 28 · 15 |
+| Earlies over 8h 30m, Monday to Saturday, a year | 0 | 0 | 40 | 20 |
+| Closing shift, Monday to Saturday average | 8h 10m | 8h 10m | 8h 10m | 8h 15m |
+
+It is ahead of all three on the weeks on one shift time, the change of start and the leave; level with or ahead of them
+on the rules, fatigue, rests, runs, weekends, late finishes, long earlies and the closing shift; and behind on three: 6
+single rest days against their 4, the price of 30 days for 14 (*The leave question*: on Fair Share's duties, 4 or 5 single
+rest days bought 28 at best); 70% familiar times against Even Step's 80% and Short Run's 73% (In Step 67%); and a 42h 30m
+heaviest week, Short Run's, against Even Step's 41h 30m and In Step's 41h 05m. Its fit is level with Even Step's, behind
+In Step's and Short Run's.
+
+**The leagues** (15 designs; score, then place):
+
+| Version | Common Ground | Even Step | In Step | Short Run | First, if another |
+|---|---|---|---|---|---|
+| Main | 84.0 · 6th | **85.8 · 1st** | 80.9 · 15th | 82.0 · 10th | |
+| Main, the proposals setting the scale | 73.2 · 7th | 75.6 · 4th | 73.0 · 8th | 71.4 · 10th | Next Step, 77.3 |
+| Main, without familiar times | 86.9 · 6th | 87.5 · 4th | 84.0 · 11th | 84.4 · 10th | Clean Slate, 88.9 |
+| Main, the run on the fixed rota | 84.9 · 6th | **86.7 · 1st** | 81.8 · 13th | 82.9 · 9th | |
+| Main, six-factor | 64.0 · 12th | 67.0 · 10th | 68.0 · 6th | 69.8 · joint 3rd | Second Look, 94.0 |
+| Main, Sunday duties in familiar times (as read 31 Oct to 3 Nov) | 82.9 · 6th | 84.6 · 2nd | 81.1 · 13th | 81.5 · 11th | Next Step, 84.9 |
+| Weighted as before | 85.2 · 10th | 87.0 · joint 2nd | **87.8 · 1st** | 85.8 · 8th | |
+| — the proposals setting the scale | 83.6 · 8th | 86.3 · 4th | **88.7 · 1st** | 83.4 · 9th | |
+| — without familiar times | 89.6 · 8th | 90.3 · joint 5th | 91.4 · 2nd | 89.2 · 10th | Clean Slate, 91.6 |
+| — the run on the fixed rota | 86.2 · 9th | 88.0 · joint 2nd | **88.8 · 1st** | 86.8 · 7th | |
+| — six-factor | 83.2 · 12th | 86.2 · 7th | 87.6 · 2nd | 86.3 · joint 5th | Second Look, 89.2 |
+
+Sixth in the main league, a thousandth of a point behind Clean Slate, as in the run on the fixed rota, and above two of
+the three shortlisted. The 1.8 points between it and Even Step are its single rest days, familiar times and heaviest
+week (1.9, 1.2 and 1.0), less 2.3 it gains on leave, weeks on one shift time and the change of start. It is lowest in
+the six-factor leagues, where the fit carries 20 points of 100 and leave, single rest days and the change of start none,
+and with the old weighting, which counts neither long earlies nor the closing shift.
+
+**What its joining moved.** Unlike Fair Share, it moves the other designs' scores: it widens two factors' ranges, the
+most single rest days (6, where the most had been 5) and the best leave (30 days for 14, where the best had been Long
+Break's 29). Every other design gains 0.4 to 0.8 where today's link and Familiar Nine are in the range, and between −0.2
+and +1.7 where the proposals alone set it; the six-factor versions score neither factor and do not move. The shortlist's
+three keep their order in every version. Long Break passes Both Ways in the main league, without familiar times and
+weighted as before; with the proposals setting the scale it passes Both Ways and Even Keel, and weighted as before with
+the proposals setting the scale it passes Home Grown, while Second Look passes Fine Tune. The tables in the sections
+above keep the scores of their day.
+
+**The versions it came through**, each joining the league alone (none is in the pack):
+- the first brief, with 16:00 closers and two 9-hour weekday lates (13:30–22:30) to pay the contract: 83.8, 6th;
+- with nothing over 8h 30m Monday to Friday, still on 16:00 closers: the 13:45 had to go and Saturday took two 9½-hour
+  lates: 83.2, 7th;
+- Common Ground's own duties on 11:30–20:00 in place of today's 11:00–19:30, whose heaviest week can be 41h 30m: 83.0;
+  with its Saturday's 9 hours in earlies (07:30–16:30) in place of lates: 81.8 to 83.2.
+
+**The pack.**
+- `regenerate.mjs` lists Common Ground in `SUPPLIED` after Fair Share, so it ships its sheet, grid and import file in
+  `proposals/`; `fresh.mjs` has its one-line description, Home Grown's family (it starts from today's link) and
+  4 Nov 2026 as first drawn. Its sheet says how it was drawn (`common-ground.meta.json`).
+- **The summary** lists fifteen, scaled to 89% to fit its page.
+- **The shortlist sheet** keeps its three and the recommendation. Common Ground is read into its late joiners and has
+  its row on page 2. Four sentences changed with it: no early over 8h 30m on any day is now Common Ground's too, beside
+  Fair Share's and Home Grown's; Clean Slate's most weeks on one shift time are joint with Common Ground's; the guide's
+  *Four weeks off for 14 days' leave, as today* names Common Ground, the stronger in the league, as it does Long Break;
+  and the leave paragraph, which named Long Break alone and was typed, now says Common Ground and Long Break keep four
+  weeks for 14 and Common Ground alone 30 days, with a claim that pins it. Page 1's lead says *before four more joined
+  (page 2)* where it named them, and page 2's alternatives table gives each row half a pixel less, both to keep their
+  pages.
+- **The read-me** names the four that came after the shortlist and says what Common Ground is.
+- **Not changed:** the decks, "What it means if you…", the New link page and the Links designer's built-in examples.
+
+## Common Ground joins the 30-day folder (4 Nov 2026)
+
+**What happened.** Common Ground (the section above) was drawn up in another session and merged to `main` (#1690) at
+21:00, while this branch was taking Quarter Past out. `main` did not yet have this branch's 30-day folder, or the four
+links in it, so Common Ground arrived in `proposals/` with a sheet, claims and a read-me sentence written for a pack in
+which it alone bought 30 days off for 14 days' leave. In the merged pack it does not: Grand Tour, Open Return, Short
+Openers and Well Kept do too. And its weeks are Grand Tour's exactly, all 182 cells working or resting alike, with
+today's shift times where the rules allow.
+
+**Read as** covered by the owner's request of the same evening, *"add any other 30 days off proposals to the
+subfolder"*. Its three files moved to `30-days-off/` with `git mv`, so their history follows them, and its `SUPPLIED`
+entry names the folder.
+
+**The merge**, file by file:
+- `regenerate.mjs` and `fresh.mjs`: both sides kept. Common Ground keeps `main`'s strap, family (Home Grown) and date
+  (4 Nov 2026), and gains `dir: '30-days-off'`.
+- **The shortlist sheet.** `main`'s claim *"Common Ground: the only design where 14 days' leave buys 30 days off"* and
+  its row *"alone buying 30 days off"* were true of `main`'s pack and false of this one. So Common Ground joins the
+  shared 30-day row, beside Grand Tour, Short Openers and Open Return, which says what the late 30-day links keep and the
+  one cost they share: five or six single rest days. Common Ground has six, because its weeks are Grand Tour's. `main`'s
+  other findings hold and are kept:
+  - its keeps and pays against the three (`fitSun, longEarly, lvBest, lvFour, one, step`; `iso, fitWk`);
+  - Clean Slate's weeks on one turn are now joint-most with Common Ground's, and its row says "joint-most";
+  - no early over 8h 30m on any day is Common Ground's too.
+
+  The guide's four-weeks row reads *"Grand Tour · Common Ground, Short Openers, Long Break and Open Return too"*, and the
+  leave cost reads *"only Long Break and the five links that buy 30 days off"*. Two fit changes came with it, and
+  reverting either stops the sheet:
+  - The guide's columns are fixed (the first at 56%), and its rows are half a pixel tighter. On the auto layout, the
+    five-name cell widened its column and wrapped two other rows, running page 1 31px into its footer.
+  - Page 2's rows take `main`'s tighter padding (0.5px above, 1px below), because the 30-day row's four names wrap. It
+    ran 10px into the footer without it.
+
+  In both cells a name's spaces are no-break, so a line breaks between names, never inside one. Page 1 has 3px to spare,
+  and page 2 2px.
+- **The summary** has nineteen rows, and at its 80% floor still printed two pages, as *Quarter Past out, Well Kept in*
+  said a nineteenth would. Now, at the floor and only there, its rows are set dense (a pixel less padding above and below
+  each cell, and less space round the table), and the scale starts again from 100%. It prints at 81%. With the step
+  deleted, it refuses: "2 pages at 80% — the summary must fit one". The floor is not lowered.
+- **The read-me** (`pack.py`): Common Ground is among the late designs and in the 30-day folder. `main`'s sentence on it
+  now says it is on Grand Tour's weeks, and leaves the leave to the folder's sentence. A duration is now held whole like a
+  name or a date, because "8h 10m" had split at a line end.
+
+**Sheets re-rendered, and kept as committed:** all nineteen and the rules sheet. Only the Prepared date moved, or nothing,
+so Common Ground's own sheet is `main`'s, unchanged.
+
+**The league**, `REF_IN_RANGE=1`: Common Ground is 6th on 84.7, inside every range the others set, so no other score
+moved:
+
+| | Design | Score |
+|---|---|---|
+| 1 | **Even Step** ★ shortlisted, recommended | **86.1** |
+| 2 | Next Step | 85.9 |
+| 3 | Closing Time | 85.8 |
+| 4 | Fair Share | 85.7 |
+| 5 | Grand Tour (30-day folder) | 84.9 |
+| 6 | Common Ground (30-day folder) | 84.7 |
+| 7 | Clean Slate | 84.3 |
+| 8 | Short Openers (30-day folder) | 83.7 |
+| 9 | Home Grown | 83.5 |
+| 10 | Second Edition | 83.0 |
+| 11 | Even Keel | 82.9 |
+| 12 | Short Run ★ shortlisted | 82.3 |
+| 13 | Fine Tune | 82.1 |
+| 14 | Long Break | 81.9 |
+| 15 | Open Return (30-day folder) | 81.5 |
+| 16 | Second Look | 81.5 |
+| 17 | Both Ways | 81.4 |
+| 18 | In Step ★ shortlisted | 81.2 |
+| 19 | Well Kept (30-day folder) | 34.5 |
+| — | Familiar Nine (24 lines, for reference) | 71.9 |
+| — | Today's link (for reference) | 20.3 |
+
+Weighted as before 31 Oct (`OLD_READINGS=1`), In Step leads on 88.5, Even Step is second on 87.7, and Common Ground is
+9th on 86.3. The 84.0 in the section above is Common Ground's score in `main`'s pack, before the 30-day links joined it.
+
+**Checks:** `regenerate.mjs --check` (19 fingerprints unmoved, Common Ground's in `30-days-off/`), `check.mjs`,
+`deck-check.mjs` (162 rows agree) and the pack zip builds.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
