@@ -26,9 +26,10 @@ and this document had no view that answered "are we ready, and what is stopping 
 **The tool is essentially built. What remains is decisions and a meeting.** Every outstanding row
 below is owned by somebody other than the developer.
 
-**Who leads (owner, 4 Nov 2026): S. Silva, as the RMT rep.** She is in charge of the roster change. She will hold a vote
-on the shortlist, and makes the final call on which proposal goes to Nathan Sobers, the Marylebone area manager. Feedback
-is being received now, and changes made or considered. The developer built the tool and the pack, and nothing that
+**Who leads (owner, 4 Nov 2026): S. Silva, as the RMT rep.** She is in charge of the roster change. The shortlist is
+settled by her and the developer together, from colleagues' feedback, which the two of them are assessing on 4 Nov 2026
+(owner: "3 is both of us"); changes to the proposals are being made or considered from it. She will then hold a vote on
+the shortlist, and makes the final call on which proposal goes to Nathan Sobers, the Marylebone area manager. The developer built the tool and the pack, and nothing that
 colleagues or managers read may give the impression that the developer is in charge of the change or of the choice.
 **What colleagues read is deliberately vague about this process** (owner: "It is deliberately vague"): the New link page
 says who leads the change and no more, and the pack need not say even that. This paragraph is the record of the process;
