@@ -214,8 +214,8 @@ destroy the information; this table names it instead. Match the tier when adding
 **Padding is deliberately NOT unified** (measured v19.06): 14+ distinct values, most load-bearing — a
 calendar-cell shift badge must be tiny, a nav pill must clear a 44px touch target. Same conclusion,
 and the same reasoning, as the spacing scale above. **Squarer chips stay squarer too:** `.conf-badge`
-(3px), `.legacy-pill` / `.source-pill` (8px) and `.list-type-pill` (`--radius`) read as "data tag,
-not pill". Rounding them would change meaning, not tidy it.
+(3px), `.source-pill` (8px) and `.list-type-pill` (`--radius`) read as "data tag, not pill".
+Rounding them would change meaning, not tidy it.
 
 ## Corners — a field and the button under it share one (v25.12)
 

@@ -36,8 +36,9 @@ the client. When this document and the rules disagree, **the rules are right and
 date         "YYYY-MM-DD"
 memberName   Must match teamMembers[n].name exactly — one char mismatch = silent failure
 type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick" | "other"
-             Legacy (still in data, not creatable): "allocated" | "overtime" | "swap" — how many remain,
-             and the one-off conversion to today's types: Operations → Old-format records (v25.28; v25.31)
+             Retired: "allocated" | "overtime" | "swap". No document is of these types: every one was
+             converted on 4 Nov 2026 (Allocated shift and Swap → shift; Overtime → rdw on a base rest
+             day, shift on a working day; any on a Sunday → rdw). The names survive in `replacedType`
 value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick;
              training uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — flavour "TRG"|"IND"|"ASSESS"|"TEAM"|"UNION"|"MEET" (the authority is OTHER_FLAVOURS in override-utils.js — UNION v18.56 and MEET v18.61 were missing here), optional rest-day
              marker, optional actual times (see OTHER_DAYS.md; grammar single-source: override-utils.js)
@@ -68,6 +69,11 @@ replacedType Optional (v21.55) — the `type` of the override this document REPL
              because an absence carries no contract information of its own. Absent
              on every document written before v21.55; readers treat absence as "ask the base
              roster", which is exactly what they did before, so no migration is needed.
+             Its values are the `type` vocabulary plus the three retired names, which leave or an
+             absence written over one of those days before the 4 Nov 2026 conversion still carries:
+             `swap`/`allocated` read as contracted, `overtime` as voluntary (`LEGACY_OVERRIDE_TYPES`,
+             override-utils.js). They decide whether that leave cost a day, so they stay readable,
+             and the rules still accept them because a re-save carries the name forward.
 leaveYear    Optional (v25.18) — on ANNUAL LEAVE DATED IN JANUARY only: the year whose allowance the
              day comes out of, when that is the PREVIOUS year (owner, 3 Nov 2026 — some staff take a
              few of their 2026 days in early January 2027). Absent means the day counts against its

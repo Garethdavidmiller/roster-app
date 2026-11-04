@@ -44,15 +44,7 @@ export const persistentLocalCache = () => marker('cache');
 // rows. Every other stub keeps the plain marker shape; nothing reads collection refs beyond
 // getDocs, which falls back to the shared docs array when no per-path seed exists.
 export const collection = (/** @type {any} */ _db, /** @type {any} */ path) => ({ __stub: 'collection', path });
-// query() carries the collection it reads and its where() constraints (Nov 2026), read ONLY by
-// getCountFromServer and the docsByQuery seed below. It deliberately has no path: getDocs serves
-// docsByPath to COLLECTION refs only, and every spec that seeds docsByPath relies on a query of the
-// same collection falling back to the shared docs array instead.
-export const query = (/** @type {any} */ ref, /** @type {any[]} */ ...parts) => ({
-  __stub: 'query',
-  from: ref && ref.path,
-  filters: parts.filter(p => p && p.__stub === 'where'),
-});
+export const query = () => marker('query');
 // where() RECORDS its constraint (v21.38), like writeBatch records its writes and doc captures its
 // path. The staged Admin load's whole claim is about WHICH query runs — one member versus the
 // collection — and that is invisible from the rendered DOM: both produce a correct-looking table.
@@ -61,7 +53,7 @@ export const where = (/** @type {any} */ field, /** @type {any} */ op, /** @type
   const e2e = globalThis.__E2E || {};
   (e2e.whereCalls = e2e.whereCalls || []).push([field, op, value]);
   globalThis.__E2E = e2e;
-  return { __stub: 'where', field, op, value };
+  return marker('where');
 };
 export const orderBy = () => marker('orderBy');
 export const limit = () => marker('limit');
@@ -74,56 +66,23 @@ export const serverTimestamp = () => marker('ts');
 // two separate passes over the same state that can disagree (a button promising 4 while 3 are
 // written is exactly the bug worth catching). Recording is additive: every existing caller still
 // sees a working batch.
-// A COMMITTED batch lands in the docsByQuery seed (Nov 2026), the way a real one lands in the
-// database: its sets replace their rows whole and its deletes remove them, in the order they were
-// queued. Opt-in like the seed itself — a collection the seed does not name is untouched, so no
-// spec written before this sees a different page. It is what lets a spec watch the Old-format
-// records card count again AFTER its conversion, rather than only reading what was sent.
-// (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
-const landInQuerySeed = (/** @type {any[]} */ ops) => {
-  const seed = (globalThis.__E2E || {}).docsByQuery;
-  if (!seed) return;
-  for (const [kind, ref, data] of ops) {
-    const parts = String((ref && ref.path) || '').split('/');
-    if (parts.length < 2) continue;
-    const id = parts[parts.length - 1];
-    const col = parts[parts.length - 2];
-    if (!Array.isArray(seed[col])) continue;
-    seed[col] = seed[col].filter((/** @type {any} */ r) => r.id !== id);
-    if (kind === 'set') seed[col].push(Object.assign({ id }, data));
-  }
-};
 export const writeBatch = () => {
     const e2e = globalThis.__E2E || (globalThis.__E2E = {});
     e2e.batchWrites = e2e.batchWrites || [];
-    /** @type {any[]} */
-    const queued = [];
     return {
-        // batchWrites keeps the payload alone, as every existing spec reads it; batchSets (Nov 2026)
-        // adds the PATH, because a rewrite is only right if it lands on the document it was read from.
-        set: (/** @type {any} */ ref, /** @type {any} */ data) => {
-            e2e.batchWrites.push(data);
-            (e2e.batchSets = e2e.batchSets || []).push({ path: String((ref && ref.path) || ''), data });
-            queued.push(['set', ref, data]);
-        },
+        set: (/** @type {any} */ _ref, /** @type {any} */ data) => { e2e.batchWrites.push(data); },
         update: noop,
         // RECORDED (Oct 2026), not discarded: the roster re-import defect was a DELETE, and a
         // harness that drops deletes cannot see one happen.
-        delete: (/** @type {any} */ ref) => {
-            (e2e.batchDeletes = e2e.batchDeletes || []).push(String(ref?.path || ''));
-            queued.push(['delete', ref]);
-        },
+        delete: (/** @type {any} */ ref) => { (e2e.batchDeletes = e2e.batchDeletes || []).push(String(ref?.path || '')); },
         // HOLD SEAM (v24.21): with window.__E2E.holdCommits set, a commit stays pending until the
         // test calls window.__E2E.releaseCommits() — the way a real commit waits on a weak signal
         // for the server's answer. That wait is what slow-save.js explains, and without a way to
         // make it happen here the notice could only be tested as a unit, never as wired.
-        // window.__E2E.failCommits makes a commit REJECT and land nothing (Nov 2026) — the atomic
-        // failure a real batch has, which a converter must report as "nothing was changed".
         commit: () => {
-            if (e2e.failCommits) return Promise.reject(Object.assign(new Error('e2e: commit failed'), { code: 'unavailable' }));
-            if (!e2e.holdCommits) { landInQuerySeed(queued); return Promise.resolve(); }
+            if (!e2e.holdCommits) return Promise.resolve();
             return new Promise(resolve => {
-                (e2e._held = e2e._held || []).push(() => { landInQuerySeed(queued); resolve(undefined); });
+                (e2e._held = e2e._held || []).push(resolve);
                 e2e.releaseCommits = () => { const h = e2e._held || []; e2e._held = []; h.forEach(r => r()); };
             });
         },
@@ -210,22 +169,6 @@ export const runTransaction = (_db, fn) => {
 // window.__E2E.failGetDocs makes every collection read REJECT (v20.40). The pair with docsDelayMs is
 // the point: delay proves the calendar withholds its grid while a read is still running, reject proves
 // it withholds it when the read has lost. Those are two different panels and only one carries a retry.
-// window.__E2E.docsByQuery = { overrides: [rows] } serves a QUERY over that collection its rows,
-// FILTERED by the query's where() constraints (Nov 2026). It is the only seed that filters, and it is
-// opt-in: a query of any collection not named here falls back exactly as it always has. Only == and
-// in are understood, and anything else THROWS, so a spec can never be served rows a filter it
-// thought was applied did not touch. getCountFromServer counts through the same filter.
-// (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
-const matchesWhere = (/** @type {any} */ row, /** @type {any} */ f) => {
-  if (f.op === '==') return row[f.field] === f.value;
-  if (f.op === 'in') return Array.isArray(f.value) && f.value.includes(row[f.field]);
-  throw new Error('e2e docsByQuery: where op not modelled: ' + f.op);
-};
-const queryRows = (/** @type {any} */ q) => {
-  const seeded = (globalThis.__E2E || {}).docsByQuery;
-  if (!seeded || !q || q.__stub !== 'query' || !Object.prototype.hasOwnProperty.call(seeded, q.from)) return null;
-  return seeded[q.from].filter((/** @type {any} */ r) => q.filters.every((/** @type {any} */ f) => matchesWhere(r, f)));
-};
 export const getDocs = (/** @type {any} */ ref) => {
   const e2e = globalThis.__E2E || {};
   // COUNTED, like writeBatch records its writes (v20.69). A spec can assert how many collection
@@ -260,9 +203,7 @@ export const getDocs = (/** @type {any} */ ref) => {
   // keeps every existing spec exactly as it was. Query-wrapped reads have no path and fall back
   // too. (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
   const byPath = e2e.docsByPath;
-  const fromQuery = queryRows(ref);
-  const rows = fromQuery !== null ? fromQuery
-    : (byPath && ref && ref.path && Object.prototype.hasOwnProperty.call(byPath, ref.path))
+  const rows = (byPath && ref && ref.path && Object.prototype.hasOwnProperty.call(byPath, ref.path))
     ? byPath[ref.path]
     : e2e.docs;
   // window.__E2E.docsHeld = true holds every collection read until the SPEC sets it back to false
@@ -290,20 +231,6 @@ export const getDocs = (/** @type {any} */ ref) => {
     data: () => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, ts(v)])),
   }));
   return wrap({ empty: false, size: docs.length, docs, metadata, forEach: cb => docs.forEach(cb) });
-};
-// A server-side COUNT (Nov 2026), counted in countReads as getDocs counts docReads. It answers from
-// docsByQuery through the same filter, and is 0 for a collection nothing seeded — the empty database
-// every spec starts from. window.__E2E.failCount makes it REJECT, which is the offline shape: the
-// real call is server-only and has no cache to fall back on. It is deliberately NOT tied to
-// failGetDocs, so no spec written before it existed sees a different page.
-// (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
-export const getCountFromServer = (/** @type {any} */ q) => {
-  const e2e = globalThis.__E2E || {};
-  e2e.countReads = (e2e.countReads || 0) + 1;
-  globalThis.__E2E = e2e;
-  if (e2e.failCount) return Promise.reject(Object.assign(new Error('e2e: count failed'), { code: 'unavailable' }));
-  const rows = queryRows(q) || [];
-  return Promise.resolve({ data: () => ({ count: rows.length }) });
 };
 //   window.__E2E = { failGetDoc: true }  → every single-doc read rejects. Used to prove the forced
 //      set-password overlay FAILS OPEN when it can't read passwordStatus (password-force.js) — the
