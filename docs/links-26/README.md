@@ -3025,6 +3025,128 @@ count. Weighted as before, nothing moved: In Step 87.4, Even Step 86.5.
 - **Nothing else reads the league.** The summary, the proposal sheets, the decks and "What it means if you…" are
   unchanged, as are the shortlist and the recommendation.
 
+## Fair Share — Next Step with an even Sunday (4 Nov 2026)
+
+**The question** (owner, 4 Nov 2026), of Next Step: could its Sunday duties be balanced, since its Sunday earlies are
+longer than its lates and so pay more; and *"is it possible at all to have a period where 14 days buys you 30 days
+annual leave (Sundays can be made not available)"*. The first became **Fair Share** (`FS-26-T7` · **`ccf27576`**). It
+is in the pack, not on the shortlist; the shortlist, the recommendation and the New link page are unchanged. The second
+is under *The leave question*, below.
+
+**Why Next Step's Sunday pays unevenly.** Its ten Sunday duties are the shortlist's. The earlies are four 07:15–15:45
+openers (8h 30m) and the 09:00–18:00 (9h); the lates are two ticket-office 14:30–22:30 (8h) and three 15:15–23:25
+closers (8h 10m). An early averages 8h 36m and a late 8h 06m. Sunday is paid at time and a half, £32.24 an hour at the
+CEA rate, so an early paid about £16 more than a late on average, and up to £32 (the 9-hour early against an 8-hour
+late).
+
+**What the rules leave room for.** A Sunday must open with four at 07:15 and close with three at 23:25 (S1, S2), every
+duty 8 to 9 hours (S8), and each opener stays until 15 minutes after the last closer arrives (S7). So an opener and a
+closer together come to at least 16h 25m: today's 15:15–23:25 closers (8h 10m) hold every opener to 8h 15m or more,
+and every duty exactly 8h 15m needs the closers moved to 15:10–23:25. Each band below was laid on Next Step's weeks with only the Sunday cells retimed; every
+one meets 9 of 9 rules and the three flexible ones, with no hard-limit breach and no fatigue factor added.
+
+| Sunday duties | Early against late, on average | Sunday fit (0 = exact; Next Step 29.0) |
+|---|---|---|
+| **8h 10m or 8h 15m, today's 15:15–23:25 closers kept — Fair Share** | **3 minutes apart** | **33.3** |
+| every one 8h 15m, the closers at 15:10–23:25 | equal | 34.5 |
+| every one 8h 20m | equal | 38.0 |
+| 8h 25m or 8h 30m, the openers kept | 3 minutes apart | 45.1 |
+| every one 8h 30m | equal | 47.7 |
+
+Fair Share's is the Sunday search's best with every duty 8h 10m to 8h 15m (`final-table.mjs`, `CLS=sun LO=490
+HI=495`), whose times are the quarter hour and the day's own instants. Off the quarter hour, 09:00–17:10 and
+14:20–22:30 fit a little better, 32.5, for a tenth of a point in the main league (85.1 against 85.0). Levelling up to
+8h 30m pays more but fits the trains far worse, and scores 84.5.
+
+**Fair Share** is Next Step's weeks, unchanged (`next-step.json`, `d53e1533`), with seven Sunday cells retimed — the
+openers on lines 2, 10, 12 and 17 to 07:15–15:30, the 09:00–18:00 on line 7 to 09:00–17:15, and the ticket-office
+lates on lines 22 and 24 to 14:15–22:30 — and the closers kept (`fair-share.json`; the duty table is
+`results/fair-share-table.json`). Its sheet outlines the seven.
+
+| | Next Step | Fair Share |
+|---|---|---|
+| Sunday duties | 07:15–15:45 ×4, 09:00–18:00, 14:30–22:30 ×2, 15:15–23:25 ×3 | 07:15–15:30 ×4, 09:00–17:15, 14:15–22:30 ×2, 15:15–23:25 ×3 |
+| Sunday early against late | 8h 36m against 8h 06m: about £16 more, up to £32 | 8h 15m against 8h 12m: within £2.69 |
+| Sunday duty minutes | 5,010 | 4,935 |
+| Shifts over 8h 30m on any day, each a year | 2, the 9-hour Sunday early | **0**, the only design in the pack |
+| Fit to the trains, Sunday (0 = exact) | **29.0** | 33.3 |
+| Shift times (new) | **14 (6)** | 15 (7) |
+
+The cost of the even Sunday is that the earlies come down to meet the lates: a full share of Sundays, 20 a year, is
+2h 30m shorter a year, about £81. Everything else is Next Step's: 9 of 9 rules and the three flexible ones; no fatigue
+factor on the fixed rota, up to 1 at worst (a 56.3-hour week); 18 weeks of 21 on one shift time; a 1h 18m change of
+start; 5 days in a row, up to 7; 7 full weekends at most 5 weeks apart; 4 single rest days; no mixed week; weeks of
+41h 30m at most and 25h 30m at least; a 14h 35m shortest rest; 14 days' leave buying 28 days off at best and 20 at
+worst, and 15 for four weeks off; 42 finishes a year at 23:00 or later; 218.6 days.
+
+**The leagues** (14 designs; score, then place):
+
+| Version | Fair Share | Next Step | Even Step | First, if another |
+|---|---|---|---|---|
+| Main | 85.0 · 4th | 85.2 · 2nd | **85.4 · 1st** | |
+| Main, the proposals setting the scale | 76.7 · 2nd | **77.4 · 1st** | 75.8 · 4th | |
+| Main, without familiar times | 87.6 · 3rd | 87.8 · 2nd | 87.0 · 4th | Clean Slate, 88.5 |
+| Main, the run on the fixed rota | 85.9 · 4th | 86.1 · 2nd | **86.3 · 1st** | |
+| Main, six-factor | 67.3 · 7th | 68.7 · 5th | 67.0 · 10th | Second Look, 94.0 |
+| Main, Sunday duties in familiar times (as read 31 Oct to 3 Nov) | 83.9 · 4th | **84.5 · 1st** | 84.1 · 2nd | |
+| Weighted as before | 85.7 · 6th | 86.5 · 3rd | 86.5 · 2nd | In Step, 87.4 |
+| — the proposals setting the scale | 85.5 · 6th | 87.4 · 3rd | 86.4 · 4th | In Step, 88.9 |
+| — without familiar times | 89.9 · 4th | 90.3 · 3rd | 89.8 · 5th | Clean Slate, 91.1 |
+| — the run on the fixed rota | 86.7 · 5th | 87.5 · 3rd | 87.5 · 2nd | In Step, 88.4 |
+| — six-factor | 83.1 · 12th | 86.4 · 3rd | 86.2 · 7th | Second Look, 89.2 |
+
+Fair Share is below Next Step in every version, by 0.2 to 3.3 points. In the main league and its variants the whole
+gap is the Sunday fit; where Sunday duties count in familiar times (weighted as before, and as read 31 Oct to 3 Nov),
+its three new Sunday times cost it too. The leagues count long earlies and the closing shift Monday to Saturday only,
+so the 9-hour Sunday early it removes scores nothing, and pay is not a factor. It falls furthest weighted as before,
+where the fit is the mean of the three day types and the Sunday counts as much as the five weekdays: twelfth in that
+six-factor league. No other design's score moved in any version; the designs below it each went down a place.
+
+**The leave question.** `leave.mjs` counts a Monday-to-Saturday working day as one day of leave and a rest day or a
+Sunday as none, as asked, with a cover week's four duties at most four. On that count today's link buys 30 days off
+for 14 days' leave at best, and the designs in the pack 27 to 29 (Long Break 29, Second Look 27, the rest 28).
+`exact-rota.py` was asked, on Fair Share's duties, for a stretch of 30 days costing 14 (`BEST_LEN=30`, a switch added
+for it: the `best` objective priced 29 days), relaxing a little more each time, and then to win back what that cost:
+
+| Run | Asked for | Held | 14 days' leave buys, at best |
+|---|---|---|---|
+| a | the cheapest 30 days (`OBJ=best`) | Fair Share's 18 weeks on one shift time, its change of start and its 25h 30m lightest week; 4 single rest days | 28 days (30 cost 16) |
+| b | the same | Fair Share's lightest week; 5 single rest days, the weeks on one shift time and the change of start let go | 28 (30 cost 15) |
+| c | the same | 6 single rest days, a lightest week of 24 hours | **30** |
+| d | the most weeks on one shift time (`OBJ=one`) | 30 days for 14 (`LV_BEST=30`) and the rest as run c | 30 |
+| e | the gentlest change of start (`OBJ=step`) | as run d, with four weeks off for 14 (`LV_FOUR=14`) and 16 weeks on one shift time | 30 |
+
+Each run started from the one before (`HINT=`; run a from Fair Share), with `FF17=-3 H7=3060` throughout. Run c bought
+the 30 days with the weeks, 11 of 21 on one shift time; run d took them back to 16 for a 1h 43m change of start; run
+e, ten minutes, made the change of start 1h 16m.
+
+**Run e is the answer: yes, on Fair Share's duties** (`results/fair-share-leave30.json`; `FIX=` with `LV_BEST=30
+LV_FOUR=14 ONE_MIN=16` confirms it against the model). 14 days' leave buys 30 days off at best and four weeks off for
+14, as today; no other 26-line grid here buys 30 but Same Again Tidy, two rules short. Its duties are Fair Share's, so
+its shift times, fit and pay are too. What it costs, against Fair Share: 16 weeks of 21 on one shift time, not 18;
+6 single rest days, not 4; a 25h 10m lightest week, not 25h 30m; and a 56.7-hour week at worst, not 56.3. Its change
+of start is a little gentler, 1h 16m against 1h 18m. The rest is Fair Share's: 9 of 9 rules and the three flexible
+ones; no fatigue factor on the fixed rota; 5 days in a row, up to 7; 7 full weekends at most 5 weeks apart; at most 5
+weeks in a row of earlies or of lates, 7 with the cover weeks beside them; no mixed week; a 14h 35m shortest rest; a 41h 30m heaviest week; 20 days at worst. In the main league
+it would be fifth of fifteen (84.2), just below Fair Share; weighted as before, twelfth. It is a search result for the
+owner to look at, not a design in the pack: it has no name, sheet or import file.
+
+**The pack.**
+- `regenerate.mjs` lists Fair Share in `SUPPLIED` after Next Step, so it ships its sheet, grid and import file in
+  `proposals/`; `fresh.mjs` has its one-line description, Home Grown's family (as Next Step) and 4 Nov 2026 as first
+  drawn. Its sheet names Next Step as its parent and says why it was drawn (`fair-share.meta.json`).
+- **The summary** lists fourteen, scaled to 91% to fit its page.
+- **The shortlist sheet** keeps its three and the recommendation. Fair Share is read into its late joiners and has its
+  row on page 2. Three sentences that were true of the pack without it now say who shares them: no shift over 8h 30m
+  Monday to Saturday is Even Step's, Clean Slate's, Fair Share's and Next Step's; no early over 8h 30m on any day is
+  Home Grown's and Fair Share's; and Even Step has the fewest long days but Fair Share's none. To keep page 2 on its
+  page, Fair Share's row is one line and the note under *Against today's link* moved into that heading, as page 1's
+  headings carry theirs.
+- **The read-me** names the three that came after the shortlist, Clean Slate, Fair Share and Next Step, and says what
+  Fair Share is.
+- **Not changed:** the decks, "What it means if you…", the New link page and the Links designer's built-in examples
+  (the shortlist's three).
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

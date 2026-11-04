@@ -31,6 +31,7 @@ its grid, and FIX= checks that grid against the model.
   python3 exact-rota.py <table.json> <out.json> [seconds]
   env: OBJ=one|step|both|chg|heavy|four|best|rest  ONE_MIN= STEP= LIGHT= MAXCHG= (at most n early/late switches the step can see)
        HINT=<rota.json> (start from it)  FIX=<rota.json> (check a rota against the model)  WORKERS=4  LOG=1
+       BEST_LEN= (the days in a row OBJ=best prices; 29 unless set)
        SKELETON=<rota.json> (hold its rest days; FAMILY=1 holds its early and late weeks too: 30 Oct 2026, for a new table
        on a rota whose day headcounts and early/late split it shares — the solver then chooses only the times)
   e.g. HINT=closing-time.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py results/closing-time-table.json /tmp/ct.json 1200"""
@@ -207,8 +208,11 @@ heavyMax = M.NewIntVar(0, 7 * 1440, 'heavyMax')
 M.AddMaxEquality(heavyMax, [sum(x[(k, d, t)] * mins(t) for d in DAYS if d != 'sun' for t in TYPES[d]) for k in WORK])
 four = M.NewIntVar(0, 200, 'four')
 M.AddMinEquality(four, [cost(s0, 28) for s0 in range(0, n, 7)])
-best29 = M.NewIntVar(0, 200, 'best29')   # the least leave any 29 days in a row cost: 14 or less is a best stretch of 29
-M.AddMinEquality(best29, [cost(s0, 29) for s0 in range(n)])
+# BEST_LEN= prices another stretch (4 Nov 2026: 30, asked whether 14 days' leave could buy 30 days off on Fair Share's
+# duties; README -> Fair Share). The name and the printed label keep 29, the default, so every committed run reads as before
+BEST_LEN = env('BEST_LEN', 29)
+best29 = M.NewIntVar(0, 200, 'best29')   # the least leave any BEST_LEN days in a row cost: 14 or less is a best stretch of that length
+M.AddMinEquality(best29, [cost(s0, BEST_LEN) for s0 in range(n)])
 R2 = env('REST_TO', 900); tight = []   # duties back to back with less rest than REST_TO
 for i in range(n):
     (k, d), (k2, d2) = seq[i], seq[(i + 1) % n]

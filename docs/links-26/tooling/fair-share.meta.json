@@ -1,0 +1,13 @@
+{
+ "date": "4 November 2026",
+ "identity": {
+  "table": "T7 — Next Step's table with an even Sunday: the four 07:15-15:45 openers become 07:15-15:30, the 09:00-18:00 becomes 09:00-17:15 and the two 14:30-22:30 office lates become 14:15-22:30; the three 15:15-23:25 closers are kept. Every Sunday duty is 8h 15m but the closers, 8h 10m: the best fit the Sunday search finds with every duty 8h 10m to 8h 15m (final-table.mjs, CLS=sun LO=490 HI=495). The weekday and the Saturday are Next Step's",
+  "seed": "Next Step's weeks, unchanged (next-step.json, d53e1533): only seven Sunday cells differ (the closers are kept), and they are outlined on the grid",
+  "lineage": "Next Step's Sunday earlies (four of 8h 30m and one of 9h) paid more than its Sunday lates (8h and 8h 10m): on average £16 a Sunday at time and a half, and up to £32. Every Sunday duty here is within five minutes of the others, so an early and a late pay within £2.69. The cost is that a full share of Sundays is 2h 30m shorter a year, about £81, because the earlies come down to meet the lates."
+ },
+ "parent": {
+  "file": "next-step.json",
+  "name": "Next Step",
+  "code": "NS-26-T6"
+ }
+}

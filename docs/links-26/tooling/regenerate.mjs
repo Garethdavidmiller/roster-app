@@ -90,6 +90,8 @@ export const SUPPLIED = [
     // shift time. Next Step is Even Step with only Clean Slate's three weekday changes. README.md → "Clean Slate and Next Step".
     { file: 'clean-slate.json',            name: 'Clean Slate',    code: 'CS-26-N2',   fp: 'dc175c36', strap: 'Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday' },
     { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'Even Step with three weekday shifts retimed for the trains: no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday' },
+    // 4 Nov 2026: Fair Share is Next Step with its Sunday evened out, seven Sunday cells retimed (README.md → "Fair Share")
+    { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: 'ccf27576', strap: 'Next Step with an even Sunday: every Sunday duty 8h 10m or 8h 15m, so an early and a late pay within a few pounds' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
