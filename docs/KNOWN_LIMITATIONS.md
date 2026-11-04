@@ -343,16 +343,22 @@ moved:
   Dependabot run was stopped at that budget with every test it had run passing. The iPhone project
   now runs in four shards and desktop WebKit stays at two. The measurement is beside the job in
   `e2e.yml`, and `workflow-hygiene.test.mjs` fails if a shard or a project is left out of the list.
-- **Not 1.64.1, the newest.** 1.63.0 is what the container the upgrade was made in carries, so
-  there a local Playwright run needs no browser workaround. **Not every container does** (measured
-  3 Nov 2026): one carried Playwright 1.56.1's Chromium (`/opt/pw-browsers/chromium-1194`, no
-  WebKit), where 1.63 finds no browser of its own and every test fails before it starts. The
-  environment's own remedy is to launch Chromium with `executablePath: '/opt/pw-browsers/chromium'`
-  — a scratch config that imports the project's and sets it, giving `testDir` and the web server's
-  `cwd` as absolute paths, is enough, and nothing in the repo changes. That binary is full Chrome
-  rather than the headless shell, so it also asks for `/favicon.ico`, which neither origin serves;
-  the live check's reachability probe now runs in a tab of its own so that request is never counted
-  against a page (`e2e/live.spec.js`). Moving on is a one-line change once the containers carry 1.64.
+- **1.64.1 since 4 Nov 2026, ahead of the containers.** This upgrade stopped at 1.63.0 because that
+  is what the dev container carries, so a local run there needs no browser workaround. The owner
+  asked for the remaining upgrades the next morning, and the WebKit lane is the only place Safari
+  meets the app before a release, so it moved on without waiting: 1.64.1 brings Chromium 156 and
+  WebKit 27.2. None of 1.64's breaking changes reach this suite: no app code reads `window.screen`
+  (now taken from the device descriptor), nothing uses an iframe, and no run passes
+  `--update-snapshots=missing`. **Until a container carries 1.64's browsers, a local run needs the
+  environment's remedy**, as it did in a container that carried 1.56.1's Chromium
+  (`/opt/pw-browsers/chromium-1194`, measured 3 Nov 2026): launch Chromium with
+  `executablePath: '/opt/pw-browsers/chromium'`. A scratch config that imports the project's and
+  sets it, giving `testDir` and the web server's `cwd` as absolute paths, is enough, and nothing in
+  the repo changes; 1.64.1 ran two specs that way, on both Chrome projects, on the container's 1.63 Chromium. WebKit takes
+  `npx playwright install webkit`, about a minute. The full Chrome binary also asks for
+  `/favicon.ico`, which neither origin serves; the live check's reachability probe runs in a tab of
+  its own so that request is never counted against a page (`e2e/live.spec.js`). CI and the deploy
+  gate install their own browsers and need none of this.
 - **Chromium 153 raises one new browser error under test.** It abandons the declarative page-to-page
   view transition (`@view-transition` in `shared.css`) when a test navigates mid-transition —
   "Transition was aborted because of invalid state" — as Android Chrome 152 already did on real

@@ -329,6 +329,12 @@ test('admin: with the leave question open over the drawer, Tab stays in it and E
     await page.locator('#navMenuBtn').click();
     await page.locator('.nav-panel-pill--calendar').click();
     await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible();
+    // The dialog is VISIBLE a frame before it takes focus (createLightbox focuses on the next
+    // animation frame), so a Tab pressed the instant it shows can still start from the drawer's pill.
+    // No person is that quick, and Playwright 1.64 on the phone project was (4 Nov 2026): wait for
+    // the focus first, which is also the WAI-ARIA half of the contract.
+    await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('.dialog-overlay')),
+        'the dialog takes focus as it opens').toBe(true);
     for (let i = 0; i < 3; i++) {
         await page.keyboard.press('Tab');
         expect(await page.evaluate(() => !!document.activeElement?.closest('.dialog-overlay')), 'Tab must stay inside the dialog').toBe(true);
@@ -337,6 +343,9 @@ test('admin: with the leave question open over the drawer, Tab stays in it and E
     await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeHidden();
     await expect(page.locator('#navPanel'), 'one Escape closes the topmost surface only').toHaveClass(/open/);
     await expect(page).toHaveURL(/admin\.html/);
+    // A closed dialog stays in the page for 500ms so it can fade, and the next question builds a new
+    // one; ask again before it has gone and the page holds two copies of the same words.
+    await expect(page.locator('.dialog-overlay'), 'the closed dialog has left the page').toHaveCount(0);
     // A hardware Back is the same rule: it closes the dialog, not the drawer beneath it.
     await page.waitForTimeout(400);
     await page.locator('.nav-panel-pill--calendar').click();
