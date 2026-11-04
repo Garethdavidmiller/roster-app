@@ -8,7 +8,7 @@ import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMem
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
          buildOverrideWrite, buildOverrideCacheRecord, collectOverrideRecords, SUNDAY_FORBIDDEN_TYPES, isForbiddenOnSunday, sundaySafeValue,
          CONTRACTED_WORK_TYPES, VOLUNTARY_WORK_TYPES, isContractedWorkOverride, nextReplacedType, manualCellValue,
-         LEGACY_OVERRIDE_TYPES,
+         LEGACY_OVERRIDE_TYPES, contractEvidence,
 } from './override-utils.js';
 import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
 
@@ -768,15 +768,12 @@ describe('resolveEffectiveShift — the shared display ladder (single source for
             { shift: 'RDW', rdwTime: '09:00-17:00', derivedRdw: false });
     });
 
-    it('a TIMED worked-type override on a SUNDAY displays as RDW, not a plain shift (legacy-data coercion)', () => {
+    it('a TIMED `shift` override on a SUNDAY displays as RDW, not a plain shift (older-data coercion)', () => {
         // A worked Sunday is always RDW (Sundays are uncontracted); new creation is blocked at every
-        // write path, but a legacy shift/allocated/overtime/swap doc on a Sunday must still DISPLAY as
-        // RDW — matching the creation invariant and the 1.5× pay routing.
-        for (const type of ['shift', 'allocated', 'overtime', 'swap']) {
-            const r = resolveEffectiveShift({ type, value: '09:00-17:00' }, 'RD', true);
-            assert.deepEqual(r, { shift: 'RDW', rdwTime: '09:00-17:00', derivedRdw: true },
-                `${type} on a Sunday should resolve to RDW`);
-        }
+        // write path, but an older `shift` doc on a Sunday must still DISPLAY as RDW — matching the
+        // creation invariant and the 1.5× pay routing.
+        assert.deepEqual(resolveEffectiveShift({ type: 'shift', value: '09:00-17:00' }, 'RD', true),
+            { shift: 'RDW', rdwTime: '09:00-17:00', derivedRdw: true });
     });
 
     it('the same worked-type override on a NON-Sunday keeps its plain shift value (no coercion off-Sunday)', () => {
@@ -1327,7 +1324,7 @@ describe('contracted work vs volunteered work', () => {
         assert.equal(isContractedWorkOverride({ value: 'RD' }), null, 'no type ⇒ no information');
     });
 
-    it('the legacy types split the same way as the modern ones', () => {
+    it('the retired type names, still read as a historic replacedType, split the same way as today\'s', () => {
         assert.equal(isContractedWorkOverride({ type: 'swap',      value: '07:00-15:00' }), true);
         assert.equal(isContractedWorkOverride({ type: 'allocated', value: '07:00-15:00' }), true);
         assert.equal(isContractedWorkOverride({ type: 'overtime',  value: '07:00-15:00' }), false);
@@ -1475,12 +1472,13 @@ describe('manualCellValue — a real clock time, not the shape of one', () => {
     });
 });
 
-// ── The legacy override types: declared once, and every list that names one agrees (v25.23) ─────
-// `allocated`, `overtime` and `swap` are still in data and no longer creatable. They were written out
-// in four places — two classifying sets here, Admin's worked-type set, and an inline array in Saved
-// Changes — so a fourth legacy type, or a tidy that removed one, had four lists to keep in step.
+// ── The retired override types: no longer TYPES, still historic replacedType values (v25.32) ─────
+// `allocated`, `overtime` and `swap` records were all converted on 4 Nov 2026 and the code that read
+// them as types went. The names survive only as `replacedType` on leave and absence records written
+// before then, where they decide whether the leave cost a day — so the classification and the rules'
+// acceptance of them are what this block holds, and nothing else.
 describe('LEGACY_OVERRIDE_TYPES', () => {
-    it('names the three legacy types, frozen', () => {
+    it('names the three retired types, frozen', () => {
         assert.deepEqual([...LEGACY_OVERRIDE_TYPES].sort(), ['allocated', 'overtime', 'swap']);
         assert.ok(Object.isFrozen(LEGACY_OVERRIDE_TYPES));
     });
@@ -1490,15 +1488,24 @@ describe('LEGACY_OVERRIDE_TYPES', () => {
             assert.equal(n, 1, `${t} is in ${n} of the two classifying sets — leave would be charged wrongly for it`);
         }
     });
-    it('counts each one as a worked day on Admin, and has a row in the type table', () => {
+    it('leave recorded over one of them is still charged, or not, as it was before the conversion', () => {
+        // The production path: a leave record carries what it replaced, and that decides the charge.
+        assert.equal(isContractedWorkOverride(contractEvidence({ type: 'annual_leave', value: 'AL', replacedType: 'swap' })), true);
+        assert.equal(isContractedWorkOverride(contractEvidence({ type: 'annual_leave', value: 'AL', replacedType: 'allocated' })), true);
+        assert.equal(isContractedWorkOverride(contractEvidence({ type: 'annual_leave', value: 'AL', replacedType: 'overtime' })), false);
+    });
+    it('the rules still accept each one as a replacedType — re-saving such a day carries it forward', () => {
+        const rules = readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8');
+        const list = rules.match(/request\.resource\.data\.replacedType in \[([^\]]*)\]/);
+        assert.ok(list, 'the replacedType allowlist was not found in firestore.rules — this guard is blind');
         for (const t of LEGACY_OVERRIDE_TYPES) {
-            assert.ok(WORKED_OVERRIDE_TYPES.has(t), `${t} is missing from WORKED_OVERRIDE_TYPES — a Sunday correction could overwrite it`);
-            assert.ok(TYPES[t], `${t} has no row in admin-shift-types.js TYPES — its records would render as UNKNOWN`);
+            assert.match(list[1], new RegExp(`'${t}'`), `firestore.rules no longer accepts replacedType '${t}' — re-saving leave over a converted day would be refused`);
         }
     });
-    it('is not restated inline where it is used', () => {
-        const src = readFileSync(new URL('./admin-saved-changes.js', import.meta.url), 'utf8');
-        assert.match(src, /LEGACY_OVERRIDE_TYPES\.includes\(/, 'Saved Changes reads the declaration');
-        assert.doesNotMatch(src, /\[\s*'allocated'\s*,\s*'overtime'\s*,\s*'swap'\s*\]/, 'Saved Changes restates the trio');
+    it('is no longer a type: no row in Admin\'s type table, and not a worked day there', () => {
+        for (const t of LEGACY_OVERRIDE_TYPES) {
+            assert.equal(TYPES[t], undefined, `${t} is back in admin-shift-types.js TYPES`);
+            assert.equal(WORKED_OVERRIDE_TYPES.has(t), false, `${t} is back in WORKED_OVERRIDE_TYPES`);
+        }
     });
 });

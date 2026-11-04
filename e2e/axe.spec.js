@@ -297,36 +297,6 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
-    // The Old-format records conversion (v25.31, TEMPORARY — goes with operations-legacy.js). Like
-    // the roster review below, it is reachable only by DRIVING it, so a load-and-scan never sees it:
-    // seed old records, open the card, ask for the preview, open every fold. Then the failure line.
-    test('operations — the old-format conversion preview, and a failed convert', async ({ page }) => {
-        await seedSession(page, 'G. Miller');
-        const at = Date.parse('2026-03-01T09:00:00Z');
-        await page.addInitScript((rows) => { window.__E2E = { ...(window.__E2E || {}), docsByQuery: { overrides: rows } }; }, [
-            { id: 'a1', memberName: 'S. Silva', date: '2026-03-02', type: 'allocated', value: '06:20-14:20', note: '', source: 'manual', createdAt: at },
-            { id: 'o1', memberName: 'S. Silva', date: '2026-03-03', type: 'overtime', value: '07:00-15:00', note: '', source: 'manual', createdAt: at },
-            { id: 'w1', memberName: 'M. Robson', date: '2026-03-04', type: 'swap', value: '14:00-22:00', note: '', source: 'manual', createdAt: at },
-            { id: 'n1', memberName: 'M. Robson', date: '2026-03-04', type: 'shift', value: '06:20-14:20', note: '', source: 'manual', createdAt: at + 1 },
-            { id: 'b1', memberName: 'M. Robson', date: '2026-03-06', type: 'swap', value: '6:20-14:20', note: '', source: 'manual', createdAt: at },
-        ]);
-        await page.goto('/operations.html');
-        await page.locator('#legacyRecordsToggleHeader').click();
-        const content = page.locator('#legacyRecordsContent');
-        await content.getByRole('button', { name: 'Show what would change' }).click();
-        await expect(content).toContainText('to convert');
-        await page.evaluate(() => document.querySelectorAll('#legacyRecordsContent details').forEach(d => { d.open = true; }));
-        let v = await scan(page);
-        expect(v.length, report(v)).toBe(0);
-
-        await page.evaluate(() => { window.__E2E.failCommits = true; });
-        await content.getByRole('button', { name: /^Convert/ }).click();
-        await page.locator('.dialog-btn-confirm:visible').click();
-        await expect(content).toContainText('Couldn’t convert them');
-        v = await scan(page);
-        expect(v.length, report(v)).toBe(0);
-    });
-
     // ── THE ROSTER REVIEW TABLE (v24.00) ────────────────────────────────────────────────────────
     //
     // Every other scan in this file loads a page and reads what it finds. This one has to DRIVE the

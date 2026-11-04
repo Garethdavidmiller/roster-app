@@ -1484,32 +1484,6 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 /* Error Log header count chip (v18.17): red text on the shared .card-year-chip base — an error
    count wants the eye. Only ever visible when non-empty (0 → :empty hides it), so no state class. */
 .errorlog-count-chip { color: var(--error-red); }
-/* Old-format records (v25.28, TEMPORARY — goes with operations-legacy.js). One line per old type,
-   in the card's own prose voice; a plain list so a screen reader announces "list, 3 items". */
-.legacy-records-list {
-    margin: 0 0 12px;
-    padding-left: 1.2em;
-    font-size: var(--type-label);
-    color: var(--text-dark);
-    line-height: 1.5;
-}
-.legacy-records-note { font-size: var(--type-small); }
-/* The conversion (v25.31, goes with the card): the plan line, then one fold per outcome. A fold's
-   summary is a small heading over its list — the list is the data, so it keeps the list's weight. */
-.legacy-convert { margin-top: 4px; }
-.legacy-records-plan { font-weight: 600; color: var(--text-dark); }
-.legacy-records-result { font-weight: 600; color: var(--success-text); }
-.legacy-group { margin: 0 0 6px; }
-.legacy-group > summary {
-    cursor: pointer;
-    font-size: var(--type-label);
-    font-weight: 600;
-    color: var(--text-dark);
-    padding: 6px 0;
-}
-.legacy-group > summary:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-.legacy-group > .legacy-records-note { margin: 0 0 6px; }
-.legacy-group > .legacy-records-list { margin: 2px 0 10px; }
 /* Per-card "Try again" button (B2) — retries just this monitoring card, not a whole-page reload. */
 .card-retry-btn { margin-top: 10px; }
 
