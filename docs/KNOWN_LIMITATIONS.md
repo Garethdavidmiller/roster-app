@@ -1591,8 +1591,8 @@ breaking change. That is a worse position than the current moderate dev-only adv
 audit, but `gaxios` 6→7 is a **major** API change and the 6.x copy is required by an intermediate
 Google dependency that expects the 6.x API — forcing 7.x risks breaking the **deploy/emulator
 toolchain** (which gates every rules/hosting deploy). Not worth that risk for a moderate dev-only
-advisory. (Contrast `functions/package.json`'s `uuid` override, which is safe because that pin stays
-within a compatible range.)
+advisory. (Contrast the `uuid` override `functions/package.json` carried until v25.35, which was safe because
+that pin stayed within a compatible range, and went once nothing depended on `uuid` at all.)
 
 **When to close:** once `firebase-tools` widens its `gaxios` range to include `7.x` (or its
 intermediate Google deps do). Re-check with `npm audit` / `npm outdated` periodically; bump

@@ -63,9 +63,9 @@ rule text and gate cases:
   (`14.3.0`, with `firebase-functions` `7.3.2`): the peer range widened, and the namespaced `admin.*`
   API v14 removes was migrated to the modular entry points across 59 call sites first, on v13, so the
   version move itself changed no code — KNOWN_LIMITATIONS.md carries what that cost and what to expect
-  at the next major. The `uuid` override **survived the bump and is still doing work** —
-  `@google-cloud/storage@7.22.0` pulls `gaxios@6.7.1`, which declares `uuid ^9.0.1`. Drop it once
-  `@google-cloud/storage` ships `uuid >= 11.1.1` upstream. · A2 — Workload
+  at the next major. The `uuid` override survived that bump and was **removed at v25.35**, once nothing in
+  `functions/` depended on `uuid` at all: `npm ls uuid` is empty and every `gaxios` is 7.x or 8.x,
+  so the override matched nothing. · A2 — Workload
   Identity Federation, keyless OIDC on all 3 deploy workflows; SA JSON key + `FIREBASE_SERVICE_ACCOUNT`
   secret both deleted (v14.93 — **Appendix A2**). · A3 — doc-only accuracy (v14.38).
 - **Track B (authorization release):** B0 — named-vs-anonymous identity signal (v14.39). · B1 —
