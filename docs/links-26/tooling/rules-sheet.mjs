@@ -35,7 +35,7 @@ const F = folderStats(), N = F.length;
 // Hard limits across the folder, measured the way page 7 measures them.
 const restOk = F.filter(f => f.turnarounds === 0).length;
 const runOk = F.filter(f => f.run <= MAX_CONSECUTIVE_WORKED_DAYS).length;
-const contractOk = F.filter(f => { const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8')); const h = assess(j.patterns ?? j, LINES).hours;
+const contractOk = F.filter(f => { const j = JSON.parse(readFileSync(f.url, 'utf8')); const h = assess(j.patterns ?? j, LINES).hours;
   return Math.round(h.exSundayHours * 60 + h.coverLines * (h.target ?? 35) * 60 - h.lines * (h.target ?? 35) * 60) === 0; }).length;
 const todayRest = TA.rest?.minutes ?? null;
 
@@ -44,7 +44,7 @@ const todayRest = TA.rest?.minutes ?? null;
 const key = r => `${r.code}|${r.title}`;
 const FZ = assessFatigue(T0.patterns, 20).results;
 const presentIn = {}, applies = new Set(FZ.filter(r => r.status !== 'n/a').map(key));
-for (const f of F) { const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8'));
+for (const f of F) { const j = JSON.parse(readFileSync(f.url, 'utf8'));
   for (const r of assessFatigue(j.patterns ?? j, LINES).results) { if (r.status !== 'n/a') applies.add(key(r)); if (r.status === 'present') presentIn[key(r)] = (presentIn[key(r)] ?? 0) + 1; } }
 // A factor that applies to no rotation here — today's or any proposal — is listed apart, with the reason.
 const live = FZ.filter(r => applies.has(key(r))), na = FZ.filter(r => !applies.has(key(r)));

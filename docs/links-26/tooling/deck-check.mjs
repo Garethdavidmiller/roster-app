@@ -140,12 +140,12 @@ let bad = 0, ok = 0; const unchecked = new Set();
 if (process.argv.includes('--print')) {   // every figure a deck row can quote, for today and each design the decks cover
   const out = { today: TF };
   for (const name of new Set(DECKS.map(([, n]) => n))) { const f = stats.find(s => s.name === name);
-    const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8')); out[name] = figures(j.patterns ?? j, LINES, TA); }
+    const j = JSON.parse(readFileSync(f.url, 'utf8')); out[name] = figures(j.patterns ?? j, LINES, TA); }
   console.log(JSON.stringify(out, null, 1)); process.exit(0);
 }
 for (const [file, name] of DECKS) {
   const f = stats.find(s => s.name === name); if (!f) throw new Error(`deck-check: no proposal called ${name}`);
-  const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8')), p = j.patterns ?? j;
+  const j = JSON.parse(readFileSync(f.url, 'utf8')), p = j.patterns ?? j;
   const PF = figures(p, LINES, TA);
   const slides = execFileSync('unzip', ['-Z1', DIR + file], { encoding: 'utf8' }).split('\n').filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));
   for (const s of slides) {

@@ -385,22 +385,31 @@ export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') 
   return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, fixed: fixedView(p, lines), feel: feel(p, lines), rest: tightestRest(p, lines), fits: fitsOf(p, lines), wkFit: weekdayFit(p, lines), heads: headcounts(p, lines), office: officeSplit(p, lines, hourly, officeModel) };
 }
 
+/** THE PACK'S FOLDERS (4 Nov 2026, owner: "Put all of the links that give 30 days off for 14 days AL into a subfolder
+ *  within links 26"). Every proposal's sheet, grid and import file lives in one of these, under docs/links-26: the
+ *  links where 14 days' leave buys 30 days off in their own folder, the rest in proposals/. Both are the pack, and
+ *  everything that reads it — the sheets' folder figures, the league, the summary, the shortlist sheet, the rules sheet,
+ *  regenerate.mjs, pack.py — reads them from this one list, so a third folder is one more entry here. A design names
+ *  its folder in regenerate.mjs's SUPPLIED (`dir:`), and nowhere else. */
+export const PACK_DIRS = ['proposals', '30-days-off'];
+
 /** Every SHIPPED rotation in docs/links-26, assessed — so a sheet can say where it stands in the folder
  *  ("the best of 21 on weekday fit", "one of six with no factor present") as a computed fact rather than a
- *  claim. Read at render time from `<Name>-<CODE>.json`; the sheet being rendered is in the set, which is
- *  what "best in the folder is this one" means. Cached per process. */
+ *  claim. Read at render time from `<Name>-<CODE>.json` in every one of PACK_DIRS; the sheet being rendered is in
+ *  the set, which is what "best in the folder is this one" means. Each entry carries its `dir` and the `url` of its
+ *  JSON, so no reader rebuilds a path with one folder in it. Cached per process. */
 let _folder = null;
-export function folderStats(dir = new URL('../proposals/', import.meta.url)) {
+export function folderStats(dirs = PACK_DIRS.map(d => new URL(`../${d}/`, import.meta.url))) {
   if (_folder) return _folder;
   const T0 = today(); const TA = { patterns: T0.patterns, ...assess(T0.patterns, T0.lines) }; const todays = new Set(TA.tableRows.map(r => r.time));
   const out = [];
-  for (const f of readdirSync(dir)) {
+  for (const dir of [dirs].flat()) for (const f of readdirSync(dir)) {
     // a trailing lower-case letter marks a rotation derived from a seed's (FR-24-F34o: seed 34, its week order improved)
     const m = new RegExp(`^(.*)-([A-Z][A-Z0-9]*-${LINES}-[A-Z0-9]+[a-z]?)\\.json$`).exec(f); if (!m) continue;
     try {
       const j = JSON.parse(readFileSync(new URL(f, dir), 'utf8')); const p = j.patterns ?? j; const lines = Object.keys(p).length;
       const A = assess(p, lines);
-      out.push({ file: f, name: m[1].replace(/-/g, ' ').replace(/(\d+) (\d+)/g, '$1-$2'), code: m[2], wk: weekdayFit(p, lines), sat: A.fits.sat, sun: A.fits.sun, floor: { wk: A.office.wkFit, sat: A.office.fits.sat, sun: A.office.fits.sun },
+      out.push({ file: f, dir: dir.pathname.split('/').filter(Boolean).pop(), url: new URL(f, dir), name: m[1].replace(/-/g, ' ').replace(/(\d+) (\d+)/g, '$1-$2'), code: m[2], wk: weekdayFit(p, lines), sat: A.fits.sat, sun: A.fits.sun, floor: { wk: A.office.wkFit, sat: A.office.fits.sat, sun: A.office.fits.sun },
         present: A.fatigue.present, weekends: A.checks.weekendsOff, run: A.checks.longestStretch, fixedPresent: A.fixed.present, fixedRun: A.fixed.run, worstPresent: A.fatigue.present + (h55Worst(p, lines)?.adds ? 1 : 0), rest: A.rest?.minutes ?? null,
         oneTurn: A.feel.oneTurn, workingLines: A.feel.workingLines, distinct: A.feel.distinctTimes,
         newTimes: A.tableRows.filter(r => !todays.has(r.time)).length, turnarounds: A.checks.turnarounds.length, rules: sheetRules({ patterns: p, ...A }, TA) });

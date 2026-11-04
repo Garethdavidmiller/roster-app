@@ -56,7 +56,7 @@ if (SHORTLIST.join() !== 'Even Step,In Step,Short Run' || RECOMMENDED !== 'Even 
 const FIG = JSON.parse(execFileSync(process.execPath, [fileURLToPath(new URL('deck-check.mjs', import.meta.url)), '--print'], { encoding: 'utf8' }));
 const stats = folderStats();
 const grid = name => { const f = stats.find(s => s.name === name); if (!f) throw new Error(`no proposal called ${name}`);
-  const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8')); return j.patterns ?? j; };
+  const j = JSON.parse(readFileSync(f.url, 'utf8')); return j.patterns ?? j; };
 const T0 = today().patterns;
 const perYear = (p, test) => Object.values(p).reduce((n, r) => n + DAYS.filter(d => timed(r[d]) && test(r[d], d)).length, 0) * 52 / Object.keys(p).length;
 const dayHours = (p, day) => Object.values(p).reduce((n, r) => n + (timed(r[day]) ? mins(r[day]) : 0), 0) * 52 / Object.keys(p).length / 60;

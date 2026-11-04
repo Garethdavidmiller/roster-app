@@ -16,8 +16,17 @@ TOP = 'links-26-proposals'
 OUT = f'{ROOT}/{TOP}.zip'
 
 reg = open(f'{ROOT}/tooling/regenerate.mjs', encoding='utf-8').read()
-proposals = re.findall(r"name: '([^']+)',\s*code: '([^']+)',\s*fp: '([0-9a-f]{8})'", reg)
-if not proposals: raise SystemExit('pack: no proposals in regenerate.mjs SUPPLIED')
+found = re.findall(r"name: '([^']+)',\s*code: '([^']+)',\s*fp: '([0-9a-f]{8})'(?:,\s*dir: '([^']+)')?", reg)
+if not found: raise SystemExit('pack: no proposals in regenerate.mjs SUPPLIED')
+proposals = [(n, c, f) for n, c, f, _ in found]
+# THE PACK'S FOLDERS (4 Nov 2026, owner: "Put all of the links that give 30 days off for 14 days AL into a subfolder within
+# links 26"). A design ships into proposals/ unless its SUPPLIED entry names another of report-data.mjs's PACK_DIRS, read
+# here as the other lists are; in the zip the 30-day folder is a folder of its own inside the sheets and the import files
+PACK_DIRS = re.findall(r"'([^']+)'", re.search(r"export const PACK_DIRS = \[([^\]]*)\]", open(f'{ROOT}/tooling/report-data.mjs', encoding='utf-8').read()).group(1))
+DIR_OF = {c: (d or 'proposals') for _, c, _, d in found}
+if any(d not in PACK_DIRS for d in DIR_OF.values()): raise SystemExit(f'pack: a SUPPLIED folder is not one of PACK_DIRS {PACK_DIRS}: {DIR_OF}')
+IN_ZIP = {'proposals': '', '30-days-off': '30 days off/'}   # each folder's place inside "4 Proposal sheets" and "5 Import files"
+if set(IN_ZIP) != set(PACK_DIRS): raise SystemExit(f'pack: IN_ZIP {sorted(IN_ZIP)} does not name every one of PACK_DIRS {PACK_DIRS}')
 
 files = [  # (source, path in the pack)
     (f'{ROOT}/links-26-summary.pdf', '1 Summary/links-26-summary.pdf'),
@@ -31,8 +40,9 @@ for name, code, fp in proposals:
         for ext in ('pptx', 'pdf'):
             src = f"{ROOT}/presentations/{name.replace(' ', '-')}-for-{who}.{ext}"
             if os.path.exists(src): files.append((src, f'3 Presentations/{os.path.basename(src)}'))
-    files += [(f'{ROOT}/proposals/{base}-{fp}.pdf', f'4 Proposal sheets/{base}-{fp}.pdf'),
-              (f'{ROOT}/proposals/{base}-import.txt', f'5 Import files for the Links page/{base}-import.txt')]
+    d = DIR_OF[code]
+    files += [(f'{ROOT}/{d}/{base}-{fp}.pdf', f'4 Proposal sheets/{IN_ZIP[d]}{base}-{fp}.pdf'),
+              (f'{ROOT}/{d}/{base}-import.txt', f'5 Import files for the Links page/{IN_ZIP[d]}{base}-import.txt')]
 files += [(f'{ROOT}/RULES.md', '6 Technical notes/RULES.md'),
           (f'{ROOT}/README.md', '6 Technical notes/README.md')]
 missing = [s for s, _ in files if not os.path.exists(s)]
@@ -92,7 +102,9 @@ LATE = sorted(n for n, c, _ in proposals if _day(c) > _drawn)
 # what it is too, so it is in the one set this accepts. So are the day's other three (owner, 4 Nov 2026: "Do a proposal
 # sheet for all of today's work. Put them into the repo"): Quarter Past, a one-page roster drawn outside the app, and the
 # two laid from its duties, Quarter Past Relaid and Short Openers; the paragraph names each and what it is
-LATE_SET = ['Clean Slate', 'Fair Share', 'Next Step', 'Quarter Past', 'Quarter Past Relaid', 'Short Openers']
+# Quarter Past Relaid was renamed Open Return, and Fair Share's 30-day search result joined as Grand Tour, the same day
+# (owner: "Give all proposals individual names")
+LATE_SET = ['Clean Slate', 'Fair Share', 'Grand Tour', 'Next Step', 'Open Return', 'Quarter Past', 'Short Openers']
 if LATE and LATE != LATE_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(LATE_SET)} as the designs after the shortlist; they are {LATE}')
 LATE_WORDS = ', '.join(LATE[:-1]) + ' and ' + LATE[-1] if len(LATE) > 1 else ''.join(LATE)   # three since 4 Nov: 'A, B and C', never 'A and B and C'
@@ -200,8 +212,8 @@ readme = '\n'.join([
          'PowerPoint and PDF copies of each. The PowerPoints use the Inter font; if the PC showing them does not have '
          'Inter, present the PDF instead.'),
     item('4 Proposal sheets', 'One eight-page PDF per proposal, compared only with today\'s link: pages 1 and 2 are the '
-         'plain-English comparison, page 3 the rota, the rest the evidence managers can inspect. The marks mean the '
-         'same on every page:'),
+         'plain-English comparison, page 3 the rota, the rest the evidence managers can inspect. The links where 14 '
+         'days\' leave buys 30 days off, as today, are in the folder 30 days off. The marks mean the same on every page:'),
     mark_item('green tick', 'meets a rule, or better than today on something the rules, the limits or the fatigue '
               'guidance aim for, or on a plain gain such as full weekends off'),
     mark_item('amber', 'worse than today on one of those'),
@@ -237,17 +249,19 @@ readme = '\n'.join([
             'and late weeks - with the shift times chosen again. It joined the shortlist the same day, beside In Step '
             'and Short Run, and is the one recommended.'), '']
       if 'Even Step' in names_in else []),
-    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Quarter Past, Quarter Past Relaid and Short Openers '
-            '(4 November 2026) came after the shortlist, and none is on it. Clean Slate '
+    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Quarter Past, Open Return, Short Openers and '
+            'Grand Tour (4 November 2026) came after the shortlist, and none is on it. Clean Slate '
             'chooses every shift time afresh for the trains, with no shift over 8h 30m Monday to Saturday, one 13:45 '
             'finish and a closer from 15:45 every weekday. Next Step is Even Step with three weekday shifts retimed for '
             'the trains, still with no shift over 8h 30m Monday to Saturday. Fair Share is Next Step with an even Sunday: '
             'every Sunday duty is 8h 10m or 8h 15m, so a Sunday early and a Sunday late pay within a few pounds, and no '
             'shift is over 8h 30m on any day. Quarter Past is a one-page roster drawn up outside the app and read in as written: its weekday '
-            'closer starts at 16:15, and it has three full weekends off in 26 weeks. Quarter Past Relaid keeps Quarter Past\'s shift '
-            'times in new weeks, so that 14 days\' leave buys 30 days off, as today, with no avoidable fatigue warning. '
-            'Short Openers is Quarter Past Relaid with every weekday 06:20 finishing by 14:20 and every weekday closer at '
-            '15:45. Page 2 of the shortlist sheet sets each beside the three.'), '']
+            'closer starts at 16:15, and it has three full weekends off in 26 weeks. Open Return, Short Openers and Grand '
+            'Tour are the links where 14 days\' leave buys 30 days off, and four weeks off take 14, as today; their sheets '
+            'and import files have a folder of their own, 30 days off. Open Return keeps Quarter Past\'s shift times in new '
+            'weeks, with no avoidable fatigue warning. Short Openers is Open Return with every weekday 06:20 finishing by '
+            '14:20 and every weekday closer at 15:45. Grand Tour keeps Fair Share\'s shift times in new weeks. Page 2 of '
+            'the shortlist sheet sets each beside the three.'), '']
       if LATE else []),
     *([para(f'Four more were drawn up and withdrawn on 3 November 2026 as the weakest in the pack: {", ".join(WITHDRAWN[:-1])} '
             f'and {WITHDRAWN[-1]}. Each was the same as or worse than a design still here on everything the sheets measure '

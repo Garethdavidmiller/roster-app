@@ -29,6 +29,11 @@ times count the Monday-to-Saturday duties only* has both.
 Quarter Past is far out on four measures, so with it in the pack every other score rose about 2 points and a few
 mid-table places moved; Even Step stayed first. *Today's three join the pack* has both tables.
 
+**Three designs were renamed on 4 Nov 2026** (owner: "Give all proposals individual names"): Quarter Past Relaid is
+**Open Return** (`OR-26-EXT`, drawn as `QR-26-EXT`), Fair Share's 30-day search result, which had no name, is **Grand
+Tour** (`GT-26-T7`), and Same Again Tidy is **Well Kept**. Each fingerprint is unchanged. The dated sections before
+*30 days off for 14 days' leave* keep the names they were written with, and so do the grids in `tooling/results/`.
+
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
 So a rebuild adds nothing about who decides, votes or recommends — the process is recorded in
@@ -49,6 +54,7 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 | `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
 | `links-26-shortlist.pdf` | the three shortlisted designs (Even Step, In Step and Short Run, since 31 Oct 2026) against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
+| `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
@@ -3490,6 +3496,110 @@ Quarter Past Relaid 80.3, In Step 80.1, Quarter Past 49.1.
 **Why "Relaid"**, not "Re-laid" as it was drawn: the sheets read a design's name back from its file name, a hyphen for
 each space, so a hyphen inside a name came back as a space and the shortlist sheet could not find "Quarter Past Re
 laid". The grid keeps its file name, `results/quarter-past-re-laid.json`; the sections above now say Relaid.
+
+## 30 days off for 14 days' leave — a folder of their own, and three new names (4 Nov 2026)
+
+**The requests** (owner, 4 Nov 2026): *"Give all proposals individual names"* and *"Put all of the links that give 30
+days off for 14 days AL into a subfolder within links 26"*. Asked how far each went, the owner chose:
+- **names:** just the three without one of their own — Quarter Past Relaid (named after Quarter Past), Same Again Tidy
+  (after Same Again) and Fair Share's 30-day search result (no name at all); every other design keeps its name;
+- **the folder:** its own, `30-days-off/`, with full sheets, still counted in the league, the summary and the
+  shortlist sheet like any proposal;
+- **Same Again Tidy:** left out of the folder. It buys 30 days for 14, but meets 7 of the 9 December rules and has 3
+  avoidable fatigue warnings, so it stays a design to look at, not a proposal.
+
+**The 26-line links that buy 30 days off for 14 days' leave**, found by running `leave.mjs` over every grid in
+`docs/links-26` (the pack and the 47 others under `tooling/`): Quarter Past Relaid, Short Openers, Fair Share's run e
+(`results/fair-share-leave30.json`) and Same Again Tidy. Today's link buys 30 too; every other proposal 27 to 29.
+
+**The names.** Two words, like the rest, and none sharing a word with another design's:
+- **Open Return** (`OR-26-EXT` · `544e1ee8`), was Quarter Past Relaid. An open return is the ticket you can come back on
+  any day within a month, and this is Quarter Past's shift times returned in new weeks so that 14 days' leave buys a
+  month off. The code keeps `EXT`, the suffix of the designs that grew from the supplied roster (Quarter Past's and
+  Short Openers' codes carry it too).
+- **Grand Tour** (`GT-26-T7` · `4172f888`), was Fair Share's 30-day result: Fair Share's duties (table T7, so its code
+  shares Fair Share's suffix) in new weeks, and a long trip on 14 days' leave.
+- **Well Kept**, was Same Again Tidy: today's twenty weeks kept, tidied. It has no sheet, so it has no code.
+
+The codes were checked against every code and name in `links-24/` and `links-26/`; none was in use, and none matches
+the code families `render.mjs` reads (`ST`, `QT`, `Q2`, `BB`, `EF`, `B2`).
+
+**The folder.** `30-days-off/` holds Open Return, Short Openers and Grand Tour, three files each as in `proposals/`,
+and a README with their figures side by side. Open Return and Short Openers moved there with `git mv`, so their history
+follows them. Everything that reads the pack now reads both folders from one list, `PACK_DIRS` in `report-data.mjs`:
+`folderStats` (and so every sheet's folder figures, the summary, the shortlist sheet and the rules sheet), the league,
+`regenerate.mjs` and `pack.py`. A design names its folder in `regenerate.mjs`'s `SUPPLIED` (`dir:`), and nowhere else.
+Two guards came with it, each mutation-checked:
+- `regenerate.mjs` looks for each sheet in every folder and fails unless it is in the one its entry names, once.
+  Pointing Grand Tour's entry back at `proposals/` failed the check.
+- It also fails on any sheet, grid or import file in the folders that no entry ships, which is what a rename or a move
+  leaves behind. A stray copy of Grand Tour's grid in `proposals/` failed the check; with the guard's line deleted,
+  the check passed.
+
+In the zip, the three are in `4 Proposal sheets/30 days off/` and `5 Import files for the Links page/30 days off/`, and
+the read-me says what each is.
+
+**Grand Tour joins the pack**, rendered for the first time: 9 of 9 rules; no avoidable fatigue warning on the fixed
+duties, one (a 56.7-hour week) if a cover week falls badly; 5 days in a row, up to 7; 7 full weekends in 26; a 14h 35m
+shortest rest; 16 of 21 weeks on one shift time; 6 single rest days; 14 days' leave buys 30 · 23.4 · 20, and four weeks
+off take 14. Its `results/fair-share-leave30.meta.json` gives its lineage. It names no parent, because it is Fair Share
+laid out again, not Fair Share with a few cells changed: 53 of its 182 cells differ, and its sheet would have outlined
+all 53.
+
+**It is first in the league**, on 87.6, under a point ahead of Even Step (87.3). It moved no other score, because it
+sits inside every range the others set, so each design below it simply went down a place. The shortlist, the
+recommendation, the decks, *What it means if you…* and the New link page are unchanged. They were the owner's choice,
+and S. Silva leads the change.
+
+| | Design | Score |
+|---|---|---|
+| 1 | **Grand Tour** (30-day folder) | **87.6** |
+| 2 | **Even Step** ★ shortlisted, recommended | 87.3 |
+| 3 | Closing Time | 87.1 |
+| 4 | Next Step | 87.1 |
+| 5 | Fair Share | 86.9 |
+| 6 | Short Openers (30-day folder) | 85.8 |
+| 7 | Clean Slate | 85.3 |
+| 8 | Home Grown | 85.1 |
+| 9 | Second Edition | 84.1 |
+| 10 | Long Break | 84.1 |
+| 11 | Even Keel | 84.1 |
+| 12 | Fine Tune | 83.6 |
+| 13 | Open Return (30-day folder) | 83.6 |
+| 14 | Short Run ★ shortlisted | 83.5 |
+| 15 | Second Look | 83.4 |
+| 16 | Both Ways | 83.0 |
+| 17 | In Step ★ shortlisted | 82.4 |
+| 18 | Quarter Past | 49.1 |
+| — | Familiar Nine (24 lines, for reference) | 76.0 |
+| — | Today's link (for reference) | 29.8 |
+
+`REF_IN_RANGE=1`, the usual table; places by the unrounded score. Weighted as before 31 Oct, In Step still leads (89.7),
+with Even Step second and Grand Tour third, both on 88.9.
+
+**The shortlist sheet.** Every claim that names who shares something was read again with eighteen designs:
+- **Page 1:** the lead says the shortlist was drawn before seven more joined. The four-weeks row of the guide now
+  reads *Grand Tour · Short Openers, Long Break and Open Return too* from the league.
+- **Page 2:**
+  - Its three 30-day links share one row: what all three keep, 30 days off and four weeks off for 14 days' leave, and
+    the one cost all three pay, five or six single rest days. A claim ties the row to the folder: the designs that buy
+    30 days are exactly the ones in `30-days-off/`. The row needed the name column a half per cent wider (30.5%), which
+    Clean Slate's and Fair Share's rows still fit beside.
+  - The "judgement" paragraph puts Even Step second, behind Grand Tour, "drawn after the shortlist". To keep the page
+    on its page it lost "of eighteen" (page 1 counts the pack) and the old weighting's two figures ("In Step led by
+    under a point" stays, and is claimed). It now dates the old weighting "before 31 Oct" and the main one by its last
+    revision, 3 Nov, so neither can be read as the other.
+- **The three claims Fair Share made alone, Grand Tour shares:** no early over 8h 30m on any day (with Home Grown), no
+  shift over 8h 30m Monday to Saturday, and no long day at all.
+
+Page 1 has 8px to spare, and page 2 3px.
+
+**The summary** lists eighteen and prints at 80%, its floor: a nineteenth design will need its layout changed, not
+its scale.
+
+**Re-rendered, and kept as committed:** the fifteen sheets in `proposals/` and the rules sheet were re-rendered with
+Grand Tour in the folder, and only their Prepared date moved. Open Return's sheet changed its name and code, and Short
+Openers' its description of where it came from ("Open Return with every weekday 06:20…").
 
 ## Notes for the whole set
 

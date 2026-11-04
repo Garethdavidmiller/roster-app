@@ -37,7 +37,7 @@ const gapOf = p => { const L=Object.keys(p).length, off = s => !timed(s) && s !=
 
 const hm = m => `${Math.floor(m/60)}h ${String(Math.round(m%60)).padStart(2,'0')}m`;  // the sheets' own format, "13h 35m"
 const TA = assess(T.patterns, 20);
-const rows = folderStats().map(f => { const j=JSON.parse(fs.readFileSync(new URL(f.file, DIR),'utf8')); const p=j.patterns??j; const x=extra(p);
+const rows = folderStats().map(f => { const j=JSON.parse(fs.readFileSync(f.url,'utf8')); const p=j.patterns??j; const x=extra(p);
   return { name:f.name, code:f.code, met:f.rules.met, of:f.rules.of, waived:waivedRows(f.code, f.rules.rows).length, present:f.fixedPresent, presentW:f.worstPresent, hard:f.turnarounds>0 || f.run>13 || monSatMinutes(p)!==CONTRACT_MINUTES || daysAYear(p)>DAYS_CEILING+1e-9,   // every hard limit, the contract and the days ceiling (RULES.md) included
     turns:f.turnarounds, run:f.fixedRun, runW:f.run, wkd:`${f.weekends} in ${x.L}`, gap:gapOf(p), wkYear:f.weekends*52/x.L, rest:f.rest, times:`${f.distinct} (${f.newTimes} new)`, ...x }; });
 // a proposal that breaks a HARD limit cannot be run as it stands, so it sorts last whatever it scores (accuracy audit,
