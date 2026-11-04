@@ -54,7 +54,7 @@ jobs:
       # stepped back to 20 for its sign-in until 3 Nov 2026; the whole job runs on 22 now
       # (deploy-functions.yml has the history).
       - name: Install Node.js
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           # Cache npm's download store (keyed on the lockfile, so a dependency change still
@@ -96,7 +96,7 @@ jobs:
       # its sign-in (deploy-functions.yml records why, and why that reason no longer held). Kept as
       # its own step so that going back to 20, if a deploy ever fails to authenticate, is one line.
       - name: Deploy-tool Node version
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
 
