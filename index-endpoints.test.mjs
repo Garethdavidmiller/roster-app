@@ -65,8 +65,10 @@ const { CALENDAR_VIEWER_UID, GLOBAL_SOURCE_KEY, sourceKeyFor } = VIEWER;
  */
 let W = null;
 
-/** What the lazily-required Anthropic SDK saw. Reset by `build()`. */
-const AI = { calls: [], reply: '', throws: null };
+/** What the lazily-required Anthropic SDK saw, and what it answers. Reset by `build()`. `content`
+ *  replaces the whole reply's blocks and `stopReason` its stop_reason; both default to an ordinary
+ *  reply carrying `reply` as its one text block. */
+const AI = { calls: [], reply: '', throws: null, content: null, stopReason: null };
 
 const fnDir = new URL('./functions/', import.meta.url).pathname;
 const stub = (p, exports) => { require.cache[p] = { id: p, filename: p, loaded: true, exports }; };
@@ -98,9 +100,16 @@ stub(require.resolve('@anthropic-ai/sdk', { paths: [fnDir] }), {
                     // hundred KB per call is not.
                     const blocks = ((body && body.messages && body.messages[0] || {}).content || [])
                         .map(b => ({ type: b.type, text: b.type === 'text' ? b.text : undefined }));
-                    AI.calls.push({ kind: 'create', model: body && body.model, blocks });
+                    // The request's settings are recorded too (v25.28): a model rejects a request
+                    // it cannot run with a 400, which no stub raises, so the shape it accepts has to
+                    // be asserted here or it is not tested at all.
+                    const { messages: _m, ...settings } = body || {};
+                    AI.calls.push({ kind: 'create', model: body && body.model, blocks, settings });
                     if (AI.throws) throw new Error(AI.throws);
-                    return { content: [{ type: 'text', text: AI.reply }] };
+                    return {
+                        content:     AI.content ?? [{ type: 'text', text: AI.reply }],
+                        stop_reason: AI.stopReason ?? 'end_turn',
+                    };
                 },
             };
         }
@@ -258,6 +267,8 @@ function build(opts = {}) {
     AI.calls.length = 0;
     AI.reply = opts.aiReply ?? AI_REPLY;
     AI.throws = opts.aiThrows ?? null;
+    AI.content = opts.aiContent ?? null;
+    AI.stopReason = opts.aiStopReason ?? null;
     if ('pin' in opts) {
         if (opts.pin === undefined) delete process.env.CALENDAR_VIEWER_PIN;
         else process.env.CALENDAR_VIEWER_PIN = opts.pin;
@@ -466,6 +477,55 @@ describe('parseRosterPDF: only an admin may spend the AI key', () => {
         build({ token: { name: 'L. Springer' } });
         const out = await call(index.parseRosterPDF, rosterRequest());
         assert.deepEqual(Object.keys(out.body), ['error']);
+    });
+});
+
+describe('parseRosterPDF: the request is one the model accepts, and its answer is read by type (v25.28)', () => {
+    // A model refuses a request it cannot run with a 400, and no stub raises one, so until these
+    // were written the request's SETTINGS were tested by nothing: putting back the
+    // `{ type: 'disabled' }` Sonnet 5 took would leave every other test here green and fail every
+    // upload in production as "Could not reach the AI service". The limits below are the model's
+    // own (claude-sonnet-5-5), each a 400 when crossed.
+    const settings = () => modelCalls().at(-1).settings;
+
+    test('Sonnet 5.5, with thinking at its lowest setting and nothing beside it', async () => {
+        build();
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 200);
+        assert.equal(settings().model, 'claude-sonnet-5-5');
+        assert.deepEqual(settings().thinking, { type: 'between_tools' },
+            '`disabled` is a 400 on Sonnet 5.5, and so is any other field inside `thinking`');
+    });
+
+    test('the effort is stated, and at or below the highest `between_tools` allows', async () => {
+        build();
+        await call(index.parseRosterPDF, rosterRequest());
+        assert.ok(['low', 'medium', 'high'].includes(settings().output_config && settings().output_config.effort),
+            `effort ${JSON.stringify(settings().output_config)}: xhigh and max are a 400 with between_tools, and an unstated effort is whatever the model's default becomes`);
+    });
+
+    test('no sampling settings and no forced tool choice — both refused by the model', async () => {
+        build();
+        await call(index.parseRosterPDF, rosterRequest());
+        for (const key of ['temperature', 'top_p', 'top_k', 'tool_choice']) {
+            assert.equal(key in settings(), false, `${key} is sent`);
+        }
+    });
+
+    test('an answer that opens with a thinking block is still read', async () => {
+        build({ aiContent: [{ type: 'thinking', thinking: '' }, { type: 'text', text: AI_REPLY }] });
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 200);
+        assert.deepEqual(out.body.parsed.map((e) => e.memberName), ['L. Springer']);
+    });
+
+    test('a decline is reported as a decline, not as an unreadable answer to try again', async () => {
+        build({ aiContent: [], aiStopReason: 'refusal' });
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 502);
+        assert.match(out.body.error, /declined/);
+        assert.doesNotMatch(out.body.error, /try again/,
+            'a retry cannot change a decline, so the message must not send the admin round one');
     });
 });
 

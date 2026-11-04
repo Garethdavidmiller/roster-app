@@ -334,6 +334,55 @@ function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dat
     return sent;
 }
 
+// ── HOW THE MODEL IS ASKED (moved here from index.js at v25.28) ───────────────────────────────────
+
+/**
+ * The settings every parse request is sent with: which model, and how it may think. The prompts
+ * above say WHAT the model is asked; this says HOW. It lives beside them because a change to either
+ * is a change to the same reading of somebody's roster, and because the coordinator had no room.
+ *
+ * **THE MODEL ID IS COMPLETE, NOT AN ALIAS WITH A DATED SNAPSHOT BEHIND IT** (checked 4 Sep 2026).
+ * The v22.55 external review recommended pinning "a dated/stable model revision rather than the
+ * current claude-sonnet-5 alias, if the API supports an appropriate fixed snapshot". That is
+ * reasonable for an operational parser, and not available: current Anthropic model IDs carry no date
+ * suffix, and appending one names a model that does not exist. If dated snapshots are ever offered,
+ * pinning one is the right move and this is the line to change.
+ *
+ * WHAT ACTUALLY PROTECTS THE IMPORT is not the pin. A parser whose model shifts under it is caught by
+ * the evidence around the model: the PDF-grid geometry witness (roster-geometry.js — the only
+ * evidence the model cannot influence), the base-roster correlation in roster-alignment.js, the
+ * batch-signature refusal that blocks a whole read when three members drift the same way, and the
+ * human review step that no import skips. A pin would make a behaviour change ARRIVE on our
+ * schedule; those layers are what make one SURVIVABLE.
+ *
+ * **Sonnet 5.5 since v25.28**: Sonnet 5's successor at the same price. Sonnet 5 is still served, so
+ * this was an improvement and not a forced move.
+ *
+ * **THINKING IS OFF, as far as the model allows.** Thinking spends `max_tokens`. On Sonnet 5 it
+ * truncated the roster JSON mid-object ("The AI returned an unreadable response"), and this is
+ * deterministic extraction, so it stays off (`max_tokens` went 8192 → 16000 for headroom). Turning
+ * it back on through streaming failed in production at v16.27 and was rolled back at v16.28;
+ * OPERATIONS_REFERENCE.md → parseRosterPDF has that history. **Sonnet 5.5 has no `disabled`.** It is
+ * a 400 there, which would fail every upload as "Could not reach the AI service". The lowest setting
+ * is `between_tools`, which does no extended thinking on a call with no tools. It is accepted only
+ * alone inside `thinking` and at effort `high` or below, so the effort is stated rather than left to
+ * a default a later model could move. index-endpoints.test.mjs pins each of these through the real
+ * handler, because no stub raises the 400 the model would.
+ */
+const MODEL_REQUEST = Object.freeze({
+    model:         'claude-sonnet-5-5',
+    thinking:      Object.freeze({ type: 'between_tools' }),
+    output_config: Object.freeze({ effort: 'high' }),
+    max_tokens:    16000,
+});
+
+/**
+ * What the admin is told when the model DECLINES: an HTTP 200 with `stop_reason: 'refusal'` and
+ * usually no text. A roster table should never meet one. If it does, "unreadable response — please
+ * try again" would send the admin round a retry that cannot succeed, so this says what happened.
+ */
+const DECLINED_ERROR = 'The AI declined to read this file — check it is the weekly roster PDF';
+
 module.exports = {
     DAY_LABELS,
     SHIFT_VOCABULARY,
@@ -341,4 +390,6 @@ module.exports = {
     renderCellTable,
     buildCellPrompt,
     reviewBlankReadsOfFilledCells,
+    MODEL_REQUEST,
+    DECLINED_ERROR,
 };

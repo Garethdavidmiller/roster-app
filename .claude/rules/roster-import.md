@@ -38,7 +38,7 @@ geometry gate still cannot see: **`docs/KNOWN_LIMITATIONS.md`**.
 
 ## The pipeline
 
-Admin uploads PDF → `parseRosterPDF` (model in `functions/index.js` `CLAUDE_MODEL`) → JSON → review
+Admin uploads PDF → `parseRosterPDF` (model and its settings: `MODEL_REQUEST` in `functions/roster-prompt.js`) → JSON → review
 UI → Firestore. Works for CEA/Bilingual, CES, and Dispatcher rosters.
 
 **Critical:** `RDW|HH:MM-HH:MM` pipe encoding — the AI returns `"RDW HH:MM-HH:MM"`, normalised to a

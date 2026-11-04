@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # PyYAML is NOT a documented guarantee of the ubuntu-latest image — it is present today,
       # probably transitively via another preinstalled tool, and `ubuntu-latest` follows a moving
