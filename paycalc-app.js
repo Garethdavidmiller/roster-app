@@ -764,7 +764,7 @@ export function init() {
     // ── CALCULATION ENGINE ────────────────────────────────────────────────────────
     /** @param {number} rate */
     function updateBadges(rate) {
-      /** @type {function(number, any): string} */
+      /** @type {(r: number, mult: any) => string} */
       const f = (r, mult) => `${mult}×  ·  £${(rate * r).toFixed(2)}/hr`;
       /** @type {HTMLElement} */ (document.getElementById('badge-sat')).textContent = f(RATE_125, '1.25');
       /** @type {HTMLElement} */ (document.getElementById('badge-bh')).textContent   = f(RATE_125, '1.25');

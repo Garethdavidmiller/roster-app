@@ -463,7 +463,7 @@ export function renderLookup({ at, day, nowRows, decRows, started, labels, chang
  * (v24.94). One row per station in the books' order, banded by line like the grid. December's time is
  * bold where it moved, with a chip saying by how much; "New" or "No train" where a side has none. A
  * station whose last train keeps its time is a quiet row, so the changes are what stand out.
- * @param {ReturnType<import('./trains-stations.js').lastTrains>} rows
+ * @param {ReturnType<typeof import('./trains-stations.js').lastTrains>} rows
  * @param {{ stations: Readonly<Record<string, string>>, labels: { old: string, new: string },
  *   bands?: { label: string, stations: string[] }[] }} o
  * @returns {string}
