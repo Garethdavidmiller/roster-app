@@ -79,18 +79,20 @@ if 'In Step' not in SHORTLIST:   # the 30 Oct paragraph below says it is
     raise SystemExit(f'pack: the read-me says In Step is shortlisted; SHORTLIST is {SHORTLIST}')
 if 'Even Step' not in SHORTLIST or RECOMMENDED != 'Even Step':   # the 31 Oct paragraph below says it is both, and the recommendation is its case
     raise SystemExit(f'pack: the read-me says Even Step is shortlisted and recommended; SHORTLIST is {SHORTLIST}, RECOMMENDED {RECOMMENDED}')
-# THE TWO THAT CAME AFTER THE SHORTLIST (3 Nov 2026, owner: add Clean Slate and Next Step to the pack, the shortlist and the
+# THE THREE THAT CAME AFTER THE SHORTLIST (3 Nov 2026, owner: add Clean Slate and Next Step to the pack, the shortlist and the
 # recommendation unchanged). Read from fresh.mjs's FIRST, as the shortlist sheet reads them: every design first drawn after
-# the last shortlisted one. The 3 Nov paragraph below says neither is shortlisted and says what each is, so it refuses any
+# the last shortlisted one. The 3 Nov paragraph below says none is shortlisted and says what each is, so it refuses any
 # other set, and a shortlist that takes one of them in
 import datetime
 FIRST = dict(re.findall(r"'([A-Z]{2}-26-[A-Z0-9]+)': '([^']+)'", re.search(r'export const FIRST = \{([^}]*)\}', FRESH).group(1)))
 _day = lambda code: datetime.datetime.strptime(FIRST[code], '%d %b %Y')
 _drawn = max(_day(c) for n, c, _ in proposals if n in SHORTLIST)
 LATE = sorted(n for n, c, _ in proposals if _day(c) > _drawn)
-if LATE and LATE != ['Clean Slate', 'Next Step']:
-    raise SystemExit(f'pack: the read-me describes Clean Slate and Next Step as the designs after the shortlist; they are {LATE}')
-LATE_WORDS = ' and '.join(LATE)
+# Fair Share joined on 4 Nov 2026 (owner: "add fair share to the repo"): Next Step with an even Sunday. The paragraph says
+# what it is too, so it is in the one set this accepts
+if LATE and LATE != ['Clean Slate', 'Fair Share', 'Next Step']:
+    raise SystemExit(f'pack: the read-me describes Clean Slate, Fair Share and Next Step as the designs after the shortlist; they are {LATE}')
+LATE_WORDS = ', '.join(LATE[:-1]) + ' and ' + LATE[-1] if len(LATE) > 1 else ''.join(LATE)   # three since 4 Nov: 'A, B and C', never 'A and B and C'
 # THE FOUR WITHDRAWN (3 Nov 2026, owner: "Remove the four weak proposals please and reengineer the pack"). Named here, and
 # refused if any is back in SUPPLIED, because the paragraph below says they left the pack
 WITHDRAWN = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear']
@@ -232,10 +234,12 @@ readme = '\n'.join([
             'and late weeks - with the shift times chosen again. It joined the shortlist the same day, beside In Step '
             'and Short Run, and is the one recommended.'), '']
       if 'Even Step' in names_in else []),
-    *([para('Clean Slate and Next Step (3 November 2026) came after the shortlist, and neither is on it. Clean Slate '
+    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share (4 November 2026) came after the shortlist, and none is on it. Clean Slate '
             'chooses every shift time afresh for the trains, with no shift over 8h 30m Monday to Saturday, one 13:45 '
             'finish and a closer from 15:45 every weekday. Next Step is Even Step with three weekday shifts retimed for '
-            'the trains, still with no shift over 8h 30m Monday to Saturday. Page 2 of the shortlist sheet sets each '
+            'the trains, still with no shift over 8h 30m Monday to Saturday. Fair Share is Next Step with an even Sunday: '
+            'every Sunday duty is 8h 10m or 8h 15m, so a Sunday early and a Sunday late pay within a few pounds, and no '
+            'shift is over 8h 30m on any day. Page 2 of the shortlist sheet sets each '
             'beside the three.'), '']
       if LATE else []),
     *([para(f'Four more were drawn up and withdrawn on 3 November 2026 as the weakest in the pack: {", ".join(WITHDRAWN[:-1])} '
