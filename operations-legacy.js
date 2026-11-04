@@ -190,7 +190,7 @@ export function initLegacyCard({ reader, withClaimRetry, sessionReady }) {
             content.appendChild(para('None left. No shift change in the database uses an old format, so the code that still reads them can be removed.'));
             return;
         }
-        content.appendChild(para(`${summary.total} left, saved in a format the app no longer creates. They still show — in the Calendar, and marked “old format” in Admin’s Saved Changes. This card only counts them; it changes nothing.`));
+        content.appendChild(para(`${summary.total} left. They still show — in the Calendar, and marked “old format” in Admin’s Saved Changes. This card only counts them; it changes nothing.`));
         const list = document.createElement('ul');
         list.className = 'legacy-records-list';
         for (const row of summary.rows) {
