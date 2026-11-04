@@ -3321,32 +3321,29 @@ OUT=/tmp/Quarter-Past-Re-laid.pdf node supplied.mjs results/quarter-past-re-laid
 ## Short Openers — Quarter Past Re-laid with every weekday opener 8 hours at most (4 Nov 2026)
 
 **The question** (owner, 4 Nov 2026): *"Can you do the quarter past relaid but all 6.20 starts Monday to Friday must
-finish at 13.45 or 14.20. Keep the 8 hours maximum shift time Mon to Friday and the 14 AL days buys 30 days off."*
+finish at 13.45 or 14.20. Keep the 8 hours maximum shift time Mon to Friday and the 14 AL days buys 30 days off."* Then,
+of the first version: *"Would it work better with consistent 15:45 closers?"* and *"I meant all closers Monday to Friday
+starting at 1545"*.
 
 **Read as** the 06:20 starts: Monday to Friday each finishes at 13:45 or 14:20, so none is over 8 hours. Every weekday
 shift at 8 hours or less cannot be done. The contract needs 7,450 minutes of duty a weekday (44,100 a week, less
 Saturday's 6,850), and 15 shifts of 8 hours make 7,200. Rule S5 also fixes the weekday ticket-office late at
 14:00–22:30, 8h 30m. Moving the difference to Saturday would make its fourteen duties average about 9h 40m.
 
-**What had to move.** Quarter Past's weekday has two 06:20–14:50s. As 06:20–14:20s they free an hour a weekday, and
-the contract needs that hour back. `final-table.mjs` placed it by the fit to the trains. Its pool was Quarter Past's
-weekday times, with the 06:20s finishing only at 13:45 or 14:20 and the closers starting at 15:45, 16:00 or 16:15
-(F3 asks for 15:45 or later). It kept the day's total and the ticket office's own pairs. The best weekday (fit 32.1
-on the search's measure):
-- the two 06:20–14:50s become 06:20–14:20s: four 06:20–14:20s with the office's two, and one 06:20–13:45 as before;
-- the three 16:15–23:55 closers become two at 15:45 and one at 16:00;
-- the 13:45–22:30 becomes a fourth 14:00–22:30.
+**What had to move.** Quarter Past's weekday has two 06:20–14:50s. As 06:20–14:20s they free an hour a weekday; the three
+16:15 closers moved to 15:45 take an hour and a half. The contract needs the day's total exactly, so `final-table.mjs`
+balanced it by the fit to the trains. Its pool was Quarter Past's weekday times and their 15-minute variants, with the
+closers held at 15:45, the day's total kept and the ticket office's own pairs fixed. It turned the 13:45–22:30 into a
+fourth 14:00–22:30 and the 12:00–21:00 into a 12:00–20:45, 15 minutes off each (fit 31.5 on the search's measure). So
+each weekday is: 06:20–13:45 ×1, 06:20–14:20 ×4 (the office's two among them), 07:15–16:00 ×2, 12:00–20:45 ×1,
+14:00–22:30 ×4 and 15:45–23:55 ×3. Saturday and Sunday are Quarter Past's, unchanged; Saturday's closers were already
+15:45–23:55, so every closer Monday to Saturday is now the same shift.
 
 ```
-CLS=weekday TOTAL=7450 FIXED_FREE=1 WK_CLOSER_MIN=15:45 POOL_ONLY=06:20-13:45,06:20-14:20,07:15-16:00,12:00-21:00,13:45-22:30,14:00-22:30,15:45-23:55,16:00-23:55,16:15-23:55 node final-table.mjs
+CLS=weekday TOTAL=7450 FIXED_FREE=1 WK_CLOSER=15:45-23:55 POOL_ONLY=06:20-13:45,06:20-14:20,07:15-16:00,07:15-15:45,12:00-21:00,12:15-21:00,12:00-20:45,13:45-22:30,14:00-22:30,14:15-22:30,15:45-23:55 node final-table.mjs
 ```
 
-The next two, both laid and scored the same way, did less well. Fit 32.8 keeps one 16:15 closer and adds no shift
-time; it scores 80.8 in the league and has a 42h 30m heaviest week. Fit 33.1 has three 16:00 closers, so every closer
-is under 8 hours; it scores 81.2 and has 50 shifts a year each over 8h 30m. Saturday and Sunday are Quarter Past's,
-unchanged.
-
-**Short Openers** (`SO-26-EXT` · **`0248a5a8`**; `tooling/results/short-openers.json`, with a `.meta.json`; its duty
+**Short Openers** (`SO-26-EXT` · **`38897b91`**; `tooling/results/short-openers.json`, with a `.meta.json`; its duty
 table is `results/short-openers-table.json`). The times were laid on Quarter Past Re-laid's own rest days with
 `exact-rota.py` (`SKELETON=`, `FAMILY=1`): the most weeks on one shift time, then the lightest heaviest week holding
 them, then the gentlest change of start. Every rest day, full weekend, Saturday duty and Sunday duty is where Quarter
@@ -3355,34 +3352,40 @@ Past Re-laid has it, so its leave figures cannot move.
 | | Quarter Past Re-laid | **Short Openers** | Even Step |
 |---|---|---|---|
 | Weekday 06:20 starts | 13:45 ×1 · 14:20 ×2 · 14:50 ×2 | **13:45 ×1 · 14:20 ×4** | — |
+| Weekday closers | 16:15 ×3 | **15:45 ×3** | 15:45 ×3 |
 | 14 days' leave buys: best · average · worst; leave for four weeks off | 30 · 23.4 · 19 · 14 | **30 · 23.4 · 19 · 14** | 28 · 23.4 · 20 · 15 |
-| Fatigue warnings, fixed duties (up to); worst seven days | 0 (0); 51.7 hours | **0 (0); 52.7 hours** | 0 (1); 56.8 |
+| Fatigue warnings, fixed duties (up to); worst seven days | 0 (0); 51.7 hours | **0 (0); 51.7 hours** | 0 (1); 56.8 |
 | Full weekends off a year (longest wait) · single rest days | 14 (5) · 5 | **14 (5) · 5** | 14 (5) · 4 |
 | Weeks on one shift time | 18 of 21 | **18 of 21** | 18 of 21 |
-| Fit to the trains, weekday · Sat · Sun (lower is closer) | 36.3 · 10.0 · 29.0 | **31.8 · 10.0 · 29.0** | 32.6 · 10.0 · 29.0 |
-| Shifts over 8h 30m Monday to Saturday, a year each | 40 | **30** | 0 |
-| Closing shift, Monday-to-Saturday average | 7h 45m | **8h 06m** | 8h 10m |
-| Heaviest week · shortest rest · change of start | 42h 30m · 13h 15m · 1h 17m | **41h 30m · 13h 15m · 1h 16m** | 41h 30m · 14h 35m · 1h 31m |
-| Shift times (new to learn) | 16 (8) | **15 (7)** | 13 (5) |
-| Weighted league (`REF_IN_RANGE=1`, the usual table) | 80.3 | **82.3** | 85.4 |
+| Fit to the trains, weekday · Sat · Sun (lower is closer) | 36.3 · 10.0 · 29.0 | **31.3 · 10.0 · 29.0** | 32.6 · 10.0 · 29.0 |
+| Shifts over 8h 30m Monday to Saturday, a year each (today 31) | 40 | **30** | 0 |
+| Longest weekday shift · closing shift, Monday-to-Saturday average | 9h 00m · 7h 45m | **8h 45m · 8h 10m** | 8h 30m · 8h 10m |
+| Heaviest week · shortest rest · change of start | 42h 30m · 13h 15m · 1h 17m | **41h 45m · 13h 15m · 1h 12m** | 41h 30m · 14h 35m · 1h 31m |
+| Shift times (new to learn) | 16 (8) | **14 (6)** | 13 (5) |
+| Weighted league (`REF_IN_RANGE=1`, the usual table) | 80.3 | **82.8** | 85.4 |
 
-**What it costs against Quarter Past Re-laid:** closers 21 minutes longer on average Monday to Saturday (two weekday
-closers now 8h 10m, from 15:45), and the "quarter past" closers it was named for. The 13h 15m shortest rest is
-unchanged, as are the 5 single rest days and everything else that comes from the rest days.
+**What it gains against Quarter Past Re-laid:** no opener over 8 hours on a weekday; one closer, 15:45–23:55, every day
+Monday to Saturday; no 9-hour weekday shift; ten fewer long shifts a year each; a weekday fit to the trains in the
+shortlist's range (36.3 to 31.3); a heaviest week 45 minutes lighter; a gentler change of start; two shift times fewer.
+**What it costs:** closers 25 minutes longer on average, from 7h 45m to 8h 10m, and the "quarter past" closers it was
+named for. The 13h 15m shortest rest is unchanged, as are the 5 single rest days and everything else that comes from
+the rest days. 19 weeks on one shift time is possible on these rest days, but only with a 43h 45m week: one week on the
+12:00–20:45 all five weekdays. So it holds 18, as asked before.
 
-**What it gains:** no opener over 8 hours on a weekday; ten fewer long shifts a year each; a weekday fit to the trains
-in the shortlist's range (36.3 to 31.8); a heaviest week an hour lighter; one shift time fewer to learn. It holds 18
-weeks on one shift time, as asked before. 19 is possible on these rest days, but only by giving one week five 9-hour
-12:00–21:00s, 45 hours.
+**The first version, replaced the same day** (`0248a5a8`, in the git history): it kept the 12:00–21:00 and took the
+hour up with two closers at 15:45 and one at 16:00 (the best fit with closers from 15:45, 32.1 on the search's measure).
+Against it, the version with every closer at 15:45 fits the trains better (31.3 against 31.8), has one shift time fewer
+and no 9-hour weekday shift, and a gentler change of start (1h 12m against 1h 16m). It scores 82.8 in the league,
+against 82.3, at the cost of a heaviest week 15 minutes heavier (41h 45m) and the one 16:00 closer 15 minutes longer.
 
 `FIX=` confirms the grid against `exact-rota.py` and `leave-layouts.py`. It fails at 4 single rest days, at 19 weeks
-on one shift time, at a 13h 16m rest and at a heaviest week a minute lighter. In the league it scores 82.3 on the
-usual table's range, so no other score moves: seventh of fifteen, between Home Grown (82.8) and Second Edition (82.2).
-Like Quarter Past and Quarter Past Re-laid, it is a design to look at, not one of the proposals. Its sheet renders the
-same way, and the PDF and import file are not committed:
+on one shift time, at a 13h 16m rest and at a heaviest week a minute lighter. In the league it scores 82.8 on the
+usual table's range, so no other score moves: seventh of fifteen, 0.02 behind Home Grown. Like
+Quarter Past and Quarter Past Re-laid, it is a design to look at, not one of the proposals. Its sheet renders the same
+way, and the PDF and import file are not committed:
 
 ```
-OUT=/tmp/Short-Openers.pdf node supplied.mjs results/short-openers.json "Short Openers" "Quarter Past Re-laid with every weekday 06:20 finishing by 14:20, and 14 days' leave still buying 30 days off" SO-26-EXT
+OUT=/tmp/Short-Openers.pdf node supplied.mjs results/short-openers.json "Short Openers" "Quarter Past Re-laid with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45, and 14 days' leave still buying 30 days off" SO-26-EXT
 ```
 
 *Short Openers* and not *Quarter Past Short Openers*: that name ran to two lines in page 2's column heading, and the
