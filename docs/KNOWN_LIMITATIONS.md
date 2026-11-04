@@ -352,6 +352,11 @@ moved:
   slow mirror then killed two jobs on the tooling refresh before a single test ran.
   `install-browser-deps/install.sh` now reads both shapes and runs `apt-get update` first (the dry run
   reads apt's lists now), and `workflow-hygiene.test.mjs` feeds the real parser each one.
+- **And one more, the same night.** The slower engine took the iPhone project's second shard,
+  where the Links flows all fall, to up to 24 minutes of tests against its 25-minute step budget. A
+  Dependabot run was stopped at that budget with every test it had run passing. The iPhone project
+  now runs in four shards and desktop WebKit stays at two. The measurement is beside the job in
+  `e2e.yml`, and `workflow-hygiene.test.mjs` fails if a shard or a project is left out of the list.
 - **Not 1.64.1, the newest.** 1.63.0 is what the container carries, so every local Playwright run
   works with no browser workaround. Moving on is a one-line change once the container carries 1.64.
 - **Chromium 153 raises one new browser error under test.** It abandons the declarative page-to-page

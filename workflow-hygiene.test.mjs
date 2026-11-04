@@ -427,6 +427,65 @@ describe('the Chromium suite runs one job per project, and no project is left ou
     });
 });
 
+// ── THE WEBKIT LANE RUNS EVERY PROJECT, AND EVERY SHARD OF EACH (3 Nov 2026) ─────────────────────
+//
+// The webkit job lists its jobs one by one: the iPhone project four ways, the desktop one two
+// (e2e.yml says why). So the hazard the Chromium guard above names has a second form here, a shard
+// left out of the list. List shards 1, 2 and 4 of 4 and a quarter of the iPhone tests never run,
+// while all three jobs go green. The list is held to playwright.webkit.mjs's projects, and each
+// project's shards to 1 to N of N.
+describe('the WebKit lane runs every project, and every shard of each', () => {
+    const e2e = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
+    const body = e2e.slice(e2e.search(/^jobs:/m));
+    const start = body.search(/^ {2}webkit:[ \t]*$/m);
+    const rest = body.slice(start + 1);
+    const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+    const job = next === -1 ? rest : rest.slice(0, next);
+    const entries = [...job.matchAll(/^\s+- \{ project: ([\w-]+), shard: (\d+), shards: (\d+) \}\s*$/gm)]
+        .map(m => ({ project: m[1], shard: Number(m[2]), shards: Number(m[3]) }));
+
+    const cfg = readFileSync('playwright.webkit.mjs', 'utf8');
+    const projectsBlock = cfg.slice(cfg.search(/^\s*projects:\s*\[/m));
+    const configProjects = [...projectsBlock.slice(0, projectsBlock.search(/^\s*\],?\s*$/m))
+        .matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]);
+
+    test('both lists actually parsed', () => {
+        assert.ok(start !== -1, 'no webkit job in e2e.yml');
+        assert.ok(entries.length >= 2,
+            `expected the webkit job's "- { project: …, shard: …, shards: … }" entries, parsed ${entries.length}`);
+        assert.ok(configProjects.length >= 2, `expected playwright.webkit.mjs's projects, parsed ${configProjects.length}`);
+    });
+
+    test('the list names exactly the config\'s projects', () => {
+        const listed = [...new Set(entries.map(e => e.project))].sort();
+        assert.deepEqual(listed, [...configProjects].sort(),
+            `e2e.yml's webkit job runs ${listed.join(', ')}; playwright.webkit.mjs defines ${configProjects.join(', ')}. `
+            + 'A project in the config but not the list never runs in CI.');
+    });
+
+    test('each project runs shards 1 to N of N, once each', () => {
+        for (const project of configProjects) {
+            const mine = entries.filter(e => e.project === project);
+            const totals = [...new Set(mine.map(e => e.shards))];
+            assert.equal(totals.length, 1,
+                `${project}: its entries disagree on how many shards there are (${totals.join(', ')})`);
+            const shards = mine.map(e => e.shard).sort((a, b) => a - b);
+            assert.deepEqual(shards, Array.from({ length: totals[0] }, (_, i) => i + 1),
+                `${project} runs shards ${shards.join(', ')} of ${totals[0]}: a shard missing from the list never `
+                + 'runs, and every job still goes green');
+        }
+    });
+
+    test('each job runs its own shard, and a failure never cancels another', () => {
+        assert.match(job, /--project=\$\{\{ matrix\.project \}\} --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ matrix\.shards \}\}/,
+            'the command must read the shard count from the entry, or it disagrees with the number of jobs');
+        assert.match(job, /^\s+fail-fast:\s*false\s*$/m,
+            'with fail-fast on, one red shard cancels the others, and their reports are lost');
+        assert.match(job, /name: playwright-report-webkit-\$\{\{ matrix\.project \}\}-shard\$\{\{ matrix\.shard \}\}/,
+            'the report artifact must carry the project and the shard, or two jobs collide');
+    });
+});
+
 // ── A DEPLOY QUEUES; IT IS NEVER CANCELLED, AND NEVER RACES ITSELF (1 Sep 2026) ────────────────
 //
 // Two pushes to main used to deploy in parallel, each spending ~11 minutes on tests first. Nothing
