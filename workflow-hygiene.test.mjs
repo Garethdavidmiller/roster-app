@@ -427,6 +427,39 @@ describe('the Chromium suite runs one job per project, and no project is left ou
     });
 });
 
+describe('the WebKit suite runs every shard its step names', () => {
+    // The shard count is written TWICE: the matrix lists the shards and the test step divides the
+    // suite by their number. The two can drift in two directions, and only one of them is loud.
+    // A shard listed past the divisor stops Playwright with an error (`--shard "3/2" current must be
+    // ... not greater than shard total`, measured). A divisor past the listed shards is silent: with
+    // [1, 2] listed and `/3` in the step, a third of the suite is run by nobody and every job is
+    // green. Raised from two shards to three on 4 Nov 2026; e2e.yml says why.
+    const e2e = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
+    const body = e2e.slice(e2e.search(/^jobs:/m));
+    const start = body.search(/^ {2}webkit:[ \t]*$/m);
+    const rest = body.slice(start + 1);
+    const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+    const webkit = next === -1 ? rest : rest.slice(0, next);
+
+    test('the matrix lists shards 1 to N, and the step divides the suite by N', () => {
+        assert.ok(start !== -1, 'no webkit job in e2e.yml');
+        const m = /^\s+shard:\s*\[([^\]]*)\]/m.exec(webkit);
+        assert.ok(m, 'the webkit job has no shard matrix');
+        const shards = m[1].split(',').map(s => Number(s.trim()));
+        const d = /--shard=\$\{\{ matrix\.shard \}\}\/(\d+)/.exec(webkit);
+        assert.ok(d, 'the webkit step no longer passes --shard=${{ matrix.shard }}/N');
+        const n = Number(d[1]);
+        assert.deepEqual(shards, Array.from({ length: n }, (_, i) => i + 1),
+            `the matrix runs shards ${shards.join(', ')} and the step divides the suite into ${n}: `
+            + 'a shard the matrix leaves out is part of the suite that nobody runs, with every job green');
+    });
+
+    test('each shard uploads its report under its own name', () => {
+        assert.match(webkit, /name: playwright-report-webkit-\$\{\{ matrix\.project \}\}-shard\$\{\{ matrix\.shard \}\}/,
+            'the report name must carry the project and the shard, or two shards collide and one report is lost');
+    });
+});
+
 // ── A DEPLOY QUEUES; IT IS NEVER CANCELLED, AND NEVER RACES ITSELF (1 Sep 2026) ────────────────
 //
 // Two pushes to main used to deploy in parallel, each spending ~11 minutes on tests first. Nothing
