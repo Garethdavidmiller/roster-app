@@ -1549,9 +1549,9 @@ test('operations: outstanding resets and errors surface in the strip, and an ite
     await expect(strip).toBeVisible();
     await expect(strip).toContainText('Needs attention');
     // The full sentence is the ACCESSIBLE NAME; the visible pill is the card-header echo.
-    await expect(strip.getByRole('link', { name: '2 password resets waiting' })).toBeVisible();
+    await expect(strip.getByRole('link', { name: 'Password resets: 2 waiting' })).toBeVisible();
     await expect(strip.locator('a[href="#reset-requests"] .attn-count')).toHaveText('2');
-    await expect(strip.getByRole('link', { name: /unresolved error/ })).toBeVisible();
+    await expect(strip.getByRole('link', { name: /^Unresolved errors: / })).toBeVisible();
 
     // The jump: the error-log card is collapsed by default; the strip item must open it.
     await expect(page.locator('#errorLogBody')).not.toHaveClass(/open/);
@@ -1576,7 +1576,7 @@ test('operations: resets alone show one item, and the strip never renders a zero
     await page.goto('/operations.html');
     const strip = page.locator('#attentionStrip');
     await expect(strip).toBeVisible();
-    await expect(strip.getByRole('link', { name: '1 password reset waiting' })).toBeVisible();
+    await expect(strip.getByRole('link', { name: 'Password resets: 1 waiting' })).toBeVisible();
     await expect(strip.locator('a[href="#error-log"]')).toHaveCount(0);
 });
 
@@ -2359,8 +2359,8 @@ test('operations: account gaps reach the card BY NAME and the strip by group', a
     // collapsed like every other card on this page — which is the whole reason the strip exists.
     const strip = page.locator('#attentionStrip');
     await expect(strip).toBeVisible();
-    await expect(strip.getByRole('link', { name: '2 members not set up' })).toBeVisible();
-    await expect(strip.getByRole('link', { name: '1 leaver can still sign in' })).toBeVisible();
+    await expect(strip.getByRole('link', { name: 'Not set up: 2 members' })).toBeVisible();
+    await expect(strip.getByRole('link', { name: 'Leavers still active: 1' })).toBeVisible();
 
     await expect(page.locator('#authSetupBody')).not.toHaveClass(/open/);
     await strip.locator('a[href="#login-accounts"]').first().click();

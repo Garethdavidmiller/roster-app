@@ -25,17 +25,30 @@ test('a zero count renders nothing, and an UNREPORTED card is absent — unknown
     assert.deepEqual(items.map(i => i.id), ['resets']);
 });
 
-test('counts read in words, singular and plural, with the right jump target', () => {
-    const one = buildAttentionItems({ resets: { count: 1 }, errors: { count: 1 } });
-    assert.deepEqual(one.map(i => i.text), ['1 password reset waiting', '1 unresolved error']);
-    const many = buildAttentionItems({ resets: { count: 3 }, errors: { count: 12 } });
-    assert.deepEqual(many.map(i => i.text), ['3 password resets waiting', '12 unresolved errors']);
-    assert.deepEqual(many.map(i => i.hash), ['#reset-requests', '#error-log']);
+test('names lead with the pill, then say what the count is of — singular and plural', () => {
+    const one = buildAttentionItems({ resets: { count: 1 }, accountSetup: { count: 1 }, errors: { count: 1 } });
+    assert.deepEqual(one.map(i => i.text), ['Password resets: 1 waiting', 'Not set up: 1 member', 'Unresolved errors: 1']);
+    const many = buildAttentionItems({ resets: { count: 3 }, accountSetup: { count: 2 }, errors: { count: 12 } });
+    assert.deepEqual(many.map(i => i.text), ['Password resets: 3 waiting', 'Not set up: 2 members', 'Unresolved errors: 12']);
+    assert.deepEqual(many.map(i => i.hash), ['#reset-requests', '#login-accounts', '#error-log']);
+});
+
+// WCAG 2.5.3 Label in Name (v25.27; axe checks it from 4.14): a voice user says what the pill shows,
+// so every item's name must START with the pill's own words — its short label, then its badge. Read
+// off the catalogue, so an item added later is held to it without anyone remembering to.
+test('every item\'s name begins with exactly what its pill shows', () => {
+    const reports = Object.fromEntries(Object.keys(ATTENTION_CATALOGUE).map(id => [id, { count: 2 }]));
+    const items = buildAttentionItems(reports);
+    assert.equal(items.length, Object.keys(ATTENTION_CATALOGUE).length);
+    for (const item of items) {
+        assert.ok(item.text.startsWith(`${item.short}: ${item.badge}`),
+            `"${item.text}" does not begin with its pill, "${item.short} ${item.badge}"`);
+    }
 });
 
 test('a truncated error backlog says 100+ in BOTH voices, never the capped number', () => {
     const [item] = buildAttentionItems({ errors: { count: 100, truncated: true } });
-    assert.equal(item.text, '100+ unresolved errors');
+    assert.equal(item.text, 'Unresolved errors: 100+');
     assert.equal(item.badge, '100+');
 });
 
@@ -43,7 +56,7 @@ test('the two voices state one fact: the badge is the count the sentence speaks'
     const [item] = buildAttentionItems({ resets: { count: 3 } });
     assert.equal(item.badge, '3');
     assert.equal(item.short, 'Password resets');
-    assert.equal(item.text, '3 password resets waiting');
+    assert.equal(item.text, 'Password resets: 3 waiting');
 });
 
 test('items keep catalogue order regardless of report order', () => {
@@ -60,7 +73,7 @@ test('every catalogue entry carries what a row needs — a half-declared id cann
     for (const [id, entry] of Object.entries(ATTENTION_CATALOGUE)) {
         assert.ok(entry.emoji && entry.hash.startsWith('#'), id);
         assert.ok(entry.short, `${id}: pills need the short name`);
-        assert.equal(typeof entry.label(2), 'string');
+        assert.equal(typeof entry.after(2), 'string', `${id}: names need what follows the count, even ''`);
     }
 });
 

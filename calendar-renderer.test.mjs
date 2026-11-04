@@ -197,12 +197,11 @@ beforeEach(() => {
 // ── Helper: find an in-month day cell by day number (January 2026) ────────────
 // January 2026 starts on Thursday → 4 leading other-month cells.
 
+// By the cell's DATE, not its name. The name led with the date until v25.27, when it began to lead
+// with what the cell shows (Label in Name) and "1 January 2026" stopped being a phrase in it.
 function getDayCell(container, dayNum) {
     const grid = container._children[1];
-    return grid._children.find(c => {
-        const label = c.getAttribute?.('aria-label') || '';
-        return new RegExp(`\\b${dayNum} January 2026\\b`).test(label);
-    });
+    return grid._children.find(c => new RegExp(`\\b${dayNum} January 2026\\b`).test(c.dataset?.detailDay || ''));
 }
 
 // ── createCalendarHeader ──────────────────────────────────────────────────────
@@ -583,6 +582,77 @@ describe('getSwipeDirection', () => {
 });
 
 // ── buildCalendarContainer — shift class rendering ────────────────────────────
+
+// ── A DAY CELL'S NAME CONTAINS WHAT IT SHOWS (WCAG 2.5.3 Label in Name, v25.27) ────────────────────
+//
+// axe checks this word by word from 4.14: the words a cell prints must appear in its name, in order
+// and side by side, because somebody driving the phone by voice says what they see. The gate scans a
+// few states and so meets four kinds of day. This walks every kind the renderer can draw — each
+// badge, with a time and without, all six Other flavours and their three time slots ("RDW", a time,
+// nothing), a value nobody recognises, the two permanent-shift members, and the markers — through
+// the real renderer, reading what each cell PRINTS.
+//
+// The word rule is axe's, restated small: case-folded, a bracketed aside dropped, anything not a
+// letter or a digit a gap — emoji and the dash between two times included.
+const nameWords = (/** @type {string} */ s) => s.normalize('NFKD').toLowerCase().replace(/\([^()]*\)/g, ' ')
+    .split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+const containsInOrder = (/** @type {string} */ name, /** @type {string} */ shown) => {
+    const n = nameWords(name), v = nameWords(shown);
+    return v.length === 0 || n.some((_, i) => v.every((w, j) => n[i + j] === w));
+};
+/** What a cell prints: its HTML with the tags out. */
+const shownText = (/** @type {any} */ cell) => cell.innerHTML.replace(/<[^>]+>/g, ' ');
+
+describe('buildCalendarContainer — a day cell\'s name contains what it shows (Label in Name)', () => {
+    // January 2026: Thursday the 1st; Sundays the 4th, 11th, 18th and 25th, which these days avoid.
+    const BASE = { 2: '06:20-14:00', 3: '14:00-22:30', 5: '22:00-06:00', 6: 'RD', 7: 'SPARE', 8: 'OFF', 9: 'SEE NATHAN' };
+    const OVERRIDES = {
+        12: { type: 'annual_leave', value: 'AL' },          13: { type: 'sick', value: 'SICK' },
+        14: { type: 'rdw', value: '09:00-17:00' },          15: { type: 'other', value: 'TRG 09:00-17:00' },
+        16: { type: 'other', value: 'IND' },                19: { type: 'other', value: 'ASSESS RDW' },
+        20: { type: 'other', value: 'TEAM' },               21: { type: 'other', value: 'UNION' },
+        22: { type: 'other', value: 'MEET 10:00-12:00' },   23: { type: 'shift', value: '07:15-15:45' },
+        26: { type: 'spare_shift', value: 'SPARE' },        27: { type: 'correction', value: 'RD' },
+    };
+    const build = () => {
+        _mockGetBaseShift = (_m, /** @type {Date} */ d) => BASE[d.getDate()] ?? '07:00-15:00';
+        for (const [day, ov] of Object.entries(OVERRIDES)) {
+            _overrideCache.set(`G. Miller|2026-01-${String(day).padStart(2, '0')}`, { note: '', source: 'manual', ...ov });
+        }
+        _mockIsBH = (/** @type {Date} */ d) => d.getDate() === 1;
+        _mockIsCutoffDate = (/** @type {Date} */ d) => d.getDate() === 17;
+        _mockIsPayday = (/** @type {Date} */ d) => d.getDate() === 23;
+        _mockIsSameDay = (/** @type {Date} */ a) => a.getDate() === 21;
+        return buildCalendarContainer(0, 2026);
+    };
+    const days = (/** @type {any} */ container) => container._children[1]._children.filter((/** @type {any} */ c) => c.dataset?.detailDay);
+
+    for (const permanentShift of [undefined, 'early', 'late']) {
+        test(`every cell, ${permanentShift ? `a permanent-${permanentShift} member` : 'a rotating member'}`, () => {
+            _member = { ...FAKE_MEMBER, ...(permanentShift ? { permanentShift } : {}) };
+            try {
+                const cells = days(build());
+                assert.equal(cells.length, 31);
+                for (const cell of cells) {
+                    const name = cell.getAttribute('aria-label');
+                    assert.ok(containsInOrder(name, shownText(cell)),
+                        `${cell.dataset.detailDay} prints "${shownText(cell).replace(/\s+/g, ' ').trim()}" but is named "${name}"`);
+                    assert.match(name, / — January 2026$/, 'the month still closes the name');
+                }
+            } finally { _member = FAKE_MEMBER; }
+        });
+    }
+
+    test('the words a badge abbreviates still follow it, and nothing is said twice', () => {
+        const byDay = Object.fromEntries(days(build()).map((/** @type {any} */ c) => [c.dataset.detailDay.split(' ')[1], c.getAttribute('aria-label')]));
+        assert.equal(byDay[2],  'Friday 2 — Early 06:20-14:00 — January 2026');
+        assert.equal(byDay[6],  'Tuesday 6 — Rest day — January 2026');
+        assert.equal(byDay[12], 'Monday 12 — AL, Annual leave — January 2026');
+        assert.equal(byDay[14], 'Wednesday 14 — RDW 09:00-17:00, Rest day worked — January 2026');
+        assert.equal(byDay[15], 'Thursday 15 — Train 09:00-17:00, Training — January 2026');
+        assert.equal(byDay[23], 'Friday 23 — Early 07:15-15:45 — Payday — January 2026');
+    });
+});
 
 describe('buildCalendarContainer — shift classes', () => {
     test('base RD shift → rest-day class on cell', () => {

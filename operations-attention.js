@@ -26,16 +26,17 @@
  */
 
 /**
- * What can need attention, in display order. `label` states the count in words; `truncated`
- * (errors only) means the card's own query cap hid the true total, so the number honestly
- * becomes "100+" — the strip must not understate a backlog its target card states.
+ * What can need attention, in display order. `after` is what the item's name says AFTER its count
+ * ("waiting", "members"), or nothing; `truncated` (errors only) means the card's own query cap hid
+ * the true total, so the number honestly becomes "100+" — the strip must not understate a backlog
+ * its target card states.
  */
 export const ATTENTION_CATALOGUE = /** @type {const} */ ({
     resets: {
         emoji: '🙋',
         hash: '#reset-requests',
         short: 'Password resets',
-        label: (/** @type {number} */ n) => `${n} password reset${n === 1 ? '' : 's'} waiting`,
+        after: () => 'waiting',
     },
     // Grouped BY REMEDY, not by cause (v22.53): everything in `accountSetup` — no account, a
     // disabled one, a claim that was never applied — is fixed by pressing Set up accounts, so it is
@@ -45,13 +46,13 @@ export const ATTENTION_CATALOGUE = /** @type {const} */ ({
         emoji: '🔐',
         hash: '#login-accounts',
         short: 'Not set up',
-        label: (/** @type {number} */ n) => `${n} member${n === 1 ? '' : 's'} not set up`,
+        after: (/** @type {number} */ n) => (n === 1 ? 'member' : 'members'),
     },
     accountLeavers: {
         emoji: '🚪',
         hash: '#login-accounts',
         short: 'Leavers still active',
-        label: (/** @type {number} */ n) => `${n} leaver${n === 1 ? '' : 's'} can still sign in`,
+        after: () => '',
     },
     // NOT HERE, deliberately: members with no work email. It looks like the same kind of omission
     // and it is not. A missing login is a mistake — somebody cannot do their job and nobody meant
@@ -65,17 +66,18 @@ export const ATTENTION_CATALOGUE = /** @type {const} */ ({
         emoji: '🐛',
         hash: '#error-log',
         short: 'Unresolved errors',
-        label: (/** @type {number} */ n, /** @type {{truncated?: boolean}} */ { truncated } = {}) =>
-            truncated ? '100+ unresolved errors' : `${n} unresolved error${n === 1 ? '' : 's'}`,
+        after: () => '',
     },
 });
 
 /**
- * The pure decision: which items render, in catalogue order, saying what. Each item carries two
- * voices for one fact: `text` is the full sentence (the accessible name — "2 password resets
- * waiting"), `short` + `badge` are the visual pill (the card-header echo — "Password resets ‹2›",
- * where the badge matches the count chip on the card the item opens). `badge` honours the error
- * log's 100+ truncation — the strip must never understate a backlog its target card states.
+ * The pure decision: which items render, in catalogue order, saying what. `short` + `badge` are
+ * the visual pill (the card-header echo — "Password resets ‹2›", where the badge matches the count
+ * chip on the card the item opens), and `text`, the accessible name, is BUILT FROM THEM — "Password
+ * resets: 2 waiting". It used to be a sentence of its own, "2 password resets waiting", which a
+ * voice user could not say by reading the pill (WCAG 2.5.3 Label in Name; axe checks it from 4.14,
+ * v25.27). `badge` honours the error log's 100+ truncation — the strip must never understate a
+ * backlog its target card states.
  * @param {Record<string, {count: number, truncated?: boolean}>} reports
  * @returns {{id: string, hash: string, emoji: string, short: string, badge: string, text: string}[]}
  */
@@ -85,10 +87,11 @@ export function buildAttentionItems(reports) {
         const r = reports[id];
         if (!r) continue;                                    // never reported — unknown, not zero
         if (!(r.count > 0) && !r.truncated) continue;        // known clean — nothing to index
+        const badge = r.truncated ? '100+' : String(r.count);
+        const after = entry.after(r.count);
         out.push({
-            id, hash: entry.hash, emoji: entry.emoji, short: entry.short,
-            badge: r.truncated ? '100+' : String(r.count),
-            text: entry.label(r.count, r),
+            id, hash: entry.hash, emoji: entry.emoji, short: entry.short, badge,
+            text: `${entry.short}: ${badge}${after ? ` ${after}` : ''}`,
         });
     }
     return out;
@@ -137,9 +140,9 @@ export function createAttentionStrip({ container, onJump }) {
             const a = document.createElement('a');
             a.className = 'attn-item';
             a.href = item.hash;
-            // The full sentence is the accessible name; the pill shows the card-header ECHO
-            // (emoji · name · the same count chip the target card's header wears), so what you
-            // tap looks like where you land.
+            // The pill shows the card-header ECHO (emoji · name · the same count chip the target
+            // card's header wears), so what you tap looks like where you land; its accessible name
+            // leads with those same words and then says what the count is of.
             a.setAttribute('aria-label', item.text);
             const icon = document.createElement('span');
             icon.setAttribute('aria-hidden', 'true');

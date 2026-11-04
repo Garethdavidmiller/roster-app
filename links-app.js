@@ -468,6 +468,8 @@ export function init() {
         const dash = shift.indexOf('-');
         return dash > 0 ? `${shift.slice(0, dash)}\n${shift.slice(dash + 1)}` : shift;
     }
+    /** A cell's or brush's NAME: what it shows, then what that stands for — WCAG 2.5.3 (v25.27). @param {any} shift */
+    const cellName = (/** @type {any} */ shift) => { const l = shiftLabel(shift); return l === 'RD' ? 'RD, rest day' : l === 'SP' ? 'SP, spare' : String(shift); };
 
     /** All-RD pattern — a starting blank for an as-yet-undesigned line. */
     const emptyPattern = () => Object.fromEntries(DAYS.map(d => [d, 'RD']));
@@ -996,11 +998,8 @@ export function init() {
         // starting 06:20, three starting 08:00, and so on, so the bar rendered as seven pairs of
         // visually IDENTICAL chips that paint different shifts. The start time also went into the
         // title and aria-label, so nothing anywhere disambiguated them: the only way to tell which
-        // 06:20 you had armed was to paint a cell and read the result.
-        const spoken = (/** @type {any} */ shift) => {
-            const dash = String(shift).indexOf('-');
-            return dash > 0 ? `${String(shift).slice(0, dash)} to ${String(shift).slice(dash + 1)}` : String(shift);
-        };
+        // 06:20 you had armed was to paint a cell and read the result. Its name is `cellName`'s:
+        // "06:20 to 14:20" put a word between the two times a voice user reads off the chip.
         const chip = (/** @type {any} */ shift, /** @type {any} */ label, /** @type {any} */ typeClass, /** @type {any} */ extra = '', /** @type {any} */ spokenLabel = null) => {
             const say = spokenLabel ?? label;
             return `<button class="brush-chip type-${typeClass}${extra}" data-shift="${escapeHtml(shift)}" ` +
@@ -1009,10 +1008,10 @@ export function init() {
 
         bar.innerHTML = [
             '<span class="brush-bar-label">Paint:</span>',
-            chip('RD',    'RD',     'rd',    '', 'Rest day'),
-            chip('SPARE', 'SP',     'spare', '', 'Spare'),
-            ...barEarly.map(s => chip(s, shiftLabel(s), 'early', '', spoken(s))),
-            ...barLate.map(s  => chip(s, shiftLabel(s), 'late',  '', spoken(s))),
+            chip('RD',    'RD',     'rd',    '', cellName('RD')),
+            chip('SPARE', 'SP',     'spare', '', cellName('SPARE')),
+            ...barEarly.map(s => chip(s, shiftLabel(s), 'early', '', cellName(s))),
+            ...barLate.map(s  => chip(s, shiftLabel(s), 'late',  '', cellName(s))),
             `<button class="brush-chip brush-chip--custom" data-shift="__custom__" aria-pressed="false">Custom…</button>`,
         ].join('');
         // Re-apply the armed state: the chips above are brand-new elements, so a rebuild during a
@@ -1171,7 +1170,7 @@ export function init() {
                 return `<td class="shift-cell">` +
                     `<button class="shift-cell-btn type-${type}" ` +
                     `data-pos="${posStr}" data-day="${d}" ` +
-                    `aria-label="Line ${posStr} ${DAY_LABELS[di]}: ${escapeHtml(shift)}">` +
+                    `aria-label="Line ${posStr} ${DAY_LABELS[di]}: ${escapeHtml(cellName(shift))}">` +
                     `${escapeHtml(label)}</button></td>`;
             }).join('');
 
@@ -1405,7 +1404,7 @@ export function init() {
         btn.className   = `shift-cell-btn type-${type}`;
         btn.dataset.pos = pos;
         btn.dataset.day = day;
-        btn.setAttribute('aria-label', `Line ${pos} ${DAY_LABELS[dayIdx]}: ${shift}`);
+        btn.setAttribute('aria-label', `Line ${pos} ${DAY_LABELS[dayIdx]}: ${cellName(shift)}`);
         btn.textContent = label;
         cell.innerHTML  = '';
         cell.appendChild(btn);

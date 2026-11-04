@@ -28,7 +28,7 @@
     "test:visual:webkit": "playwright test --config=playwright.visual-webkit.mjs"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.12.1",
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^10.0.1",
     "@firebase/rules-unit-testing": "^5.0.1",
     "@playwright/test": "1.63.0",

@@ -444,12 +444,17 @@ export function createDesignHeader(els, handlers, extra = {}) {
 
         // ── the face ──
         const name = open ? (design?.name || '').trim() || 'Untitled design' : 'No design open';
+        const eyebrow = !open ? 'Designs' : saved ? 'Editing' : isProposal ? (dirty ? 'Copy of a proposal' : 'Shortlisted proposal') : 'New design';
+        const count = `${designs.length} saved`;
         if (els.faceName) els.faceName.textContent = name;
-        if (els.eyebrow)  els.eyebrow.textContent = !open ? 'Designs' : saved ? 'Editing' : isProposal ? (dirty ? 'Copy of a proposal' : 'Shortlisted proposal') : 'New design';
-        if (els.count)    els.count.textContent = `${designs.length} saved`;
+        if (els.eyebrow)  els.eyebrow.textContent = eyebrow;
+        if (els.count)    els.count.textContent = count;
         // The face's spans are aria-hidden — they are a styled title, not a label — so the button
         // needs a name that says WHICH design is open. The <select> announced that for free.
-        els.pickerButton?.setAttribute('aria-label', `Design: ${name}. Choose a different design`);
+        // The name is the face's own words, in the face's order, then the action (v25.27, WCAG
+        // 2.5.3 Label in Name): a voice user says what they see. Below 760px only the design's name
+        // shows and from 760px the eyebrow and count above it too, and this one name holds both.
+        els.pickerButton?.setAttribute('aria-label', `${eyebrow}, ${count}, ${name} — choose a different design`);
         els.masthead?.classList.toggle('is-unnamed', open && !saved && !isProposal);
         els.masthead?.classList.toggle('is-proposal', isProposal);
         els.masthead?.classList.toggle('is-empty', !open);

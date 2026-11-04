@@ -10,10 +10,10 @@
 #   · NOT @playwright/test — it moves with the dev container's pre-installed browsers, so the visual
 #     baselines can be redrawn here on the Chromium CI runs (KNOWN_LIMITATIONS.md → the Playwright upgrade);
 #   · NOT pdfjs-dist — the root copy must match functions/package.json's exact pin, which this file leaves alone;
-#   · NOT @axe-core/playwright, for now — 4.14 runs WCAG 2.5.3's Label in Name rule, which fails 27 of the gate's
-#     states, and the gate blocks deploys. It stays on 4.12 until those are fixed or the rule is waived by decision
-#     (KNOWN_LIMITATIONS.md → axe 4.14 and Label in Name); remove this entry then.
-# By hand, then: the Functions' dependencies, Playwright, pdfjs-dist, axe, and the libraries no package manager
+# axe WAS on this list until v25.27: 4.14 added WCAG 2.5.3's Label in Name rule to the gate, which failed 27 of
+# its states until the names were fixed (docs/A11Y_BASELINE.md → label-content-name-mismatch). A future axe that
+# finds something new will fail its own pull request here, which is exactly where it should.
+# By hand, then: the Functions' dependencies, Playwright, pdfjs-dist, and the libraries no package manager
 # sees (the Firebase web SDK in firebase-client.js, the vendored DOMPurify, the Mammoth CDN copy) —
 # docs/MAINTENANCE_CALENDAR.md → Recurring reviews.
 #
@@ -39,8 +39,6 @@ updates:
     ignore:
       - dependency-name: "@playwright/test"
       - dependency-name: "pdfjs-dist"
-      - dependency-name: "@axe-core/playwright"
-      - dependency-name: "axe-core"
     groups:
       dev-tools:
         update-types: [minor, patch]

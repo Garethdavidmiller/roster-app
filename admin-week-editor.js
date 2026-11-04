@@ -155,6 +155,10 @@ export function updateWeekNavLabel(dateStr) {
         label.textContent = sunday.getMonth() === saturday.getMonth()
             ? `${sunday.getDate()}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`
             : `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
+        // The NAME leads with the week it shows (v25.27, WCAG 2.5.3 Label in Name): somebody driving
+        // the page by voice says "1–7 Nov 2026", and a fixed "Jump to week containing date" never
+        // contained it. Written here, beside the text, so the two cannot describe different weeks.
+        label.setAttribute('aria-label', `${label.textContent} — jump to week containing date`);
         const todaySun = new Date();
         todaySun.setDate(todaySun.getDate() - todaySun.getDay());
         label.classList.toggle('is-current-week', sunday.toDateString() === todaySun.toDateString());
