@@ -41,10 +41,11 @@
  * ORGANISED BY WHAT A WRONG ANSWER COSTS, not one block per function.
  */
 
-import { test, describe } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
+import http from 'node:http';
 
 const require = createRequire(import.meta.url);
 
@@ -67,8 +68,9 @@ let W = null;
 
 /** What the lazily-required Anthropic SDK saw, and what it answers. Reset by `build()`. `content`
  *  replaces the whole reply's blocks and `stopReason` its stop_reason; both default to an ordinary
- *  reply carrying `reply` as its one text block. */
-const AI = { calls: [], reply: '', throws: null, content: null, stopReason: null };
+ *  reply carrying `reply` as its one text block. `wire`, when set, is the class the handler gets
+ *  INSTEAD of the fake: the real SDK, aimed at a local server (the wire block below). */
+const AI = { calls: [], reply: '', throws: null, content: null, stopReason: null, wire: null };
 
 const fnDir = new URL('./functions/', import.meta.url).pathname;
 const stub = (p, exports) => { require.cache[p] = { id: p, filename: p, loaded: true, exports }; };
@@ -86,34 +88,43 @@ stub(require.resolve('firebase-admin/firestore', { paths: [fnDir] }), {
 // The one runtime dependency `parseRosterPDF` lazy-requires. Faking it is not merely about avoiding
 // a network call: an unstubbed SDK would REFUSE the request for want of a real key, so the
 // refusal tests below would pass on the wrong 4xx and the positive control could not exist at all.
-stub(require.resolve('@anthropic-ai/sdk', { paths: [fnDir] }), {
-    Anthropic: class {
-        constructor(opts) { AI.calls.push({ kind: 'construct', opts }); }
-        get messages() {
-            return {
-                create: async (body) => {
-                    // The content blocks are recorded, not discarded — "a harness that discards is
-                    // a harness that cannot see" (CLAUDE.md). Without this nothing could assert
-                    // WHICH input the model was handed, and the geometry path's whole guarantee is
-                    // that it is handed cells rather than the PDF. The base64 document body is
-                    // dropped on the way in: its TYPE is the fact worth keeping, and storing a few
-                    // hundred KB per call is not.
-                    const blocks = ((body && body.messages && body.messages[0] || {}).content || [])
-                        .map(b => ({ type: b.type, text: b.type === 'text' ? b.text : undefined }));
-                    // The request's settings are recorded too (v25.28): a model rejects a request
-                    // it cannot run with a 400, which no stub raises, so the shape it accepts has to
-                    // be asserted here or it is not tested at all.
-                    const { messages: _m, ...settings } = body || {};
-                    AI.calls.push({ kind: 'create', model: body && body.model, blocks, settings });
-                    if (AI.throws) throw new Error(AI.throws);
-                    return {
-                        content:     AI.content ?? [{ type: 'text', text: AI.reply }],
-                        stop_reason: AI.stopReason ?? 'end_turn',
-                    };
-                },
-            };
-        }
-    },
+//
+// THE REAL SDK IS KEPT TOO (v25.35), loaded before the fake takes its place in the cache. The fake
+// answers in the shape this code EXPECTS the SDK to hand back, so it can never see the SDK change
+// underneath it: a release that sent another API version, altered the request or read a reply
+// differently would leave every fake-backed test green. The handler reads `Anthropic` off the module
+// when it runs, so a getter can hand it either class; the wire block hands it the real one.
+const SDK_PATH = require.resolve('@anthropic-ai/sdk', { paths: [fnDir] });
+const { Anthropic: RealAnthropic } = require(SDK_PATH);
+class FakeAnthropic {
+    constructor(opts) { AI.calls.push({ kind: 'construct', opts }); }
+    get messages() {
+        return {
+            create: async (body) => {
+                // The content blocks are recorded, not discarded — "a harness that discards is
+                // a harness that cannot see" (CLAUDE.md). Without this nothing could assert
+                // WHICH input the model was handed, and the geometry path's whole guarantee is
+                // that it is handed cells rather than the PDF. The base64 document body is
+                // dropped on the way in: its TYPE is the fact worth keeping, and storing a few
+                // hundred KB per call is not.
+                const blocks = ((body && body.messages && body.messages[0] || {}).content || [])
+                    .map(b => ({ type: b.type, text: b.type === 'text' ? b.text : undefined }));
+                // The request's settings are recorded too (v25.28): a model rejects a request
+                // it cannot run with a 400, which no stub raises, so the shape it accepts has to
+                // be asserted here or it is not tested at all.
+                const { messages: _m, ...settings } = body || {};
+                AI.calls.push({ kind: 'create', model: body && body.model, blocks, settings });
+                if (AI.throws) throw new Error(AI.throws);
+                return {
+                    content:     AI.content ?? [{ type: 'text', text: AI.reply }],
+                    stop_reason: AI.stopReason ?? 'end_turn',
+                };
+            },
+        };
+    }
+}
+stub(SDK_PATH, {
+    get Anthropic() { return AI.wire || FakeAnthropic; },
 });
 
 // ── FORCING THE GEOMETRY PATH (v24.12) ─────────────────────────────────────────────────────────
@@ -269,6 +280,7 @@ function build(opts = {}) {
     AI.throws = opts.aiThrows ?? null;
     AI.content = opts.aiContent ?? null;
     AI.stopReason = opts.aiStopReason ?? null;
+    AI.wire = null;
     if ('pin' in opts) {
         if (opts.pin === undefined) delete process.env.CALENDAR_VIEWER_PIN;
         else process.env.CALENDAR_VIEWER_PIN = opts.pin;
@@ -526,6 +538,94 @@ describe('parseRosterPDF: the request is one the model accepts, and its answer i
         assert.match(out.body.error, /declined/);
         assert.doesNotMatch(out.body.error, /try again/,
             'a retry cannot change a decline, so the message must not send the admin round one');
+    });
+});
+
+describe('parseRosterPDF through the real SDK: what crosses the wire (v25.35)', () => {
+    // Every other parse test hands the handler the fake above, which answers in the shape this code
+    // expects and so cannot see the SDK change. These hand it the release functions/package.json
+    // pins, aimed at a server on 127.0.0.1 that records what arrives and answers as the API would.
+    // Nothing leaves the machine and no key is spent: that server is the API.
+    //
+    // What they catch that nothing else here can is an SDK release that sends another API version,
+    // alters the request on its way out, or hands back a reply the handler then reads differently.
+    // Dependabot proposes those releases, and this is what their CI runs.
+    const MODEL_REQUEST = REAL_ROSTER_PROMPT.MODEL_REQUEST;
+    const wire = { server: null, url: '', requests: [], answer: null };
+
+    before(async () => {
+        wire.server = http.createServer((req, res) => {
+            let raw = '';
+            req.on('data', (chunk) => { raw += chunk; });
+            req.on('end', () => {
+                wire.requests.push({ method: req.method, path: req.url, headers: req.headers, body: raw ? JSON.parse(raw) : null });
+                res.writeHead(wire.answer.status, { 'content-type': 'application/json', 'request-id': 'req_wire' });
+                res.end(JSON.stringify(wire.answer.body));
+            });
+        });
+        await new Promise((resolve) => wire.server.listen(0, '127.0.0.1', resolve));
+        wire.url = `http://127.0.0.1:${wire.server.address().port}`;
+    });
+    after(() => new Promise((resolve) => wire.server.close(resolve)));
+
+    /** One world whose SDK is the real one, answering with `answer`. Only the destination is the
+     *  test's: the key, the request and the retry policy are all the handler's own. */
+    function buildWire(answer) {
+        build();
+        wire.requests.length = 0;
+        wire.answer = answer;
+        AI.wire = class extends RealAnthropic {
+            constructor(opts) { super({ ...opts, baseURL: wire.url }); }
+        };
+    }
+
+    /** An ordinary Messages API reply carrying `content`; `extra` overrides any field of it. */
+    const reply = (content, extra = {}) => ({ status: 200, body: {
+        id: 'msg_wire', type: 'message', role: 'assistant', model: MODEL_REQUEST.model, content,
+        stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 }, ...extra,
+    } });
+
+    test('one request, to the Messages endpoint, carrying MODEL_REQUEST unaltered', async () => {
+        buildWire(reply([{ type: 'text', text: AI_REPLY }]));
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 200);
+        assert.equal(wire.requests.length, 1);
+        const [sent] = wire.requests;
+        assert.equal(`${sent.method} ${sent.path}`, 'POST /v1/messages');
+        const { messages, ...settings } = sent.body;
+        assert.deepEqual(settings, MODEL_REQUEST, 'the SDK sent something other than MODEL_REQUEST');
+        assert.deepEqual(messages.map((m) => m.role), ['user']);
+        assert.deepEqual(messages[0].content.map((b) => b.type), ['document', 'text']);
+    });
+
+    test('the API version is the one this request was checked against', async () => {
+        buildWire(reply([{ type: 'text', text: AI_REPLY }]));
+        await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(wire.requests[0].headers['anthropic-version'], '2026-10-21',
+            'a new API version changes what the API accepts. Read its migration guide (the claude-api ' +
+            'skill, shared/api-version-migration.md) before taking the SDK release that sends it');
+    });
+
+    test('a reply that opens with a thinking block is read', async () => {
+        buildWire(reply([{ type: 'thinking', thinking: '', signature: 'wire' }, { type: 'text', text: AI_REPLY }]));
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 200);
+        assert.deepEqual(out.body.parsed.map((e) => e.memberName), ['L. Springer']);
+    });
+
+    test('a decline is reported as a decline', async () => {
+        buildWire(reply([], { stop_reason: 'refusal', stop_details: { type: 'refusal', category: null, explanation: null } }));
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 502);
+        assert.match(out.body.error, /declined/);
+    });
+
+    test('a request the API refuses is the AI service failing, not an unreadable answer', async () => {
+        buildWire({ status: 400, body: { type: 'error', error: { type: 'invalid_request_error', message: 'refused on the wire' } } });
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 502);
+        assert.match(out.body.error, /Could not reach the AI service/);
+        assert.equal(wire.requests.length, 1, 'a 400 was retried, and the same request is refused every time');
     });
 });
 

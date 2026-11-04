@@ -368,6 +368,12 @@ function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dat
  * alone inside `thinking` and at effort `high` or below, so the effort is stated rather than left to
  * a default a later model could move. index-endpoints.test.mjs pins each of these through the real
  * handler, because no stub raises the 400 the model would.
+ *
+ * **SENT THROUGH `@anthropic-ai/sdk` 1.x, ON API VERSION 2026-10-21** (v25.35; 0.x sent 2023-06-01).
+ * That version refuses `temperature`, `top_p` and `top_k` outright, a `document` block in an
+ * assistant turn, and `citations` on a user's text. This request sends none of them. A newer API
+ * version is a migration, not a dependency bump: index-endpoints.test.mjs drives the real SDK against
+ * a local server and fails when the version on the wire changes, naming the guide to read first.
  */
 const MODEL_REQUEST = Object.freeze({
     model:         'claude-sonnet-5-5',
