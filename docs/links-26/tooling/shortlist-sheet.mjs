@@ -42,6 +42,13 @@
 // row now names what it alone has (no 55-hour week, however the cover weeks fall) where it had named the shorter blocks it
 // shared with three of them; the guide's fourth-at-the-close row lost Second Gear. The rows, the claims and the league are
 // read from the folder, so nothing else was typed for fifteen or seventeen; the shortlist and the recommendation stand.
+// FAIR SHARE SINCE 4 NOV 2026 (owner: "add fair share to the repo"): Next Step with its Sunday evened out, every Sunday duty
+// 8h 10m or 8h 15m. It joined after the shortlist, so it is read into `LATE` and has its row on page 2. It broke three sentences
+// that were true of the pack without it, each now saying who shares it: Fair Share has no shift over 8h 30m Monday to
+// Saturday, like Even Step, Clean Slate and Next Step; no early over 8h 30m on any day, like Home Grown; and, with no 9-hour
+// Sunday early, fewer long days than Even Step. The shortlist, the recommendation and the league paragraph stand (it is fourth).
+// Its row is held to one line, and the note under "Against today’s link" moved into that heading, as page 1's headings carry
+// theirs: a tenth row and its two lines ran page 2 25px into its footer.
 // FAMILIAR TIMES ON MONDAY-TO-SATURDAY DUTIES SINCE 3 NOV 2026 (owner: "Familiar shift times shouldn't apply to Sunday in
 // the league"). The main league leaves each design's Sunday duties out of familiar shift times (league.mjs), and Even
 // Step is first again, just ahead of Next Step and Closing Time, which are level to a tenth: the "judgement" paragraph and
@@ -196,7 +203,7 @@ const keeps = d => { const x = measure(d.F); return Object.keys(DIR).filter(k =>
 const loses = d => { const x = measure(d.F); return Object.keys(DIR).filter(k => D.every(s => DIR[k] * (x[k] - measure(s.F)[k]) < 0)); };
 const O = Object.fromEntries(others.map(d => [d.name, d])), K = Object.fromEntries(others.map(d => [d.name, keeps(d).join()]));
 const NAMED = { 'Both Ways': 'closerSat,closerWk,earlyOff,heavy,newT', 'Clean Slate': 'fitSat,fitSun,one', 'Closing Time': 'closerSat,closerWk,fitSat,light,step',
-  'Even Keel': '', 'Fine Tune': 'step', 'Home Grown': 'closerWk,longEarly,newT,times', 'Long Break': 'lvBest,lvFour', 'Next Step': '',
+  'Even Keel': '', 'Fine Tune': 'step', 'Home Grown': 'closerWk,longEarly,newT,times', 'Long Break': 'lvBest,lvFour', 'Next Step': '', 'Fair Share': 'longEarly,longShift',
   'Second Edition': 'step', 'Second Look': 'block,worstRun' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
 const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k => loses(O[n]).includes(k)));
@@ -204,7 +211,7 @@ const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k =
 // late finishes, the closing shift), and its main other cost
 pays('Closing Time', 'fitWk', 'one', 'late22'); pays('Both Ways', 'one', 'longShift', 'fitSat', 'fitSun'); pays('Home Grown', 'closerSat', 'one', 'fitWk', 'fitSat', 'fitSun');
 const ekft = ['Even Keel', 'Fine Tune']; ekft.forEach(n => pays(n, 'late23', 'mixed', 'block', 'fitSat')); pays('Fine Tune', 'one');
-pays('Second Edition', 'fixedRun'); pays('Long Break', 'fixedRun', 'iso', 'one', 'step'); pays('Clean Slate', 'newT', 'times', 'satNew');
+pays('Second Edition', 'fixedRun'); pays('Fair Share', 'newT', 'fitSun'); pays('Long Break', 'fixedRun', 'iso', 'one', 'step'); pays('Clean Slate', 'newT', 'times', 'satNew');
 const LB = O['Long Break'].F, SL = O['Second Look'].F;
 pays('Second Look', 'fixedRun', 'one');
 const PACK = [...D, ...others], CT = O['Closing Time'].F, HG = O['Home Grown'].F, CS = O['Clean Slate'].F, NX = O['Next Step'].F;
@@ -212,7 +219,7 @@ const PACK = [...D, ...others], CT = O['Closing Time'].F, HG = O['Home Grown'].F
 // shortlisted one. The page-1 lead and the page-2 table name them; a third would need its own row before the sheet prints
 const dateOf = code => { const s = FIRST[code]; if (!s) throw new Error(`fresh.mjs has no first date for ${code}`); return new Date(s).getTime(); };
 const drawn = Math.max(...D.map(d => dateOf(d.code))), LATE = others.filter(d => dateOf(d.code) > drawn).map(d => d.name).sort();
-claim('Clean Slate and Next Step joined the pack after the shortlist was drawn, and no other design did', LATE.join() === 'Clean Slate,Next Step');
+claim('Clean Slate, Fair Share and Next Step joined the pack after the shortlist was drawn, and no other design did', LATE.join() === 'Clean Slate,Fair Share,Next Step');
 // the shortlist's date is the day its last design joined (Even Step's, read from FIRST, so the lead never types it)
 claim('the shortlist was drawn the day Even Step joined, the last of the three', dateOf(ES.code) === drawn);
 const joined = name => { if (!LATE.includes(name)) throw new Error(`${name} did not join after the shortlist`); return ` <span class="late">· joined ${esc(FIRST[O[name].code])}</span>`; };
@@ -226,8 +233,15 @@ const TRADE = ['fitWk', 'step', 'newT', 'times'], xNS = measure(O['Next Step'].F
 claim('Next Step: Even Step’s figures but a closer weekday fit, a gentler change of start and one more new shift time', Object.keys(DIR).every(k => TRADE.includes(k) || xNS[k] === xES[k])
   && xNS.fitWk < xES.fitWk && xNS.step < xES.step && xNS.newT === xES.newT + 1 && xNS.times === xES.times + 1 && longMS(NX) === 0);
 claim('Next Step: a weekday fit closer than Even Step’s, not than In Step’s or Short Run’s — so its row says which', [IS, SR].every(d => d.F.fit[0] < NX.fit[0]));
-claim('Home Grown: the only design with no early over 8h 30m on any day', PACK.every(d => d.name === 'Home Grown' || longEarly(d.F) > 0) && longEarly(HG) === 0);
+claim('Home Grown and Fair Share: the only designs with no early over 8h 30m on any day', PACK.filter(d => longEarly(d.F) === 0).map(d => d.name).sort().join() === 'Fair Share,Home Grown');
 claim('Home Grown: today’s Saturday closer', HG.closers[1] === TF.closers[1]);
+// FAIR SHARE IS NEXT STEP WITH AN EVEN SUNDAY (4 Nov 2026), and its row says exactly that: only Sunday cells differ, every Sunday
+// duty is 8h 10m or 8h 15m, so nothing on any day is over 8h 30m — for a weaker Sunday fit than Next Step's and one more new time
+const FSx = O['Fair Share'].F, sunDiff = Object.keys(FSx.p).flatMap(k => DAYS.filter(d => FSx.p[k][d] !== NX.p[k][d]).map(d => d));
+claim('Fair Share: Next Step with only Sunday duties changed, every Sunday duty 8h 10m or 8h 15m', sunDiff.length > 0 && sunDiff.every(d => d === 'sun')
+  && Object.values(FSx.p).map(r => r.sun).filter(timed).every(t => mins(t) === 490 || mins(t) === 495));
+claim('Fair Share: no shift over 8h 30m on any day — but a weaker Sunday fit than Next Step’s and one more new time', longShift(FSx) === 0 && longEarly(FSx) === 0
+  && FSx.fit[2] > NX.fit[2] && FSx.newT === NX.newT + 1);
 claim('Even Keel and Fine Tune: four to the Saturday close, where the three have three', ekft.every(n => O[n].F.A.heads.close.sat === 4) && D.every(d => d.F.A.heads.close.sat === 3));
 // SECOND LOOK'S ROW SAYS WHAT IT ALONE HAS (3 Nov 2026): "blocks a week shorter" was shared with the three Second designs
 // withdrawn that day; what no other design has is a worst case with no 55-hour week, however the cover weeks fall
@@ -242,9 +256,9 @@ claim('Second Edition the gentlest step of all, Fine Tune and Closing Time gentl
 const EF = ES.F, IF = IS.F, SF = SR.F, range = F => F.heavy - F.light;
 // ALONE OF THE THREE, not of the pack, since 3 Nov 2026: Clean Slate and Next Step have none either, and the recommendation
 // says "alone of the three" — this pins who shares it, so a fourth design with none is a decision, not a silent claim
-claim('Even Step: no shift over 8h 30m Monday to Saturday — the only one of the three; in the pack Clean Slate and Next Step too', longestMS(EF) === 510 && longMS(EF) === 0
-  && PACK.filter(d => longMS(d.F) === 0).map(d => d.name).sort().join() === 'Clean Slate,Even Step,Next Step');
-claim('Even Step: the fewest long days of all, level with Clean Slate and Next Step, its one long duty the Sunday 9-hour early', PACK.every(d => ['Even Step', 'Clean Slate', 'Next Step'].includes(d.name) ? longShift(d.F) === longShift(EF) : longShift(d.F) > longShift(EF)) && longShift(EF) === longEarly(EF) && longEarly(EF) === Math.round(52 / LINES));
+claim('Even Step: no shift over 8h 30m Monday to Saturday — the only one of the three; in the pack Clean Slate, Fair Share and Next Step too', longestMS(EF) === 510 && longMS(EF) === 0
+  && PACK.filter(d => longMS(d.F) === 0).map(d => d.name).sort().join() === 'Clean Slate,Even Step,Fair Share,Next Step');
+claim('Even Step: the fewest long days but Fair Share’s none, level with Clean Slate and Next Step, its one long duty the Sunday 9-hour early', PACK.every(d => d.name === 'Fair Share' ? longShift(d.F) === 0 : ['Even Step', 'Clean Slate', 'Next Step'].includes(d.name) ? longShift(d.F) === longShift(EF) : longShift(d.F) > longShift(EF)) && longShift(EF) === longEarly(EF) && longEarly(EF) === Math.round(52 / LINES));
 claim('Even Step: every early Monday to Saturday one of today’s times; neither of the others', earliesToday(EF) && !earliesToday(IF) && !earliesToday(SF));
 claim('Even Step: In Step’s closers, today’s 13:45 every weekday', EF.closers.join() === IF.closers.join() && k1345(EF) && k1345(IF));
 claim('Even Step: the fewest shift times of the three, and the fewest new', EF.times < IF.times && EF.times < SF.times && EF.newT < IF.newT && EF.newT < SF.newT);
@@ -423,7 +437,7 @@ table.t td.best, table.t .bestv { font-weight: 800; color: color-mix(in srgb, va
 table.t td.all { color: var(--text-mid); }
 table.t.t-today3 td.all3 { font-weight: 700; color: var(--text-dark, #1a1a2e); } table.t.t-today3 th:nth-child(2), table.t.t-today3 th:nth-child(3) { width: 22%; }
 table.t.alts td:first-child { width: 30%; font-weight: 700; color: var(--text-dark, #1a1a2e); } table.t.alts .late { font-weight: 400; color: var(--text-light); }   /* the date a design joined after the shortlist */
-table.t.alts td { padding-block: 1px 1.5px; }   /* nine rows since 3 Nov 2026: a pixel off each keeps page 2 on its page */
+table.t.alts td { padding-block: 1px 1.5px; }   /* nine rows since 3 Nov 2026, ten since 4 Nov: a pixel off each keeps page 2 on its page */
 table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
 /* three cards side by side since 31 Oct 2026: two to a row left the third alone on a row of its own */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; margin: 6px 0 2px; }
@@ -491,9 +505,8 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <div class="mast"><div><div class="eyebrow">The shortlist · continued</div><h1>Against today, and a recommendation</h1>
   <div class="sub">On most of what a colleague feels the ${N} are the same${allShared ? ', so the table gives one figure for all three' : ` — a figure in grey is shared by ${both}`}</div></div></div>
 
-  <h2>Against today’s link</h2>
+  <h2>Against today’s link<span class="note">a year: the rotation’s count scaled to 52 weeks; days a year and full weekends off on page 1, the leave below</span></h2>
   <table class="t${allShared ? ' t-today3' : ''}"><thead><tr>${todayHead}</tr></thead><tbody>${todayHtml}</tbody></table>
-  <p class="muted">Per year: the rotation’s count scaled to 52 weeks. Days a year and full weekends off are on page 1, the leave among the costs below.</p>
 
   <h2>Why these ${N} and not the other ${word(others.length)}</h2>
   <p class="lead">These ${N} were shortlisted on ${FIRST[ES.code]} as balancing best what weighs most here — days in a row, weekends, one shift time a week, late finishes and the closing shift. Each of the others keeps something none of the ${N} has, and pays for it.</p>
@@ -507,6 +520,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Second Look</td><td>no 55-hour week at all — but ${word(SL.fixedRun)} days in a row and fewer weeks on one turn</td></tr>
     <tr><td>Clean Slate${joined('Clean Slate')}</td><td>the best weekend fit of all and the most weeks on one turn — but ${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday</td></tr>
     <tr><td>Next Step${joined('Next Step')}</td><td>Even Step with a closer weekday fit and a gentler change of start — but one more new time</td></tr>
+    <tr><td>Fair Share${joined('Fair Share')}</td><td>Next Step with an even Sunday and no shift over 8h&nbsp;30m — but a weaker Sunday fit and a new time</td></tr>
   </tbody></table>
 
   <h2>The honest costs, shared by ${both}</h2>
