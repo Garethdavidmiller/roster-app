@@ -3025,6 +3025,88 @@ count. Weighted as before, nothing moved: In Step 87.4, Even Step 86.5.
 - **Nothing else reads the league.** The summary, the proposal sheets, the decks and "What it means if you…" are
   unchanged, as are the shortlist and the recommendation.
 
+## Quarter Past — a one-page roster, read and compared (4 Nov 2026)
+
+Owner, uploading a one-page PDF roster headed *Customer Experience Ambassador | 26-line roster*, with no names on it:
+"Can you create a proposal sheet for this links set please".
+
+**How it was read.** Line by line from the PDF's own text into the app's shape, with nothing changed and nothing
+searched:
+- each SP week is a whole cover week, on lines 1, 6, 11, 16 and 21;
+- every time is as written;
+- every working week's Monday-to-Saturday hours match the sheet's own Hours column, and together they come to 44,100
+  minutes, 35 hours for each of the 21 working weeks. Its own summary figures agree: 35h 00m a week and 218.6
+  contracted days a year.
+
+The grid is `tooling/results/quarter-past.json`, with a `.meta.json`. The PDF itself is not committed.
+
+**Why the name.** Its closers start at a quarter past: 16:15 every weekday and 15:15 on a Sunday. That gives it the
+shortest closing shifts of any design in the pack, 7h 45m on average Monday to Saturday, against 7h 55m to 8h 16m for
+the 13 proposals and 8h 45m today. Code `QP-26-EXT` (EXT for a supplied design), fingerprint `dfdbd724`.
+
+**It meets every rule:** all 9 December staffing rules, all 3 flexible rules and every hard limit, at 218.6
+contracted days a year. Today's link meets 4 of the 9.
+
+**Where it does well:**
+- the shortest closing shifts (above);
+- never more than 5 days in a row in the fixed duties (today 7), and no week mixing earlies and lates (today 7 of 16);
+- a 13h 15m shortest rest (today 12h 30m);
+- three fatigue warnings in the fixed duties, against today's four;
+- the fit to the trains: 36.3 on a weekday, 10.0 on a Saturday and 29.0 on a Sunday, against today's 52.0, 65.9 and
+  71.7 (the shortlist's weekdays 29.1 to 32.6).
+
+**Where it costs most:**
+- 31 single rest days, a rest day with work either side, where every proposal has 4 or 5 and today has 4;
+- 3 full weekends off in 26 weeks, about 6 a year each (today 10, every proposal 14), up to 20 weeks apart (today 7,
+  every proposal 5);
+- 3 of 21 weeks on one shift time (the shortlist 18, today 7 of 16), and start times moving 4h 39m from one week to the
+  next (today 4h 00m, the proposals 1h 01m to 1h 44m);
+- three fatigue warnings no proposal has in its fixed duties: FF8b (a run of starts before 07:00 not followed by two
+  rest days, 4 times), FF11 (15 shifts in a row without a two-day break, 25 if a cover week falls badly) and FF17 (start
+  times stepping earlier more often than later); up to 5 warnings if a cover week falls badly;
+- 20 earlies a year each over 8h 30m (07:15–16:00, 8h 45m), and 9-hour 12:00–21:00 lates;
+- 8 new shift times: 07:15–16:00, 09:00–18:00, 12:00–21:00, 13:45–22:30, 14:30–22:30, 15:15–23:25, 15:45–23:55 and
+  16:15–23:55. Three of them are the Sunday times ten of the proposals use.
+
+| | Today | **Quarter Past** | Even Step | In Step | Short Run |
+|---|---|---|---|---|---|
+| December rules met (· flexible, of 3) | 4 of 9 · 0 | **9 of 9 · 3** | 9 of 9 · 3 | 9 of 9 · 3 | 9 of 9 · 3 |
+| Contracted days a year (ceiling 219) | 219.0 | **218.6** | 218.6 | 218.6 | 218.6 |
+| Fatigue warnings, fixed duties (up to) | 4 (5) | **3 (5)** | 0 (1) | 0 (1) | 0 (1) |
+| Full weekends off a year (longest wait) | 10 (7 weeks) | **6 (20 weeks)** | 14 (5) | 14 (5) | 14 (5) |
+| Most days in a row, fixed (cover week badly) | 7 (9) | **5 (7)** | 5 (7) | 5 (7) | 5 (7) |
+| Shortest rest | 12h 30m | **13h 15m** | 14h 35m | 14h 35m | 14h 20m |
+| Single rest days · weeks on one turn | 4 · 7 of 16 | **31 · 3 of 21** | 4 · 18 | 4 · 18 | 4 · 18 |
+| Heaviest week, Monday to Saturday | 43h 50m | **42h 40m** | 41h 30m | 41h 05m | 42h 30m |
+| Closing shift, Monday-to-Saturday average | 8h 45m | **7h 45m** | 8h 10m | 8h 10m | 8h 15m |
+| Earlies over 8h 30m, Monday to Saturday, a year each | 0 | **20** | 0 | 40 | 20 |
+| Shift times · new ones to learn | 18 · — | **16 · 8** | 13 · 5 | 15 · 6 | 15 · 6 |
+| Fit to the trains, weekday · Sat · Sun (lower is closer) | 52.0 · 65.9 · 71.7 | **36.3 · 10.0 · 29.0** | 32.6 · 10.0 · 29.0 | 29.8 · 9.6 · 29.0 | 29.1 · 12.7 · 29.0 |
+| Weighted league (`REF_IN_RANGE=1`, the usual table) | 16.7 | **49.1** | 85.4 | 80.5 | 81.6 |
+
+**On the weighted league it scores 49.1**, scored on the range the usual table already uses, so no other score moves:
+below every proposal (80.5 to 85.4) and Familiar Nine (70.4), above today's link (16.7). It takes full marks on the
+December rules, mixed weeks and the closing shift, and nothing on the fatigue warnings, the weekends and the wait
+between them, single rest days, weeks on one shift time, the start-time change and the leave figures: together 35 of
+the 100 points. Like Same Again and Little and Often, it is a design to look at, not one of the proposals; joining the
+pack would take an entry in `regenerate.mjs`'s `SUPPLIED` and `fresh.mjs`'s `STRAPS`.
+
+**The sheet, and the one change it needed.** `supplied.mjs` renders it in eight pages. Page 1 lists every concern a
+colleague may have and never cuts one, and twelve concerns, four of them wrapping, ran the cover 56px onto a second
+sheet, which `render.mjs` refuses (31 Oct). The cover now tightens as page 3 does, in two measured steps (the spacing,
+then the staff lists' type; `p1-tight` and `p1-tighter` in `plain.mjs`), and only on a cover the refusal checks would
+otherwise stop, so no shipped sheet moves. Deleting the step brings the refusal back: that is how this design first
+rendered. The *Created* field also falls back to the meta file's date for a design `fresh.mjs` does not list, where it
+printed "—".
+
+In this container the repo's Playwright (1.64.1) expects a newer Chromium than the one installed, so the render ran with
+`executablePath: '/opt/pw-browsers/chromium'` (KNOWN_LIMITATIONS.md), set in a scratch shim outside the repo. From
+`tooling/`:
+
+```
+OUT=/tmp/Quarter-Past.pdf node supplied.mjs results/quarter-past.json "Quarter Past" "A 16:15 closer every weekday, closing shifts averaging 7h 45m, and every week all earlies or all lates" QP-26-EXT
+```
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

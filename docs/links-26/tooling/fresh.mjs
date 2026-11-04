@@ -234,7 +234,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
       // No Sunday chip: the 23:25 finish is SETTLED (owner, 28 Sep 2026 — no duty runs past it, agreed practice). The
       // external review asked for an amber "undecided" chip here; it shipped for one release and was withdrawn the same day.
     metaLine: `Prepared ${rendered} · every figure is calculated from the rota, not entered by hand`,
-    identExtra: `<div class="ident-row ident-minor"><span class="ident-k">Family</span><span class="ident-v">${FAMILY[code.split('-')[0]] ?? '—'}</span></div><div class="ident-row ident-minor"><span class="ident-k">Created</span><span class="ident-v">${(FIRST[code] ?? '—').replace('Sep', 'September')}</span></div>`,
+    identExtra: `<div class="ident-row ident-minor"><span class="ident-k">Family</span><span class="ident-v">${FAMILY[code.split('-')[0]] ?? '—'}</span></div><div class="ident-row ident-minor"><span class="ident-k">Created</span><span class="ident-v">${(FIRST[code] ?? meta.date ?? '—').replace('Sep', 'September')}</span></div>`,
     sub1: 'How this rota would work from 1 January 2027, and how it compares with today’s link',   // the link starts then, after the December timetable (owner, 2 Nov 2026)
     intro, intro2: '',
     // page 1 must not call a fatigue count clear where a worked cover week would cross 55 hours (audit, 30 Sep 2026)

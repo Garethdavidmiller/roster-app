@@ -769,6 +769,15 @@ ${meta.page9 ?? `<section class="page">
         const over = () => Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom)) - (foot.getBoundingClientRect().top - 16);
         for (const step of ['rota-tight', 'rota-tighter']) { if (over() <= 0) break; sec.classList.add(step); }
       }
+      // PAGE 1 FITS A LONG CONCERNS LIST (4 Nov 2026). Quarter Past's twelve concerns ran the cover 56px onto a second sheet.
+      // The same two-step tightening as page 3 (plain.mjs says what each step does), and only on a cover the two checks below
+      // would refuse — taller than a page, or a line under its footer — so a cover that fits is never touched.
+      for (const sec of document.querySelectorAll('section.page.cover.plain')) {
+        const foot = sec.querySelector(':scope > .foot'); if (!foot) continue;
+        const kids = () => [...sec.children].filter(e => e !== foot && getComputedStyle(e).position !== 'absolute');
+        const over = () => sec.getBoundingClientRect().height > 1033 || Math.max(...kids().map(e => e.getBoundingClientRect().bottom)) > foot.getBoundingClientRect().top;
+        for (const step of ['p1-tight', 'p1-tighter']) { if (!over()) break; sec.classList.add(step); }
+      }
       // PAGE 6 TAKES ITS ROOM. The rules page left its bottom sixth empty on every sheet; what is spare (less a margin)
       // is shared out as row padding in the rules table — up to 4px a row, top and bottom alike. No text re-wraps.
       // PAGE 4 TOO (pack polish, 1 Nov 2026): its shift-time table ended a fifth of the page above the footer, by a different

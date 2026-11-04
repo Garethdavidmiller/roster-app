@@ -862,6 +862,19 @@ table.pcmp td.down, table.pcmp tbody tr:nth-child(even) td.down { background-col
 .mast .lgk-ok { color: var(--success-green); } .mast .lgk-warn { color: var(--warning-amber); } .mast .lgk-no { color: var(--danger-red, #b3261e); } .mast .lgk-st { color: var(--text-mid); }
 /* page 8: the closing note about the import file sat 2mm above the footer rule; the cards and headings give back 10px */
 .tboxes { margin: 8px 0 4px; } .pcard { margin-bottom: 5px; } h2.pmh { margin: 8px 0 4px; }
+/* PAGE 1 FITS A LONG CONCERNS LIST, MEASURED (4 Nov 2026, Quarter Past's twelve concerns). The dense staff lists above were
+   not enough: twelve concerns, four of them wrapping, ran the cover 56px onto a second sheet, which render.mjs refuses. As
+   page 3 does, the cover tightens in two steps and only as far as it must — the spacing first, then the staff lists' type.
+   render.mjs adds a step only to a cover that would otherwise be refused, so a cover that fits takes neither and no other
+   sheet moves. Nothing is cut: every concern is still shown. */
+section.page.p1-tight h2.psec { margin: 8px 0 4px !important; }
+section.page.p1-tight .pbottom { margin-top: 8px; padding: 8px 14px; }
+section.page.p1-tight .pcaveat, section.page.p1-tight .ptakes { margin-top: 6px; }
+section.page.p1-tight .pcols { margin-top: 6px; }
+section.page.p1-tight .pcols .pbox { padding: 9px 14px 10px; }
+section.page.p1-tight .pcols .pbox ul { line-height: 1.28; }
+section.page.p1-tighter .pcols .pbox ul { font-size: 9.6px; line-height: 1.24; }
+section.page.p1-tighter .pbottom { font-size: 12.6px; line-height: 1.45; }
 `;
 
 /** Page 5, people on duty hour by hour (owner, 29 Sep 2026: "the table wording is a little confusing"). The tables and
