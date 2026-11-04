@@ -8,8 +8,8 @@
  * owner, 2 Nov 2026), that a design saved since 2 Nov is left alone, and that the picker ends with
  * the built-in shortlist as its options.
  *
- * A file of its own rather than more of pages.spec.js, which another session edits; the helpers are
- * the shared ones.
+ * A file of its own rather than more of pages.spec.js, which another session was editing (its Links
+ * tests moved to links.spec.js on 3 Nov 2026); the helpers are the shared ones.
  */
 import { test, expect } from './fixtures.js';
 import { seedSession, designOptions, proposalOptions, activeDesignName, openDesignSheet, sheetAction, clickDialogConfirm } from './helpers.js';

@@ -1,0 +1,311 @@
+/**
+ * guides.spec.js — the guide pages: the FIP guide and the shared guide shell.
+ *
+ * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
+ * pages, and the shared drawer, dialogs and sheets, stay there.
+ */
+import { test, expect } from './fixtures.js';
+import { collectFatalErrors } from './helpers.js';
+
+// ── FIP GUIDE (fip-guide.html) — jump-to-open + malformed-hash safety ──────────────
+
+test('fip: a country jump-link opens that country section (C1)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/fip-guide.html#country-fr');   // deep-link straight to France
+    // fip-guide.js opens the target <details> on load; without it the row stays collapsed.
+    await expect(page.locator('#country-fr')).toHaveAttribute('open', '');
+    // And an in-page jump (hashchange) opens another one.
+    await page.locator('.country-jump a[href="#country-be"]').click();
+    await expect(page.locator('#country-be')).toHaveAttribute('open', '');
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+test('fip: a malformed hash does not throw (safeDecode)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    // A lone "%" is an invalid percent-escape — decodeURIComponent would throw uncaught without the guard.
+    await page.goto('/fip-guide.html#%');
+    // Page still renders (the jump bar exists) and nothing crashed.
+    await expect(page.locator('.country-jump')).toBeVisible();
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+// Country finder (v17.64): search filters the country cards + A–Z chips; clear + no-match + popular.
+test('fip: the country finder filters cards, shows a no-match, and clears', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/fip-guide.html');
+    const search = page.locator('#countrySearch');
+    await expect(search).toBeVisible();
+    // On an empty field the clear ✕ and the count are hidden (regression guard: an author `display`
+    // rule can silently override the `hidden` attribute).
+    await expect(page.locator('#countryClear')).toBeHidden();
+    await expect(page.locator('#countryCount')).toBeHidden();
+
+    // Filter to Spain: Spain stays, an unrelated country (Norway) is hidden, count + clear appear.
+    await search.fill('spain');
+    await expect(page.locator('#country-es')).toBeVisible();
+    await expect(page.locator('#country-no')).toBeHidden();
+    // Counted from the DOM, never written down. The literal 25 outlived the guide by one release:
+    // the v20.25 country pass took it to 32 and this assertion failed on correct behaviour.
+    const totalCountries = await page.locator('[id^="country-"]').count();
+    await expect(page.locator('#countryCount')).toContainText(`of ${totalCountries} countries`);
+    await expect(page.locator('#countryClear')).toBeVisible();
+    // The A–Z chip for a hidden country is hidden too (kept in lockstep with its card).
+    await expect(page.locator('.country-jump a[href="#country-no"]')).toBeHidden();
+
+    // Gibberish → no-match message; every card hidden.
+    await search.fill('qwertyzzz');
+    await expect(page.locator('#countryNoMatch')).toBeVisible();
+    await expect(page.locator('#country-es')).toBeHidden();
+
+    // Clear button resets everything.
+    await page.locator('#countryClear').click();
+    await expect(page.locator('#country-no')).toBeVisible();
+    await expect(page.locator('#countryNoMatch')).toBeHidden();
+    await expect(search).toHaveValue('');
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+// Whole-app review, Oct 2026: the finder only lower-cased, so an operator typed on a UK keyboard
+// ("obb" for ÖBB, "krakow" for Kraków) found nothing, and "cie" matched inside "Société".
+test('fip: the country finder folds accents and matches the start of a word', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    const search = page.locator('#countrySearch');
+    await search.fill('obb');
+    await expect(page.locator('#country-at')).toBeVisible();
+    await expect(page.locator('#countryNoMatch')).toBeHidden();
+    await search.fill('cie');
+    await expect(page.locator('#country-ie')).toBeVisible();
+    await expect(page.locator('#country-ch'), 'no longer found inside "Société"').toBeHidden();
+    await search.fill('ÖBB');
+    await expect(page.locator('#country-at'), 'the accented spelling still works').toBeVisible();
+});
+
+test('fip: the section chip-bar jumps to a section and marks it current', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/fip-guide.html');
+    const chip = page.locator('.chip-bar .chip[data-target="sec-mistakes"]');
+    await expect(chip).toBeVisible();
+    await chip.click();
+    await expect(page.locator('#sec-mistakes')).toBeInViewport();
+    await expect(chip).toHaveAttribute('aria-current', 'true');
+    // Clicking a different chip moves the current marker.
+    const other = page.locator('.chip-bar .chip[data-target="sec-booking"]');
+    await other.click();
+    await expect(other).toHaveAttribute('aria-current', 'true');
+    await expect(chip).not.toHaveAttribute('aria-current', 'true');
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+test('fip: scrollspy marks the chip for the section scrolled into view', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    // A mid-page section scrolled under the sticky stack becomes current.
+    await page.evaluate(() => document.getElementById('sec-ferries').scrollIntoView({ block: 'start' }));
+    await page.waitForTimeout(350);
+    await expect(page.locator('.chip[data-target="sec-ferries"]')).toHaveAttribute('aria-current', 'true');
+    // At the very bottom, the last chip (Apply) wins even if its short section never reached the line.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForTimeout(350);
+    await expect(page.locator('.chip[data-target="sec-apply"]')).toHaveAttribute('aria-current', 'true');
+    // Back at the top, the first chip (Overview) wins (covers the page-intro above section 1).
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(350);
+    await expect(page.locator('.chip[data-target="sec-need"]')).toHaveAttribute('aria-current', 'true');
+});
+
+test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,
+    // reveal France, and open it.
+    await page.locator('#countrySearch').fill('spain');
+    await expect(page.locator('#country-fr')).toBeHidden();
+    await page.locator('.cf-popular a[href="#country-fr"]').click();
+    await expect(page.locator('#country-fr')).toBeVisible();
+    await expect(page.locator('#country-fr')).toHaveAttribute('open', '');
+    await expect(page.locator('#countrySearch')).toHaveValue('');
+});
+
+// ── FIP: the booking-reach table (v20.31–32) ───────────────────────────────────────────────────
+//
+// This is the only table on the guide, and it exists because "can I book this before I leave?" was
+// the question the page could not answer. Two things about it can break WITHOUT anything throwing,
+// which is why they are tested rather than eyeballed:
+//
+//   1. The country finder selects cards by `[id^="country-"]`. The table is a <details> sitting in
+//      a different section, so it must be invisible to the filter — if a future id or selector
+//      change swept it in, typing a country name would hide the table that answers the question
+//      about that country. Nothing would error; the table would just vanish.
+//
+//   2. Below 560px the rows STACK, and each cell states its own column through a `data-label`
+//      ::before. Before that, the international column clipped at the card edge with no scroll
+//      affordance — so "Trains to Romania only" read as "Trai…", and a truncated answer looks like
+//      a whole one. The stacked layout is a CSS media query over generated content: a static test
+//      cannot see it and a unit test has no layout, so it takes a real browser at a real width.
+test('fip: the booking-reach table answers per country, and the finder leaves it alone', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    const table = page.locator('#booking-table');
+    await table.evaluate(el => { el.open = true; });
+
+    // Every country RST lists gets a row, and the three answer classes all render.
+    await expect(table.locator('tbody tr')).toHaveCount(22);
+    // Match on the ROW HEADER, not row text: several rows name another country in their
+    // international column ("TER/IC to Belgium"), so `hasText` picks up three rows for Belgium.
+    const rowFor = name => table.locator('tbody tr').filter({
+        has: page.locator(`td[role="rowheader"]:text-is("${name}")`),
+    });
+    await expect(rowFor('Belgium').locator('td[data-label="Domestic"]'))
+        .toContainText('75% is ticket offices only');
+    await expect(rowFor('France').locator('td[data-label="Domestic"]'))
+        .toContainText('SNCF Contact Centre');
+    await expect(rowFor('Spain').locator('td[data-label="Domestic"]')).toHaveClass(/t-yes/);
+
+    // A "no" must never be presented as a refusal of FIP — the caption carries that, and it is the
+    // difference between "you cannot go" and "buy it when you arrive".
+    await expect(table).toContainText('buy it at a ticket office when you get there');
+
+    // The finder must not touch it: filter to one country and the table stays put.
+    await page.locator('#countrySearch').fill('spain');
+    await expect(page.locator('#country-fr')).toBeHidden();
+    await expect(table).toBeVisible();
+});
+
+test('fip: the booking table stacks with labelled cells on a phone', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 900 });
+    await page.goto('/fip-guide.html');
+    await page.locator('#booking-table').evaluate(el => { el.open = true; });
+
+    // The stacked layout announces each column per cell. Read the generated content, because that
+    // IS the header on this layout — the real <thead> is clipped away.
+    const label = await page.locator('#booking-table tbody td[data-label]').first()
+        .evaluate(el => getComputedStyle(el, '::before').content);
+    expect(label).toContain('Domestic');
+
+    // Rows must be blocks, not table-rows — that is what proves the media query applied.
+    const display = await page.locator('#booking-table tbody tr').first()
+        .evaluate(el => getComputedStyle(el).display);
+    expect(display).toBe('block');
+
+    // And nothing may clip: the answer text must fit inside its own cell at this width.
+    const overflow = await page.locator('#booking-table tbody td[data-label]')
+        .evaluateAll(tds => tds.filter(td => td.scrollWidth > td.clientWidth + 1).length);
+    expect(overflow).toBe(0);
+
+    // The page itself must not scroll sideways either.
+    const bodyOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(bodyOverflow).toBeLessThanOrEqual(0);
+});
+
+// ── GUIDE POLISH (round 2) ─────────────────────────────────────────────────────────────────────
+// Four owner-approved layout fixes, each pinned by its measured outcome rather than by the rule
+// that produced it — every one of them rendered "fine" before, and was wrong only by position.
+
+// The three chip-bar guides centre a 760px column but the chip bar is full-bleed, so the chips used
+// to start at the window edge (x=12 at 1280) while the text started at x=276.
+test('guides: from 800px the section chips start where the content column\'s text does', async ({ page }) => {
+    const pages = { 'fip-guide': '.content', 'railcard-guide': '.content', 'rangers-guide': 'main' };
+    for (const [guide, column] of Object.entries(pages)) {
+        for (const width of [1280, 800]) {
+            await page.setViewportSize({ width, height: 900 });
+            await page.goto(`/${guide}.html`);
+            const m = await page.evaluate((sel) => {
+                const c = /** @type {HTMLElement} */ (document.querySelector(sel));
+                const firstChip = /** @type {HTMLElement} */ (document.querySelector('.chip-bar .chip'));
+                return {
+                    text: c.getBoundingClientRect().left + parseFloat(getComputedStyle(c).paddingLeft),
+                    chip: firstChip.getBoundingClientRect().left,
+                };
+            }, column);
+            expect(Math.abs(m.chip - m.text), `${guide} at ${width}px: first chip at ${m.chip}, text at ${m.text}`)
+                .toBeLessThanOrEqual(1);
+        }
+    }
+    // Below the breakpoint nothing moved: the bar keeps its 12px phone gutter.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/fip-guide.html');
+    expect(await page.locator('.chip-bar .chip').first().evaluate(el => Math.round(el.getBoundingClientRect().left)))
+        .toBe(12);
+});
+
+// "Search a country or operator — e.g. Spain, ÖBB, Railjet" was 418px of text in a 282px field at
+// 390, so it read "— e.g. S…". The ellipsis stays as a safety net; this pins that it is not needed.
+test('fip: the country search placeholder fits a 390px phone whole', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/fip-guide.html');
+    await page.evaluate(() => document.fonts.ready);
+    const fit = await page.locator('#countrySearch').evaluate(el => {
+        const input = /** @type {HTMLInputElement} */ (el);
+        const cs = getComputedStyle(input);
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
+        ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        return {
+            text: ctx.measureText(input.placeholder).width,
+            room: input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+        };
+    });
+    expect(fit.text, `placeholder is ${fit.text}px in a ${fit.room}px field`).toBeLessThanOrEqual(fit.room);
+});
+
+// Side by side at 390 each "What you get" card was 174px wide — ~22 characters of 12px text a line.
+test('fip: the "What you get" cards stack on a phone and pair on a wider screen', async ({ page }) => {
+    const boxes = () => page.locator('.two-up .card').evaluateAll(cards =>
+        cards.map(c => { const r = c.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), bottom: Math.round(r.bottom) }; }));
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/fip-guide.html');
+    const phone = await boxes();
+    expect(phone).toHaveLength(2);
+    expect(phone[1].x, 'one column: same left edge').toBe(phone[0].x);
+    expect(phone[1].y, 'one column: the second card is below the first').toBeGreaterThanOrEqual(phone[0].bottom);
+
+    await page.setViewportSize({ width: 800, height: 900 });
+    await page.goto('/fip-guide.html');
+    const wide = await boxes();
+    expect(wide[1].y, 'a pair: same top edge').toBe(wide[0].y);
+    expect(wide[1].x).toBeGreaterThan(wide[0].x);
+});
+
+// The three guides that close with a back link each drew a different one: railcard centred, plain
+// and 38px tall; rangers left and bold; FIP a full-width text button reading "Back to roster" above
+// its disclaimer. One shared recipe now (guide-shell.css), one wording, the last thing on the page.
+test('guides: the footer back link is one control with one wording on every guide', async ({ page }) => {
+    const seen = [];
+    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+        await page.goto(`/${guide}.html`);
+        const links = page.locator('main a').filter({ hasText: /Back to (calendar|roster)/ });
+        await expect(links, `${guide}: exactly one footer back link`).toHaveCount(1);
+        const link = links.first();
+        await expect(link).toHaveClass('guide-back-link');
+        await expect(link).toHaveText('← Back to calendar');
+        await expect(link).toHaveAttribute('href', './');
+        await link.scrollIntoViewIfNeeded();
+        const m = await link.evaluate(a => {
+            const r = a.getBoundingClientRect();
+            const main = /** @type {HTMLElement} */ (a.closest('main'));
+            const mr = main.getBoundingClientRect();
+            const cs = getComputedStyle(main);
+            const left = mr.left + parseFloat(cs.paddingLeft), right = mr.right - parseFloat(cs.paddingRight);
+            const s = getComputedStyle(a);
+            return {
+                height: r.height,
+                centreOffset: Math.abs((r.left + r.right) / 2 - (left + right) / 2),
+                last: a === main.lastElementChild,
+                style: [s.display, s.fontSize, s.fontWeight, s.textDecorationLine].join(' '),
+            };
+        });
+        expect(m.height, `${guide}: 44px touch target`).toBeGreaterThanOrEqual(44);
+        expect(m.centreOffset, `${guide}: centred under the column`).toBeLessThanOrEqual(1);
+        expect(m.last, `${guide}: the last thing on the page`).toBe(true);
+        seen.push(m.style);
+    }
+    expect(new Set(seen).size, `one recipe, got: ${seen.join(' | ')}`).toBe(1);
+});
+
+// Every country and ferry card states when it was checked. guide-sources.test.mjs proves the line is
+// PRESENT in the markup and that its date matches the register; this proves it is actually VISIBLE
+// once the card is open — a static check cannot tell an evidence line from one a stylesheet hides.
+test('fip: an opened country card shows its checked date', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    await page.locator('#country-cz').evaluate(el => { el.open = true; });
+    const line = page.locator('#country-cz .country-reviewed');
+    await expect(line).toBeVisible();
+    await expect(line).toContainText('Checked Aug 2026');
+});

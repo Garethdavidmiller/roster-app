@@ -3,8 +3,8 @@
  * Run: node --test links-seed.test.mjs   (part of `npm run test:hygiene`)
  *
  * THIS SUITE IS THE POINT OF THE EXTRACTION. `buildRosterTargets` was already a pure function; it
- * simply was not exported, and both `.claude/rules/links-design.md` and `e2e/pages.spec.js` recorded
- * that as the reason it was covered by an e2e instead — "a unit test would be checking its own copy
+ * simply was not exported, and both `.claude/rules/links-design.md` and `e2e/pages.spec.js` (now
+ * `e2e/links.spec.js`) recorded that as the reason it was covered by an e2e instead — "a unit test would be checking its own copy
  * of it". It would have been. It isn't now.
  *
  * The failure this guards is quiet by construction. The seed's visible output is a table of per-shift

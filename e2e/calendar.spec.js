@@ -2595,7 +2595,7 @@ test.describe('the team week jump', () => {
         // next month is banded on its days in THIS month and no others — by design (date-picker.js). Run on the
         // live date, this test failed every week that straddles a month end: first on Mon 28 Sep 2026, when
         // Sun 27 Sep – Sat 3 Oct showed four banded days. Wed 16 Sep 2026 09:00 UTC is Tue 15 Sep 22:00 in
-        // Midway, inside Sun 13 – Sat 19 Sep, as the Admin picker's own test pins it (pages.spec.js).
+        // Midway, inside Sun 13 – Sat 19 Sep, as the Admin picker's own test pins it (admin.spec.js).
         await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
         await seedMember(page);
         await seedMemberSession(page);

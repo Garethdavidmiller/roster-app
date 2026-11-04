@@ -105,7 +105,7 @@ What stayed:
 (settings.css), so a chip and the strip cannot disagree: `ok` green, `action`/`blocked` amber (the
 strip lists both as things to finish), everything else neutral. One `ok` is NOT green: notifications
 the member switched off on purpose report `'plain'`, because a green "Off" has the colour contradict
-the word. Pinned by `e2e/pages.spec.js` against the strip's COMPUTED colours.
+the word. Pinned by `e2e/settings.spec.js` against the strip's COMPUTED colours.
 
 **Do not re-create page-local copies of these classes** — that split is exactly how the
 header systems drifted apart pre-v18.16. A11y invariant (v17.50): the focusable collapse toggle is
@@ -460,7 +460,7 @@ screenshots: Trains' raspberry view above a navy day; New link's navy chip on a 
   excludes the chosen state (`:not([aria-pressed="true"])`, `:not(.active)`) or loses to the chosen
   rule on order at equal specificity. Links' `.btn-set:hover:not(:disabled)` did neither, so the
   only-what-differs filter turned grey under the very pointer that switched it on — invisible while
-  "on" was a pale gold tint, obvious once it was purple. Pinned by `e2e/pages.spec.js` → "links
+  "on" was a pale gold tint, obvious once it was purple. Pinned by `e2e/links.spec.js` → "links
   compare: the filter hides the identical lines" (mutation-checked). The picker sheet's current row
   was the same shape and older: `.picker-opt:hover:not(:disabled)` (0,3,0) beat `.is-current` (0,2,0),
   so the ticked row went grey under the pointer (v25.20 — it now skips `.is-current`; pinned by
@@ -872,7 +872,7 @@ covered the whole subtree; nothing else does. The same release shipped the casca
 same mistake — three `background` declarations for "set aside", each beside the state it described,
 all three losing to `.roster-change-conflict`/`.roster-change-unreadable` declared later at equal
 specificity. **Assert the cue against every element type the surface can produce**, not against the
-one your fixture happens to render; `e2e/pages.spec.js` does that for both.
+one your fixture happens to render; `e2e/operations.spec.js` does that for both.
 
 **And do not assume a scanner sees a fade.** axe reports *nothing* for `.section-skipped`'s rows at
 `opacity: .35` — no violation and no `incomplete` — which is how that dim survived the pass that
