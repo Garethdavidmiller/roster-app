@@ -103,6 +103,13 @@
 // outside the shortlist it gained "no shift over 8h 30m on any day" (Fair Share, Grand Tour). The judgement paragraph keeps
 // Even Step's lead and says that, of the links keeping today's leave, Grand Tour scores a little above Common Ground, which was
 // shortlisted as their example; Common Ground's own place is not printed, being level to a hundredth with Clean Slate's.
+// NO RECOMMENDATION, A TO Z (5 Nov 2026, the whole-pack review): asked whether the pack should keep marking Even Step
+// recommended, the owner chose to remove the marks and present the three evenly, as the New link page does. So the cards,
+// the columns, the guide and the choices run A to Z (fresh.mjs → SHORTLIST); the recommended tab, the Recommendation box and
+// the judgement paragraph went, and page 2 ends on how to choose. The reasons each was shortlisted stay — they are why
+// these three, not which one. The review's polish came with it: page 2's against-today table merges a figure all three
+// share across their columns, both tables share one set of column widths, "weeks on one turn" is "weeks on one shift time"
+// everywhere, the label says what it counts (all earlies or all lates, owner), and the fit guard wants 8px above the footer.
 //   node shortlist-sheet.mjs        → ../links-26-shortlist.pdf (the .html stays in tooling/, gitignored)
 import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -113,7 +120,7 @@ import { assess, today, folderStats, sheetRules, flexibleRules, h55Worst } from 
 import { personal } from './plain.mjs';
 import { leave } from './leave.mjs';
 import { scoreOrder } from '../../../links-adjacency.js';
-import { SHORTLIST, RECOMMENDED, SHORTLIST_DATE } from './fresh.mjs';
+import { SHORTLIST, SHORTLIST_DATE } from './fresh.mjs';
 import { kindBlocks, blockText } from './blocks.mjs';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
@@ -162,11 +169,11 @@ const design = name => { const f = stats.find(s => s.name === name); if (!f) thr
   const j = JSON.parse(readFileSync(f.url, 'utf8')); const pdf = readdirSync(new URL('./', f.url)).find(x => x.includes(`-${f.code}-`) && x.endsWith('.pdf')); const fp = pdf ? pdf.slice(-12, -4) : '';
   return { name, code: f.code, fp, F: figures(j.patterns ?? j, LINES, TA) }; };
 const D = SHORTLIST.map(design);
-const by = name => D.find(d => d.name === name) ?? (() => { throw new Error(`the shortlist has no ${name}: the cards and the recommendation name it`); })();
+const by = name => D.find(d => d.name === name) ?? (() => { throw new Error(`the shortlist has no ${name}: the cards and the choices name it`); })();
 const ES = by('Even Step'), CG = by('Common Ground'), SR = by('Short Run');
 const N = word(D.length), others = stats.filter(s => !SHORTLIST.includes(s.name)).map(s => design(s.name));
-// THREE SINCE 5 NOV 2026: the prose below is written for Even Step (recommended), Common Ground and Short Run, and says so
-if (D.length !== 3 || RECOMMENDED !== 'Even Step' || SHORTLIST.join() !== 'Even Step,Common Ground,Short Run') throw new Error(`the sheet's prose is written for Even Step (recommended), Common Ground and Short Run; the shortlist is ${SHORTLIST}, recommending ${RECOMMENDED}`);
+// THREE SINCE 5 NOV 2026, A TO Z AND NONE RECOMMENDED: the prose below is written for Common Ground, Even Step and Short Run
+if (D.length !== 3 || SHORTLIST.join() !== 'Common Ground,Even Step,Short Run') throw new Error(`the sheet's prose is written for Common Ground, Even Step and Short Run, A to Z; the shortlist is ${SHORTLIST}`);
 const both = 'all three', Both = 'All three';
 
 /** A figure the prose says every shortlisted design shares — refused unless it is. */
@@ -453,18 +460,18 @@ const row = (label, get, dir, fmt, more = {}) => ({ label, get, dir, fmt, ...mor
 const ROWS = [
   row('Heaviest week, Mon–Sat', F => F.heavy, -1, hm),
   row('Lightest week, Mon–Sat', F => F.light, 1, hm),
-  row('Shortest rest, fixed duties', F => F.A.rest.minutes, 1, hm),
+  row('Shortest rest between shifts, fixed duties', F => F.A.rest.minutes, 1, hm),
   row('Closing shift, Saturday', F => F.closers[1], -1, hm),
   row('Earlies over 8h 30m, Mon–Sat, each a year', longEarlyMS, -1, v => `${v}`),
   row('Any shift over 8h 30m, Mon–Sat, each a year', longMS, -1, v => `${v}`),
   row('Earlies finishing before 14:00, each a year', earlyOff, 1, v => `${v}`),
   row('Weekday lates, closers aside, on average', lateAvg, -1, hm),
-  row('Weeks on one shift time, Mon–Fri', one, 1, (v, F) => `${v} of ${F.A.feel.workingLines}`),
+  row('Weeks on one shift time Mon–Fri, all earlies or all lates', one, 1, (v, F) => `${v} of ${F.A.feel.workingLines}`),
   row('Week-to-week change of start', F => Math.round(F.step), -1, hm),
   row('Shift times, and how many are new', F => F.times, -1, (v, F) => `${F.times} (${F.newT} new)`),
   row('New shift times on a Saturday', satNew, -1, v => `${v}`),
   row('Single rest days, each a year', isoYear, -1, v => `${v}`),
-  row('Days off 14 days’ leave buys at best · leave for four weeks off', null, 0, null, { parts: F => [F.lv.best, F.lv.fourWeeks], dirs: [1, -1], names: ['Leave, best stretch', 'Leave, four weeks off'], one: v => `${v}` }),
+  row('14 days’ leave buys at best · leave for four weeks off', null, 0, null, { parts: F => [F.lv.best, F.lv.fourWeeks], dirs: [1, -1], names: ['Leave, best stretch', 'Leave, four weeks off'], one: v => `${v}` }),
   row('Fit to the trains, weekday · Sat · Sun (0 = exact)', null, 0, null, { cls: 'fit', parts: F => F.fit.map(fitP), dirs: [-1, -1, -1], names: ['Fit to the trains, weekday', 'Fit to the trains, Saturday', 'Fit to the trains, Sunday'], one: v => v.toFixed(1) }),
 ];
 claim('every “where they differ” row differs', ROWS.every(r => new Set(D.map(d => JSON.stringify(r.parts ? r.parts(d.F) : r.get(d.F)))).size > 1));
@@ -474,20 +481,7 @@ claim('Short Run: every Saturday time worked today, some on a Saturday and some 
   && satTimes(SF).filter(t => todaysSat.has(t)).length > 0 && satTimes(SF).some(t => !todaysSat.has(t)));
 claim('long days, against today: no early over 8h 30m today, nor on Even Step or Common Ground; Short Run has them Monday to Saturday', longEarlyMS(TF) === 0 && longEarlyMS(EF) === 0
   && longEarlyMS(CF) === 0 && longEarlyMS(SF) > 0 && longMS(TF) > longMS(SF) && longMS(SF) > longMS(CF) && longMS(CF) > longMS(EF));
-// THE RECOMMENDATION GIVES EVERY FIGURE WHERE THEY DIFFER, IN ITS PLACE (30 Oct 2026, the accuracy check; for the new three
-// since 5 Nov 2026). Each row (each figure of a row with parts) is read as the paragraph reads it: where Even Step stands among
-// the three — the best (or level best), between the other two, or the last (or level last). The paragraph names each one so
-const PLACE = { 'Heaviest week, Mon–Sat': 'best', 'Lightest week, Mon–Sat': 'best', 'Shortest rest, fixed duties': 'best', 'Closing shift, Saturday': 'best',
-  'Earlies over 8h 30m, Mon–Sat, each a year': 'best', 'Any shift over 8h 30m, Mon–Sat, each a year': 'best', 'Earlies finishing before 14:00, each a year': 'between',
-  'Weekday lates, closers aside, on average': 'between', 'Weeks on one shift time, Mon–Fri': 'last', 'Week-to-week change of start': 'last',
-  'Shift times, and how many are new': 'best', 'New shift times on a Saturday': 'between', 'Single rest days, each a year': 'best',
-  'Leave, best stretch': 'last', 'Leave, four weeks off': 'last',
-  'Fit to the trains, weekday': 'between', 'Fit to the trains, Saturday': 'best', 'Fit to the trains, Sunday': 'last' };
-const placeOf = (vals, dir) => { const me = vals[0], rest = vals.slice(1); const better = rest.filter(v => dir * (v - me) > 0).length, worse = rest.filter(v => dir * (v - me) < 0).length;
-  return better === 0 ? 'best' : worse === 0 ? 'last' : 'between'; };
-const places = Object.fromEntries(ROWS.flatMap(r => r.parts ? r.names.map((name, j) => [name, placeOf(D.map(d => r.parts(d.F)[j]), r.dirs[j])])
-  : [[r.label, placeOf(D.map(d => r.get(d.F)), r.dir)]]));
-claim('the recommendation gives every figure where they differ, in its place', D[0] === ES && JSON.stringify(places) === JSON.stringify(PLACE));
+// (THE RECOMMENDATION'S PLACE MAP — Even Step best, between or last on every row — went with the Recommendation box on 5 Nov 2026)
 const best = (get, dir) => { const vals = D.map(d => get(d.F)); const b = dir > 0 ? Math.max(...vals) : Math.min(...vals); return vals.map(v => v === b); };
 // A CELL OF SEVERAL FIGURES IS MARKED FIGURE BY FIGURE (30 Oct 2026): each part bold where it is the better of its kind
 const partsHtml = (r, i) => r.parts(D[i].F).map((x, j) => { const col = D.map(d => r.parts(d.F)[j]), b = r.dirs[j] > 0 ? Math.max(...col) : Math.min(...col);
@@ -509,13 +503,13 @@ const TODAY_ROWS = [
   ['Starting at 06:20, each a year', F => `${Math.round(F.pp.open0620)}`],
   ['Average shift, Mon–Sat', F => hm(F.pp.avgShift)],
 ];   // the longest shift is page 1's shared line since 5 Nov 2026 ("no shift over 9h 00m"), for page 2's room
-// ONE COLUMN WHEN ALL THREE AGREE (31 Oct 2026, the redo): every row of this table is shared, so it printed each figure
-// three times over in grey, under a subtitle saying grey means shared; it now prints it once, under "All three". A row
-// that stopped being shared brings back a column each, and the grey for the rows that still are
-const allShared = TODAY_ROWS.every(([, get]) => same(get) !== null);
-const todayHead = `<th>Measure</th><th class="num">Today</th>${allShared ? `<th class="num">${Both}</th>` : D.map(d => `<th class="num">${esc(d.name)}</th>`).join('')}`;
+// ONE FIGURE ACROSS THE THREE COLUMNS WHERE THEY AGREE (31 Oct 2026, then 5 Nov): a shared figure printed three times over
+// in grey read as three figures; it is printed once, spanning the three columns and saying "on all three" (centred alone it
+// sat under the middle name and read as that design's), so the one row where they differ (the 06:20 starts, since Common
+// Ground) stands out by having three. Same columns as page 1's table (table.t.cmp)
+const todayHead = `<th>Measure</th><th class="num today">Today</th>${D.map(d => `<th class="num">${esc(d.name)}</th>`).join('')}`;
 const todayHtml = TODAY_ROWS.map(([label, get]) => { const s = same(get);
-  return `<tr><td>${esc(label)}</td><td class="num today">${esc(get(TF))}</td>${allShared ? `<td class="num all3">${esc(s)}</td>` : s !== null ? D.map(() => `<td class="num all">${esc(s)}</td>`).join('') : D.map(d => `<td class="num">${esc(get(d.F))}</td>`).join('')}</tr>`; }).join('');
+  return `<tr><td>${esc(label)}</td><td class="num today">${esc(get(TF))}</td>${s !== null ? `<td class="num all3" colspan="${D.length}">${esc(s)} <span class="muted">on ${both}</span></td>` : D.map(d => `<td class="num">${esc(get(d.F))}</td>`).join('')}</tr>`; }).join('');
 const list = a => a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
 const f1 = x => x.toFixed(1);
 const an = s => (/^(8|11|18)/.test(s) ? 'an ' : 'a ') + s;   // "an 8h 40m", "a 42h 30m"
@@ -543,16 +537,14 @@ table.t th.num, table.t td.num { text-align: center; font-variant-numeric: tabul
 table.t td.today { color: var(--text-light); }
 table.t td.best, table.t .bestv { font-weight: 800; color: color-mix(in srgb, var(--success-green) 80%, black); }
 table.t td.all { color: var(--text-mid); }
-table.t.t-today3 td.all3 { font-weight: 700; color: var(--text-dark, #1a1a2e); } table.t.t-today3 th:nth-child(2), table.t.t-today3 th:nth-child(3) { width: 22%; }
 table.t.alts td:first-child { width: 30.5%; font-weight: 700; color: var(--text-dark, #1a1a2e); }   /* 30.5 since 4 Nov 2026: "Grand Tour, Short Openers, Open Return" on one line, Clean Slate's and Fair Share's rows still on one */
-table.t.alts td { padding-block: 0.5px 1px; }   /* nine rows since 3 Nov 2026, twelve since 4 Nov: a pixel and a half off each keeps page 2 on its page — main's figure, from Common Ground's row; here the 30-day row's four names take the room */
+/* the two comparison tables share one set of column widths (5 Nov 2026, the looks review: page 2's columns sat up to 41pt left of page 1's) */
+table.t.cmp { table-layout: fixed; } table.t.cmp th:first-child { width: 44%; } table.t.cmp th.num { width: 14%; padding-inline: 2px; letter-spacing: 0; }   /* 14% holds "52.0 · 65.9 · 71.7" on one line, and "Common Ground" in the head */
+table.t.cmp td.all3 { color: var(--text-dark, #1a1a2e); font-weight: 700; }
 table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
 /* three cards side by side since 31 Oct 2026: two to a row left the third alone on a row of its own */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; margin: 6px 0 2px; }
 .card { background: var(--surface-sunken); border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding: 7px 10px 8px; font-size: 10.1px; line-height: 1.36; border-top: 3px solid var(--primary-blue); }
-.card.rec { border-top-color: var(--success-green); position: relative; }
-/* the recommended card says so in words (pack polish, 1 Nov 2026): a tab on its green rule, taking no line of the card */
-.card .recmark { position: absolute; top: -8px; right: 9px; background: var(--success-green); color: white; font-size: 8.4px; font-weight: 800; letter-spacing: .2px; padding: 1px 7px 1.5px; border-radius: 8px; }
 .card b.k { font-size: 12.5px; font-weight: 800; color: var(--primary-blue); margin-right: 6px; }
 .card .code { font-size: 9px; color: var(--text-light); }
 .card .edge { margin-right: 3px; } .card .head { display: block; margin-bottom: 1px; }
@@ -563,7 +555,7 @@ table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surfa
 .callout { border-left: 3px solid var(--accent-gold); background: var(--surface-sunken); padding: 7px 13px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin: 6px 0; font-size: 10.9px; line-height: 1.42; }
 .pick { border-left-color: var(--success-green); }
 ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height: 1.36; } ul.list li { margin: 2px 0; }
-.shared { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 20px; font-size: 10.5px; line-height: 1.38; margin: 5px 0 3px; } .shared div::before { content: '✓ '; color: var(--success-green); font-weight: 800; }
+.shared { column-count: 2; column-gap: 20px; font-size: 10.5px; line-height: 1.38; margin: 5px 0 3px; } .shared div { break-inside: avoid; margin-bottom: 3px; } .shared div::before { content: '✓ '; color: var(--success-green); font-weight: 800; }   /* columns, not a grid: a grid row took the taller item's height and left a blank line under the shorter (5 Nov 2026) */
 .foot { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8.5px; color: var(--text-light); border-top: 1px solid var(--border-light); padding-top: 4px; }
 .foot b { color: var(--primary-blue); }
 /* four designs and a date no longer fit beside the page line, so the footer wraps — between its items, never inside a
@@ -577,10 +569,10 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
 
   <h2>What ${both} share</h2>
-  <p class="lead">${Word(stats.length)} designs are in the pack; these ${N} were shortlisted on ${SHORTLIST_DATE}, and page 2 says why. Everything below holds for ${both}, each line better than or level with today; what is worse than today is on page 2.</p>
+  <p class="lead">Each line holds for ${both}, better than or level with today; page 2 has what is worse, and why these ${N}.</p>
   <div class="shared">
     <div>All <b>${met} of ${shared('rules scored', F => F.of)}</b> December staffing rules (today ${TF.met}), and all three flexible ones: 14 on a Saturday, evenly spaced cover weeks, weekday closers from 15:45</div>
-    <div><b>No avoidable fatigue warning</b>, cover weeks aside; one if a cover week falls badly — over 55 hours in seven days. Never more than <b>${word(run)} days in a row</b>, cover weeks aside; ${word(worstRun)} if a cover week falls badly (today ${TF.A.fixed.present} warnings, up to ${TF.A.fatigue.present}; ${word(TF.fixedRun)} days, up to ${word(TF.worstRun)})</div>
+    <div><b>No avoidable fatigue warning</b>, cover weeks aside; one if a cover week falls badly — over 55 hours in seven days. Never more than <b>${word(run)} days in a row</b>, cover weeks aside; ${word(worstRun)} if a cover week falls badly (today ${TF.A.fixed.present} warnings, up to ${TF.A.fatigue.present}; ${TF.fixedRun} days in a row, up to ${TF.worstRun})</div>
     <div><b>About ${Math.round(wkOff * 52 / LINES)} full weekends off a year</b> (today ${Math.round(TF.A.checks.weekendsOff * 52 / TF.pp.L)}), ${wkOff} in ${LINES}, never more than ${gap} weeks apart (today up to ${TF.maxGap} apart)</div>
     <div>The same <b>35-hour</b> week and <b>${days} days</b> a year, under the ceiling of ${DAYS_CEILING} (today ${TF.pp.daysYear.toFixed(1)})</div>
     <div>Every closing shift <b>shorter, by ${dur(Math.min(...cuts))} to ${dur(Math.max(...cuts))}</b> — the weekday’s and Sunday’s ${hm(wkCloser)} on ${both} (today ${hm(TF.closers[0])} and ${hm(TF.closers[2])}); no shift over ${hm(longest)}</div>
@@ -588,18 +580,18 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   </div>
 
   <h2>Where they differ<span class="note">the better of the ${N} on each line in bold green; today for scale, not ranked</span></h2>
-  <table class="t"><thead><tr><th>Measure</th><th class="num">Today</th>${D.map(d => `<th class="num">${esc(d.name)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table>
+  <table class="t cmp"><thead><tr><th>Measure</th><th class="num today">Today</th>${D.map(d => `<th class="num">${esc(d.name)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table>
 
   <h2>Each one’s edge</h2>
   <div class="cards">
-    <div class="card rec"><span class="head"><b class="k">Even Step</b><span class="code">${ES.code} · ${ES.fp}</span><span class="recmark">★ recommended</span></span><b class="edge">No long days, Monday to Saturday.</b>No shift there over 8h&nbsp;30m and every early one of today’s times; today’s 13:45 every weekday, the fewest shift times of the three, ${EF.times}, and the steadiest weeks. Its cost: the biggest change of start, ${hm(Math.round(EF.step))}, and ${EF.lv.fourWeeks} days’ leave for four weeks off.</div>
-    <div class="card"><span class="head"><b class="k">Common Ground</b><span class="code">${CG.code} · ${CG.fp}</span></span><b class="edge">Today’s leave.</b>14 days buy ${CF.lv.best} days off at best and four weeks off take ${CF.lv.fourWeeks}, as today; one shift time Monday to Friday in ${one(CF)} of ${wl} weeks, the gentlest change of start and the closest Sunday fit (${f1(CF.fit[2])}). Its cost: ${isoYear(CF)} single rest days a year, not ${isoYear(EF)}, the weakest weekday fit (${f1(CF.fit[0])}), four at the open, ${word(CF.newT)} new times, a 9-hour Saturday late.</div>
-    <div class="card"><span class="head"><b class="k">Short Run</b><span class="code">${SR.code} · ${SR.fp}</span></span><b class="edge">The closest weekday fit, the shortest weekday lates.</b>${f1(SF.fit[0])} against ${f1(EF.fit[0])} and ${f1(CF.fit[0])}, weekday lates of ${hm(lateAvg(SF))} on average, and nothing new on a Saturday. Its cost: ${an(hm(SF.closers[1]))} Saturday closer, ${hm(SF.A.rest.minutes)} the shortest rest, no early finish before 14:00, ${longEarlyMS(SF)} earlies a year over 8h&nbsp;30m, all 9h&nbsp;00m, and four weeks off for ${SF.lv.fourWeeks} days’ leave.</div>
+    <div class="card"><span class="head"><b class="k">Common Ground</b><span class="code">${CG.code} · ${CG.fp}</span></span><b class="edge">Today’s leave.</b>14 days buy ${CF.lv.best} days off at best and four weeks off take ${CF.lv.fourWeeks}, as today; one shift time Monday to Friday, all earlies or all lates, in ${one(CF)} of ${wl} weeks, the gentlest change of start and the closest Sunday fit (${f1(CF.fit[2])}). Its cost: ${isoYear(CF)} single rest days a year, not ${isoYear(EF)}, the weakest weekday fit (${f1(CF.fit[0])}), four at the open, ${word(CF.newT)} new times, a 9h 00m Saturday late.</div>
+    <div class="card"><span class="head"><b class="k">Even Step</b><span class="code">${ES.code} · ${ES.fp}</span></span><b class="edge">No long days, Monday to Saturday.</b>No shift there over 8h&nbsp;30m and every early one of today’s times; today’s 13:45 every weekday, the fewest shift times of the three, ${EF.times}, and the steadiest weeks. Its cost: the biggest change of start, ${hm(Math.round(EF.step))}, and ${EF.lv.fourWeeks} days’ leave for four weeks off.</div>
+    <div class="card"><span class="head"><b class="k">Short Run</b><span class="code">${SR.code} · ${SR.fp}</span></span><b class="edge">The closest weekday fit, the shortest weekday lates.</b>${f1(SF.fit[0])} against ${f1(EF.fit[0])} and ${f1(CF.fit[0])}, weekday lates of ${hm(lateAvg(SF))} on average, and nothing new on a Saturday. Its cost: ${an(hm(SF.closers[1]))} Saturday closer, ${hm(SF.A.rest.minutes)} the shortest rest, no early finish before 14:00, ${longEarlyMS(SF)} earlies a year over 8h&nbsp;30m, all 9h&nbsp;00m, and four weeks off for ${SF.lv.fourWeeks} days’ leave.</div>
   </div>
   <h2>Which one, by what matters most</h2>
   <table class="t guide"><thead><tr><th>If the main priority is</th><th>Choose</th></tr></thead><tbody>
-    <tr><td>Of these three, no shift over 8h&nbsp;30m from Monday to Saturday</td><td><b>Even Step</b></td></tr>
     <tr><td>Of these three, today’s leave: ${CF.lv.best} days off for 14 days’ leave, four weeks for ${CF.lv.fourWeeks}</td><td><b>Common Ground</b></td></tr>
+    <tr><td>Of these three, no shift over 8h&nbsp;30m from Monday to Saturday</td><td><b>Even Step</b></td></tr>
     <tr><td>Of these three, the closest weekday fit and the shortest weekday lates</td><td><b>Short Run</b></td></tr>
     <tr class="grp"><th colspan="2">Outside the shortlist</th></tr>
     <tr><td>A 16:00 closer Monday to Saturday, shorter than the ${N}’s</td><td><b>${shortEvery[0]}</b> <span class="muted">· ${shortEvery[1]} too</span></td></tr>
@@ -612,26 +604,26 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 </section>
 
 <section class="page">
-  <div class="mast"><div><div class="eyebrow">The shortlist · continued</div><h1>Against today, and a recommendation</h1>
-  <div class="sub">On most of what a colleague feels the ${N} are the same${allShared ? ', so the table gives one figure for all three' : ` — a figure in grey is shared by ${both}`}</div></div></div>
+  <div class="mast"><div><div class="eyebrow">The shortlist · continued</div><h1>Against today, and how to choose</h1>
+  <div class="sub">On most of what a colleague feels the ${N} are the same, and a figure they share spans their columns</div></div></div>
 
   <h2>Against today’s link<span class="note">a year: the rotation’s count scaled to 52 weeks; days a year and full weekends off on page 1, the leave below</span></h2>
-  <table class="t${allShared ? ' t-today3' : ''}"><thead><tr>${todayHead}</tr></thead><tbody>${todayHtml}</tbody></table>
+  <table class="t cmp"><thead><tr>${todayHead}</tr></thead><tbody>${todayHtml}</tbody></table>
 
   <h2>Why these ${N} and not the other ${word(others.length)}</h2>
-  <p class="lead">Shortlisted on ${SHORTLIST_DATE}: Even Step, first in the pack’s league; Common Ground, as the example of the links that keep today’s leave; Short Run, which colleagues have seen. Each other design keeps something, and pays for it:</p>
+  <p class="lead">Shortlisted on ${SHORTLIST_DATE}: Common Ground, as the example of the links that keep today’s leave; Even Step, first in the pack’s league; Short Run, which colleagues have seen. Each other design keeps something, and pays for it:</p>
   <table class="t alts"><tbody>
     <tr><td>In Step</td><td>steadier weeks and a closer Saturday fit — but the most long earlies, ${longEarlyMS(IF)} a year each</td></tr>
-    <tr><td>Closing Time</td><td>shorter closers and a closer Saturday fit — but fewer weeks on one turn and a weaker weekday fit</td></tr>
-    <tr><td>Both Ways</td><td>shorter closers and more early finishes — but fewer weeks on one turn and more long shifts</td></tr>
+    <tr><td>Closing Time</td><td>shorter closers and a closer Saturday fit — but fewer weeks on one shift time and a weaker weekday fit</td></tr>
+    <tr><td>Both Ways</td><td>shorter closers and more early finishes — but fewer weeks on one shift time and more long shifts</td></tr>
     <tr><td>Home Grown</td><td>the fewest shift times and new times — but today’s ${hm(HG.closers[1])} Saturday closer and a weaker fit</td></tr>
     <tr><td>Even Keel, Fine Tune</td><td>four at the Saturday close — but weeks mixing earlies and lates, and longer blocks</td></tr>
     <tr><td>Second Edition</td><td>the steadiest start times from week to week — but ${word(O['Second Edition'].F.fixedRun)} days in a row, cover weeks aside</td></tr>
-    <tr><td>Second Look</td><td>no 55-hour week at all — but ${word(SL.fixedRun)} days in a row and fewer weeks on one turn</td></tr>
+    <tr><td>Second Look</td><td>no 55-hour week at all — but ${word(SL.fixedRun)} days in a row and fewer weeks on one shift time</td></tr>
     <tr><td>Clean Slate</td><td>the best weekend fit of all — but ${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday</td></tr>
     <tr><td>Next Step</td><td>Even Step with a closer weekday fit and a gentler change of start — but one more new time</td></tr>
     <tr><td>Fair Share</td><td>Next Step with an even Sunday and no shift over 8h&nbsp;30m — but a weaker Sunday fit and a new time</td></tr>
-    <tr><td>Grand Tour</td><td>today’s leave and no shift over 8h&nbsp;30m on any day — but fewer weeks on one turn</td></tr>
+    <tr><td>Grand Tour</td><td>today’s leave and no shift over 8h&nbsp;30m on any day — but fewer weeks on one shift time</td></tr>
     <tr><td>Open Return, Short Openers</td><td>today’s leave and no 55-hour week — but a ${hm(orsoRest)} shortest rest and more long shifts</td></tr>
     <tr><td>Long Break</td><td>Common Ground’s four weeks for ${LB.lv.fourWeeks} days’ leave and fewer single rest days — but ${word(LB.fixedRun)} days in a row</td></tr>
   </tbody></table>
@@ -641,21 +633,19 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <li><b>Late finishes.</b> ${late23} a year each at 23:00 or later (today ${TF.late23}) and ${late22} at 22:00 or later (today ${TF.late22}) on ${both}. Three to the close every day, where today has two Monday to Saturday, means no link meeting the rules has fewer than ${late23} at 23:00 or later.</li>
     <li><b>Longer blocks.</b> Up to ${blockF} weeks of earlies or of lates in a row on ${both}, ${blockW} with cover weeks beside them (today ${TF.block.fixed}, up to ${TF.block.worst}).</li>
     <li><b>Fewer long breaks.</b> Today ${word(longRest(TF))} of its ${TF.A.feel.restIslands} rest-day breaks are three or four days, about ${longRestYear(TF)} a year each; Common Ground has ${word(longRest(CF))}, of three days, about ${longRestYear(CF)} a year each, and the other two none.</li>
-    <li><b>Early finishes.</b> Fewer before 14:00 than today’s ${earlyOff(TF)} a year each: ${earlyOff(EF)} on Even Step, ${earlyOff(CF)} on Common Ground, none on Short Run.</li>
-    <li><b>Leave, on Even Step and Short Run.</b> 14 days’ leave buys at best ${EF.lv.best} days off, not today’s ${TF.lv.best}, and four complete weeks off in a row, Sunday to Saturday, take ${EF.lv.fourWeeks} days’ leave, not ${TF.lv.fourWeeks} — the two that people plan a year around. Common Ground keeps today’s, for ${isoYear(CF)} single rest days a year, not ${isoYear(EF)}. At worst 14 days buys ${lvWorst} days off on ${both}, a day more than today’s ${TF.lv.worst}.</li>
+    <li><b>Early finishes.</b> Fewer before 14:00 than today’s ${earlyOff(TF)} a year each: ${earlyOff(CF)} on Common Ground, ${earlyOff(EF)} on Even Step, none on Short Run.</li>
+    <li><b>Leave, on Even Step and Short Run.</b> 14 days’ leave buys at best ${EF.lv.best} days off, not today’s ${TF.lv.best}, and four complete weeks off in a row, Sunday to Saturday, take ${EF.lv.fourWeeks} days’ leave, not ${TF.lv.fourWeeks} — the two that people plan a year around. Common Ground keeps today’s, for ${isoYear(CF)} single rest days a year, not ${isoYear(EF)}. At worst 14 days buys ${lvWorst} days off on ${both}, a day more than today’s ${TF.lv.worst}.</li>
     <li><b>Saturdays.</b> About ${shared('Saturdays a year', F => Math.round(F.pp.sat)) - Math.round(TF.pp.sat)} more a year on ${both} (${Math.round(EF.pp.sat)}, today ${Math.round(TF.pp.sat)}): ${word(shared('Saturday duties', F => F.satDuties))} on a Saturday across ${LINES} lines, today ${word(TF.satDuties)} across ${TF.pp.L}.</li>
-    <li><b>New times.</b> ${EF.newT} of Even Step’s ${EF.times} shift times are new, ${CF.newT} of Common Ground’s ${CF.times}, ${SF.newT} of Short Run’s ${SF.times}: shorter versions of today’s lates on each (${word(shorterLates(EF))}, ${word(shorterLates(CF))} and ${word(shorterLates(SF))}), and besides, a <span class="nw">12:15–20:30</span> and a 9-hour Sunday early on Even Step; a <span class="nw">07:00–15:30</span> early, the 9-hour Saturday late and two Sunday earlies on Common Ground; a longer weekday early and the Sunday early on Short Run.</li>
+    <li><b>New times.</b> ${CF.newT} of Common Ground’s ${CF.times} shift times are new, ${EF.newT} of Even Step’s ${EF.times}, ${SF.newT} of Short Run’s ${SF.times}: shorter versions of today’s lates on each (${word(shorterLates(CF))}, ${word(shorterLates(EF))} and ${word(shorterLates(SF))}), and besides, a <span class="nw">07:00–15:30</span> early, the 9-hour Saturday late and two Sunday earlies on Common Ground; a <span class="nw">12:15–20:30</span> and a 9-hour Sunday early on Even Step; a longer weekday early and the Sunday early on Short Run.</li>
   </ul>
 
-  <h2>Recommendation</h2>
-  <div class="callout pick"><b>Even Step.</b> Alone of the three, no shift over 8h&nbsp;30m Monday to Saturday (Common Ground ${longMS(CF)} a year each, Short Run ${longMS(SF)}, today ${longMS(TF)}), and every early there one of today’s times; the 13:45 stays every weekday. The fewest shift times, ${EF.times} with ${EF.newT} new, the steadiest weeks (${hm(EF.light)} to ${hm(EF.heavy)}) and the closest Saturday fit (${f1(EF.fit[1])}); with Common Ground, the ${hm(EF.A.rest.minutes)} rest and ${hm(EF.closers[1])} Saturday closer; with Short Run, ${isoYear(EF)} single rest days a year, not ${isoYear(CF)}. Days in a row, weekends and late finishes as both. Between the other two: weekday lates (${hm(lateAvg(EF))}), early finishes (${earlyOff(EF)} a year), weekday fit (${f1(EF.fit[0])}) and new Saturday times (one). Its costs: the biggest change of start, ${hm(Math.round(EF.step))} (Common Ground ${hm(Math.round(CF.step))}, Short Run ${hm(Math.round(SF.step))}); and, as on Short Run, ${one(EF)} of ${wl} weeks on one shift time, a ${f1(EF.fit[2])} Sunday fit and four weeks off for ${EF.lv.fourWeeks} days’ leave, ${EF.lv.best} days at best, where Common Ground has ${one(CF)}, ${f1(CF.fit[2])} and today’s ${TF.lv.fourWeeks} and ${TF.lv.best}.</div>
-  <p class="lead" style="margin-top:8px"><b>But it is a judgement.</b> In the pack’s weighted league (the owner’s weights) Even Step is ${ord(rankOf('Even Step'))}, on ${f1(total('Even Step'))}, under half a point ahead of ${list(NEXT3)}; Short Run is ${ord(rankOf('Short Run'))}. Of the links keeping today’s leave, Grand Tour scores ${f1(total('Grand Tour'))} and Common Ground ${f1(total('Common Ground'))}. Weighted as before 31&nbsp;Oct, Even Step was second, behind In Step. So choose by what matters here:</p>
+  <h2>How to choose<span class="note">each of the ${N} is the one to choose for something different</span></h2>
   <ul class="list">
-    <li><b>Choose Even Step</b> if avoiding long days, Monday to Saturday, matters most — for a ${hm(Math.round(EF.step))} change of start and four weeks off for ${EF.lv.fourWeeks} days’ leave.</li>
     <li><b>Choose Common Ground</b> if keeping today’s leave matters most — for ${isoYear(CF)} single rest days a year, a weaker weekday fit, four at the open and ${word(CF.newT)} new shift times.</li>
-    <li><b>Choose Short Run</b> if the weekday fit and short weekday lates matter most — for ${an(hm(SF.closers[1]))} Saturday closer, no 13:45, ${longEarlyMS(SF)} earlies a year each over 8h&nbsp;30m and four weeks off for ${SF.lv.fourWeeks} days’ leave.</li>
+    <li><b>Choose Even Step</b> if avoiding long days, Monday to Saturday, matters most — for a ${hm(Math.round(EF.step))} change of start and four weeks off for ${EF.lv.fourWeeks} days’ leave.</li>
+    <li><b>Choose Short Run</b> if the weekday fit and short weekday lates matter most — for ${an(hm(SF.closers[1]))} Saturday closer, no 13:45, ${longEarlyMS(SF)} earlies a year each over 8h&nbsp;30m and four weeks off for ${SF.lv.fourWeeks} days’ leave.</li>
   </ul>
-  <div class="foot"><span>Page 2 of 2 — Against today, the costs, the recommendation</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Links designer</span></div>
+  <div class="foot"><span>Page 2 of 2 — Against today, the costs, how to choose</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;
 // a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space
@@ -675,11 +665,14 @@ await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready
 // 5 Oct 2026 silently hid the choice guide's last row and the closing paragraph. Refuse to print a page that overflows.
 // Measured at the PRINT width (A4 less the 11 mm side margins, 711 px) under print media: at screen width the text
 // wraps less and an over-full page looks fine, which is how the first version of this guard passed a broken page.
+// AND 8PX CLEAR OF IT (5 Nov 2026, the looks review): "not over the footer" let a last line sit 3.5pt above its rule, which
+// printed as text on the line
+const CLEAR = 8;
 { await pg.emulateMedia({ media: 'print' }); await pg.setViewportSize({ width: 711, height: 1100 });
-  const over = await pg.evaluate(() => [...document.querySelectorAll('.page')].map((p, i) => { const foot = p.querySelector('.foot');
+  const over = await pg.evaluate((CLEAR) => [...document.querySelectorAll('.page')].map((p, i) => { const foot = p.querySelector('.foot');
     const lim = foot ? foot.getBoundingClientRect().top : p.getBoundingClientRect().bottom;
     const low = Math.max(...[...p.children].filter(c => c !== foot).map(c => c.getBoundingClientRect().bottom));
-    return [i + 1, Math.round(Math.max(low - lim, p.scrollHeight - p.clientHeight, p.scrollWidth - p.clientWidth))]; }).filter(([, d]) => d > 1));   // and nothing wider than the page
-  if (over.length) throw new Error(`content runs into the footer or off the page (page, px): ${JSON.stringify(over)}`); }
+    return [i + 1, Math.round(Math.max(low - lim + CLEAR, p.scrollHeight - p.clientHeight, p.scrollWidth - p.clientWidth))]; }).filter(([, d]) => d > 1), CLEAR);   // and nothing wider than the page
+  if (over.length) throw new Error(`content runs into the footer, within ${CLEAR}px of it, or off the page (page, px): ${JSON.stringify(over)}`); }
 await pg.pdf({ path: OUT, format: 'A4', printBackground: true, preferCSSPageSize: true });
 await b.close(); console.log('wrote', OUT);

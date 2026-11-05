@@ -2,7 +2,7 @@
 # kept outside the pack, they joined it the same evening, when the owner put Common Ground on the shortlist: "I would like
 # common ground in the shortlist as the best 30 day example, short run too because colleagues have seen it and the best one of
 # the others which I think is even step". So these two are written to ../presentations/ beside the other shortlisted decks,
-# and say Common Ground is one of three shortlisted designs, with Even Step recommended (fresh.mjs: SHORTLIST, RECOMMENDED).
+# and say Common Ground is one of three shortlisted designs (fresh.mjs: SHORTLIST), none recommended since 5 Nov 2026.
 #
 # Common Ground (CG-26-T8) is today's link taken to 26 weeks, on the owner's brief of 4 Nov 2026: today's 13:45 and 14:20
 # kept as the openers' finishes, closers from 15:45, an even Sunday, and 14 days' leave buying 30 days off,
@@ -48,8 +48,8 @@ OUT = SRC                                                              # beside 
 NAME, BASE = 'Common Ground', 'Even Step'
 (CODE, FP), (BCODE, BFP) = dp.IDS[NAME], dp.IDS[BASE]
 SHORT = dp.SHORTLIST
-if NAME not in SHORT or BASE not in SHORT or dp.RECOMMENDED != BASE:
-    raise SystemExit(f'common-ground-decks: written for {NAME} on the shortlist beside {BASE}, the recommended design; the shortlist is {SHORT}, recommending {dp.RECOMMENDED}')
+if NAME not in SHORT or BASE not in SHORT:   # none recommended since 5 Nov 2026 (owner: "Remove the marks"); deck-polish refuses one that returns
+    raise SystemExit(f'common-ground-decks: written for {NAME} on the shortlist beside {BASE}; the shortlist is {SHORT}')
 FIG, T = dp.FIG, dp.T
 F, E = FIG[NAME], FIG[BASE]
 PEERS = [n for n in SHORT if n != NAME]                                # the other two shortlisted links
@@ -62,6 +62,8 @@ P, PE, TP = grid(GRID), grid(dp.DESIGNS[BASE]), dp.TODAY_P
 # with an ordinary space into NAME, so these survive it, and a sentence of Even Step's left by mistake does not
 NB = lambda n: n.replace(' ', '\u00a0')
 ES_, SR_ = NB('Even Step'), NB('Short Run')
+andl = lambda a: a[0] if len(a) == 1 else ', '.join(a[:-1]) + ' and ' + a[-1]
+PEERS_NB_OF = lambda n: [NB(x) for x in SHORT if x != n]   # the other shortlisted names, A to Z, with the no-break space the polish writes in notes
 
 # ── what the grids say, computed once ───────────────────────────────────────────────────────────────────────────────────
 hm = lambda m: f'{m // 60}h {m % 60:02d}m'
@@ -213,7 +215,7 @@ def colleagues(d):
     check('a swap for a late earns less overtime than today', swap_min(F) < swap_min(T) and int(F['shortYear']) < int(T['shortYear']) and int(F['swapShortMins']) < int(T['swapShortMins']))
     s = S(5)
     cell(s, 19, E['swap'], F['swap'], AMBER); cell(s, 23, E['shortYear'], F['shortYear'], AMBER)   # both still less than today's, as the subtitle says
-    bar = lambda p: f'No: basic pay stays the same. Premium and overtime pay come to about £{p} a year less, gross, if you work your share of Sundays. That assumes no swap overtime.'
+    bar = lambda p: f'No. Basic pay stays the same. Premium and overtime pay come to about £{p} a year less, gross, if you work your share of Sundays. That assumes no swap overtime.'
     put(s, bar(pe), bar(pounds)); s.save()
     notes(d, 5, 'Basic pay follows the 35-hour week', text_f)
     same('slide 5’s Saturday and Sunday rows', 'sat', 'sun', 'sundayPeople', 'people')
@@ -272,7 +274,7 @@ def colleagues(d):
         first = runs_of(s.x[slice(*spans(s.x)[i])])[0]
         s.paras(i, first, [(0, t) for t in part])
     lines = ['Closers start later: 30 minutes on weekdays, an hour on Saturdays, 45 minutes on Sundays',
-             'A new early, 07:00–15:30, and a 9-hour Saturday late, 13:30–22:30',
+             'A new early, 07:00–15:30, and a\u00a09\u2011hour\u00a0Saturday\u00a0late, 13:30–22:30',   # kept together, with a no-break hyphen: it broke at "9- / hour"
              'On Sundays: 07:15–15:30, 09:00–17:30 and the ticket-office late, 14:30–22:30']
     named = {t for ln in lines for t in re.findall(r'\d\d:\d\d–\d\d:\d\d', ln)}
     closers = {t for t in NEW if t[6:] in ('23:55', '23:25')}
@@ -288,7 +290,7 @@ def colleagues(d):
     check('the Sunday office late a pair, the 13:30–22:30 today’s 13:30–22:00 half an hour longer', SAT_LONG[:5] == '13:30' and _len(SAT_LONG) - _len('13:30-22:00') == 30)
     ts_e, ts_s = tn(FIG['Even Step']), tn(FIG['Short Run'])
     check('the other two shortlisted links each keep more of today’s times than this one', all(k > n_known for _, k in (ts_e, ts_s)))
-    notes(d, 8, f'{BASE} was built', f'{NAME} was built from today’s link. '
+    notes(d, 8, f'{BASE} was built', f'{NAME} starts from what you know today — the 13:45 and 14:20 finishes and today’s leave — on new weeks. '
           f'{WORDS[n_known].capitalize()} of its fourteen times are worked today, and it uses fewer different times overall than today’s eighteen, '
           f'though the other two shortlisted links keep a few more of today’s ({ES_} {ts_e[1]} of {ts_e[0]}, {SR_} {ts_s[1]} of {ts_s[0]}). '
           'Today’s 06:20–13:45 stays on every weekday, and today’s 06:20–14:20 too; nobody finishes at 13:35. '
@@ -313,12 +315,12 @@ def colleagues(d):
     swap_in(d, 9, f'and {ne_a} of the {ne_b} keep one shift time Monday to Friday', f'and {one_turn_a} of the {one_turn_b} keep one shift time Monday to Friday')
     rl_e = dp.rest_lens(PE)
     old_breaks = (f'Rest days mostly come in pairs: {rl_e.count(2)} of the {len(rl_e)} rest-day breaks are two days and the other {WORDS[rl_e.count(1)]} single days, none longer; '
-                  f'today {T["breaks"]} are two days or more, {WORDS[sum(1 for n in rl_t if n > 2)]} of them three or four days (about {round(sum(1 for n in rl_t if n > 2) * 52 / len(TP))} a year each). '
+                  f'today {T["breaks"]} are two days or more, {WORDS[sum(1 for n in rl_t if n > 2)]} of them three or four days, about one every {WORDS[round(len(TP) / sum(1 for n in rl_t if n > 2))]} weeks each. '
                   f'Single rest days stay at {WORDS[rl_e.count(1)]}, as today, so fewer a year each: about {round(rl_e.count(1) * 52 / len(PE))}, against {sg_y_t}.')
     check('two days, three days and single days, nothing longer', set(rl) == {1, 2, 3} and rl.count(3) == 2)
     swap_in(d, 9, old_breaks,
             f'Rest days mostly come in pairs: {rl.count(2)} of the {len(rl)} rest-day breaks are two days, {WORDS[rl.count(3)]} are three days and the other {WORDS[sg]} single days; '
-            f'today {T["breaks"]} are two days or more, {WORDS[sum(1 for n in rl_t if n > 2)]} of them three or four days (about {round(sum(1 for n in rl_t if n > 2) * 52 / len(TP))} a year each). '
+            f'today {T["breaks"]} are two days or more, {WORDS[sum(1 for n in rl_t if n > 2)]} of them three or four days, about one every {WORDS[round(len(TP) / sum(1 for n in rl_t if n > 2))]} weeks each. '
             f'Single rest days go up from {WORDS[sg_t]} to {WORDS[sg]}, about {sg_y} a year each against {sg_y_t}. Every layout found that keeps 30 days off for 14 days’ leave has more than {WORDS[singles(PE)]}.')
     check('no six-day weeks (today one)', not any(sum(1 for dd in DAYS if _timed(P[k][dd])) >= 6 for k in P) and sum(1 for k in TP if sum(1 for dd in DAYS if _timed(TP[k][dd])) >= 6) == 1)
 
@@ -333,7 +335,7 @@ def colleagues(d):
     for i, k in ((7, 'leaveBest'), (19, 'leaveFour')):
         cell(s, i, E[k], F[k], NAVY)   # today's figures again: not a gain against today, as Even Step's were a cost
     put(s, f'Best stretch {E["leaveBest"]} days, not {T["leaveBest"]}; four full weeks off in a row, Sunday to Saturday, costs {E["leaveFour"]}\u00a0days’ leave, not {T["leaveFour"]}. Average the same, worst a day better.',
-        f'As today: 14 days’ leave buys up to {F["leaveBest"]} days off, and four full weeks off in a row, Sunday to Saturday, take {F["leaveFour"]}\u00a0days’ leave. Average the same, worst a day better.')
+        f'As today: 14 days’ leave buys up to {F["leaveBest"]} days off, and four full weeks off in a row, Sunday\u00a0to\u00a0Saturday, take {F["leaveFour"]}\u00a0days’ leave. Average the same, worst a day better.')
     s.save()
     notes(d, 11, 'Leave is only needed on working days', 'Leave is only needed on working days Monday to Saturday; rest days and Sundays cost nothing. '
           f'Today there is one stretch of the roster where 14 days buys 30 days off, and {NAME} has such a stretch too, so its best is {F["leaveBest"]} as well. '
@@ -350,7 +352,7 @@ def colleagues(d):
     s.save()
     same('slide 12’s rows and bar', 'dailyWk', 'dailyWeekend', 'floorMin', 'ff')
     dp.explain_h55(NAME, F)
-    swap_in(d, 12, f'those seven days can come to {E["h55"]} hours', f'those seven days can come to {F["h55"]} hours')
+    swap_in(d, 12, f'those seven days can come to {E["h55"]} with', f'those seven days can come to {F["h55"]} with')
 
     # SLIDE 13: the trade-offs — the leave card becomes the single rest days, the new times are this design's
     s = S(13)
@@ -361,9 +363,15 @@ def colleagues(d):
     put(s, f'{WORDS[e_times - e_known].capitalize()} new shift times to learn', f'{WORDS[len(NEW)].capitalize()} new shift times to learn')
     put(s, 'Three shorter versions of today’s lates, a new 8h\u00a015m late and the 9-hour Sunday early.', 'Three shorter lates, a new 07:00 early, a 9-hour Saturday late and two Sunday earlies.')
     put(s, f'Four weeks off: {E["leaveFour"]} days’ leave, not {T["leaveFour"]}', 'More single rest days')
-    put(s, 'The least leave for four complete weeks off in a row, Sunday to Saturday.', f'{WORDS[sg].capitalize()} in 26 weeks, about {sg_y} a year each (today\u00a0about\u00a0{sg_y_t}).')   # kept together: "(today" ended a line
+    put(s, 'The least leave for four complete weeks off in\u00a0a\u00a0row, Sunday to Saturday.', f'{WORDS[sg].capitalize()} in 26 weeks, about {sg_y} a year each (today\u00a0about\u00a0{sg_y_t}).')   # kept together: "(today" ended a line
     eo, eo_t = dp.early_off(P), dp.early_off(TP)
-    put(s, f'{dp.early_off(PE)} a year each finish before 14:00 (today {eo_t}).', f'{eo} a year each finish before 14:00 (today {eo_t}).')
+    # the long breaks beside them (whole-pack review, 5 Nov 2026), counted as the polish counts Even Step's: this one keeps two
+    # three-day breaks in 26 weeks, about four a year each, where today has five of three or four days in 20
+    lb_y = lambda g: round(sum(1 for n in dp.rest_lens(g) if n > 2) * 52 / len(g))
+    lb, lb_t = lb_y(P), lb_y(TP)
+    check('fewer long breaks than today, all of them three days', 0 < lb < lb_t and max(dp.rest_lens(P)) == 3)
+    put(s, f'{dp.early_off(PE)} a year each finish before 14:00 (today {eo_t}); no 3\u2011 or 4\u2011day breaks (today {lb_t} a year).',
+        f'{eo} a year each finish before 14:00 (today {eo_t}); {lb} three\u2011day breaks a year (today {lb_t}).')
     s.save()
     check('fewer early finishes than today', eo < eo_t)
     same('slide 13’s other cards: the blocks, the Saturdays, the late finishes', 'block', 'blockUpTo', 'sat', 'late23', 'late22')
@@ -371,13 +379,12 @@ def colleagues(d):
     # SLIDE 14: the table's own rows are deck-check.mjs's; the costs line gains the single rest days
     p14 = f'{d}/ppt/slides/slide14.xml'; dp.replace_run(p14, E['times'], F['times'])
     s = S(14)
-    put(s, 'The costs: more late finishes and longer runs of earlies or lates.', 'The costs: more late finishes, more single rest days and longer runs of earlies or lates.')
+    put(s, f'The costs: more late finishes, longer runs of earlies or lates and {E["leaveFour"]}\u00a0days’\u00a0leave\u00a0for\u00a0four\u00a0weeks\u00a0off.', 'The costs: more late finishes, longer runs of earlies or lates and more single rest days.')
     s.save()
     # SLIDE 15: the credit line is Even Step's with the longer name, which pushed "tooling" onto a line of its own at 12pt;
     # at 11pt it is one line again (measured from the PDF)
     s = S(15)
-    i = shape_of(s, f'{BASE} · {BCODE} · every figure worked out from the rota by the Marylebone Roster app and its tooling')
-    s.sub(i, 'sz="1200"', 'sz="1100"', count=2); s.save()
+    shape_of(s, f'{BCODE} · every figure worked out from the rota by the Marylebone Roster app and its tooling')   # the polish's, at 13pt; the rename gives it this code
 
 def strip(d):
     """Slide 10's picture, drawn by rota-strip.mjs from this design's grid, in Even Step's place and at its size."""
@@ -393,20 +400,22 @@ def managers(d):
     S = lambda n: Slide(f'{d}/ppt/slides/slide{n}.xml')
     sg, sg_t = singles(P), singles(TP)
     s = S(1)
-    put(s, 'The recommended new CEA link, in ten minutes', f'One of {WORDS[len(SHORT)]} shortlisted new CEA links, in ten minutes')
-    put(s, f'For managers · from 1 January 2027 · 26 weeks · code {BCODE} · the full proposal sheet has the detail', f'For managers · from 1 January 2027 · 26 weeks · code {BCODE} · {ES_} is recommended')
+    shape_of(s, f'One of {WORDS[len(SHORT)]} shortlisted new CEA links, in ten minutes')   # as the polish writes every shortlisted deck's
+    shape_of(s, f'For managers · from 1 January 2027 · 26 weeks · code {BCODE} · the full proposal sheet has the detail')
     s.save()
-    # notes 1 as deck-polish.py writes them for a shortlisted design that is not the recommended one
-    if not note_text(d, 1).endswith('and has been checked independently.'): raise SystemExit('managers’ notes 1 no longer end as this file expects')
-    swap_in(d, 1, 'and has been checked independently.', f'and has been checked independently. {ES_} is the recommended design; this deck sets out {NAME} on its own terms.')
+    # notes 1 as deck-polish.py writes them for every shortlisted design, with this one's name and the other two
+    swap_in(d, 1, f' {ES_} is one of {WORDS[len(SHORT)]} shortlisted designs, with {andl(PEERS_NB_OF(BASE))}, and this deck sets out {ES_} on its own terms.',
+            f' {NAME} is one of {WORDS[len(SHORT)]} shortlisted designs, with {andl(PEERS_NB_OF(NAME))}, and this deck sets out {NAME} on its own terms.')
     s = S(2)
     put(s, 'Every December staffing rule met — and no shift over 8h 30m, Monday to Saturday.', 'Every December staffing rule met — and 30 days off for 14 days’ leave, as now.')
     s.save()
     same('slide 2’s four numbers', 'met', 'hours', 'people')
     check('no avoidable fatigue warning, cover weeks aside', dp.first(F['ff']) == 0)
-    # SLIDE 3: four at the open, the minimum — the same as today but on a Sunday, so not coloured as a gain
+    # SLIDE 3: four at the open, the minimum — today's four Monday to Saturday and one more on a Sunday, so a gain, green as the
+    # proposal sheet's ✓ colours it (whole-pack review, 5 Nov 2026: it was navy, as though level with today)
     s = S(3)
-    cell(s, 11, E['open'], F['open'], NAVY); s.save()
+    check('as many at the open as today Monday to Saturday, and more on a Sunday', [int(x) for x in F['open'].split(' · ')] == [4, 4, 4] and [int(x) for x in T['open'].split(' · ')] == [4, 4, 3])
+    cell(s, 11, E['open'], F['open'], GREEN); s.save()
     same('slide 3’s other rows and bar', 'daily', 'at22', 'close', 'floor')
     check('four at the open every day, the minimum', F['open'] == '4 · 4 · 4')
     if not note_text(d, 3).endswith('which is what keeps its late finishes down.'): raise SystemExit('managers’ notes 3 no longer end as this file expects')
@@ -452,7 +461,7 @@ def managers(d):
     swap_in(d, 5, f'{E["sunHours"]} of overtime each Sunday against {T["sunHours"]}', f'{F["sunHours"]} of overtime each Sunday against {T["sunHours"]}')
     same('slide 5’s rows, bar and the rest of its notes', 'people', 'hours', 'cover', 'sundayPeople', 'sun', 'daysYear')
     # SLIDE 6: the 55-hour week
-    swap_in(d, 6, f'seven days can reach {E["h55"]} hours', f'seven days can reach {F["h55"]} hours')
+    swap_in(d, 6, f'seven days can reach {E["h55"]} with', f'seven days can reach {F["h55"]} with')
     same('slide 6’s rows', 'ff', 'run', 'rest', 'longest')
     # SLIDE 7: WHY THIS ONE, ON THE SHORTLIST (5 Nov 2026). The three lines on what all three give are Even Step's, kept as the
     # polish wrote them and checked true of this design too; what it adds is its own against the other two; what it costs,
@@ -467,8 +476,11 @@ def managers(d):
                  'What all three cost: more late finishes and two more Saturdays a year.'):
         shape_of(s, line)   # refused if Even Step's slide no longer says it
     for old, new in (('This one adds: no shift over 8h 30m and every early one of today’s times, Mon–Sat', 'This one adds: 30 days off for 14 days’ leave, and four weeks off for 14, as now'),
-                     (f'Shift times: {tn(E)[0]} (today {T["times"]}), {tn(E)[1]} of them worked today', f'Shift times: {tn(F)[0]} (today {T["times"]}), {tn(F)[1]} of them worked today'),
-                     (f'This one costs: start times that move most week to week, {E["step"]} on average', f'This one costs: {WORDS[sg]} single rest days, not {WORDS[singles(PE)]}, and a slightly weaker weekday fit')):
+                     (f'All three: fewer shift times than today’s {T["times"]} — here {tn(E)[0]}, {tn(E)[1]} worked today', f'All three: fewer shift times than today’s {T["times"]} — here {tn(F)[0]}, {tn(F)[1]} worked today'),
+                     # A YEAR EACH, AGAINST TODAY AND THE OTHER TWO (whole-pack review, 5 Nov 2026): "six single rest days, not four"
+                     # set 26 weeks against 26 and left out today's 10 a year; the weaker fit (32.7 against Even Step's 32.6) is notes 7's
+                     (f'This one costs: start times that move most week to week, {E["step"]} (today {T["step"]})',
+                      f'This one costs: {round(sg * 52 / len(P))} single rest days a year, where today has {round(sg_t * 52 / len(TP))} and the other two {round(singles(PE) * 52 / len(PE))}')):
         put(s, old, new)
     check('fewer shift times than today, on this one and the other two', tn(F)[0] < int(T['times']) and all(tn(v)[0] < int(T['times']) for v in o.values()))
     check('the other two shortlisted links both have four single rest days', all(singles(dp.grid_of(n)) == singles(PE) for n in PEERS) and sg > singles(PE))
@@ -482,16 +494,17 @@ def managers(d):
     sat_long_year = round(a_year(P, lambda s_, d_: s_ == SAT_LONG))
     fam = {n: familiar_ms(dp.grid_of(n)) for n in PEERS}
     long_o = {n: long_ms(dp.grid_of(n)) for n in PEERS}
-    notes(d, 7, f'{ES_} is the recommended design.',
-          f'{NAME} (4 November 2026) is today’s link taken to 26 weeks: today’s 13:45 and 14:20 kept as the openers’ finishes, closers from 15:45 Monday to Saturday, an even Sunday, '
-          f'and 14 days’ leave buying 30 days off as it does today, on weeks that meet every rule. It is one of {WORDS[len(SHORT)]} shortlisted designs, the one that keeps today’s leave; {ES_} is the recommended one. '
+    notes(d, 7, f'{ES_} is one of {WORDS[len(SHORT)]} shortlisted designs',
+          f'{NAME} (4 November 2026) keeps what colleagues know best of today’s link on new 26-line weeks: today’s 13:45 and 14:20 as the openers’ finishes, '
+          f'and 14 days’ leave buying 30 days off as it does today; closers start from 15:45 Monday to Saturday, the Sunday is even, and the weeks meet every rule. '
+          f'It is one of {WORDS[len(SHORT)]} shortlisted designs, with {andl(PEERS_NB_OF(NAME))}, and the one of them that keeps today’s leave. '
           f'What it adds, against the other two: four weeks off for {F["leaveFour"]} days’ leave, where they need {E["leaveFour"]}, and {F["leaveBest"]} days off for 14 at best, where they buy {E["leaveBest"]}; '
           f'one shift time Monday to Friday in {F["oneTurn"]} weeks, where they have {o["Even Step"]["oneTurn"].split()[0]}; and the gentlest change of start from one week to the next, {F["step"]} on average '
           f'({ES_} {o["Even Step"]["step"]} and {SR_} {o["Short Run"]["step"]}; today {T["step"]}). '
           f'What it costs, against them: {WORDS[sg]} single rest days in 26 weeks, where they have {WORDS[singles(PE)]} (today {WORDS[sg_t]} in 20); a slightly weaker weekday fit to the trains, {F["fitWk"]} '
           f'({ES_} {o["Even Step"]["fitWk"]} and {SR_} {o["Short Run"]["fitWk"]}; today {T["fitWk"]}); and four at the open, the minimum, where they have five Monday to Saturday. '
-          f'Its shift times are the least familiar of the three: {tn(F)[1]} of its {tn(F)[0]} are worked today ({ES_} {tn(o["Even Step"])[1]} of {tn(o["Even Step"])[0]} and {SR_} {tn(o["Short Run"])[1]} of {tn(o["Short Run"])[0]}), '
-          f'and counted Monday to Saturday its share is {familiar_ms(P)}% ({ES_} {fam["Even Step"]}% and {SR_} {fam["Short Run"]}%). '
+          f'Its shift times are the least familiar of the three, counted as different times: {tn(F)[1]} of its {tn(F)[0]} are worked today ({ES_} {tn(o["Even Step"])[1]} of {tn(o["Even Step"])[0]} and {SR_} {tn(o["Short Run"])[1]} of {tn(o["Short Run"])[0]}), '
+          f'and counted duty by duty, Monday to Saturday, {familiar_ms(P)}% of its duties are at a time worked today ({ES_} {fam["Even Step"]}% and {SR_} {fam["Short Run"]}%). '
           f'Its one shift over 8h 30m is a 9-hour Saturday late, {dash(SAT_LONG)}, about {WORDS[sat_long_year]} a year each; {ES_} has none Monday to Saturday and {SR_} about {long_o["Short Run"]} a year each. '
           'Every closing shift is 30 to 60 minutes shorter than today’s. '
           f'The costs all three share are in the bar: {F["late23"]} finishes a year at 23:00 or later against {T["late23"]}, and {F["sat"]} Saturdays against {T["sat"]}.')
@@ -520,13 +533,13 @@ def managers(d):
           f'Finishes at 23:00 or later rise by about three a year each, all from the December staffing: three to the close every day, where today has two Monday to Saturday, so no link meeting the rules could have fewer. '
           f'Finishes at 22:00 or later rise from about {T["late22"]} to {F["late22"]}: the rules want five still on duty at 22:00, and two floor lates finish at 22:30 with the ticket office every weekday, which makes {WORDS[dp.first(F["at22"])]}. '
           f'Leave is only needed for working days, Monday to Saturday. Today one stretch lets 14 days’ leave buy 30 days off; this link has such a stretch too, and four whole weeks off take {F["leaveFour"]} days, as today; on average 14 days goes as far as today, {F["leaveAvg"]} days off. '
-          f'The price is in the rest days: {WORDS[sg]} single rest days in 26 weeks, about {sg_y} a year each against {sg_y_t} today, where the other two shortlisted links have {WORDS[singles(PE)]}. '
+          f'The price is in the rest days: {WORDS[sg]} single rest days in 26 weeks, about {sg_y} a year each against {sg_y_t} today, where the other two shortlisted links have about {round(singles(PE) * 52 / len(PE))}. '
           f'Blocks of earlies or lates run up to {F["block"]} weeks, {F["blockUpTo"]} if the cover weeks beside them go the same way (today {T["block"]}, up to {T["blockUpTo"]}), and two rest-day breaks are three days, where today {WORDS[sum(1 for n in rl_t if n > 2)]} are three or four days. '
           'The two extra Saturdays come from aiming for fourteen on a Saturday. '
           f'The pay figure is gross premium and overtime pay at the CEA rate of £{PAY["rate"]:.2f}, for someone working their full share of Sundays and no swap overtime; basic pay does not change. '
           f'On average, swapping an early for a late pays less on this link: on the same day a late is {F["swap"].replace("min", "minutes")} than an early, against {T["swap"].replace("min", "minutes")} today, and the shortest earlies, the 13:35 and 13:45 finishes that add most when swapped, fall from about {T["shortYear"]} a year each to {F["shortYear"]}. Other swaps may still add paid time. '
           f'No shift Monday to Friday is over 8h 30m; the one longer shift is the Saturday {dash(SAT_LONG)}, 9 hours. '
-          f'Not on the slide, but worth having to hand: one shift time Monday to Friday in {F["oneTurn"]} weeks (today {T["oneTurn"]}), every closing shift 30 to 60 minutes shorter, the shortest rest between shifts {F["rest"]} (today {T["rest"]}), '
+          f'Not on the slide, but worth having to hand: one shift time Monday to Friday, all earlies or all lates, in {F["oneTurn"]} weeks (today {T["oneTurn"]}), every closing shift 30 to 60 minutes shorter, the shortest rest between shifts {F["rest"]} (today {T["rest"]}), '
           f'at least {F["floorMin"]} on the floor at all times (today {T["floorMin"]}), {len(NEW)} of the {len(times(P))} shift times new to learn, and {F["late23"]} finishes a year at 23:00 or later (today {T["late23"]}). The full comparison is on the proposal sheet.')
     check('seven at 22:00 on a weekday: the office pair and two floor lates on 14:00–22:30, and the three closers', F['at22'].startswith('7 ·') and per_day(P, '14:00-22:30', WK) == {4} and per_day(P, '15:45-23:55', WK) == {3})
     check('late finishes three more a year; three to the close every day, today two Monday to Saturday', int(F['late23']) - int(T['late23']) == 3 and F['close'] == '3 · 3 · 3' and T['close'].startswith('2 · 2'))
@@ -544,7 +557,7 @@ def managers(d):
 # notes) are refused, since none of them can be true of Common Ground's own deck.
 ES_ONLY = re.compile(
     r'12:15–|09:00–\u2060?18:00|06:20–14:00|41h 30m|^13 \(8 you know\)$|^8 of 13$|^5 new ones$|[Ff]ive new shift|\(13, not 18\)|13 shift times in all'
-    r'|You work these today \(8\)|New times \(5\)|[Ee]ight of its thirteen|£250|£290|10h 50m|^5 min longer$|56\.8|83h 30m|^5 · 5 · 4$|^32\.6$'
+    r'|You work these today \(8\)|New times \(5\)|[Ee]ight of its thirteen|£250|£290|10h 50m|^5 min longer$|56h 45m|83h 30m|^5 · 5 · 4$|^32\.6$'
     r'|22 of 26|18 of the 21|^18 of 21$|four of the seven weekday earlies|its best is 28|^Best stretch 28|15 days’ leave, not 14|^15 days, not 14$'
     r'|[Nn]othing (over 8h 30m|Monday to Saturday runs over)|no early Monday to Saturday is new|move most week to week|[Tt]hough not Common Ground'
     r'|twice a year each|9-hour Sunday early|d1921b7a|ES-26-T5|no shift over 8h 30m|every early one of today|lates near today'

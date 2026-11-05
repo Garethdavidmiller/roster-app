@@ -334,11 +334,31 @@ export function currentRules(P, T, model = 'plan') {
 // on the sheet, and the summary's "up to" adds the row when it would. One function, so the two cannot disagree — and
 // fresh.mjs calls it rather than keeping its own copy (31 Oct 2026). The top of the range works each cover week's Sunday
 // as an 8-hour overtime duty too, the bottom leaves it off (cover-placement.mjs says why that is exact).
+// THE 55-HOUR ROW IN HOURS AND MINUTES (whole-pack review, 5 Nov 2026). The app gives the rolling week in hours to one
+// decimal, where every other duration on the sheets is hours and minutes — and to a railway eye "60.8" reads as 60h 08m.
+// So the sheets give the same rolling week counted in whole minutes. The app's minute count (maxMinutesInAny7Days) is not
+// exported, so its loop is restated here, and every figure is checked against the app's own: the minutes must round to the
+// hours it shows, or the build stops. The range below is taken on the minutes too, so "over 55" is never asked of a rounded
+// figure — 55h 02m is 55.0 to one decimal, the trap the app's own verdict was fixed for.
+export function max7Minutes(seq) {
+  const n = seq.length; let best = 0;
+  for (let i = 0; i < n; i++) { let m = 0; for (let k = 0; k < 7; k++) m += dutyMinutes(seq[(i + k) % n].shift) ?? 0; if (m > best) best = m; }
+  return best;
+}
+const is55 = r => r.code === 'MRSF' && /55 hours/.test(r.title);
+function with55Minutes(fatigue, p, lines) {
+  const r = fatigue.results.find(is55); if (!r) return fatigue;
+  const m = max7Minutes(toSequence(p, lines));
+  if (Math.abs(m / 60 - r.value) > 0.05 + 1e-9) throw new Error(`the 55-hour row: ${m} minutes, against the app's ${r.value} hours`);
+  r.minutes = m; return fatigue;
+}
 export function h55Worst(p, lines) {
-  const table = assessFatigue(p, lines).results.find(r => r.code === 'MRSF' && /55 hours/.test(r.title))?.value; const n = coverLines(p, lines).length;
-  const v = sunday => placementCombos(n).map(c => maxHoursInAny7Days(toSequence(materialise(p, lines, c, '09:00-17:00', sunday), lines)));
-  const lo = Math.min(...v(false)), hi = Math.max(...v(true));
-  return table == null ? null : { table, lo, hi, adds: hi > 55 && table <= 55 };
+  const t = with55Minutes(assessFatigue(p, lines), p, lines).results.find(is55), table = t?.value, tableMin = t?.minutes; const n = coverLines(p, lines).length;
+  const v = sunday => placementCombos(n).map(c => { const seq = toSequence(materialise(p, lines, c, '09:00-17:00', sunday), lines), m = max7Minutes(seq);
+    if (Math.abs(m / 60 - maxHoursInAny7Days(seq)) > 0.05 + 1e-9) throw new Error(`h55Worst: ${m} minutes against the app's ${maxHoursInAny7Days(seq)} hours`);
+    return m; });
+  const loMin = Math.min(...v(false)), hiMin = Math.max(...v(true)), h1 = m => Math.round(m / 60 * 10) / 10;
+  return table == null ? null : { table, tableMin, lo: h1(loMin), hi: h1(hiMin), loMin, hiMin, adds: hiMin > 55 * 60 && tableMin <= 55 * 60 };
 }
 // THE FIXED DUTIES (owner, 1 Oct 2026: "you were highlighting worst case on cover-week placement for days in a row — now
 // you are just doing worst possible with cover week. Isn't that misleading?"). A cover week is four duties the roster
@@ -349,13 +369,13 @@ export function h55Worst(p, lines) {
 // a limit must hold wherever the clerk puts the four.
 function fixedView(p, lines) {
   const q = {}; for (const k of Object.keys(p)) { q[k] = {}; for (const d of DAYS) q[k][d] = p[k][d] === 'SPARE' ? 'RD' : p[k][d]; }
-  const fatigue = assessFatigue(q, lines);
+  const fatigue = with55Minutes(assessFatigue(q, lines), q, lines);
   return { fatigue, present: fatigue.present, run: runDesignChecks(q, lines).longestStretch };
 }
 export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') {
   const keys = Array.from({ length: lines }, (_, i) => String(i+1));
   const checks = runDesignChecks(p, lines), hours = weeklyHours(p, lines), totals = lineTotals(p, lines);
-  const fatigue = assessFatigue(p, lines), hard = assessHardLimits(p, lines), adj = scoreOrder(p, keys, { maxRunTarget: 6 });
+  const fatigue = with55Minutes(assessFatigue(p, lines), p, lines), hard = assessHardLimits(p, lines), adj = scoreOrder(p, keys, { maxRunTarget: 6 });
   // THE CONTRACTED-DAYS CEILING (owner, 1 Oct 2026, RULES.md): a 26-line design gives 219 contracted days a year or fewer,
   // today's figure. It is part of the contract, so it is a HARD limit: a design over it cannot be put forward as it stands,
   // and every check that counts breaches (page 1's "Can it be run?") counts it. Today's link is measured, not held to it.

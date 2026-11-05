@@ -42,7 +42,7 @@ const todayRest = TA.rest?.minutes ?? null;
 // Fatigue: the factor list, and in how many proposals each is present. MRSF carries four rows under one code,
 // so a factor is keyed by code AND title.
 const key = r => `${r.code}|${r.title}`;
-const FZ = assessFatigue(T0.patterns, 20).results;
+const FZ = TA.fatigue.results;   // assess()'s own run, so the 55-hour row carries its minutes as the fixed duties' does (5 Nov 2026)
 const presentIn = {}, applies = new Set(FZ.filter(r => r.status !== 'n/a').map(key));
 for (const f of F) { const j = JSON.parse(readFileSync(f.url, 'utf8'));
   for (const r of assessFatigue(j.patterns ?? j, LINES).results) { if (r.status !== 'n/a') applies.add(key(r)); if (r.status === 'present') presentIn[key(r)] = (presentIn[key(r)] ?? 0) + 1; } }
@@ -85,8 +85,9 @@ const decRows = RT.rows.map((r, i) => `<tr><td><b>${esc(r.rule)}</b></td><td>${A
 // ONE BASIS, as on every sheet (accuracy audit, 1 Oct 2026 — this column alone showed the worst case): the status is
 // today's FIXED duties, the cover weeks left out, with the worst cover-week placement beside it as "up to"
 const fixedT = r => TA.fixed?.fatigue.results.find(x => key(x) === key(r)) ?? r;
-const one = r => r.status === 'standing' ? 'Every link' : r.status === 'present' ? `Present (${r.value})` : 'Clear';
-const ffStatus = r => { const f = fixedT(r), a = one(f), w = one(r); return a === w ? a : `${a} · <span class="upto-i">up to ${r.status === 'present' ? esc(String(r.value)) : w.toLowerCase()}</span>`; };
+// the 55-hour row's figure in hours and minutes, as on every proposal sheet (report-data.mjs → max7Minutes)
+const one = r => r.status === 'standing' ? 'Every link' : r.status === 'present' ? `Present (${r.minutes != null ? hm(r.minutes) : r.value})` : 'Clear';
+const ffStatus = r => { const f = fixedT(r), a = one(f), w = one(r); return a === w ? a : `${a} · <span class="upto-i">up to ${esc(w.charAt(0).toLowerCase() + w.slice(1))}</span>`; };
 // FF2 in the ORR's words is "starting between 05:00 and 07:00"; Managing Rail Staff Fatigue, Appendix E, makes 07:00 a
 // day shift, which is how the app counts it — so the sheet says so rather than leave 07:00 ambiguous
 const ffTitle = r => r.code === 'FF2' ? 'Early shift starting 05:00 to 06:59' : esc(r.title);
@@ -125,8 +126,8 @@ table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surfa
 .tt { font-variant-numeric: tabular-nums; white-space: nowrap; }
 td.ok, td.miss { color: var(--text-dark); padding-left: calc(6px + 1.05em) !important; text-indent: -1.05em; }
 .mk { display: inline-block; width: 1.05em; text-indent: 0; font-weight: 800; } .mk-ok { color: var(--success-green); } .mk-no { color: var(--danger-red, #b3261e); }
-.dec td:nth-child(1) { width: 25%; } .dec td:nth-child(2) { width: 47%; } .dec td:nth-child(3) { width: 19%; } table.t td.num { white-space: nowrap; }
-.hard td:nth-child(1) { width: 25%; } .hard td:nth-child(2) { width: 47%; } .hard td:nth-child(3) { width: 19%; }
+.hard, .dec { table-layout: fixed; } .dec td:nth-child(1), .dec th:nth-child(1) { width: 25%; } .dec td:nth-child(2), .dec th:nth-child(2) { width: 52%; } .dec td:nth-child(3), .dec th:nth-child(3) { width: 23%; } table.t td.num { white-space: nowrap; }
+.hard td:nth-child(1), .hard th:nth-child(1) { width: 25%; } .hard td:nth-child(2), .hard th:nth-child(2) { width: 52%; } .hard td:nth-child(3), .hard th:nth-child(3) { width: 23%; }
 .ff td.ff-code { font-weight: 800; color: var(--primary-blue); white-space: nowrap; width: 40px; } .ff td.fam { color: var(--text-light); white-space: nowrap; width: 110px; }
 .upto-i { color: var(--text-mid); font-weight: 400; }
 .upto { display: block; font-size: 8px; color: var(--text-mid); font-weight: 400; text-indent: 0; }
@@ -154,7 +155,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 
   <div class="tiers">
     <div class="tier"><b class="k">Hard limits</b>A design must meet these or it cannot be run. Three, and the ceiling of ${DAYS_CEILING} contracted days a year, which is hard too.</div>
-    <div class="tier"><b class="k">Soft rules</b>The December 2026 staffing rules. ${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven'][RT.of]} of them, each met or not, and scored on every proposal sheet.</div>
+    <div class="tier"><b class="k">December rules</b>The December 2026 staffing rules. ${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven'][RT.of]} of them, each met or not, and scored on every proposal sheet.</div>
     <div class="tier"><b class="k">Flexible rules</b>Three more aimed for when designing. Not scored on the proposal sheets; a presentation may mention them. Page 2.</div>
     <div class="tier"><b class="k">Fatigue factors</b>Patterns that tend to tire people. Advisory only: “present” means worth a look, never a breach.</div>
   </div>
@@ -163,7 +164,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <div class="basics">
     <div><b>Opening hours.</b> The station opens at 06:20 (07:15 on a Sunday) and closes at 23:55 (23:25 on a Sunday). <b>No duty runs past 23:25 on a Sunday</b> — agreed practice, settled 28 Sep 2026 — although ${sunLate.length} Sunday trains move later, the last at ${clock(sunLate[sunLate.length - 1].t)}.</div>
     <div><b>The link.</b> ${LINES} lines worked in turn, one week each, Sunday to Saturday; a person on the last line moves to line 1; ${COVER_WEEKS} are cover weeks.</div>
-    <div><b>Cover week.</b> A line with no fixed shifts: four duties, Monday to Saturday, placed by the roster clerk to cover leave and sickness. Its Sunday can be worked as overtime on top, as any Sunday can (owner, 31 Oct 2026).</div>
+    <div><b>Cover week.</b> A line with no fixed shifts: four duties, Monday to Saturday, placed by the roster clerk to cover leave and sickness. Its Sunday can be worked as overtime on top, as any Sunday can (31 Oct 2026).</div>
     <div><b>Early and late.</b> A shift starting before 11:00 is an early; from 11:00 it is a late.</div>
     <div><b>The floor.</b> Everyone on duty except the four ticket-office staff, who are there for the office’s opening hours, not the trains. ${OFFICE_HELP_TEXT}.</div>
     <div><b>Today’s link.</b> The 20-line link worked now. It is the yardstick, not the target: it meets ${RT.met} of the ${RT.of} December rules.</div>
@@ -174,10 +175,10 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
     <tr><td><b>At least 12 hours between duties</b></td><td>From the end of one duty to the start of the next, anywhere in the rotation — Saturday into Sunday, and the last line into line 1, included.</td><td class="tt ${cls(TA.checks.turnarounds.length === 0)}">${mark(TA.checks.turnarounds.length === 0)}shortest ${todayRest !== null ? hm(todayRest) : '—'}</td></tr>
     <tr><td><b>No more than ${MAX_CONSECUTIVE_WORKED_DAYS} days worked in a row</b></td><td>Chiltern’s limit, taken at its worst case: a cover week’s four duties placed as badly as they can be, and its Sunday worked as overtime. The written source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit is still to be confirmed.</td><td class="tt ${cls(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)}">${mark(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)}longest ${TA.checks.longestStretch} days</td></tr>
     <tr><td><b>The contracted week, exactly</b></td><td>35 hours a week on average, Monday to Saturday, across every line of the link; a cover week counts as a contracted week. Sunday duties are paid on top as rest-day working, as they are today. Individual weeks may be longer or shorter; only the average is the contract.</td><td class="tt ${cls(todayContract)}">${mark(todayContract)}${todayContract ? 'exactly 35h 00m' : 'not 35h 00m'}</td></tr>
-    <tr><td><b>No more than ${DAYS_CEILING} contracted days a year</b></td><td>Today’s figure as a ceiling (set 1 Oct 2026): Monday to Saturday, a cover week as four days. At ${LINES} lines it allows ${Math.floor(DAYS_CEILING * LINES * 7 / 365 - 4 * COVER_WEEKS)} Monday-to-Saturday duties at most.</td><td class="tt ${cls(daysAYear(T0.patterns) <= DAYS_CEILING + 1e-9)}">${mark(daysAYear(T0.patterns) <= DAYS_CEILING + 1e-9)} ${daysAYear(T0.patterns).toFixed(1)}</td></tr>
+    <tr><td><b>No more than ${DAYS_CEILING} contracted days a year</b></td><td>Today’s figure as a ceiling (set 1 Oct 2026): Monday to Saturday, a cover week as four days. At ${LINES} lines it allows ${Math.floor(DAYS_CEILING * LINES * 7 / 365 - 4 * COVER_WEEKS)} Monday-to-Saturday duties at most.</td><td class="tt ${cls(daysAYear(T0.patterns) <= DAYS_CEILING + 1e-9)}">${mark(daysAYear(T0.patterns) <= DAYS_CEILING + 1e-9)}${daysAYear(T0.patterns).toFixed(1)}</td></tr>
   </tbody></table>
 
-  <h2>Soft rules — the December 2026 rules <span class="tag soft">met or not</span></h2>
+  <h2>December rules — the 2026 staffing rules <span class="tag soft">met or not</span></h2>
   <p class="lead">The staffing headcounts are <b>minimums</b>: too few is the problem, never too many. The other rules use the bounds shown. The staffing levels and Sunday cover were confirmed verbally; the ${LINES}-line link and ${COVER_WEEKS} cover weeks were set on 1 Oct 2026.</p>
   <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th></tr></thead><tbody>${decRows}</tbody></table>
   <p class="muted" style="font-size:9px">Today’s figures read Mon–Fri · Saturday · Sunday; a range means the weekdays differ.</p>
@@ -196,7 +197,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <h2>Fatigue factors <span class="tag adv">advisory</span></h2>
   <p>${FZ.length} roster patterns that tend to tire people: ${FZ.filter(r => r.code !== 'MRSF').length} from the Office of Rail and Road’s good-practice guidance, <i>Fatigue Factors</i> (page 3, December 2021), and ${FZ.filter(r => r.code === 'MRSF').length} extra checks from the rail industry’s fatigue guidance (MRSF). The ORR says they are guidance, not limits. So a factor present is a question to discuss, never a pass or a fail, and a design showing none is not thereby approved.</p>
   <table class="t ff"><thead><tr><th>Code</th><th>Factor</th><th>Kind</th><th class="num">Today’s link</th></tr></thead><tbody>${ffRows}</tbody></table>
-  <p class="muted" style="font-size:9px"><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}. <b>“Every link”</b> marks a standing factor — one that comes with the station’s hours or with any weekly link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because a weekly link changes shift type about once a week (the ORR prefers two-day or three-week rotation, <i>Managing rail staff fatigue</i> 7.68). <b>Standing factors are recorded on every sheet for information and are not counted</b> in any design’s fatigue findings, since no weekly design can remove them. The <b>early</b> in FF2 and FF15 is the ORR’s — a start from 05:00 to 06:59, since 07:00 is a day shift (Managing Rail Staff Fatigue, Appendix E) — not the 11:00 used everywhere else. The last column is today’s link, on its fixed duties — the cover weeks left out, as on every sheet; “up to” is the worst place a cover week’s four duties could fall, its Sunday worked as overtime.</p>
+  <p class="muted" style="font-size:9px"><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}. <b>“Every link”</b> marks a standing factor — one that comes with the station’s hours or with any weekly link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because a weekly link changes shift type about once a week (the ORR prefers two-day or three-week rotation, <i>Managing rail staff fatigue</i> 7.68). <b>Standing factors are recorded on every sheet for information and are not counted</b> in any design’s fatigue findings, since no weekly design can remove them. The <b>early</b> in FF2, FF8b and FF15 is the ORR’s — a start from 05:00 to 06:59, since 07:00 is a day shift (<i>Managing rail staff fatigue</i>, Appendix E) — not the 11:00 used everywhere else. The last column is today’s link, on its fixed duties — the cover weeks left out, as on every sheet; “up to” is the worst place a cover week’s four duties could fall, its Sunday worked as overtime.</p>
 
   <h2>Preferences <span class="tag adv">not scored</span></h2>
   <p class="lead">Not rules, and not scored. The first two and the last are gains, so a proposal sheet marks a design green where it beats today’s link on them; how much each matters is for staff to say.</p>

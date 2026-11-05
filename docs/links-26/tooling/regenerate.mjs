@@ -92,9 +92,9 @@ export const SUPPLIED = [
     // 13:45 a weekday. Searched afresh and laid on Home Grown's weeks: nothing over 8h 30m Monday to Saturday, 19 weeks on one
     // shift time. Next Step is Even Step with only Clean Slate's three weekday changes. README.md → "Clean Slate and Next Step".
     { file: 'clean-slate.json',            name: 'Clean Slate',    code: 'CS-26-N2',   fp: 'dc175c36', strap: 'Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday' },
-    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'Even Step with three weekday shifts retimed for the trains: no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday' },
+    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'No shift over 8h 30m Monday to Saturday, a 13:45 finish every weekday, and a weekday fit to the trains of 30.3, where today’s is 52.0' },
     // 4 Nov 2026: Fair Share is Next Step with its Sunday evened out, seven Sunday cells retimed (README.md → "Fair Share")
-    { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: 'ccf27576', strap: 'Next Step with an even Sunday: every Sunday duty 8h 10m or 8h 15m, so an early and a late pay within a few pounds' },
+    { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: 'ccf27576', strap: 'Every Sunday duty 8h 10m or 8h 15m, so a Sunday early and late pay within a few pounds, and no shift over 8h 30m on any day' },
     // 4 Nov 2026 (owner: "Do a proposal sheet for all of today's work. Put them into the repo"): Quarter Past, a one-page roster
     // supplied as a PDF and read in cell by cell; its duties in new weeks so 14 days' leave buys 30 days off (drawn as Quarter
     // Past Relaid, QR-26-EXT); and Short Openers, that link with every weekday 06:20 finishing by 14:20 and every weekday
@@ -109,19 +109,19 @@ export const SUPPLIED = [
     // dfdbd724, in the pack for a few hours. Its grid and meta stay in results/ (quarter-past.json); Open Return and Short
     // Openers keep its shift times and say so in their lineage. To rebuild it, restore its entry here and its strap, family
     // and date in fresh.mjs from git history.
-    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '544e1ee8', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buying 30 days off, as today, no fatigue warning and seven full weekends' },
-    { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '38897b91', dir: '30-days-off', strap: 'Open Return with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45, and 14 days’ leave still buying 30 days off' },
+    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '544e1ee8', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buying 30 days off, as today, and no fatigue warning, even if a cover week falls badly' },
+    { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '38897b91', dir: '30-days-off', strap: 'Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buying 30 days off, as today' },
     // Grand Tour (4 Nov 2026): Fair Share's duties in new weeks, so that 14 days' leave buys 30 days off and four weeks off
     // take 14, as today — the answer to the owner's question that morning (README.md → "Fair Share", run e). It was a search
     // result with no name, sheet or import file until the 30-day folder was made
     // WELL KEPT TAKEN OUT, 5 NOV 2026 (owner: "Remove well kept"): Same Again Tidy, WK-26-S2 · 1db1381a, in the 30-day folder
     // from the evening of 4 Nov. Its grid and meta stay in results/ (same-again-tidy.json). To rebuild it, restore its entry
     // here (dir: '30-days-off') and its strap, family and date in fresh.mjs from git history.
-    { file: 'results/fair-share-leave30.json',   name: 'Grand Tour',           code: 'GT-26-T7',  fp: '4172f888', dir: '30-days-off', strap: 'Fair Share’s shifts in new weeks: 14 days’ leave buys 30 days off and four weeks off take 14, as today' },
+    { file: 'results/fair-share-leave30.json',   name: 'Grand Tour',           code: 'GT-26-T7',  fp: '4172f888', dir: '30-days-off', strap: 'No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today' },
     // 4 Nov 2026: Common Ground is today's link taken to 26 weeks on the owner's brief, its weeks the 30-for-14 grid found on
     // Fair Share's duties (README.md → "Common Ground"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
     // with the other four (owner, the same evening: "add any other 30 days off proposals to the subfolder")
-    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'e02c295f', dir: '30-days-off', strap: 'Today’s link on 26 weeks: nothing over 8h 30m on a weekday, a 13:45 finish every weekday, an even Sunday, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'e02c295f', dir: '30-days-off', strap: 'Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m Monday to Friday, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

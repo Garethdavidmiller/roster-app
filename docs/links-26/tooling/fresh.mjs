@@ -8,7 +8,10 @@
 // figures. Nothing here changes a figure; it replaces the words around them. `LEGACY=1` renders the old edition.
 //
 // The one-line descriptions are the only typed words about a design, and each says what the design IS, never
-// what it was derived from.
+// what it was derived from. Four had come to name the design they started from ("Next Step with an even Sunday",
+// "Fair Share's shifts in new weeks", "Open Return with…", "Even Step with…"), which a reader holding one sheet cannot
+// decode; Next Step's was also wrong, as its weeks are not Even Step's; and Common Ground's "Today's link on 26 weeks"
+// claimed today's weeks, where it keeps seven of today's times (the whole-pack review, 5 Nov 2026). All six now stand alone.
 import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, daysAYear } from './link.mjs';
 import { sheetRules as currentRules, h55Worst } from './report-data.mjs';
 import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.js';
@@ -38,21 +41,21 @@ export const STRAPS = {
   // 3 Nov 2026: the owner's question — the link with today's shift times given no weight in the league (README.md → "Clean
   // Slate and Next Step"). Neither is shortlisted; Next Step is Even Step with Clean Slate's three weekday changes
   'CS-26-N2': ['Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday', 'search'],
-  'NS-26-T6': ['Even Step with three weekday shifts retimed for the trains: no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday', 'search'],
+  'NS-26-T6': ['No shift over 8h 30m Monday to Saturday, a 13:45 finish every weekday, and a weekday fit to the trains of 30.3, where today’s is 52.0', 'search'],
   // 4 Nov 2026: Next Step with its Sunday evened out, so a Sunday early and a Sunday late pay within a few pounds (README.md
   // → "Fair Share"). Not shortlisted
-  'FS-26-T7': ['Next Step with an even Sunday: every Sunday duty 8h 10m or 8h 15m, so an early and a late pay within a few pounds', 'search'],
+  'FS-26-T7': ['Every Sunday duty 8h 10m or 8h 15m, so a Sunday early and late pay within a few pounds, and no shift over 8h 30m on any day', 'search'],
   // 4 Nov 2026: Quarter Past, supplied as a one-page PDF roster; its duties in new weeks (Quarter Past Relaid); and the Relaid
   // with eight-hour openers and 15:45 closers on a weekday (Short Openers). README.md → each by name. Not shortlisted
   // Open Return was drawn as Quarter Past Relaid (QR-26-EXT), renamed the same day for a name of its own (owner, 4 Nov 2026:
   // "Give all proposals individual names"); Grand Tour is Fair Share's 30-day search result, which had no name until then
-  'OR-26-EXT': ['A 16:15 closer every weekday, 14 days’ leave buying 30 days off, as today, no fatigue warning and seven full weekends', 'hand+search'],
-  'SO-26-EXT': ['Open Return with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45, and 14 days’ leave still buying 30 days off', 'search'],
-  'GT-26-T7': ['Fair Share’s shifts in new weeks: 14 days’ leave buys 30 days off and four weeks off take 14, as today', 'search'],
+  'OR-26-EXT': ['A 16:15 closer every weekday, 14 days’ leave buying 30 days off, as today, and no fatigue warning, even if a cover week falls badly', 'hand+search'],
+  'SO-26-EXT': ['Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buying 30 days off, as today', 'search'],
+  'GT-26-T7': ['No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today', 'search'],
   // 4 Nov 2026: today's link taken to 26 weeks on the owner's brief — openers finishing 13:45 or 14:20, closers from 15:45,
   // nothing over 8h 30m on a weekday or 9h at the weekend, an even Sunday, 30 days off for 14 days' leave (README.md →
   // "Common Ground"). Shortlisted on 5 Nov 2026, as the 30-day example (below)
-  'CG-26-T8': ['Today’s link on 26 weeks: nothing over 8h 30m on a weekday, a 13:45 finish every weekday, an even Sunday, and 14 days’ leave buys 30 days off, as today', 'search'],
+  'CG-26-T8': ['Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m Monday to Friday, and 14 days’ leave buys 30 days off, as today', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
@@ -67,21 +70,19 @@ export const STRAPS = {
  *  best 30 day example, short run too because colleagues have seen it and the best one of the others which I think is even
  *  step"), and In Step's presentations stay in the pack though it is no longer on the shortlist ("keep the other
  *  presentations in the pack, just not the shortlist"). Marked on the summary and compared on the shortlist sheet; the
- *  decks and the pack read it here. The recommendation comes first, then the others alphabetically. */
-export const SHORTLIST = ['Even Step', 'Common Ground', 'Short Run'];
+ *  decks and the pack read it here. A TO Z SINCE 5 NOV 2026, with no recommendation: asked whether the pack should keep
+ *  marking Even Step recommended, the owner chose to remove the marks and present the three evenly, as the New link page
+ *  does — so nothing in the pack lists one of them first for any reason but the alphabet. */
+export const SHORTLIST = ['Common Ground', 'Even Step', 'Short Run'];
+if (SHORTLIST.join() !== [...SHORTLIST].sort((a, b) => a.localeCompare(b, 'en-GB')).join()) throw new Error(`the shortlist is presented A to Z: ${SHORTLIST}`);
 /** The day the shortlist above was drawn, for the sheets and the read-me that say when — after every design in the pack. */
 export const SHORTLIST_DATE = '5 Nov 2026';
 /** Designs off the shortlist whose presentations the pack still ships (owner, 5 Nov 2026, above). */
 export const DECKS_KEPT = ['In Step'];
 if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is both shortlisted and kept off it: ${DECKS_KEPT}`);
-/** The one the shortlist sheet recommends. Short Run from 3 Oct 2026; In Step from 30 Oct 2026, when the owner asked for "a
- *  deep think from all angles about which to recommend" (README.md → "The shortlist cut to two"); Even Step from 31 Oct
- *  2026, In Step's weeks without its long earlies, after the owner found those the one thing about In Step that would be
- *  hard to sell (README.md → "Even Step"). Unchanged when Common Ground joined on 5 Nov 2026: the owner chose the shortlist,
- *  not a new recommendation. The sheet's page 2 argues for it in prose, so the sheet refuses a value its prose was not
- *  written for. */
-export const RECOMMENDED = 'Even Step';
-if (!SHORTLIST.includes(RECOMMENDED)) throw new Error(`the recommendation ${RECOMMENDED} is not on the shortlist`);
+// NO RECOMMENDATION SINCE 5 NOV 2026. RECOMMENDED named the one the shortlist sheet argued for — Short Run from 3 Oct 2026,
+// In Step from 30 Oct, Even Step from 31 Oct (README.md has each) — and was retired with the marks; it is gone rather than
+// left null, so any script still reading it fails loudly instead of quietly recommending nothing.
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
 export const FAMILY = { SL: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', OR: 'Quarter Past', SO: 'Quarter Past', GT: 'Home Grown', CG: 'Home Grown' };
 export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'OR-26-EXT': '4 Nov 2026', 'SO-26-EXT': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026' };
@@ -169,7 +170,9 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   // 55 where the table says clear. Said on pages 3 and 8; the table keeps the app's own figure. h55Worst is the one
   // calculation (report-data.mjs); this sheet kept a copy of it until 31 Oct 2026.
   const h55 = h55Worst(P.patterns, Object.keys(P.patterns).length);
-  const h55Txt = h55 && h55.hi > h55.table ? `the 55-hour row, which counts a cover week as no hours: ${f1(h55.lo)} placed well with no Sunday worked to ${f1(h55.hi)} placed badly with it, as 8-hour duties${h55.hi > 55 && h55.table <= 55 ? ', which would make it present' : ''}` : '';
+  // in hours and minutes, as the table above it now gives the 55-hour row (whole-pack review, 5 Nov 2026)
+  const hmMin = m => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+  const h55Txt = h55 && h55.hiMin > h55.tableMin ? `the 55-hour row, which counts a cover week as no hours: ${hmMin(h55.loMin)} placed well with no Sunday worked to ${hmMin(h55.hiMin)} placed badly with it, as 8-hour duties${h55.adds ? ', which would make it present' : ''}` : '';
   const p8Moves = [
     runSame ? '' : `the most days worked in a row (${cd.best} if placed well, with no Sunday overtime)`,
     moved('eightPlus', 'the run of 8-hour shifts'), moved('early', 'the run of early starts, FF15'), moved('twelvePlus', 'the run of shifts over 12 hours'),
@@ -261,7 +264,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     sub1: 'How this rota would work from 1 January 2027, and how it compares with today’s link',   // the link starts then, after the December timetable (owner, 2 Nov 2026)
     intro, intro2: '',
     // page 1 must not call a fatigue count clear where a worked cover week would cross 55 hours (audit, 30 Sep 2026)
-    h55Cover: h55 && h55.hi > 55 && h55.table <= 55 ? { lo: h55.lo, hi: h55.hi } : null,
+    h55Cover: h55 && h55.adds ? { lo: h55.lo, hi: h55.hi, loMin: h55.loMin, hiMin: h55.hiMin } : null,
     decMet: R.met, decOf: R.of, decToday: RT.met, decLabel: 'December 2026 rules met',
     decTile: `December 2026 rules, confirmed verbally (page 7) · today’s link meets ${RT.met} of ${R.of}`,
     headsEvid: `At least four at the open, three at the close, five at 22:00; 10 on Sunday`,
@@ -299,7 +302,7 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame, examp
   // ask about is either explained where it stands or replaced with the everyday word. The second half of this list
   // is the page-by-page review of all 23 sheets (five reviewers, every page read as an image).
   const PLAIN = [
-    [/<div class="callout"><b>What it is not\.<\/b>[\s\S]*?<\/div>/, '<div class="callout"><b>What it is not.</b> Not a recommendation or a finished roster: nothing here has been through the roster office or a union rep yet.</div>'],
+    [/<div class="callout"><b>What it is not\.<\/b>[\s\S]*?<\/div>/, '<div class="callout"><b>What it is not.</b> Not a recommendation or a finished roster: nothing here has been through the roster office yet.</div>'],   // the union rep left this line on 5 Nov 2026 (owner): S. Silva, the RMT rep, leads the change
     // page 4 — the glossary, with every word the other pages lean on
     [/<div><b>Turn<\/b> — a shift time, such as 06:20-13:45\. An <b>early<\/b> starts before 09:00; a <b>late<\/b> starts after\.<\/div>/, '<div><b>Turn</b> — a shift time, such as 06:20-13:45. An <b>early</b> starts before 11:00; a <b>late</b> starts at 11:00 or later.</div>'],
     [/(<b>Turn<\/b> — a shift time, such as )06:20-13:45/, (m, a) => a + (exampleTime ?? '06:20-13:45')],

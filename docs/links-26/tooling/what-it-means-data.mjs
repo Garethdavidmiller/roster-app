@@ -41,7 +41,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { today, folderStats } from './report-data.mjs';
-import { SHORTLIST, RECOMMENDED } from './fresh.mjs';
+import { SHORTLIST } from './fresh.mjs';
 import { GRADES, RATE_125, RATE_150 } from '../../../paycalc-calc.js';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'], MS = DAYS.slice(1);
@@ -54,9 +54,9 @@ const upTo = v => (s => s ? `${first(v)}, up to\u00a0${s[1]}` : `${first(v)}`)(/
 const claim = (what, ok) => { if (!ok) throw new Error(`the sheet says "${what}", and the figures no longer do`); };
 
 // THE PROSE IS WRITTEN FOR THESE THREE: any other shortlist stops the sheet rather than print sentences about designs it was
-// never checked against. A TO Z, whatever order fresh.mjs lists them in (it puts the recommendation first)
+// never checked against. A TO Z, whatever order fresh.mjs lists them in (A to Z there too since 5 Nov 2026, with no recommendation)
 const ORDER = [...SHORTLIST].sort();
-if (ORDER.join() !== 'Common Ground,Even Step,Short Run' || RECOMMENDED !== 'Even Step') throw new Error(`the sheet's prose is written for Common Ground, Even Step (recommended) and Short Run; the shortlist is ${SHORTLIST}, recommending ${RECOMMENDED}`);
+if (ORDER.join() !== 'Common Ground,Even Step,Short Run') throw new Error(`the sheet's prose is written for Common Ground, Even Step and Short Run; the shortlist is ${SHORTLIST}`);
 
 // process.execPath, not 'node': the Node that is running this, not whichever the PATH finds (the review, 2 Nov 2026); and
 // fileURLToPath, never `.pathname`, which turns a space in the checkout's path into %20
@@ -82,6 +82,7 @@ function col(name, p, f) {
     swapHours: +f.swapShortMins / 60,
     swapPounds: Math.round(+f.swapShortMins / 60 * OT * RATE / 10) * 10,
     long34: Math.round(breaks.filter(n => n === 3 || n === 4).length * 52 / L), longOver4: breaks.filter(n => n > 4).length,
+    singles: Math.round(breaks.filter(n => n === 1).length * 52 / L),   // single rest days a year each, as the shortlist sheet counts them
     earliesToday: Object.values(p).every(r => MS.every(d => !timed(r[d]) || !isEarly(r[d]) || todaysTimes.has(r[d]))) };
 }
 const TC = col('Today', T0, FIG.today), C = ORDER.map(n => col(n, grid(n), FIG[n])), [CG, ES, SR] = C;
@@ -162,6 +163,10 @@ claim('every link: more full weekends, fewer days in a row, a longer shortest re
 const closerMax = c => Math.max(...['closerWk', 'closerSat', 'closerSun'].map(k => H(c.f[k])));
 const lo = (xs) => Math.min(...xs), hi = (xs) => Math.max(...xs);
 
+// NOT RANKED: no overtime (5 Nov 2026). The three's Saturday hours are within a few of each other a year, so a green on the
+// highest ranked a few pounds; the notes say they are not ranked. Should a design open a real gap, this claim stops the sheet
+claim('no overtime: the three within 5 Saturday hours a year of each other, so the rows are not ranked', hi(C.map(c => c.sat)) - lo(C.map(c => c.sat)) < 5);
+claim('Common Ground keeps today’s leave for more single rest days than the other two, whose four weeks take the same leave', CG.singles > ES.singles && CG.singles > SR.singles && +CG.f.leaveFour < +ES.f.leaveFour && ES.f.leaveFour === SR.f.leaveFour && +CG.f.leaveFour === +TC.f.leaveFour);
 // ── THE TABLE ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 // a row: label, and for today and each design the printed text and a number to rank by; `better` picks the best of the
 // three for THAT person (bold green), or null where nothing is better — today is for scale, never ranked. Left unranked on
@@ -199,10 +204,10 @@ const GROUPS = [
       row('Premium and overtime pay, against today', c => v(c === TC ? '—' : money(c.sundayLoss, 'less')))] },
   { who: '…work no overtime at all',
     gist: `A little better off on every link — about £${lo(noOt)} to £${hi(noOt)} a year, gross, from two more Saturdays at time and a quarter.`,
-    rows: [row('Saturday hours a year, at time and a quarter', c => v(`${Math.round(c.sat)}`, Math.round(c.sat)), 'high'),
-      row('Premium pay, against today', c => v(c === TC ? '—' : money(c.noOtGain, 'more'), c === TC ? null : c.noOtGain), 'high')] },
+    rows: [row('Saturday hours a year, at time and a quarter', c => v(`${Math.round(c.sat)}`, Math.round(c.sat))),
+      row('Premium pay, against today', c => v(c === TC ? '—' : money(c.noOtGain, 'more'), c === TC ? null : c.noOtGain))] },
   { who: '…save your leave for long breaks',
-    gist: `Four full weeks off, Sunday to Saturday, take a day more leave on Even Step and Short Run; Common Ground keeps today’s ${CG.f.leaveFour}, with a few three-day breaks. On average 14 days’ leave goes as far as today on every link.`,
+    gist: `Four full weeks off, Sunday to Saturday, take ${ES.f.leaveFour} days’ leave on Even Step and Short Run; Common Ground keeps today’s ${CG.f.leaveFour}, for more single rest days. On average 14 days’ leave goes as far as today on every link.`,
     rows: [row('Leave for four full weeks off, Sunday to Saturday', c => v(`${c.f.leaveFour} days`, +c.f.leaveFour), 'low'),
       row('Days off in a row from 14 days’ leave, at best', c => v(c.f.leaveBest, +c.f.leaveBest), 'high'),
       row('Rest-day breaks of three or four days, a year', c => v(c.long34 ? `about ${c.long34}` : 'none', c.long34), 'high')] },
@@ -229,4 +234,4 @@ export const tidyText = t => t
   .replace(/\b(today|Sun|Sat) (?=\d)/g, '$1\u00a0')
   .replace(/\b(Even|In|Short|Long|Common) (Step|Run|Break|Ground)\b/g, '$1\u00a0$2');
 
-export { GROUPS, TC, C, CG, ES, SR, FIG, RATE, OT, sundayLoss, noOt, lo, hi, hm, H, first, upTo, timed, m, mins, isEarly, DAYS, MS, perYear, restLens, grid, claim, SHORTLIST, RECOMMENDED };
+export { GROUPS, TC, C, CG, ES, SR, FIG, RATE, OT, sundayLoss, noOt, lo, hi, hm, H, first, upTo, timed, m, mins, isEarly, DAYS, MS, perYear, restLens, grid, claim, SHORTLIST };
