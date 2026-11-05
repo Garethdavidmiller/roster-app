@@ -294,18 +294,21 @@ today's link.
   gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at best, 23.4 on average,
   20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line decks' leave method as
   code, and `--check` shows it reproduces their published figures for today and Familiar Nine exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the six decks
-  agrees with the sheets and the leave model, and none is left unchecked (it prints the count).
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the six decks, and
+  Common Ground's two outside the pack (*Common Ground's presentations, outside the pack*, below), agrees with the sheets
+  and the leave model, and none is left unchecked (it prints the count).
 
 Rebuild after any change to the rota:
 
 ```
 python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/short-run-decks.py \
   && python3 docs/links-26/tooling/in-step-decks.py && python3 docs/links-26/tooling/even-step-decks.py \
-  && python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
+  && python3 docs/links-26/tooling/deck-polish.py && python3 docs/links-26/tooling/common-ground-decks.py \
+  && node docs/links-26/tooling/deck-check.mjs
 ```
 
-Then export the PDFs (LibreOffice), then `node docs/links-26/tooling/what-it-means-sheet.mjs` (it reads the decks, so it
+`common-ground-decks.py` is not part of the pack: it rewrites Even Step's finished decks into Common Ground's, outside
+the pack, so it runs after the polish. Then export the PDFs (LibreOffice), both folders', then `node docs/links-26/tooling/what-it-means-sheet.mjs` (it reads the decks, so it
 comes after them), `node docs/links-26/tooling/newlink-data.mjs` (the app page's copy of the same figures — the build
 fails until it is run) and `python3 docs/links-26/tooling/pack.py` (which refuses that sheet if it is older than the decks).
 
@@ -4004,6 +4007,48 @@ summary prints its eighteen rows at 80% without the dense rows, and the shortlis
 spare.
 
 **Checks:** `regenerate.mjs --check` (18 fingerprints unmoved), `check.mjs`, `deck-check.mjs` and the pack zip builds.
+
+## Common Ground's presentations, outside the pack (5 Nov 2026)
+
+**The request** (owner, 5 Nov 2026): *"Then create presentations for common ground. Do we have a presentation for Even
+step?"* Even Step has both of its decks in `presentations/`, built on 3 Nov. Asked where Common Ground's should go, the
+owner chose **outside the pack**: build both decks and keep them in the repository to look at and use, with the pack, the
+shortlist and the shortlist-only rule of 3 Oct left as they are.
+
+**Where.** `presentations-outside-the-pack/`, with a read-me of its own. Not `presentations/`: `pack.py` ships that
+folder and refuses any deck in it that is not the shortlist's. Not `30-days-off/` either: `regenerate.mjs` refuses files in
+the pack's folders that no entry ships.
+
+**How they are built.** `tooling/common-ground-decks.py` starts from Even Step's finished decks, because most of what
+they quote is the same for both designs: the hours and days, the run, the weekends, the closers, the late finishes, the
+staffing except the open, and the Saturdays and Sundays. It rewrites what differs:
+- **the leave**, the reason the design exists: 14 days' leave buys 30 days off at best, and four weeks off take 14 days,
+  as today, where the shortlisted three buy 28 and need 15. It takes the shift-times tile on the short version, the bar on
+  the leave slide and the managers' "This one adds" line;
+- **the single rest days**, its cost: six in 26 weeks, about 12 a year each, where today has about 10 and the shortlisted
+  links four in 26. They take the trade-offs card Even Step gave to its leave, and the managers' "This one costs" line
+  with the weaker weekday fit;
+- **the shift times**: 14, seven of them worked today, among them a 9-hour Saturday late, 13:30–22:30 (today's weekday
+  13:30–22:00, half an hour longer). So Even Step's "nothing over 8h 30m Monday to Saturday" becomes "Monday to Friday";
+- four at the open, the minimum, so 48 starts at 06:20 a year each (today 62); the heaviest week, 42h 30m; the fit,
+  32.7 · 11.2 · 28.2; the pay, about £350 a year less premium and overtime pay (Even Step £250); the swaps; the
+  55-hour week, 57.5 hours;
+- the managers' "Why" slide speaks from outside the shortlist ("What it shares with the shortlisted links, what it adds,
+  and what it costs"), as In Step's did before it joined, and the title slide says "not on the shortlist".
+
+**The guards.** Every figure is read from `deck-check.mjs --print` or computed from the grid. Where a sentence is Even
+Step's with a figure changed, Even Step's sentence is rebuilt from its own figures and must be found where it was; the
+slide-5 pay sums are deck-polish.py's formula, proved on Even Step's notes before they are applied to Common Ground's. A
+sentence left as Even Step wrote it has the figures it quotes checked equal for the two designs. After the edits, any of
+Even Step's own text left over is refused (its new times, its counts, its leave, its "Monday to Saturday" claim, its pay
+and more), and so is a sentence of the builder's that names Even Step with an ordinary space, which the final rename
+would turn into "Common Ground". Each guard was broken on purpose with `scripts/mutate.mjs`, eight in all, and each stopped
+the build. `deck-check.mjs` now checks both decks' tables too (`OUTSIDE_DECK_DIR` checks a copy): 216 rows across the
+eight decks agree, none unchecked, and a cell altered in a copy is reported.
+
+**Looked at, slide by slide**, from the exported PDFs. Two lines on the managers' "Why" slide wrapped under the lead
+"Like all three shortlisted:", so it is "Like all three:" under the subtitle that says what the three are. The colleague
+deck's closing credit line is longer by the name and put "tooling" on a line of its own, so it is 11pt there, not 12pt.
 
 ## Notes for the whole set
 

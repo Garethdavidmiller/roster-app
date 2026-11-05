@@ -39,6 +39,9 @@ owner's brief for today's link taken to 26 weeks, and reached the pack through `
 changed; it buys 30 days for 14, so it belongs here too. Its weeks are Grand Tour's, all 182 cells working or resting
 alike, and its shift times are today's where the rules allow.
 
+**Presentations.** Common Ground has a colleague deck and a managers' deck, made on 5 November 2026 at the owner's request
+and kept outside the pack, in `../presentations-outside-the-pack/`. The pack's presentations stay the shortlist's.
+
 **Taken out:** Quarter Past, whose shift times Open Return keeps, on the evening of 4 November 2026 (its grid stays in
 `../tooling/results/quarter-past.json`); and Well Kept, today's twenty weeks with six added, which was in this folder
 from that evening until 5 November 2026 (owner: "Remove well kept"; its grid stays in
