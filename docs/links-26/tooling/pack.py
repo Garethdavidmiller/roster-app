@@ -140,11 +140,15 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # Common Ground joined the same day on main (owner: "give this new proposal a better name and create the sheet and put it in
 # the pack"): today's link taken to 26 weeks on the owner's brief, on Grand Tour's weeks. It buys 30 days off for 14 days'
 # leave, so it is in the 30-day folder too, and it is a late design
-LATE_SET = ['Clean Slate', 'Common Ground', 'Fair Share', 'Grand Tour', 'Next Step', 'Open Return', 'Short Openers']
+# Middle Ground joined on 5 Nov 2026 (owner: "rename good turn as Middle Ground and add it to the pack"), after the shortlist of
+# that day: Common Ground's weeks with the shift times varied from week to week. It is the one design after the 5 Nov shortlist,
+# and it buys 30 days off for 14 days' leave, so it is in the 30-day folder; its own paragraph follows the 5 Nov one
+AFTER_31_OCT_SET = ['Clean Slate', 'Common Ground', 'Fair Share', 'Grand Tour', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers']
+LATE_SET = ['Middle Ground']
 if LATE and LATE != LATE_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(LATE_SET)} as the designs after the shortlist; they are {LATE}')
-if AFTER_31_OCT != LATE_SET:
-    raise SystemExit(f'pack: the read-me describes {", ".join(LATE_SET)} as drawn up after 31 October 2026; they are {AFTER_31_OCT}')
+if AFTER_31_OCT != AFTER_31_OCT_SET:
+    raise SystemExit(f'pack: the read-me describes {", ".join(AFTER_31_OCT_SET)} as drawn up after 31 October 2026; they are {AFTER_31_OCT}')
 LATE_WORDS = ', '.join(LATE[:-1]) + ' and ' + LATE[-1] if len(LATE) > 1 else ''.join(LATE)   # three since 4 Nov: 'A, B and C', never 'A and B and C'
 # THE FOUR WITHDRAWN (3 Nov 2026, owner: "Remove the four weak proposals please and reengineer the pack"). Named here, and
 # refused if any is back in SUPPLIED, because the paragraph below says they left the pack
@@ -158,7 +162,7 @@ TAKEN_OUT = ['Quarter Past', 'Well Kept']
 if any(n in names.split(', ') for n in TAKEN_OUT):
     raise SystemExit(f'pack: the read-me says {TAKEN_OUT} were taken out; regenerate.mjs SUPPLIED lists one of them')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
-THIRTY_SET = ['Common Ground', 'Grand Tour', 'Open Return', 'Short Openers']
+THIRTY_SET = ['Common Ground', 'Grand Tour', 'Middle Ground', 'Open Return', 'Short Openers']
 THIRTY_IN = sorted(n for n, c, _ in proposals if DIR_OF[c] == '30-days-off')
 if THIRTY_IN != THIRTY_SET:
     raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
@@ -330,6 +334,12 @@ readme = '\n'.join([
          'pack\'s league; and Short Run, which colleagues had already seen. In Step left the shortlist, and its '
          'presentations stay in the pack. Page 2 of the shortlist sheet sets every other design beside the three.'),
     '',
+    # described on its own terms, as its headline is (owner, 5 Nov 2026: "the proposal description headlines should not
+    # reference other proposals")
+    *([para('Middle Ground (5 November 2026) came after it: seven of today\'s shift times, varied from week to week so '
+            'that no two closing weeks and no two 06:20 weeks fall together. It buys 30 days off for 14 days\' leave too, '
+            'and is in the folder 30 days off.'), '']
+      if LATE else []),
     *([para(f'Four more were drawn up and withdrawn on 3 November 2026 as the weakest in the pack: {", ".join(WITHDRAWN[:-1])} '
             f'and {WITHDRAWN[-1]}. Each was the same as or worse than a design still here on everything the sheets measure '
             'but one; their record is kept in the repository, docs/links-26/README.md.'), ''] if WITHDRAWN else []),
