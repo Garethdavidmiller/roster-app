@@ -262,9 +262,13 @@ const O = Object.fromEntries(others.map(d => [d.name, d])), K = Object.fromEntri
 // longer: Long Break keeps nothing (its row says what it has beside Common Ground), Grand Tour, Open Return and Short Openers no
 // longer keep the leave, Home Grown and Fair Share no longer keep the earlies, Clean Slate no longer the weeks on one turn.
 // In Step, off the shortlist, keeps its steadier weeks and its closer Saturday fit
+// MIDDLE GROUND SINCE 5 NOV 2026 (owner: "rename good turn as Middle Ground and add it to the pack"): Common Ground's weeks with
+// the shift times varied from week to week, so no two closing weeks and no two 06:20 weeks fall side by side. Common Ground is
+// on the shortlist and has its leave, rules and duties, so it keeps nothing the three lack on any measure here, and pays with
+// a larger change of start; its row says what it has instead, which a claim pins. It is in the 30-day folder with the rest
 const NAMED = { 'Both Ways': 'closerSat,closerWk,earlyOff,heavy,newT', 'Clean Slate': 'fitSat,fitSun', 'Closing Time': 'closerSat,closerWk,fitSat,light,step',
   'Even Keel': '', 'Fine Tune': 'step', 'Home Grown': 'closerWk,newT,times', 'In Step': 'fitSat,heavy', 'Long Break': '', 'Next Step': '', 'Fair Share': 'longShift',
-  'Second Edition': 'step', 'Second Look': 'block,worstRun', 'Open Return': 'closerWk,worstRun', 'Short Openers': 'worstRun', 'Grand Tour': 'longShift' };
+  'Second Edition': 'step', 'Second Look': 'block,worstRun', 'Open Return': 'closerWk,worstRun', 'Short Openers': 'worstRun', 'Grand Tour': 'longShift', 'Middle Ground': '' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
 const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k => loses(O[n]).includes(k)));
 // what each pays, on the five priorities the paragraph names wherever it pays on them (days in a row, weekends, one turn,
@@ -273,21 +277,21 @@ pays('Closing Time', 'fitWk', 'one', 'late22'); pays('Both Ways', 'one', 'longSh
 const ekft = ['Even Keel', 'Fine Tune']; ekft.forEach(n => pays(n, 'late23', 'mixed', 'block', 'fitSat')); pays('Fine Tune', 'one');
 pays('Second Edition', 'fixedRun'); pays('Fair Share', 'fitSun'); pays('Long Break', 'fixedRun', 'one'); pays('Clean Slate', 'newT', 'times', 'satNew');
 pays('In Step', 'longEarly', 'longShift'); pays('Grand Tour', 'one', 'fitSun'); ['Open Return', 'Short Openers'].forEach(n => pays(n, 'rest', 'longShift'));
-pays('Second Look', 'fixedRun', 'one');
+pays('Second Look', 'fixedRun', 'one'); pays('Middle Ground', 'step');
 const PACK = [...D, ...others], CT = O['Closing Time'].F, HG = O['Home Grown'].F, CS = O['Clean Slate'].F, NX = O['Next Step'].F, IF = O['In Step'].F, GT = O['Grand Tour'].F;
 const LB = O['Long Break'].F, SL = O['Second Look'].F;
 // THE 30-DAY LINKS (4 Nov 2026): the designs where 14 days' leave buys 30 days off, as today, are exactly the ones in the 30-day
 // folder, and every one keeps four weeks off for 14 too. Since 5 Nov 2026 Common Ground is on the shortlist as their example
 const THIRTY = PACK.filter(d => d.F.lv.best >= TF.lv.best);
-claim('Common Ground, Grand Tour, Open Return and Short Openers: today’s 30 days off and four weeks off for 14 days’ leave, and every one of them in the 30-day folder',
-  TF.lv.best === 30 && THIRTY.map(d => d.name).sort().join() === 'Common Ground,Grand Tour,Open Return,Short Openers'
+claim('Common Ground, Grand Tour, Middle Ground, Open Return and Short Openers: today’s 30 days off and four weeks off for 14 days’ leave, and every one of them in the 30-day folder',
+  TF.lv.best === 30 && THIRTY.map(d => d.name).sort().join() === 'Common Ground,Grand Tour,Middle Ground,Open Return,Short Openers'
   && THIRTY.every(d => d.F.lv.fourWeeks === TF.lv.fourWeeks && stats.find(s => s.name === d.name).dir === '30-days-off')
   && stats.filter(s => s.dir === '30-days-off').length === THIRTY.length);
 claim('of the three, Common Ground alone keeps today’s leave', D.filter(d => THIRTY.includes(d)).map(d => d.name).join() === 'Common Ground');
 // the leave cost's "outside the shortlist": the other 30-day links keep four weeks for 14 too, and only Long Break besides
 const FOUR_OUT = PACK.filter(d => !D.includes(d) && d.F.lv.fourWeeks <= TF.lv.fourWeeks);
-claim('outside the shortlist, Grand Tour, Long Break, Open Return and Short Openers keep four weeks off for 14 days’ leave, and no other design does',
-  FOUR_OUT.map(d => d.name).sort().join() === 'Grand Tour,Long Break,Open Return,Short Openers' && D.every(d => d === CG || d.F.lv.fourWeeks > TF.lv.fourWeeks));
+claim('outside the shortlist, Grand Tour, Long Break, Middle Ground, Open Return and Short Openers keep four weeks off for 14 days’ leave, and no other design does',
+  FOUR_OUT.map(d => d.name).sort().join() === 'Grand Tour,Long Break,Middle Ground,Open Return,Short Openers' && D.every(d => d === CG || d.F.lv.fourWeeks > TF.lv.fourWeeks));
 // Clean Slate's row says "the best weekend fit of all" (3 Nov 2026); the joint-most weeks on one turn it had with Common Ground
 // are no longer its row's, since Common Ground is shortlisted
 claim('Clean Slate: the best Saturday and Sunday fit of all', PACK.every(d => d.name === 'Clean Slate' || (d.F.fit[1] > CS.fit[1] && d.F.fit[2] > CS.fit[2])));
@@ -325,6 +329,14 @@ claim('Second Edition the gentlest step of all, Fine Tune and Closing Time gentl
 claim('In Step: steadier weeks than the three — a lighter heaviest week and a narrower range', D.every(d => d.F.heavy > IF.heavy && d.F.heavy - d.F.light > IF.heavy - IF.light));
 claim('Grand Tour: today’s leave and no shift over 8h 30m on any day', GT.lv.best === TF.lv.best && GT.lv.fourWeeks === TF.lv.fourWeeks && longShift(GT) === 0);
 const OR_SO = ['Open Return', 'Short Openers'].map(n => O[n].F), orsoRest = OR_SO[0].A.rest.minutes;
+// Middle Ground's row: a week is read by its most common Monday-to-Friday duty — a closing week finishes at the 23:55 close, an
+// opening week starts at the 06:20 open — and no two of either fall side by side, lapping the rotation; Common Ground's do
+const MGF = O['Middle Ground'].F, mainDuty = row => { const c = {}; for (const d of ['mon', 'tue', 'wed', 'thu', 'fri']) if (timed(row[d])) c[row[d]] = (c[row[d]] ?? 0) + 1;
+  return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''; };
+const sideBySide = (F, test) => Object.keys(F.p).some(k => test(mainDuty(F.p[k])) && test(mainDuty(F.p[String(+k % Object.keys(F.p).length + 1)])));
+const closing = m => m.endsWith('-23:55'), opening = m => m.startsWith('06:20');
+claim('Middle Ground: no two closing weeks and no two 06:20 weeks side by side, where Common Ground has both', !sideBySide(MGF, closing) && !sideBySide(MGF, opening)
+  && sideBySide(CG.F, closing) && sideBySide(CG.F, opening) && MGF.lv.best === TF.lv.best);
 claim('Open Return and Short Openers: today’s leave, and the same shortest rest', OR_SO.every(F => F.lv.best === TF.lv.best && F.lv.fourWeeks === TF.lv.fourWeeks && F.A.rest.minutes === orsoRest));
 
 // page 1, the three cards and the guide (5 Nov 2026: Common Ground's card in In Step's place, each comparison against it)
@@ -625,6 +637,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Fair Share</td><td>Next Step with an even Sunday and no shift over 8h&nbsp;30m — but a weaker Sunday fit and a new time</td></tr>
     <tr><td>Grand Tour</td><td>today’s leave and no shift over 8h&nbsp;30m on any day — but fewer weeks on one shift time</td></tr>
     <tr><td>Open Return, Short Openers</td><td>today’s leave and no 55-hour week — but a ${hm(orsoRest)} shortest rest and more long shifts</td></tr>
+    <tr><td>Middle Ground</td><td>today’s leave, with no two closing or 06:20 weeks side by side — but a larger change of start</td></tr>
     <tr><td>Long Break</td><td>Common Ground’s four weeks for ${LB.lv.fourWeeks} days’ leave and fewer single rest days — but ${word(LB.fixedRun)} days in a row</td></tr>
   </tbody></table>
 

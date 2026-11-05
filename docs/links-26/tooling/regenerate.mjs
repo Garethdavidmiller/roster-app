@@ -122,6 +122,9 @@ export const SUPPLIED = [
     // Fair Share's duties (README.md → "Common Ground"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
     // with the other four (owner, the same evening: "add any other 30 days off proposals to the subfolder")
     { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'e02c295f', dir: '30-days-off', strap: 'Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m Monday to Friday, and 14 days’ leave buys 30 days off, as today' },
+    // 5 Nov 2026: Middle Ground is Common Ground's weeks with the shift times varied from week to week (README.md → "Middle
+    // Ground"). Its rest days are Common Ground's, so it buys 30 days off for 14 days' leave too and ships into 30-days-off/
+    { file: 'middle-ground.json',          name: 'Middle Ground',  code: 'MG-26-T8',   fp: '573c7287', dir: '30-days-off', strap: 'Seven of today’s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
@@ -180,6 +183,11 @@ for (const s of SUPPLIED) {
     // ONE STRAP (31 Oct 2026 review): the sheet prints fresh.mjs's STRAPS, so a strap here is only ever passed along. Six of them
     // had drifted from the printed ones ("no week over 41h 30m" against "no Mon–Sat week"); a reader of this list was misled
     if (STRAPS[s.code]?.[0] !== s.strap) { console.log(`FAIL ${s.code}: its strap here is not fresh.mjs's, which the sheet prints`); failed++; continue; }
+    // A STRAP NEVER NAMES ANOTHER DESIGN (owner, 5 Nov 2026: "the proposal description headlines should not reference other
+    // proposals"). The one-line description under a design's name has to say what the design IS to somebody who has not
+    // read the one it came from — Next Step's once read "Even Step with three weekday shifts retimed…"
+    const named = SUPPLIED.map(x => x.name).filter(n => n !== s.name && s.strap.includes(n));
+    if (named.length) { console.log(`FAIL ${s.code}: its strap names ${named.join(' and ')}; say what this design is instead`); failed++; continue; }
     if (checkOnly) { if (checkShipped(s.code, s.fp, s.dir ?? 'proposals')) { console.log(`ok   ${s.code}  ${got} (source grid and shipped JSON${s.dir ? `, in ${s.dir}/` : ''})`); done++; } continue; }
     process.stdout.write(`render ${s.code} … `);
     execFileSync('node', ['supplied.mjs', s.file, s.name, s.strap, s.code], { stdio: 'inherit' });
