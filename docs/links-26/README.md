@@ -4396,8 +4396,15 @@ contract and every week's hours are untouched. That is 15 cells, on lines 3, 4, 
 names Balanced V5 as its parent. The sheet was rendered on its own, as Balanced V5's was:
 
 ```
-OUT=/tmp/Relief-Point.pdf node supplied.mjs results/relief-point.json "Relief Point" "The weekday 08:00–16:30s of Balanced V5 start at 07:30 and finish at 16:00, so the 15:45 closers get a 15-minute handover" RP-26-V5
+WJ=$'⁠'
+OUT=/tmp/Relief-Point.pdf node supplied.mjs results/relief-point.json "Relief Point" "A 15-minute handover every weekday, from the three 07:30${WJ}–${WJ}16:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today" RP-26-V5
 ```
+
+**The headline names no other design**, as the owner asked of every proposal headline the same day (*"the proposal
+description headlines should not reference other proposals"* — README → Middle Ground; `regenerate.mjs` enforces it
+for the pack). The first render began "The weekday 08:00–16:30s of Balanced V5…", and was redrawn after `main`'s
+Middle Ground merge brought the rule in. The word joiners either side of the dash keep 07:30–16:00 on one line of the
+masthead, as `plain.mjs` does for "three-quarters".
 
 **The name.** Relief Point, code `RP-26-V5`, fingerprint `1818a1c2`. On the railway, a relief point is where one crew
 hands over to the next; here the three 07:30–16:00s are on with the three 15:45 closers for 15 minutes. Two words,
