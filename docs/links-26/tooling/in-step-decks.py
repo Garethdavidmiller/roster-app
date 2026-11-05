@@ -240,7 +240,10 @@ def check_typed():
          [[F[k] == S[k] for k in ('run', 'weekends', 'weekendGap', 'oneTurn', 'late23', 'late22', 'leaveBest', 'leaveAvg', 'leaveWorst', 'leaveFour')], k1345(g), k1345(G['Short Run'])],
          [[True] * 10, True, False]),
         ('against Short Run: its Saturday closer and its weeks', [S['closerSat'], S['light'], S['heavy'], F['closerSat']], ['8h 40m', '24h 30m', '42h 30m', '8h 10m']),
-        ('In Step is on the shortlist, with Even Step (recommended) and Short Run', [sorted(SL), REC], [['Even Step', 'In Step', 'Short Run'], 'Even Step']),
+        # OFF THE SHORTLIST SINCE 5 NOV 2026 (owner: Common Ground in, "keep the other presentations in the pack, just not the
+        # shortlist"): its decks stay in the pack and say so (deck-polish.py), so they are built only while that holds
+        ('In Step is off the shortlist, its decks kept in the pack; Even Step (recommended), Common Ground and Short Run on it',
+         [sorted(SL), REC, re.findall(r"'([^']+)'", re.search(r'export const DECKS_KEPT = \[([^\]]*)\]', open(os.path.join(tool, 'fresh.mjs'), encoding='utf-8').read()).group(1))], [['Common Ground', 'Even Step', 'Short Run'], 'Even Step', ['In Step']]),
         # the managers' notes 7 against Even Step (31 Oct 2026): its same weeks, its step, its weekday fit, none of its shifts
         # Monday to Saturday over 8h 30m, and In Step's weeks the most even of the three
         ('against Even Step: the same weeks, a smaller step, a closer weekday fit, none of Even Step’s over 8h 30m Monday to Saturday',

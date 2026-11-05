@@ -25,15 +25,16 @@ function deepFreeze(o) {
 }
 
 /** The figure columns, in order: today's link, then the three proposals A to Z. */
-export const COLUMNS = deepFreeze(["Today", "Even Step", "In Step", "Short Run"]);
+export const COLUMNS = deepFreeze(["Today", "Common Ground", "Even Step", "Short Run"]);
 
 /** What has changed since colleagues were first shown Short Run — drafts, for the owner to correct. */
 export const CHANGES = deepFreeze([
-    "Two more proposals sit beside Short\u00a0Run now: Even\u00a0Step and In\u00a0Step. Both were drawn up after Short\u00a0Run was first shown, from what colleagues said about it.",
+    "Two more proposals sit beside Short\u00a0Run now: Common\u00a0Ground and Even\u00a0Step. Both were drawn up after Short\u00a0Run was first shown.",
     "Both keep a shift finishing at 13:45 on every weekday of the rota. Short\u00a0Run has no shift finishing at 13:35 or 13:45.",
-    "Even\u00a0Step has nothing over 8h\u00a030m, Monday to Saturday. In\u00a0Step and Short\u00a0Run have some earlies of 8h\u00a045m to 9\u00a0hours.",
+    "Common\u00a0Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even\u00a0Step and Short\u00a0Run four weeks off take 15.",
+    "Even\u00a0Step has nothing over 8h\u00a030m, Monday to Saturday. Common\u00a0Ground has one 9-hour Saturday late, and Short\u00a0Run some 9-hour earlies.",
     "Short\u00a0Run has not changed since it was shown, and still has the shortest lates of the three: 8h\u00a006m on average, closers included.",
-    "One figure has moved since, on all three: when a cover week falls badly, the most days in a row is 7, not 6. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top."
+    "One figure has moved since: when a cover week falls badly, the most days in a row is 7, not 6, as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top."
 ]);
 
 /** What all three proposals give everyone, against today. */
@@ -48,12 +49,11 @@ export const GAINS = deepFreeze([
 
 /** What all three proposals cost everyone, against today. */
 export const COSTS = deepFreeze([
-    "Four full weeks off, Sunday to Saturday, take 15 days’ leave (today\u00a014).",
     "42 finishes a year at 23:00 or later (today\u00a039).",
     "At most 5 weeks of earlies, or of lates, in a row, or 7 if a cover week falls badly (today\u00a02, or 3).",
     "Two more Saturdays a year (28, today\u00a026).",
     "Fewer earlies that finish before 14:00: 0\u00a0to\u00a012\u00a0a\u00a0year (today\u00a026).",
-    "Five or six new shift times to learn."
+    "Five to seven new shift times to learn."
 ]);
 
 /** @type {ReadonlyArray<Persona>} What each proposal means for six ways of working the roster — the sheet's bands. */
@@ -63,7 +63,7 @@ export const PERSONAS = deepFreeze([
         "icon": "☀️",
         "chip": "Prefer earlies",
         "who": "…prefer earlies",
-        "gist": "Fewer, longer earlies on all three, in longer runs. Even\u00a0Step’s are closest to today’s: none over 8h\u00a030m, and every one is one of today’s times.",
+        "gist": "Fewer, longer earlies on all three, in longer runs. Common\u00a0Ground’s are the shortest on average and the most often finish at 13:45; Even\u00a0Step’s are all times worked today. Neither has one over 8h\u00a030m.",
         "rows": [
             {
                 "label": "Earlies a year",
@@ -78,8 +78,8 @@ export const PERSONAS = deepFreeze([
                 "label": "Average early",
                 "cells": [
                     { "text": "7h\u00a059m", "best": false },
-                    { "text": "8h\u00a013m", "best": true },
-                    { "text": "8h\u00a021m", "best": false },
+                    { "text": "8h\u00a009m", "best": true },
+                    { "text": "8h\u00a013m", "best": false },
                     { "text": "8h\u00a026m", "best": false }
                 ]
             },
@@ -88,7 +88,7 @@ export const PERSONAS = deepFreeze([
                 "cells": [
                     { "text": "0", "best": false },
                     { "text": "0", "best": true },
-                    { "text": "40", "best": false },
+                    { "text": "0", "best": true },
                     { "text": "20", "best": false }
                 ]
             },
@@ -96,8 +96,8 @@ export const PERSONAS = deepFreeze([
                 "label": "Earlies finishing at 13:35 or 13:45, a year",
                 "cells": [
                     { "text": "26", "best": false },
-                    { "text": "10", "best": false },
                     { "text": "12", "best": true },
+                    { "text": "10", "best": false },
                     { "text": "0", "best": false }
                 ]
             },
@@ -132,8 +132,8 @@ export const PERSONAS = deepFreeze([
                 "label": "Average late, closers included",
                 "cells": [
                     { "text": "8h\u00a029m", "best": false },
+                    { "text": "8h\u00a021m", "best": false },
                     { "text": "8h\u00a018m", "best": false },
-                    { "text": "8h\u00a010m", "best": false },
                     { "text": "8h\u00a006m", "best": true }
                 ]
             },
@@ -162,14 +162,14 @@ export const PERSONAS = deepFreeze([
         "icon": "🤝",
         "chip": "Swap for overtime",
         "who": "…swap earlies for lates, for the overtime",
-        "gist": "Swapping the shortest earlies brings less overtime than today on all three. In\u00a0Step keeps the most from its 13:35 or 13:45 finishes; Short\u00a0Run has none of those finishes. Other swaps may still add paid time.",
+        "gist": "Swapping the shortest earlies brings less overtime than today on all three. Common\u00a0Ground keeps the most from its 13:45 finishes; Short\u00a0Run has none of those finishes. Other swaps may still add paid time.",
         "rows": [
             {
                 "label": "A late against an early, same day, on average",
                 "cells": [
                     { "text": "32\u00a0min longer", "best": false },
+                    { "text": "12\u00a0min longer", "best": false },
                     { "text": "5\u00a0min longer", "best": false },
-                    { "text": "11\u00a0min shorter", "best": false },
                     { "text": "20\u00a0min shorter", "best": false }
                 ]
             },
@@ -177,8 +177,8 @@ export const PERSONAS = deepFreeze([
                 "label": "Each 13:35 or 13:45 early swapped for the day’s longest late, a year",
                 "cells": [
                     { "text": "+34h\u00a040m", "best": false },
+                    { "text": "+14h\u00a000m", "best": false },
                     { "text": "+10h\u00a050m", "best": false },
-                    { "text": "+13h\u00a020m", "best": false },
                     { "text": "none", "best": false }
                 ]
             },
@@ -186,8 +186,8 @@ export const PERSONAS = deepFreeze([
                 "label": "That overtime a year, gross, at time and a quarter",
                 "cells": [
                     { "text": "about £930", "best": false },
+                    { "text": "about £380", "best": false },
                     { "text": "about £290", "best": false },
-                    { "text": "about £360", "best": false },
                     { "text": "none", "best": false }
                 ]
             }
@@ -198,7 +198,7 @@ export const PERSONAS = deepFreeze([
         "icon": "📆",
         "chip": "Work Sundays",
         "who": "…work your share of Sundays and no other overtime",
-        "gist": "About £250\u00a0a\u00a0year less on all three, gross: two more Saturdays at time and a quarter, but fewer, shorter Sundays.",
+        "gist": "About £250 to £350\u00a0a\u00a0year less on all three, gross: two more Saturdays at time and a quarter, but fewer, shorter Sundays.",
         "rows": [
             {
                 "label": "Sundays a year, at time and a half",
@@ -213,7 +213,7 @@ export const PERSONAS = deepFreeze([
                 "label": "Sunday hours a year",
                 "cells": [
                     { "text": "177", "best": false },
-                    { "text": "167", "best": false },
+                    { "text": "164", "best": false },
                     { "text": "167", "best": false },
                     { "text": "167", "best": false }
                 ]
@@ -222,7 +222,7 @@ export const PERSONAS = deepFreeze([
                 "label": "Premium and overtime pay, against today",
                 "cells": [
                     { "text": "—", "best": false },
-                    { "text": "about £250\u00a0less", "best": false },
+                    { "text": "about £350\u00a0less", "best": false },
                     { "text": "about £250\u00a0less", "best": false },
                     { "text": "about £250\u00a0less", "best": false }
                 ]
@@ -240,16 +240,16 @@ export const PERSONAS = deepFreeze([
                 "label": "Saturday hours a year, at time and a quarter",
                 "cells": [
                     { "text": "213", "best": false },
+                    { "text": "231", "best": true },
                     { "text": "228", "best": false },
-                    { "text": "228", "best": false },
-                    { "text": "230", "best": true }
+                    { "text": "230", "best": false }
                 ]
             },
             {
                 "label": "Premium pay, against today",
                 "cells": [
                     { "text": "—", "best": false },
-                    { "text": "about £80\u00a0more", "best": false },
+                    { "text": "about £90\u00a0more", "best": true },
                     { "text": "about £80\u00a0more", "best": false },
                     { "text": "about £90\u00a0more", "best": true }
                 ]
@@ -261,13 +261,13 @@ export const PERSONAS = deepFreeze([
         "icon": "🏖️",
         "chip": "Save leave",
         "who": "…save your leave for long breaks",
-        "gist": "Four full weeks off, Sunday to Saturday, take a day more leave on all three, though on average 14 days’ leave goes as far as today. A design that kept them at 14 days was not shortlisted: it has six days in a row.",
+        "gist": "Four full weeks off, Sunday to Saturday, take a day more leave on Even\u00a0Step and Short\u00a0Run; Common\u00a0Ground keeps today’s 14, with a few three-day breaks. On average 14 days’ leave goes as far as today on all three.",
         "rows": [
             {
                 "label": "Leave for four full weeks off, Sunday to Saturday",
                 "cells": [
                     { "text": "14 days", "best": false },
-                    { "text": "15 days", "best": false },
+                    { "text": "14 days", "best": true },
                     { "text": "15 days", "best": false },
                     { "text": "15 days", "best": false }
                 ]
@@ -276,7 +276,7 @@ export const PERSONAS = deepFreeze([
                 "label": "Days off in a row from 14 days’ leave, at best",
                 "cells": [
                     { "text": "30", "best": false },
-                    { "text": "28", "best": false },
+                    { "text": "30", "best": true },
                     { "text": "28", "best": false },
                     { "text": "28", "best": false }
                 ]
@@ -285,7 +285,7 @@ export const PERSONAS = deepFreeze([
                 "label": "Rest-day breaks of three or four days, a year",
                 "cells": [
                     { "text": "about 13", "best": false },
-                    { "text": "none", "best": false },
+                    { "text": "about 4", "best": true },
                     { "text": "none", "best": false },
                     { "text": "none", "best": false }
                 ]
@@ -307,6 +307,18 @@ export const NOTES = deepFreeze([
 /** @type {ReadonlyArray<PackFile>} The pack's colleague files. */
 export const PACK = deepFreeze([
     {
+        "design": "Common Ground",
+        "label": "The presentation",
+        "path": "presentations/Common-Ground-for-colleagues.pdf",
+        "pages": 15
+    },
+    {
+        "design": "Common Ground",
+        "label": "The proposal sheet — every week on page 3",
+        "path": "30-days-off/Common-Ground-CG-26-T8-e02c295f.pdf",
+        "pages": 8
+    },
+    {
         "design": "Even Step",
         "label": "The presentation",
         "path": "presentations/Even-Step-for-colleagues.pdf",
@@ -316,18 +328,6 @@ export const PACK = deepFreeze([
         "design": "Even Step",
         "label": "The proposal sheet — every week on page 3",
         "path": "proposals/Even-Step-ES-26-T5-d1921b7a.pdf",
-        "pages": 8
-    },
-    {
-        "design": "In Step",
-        "label": "The presentation",
-        "path": "presentations/In-Step-for-colleagues.pdf",
-        "pages": 15
-    },
-    {
-        "design": "In Step",
-        "label": "The proposal sheet — every week on page 3",
-        "path": "proposals/In-Step-IS-26-T4-8d9239f3.pdf",
         "pages": 8
     },
     {

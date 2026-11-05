@@ -258,7 +258,8 @@ def check_typed():
         ('the known times that move day: weekday earlies today only at the weekend, Saturday times today only on weekdays, notes 2, 8 and the managers’ 7',
          [sorted(t for t in times(g, WK) if early(t) and t in toT and not times_on(today, t) & set(WK)), sorted(t for t in times(g, ('sat',)) if t in toT and times_on(today, t) <= set(WK))],
          [['06:20-14:50', '07:15-15:45'], ['06:20-14:20', '08:00-16:30', '14:00-22:30']]),
-        ('Even Step recommended, on the shortlist with In Step and Short Run', [REC, sorted(SL)], [NAME, ['Even Step', 'In Step', 'Short Run']]),
+        # the shortlist since 5 Nov 2026 (owner): Common Ground in, In Step out, Even Step still recommended
+        ('Even Step recommended, on the shortlist with Common Ground and Short Run', [REC, sorted(SL)], [NAME, ['Common Ground', 'Even Step', 'Short Run']]),
     ]
     bad = [f'{what}: the data says {got}, the slides say {typed}' for what, got, typed in checks if got != typed]
     if bad: raise SystemExit('even-step-decks: a typed figure no longer matches the rota —\n  ' + '\n  '.join(bad))

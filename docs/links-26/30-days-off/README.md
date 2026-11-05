@@ -6,7 +6,8 @@ needs 14 or 15 days' leave for four weeks off.
 
 They were put in a folder of their own on 4 November 2026 (owner: "Put all of the links that give 30 days off for 14
 days AL into a subfolder within links 26"). They are still part of the pack: the summary sheet, the shortlist sheet's
-comparisons and the league count them like every other proposal. None of them is on the shortlist.
+comparisons and the league count them like every other proposal. Common Ground has been on the shortlist since
+5 November 2026, as the example of the links that keep today's leave (owner); the other three are not.
 
 Each has the same three files as the proposals in `../proposals/`: the eight-page sheet (`<Name>-<CODE>-<fingerprint>.pdf`),
 the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name>-<CODE>-import.txt`).
@@ -28,19 +29,20 @@ the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name
 | Heaviest week, Monday to Saturday | 41h 30m | 42h 30m | 41h 45m | 42h 30m | 43h 50m |
 | Weighted league, of 18 | 5th, 83.9 | 7th, 83.7 | 8th, 83.2 | 16th, 80.9 | 17.4, for reference |
 
-**What the 30 days cost.** Every layout found that buys 30 days for 14 has more single rest days than the shortlisted
-three, which have 4: here 5 or 6. Open Return and Short Openers also have a 13h 15m shortest rest, where the shortlisted
-three have 14h 20m or more; Grand Tour has 16 weeks of 21 on one shift time, against Fair Share's 18, and a 56.7-hour
-week if a cover week falls badly. Common Ground has Grand Tour's weeks, so its six single rest days too, and a weaker
-weekday fit to the trains than the shortlisted three.
+**What the 30 days cost.** Every layout found that buys 30 days for 14 has more single rest days than Even Step and
+Short Run, the other two shortlisted links, which have 4: here 5 or 6. Open Return and Short Openers also have a 13h 15m
+shortest rest, where the shortlisted three have 14h 20m or more; Grand Tour has 16 weeks of 21 on one shift time, against
+Fair Share's 18, and a 56.7-hour week if a cover week falls badly. Common Ground has Grand Tour's weeks, so its six single
+rest days too, and a weaker weekday fit to the trains than the other two shortlisted links.
 
 **Common Ground** joined the folder on the evening of 4 November 2026. It was drawn up in another session, on the
 owner's brief for today's link taken to 26 weeks, and reached the pack through `main` (#1690) while this folder was being
 changed; it buys 30 days for 14, so it belongs here too. Its weeks are Grand Tour's, all 182 cells working or resting
 alike, and its shift times are today's where the rules allow.
 
-**Presentations.** Common Ground has a colleague deck and a managers' deck, made on 5 November 2026 at the owner's request
-and kept outside the pack, in `../presentations-outside-the-pack/`. The pack's presentations stay the shortlist's.
+**Presentations.** Common Ground has a colleague deck and a managers' deck, made on 5 November 2026 at the owner's request.
+They were kept outside the pack for a few hours, in a folder since removed, and have been in `../presentations/` since it
+joined the shortlist the same day. The other three links here have none.
 
 **Taken out:** Quarter Past, whose shift times Open Return keeps, on the evening of 4 November 2026 (its grid stays in
 `../tooling/results/quarter-past.json`); and Well Kept, today's twenty weeks with six added, which was in this folder

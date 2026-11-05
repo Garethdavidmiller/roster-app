@@ -36,6 +36,10 @@ first again. *Quarter Past out, Well Kept in* has the table and the reason.
 **League scores dated 4 to 5 Nov 2026 with Well Kept in the pack are on the ranges it stretched.** It was taken out on
 5 Nov; every score fell 0.4 to 1.0 points, and Even Step is still first. *Well Kept out* has the table.
 
+**The shortlist was drawn again on 5 Nov 2026** (owner): Even Step, still recommended, Common Ground and Short Run. In
+Step left it, and its presentations stay in the pack. Sections dated before then speak of the shortlist of their day;
+*The shortlist drawn again* says what changed.
+
 **Three designs were renamed on 4 Nov 2026** (owner: "Give all proposals individual names"): Quarter Past Relaid is
 **Open Return** (`OR-26-EXT`, drawn as `QR-26-EXT`), Fair Share's 30-day search result, which had no name, is **Grand
 Tour** (`GT-26-T7`), and Same Again Tidy is **Well Kept** (`WK-26-S2`, while it was in the pack, 4 to 5 Nov). Each
@@ -60,11 +64,11 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 | `links-NN-proposals.zip` | everything for sharing, in one download |
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
 | `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
-| `links-26-shortlist.pdf` | the three shortlisted designs (Even Step, In Step and Short Run, since 31 Oct 2026) against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
+| `links-26-shortlist.pdf` | the three shortlisted designs (Even Step, Common Ground and Short Run, since 5 Nov 2026) against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
 | `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
-| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
+| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: the three shortlisted designs', and In Step's, kept from when it was on the shortlist |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
 | `RULES.md` | the rules in prose, with their sources and the open questions (26 lines only) |
 | `README.md` | this record |
@@ -264,11 +268,13 @@ is the best of the four.
 **The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"; **cut to the
 shortlist 3 Oct 2026**, owner: "only keep the shortlist's presentations, delete the rest"): `presentations/` holds a
 colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for the three shortlisted designs, **Even
-Step, In Step and Short Run**. The shortlist has moved under them: Second Edition, Even Keel and Short Run on 3 Oct;
+Step, Common Ground and Short Run**, and for In Step, kept from when it was on the shortlist (5 Nov 2026, owner: "keep the
+other presentations in the pack, just not the shortlist"). The shortlist has moved under them: Second Edition, Even Keel and Short Run on 3 Oct;
 Closing Time added on 30 Oct, with its decks; In Step's decks built the same evening while it was off the shortlist; the
 cut to In Step and Short Run later that day, when the decks of Second Edition, Even Keel and Closing Time were removed
 under the 3 Oct rule (they are in git history) and two of their builders with them (below, "The shortlist cut to two");
-and Even Step added on 31 Oct, recommended (below, "Even Step"). They are the
+Even Step added on 31 Oct, recommended (below, "Even Step"); and on 5 Nov Common Ground in and In Step out, its decks
+kept (below, "The shortlist drawn again"). They are the
 Familiar Nine decks, the template Right Away's were made from too, with every word and figure that was Familiar Nine's
 replaced and the design untouched. Unlike the 24-line decks, they are BUILT here: `tooling/second-nature-decks.py` makes
 Second Nature's decks from the Familiar Nine files into `tooling/deck-template/` (gitignored — Second Nature's decks are
@@ -291,12 +297,11 @@ I work more?" slide give the weekly range, and the manager deck carry the Sunday
 Every builder and the polish refuse if a slide no longer holds the text they expect, and every deck compares only with
 today's link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts. `tooling/leave.mjs`
-  gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at best, 23.4 on average,
-  20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line decks' leave method as
+  gives the four leave figures (Even Step, Short Run and In Step: 14 days' leave buys 28 days off at best, 23.4 on
+  average, 20 at worst, and four full weeks off takes 15; Common Ground 30 · 23.4 · 20 · 14; today 30 · 23.4 · 19 · 14). It is the 24-line decks' leave method as
   code, and `--check` shows it reproduces their published figures for today and Familiar Nine exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the six decks, and
-  Common Ground's two outside the pack (*Common Ground's presentations, outside the pack*, below), agrees with the sheets
-  and the leave model, and none is left unchecked (it prints the count).
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the eight decks agrees
+  with the sheets and the leave model, and none is left unchecked (it prints the count).
 
 Rebuild after any change to the rota:
 
@@ -307,8 +312,8 @@ python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/to
   && node docs/links-26/tooling/deck-check.mjs
 ```
 
-`common-ground-decks.py` is not part of the pack: it rewrites Even Step's finished decks into Common Ground's, outside
-the pack, so it runs after the polish. Then export the PDFs (LibreOffice), both folders', then `node docs/links-26/tooling/what-it-means-sheet.mjs` (it reads the decks, so it
+`common-ground-decks.py` rewrites Even Step's finished decks into Common Ground's, so it runs after the polish. Then
+export the PDFs (LibreOffice), then `node docs/links-26/tooling/what-it-means-sheet.mjs` (it reads the decks, so it
 comes after them), `node docs/links-26/tooling/newlink-data.mjs` (the app page's copy of the same figures — the build
 fails until it is run) and `python3 docs/links-26/tooling/pack.py` (which refuses that sheet if it is older than the decks).
 
@@ -4010,6 +4015,9 @@ spare.
 
 ## Common Ground's presentations, outside the pack (5 Nov 2026)
 
+*Superseded the same day: Common Ground joined the shortlist, its decks moved into `presentations/` and the folder below
+went (next section, "The shortlist drawn again"). This section is how they were first built and reviewed.*
+
 **The request** (owner, 5 Nov 2026): *"Then create presentations for common ground. Do we have a presentation for Even
 step?"* Even Step has both of its decks in `presentations/`, built on 3 Nov. Asked where Common Ground's should go, the
 owner chose **outside the pack**: build both decks and keep them in the repository to look at and use, with the pack, the
@@ -4079,6 +4087,76 @@ the count behind it (`feel()` in report-data.mjs) also needs the whole week to b
 label reads, today has 9 of 16: weeks 4 and 19 have one time Monday to Friday and a late on the Saturday. Every design's
 figure is the same either way, Common Ground's 19 of 21 among them. The same label is on every deck and the sheets, so it
 is the owner's to decide, for all of them at once.
+
+## The shortlist drawn again — Even Step, Common Ground and Short Run (5 Nov 2026)
+
+**The request** (owner, 5 Nov 2026): *"I would like common ground in the shortlist as the best 30 day example, short run
+too because colleagues have seen it and the best one of the others which I think is even step? Redo the pack based on
+this, keep the other presentations in the pack, just not the shortlist"*.
+
+**Checked first, against the league** — the main one, with today's link in the range, as the sheets read it:
+- **Even Step is the best of the others:** first, on 85.46, under half a point ahead of Next Step (85.33), Closing Time
+  (85.18) and Fair Share (85.12). It stays the one recommended.
+- **Common Ground is not the league's best 30-day link.** Grand Tour is, on 83.86. Common Ground scores 83.67 and is
+  seventh, a thousandth behind Clean Slate (83.6744 to 83.6734), a gap no rota could feel, so the shortlist sheet gives its
+  score and not its place. It is on the shortlist as the owner chose it, the example of the links that keep today's
+  leave, and the pack says that rather than calling it the best.
+- **Short Run is twelfth** (81.73). It is on the shortlist because colleagues have seen it, and the pack says that too.
+- **In Step is last of the eighteen** on the main league (80.58), and was first on the weighting before 31 Oct.
+
+**The tooling.** `tooling/fresh.mjs`: `SHORTLIST` is Even Step, Common Ground and Short Run, the recommendation first as
+the pack orders it; `SHORTLIST_DATE` is 5 Nov 2026; and a new `DECKS_KEPT` names the designs off the shortlist whose
+presentations the pack still ships, In Step. `pack.py` ships the decks of both lists and refuses any other, so the 3 Oct
+rule ("only keep the shortlist's presentations") still holds for everything else.
+
+**The decks.**
+- Common Ground's two moved into `presentations/`, and `presentations-outside-the-pack/` went. `common-ground-decks.py`
+  writes there now, refuses to run unless Common Ground and Even Step are both on the shortlist with Even Step
+  recommended, and compares Common Ground with the other two shortlisted links where it compared with "the shortlisted
+  three". Its managers' title slide reads "One of three shortlisted new CEA links" and "Even Step is recommended", as
+  Short Run's does. Its "Why" slide keeps Even Step's three "All three:" lines, each checked true of all three, then
+  "This one adds: 30 days off for 14 days' leave, and four weeks off for 14, as now" and "This one costs: six single rest
+  days, not four, and a slightly weaker weekday fit".
+- `deck-polish.py` writes each managers' deck's slide-7 notes against the other two shortlisted links, every comparison
+  checked. In Step's notes open "In Step is not on the shortlist: it was from 30 October to 5 November 2026, when Common Ground
+  took its place, and Even Step, the recommended design, keeps its weeks", and its title slide says "not on the
+  shortlist". Its colleague deck's notes stop pointing at the shortlist sheet, which no longer sets it out.
+- **The 22:00 sentence, everywhere.** The managers' notes on slide 8 put the rise in finishes at 22:00 or later down to
+  the rules alone; the review in the section above corrected Common Ground's only. All four designs' notes now say the
+  rules want five still on duty at 22:00 and two floor lates finish at 22:30 with the ticket office every weekday, which
+  makes seven, and `deck-polish.py` checks it (four 22:30 finishes and three 23:55 closers every weekday).
+- `deck-check.mjs` reads the eight decks from one folder: 216 rows agree, none unchecked.
+
+**The sheets.**
+- **The shortlist sheet**, rewritten. Five lines the three used to share are differences now, because Common Ground has
+  its own: 19 of 21 weeks on one shift time, more single rest days, today's leave, its Sunday and the closest Sunday fit.
+  So page 1 has six shared lines, and "where they differ" gains four rows: weeks on one shift time, single rest days a
+  year, the leave, and the fit by day. Every figure about single rest days on the sheet is a year's (8, 12 and 8), as
+  that row is; "six, not four" in 26 weeks beside a row reading 12 and 8 read as a contradiction. Page 2's "Why these
+  three and not the other fifteen" says why each of the three is there and gives every other design one row, what it
+  keeps and what it pays, asserted measure by measure — In Step's is "steadier weeks and a closer Saturday fit — but the
+  most long earlies, 40 a year each". The judgement paragraph gives the league as above.
+- The summary sheet marks the new three. The "What it means if you…" sheet shows Common Ground, Even Step and Short Run, A
+  to Z; its leave line now differs between them, and its Sunday pay figure is a range, £250 to £350 a year less, because
+  Common Ground's is £350.
+- The proposal sheets are unchanged: each compares only with today's link.
+- The read-me (`pack.py`) names the three in its recommendation and adds a paragraph for 5 Nov to its history; its checks
+  name the three, the date and In Step's decks, and one more phrase is checked against the shortlist sheet, the single
+  rest days.
+
+**The app, v25.36.** The Links designer's built-in shortlist is Even Step, Common Ground and Short Run
+(`links-proposals.js`; Common Ground's grid copied cell for cell from `30-days-off/`). The New link page lists the three
+A to Z, and had been doing so by accident: "Even Step, In Step, Short Run" was the recommendation-first order and A to Z
+at once, so the page never sorted, and with Common Ground it would have put the recommendation first on a page that names
+none. It now sorts its own tiles, columns, weeks and tabs (`aToZ`, `newlink-render.js`) and opens on the first of them,
+Common Ground; a test fails if the built-in order were ever A to Z by itself, so the sort is always exercised. Its
+"What's changed" lines were redrafted for the three. The first no longer says both newer proposals were drawn up "from
+what colleagues said about it": that was said of Even Step and In Step, and nothing here records it of Common Ground,
+drawn up on the owner's brief. It is the owner's to restore. The "Keep only the shortlist" dialog takes the three names
+from the built-in list instead of typing them.
+
+**Left as it was.** "Weeks on one shift time, Monday to Friday" still gives today 7 of 16 (the section above has why);
+the owner's to decide, for every sheet and deck at once.
 
 ## Notes for the whole set
 

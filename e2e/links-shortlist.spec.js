@@ -48,7 +48,7 @@ test('links: the admin keeps only the shortlist — the older designs go to Rece
 
     await sheetAction(page, 'keepShortlistBtn');
     const msg = keepDialog(page).locator('.dialog-message');
-    await expect(msg).toContainText('Even Step, In Step and Short Run stay in the list as they are now — built in and read-only.');
+    await expect(msg).toContainText('Even Step, Common Ground and Short Run stay in the list as they are now — built in and read-only.');
     await expect(msg).toContainText('• Closing Time — copy (last saved by you)');
     await expect(msg).toContainText('• Option B (last saved by S. Silva)');
     expect(await writes(page), 'nothing is written before the confirm').toEqual([]);

@@ -145,7 +145,7 @@ def check_typed():
            E['fitWk'], float(S['fitWk']) < min(float(I['fitWk']), float(E['fitWk'])), long_ms(es), sorted({r[d] for r in es.values() for d in r if timed(r[d]) and mins(r[d]) > 510}),
            sum(1 for r in es.values() if r['sun'] == '09:00-18:00'), long_all(es), [S['step'], E['step'], I['step']], k1345(es), E['closerSat'], E['fitSat'], E['light'], E['heavy'], sorted(SL), REC,
            [late_avg(sr), late_avg(ins), late_avg(es)]]
-    want = [[True] * 10, '32.6', True, 0, ['09:00-18:00'], 1, 2, ['1h 13m', '1h 31m', '1h 13m'], True, '8h 10m', '10.0', '25h 30m', '41h 30m', ['Even Step', 'In Step', 'Short Run'], 'Even Step', [480, 492, 507]]
+    want = [[True] * 10, '32.6', True, 0, ['09:00-18:00'], 1, 2, ['1h 13m', '1h 31m', '1h 13m'], True, '8h 10m', '10.0', '25h 30m', '41h 30m', ['Common Ground', 'Even Step', 'Short Run'], 'Even Step', [480, 492, 507]]
     if got != want: raise SystemExit(f'short-run-decks: the notes on Even Step no longer match the rota —\n  the data says {got}\n  the notes say {want}')
 
 if __name__ == '__main__':

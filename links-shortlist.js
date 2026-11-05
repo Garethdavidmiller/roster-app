@@ -7,10 +7,11 @@
  *
  * "Put the new shortlist proposals as the saved options in the links designer. Remove the older
  * ones." — and then, of the first version, which saved the three as ordinary editable designs:
- * "The shortlist should be read only." So the shortlist is NOT touched. Even Step, In Step and
- * Short Run stay exactly what they are — built in (`links-proposals.js`), read-only, at the top of
- * the picker, the owner's decision of 3 Oct 2026 — and what goes is everything that was saved
- * before them. The options left in the picker are the shortlist.
+ * "The shortlist should be read only." So the shortlist is NOT touched. The built-in designs stay
+ * exactly what they are — built in (`links-proposals.js`), read-only, at the top of the picker, the
+ * owner's decision of 3 Oct 2026 — and what goes is everything that was saved before them. The
+ * options left in the picker are the shortlist. The dialog names them from that list, so it says
+ * the right three whichever they are (Even Step, Common Ground and Short Run since 5 Nov 2026).
  *
  * ── WHY ONE DELIBERATE PRESS, AND NOT A MOVE ON PAGE OPEN ──────────────────────────────────────
  *
@@ -43,6 +44,8 @@
  * `isOlderDesign` again INSIDE its transaction, so a design a colleague saved after the dialog
  * opened is spared; the press is `links-design-library.js`.
  */
+
+import { PROPOSALS } from './links-proposals.js';
 
 /** The start of 2 Nov 2026 (UTC): a design last saved before this is one of the "older ones". */
 export const OLDER_BEFORE = Date.UTC(2026, 10, 2);
@@ -101,8 +104,10 @@ export function keepOnlyShortlistMessage(older, { currentUser, dirty }) {
     const who = (/** @type {{ updatedBy?: string }} */ d) => d.updatedBy === currentUser ? 'you' : d.updatedBy || 'nobody named';
     const rows = older.slice(0, LISTED_IN_DIALOG).map(d => `• ${(d.name || '').trim() || 'Untitled design'} (last saved by ${who(d)})`);
     if (n > LISTED_IN_DIALOG) rows.push(`• and ${n - LISTED_IN_DIALOG} more`);
+    const kept = PROPOSALS.map(p => p.name.replace(/ — Dec 2026$/, ''));   // the shortlist, in the picker's order
+    const keptWords = kept.length > 1 ? `${kept.slice(0, -1).join(', ')} and ${kept[kept.length - 1]}` : kept.join('');
     const parts = [
-        'Even Step, In Step and Short Run stay in the list as they are now — built in and read-only.',
+        `${keptWords} stay in the list as they are now — built in and read-only.`,
         `${n === 1 ? 'This older design moves' : `These ${n} older designs move`} to Recently deleted, where anyone can restore ${n === 1 ? 'it' : 'them'}:\n${rows.join('\n')}`,
     ];
     if (dirty) parts.push('Your unsaved changes to the open design will be lost.');

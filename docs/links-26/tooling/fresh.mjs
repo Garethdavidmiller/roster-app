@@ -51,7 +51,7 @@ export const STRAPS = {
   'GT-26-T7': ['Fair Share’s shifts in new weeks: 14 days’ leave buys 30 days off and four weeks off take 14, as today', 'search'],
   // 4 Nov 2026: today's link taken to 26 weeks on the owner's brief — openers finishing 13:45 or 14:20, closers from 15:45,
   // nothing over 8h 30m on a weekday or 9h at the weekend, an even Sunday, 30 days off for 14 days' leave (README.md →
-  // "Common Ground"). Not shortlisted
+  // "Common Ground"). Shortlisted on 5 Nov 2026, as the 30-day example (below)
   'CG-26-T8': ['Today’s link on 26 weeks: nothing over 8h 30m on a weekday, a 13:45 finish every weekday, an even Sunday, and 14 days’ leave buys 30 days off, as today', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
@@ -63,14 +63,23 @@ export const STRAPS = {
 /** The designs taken forward. Three on 3 Oct 2026 (Second Edition, Short Run, Even Keel), Closing Time added on 30 Oct 2026
  *  (owner: "Can we add closing time to the shortlist?"), and the same day cut to two (owner: "Only do the shortlist for
  *  instep and short run"). Even Step joined on 31 Oct 2026 (owner, asked whether Short Run should stay: "Yes, keep all
- *  three"). Marked on the summary and compared on the shortlist sheet; the decks and the pack read it here. The
- *  recommendation comes first. */
-export const SHORTLIST = ['Even Step', 'In Step', 'Short Run'];
+ *  three"). On 5 Nov 2026 Common Ground took In Step's place (owner: "I would like common ground in the shortlist as the
+ *  best 30 day example, short run too because colleagues have seen it and the best one of the others which I think is even
+ *  step"), and In Step's presentations stay in the pack though it is no longer on the shortlist ("keep the other
+ *  presentations in the pack, just not the shortlist"). Marked on the summary and compared on the shortlist sheet; the
+ *  decks and the pack read it here. The recommendation comes first, then the others alphabetically. */
+export const SHORTLIST = ['Even Step', 'Common Ground', 'Short Run'];
+/** The day the shortlist above was drawn, for the sheets and the read-me that say when — after every design in the pack. */
+export const SHORTLIST_DATE = '5 Nov 2026';
+/** Designs off the shortlist whose presentations the pack still ships (owner, 5 Nov 2026, above). */
+export const DECKS_KEPT = ['In Step'];
+if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is both shortlisted and kept off it: ${DECKS_KEPT}`);
 /** The one the shortlist sheet recommends. Short Run from 3 Oct 2026; In Step from 30 Oct 2026, when the owner asked for "a
  *  deep think from all angles about which to recommend" (README.md → "The shortlist cut to two"); Even Step from 31 Oct
  *  2026, In Step's weeks without its long earlies, after the owner found those the one thing about In Step that would be
- *  hard to sell (README.md → "Even Step"). The sheet's page 2 argues for it in prose, so the sheet refuses a value its
- *  prose was not written for. */
+ *  hard to sell (README.md → "Even Step"). Unchanged when Common Ground joined on 5 Nov 2026: the owner chose the shortlist,
+ *  not a new recommendation. The sheet's page 2 argues for it in prose, so the sheet refuses a value its prose was not
+ *  written for. */
 export const RECOMMENDED = 'Even Step';
 if (!SHORTLIST.includes(RECOMMENDED)) throw new Error(`the recommendation ${RECOMMENDED} is not on the shortlist`);
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.

@@ -21,7 +21,7 @@ test.describe('new link', () => {
         await expect(page.locator('#nlPreview')).toContainText('Preview — only you and S. Silva can see this page.');
         // the stand-in audience: every CEA on the roster, listed for the admin to check
         await expect(page.locator('#nlPreview')).toContainText('every CEA on the roster');
-        await expect(page.locator('.nl-name-title')).toHaveText(['Even Step', 'In Step', 'Short Run']);
+        await expect(page.locator('.nl-name-title')).toHaveText(['Common Ground', 'Even Step', 'Short Run']);
         await expect(page.locator('#nlStatus')).toContainText('Have your say by a date to be agreed');
         // EVENLY: nothing on the page names a recommendation (owner, 2 Nov 2026: "No, three evenly")
         await expect(page.locator('main')).not.toContainText(/recommend/i);
@@ -46,7 +46,7 @@ test.describe('new link', () => {
         await expect(earlies).toBeFocused();   // the redraw keeps focus on the pressed tile
         await expect(panel.locator('.nl-persona')).toHaveCount(1);
         await expect(panel.locator('.nl-persona-h')).toHaveText(/If you prefer earlies/);
-        await expect(panel.locator('thead th')).toHaveText(['Today', 'Even Step', 'In Step', 'Short Run']);
+        await expect(panel.locator('thead th')).toHaveText(['Today', 'Common Ground', 'Even Step', 'Short Run']);
         await expect(panel.locator('.nl-best').first()).toBeVisible();
 
         await page.locator('[data-persona="all"]').click();
@@ -72,7 +72,8 @@ test.describe('new link', () => {
         await expect(weeks.locator('.nl-weeks-one')).toHaveCount(3);
         const chosen = weeks.locator('.nl-weeks-one.is-chosen');
         await expect(chosen.locator('.nl-flag')).toHaveText(/A proposal — not your roster/);
-        await expect(chosen.locator('caption')).toContainText('Even Step');
+        // the first A to Z, never the recommendation — the page presents the three evenly
+        await expect(chosen.locator('caption')).toContainText('Common Ground');
         await expect(chosen.locator('tbody tr')).toHaveCount(26);
         await expect(chosen.locator('tbody tr.nl-wk-cover')).toHaveCount(5);
         // numbered, never dated
@@ -98,10 +99,10 @@ test.describe('new link', () => {
         }
         // A PHONE: the chosen one only, under tabs that change it
         await expect(weeks.locator('.nl-weeks-one:not(.is-chosen)').first()).toBeHidden();
-        await page.locator('[data-design="proposal:IS-26-T4"]').click();
-        await expect(page.locator('[data-design="proposal:IS-26-T4"]')).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.locator('[data-design="proposal:IS-26-T4"]')).toBeFocused();
-        await expect(chosen.locator('caption')).toContainText('In Step');
+        await page.locator('[data-design="proposal:ES-26-T5"]').click();
+        await expect(page.locator('[data-design="proposal:ES-26-T5"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('[data-design="proposal:ES-26-T5"]')).toBeFocused();
+        await expect(chosen.locator('caption')).toContainText('Even Step');
         await expect(chosen.locator('tbody tr')).toHaveCount(26);
         // ...and the tabs stay in reach while the weeks scroll beneath them (a card with `overflow: hidden` would let
         // them scroll away — the cascade decides this, so only a browser can see it)
@@ -182,7 +183,7 @@ test.describe('new link', () => {
         await expect(pill).toBeVisible();
         await pill.click();
         await expect(page).toHaveURL(/newlink\.html$/);
-        await expect(page.locator('.nl-name-title').first()).toHaveText('Even Step');
+        await expect(page.locator('.nl-name-title').first()).toHaveText('Common Ground');
     });
 
     // S. Silva is the new link's contact (newlink-config.js → CONTACT), and may see the preview before colleagues do
@@ -195,7 +196,7 @@ test.describe('new link', () => {
         await expect(pill).toBeVisible();
         await pill.click();
         await expect(page).toHaveURL(/newlink\.html$/);
-        await expect(page.locator('.nl-name-title').first()).toHaveText('Even Step');
+        await expect(page.locator('.nl-name-title').first()).toHaveText('Common Ground');
         await expect(page.locator('#nlPreview')).toContainText('Preview — only you and the admin can see this page.');
     });
 });

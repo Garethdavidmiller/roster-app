@@ -23,19 +23,17 @@ import { kindBlocks } from './blocks.mjs';
 import { scoreOrder } from '../../../links-adjacency.js';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
-// DECKS OUTSIDE THE PACK (5 Nov 2026, owner: "Then create presentations for common ground", and kept outside the pack): a
-// design off the shortlist can have decks for the owner's own use. They live in a folder of their own, because pack.py ships
-// presentations/ and refuses any deck there that is not the shortlist's. Their rows are checked here exactly as the
-// shortlist's are; OUTSIDE_DECK_DIR checks a copy.
-const OUTSIDE = process.env.OUTSIDE_DECK_DIR ?? new URL('../presentations-outside-the-pack/', import.meta.url).pathname;
-// Only the shortlist's decks are shipped (owner, 3 Oct 2026): Second Nature's, Second Wind's and Second Sight's were deleted.
-// The shortlist became In Step and Short Run on 30 Oct 2026 (owner: "Only do the shortlist for instep and short run"), and
-// Second Edition's, Even Keel's and Closing Time's decks went the same way; their builders are in git. Even Step joined it on
-// 31 Oct 2026, recommended (owner: "Yes, keep all three").
+// Only the shortlist's decks were shipped from 3 Oct 2026 (owner): Second Nature's, Second Wind's and Second Sight's were
+// deleted. The shortlist became In Step and Short Run on 30 Oct 2026 (owner: "Only do the shortlist for instep and short run"),
+// and Second Edition's, Even Keel's and Closing Time's decks went the same way; their builders are in git. Even Step joined it
+// on 31 Oct 2026, recommended (owner: "Yes, keep all three"). On 5 Nov 2026 Common Ground took In Step's place, and In Step's
+// decks stayed in the pack off the shortlist (owner: "keep the other presentations in the pack, just not the shortlist";
+// fresh.mjs → DECKS_KEPT), so all eight are here. Common Ground's were made earlier that day in a folder outside the pack,
+// which went when they joined it.
 const DECKS = [['Even-Step-for-colleagues.pptx', 'Even Step'], ['Even-Step-for-managers.pptx', 'Even Step'],
-  ['In-Step-for-colleagues.pptx', 'In Step'], ['In-Step-for-managers.pptx', 'In Step'],
+  ['Common-Ground-for-colleagues.pptx', 'Common Ground'], ['Common-Ground-for-managers.pptx', 'Common Ground'],
   ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run'],
-  ['Common-Ground-for-colleagues.pptx', 'Common Ground', OUTSIDE], ['Common-Ground-for-managers.pptx', 'Common Ground', OUTSIDE]];
+  ['In-Step-for-colleagues.pptx', 'In Step'], ['In-Step-for-managers.pptx', 'In Step']];
 
 const hm = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
 const span = s => String(s).replace(/(\d+)h(\d\d)(?!m)/g, '$1h $2m');                 // plain.mjs's "8h40" → the decks' "8h 40m"
@@ -149,7 +147,7 @@ if (process.argv.includes('--print')) {   // every figure a deck row can quote, 
     const j = JSON.parse(readFileSync(f.url, 'utf8')); out[name] = figures(j.patterns ?? j, LINES, TA); }
   console.log(JSON.stringify(out, null, 1)); process.exit(0);
 }
-for (const [file, name, dir = DIR] of DECKS) {
+for (const [file, name] of DECKS) { const dir = DIR;
   const f = stats.find(s => s.name === name); if (!f) throw new Error(`deck-check: no proposal called ${name}`);
   const j = JSON.parse(readFileSync(f.url, 'utf8')), p = j.patterns ?? j;
   const PF = figures(p, LINES, TA);

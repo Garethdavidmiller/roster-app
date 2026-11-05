@@ -28,13 +28,19 @@
 //     review, 1 Nov 2026, which found "Short Run none" read as no swap paying at all);
 //   · gross, before tax, at the CEA rate.
 //
+// THE NEW THREE (5 Nov 2026, owner: Common Ground "as the best 30 day example", Short Run "because colleagues have seen it",
+// Even Step, still recommended; In Step off the shortlist). The columns are A TO Z — Common Ground, Even Step, Short Run — as
+// the New link page shows them ("three evenly"), so the page and this sheet read in one order. Common Ground broke five of
+// the in-short lines, each now saying whom it is true of: its earlies are the shortest on average, it keeps the most from
+// the 13:45 swaps, its Sunday pay is its own (£350 where the other two are £250), it keeps today's four weeks for 14 days'
+// leave, and it has two three-day breaks. Long Break left the leave line, which a shortlisted link now answers.
+//
 // Imported, never run: it prints nothing and writes nothing. Its claims run at import, so a design that stops fitting a
 // sentence stops the sheet AND the generator.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { today, folderStats } from './report-data.mjs';
-import { leave } from './leave.mjs';
 import { SHORTLIST, RECOMMENDED } from './fresh.mjs';
 import { GRADES, RATE_125, RATE_150 } from '../../../paycalc-calc.js';
 
@@ -48,8 +54,9 @@ const upTo = v => (s => s ? `${first(v)}, up to\u00a0${s[1]}` : `${first(v)}`)(/
 const claim = (what, ok) => { if (!ok) throw new Error(`the sheet says "${what}", and the figures no longer do`); };
 
 // THE PROSE IS WRITTEN FOR THESE THREE: any other shortlist stops the sheet rather than print sentences about designs it was
-// never checked against
-if (SHORTLIST.join() !== 'Even Step,In Step,Short Run' || RECOMMENDED !== 'Even Step') throw new Error(`the sheet's prose is written for Even Step (recommended), In Step and Short Run; the shortlist is ${SHORTLIST}, recommending ${RECOMMENDED}`);
+// never checked against. A TO Z, whatever order fresh.mjs lists them in (it puts the recommendation first)
+const ORDER = [...SHORTLIST].sort();
+if (ORDER.join() !== 'Common Ground,Even Step,Short Run' || RECOMMENDED !== 'Even Step') throw new Error(`the sheet's prose is written for Common Ground, Even Step (recommended) and Short Run; the shortlist is ${SHORTLIST}, recommending ${RECOMMENDED}`);
 
 // process.execPath, not 'node': the Node that is running this, not whichever the PATH finds (the review, 2 Nov 2026); and
 // fileURLToPath, never `.pathname`, which turns a space in the checkout's path into %20
@@ -77,7 +84,7 @@ function col(name, p, f) {
     long34: Math.round(breaks.filter(n => n === 3 || n === 4).length * 52 / L), longOver4: breaks.filter(n => n > 4).length,
     earliesToday: Object.values(p).every(r => MS.every(d => !timed(r[d]) || !isEarly(r[d]) || todaysTimes.has(r[d]))) };
 }
-const TC = col('Today', T0, FIG.today), C = SHORTLIST.map(n => col(n, grid(n), FIG[n])), [ES, IS, SR] = C;
+const TC = col('Today', T0, FIG.today), C = ORDER.map(n => col(n, grid(n), FIG[n])), [CG, ES, SR] = C;
 // the pay, against today: a full share of Sundays and no other overtime (the decks' slide 5 sum, to £50), and no overtime at all
 for (const c of C) {
   const premSat = Q * (c.sat - TC.sat), premSun = SUN * (c.sun - TC.sun);
@@ -96,7 +103,6 @@ for (const c of C) {
   claim(`today’s swaps, about £${TC.swapPounds}, as ${c.name}’s colleague deck says`, today && +today[1] === TC.swapPounds);
   claim(`${c.name}’s swaps, ${c.swapPounds ? `about £${c.swapPounds}` : 'nothing'}, as its colleague deck says`, c.swapPounds ? own && +own[1] === c.swapPounds : !own && /those particular swaps add nothing/.test(notes));
 }
-const LB = leave(grid('Long Break')), LBrun = stats.find(s => s.name === 'Long Break').fixedRun;
 const perYearOf = (c, test) => perYear(c.p, test);
 
 // ── THE IN-SHORT LINES, EACH ASSERTED ─────────────────────────────────────────────────────────────────────────────────
@@ -106,9 +112,12 @@ const all = ok => C.every(ok);
 // …prefer earlies
 claim('fewer earlies and longer ones on every link', all(c => +c.f.earlyYear < +TC.f.earlyYear && H(c.f.avgEarly) > H(TC.f.avgEarly)));
 claim('earlies and lates in longer runs on every link', all(c => +c.f.block > +TC.f.block && +c.f.blockUpTo > +TC.f.blockUpTo));
-claim('Even Step’s are closest to today’s: the shortest average early and the fewest over 8h 30m of the three',
-  C.every(c => c === ES || (H(ES.f.avgEarly) < H(c.f.avgEarly) && ES.longEarly < c.longEarly)));
-claim('Even Step: none over 8h 30m, and every early Monday to Saturday one of today’s times', ES.earliesToday && ES.longEarly === 0);
+// (5 Nov 2026) Common Ground's earlies are the shortest of the three on average and the most often finish at 13:45; Even Step's
+// are all times worked today; neither has one over 8h 30m Monday to Saturday, and Short Run has
+claim('Common Ground’s earlies the shortest on average, and the most often finishing at 13:45, of the three',
+  C.every(c => c === CG || (H(CG.f.avgEarly) < H(c.f.avgEarly) && +CG.f.shortYear > +c.f.shortYear)));
+claim('Even Step: every early Monday to Saturday one of today’s times; the other two not', ES.earliesToday && !CG.earliesToday && !SR.earliesToday);
+claim('neither Common Ground nor Even Step has an early over 8h 30m Monday to Saturday; Short Run has', ES.longEarly === 0 && CG.longEarly === 0 && SR.longEarly > 0);
 // "the only earlies that finish before 14:00" (the notes): the 13:35 and 13:45 count is the pack's before-14:00 count
 claim('the 13:35 and 13:45 earlies are the only earlies that finish before 14:00, today and on every link',
   [TC, ...C].every(c => Math.round(perYearOf(c, s => isEarly(s) && m(s.slice(6)) < 14 * 60)) === +c.f.shortYear));
@@ -120,29 +129,33 @@ claim('Short Run: the shortest lates on average', C.every(c => c === SR || H(SR.
 // …swap (the external review's wording, 1 Nov 2026)
 const swapLess = C.map(c => TC.swapPounds - c.swapPounds);
 claim('swapping the shortest earlies brings less overtime than today on every link', swapLess.every(x => x > 0) && all(c => +c.f.shortYear < +TC.f.shortYear));
-claim('In Step keeps the most from its 13:35 or 13:45 finishes; Short Run has none of those finishes', C.every(c => c === IS || IS.swapHours > c.swapHours) && +SR.f.shortYear === 0 && SR.swapHours === 0);
+claim('Common Ground keeps the most from its 13:45 finishes, and has no 13:35; Short Run has none of those finishes', C.every(c => c === CG || CG.swapHours > c.swapHours)
+  && Object.values(CG.p).every(r => MS.every(d => !timed(r[d]) || !r[d].endsWith('-13:35'))) && +SR.f.shortYear === 0 && SR.swapHours === 0);
 // "OTHER SWAPS MAY STILL ADD PAID TIME" (the external review, 1 Nov 2026): true only while every link has, on some day Monday
 // to Saturday, an early other than a 13:35 or 13:45 and a late on the same day that is longer than it
 const otherSwaps = p => MS.some(d => { const on = [...new Set(Object.values(p).map(r => r[d]).filter(timed))];
   return on.some(e => isEarly(e) && !/-13:(35|45)$/.test(e) && on.some(l => !isEarly(l) && mins(l) > mins(e))); });
 claim('other swaps may still add paid time, on every link', all(c => otherSwaps(c.p)));
 // …your share of Sundays
-const sundayLoss = (v => { claim('the same £ for a full share of Sundays on all three', v.every(x => x === v[0])); return v[0]; })(C.map(c => c.sundayLoss));
+// each design's own £ since 5 Nov 2026: Common Ground's Sundays are evened out to 8h–8h 30m, so its loss is larger
+const sundayLoss = C.map(c => c.sundayLoss);
+claim('a full share of Sundays costs between £250 and £350 a year, gross; Common Ground’s the most', sundayLoss.every(x => x >= 250 && x <= 350) && C.every(c => c === CG || c.sundayLoss < CG.sundayLoss));
 const sunAvg = c => c.sun * 60 / perYearOf(c, (s, d) => d === 'sun');   // the average Sunday duty, in minutes
 claim('two more Saturdays at time and a quarter, but fewer, shorter Sundays, on every link',
-  sundayLoss > 0 && all(c => +c.f.sat - +TC.f.sat === 2 && +c.f.sun < +TC.f.sun && sunAvg(c) < sunAvg(TC)));
+  sundayLoss.every(x => x > 0) && all(c => +c.f.sat - +TC.f.sat === 2 && +c.f.sun < +TC.f.sun && sunAvg(c) < sunAvg(TC)));
 // …no overtime at all
 const noOt = C.map(c => c.noOtGain);
 claim('no overtime at all: a little better off on every link, from two more Saturdays', noOt.every(x => x > 0 && x < 150) && all(c => +c.f.sat - +TC.f.sat === 2));
 // …save your leave (SUNDAY TO SATURDAY, AS THE OTHER SHEETS SAY IT — the accuracy check, 1 Nov 2026: leave.mjs's fourWeeks is
 // 28 days from a Sunday; from a Wednesday the same 14 days buy 28 on every link, so without the words the band contradicted
 // its next row)
-claim('four full weeks off, Sunday to Saturday, take a day more leave on every link', all(c => +c.f.leaveFour === +TC.f.leaveFour + 1));
+claim('four full weeks off, Sunday to Saturday, take a day more leave on Even Step and Short Run; Common Ground keeps today’s, and today’s best stretch',
+  [ES, SR].every(c => +c.f.leaveFour === +TC.f.leaveFour + 1) && +CG.f.leaveFour === +TC.f.leaveFour && +CG.f.leaveBest === +TC.f.leaveBest);
 claim('on average 14 days’ leave goes as far as today, on every link', all(c => c.f.leaveAvg === TC.f.leaveAvg));
-// the row's "none" means no break of three or four rest days AND none longer; today's are three or four days
-claim('no rest-day break over two days on any link; today has three- and four-day breaks', all(c => c.long34 === 0 && c.longOver4 === 0 && restLens(c.p).every(n => n <= 2)) && TC.long34 > 0);
-// LONG BREAK WITH ITS COST (the deep review, 1 Nov 2026), as the shortlist sheet names it: six days in a row
-claim('Long Break keeps four weeks off at today’s 14 days, is not shortlisted, and has six days in a row', LB.fourWeeks === +TC.f.leaveFour && !SHORTLIST.includes('Long Break') && LBrun === 6);
+// the row's "none" means no break of three or four rest days AND none longer; today's are three or four days. Common Ground
+// has two three-day breaks in its 26 weeks, the other two none
+claim('no rest-day break over two days on Even Step or Short Run; Common Ground two of three days; today three- and four-day breaks', [ES, SR].every(c => c.long34 === 0 && c.longOver4 === 0
+  && restLens(c.p).every(n => n <= 2)) && restLens(CG.p).filter(n => n > 2).join() === '3,3' && CG.long34 > 0 && TC.long34 > 0);
 // Whoever you are
 claim('every link: more full weekends, fewer days in a row, a longer shortest rest, no avoidable fatigue warning on the set duties',
   all(c => +c.f.weekendsYear > +TC.f.weekendsYear && first(c.f.run) < first(TC.f.run) && H(c.f.rest) > H(TC.f.rest) && first(c.f.ff) === 0) && first(TC.f.ff) > 0);
@@ -162,7 +175,7 @@ const v = (text, n = null) => ({ text, n });
 const money = (x, word) => x ? `about £${x}${word ? ` ${word}` : ''}` : 'none';
 const GROUPS = [
   { who: '…prefer earlies',
-    gist: `Fewer, longer earlies on every link, in longer runs. Even Step’s are closest to today’s: none over 8h 30m, and every one is one of today’s times.`,
+    gist: `Fewer, longer earlies on every link, in longer runs. Common Ground’s are the shortest on average and the most often finish at 13:45; Even Step’s are all times worked today. Neither has one over 8h 30m.`,
     rows: [row('Earlies a year', c => v(c.f.earlyYear, +c.f.earlyYear), 'high'),
       row('Average early', c => v(hm(H(c.f.avgEarly)), H(c.f.avgEarly)), 'low'),
       row('Earlies over 8h 30m, a year', c => v(`${c.longEarly}`, c.longEarly), 'low'),
@@ -175,12 +188,12 @@ const GROUPS = [
       row('Longest closing shift, any day', c => v(hm(closerMax(c)), closerMax(c)), 'low'),
       row('Finishing at 23:00 or later, any day, a year', c => v(c.f.late23, +c.f.late23))] },
   { who: '…swap earlies for lates, for the overtime',
-    gist: `Swapping the shortest earlies brings less overtime than today on every link. In Step keeps the most from its 13:35 or 13:45 finishes; Short Run has none of those finishes. Other swaps may still add paid time.`,
+    gist: `Swapping the shortest earlies brings less overtime than today on every link. Common Ground keeps the most from its 13:45 finishes; Short Run has none of those finishes. Other swaps may still add paid time.`,
     rows: [row('A late against an early, same day, on average', c => v(`${Math.abs(c.swap)} min ${c.swap >= 0 ? 'longer' : 'shorter'}`, c.swap)),
       row('Each 13:35 or 13:45 early swapped for the day’s longest late', c => v(c.swapHours ? `+${hm(Math.round(c.swapHours * 60))}` : 'none', c.swapHours)),
       row('That overtime, gross, at time and a quarter', c => v(money(c.swapPounds), c.swapPounds))] },
   { who: '…work your share of Sundays and no other overtime',
-    gist: `About £${sundayLoss} a year less on every link, gross: two more Saturdays at time and a quarter, but fewer, shorter Sundays.`,
+    gist: `About £${lo(sundayLoss)} to £${hi(sundayLoss)} a year less on every link, gross: two more Saturdays at time and a quarter, but fewer, shorter Sundays.`,
     rows: [row('Sundays a year, at time and a half', c => v(c.f.sun, +c.f.sun)),
       row('Sunday hours a year', c => v(`${Math.round(c.sun)}`, Math.round(c.sun))),
       row('Premium and overtime pay, against today', c => v(c === TC ? '—' : money(c.sundayLoss, 'less')))] },
@@ -189,7 +202,7 @@ const GROUPS = [
     rows: [row('Saturday hours a year, at time and a quarter', c => v(`${Math.round(c.sat)}`, Math.round(c.sat)), 'high'),
       row('Premium pay, against today', c => v(c === TC ? '—' : money(c.noOtGain, 'more'), c === TC ? null : c.noOtGain), 'high')] },
   { who: '…save your leave for long breaks',
-    gist: `Four full weeks off, Sunday to Saturday, take a day more leave on every link, though on average 14 days’ leave goes as far as today. Long Break keeps them at ${LB.fourWeeks} days, but is not shortlisted: it has six days in a row.`,
+    gist: `Four full weeks off, Sunday to Saturday, take a day more leave on Even Step and Short Run; Common Ground keeps today’s ${CG.f.leaveFour}, with a few three-day breaks. On average 14 days’ leave goes as far as today on every link.`,
     rows: [row('Leave for four full weeks off, Sunday to Saturday', c => v(`${c.f.leaveFour} days`, +c.f.leaveFour), 'low'),
       row('Days off in a row from 14 days’ leave, at best', c => v(c.f.leaveBest, +c.f.leaveBest), 'high'),
       row('Rest-day breaks of three or four days, a year', c => v(c.long34 ? `about ${c.long34}` : 'none', c.long34), 'high')] },
@@ -214,6 +227,6 @@ export const isBest = (r, i) => { const c = r.cells[i]; if (i === 0 || !r.better
 export const tidyText = t => t
   .replace(/\b(\d+) (to|in|of) (\d+)\b/g, '$1\u00a0$2\u00a0$3').replace(/\b(\d+) a year\b/g, '$1\u00a0a\u00a0year').replace(/£(\d+) (a year|less|more)\b/g, '£$1\u00a0$2')
   .replace(/\b(today|Sun|Sat) (?=\d)/g, '$1\u00a0')
-  .replace(/\b(Even|In|Short|Long) (Step|Run|Break)\b/g, '$1\u00a0$2');
+  .replace(/\b(Even|In|Short|Long|Common) (Step|Run|Break|Ground)\b/g, '$1\u00a0$2');
 
-export { GROUPS, TC, C, ES, IS, SR, FIG, RATE, OT, sundayLoss, noOt, LB, lo, hi, hm, H, first, upTo, timed, m, mins, isEarly, DAYS, MS, perYear, restLens, grid, claim, SHORTLIST, RECOMMENDED };
+export { GROUPS, TC, C, CG, ES, SR, FIG, RATE, OT, sundayLoss, noOt, lo, hi, hm, H, first, upTo, timed, m, mins, isEarly, DAYS, MS, perYear, restLens, grid, claim, SHORTLIST, RECOMMENDED };

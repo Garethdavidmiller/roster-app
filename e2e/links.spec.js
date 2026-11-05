@@ -1720,7 +1720,7 @@ test('links: Generate works on a card nobody has touched', async ({ page }) => {
     await expect(page.locator('#linksSummary')).toContainText('35h');
 });
 
-// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026; Even Step, In Step and Short Run since v25.04) ──
+// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026; Even Step, Common Ground and Short Run since v25.36) ──
 // The unit tests pin the data and the masthead's words. What only the page can prove: the picker
 // REACHES them, opening one is read-only in the ways that matter (no rename, no delete, a Save that
 // makes a copy), and the copy that save writes is the proposal's own 26-line grid under a new name.
@@ -1781,7 +1781,7 @@ test('links: a window edit during a first save does not re-arm Save for a second
     });
     await page.goto('/links.html');
     await page.locator('#linksEmptyProposals').click();
-    await proposalOptions(page).filter({ hasText: 'In Step' }).click();
+    await proposalOptions(page).filter({ hasText: 'Common Ground' }).click();
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
@@ -1812,7 +1812,7 @@ test('links: Generate during a proposal copy\'s first save leaves the generated 
     });
     await page.goto('/links.html');
     await page.locator('#linksEmptyProposals').click();
-    await proposalOptions(page).filter({ hasText: 'In Step' }).click();
+    await proposalOptions(page).filter({ hasText: 'Common Ground' }).click();
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
@@ -1850,7 +1850,7 @@ test('links: a copy\'s first save landing while the Apply question is open still
     });
     await page.goto('/links.html');
     await page.locator('#linksEmptyProposals').click();
-    await proposalOptions(page).filter({ hasText: 'In Step' }).click();
+    await proposalOptions(page).filter({ hasText: 'Common Ground' }).click();
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });

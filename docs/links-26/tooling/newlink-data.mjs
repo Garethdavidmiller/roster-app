@@ -22,7 +22,7 @@
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { GROUPS, TC, C, ES, IS, SR, FIG, RATE, claim, tidyText, isBest, hm, H, first, timed, m, mins, isEarly, MS, SHORTLIST, RECOMMENDED } from './what-it-means-data.mjs';
+import { GROUPS, TC, C, CG, ES, SR, FIG, RATE, claim, tidyText, isBest, hm, H, first, timed, m, mins, isEarly, MS, SHORTLIST, RECOMMENDED } from './what-it-means-data.mjs';
 import { FIRST } from './fresh.mjs';
 import { PROPOSALS } from '../../../links-proposals.js';
 import { DAYS } from '../../../links-design.js';
@@ -35,10 +35,14 @@ const WORDS = { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 
 /** One figure across the three: "12", or "0 to 12" where they differ. @param {number[]} v */
 const span = v => { const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? `${lo}` : `${lo} to ${hi}`; };
 
-// THE WORDS ARE WRITTEN FOR THESE THREE, in this order — A to Z, which is also the Links workspace's order
-if (SHORTLIST.join() !== 'Even Step,In Step,Short Run' || RECOMMENDED !== 'Even Step') throw new Error(`the page's sentences are written for Even Step, In Step and Short Run; the shortlist is ${SHORTLIST}`);
-claim('the three in alphabetical order', [...SHORTLIST].sort().join() === SHORTLIST.join());
-claim('the built-in proposals are the shortlist, in the same order', PROPOSALS.map(p => p.name.replace(/ — Dec 2026$/, '')).join() === SHORTLIST.join());
+// THE WORDS ARE WRITTEN FOR THESE THREE, in this order — A to Z, which is also the Links workspace's order. Since 5 Nov 2026
+// (owner: Common Ground and Short Run beside Even Step, In Step off the shortlist) fresh.mjs lists the recommendation first,
+// so the order is the data module's (C), not SHORTLIST's
+const NAMES = C.map(c => c.name);
+if (NAMES.join() !== 'Common Ground,Even Step,Short Run' || RECOMMENDED !== 'Even Step' || [...SHORTLIST].sort().join() !== NAMES.join()) throw new Error(`the page's sentences are written for Common Ground, Even Step and Short Run; the shortlist is ${SHORTLIST}`);
+claim('the three in alphabetical order', [...NAMES].sort().join() === NAMES.join());
+// the built-in list keeps the pack's order, the recommendation first; the page sorts the three A to Z itself (newlink-render.js aToZ)
+claim('the built-in proposals are the shortlist, which the page shows A to Z as COLUMNS lists them', PROPOSALS.map(p => p.name.replace(/ — Dec 2026$/, '')).sort().join() === NAMES.join());
 const codeOf = name => PROPOSALS.find(p => p.name.startsWith(name + ' ')).code;
 const refOf = name => PROPOSALS.find(p => p.name.startsWith(name + ' ')).ref;
 
@@ -47,27 +51,37 @@ const refOf = name => PROPOSALS.find(p => p.name.startsWith(name + ' ')).ref;
 // 2 Nov 2026). The 26 on the new link are not the room it was shown to.
 const monSatDuties = p => Object.values(p).flatMap(r => MS.map(d => r[d])).filter(timed);
 // "after Short Run was first shown" is the owner's history (2 Nov 2026); what the folder can check is that both were MADE after it
-claim('Even Step and In Step created after Short Run (fresh.mjs FIRST)', [codeOf('Even Step'), codeOf('In Step')].every(c => new Date(FIRST[c]) > new Date(FIRST[codeOf('Short Run')])));
+claim('Common Ground and Even Step created after Short Run (fresh.mjs FIRST)', [codeOf('Common Ground'), codeOf('Even Step')].every(c => new Date(FIRST[c]) > new Date(FIRST[codeOf('Short Run')])));
 const keeps1345 = p => MS.slice(0, 5).every(d => Object.values(p).some(r => timed(r[d]) && r[d].endsWith('-13:45')));
-claim('Even Step and In Step keep a 13:45 every weekday; Short Run has no 13:35 or 13:45', keeps1345(ES.p) && keeps1345(IS.p)
+claim('Common Ground and Even Step keep a 13:45 every weekday; Short Run has no 13:35 or 13:45', keeps1345(CG.p) && keeps1345(ES.p)
   && monSatDuties(SR.p).every(s => !/-13:(35|45)$/.test(s)) && +SR.f.shortYear === 0);
-const longEarlies = p => monSatDuties(p).filter(s => isEarly(s) && mins(s) > 510);
-claim('Even Step: nothing over 8h 30m Monday to Saturday', monSatDuties(ES.p).every(s => mins(s) <= 510));
-claim('In Step and Short Run: some earlies of 8h 45m to 9 hours', [IS, SR].every(c => longEarlies(c.p).length > 0 && longEarlies(c.p).every(s => mins(s) >= 525 && mins(s) <= 540)));
+const over = p => [...new Set(monSatDuties(p).filter(s => mins(s) > 510))];
+claim('Even Step: nothing over 8h 30m Monday to Saturday', over(ES.p).length === 0);
+// COMMON GROUND'S ONE LONG DUTY IS A SATURDAY LATE; Short Run's are its 9-hour earlies (and an 8h 40m Saturday closer)
+claim('Common Ground: one 9-hour Saturday late, 13:30–22:30, and nothing else over 8h 30m Monday to Saturday', over(CG.p).join() === '13:30-22:30' && mins('13:30-22:30') === 540
+  && Object.values(CG.p).every(r => MS.slice(0, 5).every(d => r[d] !== '13:30-22:30')));
+claim('Short Run: some 9-hour earlies', over(SR.p).some(s => isEarly(s) && mins(s) === 540) && over(SR.p).filter(isEarly).every(s => mins(s) === 540));
+claim('Common Ground keeps today’s leave: four weeks off for 14 days, and 30 days off for 14 at best; the other two need 15 and buy 28', +CG.f.leaveFour === +TC.f.leaveFour
+  && +CG.f.leaveBest === +TC.f.leaveBest && [ES, SR].every(c => +c.f.leaveFour === +TC.f.leaveFour + 1 && +c.f.leaveBest === +TC.f.leaveBest - 2));
 // THE GRID ITSELF, NOT ITS LABEL (the review, 2 Nov 2026): a ref string can outlive an edited grid, so the fingerprint is
 // recomputed from the cells as report-data.mjs computes every sheet's — 618348d6 is Short Run's since 3 Oct 2026
 const fpOf = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a, b) => a - b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
 claim('Short Run is the rota of 3 Oct 2026, fingerprint 618348d6, recomputed from its cells', fpOf(SR.p) === '618348d6' && refOf('Short Run').endsWith(fpOf(SR.p)) && FIRST[codeOf('Short Run')] === '3 Oct 2026');
 claim('Short Run: the shortest lates of the three on average', C.every(c => c === SR || H(SR.f.avgLate) < H(c.f.avgLate)));
 claim('on all three, the most days in a row is 5, and 7 with a cover week placed badly', C.every(c => c.f.run === '5 (up to 7)'));
+// SINCE 5 NOV 2026 the two beside Short Run are Common Ground and Even Step. "From what colleagues said about it" was the owner's
+// history for In Step and Even Step; Common Ground was drawn on the owner's own brief (README → "Common Ground"), so the line
+// now says only what the folder can check, that both were drawn up after Short Run was shown
 const CHANGES = [
-  'Two more proposals sit beside Short Run now: Even Step and In Step. Both were drawn up after Short Run was first shown, from what colleagues said about it.',
+  'Two more proposals sit beside Short Run now: Common Ground and Even Step. Both were drawn up after Short Run was first shown.',
   // OF THE ROTA, not of a person: someone on it finishes at 13:45 each weekday, where one person has 10 or 12 a year
   'Both keep a shift finishing at 13:45 on every weekday of the rota. Short Run has no shift finishing at 13:35 or 13:45.',
-  'Even Step has nothing over 8h 30m, Monday to Saturday. In Step and Short Run have some earlies of 8h 45m to 9 hours.',
+  'Common Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even Step and Short Run four weeks off take 15.',
+  'Even Step has nothing over 8h 30m, Monday to Saturday. Common Ground has one 9-hour Saturday late, and Short Run some 9-hour earlies.',
   `Short Run has not changed since it was shown, and still has the shortest lates of the three: ${hm(H(SR.f.avgLate))} on average, closers included.`,
-  // HISTORY, NOT COMPUTED: before 31 Oct a cover week's Sunday counted inside its four duties (README, the folder's opening)
-  'One figure has moved since, on all three: when a cover week falls badly, the most days in a row is 7, not 6. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top.',
+  // HISTORY, NOT COMPUTED: before 31 Oct a cover week's Sunday counted inside its four duties (README, the folder's opening).
+  // Short Run's figure moved; the other two were drawn up under the new reading
+  'One figure has moved since: when a cover week falls badly, the most days in a row is 7, not 6, as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top.',
 ].map(t);
 
 // ── WHAT ALL THREE GIVE EVERYONE, AND WHAT THEY COST ──────────────────────────────────────────────────────────────────
@@ -86,14 +100,13 @@ const GAINS = [
   `At least ${hm(restLo)} between shifts (today ${hm(H(TC.f.rest))}).`,
   `No avoidable fatigue warnings on the set shifts (today ${first(TC.f.ff)}).`,
 ].map(t);
-const leaveFour = shared('leave for four weeks off', c => +c.f.leaveFour), late23 = shared('finishes at 23:00 or later', c => +c.f.late23);
+const late23 = shared('finishes at 23:00 or later', c => +c.f.late23);   // the leave left the shared costs on 5 Nov 2026: Common Ground keeps today's (CHANGES says so)
 const block = shared('weeks of one kind in a row', c => +c.f.block), blockUpTo = shared('weeks of one kind with a cover week badly placed', c => +c.f.blockUpTo);
 const sat = shared('Saturdays a year', c => +c.f.sat);
 const nt = C.map(newTimes);
-claim('worse than today on all three', leaveFour > +TC.f.leaveFour && late23 > +TC.f.late23 && block > +TC.f.block && sat > +TC.f.sat
+claim('worse than today on all three', late23 > +TC.f.late23 && block > +TC.f.block && sat > +TC.f.sat
   && C.every(c => +c.f.shortYear < +TC.f.shortYear) && nt.every(n => n > 0));
 const COSTS = [
-  `Four full weeks off, Sunday to Saturday, take ${leaveFour} days’ leave (today ${TC.f.leaveFour}).`,
   `${late23} finishes a year at 23:00 or later (today ${TC.f.late23}).`,
   `At most ${block} weeks of earlies, or of lates, in a row, or ${blockUpTo} if a cover week falls badly (today ${TC.f.block}, or ${TC.f.blockUpTo}).`,
   `${WORDS[sat - +TC.f.sat]} more Saturdays a year (${sat}, today ${TC.f.sat}).`,
@@ -118,7 +131,6 @@ claim('the sheet has the six bands the page offers, then "Whoever you are"', GRO
 // one stops the generator, rather than reaching the page unadapted.
 const REWORD = [
   [/ on every link\b/g, ' on all three'],
-  [/\bLong Break keeps them at (\d+) days, but is not shortlisted: it has six days in a row\./g, 'A design that kept them at $1 days was not shortlisted: it has six days in a row.'],
   [/^Each 13:35 or 13:45 early swapped for the day’s longest late$/g, 'Each 13:35 or 13:45 early swapped for the day’s longest late, a year'],
   [/^That overtime, gross, at time and a quarter$/g, 'That overtime a year, gross, at time and a quarter'],
 ];
@@ -129,7 +141,7 @@ const PERSONAS = CHIPS.map(([id, icon, chip], i) => { const g = GROUPS[i];
 claim('every rewording for the page found its words in the sheet', reworded.every(n => n > 0));
 claim('the page says "all three", never "every link", and names no design it does not show',
   !/every link|Long\s+Break/.test(JSON.stringify(PERSONAS)) && PERSONAS[2].rows.every(r => !/^(Each|That)\b/.test(r.label) || / a year\b/.test(r.label.replace(/ /g, ' '))));
-const COLUMNS = ['Today', ...SHORTLIST];
+const COLUMNS = ['Today', ...NAMES];
 
 // ── HOW THE FIGURES ARE WORKED OUT ────────────────────────────────────────────────────────────────────────────────────
 const NOTES = [
@@ -147,10 +159,11 @@ claim('the swap rows are left unranked, as the notes say', GROUPS[2].rows.every(
 // the recommendation, and this page is its content). Page counts are read from the files, so a rebuilt pack that adds a page
 // fails --check until this is run again.
 const pages = rel => (readFileSync(DIR + rel).toString('latin1').match(/\/Type\s*\/Page(?![s\w])/g) ?? []).length;
-const sheetOf = name => { const f = readdirSync(DIR + 'proposals').filter(x => x.startsWith(`${name.replace(/ /g, '-')}-${codeOf(name)}-`) && x.endsWith('.pdf'));
-  claim(`one proposal sheet for ${name}`, f.length === 1 && f[0].includes(refOf(name).split(' · ')[1])); return 'proposals/' + f[0]; };
+// a 30-day link's sheet is in 30-days-off/ (Common Ground's, since it joined the shortlist on 5 Nov 2026), every other in proposals/
+const sheetOf = name => { const f = ['proposals', '30-days-off'].flatMap(dir => readdirSync(DIR + dir).filter(x => x.startsWith(`${name.replace(/ /g, '-')}-${codeOf(name)}-`) && x.endsWith('.pdf')).map(x => `${dir}/${x}`));
+  claim(`one proposal sheet for ${name}`, f.length === 1 && f[0].includes(refOf(name).split(' · ')[1])); return f[0]; };
 const PACK = [
-  ...SHORTLIST.flatMap(name => [
+  ...NAMES.flatMap(name => [
     { design: name, label: 'The presentation', path: `presentations/${name.replace(/ /g, '-')}-for-colleagues.pdf` },
     { design: name, label: 'The proposal sheet — every week on page 3', path: sheetOf(name) },
   ]),

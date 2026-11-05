@@ -38,6 +38,14 @@ const short = (shown, said) => `<span aria-hidden="true">${esc(shown)}</span><sp
 export const designName = (p) => p.name.replace(/ — Dec 2026$/, '');
 
 /**
+ * The proposals in the order this page shows them — A TO Z by name, whatever order they arrive in (rule 1). Since 5 Nov 2026
+ * the built-in list puts the recommendation first, as the pack does (links-proposals.js), so the page cannot take its order
+ * on trust: every list of the three here passes through this.
+ * @template {{ name: string }} P @param {ReadonlyArray<P>} proposals @returns {P[]}
+ */
+export const aToZ = (proposals) => [...proposals].sort((a, b) => designName(a).localeCompare(designName(b), 'en-GB'));
+
+/**
  * The closing date in words — or "a date to be agreed" while there is none (owner: "Not set yet").
  * A malformed date reads as not set, never as "Invalid Date" — nor as the day it rolls over to: `new Date` turns
  * 31 February into 3 March without complaint, so the parts must come back as they went in.
@@ -73,7 +81,7 @@ export function renderStatus({ proposals, closes, starts = null }) {
     // (the review, 2 Nov 2026: three raised tiles that did nothing broke the page's own rule that raised means pressable).
     // The name and nothing else: the sheet code told a colleague nothing and took a second line on a phone, so it lives on
     // the weeks' caption, beside the grid it identifies, and nowhere a choice is made.
-    const tiles = proposals.map(p => `<li><button type="button" class="nl-name" data-open-weeks="${esc(p.id)}"><span class="nl-name-title">${esc(designName(p))}</span><span class="nl-name-go">See its weeks</span></button></li>`).join('');
+    const tiles = aToZ(proposals).map(p => `<li><button type="button" class="nl-name" data-open-weeks="${esc(p.id)}"><span class="nl-name-title">${esc(designName(p))}</span><span class="nl-name-go">See its weeks</span></button></li>`).join('');
     // "Have your say" is a way there, as the name tiles are: it opens and shows that card.
     // The link and the timetable change on DIFFERENT dates (owner, 2 Nov 2026), and the gap is the question a colleague
     // asks next: which link do I work in between? Today's, until the new one starts.
@@ -147,7 +155,7 @@ export const ifYou = (who) => `If you ${who.replace(/^…/, '')}`;
 /**
  * One kind of colleague's figures: today and the three proposals, a row per measure. Each row's label sits on its own
  * line above its four figures, so a phone never has to squeeze a label and four figures onto one line — and every figure
- * is tied to its label and its column by `headers`, so a screen reader reads "Average early, In Step, 8h 21m".
+ * is tied to its label and its column by `headers`, so a screen reader reads "Average early, Common Ground, 8h 09m".
  * @param {Persona} p @param {ReadonlyArray<string>} columns
  */
 export function renderFigures(p, columns) {
@@ -261,7 +269,7 @@ export function renderWeeks(p) {
  * @param {ReadonlyArray<Proposal>} proposals @param {string} chosen  a proposal id
  */
 export function renderAllWeeks(proposals, chosen) {
-    return `<div class="nl-weeks-all">${proposals.map(p => `<div class="nl-weeks-one${p.id === chosen ? ' is-chosen' : ''}" data-weeks="${esc(p.id)}" tabindex="-1">${renderWeeks(p)}</div>`).join('')}</div>`;
+    return `<div class="nl-weeks-all">${aToZ(proposals).map(p => `<div class="nl-weeks-one${p.id === chosen ? ' is-chosen' : ''}" data-weeks="${esc(p.id)}" tabindex="-1">${renderWeeks(p)}</div>`).join('')}</div>`;
 }
 
 /**
@@ -282,7 +290,7 @@ export function renderWeeksKey() {
 
 /** The three equal tabs that choose which proposal's weeks are drawn, A to Z. @param {ReadonlyArray<Proposal>} proposals @param {string} chosen  a proposal id */
 export function renderWeeksTabs(proposals, chosen) {
-    return proposals.map(p => `<button type="button" class="nl-tab" data-design="${esc(p.id)}" aria-pressed="${p.id === chosen}">${esc(designName(p))}</button>`).join('');
+    return aToZ(proposals).map(p => `<button type="button" class="nl-tab" data-design="${esc(p.id)}" aria-pressed="${p.id === chosen}">${esc(designName(p))}</button>`).join('');
 }
 
 /**
