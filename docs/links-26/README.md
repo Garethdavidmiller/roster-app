@@ -3290,6 +3290,117 @@ above keep the scores of their day.
 - **The read-me** names the four that came after the shortlist and says what Common Ground is.
 - **Not changed:** the decks, "What it means if you…", the New link page and the Links designer's built-in examples.
 
+## Middle Ground — the shift times varied from week to week (5 Nov 2026)
+
+**The ask** (owner, 5 Nov 2026, of Common Ground): *"I like common ground but there are too many early and late weeks in
+a row, which makes it more difficult to swap with colleagues"*; *"Can we make it as good but solve that issue"*; and
+*"or another way keep the weeks but rather than all closers bunched together and openers bunch together, make it gently
+change the shift times between weeks"*. Shown as Good Turn, it was renamed: *"Can you rename good turn as Middle Ground
+and add it to the pack please. Also, the proposal description headlines should not reference other proposals"*. It is
+**Middle Ground** (`MG-26-T8` · **`573c7287`**), in the pack and not on the shortlist; the shortlist, the recommendation,
+the decks and the New link page are unchanged.
+
+**Shorter runs of earlies and lates were tried first.** On Common Ground's rest days no layout of its duties keeps runs
+of earlies or lates to three weeks or fewer: with `SKELETON=common-ground.json` and no `FAMILY`, `exact-rota.py` proves
+`BLOCK=3` and `BLOCK=2` infeasible in a second, because each day's earlies and lates have to fall on the lines that work
+that day. With the rest days free as well, and 30 days off for 14 and every other rule kept, it found no rota in 500
+seconds at either length (not a proof); of the 100 single swaps of two Common Ground weeks of one kind, 98 broke a rule.
+Runs of five are not Common Ground's alone: every design in the pack has them but Second Look (4, up to 6).
+
+**What changed.** Common Ground's rest days and its early and late weeks are held, and only which week works which time
+is chosen again — `exact-rota.py`'s new `OBJ=gentle`: first the fewest neighbouring weeks that both start at 06:20, or
+both at 15:45, on the same weekday; then the fewest week-to-week moves of over two hours; then the fewest neighbours
+sharing any other weekday start; then the gentlest change of start, with at least 18 weeks on one shift time. 35 cells on
+12 lines differ from Common Ground. Each day's duties do not move, so neither do the fit to the trains or the contract.
+The most common weekday start of each week (lines 1, 6, 11, 16 and 21 are the cover weeks):
+
+| Lines | Common Ground | Middle Ground |
+|---|---|---|
+| 2–5 | 07:00 · 11:00 · 14:00 · 14:00 | 07:00 · 11:00 · 15:45 · 14:00 |
+| 7–10 | 07:00 · 06:20 · 06:20 · 06:20 | 07:00 · 06:20 · 07:00 · 06:20 |
+| 12–15 | 06:20 · 14:00 · 14:00 · 14:00 | 06:20 · 14:00 · 15:45 · 14:00 |
+| 17–20 | 06:20 · 07:00 · 06:20 · 07:00 | 06:20 · 07:00 · 06:20 · 06:20 |
+| 22–26 | 14:00 · 15:45 · 15:45 · 15:45 · 15:45 | 15:45 · 14:00 · 15:45 · 14:00 · 14:00 |
+
+```
+cd docs/links-26/tooling
+SKELETON=common-ground.json FAMILY=1 OBJ=gentle ONE_MIN=18 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 ISO=6 HEAVY=2550 LIGHT=1530 python3 exact-rota.py results/common-ground-table.json /tmp/mg.json 240
+FIX=middle-ground.json SKELETON=common-ground.json FAMILY=1 OBJ=gentle ONE_MIN=18 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 ISO=6 HEAVY=2550 LIGHT=1530 python3 exact-rota.py results/common-ground-table.json /tmp/fix.json 60
+```
+
+The first returns a layout as good as Middle Ground on every term, not always the same cells (CP-SAT can return either),
+so the grid is committed and the second checks it: OPTIMAL, on the same objective.
+
+**Against Common Ground and the shortlist:**
+
+| | Middle Ground | Common Ground | Even Step | In Step | Short Run |
+|---|---|---|---|---|---|
+| Closing weeks in a row, at most | **1** | 4 | 2 | 3 | 3 |
+| 06:20 weeks in a row, at most | **1** | 3 | 4 | 4 | 3 |
+| Weeks on one shift time | 18 of 21 | **19** | 18 | 18 | 18 |
+| Change of start, week to week | 1h 41m | **1h 12m** | 1h 31m | 1h 13m | 1h 13m |
+| Longest block of earlies or lates | 5 (up to 7) | 5 (up to 7) | 5 (up to 7) | 5 (up to 7) | 5 (up to 7) |
+| 14 days' leave buys, at best · four weeks off cost | **30 days · 14** | **30 · 14** | 28 · 15 | 28 · 15 | 28 · 15 |
+| Single rest days | 6 | 6 | **4** | **4** | **4** |
+| Fit to the trains, by days (0 = exact) | 29.0 | 29.0 | 28.9 | 26.8 | 26.7 |
+
+(The run rows read each week by its most common Monday-to-Friday duty: a closing week finishes at the close, 23:55.) It
+is the only design in the pack where neither two closing weeks nor two 06:20 weeks fall side by side. The rest is
+Common Ground's: all 9 December rules and the three flexible ones, no fatigue factor on the fixed duties, a 14h 35m
+shortest rest, seven days in a row at worst, 7 full weekends, a 42h 30m heaviest and 25h 30m lightest week, the late
+finishes, the closing shift and the familiar times. What it pays for the spread is one week fewer on one shift time
+and a larger change of start.
+
+**The leagues** (16 designs; score, then place):
+
+| Version | Middle Ground | Common Ground | Even Step | In Step | Short Run | First, if another |
+|---|---|---|---|---|---|---|
+| Main | 83.1 · 8th | 84.0 · joint 5th | **85.8 · 1st** | 80.9 · 16th | 82.0 · 11th | |
+| Main, the proposals setting the scale | 70.2 · 11th | 73.2 · 7th | 75.6 · 4th | 73.0 · 8th | 71.4 · 10th | Next Step, 77.3 |
+| Main, without familiar times | 85.9 · 7th | 86.9 · 6th | 87.5 · 4th | 84.0 · 12th | 84.4 · 11th | Clean Slate, 88.9 |
+| Main, the run on the fixed rota | 84.0 · 8th | 84.9 · joint 5th | **86.7 · 1st** | 81.8 · 14th | 82.9 · 10th | |
+| Main, six-factor | 64.0 · joint 12th | 64.0 · joint 12th | 67.0 · 10th | 68.0 · 6th | 69.8 · joint 2nd | Second Look, 94.0 |
+| Main, Sunday duties in familiar times | 82.0 · 10th | 82.9 · 6th | 84.6 · 2nd | 81.1 · 14th | 81.5 · 12th | Next Step, 84.9 |
+| Weighted as before | 84.2 · 15th | 85.2 · 10th | 87.0 · joint 2nd | **87.8 · 1st** | 85.8 · 8th | |
+| — the proposals setting the scale | 80.3 · 10th | 83.6 · 8th | 86.3 · 4th | **88.7 · 1st** | 83.4 · 9th | |
+| — without familiar times | 88.6 · 11th | 89.6 · 8th | 90.3 · joint 4th | 91.4 · 2nd | 89.2 · 10th | Clean Slate, 91.6 |
+| — the run on the fixed rota | 85.2 · 14th | 86.2 · 9th | 88.0 · joint 2nd | **88.8 · 1st** | 86.8 · 7th | |
+| — six-factor | 83.2 · joint 12th | 83.2 · joint 12th | 86.2 · 7th | 87.6 · 2nd | 86.3 · joint 4th | Second Look, 89.2 |
+
+Eighth in the main league, 0.9 below Common Ground: one week fewer on one shift time (0.47) and the larger change of
+start (0.45). No league scores how far apart the same shift times fall, and a small change of start — which keeping
+alike weeks together gives — scores in a design's favour, so the spread costs points everywhere it is counted and gains
+none. Joining moves no other design's score in any version: it widens no factor's range.
+
+**The headlines** (owner, 5 Nov 2026: *"the proposal description headlines should not reference other proposals"*). The
+one-line description under each design's name now says what the design is to somebody who has not read the one it came
+from. Next Step's read *"Even Step with three weekday shifts retimed for the trains: no shift over 8h 30m Monday to
+Saturday and a 13:45 finish every weekday"* and is *"Weekday shifts timed to the trains, with no shift over 8h 30m Monday
+to Saturday and a 13:45 finish every weekday"*; Fair Share's read *"Next Step with an even Sunday: every Sunday duty 8h 10m
+or 8h 15m, so an early and a late pay within a few pounds"* and is *"An even Sunday — every Sunday duty 8h 10m or 8h 15m,
+so an early and a late pay within a few pounds — and no shift over 8h 30m on any day"*. Middle Ground's names no other
+design. `regenerate.mjs` refuses a strap that names another design in the pack (mutated with `scripts/mutate.mjs`: a strap
+naming Even Step fails). The comparisons — the shortlist sheet's page 2 and the read-me — still set designs beside one
+another, which is what they are for.
+
+**The pack.**
+- `regenerate.mjs` lists Middle Ground in `SUPPLIED` after Common Ground, so it ships its sheet, grid and import file in
+  `proposals/`; `fresh.mjs` has its one-line description, Home Grown's family and 5 Nov 2026 as first drawn. Its sheet
+  says how it was drawn (`middle-ground.meta.json`). `exact-rota.py` has `OBJ=gentle`.
+- **Three sheets were re-rendered:** Middle Ground's, and Next Step's and Fair Share's for their headlines. The others
+  were re-rendered too and differed only in their date, so they were left as they were.
+- **The summary** lists sixteen, scaled to 85% to fit its page.
+- **The shortlist sheet** keeps its three and the recommendation. Middle Ground is read into its late joiners and has its
+  row on page 2. Four sentences that named Common Ground alone now name both: 14 days' leave buying 30 days off; four
+  weeks off for 14, with Long Break; no early over 8h 30m on any day; and the guide's *Four weeks off for 14 days' leave,
+  as today*, which reads *Common Ground · also Middle Ground and Long Break* — the longer wording widened its column and
+  wrapped two other rows. Common Ground's row lost its "alone", and a claim pins Middle Ground's "no two closing weeks
+  together". Page 2 kept its page with a pixel off each heading's top margin and the callout's, and list items 1.5px
+  apart where they were 3.
+- **The read-me** names the five that came after the shortlist and says what Middle Ground is.
+- **Not changed:** the decks, "What it means if you…", the New link page (`newlink-data.js` is current) and the Links
+  designer's built-in examples.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

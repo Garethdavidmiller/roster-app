@@ -54,6 +54,11 @@
 // after the shortlist, so it is read into `LATE` and has its row on page 2, which says what it alone has: 14 days' leave
 // buying 30 days off, as today. It broke one sentence true of the pack without it — no early over 8h 30m on any day is now
 // Common Ground's too, beside Fair Share's and Home Grown's. The shortlist, the recommendation and the league paragraph stand.
+// MIDDLE GROUND SINCE 5 NOV 2026 (owner: "rename good turn as Middle Ground and add it to the pack"): Common Ground's weeks with
+// the shift times varied from week to week, so no two closing weeks fall together. It joined after the shortlist, so it is read
+// into `LATE` and has its row on page 2. It has Common Ground's rest days, so it has its leave too, and three sentences that
+// named Common Ground alone now name both: 14 days' leave buying 30 days off, four weeks off for 14 (with Long Break), and no
+// early over 8h 30m on any day. Common Ground's row lost its "alone". The shortlist, the recommendation and the league stand.
 // FAMILIAR TIMES ON MONDAY-TO-SATURDAY DUTIES SINCE 3 NOV 2026 (owner: "Familiar shift times shouldn't apply to Sunday in
 // the league"). The main league leaves each design's Sunday duties out of familiar shift times (league.mjs), and Even
 // Step is first again, just ahead of Next Step and Closing Time, which are level to a tenth: the "judgement" paragraph and
@@ -208,7 +213,7 @@ const keeps = d => { const x = measure(d.F); return Object.keys(DIR).filter(k =>
 const loses = d => { const x = measure(d.F); return Object.keys(DIR).filter(k => D.every(s => DIR[k] * (x[k] - measure(s.F)[k]) < 0)); };
 const O = Object.fromEntries(others.map(d => [d.name, d])), K = Object.fromEntries(others.map(d => [d.name, keeps(d).join()]));
 const NAMED = { 'Both Ways': 'closerSat,closerWk,earlyOff,heavy,newT', 'Clean Slate': 'fitSat,fitSun,one', 'Closing Time': 'closerSat,closerWk,fitSat,light,step',
-  'Even Keel': '', 'Fine Tune': 'step', 'Home Grown': 'closerWk,longEarly,newT,times', 'Long Break': 'lvBest,lvFour', 'Next Step': '', 'Fair Share': 'longEarly,longShift', 'Common Ground': 'fitSun,longEarly,lvBest,lvFour,one,step',
+  'Even Keel': '', 'Fine Tune': 'step', 'Home Grown': 'closerWk,longEarly,newT,times', 'Long Break': 'lvBest,lvFour', 'Next Step': '', 'Fair Share': 'longEarly,longShift', 'Common Ground': 'fitSun,longEarly,lvBest,lvFour,one,step', 'Middle Ground': 'fitSun,longEarly,lvBest,lvFour',
   'Second Edition': 'step', 'Second Look': 'block,worstRun' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
 const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k => loses(O[n]).includes(k)));
@@ -216,7 +221,7 @@ const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k =
 // late finishes, the closing shift), and its main other cost
 pays('Closing Time', 'fitWk', 'one', 'late22'); pays('Both Ways', 'one', 'longShift', 'fitSat', 'fitSun'); pays('Home Grown', 'closerSat', 'one', 'fitWk', 'fitSat', 'fitSun');
 const ekft = ['Even Keel', 'Fine Tune']; ekft.forEach(n => pays(n, 'late23', 'mixed', 'block', 'fitSat')); pays('Fine Tune', 'one');
-pays('Second Edition', 'fixedRun'); pays('Fair Share', 'newT', 'fitSun'); pays('Common Ground', 'iso', 'fitWk'); pays('Long Break', 'fixedRun', 'iso', 'one', 'step'); pays('Clean Slate', 'newT', 'times', 'satNew');
+pays('Second Edition', 'fixedRun'); pays('Fair Share', 'newT', 'fitSun'); pays('Common Ground', 'iso', 'fitWk'); pays('Middle Ground', 'iso', 'step'); pays('Long Break', 'fixedRun', 'iso', 'one', 'step'); pays('Clean Slate', 'newT', 'times', 'satNew');
 const LB = O['Long Break'].F, SL = O['Second Look'].F;
 pays('Second Look', 'fixedRun', 'one');
 const PACK = [...D, ...others], CT = O['Closing Time'].F, HG = O['Home Grown'].F, CS = O['Clean Slate'].F, NX = O['Next Step'].F;
@@ -224,7 +229,7 @@ const PACK = [...D, ...others], CT = O['Closing Time'].F, HG = O['Home Grown'].F
 // shortlisted one. The page-1 lead and the page-2 table name them; a third would need its own row before the sheet prints
 const dateOf = code => { const s = FIRST[code]; if (!s) throw new Error(`fresh.mjs has no first date for ${code}`); return new Date(s).getTime(); };
 const drawn = Math.max(...D.map(d => dateOf(d.code))), LATE = others.filter(d => dateOf(d.code) > drawn).map(d => d.name).sort();
-claim('Clean Slate, Common Ground, Fair Share and Next Step joined the pack after the shortlist was drawn, and no other design did', LATE.join() === 'Clean Slate,Common Ground,Fair Share,Next Step');
+claim('Clean Slate, Common Ground, Fair Share, Middle Ground and Next Step joined the pack after the shortlist was drawn, and no other design did', LATE.join() === 'Clean Slate,Common Ground,Fair Share,Middle Ground,Next Step');
 // the shortlist's date is the day its last design joined (Even Step's, read from FIRST, so the lead never types it)
 claim('the shortlist was drawn the day Even Step joined, the last of the three', dateOf(ES.code) === drawn);
 const joined = name => { if (!LATE.includes(name)) throw new Error(`${name} did not join after the shortlist`); return ` <span class="late">· joined ${esc(FIRST[O[name].code])}</span>`; };
@@ -239,11 +244,18 @@ const TRADE = ['fitWk', 'step', 'newT', 'times'], xNS = measure(O['Next Step'].F
 claim('Next Step: Even Step’s figures but a closer weekday fit, a gentler change of start and one more new shift time', Object.keys(DIR).every(k => TRADE.includes(k) || xNS[k] === xES[k])
   && xNS.fitWk < xES.fitWk && xNS.step < xES.step && xNS.newT === xES.newT + 1 && xNS.times === xES.times + 1 && longMS(NX) === 0);
 claim('Next Step: a weekday fit closer than Even Step’s, not than In Step’s or Short Run’s — so its row says which', [IS, SR].every(d => d.F.fit[0] < NX.fit[0]));
-claim('Home Grown, Fair Share and Common Ground: the only designs with no early over 8h 30m on any day', PACK.filter(d => longEarly(d.F) === 0).map(d => d.name).sort().join() === 'Common Ground,Fair Share,Home Grown');
+claim('Home Grown, Fair Share, Common Ground and Middle Ground: the only designs with no early over 8h 30m on any day', PACK.filter(d => longEarly(d.F) === 0).map(d => d.name).sort().join() === 'Common Ground,Fair Share,Home Grown,Middle Ground');
 // COMMON GROUND (4 Nov 2026): its row says what no other design here has — 14 days' leave buying 30 days off, as today —
 // and what it pays for it: more single rest days than any of the three (`pays`, above), and a weaker weekday fit
 const CGF = O['Common Ground'].F;
-claim('Common Ground: the only design where 14 days’ leave buys 30 days off', PACK.every(d => d.name === 'Common Ground' ? d.F.lv.best === 30 : d.F.lv.best < 30));
+claim('Common Ground and Middle Ground: the only designs where 14 days’ leave buys 30 days off', PACK.every(d => ['Common Ground', 'Middle Ground'].includes(d.name) ? d.F.lv.best === 30 : d.F.lv.best < 30));
+// MIDDLE GROUND (5 Nov 2026): its row says what it is — no two closing weeks together, the main weekday start read week by week —
+// and what it pays for it beside the three (`pays`, above): more single rest days and a larger change of start
+// a closing week: most of its Monday-to-Friday duties finish at the 23:55 close
+const MGF = O['Middle Ground'].F, mainDuty = row => { const c = {}; for (const d of ['mon', 'tue', 'wed', 'thu', 'fri']) if (timed(row[d])) c[row[d]] = (c[row[d]] ?? 0) + 1;
+  return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''; }, closeWeeks = F => Object.keys(F.p).filter(k => mainDuty(F.p[k]).endsWith('-23:55'));
+claim('Middle Ground: no two closing weeks together, where Common Ground has four in a row', closeWeeks(MGF).every(k => !closeWeeks(MGF).includes(String(+k % LINES + 1)))
+  && closeWeeks(CGF).some(k => closeWeeks(CGF).includes(String(+k % LINES + 1))));
 claim('Home Grown: today’s Saturday closer', HG.closers[1] === TF.closers[1]);
 // FAIR SHARE IS NEXT STEP WITH AN EVEN SUNDAY (4 Nov 2026), and its row says exactly that: only Sunday cells differ, every Sunday
 // duty is 8h 10m or 8h 15m, so nothing on any day is over 8h 30m — for a weaker Sunday fit than Next Step's and one more new time
@@ -335,9 +347,9 @@ claim('the shortest closers: Closing Time, then Both Ways', shortClosers.join() 
 claim('a fourth to the Saturday close: Even Keel, then Fine Tune', fourth.join() === 'Even Keel,Fine Tune');
 claim('the steadiest start times: Second Edition', allD.every(d => d.name === 'Second Edition' || d.F.step > O['Second Edition'].F.step));
 // Long Break alone until Common Ground (4 Nov 2026), which also buys four weeks for 14 and is the stronger in the league
-claim('the leave bullet: only Common Ground and Long Break keep four weeks for 14, and only Common Ground buys 30 days', allD.filter(d => d.F.lv.fourWeeks <= TF.lv.fourWeeks).map(d => d.name).sort().join() === 'Common Ground,Long Break'
-  && allD.filter(d => d.F.lv.best >= TF.lv.best).map(d => d.name).join() === 'Common Ground');
-claim('four weeks off for today’s 14 days: Common Ground, then Long Break', strongest(F => F.lv.fourWeeks <= TF.lv.fourWeeks).join() === 'Common Ground,Long Break' && TF.lv.fourWeeks === 14);
+claim('the leave bullet: only Common Ground, Middle Ground and Long Break keep four weeks for 14, and only Common Ground and Middle Ground buy 30 days', allD.filter(d => d.F.lv.fourWeeks <= TF.lv.fourWeeks).map(d => d.name).sort().join() === 'Common Ground,Long Break,Middle Ground'
+  && allD.filter(d => d.F.lv.best >= TF.lv.best).map(d => d.name).sort().join() === 'Common Ground,Middle Ground');
+claim('four weeks off for today’s 14 days: Common Ground, then Middle Ground and Long Break', strongest(F => F.lv.fourWeeks <= TF.lv.fourWeeks).join() === 'Common Ground,Middle Ground,Long Break' && TF.lv.fourWeeks === 14);
 claim('the fewest new shift times: Home Grown, two', allD.every(d => d.name === 'Home Grown' || d.F.newT > HG.newT) && HG.newT === 2);
 
 // page 2, the honest costs all three share
@@ -439,7 +451,7 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast h1 { margin: 2px 0; font-size: 22px; font-weight: 800; color: white; letter-spacing: -.2px; }
 .mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; text-wrap: balance; }
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
-h2 { font-size: 14px; color: var(--primary-blue); margin: 8px 0 3px; font-weight: 800; } h2 .note { font-size: 10.4px; font-weight: 400; color: var(--text-mid); margin-left: 6px; }
+h2 { font-size: 14px; color: var(--primary-blue); margin: 7px 0 3px; font-weight: 800; }   /* 8px top until 5 Nov 2026 (Middle Ground's row) */ h2 .note { font-size: 10.4px; font-weight: 400; color: var(--text-mid); margin-left: 6px; }
 p { margin: 3px 0 6px; } .muted { color: var(--text-mid); } .lead { font-size: 11.6px; }
 table.t { border-collapse: collapse; width: 100%; font-size: 10.2px; line-height: 1.32; }
 table.t th, table.t td { padding: 1.5px 7px 2px; border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: top; }
@@ -450,7 +462,7 @@ table.t td.best, table.t .bestv { font-weight: 800; color: color-mix(in srgb, va
 table.t td.all { color: var(--text-mid); }
 table.t.t-today3 td.all3 { font-weight: 700; color: var(--text-dark, #1a1a2e); } table.t.t-today3 th:nth-child(2), table.t.t-today3 th:nth-child(3) { width: 22%; }
 table.t.alts td:first-child { width: 30%; font-weight: 700; color: var(--text-dark, #1a1a2e); } table.t.alts .late { font-weight: 400; color: var(--text-light); }   /* the date a design joined after the shortlist */
-table.t.alts td { padding-block: 0.5px 1px; }   /* nine rows since 3 Nov 2026, eleven since 4 Nov (Fair Share, then Common Ground): a pixel and a half off each keeps page 2 on its page */
+table.t.alts td { padding-block: 0.5px 1px; }   /* nine rows since 3 Nov 2026, eleven since 4 Nov (Fair Share, then Common Ground), twelve since 5 Nov (Middle Ground): a pixel and a half off each keeps page 2 on its page */
 table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
 /* three cards side by side since 31 Oct 2026: two to a row left the third alone on a row of its own */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; margin: 6px 0 2px; }
@@ -462,9 +474,9 @@ table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surfa
 .card .code { font-size: 9px; color: var(--text-light); }
 .card .edge { margin-right: 3px; } .card .head { display: block; margin-bottom: 1px; }
 .t.guide { margin-top: 4px; } .t.guide td:last-child { white-space: nowrap; }
-.callout { border-left: 3px solid var(--accent-gold); background: var(--surface-sunken); padding: 8px 13px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin: 7px 0; font-size: 10.9px; line-height: 1.42; }
+.callout { border-left: 3px solid var(--accent-gold); background: var(--surface-sunken); padding: 8px 13px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin: 6px 0; font-size: 10.9px; line-height: 1.42; }
 .pick { border-left-color: var(--success-green); }
-ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height: 1.4; } ul.list li { margin: 3px 0; }
+ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height: 1.4; } ul.list li { margin: 1.5px 0; }   /* 3px until 5 Nov 2026: Middle Ground's row on page 2 took the space back, with a pixel off each h2 and the callout */
 .shared { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 20px; font-size: 10.5px; line-height: 1.38; margin: 5px 0 3px; } .shared div::before { content: '✓ '; color: var(--success-green); font-weight: 800; }
 .foot { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8.5px; color: var(--text-light); border-top: 1px solid var(--border-light); padding-top: 4px; }
 .foot b { color: var(--primary-blue); }
@@ -509,7 +521,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>The fewest new shift times: two</td><td><b>Home Grown</b> <span class="muted">· outside the shortlist</span></td></tr>
     <tr><td>A fourth person to the Saturday close</td><td><b>Even Keel</b> <span class="muted">· outside the shortlist, as is Fine Tune</span></td></tr>
     <tr><td>The steadiest start times from week to week</td><td><b>Second Edition</b> <span class="muted">· outside the shortlist</span></td></tr>
-    <tr><td>Four weeks off for 14 days’ leave, as today</td><td><b>Common Ground</b> <span class="muted">· outside the shortlist, as is Long Break</span></td></tr>
+    <tr><td>Four weeks off for 14 days’ leave, as today</td><td><b>Common Ground</b> <span class="muted">· also Middle Ground and Long Break</span></td></tr>
   </tbody></table>
   <div class="foot"><span>Page 1 of 2 — What they share, where they differ, which to choose</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Links designer</span></div>
 </section>
@@ -534,7 +546,8 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Clean Slate${joined('Clean Slate')}</td><td>the best weekend fit and joint-most weeks on one turn — but ${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday</td></tr>
     <tr><td>Next Step${joined('Next Step')}</td><td>Even Step with a closer weekday fit and a gentler change of start — but one more new time</td></tr>
     <tr><td>Fair Share${joined('Fair Share')}</td><td>Next Step with an even Sunday and no shift over 8h&nbsp;30m — but a weaker Sunday fit and a new time</td></tr>
-    <tr><td>Common Ground${joined('Common Ground')}</td><td>today’s link on 26 weeks, alone buying 30 days off for 14 days’ leave — but ${word(CGF.A.feel.isolatedRest)} single rest days</td></tr>
+    <tr><td>Common Ground${joined('Common Ground')}</td><td>today’s link on 26 weeks, buying 30 days off for 14 days’ leave — but ${word(CGF.A.feel.isolatedRest)} single rest days</td></tr>
+    <tr><td>Middle Ground${joined('Middle Ground')}</td><td>30 days off for 14 days’ leave and no two closing weeks together — but ${word(MGF.A.feel.isolatedRest)} single rest days</td></tr>
   </tbody></table>
 
   <h2>The honest costs, shared by ${both}</h2>
@@ -543,7 +556,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <li><b>Longer blocks.</b> Up to ${blockF} weeks in a row of earlies, or of lates, ${blockW} if the cover weeks beside them go the same way (today ${TF.block.fixed}, up to ${TF.block.worst}).</li>
     <li><b>Shorter breaks.</b> Every rest-day break is one day or two; today ${word(longRest(TF))} of its ${TF.A.feel.restIslands} are three or four days, about ${longRestYear(TF)} a year each.</li>
     <li><b>Early finishes.</b> Fewer before 14:00 than today’s ${earlyOff(TF)} a year each: ${earlyOff(EF)} on Even Step, ${earlyOff(IF)} on In Step, none on Short Run.</li>
-    <li><b>Leave.</b> 14 days’ leave buys at best ${shared('best leave stretch', F => F.lv.best)} days off, not today’s ${TF.lv.best}, and four complete weeks off in a row, Sunday to Saturday, take ${shared('leave for four weeks', F => F.lv.fourWeeks)} days’ leave, not ${TF.lv.fourWeeks} — the two that people plan a year around; of the whole pack, only Common Ground and Long Break keep four weeks for ${TF.lv.fourWeeks}, and only Common Ground ${TF.lv.best} days. At worst 14 days buys ${shared('worst leave stretch', F => F.lv.worst)} days off, a day more than today’s ${TF.lv.worst}.</li>
+    <li><b>Leave.</b> 14 days’ leave buys at best ${shared('best leave stretch', F => F.lv.best)} days off, not today’s ${TF.lv.best}, and four complete weeks off in a row, Sunday to Saturday, take ${shared('leave for four weeks', F => F.lv.fourWeeks)} days’ leave, not ${TF.lv.fourWeeks} — the two that people plan a year around; of the whole pack, only Common Ground, Middle Ground and Long Break keep four weeks for ${TF.lv.fourWeeks}, and only the first two ${TF.lv.best} days. At worst 14 days buys ${shared('worst leave stretch', F => F.lv.worst)} days off, a day more than today’s ${TF.lv.worst}.</li>
     <li><b>Saturdays.</b> About ${shared('Saturdays a year', F => Math.round(F.pp.sat)) - Math.round(TF.pp.sat)} more a year (${Math.round(EF.pp.sat)}, today ${Math.round(TF.pp.sat)}): ${word(shared('Saturday duties', F => F.satDuties))} on a Saturday, the flexible rule, across ${LINES} lines (today ${word(TF.satDuties)} across ${TF.pp.L}).</li>
     <li><b>New times.</b> ${EF.newT} of Even Step’s ${EF.times} shift times are new, ${IF.newT} of ${IF.times} on the other two: on Even Step ${word(shorterLates(EF))} shorter versions of today’s lates, a <span class="nw">12:15–20:30</span> and the Sunday early; on In Step ${word(shorterLates(IF))} shorter lates and ${word(longerEarlies(IF))} longer weekday earlies; on Short Run ${word(shorterLates(SF))} shorter lates and ${word(longerEarlies(SF))} longer weekday ${many(longerEarlies(SF), 'early', 'earlies')}. ${Both} add the 9-hour Sunday early, 09:00–18:00.</li>
   </ul>

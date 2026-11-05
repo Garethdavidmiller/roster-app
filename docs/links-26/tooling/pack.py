@@ -90,9 +90,10 @@ _drawn = max(_day(c) for n, c, _ in proposals if n in SHORTLIST)
 LATE = sorted(n for n, c, _ in proposals if _day(c) > _drawn)
 # Fair Share joined on 4 Nov 2026 (owner: "add fair share to the repo"): Next Step with an even Sunday. The paragraph says
 # what it is too, so it is in the one set this accepts. Common Ground joined the same day (owner: "give this new proposal a
-# better name and create the sheet and put it in the pack"): today's link taken to 26 weeks on the owner's brief
-if LATE and LATE != ['Clean Slate', 'Common Ground', 'Fair Share', 'Next Step']:
-    raise SystemExit(f'pack: the read-me describes Clean Slate, Common Ground, Fair Share and Next Step as the designs after the shortlist; they are {LATE}')
+# better name and create the sheet and put it in the pack"): today's link taken to 26 weeks on the owner's brief. Middle Ground
+# joined on 5 Nov 2026 (owner: "rename good turn as Middle Ground and add it to the pack"): Common Ground's weeks re-timed
+if LATE and LATE != ['Clean Slate', 'Common Ground', 'Fair Share', 'Middle Ground', 'Next Step']:
+    raise SystemExit(f'pack: the read-me describes Clean Slate, Common Ground, Fair Share, Middle Ground and Next Step as the designs after the shortlist; they are {LATE}')
 LATE_WORDS = ', '.join(LATE[:-1]) + ' and ' + LATE[-1] if len(LATE) > 1 else ''.join(LATE)   # three, then four, since 4 Nov: 'A, B and C', never 'A and B and C'
 # THE FOUR WITHDRAWN (3 Nov 2026, owner: "Remove the four weak proposals please and reengineer the pack"). Named here, and
 # refused if any is back in SUPPLIED, because the paragraph below says they left the pack
@@ -235,7 +236,7 @@ readme = '\n'.join([
             'and late weeks - with the shift times chosen again. It joined the shortlist the same day, beside In Step '
             'and Short Run, and is the one recommended.'), '']
       if 'Even Step' in names_in else []),
-    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share and Common Ground (4 November 2026) came after the shortlist, and none is on it. Clean Slate '
+    *([para('Clean Slate and Next Step (3 November 2026), Fair Share and Common Ground (4 November 2026) and Middle Ground (5 November 2026) came after the shortlist, and none is on it. Clean Slate '
             'chooses every shift time afresh for the trains, with no shift over 8h 30m Monday to Saturday, one 13:45 '
             'finish and a closer from 15:45 every weekday. Next Step is Even Step with three weekday shifts retimed for '
             'the trains, still with no shift over 8h 30m Monday to Saturday. Fair Share is Next Step with an even Sunday: '
@@ -243,6 +244,8 @@ readme = '\n'.join([
             'shift is over 8h 30m on any day. Common Ground is today\'s link taken to 26 weeks: today\'s shift times kept '
             'where the rules allow, a 13:45 finish every weekday, closers from 15:45, nothing over 8h 30m Monday to Friday or '
             '9 hours at the weekend, an even Sunday, and 14 days\' leave buying 30 days off, and four weeks off, as today. '
+            'Middle Ground has Common Ground\'s rest days, leave and duties each day, with its shift times varied from week '
+            'to week so that no two closing weeks fall together. '
             'Page 2 of the shortlist sheet sets each '
             'beside the three.'), '']
       if LATE else []),

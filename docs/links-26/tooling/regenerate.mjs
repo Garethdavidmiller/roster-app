@@ -89,12 +89,14 @@ export const SUPPLIED = [
     // 13:45 a weekday. Searched afresh and laid on Home Grown's weeks: nothing over 8h 30m Monday to Saturday, 19 weeks on one
     // shift time. Next Step is Even Step with only Clean Slate's three weekday changes. README.md → "Clean Slate and Next Step".
     { file: 'clean-slate.json',            name: 'Clean Slate',    code: 'CS-26-N2',   fp: 'dc175c36', strap: 'Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday' },
-    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'Even Step with three weekday shifts retimed for the trains: no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday' },
+    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'Weekday shifts timed to the trains, with no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday' },
     // 4 Nov 2026: Fair Share is Next Step with its Sunday evened out, seven Sunday cells retimed (README.md → "Fair Share")
-    { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: 'ccf27576', strap: 'Next Step with an even Sunday: every Sunday duty 8h 10m or 8h 15m, so an early and a late pay within a few pounds' },
+    { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: 'ccf27576', strap: 'An even Sunday — every Sunday duty 8h 10m or 8h 15m, so an early and a late pay within a few pounds — and no shift over 8h 30m on any day' },
     // 4 Nov 2026: Common Ground is today's link taken to 26 weeks on the owner's brief, its weeks the 30-for-14 grid found on
     // Fair Share's duties (README.md → "Common Ground")
     { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'e02c295f', strap: 'Today’s link on 26 weeks: nothing over 8h 30m on a weekday, a 13:45 finish every weekday, an even Sunday, and 14 days’ leave buys 30 days off, as today' },
+    // 5 Nov 2026: Middle Ground is Common Ground's weeks with the shift times varied week to week (README.md → "Middle Ground")
+    { file: 'middle-ground.json',          name: 'Middle Ground',  code: 'MG-26-T8',   fp: '573c7287', strap: 'Today’s link on 26 weeks with its shift times varied from week to week, so no two closing weeks fall together, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
@@ -147,6 +149,11 @@ for (const s of SUPPLIED) {
     // ONE STRAP (31 Oct 2026 review): the sheet prints fresh.mjs's STRAPS, so a strap here is only ever passed along. Six of them
     // had drifted from the printed ones ("no week over 41h 30m" against "no Mon–Sat week"); a reader of this list was misled
     if (STRAPS[s.code]?.[0] !== s.strap) { console.log(`FAIL ${s.code}: its strap here is not fresh.mjs's, which the sheet prints`); failed++; continue; }
+    // A STRAP NEVER NAMES ANOTHER DESIGN (owner, 5 Nov 2026: "the proposal description headlines should not reference other
+    // proposals"). Next Step's read "Even Step with three weekday shifts retimed…" and Fair Share's "Next Step with an even
+    // Sunday…": a headline has to say what the design IS to somebody who has not read the one it came from
+    const named = SUPPLIED.map(x => x.name).filter(n => n !== s.name && s.strap.includes(n));
+    if (named.length) { console.log(`FAIL ${s.code}: its strap names ${named.join(' and ')}; say what this design is instead`); failed++; continue; }
     if (checkOnly) { if (checkShipped(s.code, s.fp)) { console.log(`ok   ${s.code}  ${got} (source grid and shipped JSON)`); done++; } continue; }
     process.stdout.write(`render ${s.code} … `);
     execFileSync('node', ['supplied.mjs', s.file, s.name, s.strap, s.code], { stdio: 'inherit' });
