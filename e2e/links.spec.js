@@ -1720,7 +1720,7 @@ test('links: Generate works on a card nobody has touched', async ({ page }) => {
     await expect(page.locator('#linksSummary')).toContainText('35h');
 });
 
-// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026; Even Step, Common Ground and Short Run since v25.36) ──
+// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026; Common Ground, Even Step and Short Run since v25.36) ──
 // The unit tests pin the data and the masthead's words. What only the page can prove: the picker
 // REACHES them, opening one is read-only in the ways that matter (no rename, no delete, a Save that
 // makes a copy), and the copy that save writes is the proposal's own 26-line grid under a new name.
@@ -1738,7 +1738,7 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
     await expect(page.locator('#designPickerLb.visible')).toBeVisible();
     await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);   // every shortlisted design, however many (three since v25.04)
     await expect(designOptions(page)).toHaveCount(0);
-    await proposalOptions(page).filter({ hasText: 'Even Step' }).click();   // the recommendation, listed first
+    await proposalOptions(page).filter({ hasText: 'Even Step' }).click();   // the middle of the three, A to Z
 
     await expect(activeDesignName(page)).toHaveText('Even Step — Dec 2026');
     await expect(page.locator('#designWhoRole')).toHaveText('ES-26-T5 · d1921b7a');   // the printed sheet's ref

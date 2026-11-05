@@ -95,7 +95,7 @@ the whole of v20. A number written beside the list it describes is a second copy
 | `links-target-sets-store.js` | the Firestore half of those saved sets — reading the collection, and the one guarded write |
 | `links-generator-targets.js` | the numbers the generator runs against, where they came from, and what may replace them |
 | `links-default-targets.js` | the table the generator STARTS from — since v24.47 the duty table of Second Edition, which the shortlisted Short Run shares exactly; not measured from today's roster |
-| `links-proposals.js` | the SHORTLISTED 26-line designs, built in as read-only proposals (v24.47; Even Step, Common Ground and Short Run since v25.36) — a proposal id never reaches Firestore |
+| `links-proposals.js` | the SHORTLISTED 26-line designs, built in as read-only proposals (v24.47; Common Ground, Even Step and Short Run since v25.36, A to Z) — a proposal id never reaches Firestore |
 | `links-shortlist.js` | "Keep only the shortlist" (v25.09) — the admin's one press that moves every design saved before 2 Nov 2026 to the bin; the built-in shortlist stays read-only |
 | `links-tips.js` | `CARD_TIPS` for the page's `?` panels (pure data) |
 
@@ -1371,8 +1371,8 @@ judged against are `docs/links-26/RULES.md`. Three things came with the length:
   every line is drawn and only at `ROTATING_LINES`, with the same evidence discipline as the run limit
   (measurement, never "cannot be run", while no company policy document backs it).
 - **The shortlist is built in** (`links-proposals.js`; owner decision 3 Oct 2026: read-only proposals,
-  not saved documents). Even Step, Common Ground and Short Run — the shortlist since 5 Nov 2026, built
-  in from v25.36 with Even Step, the recommendation, listed first; after Second Edition, Even Keel and
+  not saved documents). Common Ground, Even Step and Short Run — the shortlist since 5 Nov 2026, built
+  in from v25.36 A to Z with no recommendation (owner, 5 Nov 2026); after Second Edition, Even Keel and
   Short Run (3 Oct), Closing Time (v25.01), In Step and Short Run (v25.02) and Even Step, In Step and
   Short Run (v25.04) — open from their own
   group at the top of the picker as an UNSAVED working copy — `activeDesignId` null, `activeProposalId`

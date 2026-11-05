@@ -56,7 +56,7 @@ describe('the rules', () => {
             { name: 'Closing Time — copy', updatedBy: ME },
             { name: 'Option B', updatedBy: 'S. Silva' },
         ], { currentUser: ME, dirty: false });
-        assert.match(msg, /^Even Step, Common Ground and Short Run stay in the list as they are now — built in and read-only\./);
+        assert.match(msg, /^Common Ground, Even Step and Short Run stay in the list as they are now — built in and read-only\./);
         assert.match(msg, /These 2 older designs move to Recently deleted, where anyone can restore them:/);
         assert.match(msg, /• Closing Time — copy \(last saved by you\)/);
         assert.match(msg, /• Option B \(last saved by S\. Silva\)/);

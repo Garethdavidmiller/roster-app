@@ -16,18 +16,19 @@ import { assessHardLimits, contractedDaysPerYear } from './links-limits.js';
 const SOURCES = { 'ES-26-T5': 'proposals/Even-Step-ES-26-T5', 'CG-26-T8': '30-days-off/Common-Ground-CG-26-T8', 'SR-26-F1': 'proposals/Short-Run-SR-26-F1' };
 
 describe('the shortlist as the owner chose it (these three since 5 Nov 2026)', () => {
-    test('three designs: Even Step, the recommendation, then Common Ground and Short Run', () => {
-        assert.deepEqual(PROPOSALS.map(p => p.code), ['ES-26-T5', 'CG-26-T8', 'SR-26-F1']);
-        assert.deepEqual(PROPOSALS.map(p => p.name.split(' — ')[0]), ['Even Step', 'Common Ground', 'Short Run']);
+    test('three designs, A to Z: Common Ground, Even Step and Short Run', () => {
+        assert.deepEqual(PROPOSALS.map(p => p.code), ['CG-26-T8', 'ES-26-T5', 'SR-26-F1']);
+        assert.deepEqual(PROPOSALS.map(p => p.name.split(' — ')[0]), ['Common Ground', 'Even Step', 'Short Run']);
     });
 
-    test('the recommendation comes first, as the pack names it', () => {
-        // fresh.mjs's RECOMMENDED drives the shortlist sheet's green card and the pack's twenty-minute read; the picker
-        // lists the same design first, so the order on screen is the order on paper.
+    test('none is recommended: the pack exports no recommendation, and the list is A to Z', () => {
+        // Until 5 Nov 2026 fresh.mjs's RECOMMENDED put Even Step first here, on the shortlist sheet and in the pack's
+        // twenty-minute read. The owner removed it ("Remove the marks"): the three are presented evenly, as the New
+        // link page always showed them. A RECOMMENDED that came back would put a favourite back on paper unseen.
         const src = readFileSync(new URL('./docs/links-26/tooling/fresh.mjs', import.meta.url), 'utf8');
-        const m = src.match(/export const RECOMMENDED = '([^']+)'/);
-        assert.ok(m, 'fresh.mjs no longer declares RECOMMENDED on one line');
-        assert.equal(PROPOSALS[0].name.split(' — ')[0], m[1]);
+        assert.doesNotMatch(src, /export const RECOMMENDED\b/);
+        const names = PROPOSALS.map(p => p.name.split(' — ')[0]);
+        assert.deepEqual(names, [...names].sort((a, b) => a.localeCompare(b, 'en-GB')));
     });
 
     test('the same shortlist, in the same order, as the pack the owner hands round', () => {
@@ -97,7 +98,7 @@ describe('a proposal can never be mistaken for a saved design', () => {
     });
 
     test('the first save suggests "<Name> — copy", without the sheet\'s fingerprint, numbered if taken', () => {
-        const es = PROPOSALS[0];
+        const es = PROPOSALS.find(p => p.code === 'ES-26-T5');
         assert.equal(proposalCopyName(es, []), 'Even Step — copy');
         assert.equal(proposalCopyName(es, [{ name: 'even step — COPY' }]), 'Even Step — copy 2');
         assert.doesNotMatch(proposalCopyName(es, []), /ES-26|·/);

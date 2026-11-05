@@ -41,8 +41,8 @@ test('newlink-data.js is exactly what the generator writes from the pack today',
 });
 
 test('its columns are today and the built-in proposals, A to Z', () => {
-    // The app's list keeps the pack's order, the recommendation first (5 Nov 2026); this page presents the
-    // three evenly, which means alphabetically, so its columns are sorted rather than copied from that list.
+    // This page presents the three evenly, which means alphabetically, so its columns are sorted rather than copied
+    // from the app's list — which is A to Z too since 5 Nov 2026, and was not for the two days before.
     const names = PROPOSALS.map(p => p.name.replace(/ — Dec 2026$/, ''));
     assert.deepEqual([...COLUMNS], ['Today', ...[...names].sort((a, b) => a.localeCompare(b, 'en-GB'))]);
 });

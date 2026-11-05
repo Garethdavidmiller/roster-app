@@ -38,9 +38,9 @@ const short = (shown, said) => `<span aria-hidden="true">${esc(shown)}</span><sp
 export const designName = (p) => p.name.replace(/ — Dec 2026$/, '');
 
 /**
- * The proposals in the order this page shows them — A TO Z by name, whatever order they arrive in (rule 1). Since 5 Nov 2026
- * the built-in list puts the recommendation first, as the pack does (links-proposals.js), so the page cannot take its order
- * on trust: every list of the three here passes through this.
+ * The proposals in the order this page shows them — A TO Z by name, whatever order they arrive in (rule 1). The built-in
+ * list is A to Z as well since 5 Nov 2026 (links-proposals.js), and for two days before that it put the recommendation
+ * first: the page has never taken its order on trust, and still does not — every list of the three here passes through this.
  * @template {{ name: string }} P @param {ReadonlyArray<P>} proposals @returns {P[]}
  */
 export const aToZ = (proposals) => [...proposals].sort((a, b) => designName(a).localeCompare(designName(b), 'en-GB'));

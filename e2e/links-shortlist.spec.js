@@ -48,7 +48,7 @@ test('links: the admin keeps only the shortlist — the older designs go to Rece
 
     await sheetAction(page, 'keepShortlistBtn');
     const msg = keepDialog(page).locator('.dialog-message');
-    await expect(msg).toContainText('Even Step, Common Ground and Short Run stay in the list as they are now — built in and read-only.');
+    await expect(msg).toContainText('Common Ground, Even Step and Short Run stay in the list as they are now — built in and read-only.');
     await expect(msg).toContainText('• Closing Time — copy (last saved by you)');
     await expect(msg).toContainText('• Option B (last saved by S. Silva)');
     expect(await writes(page), 'nothing is written before the confirm').toEqual([]);
@@ -64,7 +64,7 @@ test('links: the admin keeps only the shortlist — the older designs go to Rece
     }
     expect(w.filter((/** @type {any} */ x) => x.added || !x.merge), 'the shortlist is read-only: no design is created or replaced').toEqual([]);
 
-    // The options left are the built-in shortlist, and the open design gave way to Even Step, read-only.
+    // The options left are the built-in shortlist, and the open design gave way to the first of them, read-only.
     await expect(designOptions(page)).toHaveCount(0);
     await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);
     await expect(activeDesignName(page)).toHaveText(PROPOSALS[0].name);

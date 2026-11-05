@@ -47,9 +47,10 @@ test('a duty\'s kind follows the pack\'s line: an early starts before 11:00', ()
 });
 
 test('EVENLY: the status names the three A to Z, each once, in the same tile', () => {
-    // the built-in list puts the recommendation first (5 Nov 2026), so A to Z here is the renderer's own doing
-    assert.notDeepEqual(PROPOSALS.map(p => p.name), [...PROPOSALS.map(p => p.name)].sort(), 'the fixture no longer tests the sort');
-    const html = renderStatus({ proposals: PROPOSALS, closes: null });
+    // the built-in list is A to Z too since 5 Nov 2026, so the renderer is handed them out of order: the sort must be its own
+    const shuffled = [PROPOSALS[2], PROPOSALS[0], PROPOSALS[1]];
+    assert.notDeepEqual(shuffled.map(p => p.name), [...shuffled.map(p => p.name)].sort(), 'the fixture no longer tests the sort');
+    const html = renderStatus({ proposals: shuffled, closes: null });
     const names = [...html.matchAll(/<span class="nl-name-title">([^<]+)<\/span>/g)].map(m => m[1]);
     assert.deepEqual(names, ['Common Ground', 'Even Step', 'Short Run']);
     assert.equal(count(html, /class="nl-name"/g), 3, 'one tile each, the same class for all three');

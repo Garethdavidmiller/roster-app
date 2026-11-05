@@ -150,7 +150,7 @@ function renderStatic(member) {
  */
 function wireChoices(cards) {
     /** @type {string|null} */ let persona = null;
-    let design = aToZ(PROPOSALS)[0].id;   // A to Z: the first is first in the alphabet, not first in anyone's estimation (the built-in list puts the recommendation first)
+    let design = aToZ(PROPOSALS)[0].id;   // A to Z: the first is first in the alphabet, not first in anyone's estimation (the page sorts for itself, whatever order the built-in list keeps)
 
     const drawPersonas = () => {
         setHTML('nlPersonaChips', renderPersonaChips(PERSONAS, persona));

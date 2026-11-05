@@ -12,8 +12,8 @@
 // WHAT IS NOT HERE, ON PURPOSE:
 //   · the grids. The page draws the 26 weeks from links-proposals.js, the copy the Links workspace already builds in and
 //     links-proposals.test.mjs already pins to the proposals' own files — a second copy would be a second thing to drift;
-//   · the recommendation. The page shows the three evenly, A to Z (owner, 2 Nov 2026: "No, three evenly"), so nothing it
-//     reads names one. RECOMMENDED is read below only to refuse a shortlist the sentences were not written for;
+//   · a recommendation. The page shows the three evenly, A to Z (owner, 2 Nov 2026: "No, three evenly"), and since 5 Nov
+//     2026 the pack names none either (owner: "Remove the marks"), so there is nothing to read;
 //   · anything about a person. The page has no member data, no pay estimate of anyone's own, and no votes.
 //
 // EVERY SENTENCE IS ASSERTED, as on the sheets: a design that stops fitting one stops this script. The "What's changed
@@ -22,7 +22,7 @@
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { GROUPS, TC, C, CG, ES, SR, FIG, RATE, claim, tidyText, isBest, hm, H, first, timed, m, mins, isEarly, MS, SHORTLIST, RECOMMENDED } from './what-it-means-data.mjs';
+import { GROUPS, TC, C, CG, ES, SR, FIG, RATE, claim, tidyText, isBest, hm, H, first, timed, m, mins, isEarly, MS, SHORTLIST } from './what-it-means-data.mjs';
 import { FIRST } from './fresh.mjs';
 import { PROPOSALS } from '../../../links-proposals.js';
 import { DAYS } from '../../../links-design.js';
@@ -35,13 +35,12 @@ const WORDS = { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 
 /** One figure across the three: "12", or "0 to 12" where they differ. @param {number[]} v */
 const span = v => { const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? `${lo}` : `${lo} to ${hi}`; };
 
-// THE WORDS ARE WRITTEN FOR THESE THREE, in this order — A to Z, which is also the Links workspace's order. Since 5 Nov 2026
-// (owner: Common Ground and Short Run beside Even Step, In Step off the shortlist) fresh.mjs lists the recommendation first,
-// so the order is the data module's (C), not SHORTLIST's
+// THE WORDS ARE WRITTEN FOR THESE THREE, in this order — A to Z, which is the Links workspace's order and, since 5 Nov 2026
+// (owner: Common Ground and Short Run beside Even Step, In Step off the shortlist, and no recommendation), fresh.mjs's too
 const NAMES = C.map(c => c.name);
-if (NAMES.join() !== 'Common Ground,Even Step,Short Run' || RECOMMENDED !== 'Even Step' || [...SHORTLIST].sort().join() !== NAMES.join()) throw new Error(`the page's sentences are written for Common Ground, Even Step and Short Run; the shortlist is ${SHORTLIST}`);
+if (NAMES.join() !== 'Common Ground,Even Step,Short Run' || SHORTLIST.join() !== NAMES.join()) throw new Error(`the page's sentences are written for Common Ground, Even Step and Short Run, A to Z; the shortlist is ${SHORTLIST}`);
 claim('the three in alphabetical order', [...NAMES].sort().join() === NAMES.join());
-// the built-in list keeps the pack's order, the recommendation first; the page sorts the three A to Z itself (newlink-render.js aToZ)
+// the page sorts the three A to Z itself (newlink-render.js aToZ), whatever order the built-in list keeps
 claim('the built-in proposals are the shortlist, which the page shows A to Z as COLUMNS lists them', PROPOSALS.map(p => p.name.replace(/ — Dec 2026$/, '')).sort().join() === NAMES.join());
 const codeOf = name => PROPOSALS.find(p => p.name.startsWith(name + ' ')).code;
 const refOf = name => PROPOSALS.find(p => p.name.startsWith(name + ' ')).ref;
@@ -63,6 +62,16 @@ claim('Common Ground: one 9-hour Saturday late, 13:30–22:30, and nothing else 
 claim('Short Run: some 9-hour earlies', over(SR.p).some(s => isEarly(s) && mins(s) === 540) && over(SR.p).filter(isEarly).every(s => mins(s) === 540));
 claim('Common Ground keeps today’s leave: four weeks off for 14 days, and 30 days off for 14 at best; the other two need 15 and buy 28', +CG.f.leaveFour === +TC.f.leaveFour
   && +CG.f.leaveBest === +TC.f.leaveBest && [ES, SR].every(c => +c.f.leaveFour === +TC.f.leaveFour + 1 && +c.f.leaveBest === +TC.f.leaveBest - 2));
+// THE PRICE OF THE LEAVE, SAID BESIDE IT (whole-pack review, 5 Nov 2026): the line read as a gain with nothing paid for it
+claim('Common Ground: about 12 single rest days a year, where Even Step and Short Run have about 8', CG.singles === 12 && ES.singles === 8 && SR.singles === 8);
+// HOW OFTEN THE LONG DUTIES COME ROUND, a year each, counted as the shortlist sheet counts them: Monday to Saturday (a Sunday
+// is overtime), duty by duty across the rota, times 52 over its length
+const longYear = c => Math.round(monSatDuties(c.p).filter(s => mins(s) > 510).length * 52 / Object.keys(c.p).length);
+claim('over 8h 30m Monday to Saturday, a year each: Common Ground about 4, Short Run about 26, Even Step none', longYear(CG) === 4 && longYear(SR) === 26 && longYear(ES) === 0);
+claim('Short Run’s long duties: 9-hour earlies on weekdays only, and an 8h 40m closer on Saturdays only',
+  over(SR.p).every(s => (isEarly(s) && mins(s) === 540) || (s.endsWith('-23:55') && mins(s) === 520))
+  && Object.values(SR.p).every(r => !(timed(r.sat) && isEarly(r.sat) && mins(r.sat) > 510) && MS.slice(0, 5).every(d => !(timed(r[d]) && r[d].endsWith('-23:55') && mins(r[d]) > 510)))
+  && Object.values(SR.p).some(r => timed(r.sat) && r.sat.endsWith('-23:55') && mins(r.sat) === 520));
 // THE GRID ITSELF, NOT ITS LABEL (the review, 2 Nov 2026): a ref string can outlive an edited grid, so the fingerprint is
 // recomputed from the cells as report-data.mjs computes every sheet's — 618348d6 is Short Run's since 3 Oct 2026
 const fpOf = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a, b) => a - b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
@@ -76,8 +85,8 @@ const CHANGES = [
   'Two more proposals sit beside Short Run now: Common Ground and Even Step. Both were drawn up after Short Run was first shown.',
   // OF THE ROTA, not of a person: someone on it finishes at 13:45 each weekday, where one person has 10 or 12 a year
   'Both keep a shift finishing at 13:45 on every weekday of the rota. Short Run has no shift finishing at 13:35 or 13:45.',
-  'Common Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even Step and Short Run four weeks off take 15.',
-  'Even Step has nothing over 8h 30m, Monday to Saturday. Common Ground has one 9-hour Saturday late, and Short Run some 9-hour earlies.',
+  'Common Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even Step and Short Run four weeks off take 15. The price on Common Ground is more single rest days: about 12 a year, where the other two have about 8.',
+  'Even Step has nothing over 8h 30m, Monday to Saturday. Common Ground has a 9-hour Saturday late, about 4 a year each; Short Run has 9-hour weekday earlies and an 8h 40m Saturday closer, about 26 a year each.',
   `Short Run has not changed since it was shown, and still has the shortest lates of the three: ${hm(H(SR.f.avgLate))} on average, closers included.`,
   // HISTORY, NOT COMPUTED: before 31 Oct a cover week's Sunday counted inside its four duties (README, the folder's opening).
   // Short Run's figure moved; the other two were drawn up under the new reading
@@ -149,15 +158,15 @@ const NOTES = [
   'One person, over a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.',
   `Pounds are gross, before tax, at the CEA rate of £${RATE.toFixed(2)} an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.`,
   'A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.',
-  'Bold green marks the clear best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make.',
+  'Bold green marks the clear best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within a few Saturday hours a year.',
   '“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail.',
 ].map(t);
 claim('the swap rows are left unranked, as the notes say', GROUPS[2].rows.every(r => !r.better));
+claim('the no-overtime rows are left unranked, as the notes say', GROUPS.find(g => /no overtime at all/.test(g.who)).rows.every(r => !r.better));
 
 // ── THE FULL PACK — what a colleague is handed, nothing more ──────────────────────────────────────────────────────────
-// Not the shortlist sheet (it carries the recommendation), not the managers' decks, not the one-page sheet (its subtitle names
-// the recommendation, and this page is its content). Page counts are read from the files, so a rebuilt pack that adds a page
-// fails --check until this is run again.
+// Not the shortlist sheet or the one-page sheet, whose comparison this page already is, and not the managers' decks. Page
+// counts are read from the files, so a rebuilt pack that adds a page fails --check until this is run again.
 const pages = rel => (readFileSync(DIR + rel).toString('latin1').match(/\/Type\s*\/Page(?![s\w])/g) ?? []).length;
 // a 30-day link's sheet is in 30-days-off/ (Common Ground's, since it joined the shortlist on 5 Nov 2026), every other in proposals/
 const sheetOf = name => { const f = ['proposals', '30-days-off'].flatMap(dir => readdirSync(DIR + dir).filter(x => x.startsWith(`${name.replace(/ /g, '-')}-${codeOf(name)}-`) && x.endsWith('.pdf')).map(x => `${dir}/${x}`));

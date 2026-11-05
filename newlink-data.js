@@ -31,8 +31,8 @@ export const COLUMNS = deepFreeze(["Today", "Common Ground", "Even Step", "Short
 export const CHANGES = deepFreeze([
     "Two more proposals sit beside Short\u00a0Run now: Common\u00a0Ground and Even\u00a0Step. Both were drawn up after Short\u00a0Run was first shown.",
     "Both keep a shift finishing at 13:45 on every weekday of the rota. Short\u00a0Run has no shift finishing at 13:35 or 13:45.",
-    "Common\u00a0Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even\u00a0Step and Short\u00a0Run four weeks off take 15.",
-    "Even\u00a0Step has nothing over 8h\u00a030m, Monday to Saturday. Common\u00a0Ground has one 9-hour Saturday late, and Short\u00a0Run some 9-hour earlies.",
+    "Common\u00a0Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even\u00a0Step and Short\u00a0Run four weeks off take 15. The price on Common\u00a0Ground is more single rest days: about 12\u00a0a\u00a0year, where the other two have about 8.",
+    "Even\u00a0Step has nothing over 8h\u00a030m, Monday to Saturday. Common\u00a0Ground has a 9-hour Saturday late, about 4\u00a0a\u00a0year each; Short\u00a0Run has 9-hour weekday earlies and an 8h\u00a040m Saturday closer, about 26\u00a0a\u00a0year each.",
     "Short\u00a0Run has not changed since it was shown, and still has the shortest lates of the three: 8h\u00a006m on average, closers included.",
     "One figure has moved since: when a cover week falls badly, the most days in a row is 7, not 6, as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top."
 ]);
@@ -240,7 +240,7 @@ export const PERSONAS = deepFreeze([
                 "label": "Saturday hours a year, at time and a quarter",
                 "cells": [
                     { "text": "213", "best": false },
-                    { "text": "231", "best": true },
+                    { "text": "231", "best": false },
                     { "text": "228", "best": false },
                     { "text": "230", "best": false }
                 ]
@@ -249,9 +249,9 @@ export const PERSONAS = deepFreeze([
                 "label": "Premium pay, against today",
                 "cells": [
                     { "text": "—", "best": false },
-                    { "text": "about £90\u00a0more", "best": true },
+                    { "text": "about £90\u00a0more", "best": false },
                     { "text": "about £80\u00a0more", "best": false },
-                    { "text": "about £90\u00a0more", "best": true }
+                    { "text": "about £90\u00a0more", "best": false }
                 ]
             }
         ]
@@ -261,7 +261,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🏖️",
         "chip": "Save leave",
         "who": "…save your leave for long breaks",
-        "gist": "Four full weeks off, Sunday to Saturday, take a day more leave on Even\u00a0Step and Short\u00a0Run; Common\u00a0Ground keeps today’s 14, with a few three-day breaks. On average 14 days’ leave goes as far as today on all three.",
+        "gist": "Four full weeks off, Sunday to Saturday, take 15 days’ leave on Even\u00a0Step and Short\u00a0Run; Common\u00a0Ground keeps today’s 14, for more single rest days. On average 14 days’ leave goes as far as today on all three.",
         "rows": [
             {
                 "label": "Leave for four full weeks off, Sunday to Saturday",
@@ -300,7 +300,7 @@ export const NOTES = deepFreeze([
     "One person, over a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.",
     "Pounds are gross, before tax, at the CEA rate of £21.49 an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.",
     "A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.",
-    "Bold green marks the clear best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make.",
+    "Bold green marks the clear best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within a few Saturday hours a year.",
     "“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail."
 ]);
 
