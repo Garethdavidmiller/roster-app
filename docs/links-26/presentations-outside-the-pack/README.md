@@ -12,12 +12,13 @@ leaves the pack, the shortlist and the shortlist's six decks exactly as they wer
 They were asked for on 5 November 2026 (owner: "Then create presentations for common ground"; offered where to keep
 them: "Outside the pack").
 
-**What they say.** Common Ground is today's link taken to 26 weeks: today's shift times where the December rules allow,
-today's 13:45 and 14:20 finishes kept, and 14 days' leave buying 30 days off, with four weeks off for 14 days' leave, as
-today. The decks lead with that: it is what Common Ground has and the three shortlisted links do not. Its costs are said as
-plainly: six single rest days in 26 weeks, where the shortlisted links have four; a 9-hour Saturday late (13:30–22:30); a
-slightly weaker weekday fit to the trains. The managers' "Why Common Ground?" slide speaks from outside the shortlist: what
-it shares with the three shortlisted links, what it adds, and what it costs.
+**What they say.** Common Ground is today's link taken to 26 weeks: today's 13:45 and 14:20 finishes kept, closers from
+15:45 Monday to Saturday, an even Sunday, and 14 days' leave buying 30 days off, with four weeks off for 14 days' leave, as
+today. The decks lead with the leave: it is what Common Ground has and the three shortlisted links do not. Its costs are
+said as plainly: six single rest days in 26 weeks, where the shortlisted links have four; a slightly weaker weekday fit to
+the trains; four at the open, where they have five. They do not claim it keeps more of today's shift times than the
+shortlist: it keeps 7 of 14, where they keep 8 or 9. The managers' "Why Common Ground?" slide speaks from outside the
+shortlist: what it shares with the three shortlisted links, what it adds, and what it costs.
 
 **How they are made.** They are Even Step's finished decks with what differs rewritten, so the two read alike wherever the
 designs agree (most of the figures: the hours and days, the run, the weekends, the closers, the late finishes, the

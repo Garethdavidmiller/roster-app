@@ -4050,6 +4050,36 @@ eight decks agree, none unchecked, and a cell altered in a copy is reported.
 "Like all three shortlisted:", so it is "Like all three:" under the subtitle that says what the three are. The colleague
 deck's closing credit line is longer by the name and put "tooling" on a line of its own, so it is 11pt there, not 12pt.
 
+**Reviewed independently** the same morning: every sentence and note recomputed from the grids. No figure was wrong
+and nothing of Even Step's was left. Five pieces of wording were, and are now fixed:
+- **"Today's shift times wherever the December rules allow"** (the managers' notes 4 and 7, the colleagues' notes 8)
+  claimed more than Common Ground has. The rules allow more of today's times than it keeps: it keeps 7 of 14, where Even
+  Step keeps 8 of 13 and In Step and Short Run 9 of 15. Counted Monday to Saturday its share, 70%, is between theirs
+  (80%, 73%, 67%). The times went to the brief: no 13:35, the openers by 14:20, the half hour, the caps. The notes now say
+  so. On the "Why" slide the shift-times line reads "Like all three: fewer shift times than today's 18 — here 14, 7 worked
+  today", and it comes before the "adds" line, so its tick is for something all four share. The weaker weekday fit is
+  explained by what it is measured to cost: today's 11:00–19:30 is kept where an 11:30–20:00 would score 31.9, not 32.7
+  (the builder computes both).
+- **The 9-hour Saturday late** was listed among the costs "against them", but it is a cost against Even Step only. In
+  Step has about 40 duties a year each over 8h 30m Monday to Saturday and Short Run about 26, against Common Ground's 4.
+  The notes now give all three.
+- **The rise in finishes at 22:00 or later** (the managers' notes 8) was put down to the rules alone. On 26 lines the rules
+  alone would give about 74 a year each, fewer than today's 78. The rest comes from the two floor lates finishing with the
+  ticket office every weekday, which make seven on duty at 22:00. The notes now say both, as the colleagues' notes 7
+  already did. The shortlisted three's managers' decks have the same sentence; all four designs have 94.
+- **"Four open the station on every day but Sunday"** read as if fewer open on a Sunday. It now says four start at 06:20
+  Monday to Saturday; a Sunday opens at 07:15, with four there too.
+- **"What it costs is on slide 9"**: the single rest days are on slide 13's cards. Slide 9 has them in its notes only.
+
+Kept as they are: **£350** is rounded to the nearest £50, the method every deck uses for this figure (Even Step's £250 is
+£256). **"About two minutes"** on the average shift matches the table's 8h 14m and 8h 16m; it is 1.4 minutes unrounded.
+
+**One point for the whole pack, not changed here.** "Weeks on one shift time, Monday to Friday" gives today 7 of 16, but
+the count behind it (`feel()` in report-data.mjs) also needs the whole week to be all earlies or all lates. Read as the
+label reads, today has 9 of 16: weeks 4 and 19 have one time Monday to Friday and a late on the Saturday. Every design's
+figure is the same either way, Common Ground's 19 of 21 among them. The same label is on every deck and the sheets, so it
+is the owner's to decide, for all of them at once.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
