@@ -208,7 +208,7 @@ def check_typed():
     H = lambda v: int(v.split('h')[0]) * 60 + int(v.split('h')[1].strip().rstrip('m'))
     src = open(os.path.join(tool, 'fresh.mjs'), encoding='utf-8').read()
     SL = re.findall(r"'([^']+)'", re.search(r'export const SHORTLIST = \[([^\]]*)\]', src).group(1))
-    REC = re.search(r"export const RECOMMENDED = '([^']+)'", src).group(1)
+    REC = bool(re.search(r'export const RECOMMENDED\b', src))   # no recommendation since 5 Nov 2026 (owner: "Remove the marks")
     long_ms = lambda p: a_year(p, lambda s, d: d != 'sun' and mins(s) > 510)                       # any shift over 8h 30m, Monday to Saturday
     late_avg = lambda p: (lambda l: round(sum(l) / len(l)))([mins(r[d]) for r in p.values() for d in WK if timed(r[d]) and int(r[d][:2]) >= 11 and r[d][6:] != '23:55'])   # the sheet's lateAvg
     per_wk_earlies = lambda p: {(sum(1 for r in p.values() if timed(r[d]) and early(r[d])), sum(1 for r in p.values() if timed(r[d]) and early(r[d]) and mins(r[d]) == 510)) for d in WK}
@@ -258,7 +258,8 @@ def check_typed():
         ('the known times that move day: weekday earlies today only at the weekend, Saturday times today only on weekdays, notes 2, 8 and the managers’ 7',
          [sorted(t for t in times(g, WK) if early(t) and t in toT and not times_on(today, t) & set(WK)), sorted(t for t in times(g, ('sat',)) if t in toT and times_on(today, t) <= set(WK))],
          [['06:20-14:50', '07:15-15:45'], ['06:20-14:20', '08:00-16:30', '14:00-22:30']]),
-        ('Even Step recommended, on the shortlist with In Step and Short Run', [REC, sorted(SL)], [NAME, ['Even Step', 'In Step', 'Short Run']]),
+        # the shortlist since 5 Nov 2026 (owner): Common Ground in, In Step out, and none of the three recommended
+        ('Even Step on the shortlist with Common Ground and Short Run, none recommended', [REC, sorted(SL)], [False, ['Common Ground', 'Even Step', 'Short Run']]),
     ]
     bad = [f'{what}: the data says {got}, the slides say {typed}' for what, got, typed in checks if got != typed]
     if bad: raise SystemExit('even-step-decks: a typed figure no longer matches the rota —\n  ' + '\n  '.join(bad))

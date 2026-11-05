@@ -202,7 +202,7 @@ def check_typed():
     SL = re.findall(r"'([^']+)'", re.search(r'export const SHORTLIST = \[([^\]]*)\]', open(os.path.join(tool, 'fresh.mjs'), encoding='utf-8').read()).group(1))
     G = {n: (lambda j: j.get('patterns', j))(json.load(open(os.path.join(tool, f), encoding='utf-8'))) for n, f in (('Short Run', 'short-run.json'), ('Even Step', 'even-step.json'))}
     S, E = fig['Short Run'], fig['Even Step']
-    REC = re.search(r"export const RECOMMENDED = '([^']+)'", open(os.path.join(tool, 'fresh.mjs'), encoding='utf-8').read()).group(1)
+    REC = bool(re.search(r'export const RECOMMENDED\b', open(os.path.join(tool, 'fresh.mjs'), encoding='utf-8').read()))   # none since 5 Nov 2026 (owner)
     H = lambda v: int(v.split('h')[0]) * 60 + int(v.split('h')[1].strip().rstrip('m'))
     long_ms = lambda p: round(sum(1 for r in p.values() for d in WK + ('sat',) if timed(r[d]) and mins(r[d]) > 510) * 52 / len(p))
     late_avg = lambda p: (lambda l: round(sum(l) / len(l)))([mins(r[d]) for r in p.values() for d in WK if timed(r[d]) and int(r[d][:2]) >= 11 and r[d][6:] != '23:55'])   # the sheet's lateAvg
@@ -240,7 +240,10 @@ def check_typed():
          [[F[k] == S[k] for k in ('run', 'weekends', 'weekendGap', 'oneTurn', 'late23', 'late22', 'leaveBest', 'leaveAvg', 'leaveWorst', 'leaveFour')], k1345(g), k1345(G['Short Run'])],
          [[True] * 10, True, False]),
         ('against Short Run: its Saturday closer and its weeks', [S['closerSat'], S['light'], S['heavy'], F['closerSat']], ['8h 40m', '24h 30m', '42h 30m', '8h 10m']),
-        ('In Step is on the shortlist, with Even Step (recommended) and Short Run', [sorted(SL), REC], [['Even Step', 'In Step', 'Short Run'], 'Even Step']),
+        # OFF THE SHORTLIST SINCE 5 NOV 2026 (owner: Common Ground in, "keep the other presentations in the pack, just not the
+        # shortlist"): its decks stay in the pack and say so (deck-polish.py), so they are built only while that holds
+        ('In Step is off the shortlist, its decks kept in the pack; Common Ground, Even Step and Short Run on it, none recommended',
+         [sorted(SL), REC, re.findall(r"'([^']+)'", re.search(r'export const DECKS_KEPT = \[([^\]]*)\]', open(os.path.join(tool, 'fresh.mjs'), encoding='utf-8').read()).group(1))], [['Common Ground', 'Even Step', 'Short Run'], False, ['In Step']]),
         # the managers' notes 7 against Even Step (31 Oct 2026): its same weeks, its step, its weekday fit, none of its shifts
         # Monday to Saturday over 8h 30m, and In Step's weeks the most even of the three
         ('against Even Step: the same weeks, a smaller step, a closer weekday fit, none of Even Step’s over 8h 30m Monday to Saturday',

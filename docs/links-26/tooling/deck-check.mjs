@@ -23,13 +23,17 @@ import { kindBlocks } from './blocks.mjs';
 import { scoreOrder } from '../../../links-adjacency.js';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
-// Only the shortlist's decks are shipped (owner, 3 Oct 2026): Second Nature's, Second Wind's and Second Sight's were deleted.
-// The shortlist became In Step and Short Run on 30 Oct 2026 (owner: "Only do the shortlist for instep and short run"), and
-// Second Edition's, Even Keel's and Closing Time's decks went the same way; their builders are in git. Even Step joined it on
-// 31 Oct 2026, recommended (owner: "Yes, keep all three").
+// Only the shortlist's decks were shipped from 3 Oct 2026 (owner): Second Nature's, Second Wind's and Second Sight's were
+// deleted. The shortlist became In Step and Short Run on 30 Oct 2026 (owner: "Only do the shortlist for instep and short run"),
+// and Second Edition's, Even Keel's and Closing Time's decks went the same way; their builders are in git. Even Step joined it
+// on 31 Oct 2026, recommended (owner: "Yes, keep all three"). On 5 Nov 2026 Common Ground took In Step's place, and In Step's
+// decks stayed in the pack off the shortlist (owner: "keep the other presentations in the pack, just not the shortlist";
+// fresh.mjs → DECKS_KEPT), so all eight are here. Common Ground's were made earlier that day in a folder outside the pack,
+// which went when they joined it.
 const DECKS = [['Even-Step-for-colleagues.pptx', 'Even Step'], ['Even-Step-for-managers.pptx', 'Even Step'],
-  ['In-Step-for-colleagues.pptx', 'In Step'], ['In-Step-for-managers.pptx', 'In Step'],
-  ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run']];
+  ['Common-Ground-for-colleagues.pptx', 'Common Ground'], ['Common-Ground-for-managers.pptx', 'Common Ground'],
+  ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run'],
+  ['In-Step-for-colleagues.pptx', 'In Step'], ['In-Step-for-managers.pptx', 'In Step']];
 
 const hm = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
 const span = s => String(s).replace(/(\d+)h(\d\d)(?!m)/g, '$1h $2m');                 // plain.mjs's "8h40" → the decks' "8h 40m"
@@ -69,7 +73,8 @@ function figures(patterns, lines, T) {
     sunHours: hm(Object.values(patterns).reduce((s, r) => s + (timed(r.sun) ? (endMinutes(r.sun) - startMinutes(r.sun) + 1440) % 1440 : 0), 0)),
     run: up(A.fixed.run, A.checks.longestStretch), ff: up(A.fixed.present, worstFF),
     // the 55-hour week a cover week can make, when that is what the "up to" in `ff` counts (31 Oct 2026) — for the notes
-    h55: h55?.adds ? h55.hi.toFixed(1) : '',
+    // in hours and minutes, counted in whole minutes, as the sheets give it since 5 Nov 2026 ("56.8" read as 56h 08m)
+    h55: h55?.adds ? hm(h55.hiMin) : '',
     times: T ? `${A.feel.distinctTimes} (${shared} you know)` : `${A.feel.distinctTimes}`,
     daily: trio(A.daily), dailyWk: wk(A.daily), dailyWeekend: `${A.daily.sat} / ${A.daily.sun}`,
     open: trio(A.heads.open), at22: trio(A.heads.at22), close: trio(A.heads.close),
@@ -105,7 +110,7 @@ const ROWS = {
   'Contracted days at work a year': 'daysYear', 'Saturdays a year, at time and a quarter': 'sat',
   'Sunday overtime to share — each, a year': 'sun', 'Finishing at 23:00 or later — each, a year': 'late23',
   'Finishing at 22:00 or later — each, a year': 'late22', 'Starting at 06:20 — each, a year': 'open0620',
-  'Shortest gap between two shifts': 'rest', 'Shortest rest between shifts (limit 12h)': 'rest', 'Longest shift, any day': 'longest',
+  'Shortest rest between shifts': 'rest', 'Shortest rest between shifts (limit 12h)': 'rest', 'Longest shift, any day': 'longest',
   'Average shift · longest shift': 'avgLongest', 'Closing shift: weekday · Saturday · Sunday': 'closers',
   'Full weekends off': ['weekends', 'weekendsShort'], 'Full weekends off, about a year': 'weekendsYear', 'Most days worked in a row': 'run', 'Most days in a row (limit 13)': 'run', 'Most days in a row (limit 13, source to confirm)': 'run',
   'Avoidable fatigue warnings, cover weeks aside': 'ff',
@@ -114,7 +119,7 @@ const ROWS = {
   'At the open, at least 4 (06:20, Sun 07:15)': 'open', 'Still on duty at 22:00, at least 5': 'at22', 'Through to the close, at least 3': 'close',
   'Fewest rostered on the floor': ['floor', 'floorMin'], 'Fewest on the floor at any time, at least 2': ['floor', 'floorMin'], 'Cover weeks (for leave and sickness)': 'cover',
   'People needed each Sunday (overtime)': 'sundayPeople', 'Rest-day breaks of two days or more': 'breaks',
-  'Weeks on one turn, Monday to Friday': 'oneTurn', 'Weeks on one shift time, Monday to Friday': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
+  'Weeks on one turn, Monday to Friday': 'oneTurn', 'Weeks on one shift time, all earlies or all lates': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
   'Average early, Monday to Saturday': 'avgEarly', 'Average late, Monday to Saturday': 'avgLate',   // slide 6 (1 Nov 2026)
   'Average shift, Monday to Saturday': 'avg',
   'A late against an early, same day, on average': 'swap', 'Finishing at 13:35 or 13:45 — each, a year': 'shortYear',   // slide 5 (1 Nov 2026)
@@ -134,26 +139,45 @@ function slideItems(xml) {
   return [...xml.matchAll(/<p:sp>[\s\S]*?<\/p:sp>/g)].map(m => text(m[0])).filter(Boolean);
 }
 
+// THE MARKS (deck-marks.py, 5 Nov 2026): a green figure carries a ✓ and an amber one a ▲, so "better" and "worse" do not rest on
+// colour alone. Read back here: a coloured figure with no mark, or a mark that disagrees with its colour, is a failure — the
+// step runs last in the chain, and this is what stops a rebuild that skipped it. The colours are second-nature-decks.py's own.
+const [GREEN, AMBER] = /^NAVY, GREEN, AMBER = '[0-9A-F]{6}', '([0-9A-F]{6})', '([0-9A-F]{6})'/m.exec(readFileSync(new URL('./second-nature-decks.py', import.meta.url), 'utf8')).slice(1);
+const unmark = v => v == null ? v : v.replace(/^[✓▲]\u00a0/, '');   // a row's figure, read without its mark
+function marksWrong(xml) {
+  const wrong = [];
+  for (const [run] of xml.matchAll(/<a:r>[\s\S]*?<\/a:r>/g)) {
+    const t = /<a:t>([^<]*)<\/a:t>/.exec(run)?.[1], c = /<a:rPr\b[^>]*>(?:(?!<\/a:rPr>)[\s\S])*?<a:srgbClr val="([0-9A-Fa-f]{6})"/.exec(run)?.[1]?.toUpperCase();
+    if (t == null) continue;
+    if ((c === GREEN || c === AMBER) && /^\d/.test(t)) wrong.push(`unmarked ${c === GREEN ? 'green' : 'amber'} "${t}"`);
+    // a mark in front of a figure (the ticks drawn alone in their circles are icons, not marks)
+    if (/^✓\u00a0\d/.test(t) && c !== GREEN) wrong.push(`a ✓ on a figure that is not green: "${t}"`);
+    if (/^▲\u00a0\d/.test(t) && c !== AMBER) wrong.push(`a ▲ on a figure that is not amber: "${t}"`);
+  }
+  return wrong;
+}
+
 const T0 = today(), TA = assess(T0.patterns, 20), TF = figures(T0.patterns, 20, null);
 const stats = folderStats();
 let bad = 0, ok = 0; const unchecked = new Set();
 if (process.argv.includes('--print')) {   // every figure a deck row can quote, for today and each design the decks cover
   const out = { today: TF };
   for (const name of new Set(DECKS.map(([, n]) => n))) { const f = stats.find(s => s.name === name);
-    const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8')); out[name] = figures(j.patterns ?? j, LINES, TA); }
+    const j = JSON.parse(readFileSync(f.url, 'utf8')); out[name] = figures(j.patterns ?? j, LINES, TA); }
   console.log(JSON.stringify(out, null, 1)); process.exit(0);
 }
-for (const [file, name] of DECKS) {
+for (const [file, name] of DECKS) { const dir = DIR;
   const f = stats.find(s => s.name === name); if (!f) throw new Error(`deck-check: no proposal called ${name}`);
-  const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8')), p = j.patterns ?? j;
+  const j = JSON.parse(readFileSync(f.url, 'utf8')), p = j.patterns ?? j;
   const PF = figures(p, LINES, TA);
-  const slides = execFileSync('unzip', ['-Z1', DIR + file], { encoding: 'utf8' }).split('\n').filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));
+  const slides = execFileSync('unzip', ['-Z1', dir + file], { encoding: 'utf8' }).split('\n').filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));
   for (const s of slides) {
-    const it = slideItems(execFileSync('unzip', ['-p', DIR + file, s], { encoding: 'utf8' })), n = s.match(/\d+/)[0];
+    const xml = execFileSync('unzip', ['-p', dir + file, s], { encoding: 'utf8' }), it = slideItems(xml), n = s.match(/\d+/)[0];
+    for (const w of marksWrong(xml)) { bad++; console.log(`MARK ${file} slide ${n}: ${w} — run deck-marks.py last`); }
     // a header row "Today | <name>" marks a comparison table; each row after it is label, today, proposal
     const h = it.findIndex((x, i) => x === 'Today' && it[i + 1] === name); if (h < 0) continue;
     for (let i = h + 2; i + 2 < it.length + 1; i += 3) {
-      const [label, tv, pv] = [it[i], it[i + 1], it[i + 2]];
+      const [label, tv, pv] = [it[i], unmark(it[i + 1]), unmark(it[i + 2])];
       if (tv == null || pv == null) break;
       if (/[.!?]$/.test(label)) break;                                   // the slide's takeaway line: the table has ended
       const key = ROWS[label] ?? ROW_PATTERNS.find(([re]) => re.test(label))?.[1];

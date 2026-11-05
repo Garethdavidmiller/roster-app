@@ -47,9 +47,12 @@ test('a duty\'s kind follows the pack\'s line: an early starts before 11:00', ()
 });
 
 test('EVENLY: the status names the three A to Z, each once, in the same tile', () => {
-    const html = renderStatus({ proposals: PROPOSALS, closes: null });
+    // the built-in list is A to Z too since 5 Nov 2026, so the renderer is handed them out of order: the sort must be its own
+    const shuffled = [PROPOSALS[2], PROPOSALS[0], PROPOSALS[1]];
+    assert.notDeepEqual(shuffled.map(p => p.name), [...shuffled.map(p => p.name)].sort(), 'the fixture no longer tests the sort');
+    const html = renderStatus({ proposals: shuffled, closes: null });
     const names = [...html.matchAll(/<span class="nl-name-title">([^<]+)<\/span>/g)].map(m => m[1]);
-    assert.deepEqual(names, ['Even Step', 'In Step', 'Short Run']);
+    assert.deepEqual(names, ['Common Ground', 'Even Step', 'Short Run']);
     assert.equal(count(html, /class="nl-name"/g), 3, 'one tile each, the same class for all three');
     assert.match(html, /Nothing is decided/);
     assert.match(html, /a date to be agreed/);
@@ -106,7 +109,7 @@ test('the review\'s fixes stay fixed (2 Nov 2026)', () => {
     assert.doesNotMatch(renderWeeksKey() + renderCommon({ gains: GAINS, costs: COSTS }), /\bsick/i);
     // the name tiles look pressable, so they are: one button per proposal, opening its weeks
     const status = renderStatus({ proposals: PROPOSALS, closes: null });
-    assert.deepEqual([...status.matchAll(/<button type="button" class="nl-name" data-open-weeks="([^"]+)"/g)].map(m => m[1]), PROPOSALS.map(p => p.id));
+    assert.deepEqual([...status.matchAll(/<button type="button" class="nl-name" data-open-weeks="([^"]+)"/g)].map(m => m[1]), ['proposal:CG-26-T8', 'proposal:ES-26-T5', 'proposal:SR-26-F1']);
 });
 
 test('the improvements review stays applied (2 Nov 2026)', () => {
@@ -135,7 +138,7 @@ test('the improvements review stays applied (2 Nov 2026)', () => {
 test('EVENLY, again: every proposal\'s weeks are drawn, A to Z, the chosen one marked and each one flagged', () => {
     for (const chosen of PROPOSALS) {
         const html = renderAllWeeks(PROPOSALS, chosen.id);
-        assert.deepEqual([...html.matchAll(/data-weeks="([^"]+)"/g)].map(m => m[1]), PROPOSALS.map(p => p.id), 'all three, A to Z');
+        assert.deepEqual([...html.matchAll(/data-weeks="([^"]+)"/g)].map(m => m[1]), ['proposal:CG-26-T8', 'proposal:ES-26-T5', 'proposal:SR-26-F1'], 'all three, A to Z');
         assert.deepEqual([...html.matchAll(/class="nl-weeks-one is-chosen" data-weeks="([^"]+)"/g)].map(m => m[1]), [chosen.id], 'exactly the chosen one marked');
         assert.equal(count(html, /A proposal — not your roster/g), PROPOSALS.length, 'a flag on each, so any one cropped still says what it is');
     }
@@ -176,6 +179,7 @@ test('the tiles: one per way of working and Everything, exactly one pressed', ()
     assert.equal(count(one, /aria-pressed="true"/g), 1);
     assert.match(one, /data-persona="lates" aria-pressed="true"/);
     const tabs = renderWeeksTabs(PROPOSALS, PROPOSALS[1].id);
+    assert.deepEqual([...tabs.matchAll(/data-design="([^"]+)"/g)].map(m => m[1]), ['proposal:CG-26-T8', 'proposal:ES-26-T5', 'proposal:SR-26-F1'], 'the tabs A to Z too');
     assert.equal(count(tabs, /aria-pressed="true"/g), 1);
     assert.match(tabs, new RegExp(`data-design="${PROPOSALS[1].id}" aria-pressed="true"`));
 });

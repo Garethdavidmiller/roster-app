@@ -25,14 +25,37 @@ sections below keep the scores they were written with; the shortlist sheet and *
 took them out on 3 Nov, which put Even Step first again (`FAM_SUNDAY=1` rebuilds the scores before). *Familiar shift
 times count the Monday-to-Saturday duties only* has both.
 
+**League scores dated before Quarter Past joined the pack (4 Nov 2026) are on the range the designs before it set.**
+Quarter Past is far out on four measures, so with it in the pack every other score rose about 2 points and a few
+mid-table places moved; Even Step stayed first. *Today's three join the pack* has both tables.
+
+**League scores dated 4 Nov 2026 with Quarter Past in the pack are on the range it set.** It was taken out that evening
+and Well Kept joined the 30-day folder; the leaders' scores fell about 1.2 points, Grand Tour's 2.7, and Even Step is
+first again. *Quarter Past out, Well Kept in* has the table and the reason.
+
+**League scores dated 4 to 5 Nov 2026 with Well Kept in the pack are on the ranges it stretched.** It was taken out on
+5 Nov; every score fell 0.4 to 1.0 points, and Even Step is still first. *Well Kept out* has the table.
+
+**The shortlist was drawn again on 5 Nov 2026**: Common Ground, Even Step and Short Run. In Step left it, and its
+presentations stay in the pack. **Later that day the recommendation went** (owner: "Remove the marks"): the pack and
+the app present the three evenly, A to Z, and the deck builders, `pack.py` and `links-proposals.test.mjs` refuse a
+recommendation back. Sections dated before then speak of the shortlist and the recommendation of their day; *The
+shortlist drawn again* and *The whole pack reviewed* say what changed.
+
+**Three designs were renamed on 4 Nov 2026** (owner: "Give all proposals individual names"): Quarter Past Relaid is
+**Open Return** (`OR-26-EXT`, drawn as `QR-26-EXT`), Fair Share's 30-day search result, which had no name, is **Grand
+Tour** (`GT-26-T7`), and Same Again Tidy is **Well Kept** (`WK-26-S2`, while it was in the pack, 4 to 5 Nov). Each
+fingerprint is unchanged. The dated sections before
+*30 days off for 14 days' leave* keep the names they were written with, and so do the grids in `tooling/results/`.
+
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
 So a rebuild adds nothing about who decides, votes or recommends — the process is recorded in
-`../LINKS_DEC2026_PLAN.md`'s dashboard, and stays there. What the decks and sheets already say on it was left as it is on
-4 Nov, while feedback is still changing the proposals: the colleague decks' "Tell us what worries you" slide, the
-proposal sheets' line about the roster office and a union rep, and the "recommended" marks on the manager decks and
-the shortlist, summary and "What it means" sheets. The owner doubts most of it needs saying, so the next rebuild is
-the time to ask whether it should go.
+`../LINKS_DEC2026_PLAN.md`'s dashboard, and stays there. What the decks and sheets said on it was left as it was on
+4 Nov, and the owner was asked on 5 Nov: the union rep went from the proposal sheets' and managers' decks' line ("Not
+yet seen by the roster office" stays), the "recommended" marks went from every deck and sheet, and the colleague decks'
+last slide now says what the New link page says, "Tell S. Silva or your manager what worries you" (*The whole pack
+reviewed*).
 
 ## What is in this folder
 
@@ -40,16 +63,17 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 
 | | What it is |
 |---|---|
-| `links-NN-proposals.zip` | everything for sharing, in one download |
+| `links-NN-proposals.zip` | everything for sharing, in one download — for links-26 built on demand by `tooling/pack.py` and never committed |
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
 | `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
-| `links-26-shortlist.pdf` | the three shortlisted designs (Even Step, In Step and Short Run, since 31 Oct 2026) against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
+| `links-26-shortlist.pdf` | the three shortlisted designs (Common Ground, Even Step and Short Run, A to Z, since 5 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
+| `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
-| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
+| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: the three shortlisted designs', and In Step's, kept from when it was on the shortlist |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
 | `RULES.md` | the rules in prose, with their sources and the open questions (26 lines only) |
-| `README.md` | this record |
+| `README.md` | this record — the repository's working record, not part of the pack (left out of the zip since 5 Nov 2026, owner) |
 
 `NN` is the link's length in weeks. A proposal keeps its own name, because the code and fingerprint in it identify the
 exact rota on a printout. Inside the zip, the files carry the same names as here.
@@ -116,13 +140,16 @@ still be rebuilt.
 | | `what-it-means-sheet.mjs` | the one-page "What it means if you…" sheet (`../links-26-what-it-means.pdf`). It lays out and prints `what-it-means-data.mjs`, which reads the colleague decks' slide 5 and its notes back, so it runs after `deck-polish.py` and before `pack.py` (step 4) |
 | | `what-it-means-data.mjs` | the sheet's figures and asserted sentences, split out of it unchanged (2 Nov 2026) so the app's New link page reads the same ones; imported, never run |
 | | `newlink-data.mjs` | writes the app's `newlink-data.js` — the New link page's figures, sentences and pack list — from `what-it-means-data.mjs`; `--check` is what `newlink-data.test.mjs` runs. After `what-it-means-sheet.mjs` (step 4) |
-| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks |
-| league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them) — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
+| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`) → `common-ground-decks.py` → `deck-marks.py`; `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; Common Ground's, rewritten from Even Step's finished pair; the ✓ and ▲ beside every green and amber figure, run last (5 Nov 2026); the checker that reads every deck row back against the sheets and refuses an unmarked colour; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks |
+| league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them; `FAM_SUNDAY=1` for the main league with the Sunday duties counted in familiar shift times, as it was read before 3 Nov) — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
+| | `skeleton-from.mjs` | reads a finished rota's rest days and early and late weeks back as a skeleton, so another table's times can be laid on the same weeks (26 Oct; see "Today's link on 26 lines") |
+| times pool | `half-hour-pool.mjs` | prints the start and finish times on the hour or the half hour, with the fixed opens, closes and office times, for `final-table.mjs`'s `POOL_ONLY=` (4 Nov; see "Common Ground") |
 | options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
 | fatigue values | `factors-like.mjs` | every fatigue factor's own value, on the fixed duties and in the worst case, against a reference grid; exits 1 if any is worse (`space-polish.mjs`'s `FACTORS_LIKE` holds a search to the same comparison) |
 | whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen (see "Closing Time, improved" and "In Step") |
+| rest days with a leave rule | `leave-layouts.py` | the rest days alone for CP-SAT, with what 14 days' leave buys as a rule (`LV_BEST=`, `LV_WORST=`, `LV_FOUR=`), for `exact-rota.py`'s `SKELETON=` to lay a table's times on; `FRIOFF=1` keeps the Friday before every cover week off (no 55-hour week however the cover weeks fall), `HINT=` to climb from a valid layout, `FIX=` to check one (see "Quarter Past Relaid") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
 - **No 24-line default leaks through.** The app functions that default to 24 lines (`runDesignChecks`, `assessFatigue`,
@@ -244,12 +271,15 @@ is the best of the four.
 
 **The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"; **cut to the
 shortlist 3 Oct 2026**, owner: "only keep the shortlist's presentations, delete the rest"): `presentations/` holds a
-colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for the three shortlisted designs, **Even
-Step, In Step and Short Run**. The shortlist has moved under them: Second Edition, Even Keel and Short Run on 3 Oct;
+colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for the three shortlisted designs, **Common
+Ground, Even Step and Short Run**, and for In Step, kept from when it was on the shortlist (5 Nov 2026, owner: "keep the
+other presentations in the pack, just not the shortlist"). The shortlist has moved under them: Second Edition, Even Keel and Short Run on 3 Oct;
 Closing Time added on 30 Oct, with its decks; In Step's decks built the same evening while it was off the shortlist; the
 cut to In Step and Short Run later that day, when the decks of Second Edition, Even Keel and Closing Time were removed
 under the 3 Oct rule (they are in git history) and two of their builders with them (below, "The shortlist cut to two");
-and Even Step added on 31 Oct, recommended (below, "Even Step"). They are the
+Even Step added on 31 Oct, recommended (below, "Even Step"); and on 5 Nov Common Ground in and In Step out, its decks
+kept (below, "The shortlist drawn again"), and the recommendation gone the same day (below, "The whole pack reviewed").
+They are the
 Familiar Nine decks, the template Right Away's were made from too, with every word and figure that was Familiar Nine's
 replaced and the design untouched. Unlike the 24-line decks, they are BUILT here: `tooling/second-nature-decks.py` makes
 Second Nature's decks from the Familiar Nine files into `tooling/deck-template/` (gitignored — Second Nature's decks are
@@ -272,21 +302,25 @@ I work more?" slide give the weekly range, and the manager deck carry the Sunday
 Every builder and the polish refuse if a slide no longer holds the text they expect, and every deck compares only with
 today's link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts. `tooling/leave.mjs`
-  gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at best, 23.4 on average,
-  20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line decks' leave method as
+  gives the four leave figures (Even Step, Short Run and In Step: 14 days' leave buys 28 days off at best, 23.4 on
+  average, 20 at worst, and four full weeks off takes 15; Common Ground 30 · 23.4 · 20 · 14; today 30 · 23.4 · 19 · 14). It is the 24-line decks' leave method as
   code, and `--check` shows it reproduces their published figures for today and Familiar Nine exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the six decks
-  agrees with the sheets and the leave model, and none is left unchecked (it prints the count).
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the eight decks agrees
+  with the sheets and the leave model, and none is left unchecked (it prints the count).
 
 Rebuild after any change to the rota:
 
 ```
 python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/short-run-decks.py \
   && python3 docs/links-26/tooling/in-step-decks.py && python3 docs/links-26/tooling/even-step-decks.py \
-  && python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
+  && python3 docs/links-26/tooling/deck-polish.py && python3 docs/links-26/tooling/common-ground-decks.py \
+  && python3 docs/links-26/tooling/deck-marks.py && node docs/links-26/tooling/deck-check.mjs
 ```
 
-Then export the PDFs (LibreOffice), then `node docs/links-26/tooling/what-it-means-sheet.mjs` (it reads the decks, so it
+`common-ground-decks.py` rewrites Even Step's finished decks into Common Ground's, so it runs after the polish, and
+`deck-marks.py` marks every green and amber figure on every deck, so it runs last (`deck-check.mjs` refuses a deck it
+has not marked). Then
+export the PDFs (LibreOffice), then `node docs/links-26/tooling/what-it-means-sheet.mjs` (it reads the decks, so it
 comes after them), `node docs/links-26/tooling/newlink-data.mjs` (the app page's copy of the same figures — the build
 fails until it is run) and `python3 docs/links-26/tooling/pack.py` (which refuses that sheet if it is older than the decks).
 
@@ -3025,6 +3059,89 @@ count. Weighted as before, nothing moved: In Step 87.4, Even Step 86.5.
 - **Nothing else reads the league.** The summary, the proposal sheets, the decks and "What it means if you…" are
   unchanged, as are the shortlist and the recommendation.
 
+## Quarter Past — a one-page roster, read and compared (4 Nov 2026)
+
+Owner, uploading a one-page PDF roster headed *Customer Experience Ambassador | 26-line roster*, with no names on it:
+"Can you create a proposal sheet for this links set please".
+
+**How it was read.** Line by line from the PDF's own text into the app's shape, with nothing changed and nothing
+searched:
+- each SP week is a whole cover week, on lines 1, 6, 11, 16 and 21;
+- every time is as written;
+- every working week's Monday-to-Saturday hours match the sheet's own Hours column, and together they come to 44,100
+  minutes, 35 hours for each of the 21 working weeks. Its own summary figures agree: 35h 00m a week and 218.6
+  contracted days a year.
+
+The grid is `tooling/results/quarter-past.json`, with a `.meta.json`. The PDF itself is not committed.
+
+**Why the name.** Its closers start at a quarter past: 16:15 every weekday and 15:15 on a Sunday. That gives it the
+shortest closing shifts of any design in the pack, 7h 45m on average Monday to Saturday, against 7h 55m to 8h 16m for
+the 13 proposals and 8h 45m today. Code `QP-26-EXT` (EXT for a supplied design), fingerprint `dfdbd724`.
+
+**It meets every rule:** all 9 December staffing rules, all 3 flexible rules and every hard limit, at 218.6
+contracted days a year. Today's link meets 4 of the 9.
+
+**Where it does well:**
+- the shortest closing shifts (above);
+- never more than 5 days in a row in the fixed duties (today 7), and no week mixing earlies and lates (today 7 of 16);
+- a 13h 15m shortest rest (today 12h 30m);
+- three fatigue warnings in the fixed duties, against today's four;
+- the fit to the trains: 36.3 on a weekday, 10.0 on a Saturday and 29.0 on a Sunday, against today's 52.0, 65.9 and
+  71.7 (the shortlist's weekdays 29.1 to 32.6).
+
+**Where it costs most:**
+- 31 single rest days, a rest day with work either side, where every proposal has 4 or 5 and today has 4;
+- 3 full weekends off in 26 weeks, about 6 a year each (today 10, every proposal 14), up to 20 weeks apart (today 7,
+  every proposal 5);
+- 3 of 21 weeks on one shift time (the shortlist 18, today 7 of 16), and start times moving 4h 39m from one week to the
+  next (today 4h 00m, the proposals 1h 01m to 1h 44m);
+- three fatigue warnings no proposal has in its fixed duties: FF8b (a run of starts before 07:00 not followed by two
+  rest days, 4 times), FF11 (15 shifts in a row without a two-day break, 25 if a cover week falls badly) and FF17 (start
+  times stepping earlier more often than later); up to 5 warnings if a cover week falls badly;
+- 20 earlies a year each over 8h 30m (07:15–16:00, 8h 45m), and 9-hour 12:00–21:00 lates;
+- 8 new shift times: 07:15–16:00, 09:00–18:00, 12:00–21:00, 13:45–22:30, 14:30–22:30, 15:15–23:25, 15:45–23:55 and
+  16:15–23:55. Three of them are the Sunday times ten of the proposals use.
+
+| | Today | **Quarter Past** | Even Step | In Step | Short Run |
+|---|---|---|---|---|---|
+| December rules met (· flexible, of 3) | 4 of 9 · 0 | **9 of 9 · 3** | 9 of 9 · 3 | 9 of 9 · 3 | 9 of 9 · 3 |
+| Contracted days a year (ceiling 219) | 219.0 | **218.6** | 218.6 | 218.6 | 218.6 |
+| Fatigue warnings, fixed duties (up to) | 4 (5) | **3 (5)** | 0 (1) | 0 (1) | 0 (1) |
+| Full weekends off a year (longest wait) | 10 (7 weeks) | **6 (20 weeks)** | 14 (5) | 14 (5) | 14 (5) |
+| Most days in a row, fixed (cover week badly) | 7 (9) | **5 (7)** | 5 (7) | 5 (7) | 5 (7) |
+| Shortest rest | 12h 30m | **13h 15m** | 14h 35m | 14h 35m | 14h 20m |
+| Single rest days · weeks on one turn | 4 · 7 of 16 | **31 · 3 of 21** | 4 · 18 | 4 · 18 | 4 · 18 |
+| Heaviest week, Monday to Saturday | 43h 50m | **42h 40m** | 41h 30m | 41h 05m | 42h 30m |
+| Closing shift, Monday-to-Saturday average | 8h 45m | **7h 45m** | 8h 10m | 8h 10m | 8h 15m |
+| Earlies over 8h 30m, Monday to Saturday, a year each | 0 | **20** | 0 | 40 | 20 |
+| Shift times · new ones to learn | 18 · — | **16 · 8** | 13 · 5 | 15 · 6 | 15 · 6 |
+| Fit to the trains, weekday · Sat · Sun (lower is closer) | 52.0 · 65.9 · 71.7 | **36.3 · 10.0 · 29.0** | 32.6 · 10.0 · 29.0 | 29.8 · 9.6 · 29.0 | 29.1 · 12.7 · 29.0 |
+| Weighted league (`REF_IN_RANGE=1`, the usual table) | 16.7 | **49.1** | 85.4 | 80.5 | 81.6 |
+
+**On the weighted league it scores 49.1**, scored on the range the usual table already uses, so no other score moves:
+below every proposal (80.5 to 85.4) and Familiar Nine (70.4), above today's link (16.7). It takes full marks on the
+December rules, mixed weeks and the closing shift, and nothing on the fatigue warnings, the weekends and the wait
+between them, single rest days, weeks on one shift time, the start-time change and the leave figures: together 35 of
+the 100 points. Like Same Again and Little and Often, it is a design to look at, not one of the proposals; joining the
+pack would take an entry in `regenerate.mjs`'s `SUPPLIED` and `fresh.mjs`'s `STRAPS`. *It joined the pack later the
+same day, with the two designs below: see* Today's three join the pack.
+
+**The sheet, and the one change it needed.** `supplied.mjs` renders it in eight pages. Page 1 lists every concern a
+colleague may have and never cuts one, and twelve concerns, four of them wrapping, ran the cover 56px onto a second
+sheet, which `render.mjs` refuses (31 Oct). The cover now tightens as page 3 does, in two measured steps (the spacing,
+then the staff lists' type; `p1-tight` and `p1-tighter` in `plain.mjs`), and only on a cover the refusal checks would
+otherwise stop, so no shipped sheet moves. Deleting the step brings the refusal back: that is how this design first
+rendered. The *Created* field also falls back to the meta file's date for a design `fresh.mjs` does not list, where it
+printed "—".
+
+In this container the repo's Playwright (1.64.1) expects a newer Chromium than the one installed, so the render ran with
+`executablePath: '/opt/pw-browsers/chromium'` (KNOWN_LIMITATIONS.md), set in a scratch shim outside the repo. From
+`tooling/`:
+
+```
+OUT=/tmp/Quarter-Past.pdf node supplied.mjs results/quarter-past.json "Quarter Past" "A 16:15 closer every weekday, closing shifts averaging 7h 45m, and every week all earlies or all lates" QP-26-EXT
+```
+
 ## Fair Share — Next Step with an even Sunday (4 Nov 2026)
 
 **The question** (owner, 4 Nov 2026), of Next Step: could its Sunday duties be balanced, since its Sunday earlies are
@@ -3146,6 +3263,474 @@ owner to look at, not a design in the pack: it has no name, sheet or import file
   Fair Share is.
 - **Not changed:** the decks, "What it means if you…", the New link page and the Links designer's built-in examples
   (the shortlist's three).
+
+## Quarter Past Relaid — 30 days off for 14 days' leave (4 Nov 2026)
+
+**The question** (owner, 4 Nov 2026, of Quarter Past above): *"Can you adjust quarter past to keep the 14 days off to buy
+30 days annual leave (sundays can be made not available) but meet all the other fatigue rules, maximise weekends off,
+double day rest days and weeks on one time. Is this possible? (whilst meeting all the other requirements)"*.
+
+**Read as** Quarter Past's duties exactly — every shift time and every day's headcount — laid into new weeks so that:
+1. somewhere in the rotation 14 days' leave buys 30 days off in a row, by `leave.mjs`'s count: a Monday-to-Saturday
+   duty costs a day of leave, a rest day none, a Sunday none (it is overtime, so it can be made not available), and a
+   cover week at most four. Today's link buys 30, Quarter Past as supplied 27, the pack 27 to 29;
+2. there is no fatigue warning in the fixed duties;
+3. then, in the order asked: the most full weekends, the fewest single rest days, the most weeks on one shift time;
+4. and everything else still holds: every hard limit, all 9 December rules and the 3 flexible ones. The rules about the
+   duties hold because the duties are Quarter Past's; the ones that depend on the arrangement were checked again.
+
+**The answer is yes: Quarter Past Relaid** (`QR-26-EXT` · **`544e1ee8`**; `tooling/results/quarter-past-re-laid.json`,
+with a `.meta.json`; its duty table is Quarter Past's, `results/quarter-past-table.json`). Every day has Quarter Past's
+duties; 24 of the 147 working cells are where Quarter Past had them.
+
+| | Today | Quarter Past | **Quarter Past Relaid** | Even Step |
+|---|---|---|---|---|
+| 14 days' leave buys: best · average · worst; leave for four weeks off | 30 · 23.4 · 19 · 14 | 27 · 23.4 · 19 · 15 | **30 · 23.4 · 19 · 14** | 28 · 23.4 · 20 · 15 |
+| Fatigue warnings, fixed duties (up to) | 4 (5) | 3 (5) | **0 (0)** | 0 (1) |
+| Worst seven days, a cover week placed every way | 60.8 hours | 57.0 | **51.7** | 56.8 |
+| Full weekends off a year (longest wait) | 10 (7 weeks) | 6 (20) | **14 (5)** | 14 (5) |
+| Single rest days | 4 | 31 | **5** | 4 |
+| Weeks on one shift time | 7 of 16 | 3 of 21 | **18 of 21** | 18 of 21 |
+| Most days in a row, fixed (cover week badly) | 7 (9) | 5 (7) | **5 (6)** | 5 (7) |
+| Shortest rest | 12h 30m | 13h 15m | **13h 15m** | 14h 35m |
+| Heaviest week, Monday to Saturday | 43h 50m | 42h 40m | **42h 30m** | 41h 30m |
+| Start-time change, week to week | 4h 00m | 4h 39m | **1h 17m** | 1h 31m |
+| Weighted league (`REF_IN_RANGE=1`, the usual table) | 16.7 | 49.1 | **80.3** | 85.4 |
+
+**What it gains:**
+- **30 days off for 14 days' leave, as today**, where every design in the pack buys 27 to 29; and today's other three
+  leave figures exactly.
+- **No fatigue warning even if a cover week falls badly.** The Friday before every cover week is off. A worked Friday and
+  Saturday, then a cover week worked Sunday to Thursday, is how the proposals reach 55 hours in seven days (their "up
+  to 1"); here the worst seven days come to 51.7 hours. Second Look is the only other design in the pack with no "up to".
+- **At most 6 days in a row however the cover weeks fall**, where every proposal but Second Look reaches 7.
+
+**What it costs:**
+- **One more single rest day than the proposals: 5, against 4** (today 4). Every layout found with 30 days for 14 had at
+  least 5, in about a dozen searches of up to fifteen minutes each from several starts, including ones allowed a
+  three-day week or a sixth full weekend in place of a seventh. None had 4, and none could show 4 impossible either.
+- **Its shortest rest is Quarter Past's own 13h 15m**: the Sunday 09:00–18:00, then a Monday 07:15. The proposals'
+  are 14h 20m to 14h 35m. Lifting it needs that Sunday on an early week with Monday off; two fifteen-minute searches for
+  such a layout, holding the Friday rule and today's leave figures, found none. It is over the 12 hours of the rule,
+  and no fatigue factor fires.
+- **Quarter Past's duties come with it**: the fit to the trains (36.3 · 10.0 · 29.0, against the shortlist's 29.1 to
+  32.6 on a weekday), 8 shift times new to the station, 40 shifts a year each over 8h 30m Monday to Saturday (today 31),
+  and 42 finishes a year at 23:00 or later. So do its 7h 45m closing shifts, the shortest in the pack.
+
+**18 weeks on one shift time, or a lighter week.** On the first layout found, before the Friday rule, the 18th week on
+one shift time cost 2h 50m on the heaviest week — 43h 45m, against 40h 55m with 17 — because it put one week on
+13:45–22:30 every weekday. The Friday rule's layouts made it 42h 30m with 18, against 41h 30m with 17. The owner asked
+for the most weeks on one shift time, so it has 18.
+
+**How it was laid.** In two stages, because `exact-rota.py`, asked for the 30 days on Quarter Past's times, found nothing
+in twenty minutes:
+1. **The rest days**, with the leave figure as a rule: `leave-layouts.py` (new) — `exact-skeletons.py`'s rules with
+   `exact-rota.py`'s FF11, BLOCK and leave count. From Even Step's layout it climbed to the cheapest 30 days (15 days of
+   leave, with 4 single rest days), let the single rest days go to 6 (13), asked for 30 days for 14 with the fewest
+   single rest days (5), kept every Friday before a cover week off (`FRIOFF=1`), and then held today's worst stretch and
+   four-week figure (`LV_WORST=19 LV_FOUR=14`).
+2. **Quarter Past's times** on that layout, with `exact-rota.py` (`SKELETON=`, `FAMILY=1`): the most weeks on one shift
+   time (18, proved the most that layout allows), then the lightest heaviest week holding 18 (42h 30m, proved), then
+   the gentlest change of start holding both (1h 17m, proved), with the 13h 15m shortest rest the longest that
+   layout allows.
+
+`FIX=` confirms the grid against both models, and that it fails at 4 single rest days, at 31 days for 14 and at a
+13h 16m rest. Every figure on its sheet comes from the cells through the app's own modules, as for every design.
+
+**Beside Fair Share's answer** (above): on Fair Share's duties the same 30 days came with 16 weeks of 21 on one shift
+time and 6 single rest days; on Quarter Past's, with 18 and 5.
+
+**In the league** it scores 80.3, on the range the usual table already uses, as Quarter Past was (49.1), so no other
+score moves: below every proposal (80.5 to 85.4). The gap is mostly Quarter Past's duties — the fit, the new shift
+times, the long earlies — then the 13h 15m rest and the fifth single rest day; it takes full marks on fatigue and on the
+best leave stretch. Like Quarter Past, it is a design to look at, not one of the proposals. *It joined the pack later
+the same day: see* Today's three join the pack.
+
+**Its sheet** renders as Quarter Past's does, in eight pages; the PDF and its import file are not committed. From
+`tooling/`:
+
+```
+OUT=/tmp/Quarter-Past-Relaid.pdf node supplied.mjs results/quarter-past-re-laid.json "Quarter Past Relaid" "Quarter Past's shifts in new weeks: 14 days' leave buys 30 days off, as today, with no fatigue warning and seven full weekends" QR-26-EXT
+```
+
+## Short Openers — Quarter Past Relaid with every weekday opener 8 hours at most (4 Nov 2026)
+
+**The question** (owner, 4 Nov 2026): *"Can you do the quarter past relaid but all 6.20 starts Monday to Friday must
+finish at 13.45 or 14.20. Keep the 8 hours maximum shift time Mon to Friday and the 14 AL days buys 30 days off."* Then,
+of the first version: *"Would it work better with consistent 15:45 closers?"* and *"I meant all closers Monday to Friday
+starting at 1545"*.
+
+**Read as** the 06:20 starts: Monday to Friday each finishes at 13:45 or 14:20, so none is over 8 hours. Every weekday
+shift at 8 hours or less cannot be done. The contract needs 7,450 minutes of duty a weekday (44,100 a week, less
+Saturday's 6,850), and 15 shifts of 8 hours make 7,200. Rule S5 also fixes the weekday ticket-office late at
+14:00–22:30, 8h 30m. Moving the difference to Saturday would make its fourteen duties average about 9h 40m.
+
+**What had to move.** Quarter Past's weekday has two 06:20–14:50s. As 06:20–14:20s they free an hour a weekday; the three
+16:15 closers moved to 15:45 take an hour and a half. The contract needs the day's total exactly, so `final-table.mjs`
+balanced it by the fit to the trains. Its pool was Quarter Past's weekday times and their 15-minute variants, with the
+closers held at 15:45, the day's total kept and the ticket office's own pairs fixed. It turned the 13:45–22:30 into a
+fourth 14:00–22:30 and the 12:00–21:00 into a 12:00–20:45, 15 minutes off each (fit 31.5 on the search's measure). So
+each weekday is: 06:20–13:45 ×1, 06:20–14:20 ×4 (the office's two among them), 07:15–16:00 ×2, 12:00–20:45 ×1,
+14:00–22:30 ×4 and 15:45–23:55 ×3. Saturday and Sunday are Quarter Past's, unchanged; Saturday's closers were already
+15:45–23:55, so every closer Monday to Saturday is now the same shift.
+
+```
+CLS=weekday TOTAL=7450 FIXED_FREE=1 WK_CLOSER=15:45-23:55 POOL_ONLY=06:20-13:45,06:20-14:20,07:15-16:00,07:15-15:45,12:00-21:00,12:15-21:00,12:00-20:45,13:45-22:30,14:00-22:30,14:15-22:30,15:45-23:55 node final-table.mjs
+```
+
+**Short Openers** (`SO-26-EXT` · **`38897b91`**; `tooling/results/short-openers.json`, with a `.meta.json`; its duty
+table is `results/short-openers-table.json`). The times were laid on Quarter Past Relaid's own rest days with
+`exact-rota.py` (`SKELETON=`, `FAMILY=1`): the most weeks on one shift time, then the lightest heaviest week holding
+them, then the gentlest change of start. Every rest day, full weekend, Saturday duty and Sunday duty is where Quarter
+Past Relaid has it, so its leave figures cannot move.
+
+| | Quarter Past Relaid | **Short Openers** | Even Step |
+|---|---|---|---|
+| Weekday 06:20 starts | 13:45 ×1 · 14:20 ×2 · 14:50 ×2 | **13:45 ×1 · 14:20 ×4** | — |
+| Weekday closers | 16:15 ×3 | **15:45 ×3** | 15:45 ×3 |
+| 14 days' leave buys: best · average · worst; leave for four weeks off | 30 · 23.4 · 19 · 14 | **30 · 23.4 · 19 · 14** | 28 · 23.4 · 20 · 15 |
+| Fatigue warnings, fixed duties (up to); worst seven days | 0 (0); 51.7 hours | **0 (0); 51.7 hours** | 0 (1); 56.8 |
+| Full weekends off a year (longest wait) · single rest days | 14 (5) · 5 | **14 (5) · 5** | 14 (5) · 4 |
+| Weeks on one shift time | 18 of 21 | **18 of 21** | 18 of 21 |
+| Fit to the trains, weekday · Sat · Sun (lower is closer) | 36.3 · 10.0 · 29.0 | **31.3 · 10.0 · 29.0** | 32.6 · 10.0 · 29.0 |
+| Shifts over 8h 30m Monday to Saturday, a year each (today 31) | 40 | **30** | 0 |
+| Longest weekday shift · closing shift, Monday-to-Saturday average | 9h 00m · 7h 45m | **8h 45m · 8h 10m** | 8h 30m · 8h 10m |
+| Heaviest week · shortest rest · change of start | 42h 30m · 13h 15m · 1h 17m | **41h 45m · 13h 15m · 1h 12m** | 41h 30m · 14h 35m · 1h 31m |
+| Shift times (new to learn) | 16 (8) | **14 (6)** | 13 (5) |
+| Weighted league (`REF_IN_RANGE=1`, the usual table) | 80.3 | **82.8** | 85.4 |
+
+**What it gains against Quarter Past Relaid:** no opener over 8 hours on a weekday; one closer, 15:45–23:55, every day
+Monday to Saturday; no 9-hour weekday shift; ten fewer long shifts a year each; a weekday fit to the trains in the
+shortlist's range (36.3 to 31.3); a heaviest week 45 minutes lighter; a gentler change of start; two shift times fewer.
+**What it costs:** closers 25 minutes longer on average, from 7h 45m to 8h 10m, and the "quarter past" closers it was
+named for. The 13h 15m shortest rest is unchanged, as are the 5 single rest days and everything else that comes from
+the rest days. 19 weeks on one shift time is possible on these rest days, but only with a 43h 45m week: one week on the
+12:00–20:45 all five weekdays. So it holds 18, as asked before.
+
+**The first version, replaced the same day** (`0248a5a8`, in the git history): it kept the 12:00–21:00 and took the
+hour up with two closers at 15:45 and one at 16:00 (the best fit with closers from 15:45, 32.1 on the search's measure).
+Against it, the version with every closer at 15:45 fits the trains better (31.3 against 31.8), has one shift time fewer
+and no 9-hour weekday shift, and a gentler change of start (1h 12m against 1h 16m). It scores 82.8 in the league,
+against 82.3, at the cost of a heaviest week 15 minutes heavier (41h 45m) and the one 16:00 closer 15 minutes longer.
+
+`FIX=` confirms the grid against `exact-rota.py` and `leave-layouts.py`. It fails at 4 single rest days, at 19 weeks
+on one shift time, at a 13h 16m rest and at a heaviest week a minute lighter. In the league it scores 82.8 on the
+usual table's range, so no other score moves: seventh of fifteen, 0.02 behind Home Grown. Like
+Quarter Past and Quarter Past Relaid, it is a design to look at, not one of the proposals (*it joined the pack later the
+same day: see* Today's three join the pack). Its sheet renders the same way, and the PDF and import file are not
+committed:
+
+```
+OUT=/tmp/Short-Openers.pdf node supplied.mjs results/short-openers.json "Short Openers" "Quarter Past Relaid with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45, and 14 days' leave still buying 30 days off" SO-26-EXT
+```
+
+*Short Openers* and not *Quarter Past Short Openers*: that name ran to two lines in page 2's column heading, and the
+renderer refused the page 8px into its footer.
+
+## Today's three join the pack — Quarter Past, Quarter Past Relaid and Short Openers (4 Nov 2026)
+
+**The request** (owner, 4 Nov 2026): *"Do a proposal sheet for all of today's work. Put them into the repo and then give
+me the league table".* Read as: the three designs drawn today join the pack as proposals, as Fair Share did that
+morning, with their sheets in `proposals/` and in every list that names the pack's designs; then the league with them
+in it.
+
+**What joined.** Each has its eight-page sheet, its import file and its JSON in `proposals/` (the PDFs force-added, as
+every sheet is):
+
+| Design | Code · fingerprint | What it is |
+|---|---|---|
+| Quarter Past | `QP-26-EXT` · `dfdbd724` | a one-page roster drawn up outside the app, read in as written |
+| Quarter Past Relaid | `QR-26-EXT` · `544e1ee8` | Quarter Past's duties in new weeks: 14 days' leave buys 30 days off |
+| Short Openers | `SO-26-EXT` · `38897b91` | Quarter Past Relaid with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45 |
+
+- **The lists.** `regenerate.mjs`'s `SUPPLIED` and `fresh.mjs`'s `STRAPS`, `FAMILY` (all three are the Quarter Past
+  family) and `FIRST` (4 Nov 2026). `regenerate.mjs --check` rebuilds all 17 with no fingerprint moved, and `check.mjs`
+  agrees. The fourteen other sheets were re-rendered with the three in the folder, since each sheet's page 2 reads the
+  folder's best and worst: only their Prepared date moved, so the committed files stand, and so does the rules sheet.
+- **The summary sheet** lists 17 and prints at 82% to fit its page (the floor is 80%). Quarter Past comes last: it is
+  the one design in the pack with avoidable fatigue warnings on the fixed duties, 3 (up to 5).
+- **The read-me** names the six designs that came after the shortlist and says what each of today's three is;
+  `pack.py` accepts exactly those six.
+- **Not changed:** the shortlist, the recommendation, the decks, the New link page and the Links designer's built-in
+  examples. *What it means if you…* was rebuilt only because `pack.py` found it older on disk than the colleague decks
+  (their UK English pass, 3 Nov); its text is identical but for the date it was prepared.
+
+**The shortlist sheet** reads every design in the pack, and changed in four places:
+1. **The guide's closers row** read "The shortest closers of all: 16:00 Monday to Saturday". Quarter Past's 16:15
+   weekday closer is shorter than Closing Time's; its 15:45 Saturday closer is longer, and the two are level only when
+   added together. The row now says what Closing Time and Both Ways alone have — "A 16:00 closer Monday to Saturday,
+   shorter than the three's" — and a claim reads it from the grids: every closer Monday to Saturday the 16:00, and
+   each day's shorter than every one of the three's.
+2. **The leave cost** said "of the whole pack, only Long Break keeps four weeks for 14". Quarter Past Relaid and Short
+   Openers keep it too, so the sentence now reads the list.
+3. **Who is outside the shortlist, and who joined after it.** The guide's five rows outside the shortlist sit under one
+   heading row, *Outside the shortlist*, instead of each saying so. Page 2's six late designs sit under one note in
+   their table's heading, *Clean Slate and those below it joined after the shortlist was drawn*, instead of a date on
+   each row: a date beside "Quarter Past Relaid, Short Openers" wrapped its cell. A claim holds the note to the printed
+   table — every other design named once, the late ones last.
+4. **Spacing.** With the new rows page 1 ran 59px and page 2 54px into their footers. With the wording above and a pixel
+   off five spacings (headings, list items, table and list leading, the recommendation's box), page 1 has 8px to
+   spare and page 2 3px.
+
+Mutation checks, each with `scripts/mutate.mjs`: naming another design as the first late one, putting a late design
+above Clean Slate, and letting a design with a longer Saturday closer into the closers row each stop the sheet.
+Typing the old leave sentence back in does not, and cannot: the sentence is no longer typed.
+
+**The league** (`REF_IN_RANGE=1`, the usual table), all 17:
+
+| | Design | Score |
+|---|---|---|
+| 1 | **Even Step** ★ shortlisted, recommended | **87.3** |
+| 2 | Closing Time | 87.1 |
+| 3 | Next Step | 87.1 |
+| 4 | Fair Share | 86.9 |
+| 5 | Short Openers | 85.8 |
+| 6 | Clean Slate | 85.3 |
+| 7 | Home Grown | 85.1 |
+| 8 | Second Edition | 84.1 |
+| 9 | Long Break | 84.1 |
+| 10 | Even Keel | 84.1 |
+| 11 | Fine Tune | 83.6 |
+| 12 | Quarter Past Relaid | 83.6 |
+| 13 | Short Run ★ shortlisted | 83.5 |
+| 14 | Second Look | 83.4 |
+| 15 | Both Ways | 83.0 |
+| 16 | In Step ★ shortlisted | 82.4 |
+| 17 | Quarter Past | 49.1 |
+| — | Familiar Nine (24 lines, for reference) | 76.0 |
+| — | Today's link (for reference) | 29.8 |
+
+Places are by the unrounded score, so designs on the same figure are in order.
+
+**Why every score rose about 2 points.** Each measure is scored on the range from the worst design to the best, and
+Quarter Past is far out on four: 31 single rest days, 20 weeks between full weekends, three full weekends in 26 and 3
+of 21 weeks on one shift time. Those four ranges widen, so the gaps between the other designs on them count for less,
+and every other design gains. Even Step stays first, with Next Step and Closing Time level to a tenth and under a
+point behind, so the shortlist sheet's "judgement" paragraph and its claims hold. Lower down, places move: of the
+fourteen designs already in the pack, Long Break rises from 13th to 8th, because its fifth single rest day costs almost
+nothing beside Quarter Past's 31, and Short Run falls from 9th to 11th.
+
+The method is unchanged: every design in the pack sets the scale, as each one before it did. Scored the way Quarter
+Past was this morning instead — on the range the other designs set, so that it moves nobody — the table reads: Even
+Step 85.0, Next Step 84.9, Closing Time 84.8, Fair Share 84.7, Clean Slate 83.2, Home Grown 82.5, Short Openers 82.5,
+Second Edition 82.0, Even Keel 81.9, Short Run 81.3, Fine Tune 81.0, Second Look 80.6, Long Break 80.4, Both Ways 80.4,
+Quarter Past Relaid 80.3, In Step 80.1, Quarter Past 49.1.
+
+**Why "Relaid"**, not "Re-laid" as it was drawn: the sheets read a design's name back from its file name, a hyphen for
+each space, so a hyphen inside a name came back as a space and the shortlist sheet could not find "Quarter Past Re
+laid". The grid keeps its file name, `results/quarter-past-re-laid.json`; the sections above now say Relaid.
+
+## 30 days off for 14 days' leave — a folder of their own, and three new names (4 Nov 2026)
+
+**The requests** (owner, 4 Nov 2026): *"Give all proposals individual names"* and *"Put all of the links that give 30
+days off for 14 days AL into a subfolder within links 26"*. Asked how far each went, the owner chose:
+- **names:** just the three without one of their own — Quarter Past Relaid (named after Quarter Past), Same Again Tidy
+  (after Same Again) and Fair Share's 30-day search result (no name at all); every other design keeps its name;
+- **the folder:** its own, `30-days-off/`, with full sheets, still counted in the league, the summary and the
+  shortlist sheet like any proposal;
+- **Same Again Tidy:** left out of the folder. It buys 30 days for 14, but meets 7 of the 9 December rules and has 3
+  avoidable fatigue warnings, so it stays a design to look at, not a proposal.
+
+**The 26-line links that buy 30 days off for 14 days' leave**, found by running `leave.mjs` over every grid in
+`docs/links-26` (the pack and the 47 others under `tooling/`): Quarter Past Relaid, Short Openers, Fair Share's run e
+(`results/fair-share-leave30.json`) and Same Again Tidy. Today's link buys 30 too; every other proposal 27 to 29.
+
+**The names.** Two words, like the rest, and none sharing a word with another design's:
+- **Open Return** (`OR-26-EXT` · `544e1ee8`), was Quarter Past Relaid. An open return is the ticket you can come back on
+  any day within a month, and this is Quarter Past's shift times returned in new weeks so that 14 days' leave buys a
+  month off. The code keeps `EXT`, the suffix of the designs that grew from the supplied roster (Quarter Past's and
+  Short Openers' codes carry it too).
+- **Grand Tour** (`GT-26-T7` · `4172f888`), was Fair Share's 30-day result: Fair Share's duties (table T7, so its code
+  shares Fair Share's suffix) in new weeks, and a long trip on 14 days' leave.
+- **Well Kept**, was Same Again Tidy: today's twenty weeks kept, tidied. It has no sheet, so it has no code.
+
+The codes were checked against every code and name in `links-24/` and `links-26/`; none was in use, and none matches
+the code families `render.mjs` reads (`ST`, `QT`, `Q2`, `BB`, `EF`, `B2`).
+
+**The folder.** `30-days-off/` holds Open Return, Short Openers and Grand Tour, three files each as in `proposals/`,
+and a README with their figures side by side. Open Return and Short Openers moved there with `git mv`, so their history
+follows them. Everything that reads the pack now reads both folders from one list, `PACK_DIRS` in `report-data.mjs`:
+`folderStats` (and so every sheet's folder figures, the summary, the shortlist sheet and the rules sheet), the league,
+`regenerate.mjs` and `pack.py`. A design names its folder in `regenerate.mjs`'s `SUPPLIED` (`dir:`), and nowhere else.
+Two guards came with it, each mutation-checked:
+- `regenerate.mjs` looks for each sheet in every folder and fails unless it is in the one its entry names, once.
+  Pointing Grand Tour's entry back at `proposals/` failed the check.
+- It also fails on any sheet, grid or import file in the folders that no entry ships, which is what a rename or a move
+  leaves behind. A stray copy of Grand Tour's grid in `proposals/` failed the check; with the guard's line deleted,
+  the check passed.
+
+In the zip, the three are in `4 Proposal sheets/30 days off/` and `5 Import files for the Links page/30 days off/`, and
+the read-me says what each is.
+
+**Grand Tour joins the pack**, rendered for the first time: 9 of 9 rules; no avoidable fatigue warning on the fixed
+duties, one (a 56.7-hour week) if a cover week falls badly; 5 days in a row, up to 7; 7 full weekends in 26; a 14h 35m
+shortest rest; 16 of 21 weeks on one shift time; 6 single rest days; 14 days' leave buys 30 · 23.4 · 20, and four weeks
+off take 14. Its `results/fair-share-leave30.meta.json` gives its lineage. It names no parent, because it is Fair Share
+laid out again, not Fair Share with a few cells changed: 53 of its 182 cells differ, and its sheet would have outlined
+all 53.
+
+**It is first in the league**, on 87.6, under a point ahead of Even Step (87.3). It moved no other score, because it
+sits inside every range the others set, so each design below it simply went down a place. The shortlist, the
+recommendation, the decks, *What it means if you…* and the New link page are unchanged. They were the owner's choice,
+and S. Silva leads the change.
+
+| | Design | Score |
+|---|---|---|
+| 1 | **Grand Tour** (30-day folder) | **87.6** |
+| 2 | **Even Step** ★ shortlisted, recommended | 87.3 |
+| 3 | Closing Time | 87.1 |
+| 4 | Next Step | 87.1 |
+| 5 | Fair Share | 86.9 |
+| 6 | Short Openers (30-day folder) | 85.8 |
+| 7 | Clean Slate | 85.3 |
+| 8 | Home Grown | 85.1 |
+| 9 | Second Edition | 84.1 |
+| 10 | Long Break | 84.1 |
+| 11 | Even Keel | 84.1 |
+| 12 | Fine Tune | 83.6 |
+| 13 | Open Return (30-day folder) | 83.6 |
+| 14 | Short Run ★ shortlisted | 83.5 |
+| 15 | Second Look | 83.4 |
+| 16 | Both Ways | 83.0 |
+| 17 | In Step ★ shortlisted | 82.4 |
+| 18 | Quarter Past | 49.1 |
+| — | Familiar Nine (24 lines, for reference) | 76.0 |
+| — | Today's link (for reference) | 29.8 |
+
+`REF_IN_RANGE=1`, the usual table; places by the unrounded score. Weighted as before 31 Oct, In Step still leads (89.7),
+with Even Step second and Grand Tour third, both on 88.9.
+
+**The shortlist sheet.** Every claim that names who shares something was read again with eighteen designs:
+- **Page 1:** the lead says the shortlist was drawn before seven more joined. The four-weeks row of the guide now
+  reads *Grand Tour · Short Openers, Long Break and Open Return too* from the league.
+- **Page 2:**
+  - Its three 30-day links share one row: what all three keep, 30 days off and four weeks off for 14 days' leave, and
+    the one cost all three pay, five or six single rest days. A claim ties the row to the folder: the designs that buy
+    30 days are exactly the ones in `30-days-off/`. The row needed the name column a half per cent wider (30.5%), which
+    Clean Slate's and Fair Share's rows still fit beside.
+  - The "judgement" paragraph puts Even Step second, behind Grand Tour, "drawn after the shortlist". To keep the page
+    on its page it lost "of eighteen" (page 1 counts the pack) and the old weighting's two figures ("In Step led by
+    under a point" stays, and is claimed). It now dates the old weighting "before 31 Oct" and the main one by its last
+    revision, 3 Nov, so neither can be read as the other.
+- **The three claims Fair Share made alone, Grand Tour shares:** no early over 8h 30m on any day (with Home Grown), no
+  shift over 8h 30m Monday to Saturday, and no long day at all.
+
+Page 1 has 8px to spare, and page 2 3px.
+
+**The summary** lists eighteen and prints at 80%, its floor: a nineteenth design will need its layout changed, not
+its scale.
+
+**Re-rendered, and kept as committed:** the fifteen sheets in `proposals/` and the rules sheet were re-rendered with
+Grand Tour in the folder, and only their Prepared date moved. Open Return's sheet changed its name and code, and Short
+Openers' its description of where it came from ("Open Return with every weekday 06:20…").
+
+## Quarter Past out, Well Kept in (4 Nov 2026)
+
+**The request** (owner, 4 Nov 2026): *"Remove quarter past from the pack please and add any other 30 days off proposals
+to the subfolder"*.
+
+**Read as two changes.**
+- **Quarter Past leaves the pack.** Its sheet, grid and import file are gone from `proposals/`, and its entry from
+  `regenerate.mjs`'s `SUPPLIED`. Its grid and meta stay in `tooling/results/quarter-past.json`, and the sections above
+  keep it, as they keep every design that has left.
+- **Every other 26-line link where 14 days' leave buys 30 days off joins `30-days-off/`.** The scan in *30 days off for
+  14 days' leave* found one more: Same Again Tidy, left out of the folder earlier the same day. It joins as **Well Kept**
+  (`WK-26-S2` · **`1db1381a`**; `S2` because Same Again was `SA-26-S1`), first drawn 26 Oct 2026, in the Same Again
+  family. Its grid stays `results/same-again-tidy.json`, with its `.meta.json`.
+
+**Well Kept is the one proposal that misses December rules.** It keeps today's twenty weeks and adds six on today's
+shift times:
+- 7 of the 9 December rules; the seventeen others meet all nine;
+- 3 avoidable fatigue warnings in the fixed duties (today 4), up to 5 if a cover week falls badly;
+- 7 days in a row, up to 10;
+- 6 full weekends in 26, a 12h 30m shortest rest, and 10 of 21 weeks on one shift time;
+- 18 shift times, none of them new; 14 days' leave buys 30 · 23.5 · 19, and four weeks off take 14.
+
+It is last in the league. The guide on page 1 of the shortlist sheet ("if the main priority is …, choose …") leaves it
+out, because a design that misses a rule is not one to choose; its heading row now says "Outside the shortlist, meeting
+every rule".
+
+**The league**, `REF_IN_RANGE=1`, places by the unrounded score:
+
+| | Design | Score |
+|---|---|---|
+| 1 | **Even Step** ★ shortlisted, recommended | **86.1** |
+| 2 | Next Step | 85.9 |
+| 3 | Closing Time | 85.8 |
+| 4 | Fair Share | 85.7 |
+| 5 | Grand Tour (30-day folder) | 84.9 |
+| 6 | Clean Slate | 84.3 |
+| 7 | Short Openers (30-day folder) | 83.7 |
+| 8 | Home Grown | 83.5 |
+| 9 | Second Edition | 83.0 |
+| 10 | Even Keel | 82.9 |
+| 11 | Short Run ★ shortlisted | 82.3 |
+| 12 | Fine Tune | 82.1 |
+| 13 | Long Break | 81.9 |
+| 14 | Open Return (30-day folder) | 81.5 |
+| 15 | Second Look | 81.5 |
+| 16 | Both Ways | 81.4 |
+| 17 | In Step ★ shortlisted | 81.2 |
+| 18 | Well Kept (30-day folder) | 34.5 |
+| — | Familiar Nine (24 lines, for reference) | 71.9 |
+| — | Today's link (for reference) | 20.3 |
+
+Weighted as before 31 Oct (`OLD_READINGS=1`), In Step leads on 88.5, with Even Step on 87.7 and Next Step on 87.6;
+Grand Tour is 13th.
+
+**Why Grand Tour fell from first to fifth.** Every measure is scored on the range from the worst design to the best.
+Quarter Past had 31 single rest days and 3 of 21 weeks on one shift time, far beyond any other design, so beside it
+Grand Tour's 6 single rest days (the most of any design that meets every rule) and its 16 weeks on one shift time cost
+little. With Quarter Past gone, the far end on single rest days is Well Kept's 7, and on weeks on one shift time today's
+link's 7 of 16, so Grand Tour's two figures count for more: it lost 2.4 points on single rest days and 0.6 on weeks on
+one shift time, 2.7 in all, where the other leaders lost about 1.2. Measured by scoring the committed tree (Quarter Past
+in) and this one side by side, factor by factor.
+
+Well Kept moves the others less. It sets the far end of four ranges (10 days in a row, 8 weeks between full weekends, 7
+single rest days and a 4h 06m change of start), which lifts every other score by about 0.6 points. Scored without it,
+the order is the same down to 12th; below that, Second Look is 13th, Long Break 14th and Open Return 15th.
+
+**What changed on the sheets.**
+- **Open Return's description** no longer leans on Quarter Past: *"A 16:15 closer every weekday, 14 days' leave buying
+  30 days off, as today, no fatigue warning and seven full weekends"*. It is the only existing sheet whose text changed.
+  Every other sheet, and the rules sheet, was re-rendered and compared: only the Prepared date moved, or nothing, so the
+  committed files stand.
+- **Well Kept's sheet**, rendered for the first time, needed two new measured steps in `render.mjs`. Each is taken only
+  by a page that would otherwise be refused, so no other sheet moved: every other sheet has 76px to spare on page 5 and
+  12px on page 8.
+  - Page 5: its weekday table has a row for every weekday, today's and its own, and the page ran 21px onto another
+    sheet. The Saturday and Sunday tables now take the weekday table's dense rows.
+  - Page 8: a rota that does not mark its office duties on every day adds a sentence to "The ticket office" card, and
+    the right-hand column ran 15px under the footer. The cards' spacing tightens (`p8-tight`), then, only if that is not
+    enough, their line height (`p8-tighter`). Well Kept takes the first step only, and its last line clears the footer
+    by 9px.
+  - Both steps were mutation-checked: with either one deleted, Well Kept's sheet is refused. Page 5 is then 1,053px
+    tall, against 1,032, and page 8 runs 15px under its footer.
+- **The summary** has eighteen rows at 80%, Well Kept last, because the rows are sorted by rules met.
+- **The shortlist sheet:**
+  - Page 1's lead says the three were shortlisted "before six more were drawn up", where it said "before seven more
+    joined": Well Kept was drawn up before the shortlist, so it is not one of them, and page 2's note says "drawn up"
+    too. Home Grown's row says its two new times are "the fewest of any link meeting every rule" (Well Kept has none),
+    and a claim holds that Well Kept is the one design the guide leaves out.
+  - Page 2 has lost the Quarter Past row, and Well Kept has a row of its own above the late designs: *"today's times and
+    30 days off for 14 days' leave — but two rules missed and three fatigue warnings"*. The fuller wording wrapped and
+    ran the page 10px into its footer. The 30-day row still names the three late ones, whose single rest days are the
+    one cost they share. The leave cost reads "of the whole pack, only Long Break and the four links that buy 30 days
+    off keep four weeks for 14".
+  - The judgement paragraph: *"Even Step is first, on 86.1, under half a point ahead of Next Step, Closing Time and Fair
+    Share; Short Run is eleventh and In Step seventeenth."* The three names are read from the league in its order, and a
+    claim holds the gap. Dropping the train fit from the weights (`DROP=fit`) puts Closing Time first, and the sheet
+    refuses to print.
+  - Page 1 has 8px to spare, and page 2 3px.
+- **The read-me** (`pack.py`): Quarter Past leaves the list of late designs, and Open Return is described on its own
+  terms. Well Kept joins the 30-day sentence, with what it is and the fact that it alone misses two rules, and one line
+  says Quarter Past was taken out the same day. Three new refusals, each mutation-checked: Quarter Past back in
+  `SUPPLIED`; a 30-day folder that differs from the read-me's list; and Well Kept's date or rules no longer stated by
+  `fresh.mjs` and the shortlist sheet.
+
+**Checks:** `regenerate.mjs --check`, with all 18 fingerprints unmoved; `check.mjs`; `deck-check.mjs`, with 162 rows
+agreeing; and the pack zip builds. The decks, *What it means if you…* and the New link page do not name Quarter Past or
+Well Kept, and are unchanged.
 
 ## Common Ground — today's link taken to 26 weeks, on the owner's brief (4 Nov 2026)
 
@@ -3290,6 +3875,362 @@ above keep the scores of their day.
 - **The read-me** names the four that came after the shortlist and says what Common Ground is.
 - **Not changed:** the decks, "What it means if you…", the New link page and the Links designer's built-in examples.
 
+## Common Ground joins the 30-day folder (4 Nov 2026)
+
+**What happened.** Common Ground (the section above) was drawn up in another session and merged to `main` (#1690) at
+21:00, while this branch was taking Quarter Past out. `main` did not yet have this branch's 30-day folder, or the four
+links in it, so Common Ground arrived in `proposals/` with a sheet, claims and a read-me sentence written for a pack in
+which it alone bought 30 days off for 14 days' leave. In the merged pack it does not: Grand Tour, Open Return, Short
+Openers and Well Kept do too. And its weeks are Grand Tour's exactly, all 182 cells working or resting alike, with
+today's shift times where the rules allow.
+
+**Read as** covered by the owner's request of the same evening, *"add any other 30 days off proposals to the
+subfolder"*. Its three files moved to `30-days-off/` with `git mv`, so their history follows them, and its `SUPPLIED`
+entry names the folder.
+
+**The merge**, file by file:
+- `regenerate.mjs` and `fresh.mjs`: both sides kept. Common Ground keeps `main`'s strap, family (Home Grown) and date
+  (4 Nov 2026), and gains `dir: '30-days-off'`.
+- **The shortlist sheet.** `main`'s claim *"Common Ground: the only design where 14 days' leave buys 30 days off"* and
+  its row *"alone buying 30 days off"* were true of `main`'s pack and false of this one. So Common Ground joins the
+  shared 30-day row, beside Grand Tour, Short Openers and Open Return, which says what the late 30-day links keep and the
+  one cost they share: five or six single rest days. Common Ground has six, because its weeks are Grand Tour's. `main`'s
+  other findings hold and are kept:
+  - its keeps and pays against the three (`fitSun, longEarly, lvBest, lvFour, one, step`; `iso, fitWk`);
+  - Clean Slate's weeks on one turn are now joint-most with Common Ground's, and its row says "joint-most";
+  - no early over 8h 30m on any day is Common Ground's too.
+
+  The guide's four-weeks row reads *"Grand Tour · Common Ground, Short Openers, Long Break and Open Return too"*, and the
+  leave cost reads *"only Long Break and the five links that buy 30 days off"*. Two fit changes came with it, and
+  reverting either stops the sheet:
+  - The guide's columns are fixed (the first at 56%), and its rows are half a pixel tighter. On the auto layout, the
+    five-name cell widened its column and wrapped two other rows, running page 1 31px into its footer.
+  - Page 2's rows take `main`'s tighter padding (0.5px above, 1px below), because the 30-day row's four names wrap. It
+    ran 10px into the footer without it.
+
+  In both cells a name's spaces are no-break, so a line breaks between names, never inside one. Page 1 has 3px to spare,
+  and page 2 2px.
+- **The summary** has nineteen rows, and at its 80% floor still printed two pages, as *Quarter Past out, Well Kept in*
+  said a nineteenth would. Now, at the floor and only there, its rows are set dense (a pixel less padding above and below
+  each cell, and less space round the table), and the scale starts again from 100%. It prints at 81%. With the step
+  deleted, it refuses: "2 pages at 80% — the summary must fit one". The floor is not lowered.
+- **The read-me** (`pack.py`): Common Ground is among the late designs and in the 30-day folder. `main`'s sentence on it
+  now says it is on Grand Tour's weeks, and leaves the leave to the folder's sentence. A duration is now held whole like a
+  name or a date, because "8h 10m" had split at a line end.
+
+**Sheets re-rendered, and kept as committed:** all nineteen and the rules sheet. Only the Prepared date moved, or nothing,
+so Common Ground's own sheet is `main`'s, unchanged.
+
+**The league**, `REF_IN_RANGE=1`: Common Ground is 6th on 84.7, inside every range the others set, so no other score
+moved:
+
+| | Design | Score |
+|---|---|---|
+| 1 | **Even Step** ★ shortlisted, recommended | **86.1** |
+| 2 | Next Step | 85.9 |
+| 3 | Closing Time | 85.8 |
+| 4 | Fair Share | 85.7 |
+| 5 | Grand Tour (30-day folder) | 84.9 |
+| 6 | Common Ground (30-day folder) | 84.7 |
+| 7 | Clean Slate | 84.3 |
+| 8 | Short Openers (30-day folder) | 83.7 |
+| 9 | Home Grown | 83.5 |
+| 10 | Second Edition | 83.0 |
+| 11 | Even Keel | 82.9 |
+| 12 | Short Run ★ shortlisted | 82.3 |
+| 13 | Fine Tune | 82.1 |
+| 14 | Long Break | 81.9 |
+| 15 | Open Return (30-day folder) | 81.5 |
+| 16 | Second Look | 81.5 |
+| 17 | Both Ways | 81.4 |
+| 18 | In Step ★ shortlisted | 81.2 |
+| 19 | Well Kept (30-day folder) | 34.5 |
+| — | Familiar Nine (24 lines, for reference) | 71.9 |
+| — | Today's link (for reference) | 20.3 |
+
+Weighted as before 31 Oct (`OLD_READINGS=1`), In Step leads on 88.5, Even Step is second on 87.7, and Common Ground is
+9th on 86.3. The 84.0 in the section above is Common Ground's score in `main`'s pack, before the 30-day links joined it.
+
+**Checks:** `regenerate.mjs --check` (19 fingerprints unmoved, Common Ground's in `30-days-off/`), `check.mjs`,
+`deck-check.mjs` (162 rows agree) and the pack zip builds.
+
+## Well Kept out (5 Nov 2026)
+
+**The request** (owner, 5 Nov 2026): *"Remove well kept"*, after asking how it was built: today's twenty weeks kept as
+they are, with six weeks added by a search (*Same Again*, above), in the version that let a tidy week outweigh a
+December rule.
+
+**What went.** Its sheet, grid and import file are gone from `30-days-off/`, and its entry from `regenerate.mjs`'s
+`SUPPLIED`, with its strap, family and date in `fresh.mjs`. Its grid and meta stay in
+`tooling/results/same-again-tidy.json`, and the sections above keep it, as they keep every design that has left. The
+30-day folder holds four again: Grand Tour, Common Ground, Short Openers and Open Return.
+
+**What it had changed, and is now put back.** Well Kept was the only design in the pack that missed December rules (7 of
+9), so three things on the shortlist sheet had been worded around it:
+- the guide's heading for the designs outside the shortlist read "Outside the shortlist, meeting every rule", and is
+  "Outside the shortlist" again;
+- Home Grown's row read "two new times, the fewest of any link meeting every rule" (Well Kept had none new), and reads
+  "the fewest new times, two" again, with its claim back to "the fewest of all";
+- a claim held that Well Kept was the one design the guide left out. In its place a claim holds that every design in
+  the pack meets every December rule, so a design that misses one has to be decided on before the sheet prints, rather
+  than dropped from the guide without a word.
+
+Its page-2 row went with it, and the leave cost reads "only Long Break and the four links that buy 30 days off". The
+read-me now says Quarter Past and Well Kept were each in the pack for a few hours and taken out, and refuses to build if
+either is back in `SUPPLIED`.
+
+The two measured steps `render.mjs` gained for Well Kept's sheet (page 5's tables, page 8's cards) stay. No sheet in the
+pack takes them now, and they let Well Kept, or the next rota laid like today's, render without overflowing.
+
+**The league**, `REF_IN_RANGE=1`. Well Kept set the far end of four measures (10 days in a row, 8 weeks between full
+weekends, 7 single rest days and a 4h 06m change of start). With it gone those ranges close up, so every score falls,
+by 0.4 to 1.0 points. The weights are the owner's of 3 Nov, unchanged.
+
+| | Design | Score |
+|---|---|---|
+| 1 | **Even Step** ★ shortlisted, recommended | **85.5** |
+| 2 | Next Step | 85.3 |
+| 3 | Closing Time | 85.2 |
+| 4 | Fair Share | 85.1 |
+| 5 | Grand Tour (30-day folder) | 83.9 |
+| 6 | Clean Slate | 83.7 |
+| 7 | Common Ground (30-day folder) | 83.7 |
+| 8 | Short Openers (30-day folder) | 83.2 |
+| 9 | Home Grown | 82.9 |
+| 10 | Second Edition | 82.4 |
+| 11 | Even Keel | 82.3 |
+| 12 | Short Run ★ shortlisted | 81.7 |
+| 13 | Fine Tune | 81.5 |
+| 14 | Second Look | 81.1 |
+| 15 | Long Break | 81.1 |
+| 16 | Open Return (30-day folder) | 80.9 |
+| 17 | Both Ways | 80.8 |
+| 18 | In Step ★ shortlisted | 80.6 |
+| — | Familiar Nine (24 lines, for reference) | 70.1 |
+| — | Today's link (for reference) | 17.4 |
+
+Places are by the unrounded score: Clean Slate is a thousandth of a point ahead of Common Ground (83.674 against
+83.673), and Second Look seven thousandths ahead of Long Break. Even Step stays first, under half a point ahead of Next
+Step, Closing Time and Fair Share, so the shortlist sheet's "judgement" paragraph and its claims hold as they were.
+Weighted as before 31 Oct (`OLD_READINGS=1`), In Step leads on 87.8, with Even Step on 87.0.
+
+**Re-rendered, and kept as committed:** all eighteen sheets and the rules sheet. Only the Prepared date moved. The
+summary prints its eighteen rows at 80% without the dense rows, and the shortlist sheet's pages have 3px and 18px to
+spare.
+
+**Checks:** `regenerate.mjs --check` (18 fingerprints unmoved), `check.mjs`, `deck-check.mjs` and the pack zip builds.
+
+## Common Ground's presentations, outside the pack (5 Nov 2026)
+
+*Superseded the same day: Common Ground joined the shortlist, its decks moved into `presentations/` and the folder below
+went (next section, "The shortlist drawn again"). This section is how they were first built and reviewed.*
+
+**The request** (owner, 5 Nov 2026): *"Then create presentations for common ground. Do we have a presentation for Even
+step?"* Even Step has both of its decks in `presentations/`, built on 3 Nov. Asked where Common Ground's should go, the
+owner chose **outside the pack**: build both decks and keep them in the repository to look at and use, with the pack, the
+shortlist and the shortlist-only rule of 3 Oct left as they are.
+
+**Where.** `presentations-outside-the-pack/`, with a read-me of its own. Not `presentations/`: `pack.py` ships that
+folder and refuses any deck in it that is not the shortlist's. Not `30-days-off/` either: `regenerate.mjs` refuses files in
+the pack's folders that no entry ships.
+
+**How they are built.** `tooling/common-ground-decks.py` starts from Even Step's finished decks, because most of what
+they quote is the same for both designs: the hours and days, the run, the weekends, the closers, the late finishes, the
+staffing except the open, and the Saturdays and Sundays. It rewrites what differs:
+- **the leave**, the reason the design exists: 14 days' leave buys 30 days off at best, and four weeks off take 14 days,
+  as today, where the shortlisted three buy 28 and need 15. It takes the shift-times tile on the short version, the bar on
+  the leave slide and the managers' "This one adds" line;
+- **the single rest days**, its cost: six in 26 weeks, about 12 a year each, where today has about 10 and the shortlisted
+  links four in 26. They take the trade-offs card Even Step gave to its leave, and the managers' "This one costs" line
+  with the weaker weekday fit;
+- **the shift times**: 14, seven of them worked today, among them a 9-hour Saturday late, 13:30–22:30 (today's weekday
+  13:30–22:00, half an hour longer). So Even Step's "nothing over 8h 30m Monday to Saturday" becomes "Monday to Friday";
+- four at the open, the minimum, so 48 starts at 06:20 a year each (today 62); the heaviest week, 42h 30m; the fit,
+  32.7 · 11.2 · 28.2; the pay, about £350 a year less premium and overtime pay (Even Step £250); the swaps; the
+  55-hour week, 57.5 hours;
+- the managers' "Why" slide speaks from outside the shortlist ("What it shares with the shortlisted links, what it adds,
+  and what it costs"), as In Step's did before it joined, and the title slide says "not on the shortlist".
+
+**The guards.** Every figure is read from `deck-check.mjs --print` or computed from the grid. Where a sentence is Even
+Step's with a figure changed, Even Step's sentence is rebuilt from its own figures and must be found where it was; the
+slide-5 pay sums are deck-polish.py's formula, proved on Even Step's notes before they are applied to Common Ground's. A
+sentence left as Even Step wrote it has the figures it quotes checked equal for the two designs. After the edits, any of
+Even Step's own text left over is refused (its new times, its counts, its leave, its "Monday to Saturday" claim, its pay
+and more), and so is a sentence of the builder's that names Even Step with an ordinary space, which the final rename
+would turn into "Common Ground". Each guard was broken on purpose with `scripts/mutate.mjs`, eight in all, and each stopped
+the build. `deck-check.mjs` now checks both decks' tables too (`OUTSIDE_DECK_DIR` checks a copy): 216 rows across the
+eight decks agree, none unchecked, and a cell altered in a copy is reported.
+
+**Looked at, slide by slide**, from the exported PDFs. Two lines on the managers' "Why" slide wrapped under the lead
+"Like all three shortlisted:", so it is "Like all three:" under the subtitle that says what the three are. The colleague
+deck's closing credit line is longer by the name and put "tooling" on a line of its own, so it is 11pt there, not 12pt.
+
+**Reviewed independently** the same morning: every sentence and note recomputed from the grids. No figure was wrong
+and nothing of Even Step's was left. Five pieces of wording were, and are now fixed:
+- **"Today's shift times wherever the December rules allow"** (the managers' notes 4 and 7, the colleagues' notes 8)
+  claimed more than Common Ground has. The rules allow more of today's times than it keeps: it keeps 7 of 14, where Even
+  Step keeps 8 of 13 and In Step and Short Run 9 of 15. Counted Monday to Saturday its share, 70%, is between theirs
+  (80%, 73%, 67%). The times went to the brief: no 13:35, the openers by 14:20, the half hour, the caps. The notes now say
+  so. On the "Why" slide the shift-times line reads "Like all three: fewer shift times than today's 18 — here 14, 7 worked
+  today", and it comes before the "adds" line, so its tick is for something all four share. The weaker weekday fit is
+  explained by what it is measured to cost: today's 11:00–19:30 is kept where an 11:30–20:00 would score 31.9, not 32.7
+  (the builder computes both).
+- **The 9-hour Saturday late** was listed among the costs "against them", but it is a cost against Even Step only. In
+  Step has about 40 duties a year each over 8h 30m Monday to Saturday and Short Run about 26, against Common Ground's 4.
+  The notes now give all three.
+- **The rise in finishes at 22:00 or later** (the managers' notes 8) was put down to the rules alone. On 26 lines the rules
+  alone would give about 74 a year each, fewer than today's 78. The rest comes from the two floor lates finishing with the
+  ticket office every weekday, which make seven on duty at 22:00. The notes now say both, as the colleagues' notes 7
+  already did. The shortlisted three's managers' decks have the same sentence; all four designs have 94.
+- **"Four open the station on every day but Sunday"** read as if fewer open on a Sunday. It now says four start at 06:20
+  Monday to Saturday; a Sunday opens at 07:15, with four there too.
+- **"What it costs is on slide 9"**: the single rest days are on slide 13's cards. Slide 9 has them in its notes only.
+
+Kept as they are: **£350** is rounded to the nearest £50, the method every deck uses for this figure (Even Step's £250 is
+£256). **"About two minutes"** on the average shift matches the table's 8h 14m and 8h 16m; it is 1.4 minutes unrounded.
+
+**One point for the whole pack, not changed here.** "Weeks on one shift time, Monday to Friday" gives today 7 of 16, but
+the count behind it (`feel()` in report-data.mjs) also needs the whole week to be all earlies or all lates. Read as the
+label reads, today has 9 of 16: weeks 4 and 19 have one time Monday to Friday and a late on the Saturday. Every design's
+figure is the same either way, Common Ground's 19 of 21 among them. The same label is on every deck and the sheets, so it
+is the owner's to decide, for all of them at once.
+
+## The shortlist drawn again — Even Step, Common Ground and Short Run (5 Nov 2026)
+
+*(Later the same day the recommendation went and the three were listed A to Z everywhere — "The whole pack reviewed",
+below. This section describes the pack as it was that morning, Even Step recommended and first.)*
+
+**The request** (owner, 5 Nov 2026): *"I would like common ground in the shortlist as the best 30 day example, short run
+too because colleagues have seen it and the best one of the others which I think is even step? Redo the pack based on
+this, keep the other presentations in the pack, just not the shortlist"*.
+
+**Checked first, against the league** — the main one, with today's link in the range, as the sheets read it:
+- **Even Step is the best of the others:** first, on 85.46, under half a point ahead of Next Step (85.33), Closing Time
+  (85.18) and Fair Share (85.12). It stays the one recommended.
+- **Common Ground is not the league's best 30-day link.** Grand Tour is, on 83.86. Common Ground scores 83.67 and is
+  seventh, a thousandth behind Clean Slate (83.6744 to 83.6734), a gap no rota could feel, so the shortlist sheet gives its
+  score and not its place. It is on the shortlist as the owner chose it, the example of the links that keep today's
+  leave, and the pack says that rather than calling it the best.
+- **Short Run is twelfth** (81.73). It is on the shortlist because colleagues have seen it, and the pack says that too.
+- **In Step is last of the eighteen** on the main league (80.58), and was first on the weighting before 31 Oct.
+
+**The tooling.** `tooling/fresh.mjs`: `SHORTLIST` is Even Step, Common Ground and Short Run, the recommendation first as
+the pack orders it; `SHORTLIST_DATE` is 5 Nov 2026; and a new `DECKS_KEPT` names the designs off the shortlist whose
+presentations the pack still ships, In Step. `pack.py` ships the decks of both lists and refuses any other, so the 3 Oct
+rule ("only keep the shortlist's presentations") still holds for everything else.
+
+**The decks.**
+- Common Ground's two moved into `presentations/`, and `presentations-outside-the-pack/` went. `common-ground-decks.py`
+  writes there now, refuses to run unless Common Ground and Even Step are both on the shortlist with Even Step
+  recommended, and compares Common Ground with the other two shortlisted links where it compared with "the shortlisted
+  three". Its managers' title slide reads "One of three shortlisted new CEA links" and "Even Step is recommended", as
+  Short Run's does. Its "Why" slide keeps Even Step's three "All three:" lines, each checked true of all three, then
+  "This one adds: 30 days off for 14 days' leave, and four weeks off for 14, as now" and "This one costs: six single rest
+  days, not four, and a slightly weaker weekday fit".
+- `deck-polish.py` writes each managers' deck's slide-7 notes against the other two shortlisted links, every comparison
+  checked. In Step's notes open "In Step is not on the shortlist: it was from 30 October to 5 November 2026, when Common Ground
+  took its place, and Even Step, the recommended design, keeps its weeks", and its title slide says "not on the
+  shortlist". Its colleague deck's notes stop pointing at the shortlist sheet, which no longer sets it out.
+- **The 22:00 sentence, everywhere.** The managers' notes on slide 8 put the rise in finishes at 22:00 or later down to
+  the rules alone; the review in the section above corrected Common Ground's only. All four designs' notes now say the
+  rules want five still on duty at 22:00 and two floor lates finish at 22:30 with the ticket office every weekday, which
+  makes seven, and `deck-polish.py` checks it (four 22:30 finishes and three 23:55 closers every weekday).
+- `deck-check.mjs` reads the eight decks from one folder: 216 rows agree, none unchecked.
+
+**The sheets.**
+- **The shortlist sheet**, rewritten. Five lines the three used to share are differences now, because Common Ground has
+  its own: 19 of 21 weeks on one shift time, more single rest days, today's leave, its Sunday and the closest Sunday fit.
+  So page 1 has six shared lines, and "where they differ" gains four rows: weeks on one shift time, single rest days a
+  year, the leave, and the fit by day. Every figure about single rest days on the sheet is a year's (8, 12 and 8), as
+  that row is; "six, not four" in 26 weeks beside a row reading 12 and 8 read as a contradiction. Page 2's "Why these
+  three and not the other fifteen" says why each of the three is there and gives every other design one row, what it
+  keeps and what it pays, asserted measure by measure — In Step's is "steadier weeks and a closer Saturday fit — but the
+  most long earlies, 40 a year each". The judgement paragraph gives the league as above.
+- The summary sheet marks the new three. The "What it means if you…" sheet shows Common Ground, Even Step and Short Run, A
+  to Z; its leave line now differs between them, and its Sunday pay figure is a range, £250 to £350 a year less, because
+  Common Ground's is £350.
+- The proposal sheets are unchanged: each compares only with today's link.
+- The read-me (`pack.py`) names the three in its recommendation and adds a paragraph for 5 Nov to its history; its checks
+  name the three, the date and In Step's decks, and one more phrase is checked against the shortlist sheet, the single
+  rest days.
+
+**The app, v25.36.** The Links designer's built-in shortlist is Even Step, Common Ground and Short Run
+(`links-proposals.js`; Common Ground's grid copied cell for cell from `30-days-off/`). The New link page lists the three
+A to Z, and had been doing so by accident: "Even Step, In Step, Short Run" was the recommendation-first order and A to Z
+at once, so the page never sorted, and with Common Ground it would have put the recommendation first on a page that names
+none. It now sorts its own tiles, weeks and tabs (`aToZ`, `newlink-render.js`), the comparison's columns come A to Z from
+`newlink-data.js`, and it opens on the first of them, Common Ground. *(Since that afternoon the built-in list is A to Z
+as well, so the test feeds `aToZ` the three out of order, to keep the sort exercised.)* Its
+"What's changed" lines were redrafted for the three. The first no longer says both newer proposals were drawn up "from
+what colleagues said about it": that was said of Even Step and In Step, and nothing here records it of Common Ground,
+drawn up on the owner's brief. It is the owner's to restore. The "Keep only the shortlist" dialog takes the three names
+from the built-in list instead of typing them.
+
+**Left as it was.** "Weeks on one shift time, Monday to Friday" still gives today 7 of 16 (the section above has why);
+the owner's to decide, for every sheet and deck at once.
+
+## The whole pack reviewed — the three evenly, and every figure checked again (5 Nov 2026)
+
+**The request** (owner, 5 Nov 2026): *"Do an accuracy check on the entire links 26 pack, look for improvements and
+aesthetic polish review and aesthetic consistency review the links 26 pack too"*, then *"Give me the links 26 pack pdf
+when finished"*. Four reviews ran — accuracy of the sheets, accuracy of the decks, and the look and consistency of each
+— and what they found that was a matter of what the pack SAYS, rather than what is true, went to the owner first.
+
+**Five answers from the owner:**
+- **The union rep:** *"Drop 'or a union rep'."* The proposal sheets and the managers' decks said the proposals had not
+  been seen "by the roster office or a union rep"; S. Silva, the RMT rep, leads the change. "Not yet seen by the roster
+  office" stays.
+- **The recommendation:** *"Remove the marks."* Nothing in the pack or the app names one. `RECOMMENDED` is gone from
+  `tooling/fresh.mjs` and `SHORTLIST` is A to Z — Common Ground, Even Step, Short Run. `deck-polish.py` and `pack.py`
+  refuse a `RECOMMENDED` back, and the word "recommend" in any deck or in the read-me (bar the read-me's "none is
+  recommended"); `links-proposals.test.mjs` refuses it in `fresh.mjs` too. The shortlist sheet gives each one's edge
+  and its price, and which to choose by what matters most; the managers' title slides say "One of three shortlisted new
+  CEA links"; the read-me opens on the three, each with the reason to choose it and its price, every figure in that
+  section checked against the shortlist sheet or the New link page's asserted sentences.
+- **Who to tell:** *"Match the New link page."* The colleague decks' last slide says "Tell S. Silva or your manager
+  what worries you, even if it is small" and "S. Silva, the RMT rep, is leading the change", as the page does, and the
+  read-me's colleagues' ask says the same.
+- **"7 of 16":** *"Say what is counted."* "Weeks on one shift time" is "Weeks on one shift time, all earlies or all
+  lates" on every sheet, slide and note, so today's 7 of 16 reads as what it counts. The figure is unchanged.
+- **This README:** *"Leave it out of the pack."* The zip's technical notes are `RULES.md` alone; the read-me's history
+  points here for the designs taken out.
+
+**Accuracy — what moved:**
+- **The 55-hour week, in hours and minutes.** It was printed in decimal hours, "60.8", which reads as 60h 48m; it is
+  60h 45m. `report-data.mjs` now counts the heaviest seven days in minutes (`max7Minutes`) and refuses to differ from
+  the app's decimal by more than its rounding. Today 60h 45m; Even Step 56h 45m at worst, 49h 40m on the fixed duties;
+  Short Run 56h 50m; In Step 56h 20m; Common Ground 57h 30m, 51h 00m on the fixed duties.
+- **Single rest days, a year each.** The proposal sheets compared "4 in 20" with "N in 26"; both are now a year —
+  today about 10, Common Ground 12, Even Step and Short Run 8 — and a concern or a gain is raised only on a difference
+  of two a year or more.
+- **Six one-line descriptions** were checked against their grids, and `regenerate.mjs`'s copies synced to `fresh.mjs`'s.
+- **In Step's decks** listed one new time twice, and said it had more early finishes than the others when Common Ground
+  has as many. **Common Ground's colleague deck** no longer says it is today's link without saying how far it moved.
+- **The colleague decks' "Fewer early finishes" card** now names the long breaks too, a cost page 2 of the shortlist
+  sheet already gave.
+- **The New link page** (v25.36): its leave line names the price (about 12 single rest days a year on Common Ground,
+  about 8 on the other two), its long-shift line says how often (about 4 a year each on Common Ground, 26 on Short
+  Run), its notes say the no-overtime rows are not ranked, as the sheet's do, and the "What's changed" card's hint is
+  "Two more proposals, drawn up since" — Common Ground was drawn on the owner's brief, not from what colleagues said.
+
+**Polish:**
+- **Marks beside the colours** (`tooling/deck-marks.py`, new). The decks said better and worse than today by green and
+  amber alone, which are within a few per cent of each other's lightness: they print as one grey, and read alike to the
+  commonest colour blindness. Every coloured figure on a slide now carries a ✓ or a ▲, as the proposal sheets' always
+  have, and `deck-check.mjs` refuses an unmarked one or a mark that disagrees with its colour. There is no key on the
+  slides: the columns are headed Today and the design, and the mark says which way.
+- **The rota strip** (`rota-strip.mjs`, slide 10): larger labels and swatches, and a key that says "cover week, duties
+  placed later" and "full weekend off".
+- **Page 3 of every proposal sheet:** rest days white and lates a pale tint of the late colour, in the grid and its key
+  alike, so the early and late weeks stand apart.
+- **Wraps:** no lone word left on a card, bar or tile; no-break spaces and non-breaking hyphens hold a figure to its unit.
+
+**Checked:** `deck-check.mjs` — 216 rows agree, none unchecked, no mark wrong; `regenerate.mjs --check`;
+`newlink-data.mjs --check`; and each new guard mutated with `scripts/mutate.mjs` and seen to fail.
+
+**Left as it is:** the PowerPoints use Inter, which is not embedded; the read-me says to present the PDF on a PC
+without it.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
@@ -3308,12 +4249,13 @@ The weighted league scores weekends as a share of weeks for the same reason. The
 repository ignores `*.zip`, so run the script and send the file). It is laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:
 1. a *Read me first* note;
-2. the one-page summary, and the two-page shortlist sheet;
+2. the one-page summary, the two-page shortlist sheet and the one-page "What it means if you…" sheet;
 3. the rules;
 4. the presentations;
 5. every proposal sheet;
 6. the import files;
-7. the technical notes (`RULES.md` and this README).
+7. the technical notes: `RULES.md`. This README was in them until 5 Nov 2026, and stays in the repository (owner: "Leave
+   it out of the pack").
 
 `tooling/pack.py` builds it from this folder, every design in `regenerate.mjs`'s `SUPPLIED` list included, and stops
 if a file is missing. The 24-line pack was zipped by hand, so it went stale after a re-render; this one is rebuilt by
@@ -3321,7 +4263,7 @@ running `python3 docs/links-26/tooling/pack.py` after any re-render.
 
 **26 in the app since v24.47 (3 Oct 2026).** `ROTATING_LINES = 26` in `links-design.js`: the Links page lays out 26
 lines, so the import files in the pack paste straight in and the page re-runs every check on them; the shortlisted
-designs are built into that page as examples (three from v24.47, Closing Time from v25.01, In Step and Short Run from v25.02, and from v25.04 the three on the shortlist now, Even Step first), copied cell for cell from `proposals/` (`links-proposals.js` says so, and
+designs are built into that page as examples (three from v24.47, Closing Time from v25.01, In Step and Short Run from v25.02, Even Step, In Step and Short Run from v25.04, and from v25.36 the three on the shortlist now, A to Z), copied cell for cell from `proposals/` and Common Ground's from `30-days-off/` (`links-proposals.js` says so, and
 says to re-copy if one changes). The tooling still
 passes 26 to every app function explicitly — harmless now, and it keeps the sheets' line count stated in one place
 (`tooling/link.mjs`) rather than inherited. Until that release the page was on 24 lines and refused the files; the

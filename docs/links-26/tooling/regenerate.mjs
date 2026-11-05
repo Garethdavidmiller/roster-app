@@ -19,6 +19,7 @@ import { readFileSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { DAYS } from '../../../links-design.js';
 import { STRAPS } from './fresh.mjs';
+import { PACK_DIRS } from './report-data.mjs';
 
 const fingerprint = p => createHash('sha256')
     .update(JSON.stringify(Object.keys(p).sort((a, b) => a - b).map(k => DAYS.map(d => p[k][d]))))
@@ -27,6 +28,8 @@ const fingerprint = p => createHash('sha256')
 /** The supplied designs: a grid, a name, a strap line and a code. */
 // 26 LINES (1 Oct 2026; nine by 3 Oct). Each 26-line design is one entry, in the shape the 24-line list used
 // (../../links-24/tooling/regenerate.mjs): { file, name, code, fp, strap }, the code carrying -26- (e.g. AB-26-EXT).
+// A design ships into proposals/ unless its entry says `dir:` — one of report-data.mjs's PACK_DIRS — after its fp
+// (4 Nov 2026: the links where 14 days' leave buys 30 days off live in 30-days-off/, and are the pack all the same).
 export const SUPPLIED = [
     // FOUR WITHDRAWN ON 3 NOV 2026 (owner: "Remove the four weak proposals please and reengineer the pack"): Second Nature
     // (SN-26-F2 · a52d0f20), Second Wind (SW-26-F1 · 4bec8d8e), Second Sight (SS-26-F1 · 3c6aac4d) and Second Gear
@@ -89,12 +92,36 @@ export const SUPPLIED = [
     // 13:45 a weekday. Searched afresh and laid on Home Grown's weeks: nothing over 8h 30m Monday to Saturday, 19 weeks on one
     // shift time. Next Step is Even Step with only Clean Slate's three weekday changes. README.md → "Clean Slate and Next Step".
     { file: 'clean-slate.json',            name: 'Clean Slate',    code: 'CS-26-N2',   fp: 'dc175c36', strap: 'Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday' },
-    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'Even Step with three weekday shifts retimed for the trains: no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday' },
+    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'No shift over 8h 30m Monday to Saturday, a 13:45 finish every weekday, and a weekday fit to the trains of 30.3, where today’s is 52.0' },
     // 4 Nov 2026: Fair Share is Next Step with its Sunday evened out, seven Sunday cells retimed (README.md → "Fair Share")
-    { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: 'ccf27576', strap: 'Next Step with an even Sunday: every Sunday duty 8h 10m or 8h 15m, so an early and a late pay within a few pounds' },
+    { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: 'ccf27576', strap: 'Every Sunday duty 8h 10m or 8h 15m, so a Sunday early and late pay within a few pounds, and no shift over 8h 30m on any day' },
+    // 4 Nov 2026 (owner: "Do a proposal sheet for all of today's work. Put them into the repo"): Quarter Past, a one-page roster
+    // supplied as a PDF and read in cell by cell; its duties in new weeks so 14 days' leave buys 30 days off (drawn as Quarter
+    // Past Relaid, QR-26-EXT); and Short Openers, that link with every weekday 06:20 finishing by 14:20 and every weekday
+    // closer at 15:45 (README.md → "Quarter Past", "Quarter Past Relaid", "Short Openers"). Their grids and meta files live in
+    // results/, under the names they were drawn with.
+    // THREE NEW NAMES AND A FOLDER (owner, 4 Nov 2026: "Give all proposals individual names", then "Put all of the links that
+    // give 30 days off for 14 days AL into a subfolder within links 26"). Quarter Past Relaid is Open Return, a name of its own
+    // rather than its parent's; Fair Share's 30-day search result, which had none, is Grand Tour and joins the pack; and the
+    // three links where 14 days' leave buys 30 days off ship into 30-days-off/ (README.md → "30 days off for 14 days' leave").
+    // The fingerprints did not move: the cells are the same, only the names and the folder.
+    // QUARTER PAST TAKEN OUT, 4 NOV 2026 (owner: "Remove quarter past from the pack please"): the one-page roster QP-26-EXT ·
+    // dfdbd724, in the pack for a few hours. Its grid and meta stay in results/ (quarter-past.json); Open Return and Short
+    // Openers keep its shift times and say so in their lineage. To rebuild it, restore its entry here and its strap, family
+    // and date in fresh.mjs from git history.
+    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '544e1ee8', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buying 30 days off, as today, and no fatigue warning, even if a cover week falls badly' },
+    { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '38897b91', dir: '30-days-off', strap: 'Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buying 30 days off, as today' },
+    // Grand Tour (4 Nov 2026): Fair Share's duties in new weeks, so that 14 days' leave buys 30 days off and four weeks off
+    // take 14, as today — the answer to the owner's question that morning (README.md → "Fair Share", run e). It was a search
+    // result with no name, sheet or import file until the 30-day folder was made
+    // WELL KEPT TAKEN OUT, 5 NOV 2026 (owner: "Remove well kept"): Same Again Tidy, WK-26-S2 · 1db1381a, in the 30-day folder
+    // from the evening of 4 Nov. Its grid and meta stay in results/ (same-again-tidy.json). To rebuild it, restore its entry
+    // here (dir: '30-days-off') and its strap, family and date in fresh.mjs from git history.
+    { file: 'results/fair-share-leave30.json',   name: 'Grand Tour',           code: 'GT-26-T7',  fp: '4172f888', dir: '30-days-off', strap: 'No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today' },
     // 4 Nov 2026: Common Ground is today's link taken to 26 weeks on the owner's brief, its weeks the 30-for-14 grid found on
-    // Fair Share's duties (README.md → "Common Ground")
-    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'e02c295f', strap: 'Today’s link on 26 weeks: nothing over 8h 30m on a weekday, a 13:45 finish every weekday, an even Sunday, and 14 days’ leave buys 30 days off, as today' },
+    // Fair Share's duties (README.md → "Common Ground"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
+    // with the other four (owner, the same evening: "add any other 30 days off proposals to the subfolder")
+    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'e02c295f', dir: '30-days-off', strap: 'Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m Monday to Friday, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
@@ -122,18 +149,24 @@ const only = process.argv.find(a => a.startsWith('--only='))?.slice(7);
 // hand-typed cp per proposal after every regeneration, and a hand-typed cp is how a folder ends up
 // with a PDF from one render and a JSON from another. --no-ship leaves the outputs in tooling/.
 const ship = !process.argv.includes('--no-ship');
-const shipFiles = (base, fp, json, imp) => { if (!ship) return;
-    copyFileSync(`${base}-${fp}.pdf`, `../proposals/${base}-${fp}.pdf`); copyFileSync(json, `../proposals/${base}.json`); copyFileSync(imp, `../proposals/${base}-import.txt`); };
+const shipFiles = (base, fp, json, imp, dir = 'proposals') => { if (!ship) return;
+    if (!PACK_DIRS.includes(dir)) throw new Error(`${base}: ${dir} is not one of the pack's folders (report-data.mjs PACK_DIRS)`);
+    copyFileSync(`${base}-${fp}.pdf`, `../${dir}/${base}-${fp}.pdf`); copyFileSync(json, `../${dir}/${base}.json`); copyFileSync(imp, `../${dir}/${base}-import.txt`); };
 let failed = 0, done = 0;
 // THE SHIPPED CELLS, FINGERPRINTED (25 Sep 2026). --check printed "ok" for every SEARCHED proposal after
 // counting its candidate files and fingerprinting nothing, while this file's header and the README said it
 // checked every fingerprint. The searched sheet's cells are the ones shipped beside its PDF
 // (`<Name>-<CODE>.json`), so that is what is fingerprinted — for the supplied designs too, whose SOURCE grid
 // is checked above it. Re-deriving a searched pick needs final.mjs, which renders; a full run does that.
-const shippedFp = fp => { const pdf = readdirSync('../proposals').find(f => f.endsWith(`-${fp}.pdf`)); if (!pdf) return { error: `no ../proposals/*-${fp}.pdf` };
-    const base = pdf.slice(0, -`-${fp}.pdf`.length), json = `../proposals/${base}.json`; if (!existsSync(json)) return { error: `no ${json}` };
+// Since 4 Nov 2026 a design ships into its own folder (`dir:`), so the shipped PDF is looked for in every one of the pack's
+// folders and must be in the one its entry names, once: a design left behind in proposals/ when it moved would otherwise
+// print twice, under two folders, and pass.
+const shippedFp = (fp, dir = 'proposals') => { const at = PACK_DIRS.flatMap(d => readdirSync(`../${d}`).filter(f => f.endsWith(`-${fp}.pdf`)).map(f => [d, f]));
+    if (!at.length) return { error: `no ${PACK_DIRS.map(d => `../${d}`).join(' or ')}/*-${fp}.pdf` };
+    if (at.length > 1 || at[0][0] !== dir) return { error: `its sheet is at ${at.map(([d, f]) => `${d}/${f}`).join(' and ')}, and it belongs in ${dir}/ only` };
+    const pdf = at[0][1], base = pdf.slice(0, -`-${fp}.pdf`.length), json = `../${dir}/${base}.json`; if (!existsSync(json)) return { error: `no ${json}` };
     const j = JSON.parse(readFileSync(json, 'utf8')); return { base, got: fingerprint(j.patterns ?? j) }; };
-const checkShipped = (label, fp) => { const r = shippedFp(fp);
+const checkShipped = (label, fp, dir) => { const r = shippedFp(fp, dir);
     if (r.error) { console.log(`FAIL ${label}: ${r.error}`); failed++; return false; }
     if (r.got !== fp) { console.log(`FAIL ${label}: ../${r.base}.json fingerprints ${r.got}, expected ${fp}`); failed++; return false; }
     return true; };
@@ -147,10 +180,10 @@ for (const s of SUPPLIED) {
     // ONE STRAP (31 Oct 2026 review): the sheet prints fresh.mjs's STRAPS, so a strap here is only ever passed along. Six of them
     // had drifted from the printed ones ("no week over 41h 30m" against "no Mon–Sat week"); a reader of this list was misled
     if (STRAPS[s.code]?.[0] !== s.strap) { console.log(`FAIL ${s.code}: its strap here is not fresh.mjs's, which the sheet prints`); failed++; continue; }
-    if (checkOnly) { if (checkShipped(s.code, s.fp)) { console.log(`ok   ${s.code}  ${got} (source grid and shipped JSON)`); done++; } continue; }
+    if (checkOnly) { if (checkShipped(s.code, s.fp, s.dir ?? 'proposals')) { console.log(`ok   ${s.code}  ${got} (source grid and shipped JSON${s.dir ? `, in ${s.dir}/` : ''})`); done++; } continue; }
     process.stdout.write(`render ${s.code} … `);
     execFileSync('node', ['supplied.mjs', s.file, s.name, s.strap, s.code], { stdio: 'inherit' });
-    shipFiles(`${s.name.replace(/ /g, '-')}-${s.code}`, s.fp, 'supplied.json', 'supplied-import.txt');
+    shipFiles(`${s.name.replace(/ /g, '-')}-${s.code}`, s.fp, 'supplied.json', 'supplied-import.txt', s.dir);
     done++;
 }
 for (const t of SEARCHED) {
@@ -164,6 +197,14 @@ for (const t of SEARCHED) {
     shipFiles(pdf.slice(0, -`-${t.fp}.pdf`.length), t.fp, 'proposal.json', 'proposal-import.txt');
     done++;
 }
+// NOTHING IN THE PACK'S FOLDERS THAT NO ENTRY SHIPS (4 Nov 2026). A rename or a move leaves the old name's three files
+// behind, and everything that reads the folders would count them as one more design: a renamed design twice in the
+// league, a moved one twice in the summary. Every sheet, grid and import file must be an entry's, under its name, code
+// and folder; the 30-day folder may also hold its own README.md.
+if (!only) { const want = new Set(SUPPLIED.flatMap(s => { const base = `${s.dir ?? 'proposals'}/${s.name.replace(/ /g, '-')}-${s.code}`;
+    return [`${base}-${s.fp}.pdf`, `${base}.json`, `${base}-import.txt`]; }));
+  const stray = PACK_DIRS.flatMap(d => readdirSync(`../${d}`).map(f => `${d}/${f}`)).filter(f => !want.has(f) && !/\/README\.md$/.test(f));
+  if (stray.length) { console.log(`FAIL files no entry ships: ${stray.join(', ')}`); failed++; } }
 console.log(`\n${done} proposal${done === 1 ? '' : 's'}${failed ? `, ${failed} FAILED` : ''}`);
 // THE RULES REFERENCE (28 Sep 2026) is rendered by every full run, after the sheets, from the same rule code
 // (sheetRules and flexibleRules, both built on currentRules) and the same folder — so it can never describe a rule set the sheets beside it were not judged against.
@@ -173,7 +214,7 @@ if (!checkOnly && !only) execFileSync('node', ['rules-sheet.mjs'], { stdio: 'inh
 // for a day while their JSON and import files were on main (25 Sep 2026). This refuses to report success while any
 // PDF in the folder is untracked, and names the command that fixes it.
 if (ship && !checkOnly) {
-    const untracked = [...readdirSync('..').map(f => f), ...readdirSync('../proposals').map(f => `proposals/${f}`)].filter(f => f.endsWith('.pdf')).filter(f => { try { execFileSync('git', ['ls-files', '--error-unmatch', `../${f}`], { stdio: 'ignore' }); return false; } catch { return true; } });
+    const untracked = [...readdirSync('..').map(f => f), ...PACK_DIRS.flatMap(d => readdirSync(`../${d}`).map(f => `${d}/${f}`))].filter(f => f.endsWith('.pdf')).filter(f => { try { execFileSync('git', ['ls-files', '--error-unmatch', `../${f}`], { stdio: 'ignore' }); return false; } catch { return true; } });
     if (untracked.length) { console.log(`\nNOT TRACKED BY GIT — run: git add -f ${untracked.map(f => `docs/links-26/${f}`).join(' ')}`); process.exit(1); }
 }
 process.exit(failed ? 1 : 0);

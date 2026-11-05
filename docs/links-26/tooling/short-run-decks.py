@@ -140,12 +140,12 @@ def check_typed():
     # twice a year; the step; today's 13:45 on every weekday; its 8h 10m Saturday closer, 10.0 Saturday fit and weeks
     late_avg = lambda p: (lambda l: round(sum(l) / len(l)))([mins(r[d]) for r in p.values() for d in WK if timed(r[d]) and int(r[d][:2]) >= 11 and r[d][6:] != '23:55'])   # the sheet's lateAvg
     src = open(os.path.join(tool, 'fresh.mjs'), encoding='utf-8').read()
-    SL = re.findall(r"'([^']+)'", re.search(r'export const SHORTLIST = \[([^\]]*)\]', src).group(1)); REC = re.search(r"export const RECOMMENDED = '([^']+)'", src).group(1)
+    SL = re.findall(r"'([^']+)'", re.search(r'export const SHORTLIST = \[([^\]]*)\]', src).group(1)); REC = bool(re.search(r'export const RECOMMENDED\b', src))   # no recommendation since 5 Nov 2026 (owner)
     got = [[S[k] == E[k] for k in ('run', 'weekends', 'weekendGap', 'oneTurn', 'late23', 'late22', 'leaveBest', 'leaveAvg', 'leaveWorst', 'leaveFour')],
            E['fitWk'], float(S['fitWk']) < min(float(I['fitWk']), float(E['fitWk'])), long_ms(es), sorted({r[d] for r in es.values() for d in r if timed(r[d]) and mins(r[d]) > 510}),
            sum(1 for r in es.values() if r['sun'] == '09:00-18:00'), long_all(es), [S['step'], E['step'], I['step']], k1345(es), E['closerSat'], E['fitSat'], E['light'], E['heavy'], sorted(SL), REC,
            [late_avg(sr), late_avg(ins), late_avg(es)]]
-    want = [[True] * 10, '32.6', True, 0, ['09:00-18:00'], 1, 2, ['1h 13m', '1h 31m', '1h 13m'], True, '8h 10m', '10.0', '25h 30m', '41h 30m', ['Even Step', 'In Step', 'Short Run'], 'Even Step', [480, 492, 507]]
+    want = [[True] * 10, '32.6', True, 0, ['09:00-18:00'], 1, 2, ['1h 13m', '1h 31m', '1h 13m'], True, '8h 10m', '10.0', '25h 30m', '41h 30m', ['Common Ground', 'Even Step', 'Short Run'], False, [480, 492, 507]]
     if got != want: raise SystemExit(f'short-run-decks: the notes on Even Step no longer match the rota —\n  the data says {got}\n  the notes say {want}')
 
 if __name__ == '__main__':

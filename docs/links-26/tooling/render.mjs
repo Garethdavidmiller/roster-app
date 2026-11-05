@@ -180,14 +180,17 @@ export async function renderPdf(D, out) {
   const brk = s => s.replace(' · typically ', ' ·<br>typically ');
   const rowsFF = P.fatigue.results.filter(r => !naBoth(r)).map(r0 => { const t0 = tOf(r0);
     const r = PLAIN ? (fixedOf(P, r0) ?? r0) : r0, t = PLAIN && t0 ? (fixedOf(T, t0) ?? t0) : t0;
-    const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /55 hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
+    // the 55-hour row in hours and minutes, counted in whole minutes (report-data.mjs → max7Minutes): to a railway eye
+    // "60.8" is 60h 08m, and every other duration on the sheet is hours and minutes (whole-pack review, 5 Nov 2026)
+    const h55v = x => { if (x.minutes == null) throw new Error(`the 55-hour row has no minutes: ${x.title}`); return hm(x.minutes); };
+    const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /55 hours/i.test(x.title) && typeof x.value === 'number' ? h55v(x) : (x.value ?? '')) : '';
     const second = (a, code, have) => { if (PLAIN) { const w = a === P ? r0 : t0, f = a === P ? r : t;
         // the 55-hour row counts a cover week as no hours, so its own worst case cannot show the week four 8-hour
         // duties would make; h55Cover (fresh.mjs) is that figure (accuracy audit, 1 Oct 2026). It is said as every other
         // row's worst case is (31 Oct 2026 review): the long form, "if a cover week is worked as four 8-hour duties and a
         // Sunday's overtime", widened its column, wrapped every pattern title on the page and pushed page 7 onto a ninth
         // sheet from v25.03; the notes beneath the table say how the 55-hour worst case is made
-        if (a === P && /55 hours/i.test(r0.title) && meta.h55Cover) return `<span class="ff-alt ff-present">${icon('present')} up to ${meta.h55Cover.hi.toFixed(1)} if a cover week falls badly, as 8-hour duties</span>`;
+        if (a === P && /55 hours/i.test(r0.title) && meta.h55Cover) return `<span class="ff-alt ff-present">${icon('present')} up to ${hm(meta.h55Cover.hiMin)} if a cover week falls badly, as 8-hour duties</span>`;
         return !have || !w || !f || (w.status === f.status && String(val(w)) === String(val(f))) ? ''
           : `<span class="ff-alt ff-${w.status}">${icon(w.status)} up to ${esc(val(w))} if a cover week falls badly</span>`; }
       const v = have ? asRos(a, code) : null; return v === null ? ''
@@ -512,7 +515,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
 </style></head><body>
 
 <section class="page cover">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer</div><h1>Proposed New CEA Link</h1>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer</div><h1>Proposed new CEA link</h1>
   <div class="sub">${meta.sub1 ?? (BB ? 'A 24-line link built from the December 2026 staffing rules and judged on the ORR fatigue factors — nothing carried over from today’s roster except the rules' : B2 ? 'The December 2026 timetable rules with no duty over 8h40 and the ticket office written in — two 14:00–22:30 turns a day Monday to Saturday, two 13:30–22:00 on a Sunday — judged on the ORR fatigue factors' : EF ? 'A 24-line link built from the December 2026 staffing rules with no duty over 8h40, judged on the ORR fatigue factors — nothing carried over from today’s roster except the rules' : PT ? (P2 ? 'The owner’s pinned turns of 25 September 2026 with every other time rewritten onto the quarter hour, each day fitted to the December 2026 timetable and proven the closest such fit' : 'Today’s roster, widened to 24 people, built to the owner’s pinned turns of 25 September 2026, the rest of each day fitted to the December 2026 timetable') : Q2 ? 'The existing 20-line link, widened to 24 people, with the closing turn at 15:45 and Saturday and Sunday rebuilt so that nothing runs over 8h40 — the same shape of week, one more cover cycle' : QT ? 'The existing 20-line link, widened to 24 people, with the closing turn starting at 15:45 — the same shape of week, one more cover cycle, and one turn a little longer to keep the contract' : 'The existing 20-line link, widened to 24 people — the same turns, the same shape of week, one more cover cycle')}</div>
   <div class="meta">${meta.metaLine ?? `${prepared} · built for the December 2026 timetable and assessed by the workspace's own rule modules (Marylebone Roster v${APP_VERSION}) · figures on this page are computed, not typed`}</div></div></div>
   <div class="ident"><div class="ident-main"><div class="ident-eyebrow">Proposal</div><div class="ident-name">${esc(meta.identity.name)}</div><div class="ident-strap">${esc(meta.identity.strap)}</div></div>
@@ -570,7 +573,7 @@ ${readHtml}${frameHtml}
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The rotation</div><h1>The ${LINES}-line link</h1><div class="sub">Sunday to Saturday per line; everyone moves down one line each week and line ${LINES} goes back to line 1. Hours and days at the right, cover beneath.</div></div></div>
   <div style="margin-top:10px">${gridHtml(P.patterns, LINES, P.totals, P.daily, { spare: COVER_WEEKS, avgEx: hmFromHours(P.hours.exSunday), avgAll: hmFromHours(P.hours.all), avgDays: P.totals.daysAverage.toFixed(2), changed: meta.changed ? new Set(meta.changed.cells) : null })}</div>
-  <div class="legend"><span><i style="background:color-mix(in srgb, var(--shift-early-fill) 16%, white)"></i>Early turns</span><span><i style="background:color-mix(in srgb, var(--shift-late-fill) 16%, white)"></i>Late turns</span><span><i class="lg-cover" style="background:color-mix(in srgb, var(--accent-gold) 22%, white)"></i>Cover (spare) week — four duties Monday to Saturday, any turn; its Sunday can be overtime</span><span><i style="background:var(--surface-sunken);border:1px solid var(--border-mid)"></i>Rest day</span>${meta.changed ? `<span><i class="i-changed"></i>Changed against <em>${esc(meta.changed.parent.name)}</em> (${esc(meta.changed.parent.code)}) — ${meta.changed.cells.length} cell${meta.changed.cells.length === 1 ? '' : 's'} on ${meta.changed.lines} line${meta.changed.lines === 1 ? '' : 's'}</span>` : ''}<span class="muted">Mon–Sat hours average ${hmFromHours(P.hours.exSunday)} over ${LINES} lines, a cover week counted as a contracted week · days worked average over the ${WORKING_LINES} working lines · All week: grey = no Sunday duty · Turns: distinct clock times Monday to Friday, <b>bold</b> where the week is one turn (one clock time Mon–Fri and one early-or-late family across every worked day — the page 1 figure) · Minutes: duty minutes per day, and Mon–Sat is the contract (${WORKING_LINES} × 35h = ${CONTRACT_MINUTES.toLocaleString('en-GB')})</span></div>
+  <div class="legend"><span><i class="lg-early" style="background:color-mix(in srgb, var(--shift-early-fill) 16%, white)"></i>Early turns</span><span><i class="lg-late" style="background:color-mix(in srgb, var(--shift-late-fill) 16%, white)"></i>Late turns</span><span><i class="lg-cover" style="background:color-mix(in srgb, var(--accent-gold) 22%, white)"></i>Cover (spare) week — four duties Monday to Saturday, any turn; its Sunday can be overtime</span><span><i class="lg-rd" style="background:var(--surface-sunken);border:1px solid var(--border-mid)"></i>Rest day</span>${meta.changed ? `<span><i class="i-changed"></i>Changed against <em>${esc(meta.changed.parent.name)}</em> (${esc(meta.changed.parent.code)}) — ${meta.changed.cells.length} cell${meta.changed.cells.length === 1 ? '' : 's'} on ${meta.changed.lines} line${meta.changed.lines === 1 ? '' : 's'}</span>` : ''}<span class="muted">Mon–Sat hours average ${hmFromHours(P.hours.exSunday)} over ${LINES} lines, a cover week counted as a contracted week · days worked average over the ${WORKING_LINES} working lines · All week: grey = no Sunday duty · Turns: distinct clock times Monday to Friday, <b>bold</b> where the week is one turn (one clock time Mon–Fri and one early-or-late family across every worked day — the page 1 figure) · Minutes: duty minutes per day, and Mon–Sat is the contract (${WORKING_LINES} × 35h = ${CONTRACT_MINUTES.toLocaleString('en-GB')})</span></div>
   <h2 style="margin-top:14px">The words on this page</h2>
   <div class="gloss">
     <div><b>Link</b> — the whole rota: ${LINES} weeks laid out as ${LINES} lines. Everyone works line 1, then line 2, and so on round the wheel; the link needs ${LINES} people.</div>
@@ -762,12 +765,42 @@ ${meta.page9 ?? `<section class="page">
         const bottom = Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom));
         if (foot.getBoundingClientRect().top - bottom < 8) notes.classList.add('p5notes--dense');
       }
+      // PAGE 5 FITS A ROW PER WEEKDAY, TODAY'S AND THE PROPOSAL'S (4 Nov 2026). Well Kept keeps today's twenty weeks, so both
+      // its weekdays and today's differ day to day, and its weekday table is the tallest any sheet has drawn: with the notes
+      // already tight the page ran 21px onto another sheet. Then, and only then, the Saturday and Sunday tables take the
+      // weekday table's dense rows. Measured, as above, so a page that fits is never touched. No sheet in the pack takes it
+      // since Well Kept left (5 Nov 2026); it stays for any rota laid like today's, and so Well Kept can be rebuilt.
+      for (const sec of document.querySelectorAll('section.page')) {
+        const foot = sec.querySelector(':scope > .foot'); if (!foot || !sec.querySelector('ul.p5notes')) continue;
+        const over = () => sec.getBoundingClientRect().height > 1033
+          || Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom)) > foot.getBoundingClientRect().top - 8;
+        if (over()) for (const t of sec.querySelectorAll('table.p5t.cov-heat:not(.cov-heat--dense)')) t.classList.add('cov-heat--dense');
+      }
       // PAGE 3 FITS 26 LINES (1 Oct 2026). Two more rota rows than at 24 lines pushed the word list under the footer rule.
       // Measured, in two steps, only as far as needed: first the word list is set tighter, then the grid's rows.
       for (const sec of document.querySelectorAll('section.page')) {
         const foot = sec.querySelector(':scope > .foot'); if (!foot || !sec.querySelector('.gloss')) continue;
         const over = () => Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom)) - (foot.getBoundingClientRect().top - 16);
         for (const step of ['rota-tight', 'rota-tighter']) { if (over() <= 0) break; sec.classList.add(step); }
+      }
+      // PAGE 1 FITS A LONG CONCERNS LIST (4 Nov 2026). Quarter Past's twelve concerns ran the cover 56px onto a second sheet.
+      // The same two-step tightening as page 3 (plain.mjs says what each step does), and only on a cover the two checks below
+      // would refuse — taller than a page, or a line under its footer — so a cover that fits is never touched.
+      for (const sec of document.querySelectorAll('section.page.cover.plain')) {
+        const foot = sec.querySelector(':scope > .foot'); if (!foot) continue;
+        const kids = () => [...sec.children].filter(e => e !== foot && getComputedStyle(e).position !== 'absolute');
+        const over = () => sec.getBoundingClientRect().height > 1033 || Math.max(...kids().map(e => e.getBoundingClientRect().bottom)) > foot.getBoundingClientRect().top;
+        for (const step of ['p1-tight', 'p1-tighter']) { if (!over()) break; sec.classList.add(step); }
+      }
+      // PAGE 8 FITS THE OFFICE NOTE (4 Nov 2026). A rota that does not mark its office duties on every day carries one more
+      // sentence on the ticket-office card, and Well Kept's right-hand column ran 15px under the footer. The same two steps
+      // (plain.mjs says what each does), on the 8px floor page 5 keeps, and only on a page that would otherwise be refused.
+      // No sheet in the pack takes it since Well Kept left (5 Nov 2026); it stays for the next rota that needs it.
+      for (const sec of document.querySelectorAll('section.page')) {
+        const foot = sec.querySelector(':scope > .foot'); if (!foot || !sec.querySelector(':scope > .pcards')) continue;
+        const over = () => sec.getBoundingClientRect().height > 1033
+          || Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom)) > foot.getBoundingClientRect().top - 8;
+        for (const step of ['p8-tight', 'p8-tighter']) { if (!over()) break; sec.classList.add(step); }
       }
       // PAGE 6 TAKES ITS ROOM. The rules page left its bottom sixth empty on every sheet; what is spare (less a margin)
       // is shared out as row padding in the rules table — up to 4px a row, top and bottom alike. No text re-wraps.

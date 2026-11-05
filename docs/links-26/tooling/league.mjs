@@ -87,7 +87,10 @@ const SUM = Object.values(W).reduce((a, b) => a + b); for (const k in W) W[k] = 
 // The proposals are regenerate.mjs's SUPPLIED list, READ rather than typed (26 Oct 2026): the typed list stopped at the ten
 // of 3 Oct, so every later design would have been left out of the league without a word. pack.py reads it the same way.
 const SUPPLIED = [...fs.readFileSync(new URL('./regenerate.mjs', import.meta.url), 'utf8').matchAll(/name: '([^']+)',\s*code: '([^']+)'/g)].map(m => [m[1], m[2]]);
-const P = SUPPLIED.map(([n, c]) => stat(M26, n, load(`links-26/proposals/${n.replace(/ /g, '-')}-${c}.json`), 26, false));
+// in whichever of the pack's folders the design ships (report-data.mjs PACK_DIRS; the 30-day links in their own since 4 Nov 2026)
+const packFile = f => { const at = M26.PACK_DIRS.map(d => `links-26/${d}/${f}`).filter(x => fs.existsSync(R + x));
+  if (at.length !== 1) throw new Error(`league: ${f} is in ${at.length} of the pack's folders, not one`); return at[0]; };
+const P = SUPPLIED.map(([n, c]) => stat(M26, n, load(packFile(`${n.replace(/ /g, '-')}-${c}.json`)), 26, false));
 P.push(stat(M24, 'Familiar Nine (24)', load('links-24/proposals/Familiar-Nine-F9-24-K31s.json'), 24, false));
 const today = stat(M26, "Today's link", M26.today().patterns, 20, true);
 const fmt = (k, v) => k === 'fit' || k === 'late' || k === 'days' || k === 'lerl' ? v.toFixed(1) : k === 'rest' || k === 'step' || k === 'close' ? `${Math.floor(v / 60)}h${String(Math.round(v % 60)).padStart(2, '0')}` : k === 'heavy' ? `${Math.floor(v)}h${String(Math.round(v % 1 * 60)).padStart(2, '0')}` : ['wkends','iso','mixed','one','fam'].includes(k) ? `${Math.round(v * 100)}%` : String(v);

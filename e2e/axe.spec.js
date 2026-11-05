@@ -407,7 +407,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // The new link (v25.06, an admin preview; the December link until v25.10). Scanned in the state with the most structure: every way of
     // working open at once — seven tiles and six figure tables, each figure tied to its label by `headers` — then a
     // second proposal's weeks with the preview's audience list open.
-    test('newlink (admin, signed in) — Everything open, then In Step\'s weeks', async ({ page }) => {
+    test('newlink (admin, signed in) — Everything open, then Even Step\'s weeks', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
         await page.locator('[data-persona="all"]').click();
@@ -416,8 +416,8 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
         // a phone shows one proposal's weeks under its tabs; a wide screen shows all three side by side, with no tabs
         if ((page.viewportSize()?.width ?? 0) < 1024) {
-            await page.locator('[data-design="proposal:IS-26-T4"]').click();
-            await expect(page.locator('#nlWeeksPanel .is-chosen caption')).toContainText('In Step');
+            await page.locator('[data-design="proposal:ES-26-T5"]').click();
+            await expect(page.locator('#nlWeeksPanel .is-chosen caption')).toContainText('Even Step');
         } else {
             await expect(page.locator('#nlWeeksPanel caption')).toHaveCount(3);
         }

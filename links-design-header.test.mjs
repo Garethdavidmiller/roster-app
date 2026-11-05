@@ -466,7 +466,7 @@ describe('lastSaveTime — the display reading of a save time', () => {
 // is where it is listed.
 describe('render — a built-in proposal', () => {
     const PROPS = [{ id: 'proposal:ES-26-T5', name: 'Even Step — Dec 2026', ref: 'ES-26-T5 · d1921b7a' },
-                   { id: 'proposal:IS-26-T4', name: 'In Step — Dec 2026', ref: 'IS-26-T4 · 8d9239f3' },
+                   { id: 'proposal:CG-26-T8', name: 'Common Ground — Dec 2026', ref: 'CG-26-T8 · e02c295f' },
                    { id: 'proposal:SR-26-F1', name: 'Short Run — Dec 2026', ref: 'SR-26-F1 · 618348d6' }];
     const open = (/** @type {boolean} */ dirty) => {
         const { els, h } = harness();

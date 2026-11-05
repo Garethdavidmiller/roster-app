@@ -11,11 +11,11 @@
  *
  * ── WHY THE PAGE EXISTS ────────────────────────────────────────────────────────────────────────
  *
- * Short Run was shown to colleagues first; In Step and Even Step were drawn up afterwards, from what they said, and all
- * three are now on the shortlist (owner, 2 Nov 2026). A slide deck shown once cannot answer "what does it mean for ME?"
- * a week later, and three decks side by side cannot be compared on a phone. So the page leads with what has changed
- * since Short Run was shown, then what all three share, then lets each colleague pick the way they work and read the
- * three against today for exactly that — the pack's one-page sheet, made into a choice.
+ * Short Run was shown to colleagues first; the designs beside it were drawn up afterwards, and since 5 Nov 2026 the shortlist
+ * is Common Ground, Even Step and Short Run (owner; In Step, shortlisted from 30 Oct, left it). A slide deck shown once
+ * cannot answer "what does it mean for ME?" a week later, and three decks side by side cannot be compared on a phone. So
+ * the page leads with what has changed since Short Run was shown, then what all three share, then lets each colleague
+ * pick the way they work and read the three against today for exactly that — the pack's one-page sheet, made into a choice.
  *
  * ── WHO IT IS FOR ──────────────────────────────────────────────────────────────────────────────
  *
@@ -42,7 +42,7 @@ import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { PHASE, CLOSES, STARTS, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
 import { renderStatus, renderPreviewBanner, renderList, renderCommon, renderPersonas, renderPersonaChips,
-    renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou } from './newlink-render.js';
+    renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou, aToZ } from './newlink-render.js';
 
 /** The collapsible cards, by the id prefix their header, body and chevron share. */
 const CARDS = ['nlChanges', 'nlCommon', 'nlMeans', 'nlWeeks', 'nlSay', 'nlPack', 'nlHow'];
@@ -150,14 +150,14 @@ function renderStatic(member) {
  */
 function wireChoices(cards) {
     /** @type {string|null} */ let persona = null;
-    let design = PROPOSALS[0].id;   // A to Z: the first is first in the alphabet, not first in anyone's estimation
+    let design = aToZ(PROPOSALS)[0].id;   // A to Z: the first is first in the alphabet, not first in anyone's estimation (the page sorts for itself, whatever order the built-in list keeps)
 
     const drawPersonas = () => {
         setHTML('nlPersonaChips', renderPersonaChips(PERSONAS, persona));
         setHTML('nlPersonaPanel', renderPersonas(PERSONAS, COLUMNS, persona));
     };
     const drawWeeks = () => {
-        const p = PROPOSALS.find(x => x.id === design) ?? PROPOSALS[0];
+        const p = PROPOSALS.find(x => x.id === design) ?? aToZ(PROPOSALS)[0];
         setHTML('nlWeeksTabs', renderWeeksTabs(PROPOSALS, p.id));
         setHTML('nlWeeksPanel', renderAllWeeks(PROPOSALS, p.id));
     };

@@ -1,9 +1,9 @@
 # The rules — the new CEA link, 26 lines
 
-**Set by the owner on 1 Oct 2026.** This is the one list every 26-line design is judged against. It is the 24-line
+**Set on 1 Oct 2026.** This is the one list every 26-line design is judged against. It is the 24-line
 rule set (`../links-24/links-24-rules.pdf`, built by `../links-24/tooling/rules-sheet.mjs`) with **five
-changes**, each marked **▲ CHANGED**: four set on 1 Oct, and the weekday-closer rule (F3) added on 31 Oct. The owner
-reviewed every other rule and kept it as it was.
+changes**, each marked **▲ CHANGED**: four set on 1 Oct, and the weekday-closer rule (F3) added on 31 Oct. Every other
+rule was reviewed and kept as it was.
 
 The staffing levels were confirmed **verbally** (29 Sep 2026), as was the 24-person link, which then turned out to
 be 26. So it is worth getting the levels below in writing before a design is put forward.
@@ -27,8 +27,8 @@ be 26. So it is worth getting the levels below in writing before a design is put
    moves to line 1.
 3. **▲ CHANGED — Cover weeks.** **Five** of the 26 lines are cover weeks. A cover week is a line with no fixed shifts:
    four duties that week, placed by the roster clerk to cover leave and sickness. **The four are contracted days, Monday
-   to Saturday; the Sunday can be worked as overtime on top, as any Sunday can** (owner, 31 Oct 2026: "The 4 days can
-   only be the contractual days which are Monday to Saturday"). Every worst case counts that Sunday as worked.
+   to Saturday; the Sunday can be worked as overtime on top, as any Sunday can** (31 Oct 2026: the four can only be
+   the contractual days, Monday to Saturday). Every worst case counts that Sunday as worked.
 4. **Early and late.** A shift starting before 11:00 is an early; from 11:00 it is a late.
 5. **The floor.** The floor is everyone on duty except the four ticket-office staff.
    - **Monday to Saturday:** one of each ticket-office pair helps on the floor at the quiet ends, the morning one until
@@ -68,7 +68,7 @@ The headcounts are minimums: too few is the problem, never too many. **Unchanged
 |---|---|
 | F1 | **Fourteen on a Saturday.** Unchanged. |
 | F2 | **▲ CHANGED — Five cover weeks, as evenly spread as possible.** 26 does not divide by 5, so "as even as possible" means the gaps between cover weeks differ by **at most one line**: four gaps of 5 and one gap of 6 (for example lines 1, 6, 11, 16 and 21). |
-| F3 | **▲ CHANGED — Every weekday closer starts at 15:45 or later.** 15:45 is the minimum: 15:30 is too small a change from today's 15:15 (owner, 31 Oct 2026). A 16:00 closer meets it. Saturday's closer is not covered. |
+| F3 | **▲ CHANGED — Every weekday closer starts at 15:45 or later.** 15:45 is the minimum: 15:30 is too small a change from today's 15:15 (31 Oct 2026). A 16:00 closer meets it. Saturday's closer is not covered. |
 
 ## The contracted-days ceiling — ▲ CHANGED
 
@@ -105,7 +105,7 @@ has more duties than any of them, and longer ones on average than all but Famili
     overtime, since 31 Oct 2026);
   - hard limits tested at the worst case;
   - the match to the trains scored hour by hour against the December service, weighted by train length.
-- **Waivers are per design,** by owner decision. None is carried into 26 lines yet.
+- **Waivers are per design,** decided design by design. None is carried into 26 lines yet.
 - **Still open:** where the 13-day limit is written down; and how FF19 treats a rest day.
 
 ## Where the code follows
@@ -123,5 +123,5 @@ The tooling in `tooling/` applies all of this (set up 1 Oct 2026; see `README.md
 The Links page itself (`ROTATING_LINES` in `links-design.js`) moved to 26 lines in v24.47 on 3 October 2026; until then
 the tooling passed 26 to every app function explicitly, and it still does. The three shortlisted designs were built in
 as examples in the same release, and Closing Time, shortlisted on 30 October, joined them in v25.01. v25.02 narrowed
-them to the two then shortlisted, In Step and Short Run; since v25.04 the app builds in the three on the shortlist now,
-Even Step, In Step and Short Run.
+them to the two then shortlisted, In Step and Short Run, and v25.04 made them Even Step, In Step and Short Run; since
+v25.36 the app builds in the three on the shortlist now, Common Ground, Even Step and Short Run.

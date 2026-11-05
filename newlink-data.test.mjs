@@ -40,10 +40,11 @@ test('newlink-data.js is exactly what the generator writes from the pack today',
     }
 });
 
-test('its columns are today and the built-in proposals, in the same order — A to Z', () => {
+test('its columns are today and the built-in proposals, A to Z', () => {
+    // This page presents the three evenly, which means alphabetically, so its columns are sorted rather than copied
+    // from the app's list — which is A to Z too since 5 Nov 2026, and was not for the two days before.
     const names = PROPOSALS.map(p => p.name.replace(/ — Dec 2026$/, ''));
-    assert.deepEqual([...COLUMNS], ['Today', ...names]);
-    assert.deepEqual(names, [...names].sort(), 'the page presents the three evenly, which means alphabetically');
+    assert.deepEqual([...COLUMNS], ['Today', ...[...names].sort((a, b) => a.localeCompare(b, 'en-GB'))]);
 });
 
 test('six ways of working, each a sentence and rows of four figures, and only a proposal is ever marked best', () => {
