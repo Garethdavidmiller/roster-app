@@ -4264,6 +4264,59 @@ is not in the pack, the summary or the league; the sheet was rendered on its own
 - start times moving 4h 06m from one week to the next (the shortlist 1h 12m to 1h 31m, today 4h 00m);
 - a weekday fit to the trains of 50.4, about today's 52.0, where the shortlist's is 29.1 to 32.7.
 
+## Relief Point — Balanced V5 with a 15-minute handover (5 Nov 2026)
+
+Owner, after going through Balanced V5's weekday fit hour by hour: *"Create another proposal with the 7.30 to 1600
+change on weekdays. This allows 15 minutes for a handover. Give the proposal a new name"*.
+
+**The one change.** Balanced V5's three weekday 08:00–16:30s become 07:30–16:00. The shift is the same 8h 30m, so the
+contract and every week's hours are untouched. That is 15 cells, on lines 3, 4, 12, 13, 20 and 22. Saturday's two
+08:00–16:30s are kept, as the owner asked. The grid is `tooling/results/relief-point.json`, with a `.meta.json` that
+names Balanced V5 as its parent. The sheet was rendered on its own, as Balanced V5's was:
+
+```
+OUT=/tmp/Relief-Point.pdf node supplied.mjs results/relief-point.json "Relief Point" "The weekday 08:00–16:30s of Balanced V5 start at 07:30 and finish at 16:00, so the 15:45 closers get a 15-minute handover" RP-26-V5
+```
+
+**The name.** Relief Point, code `RP-26-V5`, fingerprint `1818a1c2`. On the railway, a relief point is where one crew
+hands over to the next; here the three 07:30–16:00s are on with the three 15:45 closers for 15 minutes. Two words,
+neither shared with another design's name. The code keeps its parent's `V5`, as Grand Tour kept Fair Share's `T7`, and
+`RP` was checked against every code in `links-24/` and `links-26/`. It is not in the pack, the summary or the league.
+
+**Why 07:30.** The weekday fit is scored hour by hour, and an hour can hide a quarter-hour. The fits below are the
+sheet's own (`officeSplit`, `dayFit`). The floor counts are everyone on duty, less the ticket office, plus its helper
+while helping. They are the same every weekday, except today's.
+
+| The three weekday 08:00–16:30s | Weekday fit | 07:00–07:30 | 07:30–08:00 | 15:30–15:45 | 15:45–16:00 | 16:00–16:30 |
+|---|---|---|---|---|---|---|
+| Carriages in and out | | 44 | 63 | 35 | 10 | 57 |
+| As drawn (Balanced V5) | 50.4 | 3 | 3 | 6 | 9 | 9 |
+| At 07:00–15:30 | 33.8 | 6 | 6 | **3** | 6 | 6 |
+| **At 07:30–16:00 (Relief Point)** | 40.0 | 3 | 6 | 6 | 9 | 6 |
+| Two at 07:00–15:30, one at 08:00–16:30 | 36.0 | 5 | 5 | 4 | 7 | 7 |
+| Today | 52.0 | 3 | 3 | 5–6 | 5–6 | 5–6 |
+
+15:30 to 15:45 is the 8th busiest of the weekday's 71 quarter-hours: 35 carriages, where the average is 24. Starting at
+07:00 scores best, but it leaves three on the floor then, after the 07:00s go and before the closers come. The closers
+cannot come in earlier, because 15:45 is the weekday minimum for a closer. Starting at 07:30 keeps six on then and gives
+the handover. It pays for that by keeping today's three from 07:00 to 07:30, and by putting nine on the floor in the
+quiet quarter after 15:45. The split was offered as a middle way; the owner asked for 07:30, for the handover.
+
+**Against Balanced V5, what the sheet now says:**
+- the weekday fit to the trains is 40.0, from 50.4 (today 52.0; the shortlist 29.1 to 32.7). The 07:00 hour averages
+  4.5 on the floor where it had 3, and the 16:00 hour 6 where it had 7½. Saturday (17.5) and Sunday (29.0) are
+  unchanged;
+- the shortest rest is 14h 20m, from 13h 50m. The two 16:30 finishes followed by a 06:20 start the next day now finish
+  at 16:00;
+- 17 shift times, 8 of them new, where Balanced V5 has 16 and 7. Nobody works 07:30–16:00 today, and 08:00–16:30,
+  which today's link does work, stays on Saturdays;
+- start times move 4h 08m from one week to the next, from 4h 06m (today 4h 00m).
+
+Everything else is Balanced V5's: the hours and the contract, every hard limit, and 8 of the 9 December rules (the
+Saturday ticket office is still the one missing). There is no fatigue warning in the fixed duties, and up to 4 if a
+cover week falls badly. It has about 12 full weekends off a year, about 22 single rest days a year and three six-day
+weeks, and 14 days' leave still buys 30 days off.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
