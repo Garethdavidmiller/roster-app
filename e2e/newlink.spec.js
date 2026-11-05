@@ -9,6 +9,7 @@
  */
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
+import { CHANGES } from '../newlink-data.js';
 
 test.describe('new link', () => {
     test('the admin sees the preview, the three proposals A to Z, and no recommendation anywhere', async ({ page }) => {
@@ -26,7 +27,7 @@ test.describe('new link', () => {
         // EVENLY: nothing on the page names a recommendation (owner, 2 Nov 2026: "No, three evenly")
         await expect(page.locator('main')).not.toContainText(/recommend/i);
         // what has changed since Short Run was shown, and what all three share — gains AND costs
-        await expect(page.locator('#nlChangesList li')).toHaveCount(5);
+        await expect(page.locator('#nlChangesList li')).toHaveCount(CHANGES.length);   // every line the data holds, however many
         await expect(page.locator('.nl-side--gain li').first()).toBeVisible();
         await expect(page.locator('.nl-side--cost li').first()).toBeVisible();
         expect(errors).toEqual([]);
