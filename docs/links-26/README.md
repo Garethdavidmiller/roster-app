@@ -4281,7 +4281,9 @@ OUT=/tmp/Relief-Point.pdf node supplied.mjs results/relief-point.json "Relief Po
 **The name.** Relief Point, code `RP-26-V5`, fingerprint `1818a1c2`. On the railway, a relief point is where one crew
 hands over to the next; here the three 07:30–16:00s are on with the three 15:45 closers for 15 minutes. Two words,
 neither shared with another design's name. The code keeps its parent's `V5`, as Grand Tour kept Fair Share's `T7`, and
-`RP` was checked against every code in `links-24/` and `links-26/`. It is not in the pack, the summary or the league.
+`RP` was checked against every code in `links-24/` and `links-26/`. It is not in the pack, the summary or the league,
+and it is kept on the owner's word (*"Keep relief point for now please"*, 5 Nov 2026). Its grid and meta stay under
+`tooling/results/`, and the command above rebuilds the same sheet.
 
 **Why 07:30.** The weekday fit is scored hour by hour, and an hour can hide a quarter-hour. The fits below are the
 sheet's own (`officeSplit`, `dayFit`). The floor counts are everyone on duty, less the ticket office, plus its helper
