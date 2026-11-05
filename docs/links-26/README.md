@@ -4231,6 +4231,39 @@ when finished"*. Four reviews ran — accuracy of the sheets, accuracy of the de
 **Left as it is:** the PowerPoints use Inter, which is not embedded; the read-me says to present the PDF on a PC
 without it.
 
+## Balanced V5 — a one-page roster, read and given its sheet (5 Nov 2026)
+
+Owner, uploading a one-page A3 PDF headed *Marylebone Balanced 26 / Version 5* ("Grouped 06:20 and 08:00 starts |
+Same-day exchanges | MB26-V1 remains favourite"): *"Please turn this into a proposal sheet"*.
+
+**How it was read**, as Quarter Past was: line by line from the PDF's own text, with nothing changed and nothing
+searched. Each SP week is a whole cover week, on lines 1, 6, 11, 16 and 21, and every time is as written. Every working
+week's Monday-to-Saturday hours and days match the sheet's own HRS and DAYS columns, and together they make exactly
+44,100 minutes, 35 hours for each of the 21 working weeks. The grid is `tooling/results/balanced-v5.json`, with a
+`.meta.json`; the PDF itself is not committed.
+
+**The name is its own**, shortened: Balanced V5, code `MB-26-V5` (its author's MB26-V5), fingerprint `ded4a15f`. It
+is not in the pack, the summary or the league; the sheet was rendered on its own (`supplied.mjs`).
+
+**What the sheet finds**, every figure computed from the cells:
+- inside every hard limit: 218.6 contracted days a year, a shortest rest of 13h 50m, at most 5 days in a row (10 if a
+  cover week falls badly);
+- 8 of the 9 December staffing rules. The ticket office's two identical earlies and two identical lates are missing
+  on a Saturday;
+- no avoidable fatigue warning in the fixed duties, as its own footer says, and up to 4 if a cover week falls badly,
+  one of them over 55 hours in seven days;
+- 14 days' leave buys 30 days off, and four weeks off take 14, as today, so it would belong with the 30-day links;
+- about 12 full weekends off a year (the shortlist 14, today 10), never more than 6 weeks apart;
+- 15 on duty every weekday, 14 on a Saturday and 10 on a Sunday, as its footer says.
+
+**Against the shortlist it costs:**
+- about 22 single rest days a year each (Common Ground 12, Even Step and Short Run 8, today 10), and three six-day
+  weeks (today one);
+- 7 of 21 weeks on one shift time, all earlies or all lates, where the shortlist has 18 or 19, and 3 weeks mixing
+  earlies and lates, where the shortlist has none;
+- start times moving 4h 06m from one week to the next (the shortlist 1h 12m to 1h 31m, today 4h 00m);
+- a weekday fit to the trains of 50.4, about today's 52.0, where the shortlist's is 29.1 to 32.7.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
