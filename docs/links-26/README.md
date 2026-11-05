@@ -33,9 +33,12 @@ mid-table places moved; Even Step stayed first. *Today's three join the pack* ha
 and Well Kept joined the 30-day folder; the leaders' scores fell about 1.2 points, Grand Tour's 2.7, and Even Step is
 first again. *Quarter Past out, Well Kept in* has the table and the reason.
 
+**League scores dated 4 to 5 Nov 2026 with Well Kept in the pack are on the ranges it stretched.** It was taken out on
+5 Nov; every score fell 0.4 to 1.0 points, and Even Step is still first. *Well Kept out* has the table.
+
 **Three designs were renamed on 4 Nov 2026** (owner: "Give all proposals individual names"): Quarter Past Relaid is
 **Open Return** (`OR-26-EXT`, drawn as `QR-26-EXT`), Fair Share's 30-day search result, which had no name, is **Grand
-Tour** (`GT-26-T7`), and Same Again Tidy is **Well Kept** (`WK-26-S2`, since it joined the pack that evening). Each
+Tour** (`GT-26-T7`), and Same Again Tidy is **Well Kept** (`WK-26-S2`, while it was in the pack, 4 to 5 Nov). Each
 fingerprint is unchanged. The dated sections before
 *30 days off for 14 days' leave* keep the names they were written with, and so do the grids in `tooling/results/`.
 
@@ -3935,6 +3938,72 @@ Weighted as before 31 Oct (`OLD_READINGS=1`), In Step leads on 88.5, Even Step i
 
 **Checks:** `regenerate.mjs --check` (19 fingerprints unmoved, Common Ground's in `30-days-off/`), `check.mjs`,
 `deck-check.mjs` (162 rows agree) and the pack zip builds.
+
+## Well Kept out (5 Nov 2026)
+
+**The request** (owner, 5 Nov 2026): *"Remove well kept"*, after asking how it was built: today's twenty weeks kept as
+they are, with six weeks added by a search (*Same Again*, above), in the version that let a tidy week outweigh a
+December rule.
+
+**What went.** Its sheet, grid and import file are gone from `30-days-off/`, and its entry from `regenerate.mjs`'s
+`SUPPLIED`, with its strap, family and date in `fresh.mjs`. Its grid and meta stay in
+`tooling/results/same-again-tidy.json`, and the sections above keep it, as they keep every design that has left. The
+30-day folder holds four again: Grand Tour, Common Ground, Short Openers and Open Return.
+
+**What it had changed, and is now put back.** Well Kept was the only design in the pack that missed December rules (7 of
+9), so three things on the shortlist sheet had been worded around it:
+- the guide's heading for the designs outside the shortlist read "Outside the shortlist, meeting every rule", and is
+  "Outside the shortlist" again;
+- Home Grown's row read "two new times, the fewest of any link meeting every rule" (Well Kept had none new), and reads
+  "the fewest new times, two" again, with its claim back to "the fewest of all";
+- a claim held that Well Kept was the one design the guide left out. In its place a claim holds that every design in
+  the pack meets every December rule, so a design that misses one has to be decided on before the sheet prints, rather
+  than dropped from the guide without a word.
+
+Its page-2 row went with it, and the leave cost reads "only Long Break and the four links that buy 30 days off". The
+read-me now says Quarter Past and Well Kept were each in the pack for a few hours and taken out, and refuses to build if
+either is back in `SUPPLIED`.
+
+The two measured steps `render.mjs` gained for Well Kept's sheet (page 5's tables, page 8's cards) stay. No sheet in the
+pack takes them now, and they let Well Kept, or the next rota laid like today's, render without overflowing.
+
+**The league**, `REF_IN_RANGE=1`. Well Kept set the far end of four measures (10 days in a row, 8 weeks between full
+weekends, 7 single rest days and a 4h 06m change of start). With it gone those ranges close up, so every score falls,
+by 0.4 to 1.0 points. The weights are the owner's of 3 Nov, unchanged.
+
+| | Design | Score |
+|---|---|---|
+| 1 | **Even Step** ★ shortlisted, recommended | **85.5** |
+| 2 | Next Step | 85.3 |
+| 3 | Closing Time | 85.2 |
+| 4 | Fair Share | 85.1 |
+| 5 | Grand Tour (30-day folder) | 83.9 |
+| 6 | Clean Slate | 83.7 |
+| 7 | Common Ground (30-day folder) | 83.7 |
+| 8 | Short Openers (30-day folder) | 83.2 |
+| 9 | Home Grown | 82.9 |
+| 10 | Second Edition | 82.4 |
+| 11 | Even Keel | 82.3 |
+| 12 | Short Run ★ shortlisted | 81.7 |
+| 13 | Fine Tune | 81.5 |
+| 14 | Second Look | 81.1 |
+| 15 | Long Break | 81.1 |
+| 16 | Open Return (30-day folder) | 80.9 |
+| 17 | Both Ways | 80.8 |
+| 18 | In Step ★ shortlisted | 80.6 |
+| — | Familiar Nine (24 lines, for reference) | 70.1 |
+| — | Today's link (for reference) | 17.4 |
+
+Places are by the unrounded score: Clean Slate is a thousandth of a point ahead of Common Ground (83.674 against
+83.673), and Second Look seven thousandths ahead of Long Break. Even Step stays first, under half a point ahead of Next
+Step, Closing Time and Fair Share, so the shortlist sheet's "judgement" paragraph and its claims hold as they were.
+Weighted as before 31 Oct (`OLD_READINGS=1`), In Step leads on 87.8, with Even Step on 87.0.
+
+**Re-rendered, and kept as committed:** all eighteen sheets and the rules sheet. Only the Prepared date moved. The
+summary prints its eighteen rows at 80% without the dense rows, and the shortlist sheet's pages have 3px and 18px to
+spare.
+
+**Checks:** `regenerate.mjs --check` (18 fingerprints unmoved), `check.mjs`, `deck-check.mjs` and the pack zip builds.
 
 ## Notes for the whole set
 

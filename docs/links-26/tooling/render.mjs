@@ -765,7 +765,8 @@ ${meta.page9 ?? `<section class="page">
       // PAGE 5 FITS A ROW PER WEEKDAY, TODAY'S AND THE PROPOSAL'S (4 Nov 2026). Well Kept keeps today's twenty weeks, so both
       // its weekdays and today's differ day to day, and its weekday table is the tallest any sheet has drawn: with the notes
       // already tight the page ran 21px onto another sheet. Then, and only then, the Saturday and Sunday tables take the
-      // weekday table's dense rows. Measured, as above, so a page that fits is never touched.
+      // weekday table's dense rows. Measured, as above, so a page that fits is never touched. No sheet in the pack takes it
+      // since Well Kept left (5 Nov 2026); it stays for any rota laid like today's, and so Well Kept can be rebuilt.
       for (const sec of document.querySelectorAll('section.page')) {
         const foot = sec.querySelector(':scope > .foot'); if (!foot || !sec.querySelector('ul.p5notes')) continue;
         const over = () => sec.getBoundingClientRect().height > 1033
@@ -791,6 +792,7 @@ ${meta.page9 ?? `<section class="page">
       // PAGE 8 FITS THE OFFICE NOTE (4 Nov 2026). A rota that does not mark its office duties on every day carries one more
       // sentence on the ticket-office card, and Well Kept's right-hand column ran 15px under the footer. The same two steps
       // (plain.mjs says what each does), on the 8px floor page 5 keeps, and only on a page that would otherwise be refused.
+      // No sheet in the pack takes it since Well Kept left (5 Nov 2026); it stays for the next rota that needs it.
       for (const sec of document.querySelectorAll('section.page')) {
         const foot = sec.querySelector(':scope > .foot'); if (!foot || !sec.querySelector(':scope > .pcards')) continue;
         const over = () => sec.getBoundingClientRect().height > 1033

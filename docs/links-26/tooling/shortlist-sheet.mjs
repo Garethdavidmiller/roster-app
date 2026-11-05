@@ -87,6 +87,10 @@
 // days off was true of main's pack and not of this one, so it joins the shared 30-day row; main's other findings (joint-most
 // weeks on one turn with Clean Slate, no early over 8h 30m on any day, its keeps and pays) stand. The guide's four-weeks row
 // names five designs, so the guide's columns are fixed and only that cell wraps; page 2 takes main's tighter row padding.
+// WELL KEPT TAKEN OUT, 5 NOV 2026 (owner: "Remove well kept"). Every design left meets every December rule, so what Well Kept
+// had added for a design that misses two goes with it: the guide's heading is "Outside the shortlist" again, Home Grown's
+// row "the fewest new times" again, and a claim holds that every design meets every rule, so a design that misses one has
+// to be decided on before the sheet prints, not dropped from the guide unremarked. Its page-2 row went with it.
 //   node shortlist-sheet.mjs        → ../links-26-shortlist.pdf (the .html stays in tooling/, gitignored)
 import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -238,7 +242,7 @@ const loses = d => { const x = measure(d.F); return Object.keys(DIR).filter(k =>
 const O = Object.fromEntries(others.map(d => [d.name, d])), K = Object.fromEntries(others.map(d => [d.name, keeps(d).join()]));
 const NAMED = { 'Both Ways': 'closerSat,closerWk,earlyOff,heavy,newT', 'Clean Slate': 'fitSat,fitSun,one', 'Closing Time': 'closerSat,closerWk,fitSat,light,step',
   'Even Keel': '', 'Fine Tune': 'step', 'Home Grown': 'closerWk,longEarly,newT,times', 'Long Break': 'lvBest,lvFour', 'Next Step': '', 'Fair Share': 'longEarly,longShift',
-  'Second Edition': 'step', 'Second Look': 'block,worstRun', 'Well Kept': 'block,earlyOff,late22,longEarly,lvBest,lvFour,newT', 'Open Return': 'closerWk,lvBest,lvFour,worstRun',
+  'Second Edition': 'step', 'Second Look': 'block,worstRun', 'Open Return': 'closerWk,lvBest,lvFour,worstRun',
   'Short Openers': 'lvBest,lvFour,step,worstRun', 'Grand Tour': 'longEarly,longShift,lvBest,lvFour',
   'Common Ground': 'fitSun,longEarly,lvBest,lvFour,one,step' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
@@ -269,26 +273,19 @@ claim('Clean Slate, Common Ground, Fair Share, Next Step, Grand Tour, Open Retur
 // THE 30-DAY LINKS SHARE ONE ROW (4 Nov 2026): the designs where 14 days' leave buys 30 days off, as today, are exactly the ones
 // in the 30-day folder, and the row says what all of them keep — that and four weeks off for 14 — and the one cost all of them
 // pay, more single rest days, read here (THIRTY_ISO), never typed
-// Since the same evening the folder holds Well Kept too, drawn up before the shortlist, so it has a row of its own above the
-// late ones (WK below) and the shared row is the late three
 // Common Ground (main, the same evening) buys 30 days too, on Grand Tour's weeks, so it is in the folder and the shared row: four late ones
 const THIRTY = PACK.filter(d => d.F.lv.best >= TF.lv.best), THIRTY_LATE = THIRTY.filter(d => LATE.includes(d.name));
 const THIRTY_ISO = [...new Set(THIRTY_LATE.map(d => d.F.A.feel.isolatedRest))].sort((a, b) => a - b);
-claim('Common Ground, Grand Tour, Open Return, Short Openers and Well Kept: today’s 30 days off and four weeks off for 14 days’ leave, and every one of them in the 30-day folder',
-  TF.lv.best === 30 && THIRTY.map(d => d.name).sort().join() === 'Common Ground,Grand Tour,Open Return,Short Openers,Well Kept'
+claim('Common Ground, Grand Tour, Open Return and Short Openers: today’s 30 days off and four weeks off for 14 days’ leave, and every one of them in the 30-day folder',
+  TF.lv.best === 30 && THIRTY.map(d => d.name).sort().join() === 'Common Ground,Grand Tour,Open Return,Short Openers'
   && THIRTY_LATE.map(d => d.name).sort().join() === 'Common Ground,Grand Tour,Open Return,Short Openers'
   && THIRTY.every(d => d.F.lv.fourWeeks === TF.lv.fourWeeks && stats.find(s => s.name === d.name).dir === '30-days-off')
   && stats.filter(s => s.dir === '30-days-off').length === THIRTY.length);
 claim('the late 30-day links: more single rest days than the three, every one', THIRTY_ISO.length === 2 && THIRTY_ISO[0] > iso);
-// WELL KEPT'S ROW (4 Nov 2026): today's shift times only, so no new one, and today's 30 days — for two December rules missed
-// and three fatigue warnings in the fixed duties, where the three have none. "today’s times" and "two rules" keep it to one line:
-// the fuller wording wrapped and ran page 2 10px into its footer
-const WK = O['Well Kept'].F;
 // the leave cost's "of the whole pack": every 30-day link keeps four weeks for 14 too, and only Long Break besides
 const FOUR_ALL = PACK.filter(d => d.F.lv.fourWeeks <= TF.lv.fourWeeks), FOUR_REST = FOUR_ALL.filter(d => !THIRTY.includes(d));
 claim('of the whole pack, the 30-day links and Long Break keep four weeks off for 14 days’ leave, and no other design does', THIRTY.every(d => FOUR_ALL.includes(d))
   && FOUR_REST.map(d => d.name).join() === 'Long Break');
-claim('Well Kept: today’s shift times only, 30 days off for 14 days’ leave, two December rules missed, and fatigue warnings in the fixed duties, where the three have none', WK.newT === 0 && WK.lv.best === TF.lv.best && WK.of - WK.met === 2 && WK.A.fixed.present > 1 && D.every(d => d.F.A.fixed.present === 0));
 // the shortlist's date is the day its last design joined (Even Step's, read from FIRST, so the lead never types it)
 claim('the shortlist was drawn the day Even Step joined, the last of the three', dateOf(ES.code) === drawn);
 // the late designs are the LAST rows of page 2's table, under one note in its heading that names the first of them (4 Nov
@@ -306,10 +303,8 @@ claim('Next Step: Even Step’s figures but a closer weekday fit, a gentler chan
   && xNS.fitWk < xES.fitWk && xNS.step < xES.step && xNS.newT === xES.newT + 1 && xNS.times === xES.times + 1 && longMS(NX) === 0);
 claim('Next Step: a weekday fit closer than Even Step’s, not than In Step’s or Short Run’s — so its row says which', [IS, SR].every(d => d.F.fit[0] < NX.fit[0]));
 // Grand Tour has Fair Share's duties (4 Nov 2026), so it shares every one of Fair Share's: no early, and no shift, over 8h 30m on any day.
-// Well Kept, today's shift times only, has no early over 8h 30m either; it misses two December rules, so Home Grown's row says
-// "of any link meeting every rule" for its fewest new times and claims nothing alone about the earlies
 // Common Ground (main, 4 Nov 2026) has none either, on today's link's brief
-claim('Home Grown, Fair Share, Grand Tour, Common Ground and Well Kept: the only designs with no early over 8h 30m on any day', PACK.filter(d => longEarly(d.F) === 0).map(d => d.name).sort().join() === 'Common Ground,Fair Share,Grand Tour,Home Grown,Well Kept');
+claim('Home Grown, Fair Share, Grand Tour and Common Ground: the only designs with no early over 8h 30m on any day', PACK.filter(d => longEarly(d.F) === 0).map(d => d.name).sort().join() === 'Common Ground,Fair Share,Grand Tour,Home Grown');
 claim('Home Grown: today’s Saturday closer', HG.closers[1] === TF.closers[1]);
 // FAIR SHARE IS NEXT STEP WITH AN EVEN SUNDAY (4 Nov 2026), and its row says exactly that: only Sunday cells differ, every Sunday
 // duty is 8h 10m or 8h 15m, so nothing on any day is over 8h 30m — for a weaker Sunday fit than Next Step's and one more new time
@@ -326,10 +321,8 @@ claim('Even Keel and Fine Tune: four to the Saturday close, where the three have
 claim('Second Look, Open Return and Short Openers: the designs where a badly placed cover week makes no 55-hour week',
   PACK.filter(d => !h55Of(d.F)?.adds).map(d => d.name).sort().join() === 'Open Return,Second Look,Short Openers');
 claim('Closing Time: more even weeks', (O['Closing Time'].F.heavy - O['Closing Time'].F.light) < lowest(F => F.heavy - F.light));
-// "of any link meeting every rule" since 4 Nov 2026: Well Kept has no new time at all, and misses two December rules
 const meetsAll = F => F.met === F.of;
-claim('Home Grown: the fewest new times of any link meeting every rule', others.every(d => d.name === 'Home Grown' || !meetsAll(d.F) || d.F.newT > O['Home Grown'].F.newT) && O['Home Grown'].F.newT < lowest(F => F.newT)
-  && others.some(d => !meetsAll(d.F) && d.F.newT < O['Home Grown'].F.newT));
+claim('Home Grown: the fewest new times of all', others.every(d => d.name === 'Home Grown' || d.F.newT > O['Home Grown'].F.newT) && O['Home Grown'].F.newT < lowest(F => F.newT));
 claim('Long Break: a fifth single rest day', LB.A.feel.isolatedRest === iso + 1);
 claim('Second Edition the gentlest step of all, Fine Tune and Closing Time gentler than the three', PACK.every(d => d.name === 'Second Edition' || d.F.step > O['Second Edition'].F.step)
   && ['Fine Tune', 'Closing Time'].every(n => Math.round(O[n].F.step) < lowest(F => Math.round(F.step))));
@@ -411,9 +404,10 @@ claim('weighted as before: In Step first, under a point ahead of Even Step', ran
 claim('In Step has the most long earlies of any design here', stats.every(s => s.name === 'In Step' || longEarly(design(s.name).F) < longEarly(IF)));
 // the guide's rows for designs outside the shortlist: each the strongest in the league of those that have its edge
 // ONLY DESIGNS THAT MEET EVERY RULE (4 Nov 2026): the guide answers "if the main priority is …, choose …", and a design that
-// misses a December rule is not one to choose; its heading row says so. Well Kept is the one it leaves out
+// misses a December rule is not one to choose. Well Kept was the one it left out until it left the pack (5 Nov 2026); every
+// design meets every rule now, and the claim below makes a new one that misses a rule a decision, not a silent omission
 const allD = stats.map(s => design(s.name)), strongest = (test) => { const has = allD.filter(d => meetsAll(d.F) && test(d.F)); return has.sort((a, b) => total(b.name) - total(a.name)).map(d => d.name); };
-claim('the guide leaves out only Well Kept, the one design that misses a rule', allD.filter(d => !meetsAll(d.F)).map(d => d.name).join() === 'Well Kept');
+claim('every design in the pack meets every December rule, so the guide chooses among all of them', allD.every(d => meetsAll(d.F)));
 // A 16:00 CLOSER MONDAY TO SATURDAY, SHORTER THAN THE THREE'S (4 Nov 2026). The row said "the shortest closers of all" until
 // Quarter Past joined: its 16:15 weekday closer is shorter than Closing Time's and its 15:45 Saturday one longer, the two level
 // only when added together. So the row names what Closing Time and Both Ways alone have, read from the grids: every closer
@@ -427,7 +421,7 @@ claim('a fourth to the Saturday close: Even Keel, then Fine Tune', fourth.join()
 claim('the steadiest start times: Second Edition', allD.every(d => d.name === 'Second Edition' || d.F.step > O['Second Edition'].F.step));
 const fourWk = strongest(F => F.lv.fourWeeks <= TF.lv.fourWeeks);
 claim('four weeks off for today’s 14 days: Grand Tour first, then Common Ground, Short Openers, Long Break and Open Return', fourWk.join() === 'Grand Tour,Common Ground,Short Openers,Long Break,Open Return' && TF.lv.fourWeeks === 14);
-claim('the fewest new shift times, of the links meeting every rule: Home Grown, two', allD.every(d => d.name === 'Home Grown' || !meetsAll(d.F) || d.F.newT > HG.newT) && HG.newT === 2);
+claim('the fewest new shift times: Home Grown, two', allD.every(d => d.name === 'Home Grown' || d.F.newT > HG.newT) && HG.newT === 2);
 
 // page 2, the honest costs all three share
 claim('three or more to the close every day, where today has two Monday to Saturday', D.every(d => Object.values(d.F.A.heads.close).every(x => x >= 3)) && MS.every(dd => TF.A.heads.close[dd] === 2));
@@ -597,7 +591,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Of these three, no shift over 8h&nbsp;30m from Monday to Saturday</td><td><b>Even Step</b></td></tr>
     <tr><td>Of these three, the steadiest weekly hours and the most early finishes</td><td><b>In Step</b></td></tr>
     <tr><td>Of these three, the closest weekday fit and the shortest weekday lates</td><td><b>Short Run</b></td></tr>
-    <tr class="grp"><th colspan="2">Outside the shortlist, meeting every rule</th></tr>
+    <tr class="grp"><th colspan="2">Outside the shortlist</th></tr>
     <tr><td>A 16:00 closer Monday to Saturday, shorter than the ${N}’s</td><td><b>Closing Time</b> <span class="muted">· Both Ways too</span></td></tr>
     <tr><td>The fewest new shift times: two</td><td><b>Home Grown</b></td></tr>
     <tr><td>A fourth person to the Saturday close</td><td><b>Even Keel</b> <span class="muted">· Fine Tune too</span></td></tr>
@@ -619,12 +613,11 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <table class="t alts"><tbody>
     <tr><td>Closing Time</td><td>shorter closers and a closer Saturday fit — but fewer weeks on one turn and a weaker weekday fit</td></tr>
     <tr><td>Both Ways</td><td>shorter closers and more early finishes — but fewer weeks on one turn and more long shifts</td></tr>
-    <tr><td>Home Grown</td><td>${word(HG.newT)} new times, the fewest of any link meeting every rule, and no early over 8h&nbsp;30m on any day — but today’s ${hm(HG.closers[1])} Saturday closer and a weaker fit</td></tr>
+    <tr><td>Home Grown</td><td>the fewest new times, ${word(HG.newT)}, and no early over 8h&nbsp;30m on any day — but today’s ${hm(HG.closers[1])} Saturday closer and a weaker fit</td></tr>
     <tr><td>Even Keel, Fine Tune</td><td>four at the Saturday close — but weeks mixing earlies and lates, and longer blocks</td></tr>
     <tr><td>Second Edition</td><td>the steadiest start times from week to week — but ${word(O['Second Edition'].F.fixedRun)} days in a row, cover weeks aside</td></tr>
     <tr><td>Long Break</td><td>four weeks off for ${LB.lv.fourWeeks} days’ leave — but ${word(LB.fixedRun)} days in a row and a ${ord(LB.A.feel.isolatedRest)} single rest day</td></tr>
     <tr><td>Second Look</td><td>no 55-hour week at all — but ${word(SL.fixedRun)} days in a row and fewer weeks on one turn</td></tr>
-    <tr><td>Well Kept</td><td>today’s times and ${WK.lv.best} days off for 14 days’ leave — but ${word(WK.of - WK.met)} rules missed and ${word(WK.A.fixed.present)} fatigue ${many(WK.A.fixed.present, 'warning')}</td></tr>
     <tr><td>Clean Slate</td><td>the best weekend fit and joint-most weeks on one turn — but ${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday</td></tr>
     <tr><td>Next Step</td><td>Even Step with a closer weekday fit and a gentler change of start — but one more new time</td></tr>
     <tr><td>Fair Share</td><td>Next Step with an even Sunday and no shift over 8h&nbsp;30m — but a weaker Sunday fit and a new time</td></tr>

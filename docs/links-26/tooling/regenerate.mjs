@@ -114,10 +114,9 @@ export const SUPPLIED = [
     // Grand Tour (4 Nov 2026): Fair Share's duties in new weeks, so that 14 days' leave buys 30 days off and four weeks off
     // take 14, as today — the answer to the owner's question that morning (README.md → "Fair Share", run e). It was a search
     // result with no name, sheet or import file until the 30-day folder was made
-    // Well Kept (4 Nov 2026, owner: "add any other 30 days off proposals to the subfolder"): drawn on 26 Oct 2026 as Same Again
-    // Tidy, today's twenty weeks with six added, and the one other 26-line link where 14 days' leave buys 30 days off. It misses
-    // two December rules (README.md → "Same Again"), which its sheet and the 30-day folder's README say. Same Again is SA-26-S1
-    { file: 'results/same-again-tidy.json',      name: 'Well Kept',            code: 'WK-26-S2',  fp: '1db1381a', dir: '30-days-off', strap: 'Today’s twenty weeks kept, six added on today’s shift times: 14 days’ leave buys 30 days off, as today, but two December rules are missed' },
+    // WELL KEPT TAKEN OUT, 5 NOV 2026 (owner: "Remove well kept"): Same Again Tidy, WK-26-S2 · 1db1381a, in the 30-day folder
+    // from the evening of 4 Nov. Its grid and meta stay in results/ (same-again-tidy.json). To rebuild it, restore its entry
+    // here (dir: '30-days-off') and its strap, family and date in fresh.mjs from git history.
     { file: 'results/fair-share-leave30.json',   name: 'Grand Tour',           code: 'GT-26-T7',  fp: '4172f888', dir: '30-days-off', strap: 'Fair Share’s shifts in new weeks: 14 days’ leave buys 30 days off and four weeks off take 14, as today' },
     // 4 Nov 2026: Common Ground is today's link taken to 26 weeks on the owner's brief, its weeks the 30-for-14 grid found on
     // Fair Share's duties (README.md → "Common Ground"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
