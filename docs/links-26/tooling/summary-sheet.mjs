@@ -81,7 +81,7 @@ td.good .wv { color: var(--text-mid); font-weight: 400; }
 .foot { text-wrap: pretty; }
 .pfoot{margin-top:6px;padding-top:4px;border-top:1px solid var(--border-light);color:var(--text-light);font-size:8pt;display:flex;justify-content:space-between} .pfoot b{color:var(--primary-blue)}
 /* DENSE ROWS, ONLY WHEN THE FLOOR IS NOT ENOUGH (4 Nov 2026, nineteen proposals): see the loop below */
-body.dense td{padding:0.5px 5px} body.dense .mast{margin-bottom:4px} body.dense .foot,body.dense .pfoot{margin-top:4px}
+body.dense td{padding:0.5px 5px;line-height:1.18} body.dense .mast{margin-bottom:4px} body.dense .foot,body.dense .pfoot{margin-top:4px} body.dense .foot{line-height:1.3}
 </style></head><body>
 <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
 <div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${['no', 'one', 'two', 'three', 'four', 'five', 'six'][SHORTLIST.length] ?? SHORTLIST.length} shortlisted ones marked ★, and the ${['no', 'one', 'two', 'three', 'four', 'five', 'six'][rows.filter(r => r.thirty).length]} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
@@ -106,6 +106,9 @@ const b = await chromium.launch(); const pg = await b.newPage(); await pg.goto('
 // nineteenth design will need its layout changed, not its scale"). So at the floor, and only there, the rows are set dense
 // (a pixel less padding above and below each cell, and the gaps round the table) and the scale starts again from 100%, so
 // the dense page prints as large as it can. A page that fits without it never takes it, and the floor is not lowered.
+// TWENTY ROWS (5 Nov 2026, Middle Ground): the dense page left the footnotes' last lines and the page footer on a second
+// sheet at the floor, so dense also sets the table's two-line cells and the footnotes a little closer (line-height 1.18
+// and 1.3, from the page's 1.3 and 1.38). The type and the floor are as they were.
 let scale = 1, pdf, dense = false;
 for (;;) { pdf = await pg.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
   if (pagesIn(pdf) === 1) break;

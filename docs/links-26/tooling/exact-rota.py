@@ -29,7 +29,7 @@ CP-SAT runs in parallel, so two runs of one command need not return the same rot
 mode did not either (two runs with the same seed and budget differed, 27 Oct 2026) — so a design it finds is committed as
 its grid, and FIX= checks that grid against the model.
   python3 exact-rota.py <table.json> <out.json> [seconds]
-  env: OBJ=one|step|both|chg|heavy|four|best|rest  ONE_MIN= STEP= LIGHT= MAXCHG= (at most n early/late switches the step can see)
+  env: OBJ=one|step|both|chg|heavy|four|best|rest|gentle  ONE_MIN= STEP= LIGHT= MAXCHG= (at most n early/late switches the step can see)
        HINT=<rota.json> (start from it)  FIX=<rota.json> (check a rota against the model)  WORKERS=4  LOG=1
        BEST_LEN= (the days in a row OBJ=best prices; 29 unless set)
        SKELETON=<rota.json> (hold its rest days; FAMILY=1 holds its early and late weeks too: 30 Oct 2026, for a new table
@@ -222,6 +222,31 @@ for i in range(n):
             r = 1440 - en(t) + st(t2)
             if REST <= r < R2 and abs(st(t2) - st(t)) <= 120:
                 b = M.NewBoolVar(f'tight_{i}_{t}_{t2}'); M.Add(b >= x[(k, d, t)] + x[(k2, d2, t2)] - 1); tight.append(b)
+# GENTLE (5 Nov 2026, of Common Ground: "rather than all closers bunched together and openers bunched together, make it gently
+# change the shift times between weeks"). Run with SKELETON and FAMILY=1, so the rest days and the early and late weeks stay
+# where they are and only which week works which time is chosen again — the leave, the weekends and each day's duties cannot
+# move. In order: neighbouring working weeks that both start at 06:20 (an opener) or 15:45 (a closer) on the same weekday;
+# week-to-week moves of the average start over GENTLE minutes; neighbouring weeks sharing any other weekday start; the step.
+# A week counts as starting at a time if it does on ANY weekday, forced by its duties, so a mixed week cannot hide a shared
+# time. Middle Ground is this on Common Ground's weeks with ONE_MIN=18 (README.md -> "Middle Ground").
+co, big, oth = [], [], []
+if os.environ.get('OBJ') == 'gentle':
+    starts = sorted({t[:5] for d in WKD for t in TYPES[d]}); wk = {}
+    for k in WORK:
+        for g in starts:
+            wk[(k, g)] = M.NewBoolVar(f'wk_{k}_{g}')
+            for d in WKD:
+                for t in TYPES[d]:
+                    if t[:5] == g: M.AddImplication(x[(k, d, t)], wk[(k, g)])
+    for (a, b), dv in zip(pairs, D):
+        for d in WKD:
+            for g in ('06:20', '15:45'):
+                s = M.NewBoolVar(f'co_{a}_{d}_{g}'); co.append(s)
+                M.Add(s >= sum(x[(a, d, t)] for t in TYPES[d] if t[:5] == g) + sum(x[(b, d, t)] for t in TYPES[d] if t[:5] == g) - 1)
+        bg = M.NewBoolVar(f'big_{a}'); M.Add(dv <= 20 * env('GENTLE', 120)).OnlyEnforceIf(bg.Not()); big.append(bg)
+        for g in starts:
+            if g in ('06:20', '15:45'): continue
+            s = M.NewBoolVar(f'oth_{a}_{g}'); M.Add(s >= wk[(a, g)] + wk[(b, g)] - 1); oth.append(s)
 OBJ = os.environ.get('OBJ', 'one')
 if OBJ == 'one': M.Maximize(one)
 elif OBJ == 'step': M.Minimize(stepSum)
@@ -230,6 +255,7 @@ elif OBJ == 'heavy': M.Minimize(heavyMax)   # the heaviest Monday-to-Saturday we
 elif OBJ == 'four': M.Minimize(four)        # the leave four full weeks from a Sunday cost
 elif OBJ == 'best': M.Minimize(best29)      # the leave the cheapest 29 days cost (14 is a best stretch of 29)
 elif OBJ == 'rest': M.Minimize(sum(tight))  # the rests under REST_TO (default 15h)
+elif OBJ == 'gentle': M.Minimize(sum(co) * 1000000 + sum(big) * 100000 + sum(oth) * 10000 + stepSum)   # see GENTLE above
 else: M.Maximize(one * 100000 - stepSum)   # 'both': the most one-turn weeks, then the smallest step
 S = cp_model.CpSolver(); S.parameters.num_workers = env('WORKERS', 4)
 S.parameters.max_time_in_seconds = LIMIT
@@ -237,6 +263,7 @@ if os.environ.get('LOG'): S.parameters.log_search_progress = True
 r = S.Solve(M)
 print('heavy', S.Value(heavyMax) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'four', S.Value(four) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'best29cost', S.Value(best29) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'tight', S.Value(sum(tight)) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None)
 print('step', round(S.Value(stepSum) / 20 / len(pairs), 2) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'FF17 b-f', (S.Value(sum(bw)) - S.Value(sum(fw))) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None)
+if OBJ == 'gentle' and r in (cp_model.OPTIMAL, cp_model.FEASIBLE): print('gentle: openers/closers side by side', sum(S.Value(v) for v in co), 'moves over GENTLE', sum(S.Value(v) for v in big), 'other shared starts', sum(S.Value(v) for v in oth))
 print('status', S.StatusName(r), 'one-turn', S.ObjectiveValue() if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'bound', S.BestObjectiveBound(), 'time', round(S.WallTime(), 1), flush=True)
 if r in (cp_model.OPTIMAL, cp_model.FEASIBLE):
     P = {}
