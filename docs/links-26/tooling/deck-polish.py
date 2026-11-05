@@ -1123,7 +1123,9 @@ def managers_review(d, name, P, O, others, F, help_):
         x0, y0, cx0, cy0 = s.box(i); s.geo(i, y=y0 - 73152, cy=cy0 + 73152)   # 0.08in
     s.save()
     # what left the slide, said in the notes by name, so the presenter has it to hand
-    aside = [f'one shift time Monday to Friday in {F["oneTurn"]} weeks (today {T["oneTurn"]})']
+    # "ALL EARLIES OR ALL LATES" HERE TOO (owner, 5 Nov 2026: "Say what is counted"): the sheets and slides say it, and today's
+    # 7 of 16 is only true of weeks that are both — the notes were the last place it was missing
+    aside = [f'one shift time Monday to Friday, all earlies or all lates, in {F["oneTurn"]} weeks (today {T["oneTurn"]})']
     if ms_longest(P) <= 510: aside.append(f'every closing shift {min(cuts)} to {max(cuts)} minutes shorter')
     aside += [f'the shortest rest between shifts {F["rest"]} (today {T["rest"]})', f'at least {F["floorMin"]} on the floor at all times (today {T["floorMin"]})',
             f'{n_new} of the {n_times} shift times new to learn',   # the early finishes are in swap8 now, said once (the deep review, 1 Nov 2026)

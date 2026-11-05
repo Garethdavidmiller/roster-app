@@ -36,9 +36,11 @@ first again. *Quarter Past out, Well Kept in* has the table and the reason.
 **League scores dated 4 to 5 Nov 2026 with Well Kept in the pack are on the ranges it stretched.** It was taken out on
 5 Nov; every score fell 0.4 to 1.0 points, and Even Step is still first. *Well Kept out* has the table.
 
-**The shortlist was drawn again on 5 Nov 2026** (owner): Even Step, still recommended, Common Ground and Short Run. In
-Step left it, and its presentations stay in the pack. Sections dated before then speak of the shortlist of their day;
-*The shortlist drawn again* says what changed.
+**The shortlist was drawn again on 5 Nov 2026**: Common Ground, Even Step and Short Run. In Step left it, and its
+presentations stay in the pack. **Later that day the recommendation went** (owner: "Remove the marks"): the pack, the
+app and every builder present the three evenly, A to Z, and refuse a recommendation back. Sections dated before then
+speak of the shortlist and the recommendation of their day; *The shortlist drawn again* and *The whole pack reviewed*
+say what changed.
 
 **Three designs were renamed on 4 Nov 2026** (owner: "Give all proposals individual names"): Quarter Past Relaid is
 **Open Return** (`OR-26-EXT`, drawn as `QR-26-EXT`), Fair Share's 30-day search result, which had no name, is **Grand
@@ -49,11 +51,11 @@ fingerprint is unchanged. The dated sections before
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
 So a rebuild adds nothing about who decides, votes or recommends — the process is recorded in
-`../LINKS_DEC2026_PLAN.md`'s dashboard, and stays there. What the decks and sheets already say on it was left as it is on
-4 Nov, while feedback is still changing the proposals: the colleague decks' "Tell us what worries you" slide, the
-proposal sheets' line about the roster office and a union rep, and the "recommended" marks on the manager decks and
-the shortlist, summary and "What it means" sheets. The owner doubts most of it needs saying, so the next rebuild is
-the time to ask whether it should go.
+`../LINKS_DEC2026_PLAN.md`'s dashboard, and stays there. What the decks and sheets said on it was left as it was on
+4 Nov, and the owner was asked on 5 Nov: the union rep went from the proposal sheets' and managers' decks' line ("Not
+yet seen by the roster office" stays), the "recommended" marks went from every deck and sheet, and the colleague decks'
+last slide now says what the New link page says, "Tell S. Silva or your manager what worries you" (*The whole pack
+reviewed*).
 
 ## What is in this folder
 
@@ -61,17 +63,17 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 
 | | What it is |
 |---|---|
-| `links-NN-proposals.zip` | everything for sharing, in one download |
+| `links-NN-proposals.zip` | everything for sharing, in one download — for links-26 built on demand by `tooling/pack.py` and never committed |
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
 | `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
-| `links-26-shortlist.pdf` | the three shortlisted designs (Even Step, Common Ground and Short Run, since 5 Nov 2026) against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
+| `links-26-shortlist.pdf` | the three shortlisted designs (Common Ground, Even Step and Short Run, A to Z, since 5 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
 | `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: the three shortlisted designs', and In Step's, kept from when it was on the shortlist |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
 | `RULES.md` | the rules in prose, with their sources and the open questions (26 lines only) |
-| `README.md` | this record |
+| `README.md` | this record — the repository's working record, not part of the pack (left out of the zip since 5 Nov 2026, owner) |
 
 `NN` is the link's length in weeks. A proposal keeps its own name, because the code and fingerprint in it identify the
 exact rota on a printout. Inside the zip, the files carry the same names as here.
@@ -138,10 +140,12 @@ still be rebuilt.
 | | `what-it-means-sheet.mjs` | the one-page "What it means if you…" sheet (`../links-26-what-it-means.pdf`). It lays out and prints `what-it-means-data.mjs`, which reads the colleague decks' slide 5 and its notes back, so it runs after `deck-polish.py` and before `pack.py` (step 4) |
 | | `what-it-means-data.mjs` | the sheet's figures and asserted sentences, split out of it unchanged (2 Nov 2026) so the app's New link page reads the same ones; imported, never run |
 | | `newlink-data.mjs` | writes the app's `newlink-data.js` — the New link page's figures, sentences and pack list — from `what-it-means-data.mjs`; `--check` is what `newlink-data.test.mjs` runs. After `what-it-means-sheet.mjs` (step 4) |
-| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks |
-| league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them) — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
+| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`) → `common-ground-decks.py` → `deck-marks.py`; `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; Common Ground's, rewritten from Even Step's finished pair; the ✓ and ▲ beside every green and amber figure, run last (5 Nov 2026); the checker that reads every deck row back against the sheets and refuses an unmarked colour; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks |
+| league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them; `FAM_SUNDAY=1` for the main league with the Sunday duties counted in familiar shift times, as it was read before 3 Nov) — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
+| | `skeleton-from.mjs` | reads a finished rota's rest days and early and late weeks back as a skeleton, so another table's times can be laid on the same weeks (26 Oct; see "Today's link on 26 lines") |
+| times pool | `half-hour-pool.mjs` | prints the start and finish times on the hour or the half hour, with the fixed opens, closes and office times, for `final-table.mjs`'s `POOL_ONLY=` (4 Nov; see "Common Ground") |
 | options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
 | fatigue values | `factors-like.mjs` | every fatigue factor's own value, on the fixed duties and in the worst case, against a reference grid; exits 1 if any is worse (`space-polish.mjs`'s `FACTORS_LIKE` holds a search to the same comparison) |
 | whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen (see "Closing Time, improved" and "In Step") |
@@ -267,14 +271,15 @@ is the best of the four.
 
 **The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"; **cut to the
 shortlist 3 Oct 2026**, owner: "only keep the shortlist's presentations, delete the rest"): `presentations/` holds a
-colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for the three shortlisted designs, **Even
-Step, Common Ground and Short Run**, and for In Step, kept from when it was on the shortlist (5 Nov 2026, owner: "keep the
+colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for the three shortlisted designs, **Common
+Ground, Even Step and Short Run**, and for In Step, kept from when it was on the shortlist (5 Nov 2026, owner: "keep the
 other presentations in the pack, just not the shortlist"). The shortlist has moved under them: Second Edition, Even Keel and Short Run on 3 Oct;
 Closing Time added on 30 Oct, with its decks; In Step's decks built the same evening while it was off the shortlist; the
 cut to In Step and Short Run later that day, when the decks of Second Edition, Even Keel and Closing Time were removed
 under the 3 Oct rule (they are in git history) and two of their builders with them (below, "The shortlist cut to two");
 Even Step added on 31 Oct, recommended (below, "Even Step"); and on 5 Nov Common Ground in and In Step out, its decks
-kept (below, "The shortlist drawn again"). They are the
+kept (below, "The shortlist drawn again"), and the recommendation gone the same day (below, "The whole pack reviewed").
+They are the
 Familiar Nine decks, the template Right Away's were made from too, with every word and figure that was Familiar Nine's
 replaced and the design untouched. Unlike the 24-line decks, they are BUILT here: `tooling/second-nature-decks.py` makes
 Second Nature's decks from the Familiar Nine files into `tooling/deck-template/` (gitignored — Second Nature's decks are
@@ -309,10 +314,12 @@ Rebuild after any change to the rota:
 python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/short-run-decks.py \
   && python3 docs/links-26/tooling/in-step-decks.py && python3 docs/links-26/tooling/even-step-decks.py \
   && python3 docs/links-26/tooling/deck-polish.py && python3 docs/links-26/tooling/common-ground-decks.py \
-  && node docs/links-26/tooling/deck-check.mjs
+  && python3 docs/links-26/tooling/deck-marks.py && node docs/links-26/tooling/deck-check.mjs
 ```
 
-`common-ground-decks.py` rewrites Even Step's finished decks into Common Ground's, so it runs after the polish. Then
+`common-ground-decks.py` rewrites Even Step's finished decks into Common Ground's, so it runs after the polish, and
+`deck-marks.py` marks every green and amber figure on every deck, so it runs last (`deck-check.mjs` refuses a deck it
+has not marked). Then
 export the PDFs (LibreOffice), then `node docs/links-26/tooling/what-it-means-sheet.mjs` (it reads the decks, so it
 comes after them), `node docs/links-26/tooling/newlink-data.mjs` (the app page's copy of the same figures — the build
 fails until it is run) and `python3 docs/links-26/tooling/pack.py` (which refuses that sheet if it is older than the decks).
@@ -4090,6 +4097,9 @@ is the owner's to decide, for all of them at once.
 
 ## The shortlist drawn again — Even Step, Common Ground and Short Run (5 Nov 2026)
 
+*(Later the same day the recommendation went and the three were listed A to Z everywhere — "The whole pack reviewed",
+below. This section describes the pack as it was that morning, Even Step recommended and first.)*
+
 **The request** (owner, 5 Nov 2026): *"I would like common ground in the shortlist as the best 30 day example, short run
 too because colleagues have seen it and the best one of the others which I think is even step? Redo the pack based on
 this, keep the other presentations in the pack, just not the shortlist"*.
@@ -4148,8 +4158,9 @@ rule ("only keep the shortlist's presentations") still holds for everything else
 (`links-proposals.js`; Common Ground's grid copied cell for cell from `30-days-off/`). The New link page lists the three
 A to Z, and had been doing so by accident: "Even Step, In Step, Short Run" was the recommendation-first order and A to Z
 at once, so the page never sorted, and with Common Ground it would have put the recommendation first on a page that names
-none. It now sorts its own tiles, columns, weeks and tabs (`aToZ`, `newlink-render.js`) and opens on the first of them,
-Common Ground; a test fails if the built-in order were ever A to Z by itself, so the sort is always exercised. Its
+none. It now sorts its own tiles, weeks and tabs (`aToZ`, `newlink-render.js`), the comparison's columns come A to Z from
+`newlink-data.js`, and it opens on the first of them, Common Ground. *(Since that afternoon the built-in list is A to Z
+as well, so the test feeds `aToZ` the three out of order, to keep the sort exercised.)* Its
 "What's changed" lines were redrafted for the three. The first no longer says both newer proposals were drawn up "from
 what colleagues said about it": that was said of Even Step and In Step, and nothing here records it of Common Ground,
 drawn up on the owner's brief. It is the owner's to restore. The "Keep only the shortlist" dialog takes the three names
@@ -4157,6 +4168,68 @@ from the built-in list instead of typing them.
 
 **Left as it was.** "Weeks on one shift time, Monday to Friday" still gives today 7 of 16 (the section above has why);
 the owner's to decide, for every sheet and deck at once.
+
+## The whole pack reviewed — the three evenly, and every figure checked again (5 Nov 2026)
+
+**The request** (owner, 5 Nov 2026): *"Do an accuracy check on the entire links 26 pack, look for improvements and
+aesthetic polish review and aesthetic consistency review the links 26 pack too"*, then *"Give me the links 26 pack pdf
+when finished"*. Four reviews ran — accuracy of the sheets, accuracy of the decks, and the look and consistency of each
+— and what they found that was a matter of what the pack SAYS, rather than what is true, went to the owner first.
+
+**Five answers from the owner:**
+- **The union rep:** *"Drop 'or a union rep'."* The proposal sheets and the managers' decks said the proposals had not
+  been seen "by the roster office or a union rep"; S. Silva, the RMT rep, leads the change. "Not yet seen by the roster
+  office" stays.
+- **The recommendation:** *"Remove the marks."* Nothing in the pack or the app names one. `RECOMMENDED` is gone from
+  `tooling/fresh.mjs` and `SHORTLIST` is A to Z — Common Ground, Even Step, Short Run. `deck-polish.py` and `pack.py`
+  refuse a `RECOMMENDED` back, and the word "recommend" in any deck or in the read-me (bar the read-me's "none is
+  recommended"); `links-proposals.test.mjs` refuses it in `fresh.mjs` too. The shortlist sheet gives each one's edge
+  and its price, and which to choose by what matters most; the managers' title slides say "One of three shortlisted new
+  CEA links"; the read-me opens on the three, each with the reason to choose it and its price, every figure in that
+  section checked against the shortlist sheet or the New link page's asserted sentences.
+- **Who to tell:** *"Match the New link page."* The colleague decks' last slide says "Tell S. Silva or your manager
+  what worries you, even if it is small" and "S. Silva, the RMT rep, is leading the change", as the page does, and the
+  read-me's colleagues' ask says the same.
+- **"7 of 16":** *"Say what is counted."* "Weeks on one shift time" is "Weeks on one shift time, all earlies or all
+  lates" on every sheet, slide and note, so today's 7 of 16 reads as what it counts. The figure is unchanged.
+- **This README:** *"Leave it out of the pack."* The zip's technical notes are `RULES.md` alone; the read-me's history
+  points here for the designs taken out.
+
+**Accuracy — what moved:**
+- **The 55-hour week, in hours and minutes.** It was printed in decimal hours, "60.8", which reads as 60h 48m; it is
+  60h 45m. `report-data.mjs` now counts the heaviest seven days in minutes (`max7Minutes`) and refuses to differ from
+  the app's decimal by more than its rounding. Today 60h 45m; Even Step 56h 45m at worst, 49h 40m on the fixed duties;
+  Short Run 56h 50m; In Step 56h 20m; Common Ground 57h 30m, 51h 00m on the fixed duties.
+- **Single rest days, a year each.** The proposal sheets compared "4 in 20" with "N in 26"; both are now a year —
+  today about 10, Common Ground 12, Even Step and Short Run 8 — and a concern or a gain is raised only on a difference
+  of two a year or more.
+- **Six one-line descriptions** were checked against their grids, and `regenerate.mjs`'s copies synced to `fresh.mjs`'s.
+- **In Step's decks** listed one new time twice, and said it had more early finishes than the others when Common Ground
+  has as many. **Common Ground's colleague deck** no longer says it is today's link without saying how far it moved.
+- **The colleague decks' "Fewer early finishes" card** now names the long breaks too, a cost page 2 of the shortlist
+  sheet already gave.
+- **The New link page** (v25.36): its leave line names the price (about 12 single rest days a year on Common Ground,
+  about 8 on the other two), its long-shift line says how often (about 4 a year each on Common Ground, 26 on Short
+  Run), its notes say the no-overtime rows are not ranked, as the sheet's do, and the "What's changed" card's hint is
+  "Two more proposals, drawn up since" — Common Ground was drawn on the owner's brief, not from what colleagues said.
+
+**Polish:**
+- **Marks beside the colours** (`tooling/deck-marks.py`, new). The decks said better and worse than today by green and
+  amber alone, which are within a few per cent of each other's lightness: they print as one grey, and read alike to the
+  commonest colour blindness. Every coloured figure on a slide now carries a ✓ or a ▲, as the proposal sheets' always
+  have, and `deck-check.mjs` refuses an unmarked one or a mark that disagrees with its colour. There is no key on the
+  slides: the columns are headed Today and the design, and the mark says which way.
+- **The rota strip** (`rota-strip.mjs`, slide 10): larger labels and swatches, and a key that says "cover week, duties
+  placed later" and "full weekend off".
+- **Page 3 of every proposal sheet:** rest days white and lates a pale tint of the late colour, in the grid and its key
+  alike, so the early and late weeks stand apart.
+- **Wraps:** no lone word left on a card, bar or tile; no-break spaces and non-breaking hyphens hold a figure to its unit.
+
+**Checked:** `deck-check.mjs` — 216 rows agree, none unchecked, no mark wrong; `regenerate.mjs --check`;
+`newlink-data.mjs --check`; and each new guard mutated with `scripts/mutate.mjs` and seen to fail.
+
+**Left as it is:** the PowerPoints use Inter, which is not embedded; the read-me says to present the PDF on a PC
+without it.
 
 ## Notes for the whole set
 
@@ -4176,12 +4249,13 @@ The weighted league scores weekends as a share of weeks for the same reason. The
 repository ignores `*.zip`, so run the script and send the file). It is laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:
 1. a *Read me first* note;
-2. the one-page summary, and the two-page shortlist sheet;
+2. the one-page summary, the two-page shortlist sheet and the one-page "What it means if you…" sheet;
 3. the rules;
 4. the presentations;
 5. every proposal sheet;
 6. the import files;
-7. the technical notes (`RULES.md` and this README).
+7. the technical notes: `RULES.md`. This README was in them until 5 Nov 2026, and stays in the repository (owner: "Leave
+   it out of the pack").
 
 `tooling/pack.py` builds it from this folder, every design in `regenerate.mjs`'s `SUPPLIED` list included, and stops
 if a file is missing. The 24-line pack was zipped by hand, so it went stale after a re-render; this one is rebuilt by
@@ -4189,7 +4263,7 @@ running `python3 docs/links-26/tooling/pack.py` after any re-render.
 
 **26 in the app since v24.47 (3 Oct 2026).** `ROTATING_LINES = 26` in `links-design.js`: the Links page lays out 26
 lines, so the import files in the pack paste straight in and the page re-runs every check on them; the shortlisted
-designs are built into that page as examples (three from v24.47, Closing Time from v25.01, In Step and Short Run from v25.02, and from v25.04 the three on the shortlist now, Even Step first), copied cell for cell from `proposals/` (`links-proposals.js` says so, and
+designs are built into that page as examples (three from v24.47, Closing Time from v25.01, In Step and Short Run from v25.02, Even Step, In Step and Short Run from v25.04, and from v25.36 the three on the shortlist now, A to Z), copied cell for cell from `proposals/` and Common Ground's from `30-days-off/` (`links-proposals.js` says so, and
 says to re-copy if one changes). The tooling still
 passes 26 to every app function explicitly — harmless now, and it keeps the sheets' line count stated in one place
 (`tooling/link.mjs`) rather than inherited. Until that release the page was on 24 lines and refused the files; the
