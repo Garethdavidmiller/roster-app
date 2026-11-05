@@ -157,3 +157,31 @@ describe('a day deliberately LEFT ALONE is part of the receipt (v23.88, external
         assert.deepEqual(buildSaveReceipt(args), buildSaveReceipt({ ...args, skipped: [] }));
     });
 });
+
+describe('Christmas Day and Boxing Day are named as themselves (v25.37)', () => {
+    // From 2026 neither day is ever written by a booking: leave there is never counted, and a member
+    // due at work already has it, shown from the roster. Calling either "rest day" would be wrong
+    // for somebody who was rostered an early turn on it.
+    const fmt = (/** @type {string} */ d) => `[${d}]`;
+    const desc = () => 'Annual Leave';
+    const receipt = (/** @type {string[]} */ skipped, /** @type {string[]} */ keptLeave = []) => buildSaveReceipt({
+        toSave: [], removed: [], memberName: 'C. Reen', formatDate: fmt, describe: desc, skipped, keptLeave,
+    });
+
+    test('a day left alone there says why: never counted, nothing to record', () => {
+        assert.deepEqual(receipt(['2026-12-25', '2026-12-26']).lines, [
+            '[2026-12-25] — Christmas Day, never counted: nothing to record',
+            '[2026-12-26] — Boxing Day, never counted: nothing to record',
+        ]);
+    });
+
+    test('leave already recorded there stays, and the line says it is never counted', () => {
+        assert.deepEqual(receipt(['2026-12-26'], ['2026-12-26']).lines, [
+            '[2026-12-26] — Boxing Day; the leave already recorded here was left as it is and is never counted (untick the day to remove it)',
+        ]);
+    });
+
+    test('before 2026 the ordinary rest-day words are kept', () => {
+        assert.deepEqual(receipt(['2025-12-25']).lines, ['[2025-12-25] — rest day, no leave recorded']);
+    });
+});

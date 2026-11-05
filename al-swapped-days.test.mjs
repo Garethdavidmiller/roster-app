@@ -112,3 +112,12 @@ test('a range writes an ASKED rest day only when answered swapped — even one h
         'absence is never asked: a rest day already holding one is rewritten as before');
     assert.deepEqual(rangeWriteDates({ ...args, memberObj: null }), []);
 });
+
+test('Christmas Day and Boxing Day are never asked about from 2026 — the answer is fixed (v25.37)', () => {
+    // Leave there costs nothing whatever the answer, so the question could change nothing; and a
+    // member due at work already HAS the leave, shown from the roster (christmas-leave.js).
+    assert.deepEqual(swapDecisionDates({ dates: ['2026-12-25', '2026-12-26'], memberObj: MEMBER, ovByDate: null }), []);
+    // Before 2026 they are rest days like any other, asked about exactly as they always were.
+    assert.deepEqual(swapDecisionDates({ dates: ['2025-12-25', '2025-12-26'], memberObj: MEMBER, ovByDate: null }),
+        ['2025-12-25', '2025-12-26']);
+});

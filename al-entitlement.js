@@ -63,6 +63,30 @@
 import { getALEntitlement, getBaseShift, isSunday, parseISODate } from './roster-data.js';
 import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride } from './override-utils.js';
 import { leaveYearOf, offeredJanuaries } from './leave-year.js';
+import { isChristmasClosureDate, boxingDayLieuDays } from './christmas-leave.js';
+
+/**
+ * A member's WHOLE annual-leave allowance for a year — the one door every surface reads it through
+ * (v25.37). The contract figure is `getALEntitlement` (roster-data.js); on top of it goes the day in
+ * lieu earned by working a Boxing Day the member was due to work (`boxingDayLieuDays`,
+ * christmas-leave.js). No entitlement on record stays `null` — a day is not added to nothing, which
+ * would make it a number (v22.45).
+ *
+ * It is not inside `getALEntitlement` because christmas-leave.js imports roster-data.js, so
+ * roster-data.js cannot import it back (christmas-leave.js's header). A second door would be a
+ * surface that quietly leaves the earned day out, so christmas-leave.test.mjs fails if any module
+ * but this one calls `getALEntitlement`.
+ * @param {any} member  teamMembers entry
+ * @param {number|string} year
+ * @param {Array<any>} [overrides] the member's overrides
+ * @returns {number|null}
+ */
+export function entitlementFor(member, year, overrides = []) {
+    const y = parseInt(String(year), 10);
+    const contract = getALEntitlement(member, y, overrides);
+    if (contract === null) return null;
+    return contract + boxingDayLieuDays(member, y, overrides);
+}
 
 /**
  * Does a single date consume `member`'s entitlement if AL is recorded on it?
@@ -83,6 +107,13 @@ import { leaveYearOf, offeredJanuaries } from './leave-year.js';
 export function consumesEntitlement(member, date, ovByDate = null) {
     if (!member || !date) return false;
     if (isSunday(date)) return false;
+    // CHRISTMAS DAY AND BOXING DAY NEVER COST A DAY, FROM 2026 (v25.37, owner 5 Nov 2026). The
+    // station is closed, so leave on either day is free. The Christmas leave a member due at work is
+    // SHOWN (`isChristmasLeaveDay`, christmas-leave.js) writes nothing and so never reaches this function;
+    // this line is for a DOCUMENT somebody recorded there — including one booked as a swapped working
+    // day, which the `replacedType` test below would otherwise charge. The depot's spreadsheet marks
+    // both days Closed, so the two agree. Earlier years keep the counts they always had.
+    if (isChristmasClosureDate(date)) return false;
 
     // The day is (or is about to be) AL-overridden, so the question is what is UNDERNEATH it.
     const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
@@ -166,7 +197,7 @@ export function countedAlDates({ overrides, member, year, exclude = null }) {
  *   entitlement/remaining are null when the role has no entitlement on record — render neither.
  */
 export function alPosition({ overrides, member, year, todayStr }) {
-    const entitlement = getALEntitlement(member, parseInt(String(year), 10), overrides);
+    const entitlement = entitlementFor(member, year, overrides);
     const dates = countedAlDates({ overrides, member, year });
 
     let taken = 0;
@@ -244,21 +275,22 @@ export function leaveYearChoices({ overrides, member, todayStr }) {
  * B. Toth since she joined in June (as `-10`, when the pro-rata still suppressed her lieu days
  * entirely) and nothing failed, because a caption is not a calculation and nothing was checking it.
  *
- * The split is DERIVED from the same rule `getALEntitlement` applies rather than recomputed: the
+ * The split is DERIVED from the same figure `entitlementFor` returns rather than recomputed: the
  * base is what a pro-rated year replaces it with, and the lieu count is whatever the total exceeds
- * it by. That keeps one formula, and `al-entitlement.test.mjs` pins `base + lieu === entitlement`
- * so the two cannot drift apart in silence — which is the failure this function exists to end.
+ * it by. That keeps one formula, and `al-entitlement.test.mjs` pins `base + lieu + boxingDay ===
+ * entitlement` so the parts cannot drift apart in silence — which is the failure this function
+ * exists to end.
  *
  * `proRated` is reported because the caption needs to SAY so. "12 base" reads like a mistake beside
  * a colleague's 22 unless it explains itself.
  *
  * @param {{ member: any, year: number|string, overrides: any[] }} args
- * @returns {{ base: number, lieu: number, proRated: boolean } | null}
+ * @returns {{ base: number, lieu: number, boxingDay: number, proRated: boolean } | null}
  */
 export function dispatcherBreakdown({ member, year, overrides }) {
     if (!member || member.role !== 'Dispatcher') return null;
     const y = parseInt(String(year), 10);
-    const entitlement = getALEntitlement(member, y, overrides);
+    const entitlement = entitlementFor(member, y, overrides);
     // Unreachable today — every Dispatcher gets a number and every other role returned above —
     // so removing it leaves the tests green. Kept fail-closed rather than deleted, and said
     // here rather than covered by a test that would only be pretending.
@@ -266,7 +298,37 @@ export function dispatcherBreakdown({ member, year, overrides }) {
 
     const proRated = member.proRatedAL?.[y] !== undefined;
     const base = proRated ? member.proRatedAL[y] : 22;
-    return { base, lieu: entitlement - base, proRated };
+    // A BOXING DAY IN LIEU IS NOT A BANK-HOLIDAY DAY (v25.37) — in 2026 Boxing Day is a Saturday and
+    // no bank holiday at all — so it is reported on its own and kept out of `lieu`, which the caption
+    // labels "BH lieu". `base + lieu + boxingDay === entitlement` is what the test pins.
+    const boxingDay = boxingDayLieuDays(member, y, overrides);
+    return { base, lieu: entitlement - base - boxingDay, boxingDay, proRated };
+}
+
+/**
+ * The one line that explains what a member's entitlement is made of, or `null` when it is the plain
+ * contract figure and there is nothing to explain. The Admin banner and the Calendar's leave panel
+ * both print it, so the two cannot describe the same number differently — which is how the panel's
+ * own `22 base + …` sum would have filed a Boxing Day in lieu under "BH lieu" (v25.37).
+ *
+ * A Dispatcher: `22 base + 4 BH lieu`, with `(pro-rated)` for a joining year and `+ 1 Boxing Day in
+ * lieu` when earned. Anybody else: a line only when they earned the Boxing Day day (christmas-leave.js
+ * → `boxingDayLieuDays`), because a figure one higher than every colleague's needs its reason beside it.
+ *
+ * @param {{ member: any, year: number|string, overrides: any[] }} args
+ * @returns {string|null}
+ */
+export function entitlementNote({ member, year, overrides }) {
+    if (!member) return null;
+    const split = dispatcherBreakdown({ member, year, overrides });
+    if (split) {
+        const parts = [`${split.base} base${split.proRated ? ' (pro-rated)' : ''}`, `${split.lieu} BH lieu`];
+        if (split.boxingDay) parts.push(`${split.boxingDay} Boxing Day in lieu`);
+        return parts.join(' + ');
+    }
+    if (entitlementFor(member, year, overrides) === null) return null;
+    const boxing = boxingDayLieuDays(member, year, overrides);
+    return boxing ? `Includes ${boxing} day in lieu for working Boxing Day` : null;
 }
 
 /**

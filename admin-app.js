@@ -39,7 +39,8 @@ import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
-import { alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType } from './al-entitlement.js';
+import { alPosition, consumesEntitlement, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
+import { christmasLeaveByYear } from './christmas-leave.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
 import { createBookedPeriods } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
@@ -628,19 +629,15 @@ export function init() {
         bookedEl.textContent = String(booked);
         entEl.textContent    = String(entitlement);
 
-        // Show breakdown note for Dispatchers — the two things their entitlement is made of.
-        // The split comes from `dispatcherBreakdown`, never `entitlement - 22`: that literal is the
-        // base only for somebody who worked the whole year, so for a mid-year joiner it went
-        // NEGATIVE and this line read `22 base + -8 BH lieu` about a real person.
+        // What the entitlement is made of — a Dispatcher's base and bank-holiday days, anybody's
+        // Boxing Day in lieu (v25.37) — in ONE line shared with the Calendar's leave panel
+        // (`entitlementNote`). Never `entitlement - 22`: for a mid-year joiner that went NEGATIVE
+        // and read `22 base + -8 BH lieu` about a real person (al-entitlement.js → dispatcherBreakdown).
         const breakdownEl = document.getElementById('alBannerBreakdown');
         if (breakdownEl) {
-            const split = dispatcherBreakdown({ member, year: yearStr, overrides: getAllOverrides() });
-            if (split) {
-                breakdownEl.textContent = split.proRated
-                    ? `${split.base} base (pro-rated) + ${split.lieu} BH lieu`
-                    : `${split.base} base + ${split.lieu} BH lieu`;
-            }
-            breakdownEl.hidden = !split;
+            const note = entitlementNote({ member, year: yearStr, overrides: getAllOverrides() });
+            if (note) breakdownEl.textContent = note;
+            breakdownEl.hidden = !note;
         }
 
         banner.hidden = false;
@@ -1476,6 +1473,9 @@ export function init() {
             // list and the entitlement cannot answer differently about the same day. A rest day
             // carrying an AL override spends nothing, and used to be listed and counted anyway.
             consumes:   consumesEntitlement,
+            // CHRISTMAS LEAVE (v25.37) — on record here, never counted (christmas-leave.js).
+            christmas:  christmasLeaveByYear({ member: teamMembers.find(m => m.name === alMember.value),
+                                               overrides: getAllOverrides(), thisYear: new Date().getFullYear() }),
             // "3 days", not "3 days AL" — the card is titled Recorded Annual Leave dates and the
             // pill is AL-green. The two dropped words are what let the date, the count and the
             // delete control share ONE line at 375px instead of stacking into two.

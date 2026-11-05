@@ -51,6 +51,7 @@
 // honour is worse than one that does not offer it. (External review of v23.78.)
 
 import { isSunday, getBaseShift, parseISODate } from './roster-data.js';
+import { isChristmasClosureDate } from './christmas-leave.js';
 import { isRestShift, isContractedWorkOverride, contractEvidence, nextReplacedType } from './override-utils.js';
 import { isWorkingDate } from './al-entitlement.js';
 
@@ -70,6 +71,10 @@ export function swapDecisionDates({ dates, memberObj, ovByDate = null }) {
     if (!memberObj || !Array.isArray(dates)) return [];
     return [...new Set(dates)].sort().filter(date => {
         if (isSunday(date)) return false;                     // never holds AL at all
+        // Christmas Day and Boxing Day are never asked about (v25.37): leave there costs nothing
+        // whatever the answer (al-entitlement.js), so the question could not change anything —
+        // and a member due at work already HAS the leave, shown from the roster (christmas-leave.js).
+        if (isChristmasClosureDate(date)) return false;
         const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
         // An override that answers the contract question — either way — settles the day. Read THROUGH
         // leave and an absence to what they replaced (review A2), as `consumesEntitlement` does.

@@ -121,7 +121,15 @@ export function initALSection({
             // A written day that costs nothing is an RDW day — worked, but declining overtime is not
             // leave. It is reported because it IS being recorded, just not charged.
             if (c.freeWritten > 0) parts.push(`${c.freeWritten} day${c.freeWritten > 1 ? 's' : ''} recorded at no cost`);
-            if (c.skipped > 0)     parts.push(`${c.skipped} rest day${c.skipped > 1 ? 's' : ''} skipped`);
+            // Christmas Day and Boxing Day are named as themselves (v25.37): never counted, and for a
+            // member due at work already shown as leave, so "rest day" would be the wrong word.
+            const rest = c.skipped - (c.christmas ?? 0);
+            if (rest > 0)          parts.push(`${rest} rest day${rest > 1 ? 's' : ''} skipped`);
+            if (c.christmas > 0) {
+                const names = [.../** @type {Set<string>} */ (new Set(projection.christmas.map(/** @param {string} d */ d =>
+                    d.endsWith('-12-25') ? 'Christmas Day' : 'Boxing Day')))];
+                parts.push(`${names.join(' and ')}, never counted`);
+            }
             if (parts.length) restNote = ` <em>(+ ${parts.join(', ')})</em>`;
         }
         const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');

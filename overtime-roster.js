@@ -4,9 +4,9 @@
  *
  * Owns: one bounded Firestore read for one member over seven dates, and the honest four-state
  * answer about how well that read went. Does NOT own the override→display LADDER — that is
- * `resolveEffectiveShift` in `override-utils.js`, the same resolution the calendar renderer, Team
- * View and the month legend all use, and reimplementing it here is how those three drifted apart
- * before v16.48.
+ * `resolveEffectiveShift` in `override-utils.js`, with Christmas leave on top (`resolveDayShift`,
+ * christmas-leave.js, v25.37): the same resolution the calendar renderer, Team View and the month
+ * legend all use, and reimplementing it here is how those three drifted apart before v16.48.
  *
  * ── WHY THIS IS NOT THE CALENDAR'S FETCHER ──────────────────────────────────────────────────────
  *
@@ -34,7 +34,8 @@
 
 import { db, COLLECTIONS, collection, query, where, getDocs } from './firebase-client.js';
 import { teamMembers, getBaseShift, isSunday, parseISODate } from './roster-data.js';
-import { resolveEffectiveShift, isRestShift, toOverrideRecord } from './override-utils.js';
+import { isRestShift, toOverrideRecord } from './override-utils.js';
+import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { shiftSpanMinutes, rosterBadge } from './overtime-format.js';
 
 // `rosterBadge` moved to overtime-format.js at v20.87 so the REVIEWER's rows could draw the
@@ -161,7 +162,8 @@ function resolveWeek(member, dates, overrides) {
         // Christmas rule and mis-key the roster lookup, silently, on exactly the weeks that matter
         // most. `parseISODate` is the app's own noon-anchored parse (DST-safe).
         const base = getBaseShift(member, parseISODate(date));
-        const eff = resolveEffectiveShift(overrides[date] || null, base, isSunday(date));
+        const eff = resolveDayShift(overrides[date] || null, base, isSunday(date),
+            isChristmasLeaveDay(member, parseISODate(date)));
         // The hours slot an override may carry (an RDW time, an Other day's actual times) is more
         // specific than the shift value, so it wins when present — the same precedence the calendar
         // renders from.

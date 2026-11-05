@@ -13,7 +13,8 @@
 import { db, collection, query, where, getDocs, getDocsFromCache, COLLECTIONS } from './firebase-client.js';
 import { isAccessFailure as _isAccessFailure } from './claim-retry.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
-import { reconcileRangeIntoCache, collectOverrideRecords, isBeforeMemberStart, isOtherValue, resolveEffectiveShift } from './override-utils.js';
+import { reconcileRangeIntoCache, collectOverrideRecords, isBeforeMemberStart, isOtherValue } from './override-utils.js';
+import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { noteKnowledge, forget as forgetKnowledge } from './calendar-data-state.js';
 
 /** The error a month read answered by the OFFLINE CACHE is turned into (v24.48). */
@@ -496,7 +497,7 @@ export function getShiftTypesInMonth(member, year, month, snapshot = null) {
         // Same shared override→effective-shift ladder as the calendar renderer + Team view (v16.48)
         // so the month legend can never drift from them — e.g. it can't light 'AL' from a legacy
         // Sunday AL override (suppressed), since Sundays are non-contracted (CLAUDE.md layer 5).
-        const { shift } = resolveEffectiveShift(ov, baseShift, isSunday(dateStr));
+        const { shift } = resolveDayShift(ov, baseShift, isSunday(dateStr), isChristmasLeaveDay(member, date));
         if (shift === 'SPARE') types.add('SPARE');
         else if (shift === 'RDW')  types.add('RDW');
         else if (shift === 'AL')   types.add('AL');

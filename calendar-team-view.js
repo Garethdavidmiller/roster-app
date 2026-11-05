@@ -16,7 +16,8 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, ge
 import { lsGet, lsSet } from './ls.js';
 import { TEAM_VIEW } from './storage-keys.js';
 import { lazyImport } from './sw-register.js';
-import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
+import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { worstKnowledge, decideDisplay, forget as forgetOverrideKnowledge } from './calendar-data-state.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
@@ -153,14 +154,17 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         // suppression (sick on rest/Sunday, AL/Other on Sunday; the Sunday-AL case fixed v16.37).
         // `shift` is the canonical value; an rdw override arrives as 'RDW' with its time in rdwTime,
         // and an Other day's derived-RDW-ness comes back as derivedRdw.
-        const { shift, rdwTime, derivedRdw } = resolveEffectiveShift(override, baseShiftTV, isSunday(dateStr));
+        // Christmas leave (v25.37) shows here as it does on the member's own calendar — christmas-leave.js.
+        const { shift, rdwTime, derivedRdw, christmasLeave } =
+            resolveDayShift(override, baseShiftTV, isSunday(dateStr), isChristmasLeaveDay(member, date));
 
         // `label` is the accessible name (used as the cell's aria-label) so meaning
         // never depends on colour alone (the rest cell is just a coloured "–") and
         // decorative emoji aren't read out as part of the shift.
         if (shift === 'RD' || shift === 'OFF') return { text: '–', cls: 'tv-rest', label: 'Rest day' };
         if (shift === 'SPARE')                 return { text: '📋 Spare', cls: 'tv-spare', label: 'Spare' };
-        if (shift === 'AL')                    return { text: '🏖️ AL', cls: 'tv-al', label: 'Annual leave' };
+        if (shift === 'AL')                    return { text: '🏖️ AL', cls: 'tv-al',
+                                                        label: christmasLeave ? 'Annual leave (Christmas, not counted)' : 'Annual leave' };
         if (shift === 'SICK')                  return { text: '🪑 Absent', cls: 'tv-sick', label: 'Absent' };
         if (shift === 'RDW') {
             // rdw override → shift 'RDW' + its time in rdwTime (a base 'RDW' never exists, so this

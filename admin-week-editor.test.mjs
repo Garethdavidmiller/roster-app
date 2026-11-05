@@ -63,6 +63,8 @@ function makeEl(tag = 'div') {
             toggle(c, on) { if (on === undefined ? el.classList.contains(c) : !on) el.classList.remove(c); else el.classList.add(c); },
         },
         appendChild(child) { el.children.push(child); return child; },
+        // A week holding a bank holiday or Christmas appends its badge legend this way.
+        insertAdjacentHTML(_where, html) { el.innerHTML += html; },
         // Not a parser: the markup this module writes is asserted as text, and every consumer of a
         // lookup inside it is guarded on the element being absent.
         querySelector()    { return null; },
@@ -371,6 +373,21 @@ describe('the "Base roster" column says what the day WAS', () => {
         assert.match(sunday.innerHTML, /isn’t a contracted day|isn't a contracted day/);
         const monday = rows.find(r => new Date(r.dataset.date + 'T12:00:00').getDay() === 1);
         assert.doesNotMatch(monday.innerHTML, /sunday-note/, 'only Sunday rows carry it');
+    });
+
+    test('a Christmas day the member was due to work says so on the row (v25.37)', () => {
+        // The Base roster column shows the rest day `getBaseShift` makes both days for everybody, so
+        // the row is the only place a manager learns this member is on leave there — and that there
+        // is nothing to record. G. Miller's pattern has him on a late turn on both days in 2026.
+        const rows = buildWeek('G. Miller', '2026-12-25').slice(1);
+        const row = (/** @type {string} */ d) => rows.find(r => r.dataset.date === d);
+        assert.match(row('2026-12-25').innerHTML,
+            /class="christmas-note">Christmas Day: due at work, so on annual leave that is never counted — nothing to record</);
+        assert.match(row('2026-12-26').innerHTML, /class="christmas-note">Boxing Day: /);
+        assert.doesNotMatch(row('2026-12-24').innerHTML, /christmas-note/, 'an ordinary day says nothing');
+        // Before 2026 the days are rest days like any other, and the row says nothing.
+        const old = buildWeek('G. Miller', '2025-12-25').slice(1);
+        assert.ok(old.every(r => !/christmas-note/.test(r.innerHTML)));
     });
 });
 

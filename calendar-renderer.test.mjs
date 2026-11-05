@@ -1083,3 +1083,64 @@ describe('buildCalendarContainer — grid structure', () => {
         assert.equal(cell?.getAttribute('role'), 'button');
     });
 });
+
+// ── Christmas leave (v25.37) — the renderer draws what christmas-leave.js decides ───────────────
+//
+// The rules are tested in christmas-leave.test.mjs. What only this file can see is the WIRING: that
+// the grid asks them at all, that the day panel's "changed from" pair names what the member was
+// ROSTERED (not the rest day `getBaseShift` makes both days), and that a worked Boxing Day carries
+// the year its day in lieu is added to. A real member, so "due at work" is the real pattern.
+describe('Christmas leave — due at work on 25/26 December shows as leave that is never counted', () => {
+    const XMAS = new Date(2026, 11, 25), BOXING = new Date(2026, 11, 26);
+    const due = (/** @type {any} */ m, /** @type {Date} */ d) => !['RD', 'OFF'].includes(realRosterData.getPatternShift(m, d));
+    const MEMBER = realRosterData.teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate
+        && due(m, XMAS) && due(m, BOXING));
+    const RESTER = realRosterData.teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !due(m, BOXING));
+    const cellFor = (/** @type {any} */ container, /** @type {number} */ day) =>
+        container._children[1]._children.find(c => new RegExp(`\\b${day} December 2026\\b`).test(c.dataset?.detailDay || ''));
+    const build = (/** @type {any} */ member) => {
+        noteKnowledge('2026-12', 'authoritative');
+        _member = member;
+        try { return buildCalendarContainer(11, 2026); } finally { _member = FAKE_MEMBER; }
+    };
+
+    test('the fixtures exist on the real roster', () => {
+        assert.ok(MEMBER, 'needs a CEA due at work on both days in 2026');
+        assert.ok(RESTER, 'needs a CEA resting on Boxing Day 2026');
+    });
+
+    test('nothing recorded: annual leave, said to be Christmas leave, changed from what was ROSTERED', () => {
+        const cell = cellFor(build(MEMBER), 25);
+        assert.equal(cell.dataset.detailShiftValue, 'AL');
+        assert.equal(cell.dataset.detailChristmas, '25');
+        assert.match(cell.getAttribute('aria-label'), /Annual leave \(Christmas, not counted\)/);
+        // The pair must not read "Rest → Annual leave" about somebody rostered a turn that day.
+        assert.equal(cell.dataset.detailBaseShift, realRosterData.getPatternShift(MEMBER, XMAS));
+        assert.notEqual(cell.dataset.detailBaseShift, 'RD');
+        assert.equal(cell.dataset.detailBy, undefined, 'Christmas leave is nobody\'s change');
+    });
+
+    test('a worked Boxing Day is work, and carries the year its day in lieu is added to', () => {
+        _overrideCache.set(`${MEMBER.name}|2026-12-26`, { type: 'rdw', value: '06:00-14:00', note: '', source: 'manual' });
+        const cell = cellFor(build(MEMBER), 26);
+        assert.equal(cell.dataset.detailShiftValue, 'RDW');
+        assert.equal(cell.dataset.detailChristmas, undefined);
+        assert.equal(cell.dataset.detailBoxingLieu, '2026');
+    });
+
+    test('an absence hidden under the leave lends it no "changed by" line', () => {
+        // An absence on a rest day is suppressed on every date (isOverrideDisplaySuppressed), so the
+        // day shows Christmas leave — which comes from the roster, and is nobody's change.
+        _overrideCache.set(`${MEMBER.name}|2026-12-25`, { type: 'sick', value: 'SICK', note: '', source: 'manual', changedBy: 'X. Manager' });
+        const cell = cellFor(build(MEMBER), 25);
+        assert.equal(cell.dataset.detailChristmas, '25');
+        assert.equal(cell.dataset.detailBy, undefined);
+    });
+
+    test('not due at work: a rest day, and nothing about Christmas leave or a day in lieu', () => {
+        _overrideCache.set(`${RESTER.name}|2026-12-26`, { type: 'rdw', value: '06:00-14:00', note: '', source: 'manual' });
+        const cell = cellFor(build(RESTER), 26);
+        assert.equal(cell.dataset.detailChristmas, undefined);
+        assert.equal(cell.dataset.detailBoxingLieu, undefined, 'overtime from a rest day earns no day in lieu');
+    });
+});

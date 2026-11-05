@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '25.36';
+export const APP_VERSION = '25.37';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -208,6 +208,10 @@ export function isWorkedShift(shift) {
  * For Dispatchers the entitlement is dynamic: 22 base days plus one day in lieu
  * for every bank holiday on which they worked (after overrides). All other roles
  * return a fixed number regardless of year or overrides.
+ *
+ * NOT THE WHOLE ALLOWANCE FROM 2026 — read it through `entitlementFor` (al-entitlement.js), which adds
+ * the day in lieu earned by working a Boxing Day the member was due to work (christmas-leave.js).
+ * `christmas-leave.test.mjs` fails if any other module calls this directly.
  *
  * @param {any}    member    - teamMembers entry
  * @param {number} [year]    - calendar year; defaults to current year
@@ -703,6 +707,9 @@ export function isChristmasRD(date) {
     return date.getMonth() === 11 && (date.getDate() === 25 || date.getDate() === 26);
 }
 
+// Christmas LEAVE — who is on leave on these two days, never counted, and the Boxing Day day in lieu
+// — is built on top of this rule in christmas-leave.js (v25.37), which also says why it is not here.
+
 /**
  * Returns true for shifts starting 04:00–10:59 (Early classification).
  * @param {string} timeStr  e.g. "06:00-14:00"
@@ -936,6 +943,24 @@ export function getRosterForMember(member, date) {
 export function getBaseShift(member, date) {
     if (!member) return 'RD'; // guard: sibling helpers (getWeekNumberForDate etc.) all guard !member; be consistent
     if (isChristmasRD(date)) return 'RD'; // Rule: see CLAUDE.md — "isChristmasRD() applied before Firestore overrides"
+    return getPatternShift(member, date);
+}
+
+/**
+ * What the member's ROSTER PATTERN says for a date: `getBaseShift` WITHOUT the Christmas rule.
+ *
+ * Split out (v25.37) because Christmas leave needs the one fact `getBaseShift` deliberately hides —
+ * whether the member was due at work on 25 or 26 December before the station closed. It is the
+ * same lookup, not a copy of it: start-date suppression and any scheduled roster change apply
+ * exactly as they do for every other date, and `getBaseShift` is now the Christmas rule on top of
+ * this. **Use `getBaseShift` for everything else**; this answers "what was the pattern", which is a
+ * question only the Christmas rules ask.
+ * @param {any} member  teamMembers entry
+ * @param {Date}   date
+ * @returns {string}  Shift value e.g. "RD", "SPARE", "06:00-14:00"
+ */
+export function getPatternShift(member, date) {
+    if (!member) return 'RD';
     // Members with a startDate show RD for all dates before they join
     if (member.startDate) {
         const s = member.startDate;

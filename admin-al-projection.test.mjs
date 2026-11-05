@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { teamMembers, formatISO } from './roster-data.js';
+import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift } from './roster-data.js';
 import { projectAlBooking, willConsume, projectAlOverage } from './admin-al-projection.js';
 import { consumesEntitlement } from './al-entitlement.js';
 
@@ -241,5 +241,69 @@ describe('answeredFree — the half of `skipped` that is an ANSWER (v23.88, exte
         for (const d of p.answeredFree) assert.equal(p.consuming.includes(d), false);
         assert.equal(p.counts.answeredFree, 1);
         assert.equal(p.counts.skipped, 2);
+    });
+});
+
+describe('Christmas Day and Boxing Day — never asked, never written, named as themselves (v25.37)', () => {
+    // Her Mon–Fri line has her DUE at work on Christmas Day 2026 (a Friday) and resting on Boxing
+    // Day (a Saturday). The answer on both is the same and fixed — leave there never costs a day, and
+    // somebody due at work already HAS it, shown from the roster — so neither may be asked about.
+    const EVE = '2026-12-24', XMAS = '2026-12-25', BOXING = '2026-12-26';
+
+    test('neither day is asked about, written or counted, whatever the pattern says', () => {
+        const p = projectAlBooking({ member: reen, dates: [EVE, XMAS, BOXING], ovByDate: NO_OV });
+        assert.deepEqual(p.asked, [], 'a question whose answer is fixed is not a question');
+        assert.deepEqual(p.writing, [EVE]);
+        assert.deepEqual(p.consuming, [EVE]);
+        assert.deepEqual(p.christmas, [XMAS, BOXING]);
+        // `answeredFree` is what BOTH surfaces drop from the write — the week grid's plan filters on
+        // it — so a Christmas day must be in it, or the grid would write leave the range card skips.
+        assert.deepEqual(p.answeredFree, [XMAS, BOXING]);
+        assert.ok(p.christmas.every(d => p.skipped.includes(d)), 'a SUBSET of skipped — the preview subtracts it');
+        assert.equal(p.counts.christmas, 2);
+    });
+
+    test('work already recorded there is replaced at no cost — the leave is still written', () => {
+        const ov = new Map([[BOXING, { type: 'rdw', value: '06:00-14:00' }]]);
+        const p = projectAlBooking({ member: reen, dates: [BOXING], ovByDate: ov });
+        assert.deepEqual(p.writing, [BOXING]);
+        assert.deepEqual(p.freeWritten, [BOXING]);
+        assert.deepEqual(p.consuming, []);
+        assert.deepEqual(p.christmas, []);
+    });
+
+    test('before 2026 nothing changes: Christmas Day 2025 is asked about like any other rest day', () => {
+        const p = projectAlBooking({ member: reen, dates: ['2025-12-25'], ovByDate: NO_OV });
+        assert.deepEqual(p.asked, ['2025-12-25']);
+        assert.deepEqual(p.christmas, []);
+    });
+});
+
+describe('the day in lieu reaches the over-entitlement warning (v25.37)', () => {
+    // A CEA due at work on Boxing Day 2026 with 32 days recorded — the whole contract figure. Working
+    // that Boxing Day earns a 33rd, so one more day of leave is inside the allowance; without the
+    // work it is one over. The warning reads the allowance through `entitlementFor`, and this is the
+    // test that would notice it reading the contract figure instead.
+    const BOXING = new Date(2026, 11, 26);
+    const cea = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL
+        && m.bilingualContract !== true && !['RD', 'OFF'].includes(getPatternShift(m, BOXING)));
+    const used = [];
+    for (let d = new Date(2026, 2, 2); used.length < 33; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() !== 0 && isWorkedShift(getBaseShift(cea, d)) && getBaseShift(cea, d) !== 'SPARE') used.push(formatISO(d));
+    }
+    const recorded = used.slice(0, 32).map((date, i) => ({ id: 'c' + i, memberName: cea.name, type: 'annual_leave', date, value: 'AL' }));
+    const worked = { id: 'bx', memberName: cea.name, type: 'rdw', date: '2026-12-26', value: '06:00-14:00' };
+
+    test('the fixture is what it says: a 32-day CEA, due at work on Boxing Day', () => {
+        assert.ok(cea, 'needs a plain CEA due at work on Boxing Day 2026');
+        assert.equal(recorded.length, 32);
+    });
+
+    test('without the worked Boxing Day, one more day is over', () => {
+        assert.ok(projectAlOverage({ member: cea, memberName: cea.name, overrides: recorded, consuming: [used[32]] }));
+    });
+
+    test('with it, the same day is inside the allowance', () => {
+        assert.equal(projectAlOverage({ member: cea, memberName: cea.name, overrides: [...recorded, worked], consuming: [used[32]] }), null);
     });
 });

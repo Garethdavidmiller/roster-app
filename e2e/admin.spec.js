@@ -1072,7 +1072,14 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
 // falls, which no fixture here asserts and a roster edit could change. The first assertion below
 // therefore pins the PREMISE — if his line moves, this fails loudly as a stale test rather than
 // passing while measuring nothing.
+// CHRISTMAS LEAVE IS PART OF THESE LISTS (v25.37, owner 5 Nov 2026): a member due at work on 25/26
+// December has a 🎄 row in that year's Recorded Annual Leave, which is a record and not a booking. The
+// tests below are about BOOKINGS, so they count `BOOKED_ROWS`, and pin the clock — the Christmas rows
+// listed run up to the current year, so a real clock would change what these lists hold every January.
+const BOOKED_ROWS = '#alBookedBody .al-period-row:not(.al-period-row--christmas)';
+
 test('admin: an AL day on a REST day is not listed and does not count', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
@@ -1109,7 +1116,7 @@ test('admin: an AL day on a REST day is not listed and does not count', async ({
     await page.locator('#alBookedToggle').click();
     await expect(page.locator('#alBookedBody')).toBeVisible();
 
-    const rows = page.locator('#alBookedBody .al-period-row');
+    const rows = page.locator(BOOKED_ROWS);
     await expect(rows).toHaveCount(1);
     // The range STARTS on the Monday — a period opening on the rest day is the defect, and it is
     // visible in the dates even when the count happens to be right.
@@ -1125,8 +1132,51 @@ test('admin: an AL day on a REST day is not listed and does not count', async ({
 // fails in practice: a chip that renders but filters nothing, or a chip offered for a year with no
 // bookings, which shows an empty list and reads as "nothing recorded for this member".
 
+// ── CHRISTMAS LEAVE IS ON RECORD, NEVER COUNTED (v25.37, owner 5 Nov 2026) ──────────────────────
+//
+// The owner asked for it to be RECORDED in the leave records, not merely shown. Nothing is stored
+// for it — it comes from the roster — so the row carries no count and no delete, and it sits in date
+// order among the real bookings. G. Miller is due at work on both days in 2026 and has worked Boxing
+// Day, so only Christmas Day is leave, and his allowance is one higher.
+test('admin: Christmas leave is listed with the recorded leave, not counted, with nothing to delete', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [
+                { id: 'a1', memberName: 'G. Miller', date: '2026-12-21', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'bx', memberName: 'G. Miller', date: '2026-12-26', type: 'rdw', value: '13:30-21:00', note: '' },
+            ],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alBookedBox')).toBeVisible();
+    await page.locator('#alBookedToggle').click();
+    await expect(page.locator('#alBookedBody')).toBeVisible();
+
+    const rows = page.locator('#alBookedBody .al-period-row');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).not.toHaveClass(/al-period-row--christmas/);
+    const xmas = rows.nth(1);
+    await expect(xmas).toHaveClass(/al-period-row--christmas/);
+    await expect(xmas.locator('.al-period-dates')).toContainText('25 Dec');
+    await expect(xmas.locator('.al-period-free')).toHaveText('Not counted');
+    await expect(xmas.locator('button'), 'nothing is stored, so there is nothing to delete').toHaveCount(0);
+    // The real booking still counts one day — the Christmas row added nothing to it.
+    await expect(rows.nth(0).locator('.al-period-count')).toHaveText('1 day');
+
+    await expect(page.locator('#alBannerEntitlement')).toHaveText('33');
+    await expect(page.locator('#alBannerTaken')).toHaveText('0');
+    await expect(page.locator('#alBannerBooked')).toHaveText('1');
+    await expect(page.locator('#alBannerBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day');
+});
+
 test('admin: the recorded-dates list shows one year at a time, and only years that have leave',
     async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
         await seedSession(page, 'G. Miller');
         await page.addInitScript(() => {
             /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
@@ -1161,7 +1211,7 @@ test('admin: the recorded-dates list shows one year at a time, and only years th
         await expect(chips.filter({ hasText: '2027' })).toHaveCount(0);
 
         // One year at a time: the 2027 booking is not on screen while 2026 is selected.
-        const rows = page.locator('#alBookedBody .al-period-dates');
+        const rows = page.locator(`${BOOKED_ROWS} .al-period-dates`);
         await expect(rows).toHaveCount(1);
         await expect(rows.first()).toContainText('Mar');
 
@@ -1177,6 +1227,7 @@ test('admin: the recorded-dates list shows one year at a time, and only years th
 test('admin: a booking that crosses the year end appears in BOTH years, cut at the boundary', async ({ page }) => {
     // The owner's own leave: Mon 28 Dec → Fri 1 Jan. Filed under the year it started, the January
     // day vanished from 2027 — the year a member opens to see what leave they have in it.
+    await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
@@ -1194,7 +1245,7 @@ test('admin: a booking that crosses the year end appears in BOTH years, cut at t
     const chips = page.locator('#alBookedBody .al-year-chip');
     await expect(chips, 'both years must get a chip').toHaveText(['2026', '2027']);
 
-    const rows = page.locator('#alBookedBody .al-period-row');
+    const rows = page.locator(BOOKED_ROWS);
     // The banner's year is 2026 in this fixture's clock, so the list opens there.
     await chips.filter({ hasText: '2026' }).click();
     await expect(rows).toHaveCount(1);
@@ -1443,6 +1494,9 @@ test('admin: scrolling the date picker into another year moves the list with the
 test('admin: deleting a recorded booking confirms in the toast, not only at the top of the card', async ({ page }) => {
     // The inline feedback sits at the top of the card; the row that was deleted can be a screen
     // below it. A destructive action whose confirmation lands off-screen is one the admin repeats.
+    // Pinned to 2025, before the first Christmas leave: from 2026 G. Miller's list also holds his
+    // 🎄 row, so deleting the one booking would no longer empty it, which is the end this checks.
+    await page.clock.setFixedTime(new Date('2025-11-05T09:00:00Z'));
     await seedMemberSession(page, 'G. Miller');   // a real user, so the delete is not refused
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {

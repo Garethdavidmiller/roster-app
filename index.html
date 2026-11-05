@@ -58,6 +58,7 @@
     <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js" crossorigin>
     <link rel="modulepreload" href="./about-lightbox.js">
     <link rel="modulepreload" href="./al-entitlement.js">
+    <link rel="modulepreload" href="./christmas-leave.js">
     <link rel="modulepreload" href="./auth-identity.js">
     <link rel="modulepreload" href="./auth-state-core.js">
     <link rel="modulepreload" href="./auth-state.js">
@@ -316,6 +317,9 @@
                  day dated next year, and next year's figures leave out a day that is plainly on its
                  calendar. Each says so in one line here, or the numbers look wrong. Absent otherwise. -->
             <p id="alLbCarry" class="al-lb-carry" hidden></p>
+            <!-- CHRISTMAS LEAVE (v25.37): the Christmas days this year shows as leave, listed so they are
+                 RECORDED and said to be not counted, because the figures above leave them out. -->
+            <p id="alLbChristmas" class="al-lb-carry" hidden></p>
             <p id="alLbError" class="al-lb-error" hidden>Couldn't load — check your connection</p>
             <!-- Short labels so the pair shares a row at 320px — the day panel's "Leave dates" names the same list. -->
             <div class="al-lb-actions">
@@ -362,6 +366,10 @@
                  previous year's (leave-year.js). Directly under the shift because it qualifies it.
                  Absent on every other day: its own year is the default, and needs no saying. -->
             <div class="day-detail-leaveyear" id="dayDetailLeaveYear" hidden></div>
+            <!-- CHRISTMAS LEAVE (v25.37) — why a Christmas day reads as leave that costs nothing, or
+                 why a worked Boxing Day adds a day in lieu. The same quiet line as the one above,
+                 because it qualifies the shift in the same way. Absent on every other day. -->
+            <div class="day-detail-leaveyear" id="dayDetailChristmas" hidden></div>
             <!-- What the roster said before this day was changed, as the two SHIFT BADGES the
                  member already reads in the grid. Directly under the shift because it qualifies it;
                  above the day markers, which are about the DATE and not the turn. The badges are

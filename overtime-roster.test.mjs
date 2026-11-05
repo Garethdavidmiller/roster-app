@@ -237,6 +237,29 @@ describe('and it still answers for the member themselves', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('Christmas leave reaches the Overtime roster too (v25.37)', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+    // G. Miller's pattern has him on a late turn on both days in 2026. The form and the reviewer's
+    // rows must say what his calendar says — annual leave — and recorded work must still win.
+    const WEEK = ['2026-12-20', '2026-12-21', '2026-12-22', '2026-12-23', '2026-12-24', '2026-12-25', '2026-12-26'];
+
+    test('a day due at work is leave, not rest — and not a day to offer overtime as if free', async () => {
+        const { byDate } = await loadRosterContext(MEMBER, WEEK);
+        assert.equal(byDate['2026-12-25'].shift, 'AL');
+        assert.equal(byDate['2026-12-26'].shift, 'AL');
+        assert.equal(byDate['2026-12-24'].isRest, false, 'premise: an ordinary working day either side');
+    });
+
+    test('work recorded on Boxing Day wins over the leave', async () => {
+        _docs = [ov(MEMBER, '2026-12-26', 'rdw', '13:30-21:00')];
+        const { byDate } = await loadRosterContext(MEMBER, WEEK);
+        assert.equal(byDate['2026-12-26'].shift, 'RDW');
+        assert.equal(byDate['2026-12-26'].start, '13:30');
+        assert.equal(byDate['2026-12-25'].shift, 'AL');
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
 describe('the reviewer\'s read is wide ON PURPOSE, and still attributes every row', () => {
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 

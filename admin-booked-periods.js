@@ -163,7 +163,7 @@ export function createBookedPeriods(deps) {
      * @param {{ type: string, memberName: string, boxId: string, bodyId: string,
      *           consumes?: (memberObj: any, dateStr: string, ovByDate: Map<string, any>|null) => boolean,
      *           countFn: (n: number) => string, countClass: string, feedbackId: string,
-     *           preferredYear?: string|null }} cfg
+     *           preferredYear?: string|null, christmas?: Record<string, string[]> }} cfg
      */
     function render(cfg) {
         const { type, memberName, boxId, bodyId, countFn, countClass, feedbackId } = cfg;
@@ -178,8 +178,14 @@ export function createBookedPeriods(deps) {
         // some of their rows in the cache and would present a partial history as the whole of it.
         if (!deps.hasAuthority(memberName)) return hide();
 
+        // CHRISTMAS LEAVE (v25.37, owner 5 Nov 2026) — year → the member's Christmas leave dates, which
+        // the owner asked to be RECORDED here. Derived from the roster, never stored, never counted
+        // (christmas-leave.js → christmasLeaveByYear), so it is a row of its own and a year it falls in
+        // is a year with something to show even when nothing else was booked.
+        const xmas = cfg.christmas || {};
+        const hasXmas = Object.keys(xmas).length > 0;
         const entries = deps.getEntries(memberName, type);
-        if (!entries.length) return hide();
+        if (!entries.length && !hasXmas) return hide();
 
         const memberObj = deps.memberFor(memberName);
         // WHAT THE LIST COUNTS MUST BE WHAT THE ENTITLEMENT COUNTS (v23.72). This filtered Sundays
@@ -203,20 +209,45 @@ export function createBookedPeriods(deps) {
             .filter(d => !deps.isSunday(d))
             .filter(d => !cfg.consumes || cfg.consumes(memberObj, d, ovByDate))
             .sort();
-        if (!dateList.length) return hide();
-        const periods = deps.mergePeriods(dateList,
-            d => deps.isRestGap(d, memberObj), d => deps.addDays(d, 1));
+        if (!dateList.length && !hasXmas) return hide();
+        const periods = dateList.length ? deps.mergePeriods(dateList,
+            d => deps.isRestGap(d, memberObj), d => deps.addDays(d, 1)) : [];
 
         // Cut at every year end FIRST, so a 28 Dec → 1 Jan booking puts its January day under
         // January's year — the owner's decision at v23.11, argued in the header.
         const segments = splitAtYearEnd(periods, dateList);
-        const years = bookedYears(segments);
+        const years = [...new Set([...bookedYears(segments), ...Object.keys(xmas)])].sort();
         const year  = pickBookedYear({ pinned: pinned[boxId], preferred: cfg.preferredYear, years });
         if (!year) return hide();
 
         const shown = segments.filter(p => p.start.slice(0, 4) === year);
         /** @type {Record<string, any[]>} */ const byMonth = {};
         for (const p of shown) (byMonth[p.start.slice(0, 7)] = byMonth[p.start.slice(0, 7)] || []).push(p);
+        const xmasDates = xmas[year] || [];
+        const xmasKey = `${year}-12`;
+        if (xmasDates.length && !byMonth[xmasKey]) byMonth[xmasKey] = [];
+        /** The Christmas leave row, in date order inside December: listed so it is on record, and
+         *  outside every count — a "Not counted" pill in place of a number of days, and no delete,
+         *  because nothing is stored to delete; it comes from the roster. */
+        const christmasRow = () => {
+            const row = deps.doc.createElement('div');
+            row.className = 'al-period-row al-period-row--christmas';
+            const dates = deps.doc.createElement('span');
+            dates.className = 'al-period-dates';
+            const glyph = deps.doc.createElement('span');
+            glyph.setAttribute('aria-hidden', 'true');
+            glyph.textContent = '🎄 ';
+            const said = deps.doc.createElement('span');
+            said.className = 'visually-hidden';
+            said.textContent = 'Christmas leave, ';
+            const first = xmasDates[0], last = xmasDates[xmasDates.length - 1];
+            dates.append(glyph, said, first === last ? deps.fmtDate(first) : deps.fmtRange(first, last));
+            const free = deps.doc.createElement('span');
+            free.className = 'al-period-free';
+            free.textContent = 'Not counted';
+            row.append(dates, free);
+            return row;
+        };
 
         // A CHIP ACTIVATED FROM THE KEYBOARD MUST STILL BE FOCUSED AFTERWARDS. The re-render below
         // destroys every node, and a focused element that is removed hands focus to <body> — so
@@ -256,7 +287,9 @@ export function createBookedPeriods(deps) {
             hdr.textContent = deps.monthAbb[parseInt(key.slice(5, 7), 10) - 1];
             monthDiv.appendChild(hdr);
 
+            let xmasPending = key === xmasKey && xmasDates.length > 0;
             for (const p of byMonth[key]) {
+                if (xmasPending && xmasDates[0] < p.start) { monthDiv.appendChild(christmasRow()); xmasPending = false; }
                 const dateStr = p.start === p.end ? deps.fmtDate(p.start) : deps.fmtRange(p.start, p.end);
                 const row = deps.doc.createElement('div');
                 row.className = 'al-period-row';
@@ -339,6 +372,7 @@ export function createBookedPeriods(deps) {
                 row.appendChild(btn);
                 monthDiv.appendChild(row);
             }
+            if (xmasPending) monthDiv.appendChild(christmasRow());
             body.appendChild(monthDiv);
         }
         if (refocusChip) /** @type {any} */ (bar.querySelector('.al-year-chip.is-active'))?.focus();

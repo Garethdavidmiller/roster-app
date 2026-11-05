@@ -38,9 +38,10 @@
 // the week grid did. A shared decision layer is the only version of this that stays true, because
 // there is no second copy to forget.
 
-import { getALEntitlement, projectAnnualLeaveOverage } from './roster-data.js';
+import { projectAnnualLeaveOverage } from './roster-data.js';
 import { swapDecisionDates } from './al-swapped-days.js';
-import { consumesEntitlement, countedAlDates, isWorkingDate, winningEntriesOfType } from './al-entitlement.js';
+import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType } from './al-entitlement.js';
+import { isChristmasClosureDate } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 
 /**
@@ -78,6 +79,10 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *
  *   `answeredFree` — asked, and answered "rest day — free". Nothing is written on either surface:
  *                    the day is a rest day, the leave costs nothing, and there is nothing to record.
+ *                    CHRISTMAS DAY AND BOXING DAY with no work recorded join it unasked (v25.37):
+ *                    their answer is fixed, because leave there never costs a day, so both surfaces
+ *                    drop them as they drop a day answered "free", and every receipt names them.
+ *   `christmas`    — that subset, so the preview can call them Christmas days, not rest days.
  *
  * The two halves of `skipped` are decided by different things, which is why the subset is named.
  * `answeredFree` is an ANSWER the surface asked for and got; the rest is a rule about days nobody
@@ -96,12 +101,12 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  * @param {Map<string, boolean>|null} [args.swapAnswers] date → `true` (swapped, counts) /
  *        `false` (genuine rest, free). A date ABSENT is unanswered, which is a state, not a default.
  * @returns {{asked: string[], unanswered: string[], consuming: string[], freeWritten: string[],
- *            skipped: string[], answeredFree: string[], writing: string[],
+ *            skipped: string[], answeredFree: string[], christmas: string[], writing: string[],
  *            counts: {asked:number, unanswered:number, consuming:number, freeWritten:number,
- *                     skipped:number, answeredFree:number, writing:number}}}
+ *                     skipped:number, answeredFree:number, christmas:number, writing:number}}}
  */
 export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers = null }) {
-    const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], answeredFree: [], writing: [] };
+    const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], answeredFree: [], christmas: [], writing: [] };
     if (!member || !Array.isArray(dates)) return { ...empty, counts: _counts(empty) };
 
     const all = [...new Set(dates)].sort();
@@ -113,6 +118,7 @@ export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers =
     /** @type {string[]} */ const freeWritten = [];
     /** @type {string[]} */ const skipped = [];
     /** @type {string[]} */ const answeredFree = [];
+    /** @type {string[]} */ const christmas = [];
     /** @type {string[]} */ const writing = [];
 
     for (const date of all) {
@@ -127,6 +133,8 @@ export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers =
         } else if (!isWorkingDate(member, date, /** @type {any} */ (ovByDate))) {
             // Not asked and not worked: a Sunday, or a rest day the record already settled.
             skipped.push(date);
+            // A Christmas day is never asked because its answer is fixed — see `answeredFree` above.
+            if (isChristmasClosureDate(date)) { answeredFree.push(date); christmas.push(date); }
             continue;
         }
         // ONE expression decides whether the day costs anything, for an answered swap and an
@@ -135,7 +143,7 @@ export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers =
         (willConsume({ member, date, ovByDate, swapped }) ? consuming : freeWritten).push(date);
     }
 
-    const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, writing };
+    const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, christmas, writing };
     return { ...out, counts: _counts(out) };
 }
 
@@ -144,7 +152,7 @@ function _counts(sets) {
     return {
         asked: sets.asked.length, unanswered: sets.unanswered.length,
         consuming: sets.consuming.length, freeWritten: sets.freeWritten.length,
-        skipped: sets.skipped.length, answeredFree: sets.answeredFree.length,
+        skipped: sets.skipped.length, answeredFree: sets.answeredFree.length, christmas: sets.christmas.length,
         writing: sets.writing.length,
     };
 }
@@ -180,7 +188,7 @@ export function projectAlOverage({ member, memberName, overrides, consuming, exc
     const yearFor = (/** @type {string} */ d) => String(carriedFrom(winners.get(d), d) ?? d.substring(0, 4));
     const years = [...new Set(consuming.map(yearFor))].sort();
     for (const yearStr of years) {
-        const entitlement = getALEntitlement(member, parseInt(yearStr, 10), overrides);
+        const entitlement = entitlementFor(member, yearStr, overrides);
         if (entitlement === null) continue;
         const existingALDates = countedAlDates({ overrides, member, year: yearStr, exclude });
         const newALDates = consuming.filter(d => yearFor(d) === yearStr);

@@ -16,8 +16,9 @@ import { shiftBadgeParts } from './roster-data.js';
 import { getCurrentMember } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
-import { getALEntitlement, formatISO, paydayForCutoff, CONFIG } from './roster-data.js';
-import { countedAlDates } from './al-entitlement.js';
+import { formatISO, paydayForCutoff, CONFIG } from './roster-data.js';
+import { countedAlDates, entitlementFor, entitlementNote } from './al-entitlement.js';
+import { christmasLeaveDates, christmasLeaveLine } from './christmas-leave.js';
 import { carryLine } from './leave-year.js';
 import { lsGet, lsSet } from './ls.js';
 
@@ -41,6 +42,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const yearEl      = /** @type {HTMLElement} */ (document.getElementById('alLbYear'));
   const breakdownEl = document.getElementById('alLbBreakdown');
   const carryEl     = document.getElementById('alLbCarry');
+  const xmasLineEl  = document.getElementById('alLbChristmas');
   const alErrorEl   = document.getElementById('alLbError');
 
   const prevYearBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('alLbPrevYear'));
@@ -94,10 +96,11 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     statsEl?.classList.add('is-pending');
     if (breakdownEl) breakdownEl.hidden = true;
     if (carryEl) carryEl.hidden = true;
+    if (xmasLineEl) xmasLineEl.hidden = true;
   }
 
   /** Paint the four figures + breakdown. One renderer for the memo and fresh paths so they
-   *  can never drift. @param {{ taken:number, booked:number, entitlement:number, breakdown:string|null, carry?:string|null }} s */
+   *  can never drift. @param {{ taken:number, booked:number, entitlement:number, breakdown:string|null, carry?:string|null, christmas?:string|null }} s */
   function renderALStats(s) {
     const remaining = s.entitlement - s.taken - s.booked;
     statsEl?.classList.remove('is-pending');
@@ -117,6 +120,10 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     if (carryEl) {
       carryEl.textContent = s.carry ?? '';
       carryEl.hidden = !s.carry;
+    }
+    if (xmasLineEl) {
+      xmasLineEl.textContent = s.christmas ?? '';
+      xmasLineEl.hidden = !s.christmas;
     }
   }
 
@@ -208,27 +215,24 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       const carriedIn  = [...counted].filter(d => d.startsWith(`${year + 1}-`)).length;
       const carriedOut = countedAlDates({ overrides: memberOverrides, member, year: year - 1 }).size;
       const carry = carryLine({ year, carriedIn, carriedOut });
-      const entitlement = getALEntitlement(member, year, memberOverrides);
+      const entitlement = entitlementFor(member, year, memberOverrides);
       // NO ENTITLEMENT ON RECORD → the em-dash state this panel already uses for "no member"
       // (v22.45). Unreachable from the calendar (a Management account is excluded from the member
       // selector), but `renderALStats` would otherwise do `null - taken - booked` and paint a
       // NEGATIVE remaining as confidently as a real one — null coerces to 0, so the arithmetic
       // that looks like it would fail loudly instead succeeds quietly.
       if (entitlement === null) { paintPlaceholder('—'); return; }
-      // HIDE THE BREAKDOWN FOR A PRO-RATED JOINING YEAR — still right, for a reason that INVERTED
-      // at v22.50 and this comment did not (found 6 Sep 2026, doc sweep). It used to say
-      // `getALEntitlement` returns `proRatedAL[year]` BEFORE the Dispatcher branch, so entitlement
-      // was not 22+lieu. The Dispatcher branch now comes FIRST and pro-rata scales only the BASE,
-      // so entitlement genuinely IS base + lieu. What makes the split still unsafe is the string
-      // below: it hardcodes `22` as the base, which is exactly what a pro-rated year replaces, so
-      // it would label a 12-day base as 22 and derive the lieu count from the wrong subtraction.
-      // The suppression is the only thing standing between that expression and the screen — if you
-      // ever show this for a pro-rated year, take the base from the member rather than the literal
-      // (v16.69 review fix; reasoning corrected 6 Sep 2026).
-      const _proRated = /** @type {any} */ (member).proRatedAL?.[year] !== undefined;
-      const breakdown = (/** @type {any} */ (member).role === 'Dispatcher' && !_proRated)
-        ? `22 base + ${entitlement - 22} BH lieu` : null;
-      const fresh = { taken, booked, entitlement, breakdown, carry };
+      // WHAT THE ENTITLEMENT IS MADE OF — the Admin banner's own line (`entitlementNote`), so the two
+      // cannot describe one number differently. This panel built its own until v25.37 as
+      // `22 base + ${entitlement - 22} BH lieu`, hidden for a pro-rated year because that literal 22 is
+      // exactly what pro-rata replaces; the shared line takes the base from the member, so a joining
+      // year now reads "(pro-rated)" instead of nothing, and a Boxing Day in lieu is named as one
+      // rather than being folded into "BH lieu" (in 2026 Boxing Day is no bank holiday at all).
+      const breakdown = entitlementNote({ member, year, overrides: memberOverrides });
+      // CHRISTMAS LEAVE (v25.37, owner 5 Nov 2026) — shown on the calendar and listed here, because
+      // the figures above leave it out: it is never counted (al-entitlement.js).
+      const christmas = christmasLeaveLine(christmasLeaveDates({ member, year, overrides: memberOverrides }));
+      const fresh = { taken, booked, entitlement, breakdown, carry, christmas };
       renderALStats(fresh);
       // Persist the last-known-good memo so the NEXT open paints instantly (best-effort).
       lsSet(_alMemoKey(/** @type {any} */ (member).name, yearStr), JSON.stringify(fresh));
@@ -262,6 +266,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const wordsEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftWords'));
   const timeEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftTime'));
   const leaveYrEl = document.getElementById('dayDetailLeaveYear');
+  const xmasEl    = document.getElementById('dayDetailChristmas');
   const changeEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailChange'));
   const pairEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailChangePair'));
   const byEl     = /** @type {HTMLElement} */ (document.getElementById('dayDetailBy'));
@@ -333,6 +338,17 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       const from = /^\d{4}$/.test(d.detailLeaveYear || '') ? d.detailLeaveYear : '';
       leaveYrEl.textContent = from ? `From the ${from} allowance` : '';
       leaveYrEl.hidden = !from;
+    }
+    // CHRISTMAS LEAVE (v25.37, owner 5 Nov 2026) — why a Christmas day reads as leave that costs
+    // nothing, or why a worked Boxing Day adds a day. The renderer decides which (christmas-leave.js
+    // has the rules); the wording is neutral because this panel also shows a colleague's calendar.
+    if (xmasEl) {
+      const day  = d.detailChristmas === '25' ? 'Christmas Day' : d.detailChristmas === '26' ? 'Boxing Day' : '';
+      const lieu = /^\d{4}$/.test(d.detailBoxingLieu || '') ? d.detailBoxingLieu : '';
+      xmasEl.textContent = day ? `${day}: due at work, so this is annual leave. It does not come off the allowance.`
+        : lieu ? `Worked Boxing Day when due at work: one day of annual leave in lieu is added to the ${lieu} allowance.`
+        : '';
+      xmasEl.hidden = !(day || lieu);
     }
     const kindEmoji = d.detailShiftValue ? shiftBadgeParts(d.detailShiftValue).emoji : '';
     if (glyphEl) {

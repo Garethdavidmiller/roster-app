@@ -14,9 +14,11 @@ import {
     isSameDay, isBankHoliday, isChristmasDay, isEasterSunday,
     isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge, shiftBadgeParts,
     getWeekNumberForDate, getRosterForMember, resolveMemberRoster, getBaseShift, formatISO, isSunday, isWorkedShift,
+    getPatternShift,
     SWIPE_THRESHOLD, SWIPE_VELOCITY, escapeHtml,
 } from './roster-data.js';
-import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
+import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 import { getCurrentMember } from './calendar-member.js';
 import { rosterOverridesCache, monthKey } from './calendar-overrides.js';
@@ -556,9 +558,18 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // somebody's life. `getBaseShift` has already applied start-date suppression, the
         // Christmas rules and any scheduled roster change, so this is the member's real base.
         const baseShift = shift;
-        const { shift: _effShift, rdwTime, derivedRdw: otherDerivedRdw } =
-            resolveEffectiveShift(override, shift, isSunday(dateStr));
+        // CHRISTMAS LEAVE (v25.37, owner 5 Nov 2026): due at work on 25 or 26 December by the pattern
+        // shows as annual leave that is never counted, wherever nothing is recorded on the day —
+        // christmas-leave.js has the rules. `isChristmasLeaveDay` already says no before a start date.
+        const christmasDue = isChristmasLeaveDay(member, currentDate);
+        const { shift: _effShift, rdwTime, derivedRdw: otherDerivedRdw, christmasLeave } =
+            resolveDayShift(override, shift, isSunday(dateStr), christmasDue);
         shift = _effShift;
+        // WHAT THE MEMBER WAS ROSTERED, for the panel's "changed from" pair. `getBaseShift` makes
+        // both Christmas days a rest day for everybody, so on a day the member was DUE at work the
+        // pair would read "Rest → Annual leave" about somebody rostered an early turn — the one
+        // fact this feature exists to state. The pattern is what they were rostered.
+        const rosteredShift = christmasDue ? getPatternShift(member, currentDate) : baseShift;
 
         const isWorkedDay = isWorkedShift(shift);
         const shiftClass = shift === 'RDW' || isOtherValue(shift)          ? getShiftClass(shift)
@@ -571,7 +582,8 @@ export function buildCalendarContainer(month, year, opts = {}) {
 
         // The FULL word on tap/tooltip/aria (the badge carries the short one). Shared with the
         // base-roster line below, so the two can never describe the same value differently.
-        const shiftLabel = shiftWords(shift, member, otherDerivedRdw);
+        const shiftLabel = christmasLeave ? 'Annual leave (Christmas, not counted)'
+            : shiftWords(shift, member, otherDerivedRdw);
 
         const isToday  = isSameDay(currentDate, today);
         const isBH     = isBankHoliday(currentDate);
@@ -609,20 +621,24 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // property of "something happened" rather than of the shift.
         dayCell.dataset.detailShiftValue = shift;
         // Split so the panel can hold the TIME together across a wrap — see `splitShiftLine`.
-        const shiftLine = splitShiftLine(ttShift);
+        // Christmas leave heads the panel as plain "Annual leave": the line under it says why, and
+        // the "(Christmas, not counted)" the tooltip and the cell's name need would say it twice.
+        const shiftLine = splitShiftLine(christmasLeave ? shiftWords(shift, member, false) : ttShift);
         dayCell.dataset.detailShiftWords = shiftLine.words;
         if (shiftLine.time) dayCell.dataset.detailShiftTime = shiftLine.time;
         // Compared on the VALUES, not the words: a permanent-early member's 06:20 and 07:00 both
         // read "Early shift", so comparing labels would hide exactly the change worth stating.
         // A suppressed override resolves back to the base, so it correctly produces no line.
-        if (baseShift !== shift) {
-            dayCell.dataset.detailBase = shiftWords(baseShift, member, false, true);
+        if (rosteredShift !== shift) {
+            dayCell.dataset.detailBase = shiftWords(rosteredShift, member, false, true);
             // The raw VALUES, not rendered badges: the panel derives colour and emoji from
             // `shiftBadgeParts`, so it cannot give a shift a different colour from the cell that
             // was tapped — and nothing writes markup out of a `data-` attribute.
-            dayCell.dataset.detailBaseShift = baseShift;
+            dayCell.dataset.detailBaseShift = rosteredShift;
             dayCell.dataset.detailNowShift  = shift;
-            const by = changeProvenance(override?.source, override?.changedBy);
+            // Christmas leave is nobody's change — it comes from the roster — so a suppressed
+            // document underneath it must not lend it a "changed by" line.
+            const by = christmasLeave ? '' : changeProvenance(override?.source, override?.changedBy);
             if (by) dayCell.dataset.detailBy = by;
         } else if (_display === 'render' && !preStart) {
             // NOTHING WAS CHANGED — AND WE ACTUALLY KNOW THAT (v22.89, external review).
@@ -656,6 +672,13 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // never put the line under a day that is not leave.
         const fromYear = shift === 'AL' ? carriedFrom(override, dateStr) : null;
         if (fromYear) dayCell.dataset.detailLeaveYear = String(fromYear);
+        // Which Christmas day this leave is, for the panel's one-line explanation; and, on a Boxing
+        // Day the member was due to work and DID work, the year a day in lieu is added to
+        // (christmas-leave.js → boxingDayLieuDays, which the allowance reads).
+        if (christmasLeave) dayCell.dataset.detailChristmas = String(currentDate.getDate());
+        else if (christmasDue && currentDate.getDate() === 26 && isWorkedDay) {
+            dayCell.dataset.detailBoxingLieu = String(currentDate.getFullYear());
+        }
         if (extras)       dayCell.dataset.detailExtras = extras;
         // JSON rather than a re-parse of the sentence above: the panel needs the icons, and
         // matching them back out of "Bank holiday, Christmas Day" would be a second, silent copy of
