@@ -37,10 +37,10 @@ first again. *Quarter Past out, Well Kept in* has the table and the reason.
 5 Nov; every score fell 0.4 to 1.0 points, and Even Step is still first. *Well Kept out* has the table.
 
 **The shortlist was drawn again on 5 Nov 2026**: Common Ground, Even Step and Short Run. In Step left it, and its
-presentations stay in the pack. **Later that day the recommendation went** (owner: "Remove the marks"): the pack, the
-app and every builder present the three evenly, A to Z, and refuse a recommendation back. Sections dated before then
-speak of the shortlist and the recommendation of their day; *The shortlist drawn again* and *The whole pack reviewed*
-say what changed.
+presentations stay in the pack. **Later that day the recommendation went** (owner: "Remove the marks"): the pack and
+the app present the three evenly, A to Z, and the deck builders, `pack.py` and `links-proposals.test.mjs` refuse a
+recommendation back. Sections dated before then speak of the shortlist and the recommendation of their day; *The
+shortlist drawn again* and *The whole pack reviewed* say what changed.
 
 **Three designs were renamed on 4 Nov 2026** (owner: "Give all proposals individual names"): Quarter Past Relaid is
 **Open Return** (`OR-26-EXT`, drawn as `QR-26-EXT`), Fair Share's 30-day search result, which had no name, is **Grand
