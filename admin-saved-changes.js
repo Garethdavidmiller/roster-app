@@ -235,8 +235,10 @@ function _updateBulkDeleteVisibility() {
  * @param {HTMLButtonElement} btn
  * @param {string} confirmLabel
  * @param {string} resetLabel
+ * @param {string} [armedName] the armed name where "Confirm" + the idle one would not contain what the button SHOWS — the bulk
+ *   button's count, said by a voice user as "Delete 3" (WCAG 2.5.3; 6 Nov 2026). It also stops a re-arm reading "Confirm confirm".
  */
-function _armConfirmButton(btn, confirmLabel, resetLabel) {
+function _armConfirmButton(btn, confirmLabel, resetLabel, armedName) {
     btn.classList.add('confirming');
     btn.textContent = confirmLabel;
     // A DESTRUCTIVE TWO-STEP CONTROL MUST SAY ITS MEANING CHANGED (v23.16, external review). The
@@ -246,7 +248,7 @@ function _armConfirmButton(btn, confirmLabel, resetLabel) {
     const idle = btn.getAttribute('aria-label');
     if (idle) {
         if (!btn.dataset.idleLabel) btn.dataset.idleLabel = idle;
-        btn.setAttribute('aria-label', `Confirm ${idle.charAt(0).toLowerCase()}${idle.slice(1)}`);
+        btn.setAttribute('aria-label', armedName ?? `Confirm ${idle.charAt(0).toLowerCase()}${idle.slice(1)}`);
     }
     const b = /** @type {any} */ (btn); clearTimeout(b.armTimer);   // a re-arm gets its own five seconds (48-hour review)
     b.armTimer = setTimeout(() => { if (btn.classList.contains('confirming')) _disarmConfirmButton(btn, resetLabel); }, 5000);
@@ -362,7 +364,7 @@ function _initOverridesTable() {
             // Two-tap confirm, ARMED FOR THIS SELECTION (v25.06): "⚠ Delete 1?" once deleted all three ticked by the 2nd tap.
             if (!bulkDeleteBtn.classList.contains('confirming') || bulkDeleteBtn.dataset.armedFor !== picked.join('|')) {
                 bulkDeleteBtn.dataset.armedFor = picked.join('|');
-                _armConfirmButton(bulkDeleteBtn, `⚠ Delete ${picked.length}?`, 'Delete selected');
+                _armConfirmButton(bulkDeleteBtn, `⚠ Delete ${picked.length}?`, 'Delete selected', `Confirm delete ${picked.length} selected change${picked.length !== 1 ? 's' : ''}`);
                 return;
             }
             _disarmConfirmButton(bulkDeleteBtn, 'Delete selected');   // name and class back before "Deleting…"

@@ -88,3 +88,30 @@ describe('pdfjs-dist — the geometry reader is tested on the version it runs on
         assert.equal(FN_LOCK.packages?.['node_modules/pdfjs-dist']?.version, server, 'functions/package-lock.json is stale for pdfjs-dist');
     });
 });
+
+describe('firebase — the rules tests run the SDK the app loads', () => {
+    // The app loads the Firebase web SDK from gstatic (firebase-client.js), which no package manager
+    // sees; the rules tests drive the emulator with the npm `firebase` package, pinned exactly in
+    // v25.34 so it would not drift to a release the app had not adopted. Dependabot's weekly bundle
+    // was still free to move it (6 Nov 2026 review) and nothing compared the two, so the rules could
+    // be proved against one SDK while staff ran another. dependabot.yml now leaves it alone, and this
+    // fails the moment either copy moves without the other.
+    const root = ROOT_PKG.devDependencies?.firebase;
+    const gstatic = [...new Set([...read('./firebase-client.js').matchAll(/gstatic\.com\/firebasejs\/(\d+\.\d+\.\d+)\//g)].map(m => m[1]))];
+
+    test('firebase-client.js loads ONE SDK version, and package.json pins the same one exactly', () => {
+        assert.equal(gstatic.length, 1, `firebase-client.js loads ${gstatic.length} SDK versions (${gstatic.join(', ')})`);
+        assert.match(String(root), EXACT, `package.json firebase is "${root}" — pin it exactly, or a fresh install tests the rules on a newer SDK`);
+        assert.equal(root, gstatic[0],
+            `package.json pins firebase ${root} but firebase-client.js loads ${gstatic[0]} — move both together (and FIREBASE_SDK_VERSION in service-worker.js)`);
+    });
+
+    test('the lockfile resolves that version', () => {
+        assert.equal(ROOT_LOCK.packages?.['node_modules/firebase']?.version, root, 'package-lock.json is stale for firebase');
+    });
+
+    test('dependabot leaves it alone, as it does the other hand-moved pins', () => {
+        assert.match(read('./.github/dependabot.yml'), /^\s*- dependency-name: "firebase"\s*$/m,
+            '.github/dependabot.yml must ignore firebase: a bot bump would move the test SDK off the app\'s');
+    });
+});

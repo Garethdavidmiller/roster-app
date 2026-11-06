@@ -41,7 +41,7 @@
 import { projectAnnualLeaveOverage } from './roster-data.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType } from './al-entitlement.js';
-import { isChristmasClosureDate } from './christmas-leave.js';
+import { isChristmasClosureDate, boxingDayLieuDays } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 
 /**
@@ -94,6 +94,14 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  * `skipped` is the one that must never include a date from `consuming`, which is exactly the bug
  * this module was written for: nothing may say "skipped" about a day Save is about to count.
  *
+ * And one subset of `writing`, because a day can cost nothing to SPEND and still cost a day:
+ *
+ *   `lieuLost`   — a worked Boxing Day that earns its day in lieu (christmas-leave.js) and that this
+ *                  write turns into leave. The leave is free, but the day in lieu goes with the work,
+ *                  so the allowance drops by one (6 Nov 2026 review: the preview called it "recorded
+ *                  at no cost" and the warning missed it, and the member ended a day over).
+ *                  `projectAlOverage` costs it through the allowance; this names it for the preview.
+ *
  * @param {object} args
  * @param {any} args.member the team-member object; without it nothing can be judged
  * @param {string[]} args.dates every date the booking covers
@@ -101,12 +109,12 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  * @param {Map<string, boolean>|null} [args.swapAnswers] date → `true` (swapped, counts) /
  *        `false` (genuine rest, free). A date ABSENT is unanswered, which is a state, not a default.
  * @returns {{asked: string[], unanswered: string[], consuming: string[], freeWritten: string[],
- *            skipped: string[], answeredFree: string[], christmas: string[], writing: string[],
+ *            skipped: string[], answeredFree: string[], christmas: string[], writing: string[], lieuLost: string[],
  *            counts: {asked:number, unanswered:number, consuming:number, freeWritten:number,
- *                     skipped:number, answeredFree:number, christmas:number, writing:number}}}
+ *                     skipped:number, answeredFree:number, christmas:number, writing:number, lieuLost:number}}}
  */
 export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers = null }) {
-    const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], answeredFree: [], christmas: [], writing: [] };
+    const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], answeredFree: [], christmas: [], writing: [], lieuLost: [] };
     if (!member || !Array.isArray(dates)) return { ...empty, counts: _counts(empty) };
 
     const all = [...new Set(dates)].sort();
@@ -120,6 +128,7 @@ export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers =
     /** @type {string[]} */ const answeredFree = [];
     /** @type {string[]} */ const christmas = [];
     /** @type {string[]} */ const writing = [];
+    /** @type {string[]} */ const lieuLost = [];
 
     for (const date of all) {
         let swapped = false;
@@ -141,9 +150,12 @@ export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers =
         // ordinary working day alike — `willConsume` is the rule, and there is no second copy of it.
         writing.push(date);
         (willConsume({ member, date, ovByDate, swapped }) ? consuming : freeWritten).push(date);
+        // The work on record that day is what earns the day in lieu, and the leave replaces it.
+        const held = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
+        if (held && date.endsWith('-12-26') && boxingDayLieuDays(member, date.slice(0, 4), [held]) > 0) lieuLost.push(date);
     }
 
-    const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, christmas, writing };
+    const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, christmas, writing, lieuLost };
     return { ...out, counts: _counts(out) };
 }
 
@@ -153,8 +165,36 @@ function _counts(sets) {
         asked: sets.asked.length, unanswered: sets.unanswered.length,
         consuming: sets.consuming.length, freeWritten: sets.freeWritten.length,
         skipped: sets.skipped.length, answeredFree: sets.answeredFree.length, christmas: sets.christmas.length,
-        writing: sets.writing.length,
+        writing: sets.writing.length, lieuLost: sets.lieuLost.length,
     };
+}
+
+/**
+ * The overrides as they will stand once a save lands — what the ALLOWANCE is read from.
+ *
+ * A save can move the allowance as well as spend it (6 Nov 2026 review). Working a Boxing Day the
+ * pattern was due to work earns a day in lieu (`boxingDayLieuDays`), so leave written over that work
+ * takes the day back, deleting the work does the same, and recording it gives the day. Costed against
+ * the allowance BEFORE the save, the range card let a member with two days left book two days and end
+ * one over, and the week grid raised "1 day over" about a save that left them exactly at their limit.
+ *
+ * The writes are added as the newest records on their dates, so `shouldReplaceOverride` makes them
+ * the winners there exactly as the real documents will be: a manual write is the newest manual
+ * record, and manual beats a roster import whatever its age.
+ *
+ * @param {Array<any>} overrides every override in play
+ * @param {object} save
+ * @param {string} save.memberName whose records the writes are
+ * @param {Array<{date: string, type: string, value?: string}>} [save.writes] what the save writes
+ * @param {Iterable<string>} [save.deleteIds] the ids of the records it deletes
+ * @returns {Array<any>}
+ */
+export function overridesAfterSave(overrides, { memberName, writes = [], deleteIds = [] }) {
+    const gone = new Set(deleteIds);
+    const kept = (overrides || []).filter(o => !(o && gone.has(o.id)));
+    // Later than any real timestamp, so a written day's record is that day's winner.
+    const newest = { seconds: 4102444800 };   // 2100-01-01
+    return [...kept, ...writes.map(w => ({ memberName, date: w.date, type: w.type, value: w.value ?? '', createdAt: newest }))];
 }
 
 /**
@@ -178,17 +218,31 @@ function _counts(sets) {
  * @param {string[]} args.consuming the dates this save will charge
  * @param {Set<string>|null} [args.exclude] dates being overwritten or deleted, so the existing
  *        count does not charge for them twice
+ * @param {Array<any>|null} [args.after] the overrides as they will stand once the save lands
+ *        (`overridesAfterSave`). The ALLOWANCE is read from these, because a save can move it — a
+ *        worked Boxing Day's day in lieu comes and goes with the work — and a year whose allowance
+ *        it moves is checked even when nothing in that year is spent. Omitted, the stored overrides.
  * @returns {{over:number, projectedTotal:number, headline:string, detail:string}|null}
  */
-export function projectAlOverage({ member, memberName, overrides, consuming, exclude = null }) {
-    if (!member || !Array.isArray(consuming) || !consuming.length) return null;
+export function projectAlOverage({ member, memberName, overrides, consuming, exclude = null, after = null }) {
+    if (!member || !Array.isArray(consuming)) return null;
     // WHICH YEAR EACH DAY WILL SPEND (v25.18). Its own — unless it is a January day already moved to
     // the year before, which a re-save carries forward (`nextLeaveYear`), so it is charged there.
     const winners = new Map(winningEntriesOfType(overrides, member.name, 'annual_leave').map(o => [o.date, o]));
     const yearFor = (/** @type {string} */ d) => String(carriedFrom(winners.get(d), d) ?? d.substring(0, 4));
-    const years = [...new Set(consuming.map(yearFor))].sort();
+    const yearSet = new Set(consuming.map(yearFor));
+    const allowance = after ?? overrides;
+    // …AND EVERY YEAR WHOSE ALLOWANCE THE SAVE MOVES (6 Nov 2026 review), spent in or not: deleting a
+    // worked Boxing Day can leave a member over with nothing booked in the same save.
+    if (after) {
+        const before = new Set(overrides), later = new Set(after), touched = new Set();
+        for (const o of after) if (o && o.memberName === member.name && !before.has(o)) touched.add(String(o.date).slice(0, 4));
+        for (const o of overrides) if (o && o.memberName === member.name && !later.has(o)) touched.add(String(o.date).slice(0, 4));
+        for (const y of touched) if (entitlementFor(member, y, overrides) !== entitlementFor(member, y, after)) yearSet.add(y);
+    }
+    const years = [...yearSet].sort();
     for (const yearStr of years) {
-        const entitlement = entitlementFor(member, yearStr, overrides);
+        const entitlement = entitlementFor(member, yearStr, allowance);
         if (entitlement === null) continue;
         const existingALDates = countedAlDates({ overrides, member, year: yearStr, exclude });
         const newALDates = consuming.filter(d => yearFor(d) === yearStr);

@@ -18,12 +18,12 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, rmSync, realpathSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { SPREAD, BROWSER_REFUSED_PORTS, portFor, devServerPort, devServer } from './e2e/dev-server.mjs';
+import { SPREAD, BASES, BROWSER_REFUSED_PORTS, portFor, devServerPort, devServer } from './e2e/dev-server.mjs';
 
 const WF_DIR = '.github/workflows';
 const LINT_WF = join(WF_DIR, 'workflow-lint.yml');
@@ -920,14 +920,31 @@ describe('every workflow that installs also caches the install', () => {
 describe('the local test server never picks a port the browser refuses', () => {
     const bases = [...new Set(readdirSync('.')
         .filter(f => /^playwright\..*\.mjs$/.test(f))
-        .flatMap(f => [...readFileSync(f, 'utf8').matchAll(/devServer\((\d+)\)/g)].map(m => Number(m[1]))))];
-    /** What the old formula gave — the hazard, reconstructed independently of the module. */
-    const raw = (/** @type {number} */ base, /** @type {number} */ n) => base + (n % SPREAD);
+        .flatMap(f => [...readFileSync(f, 'utf8').matchAll(/devServer\((\d+)\)/g)].map(m => Number(m[1]))))].sort((a, b) => a - b);
+    /** Each base's block (6 Nov 2026), and the port in it before any refused-port move — the
+     *  formula reconstructed here from the configs' own bases, independently of the module. */
+    const raw = (/** @type {number} */ base, /** @type {number} */ n) => base + bases.indexOf(base) * SPREAD + (n % SPREAD);
 
-    test('the configs\' bases were actually read', () => {
-        assert.ok(bases.length >= 2, `expected the smoke and offline bases, read ${bases.join(', ') || 'none'}`);
-        assert.ok(bases.some(b => BROWSER_REFUSED_PORTS.some(p => p >= b && p < b + SPREAD)),
-            'premise: a refused port lies in some base\'s range — if not, the move below is never exercised');
+    test('the configs\' bases were actually read, and each has a block in the module', () => {
+        assert.ok(bases.length >= 3, `expected the smoke, offline and visual-webkit bases, read ${bases.join(', ') || 'none'}`);
+        assert.deepEqual([...BASES].sort((a, b) => a - b), bases,
+            'e2e/dev-server.mjs BASES must list exactly the base ports the playwright configs pass to devServer()');
+        assert.ok(bases.some(b => BROWSER_REFUSED_PORTS.some(p => p >= raw(b, 0) && p < raw(b, 0) + SPREAD)),
+            'premise: a refused port lies in some base\'s block — if not, the move below is never exercised');
+    });
+
+    test('no two configs, in any two checkouts, can land on one port (6 Nov 2026 review)', () => {
+        // The bases are one apart and each used to draw from the 120 ports above it, so one checkout's
+        // offline server and another's smoke server could share a port and adopt each other — 120 of
+        // the 122 reachable ports were reachable from more than one config. The test above this one
+        // compared moved ports with unmoved ones and never configs with each other, so it stayed green.
+        const reach = new Map(bases.map(b => [b, new Set(Array.from({ length: 0x10000 }, (_, n) => portFor(b, n)))]));
+        for (const a of bases) for (const b of bases) {
+            if (a >= b) continue;
+            const shared = [...reach.get(a)].filter(p => reach.get(b).has(p));
+            assert.deepEqual(shared.slice(0, 5), [],
+                `bases ${a} and ${b} can both derive port${shared.length > 1 ? 's' : ''} ${shared.slice(0, 5).join(', ')}${shared.length > 5 ? ` (${shared.length} in all)` : ''}: two checkouts' servers on one port adopt each other's files`);
+        }
     });
 
     test('no value the path hash can take gives a refused port', () => {
@@ -1084,16 +1101,120 @@ describe('the currency canary stands down for a deploy in flight', () => {
         assert.match(code, /\n\s+pages: read/, 'reading the Pages settings needs `pages: read`');
     });
 
-    test('the poll cannot outlive the job that runs it', () => {
+    test('the poll cannot outlive the job that runs it, every read hanging', () => {
         // The window and the timeout are two numbers in two places that mean one thing. Raise the
         // window alone and a slow-but-successful deploy becomes a CANCELLED run, which reports
         // neither stale nor current — the canary goes silent in the exact case it was raised for.
+        //
+        // COUNTED FROM THE SCRIPT, READ BY READ (6 Nov 2026). This compared the timeout with the
+        // window plus five minutes, which is not what a poll costs: every pass sleeps AND makes its
+        // reads, each up to its own --max-time. When main started being re-read on every pass the
+        // worst case grew by 25 × 30s, past the 55-minute limit, and this stayed green.
         const window = Number(code.match(/DEPLOY_WINDOW_S=(\d+)/)?.[1]);
+        const poll = Number(code.match(/POLL_S=(\d+)/)?.[1]);
         const timeout = Number(code.match(/timeout-minutes:\s*(\d+)/)?.[1]);
-        assert.ok(Number.isFinite(window) && Number.isFinite(timeout), 'both numbers must be read');
-        assert.ok(timeout * 60 > window + 300,
-            `timeout-minutes (${timeout}) must leave the ${window}s poll room to finish and still `
-            + 'report. Raise them together.');
+        const maxTime = (/** @type {string} */ fn) =>
+            Number(code.match(new RegExp(`${fn}\\(\\)\\s*\\{[^}]*?--max-time (\\d+)`))?.[1]);
+        const origin = maxTime('version_of'), main = maxTime('expected_on_main');
+        assert.ok([window, poll, timeout, origin, main].every(Number.isFinite),
+            'the window, the poll, the timeout and both read limits must be read from the script');
+        const loop = code.match(/while \{[^\n]*DEPLOY_WINDOW_S[^\n]*\n([\s\S]*?)\n\s*done\b/);
+        assert.ok(loop, 'the poll loop must be found');
+        const before = code.slice(0, code.indexOf(loop[0]));
+        const count = (/** @type {string} */ s, /** @type {RegExp} */ re) => (s.match(re) ?? []).length;
+        const firstReads = count(before.slice(before.indexOf('WEB="')), /\$\(version_of /g);
+        const passOrigins = count(loop[1], /\$\(version_of /g);
+        const passMain = count(loop[1], /^\s*refresh_expected\s*$/gm);
+        assert.ok(firstReads >= 2 && passOrigins >= 2 && passMain === 1, 'the reads are counted where they are made');
+        const passes = Math.ceil(window / poll);
+        const worst = firstReads * origin + passes * (poll + passOrigins * origin + passMain * main);
+        // Five minutes on top: the checkout, the stand-down's own reads and the issue step, which
+        // must still RUN after a failure — the whole point of the alert.
+        assert.ok(timeout * 60 >= worst + 300,
+            `with every read hanging the poll alone takes ${worst}s (${passes} passes of ${poll}s `
+            + `sleep + ${passOrigins} origin reads of ${origin}s + ${passMain} read of main of ${main}s, `
+            + `after ${firstReads} first reads), so timeout-minutes (${timeout}) must be at least `
+            + `${Math.ceil((worst + 300) / 60)}. A cancelled job skips the issue step and tells nobody.`);
+    });
+
+    test('a release merging at the end of the window, while Hosting still deploys, is not an alarm', () => {
+        // RUN, NOT READ (6 Nov 2026). Re-reading main fixed one false alarm and made another:
+        // v25.41 merging in the last minute, with Hosting still deploying v25.40 and the mirror on
+        // v25.40, moved EXPECTED past both origins, and neither stand-down matched. A regex cannot
+        // see that, so this runs the compare step's own script, with curl and sleep replaced by
+        // stubs that answer from a simulated clock, through each case the stand-down must tell apart.
+        const lines = src.split('\n');
+        const at = lines.findIndex(l => /- name: Compare every served origin against main/.test(l));
+        assert.ok(at >= 0, 'the compare step must be found');
+        const runAt = lines.findIndex((l, i) => i > at && /^\s*run: \|\s*$/.test(l));
+        const indent = lines[runAt + 1].match(/^\s*/)[0].length;
+        const body = [];
+        for (let i = runAt + 1; i < lines.length; i++) {
+            if (lines[i].trim() && lines[i].match(/^\s*/)[0].length < indent) break;
+            body.push(lines[i].slice(indent));
+        }
+        const dir = mkdtempSync(join(tmpdir(), 'currency-'));
+        try {
+            const bin = join(dir, 'bin');
+            mkdirSync(bin);
+            writeFileSync(join(dir, 'compare.sh'), body.join('\n'));
+            // The clock advances only by `sleep`; each read answers for the moment it is made.
+            writeFileSync(join(bin, 'sleep'), '#!/usr/bin/env bash\nt=$(cat "$SIMCLOCK"); echo $(( t + ${1%%.*} )) > "$SIMCLOCK"\n', { mode: 0o755 });
+            writeFileSync(join(bin, 'curl'), [
+                '#!/usr/bin/env bash',
+                'url="${@: -1}"; t=$(cat "$SIMCLOCK")',
+                "ver() { printf \"export const APP_VERSION = '%s';\\n\" \"$1\"; }",
+                'pick() { if [ "$t" -ge "$2" ]; then echo "$3"; else echo "$1"; fi; }',
+                'case "$url" in',
+                '  *contents/roster-data.js*) ver "$(pick "$START_V" "$MAIN_AT" "$MAIN_V")" ;;',
+                '  https://myb-roster.web.app/roster-data.js) ver "$(pick "$WEB_V0" "$WEB_AT" "$WEB_V1")" ;;',
+                '  https://garethdavidmiller.github.io/roster-app/roster-data.js) ver "$(pick "$PAGES_V0" "$PAGES_AT" "$PAGES_V1")" ;;',
+                '  */actions/workflows/*/runs*) printf \'{"workflow_runs":[{"status":"%s","html_url":"https://example.invalid/run/1"}]}\\n\' "$RUN_STATUS" ;;',
+                '  */pages) echo \'{"build_type":"legacy"}\' ;;',
+                '  *) exit 22 ;;',
+                'esac',
+            ].join('\n') + '\n', { mode: 0o755 });
+            const NEVER = 999999;
+            /** @param {Record<string, string|number>} c */
+            const run = (c) => {
+                writeFileSync(join(dir, 'clock'), '0');
+                writeFileSync(join(dir, 'roster-data.js'), `export const APP_VERSION = '${c.START_V}';\n`);
+                writeFileSync(join(dir, 'out'), '');
+                const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, SIMCLOCK: join(dir, 'clock'),
+                    GITHUB_OUTPUT: join(dir, 'out'), GITHUB_TOKEN: 'stub', GITHUB_REPOSITORY: 'owner/repo',
+                    HOSTING_WORKFLOW: 'deploy-hosting.yml', PAGES_WORKFLOW: 'deploy-mirror.yml',
+                    ...Object.fromEntries(Object.entries(c).map(([k, v]) => [k, String(v)])) };
+                try {
+                    return { status: 0, out: execFileSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', 'compare.sh'], { cwd: dir, env, encoding: 'utf8', stdio: 'pipe' }) };
+                } catch (/** @type {any} */ e) {
+                    return { status: e.status, out: `${e.stdout ?? ''}${e.stderr ?? ''}` };
+                }
+            };
+            // The false alarm itself: main moves in the last minute; Hosting still on 25.39 and deploying.
+            const late = run({ START_V: '25.40', MAIN_V: '25.41', MAIN_AT: 1450, WEB_V0: '25.39', WEB_V1: '25.39', WEB_AT: NEVER,
+                PAGES_V0: '25.40', PAGES_V1: '25.40', PAGES_AT: NEVER, RUN_STATUS: 'in_progress' });
+            assert.equal(late.status, 0, `a release merging at the end of the window was reported:\n${late.out}`);
+            assert.match(late.out, /Standing down/, 'it must stand down for the deploy in flight, not pass by accident');
+            // The case accepting START must not hide: mid-release when the run begins, then web.app
+            // reaches the new main while the mirror stays on START.
+            const stuck = run({ START_V: '25.40', MAIN_V: '25.41', MAIN_AT: 120, WEB_V0: '25.39', WEB_V1: '25.41', WEB_AT: 600,
+                PAGES_V0: '25.40', PAGES_V1: '25.40', PAGES_AT: NEVER, RUN_STATUS: 'in_progress' });
+            assert.equal(stuck.status, 1, `a mirror stuck a version behind a current web.app went unreported:\n${stuck.out}`);
+            assert.match(stuck.out, /pages:v25\.40/);
+            // A stale production with nothing deploying is still the alarm it exists to raise.
+            const stale = run({ START_V: '25.40', MAIN_V: '25.40', MAIN_AT: NEVER, WEB_V0: '25.39', WEB_V1: '25.39', WEB_AT: NEVER,
+                PAGES_V0: '25.40', PAGES_V1: '25.40', PAGES_AT: NEVER, RUN_STATUS: 'completed' });
+            assert.equal(stale.status, 1, `a stale web.app with no deploy running passed:\n${stale.out}`);
+            assert.match(stale.out, /web\.app:v25\.39/);
+            // And 6 Nov's first false alarm stays fixed: Hosting mid-deploy when the run began, then
+            // a merge, and the mirror AHEAD of the version the run began with.
+            const ahead = run({ START_V: '25.39', MAIN_V: '25.40', MAIN_AT: 120, WEB_V0: '25.38', WEB_V1: '25.40', WEB_AT: 900,
+                PAGES_V0: '25.39', PAGES_V1: '25.40', PAGES_AT: 180, RUN_STATUS: 'in_progress' });
+            assert.equal(ahead.status, 0, `the 6 Nov case reported again:\n${ahead.out}`);
+            assert.match(ahead.out, /Both origins are serving v25\.40/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     test('it re-reads main while it waits, and reports the main it judged against', () => {
@@ -1172,15 +1293,27 @@ describe('the live check looks twice before it reports', () => {
         // ~15 minutes. A JOB that runs out is cancelled and the alert step never runs; a STEP that
         // runs out fails by name and the alert does run (the 23 Oct 2026 install timeout, recorded
         // as a failure). So the step's limit must be the one that is reached.
+        //
+        // EVERY STEP BEFORE IT THAT DOES WORK IS COUNTED (6 Nov 2026 review). This counted only the
+        // system libraries' 8 minutes and called the rest "five minutes for everything else" — but
+        // `npm ci` (7 minutes, 4 Sep) and a browser download on a cache miss (9–25 minutes, 7 Oct)
+        // had no limits at all, so a slow setup could spend the job before a hung site was cut off.
+        // A step that installs or runs something must carry its own limit, and the job must cover
+        // all of them plus the site step and five minutes for the quick steps and the alert.
         const stepLimit = limitOf(body, 8);
         const jobLimit = limitOf(code, 4);
-        const install = code.match(/- name: Install Chromium's system libraries\n([\s\S]*?)(?=\n\s*- name:)/);
-        const installLimit = install ? limitOf(install[1], 8) : NaN;
         assert.ok(stepLimit >= 10,
             `the site step needs its own timeout-minutes of at least 10 (found ${stepLimit}): two looks and the pause take about three minutes, and a hung site must still be cut off by THIS limit`);
-        assert.ok(installLimit > 0, 'the install step must keep its own limit; it is counted below');
-        assert.ok(installLimit + stepLimit + 5 <= jobLimit,
-            `the job limit (${jobLimit}) must cover the install step's ${installLimit}, the site step's ${stepLimit} and five minutes for everything else. Otherwise the job runs out first, and a hung site is never reported.`);
+        const before = code.slice(code.indexOf('steps:'), code.indexOf('- name: Open the live site on both origins'));
+        const steps = before.split(/\n(?=\s*- (?:name|uses):)/).filter(s => /^\s*- (?:name|uses):/.test(s));
+        const working = steps.filter(s => /^\s+run:|uses: \.\/\.github\/actions\//m.test(s));
+        assert.ok(working.length >= 3, `the install steps must be found (found ${working.length})`);
+        const unbounded = working.filter(s => !(limitOf(s, 8) > 0)).map(s => s.match(/- name: (.*)/)?.[1] ?? s.trim().slice(0, 60));
+        assert.deepEqual(unbounded, [],
+            `every step before the site check that installs or runs something needs its own timeout-minutes; these have none, so the job can run out before the site step does: ${unbounded.join(', ')}`);
+        const installs = working.reduce((n, s) => n + limitOf(s, 8), 0);
+        assert.ok(installs + stepLimit + 5 <= jobLimit,
+            `the job limit (${jobLimit}) must cover the steps before it (${installs} minutes between them), the site step's ${stepLimit} and five minutes for everything else. Otherwise the job runs out first, and a hung site is never reported.`);
     });
 
     test('only a failure of the site check itself reaches the issue', () => {
@@ -1429,6 +1562,41 @@ describe('a stalled apt mirror costs a retry, not the job (23–24 Oct 2026)', (
             assert.ok(!/timeout/.test(finals[0]), 'the final install must not be cut off mid-dpkg');
             const bare = script.split('\n').filter(l => /^\s*(sudo -n )?timeout\b/.test(l) && /apt-get/.test(l));
             assert.deepEqual(bare, [], 'every timeout around apt goes through asroot');
+        });
+
+        test('a mirror that stalls is left behind once, for the next one that serves the whole archive', () => {
+            // 6 Nov 2026: apt moves to the next mirror only on an ERROR, so a mirror that trickles was
+            // never left — three runners spent all three attempts at ~70 KB/s on the Azure mirror while a
+            // sibling fetched the same files in 14 s. The script's own function is run here, on a copy of
+            // GitHub's list and on the shapes it must refuse, not a copy of its awk.
+            const dir = mkdtempSync(join(tmpdir(), 'mirrors-'));
+            const leave = (/** @type {string} */ list) => {
+                const f = join(dir, 'apt-mirrors.txt');
+                writeFileSync(f, list);
+                const out = execFileSync('bash', [join(ACTION_DIR, 'install.sh'), '--leave-mirror', f],
+                    { env: { ...process.env, BROWSER: 'webkit' }, encoding: 'utf8' }).trim();
+                return { out, after: readFileSync(f, 'utf8') };
+            };
+            try {
+                const AZ = 'http://azure.archive.ubuntu.com/ubuntu/\tpriority:1\n', ARC = 'https://archive.ubuntu.com/ubuntu/\tpriority:2\n',
+                    SEC = 'https://security.ubuntu.com/ubuntu/\tpriority:3\n';
+                let r = leave(AZ + ARC + SEC);
+                assert.equal(r.out, 'http://azure.archive.ubuntu.com/ubuntu/', 'the stalled first mirror is the one left');
+                assert.equal(r.after, ARC + SEC, 'the next attempt fetches from archive.ubuntu.com, the security mirror kept behind it');
+                r = leave(ARC + AZ);
+                assert.equal(r.out, 'http://azure.archive.ubuntu.com/ubuntu/', 'the first mirror is the lowest PRIORITY, as apt orders them, not the first line');
+                assert.equal(r.after, ARC);
+                r = leave(AZ + SEC);
+                assert.equal(r.out, '', 'never down to the security mirror alone, which serves only its own pocket');
+                assert.equal(r.after, AZ + SEC, 'and the list is then left as it was');
+                r = leave(AZ);
+                assert.deepEqual([r.out, r.after], ['', AZ], 'a single mirror is kept');
+                assert.equal(execFileSync('bash', [join(ACTION_DIR, 'install.sh'), '--leave-mirror', join(dir, 'none.txt')],
+                    { env: { ...process.env, BROWSER: 'webkit' }, encoding: 'utf8' }), '', 'no list, nothing to do');
+            } finally { rmSync(dir, { recursive: true, force: true }); }
+            // …and the attempt loop leaves a mirror only on a CUT-OFF (exit 124), once per job
+            assert.match(script, /if \[ "\$rc" = 124 \] && \[ -z "\$\{MIRROR_LEFT:-\}" \]; then\n\s+MIRROR_LEFT=\$\(leave_stalled_mirror \/etc\/apt\/apt-mirrors\.txt\)/,
+                'a cut-off attempt must leave its mirror, once');
         });
 
         test('the attempts\' worst case fits inside the calling step\'s limit', () => {

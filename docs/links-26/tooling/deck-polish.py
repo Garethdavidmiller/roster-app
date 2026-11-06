@@ -823,10 +823,11 @@ def managers(d, name, grid, F):
     # THE SUNDAY AS THE MODEL HAS IT (31 Oct 2026 review): "(on a Sunday both lates, until 15:00)" left out the early's hours and
     # the late who goes back to the floor at 18:00 — report-data.mjs's OFFICE_HELP_TEXT, read here so the two cannot drift
     help_ = subprocess.check_output(['node', '-e', "import('./report-data.mjs').then(m => process.stdout.write(m.OFFICE_HELP_TEXT))"], cwd=TOOL, text=True)
-    if not all(w in help_ for w in ('one early is on the floor until 09:00', 'the two lates are on the floor until 15:00', 'one goes back to the floor from 18:00',
-                                    'the other at 22:00, once the office has shut and cashed up')):   # the second late too (the pack review, 6 Nov 2026)
+    # and the other late at 22:00, once the office has shut and cashed up (6 Nov 2026, the 72-hour review): the model gained
+    # that clause with the Sunday office emptied at 22:00, and this check, asking only for the three older ones, still passed
+    if not all(w in help_ for w in ('one early is on the floor until 09:00', 'the two lates are on the floor until 15:00', 'one goes back to the floor from 18:00', 'and the other at 22:00, once the office has shut and cashed up')):
         raise SystemExit(f'deck-polish: managers’ notes 3 describe the Sunday office as the model did; it now says {help_!r}')
-    notes_edit(d, 3, 'except its second person at the quiet ends of the day.', 'except at the quiet ends of the day, when one of each pair helps on the floor — on a Sunday one early until 09:00, and both lates until 15:00, one of them again from 18:00 and the other from 22:00, once the office has shut and cashed up.')
+    notes_edit(d, 3, 'except its second person at the quiet ends of the day.', 'except at the quiet ends of the day, when one of each pair helps on the floor — on a Sunday one early until 09:00, and both lates until 15:00, one of them again from 18:00 and the other at 22:00, once the office has shut and cashed up.')
     s = S(6); drop_shape(s, 'Early starts and a weekly rotation come with every link, so are not counted. The written source of the 13-day limit is still to be confirmed.'); s.save()
     replace_run(f'{d}/ppt/slides/slide6.xml', '0', F['ff'], after='Avoidable fatigue warnings, fixed rota')   # the worst case too, as on the colleagues' slides
     if explain_h55(name, F): notes_append(d, 6, f'The “up to 1” beside the fatigue warnings is the rail industry’s guideline of no more than 55 hours in any seven-day period: worked as four 8-hour duties straight after a busy line, with its Sunday as overtime too, a cover week can make {F["h55"]} in seven days. Where the four fall, and whether the Sunday is worked, is for the roster office.')

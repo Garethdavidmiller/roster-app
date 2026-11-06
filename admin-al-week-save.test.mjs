@@ -15,7 +15,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { teamMembers, getBaseShift, formatISO } from './roster-data.js';
+import { teamMembers, getBaseShift, getPatternShift, formatISO, isWorkedShift } from './roster-data.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
 // The cross-layer block at the foot needs the surfaces the review named, not just the planner:
 // what the Calendar draws, what the entitlement costs, and what the receipt says.
@@ -343,5 +343,51 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day â
         const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave: restage(),
             ovByDate: new Map([[SAT, absence]]), swapAnswers: answeredFree, overrides: [absence] });
         assert.deepEqual(plan.keptLeave, []);
+    });
+});
+
+describe('a save that moves the Boxing Day day in lieu is costed against the allowance AFTER it (6 Nov 2026 review)', () => {
+    // A plain CEA due at work on Boxing Day 2026: working it earns a day in lieu (christmas-leave.js),
+    // so 32 days of contract leave become 33. The week grid costed every save against the allowance
+    // BEFORE it, so unticking the worked Boxing Day and booking a day in the same save showed no bar
+    // and left the member one over, and recording the work with a day of leave raised a false one.
+    const BOXING = '2026-12-26';
+    const cea = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL
+        && m.bilingualContract !== true && !['RD', 'OFF'].includes(getPatternShift(m, new Date(2026, 11, 26))));
+    /** @type {string[]} */ const workdays = [];
+    for (let d = new Date(2026, 2, 2); workdays.length < 34; d.setDate(d.getDate() + 1)) {
+        const shift = getBaseShift(cea, d);
+        if (d.getDay() !== 0 && isWorkedShift(shift) && shift !== 'SPARE') workdays.push(formatISO(d));
+    }
+    const leave = (/** @type {number} */ n) => workdays.slice(0, n)
+        .map((date, i) => ({ id: 'w' + i, memberName: cea.name, type: 'annual_leave', date, value: 'AL' }));
+    const worked = { id: 'bx', memberName: cea.name, type: 'rdw', date: BOXING, value: '06:00-14:00' };
+    const plan = (/** @type {any[]} */ overrides, /** @type {any[]} */ toSave, /** @type {string[]} */ toDelete = []) =>
+        planAlWeekSave({ member: cea, memberName: cea.name, toSave, toDelete, overrides,
+            ovByDate: new Map(overrides.map(o => [o.date, o])) });
+    const book = (/** @type {string} */ date) => ({ memberName: cea.name, date, type: 'annual_leave', value: 'AL', note: '' });
+
+    test('the fixture is a CEA due at work on Boxing Day 2026', () => assert.ok(cea));
+
+    test('unticking the worked Boxing Day and booking a day with one left raises the bar', () => {
+        const p = plan([...leave(32), worked], [book(workdays[32])], ['bx']);
+        assert.ok(p.overage, 'the day in lieu goes with the work, so the one day left is gone');
+        assert.equal(p.overage.over, 1);
+    });
+
+    test('recording the Boxing Day work with a day of leave at the limit is NOT over', () => {
+        const p = plan(leave(32), [book(workdays[32]), { memberName: cea.name, date: BOXING, type: 'rdw', value: '06:00-14:00', note: '' }]);
+        assert.equal(p.overage, null, 'the work earns the day the leave spends: 33 used of 33');
+    });
+
+    test('deleting only the worked Boxing Day at the limit is caught, though no leave is in the save', () => {
+        const p = plan([...leave(33), worked], [], ['bx']);
+        assert.ok(p.overage, '33 days recorded against an allowance that drops back to 32');
+        assert.equal(p.overage.over, 1);
+    });
+
+    test('a save that spends nothing and moves no allowance never raises the bar, over or not', () => {
+        const p = plan(leave(34), [{ memberName: cea.name, date: workdays[33], type: 'shift', value: '09:00-17:00', note: '' }]);
+        assert.equal(p.overage, null);
     });
 });

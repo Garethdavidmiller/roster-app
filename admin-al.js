@@ -10,7 +10,7 @@ import { escapeHtml } from './roster-data.js';
 import { getAllOverrides, buildMemberDateMap } from './admin-overrides.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 import { swapDecisionDates } from './al-swapped-days.js';
-import { projectAlBooking, projectAlOverage } from './admin-al-projection.js';
+import { projectAlBooking, projectAlOverage, overridesAfterSave } from './admin-al-projection.js';
 import { spareShiftNote, countSpareDays } from './admin-al-spare-note.js';
 
 const esc = escapeHtml;
@@ -74,9 +74,13 @@ export function initALSection({
     function checkEntitlement({ member, dates, memberObj, swapAnswers }) {
         if (confirmedOverLimit) return false;
         const ovByDate = buildMemberDateMap(member);
-        const { consuming } = projectAlBooking({ member: memberObj, dates, ovByDate, swapAnswers });
+        const { consuming, writing } = projectAlBooking({ member: memberObj, dates, ovByDate, swapAnswers });
+        // Against the allowance AFTER the save (6 Nov 2026 review): leave over a worked Boxing Day
+        // takes back its day in lieu, so the same booking can fit before and not after.
         const overage = projectAlOverage({
             member: memberObj, memberName: member, overrides: getAllOverrides(), consuming,
+            after: overridesAfterSave(getAllOverrides(), { memberName: member,
+                writes: writing.map(date => ({ date, type: 'annual_leave', value: 'AL' })) }),
         });
         if (overage) {
             showALConfirm(overage.headline, overage.detail, null); // null = AL booking path (not week editor)
@@ -120,7 +124,13 @@ export function initALSection({
             const parts = [];
             // A written day that costs nothing is an RDW day — worked, but declining overtime is not
             // leave. It is reported because it IS being recorded, just not charged.
-            if (c.freeWritten > 0) parts.push(`${c.freeWritten} day${c.freeWritten > 1 ? 's' : ''} recorded at no cost`);
+            // …EXCEPT A WORKED BOXING DAY (6 Nov 2026 review): its leave is free, but the work it
+            // replaces earned a day in lieu, which goes with it. "At no cost" was untrue of it, so it
+            // is named on its own, and the over-allowance check counts the day it takes back.
+            const lieu = c.lieuLost ?? 0;
+            const free = c.freeWritten - lieu;
+            if (free > 0) parts.push(`${free} day${free > 1 ? 's' : ''} recorded at no cost`);
+            if (lieu > 0) parts.push('Boxing Day recorded as leave, so the day in lieu for working it goes');
             // Christmas Day and Boxing Day are named as themselves (v25.37): never counted, and for a
             // member due at work already shown as leave, so "rest day" would be the wrong word.
             const rest = c.skipped - (c.christmas ?? 0);

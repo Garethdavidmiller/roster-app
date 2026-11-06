@@ -10,6 +10,10 @@
 #   · NOT @playwright/test — each release brings new browsers, and the visual baselines are redrawn from
 #     the upgrade's own CI render, by hand (KNOWN_LIMITATIONS.md → the Playwright upgrade);
 #   · NOT pdfjs-dist — the root copy must match functions/package.json's exact pin, which this file leaves alone;
+#   · NOT firebase — the rules tests' client SDK, pinned exactly to the version the app loads from gstatic in
+#     firebase-client.js (v25.34), which no package manager sees; a bot would move one copy and leave the
+#     other, and the rules would be tested on an SDK the app does not run (6 Nov review). dependency-pin-parity
+#     holds the two together, so a release moves both, by hand, with FIREBASE_SDK_VERSION in service-worker.js;
 # axe WAS on this list until v25.27: 4.14 added WCAG 2.5.3's Label in Name rule to the gate, which failed 27 of
 # its states until the names were fixed (docs/A11Y_BASELINE.md → label-content-name-mismatch). A future axe that
 # finds something new will fail its own pull request here, which is exactly where it should.
@@ -39,6 +43,7 @@ updates:
     ignore:
       - dependency-name: "@playwright/test"
       - dependency-name: "pdfjs-dist"
+      - dependency-name: "firebase"
     groups:
       dev-tools:
         update-types: [minor, patch]

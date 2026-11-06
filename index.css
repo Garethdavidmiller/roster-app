@@ -1770,6 +1770,16 @@
             outline-offset: 2px;
             box-shadow: var(--focus-ring);
         }
+        /* A TAB STOP, BECAUSE IT SCROLLS (6 Nov 2026, the 72-hour review). On a phone the seven days do
+           not fit and this panel scrolls sideways, with nothing focusable inside it, so a keyboard user
+           could not reach the days off-screen (WCAG 2.1.1; axe's scrollable-region-focusable, found the
+           first time the gate opened the Team view). tabindex="0" on the tabpanel, as the ARIA tabs
+           pattern advises for a panel with no focusable content; the ring is inset because this box
+           is the thing that clips. */
+        .team-table-wrap:focus-visible {
+            outline: var(--focus-outline);
+            outline-offset: -2px;
+        }
         .team-table-wrap {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;

@@ -391,11 +391,18 @@ test('admin: a drawer pill or the logo asks before leaving staged edits', async 
     // either build: the Calendar is answered 204 No Content, which every browser treats as "stay on
     // this page", and the test reads what Leave asked for. Whether the Calendar honours the month is
     // the next test, which opens it without a dialog.
+    //
+    // THE LEAVE CLICK DOES NOT WAIT FOR ITS NAVIGATION (6 Nov 2026). Playwright's click, once it has
+    // clicked, waits for the navigation it started to load or be cancelled, and the 204 cancels it
+    // without Chromium always saying so: the click then sat on "waiting for scheduled navigations to
+    // finish" until the test's 30 seconds ran out, on both attempts of one CI run and about one local
+    // run in five, with the request it started already caught and answered. What this test checks is
+    // that request, read below, so the click is told not to wait (`noWaitAfter`).
     const leaving = page.waitForRequest((req) => req.isNavigationRequest() && !req.url().includes('admin.html'));
     await page.route((url) => url.pathname === '/', (route) => route.fulfill({ status: 204 }));
     await page.locator('#navMenuBtn').click();
     await page.locator('.nav-panel-pill--calendar').click();
-    await page.getByRole('button', { name: 'Leave', exact: true }).click();
+    await page.getByRole('button', { name: 'Leave', exact: true }).click({ noWaitAfter: true });
     const to = new URL((await leaving).url());
     expect(to.pathname, 'Leave goes to the Calendar').toBe('/');
     expect(to.searchParams.get('date'), 'Leave runs the pill’s own work: the link names the month being edited').toBe('2026-12-07');
@@ -1435,13 +1442,29 @@ test('admin: a link naming a year opens the recorded-leave list on that year', a
     await expect(page.locator('#alBookedBody .al-period-dates').first()).toContainText('Jun');
 });
 
+// 2025, not 2027: from 2026 G. Miller has Christmas leave EVERY year (his pattern has him at work on
+// 25/26 December), and a year holding Christmas leave is not empty — the test below is about that.
+// 2025 is before the Christmas rules, so it is genuinely a year with no leave in it.
 test('admin: a linked year with no leave in it falls back, never to an empty list', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedTwoMembersTwoYears(page);
+    await page.goto('/admin.html?alYear=2025#alBookedBox');
+    await expect(page.locator('#alBookedBox')).toBeVisible();
+    await expect(page.locator('#alBookedBody .al-year-chip.is-active')).toHaveText('2026');
+});
+
+// 6 Nov 2026 review: the Calendar's "Leave dates" link from 25 Dec 2027 names 2027. With nothing else
+// booked that year the list fell back to 2026, and the day just tapped was not on it — because the
+// list's Christmas leave stopped at this calendar year. A year the reader asked for shows its own.
+test('admin: a linked year holding only Christmas leave opens on its Christmas row', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await seedMember(page, 'G. Miller');
     await seedTwoMembersTwoYears(page);
     await page.goto('/admin.html?alYear=2027#alBookedBox');
     await expect(page.locator('#alBookedBox')).toBeVisible();
-    await expect(page.locator('#alBookedBody .al-year-chip.is-active')).toHaveText('2026');
+    await expect(page.locator('#alBookedBody .al-year-chip.is-active')).toHaveText('2027');
+    await expect(page.locator('#alBookedBody .al-period-row--christmas')).toContainText('Not counted');
 });
 
 test('admin: scrolling the date picker into another year moves the list with the banner', async ({ page }) => {
@@ -2974,4 +2997,44 @@ test('admin: a row that is today AND saved keeps a clear gap between its two chi
     });
     expect(g.wrapped, 'the fixture must actually wrap the two chips, or the gap proves nothing').toBe(true);
     expect(g.gap, 'the wrapped saved chip must not touch the Today chip').toBeGreaterThanOrEqual(3);
+});
+
+// 6 Nov 2026 review: leave written over a worked Boxing Day is free to SPEND, but the work it replaces
+// earned a day in lieu (christmas-leave.js), which goes with it. The range card called that day
+// "recorded at no cost" and costed the booking against the allowance before the save, so a member with
+// one day left was booked two and ended a day over with no bar. The entry point, end to end: the
+// records, the picked range, the preview's words and the bar Save raises.
+test('admin: leave over a worked Boxing Day names the day in lieu it takes back, and the bar counts it', async ({ page }) => {
+    test.setTimeout(40_000);
+    await page.clock.setFixedTime(new Date('2026-11-03T09:00:00Z'));
+    const me = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    // 32 days of 2026 leave already on record; with Boxing Day worked the allowance is 33, so one is left.
+    /** @type {string[]} */ const leave = [];
+    for (let d = new Date(2026, 0, 5); leave.length < 32; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() !== 0 && /^\d\d:\d\d-/.test(getBaseShift(me, d))) leave.push(iso(d));
+    }
+    expect(/^\d\d:\d\d-/.test(getBaseShift(me, new Date(2026, 11, 24))), 'premise: 24 Dec 2026 is a working day on G. Miller\'s line').toBe(true);
+    const docs = [
+        ...leave.map((date, i) => ({ id: 'al' + i, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' })),
+        { id: 'bx', memberName: 'G. Miller', date: '2026-12-26', type: 'rdw', value: '13:30-21:00', note: '', source: 'manual' },
+    ];
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((d) => { const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = d; }, docs);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+    await page.locator('#alRpNext').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-12-24"]').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-12-26"]').click();
+
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('Boxing Day recorded as leave, so the day in lieu for working it goes', { timeout: 8_000 });
+    await expect(preview, 'the worked Boxing Day is not "at no cost"').not.toContainText('recorded at no cost');
+    await clickInView(page.locator('#alSaveBtn'));
+    const bar = page.locator('#alConfirmBar');
+    await expect(bar, 'one day left, and the save takes the day in lieu back: it ends one over').toHaveClass(/visible/);
+    await expect(bar).toContainText('1 day over their 2026 AL entitlement');
 });

@@ -225,6 +225,22 @@ name can contain — while the screen showed "DESIGNS · 0 saved", separated by 
 the spans is not rendered in a flex row, and makes the text say what the screen does. Found by
 asking axe's own functions inside the page; reading the rule said it should already pass.
 
+**Three more, in states the gate had never scanned (72-hour review, 6 Nov 2026).** The Team view's
+week bar said "Previous week" under "← Prev" and its toggle "Switch back to monthly calendar" under
+"Month" ("monthly" is not the word "Month"); the ARMED bulk delete said "Confirm delete selected
+changes" under "⚠ Delete 2?". Each now leads with or carries the visible words — "Prev week",
+"Switch back to the month view", "Confirm delete 2 selected changes" — and `axe.spec.js` scans the
+Team view and both armed deletes, holding the five-second confirm open for the scan. Putting the old
+names back fails both scans, on exactly those three controls. The lesson is the first rule's
+converse: a state no scan opens is a state nothing checks, however clean the rest of the gate is.
+
+**And that first Team view scan found a fourth on a phone** (`scrollable-region-focusable`, SERIOUS,
+WCAG 2.1.1). Below desktop width the seven days do not fit, so `#gradeTabPanel` scrolls sideways — and
+it held nothing focusable, so a keyboard user could not reach the days off-screen. Desktop Chrome
+never saw it, because there the table fits; the phone projects failed in CI. The panel is now a tab
+stop (`tabindex="0"`, as the ARIA tabs pattern advises for a panel with no focusable content), with an
+inset focus ring because the panel is the box that clips.
+
 **The gate sees four kinds of calendar day; a unit test walks all of them.**
 `calendar-renderer.test.mjs` → "a day cell's name contains what it shows" drives every badge, the
 six Other flavours with their three time slots, an unrecognised value and both permanent-shift

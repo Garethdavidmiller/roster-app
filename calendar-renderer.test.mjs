@@ -1143,4 +1143,28 @@ describe('Christmas leave — due at work on 25/26 December shows as leave that 
         assert.equal(cell.dataset.detailChristmas, undefined);
         assert.equal(cell.dataset.detailBoxingLieu, undefined, 'overtime from a rest day earns no day in lieu');
     });
+
+    test('worked on the pattern\'s own times: changed from the LEAVE, and says who by (6 Nov 2026 review)', () => {
+        // Unrecorded, the day is annual leave; a record made it work. Compared with the pattern, the
+        // same times read "As rostered" with no "changed by" line, on a day worked only because of it.
+        const times = realRosterData.getPatternShift(MEMBER, XMAS);
+        _overrideCache.set(`${MEMBER.name}|2026-12-25`, { type: 'shift', value: times, note: '', source: 'manual', changedBy: 'X. Manager' });
+        const cell = cellFor(build(MEMBER), 25);
+        assert.equal(cell.dataset.detailShiftValue, times);
+        assert.equal(cell.dataset.detailBaseShift, 'AL', 'the pair reads Annual leave → the shift');
+        assert.equal(cell.dataset.detailAsRostered, undefined, 'not "As rostered": a record changed the day');
+        assert.ok(cell.dataset.detailBy, 'and the record says who made it');
+    });
+
+    test('leave RECORDED on a Christmas day is not counted either, and says so (6 Nov 2026 review)', () => {
+        // Not due at work, so this is not the pattern's leave: a stored record, which
+        // consumesEntitlement does not charge. It was labelled plain "Annual leave".
+        _overrideCache.set(`${RESTER.name}|2026-12-26`, { type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'X. Manager' });
+        const cell = cellFor(build(RESTER), 26);
+        assert.equal(cell.dataset.detailShiftValue, 'AL');
+        assert.match(cell.getAttribute('aria-label'), /Annual leave \(Christmas, not counted\)/);
+        assert.equal(cell.dataset.detailChristmas, undefined, 'it is not the pattern\'s Christmas leave');
+        assert.equal(cell.dataset.detailChristmasRecorded, '26');
+        assert.ok(cell.dataset.detailBy, 'somebody recorded it, so the panel still says who');
+    });
 });

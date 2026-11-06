@@ -160,7 +160,7 @@ still be rebuilt.
 | times pool | `half-hour-pool.mjs` | prints the start and finish times on the hour or the half hour, with the fixed opens, closes and office times, for `final-table.mjs`'s `POOL_ONLY=` (4 Nov; see "Common Ground") |
 | options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
 | fatigue values | `factors-like.mjs` | every fatigue factor's own value, on the fixed duties and in the worst case, against a reference grid; exits 1 if any is worse (`space-polish.mjs`'s `FACTORS_LIKE` holds a search to the same comparison) |
-| whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen (see "Closing Time, improved" and "In Step") |
+| whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen, `MIXED=` allows that many weeks mixing earlies and lates, with `BF=`/`BW=` holding the runs of all-early or all-late weeks (see "Closing Time, improved", "In Step" and "Balanced V7") |
 | rest days with a leave rule | `leave-layouts.py` | the rest days alone for CP-SAT, with what 14 days' leave buys as a rule (`LV_BEST=`, `LV_WORST=`, `LV_FOUR=`), for `exact-rota.py`'s `SKELETON=` to lay a table's times on; `FRIOFF=1` keeps the Friday before every cover week off (no 55-hour week however the cover weeks fall), `HINT=` to climb from a valid layout, `FIX=` to check one (see "Quarter Past Relaid") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
@@ -5062,6 +5062,118 @@ old one still holds the closing and 06:20 weeks.
 
 **Not changed:** the colleague decks' "At a glance" slide, which the owner chose to keep ("Why would you cut it down?").
 
+## Balanced V7 — Balanced V6 made again (6 Nov 2026)
+
+**The ask** (owner, 6 Nov 2026): *"Can you take balanced v6 and make v7, keeping all of the benefits such as 1545 weekday
+closer starts, 14 days al buying you 30 days leave, wwekday 1335 and 1345, 1420 finishes without losing anything?"* The
+sheet was sent from scratch first; then *"Add v7 please"*.
+
+**What was kept, by construction.** Balanced V6's duties, every one: `tooling/results/balanced-v7-table.json` is counted
+from V6's grid, and a rota laid from it can only have V6's weekday of 7,390 minutes (the three 15:45–23:55 closers, the
+three 07:30–16:00s handing over to them for 15 minutes, the 06:20–13:35, 06:20–13:45 and two 06:20–14:20s), its Saturday
+and Sunday, its staffing and its contract. Only which week works which duty, and which days are rest days, were chosen
+again.
+
+**How it was laid.** By the exact solver, `exact-rota.py`, on Grand Tour's rest days, which buy 30 days off for 14 days'
+leave and four weeks off for 14. Every floor is Balanced V6's own figure or a stricter one. V6's own: a 14h 20m shortest
+rest, at most 50.9 hours in any seven days, no more backward rotation against forward, no week over 42h 55m, and 30 days
+off and four weeks off for 14 days' leave. Three are stricter than V6 has them: a worst stretch of 20 days for 14 days'
+leave (V6 19), at most 6 single rest days in 26 weeks (V6 11), and at most 12 shifts without a two-day break if a cover
+week falls badly (V6 19). Then the smallest week-to-week change of start. (This said "every floor is a figure of Balanced
+V6's own" until the 72-hour review of 6 Nov 2026, which read the floors back against V6's sheet.)
+
+**Why it has V6's three mixed weeks.** Every rota the solver had laid until now had each working week all earlies or all
+lates. Laid that way on these rest days, the runs of early or late weeks could not be kept: the best found had 17 weeks of
+21 on one shift time and a 1h 30m change of start, but runs of 5 weeks, or 7 with the cover weeks beside them, where V6's
+are 3 and 5. That loses something V6 gives, so it was offered to the owner as the alternative and not taken. The
+solver now takes `MIXED=n` (its header): at most n weeks may mix the two, the runs held by `BF=` on the fixed duties and
+`BW=` with the cover weeks, read as `blocks.mjs` reads them. With no mixed week allowed and V6's runs asked for, it proves
+in a second that no rota exists (`MIXED=0 BF=3 BW=5`); with V6's three, it found Balanced V7 (`MIXED=3 BF=3 BW=5`, the full
+command in the header). `FIX=tooling/results/balanced-v7.json` checks the committed grid against that model: feasible.
+
+**Against Balanced V6**, every figure computed from the cells (its sheet, `factors-like.mjs`, the league):
+
+| | Balanced V6 | **Balanced V7** |
+|---|---|---|
+| Code · fingerprint | `MB-26-V6` · `1818a1c2` | **`MB-26-V7` · `75e9e7f3`** |
+| Duties, closers, handover, 13:35/13:45/14:20 finishes, staffing, contract | — | the same |
+| 14 days' leave buys: best · average · worst | 30 · 23.5 · 19 | 30 · **23.4** · **20** |
+| Leave for four weeks off | 14 | 14 |
+| December staffing rules met | 9 of 9 | 9 of 9 |
+| Avoidable fatigue warnings (if a cover week falls badly) | 0 (up to 4) | 0 (**up to 1**) |
+| Most days in a row (if a cover week falls badly) | 5 (up to 10) | 5 (**up to 7**) |
+| Six-day weeks | 3 | **0** |
+| Full weekends off | 6 in 26 | **7 in 26** |
+| Single rest days, a year each | 22 | **12** |
+| Weeks on one shift time | 7 of 21 | **13 of 21** |
+| Weeks mixing earlies and lates | 3 | 3 |
+| Runs of early or late weeks (with the cover weeks beside them) | 3 (5) | 3 (5) |
+| Week-to-week change of start | 4h 08m | **2h 33m** |
+| Shortest rest; most hours in seven days; heaviest week | 14h 20m; 50.9; 42h 55m | 14h 20m; **50.5**; 42h 55m |
+| Individual weeks, Monday to Saturday (with the Sunday) | 24h 30m–42h 55m (24h 30m–50h 55m) | 24h 00m–42h 55m (**30h 15m–42h 55m**) |
+| Main league, of 22 | 21st, 56.4 | **20th, 77.2** |
+
+No fatigue factor is worse (`factors-like.mjs` against V6's grid), and two figures are lower. The average stretch 14
+days' leave buys is 23.4 days against 23.5, a tenth of a day, because these are Grand Tour's rest days and not V6's; the
+best, 30, and four weeks for 14 are kept, and the worst is a day better. And the lightest week from Monday to Saturday is
+24h 00m against 24h 30m, so the sheet's range of individual weeks is 30 minutes wider. With the Sunday duties counted,
+V7's weeks are the steadier of the two: 30h 15m to 42h 55m, against 24h 30m to 50h 55m. The first was put to the owner
+before V7 was added; the second was missed, said here until the 72-hour review of 6 Nov 2026 that "no figure is" lower
+but one, and was reported to the owner that day.
+
+**Into the pack**, as Balanced V5 and V6 were:
+- `regenerate.mjs`'s `SUPPLIED` and `fresh.mjs` (family *Marylebone Balanced*, drawn 6 Nov 2026), shipping into
+  `30-days-off/`. `MB-26-V7` was checked against every code in `links-24/` and `links-26/`. The sheet in the pack is word
+  for word the one sent, but for its created date, printed "6 Nov 2026" as on every pack sheet.
+- **Its headline** says what it is and names no other design: "A 15-minute handover every weekday, from the three
+  07:30–16:00s to the three 15:45 closers, no six-day weeks, and 14 days' leave buys 30 days off, as today".
+- **The league** (`REF_IN_RANGE`, as the shortlist sheet reads it): 20th of 22 at 77.2, and 20th at 81.1 weighted as
+  before 31 Oct (re-read after the Saturday floor and Sunday office changes above, which do not touch V7's grid). It sits
+  inside every range the league reads, so no other design's score or place moves: Common Ground still leads Even Step, by
+  0.61, and Balanced V6 and V5 are 21st and 22nd.
+- **The shortlist sheet** (`shortlist-sheet.mjs`): V7 keeps what V5 and V6 keep against the three — shorter runs of
+  earlies or of lates, more early finishes — without their 22 single rest days, so it has a row of its own on page 2:
+  "the same gains — but 13 of 21 weeks on one shift time and three weeks mixing earlies and lates", directly under V5's
+  and V6's row, whose gains "the same" names. Both figures are read and pinned (`pays`, and a claim that it does not pay
+  with the single rest days), and so is the row's place. It began by repeating that row's gains word for word, which fit
+  until Middle Ground's row grew in the second outside review (above) and page 2 ran 7px into its footer; it now fits on
+  one line, with the 8px the page keeps clear. The 30-day and four-weeks claims name it. Still two pages.
+- **The summary** (`summary-sheet.mjs`) has 22 rows, and was about 3px onto a second sheet at its 80% floor (measured at
+  the printed width). Dense now sets the band's Prepared line beside the eyebrow, at the right, where the short eyebrow
+  leaves the line empty: its words and type as they were, one line fewer. It prints at 81%.
+- **The pack's read-me** (`pack.py`): "Twenty-two candidate links", V7 among the designs after the shortlist and in the
+  30-day folder, a sentence of its own in the late paragraph, and the 22:30 paragraph names it with V5 and V6 (it finishes
+  the Saturday office lates at 22:30, as V6 does).
+- `30-days-off/README.md` has its column, in league order, and a paragraph.
+
+**Unchanged:** every other design's sheet, grid and fingerprint, the rules sheet, the "What it means if you…" sheet, the
+decks and the app (`links-proposals.js` builds in the shortlist only).
+
+## The 72-hour review's fixes to the pack (6 Nov 2026)
+
+A bug and regression check of everything changed in the 72 hours to 6 Nov 2026 read the pack against its own tooling. Each
+of these was found there and checked before it was changed:
+
+- **The managers' decks: the Sunday office.** Notes 3 said the Sunday lates help on the floor "until 15:00, one of them
+  again from 18:00", and stopped there; since the Sunday office empties at 22:00 (above), the other goes back to the floor
+  at 22:00, once the office has shut and cashed up. `deck-polish.py` now writes that, and its check on
+  `OFFICE_HELP_TEXT` asks for the new clause as well as the three older ones, which is why it had passed. The decks were
+  rebuilt from the README's recipe, and `deck-check.mjs` agrees on all 216 rows. Speaker notes do not print, so only the
+  four managers' `.pptx` files changed: every slide, picture and PDF came out the same as before and was left as it was.
+- **Next Step's headline figures are checked.** Its strap quotes a weekday fit to the trains of 30.3 against today's
+  52.0, and nothing recomputed either. `regenerate.mjs --check` now reads both from the grids, as the sheets do, and
+  fails on a strap whose figures have moved. Both hold.
+- **The New link page's long duties.** "9-hour weekday earlies and an 8h 40m Saturday closer, about 26 a year each" read
+  as 26 of each; the grid gives 26 in all, about 20 of the earlies and 6 of the closers a year each, and the line now
+  says so (`newlink-data.mjs`, a claim on each count).
+- **The solver's one-time count under `MIXED`.** `ONE_MIN` counts weeks whose Monday to Friday are one shift time; the
+  sheets also want the weekend duty the same kind, so with mixed weeks allowed the solver can count a week the sheets do
+  not. On Balanced V7 that is 15 against 13. `exact-rota.py`'s header says so, and it refuses `FAMILY=1` with `MIXED`,
+  which held nothing. V7's own figures were corrected in its section above.
+- **The app's built-in designs** (`links-proposals.test.mjs`): each one's ref is now held to the fingerprint of its
+  cells, recomputed as `regenerate.mjs` computes it. Until now a grid edited in the app and in the pack alike, with the
+  ref left alone, passed.
+
 ## The whole pack checked again, and polished from screenshots (6 Nov 2026)
 
 The owner asked for an accuracy and consistency check of the entire pack, then an aesthetic polish and consistency review
@@ -5072,11 +5184,11 @@ from screenshots. Four independent reviews read it:
 - the summary-level sheets and the decks as printed pages.
 
 The outside reviewer's second pass arrived at the same time. Every finding below was checked against the tree before
-anything changed. No rota changed: all 21 fingerprints are as they were.
+anything changed. No rota changed: every fingerprint is as it was, Balanced V7's (above) included.
 
 **The outside reviewer's one fix.** Page 7 said the 55-hour week reaches 60h 00m "if each is 8h 45m". That figure takes
 the four contracted cover duties at 8h 45m and the Sunday at 8 hours; with the Sunday at 8h 45m too it would be 60h 45m.
-All 21 sheets now say "with the four contracted duties at 8h 45m, the contract's 35 hours, and the Sunday at 8 hours", and
+Every sheet now says "with the four contracted duties at 8h 45m, the contract's 35 hours, and the Sunday at 8 hours", and
 `RULES.md` says the same. The reviewer judged the pack ready for consultation after that fix.
 
 **The sheets' figures and words.**
@@ -5127,9 +5239,11 @@ All 21 sheets now say "with the four contracted duties at 8h 45m, the contract's
 **The read-me** says which page of the shortlist sheet holds what. It also names Common Ground's folder in WHERE TO START,
 and says Common Ground's weekday fit is weaker than Short Run's. It stays plain ASCII, because it opens in Notepad.
 
-**The app, v25.43.** The New link page said Short Run's long duties come round "about 26 a year each", which read as 26 of each
-kind. It now says "together about 26 a year each, 20 earlies and 6 closers", and a claim in `newlink-data.mjs` holds the
-split. "Now 7, not 6, as on the other two" now reads "now 7, not 6 — the same as on the other two".
+**The app, v25.44.** "Now 7, not 6, as on the other two" on the New link page read as though the other two had 6; it now
+reads "now 7, not 6 — the same as on the other two". This review also found the page's "about 26 a year each", which read as
+26 of each kind, but #1700 (v25.43, above) fixed it first, with a claim on each count, and its wording stands. So did the
+managers' Sunday note, where the second late goes back to the floor at 22:00: both reviews found it, and the merge kept
+#1700's words.
 
 **Declined, with the reason:**
 - footer gaps on some pages: the renderer's guards already refuse an overlap;
@@ -5151,7 +5265,7 @@ dashes and quotes.
   owner: "Leave this one for now").
 
 **Checks:**
-- `regenerate.mjs --check`: 21 fingerprints unchanged;
+- `regenerate.mjs --check`: 22 fingerprints unchanged;
 - `check.mjs`: everything agrees;
 - `deck-check.mjs`: 216 rows agree;
 - `newlink-data.mjs --check`: current;

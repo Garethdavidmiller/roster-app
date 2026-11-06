@@ -1,0 +1,107 @@
+{
+ "note": "Balanced V7's duty table, which is Balanced V6's exactly (6 Nov 2026): every weekday, Saturday and Sunday duty as Balanced V6 (results/balanced-v6.json, 1818a1c2) works it, counted from its grid. A rota laid from it keeps V6's closers, its 15-minute handover, its 13:35, 13:45 and 14:20 finishes, its staffing and its contract by construction (exact-rota.py, MIXED).",
+ "slots": [
+  {
+   "time": "06:20-13:35",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-13:45",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:20",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:50",
+   "weekday": 0,
+   "sat": 4,
+   "sun": 0
+  },
+  {
+   "time": "06:20-15:00",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "07:15-15:45",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 4
+  },
+  {
+   "time": "07:30-16:00",
+   "weekday": 3,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "08:00-16:30",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "09:00-18:00",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "12:00-20:30",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "13:30-22:00",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "14:00-22:30",
+   "weekday": 2,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "14:30-22:30",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 2
+  },
+  {
+   "time": "15:00-23:55",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "15:15-23:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 3
+  },
+  {
+   "time": "15:15-23:55",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "15:45-23:55",
+   "weekday": 3,
+   "sat": 0,
+   "sun": 0
+  }
+ ]
+}

@@ -45,6 +45,7 @@ const {
     shouldNotifyAdmin,
     summariseSignIns,} = require('./functions/roster-parse-helpers.js');
 const { applySundayScanCorrections, settleDisputedSundays } = require('./functions/roster-sunday-repair.js');
+const { blankCellMeaning } = require('./functions/cell-day-rules.js');
 const { applyGeometryWitness } = require('./functions/roster-geometry.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
@@ -832,11 +833,15 @@ describe('applySundayScanCorrections', () => {
     // ── Day-shift repair (the Sonnet-5 blank-Sunday left-shift) ──
     // Full-week entries: dates[0]=Sun … dates[6]=Sat.
     const fullWeek = (vals) => ({ memberName: 'G. Miller', shifts: Object.fromEntries(DATES.map((d, i) => [d, vals[i]])) });
+    // The empty trailing slot as it arrives since v22.25: the "no Saturday cell was read" question.
+    // These fixtures used `'RD'`, its pre-v22.25 shape, until a printed rest Saturday stopped counting
+    // as empty (6 Nov 2026 review — the test after the AL/SPARE one).
+    const EMPTY_SAT = blankCellMeaning(6, 'Saturday');
 
     test('Case A day-shift: scan=blank, Sun has a value, Sat empty → RIGHT-shift the whole week', () => {
         // AI dropped the blank Sunday and shifted everything one day LEFT:
-        //   parsed = [Sun=Mon's, Mon=Tue's, Tue=Wed's, …, Fri=Sat's, Sat=RD]
-        const entries = [fullWeek(['06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', 'RD', 'AL', 'RD'])];
+        //   parsed = [Sun=Mon's, Mon=Tue's, Tue=Wed's, …, Fri=Sat's, Sat=(empty)]
+        const entries = [fullWeek(['06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', 'RD', 'AL', EMPTY_SAT])];
         applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES);
         const s = entries[0].shifts;
         assert.equal(s[DATES[0]], 'RD',           'Sunday → RD (the blank)');
@@ -869,12 +874,27 @@ describe('applySundayScanCorrections', () => {
     });
 
     test('day-shift where the leaked value is AL/SPARE (not a time) is still repaired', () => {
-        const entries = [fullWeek(['SPARE', '06:00-14:00', 'RD', 'RD', 'RD', 'RD', 'RD'])];
+        const entries = [fullWeek(['SPARE', '06:00-14:00', 'RD', 'RD', 'RD', 'RD', EMPTY_SAT])];
         applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES);
         const s = entries[0].shifts;
         assert.equal(s[DATES[0]], 'RD',          'Sunday → RD');
         assert.equal(s[DATES[1]], 'SPARE',       'Monday ← the SPARE the AI mis-placed in Sunday');
         assert.equal(s[DATES[2]], '06:00-14:00', 'Tuesday ← old Monday');
+    });
+
+    test('a PRINTED rest Saturday (RD, or NA since v25.38) is not the empty slot — disputed, never shifted (6 Nov 2026 review)', () => {
+        // A correctly read week: worked Sunday, Saturday printed NA (read as RD), and a scan that
+        // wrongly calls the Sunday blank. Counted as empty, the row was right-shifted a day and
+        // nothing said so; the witness could not see it, because every claim then sat in a filled cell.
+        for (const printed of ['RD', 'NA']) {
+            const sat = printed === 'NA' ? normaliseShift('NA') : printed;
+            assert.equal(sat, 'RD', 'premise: NA reads as a rest day');
+            const entries = [fullWeek(['07:55-15:55', '06:00-14:00', '06:00-14:00', 'RD', '06:00-14:00', '06:00-14:00', sat])];
+            const disputed = applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES);
+            assert.deepEqual(disputed, ['G. Miller'], `${printed}: left for the witness and the review`);
+            assert.equal(entries[0].shifts[DATES[0]], '07:55-15:55', `${printed}: the week is not moved`);
+            assert.equal(entries[0].shifts[DATES[1]], '06:00-14:00');
+        }
     });
 });
 
@@ -1776,12 +1796,14 @@ describe('applyColumnScanCrossCheck — review-fix hardening', () => {
     });
 
     test('PIPELINE ORDER: a columnScan lazily COPIED from a drifted row must not reverse the Sunday repair', () => {
-        // True week: blank Sunday, then m t w th f s. Row read is the classic full-row LEFT drift.
-        const drifted  = ['06:00-14:00', '07:00-15:00', '08:00-16:00', 'RD', '09:00-17:00', '10:00-18:00', 'RD'];
+        // True week: blank Sunday, then m t w th f s. Row read is the classic full-row LEFT drift,
+        // its empty trailing Saturday arriving as the blank-Saturday question (since v22.25; this
+        // fixture said 'RD', the older shape, until a printed rest Saturday stopped counting as empty).
+        const drifted  = ['06:00-14:00', '07:00-15:00', '08:00-16:00', 'RD', '09:00-17:00', '10:00-18:00', blankCellMeaning(6, 'Saturday')];
         const trueWeek = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', 'RD', '09:00-17:00', '10:00-18:00'];
         const entries  = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
-        // The model copied columnScan from its own (drifted) row read.
-        const copiedScan = scanOf(drifted);
+        // The model copied columnScan from its own (drifted) row read — reporting that Saturday blank.
+        const copiedScan = scanOf([...drifted.slice(0, 6), 'blank']);
         // Production order (index.js): cross-check FIRST (copied scan agrees → no-op) …
         applyColumnScanCrossCheck(entries, copiedScan, HEADERS, DATES);
         assert.deepEqual(entries[0].shifts, shiftsOf(drifted), 'copied scan must be a no-op');

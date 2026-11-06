@@ -88,6 +88,10 @@ td.good .wv { color: var(--text-mid); font-weight: 400; }
 body.dense td{padding:0.5px 5px;line-height:1.18} body.dense .mast{margin-bottom:4px} body.dense .foot,body.dense .pfoot{margin-top:4px} body.dense .foot{line-height:1.3}
 /* TWENTY-ONE ROWS (6 Nov 2026): see the loop below */
 body.dense .mast{padding:4px 14px 3px;margin-bottom:3px} body.dense .mast img{width:30px;height:30px} body.dense th{padding:2px 5px} body.dense td{line-height:1.12}
+/* TWENTY-TWO ROWS (6 Nov 2026): the Prepared line moves up beside the eyebrow, at the band's right, where the short eyebrow
+   leaves the line empty — its words and type unchanged, one line fewer. See the loop below */
+body.dense .mast > div{display:grid;grid-template-columns:1fr auto;column-gap:14px} body.dense .mast .eyebrow{grid-column:1}
+body.dense .mast .meta{grid-row:1;grid-column:2;margin-top:0;align-self:end} body.dense .mast h1,body.dense .mast .sub{grid-column:1 / -1}
 </style></head><body>
 <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
 <div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${countWord(SHORTLIST.length)} shortlisted ones marked ★, and the ${countWord(rows.filter(r => r.thirty).length)} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
@@ -120,6 +124,9 @@ const b = await chromium.launch(); const pg = await b.newPage(); await pg.goto('
 // footnote columns were tried and came out taller (the paragraphs do not break). So the page's top and bottom margins come
 // down from 8mm to 6mm, and dense also tightens the band, the header row and the cells' line height (1.12): measured, that
 // prints at 82%, where the dense spacing alone fitted only at the 80% floor itself. The type and the floor are as they were.
+// TWENTY-TWO ROWS (6 Nov 2026, Balanced V7): about 3px onto a second sheet at the floor, measured at the printed width. The
+// band's Prepared line had a line to itself under a subtitle that already says how the figures are worked out; dense sets it
+// beside the eyebrow at the band's right instead, its words and type as they were: measured, the page prints at 81%.
 let scale = 1, pdf, dense = false;
 for (;;) { pdf = await pg.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
   if (pagesIn(pdf) === 1) break;

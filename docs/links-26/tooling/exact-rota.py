@@ -34,7 +34,24 @@ its grid, and FIX= checks that grid against the model.
        BEST_LEN= (the days in a row OBJ=best prices; 29 unless set)
        SKELETON=<rota.json> (hold its rest days; FAMILY=1 holds its early and late weeks too: 30 Oct 2026, for a new table
        on a rota whose day headcounts and early/late split it shares — the solver then chooses only the times)
-  e.g. HINT=closing-time.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py results/closing-time-table.json /tmp/ct.json 1200"""
+       MIXED=n BF= BW= (6 Nov 2026, Balanced V7: allow up to n weeks mixing earlies and lates — below)
+  e.g. HINT=closing-time.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py results/closing-time-table.json /tmp/ct.json 1200
+
+MIXED WEEKS (6 Nov 2026, owner: Balanced V6 made again "without losing anything"). Every rota above has a week all earlies
+or all lates. Balanced V6 has three weeks that mix them, and on Grand Tour's rest days, with V6's other floors, no rota
+without them keeps its runs of early or late weeks as short as V6's: MIXED=0 BF=3 BW=5 with the floors below is proved
+infeasible in a second (README.md -> "Balanced V7"). MIXED=n drops the all-early-or-all-late rule and allows at most n
+mixed weeks, reading a week's kind as blocks.mjs does: from every duty in it, the Sunday included. Runs of all-early or
+all-late weeks are then held to BF on the fixed duties (a cover week ends a run, as in blocks.mjs's fixed view) and to BW
+when the cover weeks beside them go the same way (its worst view). BLOCK and MAXCHG read the old one-family flag, which
+MIXED leaves free, so set BLOCK wide (20) and leave MAXCHG unset with it; FAMILY=1 holds that flag too, so it holds nothing
+here, and the solver refuses the pair. AND ONE_MIN IS NOT THE SHEETS' COUNT UNDER MIXED (6 Nov 2026, the 72-hour review): it
+counts weeks whose Monday to Friday are one shift time, and the sheets also want the Saturday or Sunday duty the same kind.
+With every week one family the two agree; a mixed week can have one weekday time and a weekend duty of the other kind, which
+ONE_MIN counts and the sheets do not. Balanced V7 has two, so ONE_MIN=15 below is the sheets' 13. Balanced V7:
+  MIXED=3 BF=3 BW=5 SKELETON=../30-days-off/Grand-Tour-GT-26-T7.json REST=860 H7=3054 FF17=-12 HEAVY=2575 FF11_FIXED=9
+  FF11_WORST=12 LV_BEST=30 LV_FOUR=14 LV_WORST=20 ISO=6 GAP=7 BLOCK=20 OBJ=step ONE_MIN=15 HINT=<a rota from OBJ=one,
+  then OBJ=step ONE_MIN=17> WORKERS=4 python3 exact-rota.py results/balanced-v7-table.json <out.json> 300"""
 import sys, json, os
 from ortools.sat.python import cp_model
 TABLE, OUT = sys.argv[1], sys.argv[2]; LIMIT = float(sys.argv[3]) if len(sys.argv) > 3 else 600
@@ -61,7 +78,31 @@ for k in WORK:
 for d in DAYS:
     for t in TYPES[d]: M.Add(sum(x[(k, d, t)] for k in WORK) == CNT[d][t])
 f = {k: M.NewBoolVar(f'f_{k}') for k in WORK}
-for (k, d, t), v in x.items(): M.AddImplication(v, f[k] if early(t) else f[k].Not())
+if os.environ.get('MIXED') is not None and os.environ.get('FAMILY') == '1':   # f[] is free under MIXED (header)
+    raise SystemExit('exact-rota: FAMILY=1 holds the one-family flag, which MIXED leaves free, so it would hold nothing; drop one')
+if os.environ.get('MIXED') is None:   # every working week all earlies or all lates
+    for (k, d, t), v in x.items(): M.AddImplication(v, f[k] if early(t) else f[k].Not())
+else:   # MIXED (6 Nov 2026, header): at most MIXED weeks mix the two; f[] is left free, so BLOCK should be set wide
+    ef = {k: M.NewBoolVar(f'ef_{k}') for k in WORK}; lf = {k: M.NewBoolVar(f'lf_{k}') for k in WORK}   # has an early / a late
+    for (k, d, t), v in x.items(): M.AddImplication(v, ef[k] if early(t) else lf[k])
+    for k in WORK:
+        M.AddBoolOr([x[(k, d, t)] for d in DAYS for t in TYPES[d] if early(t)] + [ef[k].Not()])
+        M.AddBoolOr([x[(k, d, t)] for d in DAYS for t in TYPES[d] if not early(t)] + [lf[k].Not()])
+    mx, aE, aL = {}, {}, {}   # mixed, all earlies, all lates: exactly one of the three for every working week
+    for k in WORK:
+        mx[k], aE[k], aL[k] = M.NewBoolVar(f'mx_{k}'), M.NewBoolVar(f'aE_{k}'), M.NewBoolVar(f'aL_{k}')
+        M.Add(mx[k] >= ef[k] + lf[k] - 1); M.Add(mx[k] <= ef[k]); M.Add(mx[k] <= lf[k])
+        M.Add(aE[k] >= ef[k] - lf[k]); M.Add(aE[k] <= ef[k]); M.Add(aE[k] <= 1 - lf[k])
+        M.Add(aL[k] >= lf[k] - ef[k]); M.Add(aL[k] <= lf[k]); M.Add(aL[k] <= 1 - ef[k])
+    M.Add(sum(mx.values()) <= int(os.environ['MIXED']))
+    BF, BW = env('BF', 3), env('BW', 5)
+    for s0 in range(1, L + 1):
+        # the fixed duties: BF + 1 working weeks in a row may not all be early, nor all late (a cover week ends a run)
+        win = [((s0 - 1 + j) % L) + 1 for j in range(BF + 1)]
+        if all(c in WORK for c in win): M.Add(sum(aE[c] for c in win) <= BF); M.Add(sum(aL[c] for c in win) <= BF)
+        # the worst case: a cover week counts as whichever kind joins the run, so BW + 1 weeks in a row may not all be one
+        win = [((s0 - 1 + j) % L) + 1 for j in range(BW + 1)]
+        M.Add(sum((aE[c] if c in WORK else 1) for c in win) <= BW); M.Add(sum((aL[c] if c in WORK else 1) for c in win) <= BW)
 for i in range(n):
     (k, d), (k2, d2) = seq[i], seq[(i + 1) % n]
     if k not in WORK or k2 not in WORK: continue

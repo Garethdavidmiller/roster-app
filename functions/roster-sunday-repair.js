@@ -95,7 +95,14 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
         const isBlank = scanSawEmpty(scanStr) || scanSawRestCode(scanStr);
         if (isBlank && sunShift !== 'RD' && sunShift !== 'OFF') {
             const sat = entry.shifts[satDate];
-            if (sat === 'RD' || sat === BLANK_SATURDAY) {
+            // THE EMPTY SLOT IS `BLANK_SATURDAY`, AND ONLY THAT (6 Nov 2026 review). `'RD'` was the
+            // empty slot before v22.25, when a blank became a rest day; since then a Saturday reading
+            // RD is a rest code somebody PRINTED — and from v25.38 that includes NA and NS, which read
+            // as RD. Counted as empty, a correctly read week with a printed rest Saturday, whose
+            // Sunday the scan mistook for blank, was right-shifted a day with nothing to say so;
+            // the v24.28 review found no real left-shift reached here with an RD Saturday. Now it
+            // is disputed, and the witness or the review settles it.
+            if (sat === BLANK_SATURDAY) {
                 // Clean left-shift signature (Sat empty) → RIGHT-shift the whole row to undo it:
                 // each day takes the value the AI mis-placed one slot earlier; Sunday becomes RD;
                 // the old (empty) Saturday slot falls off. Provably reverses a one-day left-shift.

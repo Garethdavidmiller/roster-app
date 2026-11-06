@@ -17,7 +17,7 @@ import { lsGet, lsSet } from './ls.js';
 import { TEAM_VIEW } from './storage-keys.js';
 import { lazyImport } from './sw-register.js';
 import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
-import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
+import { isChristmasLeaveDay, resolveDayShift, isUncountedChristmasLeave } from './christmas-leave.js';
 import { worstKnowledge, decideDisplay, forget as forgetOverrideKnowledge } from './calendar-data-state.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
@@ -164,7 +164,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         if (shift === 'RD' || shift === 'OFF') return { text: '–', cls: 'tv-rest', label: 'Rest day' };
         if (shift === 'SPARE')                 return { text: '📋 Spare', cls: 'tv-spare', label: 'Spare' };
         if (shift === 'AL')                    return { text: '🏖️ AL', cls: 'tv-al',
-                                                        label: christmasLeave ? 'Annual leave (Christmas, not counted)' : 'Annual leave' };
+                                                        label: isUncountedChristmasLeave(shift, dateStr, christmasLeave) ? 'Annual leave (Christmas, not counted)' : 'Annual leave' };
         if (shift === 'SICK')                  return { text: '🪑 Absent', cls: 'tv-sick', label: 'Absent' };
         if (shift === 'RDW') {
             // rdw override → shift 'RDW' + its time in rdwTime (a base 'RDW' never exists, so this
@@ -346,7 +346,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
                     </div>
                 </div>
                 <div class="team-week-row">
-                    <button class="tv-week-nav" id="tvPrevWeek" aria-label="Previous week">← Prev</button>
+                    <button class="tv-week-nav" id="tvPrevWeek" aria-label="Prev week">← Prev</button>
                     <div class="team-week-center">
                         <button type="button" class="team-week-text" id="tvWeekJump" aria-label="Jump to a week — currently ${weekLabel}">${weekLabel}</button>
                         <input type="date" id="tvWeekDate" class="fieldpick-native" tabindex="-1" aria-hidden="true">
@@ -354,7 +354,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
                     </div>
                     <button class="tv-week-nav" id="tvNextWeek" aria-label="Next week">Next →</button>
                 </div>
-                <div class="team-table-wrap" id="gradeTabPanel" role="tabpanel" aria-labelledby="gradeTab-${grade}" aria-label="${grade} grade roster — week of ${weekLabel}">
+                <div class="team-table-wrap" id="gradeTabPanel" role="tabpanel" tabindex="0" aria-labelledby="gradeTab-${grade}" aria-label="${grade} grade roster — week of ${weekLabel}">
                     <table class="team-table">
                         <thead><tr>
                             <th scope="col" class="tv-name-col">Name</th>${dayHeaders}
@@ -640,8 +640,10 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             teamBtn.innerHTML = teamViewMode
                 ? '<span class="btn-ico" aria-hidden="true">📅</span> Month'
                 : '<span class="btn-ico" aria-hidden="true">👥</span> Team';
+            // Each name carries the word the button shows (WCAG 2.5.3 Label in Name — a voice user
+            // says "Month"), as #prevMonth's "Prev month" does; "monthly" is not the word "Month".
             teamBtn.setAttribute('aria-label', teamViewMode
-                ? 'Switch back to monthly calendar'
+                ? 'Switch back to the month view'
                 : 'Switch to team week view');
             teamBtn.setAttribute('aria-pressed', teamViewMode ? 'true' : 'false');
         }

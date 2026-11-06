@@ -49,6 +49,26 @@ describe('writing a day the app forbids', () => {
         assert.equal(normaliseCellValue('TEAM RDW', 'RD', SUN).value, 'RD');
     });
 
+    test('an Other day printed WITH TIMES on a Sunday is Sunday work at those times (6 Nov 2026 review)', () => {
+        // A Sunday is never an Other day, but MTG over 10:00-14:00 is four hours worked on one.
+        // Until v25.38 it arrived as the bare time and was saved as rest-day working; made RD, it was
+        // dropped on a rest Sunday and turned a ROSTERED Sunday into rest. Both bases, both orders.
+        for (const base of ['RD', '06:00-14:00']) {
+            const n = normaliseCellValue('MEET 10:00-14:00', base, SUN);
+            assert.equal(n.value, '10:00-14:00', `base ${base}`);
+            assert.equal(n.guarded, null, 'recorded, so not reported as refused');
+        }
+        assert.equal(normaliseCellValue('TRG RDW 09:00-17:00', 'RD', SUN).value, '09:00-17:00');
+        assert.equal(shiftValueToOverrideType('MEET 10:00-14:00', 'RD', SUN), 'rdw', 'never an `other` record on a Sunday');
+        assert.equal(shiftValueToOverrideType('10:00-14:00', '06:00-14:00', SUN), 'rdw', 'and never a correction to rest');
+    });
+
+    test('a BARE Other day on a Sunday has no times to keep, so it is still a rest day', () => {
+        assert.equal(normaliseCellValue('MEET', 'RD', SUN).value, 'RD');
+        assert.equal(normaliseCellValue('MEET', 'RD', SUN).guarded, 'sunday');
+        assert.equal(shiftValueToOverrideType('MEET', '06:00-14:00', SUN), 'correction');
+    });
+
     test('the same value on a MONDAY is untouched — the guard is about Sundays, not about AL', () => {
         assert.equal(normaliseCellValue('AL', '06:00-14:00', MON).value, 'AL');
         assert.equal(normaliseCellValue('TRG', '06:00-14:00', MON).value, 'TRG');
