@@ -176,7 +176,13 @@ export function toSequence(patterns, lines = ROTATING_LINES) {
  *
  * FF11 says "more than 13 consecutive shifts without a 48h break" — which is NOT the same as the
  * longest run of consecutive worked days that `runDesignChecks` already reports. A SINGLE rest day
- * is not a 48h break, so a pattern of six on / one off / six on is a 12-shift run for FF11 and two
+ * is not COUNTED as a 48h break: two rest days together are, and they always give more than 48 hours
+ * off. One alone usually gives less — but not always: an early finish before it and a late start
+ * after can leave 48 hours (Both Ways, line 2's Saturday 06:20–14:50 into line 3's Monday
+ * 16:00–23:55, 49h 10m; external review, 6 Nov 2026). The detail text said "a single rest day is
+ * not a 48h break" until then, which is false as a statement about hours. Counting pairs only can
+ * OVERSTATE a run, never understate it — the safe direction for a fatigue check — and on the 21
+ * Links 26 designs that day it changed no warning. So a pattern of six on / one off / six on is a 12-shift run for FF11 and two
  * separate 6-day runs for the existing check. They coincide on the current link only because its
  * rest days happen to come in pairs.
  * @param {Array<{shift: any}>} seq
@@ -507,7 +513,7 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     const ff11 = longestRunBetween48hBreaks(seq);
     add({ code: 'FF11', family: 'Recovery time', title: 'More than 13 consecutive shifts without a 48h break',
         status: ff11 > 13 ? 'present' : 'clear', value: ff11, threshold: 13,
-        detail: `Longest run between 48-hour breaks is ${ff11} shifts. A single rest day is not a 48h break, so it does not reset this count.`
+        detail: `Longest run between two-day breaks is ${ff11} shifts. A two-day break is two rest days together, always more than 48 hours off. A single rest day does not reset this count, even when the shifts either side leave 48 hours, so it can only overstate a run.`
             + (seq.some(x => x.shift === 'SPARE')
                 ? ` A spare week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, and its Sunday can be worked as overtime on top; its rest days need not fall together — so in the worst case it adds ${SPARE_WORKED_DAYS + 1} shifts and no break.`
                 : '') });

@@ -111,6 +111,12 @@ has more duties than any of them, and longer ones on average than all but Famili
   - runs and fatigue on the fixed duties, with the worst cover-week placement shown as "up to" (its Sunday worked as
     overtime, since 31 Oct 2026);
   - hard limits tested at the worst case;
+  - the 55-hour row's "up to" taking a cover week's four duties as 8 hours each, and its Sunday as an 8-hour duty. The
+    contract counts a cover week as 35 hours, so the sheets give the same week with four duties of 8h 45m beside it
+    (6 Nov 2026); longer duties would add more. No design is on a different side of 55 hours in either reading;
+  - FF11's "48-hour break" counted as two rest days together, which always give more than 48 hours off. A single rest
+    day is not counted as a break even when the shifts either side leave 48 hours, so FF11 can only overstate a run.
+    One rest day in the pack does give 48 hours: Both Ways, line 2's Saturday into line 3's Monday, 49h 10m (6 Nov 2026);
   - the match to the trains scored hour by hour against the December service, weighted by train length.
 - **Waivers are per design,** decided design by design. None is carried into 26 lines yet.
 - **Still open:** where the 13-day limit is written down; and how FF19 treats a rest day.

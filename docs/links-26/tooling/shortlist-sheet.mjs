@@ -392,6 +392,11 @@ const sideBySide = (F, test) => Object.keys(F.p).some(k => test(mainDuty(F.p[k])
 const closing = m => m.endsWith('-23:55'), opening = m => m.startsWith('06:20');
 claim('Middle Ground: no two closing weeks and no two 06:20 weeks side by side, where Common Ground has both', !sideBySide(MGF, closing) && !sideBySide(MGF, opening)
   && sideBySide(CG.F, closing) && sideBySide(CG.F, opening) && MGF.lv.best === TF.lv.best);
+// A PREFERENCE, NOT A FAULT (external review, 6 Nov 2026; the owner: "Reword"). The row ended "— but a larger change of
+// start", which read as the reason Middle Ground lost. It is the other side of one trade with Common Ground — the hardest
+// weeks kept apart, against start times that move less from week to week — so the row now says both sides and calls the
+// choice a preference. Its figures are the change of start the table on page 1 prints, and this holds them the right way round.
+claim('Middle Ground: a larger change of start from week to week than Common Ground', Math.round(MGF.step) > Math.round(CG.F.step));
 claim('Open Return and Short Openers: today’s leave, and the same shortest rest', OR_SO.every(F => F.lv.best === TF.lv.best && F.lv.fourWeeks === TF.lv.fourWeeks && F.A.rest.minutes === orsoRest));
 // BALANCED V5 AND V6 SHARE THEIR ROW (6 Nov 2026): the same rest days and weeks, so the same single rest days and weeks on one
 // shift time, which the row prints once, read here
@@ -662,7 +667,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <p class="lead">Each line holds for ${both}, better than or level with today; page 2 has what is worse, and why these ${N}.</p>
   <div class="shared">
     <div>All <b>${met} of ${shared('rules scored', F => F.of)}</b> December staffing rules (today ${TF.met}), and all three flexible ones: 14 on a Saturday, evenly spaced cover weeks, weekday closers from 15:45</div>
-    <div><b>No avoidable fatigue warning</b>, cover weeks aside; one if a cover week falls badly — over 55 hours in seven days. Never more than <b>${word(run)} days in a row</b>, cover weeks aside; ${word(worstRun)} if a cover week falls badly (today ${TF.A.fixed.present} warnings, up to ${TF.A.fatigue.present}; ${TF.fixedRun} days in a row, up to ${TF.worstRun})</div>
+    <div><b>No avoidable fatigue warning</b>, cover weeks aside; one if a cover week falls badly — over 55 hours in seven days, with 8-hour cover duties. Never more than <b>${word(run)} days in a row</b>, cover weeks aside; ${word(worstRun)} if a cover week falls badly (today ${TF.A.fixed.present} warnings, up to ${TF.A.fatigue.present}; ${TF.fixedRun} days in a row, up to ${TF.worstRun})</div>
     <div><b>About ${Math.round(wkOff * 52 / LINES)} full weekends off a year</b> (today ${Math.round(TF.A.checks.weekendsOff * 52 / TF.pp.L)}), ${wkOff} in ${LINES}, never more than ${gap} weeks apart (today up to ${TF.maxGap} apart)</div>
     <div>The same <b>35-hour</b> week and <b>${days} days</b> a year, under the ceiling of ${DAYS_CEILING} (today ${TF.pp.daysYear.toFixed(1)})</div>
     <div>Every closing shift <b>shorter, by ${dur(Math.min(...cuts))} to ${dur(Math.max(...cuts))}</b> — the weekday’s and Sunday’s ${hm(wkCloser)} on ${both} (today ${hm(TF.closers[0])} and ${hm(TF.closers[2])}); no shift over ${hm(longest)}</div>
@@ -714,7 +719,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Fair Share</td><td>Next Step with an even Sunday, no long shifts — but a weaker Sunday fit, ${word(FSx.newT - NX.newT)} more new times</td></tr>
     <tr><td>Grand Tour</td><td>Common Ground’s leave and a closer weekday fit — but fewer weeks on one shift time</td></tr>
     <tr><td>Open Return, Short Openers</td><td>today’s leave and no 55-hour week — but a ${hm(orsoRest)} shortest rest and more long shifts</td></tr>
-    <tr><td>Middle Ground</td><td>today’s leave, with no two closing or 06:20 weeks side by side — but a larger change of start</td></tr>
+    <tr><td>Middle Ground</td><td>today’s leave, with no two closing or 06:20 weeks side by side where Common Ground has both, for a larger change of start from week to week (${hm(Math.round(MGF.step))} against ${hm(Math.round(CG.F.step))}). Which is better is a matter of preference: the hardest weeks apart, or steadier start times</td></tr>
     <tr><td>Long Break</td><td>Common Ground’s four weeks for ${LB.lv.fourWeeks} days’ leave and fewer single rest days — but ${word(LB.fixedRun)} days in a row</td></tr>
     <tr><td>Balanced V5, Balanced V6</td><td>shorter runs of earlies or lates and more early finishes — but ${balIso[0]} single rest days a year, ${balOne[0]} of ${BV[0].A.feel.workingLines} weeks on one shift time</td></tr>
   </tbody></table>

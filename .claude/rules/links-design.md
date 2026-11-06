@@ -531,8 +531,8 @@ on a design containing none). Where the worst case and the certain figure differ
 both.
 
 Two things about the rules themselves that are easy to get wrong, both caught by their own tests:
-**FF11 is not the consecutive-worked-days check it resembles** (a single rest day is not a 48h break,
-and a rotation with no 48h break at all returns every worked day, not the sequence length); and
+**FF11 is not the consecutive-worked-days check it resembles** (a single rest day is not COUNTED as a 48h break — only two together are, so it can only
+overstate — and a rotation with no two-day break at all returns every worked day, not the sequence length); and
 **every rule laps the rotation** — `earlyBlocksWithShortRecovery` was the one that did not, so a
 block straddling the last line → line 1 was cut in half and reported as nothing.
 
