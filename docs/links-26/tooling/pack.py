@@ -236,6 +236,12 @@ readme = '\n'.join([
     # 1 January 2027, after the timetable changes in December (owner, 2 Nov 2026), and was "December 2026" here until then.
     'Marylebone CEA link from 1 January 2027 - 26 weeks',
     '',
+    # THE SATURDAY OFFICE, SAID FIRST (6 Nov 2026, the external review: "Give the Saturday correction one prominent
+    # sentence ... Bring a short version forward"). The whole account stays in how the shortlist came about, below
+    para('Saturday ticket-office lates finish at 22:30 on every link here, so that the office can cash up after it shuts '
+         'at 22:10 (corrected on 6 November 2026). On the links drawn before then the extra time comes off other Saturday '
+         'lates, so the contracted hours are unchanged.'),
+    '',
     'THE SHORTLIST',
     para(f'{WORDS[len(proposals)].capitalize()} candidate links were drawn up and {WORDS[len(SHORTLIST)]} shortlisted. They '
          'are listed A to Z, and none is recommended: each is the one to choose for something different.'

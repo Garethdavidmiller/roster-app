@@ -333,6 +333,15 @@ const TRADE = ['fitWk', 'step', 'newT', 'times'], xNS = measure(NX), xES = measu
 claim('Next Step: Even Step’s figures but a closer weekday fit, a gentler change of start and one more new shift time', Object.keys(DIR).every(k => TRADE.includes(k) || xNS[k] === xES[k])
   && xNS.fitWk < xES.fitWk && xNS.step < xES.step && xNS.newT === xES.newT + 1 && xNS.times === xES.times + 1 && longMS(NX) === 0);
 claim('Next Step: a weekday fit closer than Even Step’s, not than Short Run’s — so its row says which', SR.F.fit[0] < NX.fit[0] && NX.fit[0] < ES.F.fit[0]);
+// NEXT STEP'S TWO OTHER COSTS, ON ITS ROW SINCE 6 NOV 2026 (the external review: "add its extra opening starts and 22:45
+// finishes. 'One more new time' alone makes the decision to retain Even Step look less convincing than it is"): the 06:20
+// starts its retimed 07:15 early adds, and the 22:45 finishes of its two retimed weekday lates, each a year each against
+// Even Step's — counted here, and asserted to be that trade: Even Step finishes nothing at 22:45, and Next Step's 22:45s are
+// exactly the 22:30s it has fewer of (15 minutes later, the same length)
+const opens0620 = F => Math.round(perYear(F.p, s => s.startsWith('06:20'))), endsAt = (F, hhmm) => Math.round(perYear(F.p, s => s.slice(6) === hhmm));
+const nsOpen = opens0620(NX), esOpen = opens0620(ES.F), ns2245 = endsAt(NX, '22:45');
+claim('Next Step: more starts at 06:20 than Even Step, and finishes at 22:45 where Even Step finishes at 22:30', nsOpen > esOpen && ns2245 > 0
+  && endsAt(ES.F, '22:45') === 0 && endsAt(ES.F, '22:30') - endsAt(NX, '22:30') === ns2245);
 claim('Home Grown: today’s Saturday closer', HG.closers[1] === TF.closers[1]);
 // FAIR SHARE IS NEXT STEP WITH AN EVEN SUNDAY (4 Nov 2026), and its row says exactly that: only Sunday cells differ, every Sunday
 // duty is 8h 10m or 8h 15m, so nothing on any day is over 8h 30m — for a weaker Sunday fit than Next Step's and two more new times
@@ -685,7 +694,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Second Edition</td><td>the steadiest start times from week to week — but ${word(O['Second Edition'].F.fixedRun)} days in a row, cover weeks aside</td></tr>
     <tr><td>Second Look</td><td>no 55-hour week at all — but ${word(SL.fixedRun)} days in a row and fewer weeks on one shift time</td></tr>
     <tr><td>Clean Slate</td><td>the best weekend fit of all — but ${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday</td></tr>
-    <tr><td>Next Step</td><td>a closer weekday fit and a gentler change of start than Even Step’s — but one more new time</td></tr>
+    <tr><td>Next Step</td><td>a closer weekday fit and a gentler change of start than Even Step’s — but ${nsOpen} starts at 06:20 a year each, not ${esOpen}, ${ns2245} finishes at 22:45 rather than 22:30, and one more new time</td></tr>
     <tr><td>Fair Share</td><td>Next Step with an even Sunday, no long shifts — but a weaker Sunday fit, ${word(FSx.newT - NX.newT)} more new times</td></tr>
     <tr><td>Grand Tour</td><td>Common Ground’s leave, a closer weekday and Saturday fit — but fewer weeks on one shift time</td></tr>
     <tr><td>Open Return, Short Openers</td><td>today’s leave and no 55-hour week — but a ${hm(orsoRest)} shortest rest and more long shifts</td></tr>

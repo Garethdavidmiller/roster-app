@@ -4811,6 +4811,35 @@ on any day" in the read-me is that change's own wording, since its 9-hour Saturd
 - **Re-rendered:** the shortlist sheet, its two rows only (still two pages). Unchanged: every proposal sheet, the summary,
   the "What it means if you…" sheet, the rules sheet, the decks and the app.
 
+## The external review of the corrected pack (6 Nov 2026)
+
+An outside reviewer checked the pack built after *The Saturday ticket office to 22:30*: all 21 rotas carry the two
+14:30–22:30 Saturday office lates, keep 44,100 Monday-to-Saturday minutes and 218.6 days, and match every printed fit.
+They found no numerical regression and suggested four changes. Two are made here:
+
+- **The Saturday correction is said first.** The read-me's opening lines now say it, before *The shortlist*: the office
+  lates finish at 22:30 on every link, to cash up after the office shuts at 22:10, with the time taken off other Saturday
+  lates where a link was drawn before then. The full account stays where it was.
+- **Next Step's row on page 2 names its real costs.** "One more new time" understated it. The row now adds 70 starts at
+  06:20 a year each against Even Step's 60, and 20 finishes at 22:45 rather than 22:30 — Even Step's 14:00–22:30 weekday
+  lates moved 15 minutes later, the same length. Both figures are counted on the sheet (`perYear`), never typed, and a
+  claim pins the trade: Even Step finishes nothing at 22:45, and Next Step's 22:45s are exactly the 22:30s it has fewer
+  of. Page 2 still prints on one page, the row on two lines.
+
+**S. Silva's rules document** (a Claude Doc outside the repository, "Rules for designing the new 26-line CEA link") still
+had the old office: rule S5 read 14:30–22:00, and so did Even Step's example duty table and the example rota. All three
+now say 14:30–22:30 (Even Step's Saturday floor pair 14:00–22:00), with the reason and an "Updated 6 November 2026" line
+under the title. Its quoted figures for "the 13 proposals" were measured again on the 22:30 rotas, after the method was
+proved by reproducing every figure it quoted on the tree from before the change (`80bc6f2e`): three moved — the fit to
+the trains 26.6 to 35.6 (was 35.4; Saturday 8.4 to 16.4, was 15.5), familiar shift times 46% to 75% (was 54% to 91%: no
+proposal works today's 14:30–22:00 any more) and the heaviest week 41h 05m to 43h 40m (was 40h 55m; 42h 00m is typical
+now, was 41h 30m).
+
+**Left for the owner:** whether today's Saturday office lates really finish at 22:00 (the pack compares every link with
+that; if staff already work or are paid to 22:30, today's figures move too); whether the read-me's "What is asked" should
+keep asking managers which of the three goes to colleagues; and whether the colleague decks' "At a glance" slide should be
+cut to fewer rows.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
