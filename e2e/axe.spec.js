@@ -277,6 +277,54 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // ── TWO STATES NO SCAN REACHED, AND WHERE LABEL IN NAME FAILED (72-hour review, 6 Nov 2026) ───
+    // axe 4.14 checks WCAG 2.5.3 Label in Name, and #1678 fixed every state this file scanned. The
+    // Team view was never opened here, and its week bar said "Previous week" under "← Prev" and its
+    // toggle "Switch back to monthly calendar" under "Month"; an ARMED delete was never scanned, and
+    // the bulk one said "Confirm delete selected changes" under "⚠ Delete 2?". Each is a word a voice
+    // user says that the name did not contain.
+
+    test('calendar — Team view: the week bar and the Month toggle', async ({ page }) => {
+        await seedMember(page);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('#teamViewBtn').click();
+        await expect(page.locator('#tvPrevWeek')).toBeVisible();
+        await expect(page.locator('#teamViewBtn')).toContainText('Month');
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    test('admin — Saved Changes with both deletes ARMED (forced open)', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+                docs: [
+                    { id: 'o1', memberName: 'G. Miller', date: '2026-09-01', type: 'annual_leave', value: 'AL', note: '' },
+                    { id: 'o2', memberName: 'G. Miller', date: '2026-09-02', type: 'annual_leave', value: 'AL', note: '' },
+                ],
+            });
+        });
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        await page.locator('#fieldMember').selectOption('G. Miller');
+        await page.locator('#overridesToggleHeader').click();
+        await expect(page.locator('.override-card .row-select')).toHaveCount(2);
+        // Armed by the real clicks, so the words and names are the app's own.
+        await page.locator('#selectAllOverrides').check();
+        await page.locator('#bulkDeleteBtn').click();
+        await expect(page.locator('#bulkDeleteBtn')).toHaveText('⚠ Delete 2?');
+        await page.locator('.override-card .btn-delete').first().click();
+        await expect(page.locator('.override-card .btn-delete').first()).toHaveText('Delete?');
+        // An armed confirm lapses after five seconds, and a scan can take longer than that on a slow
+        // runner — so hold it open for the scan rather than racing it.
+        await page.evaluate(() => document.querySelectorAll('.confirming')
+            .forEach(b => clearTimeout(/** @type {any} */ (b).armTimer)));
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+        await expect(page.locator('#bulkDeleteBtn'), 'still armed when scanned').toHaveText('⚠ Delete 2?');
+    });
+
     test('paycalc (signed in)', async ({ page }) => {
         await seedSession(page);
         await page.addInitScript(() => {

@@ -18,7 +18,7 @@ import {
     SWIPE_THRESHOLD, SWIPE_VELOCITY, escapeHtml,
 } from './roster-data.js';
 import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
-import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
+import { isChristmasLeaveDay, resolveDayShift, isUncountedChristmasLeave } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 import { getCurrentMember } from './calendar-member.js';
 import { rosterOverridesCache, monthKey } from './calendar-overrides.js';
@@ -569,7 +569,15 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // both Christmas days a rest day for everybody, so on a day the member was DUE at work the
         // pair would read "Rest → Annual leave" about somebody rostered an early turn — the one
         // fact this feature exists to state. The pattern is what they were rostered.
-        const rosteredShift = christmasDue ? getPatternShift(member, currentDate) : baseShift;
+        //
+        // …BUT ONCE A RECORD HAS CHANGED THE DAY, WHAT IT CHANGED IS THE LEAVE (6 Nov 2026 review).
+        // Unrecorded, a Christmas day the member was due to work IS annual leave, so a record making
+        // it work changed it from leave. Compared with the pattern instead, a worked shift entered
+        // with exactly the pattern's times read "As rostered" with no "changed by" line — on a day
+        // that only shows as worked because somebody recorded it.
+        const rosteredShift = christmasDue ? (christmasLeave ? getPatternShift(member, currentDate) : 'AL') : baseShift;
+        // Leave here is never counted, from the pattern or recorded (christmas-leave.js → isUncountedChristmasLeave).
+        const christmasNotCounted = isUncountedChristmasLeave(shift, dateStr, christmasLeave);
 
         const isWorkedDay = isWorkedShift(shift);
         const shiftClass = shift === 'RDW' || isOtherValue(shift)          ? getShiftClass(shift)
@@ -582,7 +590,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
 
         // The FULL word on tap/tooltip/aria (the badge carries the short one). Shared with the
         // base-roster line below, so the two can never describe the same value differently.
-        const shiftLabel = christmasLeave ? 'Annual leave (Christmas, not counted)'
+        const shiftLabel = christmasNotCounted ? 'Annual leave (Christmas, not counted)'
             : shiftWords(shift, member, otherDerivedRdw);
 
         const isToday  = isSameDay(currentDate, today);
@@ -623,7 +631,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // Split so the panel can hold the TIME together across a wrap — see `splitShiftLine`.
         // Christmas leave heads the panel as plain "Annual leave": the line under it says why, and
         // the "(Christmas, not counted)" the tooltip and the cell's name need would say it twice.
-        const shiftLine = splitShiftLine(christmasLeave ? shiftWords(shift, member, false) : ttShift);
+        const shiftLine = splitShiftLine(christmasNotCounted ? shiftWords(shift, member, false) : ttShift);
         dayCell.dataset.detailShiftWords = shiftLine.words;
         if (shiftLine.time) dayCell.dataset.detailShiftTime = shiftLine.time;
         // Compared on the VALUES, not the words: a permanent-early member's 06:20 and 07:00 both
@@ -676,6 +684,8 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // Day the member was due to work and DID work, the year a day in lieu is added to
         // (christmas-leave.js → boxingDayLieuDays, which the allowance reads).
         if (christmasLeave) dayCell.dataset.detailChristmas = String(currentDate.getDate());
+        // A leave RECORD on a Christmas day — not the pattern's leave, and not counted either.
+        else if (christmasNotCounted) dayCell.dataset.detailChristmasRecorded = String(currentDate.getDate());
         else if (christmasDue && currentDate.getDate() === 26 && isWorkedDay) {
             dayCell.dataset.detailBoxingLieu = String(currentDate.getFullYear());
         }

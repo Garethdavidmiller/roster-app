@@ -364,11 +364,43 @@ describe('1b. the accessible NAME travels with the label (v23.16, external revie
     test('while armed it says so, and after the delete it says what it said before', async () => {
         _checked = ['a'].map(row);
         await fire('bulkDeleteBtn', 'click');   // arms
-        assert.equal(el('bulkDeleteBtn').getAttribute('aria-label'), 'Confirm delete selected changes',
+        assert.equal(el('bulkDeleteBtn').getAttribute('aria-label'), 'Confirm delete 1 selected change',
             'a destructive two-step control has to announce that its meaning changed');
         await fire('bulkDeleteBtn', 'click');   // deletes
         assert.equal(el('bulkDeleteBtn').getAttribute('aria-label'), 'Delete selected changes',
             'and change back — the glyph returning with the name still saying Confirm is the shipped shape');
+    });
+
+    // WCAG 2.5.3 Label in Name, the rule axe 4.14 runs (72-hour review, 6 Nov 2026): the armed button
+    // SHOWS a count, so its name must carry "delete N" as the same words in the same order — it said
+    // "Confirm delete selected changes" under "⚠ Delete 3?". axe's word rule restated small:
+    // case-folded, a bracketed aside dropped, anything not a letter or a digit a gap (the ⚠ included).
+    test('the armed name contains what the armed button shows, for one and for many', async () => {
+        const words = (/** @type {string} */ t) => t.normalize('NFKD').toLowerCase().replace(/\([^()]*\)/g, ' ')
+            .split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+        const contains = (/** @type {string} */ name, /** @type {string} */ shown) => {
+            const n = words(name), v = words(shown);
+            return n.some((_, i) => v.every((w, j) => n[i + j] === w));
+        };
+        for (const ids of [['a'], ['a', 'b', 'c']]) {
+            _checked = ids.map(row);
+            await fire('selectAllOverrides', 'change');   // a fresh selection starts disarmed
+            await fire('bulkDeleteBtn', 'click');         // arms
+            const shown = el('bulkDeleteBtn').textContent, name = el('bulkDeleteBtn').getAttribute('aria-label');
+            assert.equal(shown, `⚠ Delete ${ids.length}?`);
+            assert.ok(contains(name, shown), `the button shows "${shown}" but is named "${name}"`);
+            assert.match(name, /^Confirm delete/, 'and the name still says its meaning changed');
+        }
+    });
+
+    test('re-armed for a new selection while armed, the name follows the new count — it once read "Confirm confirm …"', async () => {
+        _checked = ['a'].map(row);
+        await fire('bulkDeleteBtn', 'click');             // armed for one
+        _checked = ['a', 'b'].map(row);                   // a redraw — nothing announced it
+        await fire('bulkDeleteBtn', 'click');             // re-armed for two, while still armed
+        assert.equal(el('bulkDeleteBtn').getAttribute('aria-label'), 'Confirm delete 2 selected changes');
+        await fire('bulkDeleteBtn', 'click');             // deletes
+        assert.equal(el('bulkDeleteBtn').getAttribute('aria-label'), 'Delete selected changes');
     });
 
     test('a FAILED delete puts the name back too', async () => {

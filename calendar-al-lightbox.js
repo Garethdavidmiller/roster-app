@@ -343,12 +343,17 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     // nothing, or why a worked Boxing Day adds a day. The renderer decides which (christmas-leave.js
     // has the rules); the wording is neutral because this panel also shows a colleague's calendar.
     if (xmasEl) {
-      const day  = d.detailChristmas === '25' ? 'Christmas Day' : d.detailChristmas === '26' ? 'Boxing Day' : '';
+      const name = (/** @type {string|undefined} */ n) => n === '25' ? 'Christmas Day' : n === '26' ? 'Boxing Day' : '';
+      const day  = name(d.detailChristmas);
+      // Leave RECORDED on a Christmas day (6 Nov 2026 review): not counted either, and not the
+      // pattern's — so it is not "due at work", only free.
+      const kept = name(d.detailChristmasRecorded);
       const lieu = /^\d{4}$/.test(d.detailBoxingLieu || '') ? d.detailBoxingLieu : '';
       xmasEl.textContent = day ? `${day}: due at work, so this is annual leave. It does not come off the allowance.`
+        : kept ? `${kept}: annual leave recorded here does not come off the allowance.`
         : lieu ? `Worked Boxing Day when due at work: one day of annual leave in lieu is added to the ${lieu} allowance.`
         : '';
-      xmasEl.hidden = !(day || lieu);
+      xmasEl.hidden = !(day || kept || lieu);
     }
     const kindEmoji = d.detailShiftValue ? shiftBadgeParts(d.detailShiftValue).emoji : '';
     if (glyphEl) {

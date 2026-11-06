@@ -103,7 +103,7 @@ mock.module('./admin-override-store.js', {
     },
 });
 
-const { _hasStagedEdits, buildWeekGridInto, renderWeekGrid, updateSaveBtn, initWeekEditor }
+const { _hasStagedEdits, buildWeekGridInto, renderWeekGrid, updateSaveBtn, initWeekEditor, rosteredWords }
     = await import('./admin-week-editor.js');
 const { teamMembers, getBaseShift, formatISO } = await import('./roster-data.js');
 
@@ -335,6 +335,20 @@ describe('the "Base roster" column says what the day WAS', () => {
             'the base column PRINTS no shift kind — the badge is asked for showTime');
         assert.ok(baseCol[0].includes('aria-label='),
             'the kind must survive as the accessible name; dropping it loses the word entirely');
+    });
+
+    test('a training day\'s RDW warning names the day in words, never the raw code (6 Nov 2026 review)', () => {
+        // M. Campbell's base is a bare TRG Mon–Fri from 22 Sep to 6 Nov 2026. Ticking RDW on an Other
+        // day there showed "Originally rostered TRG this day".
+        const MON = '2026-10-05';
+        assert.equal(getBaseShift(teamMembers.find(m => m.name === 'M. Campbell'), new Date(MON + 'T12:00:00')), 'TRG',
+            'premise: a training day on her base roster');
+        const row = buildWeek('M. Campbell', MON).find(r => r.dataset.date === MON);
+        assert.ok(row, `no row was built for ${MON}`);
+        assert.match(row.innerHTML, /Originally rostered Training this day/);
+        assert.doesNotMatch(row.innerHTML, /rostered TRG/);
+        assert.equal(rosteredWords('MEET 10:00-14:00'), 'Meeting 10:00-14:00');
+        assert.equal(rosteredWords('06:20-13:45'), '06:20-13:45', 'a time is already words');
     });
 
     test('the header, then seven rows in date order, each carrying its own ISO date', () => {

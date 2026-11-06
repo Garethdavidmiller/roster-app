@@ -18,9 +18,10 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift } from './roster-data.js';
-import { projectAlBooking, willConsume, projectAlOverage } from './admin-al-projection.js';
+import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave } from './admin-al-projection.js';
 import { consumesEntitlement } from './al-entitlement.js';
 
 // C. Reen is the fixed Mon–Fri 12:00–19:00 line: every weekend is a rest day and every weekday is
@@ -305,5 +306,49 @@ describe('the day in lieu reaches the over-entitlement warning (v25.37)', () => 
 
     test('with it, the same day is inside the allowance', () => {
         assert.equal(projectAlOverage({ member: cea, memberName: cea.name, overrides: [...recorded, worked], consuming: [used[32]] }), null);
+    });
+
+    // LEAVE WRITTEN OVER THE WORKED BOXING DAY TAKES THE DAY IN LIEU BACK (6 Nov 2026 review). One day
+    // left (33 − 32), and a range over that one day AND the worked Boxing Day: the leave on 26 Dec is
+    // free, but it replaces the work that earned the 33rd day, so the save ends one over. Costed
+    // against the allowance before the save, the preview called 26 Dec "recorded at no cost", no bar
+    // appeared, and the member was −1 afterwards. These run the range card's own composition —
+    // projectAlBooking, then overridesAfterSave of what it writes, then projectAlOverage.
+    const rangeCard = (/** @type {any[]} */ overrides, /** @type {string[]} */ dates) => {
+        const ovByDate = new Map(overrides.map(o => [o.date, o]));
+        const proj = projectAlBooking({ member: cea, dates, ovByDate });
+        return { proj, overage: projectAlOverage({ member: cea, memberName: cea.name, overrides, consuming: proj.consuming,
+            after: overridesAfterSave(overrides, { memberName: cea.name, writes: proj.writing.map(date => ({ date, type: 'annual_leave', value: 'AL' })) }) }) };
+    };
+
+    test('the preview names a worked Boxing Day the leave replaces, and does not call it free', () => {
+        const { proj } = rangeCard([...recorded, worked], [used[32], '2026-12-26']);
+        assert.deepEqual(proj.lieuLost, ['2026-12-26']);
+        assert.ok(proj.freeWritten.includes('2026-12-26'), 'premise: the leave itself costs nothing');
+        assert.equal(proj.counts.lieuLost, 1);
+    });
+
+    test('a Boxing Day with no work on record loses nothing, so it is not named', () => {
+        assert.deepEqual(rangeCard(recorded, [used[32], '2026-12-26']).proj.lieuLost, []);
+    });
+
+    test('booking over the worked Boxing Day with one day left raises the bar: the save ends one over', () => {
+        const { overage } = rangeCard([...recorded, worked], [used[32], '2026-12-26']);
+        assert.ok(overage, 'the save takes back the day in lieu, so the one day left is gone');
+        assert.equal(overage.over, 1);
+        assert.match(overage.detail, /33 days used of 32 allowed in 2026/);
+    });
+
+    test('booking the one day left WITHOUT touching Boxing Day still fits', () => {
+        assert.equal(rangeCard([...recorded, worked], [used[32]]).overage, null);
+    });
+
+    test('the range card hands the warning the allowance after the save', () => {
+        // The wiring, not the helper: without `after` the range card costs against the allowance as it
+        // was, and everything above stays green while the page misses the day.
+        const src = readFileSync(new URL('./admin-al.js', import.meta.url), 'utf8');
+        const call = src.slice(src.indexOf('projectAlOverage({'), src.indexOf('});', src.indexOf('projectAlOverage({')));
+        assert.match(call, /after:\s*overridesAfterSave\(getAllOverrides\(\),[\s\S]*writing\.map/,
+            'admin-al.js must pass `after: overridesAfterSave(getAllOverrides(), { … writing … })` to projectAlOverage');
     });
 });

@@ -40,7 +40,7 @@ import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
 import { alPosition, consumesEntitlement, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
-import { christmasLeaveByYear } from './christmas-leave.js';
+import { christmasLeaveByYear, christmasLeaveDates } from './christmas-leave.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
 import { createBookedPeriods } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
@@ -1473,9 +1473,10 @@ export function init() {
             // list and the entitlement cannot answer differently about the same day. A rest day
             // carrying an AL override spends nothing, and used to be listed and counted anyway.
             consumes:   consumesEntitlement,
-            // CHRISTMAS LEAVE (v25.37) — on record here, never counted (christmas-leave.js).
+            // CHRISTMAS LEAVE (v25.37) — on record here, never counted (christmas-leave.js); and for any later year shown.
             christmas:  christmasLeaveByYear({ member: teamMembers.find(m => m.name === alMember.value),
                                                overrides: getAllOverrides(), thisYear: new Date().getFullYear() }),
+            christmasFor: year => christmasLeaveDates({ member: teamMembers.find(m => m.name === alMember.value), year, overrides: getAllOverrides() }),
             // "3 days", not "3 days AL" — the card is titled Recorded Annual Leave dates and the
             // pill is AL-green. The two dropped words are what let the date, the count and the
             // delete control share ONE line at 375px instead of stacking into two.

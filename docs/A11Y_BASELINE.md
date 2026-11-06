@@ -225,6 +225,15 @@ name can contain — while the screen showed "DESIGNS · 0 saved", separated by 
 the spans is not rendered in a flex row, and makes the text say what the screen does. Found by
 asking axe's own functions inside the page; reading the rule said it should already pass.
 
+**Three more, in states the gate had never scanned (72-hour review, 6 Nov 2026).** The Team view's
+week bar said "Previous week" under "← Prev" and its toggle "Switch back to monthly calendar" under
+"Month" ("monthly" is not the word "Month"); the ARMED bulk delete said "Confirm delete selected
+changes" under "⚠ Delete 2?". Each now leads with or carries the visible words — "Prev week",
+"Switch back to the month view", "Confirm delete 2 selected changes" — and `axe.spec.js` scans the
+Team view and both armed deletes, holding the five-second confirm open for the scan. Putting the old
+names back fails both scans, on exactly those three controls. The lesson is the first rule's
+converse: a state no scan opens is a state nothing checks, however clean the rest of the gate is.
+
 **The gate sees four kinds of calendar day; a unit test walks all of them.**
 `calendar-renderer.test.mjs` → "a day cell's name contains what it shows" drives every badge, the
 six Other flavours with their three time slots, an unrecognised value and both permanent-shift
