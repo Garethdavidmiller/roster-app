@@ -354,7 +354,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
                     </div>
                     <button class="tv-week-nav" id="tvNextWeek" aria-label="Next week">Next →</button>
                 </div>
-                <div class="team-table-wrap" id="gradeTabPanel" role="tabpanel" aria-labelledby="gradeTab-${grade}" aria-label="${grade} grade roster — week of ${weekLabel}">
+                <div class="team-table-wrap" id="gradeTabPanel" role="tabpanel" tabindex="0" aria-labelledby="gradeTab-${grade}" aria-label="${grade} grade roster — week of ${weekLabel}">
                     <table class="team-table">
                         <thead><tr>
                             <th scope="col" class="tv-name-col">Name</th>${dayHeaders}

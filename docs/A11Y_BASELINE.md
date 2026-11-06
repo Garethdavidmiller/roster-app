@@ -234,6 +234,13 @@ Team view and both armed deletes, holding the five-second confirm open for the s
 names back fails both scans, on exactly those three controls. The lesson is the first rule's
 converse: a state no scan opens is a state nothing checks, however clean the rest of the gate is.
 
+**And that first Team view scan found a fourth on a phone** (`scrollable-region-focusable`, SERIOUS,
+WCAG 2.1.1). Below desktop width the seven days do not fit, so `#gradeTabPanel` scrolls sideways — and
+it held nothing focusable, so a keyboard user could not reach the days off-screen. Desktop Chrome
+never saw it, because there the table fits; the phone projects failed in CI. The panel is now a tab
+stop (`tabindex="0"`, as the ARIA tabs pattern advises for a panel with no focusable content), with an
+inset focus ring because the panel is the box that clips.
+
 **The gate sees four kinds of calendar day; a unit test walks all of them.**
 `calendar-renderer.test.mjs` → "a day cell's name contains what it shows" drives every badge, the
 six Other flavours with their three time slots, an unrecognised value and both permanent-shift
