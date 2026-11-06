@@ -43,9 +43,19 @@
  * with an error that names no file of ours — one path in 120, per config. Measured in Chromium 141:
  * of 4001–4300, 4045 is the only port refused.
  *
- * A refused port moves up by SPREAD, out of the range every other checkout draws from — not to the
- * next port, which is another checkout's: two checkouts on one port adopt each other's server, the
- * very failure above. CI is untouched; its base ports are not refused.
+ * A refused port moves up past every block (below), out of the range every other checkout draws
+ * from — not to the next port, which is another checkout's: two checkouts on one port adopt each
+ * other's server, the very failure above. CI is untouched; its base ports are not refused.
+ *
+ * ── ONE BLOCK OF PORTS PER CONFIG (6 Nov 2026 review) ─────────────────────────────────────────
+ *
+ * The bases are one apart (4001, 4002, 4003) and each drew from the 120 ports above it, so the
+ * ranges overlapped almost entirely: checkout A's offline server on 4002 + 9 and checkout B's smoke
+ * server on 4001 + 10 were the same port, and one config could adopt ANOTHER checkout's server — the
+ * 11 Sep wrong-files failure again, by a different road. 120 of the 122 reachable ports could be
+ * reached from more than one config. So each base now draws from a block of its own, in BASES order:
+ * smoke and visual keep 4001–4120 exactly as before, offline takes 4122–4241 and visual-webkit
+ * 4243–4362. A base not in BASES throws, so a new config cannot quietly overlap one that exists.
  */
 import { createHash } from 'node:crypto';
 
@@ -63,15 +73,22 @@ export const BROWSER_REFUSED_PORTS = Object.freeze([
     1719, 1720, 1723, 2049, 3659, 4045, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6697, 10080,
 ]);
 
+/** The configs' base ports, in block order: each derives its local ports from its OWN block of
+ *  SPREAD ports starting at `base + index × SPREAD` (the header's last section). CI uses the base. */
+export const BASES = Object.freeze([4001, 4002, 4003]);
+
 /**
  * The port for a base and a path hash — pure, so every value it can return is checked by a test.
- * @param {number} base the config's historical port
+ * @param {number} base the config's historical port, one of BASES
  * @param {number} hash an unsigned 16-bit value from the checkout path's digest
  * @returns {number}
  */
 export function portFor(base, hash) {
-    let port = base + (hash % SPREAD);
-    while (BROWSER_REFUSED_PORTS.includes(port)) port += SPREAD;
+    const block = BASES.indexOf(base);
+    if (block < 0) throw new Error(`dev-server: base port ${base} is not in BASES (${BASES.join(', ')}). Add it there, so its local ports get a block of their own and never overlap another config's.`);
+    let port = base + block * SPREAD + (hash % SPREAD);
+    // Past EVERY block, never into the next one: that is another config's, and so another checkout's.
+    while (BROWSER_REFUSED_PORTS.includes(port)) port += SPREAD * BASES.length;
     return port;
 }
 
