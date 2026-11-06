@@ -93,16 +93,24 @@ if 'Tell ${CONTACT} or your manager what worries you' not in CFG:
 # saying what it repeats. (Until 5 Nov the figures were checked against the sheet's template text alone, which pins the
 # sentence and not the number.)
 SHEET = open(f'{ROOT}/tooling/shortlist-sheet.mjs', encoding='utf-8').read()
-for said in ['is the one to choose for something different', '<b>Choose Common Ground</b> if keeping today’s leave matters most',
-             '<b>Choose Even Step</b> if avoiding long days, Monday to Saturday, matters most',
+# THE 22:30 OFFICE (6 Nov 2026): Common Ground has no shift over 8h 30m on any day, alone of the three, so Even Step's choice is
+# today's earlies and steady weeks rather than "no long days"; and Common Ground leads the league, which the 6 Nov paragraph says
+for said in ['is the one to choose for something different',
+             '<b>Choose Common Ground</b> if keeping today’s leave, or no shift over 8h&nbsp;30m on any day, matters most',
+             'no shift over 8h&nbsp;30m on any day, alone of the three',
+             '<b>Choose Even Step</b> if keeping today’s earlies and steady weeks matters most',
+             'Every early from Monday to Saturday one of today’s times, no shift there over 8h&nbsp;30m',
              '<b>Choose Short Run</b> if the weekday fit and short weekday lates matter most', 'a weaker weekday fit',
              'the biggest change of start',
-             'Common Ground, as the example of the links that keep today’s leave; Even Step, first in the pack’s league; Short Run, which colleagues have seen']:
+             'Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen',
+             'Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, about half a point ahead of Even Step']:
     if said not in SHEET: raise SystemExit(f'pack: the read-me repeats the shortlist sheet, which no longer says "{said}"')
 PAGE = open('newlink-data.js', encoding='utf-8').read().replace('\\u00a0', ' ')
 for said in ['four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best',
              'The price on Common Ground is more single rest days: about 12 a year, where the other two have about 8',
-             'Even Step has nothing over 8h 30m, Monday to Saturday', 'Short Run has 9-hour weekday earlies and an 8h 40m Saturday closer',
+             'Common Ground has nothing over 8h 30m on any day, and Even Step nothing over 8h 30m from Monday to Saturday',
+             'Short Run has 9-hour weekday earlies and an 8h 40m Saturday closer',
+             'On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10',
              'Short Run has no shift finishing at 13:35 or 13:45', 'On Even Step and Short Run four weeks off take 15']:
     if said not in PAGE: raise SystemExit(f'pack: the read-me repeats the New link page, which no longer says "{said}"')
 # the count is the SUPPLIED list's, never typed: "Ten candidate links" stayed ten for three designs (26 Oct 2026)
@@ -227,11 +235,12 @@ readme = '\n'.join([
     para(f'{WORDS[len(proposals)].capitalize()} candidate links were drawn up and {WORDS[len(SHORTLIST)]} shortlisted. They '
          'are listed A to Z, and none is recommended: each is the one to choose for something different.'
          + (f' {LATE_WORDS} came after the shortlist; see how the shortlist came about, below.' if LATE else '')),
-    item('Common Ground', 'If keeping today\'s leave matters most: four full weeks off, Sunday to Saturday, for 14 days\' '
-         'leave, and 30 days off for 14 at best. The price: more single rest days, about 12 a year where the other two '
-         'have about 8, and a weaker weekday fit.'),
-    item('Even Step', 'If avoiding long days, Monday to Saturday, matters most: nothing over 8h 30m there. The price: the '
-         'biggest change of start from week to week, and four weeks off take 15 days\' leave.'),
+    item('Common Ground', 'If keeping today\'s leave matters most, or no shift over 8h 30m on any day: four full weeks '
+         'off, Sunday to Saturday, for 14 days\' leave, and 30 days off for 14 at best. The price: more single rest days, '
+         'about 12 a year where the other two have about 8, and a weaker weekday fit.'),
+    item('Even Step', 'If keeping today\'s earlies and steady weeks matters most: every early from Monday to Saturday one '
+         'of today\'s times, and nothing over 8h 30m there. The price: the biggest change of start from week to week, and '
+         'four weeks off take 15 days\' leave.'),
     item('Short Run', 'If the weekday fit and short weekday lates matter most. The price: 9-hour weekday earlies and an '
          '8h 40m Saturday closer, no shift finishing at 13:35 or 13:45, and four weeks off take 15 days\' leave.'),
     para('Page 2 of the shortlist sheet sets out each one\'s edge and its costs in full.'),
@@ -327,11 +336,11 @@ readme = '\n'.join([
             'warning. Short Openers is Open Return with every weekday 06:20 finishing by 14:20 and every weekday closer at '
             '15:45. Grand Tour keeps Fair Share\'s shift times in new weeks. Common Ground is today\'s link taken to 26 '
             'weeks, on Grand Tour\'s weeks: today\'s shift times kept where the rules allow, a 13:45 finish every weekday, '
-            'closers from 15:45, nothing over 8h 30m Monday to Friday or 9 hours at the weekend, and an even Sunday.'), '']
+            'closers from 15:45, nothing over 8h 30m on any day, and an even Sunday.'), '']
       if AFTER_31_OCT else []),
     para(f'On {SHORTLIST_DATE.replace("Nov", "November")} the shortlist was drawn again, after every design in the pack, '
-         'and listed A to Z: Common Ground, as the example of the links that keep today\'s leave; Even Step, first in the '
-         'pack\'s league; and Short Run, which colleagues had already seen. In Step left the shortlist, and its '
+         'and listed A to Z: Common Ground, as the example of the links that keep today\'s leave; Even Step, then first in '
+         'the pack\'s league; and Short Run, which colleagues had already seen. In Step left the shortlist, and its '
          'presentations stay in the pack. Page 2 of the shortlist sheet sets every other design beside the three.'),
     '',
     # described on its own terms, as its headline is (owner, 5 Nov 2026: "the proposal description headlines should not
@@ -346,6 +355,14 @@ readme = '\n'.join([
     *([para('Two more were in the pack for a few hours and taken out: Quarter Past, a one-page roster drawn up outside '
             'the app, on 4 November 2026, and Well Kept, today\'s twenty weeks with six added, on 5 November 2026. Their '
             'record is kept in the repository too.'), ''] if TAKEN_OUT else []),
+    # THE 22:30 OFFICE (6 Nov 2026; README.md -> "The Saturday ticket office to 22:30"): what it changed, said once, for a reader
+    # holding a printout from before it, whose fingerprints no longer match
+    para('On 6 November 2026 the rules were corrected: the ticket office shuts at 22:10 on a Saturday and takes 20 minutes '
+         'to cash up, so on every link here its two Saturday lates finish at 22:30, not 22:00, and that hour comes off the '
+         'Saturday\'s other lates, so the hours and the contract are as they were. Every sheet and presentation was '
+         'redrawn, and every fingerprint changed. Since then Common Ground is first in the pack\'s league, about half a '
+         'point ahead of Even Step.'),
+    '',
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
          'reference.'),
     '',

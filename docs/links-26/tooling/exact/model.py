@@ -62,7 +62,7 @@ def build(base, parts=ALLPARTS, flex=False, fmax=None, cmax=None, fix=None, forb
             for v in dom(d):
                 if en(v) == 1435 and v != '15:45-23:55': m.Add(cntv(d, v) == 0)
     if flex: m.Add(sum(cnt(d, lambda v: en(v) == 1435) for d in WD) >= 1)
-    if 'office' in parts: m.Add(cntv('sat', '06:20-14:50') >= 2); m.Add(cntv('sat', '14:30-22:00') >= 2)
+    if 'office' in parts: m.Add(cntv('sat', '06:20-14:50') >= 2); m.Add(cntv('sat', '14:30-22:30') >= 2)   # 22:30 since 6 Nov 2026
     # Sunday's pairs, selected exactly as rosteredPairs does: the 07:15 early with the LATEST end among those rostered
     # twice, the 22:30 late with the EARLIEST start among those rostered twice
     SE = sorted([v for v in dom('sun') if st(v) == 435], key=lambda v: -en(v))

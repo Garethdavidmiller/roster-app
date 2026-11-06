@@ -136,7 +136,7 @@ function staffing(p) {
     if (open < 4) ok.open = false; if (close < 3) ok.close = false; if (at22 < 5) ok.at22 = false;
     const by = {}; for (const s of ds) by[s] = (by[s] ?? 0) + 1;
     const pair = c === 'wk' ? (by['06:20-14:20'] ?? 0) >= 2 && (by['14:00-22:30'] ?? 0) >= 2
-      : c === 'sat' ? (by['06:20-14:50'] ?? 0) >= 2 && (by['14:30-22:00'] ?? 0) >= 2
+      : c === 'sat' ? (by['06:20-14:50'] ?? 0) >= 2 && (by['14:30-22:30'] ?? 0) >= 2   // the plan's Saturday late, to 22:30 since 6 Nov 2026
       : Object.keys(by).some(s => st(s) === 435 && by[s] >= 2) && Object.keys(by).some(s => en(s) === 1350 && by[s] >= 2);
     if (!pair) ok.office = false;
   }

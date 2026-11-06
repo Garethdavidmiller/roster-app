@@ -23,11 +23,11 @@ def cls(d): return 'sun' if d == 'sun' else 'sat' if d == 'sat' else 'wk'
 EARLY = lambda v: 300 <= st(v) < 420           # links-fatigue.js isEarlyStart: 05:00-07:00
 # the plan's ticket office (report-data.mjs OFFICE.plan): Mon-Fri and Saturday are fixed pairs; Sunday is any two
 # identical 07:15 earlies and two identical lates to 22:30 (rosteredPairs)
-PAIRS_FIXED = {'wk': ('06:20-14:20', '14:00-22:30'), 'sat': ('06:20-14:50', '14:30-22:00')}
+PAIRS_FIXED = {'wk': ('06:20-14:20', '14:00-22:30'), 'sat': ('06:20-14:50', '14:30-22:30')}   # Saturday's late to 22:30 since 6 Nov 2026
 TODAY = ['06:20-13:35', '06:20-13:45', '06:20-14:00', '06:20-14:20', '06:20-14:50', '07:15-15:45', '08:00-16:30',
          '08:30-16:30', '11:00-19:30', '12:00-20:00', '13:00-21:00', '13:30-21:00', '13:30-22:00', '14:00-22:30',
          '14:30-22:00', '14:30-23:25', '14:45-23:55', '15:15-23:55']
-PLAN = ['15:45-23:55', '07:15-15:30', '13:30-22:30', '06:20-14:20', '14:00-22:30', '06:20-14:50', '14:30-22:00']
+PLAN = ['15:45-23:55', '07:15-15:30', '13:30-22:30', '06:20-14:20', '14:00-22:30', '06:20-14:50', '14:30-22:30']
 SHORTLIST = ['Short-Run-SR-26-F1', 'Second-Edition-SE-26-F1', 'Even-Keel-EK-26-H1', 'Long-Break-LB-26-F1']
 def universe(base):
     """The shift times a repair may use: the design's own, today's, the plan's office and closer, and the shortlist's."""

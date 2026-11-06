@@ -112,8 +112,9 @@ export function headcounts(p, lines) {
 }
 
 // THE TICKET OFFICE IS NOT FLOOR COVER (owner, 27–28 Sep 2026), and it is staffed the same way today as in the
-// December plan: Monday to Friday two 06:20–14:20 and two 14:00–22:30, Saturday two 06:20–14:50 and two
-// 14:30–22:00. SUNDAY IS THE ONE DIFFERENCE — today it has one late, and that late is one of the three
+// December plan Monday to Friday: two 06:20–14:20 and two 14:00–22:30. SATURDAY's lates finish at 22:30 in the plan
+// (owner, 6 Nov 2026: the office shuts at 22:10 and needs 20 minutes to cash up), where today's roster has them at
+// 14:30–22:00 — so `today` keeps the roster's 22:00 and `plan` has 22:30. SUNDAY — today it has one late, and that late is one of the three
 // 14:30–23:25 closers, in the office until it shuts at 22:30 and on the floor for the last hour; the plan has
 // two earlies 07:15–15:30 and two lates 13:30–22:30. [time, people, office-until] — a third element cuts the
 // office part short of the duty's own finish. Every sheet compares FLOOR with FLOOR by taking the right
@@ -123,7 +124,7 @@ export function headcounts(p, lines) {
 // the sheet says which days, on pages 5, 6 and 7.
 export const OFFICE = {
   today: { weekday: [['06:20-14:20', 2], ['14:00-22:30', 2]], sat: [['06:20-14:50', 2], ['14:30-22:00', 2]], sun: [['07:15-15:45', 2], ['14:30-23:25', 1, '22:30']] },
-  plan:  { weekday: [['06:20-14:20', 2], ['14:00-22:30', 2]], sat: [['06:20-14:50', 2], ['14:30-22:00', 2]], sun: [['07:15-15:30', 2], ['13:30-22:30', 2]] },
+  plan:  { weekday: [['06:20-14:20', 2], ['14:00-22:30', 2]], sat: [['06:20-14:50', 2], ['14:30-22:30', 2]], sun: [['07:15-15:30', 2], ['13:30-22:30', 2]] },
 };
 export const officeSpans = (model, cls) => OFFICE[model][cls].map(([t, n, until]) => ({ time: t, st: startMinutes(t), en: until ? +until.slice(0, 2) * 60 + +until.slice(3) : endMinutes(t), n }));
 export const officePosts = (model, cls) => OFFICE[model][cls].reduce((a, [, n]) => a + n, 0);
@@ -314,7 +315,7 @@ export function currentRules(P, T, model = 'plan') {
     // 26 LINES (owner, 1 Oct 2026): five cover weeks, as evenly spread as the link allows — gaps differing by one line at most
     // (coverSpread, link.mjs). Today's 20-line link, with four, does not meet it — as it did not meet the 24-line rule.
     { key: 'cover', rule: `${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][COVER_WEEKS]} cover weeks, as evenly spread as possible`, value: `lines ${P.feel.spareLines.join(', ')}`, ok: P.feel.spareLines.length === COVER_WEEKS && coverSpread(P.patterns).even, note: `as even as ${LINES} lines allow: gaps differing by one line at most, e.g. ${COVER_LINES.join(', ')}` },
-    { key: 'office', rule: 'The ticket office: two early and two late, identical shifts, every day', value: `Mon–Fri ${wkPairs ? 'yes' : 'no'} · Sat ${satPairs ? 'yes' : 'no'} · Sun ${sunPairs ? 'yes' : 'no'}`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:00; Sun two from 07:15 and two to 22:30' },
+    { key: 'office', rule: 'The ticket office: two early and two late, identical shifts, every day', value: `Mon–Fri ${wkPairs ? 'yes' : 'no'} · Sat ${satPairs ? 'yes' : 'no'} · Sun ${sunPairs ? 'yes' : 'no'}`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:30; Sun two from 07:15 and two to 22:30' },
     // 15:45 IS THE MINIMUM, ON A WEEKDAY ONLY (owner, 31 Oct 2026: "1530 closer is not a big enough change from 1515. 1545
     // is the minimum" — "Only for weekdays"). It read "starts at 15:45" and accepted exactly that, so the 16:00 closers the
     // 26 Oct brief asked for ("whether it is 1545 or 1600 doesn't matter", 30 Oct) failed a rule they meet.

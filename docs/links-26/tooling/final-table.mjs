@@ -2,7 +2,8 @@
 //
 // The brief, in substance: "Saturday evenly balanced to demand (not leaning late); keep the number of shift
 // patterns similar to today (not necessarily the times); the weekday 15:15-till-close late starts at 15:45; keep
-// 06:20–14:20 x2 and 14:00–22:30 x2 on a weekday; 06:20–14:50 x2 and 14:30–22:00 x2 on a Saturday; two identical
+// 06:20–14:20 x2 and 14:00–22:30 x2 on a weekday; 06:20–14:50 x2 and 14:30–22:00 x2 on a Saturday [14:30–22:30 x2 since
+// 6 Nov 2026: the office shuts at 22:10 and takes 20 minutes to cash up — RULES.md S5]; two identical
 // earlies and two identical lates for the Sunday ticket office, which runs 07:15 until 22:30 to allow for setting
 // up and shutting up; everything else demand based. Three at the close is a MINIMUM — more is fine."
 //
@@ -34,7 +35,7 @@
 //     contracted, so its total is a range (SUN_MIN..SUN_MAX) and the fit decides within it.
 //
 // THE TICKET OFFICE IS NOT FLOOR COVER (owner, 27 Sep 2026, on reading the first Sunday): every fixed pair is the
-// ticket office — weekday 06:20–14:20 and 14:00–22:30, Saturday 06:20–14:50 and 14:30–22:00, Sunday's earlies and
+// ticket office — weekday 06:20–14:20 and 14:00–22:30, Saturday 06:20–14:50 and 14:30–22:00 (22:30 since 6 Nov 2026), Sunday's earlies and
 // lates — so they are left out of the cover the demand fit is measured on, and at least FLOOR_MIN (default 2) people
 // must be on the floor at every five-minute point of the staffed day. They still count for the day's headcount, the
 // openers, the closers, the five at 22:00 and the contract. The first Sunday found without this rule had all four
@@ -56,8 +57,9 @@
 //     the new times; 8 leaves four). The search bound adds the same penalty, so a returned table is still the best
 //     under it. With TODAY=1 today's own clock times are in the pool, which a familiar table needs.
 //   · AT22_STRICT=1 — five on AFTER 22:00, counted exactly as currentRules counts them. Without it the five at 22:00
-//     is left to the fixed turns, and on a Saturday those are the office lates FINISHING at 22:00, which the rules do
-//     not count: the option sweep found three tables that passed here and failed page 7 on exactly that.
+//     is left to the fixed turns, and on a Saturday those were the office lates FINISHING at 22:00, which the rules do
+//     not count: the option sweep found three tables that passed here and failed page 7 on exactly that. (Since 6 Nov
+//     2026 the Saturday office lates finish at 22:30, so they count at 22:00.)
 // Familiar Nine (F9-24-K31) is table K: HI=540 TODAY=1 NEWPEN=2, the office kept off the floor as for Right Away —
 // README → "Familiar Nine" has the commands.
 import { writeFileSync } from 'node:fs';
@@ -112,7 +114,7 @@ const BOUND = process.env.BOUND !== '0';
 const BEST0 = Number(process.env.BEST0 ?? Infinity);
 const parse = v => v.split(',').filter(Boolean).map(x => { const [t, n] = x.split('x'); return [t, Number(n ?? 1)]; });
 const FIXED = process.env.FIXED !== undefined ? (process.env.FIXED === 'none' ? [] : parse(process.env.FIXED))
-  : { weekday: [['06:20-14:20', 2], ['14:00-22:30', 2]], sat: [['06:20-14:50', 2], ['14:30-22:00', 2]], sun: [] }[CLS];
+  : { weekday: [['06:20-14:20', 2], ['14:00-22:30', 2]], sat: [['06:20-14:50', 2], ['14:30-22:30', 2]], sun: [] }[CLS];   // Sat to 22:30 since 6 Nov 2026
 const CLOSER_MIN = CLS === 'weekday' && process.env.WK_CLOSER_MIN ? mm(process.env.WK_CLOSER_MIN) : null;   // WK_CLOSER_MIN (3 Nov 2026), below
 const CLOSER_ONLY = CLS === 'weekday' && CLOSER_MIN === null ? (process.env.WK_CLOSER ?? '15:45-23:55') : null;
 // TOTAL: the day's duty minutes. Five weekdays and a Saturday must make CONTRACT_MINUTES (44,100 at 26 lines) exactly, so

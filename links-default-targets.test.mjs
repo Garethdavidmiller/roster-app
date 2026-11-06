@@ -123,7 +123,8 @@ describe('the 26-line rules (docs/links-26/RULES.md) — the table meets every o
     });
 
     test('S5: the ticket office — two identical earlies and two identical lates, every day', () => {
-        const office = { weekday: ['06:20-14:20', '14:00-22:30'], sat: ['06:20-14:50', '14:30-22:00'] };
+        // Saturday's lates finish at 22:30 since 6 Nov 2026: the office shuts at 22:10 and needs 20 minutes to cash up
+        const office = { weekday: ['06:20-14:20', '14:00-22:30'], sat: ['06:20-14:50', '14:30-22:30'] };
         for (const [cls, times] of Object.entries(office)) {
             for (const t of times) assert.ok(dutiesOn(/** @type {any} */ (cls)).filter(x => x === t).length >= 2, `${cls} ${t}`);
         }
