@@ -46,7 +46,8 @@ shortlist drawn again* and *The whole pack reviewed* say what changed.
 **Open Return** (`OR-26-EXT`, drawn as `QR-26-EXT`), Fair Share's 30-day search result, which had no name, is **Grand
 Tour** (`GT-26-T7`), and Same Again Tidy is **Well Kept** (`WK-26-S2`, while it was in the pack, 4 to 5 Nov). Each
 fingerprint is unchanged. The dated sections before
-*30 days off for 14 days' leave* keep the names they were written with, and so do the grids in `tooling/results/`.
+*30 days off for 14 days' leave* keep the names they were written with, and so do the grids in `tooling/results/`
+(Well Kept's, `same-again-tidy.json`, was deleted on 6 Nov 2026).
 **Relief Point was renamed Balanced V6 on 6 Nov 2026** (`MB-26-V6`, drawn as `RP-26-V5`, fingerprint unchanged), when it
 joined the pack with Balanced V5; its grid is `tooling/results/balanced-v6.json` now, and its own section keeps the
 name it was written with.
@@ -213,7 +214,12 @@ node rules-sheet.mjs
 default is 7,440 a weekday and 6,900 on a Saturday; sweep it with `TOTAL=` as the 24-line work did. ANNEAL=1 found no
 Saturday at 6,900; the exhaustive search (the default) did, in 92 seconds.
 
-## Second Nature — the first 26-line design (1 Oct 2026; withdrawn 3 Nov 2026)
+## Second Nature — the first 26-line design (1 Oct 2026; withdrawn 3 Nov 2026; deleted 6 Nov 2026)
+
+**Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
+little and often and same again"*; *Nine designs deleted*, below). Its grid and meta are no longer in the repository. Its duty table F stays (`results/second-nature-*.json`), because
+Second Edition, Short Run and Long Break use it. So the file names and commands below are the
+record of how it was made, not something to run; git history has the files (the last commit holding them is `4b67f51a`).
 
 **Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): its sheet, grid and import file left `proposals/`, the summary and the pack. Its grid (`second-nature.json`) and searches stay in `tooling/`, and this section stays as the record.
 
@@ -342,7 +348,11 @@ sheet does not show directly:
   still on at 22:00 instead (7 · 5 · 5 on all three, today 4 · 2 · 3), so a deck slide that says its figures are all on the
   sheet quotes that one.
 
-## Second Wind — Second Nature with the weekends spread (2 Oct 2026; withdrawn 3 Nov 2026)
+## Second Wind — Second Nature with the weekends spread (2 Oct 2026; withdrawn 3 Nov 2026; deleted 6 Nov 2026)
+
+**Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
+little and often and same again"*; *Nine designs deleted*, below). Its grid, meta and search start are no longer in the repository. So the file names and commands below are the
+record of how it was made, not something to run; git history has the files (the last commit holding them is `4b67f51a`).
 
 **Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): its sheet, grid and import file left `proposals/`, the summary and the pack. Its grid (`second-wind.json`) stays in `tooling/`, and this section stays as the record.
 
@@ -410,7 +420,11 @@ REST_MIN=860 WKENDS_MIN=7 ONE_MIN=16 HEAVY_MAX=42.5 STEP_MAX=128 ISO_MAX=4 GAP_M
   node space-polish.mjs /tmp/r7.closest.json second-wind.json 1 300000
 ```
 
-## Second Sight — a fresh search with the weekends spread from the start (2 Oct 2026; withdrawn 3 Nov 2026)
+## Second Sight — a fresh search with the weekends spread from the start (2 Oct 2026; withdrawn 3 Nov 2026; deleted 6 Nov 2026)
+
+**Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
+little and often and same again"*; *Nine designs deleted*, below). Its grid, meta and search start are no longer in the repository. So the file names and commands below are the
+record of how it was made, not something to run; git history has the files (the last commit holding them is `4b67f51a`).
 
 **Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): its sheet, grid and import file left `proposals/`, the summary and the pack. Its grid (`second-sight.json`) stays in `tooling/`, and this section stays as the record.
 
@@ -463,7 +477,12 @@ FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MA
   LEAVE_WORST_MIN=20 node space-polish.mjs results/second-sight-start.json /tmp/ss.json 1 300000   # → /tmp/ss.closest.json
 ```
 
-## Second Look and Second Gear — the same restart, on two variations of the duty table (2 Oct 2026; Second Gear withdrawn 3 Nov 2026)
+## Second Look and Second Gear — the same restart, on two variations of the duty table (2 Oct 2026; Second Gear withdrawn 3 Nov 2026, deleted 6 Nov 2026)
+
+**Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
+little and often and same again"*; *Nine designs deleted*, below). Second Gear's grid, meta and search start are no longer in the repository. Second Look's files stay, and so does table
+H1 (`results/second-gear-table.json`), because Fine Tune and Even Keel use it. So the file names and commands below are the
+record of how it was made, not something to run; git history has the files (the last commit holding them is `4b67f51a`).
 
 **Withdrawn from the pack on 3 Nov 2026** (*Four designs withdrawn*, below): Second Gear's sheet, grid and import file left `proposals/`, the summary and the pack; Second Look stays. Its grid (`second-gear.json`) stays in `tooling/`, and this section stays as the record.
 
@@ -515,7 +534,11 @@ env $F ISO_W=1e5 node space-polish.mjs results/second-look-start.json second-loo
 env $F node space-polish.mjs results/second-gear-start.json second-gear.json 1 300000
 ```
 
-## Quiet Friday — what if the ceiling were 217 days? (2 Oct 2026; withdrawn 3 Oct 2026)
+## Quiet Friday — what if the ceiling were 217 days? (2 Oct 2026; withdrawn 3 Oct 2026; deleted 6 Nov 2026)
+
+**Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
+little and often and same again"*; *Nine designs deleted*, below). Its grid, meta, tables and start are no longer in the repository. So the file names and commands below are the
+record of how it was made, not something to run; git history has the files (the last commit holding them is `4b67f51a`).
 
 The owner asked: "What if we said 217 was the maximum working days per year. Keep the rest of the rules. What is
 possible? Try every possibility." With five cover weeks, 217 allows **88 Monday-to-Saturday duties**, one fewer than the
@@ -1168,7 +1191,11 @@ node keep-early.mjs even-keel.json 06:20-14:00 06:20-13:45 14:45-22:30 14:30-22:
 
 Re-run on main on 1 Nov 2026, the Short Run and Even Keel one-a-weekday commands reproduce their recorded grids exactly.
 
-## Same Again — today's link kept, with six weeks added (26 Oct 2026)
+## Same Again — today's link kept, with six weeks added (26 Oct 2026; deleted 6 Nov 2026)
+
+**Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
+little and often and same again"*; *Nine designs deleted*, below). Its grid and the tidy version's (Well Kept's), with their metas, are no longer in the repository. So the file names and commands below are the
+record of how it was made, not something to run; git history has the files (the last commit holding them is `4b67f51a`).
 
 Owner: "Can you take the existing roster and add the extra weeks whilst minimising the fatigue factors in those
 weeks", and then, asked:
@@ -1259,7 +1286,11 @@ OUT=/tmp/Same-Again.pdf node supplied.mjs results/same-again.json "Same Again" "
 The search is seeded but its rounds were chained by hand from the best results, so the grids in `results/` are the
 record, not a single command.
 
-## Little and Often — a 26-week Word roster, read and compared (26 Oct 2026)
+## Little and Often — a 26-week Word roster, read and compared (26 Oct 2026; deleted 6 Nov 2026)
+
+**Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
+little and often and same again"*; *Nine designs deleted*, below). Its grid and meta are no longer in the repository. So the file names and commands below are the
+record of how it was made, not something to run; git history has the files (the last commit holding them is `4b67f51a`).
 
 Owner, uploading a 26-week Word roster headed *Customer Experience Ambassador*, with no names on it: "Can you name and
 analyse this against our other examples".
@@ -2976,7 +3007,11 @@ the same source.
 - **The app's side** — every page now declares `<html lang="en-GB">`, and `uk-english-parity.test.mjs` keeps American
   spelling out of the pages, the Cloud Functions and the scripts in this folder — is v25.17's.
 
-## Four designs withdrawn — Second Nature, Second Wind, Second Sight and Second Gear (3 Nov 2026)
+## Four designs withdrawn — Second Nature, Second Wind, Second Sight and Second Gear (3 Nov 2026; deleted 6 Nov 2026)
+
+**Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
+little and often and same again"*; *Nine designs deleted*, below). The four's grids, metas and search starts are no longer in the repository; tables F and H1 stay. So the file names and commands below are the
+record of how it was made, not something to run; git history has the files (the last commit holding them is `4b67f51a`).
 
 Asked whether any proposal was now too weak to stay in the pack, the analysis found three weak by every test and a
 fourth on the border. The owner: *"Remove the four weak proposals please and reengineer the pack"*. No design was beaten by
@@ -3067,7 +3102,12 @@ count. Weighted as before, nothing moved: In Step 87.4, Even Step 86.5.
 - **Nothing else reads the league.** The summary, the proposal sheets, the decks and "What it means if you…" are
   unchanged, as are the shortlist and the recommendation.
 
-## Quarter Past — a one-page roster, read and compared (4 Nov 2026)
+## Quarter Past — a one-page roster, read and compared (4 Nov 2026; deleted 6 Nov 2026)
+
+**Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
+little and often and same again"*; *Nine designs deleted*, below). Its grid and meta are no longer in the repository. Its duty table stays (`results/quarter-past-table.json`), because
+Open Return's and Short Openers' duties are its. So the file names and commands below are the
+record of how it was made, not something to run; git history has the files (the last commit holding them is `4b67f51a`).
 
 Owner, uploading a one-page PDF roster headed *Customer Experience Ambassador | 26-line roster*, with no names on it:
 "Can you create a proposal sheet for this links set please".
@@ -3437,6 +3477,9 @@ renderer refused the page 8px into its footer.
 
 ## Today's three join the pack — Quarter Past, Quarter Past Relaid and Short Openers (4 Nov 2026)
 
+*Quarter Past was deleted on 6 Nov 2026 (*Nine designs deleted*, below). Quarter Past Relaid is Open Return, and it and
+Short Openers are in the 30-day folder.*
+
 **The request** (owner, 4 Nov 2026): *"Do a proposal sheet for all of today's work. Put them into the repo and then give
 me the league table".* Read as: the three designs drawn today join the pack as proposals, as Fair Share did that
 morning, with their sheets in `proposals/` and in every list that names the pack's designs; then the league with them
@@ -3632,7 +3675,11 @@ its scale.
 Grand Tour in the folder, and only their Prepared date moved. Open Return's sheet changed its name and code, and Short
 Openers' its description of where it came from ("Open Return with every weekday 06:20…").
 
-## Quarter Past out, Well Kept in (4 Nov 2026)
+## Quarter Past out, Well Kept in (4 Nov 2026; both deleted 6 Nov 2026)
+
+**Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
+little and often and same again"*; *Nine designs deleted*, below). Both designs' grids and metas are no longer in the repository. So the file names and commands below are the
+record of how it was made, not something to run; git history has the files (the last commit holding them is `4b67f51a`).
 
 **The request** (owner, 4 Nov 2026): *"Remove quarter past from the pack please and add any other 30 days off proposals
 to the subfolder"*.
@@ -3962,7 +4009,11 @@ Weighted as before 31 Oct (`OLD_READINGS=1`), In Step leads on 88.5, Even Step i
 **Checks:** `regenerate.mjs --check` (19 fingerprints unmoved, Common Ground's in `30-days-off/`), `check.mjs`,
 `deck-check.mjs` (162 rows agree) and the pack zip builds.
 
-## Well Kept out (5 Nov 2026)
+## Well Kept out (5 Nov 2026; deleted 6 Nov 2026)
+
+**Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
+little and often and same again"*; *Nine designs deleted*, below). Its grid and meta are no longer in the repository. So the file names and commands below are the
+record of how it was made, not something to run; git history has the files (the last commit holding them is `4b67f51a`).
 
 **The request** (owner, 5 Nov 2026): *"Remove well kept"*, after asking how it was built: today's twenty weeks kept as
 they are, with six weeks added by a search (*Same Again*, above), in the version that let a tidy week outweigh a
@@ -4665,6 +4716,61 @@ re-rendered; the fingerprint is the grid's, unchanged). And Even Step's colleagu
 in `even-step-decks.py` pins. Its decks were rebuilt and `deck-check.mjs` agrees on all 216 rows.
 
 **Kept out of the pack**, as before: the designs drawn in scratch and never shipped stay there.
+
+## Nine designs deleted (6 Nov 2026)
+
+Owner, after the audit of what was outside the pack: *"Permanently delete well kept, quarter past, the four second designs,
+quiet friday, little and often and same again"*. Until now a design that left the pack kept its grid in `tooling/`, so
+it could be rebuilt; these nine are gone from the repository, and only designs in the pack keep files of their own.
+
+| Design | Code · fingerprint | What it was | Files deleted |
+|---|---|---|---|
+| Second Nature | `SN-26-F2` · `a52d0f20` | the first 26-line design; withdrawn 3 Nov | `second-nature.json` + meta |
+| Second Wind | `SW-26-F1` · `4bec8d8e` | Second Nature with the weekends spread; withdrawn 3 Nov | `second-wind.json` + meta, `results/second-wind-start.json` |
+| Second Sight | `SS-26-F1` · `3c6aac4d` | a fresh search, weekends spread from the start; withdrawn 3 Nov | `second-sight.json` + meta, `results/second-sight-start.json` |
+| Second Gear | `SG-26-H1` · `8d61e5c3` | Second Look's restart on table H1; withdrawn 3 Nov | `second-gear.json` + meta, `results/second-gear-start.json` |
+| Quiet Friday | `QF-26-C1` · `daf8f3c9` | the 217-day what-if; withdrawn 3 Oct | `quiet-friday.json` + meta, `results/quiet-friday-{friday,sat,start,table}.json` |
+| Same Again | `SA-26-S1` · `7e1cad20` | today's link with six weeks added; never in the pack | `results/same-again.json` + meta |
+| Well Kept | `WK-26-S2` · `1db1381a` | Same Again tidied; in the 30-day folder 4–5 Nov | `results/same-again-tidy.json` + meta |
+| Little and Often | `LO-26-EXT` · `3318d083` | a 26-week Word roster, read in; over the 219-day ceiling, never in the pack | `results/little-and-often.json` + meta |
+| Quarter Past | `QP-26-EXT` · `dfdbd724` | a one-page roster, read in; in the pack for a few hours on 4 Nov | `results/quarter-past.json` + meta |
+
+Their local renders in `tooling/` (ignored by git) and every copy in the session's scratch folder went too, as did two
+stale local renders of Open Return under its old name, Quarter Past Relaid. Every fingerprint above was recomputed from
+the last commit that holds the grids, `4b67f51a`.
+
+**What stays, and why.** Some of their files are shared with designs still in the pack, so deleting them would have broken
+those designs' record of how they were drawn. The duty tables keep the Saturday office at 22:00, as they were drawn; each
+design's grid has had its Saturday since *The Saturday ticket office to 22:30*:
+- **Table F** (`results/second-nature-{table,weekday,sat,sun}.json`): the duties Second Edition, Short Run and Long Break
+  were drawn from, and `skeleton-start.mjs`'s default table.
+- **Table H1** (`results/second-gear-table.json`): the duties Fine Tune and Even Keel were drawn from.
+- **Quarter Past's duty table** (`results/quarter-past-table.json`): the duties Open Return and Short Openers were drawn
+  from.
+- **Open Return's grid** keeps its file name, `results/quarter-past-re-laid.json`, from when it was Quarter Past Relaid;
+  `regenerate.mjs` and this README point to it by that name.
+- **The outside reviewer's files** in `tooling/external/`: Fine Tune and Even Keel began as their candidates SGR-26-C1 and
+  SGR-26-C2 ("Second Gear Refined"). The folder also holds Five-Day Flow (`FDF-26-C1`), the reviewer's reordering of Second
+  Sight, which was never shipped (*Even Keel — a second Second Gear refinement; Five-Day Flow not shipped*); its import
+  file is the only copy, and it was not on the owner's list.
+- **`second-nature-decks.py`**, which builds the presentation template every deck starts from. It reads the 24-line
+  Familiar Nine decks, not Second Nature's grid, and the later builders replace its name and code.
+- **This README's sections** about the nine, each marked deleted with a note under its heading, as the record of how the
+  designs still in the pack were drawn: Second Edition, Short Run and Long Break grew from Second Nature's work, Fine Tune
+  and Even Keel from Second Gear's, and Open Return and Short Openers from Quarter Past's.
+
+**The pack.** No sheet, presentation, summary or shortlist page named any of the nine, so none changed. The read-me named
+six — the four withdrawn on 3 Nov and the two taken out — and said "their record is kept in the repository"; those two
+paragraphs are gone, and `pack.py` now refuses any of the nine in `SUPPLIED` and any of their names in the read-me
+(`DELETED`, which replaces the two lists that guarded those paragraphs; putting "Quarter Past" back into the read-me stops
+the build). `RULES.md`, in the pack's technical notes, said "Silva Lining, which Second Nature grew from"; it now says
+"Silva Lining".
+
+**Getting one back.** Git keeps every deleted file: `git show 4b67f51a:docs/links-26/tooling/second-nature.json`, and so
+on. Removing them from the history as well would mean rewriting it, which this repository does not do.
+
+**Outside the repository.** If any of the nine was imported into the app's Links designer, that copy is saved there
+separately and is not touched by this; the Links designer's bin is the place to remove it.
 
 ## Notes for the whole set
 

@@ -95,7 +95,7 @@ So a 26-line design has **at most 89 Monday-to-Saturday duties, averaging at lea
 Saturday (F1), that leaves at most 75 for Monday to Friday, about **15 a weekday**.
 
 For comparison, the 24-line proposals placed 84 to 88 Monday-to-Saturday duties, averaging 7h 58m to 8h 20m — Silva
-Lining, which Second Nature grew from, 85 at 8h 14m, and Familiar Nine and Right Away 84 at 8h 20m. So the 26-line link
+Lining 85 at 8h 14m, and Familiar Nine and Right Away 84 at 8h 20m. So the 26-line link
 has more duties than any of them, and longer ones on average than all but Familiar Nine and Right Away.
 
 ## Unchanged from 24 lines

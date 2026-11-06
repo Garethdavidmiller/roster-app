@@ -34,10 +34,12 @@ export const SUPPLIED = [
     // FOUR WITHDRAWN ON 3 NOV 2026 (owner: "Remove the four weak proposals please and reengineer the pack"): Second Nature
     // (SN-26-F2 · a52d0f20), Second Wind (SW-26-F1 · 4bec8d8e), Second Sight (SS-26-F1 · 3c6aac4d) and Second Gear
     // (SG-26-H1 · 8d61e5c3), the bottom four of the main league, each matched or beaten on all but one measure by a design
-    // that stays (README.md → "Four designs withdrawn"). Their grids stay in tooling/ (second-nature.json and the rest)
-    // and their searches in results/; to rebuild one, restore its entry here and its strap, family and date in fresh.mjs
-    // from git history. The designs that grew from them — Second Look, Second Edition, Short Run, Long Break, Fine Tune and
-    // Even Keel — keep their comments below, which say so.
+    // that stays (README.md → "Four designs withdrawn"). DELETED ON 6 NOV 2026 with five others (owner: "Permanently delete
+    // well kept, quarter past, the four second designs, quiet friday, little and often and same again"): their grids, metas
+    // and search starts are gone, and pack.py refuses their names (README.md → "Nine designs deleted"). Their duty tables stay,
+    // because the designs that grew from them were drawn from them: table F (results/second-nature-*.json) Second Edition,
+    // Short Run and Long Break, and table H1 (results/second-gear-table.json) Fine Tune and Even Keel. Those designs —
+    // with Second Look — keep their comments below.
     // Second Look (2 Oct 2026): from the same restart as Second Sight, on a variation of Second Nature's duty table (table
     // G3: the Saturday 08:00-16:30 pair moved to 07:15-15:45), one of the only two rotas in it that met every floor (the
     // other, Second Gear, is withdrawn). README.md → "Second Look and Second Gear".
@@ -106,17 +108,15 @@ export const SUPPLIED = [
     // three links where 14 days' leave buys 30 days off ship into 30-days-off/ (README.md → "30 days off for 14 days' leave").
     // The fingerprints did not move: the cells are the same, only the names and the folder.
     // QUARTER PAST TAKEN OUT, 4 NOV 2026 (owner: "Remove quarter past from the pack please"): the one-page roster QP-26-EXT ·
-    // dfdbd724, in the pack for a few hours. Its grid and meta stay in results/ (quarter-past.json); Open Return and Short
-    // Openers keep its shift times and say so in their lineage. To rebuild it, restore its entry here and its strap, family
-    // and date in fresh.mjs from git history.
+    // dfdbd724, in the pack for a few hours, and DELETED on 6 Nov 2026 (above). Open Return and Short Openers keep its shift
+    // times and say so in their lineage, so its duty table stays (results/quarter-past-table.json): Open Return was drawn from it.
     { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '2b15826c', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buying 30 days off, as today, and no fatigue warning, even if a cover week falls badly' },
     { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '6af8af45', dir: '30-days-off', strap: 'Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buying 30 days off, as today' },
     // Grand Tour (4 Nov 2026): Fair Share's duties in new weeks, so that 14 days' leave buys 30 days off and four weeks off
     // take 14, as today — the answer to the owner's question that morning (README.md → "Fair Share", run e). It was a search
     // result with no name, sheet or import file until the 30-day folder was made
     // WELL KEPT TAKEN OUT, 5 NOV 2026 (owner: "Remove well kept"): Same Again Tidy, WK-26-S2 · 1db1381a, in the 30-day folder
-    // from the evening of 4 Nov. Its grid and meta stay in results/ (same-again-tidy.json). To rebuild it, restore its entry
-    // here (dir: '30-days-off') and its strap, family and date in fresh.mjs from git history.
+    // from the evening of 4 Nov, and DELETED on 6 Nov 2026 with Same Again, its untidied first version (above).
     { file: 'results/fair-share-leave30.json',   name: 'Grand Tour',           code: 'GT-26-T7',  fp: 'f33bfd6c', dir: '30-days-off', strap: 'No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today' },
     // 4 Nov 2026: Common Ground is today's link taken to 26 weeks on the owner's brief, its weeks the 30-for-14 grid found on
     // Fair Share's duties (README.md → "Common Ground"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
@@ -144,8 +144,7 @@ export const SUPPLIED = [
 // its entries were { PT: results/best-RP-*.json, OTHER_MODE results/best-P-13.json } and { P2: results/best-RN-*.json,
 // OTHER_MODE results/best-N-7.json }. Both grids are kept unchanged in test-fixtures/links-designs/ for the Links compare tests.
 // Quiet Friday (QF-26-C1 · daf8f3c9), the 217-day what-if, was WITHDRAWN on 3 Oct 2026 (owner: "we can remove Quiet
-// Friday from the proposals"). Its grid stays in tooling/quiet-friday.json and its tables and start in results/; to
-// rebuild it, restore its SUPPLIED entry and its strap, family and date in fresh.mjs from git history.
+// Friday from the proposals"), and DELETED on 6 Nov 2026 with its tables and start (SUPPLIED, above).
 export const SEARCHED = [];   // the 26-line link ships every design as a grid (SUPPLIED): searched rotas are built first and then supplied
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];
