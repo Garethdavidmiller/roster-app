@@ -13,7 +13,7 @@
 //
 //   node docs/links-26/tooling/rules-sheet.mjs      → docs/links-26/links-26-rules.pdf
 // A full `regenerate.mjs` run renders it too, after every sheet.
-import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, COVER_LINES, daysAYear } from './link.mjs';
+import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, COVER_LINES, daysAYear, longDates } from './link.mjs';
 import { writeFileSync, readFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { today, assess, sheetRules as currentRules, flexibleRules, folderStats, OFFICE, OFFICE_HELP_TEXT, demand, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
@@ -106,6 +106,7 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast .eyebrow { color: var(--accent-gold); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
 .mast h1 { margin: 2px 0; font-size: 22px; font-weight: 800; color: white; letter-spacing: -.2px; }
 .mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; text-wrap: balance; }
+ul.rnotes { font-size: 9px; line-height: 1.38; margin: 4px 0 0; padding: 0; list-style: none; } ul.rnotes li { display: inline; } ul.rnotes li + li { margin-left: .55em; }   /* run in, each under its bold label: a list or two columns took 33px the page does not have */
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
 h2 { font-size: 13.5px; color: var(--primary-blue); margin: 9px 0 3px; font-weight: 800; }
 h2 .tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; padding: 1px 7px; border-radius: 8px; margin-left: 8px; vertical-align: 2px; }
@@ -149,8 +150,8 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 </style></head><body>
 
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · reference</div><h1>The December 2026 rules</h1>
-  <div class="sub">The rules any proposed CEA link for the December 2026 timetable is measured against, with today’s link beside each one</div>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · the rules</div><h1>The December 2026 rules</h1>
+  <div class="sub">The rules every proposed CEA link is measured against, with today’s link beside each one</div>
   <div class="meta">Prepared ${RENDERED} · the rules and every figure below are read from the same code that writes the proposal sheets, not typed</div></div></div>
 
   <div class="tiers">
@@ -197,7 +198,8 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <h2>Fatigue factors <span class="tag adv">advisory</span></h2>
   <p>${FZ.length} roster patterns that tend to tire people: ${FZ.filter(r => r.code !== 'MRSF').length} from the Office of Rail and Road’s good-practice guidance, <i>Fatigue Factors</i> (page 3, December 2021), and ${FZ.filter(r => r.code === 'MRSF').length} extra checks from the rail industry’s fatigue guidance (MRSF). The ORR says they are guidance, not limits. So a factor present is a question to discuss, never a pass or a fail, and a design showing none is not thereby approved.</p>
   <table class="t ff"><thead><tr><th>Code</th><th>Factor</th><th>Kind</th><th class="num">Today’s link</th></tr></thead><tbody>${ffRows}</tbody></table>
-  <p class="muted" style="font-size:9px"><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}. <b>“Every link”</b> marks a standing factor — one that comes with the station’s hours or with any weekly link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because a weekly link changes shift type about once a week (the ORR prefers two-day or three-week rotation, <i>Managing rail staff fatigue</i> 7.68). <b>Standing factors are recorded on every sheet for information and are not counted</b> in any design’s fatigue findings, since no weekly design can remove them. The <b>early</b> in FF2, FF8b and FF15 is the ORR’s — a start from 05:00 to 06:59, since 07:00 is a day shift (<i>Managing rail staff fatigue</i>, Appendix E) — not the 11:00 used everywhere else. The last column is today’s link, on its fixed duties — the cover weeks left out, as on every sheet; “up to” is the worst place a cover week’s four duties could fall, its Sunday worked as overtime, and for the 55-hour row each taken as an 8-hour duty — longer ones would add to it. <b>FF11</b> counts shifts between two rest days together, which always give more than 48 hours off. A single rest day does not reset it, even when the shifts either side leave 48 hours, so it can only overstate a run.</p>
+  <!-- SIX NOTES, EACH UNDER ITS OWN LABEL (the pack's visual review, 6 Nov 2026: one run-on paragraph with one label) -->
+  <ul class="rnotes muted"><li><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}.</li><li><b>“Every link”</b> marks a standing factor — one that comes with the station’s hours or with any weekly link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because a weekly link changes shift type about once a week (the ORR prefers two-day or three-week rotation, <i>Managing rail staff fatigue</i> 7.68).</li><li><b>Standing factors are recorded on every sheet for information and are not counted</b> in any design’s fatigue findings, since no weekly design can remove them.</li><li><b>The early</b> in FF2, FF7, FF8b and FF15 is the ORR’s — a start from 05:00 to 06:59, since 07:00 is a day shift (<i>Managing rail staff fatigue</i>, Appendix E) — not the 11:00 used everywhere else.</li><li><b>The last column</b> is today’s link, on its fixed duties — the cover weeks left out, as on every sheet; “up to” is the worst place a cover week’s four duties could fall, its Sunday worked as overtime, and for the 55-hour row each taken as an 8-hour duty — longer ones would add to it.</li><li><b>FF11</b> counts shifts between two rest days together, which always give more than 48 hours off. A single rest day does not reset it, even when the shifts either side leave 48 hours, so it can only overstate a run.</li></ul>
 
   <h2>Preferences <span class="tag adv">not scored</span></h2>
   <p class="lead">Not rules, and not scored. The first two and the last are gains, so a proposal sheet marks a design green where it beats today’s link on them; how much each matters is for staff to say.</p>
@@ -234,7 +236,7 @@ const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace
       // and a hyphenated word, and the list of cover-week gaps, are one unit each (pack polish regression check, 1 Nov): the
       // narrower middle column broke "rest- / day working", "ticket- / office" and "(gaps of 5, / 5, 5, 5, 6)"
       .replace(/(?<![\w-])[A-Za-z0-9]+(?:-[A-Za-z]+)+(?![\w-])/g, '<span class="rng">$&</span>').replace(/\(gaps of [^)]*\)/g, '<span class="rng">$&</span>'));
-writeFileSync(htmlOut, tidy(html));
+writeFileSync(htmlOut, longDates(tidy(html)));
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
 // THE PAGE IS A FIXED HEIGHT, so content that does not fit is HIDDEN, not pushed onto another page — a row added on

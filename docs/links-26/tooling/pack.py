@@ -99,12 +99,12 @@ SHEET = open(f'{ROOT}/tooling/shortlist-sheet.mjs', encoding='utf-8').read()
 for said in ['is the one to choose for something different',
              '<b>Choose Common Ground</b> if keeping today’s leave, or no shift over 8h&nbsp;30m on any day, matters most',
              'no shift over 8h&nbsp;30m on any day, alone of the three',
-             '<b>Choose Even Step</b> if keeping today’s earlies and steady weeks matters most',
+             '<b>Choose Even Step</b> if keeping today’s earlies and steady weekly hours matters most',
              'Every early from Monday to Saturday one of today’s times, no shift there over 8h&nbsp;30m',
              '<b>Choose Short Run</b> if the weekday fit and short weekday lates matter most', 'a weaker weekday fit',
              'the biggest change of start',
              'Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen',
-             'Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, just over half a point ahead of Even Step']:
+             'Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, just over half a point ahead of the next']:
     if said not in SHEET: raise SystemExit(f'pack: the read-me repeats the shortlist sheet, which no longer says "{said}"')
 PAGE = open('newlink-data.js', encoding='utf-8').read().replace('\\u00a0', ' ')
 for said in ['four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best',
@@ -233,6 +233,7 @@ decks = andl(SHORTLIST) + (f', the shortlist, and {andl(DECKS_KEPT)}, kept from 
 # recommendation), the two asks and the two routes in, then what is still open and what each folder holds; how the
 # shortlist came about follows. Every file the route names starts a line of its own, so no wrap splits a name.
 names_in = {n for n, _, _ in proposals}
+sl30 = [n for n, c, _ in proposals if n in SHORTLIST and DIR_OF[c] == '30-days-off']   # shortlisted, in the 30-day folder
 readme = '\n'.join([
     'NEW CEA LINK PROPOSALS - 26 LINES',
     '=' * len('NEW CEA LINK PROPOSALS - 26 LINES'),
@@ -247,18 +248,18 @@ readme = '\n'.join([
          'lates, so the contracted hours are unchanged.'),
     '',
     'THE SHORTLIST',
-    para(f'{WORDS[len(proposals)].capitalize()} candidate links were drawn up and {WORDS[len(SHORTLIST)]} shortlisted. They '
+    para(f'{WORDS[len(proposals)].capitalize()} candidate links are in this pack, and {WORDS[len(SHORTLIST)]} are shortlisted. They '
          'are listed A to Z, and none is recommended: each is the one to choose for something different.'
          + (f' {LATE_WORDS} came after the shortlist; see how the shortlist came about, below.' if LATE else '')),
     item('Common Ground', 'If keeping today\'s leave matters most, or no shift over 8h 30m on any day: four full weeks '
          'off, Sunday to Saturday, for 14 days\' leave, and 30 days off for 14 at best. The price: more single rest days, '
-         'about 12 a year where the other two have about 8, and a weaker weekday fit.'),
-    item('Even Step', 'If keeping today\'s earlies and steady weeks matters most: every early from Monday to Saturday one '
+         'about 12 a year where the other two have about 8, and a weaker weekday fit than Short Run\'s.'),
+    item('Even Step', 'If keeping today\'s earlies and steady weekly hours matters most: every early from Monday to Saturday one '
          'of today\'s times, and nothing over 8h 30m there. The price: the biggest change of start from week to week of the '
          'three, and four weeks off take 15 days\' leave.'),
     item('Short Run', 'If the weekday fit and short weekday lates matter most. The price: 9-hour weekday earlies and an '
          '8h 40m Saturday closer, no shift finishing at 13:35 or 13:45, and four weeks off take 15 days\' leave.'),
-    para('Page 2 of the shortlist sheet sets out each one\'s edge and its costs in full.'),
+    para('Pages 1 and 2 of the shortlist sheet set out each one\'s edge and its costs in full.'),
     '',
     'WHAT IS ASKED',
     # NO ASK OF MANAGERS (owner, 6 Nov 2026: "No", asked whether the read-me should keep asking them which shortlisted link
@@ -273,8 +274,9 @@ readme = '\n'.join([
     *[' ' * 23 + path for path in MANAGERS],
     item('Colleagues', 'First, the presentations for colleagues, one for each shortlisted link:'),
     *[' ' * 23 + path for path in COLLEAGUES],
-    item('', 'Then pages 1 to 3 of each one\'s proposal sheet, in 4 Proposal sheets: the detail, and every week of the '
-         'link on page 3.'),
+    # WHERE A SHORTLISTED SHEET ACTUALLY IS (the pack's accuracy review, 6 Nov 2026): Common Ground's is in the 30-day folder
+    item('', 'Then pages 1 to 3 of each one\'s proposal sheet, in 4 Proposal sheets' + (f' ({andl([n + chr(39) + "s" for n in sl30])} in its folder 30 days off)' if sl30 else '')   # chr(39): the read-me is ASCII
+         + ': the detail, and every week of the link on page 3.'),
     item('', 'Last, the one-page sheet on what it means if you prefer earlies or lates, swap for overtime, work your '
          'share of Sundays or no overtime at all, or save leave for long breaks,'),
     ' ' * 23 + WHAT_IT_MEANS,
@@ -312,7 +314,7 @@ readme = '\n'.join([
     mark_item('no colour', 'a fact, or for colleagues to weigh'),
     item('', 'The code and eight-character fingerprint in each file name identify the exact rota, so a printout can '
          'never be mixed up with a variant.'),
-    item('5 Import files', 'Each proposal as text for the Links page (Import), which lays out 26 lines since app version '
+    item('5 Import files for the Links page', 'Each proposal as text for the Links page (Import), which lays out 26 lines since app version '
          '24.47 (3 October 2026) and re-runs the hard limits, the fatigue checks, the weekends, the hours and the hour-by-hour staffing on whatever is pasted in; the December rules and the yearly figures are the sheets\' own. The '
          f'{WORDS[len(SHORTLIST)]} shortlisted designs are built into the app\'s Links designer as examples, for reference '
          f'(these {WORDS[len(SHORTLIST)]} since app version 25.36).'),
@@ -332,10 +334,10 @@ readme = '\n'.join([
       if {'Home Grown', 'Closing Time', 'Both Ways'} <= names_in else []),
     *([para('In Step (30 October 2026) answers the next question: whether Closing Time could have five on at the Saturday '
             'open and follow the weekday trains more closely. It keeps Closing Time\'s weeks and a 13:45 finish every '
-            'weekday, with the closer at 15:45 instead of 16:00. The same day the shortlist was cut to two: In Step and '
-            'Short Run, on it since 3 October (Second Edition, Even Keel and Closing Time left it).'), '']
+            'weekday, with the closer at 15:45 instead of 16:00. The same day the shortlist was cut to two: Short Run, on it '
+            'since 3 October, and In Step (Second Edition, Even Keel and Closing Time left it).'), '']
       if 'In Step' in names_in else []),
-    *([para('Even Step (31 October 2026) answers the one thing about In Step expected to be hard to sell: the length of its '
+    *([para('Even Step (31 October 2026) answers the one thing about In Step expected to concern colleagues most: the length of its '
             'main weekday earlies, 8h 55m and 8h 45m. It keeps In Step\'s weeks - the same rest days, weekends and early '
             'and late weeks - with the shift times chosen again. It joined the shortlist the same day, beside In Step '
             'and Short Run.'), '']
@@ -378,8 +380,8 @@ readme = '\n'.join([
          'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. On the '
          'nineteen already in the pack that hour comes off other Saturday lates, so the hours and the contract are as they '
          'were; every sheet and presentation was redrawn, and their fingerprints changed. Balanced V5, Balanced V6 and '
-         'Balanced V7, which joined the same day, already finished them at 22:30. Since then Common Ground is first in the '
-         'pack\'s league, just over half a point ahead of Even Step.'),
+         'Balanced V7 already finished them at 22:30. Since then Common Ground is first in the '
+         'pack\'s league, just over half a point ahead of the next.'),
     '',
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
          'reference.'),

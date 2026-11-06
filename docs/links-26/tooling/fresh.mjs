@@ -13,7 +13,7 @@
 // decode; Next Step's was also wrong, as its weeks are not Even Step's; and Common Ground's "Today's link on 26 weeks"
 // claimed today's weeks, where it keeps seven of today's times (the whole-pack review, 5 Nov 2026). All six now stand alone.
 import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, daysAYear } from './link.mjs';
-import { sheetRules as currentRules, h55Worst, singleRestsOver48 } from './report-data.mjs';
+import { sheetRules as currentRules, h55Worst, singleRestsOver48, fitCmp } from './report-data.mjs';
 import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.js';
 
 /** code → [one-line description, how it was made]. `search`: built by computer search against the rules and the
@@ -48,7 +48,7 @@ export const STRAPS = {
   // 3 Nov 2026: the owner's question — the link with today's shift times given no weight in the league (README.md → "Clean
   // Slate and Next Step"). Neither is shortlisted; Next Step is Even Step with Clean Slate's three weekday changes
   'CS-26-N2': ['Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday', 'search'],
-  'NS-26-T6': ['No shift over 8h 30m Monday to Saturday, a 13:45 finish every weekday, and a weekday fit to the trains of 30.3, where today’s is 52.0', 'search'],
+  'NS-26-T6': ['No shift over 8h 30m Monday to Saturday, a 13:45 finish every weekday, and a weekday fit to the trains of 30.3 (today 52.0)', 'search'],
   // 4 Nov 2026: Next Step with its Sunday evened out, so a Sunday early and a Sunday late pay within a few pounds (README.md
   // → "Fair Share"). Not shortlisted
   'FS-26-T7': ['Every Sunday duty 8h 10m or 8h 15m, so a Sunday early and late pay within a few pounds, and no shift over 8h 30m on any day', 'search'],
@@ -56,13 +56,13 @@ export const STRAPS = {
   // with eight-hour openers and 15:45 closers on a weekday (Short Openers). README.md → each by name. Not shortlisted
   // Open Return was drawn as Quarter Past Relaid (QR-26-EXT), renamed the same day for a name of its own (owner, 4 Nov 2026:
   // "Give all proposals individual names"); Grand Tour is Fair Share's 30-day search result, which had no name until then
-  'OR-26-EXT': ['A 16:15 closer every weekday, 14 days’ leave buying 30 days off, as today, and no fatigue warning, even if a cover week falls badly', 'hand+search'],
-  'SO-26-EXT': ['Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buying 30 days off, as today', 'search'],
+  'OR-26-EXT': ['A 16:15 closer every weekday, 14 days’ leave buys 30 days off, as today, and no fatigue warning, even if a cover week falls badly', 'hand+search'],
+  'SO-26-EXT': ['Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buys 30 days off, as today', 'search'],
   'GT-26-T7': ['No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today', 'search'],
   // 4 Nov 2026: today's link taken to 26 weeks on the owner's brief — openers finishing 13:45 or 14:20, closers from 15:45,
   // nothing over 8h 30m on a weekday or 9h at the weekend, an even Sunday, 30 days off for 14 days' leave (README.md →
   // "Common Ground"). Shortlisted on 5 Nov 2026, as the 30-day example (below)
-  'CG-26-T8': ['Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m on any day, and 14 days’ leave buys 30 days off, as today', 'search'],
+  'CG-26-T8': ['Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 5 Nov 2026: Common Ground's weeks with the shift times varied from week to week, so no two closing weeks and no two 06:20
   // weeks fall together (README.md → "Middle Ground"). Not shortlisted. NO STRAP NAMES ANOTHER DESIGN (owner, 5 Nov 2026:
   // "the proposal description headlines should not reference other proposals"); regenerate.mjs refuses one that does
@@ -70,7 +70,7 @@ export const STRAPS = {
   // 6 NOV 2026 (owner: "Balanced v5 and Relief Point need adding to the pack, but can you rename Relief Point as Balanced v6"):
   // its author's one-page Marylebone Balanced 26, version 5, and the owner's 15-minute handover drawn from it (README.md →
   // "Balanced V5 and Balanced V6 join the pack"). Each says what it is, naming no other design
-  'MB-26-V5': ['Weeks of 06:20 starts and weeks of 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today', 'search'],
+  'MB-26-V5': ['Early weeks built from 06:20 and 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today', 'search'],
   'MB-26-V6': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 6 NOV 2026 (owner, asking for Balanced V6 made again "without losing anything", then "Add v7 please"): Balanced V6's duties
   // laid again on Grand Tour's rest days (README.md → "Balanced V7"). Its headline says what it is and names no other design
@@ -157,7 +157,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   // summing it gave a "weekday" that no day works (a review found 5 × 10,590 + 5,895 printed as 42,000).
   const dayMin = d => keys.reduce((a, k) => { const c = P.patterns[k][d]; return a + (c && c !== 'RD' && c !== 'SPARE' ? dutyMinutes(c) : 0); }, 0);
   const wkTot = WDD.reduce((a, d) => a + dayMin(d), 0), satMin = dayMin('sat'), sunMin = dayMin('sun'), monSat = wkTot + satMin;
-  const contractWords = monSat === CONTRACT_MINUTES ? `together exactly ${n(CONTRACT_MINUTES)} minutes — 35 hours for each of the ${WORKING_LINES} working weeks, the contract (a cover week counts as a full 35-hour week on top)` : `together ${n(monSat)} — ${n(Math.abs(monSat - CONTRACT_MINUTES))} minutes ${monSat > CONTRACT_MINUTES ? 'over' : 'under'} the ${n(CONTRACT_MINUTES)} of the contract`;
+  const contractWords = monSat === CONTRACT_MINUTES ? `together exactly ${n(CONTRACT_MINUTES)} minutes — 35 hours for each of the ${WORKING_LINES} working weeks, the contract (a cover week counts as a full <span style="white-space:nowrap">35-hour</span> week on top)` : `together ${n(monSat)} — ${n(Math.abs(monSat - CONTRACT_MINUTES))} minutes ${monSat > CONTRACT_MINUTES ? 'over' : 'under'} the ${n(CONTRACT_MINUTES)} of the contract`;
   const others = folder.filter(d => d.code !== code);
   // TIERS, NOT A RANKING (external review, 28 Sep 2026): rules met, then fatigue findings, then ALPHABETICAL. Sorting a tie
   // on the weekday floor fit put a proxy ahead of tangible things it does not weigh — familiar times, the longest duty,
@@ -192,13 +192,16 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   // in hours and minutes, as the table above it now gives the 55-hour row (whole-pack review, 5 Nov 2026)
   const hmMin = m => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
   // the 8-hour cover duty stated as the assumption it is, with the contract's 8h 45m beside it (external review, 6 Nov
-  // 2026): where 8-hour duties cannot move the row at all, longer ones still can, and the sheet said they could not
-  const h35 = h55 ? `${hmMin(h55.hi35Min)} if each is 8h 45m, the contract’s 35 hours` : '';
+  // 2026): where 8-hour duties cannot move the row at all, longer ones still can, and the sheet said they could not.
+  // THE SUNDAY IS NAMED (the same reviewer, a second pass): "if each is 8h 45m" could take in the Sunday overtime duty,
+  // which h55Worst keeps at 8 hours; at 8h 45m too, Common Ground's 60h 00m would read 60h 45m. The four are the
+  // contracted ones, the Sunday the overtime one on top, so both are said (no design changes side of 55 either way).
+  const h35 = h55 ? `${hmMin(h55.hi35Min)} with the four contracted duties at 8h 45m, the contract’s 35 hours, and the Sunday at 8 hours` : '';
   const h55Txt = h55 && h55.hiMin > h55.tableMin ? `the 55-hour row, which counts a cover week as no hours: ${hmMin(h55.loMin)} placed well with no Sunday worked to ${hmMin(h55.hiMin)} placed badly with it, taking each duty as 8 hours${h55.adds ? ', which would make it present' : ''} (${h35})`
     : h55 && h55.hi35Min > h55.tableMin ? `the 55-hour row only if its duties are longer than 8 hours: ${h35}, still ${h55.hi35Min > 55 * 60 ? 'over' : 'under'} 55` : '';
   const p8Moves = [
     runSame ? '' : `the most days worked in a row (${cd.best} if placed well, with no Sunday overtime)`,
-    moved('eightPlus', 'the run of 8-hour shifts'), moved('early', 'the run of early starts, FF15'), moved('twelvePlus', 'the run of shifts over 12 hours'),
+    moved('eightPlus', 'the run of 8-hour shifts'), moved('early', 'the run of early starts in FF15'), moved('twelvePlus', 'the run of shifts over 12 hours'),
     ff11Same ? '' : `FF11 (${ff11Split} at worst, ${ff11Best} if the four are worked together with no Sunday overtime)`,
     h55Txt,
   ].filter(Boolean);
@@ -215,7 +218,8 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   const glance = `<table class="t glance"><thead><tr><th>At a glance <span class="muted">— green is better than today, amber is worse, unshaded is neither</span></th><th class="num">Today’s link</th><th class="num">${name}</th></tr></thead><tbody>
     ${row('December 2026 working rules met <span class="muted">(confirmed verbally — page 7)</span>', `${RT.met} of ${R.of}`, `${R.met} of ${R.of}`, mark(R.met, RT.met, false))}
     ${row('People working each day — weekday · Saturday · Sunday', `${wdR(T.daily)} · ${T.daily.sat} · ${T.daily.sun}`, `${wdR(P.daily)} · ${P.daily.sat} · ${P.daily.sun}`)}
-    ${row('How closely the floor follows the trains — weekday · Sat · Sun <span class="muted">(lower is closer)</span>', `${f1(TO.wkFit)} · ${f1(TO.fits.sat)} · ${f1(TO.fits.sun)}`, `${f1(FO.wkFit)} · ${f1(FO.fits.sat)} · ${f1(FO.fits.sun)}`, (() => { const m = [mark(FO.wkFit, TO.wkFit), mark(FO.fits.sat, TO.fits.sat), mark(FO.fits.sun, TO.fits.sun)]; return m.every(x => x === m[0]) ? m[0] : ''; })())}
+    ${row('How closely the floor follows the trains — weekday · Sat · Sun <span class="muted">(lower is closer)</span>', `${f1(TO.wkFit)} · ${f1(TO.fits.sat)} · ${f1(TO.fits.sun)}`, `${f1(FO.wkFit)} · ${f1(FO.fits.sat)} · ${f1(FO.fits.sun)}`, (() => { const fm = (p, t) => ({ closer: ' better', further: ' worse' })[fitCmp(p, t)] ?? '';   // within 5% of today's is about the same, unmarked (fitCmp)
+      const m = [fm(FO.wkFit, TO.wkFit), fm(FO.fits.sat, TO.fits.sat), fm(FO.fits.sun, TO.fits.sun)]; return m.every(x => x === m[0]) ? m[0] : ''; })())}
     ${row('Design-specific fatigue findings <span class="muted">(page 8; FF2 and FF18, on every weekly link, are not counted)</span>', T.fatigue.present, P.fatigue.present, mark(P.fatigue.present, T.fatigue.present))}
     ${row('Most days worked in a row <span class="muted">(limit 13)</span>', T.checks.longestStretch, P.checks.longestStretch, mark(P.checks.longestStretch, T.checks.longestStretch))}
     ${row('Shortest rest between two duties <span class="muted">(at least 12 hours)</span>', hmR(T.rest?.minutes), hmR(P.rest?.minutes), mark(P.rest?.minutes, T.rest?.minutes, false))}
@@ -278,7 +282,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   const s48Txt = s48.length ? ` (here ${s48.length === 1 ? 'one does' : `${s48.length} do`}: ${s48.map(s => `line ${s.from.line}’s ${DAYW[s.from.day]} to line ${s.to.line}’s ${DAYW[s.to.day]}, ${hmMin(s.minutes)}`).join('; ')})` : '';
   // "The MRSF rows are extra checks from the rail industry's guidance…" came out of the note below on 6 Nov 2026, to make
   // room for the FF11 sentence the external review asked for: the page's own masthead already says it, word for word.
-  const p8Note = `Design-specific findings: ${P.fatigue.present} (today ${T.fatigue.present}). <b>Standing factors (●) are recorded for information, not counted.</b> FF2 comes with the station’s 06:20 open, and FF18 — the ORR’s concern with a rotation that changes shift type about once a week (Managing rail staff fatigue, 7.68) — comes with every weekly link, which moves everyone one line a week by construction; its week-to-week step is shown as information. <b>How to read the table.</b> ${process.env.TECH ? 'The figure beside each mark is the worst case found, for today’s link as for the proposal, except where a row counts only the duties the rota fixes: the 55-hour row counts a cover week as no hours, and FF8b counts none of its days as early. “As rostered” under FF11 is the worst of the places a cover week’s four duties could fall when worked together, which is usual, with its Sunday worked as overtime.' : 'Each mark and figure is for the duties the rota fixes, the cover weeks left out because their duties are not known yet, for today’s link as for the proposal. Where a cover week’s four duties could make a row worse, “up to” beneath it gives the worst place they could fall.'} FF2 and FF15 use the ORR’s early, a start from 05:00 to 06:59, not this sheet’s 11:00. FF11 counts shifts between two-day breaks: two rest days together, always over 48 hours off. A single rest day is not counted even when it gives 48 hours${s48Txt}, so FF11 can only overstate a run, and can exceed the most days worked in a row. <b>Cover weeks.</b> ${p8Moves.length ? `A cover week’s four duties can fall on Monday to Saturday in different ways, and its Sunday can be worked as overtime on top; on this design that moves ${andList(p8Moves)}. Where the four fall, and whether the Sunday is worked, are for the roster office.` : `On this design, where the roster clerk places a cover week’s four duties, and whether its Sunday is worked, does not change the runs, FF11 or the 55-hour row.`} This page is an aid to discussion, not a fatigue risk assessment.`;
+  const p8Note = `Design-specific findings: ${P.fatigue.present} (today ${T.fatigue.present}). <b>Standing factors (●) are recorded for information, not counted.</b> FF2 comes with the station’s 06:20 open, and FF18 — the ORR’s concern with a rotation that changes shift type about once a week (Managing rail staff fatigue, 7.68) — comes with every weekly link, which moves everyone one line a week by construction; its week-to-week step is shown as information. <b>How to read the table.</b> ${process.env.TECH ? 'The figure beside each mark is the worst case found, for today’s link as for the proposal, except where a row counts only the duties the rota fixes: the 55-hour row counts a cover week as no hours, and FF8b counts none of its days as early. “As rostered” under FF11 is the worst of the places a cover week’s four duties could fall when worked together, which is usual, with its Sunday worked as overtime.' : 'Each mark and figure is for the duties the rota fixes, the cover weeks left out because their duties are not known yet, for today’s link as for the proposal. Where a cover week’s four duties could make a row worse, “up to” beneath it gives the worst place they could fall.'} FF2, FF7, FF8b and FF15 use the ORR’s early, a start from 05:00 to 06:59, not this sheet’s 11:00. FF11 counts shifts between two-day breaks: two rest days together, always over 48 hours off. A single rest day is not counted even when it gives 48 hours${s48Txt}, so FF11 can only overstate a run, and can exceed the most days worked in a row. <b>Cover weeks.</b> ${p8Moves.length ? `A cover week’s four duties can fall on Monday to Saturday in different ways, and its Sunday can be worked as overtime on top; on this design that moves ${andList(p8Moves)}. Where the four fall, and whether the Sunday is worked, are for the roster office.` : `On this design, where the roster clerk places a cover week’s four duties, and whether its Sunday is worked, does not change the runs, FF11 or the 55-hour row.`} This page is an aid to discussion, not a fatigue risk assessment.`;
 
   return {
     identity: { ...meta.identity, strap },
@@ -407,7 +411,7 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame, examp
     [/Whether the roster clerk splits a cover week day-on-day-off\. It is the one thing that moves the 48-hour-break figure \((\d+) as a block, (\d+) split\), and the link does not decide it\./g, 'How the roster clerk places the four duties of a cover week. It can move the 48-hour-break figure ($1 if the four are worked together, $2 if they are split up), and the rota itself does not decide it.'],
     [/Before it is frozen/g, 'Before it is agreed'],
     [/Only then does the factor count on page 8 mean anything, and only then is this sheet more than an aid to a conversation\./g, 'Until then, this sheet is an aid to discussion, not a decision.'],
-    [/Turns: distinct clock times Monday to Friday, <b>bold<\/b> where the week is one turn \(one clock time Mon–Fri and one early-or-late family across every worked day — the page 1 figure\) · Minutes: duty minutes per day, and Mon–Sat is the contract \(\d+ × 35h = [\d,]+\)/g, () => `Turns: how many different shift times the week works Monday to Friday; <b>bold</b> marks a one-turn week (see below) · Minutes: total duty minutes each day — ${monSat === CONTRACT_MINUTES ? `Monday to Saturday adds up to the contract (35 hours for each of the ${WORKING_LINES} working weeks = ${n(CONTRACT_MINUTES)} minutes)` : `Monday to Saturday adds up to ${n(monSat)}, ${n(Math.abs(monSat - CONTRACT_MINUTES))} minutes ${monSat > CONTRACT_MINUTES ? 'over' : 'under'} the ${n(CONTRACT_MINUTES)} of the contract`}`],
+    [/Turns: distinct clock times Monday to Friday, <b>bold<\/b> where the week is one turn \(one clock time Mon–Fri and one early-or-late family across every worked day — the page 1 figure\) · Minutes: duty minutes per day, and Mon–Sat is the contract \(\d+ × 35h = [\d,]+\)/g, () => `Turns: how many different shift times the week works Monday to Friday; <b>bold</b> marks a one-turn week (see below) · Minutes: total duty minutes each day — ${monSat === CONTRACT_MINUTES ? `Monday to Saturday adds up to the contract, ${n(CONTRACT_MINUTES)} minutes: 35 hours for each of the ${WORKING_LINES} working weeks` : `Monday to Saturday adds up to ${n(monSat)}, ${n(Math.abs(monSat - CONTRACT_MINUTES))} minutes ${monSat > CONTRACT_MINUTES ? 'over' : 'under'} the ${n(CONTRACT_MINUTES)} of the contract`}`],
     [/Working weeks that are one turn <span class="muted">\(one clock time Mon–Fri\)<\/span>/g, 'Weeks on one shift time'],
     [/Weeks mixing early and late turns/g, 'Weeks mixing early and late shifts'],
     [/Distinct shift times <span class="muted">\(all but (\d+) on today’s roster\)/g, 'Different shift times <span class="muted">($1 not worked today)'],

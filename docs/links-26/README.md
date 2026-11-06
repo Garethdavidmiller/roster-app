@@ -5174,6 +5174,105 @@ of these was found there and checked before it was changed:
   cells, recomputed as `regenerate.mjs` computes it. Until now a grid edited in the app and in the pack alike, with the
   ref left alone, passed.
 
+## The whole pack checked again, and polished from screenshots (6 Nov 2026)
+
+The owner asked for an accuracy and consistency check of the entire pack, then an aesthetic polish and consistency review
+from screenshots. Four independent reviews read it:
+- the proposal sheets' figures and words;
+- the summary-level sheets', the decks' and the read-me's;
+- the sheets as printed pages;
+- the summary-level sheets and the decks as printed pages.
+
+The outside reviewer's second pass arrived at the same time. Every finding below was checked against the tree before
+anything changed. No rota changed: every fingerprint is as it was, Balanced V7's (above) included.
+
+**The outside reviewer's one fix.** Page 7 said the 55-hour week reaches 60h 00m "if each is 8h 45m". That figure takes
+the four contracted cover duties at 8h 45m and the Sunday at 8 hours; with the Sunday at 8h 45m too it would be 60h 45m.
+Every sheet now says "with the four contracted duties at 8h 45m, the contract's 35 hours, and the Sunday at 8 hours", and
+`RULES.md` says the same. The reviewer judged the pack ready for consultation after that fix.
+
+**The sheets' figures and words.**
+- **One band for "about the same".** The train fit was compared four different ways on pages 1, 2 and 5, so a score could
+  read as closer on one page and level on another. `fitCmp` (`report-data.mjs`) now decides it everywhere: within 5% of
+  today's is about the same. Only Balanced V5 moves. Its weekday 50.4 against today's 52.0 now reads "about the same", and
+  carries no ✓.
+- **The best case of the 55-hour row** is now taken over all 15 ways of placing a cover week's four duties, not three blocks.
+  Even Keel's moves from 49h 00m to 48h 50m. No worst case moves.
+- **The ORR's early starts are FF2, FF7, FF8b and FF15.** Page 7 and the rules sheet named two of the four.
+- **Balanced V5's and V6's concerns.** "Fewer weeks on one shift time" now counts weeks a year, which is what falls. A
+  worst-case run longer than today's (10 against 9) is now listed.
+- **Smaller corrections:**
+  - page 6 counts the days ceiling among the hard limits;
+  - page 8 names the folder holding the import files;
+  - five straps say "buys" where they said "buying".
+- **Dates.** Every sheet and `RULES.md` now gives months in full ("6 November 2026"), as the decks and read-me already did.
+
+**The decks.**
+- **The speaker notes no longer argue.** They said "the whole pitch", "what makes the rest believable", "three carry the
+  case" and "the aim tonight". The pack puts a proposal to colleagues, and S. Silva leads the choice. Slide 1's note said
+  every number "has been independently checked", which overstated it. It now says what is true: the figures come from the
+  same rota calculations as the proposal sheet.
+- **The colleague cover.** It said "Our new link — what changes for you", which reads as though the choice were made. It
+  now says "A new CEA link proposal — what would change for you", the managers' wording. Its footer took the managers'
+  pattern too, so In Step's no longer wraps.
+- **The managers' slide 9** now says "Not yet through the roster office", as the proposal sheets do.
+- **Slide 13's long breaks.** Common Ground's card compared its 4 three-day breaks with today's 13, which are three or four
+  days. All four decks now count the same thing, breaks of 3 days or more, on two lines.
+- **Fit fixes, each measured from the exported PDFs:**
+  - slide 5's proposal column moves 0.125 in inside its row, as "▲ 20 min shorter" ended 4.5 px from the border;
+  - Short Run's slide 8 takeaway no longer leaves "new." alone on a line;
+  - In Step's slide 8 panel is 15 pt like the others, with one bullet shortened.
+- **One mark for a cost.** The managers' "This one costs" line uses ▲, the pack's mark for worse than today. Lengths are
+  written one way: "up to 9h 00m, not 8h 30m".
+
+**The sheets as printed pages.**
+- Page 7's columns are fixed, so all 22 match, Balanced V7's included. The cover-week line wraps under its hanging indent;
+  it ran 55 px off Second Edition's page.
+- The closing-shift cell no longer overflows.
+- Clean Slate's ten new times sit in a 5×2 grid.
+- The page 3 strip breaks in two fixed rows.
+- Page 5's faded heat-map rows are lighter in colour, no longer translucent.
+- The rules sheet's subtitle is one line, and its two pages carry one name.
+- Its six notes on factors that do not apply each have a bold label, run in. A list or two columns needed 33 px the page does
+  not have.
+
+**The read-me** says which page of the shortlist sheet holds what. It also names Common Ground's folder in WHERE TO START,
+and says Common Ground's weekday fit is weaker than Short Run's. It no longer says Balanced V5 and V6 "joined the same day"
+as the 6 November correction, which contradicted the 5 November it gives them a paragraph earlier. It stays plain ASCII,
+because it opens in Notepad.
+
+**The app, v25.44.** "Now 7, not 6, as on the other two" on the New link page read as though the other two had 6; it now
+reads "now 7, not 6 — the same as on the other two". This review also found the page's "about 26 a year each", which read as
+26 of each kind, but #1700 (v25.43, above) fixed it first, with a claim on each count, and its wording stands. So did the
+managers' Sunday note, where the second late goes back to the floor at 22:00: both reviews found it, and the merge kept
+#1700's words.
+
+**Declined, with the reason:**
+- footer gaps on some pages: the renderer's guards already refuse an overlap;
+- the hard-limit cards' unequal heights: each card sizes to its own text, deliberately;
+- card, column-name, hours and description styles: these are a design-system change, not a defect;
+- one green and one brand mark across sheets and decks: also a design-system change;
+- the colleague decks' "At a glance" slide: the owner kept it;
+- the summary's masthead and density: the other session's #1700 reworks the summary's dense mode;
+- a shorter green legend: the owner wanted weekends and the train fit named in it.
+
+The read-me stays monospaced, because its two columns are aligned by spaces. Only the one-file PDF copy gets typographic
+dashes and quotes.
+
+**Left with the owner:**
+- **The 30 days.** Common Ground and Middle Ground keep "14 days' leave buys 30 days off". Even Step and Short Run do not
+  (28, and four weeks off take 15). If that is required of every shortlisted link, the shortlist needs drawing again. That
+  is for the owner and S. Silva to decide.
+- **Cover weeks.** How a cover week's duties are set as early or late, and when colleagues learn which, is still open (the
+  owner: "Leave this one for now").
+
+**Checks:**
+- `regenerate.mjs --check`: 22 fingerprints unchanged;
+- `check.mjs`: everything agrees;
+- `deck-check.mjs`: 216 rows agree;
+- `newlink-data.mjs --check`: current;
+- `npm run check`: 4,182 hygiene and 2,362 unit tests pass, on the tree merged with #1700.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

@@ -89,6 +89,12 @@ const FIT_WIN = { weekday: [6*60+20, 23*60+55], sat: [6*60+20, 23*60+55], sun: [
 // (DEC_2026_MOVEMENTS, which sums exactly to the hourly totals), and the edges are precisely where designs differ,
 // so each hour now counts the carriages of the movements that fall inside the staffed window [ws, we]. Middle hours
 // are unchanged; Sunday moved most (2–4 points on most sheets). Cover is still minute-weighted, as before.
+/** HOW A TRAIN-FIT SCORE COMPARES WITH TODAY'S, ONE BAND FOR EVERY PAGE (whole-pack review, 6 Nov 2026). Within 5% of
+ *  today's is "about the same", the words pages 2 and 5 already used (`offWords`). Every other comparison was strict, so
+ *  Balanced V5's weekday 50.4 against today's 52.0 was "closer than today, weekdays and weekend" on page 1, and carried
+ *  a ✓ on pages 2 and 5, beside words calling it "about the same". A page that calls a day closer, marks it ✓ or counts
+ *  it as won asks this. Returns 'closer' | 'same' | 'further', or null when either score is missing. */
+export const fitCmp = (p, t) => p == null || t == null || !(t > 0) ? null : p / t < 0.95 ? 'closer' : p / t > 1.05 ? 'further' : 'same';
 export function dayFit(cov, cls) {
   const [ws, we] = FIT_WIN[cls];
   const hrs = []; for (let h = Math.floor(ws / 60); h <= Math.floor((we - 1) / 60); h++) hrs.push(h);
@@ -381,7 +387,21 @@ export function h55Worst(p, lines) {
   const v = sunday => placementCombos(n).map(c => { const seq = toSequence(materialise(p, lines, c, '09:00-17:00', sunday), lines), m = max7Minutes(seq);
     if (Math.abs(m / 60 - maxHoursInAny7Days(seq)) > 0.05 + 1e-9) throw new Error(`h55Worst: ${m} minutes against the app's ${maxHoursInAny7Days(seq)} hours`);
     return m; });
-  const loMin = Math.min(...v(false)), hiMin = Math.max(...v(true)), h1 = m => Math.round(m / 60 * 10) / 10;
+  // "PLACED WELL" IS ANY FOUR DAYS, NOT ONLY A BLOCK (the pack's accuracy review, 6 Nov 2026). The best of the three
+  // block placements left Even Keel at 49h 00m, while its line 6 worked Monday, Tuesday, Wednesday and Friday keeps the
+  // week at the table's own 48h 50m, so page 7 said a good placement cost ten minutes it does not. Cover weeks are five
+  // or six lines apart, so no seven-day window touches two (refused below if that ever changes): each is placed on its
+  // own over the 15 ways to choose four of Monday to Saturday, the others left as no hours, and the worst window kept.
+  // The WORST over all 15 was measured the same day too: it equals the block worst on all 21 designs, so "placed
+  // badly" stays the block reading, as the rest of the sheet's cover-week figures are.
+  const keys = Object.keys(p).sort((a, b) => a - b).slice(0, lines), covers = coverLines(p, lines), at = covers.map(k => keys.indexOf(k));
+  if (at.some(i => at.some(j => i !== j && (i - j + lines) % lines === 1))) throw new Error('h55Worst: two cover weeks side by side; a window can touch both, so each cannot be placed on its own');
+  const four = DAYS.map((_, i) => i).filter(i => i > 0), sets = [];   // Monday to Saturday, the contracted days (cover-placement.mjs)
+  for (let m = 0; m < 1 << four.length; m++) if (four.filter((_, b) => m >> b & 1).length === 4) sets.push(four.filter((_, b) => m >> b & 1));
+  const none = Object.fromEntries(keys.map(k => [k, covers.includes(k) ? Object.fromEntries(DAYS.map(d => [d, 'RD'])) : { ...p[k] }]));
+  const placedWell = covers.length ? Math.max(...covers.map(k => Math.min(...sets.map(s => max7Minutes(toSequence({ ...none,
+    [k]: Object.fromEntries(DAYS.map((d, i) => [d, s.includes(i) ? '09:00-17:00' : 'RD'])) }, lines)))))) : tableMin;
+  const loMin = Math.min(...v(false), placedWell), hiMin = Math.max(...v(true)), h1 = m => Math.round(m / 60 * 10) / 10;
   // THE 8-HOUR COVER DUTY IS AN ASSUMPTION, NOT A CEILING (external review, 6 Nov 2026). The contract figures count a
   // cover week as 35 hours, and four 8-hour duties are 32. So the sheets give the same worst week with four duties of
   // 8h 45m too — the contract's 35 hours over the four, the Sunday still 8 hours — beside the 8-hour figure, rather

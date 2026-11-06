@@ -95,7 +95,7 @@ def colleagues(d):
                             (3, '15:45–23:55 — the closer, 30 minutes later than 15:15'),
                             (4, 'Saturday'), (5, '14:30–22:30 — the ticket-office late'),
                             (6, 'Sunday'), (7, '15:15–23:25 — the closer, 45 minutes later than 14:30'), (8, '09:00–18:00 — a new early, 9 hours'), (9, '14:30–22:30 — the ticket-office late')])
-    put(s, 'Fewer shift times than today (15, not 18) — and nothing new on a Saturday.', 'Fewer shift times than today (15, not 18) — and on a Saturday only the ticket-office late is new.')
+    put(s, 'Fewer shift times than today (15, not 18) — and nothing new on a Saturday.', 'Fewer shift times than today (15, not 18) — and on a Saturday only the ticket-office late\u00a0is\u00a0new.')   # kept together: "new." ended alone on line 2 (whole-pack review, 6 Nov 2026)
     s.save()
     notes(d, 8, 'Second Nature was built', 'Second Nature was built keeping the times people already work wherever that cost little. Nine of its fifteen are worked today, and it uses fewer different times overall than today’s eighteen. Four of the new times are shorter versions of today’s lates: the weekday and Sunday closers start later, the weekday 15:00–22:30 starts an hour after today’s 14:00–22:30, and the ticket-office late, 14:30–22:30, finishes at 22:30 on a Sunday, not 23:25. On a Saturday the same office late finishes half an hour later than today’s 14:30–22:00: the office shuts at 22:10 and needs 20 minutes to cash up. One goes the other way: the weekday 07:00–16:00 is 9 hours, longer than any early worked today. The full list is on the slide. The Sunday opener stays today’s 07:15–15:45.')
     s = S(13)

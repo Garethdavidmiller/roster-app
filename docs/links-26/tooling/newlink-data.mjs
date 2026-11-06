@@ -108,7 +108,7 @@ const CHANGES = [
   `Short Run still has the shortest lates of the three: ${hm(H(SR.f.avgLate))} on average, closers included.`,
   // HISTORY, NOT COMPUTED: before 31 Oct a cover week's Sunday counted inside its four duties (README, the folder's opening).
   // Short Run's figure moved; the other two were drawn up under the new reading
-  'And when a cover week falls badly, the most days in a row is now 7, not 6, as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top.',
+  'And when a cover week falls badly, the most days in a row is now 7, not 6 — the same as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top.',
 ].map(t);
 
 // ── WHAT ALL THREE GIVE EVERYONE, AND WHAT THEY COST ──────────────────────────────────────────────────────────────────

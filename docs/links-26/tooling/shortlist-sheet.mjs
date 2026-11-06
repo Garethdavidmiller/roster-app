@@ -138,7 +138,7 @@ import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from 'n
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
-import { LINES, DAYS_CEILING } from './link.mjs';
+import { LINES, DAYS_CEILING, longDates } from './link.mjs';
 import { assess, today, folderStats, sheetRules, flexibleRules, h55Worst } from './report-data.mjs';
 import { personal } from './plain.mjs';
 import { leave } from './leave.mjs';
@@ -435,7 +435,7 @@ claim('Even Step and Common Ground: today’s 13:45 every weekday; Short Run non
 // has the fewest NEW times of the three, five, where Common Ground and Short Run have six; its card says so
 claim('Even Step and Common Ground: as many shift times, fewer than Short Run; Even Step the fewest new of the three', EF.times === CF.times && SF.times > EF.times
   && EF.newT < CF.newT && EF.newT < SF.newT);
-claim('Even Step: the steadiest weeks of the three, with the lightest heaviest week', D.every(d => d === ES || (d.F.heavy > EF.heavy && range(d.F) > range(EF))));
+claim('Even Step: the steadiest weekly hours of the three, with the lightest heaviest week', D.every(d => d === ES || (d.F.heavy > EF.heavy && range(d.F) > range(EF))));
 claim('Even Step: the biggest change of start of the three', D.every(d => d === ES || Math.round(d.F.step) < Math.round(EF.step)));
 claim('Even Step and Short Run: four weeks off take a day more leave than today, and 14 days buy two days fewer at best; Common Ground keeps today’s',
   [EF, SF].every(F => F.lv.fourWeeks === TF.lv.fourWeeks + 1 && F.lv.best === TF.lv.best - 2) && CF.lv.fourWeeks === TF.lv.fourWeeks && CF.lv.best === TF.lv.best);
@@ -511,9 +511,12 @@ claim('the league’s long earlies are the sheet’s', PACK.every(d => Math.roun
 // on the third decimal is not a fact worth printing (5 Nov 2026, above)
 // JUST OVER HALF A POINT once one Saturday floor late went back to today's time (the owner's "Yes", later on 6 Nov 2026): Common
 // Ground lost its share of the Saturday fit's lead, Even Step gained a familiar time, and the gap closed from about 1.5 to 0.61
-const LEADER = [...LGall].sort((a, b) => b.total - a.total)[0].name, overES = total(LEADER) - total('Even Step');
-claim('the main league since 6 Nov 2026: Common Ground first, just over half a point ahead of Even Step; Short Run lower', LEADER === 'Common Ground'
-  && overES > 0.5 && overES < 0.75 && rankOf('Short Run') > 4);
+// AHEAD OF THE NEXT, NOT OF EVEN STEP (the pack's accuracy review, 6 Nov 2026): "half a point ahead of Even Step" read as
+// though Even Step were second, where Next Step is, by a hundredth of a point that this sheet does not print. The gap to
+// second place is the fact, and it is just over half a point too
+const RANKED = [...LGall].sort((a, b) => b.total - a.total), LEADER = RANKED[0].name, overNext = RANKED[0].total - RANKED[1].total;
+claim('the main league since 6 Nov 2026: Common Ground first, just over half a point ahead of the next; Short Run lower', LEADER === 'Common Ground'
+  && overNext > 0.5 && overNext < 0.75 && rankOf('Short Run') > 4);
 // THE 30-DAY EXAMPLE (5 Nov 2026): Common Ground was shortlisted as the example of the links that keep today's leave. Grand Tour
 // scored a little higher then; since 6 Nov 2026 Common Ground scores highest of them, and of the whole pack
 const T30 = [...THIRTY].sort((a, b) => total(b.name) - total(a.name)).map(d => d.name);
@@ -694,13 +697,13 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <h2>Each one’s edge</h2>
   <div class="cards">
     <div class="card"><span class="head"><b class="k">Common Ground</b><span class="code">${CG.code} · ${CG.fp}</span></span><b class="edge">Today’s leave.</b>14 days buy ${CF.lv.best} days off at best and four weeks off take ${CF.lv.fourWeeks}, as today; no shift over 8h&nbsp;30m on any day, alone of the three; one shift time Monday to Friday, all earlies or all lates, in ${one(CF)} of ${wl} weeks, the gentlest change of start and the closest weekend fit (${f1(CF.fit[1])} on a Saturday, ${f1(CF.fit[2])} on a Sunday). Its cost: ${isoYear(CF)} single rest days a year, not ${isoYear(EF)}, the weakest weekday fit (${f1(CF.fit[0])}) and four at the open.</div>
-    <div class="card"><span class="head"><b class="k">Even Step</b><span class="code">${ES.code} · ${ES.fp}</span></span><b class="edge">Today’s earlies, the steadiest weeks.</b>Every early from Monday to Saturday one of today’s times, no shift there over 8h&nbsp;30m and today’s 13:45 every weekday; the lightest heaviest week, ${hm(EF.heavy)}, and the fewest new shift times, ${word(EF.newT)}. Its cost: the biggest change of start, ${hm(Math.round(EF.step))}, and ${EF.lv.fourWeeks} days’ leave for four weeks off.</div>
+    <div class="card"><span class="head"><b class="k">Even Step</b><span class="code">${ES.code} · ${ES.fp}</span></span><b class="edge">Today’s earlies, the steadiest weekly hours.</b>Every early from Monday to Saturday one of today’s times, no shift there over 8h&nbsp;30m and today’s 13:45 every weekday; the lightest heaviest week, ${hm(EF.heavy)}, and the fewest new shift times, ${word(EF.newT)}. Its cost: the biggest change of start, ${hm(Math.round(EF.step))}, and ${EF.lv.fourWeeks} days’ leave for four weeks off.</div>
     <div class="card"><span class="head"><b class="k">Short Run</b><span class="code">${SR.code} · ${SR.fp}</span></span><b class="edge">The closest weekday fit, the shortest weekday lates.</b>${f1(SF.fit[0])} against ${f1(EF.fit[0])} and ${f1(CF.fit[0])}, and weekday lates of ${hm(lateAvg(SF))} on average. Its cost: ${an(hm(SF.closers[1]))} Saturday closer, ${hm(SF.A.rest.minutes)} the shortest rest, no early finish before 14:00, ${longEarlyMS(SF)} earlies a year over 8h&nbsp;30m, all 9h&nbsp;00m, and four weeks off for ${SF.lv.fourWeeks} days’ leave.</div>
   </div>
   <h2>Which one, by what matters most</h2>
   <table class="t guide"><thead><tr><th>If the main priority is</th><th>Choose</th></tr></thead><tbody>
     <tr><td>Of these three, today’s leave, or no shift over 8h&nbsp;30m on any day</td><td><b>Common Ground</b></td></tr>
-    <tr><td>Of these three, every early one of today’s times, and the steadiest weeks</td><td><b>Even Step</b></td></tr>
+    <tr><td>Of these three, every early one of today’s times, and the steadiest weekly hours</td><td><b>Even Step</b></td></tr>
     <tr><td>Of these three, the closest weekday fit and the shortest weekday lates</td><td><b>Short Run</b></td></tr>
     <tr class="grp"><th colspan="2">Outside the shortlist</th></tr>
     <tr><td>A 16:00 closer Monday to Saturday, shorter than the ${N}’s</td><td><b>${shortEvery[0]}</b> <span class="muted">· ${shortEvery[1]} too</span></td></tr>
@@ -719,7 +722,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <table class="t cmp"><thead><tr>${todayHead}</tr></thead><tbody>${todayHtml}</tbody></table>
 
   <h2>Why these ${N} and not the other ${word(others.length)}</h2>
-  <p class="lead">Shortlisted on ${SHORTLIST_DATE}: Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen. Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, just over half a point ahead of Even Step. Each other design has something, and pays for it:</p>
+  <p class="lead">Shortlisted on ${SHORTLIST_DATE}: Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen. Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, just over half a point ahead of the next. Each other design has something, and pays for it:</p>
   <table class="t alts"><tbody>
     <tr><td>In Step</td><td>steadier weekly hours — but the most long earlies, ${longEarlyMS(IF)} a year each</td></tr>
     <tr><td>Closing Time</td><td>shorter closers and a closer Saturday fit — but fewer weeks on one shift time and a weaker weekday fit</td></tr>
@@ -753,7 +756,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <h2>How to choose<span class="note">each of the ${N} is the one to choose for something different</span></h2>
   <ul class="list">
     <li><b>Choose Common Ground</b> if keeping today’s leave, or no shift over 8h&nbsp;30m on any day, matters most — for ${isoYear(CF)} single rest days a year, a weaker weekday fit and four at the open.</li>
-    <li><b>Choose Even Step</b> if keeping today’s earlies and steady weeks matters most — for a ${hm(Math.round(EF.step))} change of start and four weeks off for ${EF.lv.fourWeeks} days’ leave.</li>
+    <li><b>Choose Even Step</b> if keeping today’s earlies and steady weekly hours matters most — for a ${hm(Math.round(EF.step))} change of start and four weeks off for ${EF.lv.fourWeeks} days’ leave.</li>
     <li><b>Choose Short Run</b> if the weekday fit and short weekday lates matter most — for ${an(hm(SF.closers[1]))} Saturday closer, no 13:45, ${longEarlyMS(SF)} earlies a year each over 8h&nbsp;30m and four weeks off for ${SF.lv.fourWeeks} days’ leave.</li>
   </ul>
   <div class="foot"><span>Page 2 of 2 — Against today, the costs, how to choose</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Links designer</span></div>
@@ -774,7 +777,7 @@ const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace
   // same gains", which reads as V5's and V6's only while it sits directly under their row — so that is pinned
   claim('Balanced V7’s row sits directly under Balanced V5’s and V6’s, whose gains its “the same gains” names',
     /<tr><td>Balanced V5, Balanced V6<\/td><td>shorter runs of earlies or lates and more early finishes — but [^<]*<\/td><\/tr>\s*<tr><td>Balanced V7<\/td><td>the same gains — but /.test(html)); }
-const htmlOut = new URL('links-26-shortlist.html', import.meta.url).pathname; const htmlTidy = tidy(html); writeFileSync(htmlOut, htmlTidy);   // beside the tooling, gitignored
+const htmlOut = new URL('links-26-shortlist.html', import.meta.url).pathname; const htmlTidy = longDates(tidy(html)); writeFileSync(htmlOut, htmlTidy);   // beside the tooling, gitignored
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
 // THE PAGE IS A FIXED HEIGHT, so content that does not fit is HIDDEN, not pushed onto another page — a row added on

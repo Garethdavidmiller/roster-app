@@ -35,7 +35,7 @@ export const CHANGES = deepFreeze([
     "Common\u00a0Ground has nothing over 8h\u00a030m on any day, and Even\u00a0Step nothing over 8h\u00a030m from Monday to Saturday. Short\u00a0Run has 9-hour weekday earlies and an 8h\u00a040m Saturday closer: about 20 of the earlies and 6 of the closers a year each.",
     "On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10. To keep the hours the same, one Saturday late on Short\u00a0Run is now 13:30–21:00, a time worked on Saturdays today. Those are the only changes to Short\u00a0Run’s shifts since it was shown.",
     "Short\u00a0Run still has the shortest lates of the three: 8h\u00a006m on average, closers included.",
-    "And when a cover week falls badly, the most days in a row is now 7, not 6, as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top."
+    "And when a cover week falls badly, the most days in a row is now 7, not 6 — the same as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top."
 ]);
 
 /** What all three proposals give everyone, against today. */

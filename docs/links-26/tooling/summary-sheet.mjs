@@ -9,7 +9,7 @@
 //   finishes 23:00+ and Saturdays a year — per person, averaged over the whole link; cover weeks add none
 //
 //   node docs/links-26/tooling/summary-sheet.mjs   → docs/links-26/links-26-summary.pdf
-import { LINES, COVER_WEEKS, DAYS_CEILING, CONTRACT_MINUTES, daysAYear, monSatMinutes } from './link.mjs';
+import { LINES, COVER_WEEKS, DAYS_CEILING, CONTRACT_MINUTES, daysAYear, monSatMinutes, longDates } from './link.mjs';
 import { kindBlocks, blockText } from './blocks.mjs';
 import { folderStats, today, assess, sheetRules as currentRules, dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
@@ -111,7 +111,7 @@ ${rows.map(r=>tr(r)).join('\n')}
 const OUT = new URL('../links-26-summary.pdf', DIR).pathname;
 const pagesIn = buf => (buf.toString('latin1').match(/\/Type\s*\/Page(?!s)/g) ?? []).length;
 if (/\bundefined\b|\bNaN\b/.test(html.replace(/<style[\s\S]*?<\/style>/, ''))) throw new Error('summary-sheet: "undefined" or "NaN" in the page — a figure or a word is missing');
-const htmlOut = new URL('links-26-summary.html', import.meta.url).pathname; fs.writeFileSync(htmlOut, html);   // beside the tooling, gitignored
+const htmlOut = new URL('links-26-summary.html', import.meta.url).pathname; fs.writeFileSync(htmlOut, longDates(html));   // beside the tooling, gitignored
 const b = await chromium.launch(); const pg = await b.newPage(); await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
 // NINETEEN ROWS (4 Nov 2026): eighteen fitted at the 80% floor and a nineteenth did not, which the note above foresaw ("a
 // nineteenth design will need its layout changed, not its scale"). So at the floor, and only there, the rows are set dense
