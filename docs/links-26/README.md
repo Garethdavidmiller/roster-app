@@ -5046,16 +5046,19 @@ The summary's footnote and the shortlist sheet's fatigue line name the 8-hour du
 **4. Cover weeks: early or late, and notice.** The legend still says "any turn", so a colleague cannot tell from the rota
 whether a cover week will be earlies or lates. The rest figures are for the fixed duties only; each sheet says so, but the
 app's New link page does not. Designating cover weeks, or listing them as a matter still to be agreed, is the owner's
-decision and is left for them.
+decision. Their answer was "Leave this one for now", so the pack and the New link page are unchanged on it.
 
 **5. The read-me still said "the chosen link".** It said it twice: what worries you "about the chosen link", and "the chosen
 link's presentation for colleagues", left over from the managers' ask taken out above. It now says "any of the shortlisted
 links" and "the presentations for colleagues, one for each shortlisted link". It does not add the reviewer's "ask which
 they prefer and why": how the choice is made is the owner's and S. Silva's to say.
 
-**6. Middle Ground's row on the shortlist sheet.** It ends "— but a larger change of start". The reviewer reads the
+**6. Middle Ground's row on the shortlist sheet.** It ended "— but a larger change of start". The reviewer reads the
 difference from Common Ground as a preference: spreading out the closing and 06:20 weeks against keeping each week's start
-nearer the last. That is the owner's wording to decide, and is left for them.
+nearer the last. The owner said "Reword". The row now gives both sides: no two closing or 06:20 weeks side by side where Common
+Ground has both, for a larger change of start from week to week (1h 42m against 1h 12m). It calls the choice a matter of
+preference: the hardest weeks apart, or steadier start times. A new claim holds the two figures the right way round, and the
+old one still holds the closing and 06:20 weeks.
 
 **Not changed:** the colleague decks' "At a glance" slide, which the owner chose to keep ("Why would you cut it down?").
 
