@@ -235,7 +235,7 @@ readme = '\n'.join([
          'leave, and 30 days off for 14 at best. The price: more single rest days, about 12 a year where the other two '
          'have about 8, and a weaker weekday fit.'),
     item('Even Step', 'If avoiding long days, Monday to Saturday, matters most: nothing over 8h 30m there. The price: the '
-         'biggest change of start from week to week, and four weeks off take 15 days\' leave.'),
+         'biggest change of start from week to week of the three, and four weeks off take 15 days\' leave.'),
     item('Short Run', 'If the weekday fit and short weekday lates matter most. The price: 9-hour weekday earlies and an '
          '8h 40m Saturday closer, no shift finishing at 13:35 or 13:45, and four weeks off take 15 days\' leave.'),
     para('Page 2 of the shortlist sheet sets out each one\'s edge and its costs in full.'),
@@ -322,16 +322,19 @@ readme = '\n'.join([
     *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Open Return, Short Openers, Grand Tour and '
             'Common Ground (4 November 2026) came after the shortlist of 31 October. Clean Slate '
             'chooses every shift time afresh for the trains, with no shift over 8h 30m Monday to Saturday, one 13:45 '
-            'finish and a closer from 15:45 every weekday. Next Step is Even Step with three weekday shifts retimed for '
-            'the trains, still with no shift over 8h 30m Monday to Saturday. Fair Share is Next Step with an even Sunday: '
+            'finish and a closer from 15:45 every weekday. Next Step has Even Step\'s shift times with three weekday ones '
+            'retimed for the trains, laid on Home Grown\'s weeks, still with no shift over 8h 30m Monday to Saturday. Fair '
+            'Share is Next Step with an even Sunday: '
             'every Sunday duty is 8h 10m or 8h 15m, so a Sunday early and a Sunday late pay within a few pounds, and no '
-            'shift is over 8h 30m on any day. Open Return, Short Openers, Grand Tour and Common Ground are the links where '
+            'shift is over 8h 30m on any day. Open Return, Short Openers, Grand Tour and Common Ground are links where '
             '14 days\' leave buys 30 days off, and four weeks off take 14, as today; their sheets and import files have a '
             'folder of their own, 30 days off. Open Return has a 16:15 closer every weekday and no avoidable fatigue '
-            'warning. Short Openers is Open Return with every weekday 06:20 finishing by 14:20 and every weekday closer at '
-            '15:45. Grand Tour keeps Fair Share\'s shift times in new weeks. Common Ground is today\'s link taken to 26 '
-            'weeks, on Grand Tour\'s weeks: today\'s shift times kept where the rules allow, a 13:45 finish every weekday, '
-            'closers from 15:45, nothing over 8h 30m Monday to Friday or 9 hours at the weekend, and an even Sunday.'), '']
+            'warning. Short Openers has Open Return\'s weeks, with every weekday 06:20 finishing by 14:20, every weekday '
+            'closer at 15:45, and two weekday lates 15 minutes shorter, which keeps each weekday\'s hours. Grand Tour keeps '
+            'Fair Share\'s shift times in new weeks. Common Ground was drawn on the brief of today\'s link taken to 26 '
+            'weeks, and is laid on Grand Tour\'s weeks: today\'s shift times kept where the rules allow, a 13:45 finish '
+            'every weekday, closers from 15:45 Monday to Saturday, nothing over 8h 30m Monday to Friday or 9 hours at the '
+            'weekend, and Sunday duties of 8h to 8h 30m.'), '']
       if AFTER_31_OCT else []),
     para(f'On {SHORTLIST_DATE.replace("Nov", "November")} the shortlist was drawn again, after every design then in the pack, '
          'and listed A to Z: Common Ground, as the example of the links that keep today\'s leave; Even Step, first in the '
@@ -354,8 +357,10 @@ readme = '\n'.join([
     'HOW THE FIGURES ARE WORKED OUT',
     para('Every figure in the summary, the shortlist sheet, the "What it means if you..." sheet, the rules sheet and the '
          'proposal sheets was worked out from '
-         'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them; what is typed by hand is the '
-         'rules\' own numbers and the one-line description under each design\'s name. The presentations are built by '
+         'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them. What is typed by hand is the '
+         'rules\' own numbers, the one-line description under each design\'s name, and the wording of the shortlist '
+         'sheet and the "What it means if you..." sheet, whose comparisons their builds check against the rotas. The '
+         'presentations are built by '
          'scripts, and every figure in their tables is checked against those counts (docs/links-26/tooling/deck-check.mjs '
          'in the repository).'),
     '',
