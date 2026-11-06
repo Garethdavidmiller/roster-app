@@ -96,7 +96,32 @@ jobs:
           }
 
           EXPECTED=$(grep -oE "APP_VERSION = '[^']+'" roster-data.js | head -1 | grep -oE "[0-9]+\.[0-9]+")
-          echo "expected=$EXPECTED" >> "$GITHUB_OUTPUT"
+
+          # ⚠️ MAIN CAN MOVE WHILE THIS WAITS (6 Nov 2026). EXPECTED was read ONCE, from the commit
+          # this run checked out, and the poll below then waits up to 25 minutes. The 10:53 run read
+          # v25.39; two minutes later v25.40 merged, the Pages mirror (built straight from main)
+          # served it within a minute, and from then on the mirror "disagreed" with the v25.39 this
+          # run was holding. The window ran out and the owner was emailed that staff were on an old
+          # version, about an origin that was AHEAD — while Hosting was correctly mid-deploy of the
+          # same v25.40. So every poll re-reads main through the API, and the verdict and the issue
+          # both state the main of the moment. An unanswered read keeps the last value: it fails
+          # open to exactly the behaviour this replaced, never to silence.
+          expected_on_main() {
+            curl -fsSL --max-time 30 \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github.raw" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/roster-data.js?ref=main" 2>/dev/null \
+              | grep -oE "APP_VERSION = '[^']+'" | head -1 | grep -oE "[0-9]+\.[0-9]+" || true
+          }
+          refresh_expected() {
+            local now
+            now=$(expected_on_main)
+            if [ -n "$now" ] && [ "$now" != "$EXPECTED" ]; then
+              echo "main moved while this run waited: expected v$EXPECTED is now v$now."
+              EXPECTED="$now"
+            fi
+            return 0
+          }
 
           WEB="https://myb-roster.web.app"
           PAGES="https://garethdavidmiller.github.io/roster-app"
@@ -126,10 +151,13 @@ jobs:
             echo "Read disagreed after ${waited}s (web=$LIVE_WEB pages=$LIVE_PAGES, expected=$EXPECTED) — a deploy may be in flight; re-checking in ${POLL_S}s."
             sleep "$POLL_S"
             waited=$((waited + POLL_S))
+            refresh_expected
             LIVE_WEB=$(version_of "$WEB")
             LIVE_PAGES=$(version_of "$PAGES")
           done
 
+          # Written AFTER the poll, so the issue names the main the verdict was reached against.
+          echo "expected=$EXPECTED" >> "$GITHUB_OUTPUT"
           echo "web=$LIVE_WEB"     >> "$GITHUB_OUTPUT"
           echo "pages=$LIVE_PAGES" >> "$GITHUB_OUTPUT"
 
