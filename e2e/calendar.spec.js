@@ -2152,6 +2152,40 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     await expect(row.locator('td.tv-cell').nth(6)).not.toHaveAttribute('aria-label', /Annual leave/);
 });
 
+// ── A STARTER'S TRAINING WEEKS (v25.40, owner 6 Nov 2026) ───────────────────────────────────────
+//
+// M. Campbell's weekdays from her start to 6 Nov are a bare 'TRG' in her BASE pattern
+// (fixedRoster[3]) — "Training flavour with no shift times". The data is pinned in
+// roster-data.test.mjs; this is what a member SEES, which no unit test reaches: the Training badge
+// and no time in the cell, the full word on the panel, and the same day in Team Week. Until v25.40
+// the Other family only ever arrived as an override, so a base Other day had never been drawn.
+test('training weeks: a base Training day shows the badge and no time, on the calendar and in Team Week', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-14T09:00:00Z'));
+    await seedMemberSession(page, 'M. Campbell');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const cell = (/** @type {string} */ day) => page.locator(`.calendar-day:not(.other-month)[data-detail-day="${day}"]`);
+    const wed = cell('Wednesday 14 October 2026');
+    await expect(wed).toHaveAttribute('data-detail-shift-value', 'TRG');
+    await expect(wed).toHaveClass(/\bother-day\b/);
+    await expect(wed.locator('.shift-badge')).toContainText('Train');
+    await expect(wed.locator('.shift-time')).toHaveCount(0);       // no time: the whole of the ask
+    await expect(cell('Saturday 17 October 2026')).toHaveAttribute('data-detail-shift-value', 'RD');
+
+    await wed.click();
+    await expect(page.locator('#dayDetailShiftWords')).toHaveText('Training');
+    await expect(page.locator('#dayDetailShiftTime')).toBeHidden();
+    await page.locator('#dayDetailClose').click();
+
+    // Team Week asks the same resolver. Today's week runs Sunday 11 to Saturday 17 October, so
+    // Wednesday is the fourth cell of her row.
+    await page.locator('#teamViewBtn').click();
+    const row = page.locator('tr', { has: page.locator('th.tv-name-col', { hasText: 'M. Campbell' }) });
+    await expect(row.locator('td.tv-cell').nth(3)).toHaveAttribute('aria-label', 'Training');
+    await expect(row.locator('td.tv-cell').nth(3)).toHaveText('🏷️ Train');
+});
+
 test('day detail: an annual-leave day offers the leave dates, and no other day does', async ({ page }) => {
     // SIGNED IN, ON THEIR OWN CALENDAR — the only state the action is offered in since v23.04, and
     // it has to be seeded explicitly: this file's default is a VIEWER session (see its header), and

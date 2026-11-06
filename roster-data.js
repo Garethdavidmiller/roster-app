@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '25.39';
+export const APP_VERSION = '25.40';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -654,15 +654,29 @@ export function getSpecialDayBadges(date, _dateStr) {
 
 /**
  * Validate all shift strings in every roster pattern object.
- * Valid values: 'RD', 'OFF', 'SPARE', 'AL', 'RDW', or 'HH:MM-HH:MM'.
+ * Valid values: 'RD', 'OFF', 'SPARE', 'AL', 'RDW', 'HH:MM-HH:MM', and — Monday to Saturday only — a
+ * BARE Other-family flavour such as 'TRG' (v25.40: `fixedRoster[3]`, a starter's training weeks).
+ *
+ * WHY ONLY BARE, AND NEVER ON A SUNDAY. The Other family was an OVERRIDE grammar until v25.40, and
+ * two of its parts only work when an override carries them. A TIME rides in `resolveEffectiveShift`'s
+ * `rdwTime` side channel, which only the override ladder fills — so a pattern's 'TRG 09:00-16:00'
+ * would draw the badge with no time in the cell while the day panel printed one. An 'RDW' marker
+ * is read by the pay engine only from an override, so a pattern's 'TRG RDW' would be shown as rest
+ * day working and paid as nothing. And an Other day can never be a Sunday (OTHER_DAYS.md, Jul 2026).
+ * A bare flavour on a weekday has none of those problems: it is drawn as the badge alone, which is
+ * exactly what it means — a training day whose hours nobody has rostered.
+ *
  * Logs a console.error for every invalid entry so problems are caught at load time.
- * Called once automatically when the module loads.
+ * Called once automatically when the module loads (on localhost and with ?debug).
+ * @param {Record<string, Record<string, Record<string, string>>>} [rosters] the patterns to check —
+ *   every roster type by default; a test passes its own rather than editing the shipped data.
+ * @returns {number} how many cells failed
  */
-export function validateRosterPatterns() {
+export function validateRosterPatterns(rosters = { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster }) {
     const SHIFT_RE = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
     const VALID_KEYWORDS = new Set(['RD', 'OFF', 'SPARE', 'AL', 'RDW']);
     const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-    const rosters = { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
+    const isBareFlavour = (/** @type {string} */ v) => Object.prototype.hasOwnProperty.call(OTHER_FLAVOURS, v);
     let errors = 0;
 
     for (const [rosterName, roster] of Object.entries(rosters)) {
@@ -672,8 +686,11 @@ export function validateRosterPatterns() {
                 if (shift === undefined) {
                     console.error(`[roster-data] validateRosterPatterns: ${rosterName} week ${week} is missing day '${day}'`);
                     errors++;
-                } else if (!VALID_KEYWORDS.has(shift) && !SHIFT_RE.test(shift)) {
-                    console.error(`[roster-data] validateRosterPatterns: ${rosterName} week ${week} ${day} has invalid value '${shift}' — expected RD/OFF/SPARE/AL/RDW or HH:MM-HH:MM`);
+                } else if (isOtherValue(shift) && day === 'sun') {
+                    console.error(`[roster-data] validateRosterPatterns: ${rosterName} week ${week} sun has '${shift}' — an Other day (Training, Induction, …) can never be on a Sunday`);
+                    errors++;
+                } else if (!VALID_KEYWORDS.has(shift) && !SHIFT_RE.test(shift) && !isBareFlavour(shift)) {
+                    console.error(`[roster-data] validateRosterPatterns: ${rosterName} week ${week} ${day} has invalid value '${shift}' — expected RD/OFF/SPARE/AL/RDW, HH:MM-HH:MM, or a bare Other flavour (TRG, IND, …) with no RDW marker and no times`);
                     errors++;
                 }
             }

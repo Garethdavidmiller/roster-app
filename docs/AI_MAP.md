@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: November 2026 — v25.30 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.40 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -2772,7 +2772,7 @@ All CSS shared across all nine app pages (index, admin, paycalc, operations, set
 - Update lifecycle: install = skipWaiting only; activate = claim + navigationPreload.enable; warm-up detached, batched 8-way, skip-if-cached, `__precache-complete` marker; old app + SDK caches swept only after a complete warm-up
 
 ### `roster-cycle-data.js`
-Raw roster cycle arrays only — `weeklyRoster`, `bilingualRoster`, `fixedRoster`, `cesRoster`, `dispatcherRoster`. Imported by `roster-data.js` only. Edit here when the actual cycle patterns change (very rare). Do not import this file directly from app code — always go through `roster-data.js`.
+Raw roster cycle arrays only — `weeklyRoster`, `bilingualRoster`, `fixedRoster`, `cesRoster`, `dispatcherRoster`. Imported by `roster-data.js` only. A cell is `RD`/`OFF`/`SPARE`/`AL`/`RDW`/`HH:MM-HH:MM` or, Monday to Saturday, a BARE Other flavour (`fixedRoster[3]` is `TRG` Mon–Fri, a starter's training weeks, v25.40) — `validateRosterPatterns` in `roster-data.js` says why nothing else of the Other grammar may appear in a pattern. Edit here when the actual cycle patterns change (very rare). Do not import this file directly from app code — always go through `roster-data.js`.
 
 ### `roster-member-data.js`
 The roster's PEOPLE and nothing else — `teamMembers`, one entry per member, no logic and no imports.

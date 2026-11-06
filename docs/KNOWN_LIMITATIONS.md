@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v25.30 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.40 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -1449,7 +1449,8 @@ rotating links where it does work.
 directions: **538 of 900 one-day shifts detected, 60%.** Three members were blind in at least 18 of
 their 20 sampled cases — **S. Boyle, C. Reen and S. Faure**, all currently on flat fixed lines
 (`fixedRoster[1]` and `[2]`). B. Toth's three training weeks were in the same position while he sat
-on `fixedRoster[2]`. So the population that is hardest to check by eye — the people whose weeks all
+on `fixedRoster[2]`, and so were M. Campbell's on `fixedRoster[3]` (Training with no times, to 7 Nov
+2026, v25.40). So the population that is hardest to check by eye — the people whose weeks all
 look alike — is exactly the population this layer cannot speak for.
 
 **What still covers them.** The geometry witness (`functions/roster-geometry.js`) is positional, not
