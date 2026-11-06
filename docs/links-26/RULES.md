@@ -23,7 +23,11 @@ be 26. So it is worth getting the levels below in writing before a design is put
 ## The basics every rule assumes
 
 1. **Opening hours.** The station opens at 06:20 (07:15 on a Sunday) and closes at 23:55 (23:25 on a Sunday). No duty
-   runs past 23:25 on a Sunday, which is agreed practice (settled 28 Sep 2026).
+   runs past 23:25 on a Sunday, which is agreed practice (settled 28 Sep 2026). **The ticket office** is open 06:30–22:10
+   Monday to Saturday and on bank holidays, and 07:30–21:40 on a Sunday (National Rail's station page, checked 6 Nov
+   2026), and needs 20 minutes to cash up after it shuts (owner, 6 Nov 2026). The office lates' 22:30 finish (S5) gives
+   those 20 minutes Monday to Saturday; on a Sunday it gives 50. These hours were not written down until 6 Nov 2026,
+   which is how the Saturday office came to be set at 22:00.
 2. **▲ CHANGED — The link.** **26 lines** are worked in turn, one week each, Sunday to Saturday. A person on line 26
    moves to line 1.
 3. **▲ CHANGED — Cover weeks.** **Five** of the 26 lines are cover weeks. A cover week is a line with no fixed shifts:

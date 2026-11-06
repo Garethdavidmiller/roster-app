@@ -115,8 +115,13 @@ export function headcounts(p, lines) {
 // December plan Monday to Friday: two 06:20–14:20 and two 14:00–22:30. SATURDAY's lates finish at 22:30 in the plan
 // (owner, 6 Nov 2026: the office shuts at 22:10 and needs 20 minutes to cash up), where today's roster has them at
 // 14:30–22:00 — so `today` keeps the roster's 22:00 and `plan` has 22:30. SUNDAY — today it has one late, and that late is one of the three
-// 14:30–23:25 closers, in the office until it shuts at 22:30 and on the floor for the last hour; the plan has
-// two earlies 07:15–15:30 and two lates 13:30–22:30. [time, people, office-until] — a third element cuts the
+// 14:30–23:25 closers, read as in the office until 22:30 and on the floor for the last hour; the plan has
+// two earlies 07:15–15:30 and two lates 13:30–22:30. THE SUNDAY OFFICE ACTUALLY SHUTS AT 21:40 (National Rail's station
+// page, checked 6 Nov 2026; 06:30–22:10 Monday to Saturday), so with 20 minutes to cash up it is empty from about 22:00,
+// and this reading counts one person too few on the Sunday floor from 22:00 to 22:30, on today's link and on every
+// design. Measured that day with the office emptied at 22:00: every design's Sunday fit moves 0.2 to 0.4 (today's 71.7
+// to 70.2), no rule result changes, and the three shortlisted keep their order. Kept for the next rebuild, so no figure
+// moves alone (README → "The 22:30 change checked"). [time, people, office-until] — a third element cuts the
 // office part short of the duty's own finish. Every sheet compares FLOOR with FLOOR by taking the right
 // arrangement out of each side: today's out of today, the plan's out of every proposal. Only Right Away rosters
 // the office pairs on every day; sixteen others roster them on some days (Thu/Fri, Mon–Fri, Sat…). On a day without

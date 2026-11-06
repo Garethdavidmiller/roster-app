@@ -4840,6 +4840,76 @@ that; if staff already work or are paid to 22:30, today's figures move too); whe
 keep asking managers which of the three goes to colleagues; and whether the colleague decks' "At a glance" slide should be
 cut to fewer rows.
 
+## The 22:30 change checked, and the office's hours (6 Nov 2026)
+
+**The ask** (owner, 6 Nov 2026): *"I need you to check for issues the Saturday ticket office time rule change may have
+caused, also to accuracy and any improvements that need to be made to designs, proposal sheets, presentations or which
+3 should be shortlisted. Are they still strong"*; then a screenshot of the ticket office's hours, which National Rail's
+station page confirms.
+
+**Nothing stale.** `regenerate.mjs --check` (21 fingerprints), `check.mjs`, `deck-check.mjs` (216 rows) and
+`newlink-data.mjs --check` pass. All 21 proposal sheets were rendered again (`regenerate.mjs --no-ship`) and their text
+compared with the shipped PDFs, the date aside: 21 of 21 the same, so none predates the change or the two designs that
+joined after it. The rules, summary, shortlist and "What it means" sheets, rendered again the same way, are the same,
+every assertion holding. Every slide and note of the eight decks was read for what the change could move — the office's
+lines, each Saturday's times, the new times, the three fits, the heaviest weeks, the long shifts, the pay lines — and
+all agree with the rotas. The New link page says what changed, correctly.
+
+**What remedy A did to the Saturday evening.** With the floor pair finishing at 22:00, the floor in the 22:00 hour on
+the sixteen designs it changed is four — the three closers and the office's helper, on the sheets' reading — where it
+was five, and S3's five still on duty at 22:00 are made with both office lates, who cash up from 22:10. The rule is met
+as written. Today's link has two on at 22:00 on a Saturday.
+
+**A better way to pay the hour back — measured, not applied.** Take the whole hour off one floor late rather than half
+an hour off both:
+- on the fourteen designs with two 14:00–22:00s, one goes back to 14:00–22:30 and the other becomes 14:30–22:00, today's
+  Saturday office late — or 13:30–21:00, also worked today on a Saturday, on Short Run's family and In Step, where it
+  suits the afternoon better;
+- on Common Ground and Middle Ground, one 13:30–22:00 becomes 14:00–22:30, so nothing passes 8h 30m.
+
+| Design | Saturday back to 14:00–22:30 | The other |
+|---|---|---|
+| Second Look · Second Edition · Short Run · Long Break | line 15 · 15 · 5 · 10 | line 20 · 26 · 25 · 17 to 13:30–21:00 |
+| In Step | line 23 | line 25 to 13:30–21:00 |
+| Home Grown · Closing Time · Both Ways | line 15 · 5 · 22 | line 25 · 23 · 25 to 14:30–22:00 |
+| Even Step · Next Step · Fair Share | line 15 · 22 · 22 | line 23 · 23 · 23 to 14:30–22:00 |
+| Open Return · Short Openers · Grand Tour | line 17 · 2 · 4 | line 20 · 17 · 23 to 14:30–22:00 |
+| Common Ground · Middle Ground | line 4, from 13:30–22:00 | line 5 stays 13:30–22:00 |
+
+Each line is the one with the closer Saturday fit and no new fatigue warning (on Even Step the other line adds one).
+Every Saturday keeps its minutes, so the contract, the 218.6 days and the leave are unmoved. On the sheets' own
+`assess()` and `sheetRules()` and every factor of the main league:
+- all nine December rules on all sixteen; no hard limit, rest, run, heaviest week, weekend, late finish, fatigue or
+  leave figure moves;
+- five stay on the floor to 22:30 and six are on at 22:00;
+- the fourteen have one new shift time fewer (14:00–22:00 goes);
+- the Saturday fit is closer on twelve — Common Ground and Middle Ground 11.9 to 9.8, Closing Time 9.4 to 8.5, Home
+  Grown 16.4 to 14.7, Both Ways 16.0 to 14.8, In Step 10.3 to 9.8, Even Step and five more 10.7 to 10.4 — and 0.1
+  weaker on Short Run's family (13.5 to 13.6; Second Look 15.9 to 16.0);
+- the week-to-week change of start moves by a minute on six.
+
+In the main league every one of the sixteen gains, most by 0.8 to 1.0 (Common Ground and Middle Ground 0.1): Common
+Ground 86.7, Next Step 86.1, Even Step 86.0, Fair Share and Grand Tour 85.9, Closing Time and Middle Ground 85.8, Clean
+Slate 84.6, Short Openers 84.5, Home Grown 83.9, Second Edition 83.6, Even Keel 83.4, Long Break 83.0, Short Run 82.9,
+Fine Tune 82.7, In Step 82.6, Open Return 82.4, Second Look 82.3, Both Ways 81.9. It is the owner's to choose: every
+fingerprint moves again, and every sheet, every deck and the app's three with them.
+
+**The office's hours.** National Rail's station page (checked 6 Nov 2026) has the ticket office open 06:30–22:10 Monday
+to Saturday and on bank holidays, and 07:30–21:40 on a Sunday. The pack had never recorded them, which is how the
+Saturday close came to be set at 22:00; `RULES.md` → the basics now has them. So the weekday office lates, 14:00–22:30,
+leave the 20 minutes to cash up, as Saturday's do now: nothing else was wrong. On a Sunday the 22:30 finish leaves 50
+minutes, so there is no gap there, but the sheets keep both Sunday office lates in the office until 22:30, and today's
+one too, which understates the Sunday floor from 22:00 to 22:30 by one person. Measured with the office emptied at
+22:00: every design's Sunday fit moves 0.2 to 0.4 (Common Ground 28.2 to 28.6, Even Step and Short Run 29.0 to 29.2) and
+today's 71.7 to 70.2; no rule result changes, and the three keep their order. Left for the next rebuild, so no figure
+moves alone (`report-data.mjs`, beside `OFFICE`).
+
+**The shortlist, against the reasons it was drawn** (*The shortlist drawn again*, above). Common Ground was chosen as
+the best 30-day example, and is now the best 30-day link and first overall, where Grand Tour led the 30-day links then.
+Even Step was chosen as the best of the others, and is now second of them, 0.19 behind Next Step. Short Run was chosen
+because colleagues had seen it; it is 15th of 21, with the closest weekday fit and the shortest weekday lates in the
+pack, shared only by its own family, each of which works six days in a row. The pack is unchanged.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
