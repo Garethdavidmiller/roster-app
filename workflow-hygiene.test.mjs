@@ -1095,6 +1095,23 @@ describe('the currency canary stands down for a deploy in flight', () => {
             `timeout-minutes (${timeout}) must leave the ${window}s poll room to finish and still `
             + 'report. Raise them together.');
     });
+
+    test('it re-reads main while it waits, and reports the main it judged against', () => {
+        // 6 Nov 2026, the third false alarm, and the first that was not a race with a slow deploy:
+        // the version this run expected was read ONCE, from the commit it checked out. v25.40
+        // merged two minutes into the 25-minute poll, the Pages mirror (built straight from main)
+        // served it a minute later, and the run then reported the mirror stale for being AHEAD.
+        const loop = code.match(/while \{[^\n]*DEPLOY_WINDOW_S[^\n]*\n([\s\S]*?)\n\s*done\b/);
+        assert.ok(loop, 'the poll loop must be found');
+        assert.match(loop[1], /^\s*refresh_expected\s*$/m,
+            'the poll must ask main for its version on every pass, or a merge during the window '
+            + 'makes an origin that is AHEAD read as stale');
+        assert.match(code, /contents\/roster-data\.js\?ref=main/, 'and it must ask main, through the API');
+        const out = 'echo "expected=$EXPECTED" >> "$GITHUB_OUTPUT"';
+        assert.equal(code.split(out).length - 1, 1, 'the expected version is written to the step output once');
+        assert.ok(code.indexOf(out) > code.indexOf(loop[0]) + loop[0].length,
+            'and AFTER the poll, so the issue names the version the verdict was reached against');
+    });
 });
 
 // ── A run-script that dedents out of its own block scalar ───────────────────────────────────────
