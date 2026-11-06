@@ -136,7 +136,8 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # Quarter Past Relaid was renamed Open Return, and Fair Share's 30-day search result joined as Grand Tour, the same day
 # (owner: "Give all proposals individual names")
 # Quarter Past was taken out the same evening (owner: "Remove quarter past from the pack please"), and Well Kept, drawn up on
-# 26 Oct 2026 as Same Again Tidy, joined the 30-day folder; it was taken out on 5 Nov 2026 (owner: "Remove well kept")
+# 26 Oct 2026 as Same Again Tidy, joined the 30-day folder; it was taken out on 5 Nov 2026 (owner: "Remove well kept"). Both
+# were deleted on 6 Nov 2026 (DELETED, below)
 # Common Ground joined the same day on main (owner: "give this new proposal a better name and create the sheet and put it in
 # the pack"): today's link taken to 26 weeks on the owner's brief, on Grand Tour's weeks. It buys 30 days off for 14 days'
 # leave, so it is in the 30-day folder too, and it is a late design
@@ -154,17 +155,15 @@ if LATE and LATE != LATE_SET:
 if AFTER_31_OCT != AFTER_31_OCT_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(AFTER_31_OCT_SET)} as drawn up after 31 October 2026; they are {AFTER_31_OCT}')
 LATE_WORDS = ', '.join(LATE[:-1]) + ' and ' + LATE[-1] if len(LATE) > 1 else ''.join(LATE)   # three since 4 Nov: 'A, B and C', never 'A and B and C'
-# THE FOUR WITHDRAWN (3 Nov 2026, owner: "Remove the four weak proposals please and reengineer the pack"). Named here, and
-# refused if any is back in SUPPLIED, because the paragraph below says they left the pack
-WITHDRAWN = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear']
-if any(n in names.split(', ') for n in WITHDRAWN):
-    raise SystemExit(f'pack: the read-me says {WITHDRAWN} were withdrawn; regenerate.mjs SUPPLIED lists one of them')
-# QUARTER PAST AND WELL KEPT, TAKEN OUT (owner, 4 Nov 2026: "Remove quarter past from the pack please"; 5 Nov 2026: "Remove
-# well kept"). Each was in the pack for a few hours, so the read-me says they left, as it does for the four above; refused
-# if either is back in SUPPLIED
-TAKEN_OUT = ['Quarter Past', 'Well Kept']
-if any(n in names.split(', ') for n in TAKEN_OUT):
-    raise SystemExit(f'pack: the read-me says {TAKEN_OUT} were taken out; regenerate.mjs SUPPLIED lists one of them')
+# DELETED, 6 NOV 2026 (owner: "Permanently delete well kept, quarter past, the four second designs, quiet friday, little and
+# often and same again"). Nine designs that had left the pack, or were never in it, are gone from the repository: grids,
+# metas and their own search files (README.md -> "Nine designs deleted"). Until then the read-me named six of them as
+# withdrawn or taken out, with their record "kept in the repository"; it now names none. Refused if one is back in SUPPLIED,
+# and refused if the read-me names one, so a deleted design cannot come back unnoticed
+DELETED = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear', 'Quiet Friday', 'Same Again', 'Little and Often',
+           'Quarter Past', 'Well Kept']   # Same Again Tidy was Well Kept; 'Same Again' also catches its name
+if any(n in names.split(', ') for n in DELETED):
+    raise SystemExit(f'pack: {DELETED} were deleted on 6 Nov 2026; regenerate.mjs SUPPLIED lists one of them')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
 THIRTY_SET = ['Balanced V5', 'Common Ground', 'Grand Tour', 'Middle Ground', 'Open Return', 'Relief Point', 'Short Openers']
 THIRTY_IN = sorted(n for n, c, _ in proposals if DIR_OF[c] == '30-days-off')
@@ -349,12 +348,6 @@ readme = '\n'.join([
             'Relief Point meet 8 of the 9 December rules: on a Saturday the ticket office does not have its two identical '
             'early and two identical late shifts. They are the only designs in the pack that miss a rule.'), '']
       if LATE else []),
-    *([para(f'Four more were drawn up and withdrawn on 3 November 2026 as the weakest in the pack: {", ".join(WITHDRAWN[:-1])} '
-            f'and {WITHDRAWN[-1]}. Each was the same as or worse than a design still here on everything the sheets measure '
-            'but one; their record is kept in the repository, docs/links-26/README.md.'), ''] if WITHDRAWN else []),
-    *([para('Two more were in the pack for a few hours and taken out: Quarter Past, a one-page roster drawn up outside '
-            'the app, on 4 November 2026, and Well Kept, today\'s twenty weeks with six added, on 5 November 2026. Their '
-            'record is kept in the repository too.'), ''] if TAKEN_OUT else []),
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
          'reference.'),
     '',
@@ -368,6 +361,8 @@ readme = '\n'.join([
     '',
 ])
 assert all(len(l) <= W for l in readme.split('\n')), [l for l in readme.split('\n') if len(l) > W]
+_named = [n for n in DELETED if n in ' '.join(readme.split())]
+if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6 Nov 2026 (owner: "Permanently delete ...")')
 # PLAIN ASCII: it opens in Notepad, and an older one reads a file with no byte-order mark in the PC's own code page
 if not readme.isascii(): raise SystemExit(f'pack: the read-me holds {sorted({c for c in readme if not c.isascii()})}; Notepad may garble them')
 # NO RECOMMENDATION IN IT EITHER (owner, 5 Nov 2026): the one use of the word is the sentence saying there is none

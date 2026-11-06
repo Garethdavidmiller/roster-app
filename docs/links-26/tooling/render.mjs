@@ -769,7 +769,7 @@ ${meta.page9 ?? `<section class="page">
       // its weekdays and today's differ day to day, and its weekday table is the tallest any sheet has drawn: with the notes
       // already tight the page ran 21px onto another sheet. Then, and only then, the Saturday and Sunday tables take the
       // weekday table's dense rows. Measured, as above, so a page that fits is never touched. No sheet in the pack takes it
-      // since Well Kept left (5 Nov 2026); it stays for any rota laid like today's, and so Well Kept can be rebuilt.
+      // since Well Kept left (5 Nov 2026; deleted 6 Nov 2026); it stays for any rota laid like today's.
       for (const sec of document.querySelectorAll('section.page')) {
         const foot = sec.querySelector(':scope > .foot'); if (!foot || !sec.querySelector('ul.p5notes')) continue;
         const over = () => sec.getBoundingClientRect().height > 1033

@@ -63,10 +63,11 @@ and two identical lates — and the last two in the league. Neither is on the sh
 They were kept outside the pack for a few hours, in a folder since removed, and have been in `../presentations/` since it
 joined the shortlist the same day. The other six links here have none.
 
-**Taken out:** Quarter Past, whose shift times Open Return keeps, on the evening of 4 November 2026 (its grid stays in
-`../tooling/results/quarter-past.json`); and Well Kept, today's twenty weeks with six added, which was in this folder
-from that evening until 5 November 2026 (owner: "Remove well kept"; its grid stays in
-`../tooling/results/same-again-tidy.json`). It met 7 of the 9 December rules.
+**Taken out, and since deleted:** Quarter Past, whose shift times Open Return keeps, on the evening of 4 November 2026;
+and Well Kept, today's twenty weeks with six added, which was in this folder from that evening until 5 November 2026
+(owner: "Remove well kept"). It met 7 of the 9 December rules. Both were deleted on 6 November 2026, grids included
+(owner: "Permanently delete …"; `../README.md` → "Nine designs deleted"). Quarter Past's duty table stays, as
+`../tooling/results/quarter-past-table.json`, because it is Open Return's.
 
 How each was drawn, and the names they were drawn under: `../README.md` → "30 days off for 14 days' leave", and for
 Well Kept and Quarter Past → "Quarter Past out, Well Kept in" and "Well Kept out", for Common Ground → "Common
