@@ -74,16 +74,20 @@ claim('Short Run’s long duties: 9-hour earlies on weekdays only, and an 8h 40m
   && Object.values(SR.p).every(r => !(timed(r.sat) && isEarly(r.sat) && mins(r.sat) > 510) && MS.slice(0, 5).every(d => !(timed(r[d]) && r[d].endsWith('-23:55') && mins(r[d]) > 510)))
   && Object.values(SR.p).some(r => timed(r.sat) && r.sat.endsWith('-23:55') && mins(r.sat) === 520));
 // THE GRID ITSELF, NOT ITS LABEL (the review, 2 Nov 2026): a ref string can outlive an edited grid, so the fingerprint is
-// recomputed from the cells as report-data.mjs computes every sheet's. 618348d6 was Short Run's from 3 Oct 2026; 9b0bf83a since
-// 6 Nov 2026, when its Saturday ticket-office lates moved to 22:30 and its Saturday floor pair to 22:00 — the one change to its
-// shifts since it was shown, which CHANGES says
+// recomputed from the cells as report-data.mjs computes every sheet's. 618348d6 was Short Run's from 3 Oct 2026; 9b0bf83a for a
+// few hours on 6 Nov 2026, when its Saturday ticket-office lates moved to 22:30 and its Saturday floor pair to 22:00; 247f3636 since
+// later that day (the owner's "Yes"), when that floor pair went back to one 14:00–22:30 and one 13:30–21:00, today's Saturday time.
+// Against 3 Oct's grid (git c87c465c) that is THREE cells, all on a Saturday: the two office lates, 14:30–22:00 to 14:30–22:30, and
+// one floor late, 14:00–22:30 to 13:30–21:00 — the changes to its shifts since it was shown, which CHANGES says
 const fpOf = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a, b) => a - b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
-claim('Short Run is the rota of 3 Oct 2026 with its Saturday office lates to 22:30, fingerprint 9b0bf83a, recomputed from its cells', fpOf(SR.p) === '9b0bf83a' && refOf('Short Run').endsWith(fpOf(SR.p)) && FIRST[codeOf('Short Run')] === '3 Oct 2026');
-// THE 22:30 OFFICE ON ALL THREE (6 Nov 2026): two Saturday ticket-office lates, 14:30–22:30, and nothing else on a Saturday finishing
-// at 22:30 — the floor pair that did finishes at 22:00 — where today's office lates finish at 22:00
+claim('Short Run is the rota of 3 Oct 2026 with its Saturday office lates to 22:30 and one Saturday late to 13:30–21:00, fingerprint 247f3636, recomputed from its cells', fpOf(SR.p) === '247f3636' && refOf('Short Run').endsWith(fpOf(SR.p)) && FIRST[codeOf('Short Run')] === '3 Oct 2026');
+// THE 22:30 OFFICE ON ALL THREE (6 Nov 2026): two Saturday ticket-office lates, 14:30–22:30, where today's finish at 22:00, and
+// since the owner's "Yes" the same day one Saturday floor late, 14:00–22:30, finishing with them — three at 22:30 on each
 const satAt = (p, t) => Object.values(p).filter(r => r.sat === t).length;
-claim('on all three, two Saturday office lates to 22:30 and no other Saturday duty finishing then; today’s office lates to 22:00', C.every(c => satAt(c.p, '14:30-22:30') === 2
-  && Object.values(c.p).filter(r => timed(r.sat) && r.sat.endsWith('-22:30')).length === 2) && satAt(TC.p, '14:30-22:00') === 2 && satAt(TC.p, '14:30-22:30') === 0);
+claim('on all three, two Saturday office lates to 22:30 and one floor late with them; today’s office lates to 22:00', C.every(c => satAt(c.p, '14:30-22:30') === 2
+  && satAt(c.p, '14:00-22:30') === 1 && Object.values(c.p).filter(r => timed(r.sat) && r.sat.endsWith('-22:30')).length === 3) && satAt(TC.p, '14:30-22:00') === 2 && satAt(TC.p, '14:30-22:30') === 0);
+// SHORT RUN'S OTHER SATURDAY LATE IS TODAY'S 13:30–21:00, worked on a Saturday on today's link, which CHANGES says
+claim('Short Run: one Saturday 13:30–21:00, a time worked on a Saturday today', satAt(SR.p, '13:30-21:00') === 1 && satAt(TC.p, '13:30-21:00') > 0);
 claim('Short Run: the shortest lates of the three on average', C.every(c => c === SR || H(SR.f.avgLate) < H(c.f.avgLate)));
 claim('on all three, the most days in a row is 5, and 7 with a cover week placed badly', C.every(c => c.f.run === '5 (up to 7)'));
 // SINCE 5 NOV 2026 the two beside Short Run are Common Ground and Even Step. "From what colleagues said about it" was the owner's
@@ -96,7 +100,7 @@ const CHANGES = [
   'Common Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even Step and Short Run four weeks off take 15. The price on Common Ground is more single rest days: about 12 a year, where the other two have about 8.',
   'Common Ground has nothing over 8h 30m on any day, and Even Step nothing over 8h 30m from Monday to Saturday. Short Run has 9-hour weekday earlies and an 8h 40m Saturday closer, about 26 a year each.',
   // THE 22:30 OFFICE (6 Nov 2026): the one change to Short Run's shifts since it was shown, made on all three
-  'On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10, and two Saturday floor lates finish at 22:00 rather than 22:30. On Short Run that is the only change to its shifts since it was shown.',
+  'On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10. To keep the hours the same, one Saturday late on Short Run is now 13:30–21:00, a time worked on Saturdays today. Those are the only changes to Short Run’s shifts since it was shown.',
   `Short Run still has the shortest lates of the three: ${hm(H(SR.f.avgLate))} on average, closers included.`,
   // HISTORY, NOT COMPUTED: before 31 Oct a cover week's Sunday counted inside its four duties (README, the folder's opening).
   // Short Run's figure moved; the other two were drawn up under the new reading

@@ -33,7 +33,7 @@ export const CHANGES = deepFreeze([
     "Both keep a shift finishing at 13:45 on every weekday of the rota. Short\u00a0Run has no shift finishing at 13:35 or 13:45.",
     "Common\u00a0Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even\u00a0Step and Short\u00a0Run four weeks off take 15. The price on Common\u00a0Ground is more single rest days: about 12\u00a0a\u00a0year, where the other two have about 8.",
     "Common\u00a0Ground has nothing over 8h\u00a030m on any day, and Even\u00a0Step nothing over 8h\u00a030m from Monday to Saturday. Short\u00a0Run has 9-hour weekday earlies and an 8h\u00a040m Saturday closer, about 26\u00a0a\u00a0year each.",
-    "On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10, and two Saturday floor lates finish at 22:00 rather than 22:30. On Short\u00a0Run that is the only change to its shifts since it was shown.",
+    "On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10. To keep the hours the same, one Saturday late on Short\u00a0Run is now 13:30–21:00, a time worked on Saturdays today. Those are the only changes to Short\u00a0Run’s shifts since it was shown.",
     "Short\u00a0Run still has the shortest lates of the three: 8h\u00a006m on average, closers included.",
     "And when a cover week falls badly, the most days in a row is now 7, not 6, as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top."
 ]);
@@ -54,7 +54,7 @@ export const COSTS = deepFreeze([
     "At most 5 weeks of earlies, or of lates, in a row, or 7 if a cover week falls badly (today\u00a02, or 3).",
     "Two more Saturdays a year (28, today\u00a026).",
     "Fewer earlies that finish before 14:00: 0\u00a0to\u00a012\u00a0a\u00a0year (today\u00a026).",
-    "Six or seven new shift times to learn."
+    "Five or six new shift times to learn."
 ]);
 
 /** @type {ReadonlyArray<Persona>} What each proposal means for six ways of working the roster — the sheet's bands. */
@@ -316,7 +316,7 @@ export const PACK = deepFreeze([
     {
         "design": "Common Ground",
         "label": "The proposal sheet — every week on page 3",
-        "path": "30-days-off/Common-Ground-CG-26-T8-d6d1131d.pdf",
+        "path": "30-days-off/Common-Ground-CG-26-T8-03af96b2.pdf",
         "pages": 8
     },
     {
@@ -328,7 +328,7 @@ export const PACK = deepFreeze([
     {
         "design": "Even Step",
         "label": "The proposal sheet — every week on page 3",
-        "path": "proposals/Even-Step-ES-26-T5-95c87ef3.pdf",
+        "path": "proposals/Even-Step-ES-26-T5-fb7a3988.pdf",
         "pages": 8
     },
     {
@@ -340,7 +340,7 @@ export const PACK = deepFreeze([
     {
         "design": "Short Run",
         "label": "The proposal sheet — every week on page 3",
-        "path": "proposals/Short-Run-SR-26-F1-9b0bf83a.pdf",
+        "path": "proposals/Short-Run-SR-26-F1-247f3636.pdf",
         "pages": 8
     },
     {

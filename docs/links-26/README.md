@@ -55,7 +55,10 @@ name it was written with.
 **Every figure dated before 6 Nov 2026 has the Saturday ticket office's two lates finishing at 22:00.** The office shuts
 at 22:10 and takes 20 minutes to cash up, so on every design they finish at 22:30 now, and the hour comes off the
 Saturday's other lates: every fingerprint changed, and Common Ground is first in the main league. *The Saturday ticket
-office to 22:30* has the old and new fingerprints and what moved.
+office to 22:30* has the old and new fingerprints and what moved. **Later that day the hour moved onto one floor late**
+(owner: "Yes"), which went back to a Saturday time worked today, and the Sunday office was emptied at 22:00 in the
+sheets' model: sixteen fingerprints changed again, and the league with them. *The Saturday floor late back to 22:30* has
+those.
 
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
@@ -4839,6 +4842,147 @@ now, was 41h 30m).
 that; if staff already work or are paid to 22:30, today's figures move too); whether the read-me's "What is asked" should
 keep asking managers which of the three goes to colleagues; and whether the colleague decks' "At a glance" slide should be
 cut to fewer rows.
+
+## The 22:30 change checked, and the office's hours (6 Nov 2026)
+
+**The ask** (owner, 6 Nov 2026): *"I need you to check for issues the Saturday ticket office time rule change may have
+caused, also to accuracy and any improvements that need to be made to designs, proposal sheets, presentations or which
+3 should be shortlisted. Are they still strong"*; then a screenshot of the ticket office's hours, which National Rail's
+station page confirms.
+
+**Nothing stale.** `regenerate.mjs --check` (21 fingerprints), `check.mjs`, `deck-check.mjs` (216 rows) and
+`newlink-data.mjs --check` pass. All 21 proposal sheets were rendered again (`regenerate.mjs --no-ship`) and their text
+compared with the shipped PDFs, the date aside: 21 of 21 the same, so none predates the change or the two designs that
+joined after it. The rules, summary, shortlist and "What it means" sheets, rendered again the same way, are the same,
+every assertion holding. Every slide and note of the eight decks was read for what the change could move — the office's
+lines, each Saturday's times, the new times, the three fits, the heaviest weeks, the long shifts, the pay lines — and
+all agree with the rotas. The New link page says what changed, correctly.
+
+**What remedy A did to the Saturday evening.** With the floor pair finishing at 22:00, the floor in the 22:00 hour on
+the sixteen designs it changed is four — the three closers and the office's helper, on the sheets' reading — where it
+was five, and S3's five still on duty at 22:00 are made with both office lates, who cash up from 22:10. The rule is met
+as written. Today's link has two on at 22:00 on a Saturday.
+
+**A better way to pay the hour back — measured, not applied** (applied later the same day, on the owner's "Yes": *The
+Saturday floor late back to 22:30*, below). Take the whole hour off one floor late rather than half an hour off both:
+- on the fourteen designs with two 14:00–22:00s, one goes back to 14:00–22:30 and the other becomes 14:30–22:00, today's
+  Saturday office late — or 13:30–21:00, also worked today on a Saturday, on Short Run's family and In Step, where it
+  suits the afternoon better;
+- on Common Ground and Middle Ground, one 13:30–22:00 becomes 14:00–22:30, so nothing passes 8h 30m.
+
+| Design | Saturday back to 14:00–22:30 | The other |
+|---|---|---|
+| Second Look · Second Edition · Short Run · Long Break | line 15 · 15 · 5 · 10 | line 20 · 26 · 25 · 17 to 13:30–21:00 |
+| In Step | line 23 | line 25 to 13:30–21:00 |
+| Home Grown · Closing Time · Both Ways | line 15 · 5 · 22 | line 25 · 23 · 25 to 14:30–22:00 |
+| Even Step · Next Step · Fair Share | line 15 · 22 · 22 | line 23 · 23 · 23 to 14:30–22:00 |
+| Open Return · Short Openers · Grand Tour | line 17 · 2 · 4 | line 20 · 17 · 23 to 14:30–22:00 |
+| Common Ground · Middle Ground | line 4, from 13:30–22:00 | line 5 stays 13:30–22:00 |
+
+Each line is the one with the closer Saturday fit and no new fatigue warning (on Even Step the other line adds one).
+Every Saturday keeps its minutes, so the contract, the 218.6 days and the leave are unmoved. On the sheets' own
+`assess()` and `sheetRules()` and every factor of the main league:
+- all nine December rules on all sixteen; no hard limit, rest, run, heaviest week, weekend, late finish, fatigue or
+  leave figure moves;
+- five stay on the floor to 22:30 and six are on at 22:00;
+- the fourteen have one new shift time fewer (14:00–22:00 goes);
+- the Saturday fit is closer on twelve — Common Ground and Middle Ground 11.9 to 9.8, Closing Time 9.4 to 8.5, Home
+  Grown 16.4 to 14.7, Both Ways 16.0 to 14.8, In Step 10.3 to 9.8, Even Step and five more 10.7 to 10.4 — and 0.1
+  weaker on Short Run's family (13.5 to 13.6; Second Look 15.9 to 16.0);
+- the week-to-week change of start moves by a minute on six.
+
+In the main league every one of the sixteen gains, most by 0.8 to 1.0 (Common Ground and Middle Ground 0.1): Common
+Ground 86.7, Next Step 86.1, Even Step 86.0, Fair Share and Grand Tour 85.9, Closing Time and Middle Ground 85.8, Clean
+Slate 84.6, Short Openers 84.5, Home Grown 83.9, Second Edition 83.6, Even Keel 83.4, Long Break 83.0, Short Run 82.9,
+Fine Tune 82.7, In Step 82.6, Open Return 82.4, Second Look 82.3, Both Ways 81.9. It is the owner's to choose: every
+fingerprint moves again, and every sheet, every deck and the app's three with them.
+
+**The office's hours.** National Rail's station page (checked 6 Nov 2026) has the ticket office open 06:30–22:10 Monday
+to Saturday and on bank holidays, and 07:30–21:40 on a Sunday. The pack had never recorded them, which is how the
+Saturday close came to be set at 22:00; `RULES.md` → the basics now has them. So the weekday office lates, 14:00–22:30,
+leave the 20 minutes to cash up, as Saturday's do now: nothing else was wrong. On a Sunday the 22:30 finish leaves 50
+minutes, so there is no gap there, but the sheets keep both Sunday office lates in the office until 22:30, and today's
+one too, which understates the Sunday floor from 22:00 to 22:30 by one person. Measured with the office emptied at
+22:00: every design's Sunday fit moves 0.2 to 0.4 (Common Ground 28.2 to 28.6, Even Step and Short Run 29.0 to 29.2) and
+today's 71.7 to 70.2; no rule result changes, and the three keep their order. Left for the next rebuild, so no figure
+moves alone (`report-data.mjs`, beside `OFFICE`) — made with it, below.
+
+**The shortlist, against the reasons it was drawn** (*The shortlist drawn again*, above). Common Ground was chosen as
+the best 30-day example, and is now the best 30-day link and first overall, where Grand Tour led the 30-day links then.
+Even Step was chosen as the best of the others, and is now second of them, 0.19 behind Next Step. Short Run was chosen
+because colleagues had seen it; it is 15th of 21, with the closest weekday fit and the shortest weekday lates in the
+pack, shared only by its own family, each of which works six days in a row. The pack is unchanged.
+
+## The Saturday floor late back to 22:30, and the Sunday office emptied at 22:00 (6 Nov 2026)
+
+**The ask** (owner, 6 Nov 2026), answering the questions *The 22:30 change checked* left open: *"1. Yes, but does this
+increase the number of shift times? 2. Leave for now. 3. No 4. Why would you cut it down?"* — yes to the variant above;
+today's Saturday office, which still finishes at 22:00, left as it is; no ask of managers in the pack's read-me; and the
+managers' "at a glance" slide kept whole. Then: *"Sunday ticket office shifts can either finish at 22.00 (that gives them
+20 minutes to cash up) or 22.30 adding 1 extra to the floor"*.
+
+**The Saturday, applied as measured.** Every cell is the variant's table above, and nothing else moved: against the last
+commit's grids, 30 cells on 16 designs, all on a Saturday — on fourteen one 14:00–22:00 back to 14:00–22:30 and the other
+to 14:30–22:00 or 13:30–21:00, and on Common Ground and Middle Ground one 13:30–22:00 to 14:00–22:30. Clean Slate, Even
+Keel, Fine Tune and Balanced V5 and V6 had no 14:00–22:00 and are unchanged.
+
+**It adds no shift time.** Every design keeps its count of shift times, and the fourteen have one new time fewer: the
+14:00–22:00 goes, for a time worked on a Saturday today. Common Ground and Middle Ground keep theirs, 13 with six new. On
+the shortlist: Common Ground 13 (6 new), Even Step 13 (5), Short Run 15 (6).
+
+| Design | Fingerprint | Saturday fit | Shift times (new) | Main league |
+|---|---|---|---|---|
+| Common Ground | `d6d1131d` → `03af96b2` | 11.9 → 9.8 | 13 (6) | 1st, 86.55 → **1st, 86.63** |
+| Next Step | `79145bc9` → `150a0d25` | 10.7 → 10.4 | 14 (7) → 14 (6) | 3rd, 85.25 → **2nd, 86.11** |
+| Even Step | `95c87ef3` → `fb7a3988` | 10.7 → 10.4 | 13 (6) → 13 (5) | 4th, 85.06 → **3rd, 86.01** |
+| Fair Share | `90e85eeb` → `cb5849c3` | 10.7 → 10.4 | 16 (9) → 16 (8) | 5th, 85.05 → **4th, 85.89** |
+| Grand Tour | `f33bfd6c` → `d9b82d23` | 10.7 → 10.4 | 16 (9) → 16 (8) | 6th, 85.02 → **5th, 85.87** |
+| Closing Time | `002f1a28` → `d6c56b87` | 9.4 → 8.5 | 13 (6) → 13 (5) | 7th, 84.86 → **6th, 85.81** |
+| Middle Ground | `a2417e62` → `20668ac9` | 11.9 → 9.8 | 13 (6) | 2nd, 85.74 → **7th, 85.79** |
+| Short Openers | `6af8af45` → `65f99952` | 10.7 → 10.4 | 14 (7) → 14 (6) | 9th, 83.55 → **9th, 84.49** |
+| Home Grown | `1885ef0a` → `021e6f03` | 16.4 → 14.7 | 13 (4) → 13 (3) | 11th, 83.00 → **10th, 83.91** |
+| Second Edition | `bcabb166` → `40715a41` | 13.5 → 13.6 | 15 (7) → 15 (6) | 12th, 82.77 → **11th, 83.61** |
+| Long Break | `a85776e4` → `a57bfbcf` | 13.5 → 13.6 | 15 (7) → 15 (6) | 14th, 82.18 → **13th, 83.02** |
+| Short Run | `9b0bf83a` → `247f3636` | 13.5 → 13.6 | 15 (7) → 15 (6) | 15th, 82.09 → **14th, 82.92** |
+| In Step | `077b84ee` → `2bb1a9f4` | 10.3 → 9.8 | 15 (7) → 15 (6) | 16th, 81.75 → **16th, 82.63** |
+| Open Return | `2b15826c` → `190eba69` | 10.7 → 10.4 | 16 (9) → 16 (8) | 17th, 81.59 → **17th, 82.38** |
+| Second Look | `5bc487e7` → `a97f4052` | 15.9 → 16.0 | 14 (7) → 14 (6) | 18th, 81.41 → **18th, 82.25** |
+| Both Ways | `007b8b4d` → `2cb2d145` | 16.0 → 14.8 | 15 (6) → 15 (5) | 19th, 81.03 → **19th, 81.93** |
+
+The five unchanged keep their fingerprints and move by a hundredth or two (Clean Slate 8th, 84.55; Even Keel 12th,
+83.35; Fine Tune 15th, 82.67; Balanced V6 20th, 56.33; Balanced V5 21st, 53.70). Every December rule, hard limit, rest,
+run, weekend, fatigue and leave figure is as it was, row for row on the summary sheet, where the only other change is the
+week-to-week change of start, by a minute on six (Short Run 1h 13m to 1h 14m, Even Step 1h 31m to 1h 30m). Finishes at 22:00 or later fall from 94 to 92 a year each on the five
+with a 13:30–21:00 (Short Run, Second Edition, Long Break, Second Look and In Step), and stay 94 on the rest (Closing Time
+104). On the shortlist the Saturday fit now orders Common Ground (9.8), Even Step (10.4), Short Run (13.6), and the main
+league Common Ground first, 0.61 ahead of Even Step, with Next Step between them.
+
+**The Sunday office.** `RULES.md` → S5 now allows the two Sunday office lates to finish at 22:00, which leaves the 20
+minutes to cash up after the 21:40 close, or at 22:30, which puts both on the floor for the last half hour. Every design
+here finishes them at 22:30, and must: S3's five still on at 22:00 count them, and someone finishing at 22:00 does not
+count. The model now empties the office at 22:00 (`SUN_CASHED_UP`, `report-data.mjs`): the second office late joins
+the floor then, as the first does from 18:00, today's one included. Every Sunday fit moved 0.2 to 0.4, as measured above
+(Common Ground 28.6, Even Step and Short Run 29.2, today's 70.2); no rule result changed.
+
+**What the sheets and decks now say that they did not.** Common Ground has the closest Saturday fit of the three, where
+Even Step had it: Common Ground's card on the shortlist sheet says "the closest weekend fit (9.8 on a Saturday, 28.6 on a
+Sunday)", and Even Step's line on the managers' slide 7 reads "every early one of today's times, Mon–Sat; the steadiest
+weeks" — its weeks run 25h 30m to 42h 00m, against 25h 30m to 42h 30m and 24h 30m to 42h 30m. Even Step has the fewest new
+shift times of the three, five, and its card says so. In Step's Saturday fit shows as Common Ground's, 9.8 each, so its
+line is "steadier weekly hours than all three", and Grand Tour's row on page 2 of the shortlist sheet keeps only its
+closer weekday fit. The late-finish line names 94 on Common Ground and Even Step and 92 on Short Run, the colleague decks'
+slide 7 each design's own figure, and the colleague decks' new-times slides count six on Common Ground, five on Even Step
+and six on Short Run, whose slide 8 now says "on a Saturday only the ticket-office late is new". The checks each claim
+carried stopped the build until it was true again.
+
+**The app (v25.41).** The three built-in proposals are the new grids (`links-proposals.js`; Common Ground `03af96b2`, Even
+Step `fb7a3988`, Short Run `247f3636`). The generator's default table is Short Run's duties, so its Saturday gives
+one 14:00–22:30 and one 13:30–21:00 in place of two 14:00–22:00 (`links-default-targets.js`), and a new test holds the
+table to Short Run's grid day class by day class, because nothing compared the two before (`links-default-targets.test.mjs`;
+mutated: a same-length change to that Saturday row fails it alone). The New link page says what changed on Short Run's
+Saturday since colleagues saw it: three cells against 3 October's grid, the two office lates and one late to 13:30–21:00.
+
+**The read-me.** Its "What is asked" no longer asks managers which link goes to colleagues (the owner's "No" above).
 
 ## Notes for the whole set
 

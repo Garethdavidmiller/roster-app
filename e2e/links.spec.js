@@ -1741,7 +1741,7 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
     await proposalOptions(page).filter({ hasText: 'Even Step' }).click();   // the middle of the three, A to Z
 
     await expect(activeDesignName(page)).toHaveText('Even Step — Dec 2026');
-    await expect(page.locator('#designWhoRole')).toHaveText('ES-26-T5 · 95c87ef3');   // the printed sheet's ref
+    await expect(page.locator('#designWhoRole')).toHaveText('ES-26-T5 · fb7a3988');   // the printed sheet's ref
     await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');

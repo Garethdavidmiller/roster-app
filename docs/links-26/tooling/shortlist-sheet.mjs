@@ -254,7 +254,11 @@ shared('fatigue warnings, fixed', F => F.A.fixed.present); const ffW = shared('f
 const run = shared('most days in a row, fixed rota', F => F.fixedRun), worstRun = shared('worst-case run', F => F.worstRun);
 const wl = shared('working weeks', F => F.A.feel.workingLines);
 const mixed = shared('weeks mixing earlies and lates', F => F.A.feel.hybrid);
-const late23 = shared('finishes at 23:00 or later', F => F.late23), late22 = shared('finishes at 22:00 or later', F => F.late22);
+const late23 = shared('finishes at 23:00 or later', F => F.late23);
+// NOT SHARED SINCE THE OWNER'S "YES" (6 Nov 2026): one Saturday floor late went back to today's time, 14:30–22:00 on Even Step,
+// 13:30–21:00 on Short Run, and Common Ground's Saturday has its own 14:00–22:30 as well as today's 13:30–22:00, so Short Run
+// has 92 finishes at 22:00 or later a year each where the other two have 94. The line names each, grouped by figure
+const late22By = [...new Set(D.map(d => d.F.late22))].sort((a, b) => b - a).map(v => `${v} on ${D.filter(d => d.F.late22 === v).map(d => d.name).join(' and ')}`).join(', ');
 const sunCloser = shared('Sunday closer', F => F.closers[2]), wkCloser = shared('weekday closer', F => F.closers[0]);
 claim('the weekday’s and Sunday’s closers one length', wkCloser === sunCloser);
 claim('no avoidable fatigue warning on the fixed rota; at worst one, and it is more than 55 hours in seven days',
@@ -285,7 +289,8 @@ const O = Object.fromEntries(others.map(d => [d.name, d])), K = Object.fromEntri
 // weeks of 21 on one shift time, so the designs that had kept those against Even Step, In Step and Short Run keep them no
 // longer: Long Break keeps nothing (its row says what it has beside Common Ground), Grand Tour, Open Return and Short Openers no
 // longer keep the leave, Home Grown and Fair Share no longer keep the earlies, Clean Slate no longer the weeks on one turn.
-// In Step, off the shortlist, keeps its steadier weekly hours and its closer Saturday fit ("steadier weeks" until the accuracy
+// In Step, off the shortlist, keeps its steadier weekly hours, and kept its closer Saturday fit until one Saturday floor late
+// went back to today's time (6 Nov 2026, the owner's "Yes"): Common Ground's then printed as 9.8 too ("steadier weeks" until the accuracy
 // check of 6 Nov 2026: it could be read as the weeks on one shift time, a different measure from the one the claim asserts)
 // MIDDLE GROUND SINCE 5 NOV 2026 (owner: "rename good turn as Middle Ground and add it to the pack"): Common Ground's weeks with
 // the shift times varied from week to week, so no two closing weeks and no two 06:20 weeks fall side by side. Common Ground is
@@ -295,7 +300,7 @@ const O = Object.fromEntries(others.map(d => [d.name, d])), K = Object.fromEntri
 // against the three (Grand Tour's row says what it has beside Common Ground), and with 13 shift times on Common Ground and Even Step
 // Home Grown keeps the fewest new times but no longer the fewest times, and Both Ways no longer the fewer new
 const NAMED = { 'Both Ways': 'closerSat,closerWk,earlyOff,heavy', 'Clean Slate': 'fitSat,fitSun', 'Closing Time': 'closerSat,closerWk,fitSat,light,step',
-  'Even Keel': '', 'Fine Tune': 'step', 'Home Grown': 'closerWk,newT', 'In Step': 'fitSat,heavy', 'Long Break': '', 'Next Step': '', 'Fair Share': '',
+  'Even Keel': '', 'Fine Tune': 'step', 'Home Grown': 'closerWk,newT', 'In Step': 'heavy', 'Long Break': '', 'Next Step': '', 'Fair Share': '',
   'Second Edition': 'step', 'Second Look': 'block,worstRun', 'Open Return': 'closerWk,worstRun', 'Short Openers': 'worstRun', 'Grand Tour': '', 'Middle Ground': '',
   'Balanced V5': 'block,earlyOff', 'Balanced V6': 'block,earlyOff' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
@@ -374,9 +379,10 @@ claim('Second Edition the gentlest step of all, Fine Tune and Closing Time gentl
 // Saturday fit
 claim('In Step: steadier weekly hours than the three — a lighter heaviest week and a narrower range', D.every(d => d.F.heavy > IF.heavy && d.F.heavy - d.F.light > IF.heavy - IF.light));
 // SINCE 6 NOV 2026 GRAND TOUR'S ROW SAYS WHAT IT HAS BESIDE COMMON GROUND, as Long Break's does: Common Ground has today's leave and
-// no shift over 8h 30m too, and Grand Tour has a closer weekday and Saturday fit
-claim('Grand Tour: Common Ground’s leave, with a closer weekday and Saturday fit', GT.lv.best === CG.F.lv.best && GT.lv.fourWeeks === CG.F.lv.fourWeeks
-  && fitP(GT.fit[0]) < fitP(CG.F.fit[0]) && fitP(GT.fit[1]) < fitP(CG.F.fit[1]));
+// no shift over 8h 30m too, and Grand Tour has a closer weekday fit. And a closer Saturday fit, until one Saturday floor late went
+// back to today's time (6 Nov 2026, the owner's "Yes"): Common Ground's Saturday then scored 9.8 against Grand Tour's 10.4
+claim('Grand Tour: Common Ground’s leave, with a closer weekday fit', GT.lv.best === CG.F.lv.best && GT.lv.fourWeeks === CG.F.lv.fourWeeks
+  && fitP(GT.fit[0]) < fitP(CG.F.fit[0]));
 const OR_SO = ['Open Return', 'Short Openers'].map(n => O[n].F), orsoRest = OR_SO[0].A.rest.minutes;
 // Middle Ground's row: a week is read by its most common Monday-to-Friday duty — a closing week finishes at the 23:55 close, an
 // opening week starts at the 06:20 open — and no two of either fall side by side, lapping the rotation; Common Ground's do
@@ -405,10 +411,12 @@ claim('Even Step and Common Ground: no shift over 8h 30m Monday to Saturday, Sho
   && PACK.filter(d => longMS(d.F) === 0).map(d => d.name).sort().join() === 'Clean Slate,Common Ground,Even Step,Fair Share,Grand Tour,Middle Ground,Next Step');
 claim('Even Step: every early Monday to Saturday one of today’s times; neither of the others', earliesToday(EF) && !earliesToday(CF) && !earliesToday(SF));
 claim('Even Step and Common Ground: today’s 13:45 every weekday; Short Run none', k1345(EF) && k1345(CF) && !Object.values(SF.p).some(r => MS.slice(0, 5).some(d => r[d] === '06:20-13:45')));
-// LEVEL WITH COMMON GROUND SINCE 6 NOV 2026, so the card no longer says "the fewest shift times of the three"
-claim('Even Step and Common Ground: the same shift times and new times, fewer of both than Short Run', EF.times === CF.times && EF.newT === CF.newT && SF.times > EF.times && SF.newT > EF.newT);
+// LEVEL WITH COMMON GROUND SINCE 6 NOV 2026, so the card no longer says "the fewest shift times of the three". Once one Saturday
+// floor late went back to today's time (the owner's "Yes", the same day) Even Step's 14:30–22:00 was a time worked today, so it
+// has the fewest NEW times of the three, five, where Common Ground and Short Run have six; its card says so
+claim('Even Step and Common Ground: as many shift times, fewer than Short Run; Even Step the fewest new of the three', EF.times === CF.times && SF.times > EF.times
+  && EF.newT < CF.newT && EF.newT < SF.newT);
 claim('Even Step: the steadiest weeks of the three, with the lightest heaviest week', D.every(d => d === ES || (d.F.heavy > EF.heavy && range(d.F) > range(EF))));
-claim('Even Step: the closest Saturday fit of the three — not of the whole pack', D.every(d => d === ES || d.F.fit[1] > EF.fit[1]) && PACK.some(d => d.F.fit[1] < EF.fit[1]));
 claim('Even Step: the biggest change of start of the three', D.every(d => d === ES || Math.round(d.F.step) < Math.round(EF.step)));
 claim('Even Step and Short Run: four weeks off take a day more leave than today, and 14 days buy two days fewer at best; Common Ground keeps today’s',
   [EF, SF].every(F => F.lv.fourWeeks === TF.lv.fourWeeks + 1 && F.lv.best === TF.lv.best - 2) && CF.lv.fourWeeks === TF.lv.fourWeeks && CF.lv.best === TF.lv.best);
@@ -417,15 +425,19 @@ claim('Even Step: with Common Ground, the longest rest and the shortest Saturday
   && EF.closers[1] === CF.closers[1] && EF.closers[1] < SF.closers[1] && iso(EF) === iso(SF) && iso(EF) < iso(CF));
 claim('Even Step: one shift time Monday to Friday in as many weeks as Short Run and fewer than Common Ground; a Sunday fit level with Short Run’s, behind Common Ground’s',
   one(EF) === one(SF) && one(EF) < one(CF) && fitP(EF.fit[2]) === fitP(SF.fit[2]) && fitP(CF.fit[2]) < fitP(EF.fit[2]));
-// THE NEW SATURDAY TIMES SINCE 6 NOV 2026: the office's 14:30–22:30 is new on all three, the floor's 14:00–22:00 on Even Step and
-// Short Run; the "where they differ" row counts them, and no sentence names them
-claim('new on a Saturday: the 22:30 office late on all three, three times on Even Step and Common Ground, two on Short Run', D.every(d => Object.values(d.F.p).some(r => r.sat === '14:30-22:30'))
-  && !todaysTimes.has('14:30-22:30') && satNew(EF) === 3 && satNew(CF) === 3 && satNew(SF) === 2);
+// THE NEW SATURDAY TIMES SINCE 6 NOV 2026: the office's 14:30–22:30 is new on all three, and since one floor late went back to
+// today's time (the owner's "Yes") nothing else on a Saturday is new but Common Ground's 07:00–15:30 and the 15:45 closer on Common
+// Ground and Even Step; the "where they differ" row counts them, and no sentence names them
+claim('new on a Saturday: the 22:30 office late on all three; three times on Common Ground, two on Even Step, one on Short Run', D.every(d => Object.values(d.F.p).some(r => r.sat === '14:30-22:30'))
+  && !todaysTimes.has('14:30-22:30') && satNew(CF) === 3 && satNew(EF) === 2 && satNew(SF) === 1);
 claim('Common Ground: six single rest days in the rotation where the other two have four, and today four in twenty weeks', iso(CF) === 6 && iso(EF) === 4 && iso(SF) === 4 && iso(TF) === 4 && TF.pp.L === 20);
-claim('Common Ground: one shift time Monday to Friday in more weeks than the other two, the gentlest change of start and the closest Sunday fit of the three',
-  D.every(d => d === CG || (one(d.F) < one(CF) && Math.round(d.F.step) > Math.round(CF.step) && d.F.fit[2] > CF.fit[2])));
-claim('Common Ground: the weakest weekday fit of the three; its new times no more than Even Step’s, so no longer a cost the card names', D.every(d => d === CG || d.F.fit[0] < CF.fit[0])
-  && CF.newT <= EF.newT && CF.newT < SF.newT);
+// THE CLOSEST WEEKEND FIT SINCE 6 NOV 2026: the Saturday too, once one floor late went back to today's time (9.8, Even Step 10.4)
+claim('Common Ground: one shift time Monday to Friday in more weeks than the other two, the gentlest change of start and the closest weekend fit of the three',
+  D.every(d => d === CG || (one(d.F) < one(CF) && Math.round(d.F.step) > Math.round(CF.step) && fitP(d.F.fit[1]) > fitP(CF.fit[1]) && fitP(d.F.fit[2]) > fitP(CF.fit[2]))));
+// ITS NEW TIMES ARE NOT A COST THE CARD NAMES: a card's costs are against both of the others, and Common Ground's six are Short
+// Run's six, one more than Even Step's five (6 Nov 2026)
+claim('Common Ground: the weakest weekday fit of the three; its new times no more than both others’, so not a cost the card names', D.every(d => d === CG || d.F.fit[0] < CF.fit[0])
+  && CF.newT <= Math.max(EF.newT, SF.newT));
 claim('Common Ground: four at the open every day, where the other two have five Monday to Saturday', Object.values(opens(CF)).every(x => x === 4) && [EF, SF].every(F => MS.every(d => opens(F)[d] === 5)));
 // NO SHIFT OVER 8H 30M ON ANY DAY, ALONE OF THE THREE, SINCE 6 NOV 2026: its 9-hour Saturday late, 13:30–22:30, finishes at 22:00,
 // and it never had the 9-hour Sunday early the other two share. This pins who else in the pack has it
@@ -478,13 +490,16 @@ claim('the league’s long earlies are the sheet’s', PACK.every(d => Math.roun
 // was drawn, and who leads now and by how much — not Even Step's place, which turns on a hundredth of a point (fourth, 0.02 over
 // Fair Share, since Balanced V5 and V6 widened the league's ranges the same day; third by 0.009 before), and a place that turns
 // on the third decimal is not a fact worth printing (5 Nov 2026, above)
+// JUST OVER HALF A POINT once one Saturday floor late went back to today's time (the owner's "Yes", later on 6 Nov 2026): Common
+// Ground lost its share of the Saturday fit's lead, Even Step gained a familiar time, and the gap closed from about 1.5 to 0.61
 const LEADER = [...LGall].sort((a, b) => b.total - a.total)[0].name, overES = total(LEADER) - total('Even Step');
-claim('the main league since 6 Nov 2026: Common Ground first, about a point and a half ahead of Even Step; Short Run lower', LEADER === 'Common Ground'
-  && overES > 1.3 && overES < 1.7 && rankOf('Short Run') > 4);
+claim('the main league since 6 Nov 2026: Common Ground first, just over half a point ahead of Even Step; Short Run lower', LEADER === 'Common Ground'
+  && overES > 0.5 && overES < 0.75 && rankOf('Short Run') > 4);
 // THE 30-DAY EXAMPLE (5 Nov 2026): Common Ground was shortlisted as the example of the links that keep today's leave. Grand Tour
 // scored a little higher then; since 6 Nov 2026 Common Ground scores highest of them, and of the whole pack
 const T30 = [...THIRTY].sort((a, b) => total(b.name) - total(a.name)).map(d => d.name);
-claim('of the links keeping today’s leave, Common Ground scores highest, then Middle Ground and Grand Tour', T30.slice(0, 3).join() === 'Common Ground,Middle Ground,Grand Tour');
+// (who follows it is not printed, and swapped on 6 Nov 2026 — Grand Tour 85.87, Middle Ground 85.79 — so only the first is held)
+claim('of the links keeping today’s leave, Common Ground scores highest', T30[0] === 'Common Ground');
 claim('weighted as before: In Step first', rankIn(LO, 'In Step') === 1);   // Even Step's place there is not printed either
 claim('In Step has the most long earlies of any design here', stats.every(s => s.name === 'In Step' || longEarly(design(s.name).F) < longEarly(IF)));
 claim('In Step: the most long earlies of any design here, Monday to Saturday, at 8h 45m and 8h 55m', PACK.every(d => d.name === 'In Step' || longEarlyMS(d.F) < longEarlyMS(IF)) && longLengths(IF).join() === '525,535');
@@ -513,13 +528,14 @@ claim('three or more to the close every day, where today has two Monday to Satur
 claim('no design here meeting all 9 rules has fewer finishes at 23:00 or later', allD.filter(d => d.F.met === 9).every(d => d.F.late23 >= late23));
 const lvWorst = shared('worst leave stretch', F => F.lv.worst);
 claim('the worst leave stretch a day better than today’s, on all three', lvWorst === TF.lv.worst + 1);
-claim('worse than today on all three: late finishes, Saturdays, new times', late23 > TF.late23 && late22 > TF.late22 && shared('Saturdays a year', F => Math.round(F.pp.sat)) > Math.round(TF.pp.sat)
+claim('worse than today on all three: late finishes, Saturdays, new times', late23 > TF.late23 && D.every(d => d.F.late22 > TF.late22) && shared('Saturdays a year', F => Math.round(F.pp.sat)) > Math.round(TF.pp.sat)
   && D.every(d => d.F.newT > TF.newT));
-// SINCE 6 NOV 2026 the office's 14:30–22:30 and the floor's 14:00–22:00 are among the shorter versions of today's lates, and Common
-// Ground's 9-hour Saturday late is gone (its 13:30–22:00 is worked today)
+// SINCE 6 NOV 2026 the office's 14:30–22:30 is among the shorter versions of today's lates, and Common Ground's 9-hour Saturday late
+// is gone (its 13:30–22:00 is worked today). The floor's 14:00–22:00 was one too, on Even Step and Short Run, until one Saturday floor
+// late went back to today's time (the owner's "Yes", the same day): Even Step's 14:30–22:00 and Short Run's 13:30–21:00 are known
 claim('the new times: shorter versions of today’s lates on all three; a 12:15–20:30 and the Sunday early on Even Step; a 07:00–15:30 and two Sunday earlies on Common Ground; a longer weekday early and the Sunday early on Short Run',
-  shorterLates(EF) === 4 && shorterLates(CF) === 3 && shorterLates(SF) === 5 && longerEarlies(EF) === 0 && longerEarlies(CF) === 0 && longerEarlies(SF) === 1
-  && [...newTimes(EF)].sort().join() === '09:00-18:00,12:15-20:30,14:00-22:00,14:30-22:30,15:15-23:25,15:45-23:55'
+  shorterLates(EF) === 3 && shorterLates(CF) === 3 && shorterLates(SF) === 4 && longerEarlies(EF) === 0 && longerEarlies(CF) === 0 && longerEarlies(SF) === 1
+  && [...newTimes(EF)].sort().join() === '09:00-18:00,12:15-20:30,14:30-22:30,15:15-23:25,15:45-23:55'
   && [...newTimes(CF)].sort().join() === '07:00-15:30,07:15-15:30,09:00-17:30,14:30-22:30,15:15-23:25,15:45-23:55'
   && [EF, CF, SF].every(F => newTimes(F).size === F.newT) && SF.newT === shorterLates(SF) + longerEarlies(SF) + 1);
 claim('Even Step and Short Run add the 9-hour Sunday early, 09:00–18:00; Common Ground does not', [EF, SF].every(F => newTimes(F).has('09:00-18:00') && Object.values(F.p).some(r => r.sun === '09:00-18:00')
@@ -658,8 +674,8 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 
   <h2>Each one’s edge</h2>
   <div class="cards">
-    <div class="card"><span class="head"><b class="k">Common Ground</b><span class="code">${CG.code} · ${CG.fp}</span></span><b class="edge">Today’s leave.</b>14 days buy ${CF.lv.best} days off at best and four weeks off take ${CF.lv.fourWeeks}, as today; no shift over 8h&nbsp;30m on any day, alone of the three; one shift time Monday to Friday, all earlies or all lates, in ${one(CF)} of ${wl} weeks, the gentlest change of start and the closest Sunday fit (${f1(CF.fit[2])}). Its cost: ${isoYear(CF)} single rest days a year, not ${isoYear(EF)}, the weakest weekday fit (${f1(CF.fit[0])}) and four at the open.</div>
-    <div class="card"><span class="head"><b class="k">Even Step</b><span class="code">${ES.code} · ${ES.fp}</span></span><b class="edge">Today’s earlies, the steadiest weeks.</b>Every early from Monday to Saturday one of today’s times, no shift there over 8h&nbsp;30m and today’s 13:45 every weekday; the lightest heaviest week, ${hm(EF.heavy)}, and the closest Saturday fit (${f1(EF.fit[1])}). Its cost: the biggest change of start, ${hm(Math.round(EF.step))}, and ${EF.lv.fourWeeks} days’ leave for four weeks off.</div>
+    <div class="card"><span class="head"><b class="k">Common Ground</b><span class="code">${CG.code} · ${CG.fp}</span></span><b class="edge">Today’s leave.</b>14 days buy ${CF.lv.best} days off at best and four weeks off take ${CF.lv.fourWeeks}, as today; no shift over 8h&nbsp;30m on any day, alone of the three; one shift time Monday to Friday, all earlies or all lates, in ${one(CF)} of ${wl} weeks, the gentlest change of start and the closest weekend fit (${f1(CF.fit[1])} on a Saturday, ${f1(CF.fit[2])} on a Sunday). Its cost: ${isoYear(CF)} single rest days a year, not ${isoYear(EF)}, the weakest weekday fit (${f1(CF.fit[0])}) and four at the open.</div>
+    <div class="card"><span class="head"><b class="k">Even Step</b><span class="code">${ES.code} · ${ES.fp}</span></span><b class="edge">Today’s earlies, the steadiest weeks.</b>Every early from Monday to Saturday one of today’s times, no shift there over 8h&nbsp;30m and today’s 13:45 every weekday; the lightest heaviest week, ${hm(EF.heavy)}, and the fewest new shift times, ${word(EF.newT)}. Its cost: the biggest change of start, ${hm(Math.round(EF.step))}, and ${EF.lv.fourWeeks} days’ leave for four weeks off.</div>
     <div class="card"><span class="head"><b class="k">Short Run</b><span class="code">${SR.code} · ${SR.fp}</span></span><b class="edge">The closest weekday fit, the shortest weekday lates.</b>${f1(SF.fit[0])} against ${f1(EF.fit[0])} and ${f1(CF.fit[0])}, and weekday lates of ${hm(lateAvg(SF))} on average. Its cost: ${an(hm(SF.closers[1]))} Saturday closer, ${hm(SF.A.rest.minutes)} the shortest rest, no early finish before 14:00, ${longEarlyMS(SF)} earlies a year over 8h&nbsp;30m, all 9h&nbsp;00m, and four weeks off for ${SF.lv.fourWeeks} days’ leave.</div>
   </div>
   <h2>Which one, by what matters most</h2>
@@ -684,9 +700,9 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <table class="t cmp"><thead><tr>${todayHead}</tr></thead><tbody>${todayHtml}</tbody></table>
 
   <h2>Why these ${N} and not the other ${word(others.length)}</h2>
-  <p class="lead">Shortlisted on ${SHORTLIST_DATE}: Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen. Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, about a point and a half ahead of Even Step. Each other design has something, and pays for it:</p>
+  <p class="lead">Shortlisted on ${SHORTLIST_DATE}: Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen. Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, just over half a point ahead of Even Step. Each other design has something, and pays for it:</p>
   <table class="t alts"><tbody>
-    <tr><td>In Step</td><td>steadier weekly hours and a closer Saturday fit — but the most long earlies, ${longEarlyMS(IF)} a year each</td></tr>
+    <tr><td>In Step</td><td>steadier weekly hours — but the most long earlies, ${longEarlyMS(IF)} a year each</td></tr>
     <tr><td>Closing Time</td><td>shorter closers and a closer Saturday fit — but fewer weeks on one shift time and a weaker weekday fit</td></tr>
     <tr><td>Both Ways</td><td>shorter closers and more early finishes — but fewer weeks on one shift time and more long shifts</td></tr>
     <tr><td>Home Grown</td><td>the fewest new shift times, ${word(HG.newT)} — but today’s ${hm(HG.closers[1])} Saturday closer and a weaker fit</td></tr>
@@ -696,7 +712,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Clean Slate</td><td>the best weekend fit of all — but ${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday</td></tr>
     <tr><td>Next Step</td><td>a closer weekday fit and a gentler change of start than Even Step’s — but ${nsOpen} starts at 06:20 a year each, not ${esOpen}, ${ns2245} finishes at 22:45 rather than 22:30, and one more new time</td></tr>
     <tr><td>Fair Share</td><td>Next Step with an even Sunday, no long shifts — but a weaker Sunday fit, ${word(FSx.newT - NX.newT)} more new times</td></tr>
-    <tr><td>Grand Tour</td><td>Common Ground’s leave, a closer weekday and Saturday fit — but fewer weeks on one shift time</td></tr>
+    <tr><td>Grand Tour</td><td>Common Ground’s leave and a closer weekday fit — but fewer weeks on one shift time</td></tr>
     <tr><td>Open Return, Short Openers</td><td>today’s leave and no 55-hour week — but a ${hm(orsoRest)} shortest rest and more long shifts</td></tr>
     <tr><td>Middle Ground</td><td>today’s leave, with no two closing or 06:20 weeks side by side — but a larger change of start</td></tr>
     <tr><td>Long Break</td><td>Common Ground’s four weeks for ${LB.lv.fourWeeks} days’ leave and fewer single rest days — but ${word(LB.fixedRun)} days in a row</td></tr>
@@ -705,7 +721,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 
   <h2>The honest costs, against today</h2>
   <ul class="list">
-    <li><b>Late finishes.</b> ${late23} a year each at 23:00 or later (today ${TF.late23}) and ${late22} at 22:00 or later (today ${TF.late22}) on ${both}. Three to the close every day, where today has two Monday to Saturday, means no link meeting the rules has fewer than ${late23} at 23:00 or later.</li>
+    <li><b>Late finishes.</b> ${late23} a year each at 23:00 or later on ${both} (today ${TF.late23}), and at 22:00 or later ${late22By} (today ${TF.late22}). Three to the close every day, where today has two Monday to Saturday, means no link meeting the rules has fewer than ${late23} at 23:00 or later.</li>
     <li><b>Longer blocks.</b> Up to ${blockF} weeks of earlies or of lates in a row on ${both}, ${blockW} with cover weeks beside them (today ${TF.block.fixed}, up to ${TF.block.worst}).</li>
     <li><b>Fewer long breaks.</b> Today ${word(longRest(TF))} of its ${TF.A.feel.restIslands} rest-day breaks are three or four days, about ${longRestYear(TF)} a year each; Common Ground has ${word(longRest(CF))}, of three days, about ${longRestYear(CF)} a year each, and the other two none.</li>
     <li><b>Early finishes.</b> Fewer before 14:00 than today’s ${earlyOff(TF)} a year each: ${earlyOff(CF)} on Common Ground, ${earlyOff(EF)} on Even Step, none on Short Run.</li>

@@ -103,7 +103,7 @@ for said in ['is the one to choose for something different',
              '<b>Choose Short Run</b> if the weekday fit and short weekday lates matter most', 'a weaker weekday fit',
              'the biggest change of start',
              'Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen',
-             'Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, about a point and a half ahead of Even Step']:
+             'Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, just over half a point ahead of Even Step']:
     if said not in SHEET: raise SystemExit(f'pack: the read-me repeats the shortlist sheet, which no longer says "{said}"')
 PAGE = open('newlink-data.js', encoding='utf-8').read().replace('\\u00a0', ' ')
 for said in ['four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best',
@@ -257,7 +257,8 @@ readme = '\n'.join([
     para('Page 2 of the shortlist sheet sets out each one\'s edge and its costs in full.'),
     '',
     'WHAT IS ASKED',
-    item('Managers', f'Which of the {WORDS[len(SHORTLIST)]} shortlisted links goes to colleagues for their views.'),
+    # NO ASK OF MANAGERS (owner, 6 Nov 2026: "No", asked whether the read-me should keep asking them which shortlisted link
+    # goes to colleagues): the pack is deliberately vague about how the choice is made, and S. Silva leads it
     item('Colleagues', f'Tell {CONTACT} or your manager what worries you about the chosen link, even if it is small. '
          f'{CONTACT}, {CONTACT_ROLE}, is leading the change.'),
     '',
@@ -370,10 +371,10 @@ readme = '\n'.join([
     # holding a printout from before it, whose fingerprints no longer match
     para('On 6 November 2026 the rules were corrected: the ticket office shuts at 22:10 on a Saturday and takes 20 minutes '
          'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. On the '
-         'nineteen already in the pack that hour comes off the Saturday\'s other lates, so the hours and the contract are '
-         'as they were; every sheet and presentation was redrawn, and those nineteen fingerprints changed. Balanced V5 and '
-         'Balanced V6, which joined the same day, already finished them at 22:30. Since then Common Ground is first in the '
-         'pack\'s league, about a point and a half ahead of Even Step.'),
+         'nineteen already in the pack that hour comes off other Saturday lates, so the hours and the contract are as they '
+         'were; every sheet and presentation was redrawn, and their fingerprints changed. Balanced V5 and Balanced V6, which '
+         'joined the same day, already finished them at 22:30. Since then Common Ground is first in the pack\'s league, just '
+         'over half a point ahead of Even Step.'),
     '',
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
          'reference.'),
