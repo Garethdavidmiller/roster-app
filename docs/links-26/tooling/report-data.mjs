@@ -115,20 +115,20 @@ export function headcounts(p, lines) {
 // December plan Monday to Friday: two 06:20–14:20 and two 14:00–22:30. SATURDAY's lates finish at 22:30 in the plan
 // (owner, 6 Nov 2026: the office shuts at 22:10 and needs 20 minutes to cash up), where today's roster has them at
 // 14:30–22:00 — so `today` keeps the roster's 22:00 and `plan` has 22:30. SUNDAY — today it has one late, and that late is one of the three
-// 14:30–23:25 closers, read as in the office until 22:30 and on the floor for the last hour; the plan has
-// two earlies 07:15–15:30 and two lates 13:30–22:30. THE SUNDAY OFFICE ACTUALLY SHUTS AT 21:40 (National Rail's station
-// page, checked 6 Nov 2026; 06:30–22:10 Monday to Saturday), so with 20 minutes to cash up it is empty from about 22:00,
-// and this reading counts one person too few on the Sunday floor from 22:00 to 22:30, on today's link and on every
-// design. Measured that day with the office emptied at 22:00: every design's Sunday fit moves 0.2 to 0.4 (today's 71.7
-// to 70.2), no rule result changes, and the three shortlisted keep their order. Kept for the next rebuild, so no figure
-// moves alone (README → "The 22:30 change checked"). [time, people, office-until] — a third element cuts the
+// 14:30–23:25 closers, in the office until it has cashed up and on the floor after; the plan has two earlies
+// 07:15–15:30 and two lates 13:30–22:30. THE SUNDAY OFFICE SHUTS AT 21:40 (National Rail's station page, checked 6 Nov
+// 2026; 06:30–22:10 Monday to Saturday) and is cashed up by 22:00 (owner, 6 Nov 2026: "Sunday ticket office shifts can
+// either finish at 22.00 (that gives them 20 minutes to cash up) or 22.30 adding 1 extra to the floor"). So the Sunday
+// office is empty from SUN_CASHED_UP: today's lone late is on the floor from then, and a proposal's two office lates
+// both are (officeHelpers). Until 6 Nov 2026 both were read as in the office until 22:30, one person too few on the
+// Sunday floor from 22:00 on every link. [time, people, office-until] — a third element cuts the
 // office part short of the duty's own finish. Every sheet compares FLOOR with FLOOR by taking the right
 // arrangement out of each side: today's out of today, the plan's out of every proposal. Only Right Away rosters
 // the office pairs on every day; sixteen others roster them on some days (Thu/Fri, Mon–Fri, Sat…). On a day without
 // them the plan's posts are ASSUMED to be staffed from the duties, and the floor is everyone on duty less those posts —
 // the sheet says which days, on pages 5, 6 and 7.
 export const OFFICE = {
-  today: { weekday: [['06:20-14:20', 2], ['14:00-22:30', 2]], sat: [['06:20-14:50', 2], ['14:30-22:00', 2]], sun: [['07:15-15:45', 2], ['14:30-23:25', 1, '22:30']] },
+  today: { weekday: [['06:20-14:20', 2], ['14:00-22:30', 2]], sat: [['06:20-14:50', 2], ['14:30-22:00', 2]], sun: [['07:15-15:45', 2], ['14:30-23:25', 1, '22:00']] },
   plan:  { weekday: [['06:20-14:20', 2], ['14:00-22:30', 2]], sat: [['06:20-14:50', 2], ['14:30-22:30', 2]], sun: [['07:15-15:30', 2], ['13:30-22:30', 2]] },
 };
 export const officeSpans = (model, cls) => OFFICE[model][cls].map(([t, n, until]) => ({ time: t, st: startMinutes(t), en: until ? +until.slice(0, 2) * 60 + +until.slice(3) : endMinutes(t), n }));
@@ -147,8 +147,8 @@ const CLOSE = { weekday: 23*60+55, sat: 23*60+55, sun: 23*60+25 }, OPEN = { week
 // until 15:00, then both in the office — a handover of at least 30 minutes before the earlies leave — and the second
 // goes back to the floor from 18:00 to the end of the shift, as a whole person. TODAY'S link keeps today's Sunday
 // practice (the morning helper until 09:00; its one Sunday office late is a lone duty and never helps): model 'today'.
-export const SUN_OFFICE_FROM = 15*60, SUN_FLOOR_AGAIN = 18*60, SUN_OFFICE_HANDOVER = 30;
-export const OFFICE_HELP_TEXT = 'Monday to Saturday, one of each ticket-office pair helps on the floor at the quiet ends: the morning one until 08:00, the evening one from 19:30. On a Sunday one early is on the floor until 09:00; the two lates are on the floor until 15:00, then both in the office, and one goes back to the floor from 18:00';
+export const SUN_OFFICE_FROM = 15*60, SUN_FLOOR_AGAIN = 18*60, SUN_OFFICE_HANDOVER = 30, SUN_CASHED_UP = 22*60;
+export const OFFICE_HELP_TEXT = 'Monday to Saturday, one of each ticket-office pair helps on the floor at the quiet ends: the morning one until 08:00, the evening one from 19:30. On a Sunday one early is on the floor until 09:00; the two lates are on the floor until 15:00, then both in the office; one goes back to the floor from 18:00, and the other at 22:00, once the office has shut and cashed up';
 export function officeHelpers(spans, cls, model = 'plan') {
   const out = [];
   for (const t of spans) { if (t.help) { for (const [st, en] of t.help) out.push({ st, en, share: 1 }); continue; }  // a named office says its own help
@@ -157,6 +157,7 @@ export function officeHelpers(spans, cls, model = 'plan') {
       if (t.st === OPEN.sun) { const en = Math.min(t.en, 9*60); if (en > t.st) out.push({ st: t.st, en, share: 1 }); continue; } // one early: floor until 09:00
       if (t.st < SUN_OFFICE_FROM) out.push({ st: t.st, en: SUN_OFFICE_FROM, share: 1 }, { st: t.st, en: SUN_OFFICE_FROM, share: 1 });
       out.push({ st: Math.max(t.st, SUN_FLOOR_AGAIN), en: t.en, share: 1 });              // the second, back on the floor
+      if (t.en > SUN_CASHED_UP) out.push({ st: Math.max(t.st, SUN_CASHED_UP), en: t.en, share: 1 }); // the first, once cashed up
       continue; }
     if (t.st === OPEN[cls]) { const en = Math.min(t.en, cls === 'sun' ? 9*60 : 8*60); if (en > t.st) out.push({ st: t.st, en, share: 1 }); }
     else if (cls === 'sun') out.push({ st: t.st, en: t.en, share: 0.5 });
@@ -164,13 +165,15 @@ export function officeHelpers(spans, cls, model = 'plan') {
   return out;
 }
 // The office pairs a design ROSTERS on day d, or null. Monday to Saturday they are the plan's exact turns; on a Sunday
-// ANY two identical 07:15 earlies and two identical lates to 22:30, which is how the owner put it.
+// ANY two identical 07:15 earlies and two identical lates to 22:00 or 22:30, which is how the owner put it (to 22:30 until
+// 6 Nov 2026, when the owner said 22:00 also does: it is when the office has cashed up). A 22:30 pair is taken first.
 export function rosteredPairs(p, d) {
   const cls = clsOf(d), duties = Object.values(p).map(r => r[d]).filter(s => s && s !== 'RD' && s !== 'SPARE' && s !== 'OFF' && startMinutes(s) !== null);
   const byT = {}; for (const s of duties) byT[s] = (byT[s] ?? 0) + 1;
   if (cls !== 'sun') { const [[e], [l]] = OFFICE.plan[cls]; return (byT[e] ?? 0) >= 2 && (byT[l] ?? 0) >= 2 ? { early: e, late: l } : null; }
   const e = Object.keys(byT).filter(t => startMinutes(t) === OPEN.sun && byT[t] >= 2).sort((a, b) => endMinutes(b) - endMinutes(a))[0];
-  const l = Object.keys(byT).filter(t => endMinutes(t) === 22*60+30 && byT[t] >= 2).sort((a, b) => startMinutes(a) - startMinutes(b))[0];
+  const l = Object.keys(byT).filter(t => (endMinutes(t) === 22*60+30 || endMinutes(t) === SUN_CASHED_UP) && byT[t] >= 2)
+    .sort((a, b) => endMinutes(b) - endMinutes(a) || startMinutes(a) - startMinutes(b))[0];
   return e && l ? { early: e, late: l } : null;
 }
 // A DESIGN'S OWN TICKET OFFICE (owner, 1 Oct 2026). A hand-drawn design whose author has said which duties run the
@@ -320,7 +323,7 @@ export function currentRules(P, T, model = 'plan') {
     // 26 LINES (owner, 1 Oct 2026): five cover weeks, as evenly spread as the link allows — gaps differing by one line at most
     // (coverSpread, link.mjs). Today's 20-line link, with four, does not meet it — as it did not meet the 24-line rule.
     { key: 'cover', rule: `${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][COVER_WEEKS]} cover weeks, as evenly spread as possible`, value: `lines ${P.feel.spareLines.join(', ')}`, ok: P.feel.spareLines.length === COVER_WEEKS && coverSpread(P.patterns).even, note: `as even as ${LINES} lines allow: gaps differing by one line at most, e.g. ${COVER_LINES.join(', ')}` },
-    { key: 'office', rule: 'The ticket office: two early and two late, identical shifts, every day', value: `Mon–Fri ${wkPairs ? 'yes' : 'no'} · Sat ${satPairs ? 'yes' : 'no'} · Sun ${sunPairs ? 'yes' : 'no'}`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:30; Sun two from 07:15 and two to 22:30' },
+    { key: 'office', rule: 'The ticket office: two early and two late, identical shifts, every day', value: `Mon–Fri ${wkPairs ? 'yes' : 'no'} · Sat ${satPairs ? 'yes' : 'no'} · Sun ${sunPairs ? 'yes' : 'no'}`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:30; Sun two from 07:15 and two to 22:00 or 22:30' },
     // 15:45 IS THE MINIMUM, ON A WEEKDAY ONLY (owner, 31 Oct 2026: "1530 closer is not a big enough change from 1515. 1545
     // is the minimum" — "Only for weekdays"). It read "starts at 15:45" and accepted exactly that, so the 16:00 closers the
     // 26 Oct brief asked for ("whether it is 1545 or 1600 doesn't matter", 30 Oct) failed a rule they meet.

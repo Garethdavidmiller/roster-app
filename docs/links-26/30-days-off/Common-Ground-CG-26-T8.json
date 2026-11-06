@@ -1,5 +1,5 @@
 {
- "name": "Common Ground — Dec 2026 (CG-26-T8 · d6d1131d)",
+ "name": "Common Ground — Dec 2026 (CG-26-T8 · 03af96b2)",
  "patterns": {
   "1": {
    "sun": "SPARE",
@@ -35,7 +35,7 @@
    "wed": "14:00-22:30",
    "thu": "RD",
    "fri": "RD",
-   "sat": "13:30-22:00"
+   "sat": "14:00-22:30"
   },
   "5": {
    "sun": "14:30-22:30",

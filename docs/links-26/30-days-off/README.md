@@ -12,10 +12,10 @@ comparisons and the league count them like every other proposal. Common Ground h
 Each has the same three files as the proposals in `../proposals/`: the eight-page sheet (`<Name>-<CODE>-<fingerprint>.pdf`),
 the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name>-<CODE>-import.txt`).
 
-| | Common Ground | Middle Ground | Grand Tour | Short Openers | Open Return | Balanced V6 | Balanced V5 | Today's link |
+| | Common Ground | Grand Tour | Middle Ground | Short Openers | Open Return | Balanced V6 | Balanced V5 | Today's link |
 |---|---|---|---|---|---|---|---|---|
-| Code · fingerprint | `CG-26-T8` · `d6d1131d` | `MG-26-T8` · `a2417e62` | `GT-26-T7` · `f33bfd6c` | `SO-26-EXT` · `6af8af45` | `OR-26-EXT` · `2b15826c` | `MB-26-V6` · `1818a1c2` | `MB-26-V5` · `ded4a15f` | 20 weeks |
-| What it is | Seven of today's shift times, a 13:45 finish every weekday, nothing over 8h 30m on any day | Seven of today's shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together | No shift over 8h 30m on any day | Every weekday 06:20 finishing by 14:20, and every weekday closer at 15:45 | A 16:15 closer every weekday | A 15-minute handover every weekday, from three 07:30–16:00s to the three 15:45 closers | Weeks of 06:20 starts and weeks of 08:00 starts, a 15:45 closer every weekday | — |
+| Code · fingerprint | `CG-26-T8` · `03af96b2` | `GT-26-T7` · `d9b82d23` | `MG-26-T8` · `20668ac9` | `SO-26-EXT` · `65f99952` | `OR-26-EXT` · `190eba69` | `MB-26-V6` · `1818a1c2` | `MB-26-V5` · `ded4a15f` | 20 weeks |
+| What it is | Seven of today's shift times, a 13:45 finish every weekday, nothing over 8h 30m on any day | No shift over 8h 30m on any day | Seven of today's shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together | Every weekday 06:20 finishing by 14:20, and every weekday closer at 15:45 | A 16:15 closer every weekday | A 15-minute handover every weekday, from three 07:30–16:00s to the three 15:45 closers | Weeks of 06:20 starts and weeks of 08:00 starts, a 15:45 closer every weekday | — |
 | 14 days' leave buys: best · average · worst | **30** · 23.4 · 20 | **30** · 23.4 · 20 | **30** · 23.4 · 20 | **30** · 23.4 · 19 | **30** · 23.4 · 19 | **30** · 23.5 · 19 | **30** · 23.5 · 19 | 30 · 23.4 · 19 |
 | Leave for four weeks off | **14** | **14** | **14** | **14** | **14** | **14** | **14** | 14 |
 | December staffing rules met | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 4 of 9 |
@@ -24,14 +24,14 @@ the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name
 | Full weekends off | 7 in 26 | 7 in 26 | 7 in 26 | 7 in 26 | 7 in 26 | 6 in 26 | 6 in 26 | 4 in 20 |
 | Single rest days, a year each (in the rotation) | 12 (6 in 26) | 12 (6 in 26) | 12 (6 in 26) | 10 (5 in 26) | 10 (5 in 26) | 22 (11 in 26) | 22 (11 in 26) | about 10 (4 in 20) |
 | Shortest rest between fixed duties | 14h 35m | 14h 35m | 14h 35m | 13h 15m | 13h 15m | 14h 20m | 13h 50m | 12h 30m |
-| Weeks on one shift time, all earlies or all lates | 19 of 21 | 18 of 21 | 16 of 21 | 18 of 21 | 18 of 21 | 7 of 21 | 7 of 21 | 7 of 16 |
-| Shift times (new to learn) | 13 (6) | 13 (6) | 16 (9) | 14 (7) | 16 (9) | 17 (8) | 16 (7) | 18 (—) |
-| Heaviest week, Monday to Saturday | 42h 30m | 42h 30m | 42h 00m | 42h 00m | 43h 00m | 42h 55m | 42h 55m | 43h 50m |
-| Weighted league, of 21 | 1st, 86.6 | 2nd, 85.7 | 6th, 85.0 | 9th, 83.6 | 17th, 81.6 | 20th, 56.4 | 21st, 53.7 | 20.7, for reference |
+| Weeks on one shift time, all earlies or all lates | 19 of 21 | 16 of 21 | 18 of 21 | 18 of 21 | 18 of 21 | 7 of 21 | 7 of 21 | 7 of 16 |
+| Shift times (new to learn) | 13 (6) | 16 (8) | 13 (6) | 14 (6) | 16 (8) | 17 (8) | 16 (7) | 18 (—) |
+| Heaviest week, Monday to Saturday | 42h 30m | 42h 00m | 42h 30m | 42h 00m | 43h 00m | 42h 55m | 42h 55m | 43h 50m |
+| Weighted league, of 21 | 1st, 86.6 | 5th, 85.9 | 7th, 85.8 | 9th, 84.5 | 17th, 82.4 | 20th, 56.3 | 21st, 53.7 | 20.7, for reference |
 
 The columns are in league order. Every figure in the table is as of 6 November 2026, after the Saturday ticket office's
-lates moved to 22:30 and Balanced V5 and V6 joined (below); their two low scores widened the league's ranges, so every
-other score rose and the places moved.
+lates moved to 22:30, one Saturday floor late with them, and Balanced V5 and V6 joined (below); their two low scores
+widened the league's ranges, so every other score rose and the places moved.
 
 **What the 30 days cost.** Every layout found that buys 30 days for 14 has more single rest days than Even Step and
 Short Run, the other two shortlisted links: 10, 12 or 22 a year each here, against their 8 (today about 10). Open Return and
@@ -65,6 +65,15 @@ gives them as they are now. Common Ground and Middle Ground now have nothing ove
 and Common Ground is first in the main league. Today's roster still has its office lates leaving at 22:00. The same
 change was made on every proposal in the pack: `../README.md` → "The Saturday ticket office to 22:30". Balanced V5 and V6
 needed none: they were drawn with the office lates finishing at 22:30.
+
+**One floor late back to 22:30** (later the same day; owner: "Yes"). Rather than half an hour off both of the Saturday
+floor pair, the hour now comes off one of them: on Grand Tour, Short Openers and Open Return one 14:00–22:00 is
+14:00–22:30 again and the other 14:30–22:00, today's Saturday office late; on Common Ground and Middle Ground one
+13:30–22:00 is 14:00–22:30, the same length. No design gains a shift time, and the first three have one new time fewer
+(Grand Tour and Open Return 16 with eight new, Short Openers 14 with six); the Saturday fit is closer on all five, Common
+Ground and Middle Ground 11.9 to 9.8 and the other three 10.7 to 10.4. Nothing else in the table moved but the
+fingerprints and the league, where Common Ground stays first and Grand Tour passes Middle Ground. `../README.md` → "The
+Saturday floor late back to 22:30".
 
 **Balanced V5 and Balanced V6** joined the folder on 6 November 2026 (owner: "Balanced v5 and Relief Point need adding to
 the pack, but can you rename Relief Point as Balanced v6"). Balanced V5 is a one-page roster drawn up outside the app,

@@ -27,7 +27,9 @@ import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.
 // design's two Saturday office lates moved from 22:00 to 22:30 and its Saturday floor lates gave the half hour back, so
 // three headlines were reworded to stay true: Fine Tune's and Even Keel's heaviest week is now 42h 00m (it was 41h 30m),
 // Fine Tune's week-to-week change 1h 10m (1h 09m), and Home Grown's two new Saturday lates (14:30-22:30 and 14:00-22:00)
-// are times nobody works today.
+// are times nobody works today. LATER THE SAME DAY (owner: "Yes") the hour came off one floor late instead of half an hour
+// off two (README.md → "One Saturday floor late keeps 22:30"): Home Grown's 14:00-22:00 went, so the ticket office's
+// 14:30-22:30 is its one new Saturday late, and its headline says so.
 export const STRAPS = {
   'SL-26-G3': ['Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates', 'search'],
   'SE-26-F1': ['Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time', 'search'],
@@ -36,7 +38,7 @@ export const STRAPS = {
   'SR-26-F1': ['No run over five days outside the cover weeks, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time', 'search'],
   'LB-26-F1': ['Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week', 'search'],
   // 26 Oct 2026: today's link on 26 lines (README.md → "Today's link on 26 lines")
-  'HG-26-T1': ['Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, and two new Saturday lates, with a 13:35 finish every weekday and Saturday closing as today', 'search'],
+  'HG-26-T1': ['Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, and the ticket office’s new Saturday late, with a 13:35 finish every weekday and Saturday closing as today', 'search'],
   'CT-26-T2': ['A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
   'BW-26-T3': ['A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today', 'search'],
   // 30 Oct 2026: Closing Time's weeks with the times searched again (README.md → "In Step")

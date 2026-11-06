@@ -39,7 +39,8 @@ be 26. So it is worth getting the levels below in writing before a design is put
    - **Monday to Saturday:** one of each ticket-office pair helps on the floor at the quiet ends, the morning one until
      08:00 and the evening one from 19:30.
    - **Sunday:** one early is on the floor until 09:00. The two lates are on the floor until 15:00, then both are in
-     the office, and one goes back to the floor from 18:00.
+     the office; one goes back to the floor from 18:00, and the other at 22:00, once the office has shut and cashed up
+     (6 Nov 2026).
 6. **Today's link** is the 20-line link worked now. It is the yardstick, not the target: it meets 4 of the 9
    December rules.
 
@@ -62,7 +63,7 @@ Saturday ticket-office lates finish (S5).
 | S2 | **At least three through to the close,** every day (23:55, or 23:25 on a Sunday). |
 | S3 | **At least five still on duty at 22:00,** every day. Someone finishing at 22:00 does not count. |
 | S4 | **Ten on a Sunday,** counted as duties rostered that day. |
-| S5 | **The ticket office: two identical early and two identical late shifts, every day.** Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and **14:30–22:30**; Sun two starting 07:15 and two finishing 22:30. **▲ CHANGED (6 Nov 2026)** — the Saturday lates read 14:30–22:00 until then, but the office shuts at 22:10 on a Saturday and needs 20 minutes to cash up (owner: "it does close at 22.10 and needs to be a 22.30 ticket office closer"). Today's roster still has them finishing at 22:00. |
+| S5 | **The ticket office: two identical early and two identical late shifts, every day.** Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and **14:30–22:30**; Sun two starting 07:15 and two finishing 22:00 or 22:30 — the office shuts at 21:40 on a Sunday, so 22:00 gives the 20 minutes to cash up and 22:30 puts both on the floor for the last half hour (owner, 6 Nov 2026); every design here finishes them at 22:30, which the five at 22:00 (S3) need. **▲ CHANGED (6 Nov 2026)** — the Saturday lates read 14:30–22:00 until then, but the office shuts at 22:10 on a Saturday and needs 20 minutes to cash up (owner: "it does close at 22.10 and needs to be a 22.30 ticket office closer"). Today's roster still has them finishing at 22:00. |
 | S6 | **At least two on the floor at every moment** the station is open, checked every five minutes. |
 | S7 | **Handovers:** 15 minutes to each closer; 20 minutes in the ticket office (30 on a Sunday, from 15:00). On a Sunday each opener also stays until 15 minutes after the last closer arrives. |
 | S8 | **Every Sunday duty is between 8 and 9 hours long.** |
