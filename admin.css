@@ -1866,11 +1866,28 @@
         }
         .al-period-count   { color: var(--al-deep);  background: var(--al-light); }
         .sick-period-count { color: var(--absence);  background: var(--absence-light); }
-        /* CHRISTMAS LEAVE (v25.37) — on record but never counted, so its pill is the card's quietest
-           pair rather than leave's teal, which would read as days spent. It stands where the other
-           rows' count pill stands: those rows end in a 44px delete control 8px after the pill, and
-           this row has nothing to delete, so the margin keeps the pills one column. */
-        .al-period-free    { color: var(--text-mid); background: var(--bg-faint); margin-right: 52px; }
+        /* CHRISTMAS LEAVE (v25.37; re-laid v25.38) — on record but never counted. Its pill is the same
+           day count in the same column as every other row's, in leave's colour HOLLOW: leave on
+           record, nothing taken. The 1px edge comes out of the padding, so the pill is the size of
+           its filled neighbours. Those rows end in a 44px delete control 8px after the pill, and this
+           row has nothing to delete, so the margin keeps the pills one column. */
+        .al-period-free {
+            color: var(--al-deep);
+            background: transparent;
+            border: 1px solid color-mix(in oklch, var(--al-deep) 45%, transparent);
+            padding: 2px 7px;
+            margin-right: 52px;
+        }
+        /* What makes a row different, said under its dates rather than in place of its count: the
+           Christmas row's "🎄 Not counted". A quiet second line, so the dates keep the
+           left edge and the one-line look every other row has. */
+        .al-period-note {
+            display: block;
+            margin-top: 1px;
+            font-size: var(--type-small);
+            font-weight: 500;
+            color: var(--text-light);
+        }
         /* A 44px SQUARE, not a text link. The glyph is named by `aria-label` (the dates it would
            delete), so nothing is lost by dropping the word — fifteen buttons all announcing
            "Delete" told a screen-reader user nothing about which row they were on. */

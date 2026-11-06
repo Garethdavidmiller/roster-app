@@ -281,6 +281,66 @@ describe('normaliseShift', () => {
         assert.equal(normaliseShift('MTG RDW'), 'MEET RDW');
         assert.equal(normaliseShift('RDW MTG'), 'MEET RDW');
     });
+    // ── A MEETING IS ALWAYS A MEETING (owner, 6 Nov 2026; v25.38) ───────────────────────────────
+    test('the sentinel MEET is its own alias — it is what the prompt asks the model to return', () => {
+        // The prompt says `MTG or MEETING = Meeting day. Return "MEET"`, and until v25.38 this
+        // function knew MTG and MEETING but not MEET — so every meeting an obedient model returned
+        // reached the review as an unreadable cell.
+        assert.equal(normaliseShift('MEET'), 'MEET');
+        assert.equal(normaliseShift('meet'), 'MEET');
+        assert.equal(normaliseShift('MEET RDW'), 'MEET RDW');
+        assert.equal(normaliseShift('RDW MEET'), 'MEET RDW');
+    });
+    test('a meeting keeps its times — in either order, any time spelling, with or without RDW', () => {
+        const CASES = {
+            'MTG 10:00-14:00':      'MEET 10:00-14:00',
+            '10:00-14:00 MTG':      'MEET 10:00-14:00',
+            'MEET 10:00-14:00':     'MEET 10:00-14:00',
+            'Meeting 09:30-11:00':  'MEET 09:30-11:00',
+            '1000-1400 MTG':        'MEET 10:00-14:00',
+            '9:00-12:00 MTG':       'MEET 09:00-12:00',
+            'MTG 10.00 - 14.00':    'MEET 10:00-14:00',
+            'MTG 10:00–14:00': 'MEET 10:00-14:00',
+            'MTG 22:00-02:00':      'MEET 22:00-02:00',
+            'MTG RDW 10:00-14:00':  'MEET RDW 10:00-14:00',
+            'RDW MTG 10:00-14:00':  'MEET RDW 10:00-14:00',
+            '10:00-14:00 MTG RDW':  'MEET RDW 10:00-14:00',
+            '10:00-14:00 RDW MTG':  'MEET RDW 10:00-14:00',
+            'RDW 10:00-14:00 MTG':  'MEET RDW 10:00-14:00',
+            'MEET RDW 10:00-14:00': 'MEET RDW 10:00-14:00',
+        };
+        for (const [raw, want] of Object.entries(CASES)) assert.equal(normaliseShift(raw), want, raw);
+    });
+    test('a meeting is never cut down to a plain shift — a cell it cannot read cleanly goes to review', () => {
+        // Before v25.38 "10:00-14:00 MTG" took the trailing-content path and came back as a bare
+        // 10:00–14:00 SHIFT, the meeting gone with nothing to say so. Anything this reader cannot
+        // take whole is a question for the admin, never a guess about which part to drop.
+        const warn = console.warn; console.warn = () => {};
+        try {
+            for (const raw of ['06:00-12:00 MTG CEA 3', 'MTG CEA 3', 'MTG 10:00-10:00', 'MTG 25:00-26:00',
+                               'MTG 10:00-12:00 13:00-14:00', '10:00-14:00 MTG GER']) {
+                assert.ok(normaliseShift(raw).startsWith('UNKNOWN|'), `${raw} → ${normaliseShift(raw)}`);
+            }
+        } finally { console.warn = warn; }
+    });
+    test('only the whole word is a meeting, and an ordinary annotated shift is untouched', () => {
+        const warn = console.warn; console.warn = () => {};
+        try {
+            for (const raw of ['MEETS', 'MTGX 10:00-12:00', 'XMTG']) assert.ok(normaliseShift(raw).startsWith('UNKNOWN|'), raw);
+            assert.equal(normaliseShift('06:00-12:00 GER'), '06:00-12:00');
+            assert.equal(normaliseShift('06:00-12:00 RDW GER'), 'RDW|06:00-12:00');
+        } finally { console.warn = warn; }
+    });
+    test('every meeting this reads is one the CLIENT reads back as a meeting, times and all', async () => {
+        // The other half of the contract: the review writes what this returns as an Other day, and
+        // override-utils.js is the grammar the calendar, the pay engine and firestore.rules share.
+        const { parseOtherValue } = await import('./override-utils.js');
+        for (const [raw, time, rdw] of [['MEET', null, false], ['MTG RDW', null, true],
+                                        ['10:00-14:00 MTG', '10:00-14:00', false],
+                                        ['RDW 10:00-14:00 MTG', '10:00-14:00', true]]) {
+            assert.deepEqual(parseOtherValue(normaliseShift(raw)), { flavour: 'MEET', rdw, time }, raw);
+        }
+    });
     test('training/team rest-day marker preserved, either order → canonical "FLAVOUR RDW"', () => {
         assert.equal(normaliseShift('TRG RDW'), 'TRG RDW');
         assert.equal(normaliseShift('Training RDW'), 'TRG RDW');
@@ -306,6 +366,38 @@ describe('normaliseShift', () => {
     });
     test('UNKNOWN sentinel strips pipe chars from the raw text (so PREFIX|value stays decodable)', () => {
         assert.equal(normaliseShift('A|B|C'), 'UNKNOWN|A B C');
+    });
+});
+
+// ── functions/roster-other-days.js — the server's half of the Other-family grammar (v25.38) ─────
+
+describe('roster-other-days.js — the server reads the flavours the client draws', () => {
+    const { OTHER_DAY_ALIASES, readOtherDayCell, namesMeeting } = require('./functions/roster-other-days.js');
+    const sentinels = [...new Set(Object.values(OTHER_DAY_ALIASES))].sort();
+
+    test('every sentinel it writes is a client flavour, and every client flavour can be read', async () => {
+        // A value the client grammar cannot parse would reach Firestore and draw as nothing; a client
+        // flavour the server cannot read would come back from every upload as an unreadable cell.
+        const { OTHER_FLAVOURS } = await import('./override-utils.js');
+        assert.deepEqual(sentinels, Object.keys(OTHER_FLAVOURS).sort(),
+            'the roster parser and override-utils.js OTHER_FLAVOURS disagree about the Other flavours. '
+            + 'Teach the parser the new flavour (an alias row and the pattern), or, if it is genuinely '
+            + 'never on a roster, say so here with the reason.');
+    });
+
+    test('each sentinel is also its own alias — the prompt asks the model for the sentinel', () => {
+        // MEET was the one that was not, until v25.38.
+        const anyTime = () => true;
+        for (const f of sentinels) {
+            assert.equal(OTHER_DAY_ALIASES[f], f, `${f} has no row of its own`);
+            assert.equal(readOtherDayCell(f, anyTime), f, `${f} is not read back as itself`);
+            assert.equal(readOtherDayCell(`${f} RDW`, anyTime), `${f} RDW`, `${f} RDW`);
+        }
+    });
+
+    test('namesMeeting finds the whole word, and only the meeting words', () => {
+        for (const s of ['MTG', '06:00-12:00 MTG CEA 3', 'MEET RDW', 'MEETING', 'MEETINGS']) assert.ok(namesMeeting(s), s);
+        for (const s of ['MEETS', 'XMTG', 'TRG', 'TEAM DAY', '06:00-12:00 GER']) assert.ok(!namesMeeting(s), s);
     });
 });
 
@@ -519,64 +611,52 @@ describe('buildSafeEntries', () => {
         assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30');
         assert.equal(entries[0].shifts['2026-03-29'], 'RD');
     });
-    // ── "NA" IS AN ABSENCE; "NS" IS THE SUNDAY CODE (v24.22, correcting v24.20) ─────────────────
+    // ── "NA" AND "NS" ARE REST DAYS, ON EVERY DAY (v25.38) ──────────────────────────────────────
     //
-    // The owner's corrected fact, 24 Sep 2026: NA means NOT AVAILABLE and ALWAYS means absent —
-    // written Monday to Saturday, a clerical error on a Sunday. NS is a different code: not
-    // available on a Sunday. v24.20 had heard "usually only falls on a Sunday" and sent every
-    // Mon–Sat NA to review as a question; these tests are the ones that would have caught the
-    // misreading had the fact been right the first time.
+    // The owner's ruling, 6 Nov 2026: "NA and NS should be treated as rest days on the roster
+    // uploader", Sundays included. NA had been an absence Monday to Saturday (v24.22) and, before
+    // that, a question (v24.20) — and each earlier rule differed precisely BY DAY, so these pin the
+    // answer on all seven, for both codes and every spelling.
     describe('a cell marked "not available"', () => {
         const row = (day, value) => ({
             memberName: 'G. Miller',
             Sun: 'RD', Mon: 'RD', Tue: 'RD', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD',
             [day]: value,
         });
+        const WEEK = [['Sun', '2026-03-29'], ['Mon', '2026-03-30'], ['Tue', '2026-03-31'], ['Wed', '2026-04-01'],
+                      ['Thu', '2026-04-02'], ['Fri', '2026-04-03'], ['Sat', '2026-04-04']];
 
-        test('NA on MONDAY TO SATURDAY is an absence — the app\'s Absent day, never a question', () => {
-            for (const [day, date] of [['Mon', '2026-03-30'], ['Wed', '2026-04-01'], ['Sat', '2026-04-04']]) {
+        test('NA is a rest day on every day of the week, in every spelling — never Absent', () => {
+            for (const [day, date] of WEEK) {
                 for (const token of ['NA', 'N/A', 'na', ' n/a ', 'N.A.', 'n.a']) {
-                    assert.equal(buildSafeEntries([row(day, token)], HEADERS, DATES)[0].shifts[date], 'SICK', `${day} ${JSON.stringify(token)}`);
+                    assert.equal(buildSafeEntries([row(day, token)], HEADERS, DATES)[0].shifts[date], 'RD', `${day} ${JSON.stringify(token)}`);
                 }
             }
         });
 
-        test('NA on a SUNDAY is a clerical error and becomes the rest day a Sunday already is', () => {
-            // A Sunday cannot hold an absence; writing SICK would also make the Sunday scan's
-            // blank-equivalence read a consistent NA as a left-shift.
-            const warn = console.warn; const seen = []; console.warn = m => seen.push(String(m));
-            try {
-                for (const token of ['NA', 'N/A']) {
-                    assert.equal(buildSafeEntries([row('Sun', token)], HEADERS, DATES)[0].shifts['2026-03-29'], 'RD', `Sunday ${token}`);
+        test('NS is a rest day on every day of the week too — the weekday NS is no longer an absence', () => {
+            for (const [day, date] of WEEK) {
+                for (const token of ['NS', 'ns', ' NS ', 'N.S.']) {
+                    assert.equal(buildSafeEntries([row(day, token)], HEADERS, DATES)[0].shifts[date], 'RD', `${day} ${JSON.stringify(token)}`);
                 }
-            } finally { console.warn = warn; }
-            assert.ok(seen.some(m => /NA on Sunday/.test(m)), 'the coordinator says it saw a Sunday NA');
-        });
-
-        test('NS on a SUNDAY is a rest day — not available and not working coincide there', () => {
-            for (const token of ['NS', 'ns', ' NS ']) {
-                assert.equal(buildSafeEntries([row('Sun', token)], HEADERS, DATES)[0].shifts['2026-03-29'], 'RD', `Sunday ${JSON.stringify(token)}`);
             }
         });
 
-        test('NS on MONDAY TO SATURDAY is an absence too — the Sunday code on a weekday is a clerical error', () => {
-            // Owner, 24 Sep 2026: "NS on a weekday should also mean absent". The coordinator says
-            // it saw one, because the code is on the wrong day, but it records what it means.
-            const warn = console.warn; const seen = []; console.warn = m => seen.push(String(m));
-            try {
-                for (const [day, date] of [['Mon', '2026-03-30'], ['Fri', '2026-04-03']]) {
-                    assert.equal(buildSafeEntries([row(day, 'NS')], HEADERS, DATES)[0].shifts[date], 'SICK', `${day} NS`);
-                }
-            } finally { console.warn = warn; }
-            assert.ok(seen.some(m => /NS on Monday/.test(m)), 'the coordinator says it saw a weekday NS');
+        test('and normaliseShift says so itself, so every reader of a cell gets the same answer', () => {
+            for (const token of ['NA', 'N/A', 'N.A.', 'NS']) assert.equal(normaliseShift(token), 'RD', token);
         });
 
         test('neither is confused with a code that merely contains those letters', () => {
-            // Both matchers take the WHOLE cell. A time, or any other status, is untouched.
-            for (const v of ['NAT', 'ANA', 'NSA', 'AL', 'RD', '06:20-13:35']) {
-                const got = String(buildSafeEntries([row('Mon', v)], HEADERS, DATES)[0].shifts['2026-03-30']);
-                assert.ok(got !== 'SICK' && !/not available/i.test(got), `${v} was read as not available (${got})`);
-            }
+            // Both recognisers take the WHOLE cell. A time, or any other status, is untouched.
+            const warn = console.warn; console.warn = () => {};
+            try {
+                for (const v of ['NAT', 'ANA', 'NSA']) {
+                    const got = String(buildSafeEntries([row('Mon', v)], HEADERS, DATES)[0].shifts['2026-03-30']);
+                    assert.ok(got.startsWith('UNKNOWN|'), `${v} was read as ${got}, not sent to review`);
+                }
+            } finally { console.warn = warn; }
+            assert.equal(buildSafeEntries([row('Mon', 'AL')], HEADERS, DATES)[0].shifts['2026-03-30'], 'AL');
+            assert.equal(buildSafeEntries([row('Mon', '06:20-13:35')], HEADERS, DATES)[0].shifts['2026-03-30'], '06:20-13:35');
         });
 
         test('and an ordinary Sunday value is still read normally — the rule is narrow', () => {
@@ -1482,20 +1562,14 @@ describe('normaliseScanValue', () => {
             assert.equal(normaliseScanValue(t), 'RD', `token "${t}"`);
         }
     });
-    test('NA and NS are decided by the DAY, and are no signal without one (v24.22)', () => {
-        // NA is an absence Mon–Sat and the rest day a Sunday already is; NS is Sunday's own code.
-        // With no day index there is nothing to decide with, and the cross-check fails open.
-        for (const t of ['NA', 'N/A', 'na']) {
-            assert.equal(normaliseScanValue(t), null, `${t} without a day`);
-            assert.equal(normaliseScanValue(t, 0), 'RD', `${t} on Sunday`);
-            assert.equal(normaliseScanValue(t, 3), 'SICK', `${t} on a Wednesday`);
-        }
-        assert.equal(normaliseScanValue('NS'), null, 'NS without a day');
-        assert.equal(normaliseScanValue('NS', 0), 'RD');
-        assert.equal(normaliseScanValue('NS', 2), 'SICK', 'a weekday NS is an absence, as NA is');
-        for (const t of ['NAT', 'ANA']) {
-            assert.equal(normaliseScanValue(t, 1), null, `${t} is not a code`);
-        }
+    test('NA and NS are rest days, as the row read has them — the scan needs no day to say so (v25.38)', () => {
+        // They were decided by the DAY from v24.22 (an absence Mon–Sat), so the scan took the
+        // column's index and gave no signal without one. A rest day on every day needs neither.
+        for (const t of ['NA', 'N/A', 'na', 'N.A.', 'NS', 'ns']) assert.equal(normaliseScanValue(t), 'RD', t);
+        const warn = console.warn; console.warn = () => {};
+        try {
+            for (const t of ['NAT', 'ANA']) assert.equal(normaliseScanValue(t), null, `${t} is not a code`);
+        } finally { console.warn = warn; }
     });
     test('shift values normalise through the same vocabulary as the row read', () => {
         assert.equal(normaliseScanValue('0530-1130'), '05:30-11:30');

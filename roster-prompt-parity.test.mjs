@@ -36,6 +36,7 @@ import { createRequire } from 'node:module';
 // The prompt→parser direction below has to CALL the parser, not read it as prose. CommonJS, and
 // dependency-free, so it loads in the no-install lane exactly like every other file here.
 const { normaliseShift } = createRequire(import.meta.url)('./functions/roster-parse-helpers.js');
+const { NOT_AVAILABLE_TOKENS, NOT_AVAILABLE_SUNDAY_TOKENS } = createRequire(import.meta.url)('./functions/cell-day-rules.js');
 
 const INDEX   = readFileSync('functions/index.js', 'utf8');
 const HELPERS = readFileSync('functions/roster-parse-helpers.js', 'utf8');
@@ -86,10 +87,11 @@ describe('the code table has ONE home, and both prompts interpolate it', () => {
 // ── THE DIRECTION NOBODY WAS CHECKING (v24.04) ────────────────────────────────────────────────
 //
 // Test 2 below checks parser → prompt: every code `normaliseShift` accepts is asked for. The
-// MIRROR was never checked, and three real rosters found what was hiding in it: the prompt says
-// "NA or N/A or NS = Not available. Return \"RD\"" (as it read until v24.20), and `normaliseShift('NA')` returns
-// `UNKNOWN|NA`. It works today only because the prompt makes the MODEL do the conversion, so the
-// parser never sees the code — a division of labour nothing wrote down and nothing enforced.
+// MIRROR was never checked, and three real rosters found what was hiding in it: the prompt said
+// "NA or N/A or NS = Not available. Return \"RD\"" (as it read until v24.20), and `normaliseShift('NA')`
+// returned `UNKNOWN|NA`. It worked only because the prompt made the MODEL do the conversion, so the
+// parser never saw the code — a division of labour nothing wrote down and nothing enforced. (Since
+// v25.38 the parser reads NA and NS itself, as rest days.)
 //
 // It stops being harmless the moment a cell reaches the parser unconverted, which is exactly what
 // the geometry-first read and any deterministic pass do. Asserted here as a WAIVER LIST rather
@@ -107,26 +109,12 @@ describe('every code the PROMPT names is either accepted by the parser or waived
      */
     const TRANSLATED_BY_THE_MODEL = new Set(['GER']);
 
-    /**
-     * Codes `buildSafeEntries` answers ITSELF, before `normaliseShift` is ever called — because
-     * their meaning depends on WHICH DAY the cell is in, which a per-cell normaliser cannot know.
-     *
-     *   NA · N/A       "Not available" — an ABSENCE (owner's correction, 24 Sep 2026, v24.22):
-     *                  the app's Absent day Monday to Saturday, and on a Sunday — where it is a
-     *                  clerical error and no absence can be held — the rest day a Sunday already
-     *                  is. v24.20 had heard "usually only falls on a Sunday" and made it a Sunday
-     *                  rest day and a Mon–Sat question. The prompt used to say `Return "RD"`,
-     *                  unconditionally, before either; it now reports the code and stops.
-     *   NS             "Not available on a SUNDAY" — a different code from NA with the SAME
-     *                  answers: RD on Sunday, Absent on a weekday (owner, 24 Sep 2026: "NS on a
-     *                  weekday should also mean absent"). The two differ only in which day is the
-     *                  clerical error, which is what the coordinator's warnings say.
-     *
-     * This is a DIFFERENT waiver from the one above and must stay different: that one says a human
-     * decision was delegated to the model, this one says it was taken by the coordinator where the
-     * day is known. Collapsing them would lose the distinction that makes the first one dangerous.
-     */
-    const DECIDED_BY_THE_DAY = new Set(['NA', 'N/A', 'NS']);
+    // A SECOND WAIVER LIST, `DECIDED_BY_THE_DAY`, held NA, N/A and NS from v24.22 to v25.38: codes
+    // `buildSafeEntries` answered itself, because their meaning depended on the column (an absence
+    // Monday to Saturday, a rest day on Sunday). The owner's ruling of 6 Nov 2026 made both a rest
+    // day on every day, so `normaliseShift` reads them like any other code and the waiver — and the
+    // test that held the prompt to REPORTING them rather than answering them — went with it. If a
+    // code's meaning ever depends on the day again, bring the waiver back with its reason.
 
     test('no unwaived prompt code falls through to UNKNOWN', () => {
         const section = promptSection();
@@ -139,7 +127,7 @@ describe('every code the PROMPT names is either accepted by the parser or waived
         }
         assert.ok(named.size >= 8, `only ${named.size} codes parsed out of the prompt — the row shape changed`);
         const orphaned = [...named].filter((c) => {
-            if (TRANSLATED_BY_THE_MODEL.has(c) || DECIDED_BY_THE_DAY.has(c)) return false;
+            if (TRANSLATED_BY_THE_MODEL.has(c)) return false;
             const warn = console.warn; console.warn = () => {};
             try { return String(normaliseShift(c)).startsWith('UNKNOWN|'); } finally { console.warn = warn; }
         });
@@ -148,24 +136,39 @@ describe('every code the PROMPT names is either accepted by the parser or waived
             + 'becomes UNREADABLE the moment it reaches the parser without the model translating it '
             + '— which is what the geometry-first read does:\n  ' + orphaned.join(', ')
             + '\n\nEither teach the parser the code, or name it in TRANSLATED_BY_THE_MODEL (the model '
-            + 'converts it) or DECIDED_BY_THE_DAY (buildSafeEntries answers it, because the meaning '
-            + 'depends on the column) — with a reason. Do not widen the regex to make it disappear.');
+            + 'converts it), with a reason. Do not widen the regex to make it disappear.');
     });
 
-    // THE WAIVER HAS A PRICE, AND THIS IS IT (v24.26). A code in DECIDED_BY_THE_DAY is exempt above
-    // because the model is meant to REPORT it and leave the decision to the coordinator — but nothing
-    // held the prompt to that. Reverting its row to the pre-v24.20 `Return "RD"` left this whole file
-    // green, and in production the model would then turn every weekday NA into a rest day before the
-    // coordinator ever saw the code. So each waived code's row must ask for the code back, verbatim.
-    test('every code decided by the day is REPORTED by the prompt, never answered by it', () => {
+    // ── AND THE VALUES IT ASKS FOR BACK (v25.38) ─────────────────────────────────────────────
+    //
+    // The test above reads the LEFT of each row — the codes the roster prints. Nothing read the
+    // RIGHT: the value the row tells the model to return. That is how a meeting broke. The row said
+    // `MTG or MEETING = Meeting day. Return "MEET"`; the parser knew MTG and MEETING and had never
+    // heard of MEET, so every meeting an obedient model returned became an UNREADABLE cell on the
+    // review, and the admin answered each one by hand. Both halves passed every check here, because
+    // no check put the two together. This one does: a value the prompt asks for must be one the
+    // parser takes.
+    test('every value the prompt tells the model to RETURN is one the parser accepts', () => {
         const rows = promptSection().split('\n').map(l => l.trim()).filter(l => /^-\s/.test(l));
-        const REPORT_AS = /** @type {Record<string, string>} */ ({ 'NA': 'NA', 'N/A': 'NA', 'NS': 'NS' });
-        for (const code of DECIDED_BY_THE_DAY) {
-            const row = rows.find(l => new RegExp(`^-\\s+(?:[A-Z/.]+\\s+or\\s+)*${code.replace('/', '\\/')}(?:\\s+or\\s+[A-Z/.]+)*\\s*=`).test(l));
-            assert.ok(row, `${code}: the prompt has no row for it`);
-            const first = /Return "([^"]+)"/.exec(row)?.[1];
-            assert.equal(first, REPORT_AS[code], `${code}: the row must ask for "${REPORT_AS[code]}" back, and asks for "${first}"`);
+        /** "Return \"X\"", "return as \"X\"", and the "(or \"X RDW\" …)" second form. */
+        const asked = new Set();
+        for (const row of rows) {
+            for (const m of row.matchAll(/\breturn(?:\s+as)?\s+"([^"]+)"|\(or\s+"([^"]+)"/gi)) asked.add(m[1] ?? m[2]);
         }
+        assert.ok(asked.size >= 18, `only ${asked.size} return values read out of the prompt — the row shape changed: ${[...asked].join(', ')}`);
+        assert.ok(asked.has('MEET'), 'the meeting row no longer asks for "MEET" — the anchor this test was written for has moved');
+        // A template stands for a time the model fills in; try it with a real one.
+        const sample = (/** @type {string} */ v) => v.replace('HH:MM-HH:MM', '06:00-14:00');
+        const refused = [...asked].filter((v) => {
+            const warn = console.warn; console.warn = () => {};
+            try { return String(normaliseShift(sample(v))).startsWith('UNKNOWN|'); } finally { console.warn = warn; }
+        });
+        assert.deepEqual(refused, [],
+            'The prompt tells the model to return these, and `normaliseShift` turns each into an '
+            + 'UNREADABLE review cell — so every one the model obediently returns has to be answered by '
+            + 'hand on the review:\n  ' + refused.join('\n  ')
+            + '\n\nTeach the parser the value (each sentinel should also be its own alias), or change '
+            + 'what the row asks for.');
     });
 });
 
@@ -216,8 +219,12 @@ describe('every code the parser accepts is documented in the prompt', () => {
             // becomes unreachable: the parser accepts it, the prompt never asks for it.
             ...codeList('// SN = sick on a day the person was NOT booked to work'),
             ...codeList('// Paid-absence roster codes'),
+            // NA and NS are read by `normaliseShift` through cell-day-rules.js's recognisers rather
+            // than a list of its own (v25.38), so their spellings are read from there: `N/A` is the
+            // slash form of NA and is checked as the NA it spells.
+            ...[...NOT_AVAILABLE_TOKENS, ...NOT_AVAILABLE_SUNDAY_TOKENS].filter(c => /^[A-Z]+$/.test(c)),
         ];
-        assert.ok(codes.length >= 9, `expected the parser's code lists, found ${codes.join(',')}`);
+        assert.ok(codes.length >= 11, `expected the parser's code lists, found ${codes.join(',')}`);
         // Word-boundaried: "SC" must not be satisfied by the "SC" inside some other token.
         const undocumented = codes.filter(c => !new RegExp(`\\b${c}\\b`).test(prompt)).sort();
         assert.deepEqual(undocumented, [],

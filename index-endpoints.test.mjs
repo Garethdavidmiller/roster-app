@@ -1038,6 +1038,61 @@ describe('parseRosterPDF — the PDF path keeps a moved question answerable', ()
 });
 
 
+// ── A MEETING, AND "NOT AVAILABLE", THROUGH THE WHOLE HANDLER (v25.38) ──────────────────────────
+//
+// The owner's two rulings of 6 Nov 2026 — "MTG should always be other (with the meeting flavour)"
+// and "NA and NS should be treated as rest days" — tested where the review meets them: the RESPONSE,
+// on both paths. Each was wrong in a different place. A meeting broke in `normaliseShift`, which
+// every path calls; NA and NS were decided by the day in `buildSafeEntries`, the column cross-check
+// and the grid read's rest test. A helper test proves the rule and cannot see which of those the
+// production line actually goes through, so this runs the line.
+describe('parseRosterPDF — a meeting and "not available" come back as the review must read them', () => {
+    // Week ending Sat 5 Sep 2026, so Sunday is 30 Aug.
+    const WANT = {
+        '2026-08-30': ['RD', 'a Sunday NS is the rest day'],
+        '2026-08-31': ['MEET', 'the MEET the prompt asks for is a meeting, not an unreadable cell'],
+        '2026-09-01': ['MEET 10:00-14:00', 'a meeting printed with its times keeps them, and stays a meeting'],
+        '2026-09-02': ['RD', 'a weekday NA is a rest day — not Absent'],
+        '2026-09-03': ['RD', 'a weekday NS is a rest day too'],
+        '2026-09-04': ['MEET RDW 09:00-11:00', 'a rest-day meeting with its times'],
+        '2026-09-05': ['RD', 'N/A is the NA it spells'],
+    };
+    const check = (/** @type {any} */ out) => {
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        const shifts = out.body.parsed[0].shifts;
+        for (const [date, [want, why]] of Object.entries(WANT)) assert.equal(shifts[date], want, `${date}: ${why}`);
+    };
+
+    test('on the PDF path', async () => {
+        const row = { memberName: 'L. Springer', Sun: 'NS', Mon: 'MEET', Tue: '10:00-14:00 MTG', Wed: 'NA',
+                      Thu: 'NS', Fri: 'MEET RDW 09:00-11:00', Sat: 'N/A' };
+        const warn = console.warn; console.warn = () => {};
+        try {
+            build({ aiReply: JSON.stringify({ columnHeaders: DAY_HEADERS, parsed: [row] }) });
+            check(await call(index.parseRosterPDF, rosterRequest()));
+        } finally { console.warn = warn; }
+    });
+
+    test('on the geometry path, where the model is handed the printed cells', async () => {
+        GEO.usable = true;
+        GEO.row = { memberName: 'L. Springer',
+                    cells: ['NS', 'MTG', '10:00-14:00 | MTG', 'NA', 'NS', '09:00-11:00 | MTG RDW', 'N/A'] };
+        const warn = console.warn; console.warn = () => {};
+        try {
+            build({ aiReply: JSON.stringify({ parsed: [{
+                memberName: 'L. Springer', Sunday: 'NS', Monday: 'MEET', Tuesday: 'MEET 10:00-14:00',
+                Wednesday: 'NA', Thursday: 'NS', Friday: 'MEET RDW 09:00-11:00', Saturday: 'NA',
+            }] }) });
+            check(await call(index.parseRosterPDF, rosterRequest()));
+        } finally {
+            console.warn = warn;
+            GEO.usable = false;
+            GEO.row = null;
+        }
+    });
+});
+
+
 // ── THE GEOMETRY PATH, EXECUTED (v24.12) ───────────────────────────────────────────────────────
 //
 // The reply below is EXACTLY what `buildCellPrompt`'s own OUTPUT FORMAT block asks the model for:

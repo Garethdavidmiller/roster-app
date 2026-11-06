@@ -14,6 +14,25 @@
  * Every rule in it is there because a week was written onto the wrong days, or nearly was.
  */
 
+// ── WHAT THE MODEL WRITES FOR A PHYSICALLY EMPTY CELL ──────────────────────────────────────────
+//
+// One token, and the model's ONLY job with an empty cell is to report it. Until v22.25 the prompt
+// said "a blank cell = RD", so the row read arrived carrying a decision the model was not equipped
+// to make and the code below could not tell it from a printed RD. The day rule underneath was
+// correct and unreachable: five physically blank weekdays became five explicit Rest Days, and on
+// the duplicate-sheet case that proposes overwriting the shifts the primary roster just wrote.
+//
+// It is matched CASE-INSENSITIVELY and the scan set below shares it, so `parsed`, `sundayScan` and
+// `columnScan` cannot end up with three subtly different ideas of what empty looks like.
+//
+// Required at the top since v25.38, because `normaliseShift` asks it about NA and NS.
+const {
+    BLANK_CELL_TOKEN,
+    isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, blankCellMeaning,
+} = require('./cell-day-rules');
+const { readOtherDayCell, namesMeeting } = require('./roster-other-days');
+const { isViewerAccount } = require('./calendar-viewer-auth');
+
 // ── Shift normalisation ──────────────────────────────────────────────────────
 
 /**
@@ -27,6 +46,8 @@
  *   "SP"          → "SPARE"
  *   "RDW"         → "RDW"  (sentinel — prompt instructs AI to include time)
  *   "RDW 14:30-22:00" → "RDW|14:30-22:00"
+ *   "NA", "N/A", "NS" → "RD"  (not available — a rest day on every day, v25.38)
+ *   "MTG", "MEET" → "MEET"; "10:00-14:00 MTG" → "MEET 10:00-14:00"  (a meeting keeps its times, v25.38)
  *
  * @param {string} raw - Shift value from Claude AI
  * @returns {string}   - Normalised shift value
@@ -87,6 +108,12 @@ function normaliseShift(raw) {
     // the code out of the source rather than a human keeping two tables in step.
     if (['SN'].includes(_code)) return 'RD';
 
+    // NA and NS — NOT AVAILABLE — are REST DAYS, on every day (owner, 6 Nov 2026; v25.38): "NA and NS
+    // should be treated as rest days on the roster uploader". Until then they were decided by the day
+    // (an absence Mon–Sat, v24.22); the history is in cell-day-rules.js, whose recognisers read the
+    // spellings (`N/A`, `N.A.`) for this and for the Sunday scan repair alike.
+    if (isNotAvailable(s) || isNotAvailableSunday(s)) return 'RD';
+
     // Paid-absence roster codes (owner, Jul 2026; CL added Sep 2026): HA = Hospital Appointment (a
     // day off on full pay); OD = paid absence, often used as a blanket Mon–Fri marking for
     // long-term sickness; SC = sick on a booked turn; ML = Maternity leave (a long paid-absence
@@ -110,31 +137,11 @@ function normaliseShift(raw) {
     // Sunday and base-rest-day normalisation happen client-side in computeCellStates.
     if (['HA', 'OD', 'SC', 'ML', 'CL'].includes(_code)) return 'SICK';
 
-    // Training / Induction / Assessment / Team Day / Union course (OTHER_DAYS.md). Roster words
-    // collapse to the canonical flavour sentinels; an RDW marker (either side: "TRG RDW" or "RDW TRG")
-    // marks a rest-day and is preserved as the canonical " RDW" suffix. These cells never
-    // carry times (the trainer/manager sets them later) — a timed variant falls through to
-    // UNKNOWN below and surfaces as an UNREADABLE review row, never mis-saved. "Team Day" and
-    // "Union course" are the multi-word roster labels; their captured token is whitespace-collapsed
-    // before the lookup so OCR double-spacing can't miss the table.
-    // Deliberate duplicate of the client grammar in override-utils.js (CommonJS cannot
-    // import browser ES modules — same accepted pattern as nameToPassword).
-    const trgMatch = s.match(/^(?:RDW\s+)?(TRG|TRAINING|TRAIN|IND(?:UCTION)?|ASSESS(?:MENTS?)?|TEAM(?:\s+DAYS?)?|UNION(?:\s+COURSE)?|MTG|MEETINGS?)(?:\s+(RDW))?$/);
-    if (trgMatch) {
-        // Explicit alias → sentinel table (NOT first-letter dispatch, which would silently map any
-        // future alias added to the regex without a table entry onto the wrong flavour).
-        const FLAVOUR_LOOKUP = {
-            TRG: 'TRG', TRAINING: 'TRG', TRAIN: 'TRG',
-            IND: 'IND', INDUCTION: 'IND',
-            ASSESS: 'ASSESS', ASSESSMENT: 'ASSESS', ASSESSMENTS: 'ASSESS',
-            TEAM: 'TEAM', 'TEAM DAY': 'TEAM', 'TEAM DAYS': 'TEAM',
-            UNION: 'UNION', 'UNION COURSE': 'UNION',
-            MTG: 'MEET', MEETING: 'MEET', MEETINGS: 'MEET',
-        };
-        const flavour = FLAVOUR_LOOKUP[trgMatch[1].replace(/\s+/g, ' ')];
-        const rdw = /^RDW\s/.test(s) || !!trgMatch[2];
-        return rdw ? `${flavour} RDW` : flavour;
-    }
+    // Training / Induction / Assessment / Team Day / Union course / Meeting — roster-other-days.js,
+    // which reads a MEETING whole, its times included (owner, 6 Nov 2026: "MTG should always be other,
+    // with the meeting flavour"). The other five carry no times on the roster.
+    const otherDay = readOtherDayCell(s, workedRange);
+    if (otherDay) return otherDay;
 
     if (s === 'RDW') {
         // Bare 'RDW' means the AI omitted the required shift time. Return as-is so
@@ -161,8 +168,10 @@ function normaliseShift(raw) {
     // extracted as the worked time — but the old RD-default silently lost genuinely WORKED annotated
     // shifts, which is the error we have actually observed. If cancellation-style annotations ever
     // appear in these PDFs, gate the extraction on the trailing text instead of removing it.
+    // NEVER WHEN THE CELL NAMES A MEETING (v25.38): one the reader above could not take whole
+    // ("06:00-12:00 MTG CEA 3") goes to review rather than lose its code here to a plain shift.
     const lead = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})\b/);
-    if (lead && workedRange(lead[1], lead[2], lead[3], lead[4])) {
+    if (lead && workedRange(lead[1], lead[2], lead[3], lead[4]) && !namesMeeting(s)) {
         const time = `${lead[1].padStart(2, '0')}:${lead[2]}-${lead[3].padStart(2, '0')}:${lead[4]}`;
         // Preserve an RDW marker carried in the trailing content: "06:00-12:00 RDW GER" is rest-day-
         // worked OVERTIME with a depot annotation. The anchored rdwMatch above ($-terminated) rejects
@@ -365,22 +374,6 @@ const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
  * @param {string[]} dates          - 7 ISO dates (Sun → Sat) from buildWeekDates()
  * @returns {object[]} safeEntries: [{ memberName: string, shifts: { date: value } }]
  */
-// ── WHAT THE MODEL WRITES FOR A PHYSICALLY EMPTY CELL ──────────────────────────────────────────
-//
-// One token, and the model's ONLY job with an empty cell is to report it. Until v22.25 the prompt
-// said "a blank cell = RD", so the row read arrived carrying a decision the model was not equipped
-// to make and the code below could not tell it from a printed RD. The day rule underneath was
-// correct and unreachable: five physically blank weekdays became five explicit Rest Days, and on
-// the duplicate-sheet case that proposes overwriting the shifts the primary roster just wrote.
-//
-// It is matched CASE-INSENSITIVELY and the scan set below shares it, so `parsed`, `sundayScan` and
-// `columnScan` cannot end up with three subtly different ideas of what empty looks like.
-const {
-    BLANK_CELL_TOKEN, SUNDAY,
-    isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, blankCellMeaning, notAvailableMeaning, notAvailableSundayMeaning,
-} = require('./cell-day-rules');
-const { isViewerAccount } = require('./calendar-viewer-auth');
-
 function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
     const seenMembers = new Set();
@@ -487,25 +480,9 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
                 continue;
             }
 
-            // ── "NA" IS AN ABSENCE; "NS" IS THE SUNDAY CODE (v24.22, correcting v24.20) ──────────
-            // Owner, 24 Sep 2026: NA ALWAYS means absent (Mon–Sat; a clerical error on a Sunday);
-            // NS is the Sunday code. v24.20 had made NA a Sunday rest day and a Mon–Sat QUESTION.
-            // NS on a weekday is also absent (owner, same day), so the two codes share one rule
-            // and differ only in which day is the clerical error, which is what each warning says.
-            // The rules live in cell-day-rules.js; the prompt reports the code. A Sunday NA is RD,
-            // not SICK — a Sunday cannot hold an absence, and the Sunday scans below treat NA as
-            // blank-equivalent, so SICK would read as a left-shift.
-            if (isNotAvailable(raw)) {
-                if (dayIndex === SUNDAY) console.warn(`[parseRosterPDF] ${entry.memberName}: NA on Sunday — a clerical error on the sheet (NA is a Mon–Sat absence code); recorded as the rest day a Sunday already is`);
-                shifts[date] = notAvailableMeaning(dayIndex);
-                continue;
-            }
-            if (isNotAvailableSunday(raw)) {
-                if (dayIndex !== SUNDAY) console.warn(`[parseRosterPDF] ${entry.memberName}: NS on ${DAY_LABELS[dayIndex]} — the Sunday code on a weekday (a clerical error on the sheet); recorded as Absent, as NA would be`);
-                shifts[date] = notAvailableSundayMeaning(dayIndex);
-                continue;
-            }
-
+            // NA and NS used to be answered HERE, by the day (v24.22: an absence Monday to Saturday,
+            // a rest day on Sunday). Since v25.38 they are rest days on every day, so the day no
+            // longer matters and `normaliseShift` answers them like any other code.
             shifts[date] = normaliseShift(String(raw).trim());
         }
 
@@ -528,8 +505,9 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
 
 // ── Column-scan cross-check (the general day-shift defence) ─────────────────
 
-// Scan tokens that mean "this cell is empty" on ANY day. NA and NS are NOT here (v24.22): their
-// meaning depends on the day, so normaliseScanValue asks cell-day-rules.js with the day index.
+// Scan tokens that mean "this cell is empty" on ANY day. NA and NS are not listed: they are rest
+// codes rather than empty cells, and `normaliseShift` reads both as the rest day (v25.38). Until
+// then their meaning depended on the day, and this function took the column's day index to ask.
 const BLANK_SCAN_TOKENS = new Set([BLANK_CELL_TOKEN, '', 'RD', 'EMPTY', '-', 'OFF']);
 
 /**
@@ -537,19 +515,14 @@ const BLANK_SCAN_TOKENS = new Set([BLANK_CELL_TOKEN, '', 'RD', 'EMPTY', '-', 'OF
  * so the two are comparable. Returns null when there is NO usable signal
  * (missing member/day, or the scan value itself is unreadable) — the cross-check
  * must fail OPEN to today's behaviour on absent signal, never invent one.
- * `NA` and `NS` are decided BY THE DAY (cell-day-rules.js), so the caller passes the column's day
- * index; without one they are no signal rather than a guess — the fail-open rule above.
  * @param {any} raw
- * @param {number} [dayIndex]  0 = Sunday; omit when the column is unknown
  * @returns {string|null}
  */
-function normaliseScanValue(raw, dayIndex) {
+function normaliseScanValue(raw) {
     if (raw === undefined || raw === null) return null;
     if (typeof raw !== 'string' && typeof raw !== 'number') return null;   // inherited fn / object → no signal
     const s = String(raw).trim();
     if (BLANK_SCAN_TOKENS.has(s.toUpperCase())) return 'RD';
-    if (isNotAvailable(s)) return dayIndex === undefined ? null : notAvailableMeaning(dayIndex);
-    if (isNotAvailableSunday(s)) return dayIndex === undefined ? null : notAvailableSundayMeaning(dayIndex);
     const norm = normaliseShift(s);
     return norm.startsWith('UNKNOWN|') ? null : norm;
 }
@@ -626,7 +599,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
             if (dayIndex === undefined) continue;
             const colObj = columnScan[header];
             if (!colObj || typeof colObj !== 'object') continue;
-            const v = normaliseScanValue(colObj[entry.memberName], dayIndex);
+            const v = normaliseScanValue(colObj[entry.memberName]);
             if (v !== null) colRead[dates[dayIndex]] = v;
         }
 
