@@ -44,7 +44,11 @@ infeasible in a second (README.md -> "Balanced V7"). MIXED=n drops the all-early
 mixed weeks, reading a week's kind as blocks.mjs does: from every duty in it, the Sunday included. Runs of all-early or
 all-late weeks are then held to BF on the fixed duties (a cover week ends a run, as in blocks.mjs's fixed view) and to BW
 when the cover weeks beside them go the same way (its worst view). BLOCK and MAXCHG read the old one-family flag, which
-MIXED leaves free, so set BLOCK wide (20) and leave MAXCHG unset with it. Balanced V7:
+MIXED leaves free, so set BLOCK wide (20) and leave MAXCHG unset with it; FAMILY=1 holds that flag too, so it holds nothing
+here, and the solver refuses the pair. AND ONE_MIN IS NOT THE SHEETS' COUNT UNDER MIXED (6 Nov 2026, the 72-hour review): it
+counts weeks whose Monday to Friday are one shift time, and the sheets also want the Saturday or Sunday duty the same kind.
+With every week one family the two agree; a mixed week can have one weekday time and a weekend duty of the other kind, which
+ONE_MIN counts and the sheets do not. Balanced V7 has two, so ONE_MIN=15 below is the sheets' 13. Balanced V7:
   MIXED=3 BF=3 BW=5 SKELETON=../30-days-off/Grand-Tour-GT-26-T7.json REST=860 H7=3054 FF17=-12 HEAVY=2575 FF11_FIXED=9
   FF11_WORST=12 LV_BEST=30 LV_FOUR=14 LV_WORST=20 ISO=6 GAP=7 BLOCK=20 OBJ=step ONE_MIN=15 HINT=<a rota from OBJ=one,
   then OBJ=step ONE_MIN=17> WORKERS=4 python3 exact-rota.py results/balanced-v7-table.json <out.json> 300"""
@@ -74,6 +78,8 @@ for k in WORK:
 for d in DAYS:
     for t in TYPES[d]: M.Add(sum(x[(k, d, t)] for k in WORK) == CNT[d][t])
 f = {k: M.NewBoolVar(f'f_{k}') for k in WORK}
+if os.environ.get('MIXED') is not None and os.environ.get('FAMILY') == '1':   # f[] is free under MIXED (header)
+    raise SystemExit('exact-rota: FAMILY=1 holds the one-family flag, which MIXED leaves free, so it would hold nothing; drop one')
 if os.environ.get('MIXED') is None:   # every working week all earlies or all lates
     for (k, d, t), v in x.items(): M.AddImplication(v, f[k] if early(t) else f[k].Not())
 else:   # MIXED (6 Nov 2026, header): at most MIXED weeks mix the two; f[] is left free, so BLOCK should be set wide

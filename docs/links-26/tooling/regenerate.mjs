@@ -19,7 +19,7 @@ import { readFileSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { DAYS } from '../../../links-design.js';
 import { STRAPS } from './fresh.mjs';
-import { PACK_DIRS } from './report-data.mjs';
+import { PACK_DIRS, today, weekdayFloorFit } from './report-data.mjs';
 
 const fingerprint = p => createHash('sha256')
     .update(JSON.stringify(Object.keys(p).sort((a, b) => a - b).map(k => DAYS.map(d => p[k][d]))))
@@ -198,6 +198,13 @@ for (const s of SUPPLIED) {
     // read the one it came from — Next Step's once read "Even Step with three weekday shifts retimed…"
     const named = SUPPLIED.map(x => x.name).filter(n => n !== s.name && s.strap.includes(n));
     if (named.length) { console.log(`FAIL ${s.code}: its strap names ${named.join(' and ')}; say what this design is instead`); failed++; continue; }
+    // A STRAP'S FIGURES ARE THE GRIDS' (6 Nov 2026, the 72-hour review): Next Step's quotes its weekday fit to the trains and
+    // today's, and nothing recomputed either, so a change to the fit or to one of the two grids would have left the headline
+    // stale. Both are read again here, as every sheet reads them (report-data.mjs weekdayFloorFit), on each grid's own lines
+    const fitQuote = s.strap.match(/weekday fit to the trains of ([\d.]+), where today’s is ([\d.]+)/);
+    if (fitQuote) { const g = j.patterns ?? j, T = today().patterns;
+        const got = [weekdayFloorFit(g, Object.keys(g).length), weekdayFloorFit(T, Object.keys(T).length)].map(v => v.toFixed(1));
+        if (got[0] !== fitQuote[1] || got[1] !== fitQuote[2]) { console.log(`FAIL ${s.code}: its strap quotes a weekday fit of ${fitQuote[1]} against today’s ${fitQuote[2]}; the grids give ${got[0]} and ${got[1]}`); failed++; continue; } }
     if (checkOnly) { if (checkShipped(s.code, s.fp, s.dir ?? 'proposals')) { console.log(`ok   ${s.code}  ${got} (source grid and shipped JSON${s.dir ? `, in ${s.dir}/` : ''})`); done++; } continue; }
     process.stdout.write(`render ${s.code} … `);
     execFileSync('node', ['supplied.mjs', s.file, s.name, s.strap, s.code], { stdio: 'inherit' });

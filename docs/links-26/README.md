@@ -5149,6 +5149,31 @@ but one, and was reported to the owner that day.
 **Unchanged:** every other design's sheet, grid and fingerprint, the rules sheet, the "What it means if you…" sheet, the
 decks and the app (`links-proposals.js` builds in the shortlist only).
 
+## The 72-hour review's fixes to the pack (6 Nov 2026)
+
+A bug and regression check of everything changed in the 72 hours to 6 Nov 2026 read the pack against its own tooling. Each
+of these was found there and checked before it was changed:
+
+- **The managers' decks: the Sunday office.** Notes 3 said the Sunday lates help on the floor "until 15:00, one of them
+  again from 18:00", and stopped there; since the Sunday office empties at 22:00 (above), the other goes back to the floor
+  at 22:00, once the office has shut and cashed up. `deck-polish.py` now writes that, and its check on
+  `OFFICE_HELP_TEXT` asks for the new clause as well as the three older ones, which is why it had passed. The decks were
+  rebuilt from the README's recipe, and `deck-check.mjs` agrees on all 216 rows. Speaker notes do not print, so only the
+  four managers' `.pptx` files changed: every slide, picture and PDF came out the same as before and was left as it was.
+- **Next Step's headline figures are checked.** Its strap quotes a weekday fit to the trains of 30.3 against today's
+  52.0, and nothing recomputed either. `regenerate.mjs --check` now reads both from the grids, as the sheets do, and
+  fails on a strap whose figures have moved. Both hold.
+- **The New link page's long duties.** "9-hour weekday earlies and an 8h 40m Saturday closer, about 26 a year each" read
+  as 26 of each; the grid gives 26 in all, about 20 of the earlies and 6 of the closers a year each, and the line now
+  says so (`newlink-data.mjs`, a claim on each count).
+- **The solver's one-time count under `MIXED`.** `ONE_MIN` counts weeks whose Monday to Friday are one shift time; the
+  sheets also want the weekend duty the same kind, so with mixed weeks allowed the solver can count a week the sheets do
+  not. On Balanced V7 that is 15 against 13. `exact-rota.py`'s header says so, and it refuses `FAMILY=1` with `MIXED`,
+  which held nothing. V7's own figures were corrected in its section above.
+- **The app's built-in designs** (`links-proposals.test.mjs`): each one's ref is now held to the fingerprint of its
+  cells, recomputed as `regenerate.mjs` computes it. Until now a grid edited in the app and in the pack alike, with the
+  ref left alone, passed.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
