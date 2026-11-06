@@ -583,7 +583,8 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
 // Examples: 'TRG' · 'IND RDW' · 'ASSESS 08:00-16:00' · 'TRG RDW 08:00-16:00' · 'TEAM' · 'UNION' · 'MEET'.
 // " RDW" marks an Other-family rest-day (explicitly written on the roster as "TRG RDW");
 // the optional time range is the trainer's ACTUAL hours, entered manually by the
-// admin (roster uploads never carry times). This module is the client-side single
+// admin — or, for a MEETING only, the times printed on the roster ("10:00-14:00 MTG" imports
+// as 'MEET 10:00-14:00', v25.38). No other flavour's upload carries times. This module is the client-side single
 // source for the grammar; a deliberate duplicate of the RECOGNITION grammar (the
 // looser roster-word aliases) lives in functions/roster-parse-helpers.js —
 // Cloud Functions are CommonJS and cannot import this module (same accepted

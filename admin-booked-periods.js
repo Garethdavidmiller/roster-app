@@ -227,24 +227,40 @@ export function createBookedPeriods(deps) {
         const xmasKey = `${year}-12`;
         if (xmasDates.length && !byMonth[xmasKey]) byMonth[xmasKey] = [];
         /** The Christmas leave row, in date order inside December: listed so it is on record, and
-         *  outside every count — a "Not counted" pill in place of a number of days, and no delete,
-         *  because nothing is stored to delete; it comes from the roster. */
+         *  outside every count. No delete, because nothing is stored to delete; it comes from the
+         *  roster.
+         *
+         *  LAID OUT LIKE EVERY OTHER ROW (v25.38, owner: it "doesn't look aesthetically right compared
+         *  to the rest of the table"). v25.37 put a 🎄 before the dates and a "Not counted" pill where
+         *  the count goes; the pill was 35px wider than a day pill, so at 375px it pushed the range onto
+         *  two lines and stood out of the pill column, and the tree moved the dates off the edge every
+         *  other row's dates share. Now the dates are the dates, the pill is the same day count in the
+         *  same column, and what is different is said on a quiet second line — 🎄 Not counted.
+         *  The pill is the leave colour HOLLOW rather than filled: leave on record, nothing
+         *  taken from the allowance. */
         const christmasRow = () => {
             const row = deps.doc.createElement('div');
             row.className = 'al-period-row al-period-row--christmas';
             const dates = deps.doc.createElement('span');
             dates.className = 'al-period-dates';
+            const first = xmasDates[0], last = xmasDates[xmasDates.length - 1];
+            dates.textContent = first === last ? deps.fmtDate(first) : deps.fmtRange(first, last);
+            const note = deps.doc.createElement('span');
+            note.className = 'al-period-note';
             const glyph = deps.doc.createElement('span');
             glyph.setAttribute('aria-hidden', 'true');
             glyph.textContent = '🎄 ';
+            // "🎄 Not counted" on screen: the tree and the 25–26 December dates already say
+            // Christmas, and "Christmas · not counted" wrapped to a third line at 360px. A screen
+            // reader, which hears no tree, is told.
             const said = deps.doc.createElement('span');
             said.className = 'visually-hidden';
             said.textContent = 'Christmas leave, ';
-            const first = xmasDates[0], last = xmasDates[xmasDates.length - 1];
-            dates.append(glyph, said, first === last ? deps.fmtDate(first) : deps.fmtRange(first, last));
+            note.append(glyph, said, 'Not counted');
+            dates.appendChild(note);
             const free = deps.doc.createElement('span');
             free.className = 'al-period-free';
-            free.textContent = 'Not counted';
+            free.textContent = countFn(xmasDates.length);
             row.append(dates, free);
             return row;
         };

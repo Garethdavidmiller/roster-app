@@ -46,9 +46,7 @@
 
 const { BLANK_CELL_TOKEN, normaliseShift } = require('./roster-parse-helpers');
 const { matchGeometryRow } = require('./roster-geometry');
-const {
-    isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, notAvailableMeaning, notAvailableSundayMeaning,
-} = require('./cell-day-rules');
+const { isPhysicallyBlank } = require('./cell-day-rules');
 
 /** Sunday-first, matching `dates` everywhere in the import. `headerToDayIndex` accepts these. */
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -76,9 +74,9 @@ const SHIFT_VOCABULARY = `WHAT THE CODES MEAN:
 - ASSESS or ASSESSMENT or ASSESSMENTS = Assessment day. Return "ASSESS" (or "ASSESS RDW" if the cell also says RDW).
 - TEAM DAY or TEAM = Team day. Return "TEAM" (or "TEAM RDW" if the cell also says RDW).
 - UNION COURSE or UNION = Union course day. Return "UNION" (or "UNION RDW" if the cell also says RDW).
-- MTG or MEETING = Meeting day. Return "MEET" (or "MEET RDW" if the cell also says RDW).
-- NA or N/A = Not available — an ABSENCE, normally written Monday to Saturday (on a Sunday it is a clerical error). Return "NA". Do NOT return "RD" or "SICK" — report the code and stop there; the server records it as Absent, and on a Sunday as the rest day a Sunday already is.
-- NS = Not available on a SUNDAY — a different code from NA. Return "NS". Do NOT return "RD" or "SICK" — report the code and stop there; the server writes a rest day on Sunday and records Absent on any other day, where the Sunday code is a clerical error.
+- MTG or MEETING = Meeting day. Return "MEET" (or "MEET RDW" if the cell also says RDW). A meeting can also show a time; keep it, after the code: for 10:00 to 14:00, return "MEET 10:00-14:00" (or "MEET RDW 10:00-14:00").
+- NA or N/A = Not available — a rest day. Return "NA". Never "SICK": it is not an absence.
+- NS = Not available on a Sunday — a rest day too, whichever day it is on. Return "NS". Never "SICK".
 - GER = Gerrards Cross station. Extract the shift time next to it (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time, return "RD".
 - Blank = the cell contains NO text at all (or only a dash) = "BLANK". Never "RD" — "RD" is
   reserved for a cell where the letters R and D are actually printed.
@@ -94,6 +92,10 @@ Each cell has up to two lines, and what is on the SECOND line depends on whether
   · A NON-WORKED day has NO time at all. Its STATUS CODE (RD, AL, SP, SC, SN, OD, HA, ML, CL, TRG,
     IND, ASSESS, TEAM, UNION, MTG) sits on the SECOND line — in exactly the place a duty code would sit
     on a worked day. That status code IS the shift value. Return it.
+
+  · A MEETING is the one status code that can come WITH a time: the time on the first line and MTG
+    on the second. MTG is a status code, never a duty code — return both, code first, in the form
+    "MEET HH:MM-HH:MM".
 
 So the rule is about WHAT the text is, not WHICH line it is on:
   · Ignore a DUTY code (a "CEA …" or "D…" diagram number) wherever it appears.
@@ -257,14 +259,13 @@ OUTPUT FORMAT — return exactly this structure:
 }
 
 /**
- * Does this printed cell say the day is a REST day? Asked the same way the reply's own values are
- * resolved — `NA`/`NS` by the day (cell-day-rules.js), everything else through `normaliseShift` —
- * so a cell is judged by the rules that would have read it.
- * @param {string} text  @param {number} dayIndex  0 = Sunday
+ * Does this printed cell say the day is a REST day? Asked through `normaliseShift`, the rule the
+ * reply's own values are resolved by, so a cell is judged by the rules that would have read it.
+ * `NA` and `NS` say rest on every day since v25.38; until then they were asked by the day, and this
+ * took the column's index to do it.
+ * @param {string} text
  */
-function cellSaysRest(text, dayIndex) {
-    if (isNotAvailable(text)) return notAvailableMeaning(dayIndex) === 'RD';
-    if (isNotAvailableSunday(text)) return notAvailableSundayMeaning(dayIndex) === 'RD';
+function cellSaysRest(text) {
     const v = normaliseShift(text);
     return v === 'RD' || v === 'OFF';
 }
@@ -282,7 +283,7 @@ function cellSaysRest(text, dayIndex) {
  * claim. This needs no reading of the text beyond "is it a rest marker", which is why it is not
  * phase 3.
  *
- * A cell that SAYS rest (`RD`, `OFF`, `SN`, a Sunday `NA`/`NS`) is left alone: an empty read of it
+ * A cell that SAYS rest (`RD`, `OFF`, `SN`, `NA`, `NS`) is left alone: an empty read of it
  * changes nothing. Mon–Sat this only improves the review's wording — the day was already a question.
  * Not counted as a witness refusal: one missed cell is not evidence the row is a day out, and it
  * must not feed the drift breaker.
@@ -321,7 +322,7 @@ function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dat
         const days = [];
         for (let i = 0; i < 7; i++) {
             const text = String(cells[i] == null ? '' : cells[i]).trim();
-            if (!text || cellSaysRest(text, i)) continue;
+            if (!text || cellSaysRest(text)) continue;
             const label = DAY_LABELS[i];
             const raw = reply[label] !== undefined ? reply[label] : byDay[label.slice(0, 3).toLowerCase()];
             if (!isPhysicallyBlank(raw)) continue;

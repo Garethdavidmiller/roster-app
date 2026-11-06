@@ -310,7 +310,7 @@ test('recorded-dates rows keep the chip and ✕ on the row, at every width and t
                 list.render({ type: 'annual_leave', memberName: 'G. Miller', boxId: 'alBookedBox',
                     bodyId: 'alBookedBody', countFn: n => `${n} DAY${n === 1 ? '' : 'S'}`,
                     countClass: 'al-period-count', feedbackId: 'alFeedback', preferredYear: '2026',
-                    // The Christmas leave row too (v25.37): its "Not counted" pill stands where the
+                    // The Christmas leave row too (v25.37): its outlined day pill stands where the
                     // count does, with no delete control after it, and must hold the line the same way.
                     christmas: { 2026: ['2026-12-25', '2026-12-26'] } });
 
@@ -334,6 +334,8 @@ test('recorded-dates rows keep the chip and ✕ on the row, at every width and t
                           br = (btn ?? c).getBoundingClientRect();
                     return {
                         text: d.textContent.trim(),
+                        christmas: row.classList.contains('al-period-row--christmas'),
+                        pillRight: Math.round(cr.right), pillWidth: Math.round(cr.width),
                         // A control that has dropped to its own line starts at or below the date's
                         // bottom edge. Comparing against the date's TOP would false-alarm the moment
                         // the date itself wraps to two lines, which is the fix working.
@@ -352,6 +354,18 @@ test('recorded-dates rows keep the chip and ✕ on the row, at every width and t
                         + `${r.chipWrapped ? ' chip on its own line' : ''}${r.clipped ? ' date truncated' : ''}`);
             expect(broken, `at ${width}px and ${scale}× text, the recorded-dates row broke:\n  ${broken.join('\n  ')}`)
                 .toEqual([]);
+            // THE CHRISTMAS ROW STANDS IN THE SAME COLUMN, AT THE SAME SIZE (v25.38, owner's screenshot).
+            // Its v25.37 "Not counted" pill was 35px wider than a day pill: it stood out of the column
+            // and pushed the dates onto two lines. Its pill is a day count now, so it is no wider than
+            // the widest count pill, and every pill ends at one right edge.
+            const xmasRow = rows.find(r => r.christmas), counts = rows.filter(r => !r.christmas);
+            expect(xmasRow, 'the Christmas row was not rendered').toBeTruthy();
+            expect(xmasRow.pillWidth, `at ${width}px and ${scale}× text the Christmas pill is wider than a day pill`)
+                .toBeLessThanOrEqual(Math.max(...counts.map(r => r.pillWidth)) + 1);
+            for (const r of counts) {
+                expect(Math.abs(r.pillRight - xmasRow.pillRight), `at ${width}px and ${scale}× text the Christmas pill is out of the pill column`)
+                    .toBeLessThanOrEqual(1);
+            }
         }
     }
 });

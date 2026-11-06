@@ -91,9 +91,23 @@ export const teamMembers = [
     //     not 34. That is the case the field's own comment describes.
     // `proRatedAL: 13` is TRANSCRIBED from the clerk's workbook (`New Marylebone Totals` → `AL
     // allowance`, read 8 Sep 2026). A day-count agrees here by luck; re-read the book, never recompute.
-    { name: 'I. Melikian',             currentWeek: 2,  rosterType: 'fixed',      role: 'CEA',
+    // LEFT by 6 Nov 2026 (owner) — his bilingual line, one above T. Gherbi, is a vacancy. Row kept,
+    // `hidden`, so his past shifts, leave and absences still resolve (the /leaver skill).
+    { name: 'I. Melikian',             currentWeek: 2,  rosterType: 'fixed',      role: 'CEA', hidden: true,
       startDate: new Date(2026, 7, 10), proRatedAL: { 2026: 13 },
       rosterChanges: [{ from: new Date(2026, 8, 13), rosterType: 'bilingual', currentWeek: 5 }] },
+
+    // M. Campbell — started Tue 22 Sep 2026, the I. Melikian pattern. Phase 1 (to Sat 7 Nov): initial
+    // training Monday to Friday, which is `fixedRoster[2]` (09:00–16:00) as the BASE roster. Phase 2
+    // (from Sun 8 Nov): the BILINGUAL link one line BELOW T. Gherbi — `currentWeek: 7` is
+    // REFERENCE-ANCHORED (T. Gherbi's 6, plus one), not the line she is on that week.
+    // A CEA contract on a bilingual line, so no `bilingualContract` flag: 32 days, not 34.
+    // ⚠️ `proRatedAL: 9` is PROVISIONAL — a day-count (101 of 365 days × 32 = 8.85), entered on the
+    // owner's word ("pro rata for now", 6 Nov 2026) until the clerk's workbook figure is known.
+    // REPLACE it with the workbook's `AL allowance`; it is the one figure here nobody has agreed.
+    { name: 'M. Campbell',             currentWeek: 2,  rosterType: 'fixed',      role: 'CEA',
+      startDate: new Date(2026, 8, 22), proRatedAL: { 2026: 9 },
+      rosterChanges: [{ from: new Date(2026, 10, 8), rosterType: 'bilingual', currentWeek: 7 }] },
 
     // Dispatchers — 10-week rotating cycle, reference week starting 01/02/26
     // currentWeek reflects each person's row in the base roster on that date
