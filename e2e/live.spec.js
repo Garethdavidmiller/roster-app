@@ -47,7 +47,9 @@
 // own, and that is the point: the runner sets `LIVE_REQUIRE_DIRECT=1`, under which a run that would
 // have to relay FAILS instead. A relayed pass on a schedule would report green while quietly not
 // covering the two failure modes the schedule exists for, and nobody would be reading the mode
-// line at 03:00. Locally, leave the variable unset and the fallback behaves as before.
+// line at 03:00. Locally, leave the variable unset and the fallback behaves as before. Before it
+// reports anything, the scheduled run looks a second time, a minute later (6 Nov 2026); why that
+// is a second run of this file and not a retry inside it is live-health.yml's to say.
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, unlinkSync } from 'node:fs';

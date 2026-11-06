@@ -1114,6 +1114,90 @@ describe('the currency canary stands down for a deploy in flight', () => {
     });
 });
 
+// ── The live check looks twice before it tells anybody (6 Nov 2026) ─────────────────────────────
+//
+// live-health.yml reports on the deploy-failure thread, which emails the owner. Three of its four
+// alerts from 6 Oct to 2 Nov were one GitHub Pages 503 in one run, gone by the next, so a failed
+// first look is now followed by a second a minute later, and only a second failure is reported
+// (owner decision). Every assertion below is on a way that design can be present and NOT WORK: a
+// second look that never runs, one that runs at once inside the same blip, one whose failure is
+// swallowed, an alert gate that stops listening, and a time limit that turns the worst outage —
+// a site that hangs — into a CANCELLED job, which reaches nobody.
+describe('the live check looks twice before it reports', () => {
+    const LIVE_WF = join(WF_DIR, 'live-health.yml');
+    const src = readFileSync(LIVE_WF, 'utf8');
+    // The script, not its justification: the comments name every identifier while explaining them.
+    const code = src.split('\n').map(l => l.replace(/^(\s*)#.*$/, '$1')).join('\n');
+    const step = code.match(/- name: Open the live site on both origins\n([\s\S]*?)(?=\n\s*- name:)/);
+    const body = step ? step[1] : '';
+    const script = (body.match(/run: \|\n([\s\S]*?)\n\s*env:/) || [])[1] || '';
+    const lines = script.split('\n').map(l => l.trim()).filter(Boolean);
+    const limitOf = (block, indent) =>
+        Number((new RegExp(`^ {${indent}}timeout-minutes:\\s*(\\d+)\\s*$`, 'm').exec(block) || [])[1]);
+
+    test('the site step is found, and keeps the id the alert step reads', () => {
+        assert.ok(step, `${LIVE_WF}: the "Open the live site on both origins" step was not found`);
+        assert.match(body, /^\s*id:\s*site\s*$/m, 'the site step must keep `id: site`: the alert step reads its outcome');
+        assert.ok(lines.length > 0, 'the site step\'s `run: |` script was not found');
+        assert.doesNotMatch(body, /continue-on-error/,
+            'no continue-on-error on the site step: a failure would then read as success to `failure()`, and the alert would never run');
+    });
+
+    test('a pass ends the step; a failure is followed, after a pause, by one more look', () => {
+        assert.equal(lines[0], 'if npm run test:live; then exit 0; fi',
+            'the first look comes first, and a first look that passes ends the step at once');
+        assert.match(lines[1] || '', /^echo "::warning::/,
+            'a failed first look leaves a warning on the run, so a blip is recorded even though nobody is emailed');
+        assert.equal(lines[2], 'sleep "$SECOND_LOOK_AFTER_S"',
+            'the step pauses before the second look; looking again at once looks inside the same blip');
+        assert.equal(lines.filter(l => /npm run test:live/.test(l)).length, 2, 'exactly two looks, no more');
+        const pause = Number((/SECOND_LOOK_AFTER_S:\s*'(\d+)'/.exec(body) || [])[1]);
+        assert.ok(pause >= 30 && pause <= 300,
+            `SECOND_LOOK_AFTER_S is ${pause}. Under 30 seconds it is still the same blip; over five minutes a real outage waits longer than it needs to.`);
+    });
+
+    test('the second look decides, and nothing can swallow it', () => {
+        // The tail of the script, line for line. `|| true`, `; exit 0` or a dropped final line all
+        // turn a site that failed twice into a green run, and each one fails this.
+        const tail = lines.slice(3);
+        const shape = [/^if npm run test:live; then$/, /^echo "::notice::/, /^exit 0$/, /^fi$/, /^exit 1$/];
+        assert.equal(tail.length, shape.length,
+            `after the pause the script must be exactly: the second look, a notice, exit 0, fi, exit 1 — found:\n  ${tail.join('\n  ')}`);
+        shape.forEach((re, i) => assert.match(tail[i], re,
+            `line ${i + 4} of the site script must match ${re}; a second look that fails has to fail the step`));
+    });
+
+    test('the site step runs out of time before the job does', () => {
+        // A page may take its whole 150 s test timeout to fail, so one look at a site that hangs is
+        // ~15 minutes. A JOB that runs out is cancelled and the alert step never runs; a STEP that
+        // runs out fails by name and the alert does run (the 23 Oct 2026 install timeout, recorded
+        // as a failure). So the step's limit must be the one that is reached.
+        const stepLimit = limitOf(body, 8);
+        const jobLimit = limitOf(code, 4);
+        const install = code.match(/- name: Install Chromium's system libraries\n([\s\S]*?)(?=\n\s*- name:)/);
+        const installLimit = install ? limitOf(install[1], 8) : NaN;
+        assert.ok(stepLimit >= 10,
+            `the site step needs its own timeout-minutes of at least 10 (found ${stepLimit}): two looks and the pause take about three minutes, and a hung site must still be cut off by THIS limit`);
+        assert.ok(installLimit > 0, 'the install step must keep its own limit; it is counted below');
+        assert.ok(installLimit + stepLimit + 5 <= jobLimit,
+            `the job limit (${jobLimit}) must cover the install step's ${installLimit}, the site step's ${stepLimit} and five minutes for everything else. Otherwise the job runs out first, and a hung site is never reported.`);
+    });
+
+    test('only a failure of the site check itself reaches the issue', () => {
+        // The whole-app review's fix (Oct 2026): a runner that could not install used to post "the
+        // live site failed" about a site nobody had opened.
+        assert.match(code, /if:\s*failure\(\)\s*&&\s*steps\.site\.outcome\s*==\s*'failure'/,
+            'the alert step must run only when the site step itself failed');
+    });
+
+    test('a person running the check by hand still gets the first answer', () => {
+        const cfg = readFileSync('playwright.live.mjs', 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+        assert.match(cfg, /^\s*retries:\s*0\s*,/m,
+            'playwright.live.mjs must keep `retries: 0`. The second look is the scheduled run\'s decision about whom to email; a Playwright retry would report a page that recovered as "flaky" inside a green run, the softened answer this config exists to refuse.');
+    });
+});
+
 // ── A run-script that dedents out of its own block scalar ───────────────────────────────────────
 //
 // THE BUG THIS EXISTS FOR WAS MADE TWICE IN ONE SESSION, BOTH TIMES WHILE FIXING SOMETHING ELSE.
