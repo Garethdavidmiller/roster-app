@@ -19,7 +19,10 @@ export default defineConfig({
     timeout: 150_000,
     expect: { timeout: 20_000 },
     // No retries: a flaky answer about whether the live site is up is worse than a slow one, and a
-    // retry would mask exactly the intermittent failure worth knowing about.
+    // retry would mask exactly the intermittent failure worth knowing about. A person running this
+    // gets the first answer, unsoftened. The SCHEDULED run looks a second time, a minute later,
+    // before it reports (6 Nov 2026) — a decision about whom to email, not about this answer, so it
+    // lives in live-health.yml, which says why it is a second run and not this setting.
     retries: 0,
     reporter: 'list',
     // Serial: the relayed fallback shells out to curl per request, and parallel workers would make

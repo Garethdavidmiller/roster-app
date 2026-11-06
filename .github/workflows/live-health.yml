@@ -28,14 +28,21 @@ name: Is the live site up?
 #
 # ── WHAT A FAILURE DOES ─────────────────────────────────────────────────────────────────────────
 #
-# It reports on the SAME `deploy-failure` issue thread the deploy workflows and the currency check
-# use — one situation, one thread. It never deploys and never fixes: least privilege, observe and
-# report. A failed notification must not bury the real failure, so that step never fails the job.
+# A failure is a page that fails TWICE, a minute apart (6 Nov 2026, owner decision — the site step
+# says why). It reports on the SAME `deploy-failure` issue thread the deploy workflows and the
+# currency check use — one situation, one thread. It never deploys and never fixes: least
+# privilege, observe and report. A failed notification must not bury the real failure, so that
+# step never fails the job.
 
 on:
   schedule:
     # Every four hours, at :41 — away from production-currency's :17 so the two never read the site
     # inside the same deploy window and report the same in-flight release twice.
+    #
+    # That is the REQUEST, not what happens. GitHub runs a schedule when it has capacity and drops
+    # runs under load: from the evening of 2 Nov to the morning of 6 Nov 2026 this one ran ten
+    # times in three and a half days, at irregular times — about three a day, not six. Read "the
+    # next run" as hours, not four of them.
     - cron: '41 */4 * * *'
   workflow_dispatch:
 
@@ -47,8 +54,13 @@ jobs:
   live:
     # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
-    # Six pages with an 8s settle each plus the browser install: measured ~4 minutes end to end.
-    timeout-minutes: 15
+    # Six pages with an 8s settle each plus the browser install: measured ~4 minutes end to end, and
+    # about two more when a first look fails and the site step looks again. The limit is not sized
+    # for either. It is sized so the SITE STEP'S OWN limit always runs out first — the install may
+    # take its 8 minutes and the site step its 20, and the report and the alert still have room.
+    # A job that runs out of time is CANCELLED, and a cancelled job tells nobody (the site step
+    # says why that matters).
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -79,13 +91,49 @@ jobs:
         with:
           browser: chromium
 
+      # TWO LOOKS, A MINUTE APART, BEFORE ANYBODY IS TOLD (6 Nov 2026, owner decision). Three of the
+      # four alerts from 6 Oct to 2 Nov were GitHub Pages answering ONE file with a 503 during ONE
+      # run — 6 Oct `pages · admin`, 16 Oct and 2 Nov `pages · root` — real for that minute, gone by
+      # the next run, and nothing anybody could act on. (The fourth was a runner that could not
+      # install, which the alert step's own condition already keeps off the thread.) The outages
+      # this check exists for — a splash that never clears, a 404, a module the CSP refuses — do not
+      # fix themselves in a minute. So a failed first look is followed, SECOND_LOOK_AFTER_S later, by
+      # a second look at all six pages, and only a second failure fails this step and reaches the
+      # issue. A blip is not hidden: the first look's lines stay in this log, and the run carries a
+      # warning that a first look failed. It is only not emailed.
+      #
+      # A whole second run of the suite, and deliberately not Playwright's `retries`: that re-runs a
+      # page at once, inside the blip, and a page that passes on its retry is reported "flaky" in a
+      # GREEN run — the softened answer playwright.live.mjs refuses to give a person running this by
+      # hand. That config keeps `retries: 0`.
+      #
+      # ITS OWN TIME LIMIT, INSIDE THE JOB'S. A page may take its whole test timeout (150s) to fail,
+      # so one look at a site that hangs every page can take 15 minutes, and a second look on top
+      # would outlast a job limit. There GitHub CANCELS the job, a cancelled job skips every step
+      # that waits for a failure, and the alert never runs — the worst outage would be the one
+      # reported least. A STEP that runs out of time instead FAILS by name, and the steps after it
+      # that wait for a failure still run: the 23 Oct 2026 install timeout was recorded exactly that
+      # way. So a site that hangs is reported when this limit runs out, in whichever look it is.
       - name: Open the live site on both origins
         id: site
-        run: npm run test:live
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          if npm run test:live; then exit 0; fi
+          echo "::warning::The first look at the live site failed (its lines are above). Looking again in ${SECOND_LOOK_AFTER_S}s; only a second failure is reported."
+          sleep "$SECOND_LOOK_AFTER_S"
+          if npm run test:live; then
+            echo "::notice::The second look passed. Whatever failed had cleared within ${SECOND_LOOK_AFTER_S}s, so nothing was reported."
+            exit 0
+          fi
+          exit 1
         env:
           CI: true
           # A run that would have to relay must fail — see the header.
           LIVE_REQUIRE_DIRECT: '1'
+          # The pause between the looks. Long enough to outlast a CDN hiccup, short enough that a
+          # real outage is reported a couple of minutes later than before, not an hour.
+          SECOND_LOOK_AFTER_S: '60'
 
       - name: Upload Playwright report on failure
         if: failure()
@@ -121,7 +169,8 @@ jobs:
           "" \
           "A real browser on a GitHub runner opened the app on both origins — root, \`admin.html\`" \
           "and \`paycalc.html\` — and at least one page was not served, kept its splash up, rendered" \
-          "nothing usable, or logged a console error. The run says which:" \
+          "nothing usable, or logged a console error. It looked again a minute later and the site" \
+          "was still failing, so this is not a one-off blip. The run says which:" \
           "" \
           "${RUN_URL}" \
           "" \
