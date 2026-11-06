@@ -31,6 +31,7 @@ import { DEFAULT_WINDOW, windowMinutes } from './links-window.js';
 import { DEC_2026_DEMAND } from './links-demand.js';
 import { buildRosterTargets } from './links-seed.js';
 import { sameTargetTable, isSupersededMemory } from './links-default-targets.js';
+import { PROPOSALS } from './links-proposals.js';
 
 const { slots, spareLines } = buildDefaultTargets();
 const WORKING = ROTATING_LINES - DEFAULT_COVER_WEEKS;
@@ -282,3 +283,29 @@ describe('the mechanics', () => {
     });
 });
 
+describe('the table IS Short Run\'s duties — the claim the module header makes', () => {
+    test('each day class counts exactly Short Run\'s duties: every weekday, the Saturday and the Sunday', () => {
+        // The header says this table is the duty table of Short Run, built in as a proposal. That held by hand
+        // until 6 Nov 2026, when Short Run's Saturday floor lates moved twice in one day and the table had to
+        // follow both times: nothing compared the two, so a missed move would have left the generator starting
+        // from a table no shortlisted design has, while every comment called it the shortlist's. The weekdays
+        // are compared one by one because the table has ONE weekday column, which is only Short Run's if all
+        // five of its weekdays agree.
+        const sr = PROPOSALS.find(p => p.code === 'SR-26-F1');
+        assert.ok(sr, 'Short Run is no longer a built-in proposal: say in the header whose table this is');
+        const rows = Object.values(sr.patterns);
+        const counted = (/** @type {string} */ day) => {
+            /** @type {Record<string, number>} */ const c = {};
+            for (const row of rows) { const v = row[day]; if (/^\d/.test(v)) c[v] = (c[v] || 0) + 1; }
+            return Object.fromEntries(Object.entries(c).sort());
+        };
+        const tabled = (/** @type {'weekday'|'sat'|'sun'} */ cls) =>
+            Object.fromEntries(slots.filter(s => s[cls] > 0).map(s => [s.time, s[cls]]).sort());
+        for (const day of ['mon', 'tue', 'wed', 'thu', 'fri']) {
+            assert.deepEqual(counted(day), tabled('weekday'), `Short Run's ${day} is not the table's weekday column`);
+        }
+        assert.deepEqual(counted('sat'), tabled('sat'), 'Short Run\'s Saturday is not the table\'s');
+        assert.deepEqual(counted('sun'), tabled('sun'), 'Short Run\'s Sunday is not the table\'s');
+        assert.equal(rows.filter(r => r.mon === 'SPARE').length, DEFAULT_COVER_WEEKS, 'Short Run\'s cover weeks');
+    });
+});

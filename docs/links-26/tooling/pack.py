@@ -66,8 +66,9 @@ if SHORTLIST != sorted(SHORTLIST): raise SystemExit(f'pack: the shortlist is lis
 DECKS_KEPT = re.findall(r"'([^']+)'", re.search(r'export const DECKS_KEPT = \[([^\]]*)\]', FRESH).group(1))
 SHORTLIST_DATE = re.search(r"export const SHORTLIST_DATE = '([^']+)'", FRESH).group(1)
 if not SHORTLIST or any(s not in names.split(', ') for s in SHORTLIST): raise SystemExit(f'pack: shortlist {SHORTLIST} is not all in the pack')
-# WHERE EACH AUDIENCE STARTS: the shortlisted designs' presentations, A to Z — a manager reads all three, a colleague the
-# chosen link's — and the one-page sheet last
+# WHERE EACH AUDIENCE STARTS: the shortlisted designs' presentations, A to Z, for managers and for colleagues alike — and
+# the one-page sheet last. Until the external review of 6 Nov 2026 a colleague was sent to "the chosen link's" deck: a
+# leftover of the managers' ask (removed the same day), and it read as if a link had already been picked
 MANAGERS = [f"3 Presentations/{n.replace(' ', '-')}-for-managers.pdf" for n in SHORTLIST]
 COLLEAGUES = [f"3 Presentations/{n.replace(' ', '-')}-for-colleagues.pdf" for n in SHORTLIST]
 WHAT_IT_MEANS = '1 Summary/links-26-what-it-means.pdf'   # 1 Nov 2026
@@ -103,7 +104,7 @@ for said in ['is the one to choose for something different',
              '<b>Choose Short Run</b> if the weekday fit and short weekday lates matter most', 'a weaker weekday fit',
              'the biggest change of start',
              'Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen',
-             'Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, about a point and a half ahead of Even Step']:
+             'Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, just over half a point ahead of Even Step']:
     if said not in SHEET: raise SystemExit(f'pack: the read-me repeats the shortlist sheet, which no longer says "{said}"')
 PAGE = open('newlink-data.js', encoding='utf-8').read().replace('\\u00a0', ' ')
 for said in ['four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best',
@@ -260,8 +261,9 @@ readme = '\n'.join([
     para('Page 2 of the shortlist sheet sets out each one\'s edge and its costs in full.'),
     '',
     'WHAT IS ASKED',
-    item('Managers', f'Which of the {WORDS[len(SHORTLIST)]} shortlisted links goes to colleagues for their views.'),
-    item('Colleagues', f'Tell {CONTACT} or your manager what worries you about the chosen link, even if it is small. '
+    # NO ASK OF MANAGERS (owner, 6 Nov 2026: "No", asked whether the read-me should keep asking them which shortlisted link
+    # goes to colleagues): the pack is deliberately vague about how the choice is made, and S. Silva leads it
+    item('Colleagues', f'Tell {CONTACT} or your manager what worries you about any of the shortlisted links, even if it is small. '
          f'{CONTACT}, {CONTACT_ROLE}, is leading the change.'),
     '',
     'WHERE TO START',
@@ -269,10 +271,10 @@ readme = '\n'.join([
     ' ' * 23 + '1 Summary/links-26-shortlist.pdf',
     item('', 'Then ten minutes for each presentation for managers:'),
     *[' ' * 23 + path for path in MANAGERS],
-    item('Colleagues', 'First, the chosen link\'s presentation for colleagues:'),
+    item('Colleagues', 'First, the presentations for colleagues, one for each shortlisted link:'),
     *[' ' * 23 + path for path in COLLEAGUES],
-    item('', 'Then pages 1 to 3 of its proposal sheet, in 4 Proposal sheets: the detail, and every week of the link on '
-         'page 3.'),
+    item('', 'Then pages 1 to 3 of each one\'s proposal sheet, in 4 Proposal sheets: the detail, and every week of the '
+         'link on page 3.'),
     item('', 'Last, the one-page sheet on what it means if you prefer earlies or lates, swap for overtime, work your '
          'share of Sundays or no overtime at all, or save leave for long breaks,'),
     ' ' * 23 + WHAT_IT_MEANS,
@@ -374,10 +376,10 @@ readme = '\n'.join([
     # holding a printout from before it, whose fingerprints no longer match
     para('On 6 November 2026 the rules were corrected: the ticket office shuts at 22:10 on a Saturday and takes 20 minutes '
          'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. On the '
-         'nineteen already in the pack that hour comes off the Saturday\'s other lates, so the hours and the contract are '
-         'as they were; every sheet and presentation was redrawn, and those nineteen fingerprints changed. Balanced V5, '
-         'Balanced V6 and Balanced V7, which joined the same day, already finished them at 22:30. Since then Common Ground '
-         'is first in the pack\'s league, about a point and a half ahead of Even Step.'),
+         'nineteen already in the pack that hour comes off other Saturday lates, so the hours and the contract are as they '
+         'were; every sheet and presentation was redrawn, and their fingerprints changed. Balanced V5, Balanced V6 and '
+         'Balanced V7, which joined the same day, already finished them at 22:30. Since then Common Ground is first in the '
+         'pack\'s league, just over half a point ahead of Even Step.'),
     '',
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
          'reference.'),

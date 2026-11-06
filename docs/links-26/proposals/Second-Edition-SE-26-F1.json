@@ -1,5 +1,5 @@
 {
- "name": "Second Edition — Dec 2026 (SE-26-F1 · bcabb166)",
+ "name": "Second Edition — Dec 2026 (SE-26-F1 · 40715a41)",
  "patterns": {
   "1": {
    "sun": "SPARE",
@@ -134,7 +134,7 @@
    "wed": "14:00-22:30",
    "thu": "RD",
    "fri": "RD",
-   "sat": "14:00-22:00"
+   "sat": "14:00-22:30"
   },
   "16": {
    "sun": "SPARE",
@@ -233,7 +233,7 @@
    "wed": "15:45-23:55",
    "thu": "RD",
    "fri": "RD",
-   "sat": "14:00-22:00"
+   "sat": "13:30-21:00"
   }
  }
 }

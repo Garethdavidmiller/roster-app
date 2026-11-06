@@ -288,9 +288,11 @@ def colleagues(d):
     check('the Saturday office late 14:30–22:30 where today’s is 14:30–22:00, a pair; the Saturday 13:30–22:00 today’s weekday time',
           per_day(TP, '14:30-22:00', ('sat',)) == {2} and '13:30-22:00' in KNOWN and days_of(P, '13:30-22:00') == {'sat'} and days_of(TP, '13:30-22:00') <= set(WK))
     ts_e, ts_s = tn(FIG['Even Step']), tn(FIG['Short Run'])
-    check('as many of today’s times as Even Step, of as many in all; Short Run more of them, of more', ts_e == (n_times, n_known) and ts_s[1] > n_known and ts_s[0] > n_times)
+    # ONE FEWER OF TODAY'S TIMES THAN EVEN STEP since one Saturday floor late kept 22:30 (6 Nov 2026): Even Step's other is
+    # today's Saturday office time, 14:30–22:00, where Common Ground's are 13:30–22:00 and 14:00–22:30, already counted
+    check('fewer of today’s times than Even Step, of as many in all; Short Run more of them, of more', ts_e[0] == n_times and ts_e[1] > n_known and ts_s[1] > n_known and ts_s[0] > n_times)
     notes(d, 8, f'{BASE} was built', f'{NAME} starts from what you know today — the 13:45 and 14:20 finishes and today’s leave — on new weeks. '
-          f'{WORDS[n_known].capitalize()} of its thirteen times are worked today, as on {ES_} ({SR_} {ts_s[1]} of {ts_s[0]}), and it uses fewer different times overall than today’s eighteen. '
+          f'{WORDS[n_known].capitalize()} of its thirteen times are worked today ({ES_} {ts_e[1]} of {ts_e[0]}, {SR_} {ts_s[1]} of {ts_s[0]}), and it uses fewer different times overall than today’s eighteen. '
           'Today’s 06:20–13:45 stays on every weekday, and today’s 06:20–14:20 too; nobody finishes at 13:35. '
           'Three of the new times are shorter versions of today’s lates: the weekday and Saturday closers start at 15:45 and the Sunday closer at 15:15, and the Sunday office late finishes at 22:30, not 23:25. '
           'On a Saturday the same office late finishes half an hour later than today’s 14:30–22:00: the office shuts at 22:10 and needs 20 minutes to cash up. '
@@ -481,7 +483,7 @@ def managers(d):
         shape_of(s, line)   # refused if Even Step's slide no longer says it
     # WHAT IT ADDS, TWO THINGS SINCE THE 22:30 TICKET OFFICE (6 Nov 2026): the leave, and nothing over 8h 30m on any day, where
     # Even Step has its Sunday 09:00–18:00 and Short Run that and its 9-hour weekday earlies; checked below
-    for old, new in (('This one adds: every early one of today’s times, Mon–Sat; the closest Saturday fit', 'This one adds: today’s leave, 30 days off for 14, and nothing over 8h 30m, any day'),
+    for old, new in (('This one adds: every early one of today’s times, Mon–Sat; the steadiest weeks', 'This one adds: today’s leave, 30 days off for 14, and nothing over 8h 30m, any day'),
                      (f'All three: fewer shift times than today’s {T["times"]} — here {tn(E)[0]}, {tn(E)[1]} worked today', f'All three: fewer shift times than today’s {T["times"]} — here {tn(F)[0]}, {tn(F)[1]} worked today'),
                      # A YEAR EACH, AGAINST TODAY AND THE OTHER TWO (whole-pack review, 5 Nov 2026): "six single rest days, not four"
                      # set 26 weeks against 26 and left out today's 10 a year; the weaker fit (32.7 against Even Step's 32.6) is notes 7's
@@ -512,12 +514,14 @@ def managers(d):
           f'({ES_} {o["Even Step"]["step"]} and {SR_} {o["Short Run"]["step"]}; today {T["step"]}). '
           f'What it costs, against them: {WORDS[sg]} single rest days in 26 weeks, where they have {WORDS[singles(PE)]} (today {WORDS[sg_t]} in 20); a slightly weaker weekday fit to the trains, {F["fitWk"]} '
           f'({ES_} {o["Even Step"]["fitWk"]} and {SR_} {o["Short Run"]["fitWk"]}; today {T["fitWk"]}); and four at the open, the minimum, where they have five Monday to Saturday. '
-          f'{NUMW[len(NEW)].capitalize()} of its {NUMW[tn(F)[0]]} shift times are new, as {NUMW[tn(o["Even Step"])[0] - tn(o["Even Step"])[1]]} of {ES_}’s {NUMW[tn(o["Even Step"])[0]]} are ({SR_} {NUMW[tn(o["Short Run"])[0] - tn(o["Short Run"])[1]]} of {NUMW[tn(o["Short Run"])[0]]}). '
+          f'{NUMW[len(NEW)].capitalize()} of its {NUMW[tn(F)[0]]} shift times are new ({ES_} {NUMW[tn(o["Even Step"])[0] - tn(o["Even Step"])[1]]} of {NUMW[tn(o["Even Step"])[0]]}, {SR_} {NUMW[tn(o["Short Run"])[0] - tn(o["Short Run"])[1]]} of {NUMW[tn(o["Short Run"])[0]]}). '
           'Every closing shift is 30 to 60 minutes shorter than today’s. '
           f'The costs all three share are in the bar: {F["late23"]} finishes a year at 23:00 or later against {T["late23"]}, and {F["sat"]} Saturdays against {T["sat"]}.')
     check('the other two share one shift time Monday to Friday in the same weeks', len({v['oneTurn'] for v in o.values()}) == 1)
-    check('as many new shift times as Even Step, of as many; Short Run more of more', tn(F) == tn(o['Even Step']) and len(NEW) == tn(F)[0] - tn(F)[1]
-          and tn(o['Short Run'])[0] - tn(o['Short Run'])[1] > len(NEW) and tn(o['Short Run'])[0] > tn(F)[0])
+    # SIX NEW AGAINST EVEN STEP'S FIVE (6 Nov 2026): one Saturday floor late back to today's time took a new time from each, and
+    # Even Step's back to a time worked today, so the two no longer have as many new; the sentence gives the three counts and claims no order
+    check('the new shift times counted are the rota’s, and the other two’s counts are their own', len(NEW) == tn(F)[0] - tn(F)[1]
+          and all(tn(o[n])[0] > tn(o[n])[1] for n in ('Even Step', 'Short Run')))
     check('the other two need the same leave for four weeks off and buy the same at best', len({(v['leaveFour'], v['leaveBest']) for v in o.values()}) == 1 and int(F['leaveFour']) < int(E['leaveFour']) and int(F['leaveBest']) > int(E['leaveBest']))
     check('every Sunday duty 8h to 8h 30m (an even Sunday); closers from 15:45 Monday to Saturday',
           {_len(P[k]['sun']) for k in P if _timed(P[k]['sun'])} <= set(range(480, 511)) and closer_start(P, DAYS[1:], '23:55') == ['15:45'])
@@ -564,11 +568,11 @@ def managers(d):
 # Even Step's sentences ABOUT Common Ground or In Step (written with a no-break space, as the polish writes every name in the
 # notes) are refused, since none of them can be true of Common Ground's own deck.
 ES_ONLY = re.compile(
-    r'12:15–|09:00–\u2060?18:00|06:20–14:00|42h 00m|£250|£290|10h 50m|^5 min longer$|56h 40m|83h 30m|^5 · 5 · 4$|^32\.6$'
+    r'12:15–|09:00–\u2060?18:00|06:20–14:00|42h 00m|£250|£290|10h 50m|^5 min longer$|56h 45m|83h 30m|^5 · 5 · 4$|^32\.6$'
     r'|22 of 26|18 of the 21|^18 of 21$|four of the seven weekday earlies|its best is 28|^Best stretch 28|15 days’ leave, not 14|^15 days, not 14$'
     r'|[Nn]othing over 8h 30m,? (Mon–Sat|Monday to Saturday)|[Nn]othing Monday to Saturday (runs|is) (over|longer)|[Nn]o shift (over 8h 30m,? Monday to Saturday|Monday to Saturday is over)'
-    r'|no early Monday to Saturday is new|move most week to week|[Tt]hough not Common Ground|[Cc]losest Saturday fit|heaviest week is the lightest'
-    r'|twice a year each|9-hour Sunday early|95c87ef3|ES-26-T5|every early one of today|lates near today'
+    r'|no early Monday to Saturday is new|move most week to week|[Tt]hough not Common Ground|[Cc]losest Saturday fit|heaviest week is the lightest|steadiest weeks'
+    r'|twice a year each|9-hour Sunday early|fb7a3988|ES-26-T5|every early one of today|lates near today'
     r'|More leave for four weeks off|and leave first|day more leave')
 plain = lambda t: t.replace('\u00a0', ' ').replace('\u2060', '')
 

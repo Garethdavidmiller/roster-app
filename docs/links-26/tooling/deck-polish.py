@@ -506,6 +506,9 @@ def colleagues(d, name, grid, F):
                  + ('The average late includes the closers; the shortlist sheet’s weekday lates leave them out. ' if name in SHORTLIST else 'The average late includes the closers. ')
                  + f'Cover weeks aside, each person works about {F["earlyYear"]} earlies and {F["lateYear"]} lates a year, Monday to Saturday, against about {T["earlyYear"]} of each today; the cover weeks add about {round(cover_days(P6))} days a year to that, against about {round(cover_days(TODAY_P))} today, so the total stays just under today’s.')
     s = S(7)
+    # THE 22:00 ROW IS EACH DESIGN'S OWN (6 Nov 2026): the template's 94 stood for every design while all of them had it; with
+    # one Saturday floor late back to today's 13:30–21:00 or 14:30–22:00, Short Run and In Step have 92 and Even Step 94
+    put(s, '94', F['late22'], AMBER)
     put(s, f'A little — about {F["late23"]} a year each, against {T["late23"]} today', f'{int(F["late23"]) - int(T["late23"])} more a year at 23:00 or later ({F["late23"]}, today {T["late23"]}); {int(F["late22"]) - int(T["late22"])} more at 22:00 or later ({F["late22"]}, today {T["late22"]})')
     s.save()
     if int(F['late23']) - int(T['late23']) != 3: raise SystemExit(f'deck-polish: slide 7 says three more after 23:00; {name} has {F["late23"]}, today {T["late23"]}')
@@ -704,14 +707,15 @@ def colleagues(d, name, grid, F):
     andl = lambda a: a[0] if len(a) == 1 else ', '.join(a[:-1]) + ' and ' + a[-1]
     closers = {WHEN[day]: re.fullmatch(r'closer, starts (\d+ min|1 hour) later', nt)[1] for day, items in groups for tm, nt in items if nt.startswith('closer')}
     SAY = {'30 min': '30 minutes', '45 min': '45 minutes', '1 hour': 'an hour'}
-    # THE WEEKEND'S TWO LATES (the 22:30 ticket office, 6 Nov 2026): the office late is 14:30–22:30 on a Saturday as on a Sunday,
-    # and the floor's Saturday 14:00–22:30 pair finishes at 22:00, a time today does not work — named once each, as In Step's
-    # 14:30–22:30 is (whole-pack review, 5 Nov 2026: named twice, six new times read as seven)
+    # THE WEEKEND'S NEW LATE (the 22:30 ticket office, 6 Nov 2026): the office late is 14:30–22:30 on a Saturday as on a Sunday —
+    # named once, as In Step's 14:30–22:30 is (whole-pack review, 5 Nov 2026: named twice, six new times read as seven). The
+    # floor's 14:00–22:00, new for a few hours that day, went when one floor late kept 22:30 and the other became a time
+    # worked today (14:30–22:00 or 13:30–21:00)
     sunday = 'On Sundays: a 9-hour early, 09:00–18:00'
-    weekend = 'Weekends: the ticket-office late, 14:30–22:30, and a new Saturday late, 14:00–22:00'
+    weekend = 'Weekends: the ticket-office late, 14:30–22:30'
     lines = {'Even Step': ['A new weekday late, 12:15–20:30', weekend, sunday],
              'In Step': ['Two weekday earlies longer than any today, 06:20–15:15 and 07:00–15:45',
-                         'A new late, 14:30–22:30, on weekdays and as the weekend ticket-office late', 'A new Saturday late, 14:00–22:00, and a 9-hour Sunday early, 09:00–18:00'],
+                         'A new late, 14:30–22:30, on weekdays and as the weekend ticket-office late', 'A 9-hour Sunday early, 09:00–18:00'],
              'Short Run': ['A 9-hour weekday early, 07:00–16:00, and a\u00a0new\u00a0late, 15:00–22:30', weekend, sunday]}[name]
     lines = ['Closers start later: ' + ', '.join(f'{SAY[v]} on {k}' for k, v in closers.items())] + lines   # every line two at most
     # THE PANEL HOLDS SEVEN LINES AT 15PT (2.15 in, measured against Inter, 6 Nov 2026), and only just with 10pt between three
@@ -829,21 +833,25 @@ def managers(d, name, grid, F):
     ms_new_earlies = lambda g: len({g[k][dd] for k in g for dd in DAYS[1:] if _timed(g[k][dd]) and int(g[k][dd][:2]) < 11} - today_times)
     # THE 22:30 TICKET OFFICE (6 Nov 2026) TOOK ONE EDGE FROM EACH: Common Ground lost its 9-hour Saturday late, so it has nothing
     # over 8h 30m on any day and Even Step's "no shift over 8h 30m, Mon–Sat" is no longer its own; and every design gained two
-    # new Saturday lates, so Short Run's "no new Saturday time" went. Even Step's line names what is still its alone, every early
-    # Monday to Saturday a time worked today, and its Saturday fit, now the closest of the three; Short Run's keeps the two it has
-    edge = {'Even Step': ms_new_earlies(P) == 0 < min(ms_new_earlies(g) for g in O) and float(F['fitSat']) < min(float(o['fitSat']) for o in others),
+    # new Saturday lates, so Short Run's "no new Saturday time" went. Short Run's line keeps the two it has.
+    # ONE SATURDAY FLOOR LATE BACK TO TODAY'S TIME (6 Nov 2026, the owner's "Yes"): each design then had one new Saturday late,
+    # not two, and Common Ground's Saturday fit became the closest of the three (9.8, Even Step 10.4), so Even Step's line names
+    # its steadiest weeks instead, the shortlist sheet's measure (a lighter heaviest week and a narrower range than either
+    # other); and In Step's Saturday fit now shows as Common Ground's, 9.8 each, so its line keeps the steadier hours alone
+    steadiest = lambda F, others: (H(F['heavy']) < min(H(o['heavy']) for o in others)
+                                   and H(F['heavy']) - H(F['light']) < min(H(o['heavy']) - H(o['light']) for o in others))
+    edge = {'Even Step': ms_new_earlies(P) == 0 < min(ms_new_earlies(g) for g in O) and steadiest(F, others),
             'Short Run': float(F['fitWk']) < min(float(o['fitWk']) for o in others),
-            'In Step': H(F['heavy']) < min(H(o['heavy']) for o in others) and float(F['fitSat']) < min(float(o['fitSat']) for o in others)
-                       and H(F['heavy']) - H(F['light']) < min(H(o['heavy']) - H(o['light']) for o in others)}[name]
+            'In Step': steadiest(F, others)}[name]
     # IN STEP'S EARLY FINISHES ARE NO LONGER ITS OWN (5 Nov 2026): Common Ground, shortlisted, has as many, 12 a year each, so the
     # line names the two edges it still has over all three shortlisted links, and the notes give the early finishes with their figures
     # (1 Nov 2026, managers' review: In Step's line now names its early finishes, Short Run's its short lates, as the shortlist does)
     if name == 'Short Run' and not weekday_late_avg(P) < min(weekday_late_avg(g) for g in O):
         raise SystemExit('deck-polish: Short Run’s "This one adds" names the shortest weekday lates, and they are not')
     if not edge: raise SystemExit(f'deck-polish: {name}’s "This one adds" line is no longer its own among the shortlist')
-    adds = {'Even Step': 'This one adds: every early one of today’s times, Mon–Sat; the closest Saturday fit',
+    adds = {'Even Step': 'This one adds: every early one of today’s times, Mon–Sat; the steadiest weeks',
             'Short Run': 'This one adds: the closest weekday fit and the shortest weekday lates',
-            'In Step': 'This one adds: steadier weekly hours and a closer Saturday fit than all three'}[name]   # off the shortlist since 5 Nov 2026: against the three, not "of the three"
+            'In Step': 'This one adds: steadier weekly hours than all three'}[name]   # off the shortlist since 5 Nov 2026: against the three, not "of the three"
     # WHAT IT COSTS IS AGAINST TODAY, as the bar beneath and the four weeks' leave are (30 Oct 2026). Short Run's line was "one
     # 42h 30m week (today up to 43h 50m)": heavier than In Step's, and lighter than today's, so it read as a cost and was not
     # one. Both now name their long weekday earlies, where today no early is over 8h 30m: In Step's 40 a year, Short Run's
@@ -1060,22 +1068,26 @@ def managers_review(d, name, P, O, others, F, help_):
     wla_of = {n: weekday_late_avg(grid_of(n)) for n in peers}
     # EVEN STEP SINCE THE 22:30 TICKET OFFICE (6 Nov 2026): Common Ground lost its Saturday 13:30–22:30 and a shift time with it, so
     # Even Step no longer has the fewest times (13, as Common Ground) nor the only week with nothing over 8h 30m Monday to Saturday
-    # (Common Ground has nothing over it on any day); what is its own is the closest Saturday fit and the lightest heaviest week
+    # (Common Ground has nothing over it on any day); what is its own is the closest Saturday fit and the lightest heaviest week.
+    # Once one Saturday floor late went back to today's time (6 Nov 2026, the owner's "Yes"), Common Ground had the closest Saturday
+    # fit, 9.8 against Even Step's 10.4 and Short Run's 13.6: Even Step's own is the lightest heaviest week, and its Saturday fit,
+    # between the other two, moves into what it gives up against Common Ground
     over_of = lambda g: {(dd, g[k][dd]) for k in g for dd in DAYS if _timed(g[k][dd]) and _len(g[k][dd]) > 510}
     n_of = lambda n: first(FIG[n]['times'])
     ties = [n for n in peers if n_of(n) == n_times]
     if name == 'Even Step' and not (ties and all(n_of(n) >= n_times for n in peers)
-                                    and float(F['fitSat']) < min(others_of('fitSat', float)) and H(F['heavy']) < min(others_of('heavy', H))
+                                    and float(FIG['Common Ground']['fitSat']) < float(F['fitSat']) < float(FIG['Short Run']['fitSat']) and H(F['heavy']) < min(others_of('heavy', H))
+                                    and H(F['heavy']) - H(F['light']) < min(H(FIG[n]['heavy']) - H(FIG[n]['light']) for n in peers)
                                     and over_of(P) == {('sun', '09:00-18:00')} and 'Common Ground' in peers and not over_of(grid_of('Common Ground'))
                                     and H(F['step']) > max(others_of('step', H))
                                     and wla_of['Short Run'] < wla <= wla_of['Common Ground']
                                     and float(FIG['Short Run']['fitWk']) < float(F['fitWk']) < float(FIG['Common Ground']['fitWk'])):
-        raise SystemExit('deck-polish: Even Step’s notes 7 give it as few shift times as one of the others and no more than any, the closest Saturday fit and the lightest heaviest week of the three, the Sunday 09:00–18:00 as its one shift over 8h 30m where Common Ground has none, the furthest week-to-week move, and lates and a weekday fit between Short Run’s and Common Ground’s, and it has not')
+        raise SystemExit('deck-polish: Even Step’s notes 7 give it as few shift times as one of the others and no more than any, the steadiest weeks and the lightest heaviest week of the three, a Saturday fit between Common Ground’s and Short Run’s, the Sunday 09:00–18:00 as its one shift over 8h 30m where Common Ground has none, the furthest week-to-week move, and lates and a weekday fit between Short Run’s and Common Ground’s, and it has not')
     if name == 'Short Run' and not (H(F['closerSat']) > max(others_of('closerSat', H)) and H(F['rest']) < min(others_of('rest', H)) and wla < min(wla_of.values())):
         raise SystemExit('deck-polish: Short Run’s notes 7 give it the longest Saturday closer, the shortest rest and the shortest weekday lates of the three, and it has not')
     if name == 'In Step' and not (H(F['heavy']) < min(others_of('heavy', H)) and H(F['heavy']) - H(F['light']) < min(H(FIG[n]['heavy']) - H(FIG[n]['light']) for n in peers)
-                                  and float(F['fitSat']) < min(others_of('fitSat', float))):
-        raise SystemExit('deck-polish: In Step’s notes 7 give it steadier weekly hours and a closer Saturday fit than all three shortlisted, and it has not')
+                                  and float(F['fitSat']) <= min(others_of('fitSat', float))):
+        raise SystemExit('deck-polish: In Step’s notes 7 give it steadier weekly hours than all three shortlisted and a Saturday fit as close as any, and it has not')
     lead7 = (f'{name} is not on the shortlist: it was from 30 October to 5 November 2026, when Common Ground took its place. Even Step, which is on it, keeps its weeks with the shift times chosen again.' if off
              else f'{name} is one of {WORDS[len(SHORTLIST)]} shortlisted designs, with {andl(peers)}.'
              + (' It keeps the weeks of In Step, another design in the pack — the same rest days, weekends, cover weeks and blocks of earlies and lates — with the shift times chosen again, so that nothing Monday to Saturday runs over 8h 30m and every early Monday to Saturday is a time worked today.' if name == 'Even Step' else ''))
@@ -1089,9 +1101,17 @@ def managers_review(d, name, P, O, others, F, help_):
     es_lates = andl([f'{n} {hm(wla_of[n])}' for n in ('Short Run', 'Common Ground') if n in wla_of])
     ties_said = (f'as many as {andl(ties)}' + (f' ({andl([f"{n} {n_of(n)}" for n in peers if n not in ties])})' if len(ties) < len(peers) else '')) if ties else ''   # Even Step's, checked above
     es_fits = andl([f'{n} {FIG[n]["fitWk"]}' for n in ('Short Run', 'Common Ground')])
+    es_sat = andl([f'{n} {FIG[n]["fitSat"]}' for n in ('Common Ground', 'Short Run')])   # Even Step's, checked above
+    es_ranges = andl([f'{n} {FIG[n]["light"]} to {FIG[n]["heavy"]}' for n in peers])   # the slide's "steadiest weeks", checked above
+    # IN STEP'S SATURDAY FIT SHOWS AS COMMON GROUND'S (6 Nov 2026): 9.8 each once one Saturday floor late went back to today's
+    # time, so "the closest" would contradict the two figures the reader sees; the sentence says whom it matches, as eo_said does
+    sat_same = [n for n in peers if FIG[n]['fitSat'] == F['fitSat']]
+    sat_rest = andl([f'{n} {FIG[n]["fitSat"]}' for n in peers if n not in sat_same])
+    sat_said = (f'and a Saturday fit to the trains as close as {andl(sat_same)}’s, {F["fitSat"]} each ({sat_rest})' if sat_same
+                else f'and the closest Saturday fit to the trains, {F["fitSat"]} ({rest_of("fitSat")})')
     body7 = {
-        'Even Step': f' Against the other two it has the closest Saturday fit to the trains, {F["fitSat"]} ({rest_of("fitSat")}; today {T["fitSat"]}), and its heaviest week is the lightest of the three, {F["heavy"]} Monday to Saturday ({rest_of("heavy")}; today {T["heavy"]}). Its one shift over 8h 30m is the Sunday 09:00–18:00, 9 hours, where Common Ground has none on any day. It has {n_times} shift times, {ties_said}, and keeps today’s 13:45 every weekday. What it gives up, against the other two: start times that move further from one week to the next, {F["step"]} on average ({rest_of("step")}; today {T["step"]}). Against Short Run, though not Common Ground, longer weekday lates, {hm(wla)} on average, closers aside ({es_lates}; today {hm(weekday_late_avg(TODAY_P))}), and a weaker weekday fit to the trains, {F["fitWk"]} ({es_fits}; today {T["fitWk"]}).',
-        'In Step': f' Beside the three shortlisted links it has the steadiest weekly hours, {F["light"]} to {F["heavy"]} Monday to Saturday (today {T["light"]} to {T["heavy"]}); {eo_said}; and the closest Saturday fit to the trains, {F["fitSat"]} ({rest_of("fitSat")}). It keeps today’s 13:45 every weekday. What it gives up: {long_phrase}, about {long_wk_earlies(P)} a year each in all, where today no early is over 8h 30m.',
+        'Even Step': f' Its weeks are the steadiest of the three, {F["light"]} to {F["heavy"]} Monday to Saturday ({es_ranges}; today {T["light"]} to {T["heavy"]}), with the lightest heaviest week. Its one shift over 8h 30m is the Sunday 09:00–18:00, 9 hours, where Common Ground has none on any day. It has {n_times} shift times, {ties_said}, and keeps today’s 13:45 every weekday. What it gives up, against the other two: start times that move further from one week to the next, {F["step"]} on average ({rest_of("step")}; today {T["step"]}). Against Short Run, though not Common Ground, longer weekday lates, {hm(wla)} on average, closers aside ({es_lates}; today {hm(weekday_late_avg(TODAY_P))}), and a weaker weekday fit to the trains, {F["fitWk"]} ({es_fits}; today {T["fitWk"]}). Against Common Ground, though not Short Run, a weaker Saturday fit, {F["fitSat"]} ({es_sat}; today {T["fitSat"]}).',
+        'In Step': f' Beside the three shortlisted links it has the steadiest weekly hours, {F["light"]} to {F["heavy"]} Monday to Saturday (today {T["light"]} to {T["heavy"]}); {eo_said}; {sat_said}. It keeps today’s 13:45 every weekday. What it gives up: {long_phrase}, about {long_wk_earlies(P)} a year each in all, where today no early is over 8h 30m.',
         'Short Run': f' It has the closest weekday fit to the trains, {F["fitWk"]} ({rest_of("fitWk")}; today {T["fitWk"]}), and the shortest weekday lates, {hm(wla)} on average, closers aside. What it gives up: {long_phrase}, about {long_wk_earlies(P)} a year each, where today no early is over 8h 30m; today’s 13:45, which both others keep every weekday; a Saturday closer of {F["closerSat"]} ({rest_of("closerSat")}); and the shortest rest of the three, {F["rest"]} ({rest_of("rest")}).'}[name]
     if eo != int(F['shortYear']): raise SystemExit(f'deck-polish: {name}’s notes 7 count {eo} finishes before 14:00 beside the others’ 13:35 and 13:45 counts, {F["shortYear"]}; they are the same earlies only while they agree')
     # THE LEAVE, DESIGN BY DESIGN (5 Nov 2026): who needs more than today for four weeks off, and who on the shortlist keeps today's

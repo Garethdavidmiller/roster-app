@@ -32,7 +32,10 @@
  * THE SATURDAY TICKET OFFICE FINISHES AT 22:30 (6 Nov 2026, RULES.md S5 — the office shuts at 22:10 and needs 20
  * minutes to cash up; it read 22:00 until then). Short Run's two Saturday office lates moved to 14:30-22:30 and its two
  * Saturday floor lates gave the half hour back (14:00-22:30 became 14:00-22:00), so the rows below moved with it and
- * Saturday's 6,900 minutes, and the contract, are unchanged.
+ * Saturday's 6,900 minutes, and the contract, are unchanged. LATER THE SAME DAY (the owner's "Yes" to the variant measured
+ * in docs/links-26/README.md) one floor late went back to 22:30 and the other to today's Saturday 13:30-21:00: two
+ * 14:00-22:00 became one 14:00-22:30 and one 13:30-21:00, the same sixteen hours, so the office's 14:30-22:30 is the one
+ * new time on Short Run's Saturday and the table still has fifteen times.
  *
  * What it meets, from RULES.md: at least four on at the open and three at the close every day;
  * at least five still on at 22:00; ten on a Sunday, every Sunday duty 8–9 hours; the ticket office's
@@ -98,12 +101,12 @@ const TABLE = Object.freeze([
     Object.freeze({ time: '06:20-14:50', weekday: 3, sat: 2, sun: 0 }),
     Object.freeze({ time: '07:00-16:00', weekday: 2, sat: 0, sun: 0 }),
     Object.freeze({ time: '12:00-20:00', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '14:00-22:30', weekday: 2, sat: 0, sun: 0 }),
+    Object.freeze({ time: '14:00-22:30', weekday: 2, sat: 1, sun: 0 }),
     Object.freeze({ time: '15:00-22:30', weekday: 2, sat: 0, sun: 0 }),
     Object.freeze({ time: '15:45-23:55', weekday: 3, sat: 0, sun: 0 }),
     Object.freeze({ time: '06:20-14:00', weekday: 0, sat: 3, sun: 0 }),
     Object.freeze({ time: '08:00-16:30', weekday: 0, sat: 2, sun: 0 }),
-    Object.freeze({ time: '14:00-22:00', weekday: 0, sat: 2, sun: 0 }),
+    Object.freeze({ time: '13:30-21:00', weekday: 0, sat: 1, sun: 0 }),
     Object.freeze({ time: '14:30-22:30', weekday: 0, sat: 2, sun: 2 }),
     Object.freeze({ time: '15:15-23:55', weekday: 0, sat: 3, sun: 0 }),
     Object.freeze({ time: '07:15-15:45', weekday: 0, sat: 0, sun: 4 }),
