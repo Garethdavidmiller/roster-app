@@ -96,5 +96,5 @@ green (see Evolution above for the final values).*
 | 8 | How RDW-ness is decided | **Explicitly marked on the roster** ("TRG RDW"). Manual entry gets an RDW tick, **pre-ticked** when the day's base is a rest day. Engine belt-and-braces: base RD/OFF ⇒ treat as RDW even if the flag is missing |
 | 9 | Sunday | **Blocked** — a Sunday can never be a training day (same enforcement-layer treatment as AL/Absent; the layers are enumerated in CLAUDE.md and there are six of them now, not the five there were when this decision was recorded) |
 | 10 | Admin manual entry | Yes — **one** "Training" pill in Change a Shift; picking it reveals flavour choice + RDW tick + **optional** time boxes (blank = defaults) |
-| 11 | Times storage | Optional, on the override value itself (see grammar). Roster upload never carries times; only manual admin entry does |
+| 11 | Times storage | Optional, on the override value itself (see grammar). Roster upload carries times for a **meeting** only (v25.38 — `"10:00-14:00 MTG"` imports as `MEET 10:00-14:00`); for every other flavour only manual admin entry does |
 | 12 | Worked-day status | Training counts as a **worked** day (dispatcher BH-lieu counting included — a BH training earns lieu, since it pays as the day) |

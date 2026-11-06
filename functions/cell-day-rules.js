@@ -5,44 +5,34 @@
  * Requires nothing: no Firebase, no HTTP, no clock. Imported by `functions/roster-parse-helpers.js`.
  * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
  *
- * ── THREE RULES, ONE REASON ─────────────────────────────────────────────────────────────────────
+ * ── ONE DAY RULE, AND TWO CODES THAT USED TO BE ONE ─────────────────────────────────────────────
  *
- * Three cell kinds live here because each one's meaning turns on the same fact — **Sunday is
- * uncontracted** — and a per-cell normaliser cannot know which column it is reading:
+ * A cell the model reported as EMPTY means something different on a Sunday — the uncontracted
+ * column, whose blank is how the sheet says "not working" — from any other day, where a blank is a
+ * cell nobody read. A per-cell normaliser cannot know which column it is reading, so the rule lives
+ * here, one function, and its two call sites in `buildSafeEntries` cannot disagree.
  *
- *   · a cell the model reported as EMPTY
- *   · a cell marked `NA` / `N/A` — NOT AVAILABLE, which is an ABSENCE
- *   · a cell marked `NS` — NOT AVAILABLE ON A SUNDAY
+ * `NA` / `N/A` and `NS` — NOT AVAILABLE — were decided here too, by the day, until v25.38:
  *
- * ── THE OWNER'S CORRECTION (24 Sep 2026) ────────────────────────────────────────────────────────
+ *   v24.20  `NA` a Sunday rest day and a Mon–Sat QUESTION, on a misheard remark that it "usually
+ *           only falls on a Sunday".
+ *   v24.22  `NA` an ABSENCE Monday to Saturday and a rest day on Sunday (owner, 24 Sep 2026: it
+ *           "always means absent"); `NS` the Sunday code, a rest day there and absent on a weekday.
+ *   v25.38  BOTH A REST DAY, ON EVERY DAY (owner, 6 Nov 2026: "NA and NS should be treated as rest
+ *           days on the roster uploader", Sundays included).
  *
- * v24.20 read `NA` as "an answer on Sunday and a question everywhere else", on the owner's earlier
- * words that it "usually only falls on a Sunday as it is uncontracted". That was the wrong fact,
- * and the owner corrected it: **`NA` means not available and ALWAYS means absent.** It is normally
- * written Monday to Saturday; on a Sunday it is a clerical error. **`NS` is the Sunday code** — not
- * available on a Sunday — and the two are different codes, not spellings of one.
+ * The last answer took the day out of the question, so `normaliseShift` now records both as the
+ * rest day, beside `SN`. Their RECOGNISERS stay here: `normaliseShift` asks them, and so does the
+ * Sunday scan repair (`roster-sunday-repair.js`), which reads the printed code before anything has
+ * normalised it — one list of what the roster writes, so the two cannot disagree about a spelling.
  *
- * So the rules are now:
- *
- *   `NA`/`N/A`  Mon–Sat → `SICK` (the app's Absent day — the reason is never stored, GDPR)
- *               Sunday  → `RD`, because a Sunday cannot hold an absence (CLAUDE.md, the six-layer
- *                         Sunday rule: the client's Sunday layer strips a Sunday `SICK` to `RD`
- *                         regardless, so writing `RD` here says the same thing one step earlier and
- *                         keeps the Sunday scans' blank-equivalence intact). The coordinator warns,
- *                         because the owner says a Sunday `NA` is an error worth noticing.
- *   `NS`        Sunday  → `RD` (not available and not working coincide — nobody is contracted)
- *               Mon–Sat → `SICK` (owner, 24 Sep 2026: "NS on a weekday should also mean absent").
- *               So the two codes carry ONE rule and differ only in which day is the clerical
- *               error — `NA` on a Sunday, `NS` on a weekday — which is what the warnings say.
- *   blank       Sunday  → `RD`; Mon–Sat → a question (v22.19, unchanged).
- *
- * ── AND WHY NOT LEAVE THEM WHERE THEY WERE ──────────────────────────────────────────────────────
+ * ── AND WHY NOT LEAVE THE BLANK RULE WHERE IT WAS ───────────────────────────────────────────────
  *
  * The blank rule was applied at TWO sites in `buildSafeEntries` — a day whose header the model
  * never listed, and a header it listed with nothing in it — and its own comment records why that
  * matters: *"Both were 'RD' until v22.19, so the fix had to be made twice or it would have been
  * made nowhere the model actually goes."* A rule written out per call site is a rule that can be
- * fixed in one of them. Here each rule is one function, and its call sites cannot disagree.
+ * fixed in one of them. Here it is one function, and its call sites cannot disagree.
  *
  * The history behind the blank rule — three real rosters, 50 member rows, 24 blank Sundays against
  * 5 blank Mon–Sat cells all belonging to one person, and why the model's three "independent layers"
@@ -52,10 +42,11 @@
 /** The token the prompt returns for a cell with no text in it. */
 const BLANK_CELL_TOKEN = 'BLANK';
 
-/** The ways a roster writes "not available" — an absence. `N/A` is a spelling of `NA`. */
+/** The ways a roster writes "not available" — a rest day (v25.38). `N/A` is a spelling of `NA`. */
 const NOT_AVAILABLE_TOKENS = new Set(['NA', 'N/A']);
 
-/** The Sunday code: "not available on a Sunday". A different code from `NA`, not a spelling of it. */
+/** The Sunday code: "not available on a Sunday". A different code from `NA`, not a spelling of it,
+ *  and a rest day too, on whichever day it is written (v25.38). */
 const NOT_AVAILABLE_SUNDAY_TOKENS = new Set(['NS']);
 
 /** Sunday's index in a Sunday-first week. Named because `0` alone reads as "the first column". */
@@ -83,7 +74,7 @@ function isWholeCell(raw, tokens) {
 }
 
 /**
- * Is this cell `NA` / `N/A` — not available, an absence?
+ * Is this cell `NA` / `N/A` — not available? (`normaliseShift` records it as the rest day.)
  *
  * Matches the WHOLE cell, never a substring: `NAT` and `ANA` are not this, and a time is not this.
  * @param {any} raw
@@ -92,7 +83,7 @@ function isWholeCell(raw, tokens) {
 function isNotAvailable(raw) { return isWholeCell(raw, NOT_AVAILABLE_TOKENS); }
 
 /**
- * Is this cell `NS` — not available on a Sunday?
+ * Is this cell `NS` — not available on a Sunday? (A rest day on any day — `normaliseShift`.)
  * @param {any} raw
  * @returns {boolean}
  */
@@ -111,28 +102,6 @@ function blankCellMeaning(dayIndex, dayLabel) {
         : `UNKNOWN|no ${dayLabel || 'day'} cell was read — check the PDF`;
 }
 
-/**
- * What an `NA` cell means on this day: an ABSENCE Monday to Saturday; on a Sunday, where it is a
- * clerical error and no absence can be held, the rest day the Sunday already is.
- *
- * @param {number} dayIndex  0 = Sunday
- * @returns {'SICK'|'RD'}
- */
-function notAvailableMeaning(dayIndex) {
-    return dayIndex === SUNDAY ? 'RD' : 'SICK';
-}
-
-/**
- * What an `NS` cell means on this day: the rest day a Sunday already is, and — on a weekday, where
- * the Sunday code is a clerical error — an absence, exactly as `NA` (owner, 24 Sep 2026).
- *
- * @param {number} dayIndex  0 = Sunday
- * @returns {'SICK'|'RD'}
- */
-function notAvailableSundayMeaning(dayIndex) {
-    return notAvailableMeaning(dayIndex);
-}
-
 module.exports = {
     BLANK_CELL_TOKEN,
     NOT_AVAILABLE_TOKENS,
@@ -142,6 +111,4 @@ module.exports = {
     isNotAvailable,
     isNotAvailableSunday,
     blankCellMeaning,
-    notAvailableMeaning,
-    notAvailableSundayMeaning,
 };

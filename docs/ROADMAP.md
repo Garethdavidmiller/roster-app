@@ -199,8 +199,8 @@ upload, and the coordinator logs which path it took).
 
 **PHASE 3 IS CLOSER THAN THIS ENTRY ASSUMED.** Measured over the same three rosters: **288 of 297
 non-empty cells — 97% — are read by `normaliseShift` alone** once the duty-code line is dropped. The
-nine that are not: `PIDD TRG` ×4 (not in the prompt's vocabulary; it reads as UNKNOWN) and `NA` ×3 (now decided by
-the day — `DECIDED_BY_THE_DAY` in `roster-prompt-parity.test.mjs`), plus `Until 10:30` and `Medical`, which genuinely want a person. Phase 3 would make the
+nine that are not: `PIDD TRG` ×4 (not in the prompt's vocabulary; it reads as UNKNOWN) and `NA` ×3 (decided by
+the day from v24.22, and read by `normaliseShift` itself as a rest day since v25.38), plus `Until 10:30` and `Medical`, which genuinely want a person. Phase 3 would make the
 97% PROVABLE rather than probable — a deterministic parser is testable in a way a model call is not,
 which is what would finally close the "we cannot show the model normalises well" caveat phase 2 ships
 with. **`NA` IS ANSWERED, and it is no longer one of the nine** — twice, because the first answer was the
@@ -210,7 +210,9 @@ not available and always means absent**, written Monday to Saturday and a cleric
 **`NS` is the Sunday code**, not available on a Sunday. So `NA`/`N/A` is the app's Absent day
 Mon–Sat and `RD` on a Sunday (a Sunday cannot hold an absence), `NS` is `RD` on Sunday and `SICK` on a
 weekday (the owner's second answer that day: a weekday `NS` is also absent), and the prompt still
-reports the code rather than deciding — every answer depends on the column. The deterministic read is 291 of 297 rather than 288 — `NA` never needed the
+reports the code rather than deciding — every answer depends on the column. **And a third time (v25.38):** on 6 Nov 2026
+the owner ruled that `NA` and `NS` "should be treated as rest days on the roster uploader", Sundays
+included, so both are `RD` on every day and the day no longer matters. The deterministic read is 291 of 297 rather than 288 — `NA` never needed the
 model. `PIDD TRG` ×4, `Until 10:30` and `Medical` are what remain, and the last two genuinely want a
 person.
 

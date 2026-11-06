@@ -248,7 +248,7 @@ describe('reviewBlankReadsOfFilledCells — the grid says what an empty read mis
         assert.deepEqual(sent, []);
     });
 
-    test('a cell that SAYS rest is not a question — RD, OFF, SN, and a Sunday NA or NS', () => {
+    test('a cell that SAYS rest is not a question — RD, OFF, SN, NA or NS', () => {
         for (const text of ['RD', 'OFF', 'SN', 'NA', 'NS']) {
             assert.equal(run(reply({ Sunday: 'BLANK', ...WEEK }), [text, ...CELLS.slice(1)]).sunday, 'RD',
                 `a Sunday cell printed "${text}" and read as empty is a rest day either way`);
