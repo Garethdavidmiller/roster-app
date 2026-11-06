@@ -103,7 +103,7 @@ for said in ['is the one to choose for something different',
              '<b>Choose Short Run</b> if the weekday fit and short weekday lates matter most', 'a weaker weekday fit',
              'the biggest change of start',
              'Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen',
-             'Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, about half a point ahead of Even Step']:
+             'Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, about a point and a half ahead of Even Step']:
     if said not in SHEET: raise SystemExit(f'pack: the read-me repeats the shortlist sheet, which no longer says "{said}"')
 PAGE = open('newlink-data.js', encoding='utf-8').read().replace('\\u00a0', ' ')
 for said in ['four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best',
@@ -151,8 +151,12 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # Middle Ground joined on 5 Nov 2026 (owner: "rename good turn as Middle Ground and add it to the pack"), after the shortlist of
 # that day: Common Ground's weeks with the shift times varied from week to week. It is the one design after the 5 Nov shortlist,
 # and it buys 30 days off for 14 days' leave, so it is in the 30-day folder; its own paragraph follows the 5 Nov one
-AFTER_31_OCT_SET = ['Clean Slate', 'Common Ground', 'Fair Share', 'Grand Tour', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers']
-LATE_SET = ['Middle Ground']
+# Balanced V5 and Balanced V6 joined on 6 Nov 2026 (owner: "Balanced v5 and Relief Point need adding to the pack, but can you
+# rename Relief Point as Balanced v6"), both drawn on 5 Nov 2026, after the shortlist: a one-page roster drawn up outside the
+# app, and a 15-minute weekday handover drawn from it. Both buy 30 days off for 14 days' leave, so both are in the 30-day
+# folder; the late paragraph describes each on its own terms, as it does Middle Ground
+AFTER_31_OCT_SET = ['Balanced V5', 'Balanced V6', 'Clean Slate', 'Common Ground', 'Fair Share', 'Grand Tour', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers']
+LATE_SET = ['Balanced V5', 'Balanced V6', 'Middle Ground']
 if LATE and LATE != LATE_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(LATE_SET)} as the designs after the shortlist; they are {LATE}')
 if AFTER_31_OCT != AFTER_31_OCT_SET:
@@ -170,14 +174,16 @@ TAKEN_OUT = ['Quarter Past', 'Well Kept']
 if any(n in names.split(', ') for n in TAKEN_OUT):
     raise SystemExit(f'pack: the read-me says {TAKEN_OUT} were taken out; regenerate.mjs SUPPLIED lists one of them')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
-THIRTY_SET = ['Common Ground', 'Grand Tour', 'Middle Ground', 'Open Return', 'Short Openers']
+THIRTY_SET = ['Balanced V5', 'Balanced V6', 'Common Ground', 'Grand Tour', 'Middle Ground', 'Open Return', 'Short Openers']
 THIRTY_IN = sorted(n for n, c, _ in proposals if DIR_OF[c] == '30-days-off')
 if THIRTY_IN != THIRTY_SET:
     raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
 built_in = open('links-proposals.js', encoding='utf-8').read()
 missing = [n for n, c, _ in proposals if n in SHORTLIST and f"code: '{c}'" not in built_in]
 if missing: raise SystemExit(f'pack: the read-me says every shortlisted design is built into the app; links-proposals.js lacks {missing}')
-WORDS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()
+# to thirty since 6 Nov 2026: twenty-one designs ran off the end of a list that stopped at twenty
+WORDS = ('zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty '
+         'twenty-one twenty-two twenty-three twenty-four twenty-five twenty-six twenty-seven twenty-eight twenty-nine thirty').split()
 ORDER = SHORTLIST + DECKS_KEPT   # the shortlist's order, A to Z, then the decks kept off it
 with_decks = sorted((n for n, _, _ in proposals if os.path.exists(f"{ROOT}/presentations/{n.replace(' ', '-')}-for-colleagues.pptx")),
                     key=lambda n: ORDER.index(n) if n in ORDER else len(ORDER))
@@ -338,16 +344,19 @@ readme = '\n'.join([
             'weeks, on Grand Tour\'s weeks: today\'s shift times kept where the rules allow, a 13:45 finish every weekday, '
             'closers from 15:45, nothing over 8h 30m on any day, and an even Sunday.'), '']
       if AFTER_31_OCT else []),
-    para(f'On {SHORTLIST_DATE.replace("Nov", "November")} the shortlist was drawn again, after every design in the pack, '
+    para(f'On {SHORTLIST_DATE.replace("Nov", "November")} the shortlist was drawn again, after every design then in the pack, '
          'and listed A to Z: Common Ground, as the example of the links that keep today\'s leave; Even Step, then first in '
          'the pack\'s league; and Short Run, which colleagues had already seen. In Step left the shortlist, and its '
          'presentations stay in the pack. Page 2 of the shortlist sheet sets every other design beside the three.'),
     '',
     # described on its own terms, as its headline is (owner, 5 Nov 2026: "the proposal description headlines should not
     # reference other proposals")
-    *([para('Middle Ground (5 November 2026) came after it: seven of today\'s shift times, varied from week to week so '
-            'that no two closing weeks and no two 06:20 weeks fall together. It buys 30 days off for 14 days\' leave too, '
-            'and is in the folder 30 days off.'), '']
+    *([para('Middle Ground, Balanced V5 and Balanced V6 (5 November 2026) came after it. Middle Ground has seven of '
+            'today\'s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall '
+            'together. Balanced V5, a one-page roster drawn up outside the app, has weeks of 06:20 starts and weeks of '
+            '08:00 starts and a 15:45 closer every weekday. Balanced V6 has a 15-minute handover every weekday, from three '
+            '07:30-16:00s to the three 15:45 closers. All three buy 30 days off for 14 days\' leave too, and are in the '
+            'folder 30 days off.'), '']
       if LATE else []),
     *([para(f'Four more were drawn up and withdrawn on 3 November 2026 as the weakest in the pack: {", ".join(WITHDRAWN[:-1])} '
             f'and {WITHDRAWN[-1]}. Each was the same as or worse than a design still here on everything the sheets measure '
@@ -358,10 +367,11 @@ readme = '\n'.join([
     # THE 22:30 OFFICE (6 Nov 2026; README.md -> "The Saturday ticket office to 22:30"): what it changed, said once, for a reader
     # holding a printout from before it, whose fingerprints no longer match
     para('On 6 November 2026 the rules were corrected: the ticket office shuts at 22:10 on a Saturday and takes 20 minutes '
-         'to cash up, so on every link here its two Saturday lates finish at 22:30, not 22:00, and that hour comes off the '
-         'Saturday\'s other lates, so the hours and the contract are as they were. Every sheet and presentation was '
-         'redrawn, and every fingerprint changed. Since then Common Ground is first in the pack\'s league, about half a '
-         'point ahead of Even Step.'),
+         'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. On the '
+         'nineteen already in the pack that hour comes off the Saturday\'s other lates, so the hours and the contract are '
+         'as they were; every sheet and presentation was redrawn, and those nineteen fingerprints changed. Balanced V5 and '
+         'Balanced V6, which joined the same day, already finished them at 22:30. Since then Common Ground is first in the '
+         'pack\'s league, about a point and a half ahead of Even Step.'),
     '',
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
          'reference.'),

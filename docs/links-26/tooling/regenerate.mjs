@@ -121,10 +121,17 @@ export const SUPPLIED = [
     // 4 Nov 2026: Common Ground is today's link taken to 26 weeks on the owner's brief, its weeks the 30-for-14 grid found on
     // Fair Share's duties (README.md → "Common Ground"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
     // with the other four (owner, the same evening: "add any other 30 days off proposals to the subfolder")
-    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'd6d1131d', dir: '30-days-off', strap: 'Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m Monday to Friday, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'd6d1131d', dir: '30-days-off', strap: 'Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m on any day, and 14 days’ leave buys 30 days off, as today' },
     // 5 Nov 2026: Middle Ground is Common Ground's weeks with the shift times varied from week to week (README.md → "Middle
     // Ground"). Its rest days are Common Ground's, so it buys 30 days off for 14 days' leave too and ships into 30-days-off/
     { file: 'middle-ground.json',          name: 'Middle Ground',  code: 'MG-26-T8',   fp: 'a2417e62', dir: '30-days-off', strap: 'Seven of today’s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together, and 14 days’ leave buys 30 days off, as today' },
+    // 6 Nov 2026 (owner: "Balanced v5 and Relief Point need adding to the pack, but can you rename Relief Point as Balanced v6"):
+    // Balanced V5 is its author's one-page Marylebone Balanced 26, version 5, read cell by cell; Balanced V6 (drawn as Relief Point,
+    // RP-26-V5) is the owner's 15-minute weekday handover drawn from it. Both buy 30 days off for 14 days' leave, and both finish
+    // the Saturday office lates at 22:30 as drawn, so the 6 Nov correction changed neither (README.md → "Balanced V5 and Balanced
+    // V6 join the pack")
+    { file: 'results/balanced-v5.json',        name: 'Balanced V5',          code: 'MB-26-V5',  fp: 'ded4a15f', dir: '30-days-off', strap: 'Weeks of 06:20 starts and weeks of 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'results/balanced-v6.json',        name: 'Balanced V6',          code: 'MB-26-V6',  fp: '1818a1c2', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
