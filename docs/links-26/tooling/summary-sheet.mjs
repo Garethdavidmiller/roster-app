@@ -46,7 +46,7 @@ rows.sort((a,b)=> a.hard-b.hard || b.met-a.met || a.present-b.present || a.name.
 const todayRow = { name:'Today’s link', code:'20 weeks', met:null, of:null, present:TA.fixed.present, presentW:TA.fatigue.present, run:TA.fixed.run, runW:TA.checks.longestStretch, wkd:`${TA.checks.weekendsOff} in 20`, gap:gapOf(T.patterns), wkYear:TA.checks.weekendsOff*52/20, rest:TA.rest?.minutes, times:`${TA.feel.distinctTimes}`, ...extra(T.patterns) };
 // today's rules met, the rules sheet's own figure
 { const R0 = currentRules({ patterns:T.patterns, ...TA }, TA, 'today'); todayRow.met = R0.met; todayRow.of = R0.of; }
-const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><span>${r.code}</span>${SHORTLIST.includes(r.name) ? '<em class="sl">★ shortlisted</em>' : ''}${r.thirty ? '<em class="tl">30 days off for 14 days’ leave</em>' : ''}${r.hard ? '<em class="hl">✕ cannot be run as it stands</em>' : ''}</td><td class="${r.met===r.of?'good':''}">${r.met} of ${r.of}${r.waived ? `<span class="wv">${r.waived} waived‡</span>` : ''}</td><td class="${r.present===0?'good':''}">${r.present}<span class="wv">up to ${r.presentW}§</span></td><td>${r.run}<span class="wv">up to ${r.runW}§</span></td><td>${r.wkd}<span class="wv">about ${Math.round(r.wkYear)} a year${r.gap ? ` · ${r.gap} weeks apart at most` : ''}</span></td><td class="${r.turns ? 'bad' : ''}">${r.rest==null?'—':`${r.turns ? '✕ ' : ''}${hm(r.rest)}`}${r.turns ? '<span class="wv">under the 12-hour limit</span>' : ''}</td><td>${r.times}</td><td${r.L === LINES && r.dpy > DAYS_CEILING + 1e-9 ? ' class="bad"' : ''}>${r.dpy.toFixed(1)}</td><td>${hm(r.heavy)}</td><td>${r.oneTurn} of ${r.working}<span class="wv">blocks ${blockText(r.block)}</span></td><td>${r.mixed}</td><td>${hm(r.step)}</td><td>${Math.round(r.late)}</td></tr>`;
+const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><span>${r.code}</span>${SHORTLIST.includes(r.name) ? `<em class="sl">★ shortlisted${r.thirty ? '<i class="tl"> · 30 days off for 14 days’ leave</i>' : ''}</em>` : ''}${r.thirty && !SHORTLIST.includes(r.name) ? '<em class="tl">30 days off for 14 days’ leave</em>' : ''}${r.hard ? '<em class="hl">✕ cannot be run as it stands</em>' : ''}</td><td class="${r.met===r.of?'good':''}">${r.met} of ${r.of}${r.waived ? `<span class="wv">${r.waived} waived‡</span>` : ''}</td><td class="${r.present===0?'good':''}">${r.present}<span class="wv">up to ${r.presentW}§</span></td><td>${r.run}<span class="wv">up to ${r.runW}§</span></td><td>${r.wkd}<span class="wv">about ${Math.round(r.wkYear)} a year${r.gap ? ` · ${r.gap} weeks apart at most` : ''}</span></td><td class="${r.turns ? 'bad' : ''}">${r.rest==null?'—':`${r.turns ? '✕ ' : ''}${hm(r.rest)}`}${r.turns ? '<span class="wv">under the 12-hour limit</span>' : ''}</td><td>${r.times}</td><td${r.L === LINES && r.dpy > DAYS_CEILING + 1e-9 ? ' class="bad"' : ''}>${r.dpy.toFixed(1)}</td><td>${hm(r.heavy)}</td><td>${r.oneTurn} of ${r.working}<span class="wv">blocks ${blockText(r.block)}</span></td><td>${r.mixed}</td><td>${hm(r.step)}</td><td>${Math.round(r.late)}</td></tr>`;
 // THE FAMILY'S LOOK (pack polish, 1 Nov 2026, from screenshots of the whole pack). This page was the one document without
 // the navy band, with a navy table header in white sentence case where every other table in the pack is light grey in small
 // capitals, and in the decks' blue-greys rather than the documents' greys and green. It now loads the app's stylesheet for the
@@ -55,6 +55,10 @@ const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><spa
 // headings) and footnotes in two columns. The figures and the order are unchanged.
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const PREPARED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+// NUMBERS AS WORDS, PAST SIX (6 Nov 2026): the 30-day count reached seven when Balanced V5 and Relief Point joined, and the
+// list this line had stopped at 'six' printed "the undefined where 14 days’ leave buys 30 days off". A count past the list
+// prints as a figure rather than a word
+const COUNT_WORD = n => ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'][n] ?? String(n);
 const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>New CEA link proposals — at a glance</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><style>
 @page{size:A4 landscape;margin:8mm 10mm}
@@ -73,7 +77,7 @@ td{white-space:nowrap;border-bottom:1px solid var(--border-light);padding:1.5px 
 tbody tr:nth-child(even) td{background:color-mix(in srgb, var(--surface-sunken) 55%, white)}
 td.n{text-align:left;font-variant-numeric:normal} td.n span{color:var(--text-mid);font-size:8pt;margin-left:6px} td .wv{display:block;color:var(--text-mid);font-size:7.5pt}
 tr.today td{background:#FFF4C2;border-bottom:2px solid var(--accent-gold)}
-td.n em.sl{display:block;font-style:normal;color:var(--success-green);font-size:8pt;font-weight:700;letter-spacing:.2px} td.n em.tl{display:block;font-style:normal;color:var(--primary-blue);font-size:8pt;font-weight:600}
+td.n em.sl{display:block;font-style:normal;color:var(--success-green);font-size:8pt;font-weight:700;letter-spacing:.2px} td.n em.tl{display:block;font-style:normal;color:var(--primary-blue);font-size:8pt;font-weight:600} td.n em.sl i.tl{font-style:normal;color:var(--primary-blue);font-weight:600;letter-spacing:0}
 td.good{color:var(--success-green);font-weight:700} td.bad{color:#B3261E;font-weight:700} td.n em.hl{display:block;font-style:normal;color:#B3261E;font-size:8pt;font-weight:600}
 .foot{margin-top:6px;color:var(--text-mid);font-size:8.2pt;line-height:1.38;column-count:2;column-gap:26px} .foot p{margin:0 0 2px;break-inside:avoid}
 /* POLISH (1 Oct 2026): an "up to" note is a caveat, so it is never coloured as the good figure above it */
@@ -81,10 +85,10 @@ td.good .wv { color: var(--text-mid); font-weight: 400; }
 .foot { text-wrap: pretty; }
 .pfoot{margin-top:6px;padding-top:4px;border-top:1px solid var(--border-light);color:var(--text-light);font-size:8pt;display:flex;justify-content:space-between} .pfoot b{color:var(--primary-blue)}
 /* DENSE ROWS, ONLY WHEN THE FLOOR IS NOT ENOUGH (4 Nov 2026, nineteen proposals): see the loop below */
-body.dense td{padding:0.5px 5px;line-height:1.18} body.dense .mast{margin-bottom:4px} body.dense .foot,body.dense .pfoot{margin-top:4px} body.dense .foot{line-height:1.3}
+body.dense td{padding:0.5px 5px;line-height:1.14} body.dense .mast{margin-bottom:4px} body.dense .foot,body.dense .pfoot{margin-top:4px} body.dense .foot{line-height:1.3}
 </style></head><body>
 <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
-<div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${['no', 'one', 'two', 'three', 'four', 'five', 'six'][SHORTLIST.length] ?? SHORTLIST.length} shortlisted ones marked ★, and the ${['no', 'one', 'two', 'three', 'four', 'five', 'six'][rows.filter(r => r.thirty).length]} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
+<div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${COUNT_WORD(SHORTLIST.length)} shortlisted ones marked ★, and the ${COUNT_WORD(rows.filter(r => r.thirty).length)} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
 <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
 <table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest rest between shifts§</th><th>Shift times</th><th>Days a year*</th><th>Heaviest week, <span style="white-space:nowrap">Mon–Sat</span></th><th>Weeks on one shift time, all earlies or all lates</th><th>Weeks mixing earlies and lates</th><th>Week-to-week change of start</th><th>Finishes 23:00+ a year†</th></tr></thead><tbody>
 ${tr(todayRow,'today')}
@@ -109,6 +113,11 @@ const b = await chromium.launch(); const pg = await b.newPage(); await pg.goto('
 // TWENTY ROWS (5 Nov 2026, Middle Ground): the dense page left the footnotes' last lines and the page footer on a second
 // sheet at the floor, so dense also sets the table's two-line cells and the footnotes a little closer (line-height 1.18
 // and 1.3, from the page's 1.3 and 1.38). The type and the floor are as they were.
+// TWENTY-ONE ROWS (6 Nov 2026, Balanced V5 and Relief Point): at the floor the dense page put its footer line on a second sheet
+// (it fitted at 78%). Two changes, each measured: Common Ground's two marks share one line, "★ shortlisted · 30 days off for 14
+// days’ leave", where it alone of the rows took three; and dense sets the cells' lines at 1.14, from 1.18. The type and the
+// floor are as they were. Three columns of footnotes were tried and dropped: the long § note cannot break, so they came out
+// taller, not shorter.
 let scale = 1, pdf, dense = false;
 for (;;) { pdf = await pg.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
   if (pagesIn(pdf) === 1) break;

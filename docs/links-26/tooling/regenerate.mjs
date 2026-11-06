@@ -125,6 +125,12 @@ export const SUPPLIED = [
     // 5 Nov 2026: Middle Ground is Common Ground's weeks with the shift times varied from week to week (README.md → "Middle
     // Ground"). Its rest days are Common Ground's, so it buys 30 days off for 14 days' leave too and ships into 30-days-off/
     { file: 'middle-ground.json',          name: 'Middle Ground',  code: 'MG-26-T8',   fp: '573c7287', dir: '30-days-off', strap: 'Seven of today’s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together, and 14 days’ leave buys 30 days off, as today' },
+    // 6 Nov 2026 (owner: "Add balanced v5 to the pack and relief point"): Balanced V5, a one-page roster supplied as Marylebone
+    // Balanced 26, version 5 (README.md → "Balanced V5"), and Relief Point, its weekday 08:00–16:30s at 07:30 for a 15-minute
+    // handover (README.md → "Relief Point"). Both drawn on 5 Nov 2026; both buy 30 days off for 14 days' leave, so both ship into
+    // 30-days-off/; each meets 8 of the 9 December rules, the only designs in the pack that miss one. Their grids stay in results/
+    { file: 'results/balanced-v5.json',  name: 'Balanced V5',    code: 'MB-26-V5',   fp: 'ded4a15f', dir: '30-days-off', strap: 'Every early from Monday to Saturday starting at 06:20 or 08:00, a 13:35 and a 13:45 finish every weekday, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'results/relief-point.json', name: 'Relief Point',   code: 'RP-26-V5',   fp: '1818a1c2', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

@@ -36,6 +36,10 @@ first again. *Quarter Past out, Well Kept in* has the table and the reason.
 **League scores dated 4 to 5 Nov 2026 with Well Kept in the pack are on the ranges it stretched.** It was taken out on
 5 Nov; every score fell 0.4 to 1.0 points, and Even Step is still first. *Well Kept out* has the table.
 
+**League scores dated before 6 Nov 2026 are on the ranges the 19 designs then in the pack set.** Balanced V5 and Relief
+Point joined that day and set the far end of several ranges; every other score rose 1.2 to 2.5 points, and Even Step is
+still first. *Balanced V5 and Relief Point join the pack* has the table.
+
 **The shortlist was drawn again on 5 Nov 2026**: Common Ground, Even Step and Short Run. In Step left it, and its
 presentations stay in the pack. **Later that day the recommendation went** (owner: "Remove the marks"): the pack and
 the app present the three evenly, A to Z, and the deck builders, `pack.py` and `links-proposals.test.mjs` refuse a
@@ -4364,7 +4368,8 @@ week's Monday-to-Saturday hours and days match the sheet's own HRS and DAYS colu
 `.meta.json`; the PDF itself is not committed.
 
 **The name is its own**, shortened: Balanced V5, code `MB-26-V5` (its author's MB26-V5), fingerprint `ded4a15f`. It
-is not in the pack, the summary or the league; the sheet was rendered on its own (`supplied.mjs`).
+is not in the pack, the summary or the league; the sheet was rendered on its own (`supplied.mjs`). (Since 6 Nov 2026 it
+is, in the 30-day folder, with a headline that says what it is: *Balanced V5 and Relief Point join the pack*.)
 
 **What the sheet finds**, every figure computed from the cells:
 - inside every hard limit: 218.6 contracted days a year, a shortest rest of 13h 50m, at most 5 days in a row (10 if a
@@ -4411,7 +4416,8 @@ hands over to the next; here the three 07:30–16:00s are on with the three 15:4
 neither shared with another design's name. The code keeps its parent's `V5`, as Grand Tour kept Fair Share's `T7`, and
 `RP` was checked against every code in `links-24/` and `links-26/`. It is not in the pack, the summary or the league,
 and it is kept on the owner's word (*"Keep relief point for now please"*, 5 Nov 2026). Its grid and meta stay under
-`tooling/results/`, and the command above rebuilds the same sheet.
+`tooling/results/`, and the command above rebuilds the same sheet. (Since 6 Nov 2026 it is in the pack, in the 30-day
+folder: *Balanced V5 and Relief Point join the pack*.)
 
 **Why 07:30.** The weekday fit is scored hour by hour, and an hour can hide a quarter-hour. The fits below are the
 sheet's own (`officeSplit`, `dayFit`). The floor counts are everyone on duty, less the ticket office, plus its helper
@@ -4446,6 +4452,84 @@ Everything else is Balanced V5's: the hours and the contract, every hard limit, 
 Saturday ticket office is still the one missing). There is no fatigue warning in the fixed duties, and up to 4 if a
 cover week falls badly. It has about 12 full weekends off a year, about 22 single rest days a year and three six-day
 weeks, and 14 days' leave still buys 30 days off.
+
+## Balanced V5 and Relief Point join the pack (6 Nov 2026)
+
+Owner, after an audit of what was outside the pack: *"Add balanced v5 to the pack and relief point"*. Both were drawn on
+5 Nov 2026 and kept out until now (Relief Point "for now"). Each buys 30 days off for 14 days' leave and four weeks off
+for 14, as today, so both are in `30-days-off/`, under the owner's word of 4 Nov (*"add any other 30 days off proposals
+to the subfolder"*). The pack holds 21 designs, seven of them in the 30-day folder.
+
+**Their headlines.** Balanced V5's first sheet said where it came from (*"Supplied as Marylebone Balanced 26, version 5,
+…read cell by cell with nothing changed"*). In the pack its headline says what it is, as every other one does: *Every early
+from Monday to Saturday starting at 06:20 or 08:00, a 13:35 and a 13:45 finish every weekday, and 14 days' leave buys 30
+days off, as today*. Relief Point's is the one it was rendered with: *A 15-minute handover every weekday, from the three
+07:30–16:00s to the three 15:45 closers, and 14 days' leave buys 30 days off, as today*. Neither names another design
+(`regenerate.mjs` refuses one that does). Both are `hand` (drawn by hand, checked by the app), family Balanced V5, first
+drawn on 5 Nov 2026; the fingerprints are unchanged, `ded4a15f` and `1818a1c2`.
+
+**What only they do.** Each meets 8 of the 9 December rules: on a Saturday the ticket office does not have its two
+identical earlies and two identical lates. Every other design meets all nine. So the shortlist sheet goes back to what
+it did while Well Kept was in the pack: its guide chooses only among the designs meeting every rule and says so in its
+heading (*Outside the shortlist, meeting every rule*), and a claim names the two it leaves out, so a third design that
+misses a rule stops the sheet rather than dropping out of the guide unremarked. Page 2 gives the two one row, *today's
+leave, shorter blocks and more early finishes — but a December rule missed*; each part is asserted from the grids, the
+missed rule by its key.
+
+**Two closer lengths on one day.** Their Saturday closers are 15:00–23:55 (8h 55m) twice and 15:15–23:55 (8h 40m)
+once, the first designs in the pack with two closer lengths on one day type. The shortlist sheet had refused such a range
+since 30 Oct 2026 and said that the day one came it needed a decision. The decision: a range reads as its longest closer,
+so no design is ever "shorter" on the strength of its shorter one. Only the three's own closers are printed.
+
+**The summary.** Twenty-one rows did not fit one page at the 80% floor: the footer line went onto a second sheet (the page
+fitted at 78%). Two measured changes, and no smaller type: Common Ground's two marks share one line (*★ shortlisted · 30
+days off for 14 days' leave*), where its row alone took three lines; and the dense rows' line height is 1.14, from 1.18.
+Three columns of footnotes were tried and dropped, because the long § note cannot break across columns and they came out
+taller. The sheet's number words had also stopped at six, so "the seven where 14 days' leave buys 30 days off" would
+have printed "the undefined"; they now run to twelve, and a larger count prints as a figure.
+
+**Nothing else moved.** All 19 sheets already in the pack and the rules sheet were re-rendered with the two added and
+compared word for word: none changed. The presentations and *What it means if you…* name none of the other designs.
+
+**The pack's read-me** says *Twenty-one candidate links*, names the three that came after the shortlist (Balanced V5,
+Middle Ground and Relief Point) and describes each on its own terms, with the rule the two miss. `pack.py`'s number words
+now run past twenty.
+
+**The league** (`REF_IN_RANGE=1`, the usual table; places by the unrounded score). The two set the far end of several
+ranges — a weekday fit of 50.4 and 40.0, 22 single rest days a year, 7 of 21 weeks on one shift time, a change of start
+over four hours — so every other score rose 1.2 to 2.5 points. Even Step is still first, and the two are last:
+
+| Place of 21 | Design | Score | With 19 designs, 5 Nov: score, place |
+|---|---|---|---|
+| 1 | Even Step | 86.8 | 85.5, 1 |
+| 2 | Next Step | 86.7 | 85.3, 2 |
+| 3 | Closing Time | 86.6 | 85.2, 3 |
+| 4 | Fair Share | 86.5 | 85.1, 4 |
+| 5 | Grand Tour | 86.4 | 83.9, 5 |
+| 6 | Common Ground | 86.0 | 83.7, 7 |
+| 7 | Middle Ground | 85.2 | 82.8, 10 |
+| 8 | Clean Slate | 84.9 | 83.7, 6 |
+| 9 | Short Openers | 84.8 | 83.2, 8 |
+| 10 | Home Grown | 84.4 | 82.9, 9 |
+| 11 | Second Edition | 83.7 | 82.4, 11 |
+| 12 | Even Keel | 83.6 | 82.3, 12 |
+| 13 | Long Break | 83.1 | 81.1, 16 |
+| 14 | Short Run | 83.1 | 81.7, 13 |
+| 15 | Fine Tune | 83.0 | 81.5, 14 |
+| 16 | Open Return | 82.6 | 80.9, 17 |
+| 17 | Second Look | 82.4 | 81.1, 15 |
+| 18 | Both Ways | 82.3 | 80.8, 18 |
+| 19 | In Step | 81.9 | 80.6, 19 |
+| 20 | **Relief Point** | 50.9 | not in the pack |
+| 21 | **Balanced V5** | 48.4 | not in the pack |
+
+Weighted as before 31 Oct (`OLD_READINGS=1`), In Step is still first, 0.9 ahead of Even Step, as the shortlist sheet says.
+
+**Changed:** `fresh.mjs` (the two straps, families and dates), `regenerate.mjs` (two `SUPPLIED` entries), `summary-sheet.mjs`
+(count words, the shared mark line, the dense line height), `shortlist-sheet.mjs` (the closer range, the guide's heading and
+claim, the two in every 30-day and four-weeks claim, their row), `pack.py` (the sets, the number words, the late paragraph),
+`30-days-off/README.md` (two columns, the league of 21, the prose); the two sheets, grids and import files in
+`30-days-off/`, and the summary and shortlist sheets re-rendered.
 
 ## Notes for the whole set
 

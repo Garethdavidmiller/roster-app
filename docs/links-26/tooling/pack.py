@@ -143,8 +143,12 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # Middle Ground joined on 5 Nov 2026 (owner: "rename good turn as Middle Ground and add it to the pack"), after the shortlist of
 # that day: Common Ground's weeks with the shift times varied from week to week. It is the one design after the 5 Nov shortlist,
 # and it buys 30 days off for 14 days' leave, so it is in the 30-day folder; its own paragraph follows the 5 Nov one
-AFTER_31_OCT_SET = ['Clean Slate', 'Common Ground', 'Fair Share', 'Grand Tour', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers']
-LATE_SET = ['Middle Ground']
+# Balanced V5 and Relief Point joined on 6 Nov 2026 (owner: "Add balanced v5 to the pack and relief point"), both drawn on 5 Nov
+# after the shortlist: a one-page roster supplied as Marylebone Balanced 26, version 5, and the owner's change to it, a 15-minute
+# weekday handover. Both buy 30 days off for 14 days' leave, so both are in the 30-day folder, and each meets 8 of the 9 December
+# rules, which the paragraph after the 5 Nov one says, with Middle Ground's; each described on its own terms, as its headline is
+AFTER_31_OCT_SET = ['Balanced V5', 'Clean Slate', 'Common Ground', 'Fair Share', 'Grand Tour', 'Middle Ground', 'Next Step', 'Open Return', 'Relief Point', 'Short Openers']
+LATE_SET = ['Balanced V5', 'Middle Ground', 'Relief Point']
 if LATE and LATE != LATE_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(LATE_SET)} as the designs after the shortlist; they are {LATE}')
 if AFTER_31_OCT != AFTER_31_OCT_SET:
@@ -162,7 +166,7 @@ TAKEN_OUT = ['Quarter Past', 'Well Kept']
 if any(n in names.split(', ') for n in TAKEN_OUT):
     raise SystemExit(f'pack: the read-me says {TAKEN_OUT} were taken out; regenerate.mjs SUPPLIED lists one of them')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
-THIRTY_SET = ['Common Ground', 'Grand Tour', 'Middle Ground', 'Open Return', 'Short Openers']
+THIRTY_SET = ['Balanced V5', 'Common Ground', 'Grand Tour', 'Middle Ground', 'Open Return', 'Relief Point', 'Short Openers']
 THIRTY_IN = sorted(n for n, c, _ in proposals if DIR_OF[c] == '30-days-off')
 if THIRTY_IN != THIRTY_SET:
     raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
@@ -170,6 +174,7 @@ built_in = open('links-proposals.js', encoding='utf-8').read()
 missing = [n for n, c, _ in proposals if n in SHORTLIST and f"code: '{c}'" not in built_in]
 if missing: raise SystemExit(f'pack: the read-me says every shortlisted design is built into the app; links-proposals.js lacks {missing}')
 WORDS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()
+WORDS += [f'twenty-{w}' for w in WORDS[1:10]]   # 6 Nov 2026: twenty-one candidate links, past the word list's end
 ORDER = SHORTLIST + DECKS_KEPT   # the shortlist's order, A to Z, then the decks kept off it
 with_decks = sorted((n for n, _, _ in proposals if os.path.exists(f"{ROOT}/presentations/{n.replace(' ', '-')}-for-colleagues.pptx")),
                     key=lambda n: ORDER.index(n) if n in ORDER else len(ORDER))
@@ -329,16 +334,20 @@ readme = '\n'.join([
             'weeks, on Grand Tour\'s weeks: today\'s shift times kept where the rules allow, a 13:45 finish every weekday, '
             'closers from 15:45, nothing over 8h 30m Monday to Friday or 9 hours at the weekend, and an even Sunday.'), '']
       if AFTER_31_OCT else []),
-    para(f'On {SHORTLIST_DATE.replace("Nov", "November")} the shortlist was drawn again, after every design in the pack, '
+    para(f'On {SHORTLIST_DATE.replace("Nov", "November")} the shortlist was drawn again, after every design then in the pack, '
          'and listed A to Z: Common Ground, as the example of the links that keep today\'s leave; Even Step, first in the '
          'pack\'s league; and Short Run, which colleagues had already seen. In Step left the shortlist, and its '
          'presentations stay in the pack. Page 2 of the shortlist sheet sets every other design beside the three.'),
     '',
     # described on its own terms, as its headline is (owner, 5 Nov 2026: "the proposal description headlines should not
     # reference other proposals")
-    *([para('Middle Ground (5 November 2026) came after it: seven of today\'s shift times, varied from week to week so '
-            'that no two closing weeks and no two 06:20 weeks fall together. It buys 30 days off for 14 days\' leave too, '
-            'and is in the folder 30 days off.'), '']
+    *([para('Three came after it, on 5 November 2026, and each buys 30 days off for 14 days\' leave too, so all three are '
+            'in the folder 30 days off. Middle Ground has seven of today\'s shift times, varied from week to week so that no '
+            'two closing weeks and no two 06:20 weeks fall together. Balanced V5 is a one-page roster drawn up outside the '
+            'app, read as it was supplied: every early from Monday to Saturday starts at 06:20 or 08:00. Relief Point has a '
+            '15-minute handover every weekday, from three 07:30-16:00 shifts to the three 15:45 closers. Balanced V5 and '
+            'Relief Point meet 8 of the 9 December rules: on a Saturday the ticket office does not have its two identical '
+            'early and two identical late shifts. They are the only designs in the pack that miss a rule.'), '']
       if LATE else []),
     *([para(f'Four more were drawn up and withdrawn on 3 November 2026 as the weakest in the pack: {", ".join(WITHDRAWN[:-1])} '
             f'and {WITHDRAWN[-1]}. Each was the same as or worse than a design still here on everything the sheets measure '
