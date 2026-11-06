@@ -1392,13 +1392,16 @@ errors). Re-run it after any change to `firebase.json` (CSP/headers), the
 Firebase SDK version in `firebase-client.js`, the GCP API-key referrer
 allowlist, or the hosting setup.
 
-**It is also checked by a machine, every four hours (v23.60).** `live-health.yml` runs
-`npm run test:live` on a GitHub runner: a real browser opens root, `admin.html` and
-`paycalc.html` on BOTH origins and asserts served, splash down, something usable on
-screen, no console errors. It demands a DIRECT connection (`LIVE_REQUIRE_DIRECT=1`) —
+**It is also checked by a machine, on a four-hourly schedule (v23.60)** — which GitHub,
+running schedules as capacity allows, has been keeping about three times a day.
+`live-health.yml` runs `npm run test:live` on a GitHub runner: a real browser opens
+root, `admin.html` and `paycalc.html` on BOTH origins and asserts served, splash down,
+something usable on screen, no console errors. It demands a DIRECT connection (`LIVE_REQUIRE_DIRECT=1`) —
 the spec's curl-relayed fallback cannot see the referrer restriction, so on a schedule
-it fails rather than passing weakly. A failure comments on the open `deploy-failure`
-issue. This is a different question from the hourly `production-currency.yml`, which
+it fails rather than passing weakly. A page still failing a minute later, when the check
+looks again, is reported on the open `deploy-failure` issue; one that has cleared by then
+is only noted on the run (6 Nov 2026 — `live-health.yml` says why). This is a different
+question from the hourly `production-currency.yml`, which
 compares the served VERSION against main and reads a stuck splash as "current". The
 scheduled run does not replace the manual check after a `firebase.json`, SDK or
 allowlist change; it bounds how long an outage nobody was looking for can last.

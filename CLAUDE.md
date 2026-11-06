@@ -422,11 +422,13 @@ npm run test:webkit
 # complete TLS to the open internet and each request was fetched with curl and fulfilled into the
 # page — real bytes, real headers, real parsing, but the API-key HTTP-REFERRER restriction and a
 # live Firebase round trip are NOT covered. Do not read a relayed pass as the whole check.
-# **IT ALSO RUNS ON A SCHEDULE since v23.60** — `live-health.yml`, every four hours on a GitHub runner,
-# with `LIVE_REQUIRE_DIRECT=1` so a run that would have to relay FAILS rather than passing weakly
-# where nobody is reading the mode line. A failure comments on the `deploy-failure` issue thread the
-# deploy workflows and `production-currency.yml` already use. That hourly currency check is NOT this
-# check: it asks whether the served version matches main, which a stuck splash answers "yes" to:
+# **IT ALSO RUNS ON A SCHEDULE since v23.60** — `live-health.yml`, four-hourly on a GitHub runner
+# (about three a day in practice), with `LIVE_REQUIRE_DIRECT=1` so a run that would have to relay
+# FAILS rather than passing weakly where nobody is reading the mode line. A page still failing a
+# minute later, when the check looks again, is reported on the `deploy-failure` issue thread the
+# deploy workflows and `production-currency.yml` already use; one that has cleared by then is only
+# noted on the run (6 Nov 2026). That hourly currency check is NOT this check: it asks whether the served
+# version matches main, which a stuck splash answers "yes" to:
 npm run test:live
 
 # Offline-behaviour proof (e2e/offline.spec.js under playwright.offline.mjs) — SW/offline-first paths
