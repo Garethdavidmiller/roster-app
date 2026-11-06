@@ -54,6 +54,21 @@ let _currentIsAdmin = false;
 let _wired = false;
 
 /**
+ * A base shift as a manager reads it in the week grid's warning: an Other-family day by its full word
+ * ("Training", with its times if it has any), anything else as its value. The warning printed the raw
+ * code, so a manager ticking RDW on one of a trainee's days read "Originally rostered TRG this day"
+ * (6 Nov 2026 review). `OTHER_FLAVOURS` is the one table of those words.
+ * @param {string} baseShift
+ * @returns {string}
+ */
+export function rosteredWords(baseShift) {
+    const other = parseOtherValue(baseShift);
+    if (!other) return baseShift;
+    const word = OTHER_FLAVOURS[other.flavour]?.full ?? other.flavour;
+    return other.time ? `${word} ${other.time}` : word;
+}
+
+/**
  * @param {object} deps
  * @param {boolean} deps.currentIsAdmin
  * @param {(msg: string) => void} deps.showError
@@ -275,7 +290,7 @@ export function buildWeekGridInto(container, dateStr) {
                 </span>
                 <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled' : ''}> Rest day (RDW)</label>
                 ${isRestShift(baseShift) ? `<span class="other-rdw-auto">Ticked and locked because the base roster has this as a rest day — RDW is automatic</span>` : ''}
-                <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(baseShift)} this day — RDW pays it as rest-day working instead</span>
+                <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(rosteredWords(baseShift))} this day — RDW pays it as rest-day working instead</span>
                 <span class="other-opts-hint">Pick a type above, then times (optional — blank pays the default: base shift, or 8h RDW).</span>
             </div>`;
 

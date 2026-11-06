@@ -34,12 +34,12 @@ export function isRestShift(shift) {
  * overtime, which is why this is its own set rather than a filter over that one. The three retired
  * type names split the same way, and still have to — see `LEGACY_OVERRIDE_TYPES`.
  */
-/** Retired override types: no record is of these TYPES since the 4 Nov 2026 conversion (DATA_MODEL.md).
- *  THE NAMES SURVIVE AS A HISTORIC `replacedType` on leave and absences recorded over those days, and
- *  decide whether that leave cost a day (`contractEvidence`), so the sets below still classify them and
- *  firestore.rules still accepts them (a re-save carries one forward). Dropping them would quietly move
- *  leave balances; rewriting the data would put the admin's name on leave records to change nothing.
- *  override-utils.test.mjs holds both sets and the rules' list to this declaration. */
+/** Retired override types: nothing creates one, and the 4 Nov 2026 conversion rewrote the records it could read
+ *  (DATA_MODEL.md). One it skipped is still WORKED time — on a Sunday (`SUNDAY_RDW_DISPLAY_TYPES`) and to Admin's
+ *  RD-correction guard (6 Nov 2026 review). THE NAMES ALSO SURVIVE AS A HISTORIC `replacedType` on leave and absences,
+ *  deciding whether that leave cost a day (`contractEvidence`), so the sets below classify them and firestore.rules
+ *  accepts them (a re-save carries one forward). Dropping them would quietly move leave balances; rewriting the data
+ *  would put the admin's name on leave records to change nothing. override-utils.test.mjs holds every list to this. */
 export const LEGACY_OVERRIDE_TYPES = Object.freeze(['allocated', 'overtime', 'swap']);
 
 export const CONTRACTED_WORK_TYPES = new Set([
@@ -747,9 +747,9 @@ export function resolveOtherPay(parsed, baseValue) {
 /** A worked-shift "HH:MM-HH:MM" range (the DISPLAY form — 1-or-2-digit hours, no anchoring;
  *  matches the renderer's historical inline regex, deliberately looser than roster-data's TIME_RE). */
 const SHIFT_RANGE_RE = /^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/;
-// Worked override types whose TIMED value on a Sunday must display as RDW (never a plain shift) —
-// see resolveEffectiveShift. `rdw` already resolves to RDW; `spare_shift` is a badge, not a time.
-const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift']);
+// Worked override types whose TIMED value on a Sunday must display as RDW (never a plain shift) — see
+// resolveEffectiveShift. `rdw` already resolves to RDW; `spare_shift` is a badge; the retired types: above.
+const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift', ...LEGACY_OVERRIDE_TYPES]);
 
 /**
  * Resolve a Firestore override onto a base shift into ONE canonical display descriptor.
@@ -891,10 +891,10 @@ export function manualCellValue(type, from = '', to = '') {
 }
 
 
-/** Parsed roster VALUES that cannot stand on a Sunday, and what they become instead.
- *  Returns the value unchanged when it is fine, so a caller can use it unconditionally.
- *  The import NORMALISES rather than refusing — a PDF is a statement about the past, and rejecting
- *  the whole week over one cell would lose the other six. @param {string} value @returns {string} */
+/** Parsed roster VALUES that cannot stand on a Sunday, and what they become instead — unchanged when fine, so a
+ *  caller can use it unconditionally. The import NORMALISES rather than refusing: a PDF is a statement about the past,
+ *  and rejecting the whole week over one cell would lose the other six. An Other day printed WITH times keeps them —
+ *  Sunday work; as `RD` it turned a worked Sunday into rest (6 Nov 2026; roster-import.md). @param {string} value @returns {string} */
 export function sundaySafeValue(value) {
-    return (value === 'AL' || value === 'SICK' || isOtherValue(value)) ? 'RD' : value;
+    return value === 'AL' || value === 'SICK' ? 'RD' : isOtherValue(value) ? (parseOtherValue(value)?.time || 'RD') : value;
 }

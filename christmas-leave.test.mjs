@@ -25,7 +25,7 @@ import { teamMembers, getBaseShift, getPatternShift, getALEntitlement, isWorkedS
 import { resolveEffectiveShift } from './override-utils.js';
 import {
     CHRISTMAS_LEAVE_FROM_YEAR, isChristmasLeaveDay, isChristmasClosureDate, boxingDayLieuDays,
-    resolveDayShift, christmasLeaveDates, christmasLeaveByYear, christmasLeaveLine,
+    resolveDayShift, christmasLeaveDates, christmasLeaveByYear, christmasLeaveLine, isUncountedChristmasLeave,
 } from './christmas-leave.js';
 import {
     entitlementFor, alPosition, dispatcherBreakdown, entitlementNote, consumesEntitlement, countedAlDates,
@@ -366,5 +366,19 @@ describe('a day shown wrongly — what each surface draws', () => {
             assert.equal(isWorkedShift(resolveDayShift(o, 'RD', false, true).shift) ? 1 : 0,
                 boxingDayLieuDays(CEA, 2026, [o]), type);
         }
+    });
+});
+
+describe('isUncountedChristmasLeave — one rule for every surface that words the day (6 Nov 2026 review)', () => {
+    test('the pattern\'s Christmas leave, and leave RECORDED on 25 or 26 December from 2026', () => {
+        assert.equal(isUncountedChristmasLeave('AL', '2026-12-25', true), true);
+        assert.equal(isUncountedChristmasLeave('AL', '2026-12-25', false), true, 'a stored record is not counted either');
+        assert.equal(isUncountedChristmasLeave('AL', '2027-12-26', false), true);
+    });
+    test('not before the rules, not on another day, and not for anything that is not leave', () => {
+        assert.equal(isUncountedChristmasLeave('AL', '2025-12-25', false), false, 'before 2026 Christmas leave was counted');
+        assert.equal(isUncountedChristmasLeave('AL', '2026-12-24', false), false);
+        assert.equal(isUncountedChristmasLeave('06:20-13:45', '2026-12-25', false), false);
+        assert.equal(isUncountedChristmasLeave('SICK', '2026-12-26', false), false);
     });
 });

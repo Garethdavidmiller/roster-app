@@ -55,7 +55,7 @@
 // subset that still holds leave, so the receipt can say which is which. It is a SUBSET of `skipped`,
 // not a replacement for it: every answered-free day is still named, exactly as before.
 
-import { projectAlBooking, projectAlOverage } from './admin-al-projection.js';
+import { projectAlBooking, projectAlOverage, overridesAfterSave } from './admin-al-projection.js';
 
 /**
  * Decide what a week-grid save writes about annual leave.
@@ -79,7 +79,18 @@ import { projectAlBooking, projectAlOverage } from './admin-al-projection.js';
 export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
                                 ovByDate = null, swapAnswers = null, overrides = [] }) {
     let alInBatch = toSave.filter(e => e.type === 'annual_leave');
-    if (!alInBatch.length) return { toSave, skipped: [], keptLeave: [], unanswered: [], overage: null };
+    // The allowance AFTER this save (6 Nov 2026 review): recording or removing a worked Boxing Day
+    // gives or takes its day in lieu, so the batch is costed against what the allowance will be.
+    const afterOf = (/** @type {any[]} */ batch) => overridesAfterSave(overrides, { memberName,
+        writes: batch.map(e => ({ date: e.date, type: e.type, value: e.value })), deleteIds: toDelete });
+    // No leave in the batch: it spends nothing, and can still leave the member over — deleting a
+    // worked Boxing Day at their limit takes back the day in lieu. Only a year whose allowance moves
+    // is checked, so an unrelated save never raises the bar.
+    if (!alInBatch.length) {
+        const freed = new Set(overrides.filter(o => toDelete.includes(o.id) && o.type === 'annual_leave').map(o => o.date));
+        return { toSave, skipped: [], keptLeave: [], unanswered: [],
+            overage: projectAlOverage({ member, memberName, overrides, consuming: [], exclude: freed, after: afterOf(toSave) }) };
+    }
 
     const proj = projectAlBooking({ member, dates: alInBatch.map(e => e.date), ovByDate, swapAnswers });
 
@@ -144,6 +155,6 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
         skipped,
         keptLeave,
         unanswered: proj.unanswered,
-        overage: projectAlOverage({ member, memberName, overrides, consuming: proj.consuming, exclude }),
+        overage: projectAlOverage({ member, memberName, overrides, consuming: proj.consuming, exclude, after: afterOf(batch) }),
     };
 }

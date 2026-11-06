@@ -749,6 +749,43 @@ describe('computeCellStates — review state machine', () => {
     });
 });
 
+// ── A MEETING PRINTED WITH ITS TIMES ON A SUNDAY (6 Nov 2026 review) ────────────────────────────
+// v25.38 began reading `MTG` over `10:00-14:00` as `MEET 10:00-14:00`, and the Sunday guard made any
+// Other day a rest day — so on a rest Sunday nothing was written, a re-upload of a week imported
+// before v25.38 pre-ticked DELETING its rest-day working, and on a ROSTERED Sunday it pre-ticked a
+// correction that turned a worked day into rest. Through the real state machine, the three cases.
+describe('computeCellStates — a timed meeting on a Sunday is Sunday work, never rest', () => {
+    const SUNDAY = '2026-11-15';
+    const sundayOf = (/** @type {boolean} */ worked) => teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly
+        && !m.startDate && ((g => g !== 'RD' && g !== 'OFF')(getBaseShift(m, new Date(SUNDAY + 'T12:00:00'))) === worked));
+    const stateFor = (/** @type {any} */ m, /** @type {any[]} */ existing = []) => computeCellStates(
+        { parsed: [{ memberName: m.name, shifts: { [SUNDAY]: 'MEET 10:00-14:00' } }], dates: [SUNDAY] }, existing,
+    ).get(`${m.name}|${SUNDAY}`);
+
+    test('a rest Sunday: recorded, as rest-day working at the meeting\'s times', () => {
+        const m = sundayOf(false);
+        assert.ok(m, 'needs a member resting that Sunday');
+        const st = stateFor(m);
+        assert.equal(st.state, 'DIFF');
+        assert.equal(st.chosen, true);
+        assert.equal(shiftValueToOverrideType(st.displayShift, st.baseShift, SUNDAY), 'rdw');
+    });
+
+    test('a ROSTERED Sunday: the meeting\'s times, never a correction that makes it a rest day', () => {
+        const m = sundayOf(true);
+        assert.ok(m, 'needs a member rostered that Sunday');
+        const st = stateFor(m);
+        assert.notEqual(st.displayShift, 'RD');
+        assert.equal(shiftValueToOverrideType(st.displayShift, st.baseShift, SUNDAY), 'rdw');
+    });
+
+    test('a re-upload over a week imported before v25.38 keeps its rest-day working', () => {
+        const m = sundayOf(false);
+        const earlier = [{ id: 'old', memberName: m.name, date: SUNDAY, type: 'rdw', value: '10:00-14:00', source: 'roster_import' }];
+        assert.equal(stateFor(m, earlier).state, 'COVERED', 'not REMOVE_IMPORT, which would delete it');
+    });
+});
+
 // ── AN ABSENCE ALREADY ON RECORD MUST NOT SWALLOW A WORKED SHIFT ───────────────────────────────
 //
 // The manual branch of `computeCellStates` has one exemption: a hand-recorded AL or absence on a

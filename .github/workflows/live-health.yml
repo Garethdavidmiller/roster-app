@@ -56,11 +56,14 @@ jobs:
     runs-on: ubuntu-24.04
     # Six pages with an 8s settle each plus the browser install: measured ~4 minutes end to end, and
     # about two more when a first look fails and the site step looks again. The limit is not sized
-    # for either. It is sized so the SITE STEP'S OWN limit always runs out first — the install may
-    # take its 8 minutes and the site step its 20, and the report and the alert still have room.
-    # A job that runs out of time is CANCELLED, and a cancelled job tells nobody (the site step
-    # says why that matters).
-    timeout-minutes: 35
+    # for either. It is sized so the SITE STEP'S OWN limit always runs out first: every install step
+    # may take its whole limit and the site step its 20, and the report and the alert still have
+    # room. A job that runs out of time is CANCELLED, and a cancelled job tells nobody (the site
+    # step says why that matters). This was 35, counting only the system libraries' 8 minutes:
+    # `npm ci` (7 minutes, 4 Sep 2026) and a browser download on a cache miss (9–25 minutes, 7 Oct)
+    # had no limits and were not counted, so a slow setup and a hanging site together ran the job
+    # out first (6 Nov review). Each now has its own limit, and workflow-hygiene.test.mjs adds them up.
+    timeout-minutes: 65
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -70,7 +73,11 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
+      # Every step that installs has a limit of its own, counted into the job's above. One that runs
+      # out FAILS by name, and the alert step waits only for the site step, so a runner that could
+      # not install is a red run and not an email about a site nobody opened.
       - name: Install dependencies
+        timeout-minutes: 10
         run: npm ci
 
       # Browser restored from the Actions cache, keyed on the Playwright version — the reasoning is on
@@ -83,6 +90,7 @@ jobs:
           key: playwright-${{ runner.os }}-chromium-${{ hashFiles('node_modules/@playwright/test/package.json') }}
       - name: Install Playwright Chromium
         if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 20
         run: npx playwright install chromium
       # The system libraries, with a time limit of their own. Why: e2e.yml's smoke job.
       - name: Install Chromium's system libraries

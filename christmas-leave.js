@@ -77,6 +77,22 @@ export function isChristmasClosureDate(dateStr) {
 }
 
 /**
+ * Is this day's leave never counted because it falls on Christmas? True for the Christmas leave shown
+ * from the pattern (`christmasLeave`, from `resolveDayShift`) AND for leave somebody recorded on 25 or
+ * 26 December from 2026, which `consumesEntitlement` does not charge either. A stored record there —
+ * one booked before v25.37, or a swapped day — was labelled plain "Annual leave" on the Calendar and
+ * Team Week while the leave panel and Admin said "not counted" (6 Nov 2026 review); every surface
+ * that words a day asks this instead.
+ * @param {string} shift the day's effective value
+ * @param {string} dateStr ISO `YYYY-MM-DD`
+ * @param {boolean} christmasLeave `resolveDayShift`'s flag for the day
+ * @returns {boolean}
+ */
+export function isUncountedChristmasLeave(shift, dateStr, christmasLeave) {
+    return christmasLeave === true || (shift === 'AL' && isChristmasClosureDate(dateStr));
+}
+
+/**
  * The annual leave earned in lieu by working Boxing Day — 1 or 0 for the member's `year` (rule 3).
  *
  * Earned when the member was due at work on Boxing Day by their pattern (`isChristmasLeaveDay`) and

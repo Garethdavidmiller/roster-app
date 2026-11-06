@@ -1878,6 +1878,9 @@
             padding: 2px 7px;
             margin-right: 52px;
         }
+        /* …unless the row DOES have something to delete: a leave record stored on a Christmas day
+           (6 Nov 2026 review) gives it the same ✕ as its neighbours, which then holds the column. */
+        .al-period-free:not(:last-child) { margin-right: 0; }
         /* What makes a row different, said under its dates rather than in place of its count: the
            Christmas row's "🎄 Not counted". A quiet second line, so the dates keep the
            left edge and the one-line look every other row has. */

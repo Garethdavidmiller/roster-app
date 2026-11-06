@@ -19,7 +19,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { bookedYears, pickBookedYear, splitAtYearEnd } from './admin-booked-periods.js';
+import { bookedYears, pickBookedYear, splitAtYearEnd, createBookedPeriods } from './admin-booked-periods.js';
 
 /** @param {string[]} starts */
 const periods = starts => starts.map(s => ({ start: s, end: s, count: 1 }));
@@ -140,5 +140,98 @@ describe('splitAtYearEnd — every date in the year it falls in, exactly once', 
         const dates = ['2026-12-31', '2027-01-01', '2027-12-31', '2028-01-01'];
         const segs = splitAtYearEnd([{ start: '2026-12-31', end: '2028-01-01', count: 4 }], dates);
         assert.deepEqual(segs.map(s => s.start.slice(0, 4)), ['2026', '2027', '2028']);
+    });
+});
+
+// ── THE CHRISTMAS ROW: on every year already on screen, and deletable when it is stored ──────────
+//
+// 6 Nov 2026 review. The list's Christmas map stopped at this calendar year, so a later year on
+// screen anyway (it had bookings, or the Calendar's link pinned it) showed no Christmas row, and a
+// link to a year holding only Christmas fell back to another year. And the row had no ✕, so a leave
+// RECORD stored on a Christmas day could not be deleted from the list at all. The real render, with
+// a DOM just big enough to build rows and press buttons.
+describe('the Christmas row — every year already on screen, and a stored record deletable', () => {
+    class El {
+        constructor(/** @type {string} */ tag) { this.tag = tag; /** @type {any[]} */ this.children = []; /** @type {Record<string,string>} */ this.attrs = {};
+            this.className = ''; this._text = ''; this.hidden = false; /** @type {Record<string, Function[]>} */ this.on = {};
+            this.classList = { contains: (/** @type {string} */ c) => this.className.split(' ').includes(c),
+                add: (/** @type {string} */ c) => { if (!this.classList.contains(c)) this.className = `${this.className} ${c}`.trim(); },
+                remove: (/** @type {string} */ c) => { this.className = this.className.split(' ').filter(x => x !== c).join(' '); } }; }
+        set textContent(/** @type {string} */ t) { this._text = String(t); this.children = []; }
+        get textContent() { return this._text + this.children.map(c => typeof c === 'string' ? c : c.textContent).join(''); }
+        set innerHTML(/** @type {string} */ _) { this.children = []; this._text = ''; }
+        appendChild(/** @type {any} */ c) { this.children.push(c); return c; }
+        append(/** @type {any[]} */ ...cs) { this.children.push(...cs); }
+        prepend(/** @type {any} */ c) { this.children.unshift(c); }
+        setAttribute(/** @type {string} */ k, /** @type {string} */ v) { this.attrs[k] = v; }
+        getAttribute(/** @type {string} */ k) { return this.attrs[k]; }
+        addEventListener(/** @type {string} */ t, /** @type {Function} */ f) { (this.on[t] ||= []).push(f); }
+        click() { for (const f of this.on.click || []) f(); }
+        contains() { return false; }
+        querySelector() { return null; }
+    }
+    const all = (/** @type {any} */ el, /** @type {(e: any) => boolean} */ pred, /** @type {any[]} */ out = []) => {
+        if (el && typeof el === 'object') { if (pred(el)) out.push(el); for (const c of el.children) all(c, pred, out); }
+        return out;
+    };
+    const XMAS = { '2026': ['2026-12-25', '2026-12-26'], '2027': ['2027-12-25'] };
+    const setup = (/** @type {any[]} */ entries, /** @type {string|null} */ pinYear = null, preferred = '2026') => {
+        const els = { box: new El('div'), body: new El('div'), fb: new El('div') };
+        /** @type {any[]} */ const deleted = [];
+        const bp = createBookedPeriods({
+            doc: { getElementById: (/** @type {string} */ id) => /** @type {any} */ (els)[id] || null, createElement: (/** @type {string} */ t) => new El(t), activeElement: null },
+            getEntries: () => entries, hasAuthority: () => true, memberFor: () => ({ name: 'X' }),
+            isSunday: () => false, isRestGap: () => false,
+            mergePeriods: (/** @type {string[]} */ dates) => dates.map(d => ({ start: d, end: d, count: 1 })),
+            addDays: (/** @type {string} */ d) => d, memberDateMap: () => new Map(),
+            fmtDate: (/** @type {string} */ d) => d, fmtRange: (/** @type {string} */ a, /** @type {string} */ b) => `${a} – ${b}`,
+            monthAbb: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+            onDelete: (/** @type {any[]} */ ...args) => { deleted.push(args.slice(0, 4).concat(args[6])); },
+        });
+        if (pinYear) bp.pin('box', pinYear);
+        bp.render({ type: 'annual_leave', memberName: 'X', boxId: 'box', bodyId: 'body', feedbackId: 'fb',
+            consumes: (/** @type {any} */ _m, /** @type {string} */ d) => !/-12-2[56]$/.test(d), countFn: (/** @type {number} */ n) => `${n} days`,
+            countClass: 'al-period-count', preferredYear: preferred,
+            christmas: { '2026': XMAS['2026'] }, christmasFor: (/** @type {string} */ y) => /** @type {any} */ (XMAS)[y] || [] });
+        const chips = all(els.body, e => e.className.includes('al-year-chip')).map(e => e.textContent);
+        const active = all(els.body, e => e.className.includes('al-year-chip') && e.className.includes('is-active')).map(e => e.textContent)[0];
+        const xmasRows = all(els.body, e => e.className.includes('al-period-row--christmas'));
+        return { chips, active, xmasRows, deleted };
+    };
+    const al = (/** @type {string} */ date) => ({ memberName: 'X', date, type: 'annual_leave', value: 'AL' });
+
+    it('a later year with bookings shows its Christmas row — reached by the banner\'s year, with no pin', () => {
+        const r = setup([al('2027-03-01')], null, '2027');
+        assert.deepEqual(r.chips, ['2026', '2027']);
+        assert.equal(r.active, '2027');
+        assert.equal(r.xmasRows.length, 1, 'Christmas 2027 is on record, as the Calendar shows it');
+        assert.match(r.xmasRows[0].textContent, /2027-12-25/);
+    });
+
+    it('a linked year holding only Christmas opens on it, instead of falling back', () => {
+        const r = setup([], '2027');
+        assert.equal(r.active, '2027');
+        assert.equal(r.xmasRows.length, 1);
+    });
+
+    it('a later year nobody asked for grows no chip from Christmas alone', () => {
+        assert.deepEqual(setup([]).chips, ['2026']);
+    });
+
+    it('a leave RECORD on a Christmas day gets the two-tap ✕, which deletes the stored days only', () => {
+        const r = setup([al('2026-12-26')]);
+        const btns = all(r.xmasRows[0], e => e.tag === 'button');
+        assert.equal(btns.length, 1);
+        assert.equal(btns[0].getAttribute('aria-label'), 'Delete the leave recorded on 2026-12-26');
+        btns[0].click();
+        assert.equal(btns[0].getAttribute('aria-label'), 'Confirm delete the leave recorded on 2026-12-26');
+        assert.equal(r.deleted.length, 0, 'the first tap only arms it');
+        btns[0].click();
+        assert.deepEqual(r.deleted, [['annual_leave', 'X', '2026-12-26', '2026-12-26', 1]]);
+    });
+
+    it('the roster\'s own Christmas leave has nothing stored, so nothing to delete', () => {
+        const r = setup([]);
+        assert.equal(all(r.xmasRows[0], e => e.tag === 'button').length, 0);
     });
 });

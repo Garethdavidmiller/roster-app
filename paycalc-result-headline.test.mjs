@@ -205,7 +205,8 @@ describe('the take-home bar is named by what it shows', () => {
             const shown = `${els.stickyLabel.innerHTML.replace(/<[^>]+>/g, ' ')} ${els.stickyAmount.textContent}`;
             const name = els.stickyTotal.getAttribute('aria-label');
             assert.ok(inOrder(name, shown), `the strip shows "${shown.replace(/\s+/g, ' ').trim()}" but is named "${name}"`);
-            assert.match(name, /tap to view the full breakdown$/, 'and the name still says what pressing it does');
+            // Pressing it scrolls to the result and opens nothing — it promised the breakdown.
+            assert.match(name, /tap to go to the result$/, 'and the name still says what pressing it does');
         });
     }
 });

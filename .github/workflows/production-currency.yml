@@ -69,11 +69,14 @@ jobs:
     runs-on: ubuntu-latest
     # The poll below may run for DEPLOY_WINDOW_S; this must exceed it, or a slow-but-successful
     # deploy turns into a cancelled run that reports nothing either way. Raised with the window.
-    # 25 polls × (60s sleep + two reads of up to 30s each) is 50 minutes in the worst case, plus the
-    # stand-down query. At 35 the job could be CANCELLED mid-poll, and a cancelled job skips the
-    # `if: failure()` step — the one that files the issue — so the check fell silent exactly when
-    # an origin was hanging (v24.23).
-    timeout-minutes: 55
+    # At 35 the job could be CANCELLED mid-poll, and a cancelled job skips the `if: failure()` step
+    # — the one that files the issue — so the check fell silent exactly when an origin was hanging
+    # (v24.23). The worst case is every read hanging to its own --max-time: the two first reads, then
+    # 25 polls × (60s sleep + main's version, up to 10s + two origins, up to 30s each), which is
+    # 3,310s, about 55 minutes, before the issue step has to run. That is THREE reads a poll since
+    # main is re-read on every pass (6 Nov 2026): this said "two reads" and 50 minutes, and 55 was
+    # then a minute short of it. workflow-hygiene.test.mjs computes it from the script's own numbers.
+    timeout-minutes: 62
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -96,6 +99,9 @@ jobs:
           }
 
           EXPECTED=$(grep -oE "APP_VERSION = '[^']+'" roster-data.js | head -1 | grep -oE "[0-9]+\.[0-9]+")
+          # The version this run STARTED with, kept when main moves: the Hosting stand-down below
+          # needs it (6 Nov 2026 — the re-read's own false alarm, explained there).
+          START="$EXPECTED"
 
           # ⚠️ MAIN CAN MOVE WHILE THIS WAITS (6 Nov 2026). EXPECTED was read ONCE, from the commit
           # this run checked out, and the poll below then waits up to 25 minutes. The 10:53 run read
@@ -105,9 +111,11 @@ jobs:
           # version, about an origin that was AHEAD — while Hosting was correctly mid-deploy of the
           # same v25.40. So every poll re-reads main through the API, and the verdict and the issue
           # both state the main of the moment. An unanswered read keeps the last value: it fails
-          # open to exactly the behaviour this replaced, never to silence.
+          # open to exactly the behaviour this replaced, never to silence. Its limit is 10s, not the
+          # origins' 30: it is the third read on every pass, the API answers in about a second, and
+          # at 30 the worst case outran the job (the timeout-minutes comment has the arithmetic).
           expected_on_main() {
-            curl -fsSL --max-time 30 \
+            curl -fsSL --max-time 10 \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
               -H "Accept: application/vnd.github.raw" \
               "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/roster-data.js?ref=main" 2>/dev/null \
@@ -187,7 +195,16 @@ jobs:
           # on top of a queued code deploy is the commit this check reads — while the run still in
           # flight belongs to the commit beneath it. The two preconditions above carry v24.23's
           # actual fix; the sha added nothing but that false alarm.
-          if [ -n "$LIVE_WEB" ] && [ "$LIVE_WEB" != "$EXPECTED" ] && [ "$LIVE_PAGES" = "$EXPECTED" ]; then
+          #
+          # THE MIRROR MAY STILL BE ON THE VERSION THIS RUN STARTED WITH (6 Nov 2026). Re-reading
+          # main made a false alarm of its own: a release merging in the last poll or two, while
+          # Hosting is still deploying the previous one, moves EXPECTED before the mirror has rebuilt
+          # — so Pages read the START version, matched neither this test nor the gated-mirror one
+          # below (the branch-built mirror is not "workflow"), and the run reported a healthy
+          # release in progress. Pages on START is a mirror one merge behind a main that moved
+          # minutes ago; one stuck there is still reported, by the next run, which starts from the
+          # new main. workflow-hygiene.test.mjs runs this script against stubbed reads for the case.
+          if [ -n "$LIVE_WEB" ] && [ "$LIVE_WEB" != "$EXPECTED" ] && { [ "$LIVE_PAGES" = "$EXPECTED" ] || [ "$LIVE_PAGES" = "$START" ]; }; then
             # ONE LINE ON PURPOSE. The first cut of this piped into a `python3 -c "` heredoc
             # whose body sat at column 0 — below the `run: |` block scalar's own indent, which
             # ENDS the scalar and makes the whole workflow unparseable YAML. Indenting the body

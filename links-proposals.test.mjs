@@ -8,6 +8,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { PROPOSALS, PROPOSAL_PREFIX, isProposalId, proposalById, proposalCopyName } from './links-proposals.js';
 import { ROTATING_LINES, DAYS, normalisePatterns, weeklyHours, CONTRACTED_HOURS_PER_WEEK } from './links-design.js';
 import { assessHardLimits, contractedDaysPerYear } from './links-limits.js';
@@ -79,6 +80,17 @@ describe('the shortlist as the owner chose it (these three since 5 Nov 2026)', (
                 const src = JSON.parse(readFileSync(file, 'utf8'));
                 assert.equal(src.name, `${p.name} (${p.ref})`, 'the printed name — title and ref, as on the sheet');
                 assert.deepEqual(normalisePatterns(src.patterns), p.patterns, 'the grid');
+            });
+
+            // THE REF'S FINGERPRINT IS THESE CELLS' OWN (6 Nov 2026, the 72-hour review). The test above holds the grid and
+            // the ref to the pack's copy, so a grid edited in BOTH places with the ref left alone passed it, labelled with the
+            // fingerprint of a rota it no longer is. Recomputed exactly as regenerate.mjs and every printed sheet compute it:
+            // sha256 of the lines in order, each line's days in links-design.js's order, the first eight hex characters.
+            test('its ref names the fingerprint of these cells, recomputed', () => {
+                const fp = createHash('sha256')
+                    .update(JSON.stringify(Object.keys(p.patterns).sort((a, b) => Number(a) - Number(b)).map(k => DAYS.map(d => p.patterns[k][d]))))
+                    .digest('hex').slice(0, 8);
+                assert.equal(p.ref, `${p.code} · ${fp}`);
             });
         });
     }

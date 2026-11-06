@@ -30,6 +30,9 @@ description: >
 #     Playwright bump that needs a new library is picked up without anyone editing a list here. If
 #     that output ever changes shape, the script falls back to the plain command, still bounded.
 #   * apt is also told to give a DEAD connection 30 s rather than its default 120, and to retry it.
+#   * A mirror that STALLS is left behind, once (6 Nov 2026): apt changes mirror only on an error, so
+#     after a cut-off the first mirror on the runner's list is dropped and the next attempt fetches
+#     from the next one, while one serving the whole archive remains. install.sh says how.
 #
 # The budget fits inside the calling step's `timeout-minutes: 8`, which stays as the backstop:
 # three attempts of 30 s at the index and three of 90 s at the download, each cut-off costing up to

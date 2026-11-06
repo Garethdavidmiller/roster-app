@@ -1252,12 +1252,12 @@ describe('a Sunday RD correction never erases a worked override', () => {
     // costs real money to lose. Adding a type is free; removing one has to be
     // argued for in this file.
     //
-    // REMOVED at v25.32: 'allocated', 'overtime' and 'swap'. Every record of those
-    // types was converted to `shift` or `rdw` on 4 Nov 2026, so there is no worked
-    // time of those types left for a correction to write over — and both of what
-    // they became are pinned here.
+    // 'allocated', 'overtime' and 'swap' were REMOVED at v25.32, after the 4 Nov 2026
+    // conversion, and RESTORED on 6 Nov: the converter skipped some records by design,
+    // nothing shows none survived, and a survivor on a worked Sunday was deleted by any
+    // range booking. They cost nothing if there are none (admin-shift-types.js says why).
     test('every override type that records WORKED time is still in the Set', () => {
-        for (const t of ['rdw', 'shift', 'spare_shift']) {
+        for (const t of ['rdw', 'shift', 'spare_shift', 'allocated', 'overtime', 'swap']) {
             assert.ok(WORKED_OVERRIDE_TYPES.has(t),
                 `'${t}' left WORKED_OVERRIDE_TYPES — a Sunday RD correction will now write ` +
                 `over a '${t}' day, erasing time the member actually worked`);

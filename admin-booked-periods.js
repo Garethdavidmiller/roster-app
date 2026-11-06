@@ -163,7 +163,8 @@ export function createBookedPeriods(deps) {
      * @param {{ type: string, memberName: string, boxId: string, bodyId: string,
      *           consumes?: (memberObj: any, dateStr: string, ovByDate: Map<string, any>|null) => boolean,
      *           countFn: (n: number) => string, countClass: string, feedbackId: string,
-     *           preferredYear?: string|null, christmas?: Record<string, string[]> }} cfg
+     *           preferredYear?: string|null, christmas?: Record<string, string[]>,
+     *           christmasFor?: (year: string) => string[] }} cfg
      */
     function render(cfg) {
         const { type, memberName, boxId, bodyId, countFn, countClass, feedbackId } = cfg;
@@ -182,7 +183,20 @@ export function createBookedPeriods(deps) {
         // the owner asked to be RECORDED here. Derived from the roster, never stored, never counted
         // (christmas-leave.js → christmasLeaveByYear), so it is a row of its own and a year it falls in
         // is a year with something to show even when nothing else was booked.
-        const xmas = cfg.christmas || {};
+        //
+        // A YEAR ALREADY ON SCREEN SHOWS ITS CHRISTMAS (6 Nov 2026 review). `christmas` stops at this
+        // calendar year, so that no LATER year grows a chip from Christmas alone. But a later year on
+        // screen anyway — it has bookings, or the reader asked for it (a chip, or the Calendar's
+        // "Leave dates" link from 25 Dec 2027, which pins it) — showed its list without the Christmas
+        // row the Calendar shows, and a link to a year holding only Christmas fell back to another
+        // year. `christmasFor` answers for exactly those years and no others.
+        const xmas = { ...(cfg.christmas || {}) };
+        const addXmas = (/** @type {string|null|undefined} */ y) => {
+            if (!cfg.christmasFor || !y || !/^\d{4}$/.test(y) || y in xmas) return;
+            const dates = cfg.christmasFor(y);
+            if (dates.length) xmas[y] = dates;
+        };
+        addXmas(pinned[boxId]);
         const hasXmas = Object.keys(xmas).length > 0;
         const entries = deps.getEntries(memberName, type);
         if (!entries.length && !hasXmas) return hide();
@@ -216,6 +230,7 @@ export function createBookedPeriods(deps) {
         // Cut at every year end FIRST, so a 28 Dec → 1 Jan booking puts its January day under
         // January's year — the owner's decision at v23.11, argued in the header.
         const segments = splitAtYearEnd(periods, dateList);
+        for (const y of bookedYears(segments)) addXmas(y);
         const years = [...new Set([...bookedYears(segments), ...Object.keys(xmas)])].sort();
         const year  = pickBookedYear({ pinned: pinned[boxId], preferred: cfg.preferredYear, years });
         if (!year) return hide();
@@ -227,8 +242,14 @@ export function createBookedPeriods(deps) {
         const xmasKey = `${year}-12`;
         if (xmasDates.length && !byMonth[xmasKey]) byMonth[xmasKey] = [];
         /** The Christmas leave row, in date order inside December: listed so it is on record, and
-         *  outside every count. No delete, because nothing is stored to delete; it comes from the
-         *  roster.
+         *  outside every count. Mostly nothing is stored to delete; it comes from the roster.
+         *
+         *  UNLESS A LEAVE RECORD IS STORED ON ONE OF ITS DAYS (6 Nov 2026 review) — one booked before
+         *  v25.37, or a swapped day. The ordinary list leaves that date out (it costs nothing, so
+         *  `consumes` says no) and this row had no ✕, so the record could not be deleted from the
+         *  list at all; the week grid and Saved Changes were the only ways. It now carries the same
+         *  two-tap ✕ as every other row, for the stored days only: what the roster gives is not
+         *  stored, and deleting the record leaves it as it was.
          *
          *  LAID OUT LIKE EVERY OTHER ROW (v25.38, owner: it "doesn't look aesthetically right compared
          *  to the rest of the table"). v25.37 put a 🎄 before the dates and a "Not counted" pill where
@@ -262,7 +283,60 @@ export function createBookedPeriods(deps) {
             free.className = 'al-period-free';
             free.textContent = countFn(xmasDates.length);
             row.append(dates, free);
+            const stored = xmasDates.filter(d => storedDates.has(d));
+            if (stored.length) {
+                const s0 = stored[0], s1 = stored[stored.length - 1];
+                row.appendChild(deleteButton(`the leave recorded on ${s0 === s1 ? deps.fmtDate(s0) : deps.fmtRange(s0, s1)}`,
+                    s0, s1, stored.length));
+            }
             return row;
+        };
+        /** Dates holding a stored record of this type — what the Christmas row may delete. */
+        const storedDates = new Set(entries.map(e => e.date));
+        /**
+         * The two-tap ✕ every row that deletes ends with — one control, so the Christmas row's
+         * cannot behave differently from its neighbours'.
+         * @param {string} what what it deletes, in words — its name
+         * @param {string} start first date it deletes, inclusive
+         * @param {string} end last date it deletes, inclusive
+         * @param {number} count how many days the row showed, for the confirmation
+         */
+        const deleteButton = (what, start, end, count) => {
+            const btn = deps.doc.createElement('button');
+            btn.type      = 'button';
+            btn.className = 'btn-period-delete';
+            // THIS MODULE OWNS EVERY STATE OF THE CONTROL — idle, confirming, and back again
+            // after the delete has run, whatever it did. The first cut left the "back again" to
+            // the coordinator, which restored the label it remembered: the WORD "Delete", into
+            // a 44px square built for a glyph, with the aria-label still saying "Confirm". On
+            // a successful delete the row is gone before anyone can see it; on a refused or
+            // failed one it stays, and that is the row the admin is looking at.
+            //
+            // NAMED BY WHAT IT DELETES. Fifteen buttons all called "Delete" are fifteen
+            // identical announcements with nothing to choose between them, and the glyph alone
+            // has no name at all.
+            const idle = () => {
+                btn.classList.remove('confirming');
+                btn.textContent = '✕';
+                btn.setAttribute('aria-label', `Delete ${what}`);
+            };
+            idle();
+            btn.addEventListener('click', () => {
+                if (!btn.classList.contains('confirming')) {
+                    btn.classList.add('confirming');
+                    btn.textContent = 'Confirm?';
+                    btn.setAttribute('aria-label', `Confirm delete ${what}`);
+                    setTimeout(() => { if (btn.classList.contains('confirming')) idle(); }, 5000);
+                    return;
+                }
+                // Whatever the delete does — succeeds, is refused, throws — the control comes
+                // back to idle. On success the box has already re-rendered and this node is
+                // detached, which is harmless; on every other path it is the node on screen.
+                Promise.resolve(deps.onDelete(type, memberName, start, end, feedbackEl, btn, count))
+                    .catch(() => {})
+                    .finally(idle);
+            });
+            return btn;
         };
 
         // A CHIP ACTIVATED FROM THE KEYBOARD MUST STILL BE FOCUSED AFTERWARDS. The re-render below
@@ -351,41 +425,7 @@ export function createBookedPeriods(deps) {
                 count.textContent = countFn(p.count);
                 row.appendChild(count);
 
-                const btn = deps.doc.createElement('button');
-                btn.type      = 'button';
-                btn.className = 'btn-period-delete';
-                // THIS MODULE OWNS EVERY STATE OF THE CONTROL — idle, confirming, and back again
-                // after the delete has run, whatever it did. The first cut left the "back again" to
-                // the coordinator, which restored the label it remembered: the WORD "Delete", into
-                // a 44px square built for a glyph, with the aria-label still saying "Confirm". On
-                // a successful delete the row is gone before anyone can see it; on a refused or
-                // failed one it stays, and that is the row the admin is looking at.
-                //
-                // NAMED BY WHAT IT DELETES. Fifteen buttons all called "Delete" are fifteen
-                // identical announcements with nothing to choose between them, and the glyph alone
-                // has no name at all.
-                const idle = () => {
-                    btn.classList.remove('confirming');
-                    btn.textContent = '✕';
-                    btn.setAttribute('aria-label', `Delete ${dateStr}`);
-                };
-                idle();
-                btn.addEventListener('click', () => {
-                    if (!btn.classList.contains('confirming')) {
-                        btn.classList.add('confirming');
-                        btn.textContent = 'Confirm?';
-                        btn.setAttribute('aria-label', `Confirm delete ${dateStr}`);
-                        setTimeout(() => { if (btn.classList.contains('confirming')) idle(); }, 5000);
-                        return;
-                    }
-                    // Whatever the delete does — succeeds, is refused, throws — the control comes
-                    // back to idle. On success the box has already re-rendered and this node is
-                    // detached, which is harmless; on every other path it is the node on screen.
-                    Promise.resolve(deps.onDelete(type, memberName, p.start, p.end, feedbackEl, btn, p.count))
-                        .catch(() => {})
-                        .finally(idle);
-                });
-                row.appendChild(btn);
+                row.appendChild(deleteButton(dateStr, p.start, p.end, p.count));
                 monthDiv.appendChild(row);
             }
             if (xmasPending) monthDiv.appendChild(christmasRow());

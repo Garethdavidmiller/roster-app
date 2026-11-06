@@ -78,7 +78,10 @@ export function normaliseCellValue(rawShift, baseShift, date) {
     const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
     const restSafe = ((normRest(sundaySafe) === 'SICK' || normRest(sundaySafe) === 'AL') && normRest(baseShift) === 'RD')
         ? 'RD' : sundaySafe;
-    const sundayGuarded = sundaySafe !== parsedValue;
+    // The Sunday guard REFUSED the value only where it made it a rest day. A timed Other day it
+    // turns into Sunday work at those times is recorded, not refused (`sundaySafeValue`), so it is
+    // not reported as guarded — a review row saying nothing is recorded would then be untrue.
+    const sundayGuarded = sundaySafe !== parsedValue && sundaySafe === 'RD';
     return {
         value:   normRest(restSafe),
         display: (isRdwEncoded(rawShift) && restSafe !== 'RD') ? `${RDW_PREFIX}${restSafe}` : restSafe,
@@ -101,7 +104,13 @@ export function shiftValueToOverrideType(value, baseShift, date = null) {
     // Layer 4 of the Sunday rule — the transformation is `sundaySafeValue` (override-utils.js).
     // A value it rewrites to RD becomes a correction rather than the type it claimed to be.
     const isSun = date !== null && isSunday(date);
-    if (isSun && sundaySafeValue(value) === 'RD' && value !== 'RD') return 'correction';
+    if (isSun) {
+        const safe = sundaySafeValue(value);
+        if (safe === 'RD' && value !== 'RD') return 'correction';
+        // A timed Other day is Sunday work at its times, which is rest-day working like any Sunday
+        // time — never an `other` record on a Sunday (6 Nov 2026 review).
+        value = safe;
+    }
     if (value === 'AL')    return 'annual_leave';
     if (value === 'SICK')  return 'sick';
     if (value === 'SPARE') return 'spare_shift';
