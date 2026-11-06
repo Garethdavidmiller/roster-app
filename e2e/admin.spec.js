@@ -391,11 +391,18 @@ test('admin: a drawer pill or the logo asks before leaving staged edits', async 
     // either build: the Calendar is answered 204 No Content, which every browser treats as "stay on
     // this page", and the test reads what Leave asked for. Whether the Calendar honours the month is
     // the next test, which opens it without a dialog.
+    //
+    // THE LEAVE CLICK DOES NOT WAIT FOR ITS NAVIGATION (6 Nov 2026). Playwright's click, once it has
+    // clicked, waits for the navigation it started to load or be cancelled, and the 204 cancels it
+    // without Chromium always saying so: the click then sat on "waiting for scheduled navigations to
+    // finish" until the test's 30 seconds ran out, on both attempts of one CI run and about one local
+    // run in five, with the request it started already caught and answered. What this test checks is
+    // that request, read below, so the click is told not to wait (`noWaitAfter`).
     const leaving = page.waitForRequest((req) => req.isNavigationRequest() && !req.url().includes('admin.html'));
     await page.route((url) => url.pathname === '/', (route) => route.fulfill({ status: 204 }));
     await page.locator('#navMenuBtn').click();
     await page.locator('.nav-panel-pill--calendar').click();
-    await page.getByRole('button', { name: 'Leave', exact: true }).click();
+    await page.getByRole('button', { name: 'Leave', exact: true }).click({ noWaitAfter: true });
     const to = new URL((await leaving).url());
     expect(to.pathname, 'Leave goes to the Calendar').toBe('/');
     expect(to.searchParams.get('date'), 'Leave runs the pill’s own work: the link names the month being edited').toBe('2026-12-07');
