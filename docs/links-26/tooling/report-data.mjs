@@ -48,6 +48,21 @@ export function tightestRest(p, lines) {
   return best;
 }
 
+/** Single rest days whose shifts either side still leave 48 hours or more off — the one case FF11's break (two rest
+ *  days together) does not count, so FF11 can only overstate a run. The external review of 6 Nov 2026 found the sheets
+ *  saying flatly that one rest day "does not count as a 48-hour break", with Both Ways' line 2 Saturday 06:20–14:50 into
+ *  line 3 Monday 16:00–23:55 (49h 10m) as the counterexample; it is the only one in the pack that day. Fixed duties
+ *  only: a cover week's days have no times. Line 26 wraps to line 1, as everywhere. */
+export function singleRestsOver48(p, lines) {
+  const seq = []; for (let k = 1; k <= lines; k++) for (const d of DAYS) seq.push({ line: k, day: d, shift: p[String(k)][d] });
+  const n = seq.length, out = [];
+  for (let i = 0; i < n; i++) { if (seq[i].shift !== 'RD') continue; const a = seq[(i + n - 1) % n], b = seq[(i + 1) % n];
+    if (a.shift === 'RD' || b.shift === 'RD') continue;
+    const end = endMinutesAbs(a.shift), st = startMinutes(b.shift); if (end === null || st === null) continue;
+    const m = (24 * 60 - end) + 24 * 60 + st; if (m >= 48 * 60) out.push({ from: a, to: b, minutes: m }); }
+  return out;
+}
+
 /** Cover in PEOPLE-MINUTES per hour for one day — a duty counts in each hour for the minutes it is
  *  actually there, in five-minute steps. This is NOT `calcHourlyCoverage`, which counts a HEAD in every
  *  hour a duty touches: a 06:20 start is a whole person in the 06:00 hour there, and a 23:55 finish a
@@ -328,7 +343,7 @@ export function currentRules(P, T, model = 'plan') {
     // is the minimum" — "Only for weekdays"). It read "starts at 15:45" and accepted exactly that, so the 16:00 closers the
     // 26 Oct brief asked for ("whether it is 1545 or 1600 doesn't matter", 30 Oct) failed a rule they meet.
     { key: 'closer', rule: 'Every weekday closer starts at 15:45 or later', value: closerStarts.length ? `closers start at ${andList(closerStarts)}` : 'no weekday closer', ok: wkClosers.length > 0 && wkClosers.every(s => startMinutes(s) >= 15 * 60 + 45), note: '' },
-    { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}${floorWhen ? ` — first at ${floorWhen}` : ''}`, ok: ALL.every(d => fm[d] >= 2), note: namedAll ? 'the ticket office counts only while its staff are on the floor — at the quiet ends and once the office has closed, as this design runs it; checked every five minutes' : 'the ticket office counts only while its staff help on the floor — Mon–Sat one of each pair until 08:00 and from 19:30; on a Sunday one early until 09:00, both lates until 15:00 and one from 18:00; checked every five minutes' },
+    { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}${floorWhen ? ` — first at ${floorWhen}` : ''}`, ok: ALL.every(d => fm[d] >= 2), note: namedAll ? 'the ticket office counts only while its staff are on the floor — at the quiet ends and once the office has closed, as this design runs it; checked every five minutes' : 'the ticket office counts only while its staff help on the floor — Mon–Sat one of each pair to 08:00 and from 19:30; Sunday one early to 09:00, both lates to 15:00, one from 18:00, both from 22:00; checked every five minutes' },
     { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office (30 on a Sunday)', value: `floor ${floorHand ? 'met' : 'not met'} · ticket office ${Math.min(...overlaps)} min${assumedDays && model === 'plan' ? ` (${assumedDays === 7 ? 'posts' : `posts on ${assumedDays} day${assumedDays === 1 ? '' : 's'}`} assumed)` : ''}`, ok: floorHand && ALL.every(d => hv[d].overlap >= hv[d].need), note: namedAll ? 'the ticket office overlap is from its first late arriving to its last early leaving, as this design runs it; on a Sunday each opener also stays until 15 minutes after the last closer arrives' : 'the Sunday office handover runs from 15:00, when the lates join it; on a Sunday each opener also stays until 15 minutes after the last closer arrives; where the design does not roster the office pairs, the plan’s posts are assumed' },
     { key: 'sunlen', rule: 'Sunday duties between 8h and 9h', value: sunLens.length ? `${hmm(Math.min(...sunLens))}–${hmm(Math.max(...sunLens))}` : '—', ok: sunLens.length > 0 && sunLens.every(m => m >= 480 && m <= 540), note: 'every Sunday duty, start to finish' },
     { key: 'times', rule: 'No more shift times than today', value: `${P.feel.distinctTimes}`, ok: P.feel.distinctTimes <= T.feel.distinctTimes, note: `today ${T.feel.distinctTimes}` },
@@ -367,7 +382,14 @@ export function h55Worst(p, lines) {
     if (Math.abs(m / 60 - maxHoursInAny7Days(seq)) > 0.05 + 1e-9) throw new Error(`h55Worst: ${m} minutes against the app's ${maxHoursInAny7Days(seq)} hours`);
     return m; });
   const loMin = Math.min(...v(false)), hiMin = Math.max(...v(true)), h1 = m => Math.round(m / 60 * 10) / 10;
-  return table == null ? null : { table, tableMin, lo: h1(loMin), hi: h1(hiMin), loMin, hiMin, adds: hiMin > 55 * 60 && tableMin <= 55 * 60 };
+  // THE 8-HOUR COVER DUTY IS AN ASSUMPTION, NOT A CEILING (external review, 6 Nov 2026). The contract figures count a
+  // cover week as 35 hours, and four 8-hour duties are 32. So the sheets give the same worst week with four duties of
+  // 8h 45m too — the contract's 35 hours over the four, the Sunday still 8 hours — beside the 8-hour figure, rather
+  // than let the 8-hour one read as a maximum. Measured on all 21 designs the day it was added: it moves a figure by up
+  // to three hours and changes no design's side of 55, in either direction.
+  const hi35Min = Math.max(...placementCombos(n).map(c => { const q = materialise(p, lines, c, '09:00-17:45', true);
+    for (const k of coverLines(p, lines)) q[k].sun = '09:00-17:00'; return max7Minutes(toSequence(q, lines)); }));
+  return table == null ? null : { table, tableMin, lo: h1(loMin), hi: h1(hiMin), loMin, hiMin, hi35Min, adds: hiMin > 55 * 60 && tableMin <= 55 * 60 };
 }
 // THE FIXED DUTIES (owner, 1 Oct 2026: "you were highlighting worst case on cover-week placement for days in a row — now
 // you are just doing worst possible with cover week. Isn't that misleading?"). A cover week is four duties the roster

@@ -326,7 +326,7 @@ export function init() {
             return {
                 summary: `Today's link already features ${a.present} of these factors on the main ${main.lines}-line cycle,`
                     + ` which this ${TOTAL_POS}-line design replaces.`,
-                detail: `Longest run without a 48h break: ${ff11a?.value}, against FF11's 13.`
+                detail: `Longest run without a two-day break: ${ff11a?.value}, against FF11's 13.`
                     + ` Longest run of consecutive early starts: ${ff15a?.value}, against FF15's 4.`
                     + ` Measured on the main cycle at its own length, not spliced into one rotation.`,
             };

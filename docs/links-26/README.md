@@ -4984,6 +4984,81 @@ Saturday since colleagues saw it: three cells against 3 October's grid, the two 
 
 **The read-me.** Its "What is asked" no longer asks managers which link goes to colleagues (the owner's "No" above).
 
+## A second outside review of the 22:30 pack: the Sunday office, the 48-hour line, the 8-hour cover duty (6 Nov 2026)
+
+An outside reviewer checked the pack built above, independently. Every check passed:
+- 44,100 fixed Monday-to-Saturday minutes and 89 duties on all 21 rotas;
+- all 1,092 printed weekly totals;
+- the rest, run, weekend and leave figures;
+- the Saturday office pairs at 22:30;
+- every headcount and fit score;
+- Short Run's 92 finishes at 22:00 or later, carried into its decks.
+
+They found no hours, rest or staffing failure, and named two wording errors and four things to make clearer. Each was
+checked against the tree before anything changed.
+
+**1. The Sunday office prose still described the old model.** v25.41 moved the model (`SUN_CASHED_UP`) and `RULES.md`, but
+the sheets' own sentences were not updated:
+- page 2's Sunday office row;
+- page 5's Sunday paragraph;
+- page 6's floor note;
+- page 8's ticket-office panel;
+- the rules sheet's S6 row.
+
+They still had today's lone Sunday office late "keeping the office until 22:30" and said nothing of the second proposed late
+leaving it at 22:00. Each now says it: one late back on the floor from 18:00, the other from 22:00 once the office has shut
+at 21:40 and cashed up. A late that runs to 22:30 spends its last half hour on the floor, so the duty's finish and its
+release from the office are told apart, and today's late is in the office until 22:00. The charts and fit scores were
+already right; the reviewer said so too.
+
+**2. "One on its own does not count as a 48-hour break" was false.** The rota glossary said it, and so did the "Single rest
+days" row and the app's own FF11 detail.
+- **The counterexample.** Both Ways, line 2's Saturday 06:20–14:50 into line 3's Monday 16:00–23:55, is 49h 10m off across
+  one rest day. Measured on all 21 designs and today's link, it is the only single rest day in the pack that gives 48 hours
+  (`singleRestsOver48`, `report-data.mjs`).
+- **The convention, named.** FF11's break is two rest days together, the app's convention (`longestRunBetween48hBreaks`).
+  Two together always give more than 48 hours, so the count can only overstate a run.
+- **No warning changes.** Counting elapsed hours instead could only shorten runs. The only designs with FF11 present are
+  Balanced V5 and V6, at 19 in the worst case, and neither has a single rest day of 48 hours, so no design's FF11 warning
+  would change.
+- **What the sheets say now.** The glossary uses the reviewer's sentence: two rest days together give a longer break; one
+  on its own usually gives less, though the hours off depend on the shifts either side. Page 7 states the convention and
+  names Both Ways' instance on its sheet. The rules sheet says the same.
+- **Room on page 7.** Its sentence about the MRSF rows went, because the page's masthead already says it word for word.
+  The FF2 and FF15 sentence was shortened too, because the FF2 row and the standing-factors line already carry it.
+- **The app (v25.42).** The Links designer's FF11 explanation said the same, and now matches: "Longest run between
+  two-day breaks … a single rest day does not reset this count, even when the shifts either side leave 48 hours, so it
+  can only overstate a run". `links-app.js`'s comparison line says "without a two-day break". The module header,
+  `AI_MAP.md`, `LINKS_DEC2026_PLAN.md` and `.claude/rules/links-design.md` say "is not counted as" instead of "is not".
+
+**3. The 55-hour "up to" is a figure with 8-hour cover duties, not a ceiling.** The contract counts a cover week as 35
+hours, and four 8-hour duties are 32. So the sheets now:
+- say "with 8-hour cover duties" where they give the figure;
+- give the same worst week with four duties of 8h 45m beside it, the contract's 35 hours. It is computed by `h55Worst`
+  (`hi35Min`), never typed: Common Ground 57h 00m becomes 60h 00m, Even Step 56h 45m becomes 59h 45m, Short Run 56h 50m
+  becomes 59h 50m.
+
+No design changes side of 55 in either reading. Open Return, Second Look and Short Openers stay under it: 52h 45m, 52h 30m
+and 52h 45m at 8h 45m, and 53h 45m, 53h 40m and 52h 45m with their own longest duties. Their sheets said a cover week "does
+not change … the 55-hour row", which is true only of 8-hour duties, so they now say longer duties move it and by how much.
+The summary's footnote and the shortlist sheet's fatigue line name the 8-hour duties too. The decks' notes already did.
+
+**4. Cover weeks: early or late, and notice.** The legend still says "any turn", so a colleague cannot tell from the rota
+whether a cover week will be earlies or lates. The rest figures are for the fixed duties only; each sheet says so, but the
+app's New link page does not. Designating cover weeks, or listing them as a matter still to be agreed, is the owner's
+decision and is left for them.
+
+**5. The read-me still said "the chosen link".** It said it twice: what worries you "about the chosen link", and "the chosen
+link's presentation for colleagues", left over from the managers' ask taken out above. It now says "any of the shortlisted
+links" and "the presentations for colleagues, one for each shortlisted link". It does not add the reviewer's "ask which
+they prefer and why": how the choice is made is the owner's and S. Silva's to say.
+
+**6. Middle Ground's row on the shortlist sheet.** It ends "— but a larger change of start". The reviewer reads the
+difference from Common Ground as a preference: spreading out the closing and 06:20 weeks against keeping each week's start
+nearer the last. That is the owner's wording to decide, and is left for them.
+
+**Not changed:** the colleague decks' "At a glance" slide, which the owner chose to keep ("Why would you cut it down?").
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

@@ -353,7 +353,7 @@ oversight.
 > placement of each spare week's four duties, which is the number that can be defended in the room.
 
 **Those first two columns are DIFFERENT measures, and the corrected figures make the gap wider,
-not narrower.** A single rest day is not a 48h break, so it does not reset the FF11 count — the
+not narrower.** A single rest day is not counted as a 48h break, so it does not reset the FF11 count — the
 main cycle's 9-day worked stretch sits inside a 12-shift FF11 run, and the bilingual's 8-day
 stretch inside a 15-shift one. Quote the **FF11 column** when the subject is FF11; that is the one
 being read against the guidance. Quote the worked-stretch column when the subject is consecutive

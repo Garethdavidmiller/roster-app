@@ -66,8 +66,9 @@ if SHORTLIST != sorted(SHORTLIST): raise SystemExit(f'pack: the shortlist is lis
 DECKS_KEPT = re.findall(r"'([^']+)'", re.search(r'export const DECKS_KEPT = \[([^\]]*)\]', FRESH).group(1))
 SHORTLIST_DATE = re.search(r"export const SHORTLIST_DATE = '([^']+)'", FRESH).group(1)
 if not SHORTLIST or any(s not in names.split(', ') for s in SHORTLIST): raise SystemExit(f'pack: shortlist {SHORTLIST} is not all in the pack')
-# WHERE EACH AUDIENCE STARTS: the shortlisted designs' presentations, A to Z — a manager reads all three, a colleague the
-# chosen link's — and the one-page sheet last
+# WHERE EACH AUDIENCE STARTS: the shortlisted designs' presentations, A to Z, for managers and for colleagues alike — and
+# the one-page sheet last. Until the external review of 6 Nov 2026 a colleague was sent to "the chosen link's" deck: a
+# leftover of the managers' ask (removed the same day), and it read as if a link had already been picked
 MANAGERS = [f"3 Presentations/{n.replace(' ', '-')}-for-managers.pdf" for n in SHORTLIST]
 COLLEAGUES = [f"3 Presentations/{n.replace(' ', '-')}-for-colleagues.pdf" for n in SHORTLIST]
 WHAT_IT_MEANS = '1 Summary/links-26-what-it-means.pdf'   # 1 Nov 2026
@@ -259,7 +260,7 @@ readme = '\n'.join([
     'WHAT IS ASKED',
     # NO ASK OF MANAGERS (owner, 6 Nov 2026: "No", asked whether the read-me should keep asking them which shortlisted link
     # goes to colleagues): the pack is deliberately vague about how the choice is made, and S. Silva leads it
-    item('Colleagues', f'Tell {CONTACT} or your manager what worries you about the chosen link, even if it is small. '
+    item('Colleagues', f'Tell {CONTACT} or your manager what worries you about any of the shortlisted links, even if it is small. '
          f'{CONTACT}, {CONTACT_ROLE}, is leading the change.'),
     '',
     'WHERE TO START',
@@ -267,10 +268,10 @@ readme = '\n'.join([
     ' ' * 23 + '1 Summary/links-26-shortlist.pdf',
     item('', 'Then ten minutes for each presentation for managers:'),
     *[' ' * 23 + path for path in MANAGERS],
-    item('Colleagues', 'First, the chosen link\'s presentation for colleagues:'),
+    item('Colleagues', 'First, the presentations for colleagues, one for each shortlisted link:'),
     *[' ' * 23 + path for path in COLLEAGUES],
-    item('', 'Then pages 1 to 3 of its proposal sheet, in 4 Proposal sheets: the detail, and every week of the link on '
-         'page 3.'),
+    item('', 'Then pages 1 to 3 of each one\'s proposal sheet, in 4 Proposal sheets: the detail, and every week of the '
+         'link on page 3.'),
     item('', 'Last, the one-page sheet on what it means if you prefer earlies or lates, swap for overtime, work your '
          'share of Sundays or no overtime at all, or save leave for long breaks,'),
     ' ' * 23 + WHAT_IT_MEANS,
