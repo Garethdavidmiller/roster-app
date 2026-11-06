@@ -18,7 +18,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, rmSync, realpathSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -1429,6 +1429,41 @@ describe('a stalled apt mirror costs a retry, not the job (23–24 Oct 2026)', (
             assert.ok(!/timeout/.test(finals[0]), 'the final install must not be cut off mid-dpkg');
             const bare = script.split('\n').filter(l => /^\s*(sudo -n )?timeout\b/.test(l) && /apt-get/.test(l));
             assert.deepEqual(bare, [], 'every timeout around apt goes through asroot');
+        });
+
+        test('a mirror that stalls is left behind once, for the next one that serves the whole archive', () => {
+            // 6 Nov 2026: apt moves to the next mirror only on an ERROR, so a mirror that trickles was
+            // never left — three runners spent all three attempts at ~70 KB/s on the Azure mirror while a
+            // sibling fetched the same files in 14 s. The script's own function is run here, on a copy of
+            // GitHub's list and on the shapes it must refuse, not a copy of its awk.
+            const dir = mkdtempSync(join(tmpdir(), 'mirrors-'));
+            const leave = (/** @type {string} */ list) => {
+                const f = join(dir, 'apt-mirrors.txt');
+                writeFileSync(f, list);
+                const out = execFileSync('bash', [join(ACTION_DIR, 'install.sh'), '--leave-mirror', f],
+                    { env: { ...process.env, BROWSER: 'webkit' }, encoding: 'utf8' }).trim();
+                return { out, after: readFileSync(f, 'utf8') };
+            };
+            try {
+                const AZ = 'http://azure.archive.ubuntu.com/ubuntu/\tpriority:1\n', ARC = 'https://archive.ubuntu.com/ubuntu/\tpriority:2\n',
+                    SEC = 'https://security.ubuntu.com/ubuntu/\tpriority:3\n';
+                let r = leave(AZ + ARC + SEC);
+                assert.equal(r.out, 'http://azure.archive.ubuntu.com/ubuntu/', 'the stalled first mirror is the one left');
+                assert.equal(r.after, ARC + SEC, 'the next attempt fetches from archive.ubuntu.com, the security mirror kept behind it');
+                r = leave(ARC + AZ);
+                assert.equal(r.out, 'http://azure.archive.ubuntu.com/ubuntu/', 'the first mirror is the lowest PRIORITY, as apt orders them, not the first line');
+                assert.equal(r.after, ARC);
+                r = leave(AZ + SEC);
+                assert.equal(r.out, '', 'never down to the security mirror alone, which serves only its own pocket');
+                assert.equal(r.after, AZ + SEC, 'and the list is then left as it was');
+                r = leave(AZ);
+                assert.deepEqual([r.out, r.after], ['', AZ], 'a single mirror is kept');
+                assert.equal(execFileSync('bash', [join(ACTION_DIR, 'install.sh'), '--leave-mirror', join(dir, 'none.txt')],
+                    { env: { ...process.env, BROWSER: 'webkit' }, encoding: 'utf8' }), '', 'no list, nothing to do');
+            } finally { rmSync(dir, { recursive: true, force: true }); }
+            // …and the attempt loop leaves a mirror only on a CUT-OFF (exit 124), once per job
+            assert.match(script, /if \[ "\$rc" = 124 \] && \[ -z "\$\{MIRROR_LEFT:-\}" \]; then\n\s+MIRROR_LEFT=\$\(leave_stalled_mirror \/etc\/apt\/apt-mirrors\.txt\)/,
+                'a cut-off attempt must leave its mirror, once');
         });
 
         test('the attempts\' worst case fits inside the calling step\'s limit', () => {

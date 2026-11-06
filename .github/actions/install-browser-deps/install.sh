@@ -43,6 +43,29 @@ parse_dry_run() {
 }
 if [ "${1:-}" = "--parse" ]; then parse_dry_run; exit 0; fi
 
+# A STALLED MIRROR IS LEFT BEHIND, ONCE (6 Nov 2026). GitHub's Ubuntu images read their mirrors through
+# `mirror+file:/etc/apt/apt-mirrors.txt`: the Azure mirror at priority 1, archive.ubuntu.com at 2,
+# security.ubuntu.com at 3. apt moves to the next mirror only on an ERROR, so a mirror that TRICKLES is
+# never left: that day runners spent all three 90 s attempts at about 70 KB/s on the Azure mirror while
+# a sibling job fetched the same 114 MB from it in 14 s, and #1697, #1699 and #1700 each lost a WebKit
+# job that way, twice running on #1700's mobile-safari 3/4. So after a cut-off the mirror apt tries
+# first is dropped from the list, once, and the next attempt fetches from the one after it — but only
+# while a mirror serving the whole archive remains (the security mirror serves only its own pocket).
+# apt reads the list afresh on each run, and resumes a partial file from whichever mirror it asks.
+# Prints the mirror it left, or nothing. `install.sh --leave-mirror FILE` runs only this, on FILE.
+leave_stalled_mirror() {
+    local f=$1 first rest
+    [ -r "$f" ] || return 0
+    first=$(awk -F'\t' '/^[a-z]+:\/\// { p = 1e9; for (i = 2; i <= NF; i++) if ($i ~ /^priority:/) p = substr($i, 10) + 0
+        if (best == "" || p < bp) { best = $1; bp = p } } END { print best }' "$f")
+    [ -n "$first" ] || return 0
+    rest=$(awk -F'\t' -v drop="$first" '$1 != drop' "$f")
+    grep -E '^[a-z]+://' <<<"$rest" | grep -vq 'security\.ubuntu\.com' || return 0
+    if [ -w "$f" ]; then printf '%s\n' "$rest" > "$f"; else printf '%s\n' "$rest" | asroot tee "$f" >/dev/null; fi
+    printf '%s\n' "$first"
+}
+if [ "${1:-}" = "--leave-mirror" ]; then leave_stalled_mirror "${2:?a mirror list file}"; exit 0; fi
+
 # apt gives a DEAD connection 120 s by default and never retries it. 30 s and three retries; a SLOW
 # connection is the attempts' job below.
 printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
@@ -61,6 +84,11 @@ attempt() {
         why="exit $rc after $(( $(date +%s) - start ))s"
         [ "$rc" = 124 ] && why="cut off at ${secs}s — the mirror stalled"
         echo "::warning title=$label: attempt $i of $ATTEMPTS failed::$why. Partial downloads are kept and resume on the next attempt."
+        # the first cut-off of the job leaves that mirror behind (leave_stalled_mirror, above)
+        if [ "$rc" = 124 ] && [ -z "${MIRROR_LEFT:-}" ]; then
+            MIRROR_LEFT=$(leave_stalled_mirror /etc/apt/apt-mirrors.txt)
+            [ -n "$MIRROR_LEFT" ] && echo "::notice title=$label::left the mirror $MIRROR_LEFT after it stalled; the next attempt fetches from the next mirror on the runner's list"
+        fi
         sleep 3
     done
     echo "::error title=$label failed $ATTEMPTS times::the apt mirror did not deliver in $ATTEMPTS attempts of ${secs}s each. That is the runner's mirror, not this branch: re-run the job."
