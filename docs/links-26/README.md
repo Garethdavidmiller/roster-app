@@ -157,7 +157,7 @@ still be rebuilt.
 | times pool | `half-hour-pool.mjs` | prints the start and finish times on the hour or the half hour, with the fixed opens, closes and office times, for `final-table.mjs`'s `POOL_ONLY=` (4 Nov; see "Common Ground") |
 | options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
 | fatigue values | `factors-like.mjs` | every fatigue factor's own value, on the fixed duties and in the worst case, against a reference grid; exits 1 if any is worse (`space-polish.mjs`'s `FACTORS_LIKE` holds a search to the same comparison) |
-| whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen (see "Closing Time, improved" and "In Step") |
+| whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen, `MIXED=` allows that many weeks mixing earlies and lates, with `BF=`/`BW=` holding the runs of all-early or all-late weeks (see "Closing Time, improved", "In Step" and "Balanced V7") |
 | rest days with a leave rule | `leave-layouts.py` | the rest days alone for CP-SAT, with what 14 days' leave buys as a rule (`LV_BEST=`, `LV_WORST=`, `LV_FOUR=`), for `exact-rota.py`'s `SKELETON=` to lay a table's times on; `FRIOFF=1` keeps the Friday before every cover week off (no 55-hour week however the cover weeks fall), `HINT=` to climb from a valid layout, `FIX=` to check one (see "Quarter Past Relaid") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
@@ -4839,6 +4839,83 @@ now, was 41h 30m).
 that; if staff already work or are paid to 22:30, today's figures move too); whether the read-me's "What is asked" should
 keep asking managers which of the three goes to colleagues; and whether the colleague decks' "At a glance" slide should be
 cut to fewer rows.
+
+## Balanced V7 — Balanced V6 made again, losing nothing (6 Nov 2026)
+
+**The ask** (owner, 6 Nov 2026): *"Can you take balanced v6 and make v7, keeping all of the benefits such as 1545 weekday
+closer starts, 14 days al buying you 30 days leave, wwekday 1335 and 1345, 1420 finishes without losing anything?"* The
+sheet was sent from scratch first; then *"Add v7 please"*.
+
+**What was kept, by construction.** Balanced V6's duties, every one: `tooling/results/balanced-v7-table.json` is counted
+from V6's grid, and a rota laid from it can only have V6's weekday of 7,390 minutes (the three 15:45–23:55 closers, the
+three 07:30–16:00s handing over to them for 15 minutes, the 06:20–13:35, 06:20–13:45 and two 06:20–14:20s), its Saturday
+and Sunday, its staffing and its contract. Only which week works which duty, and which days are rest days, were chosen
+again.
+
+**How it was laid.** By the exact solver, `exact-rota.py`, on Grand Tour's rest days, which buy 30 days off for 14 days'
+leave and four weeks off for 14. Every floor is a figure of Balanced V6's own: a 14h 20m shortest rest, at most 50.9 hours
+in any seven days, no more backward rotation against forward, no week over 42h 55m, and its leave. Then the smallest
+week-to-week change of start.
+
+**Why it has V6's three mixed weeks.** Every rota the solver had laid until now had each working week all earlies or all
+lates. Laid that way on these rest days, the runs of early or late weeks could not be kept: the best found had 17 weeks of
+21 on one shift time and a 1h 30m change of start, but runs of 5 weeks, or 7 with the cover weeks beside them, where V6's
+are 3 and 5. That loses something V6 gives, so it was offered to the owner as the alternative and not taken. The
+solver now takes `MIXED=n` (its header): at most n weeks may mix the two, the runs held by `BF=` on the fixed duties and
+`BW=` with the cover weeks, read as `blocks.mjs` reads them. With no mixed week allowed and V6's runs asked for, it proves
+in a second that no rota exists (`MIXED=0 BF=3 BW=5`); with V6's three, it found Balanced V7 (`MIXED=3 BF=3 BW=5`, the full
+command in the header). `FIX=tooling/results/balanced-v7.json` checks the committed grid against that model: feasible.
+
+**Against Balanced V6**, every figure computed from the cells (its sheet, `factors-like.mjs`, the league):
+
+| | Balanced V6 | **Balanced V7** |
+|---|---|---|
+| Code · fingerprint | `MB-26-V6` · `1818a1c2` | **`MB-26-V7` · `75e9e7f3`** |
+| Duties, closers, handover, 13:35/13:45/14:20 finishes, staffing, contract | — | the same |
+| 14 days' leave buys: best · average · worst | 30 · 23.5 · 19 | 30 · **23.4** · **20** |
+| Leave for four weeks off | 14 | 14 |
+| December staffing rules met | 9 of 9 | 9 of 9 |
+| Avoidable fatigue warnings (if a cover week falls badly) | 0 (up to 4) | 0 (**up to 1**) |
+| Most days in a row (if a cover week falls badly) | 5 (up to 10) | 5 (**up to 7**) |
+| Six-day weeks | 3 | **0** |
+| Full weekends off | 6 in 26 | **7 in 26** |
+| Single rest days, a year each | 22 | **12** |
+| Weeks on one shift time | 7 of 21 | **13 of 21** |
+| Weeks mixing earlies and lates | 3 | 3 |
+| Runs of early or late weeks (with the cover weeks beside them) | 3 (5) | 3 (5) |
+| Week-to-week change of start | 4h 08m | **2h 33m** |
+| Shortest rest; most hours in seven days; heaviest week | 14h 20m; 50.9; 42h 55m | 14h 20m; **50.5**; 42h 55m |
+| Main league, of 22 | 21st, 56.4 | **20th, 77.2** |
+
+No fatigue factor is worse (`factors-like.mjs` against V6's grid), and no figure is either, but one: the average stretch
+14 days' leave buys, 23.4 days against 23.5, a tenth of a day, because these are Grand Tour's rest days and not V6's. The
+best, 30, and four weeks for 14 are kept, and the worst is a day better. It was put to the owner that way before it was
+added.
+
+**Into the pack**, as Balanced V5 and V6 were:
+- `regenerate.mjs`'s `SUPPLIED` and `fresh.mjs` (family *Marylebone Balanced*, drawn 6 Nov 2026), shipping into
+  `30-days-off/`. `MB-26-V7` was checked against every code in `links-24/` and `links-26/`. The sheet in the pack is word
+  for word the one sent, but for its created date, printed "6 Nov 2026" as on every pack sheet.
+- **Its headline** says what it is and names no other design: "A 15-minute handover every weekday, from the three
+  07:30–16:00s to the three 15:45 closers, no six-day weeks, and 14 days' leave buys 30 days off, as today".
+- **The league** (`REF_IN_RANGE`, as the shortlist sheet reads it): 20th of 22 at 77.2, and 20th at 81.2 weighted as
+  before 31 Oct. It sits inside every range the league reads, so no other design's score or place moves: Common Ground
+  still leads Even Step by 1.49, and Balanced V6 and V5 are 21st and 22nd.
+- **The shortlist sheet** (`shortlist-sheet.mjs`): V7 keeps what V5 and V6 keep against the three — shorter runs of
+  earlies or of lates, more early finishes — without their 22 single rest days, so it has a row of its own on page 2:
+  "shorter runs of earlies or lates and more early finishes — but 13 of 21 weeks on one shift time and three weeks mixing
+  earlies and lates", both figures read and pinned (`pays`, and a claim that it does not pay with the single rest days).
+  The 30-day and four-weeks claims name it. Still two pages.
+- **The summary** (`summary-sheet.mjs`) has 22 rows, and was about 3px onto a second sheet at its 80% floor (measured at
+  the printed width). Dense now sets the band's Prepared line beside the eyebrow, at the right, where the short eyebrow
+  leaves the line empty: its words and type as they were, one line fewer. It prints at 81%.
+- **The pack's read-me** (`pack.py`): "Twenty-two candidate links", V7 among the designs after the shortlist and in the
+  30-day folder, a sentence of its own in the late paragraph, and the 22:30 paragraph names it with V5 and V6 (it finishes
+  the Saturday office lates at 22:30, as V6 does).
+- `30-days-off/README.md` has its column, in league order, and a paragraph.
+
+**Unchanged:** every other design's sheet, grid and fingerprint, the rules sheet, the "What it means if you…" sheet, the
+decks and the app (`links-proposals.js` builds in the shortlist only).
 
 ## Notes for the whole set
 

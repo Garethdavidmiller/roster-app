@@ -132,6 +132,10 @@ export const SUPPLIED = [
     // V6 join the pack")
     { file: 'results/balanced-v5.json',        name: 'Balanced V5',          code: 'MB-26-V5',  fp: 'ded4a15f', dir: '30-days-off', strap: 'Weeks of 06:20 starts and weeks of 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today' },
     { file: 'results/balanced-v6.json',        name: 'Balanced V6',          code: 'MB-26-V6',  fp: '1818a1c2', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today' },
+    // 6 Nov 2026 (owner: Balanced V6 made again "without losing anything", then "Add v7 please"): Balanced V7 is Balanced V6's
+    // duties, every one, laid again by exact-rota.py (MIXED) on Grand Tour's rest days, so it keeps V6's handover, closers, early
+    // finishes and leave, with no six-day weeks and at most 7 days in a row however the cover weeks fall (README.md → "Balanced V7")
+    { file: 'results/balanced-v7.json',        name: 'Balanced V7',          code: 'MB-26-V7',  fp: '75e9e7f3', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, no six-day weeks, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
