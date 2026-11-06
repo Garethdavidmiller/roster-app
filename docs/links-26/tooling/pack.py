@@ -380,7 +380,7 @@ readme = '\n'.join([
          'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. On the '
          'nineteen already in the pack that hour comes off other Saturday lates, so the hours and the contract are as they '
          'were; every sheet and presentation was redrawn, and their fingerprints changed. Balanced V5, Balanced V6 and '
-         'Balanced V7, which joined the same day, already finished them at 22:30. Since then Common Ground is first in the '
+         'Balanced V7 already finished them at 22:30. Since then Common Ground is first in the '
          'pack\'s league, just over half a point ahead of the next.'),
     '',
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '

@@ -5226,8 +5226,8 @@ Every sheet now says "with the four contracted duties at 8h 45m, the contract's 
   written one way: "up to 9h 00m, not 8h 30m".
 
 **The sheets as printed pages.**
-- Page 7's columns are fixed, so all 21 match. The cover-week line wraps under its hanging indent; it ran 55 px off Second
-  Edition's page.
+- Page 7's columns are fixed, so all 22 match, Balanced V7's included. The cover-week line wraps under its hanging indent;
+  it ran 55 px off Second Edition's page.
 - The closing-shift cell no longer overflows.
 - Clean Slate's ten new times sit in a 5×2 grid.
 - The page 3 strip breaks in two fixed rows.
@@ -5237,7 +5237,9 @@ Every sheet now says "with the four contracted duties at 8h 45m, the contract's 
   not have.
 
 **The read-me** says which page of the shortlist sheet holds what. It also names Common Ground's folder in WHERE TO START,
-and says Common Ground's weekday fit is weaker than Short Run's. It stays plain ASCII, because it opens in Notepad.
+and says Common Ground's weekday fit is weaker than Short Run's. It no longer says Balanced V5 and V6 "joined the same day"
+as the 6 November correction, which contradicted the 5 November it gives them a paragraph earlier. It stays plain ASCII,
+because it opens in Notepad.
 
 **The app, v25.44.** "Now 7, not 6, as on the other two" on the New link page read as though the other two had 6; it now
 reads "now 7, not 6 — the same as on the other two". This review also found the page's "about 26 a year each", which read as
