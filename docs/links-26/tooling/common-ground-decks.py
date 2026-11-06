@@ -181,8 +181,8 @@ def colleagues(d):
     check('the weekday closer 30 minutes later, the Saturday’s an hour and the Sunday’s 45 minutes',
           [mins_of(closer_start(P, WK, '23:55')[0]) - mins_of(TODAY_CLOSER['Weekdays'][0]), mins_of(closer_start(P, ('sat',), '23:55')[0]) - mins_of(TODAY_CLOSER['Saturday'][0]),
            mins_of(closer_start(P, ('sun',), '23:25')[0]) - mins_of(TODAY_CLOSER['Sunday'][0])] == [30, 60, 45])
-    notes(d, 2, 'This is the whole pitch on one slide.',
-          'This is the whole pitch on one slide. Same 35-hour week as now. Leave goes as far as it does today: at its best, '
+    notes(d, 2, 'This is the whole proposal on one slide.',
+          'This is the whole proposal on one slide. Same 35-hour week as now. Leave goes as far as it does today: at its best, '
           f'14 days’ leave buys {F["leaveBest"]} days off in a row, and four full weeks off in a row, Sunday to Saturday, take {F["leaveFour"]} days’ leave, as now; the average is the same and the worst a day better. '
           'Never more than five days in a row outside the cover weeks — seven at most when a cover week falls badly and its Sunday is worked as overtime, where today it is seven and can reach nine. '
           'Seven full weekends off in every 26 weeks, against four in 20 today, and never more than five weeks apart — though each person works about two more Saturdays a year. '
@@ -371,8 +371,8 @@ def colleagues(d):
     lb_y = lambda g: round(sum(1 for n in dp.rest_lens(g) if n > 2) * 52 / len(g))
     lb, lb_t = lb_y(P), lb_y(TP)
     check('fewer long breaks than today, all of them three days', 0 < lb < lb_t and max(dp.rest_lens(P)) == 3)
-    put(s, f'{dp.early_off(PE)} a year each finish before 14:00 (today {eo_t}); no 3\u2011 or 4\u2011day breaks (today {lb_t} a year).',
-        f'{eo} a year each finish before 14:00 (today {eo_t}); {lb} three\u2011day breaks a year (today {lb_t}).')
+    put(s, f'{dp.early_off(PE)} a year each finish before 14:00 (today {eo_t}); no\u00a0breaks of 3\u00a0days or more (today\u00a0{lb_t} a\u00a0year).',
+        f'{eo} a year each finish before 14:00 (today {eo_t}); {lb}\u00a0breaks a year of 3\u00a0days or more (today\u00a0{lb_t}).')   # deck-polish's wording, like for like
     s.save()
     check('fewer early finishes than today', eo < eo_t)
     same('slide 13’s other cards: the blocks, the Saturdays, the late finishes', 'block', 'blockUpTo', 'sat', 'late23', 'late22')
@@ -483,7 +483,7 @@ def managers(d):
         shape_of(s, line)   # refused if Even Step's slide no longer says it
     # WHAT IT ADDS, TWO THINGS SINCE THE 22:30 TICKET OFFICE (6 Nov 2026): the leave, and nothing over 8h 30m on any day, where
     # Even Step has its Sunday 09:00–18:00 and Short Run that and its 9-hour weekday earlies; checked below
-    for old, new in (('This one adds: every early one of today’s times, Mon–Sat; the steadiest weeks', 'This one adds: today’s leave, 30 days off for 14, and nothing over 8h 30m, any day'),
+    for old, new in (('This one adds: every early one of today’s times, Mon–Sat; the steadiest weekly hours', 'This one adds: today’s leave, 30 days off for 14, and nothing over 8h 30m, any day'),
                      (f'All three: fewer shift times than today’s {T["times"]} — here {tn(E)[0]}, {tn(E)[1]} worked today', f'All three: fewer shift times than today’s {T["times"]} — here {tn(F)[0]}, {tn(F)[1]} worked today'),
                      # A YEAR EACH, AGAINST TODAY AND THE OTHER TWO (whole-pack review, 5 Nov 2026): "six single rest days, not four"
                      # set 26 weeks against 26 and left out today's 10 a year; the weaker fit (32.7 against Even Step's 32.6) is notes 7's
@@ -571,7 +571,7 @@ ES_ONLY = re.compile(
     r'12:15–|09:00–\u2060?18:00|06:20–14:00|42h 00m|£250|£290|10h 50m|^5 min longer$|56h 45m|83h 30m|^5 · 5 · 4$|^32\.6$'
     r'|22 of 26|18 of the 21|^18 of 21$|four of the seven weekday earlies|its best is 28|^Best stretch 28|15 days’ leave, not 14|^15 days, not 14$'
     r'|[Nn]othing over 8h 30m,? (Mon–Sat|Monday to Saturday)|[Nn]othing Monday to Saturday (runs|is) (over|longer)|[Nn]o shift (over 8h 30m,? Monday to Saturday|Monday to Saturday is over)'
-    r'|no early Monday to Saturday is new|move most week to week|[Tt]hough not Common Ground|[Cc]losest Saturday fit|heaviest week is the lightest|steadiest weeks'
+    r'|no early Monday to Saturday is new|move most week to week|[Tt]hough not Common Ground|[Cc]losest Saturday fit|heaviest week is the lightest|steadiest week'
     r'|twice a year each|9-hour Sunday early|fb7a3988|ES-26-T5|every early one of today|lates near today'
     r'|More leave for four weeks off|and leave first|day more leave')
 plain = lambda t: t.replace('\u00a0', ' ').replace('\u2060', '')

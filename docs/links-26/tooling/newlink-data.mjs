@@ -69,6 +69,10 @@ claim('Common Ground: about 12 single rest days a year, where Even Step and Shor
 // is overtime), duty by duty across the rota, times 52 over its length
 const longYear = c => Math.round(monSatDuties(c.p).filter(s => mins(s) > 510).length * 52 / Object.keys(c.p).length);
 claim('over 8h 30m Monday to Saturday, a year each: Short Run about 26, Common Ground and Even Step none', longYear(SR) === 26 && longYear(CG) === 0 && longYear(ES) === 0);
+// AND WHAT THE 26 ARE (whole-pack review, 6 Nov 2026): "about 26 a year each" after two kinds read as 26 of each; the line now
+// gives the split, counted the same way
+const longSplit = c => (ds => [ds.filter(isEarly).length, ds.filter(s => !isEarly(s)).length].map(n => Math.round(n * 52 / Object.keys(c.p).length)))(monSatDuties(c.p).filter(s => mins(s) > 510));
+claim('Short Run’s 26 a year each are 20 weekday earlies and 6 Saturday closers', longSplit(SR).join() === '20,6');
 claim('Short Run’s long duties: 9-hour earlies on weekdays only, and an 8h 40m closer on Saturdays only',
   over(SR.p).every(s => (isEarly(s) && mins(s) === 540) || (s.endsWith('-23:55') && mins(s) === 520))
   && Object.values(SR.p).every(r => !(timed(r.sat) && isEarly(r.sat) && mins(r.sat) > 510) && MS.slice(0, 5).every(d => !(timed(r[d]) && r[d].endsWith('-23:55') && mins(r[d]) > 510)))
@@ -98,13 +102,13 @@ const CHANGES = [
   // OF THE ROTA, not of a person: someone on it finishes at 13:45 each weekday, where one person has 10 or 12 a year
   'Both keep a shift finishing at 13:45 on every weekday of the rota. Short Run has no shift finishing at 13:35 or 13:45.',
   'Common Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even Step and Short Run four weeks off take 15. The price on Common Ground is more single rest days: about 12 a year, where the other two have about 8.',
-  'Common Ground has nothing over 8h 30m on any day, and Even Step nothing over 8h 30m from Monday to Saturday. Short Run has 9-hour weekday earlies and an 8h 40m Saturday closer, about 26 a year each.',
+  'Common Ground has nothing over 8h 30m on any day, and Even Step nothing over 8h 30m from Monday to Saturday. Short Run has 9-hour weekday earlies and an 8h 40m Saturday closer: together about 26 a year each, 20 earlies and 6 closers.',
   // THE 22:30 OFFICE (6 Nov 2026): the one change to Short Run's shifts since it was shown, made on all three
   'On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10. To keep the hours the same, one Saturday late on Short Run is now 13:30–21:00, a time worked on Saturdays today. Those are the only changes to Short Run’s shifts since it was shown.',
   `Short Run still has the shortest lates of the three: ${hm(H(SR.f.avgLate))} on average, closers included.`,
   // HISTORY, NOT COMPUTED: before 31 Oct a cover week's Sunday counted inside its four duties (README, the folder's opening).
   // Short Run's figure moved; the other two were drawn up under the new reading
-  'And when a cover week falls badly, the most days in a row is now 7, not 6, as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top.',
+  'And when a cover week falls badly, the most days in a row is now 7, not 6 — the same as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top.',
 ].map(t);
 
 // ── WHAT ALL THREE GIVE EVERYONE, AND WHAT THEY COST ──────────────────────────────────────────────────────────────────

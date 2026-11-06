@@ -117,7 +117,11 @@ def rename_everywhere(d):
 # Geometry the six shipped decks inherit from this template, so one change here reaches all of them; wording that
 # depends on a design's own figures (tile captions, the Why lines) is deck-polish.py's.
 ROW_Y0, ROW_CY, ROW_PITCH = 1801368, 365760, 438912                                   # one row: 0.40in tall, 0.08in apart
-LABEL_X, LABEL_CX, TODAY_X, DESIGN_X, VALUE_CX = 640080, 4023360, 4663440, 6675120, 2011680
+# THE DESIGN COLUMN SITS INSIDE ITS ROW (whole-pack review, 6 Nov 2026): it ran to the row's right edge, so a long bold figure —
+# Short Run's "▲ 20 min shorter" on slide 5 — ended 4.5px from the rounded border. It moves 0.125in left, overlapping the Today
+# column's empty right-hand side (its figures are centred and short); the label column cannot give the room instead, since
+# "Avoidable fatigue warnings, cover weeks aside" ends 8px short of it (both measured from the exported PDFs)
+LABEL_X, LABEL_CX, TODAY_X, DESIGN_X, VALUE_CX = 640080, 4023360, 4663440, 6560820, 2011680
 BANNER_Y = 4160520
 
 def unify_rows(s):

@@ -40,3 +40,14 @@ export function monSatMinutes(p) {
   let m = 0; for (const r of Object.values(p)) for (const d of DAYS) if (d !== 'sun' && timed(r[d])) m += (endMinutes(r[d]) - startMinutes(r[d]) + 1440) % 1440;
   return m;
 }
+
+/** "6 Nov 2026" → "6 November 2026" in the TEXT of a finished sheet (the pack's reviews, 6 Nov 2026). The house style is
+ *  the month in full — the decks and the read-me already wrote it so, and the sheets set "from 1 January 2027" beside
+ *  "Prepared 6 Nov 2026" in one masthead. Tags, styles and scripts are left alone, and the date holds together with
+ *  no-break spaces, so it can no longer split "28 / Sep 2026" at a line end. Every sheet builder runs its HTML through
+ *  this just before writing and printing it. */
+const MONTHS = { Jan: 'January', Feb: 'February', Mar: 'March', Apr: 'April', Jun: 'June', Jul: 'July', Aug: 'August',
+  Sep: 'September', Oct: 'October', Nov: 'November', Dec: 'December' };
+export const longDates = html => html.replace(
+  /(<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<title>[\s\S]*?<\/title>|<[^>]+>)|\b(\d{1,2})[  ](Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[  ](20\d\d)\b/g,
+  (m, keep, d, mon, y) => keep ?? `${d} ${MONTHS[mon]} ${y}`);

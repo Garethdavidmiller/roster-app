@@ -18,7 +18,7 @@
 //
 // `TECH=1` renders the ten-page technical sheet instead (render.mjs), unchanged.
 import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, daysAYear } from './link.mjs';
-import { dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
+import { dutyMinutes, startMinutes, endMinutes, fitCmp } from './report-data.mjs';
 import { WAIVERS } from './fresh.mjs';
 import { leave } from './leave.mjs';
 import { kindBlocks, blockText } from './blocks.mjs';
@@ -120,7 +120,7 @@ const nearest = x => FRACS.reduce((a, b) => Math.abs(b[0] - x) < Math.abs(a[0] -
 export const offWords = (p, t) => {
   if (p == null || t == null || !(t > 0)) return null;
   const r = p / t;
-  if (r >= 0.95 && r <= 1.05) return 'a score about the same as today’s';
+  if (fitCmp(p, t) === 'same') return 'a score about the same as today’s';   // the one band every page uses (report-data.mjs)
   if (r < 0.07) return 'a score near zero';
   if (r < 1) return `a score about ${nearest(r)} of today’s`;
   if (r < 1.9) return `a score about ${nearest(r - 1)} higher than today’s`;
@@ -163,13 +163,16 @@ function front({ T, P, meta, pages, coverHead }) {
   const present = P.fixed.fatigue.results.filter(r => r.status === 'present');
   const presentPlain = [...new Set(present.map(r => plainFatigue(r.title)))];
   const [tw, ts, tsu] = [T.office.wkFit, T.office.fits.sat, T.office.fits.sun], [pw, ps, psu] = [P.office.wkFit, P.office.fits.sat, P.office.fits.sun];
-  const closerDays = [['weekday', pw, tw], ['Saturday', ps, ts], ['Sunday', psu, tsu]].filter(([, p, t]) => p != null && t != null && p < t).map(([d]) => d);
-  const fitDay = ([d, p, t]) => p == null || t == null ? null : p < t ? [d, 'closer'] : p > t ? [d, 'further'] : [d, 'the same'];
+  // closer, about the same or further by the one band every page uses (fitCmp, report-data.mjs): page 2's words already
+  // called a day within 5% of today's "about the same", and this page counted it as closer (whole-pack review, 6 Nov 2026)
+  const fitDays = [['weekday', pw, tw], ['Saturday', ps, ts], ['Sunday', psu, tsu]].map(([d, p, t]) => [d, fitCmp(p, t)]);
+  const closerDays = fitDays.filter(([, c]) => c === 'closer').map(([d]) => d), sameDays = fitDays.filter(([, c]) => c === 'same').map(([d]) => d), furtherDays = fitDays.filter(([, c]) => c === 'further').map(([d]) => d);
+  const fitDay = ([d, p, t]) => { const c = fitCmp(p, t); return c == null ? null : [d, c === 'same' ? 'the same' : c]; };
   const fitBits = [['weekdays', pw, tw], ['Saturday', ps, ts], ['Sunday', psu, tsu]].map(fitDay).filter(Boolean);
   const fitWords = fitBits.every(([, w]) => w === 'closer') ? 'On weekdays, Saturdays and Sundays, the number of staff on the floor rises and falls with the December trains more closely than today’s link'
     : fitBits.every(([, w]) => w === 'further') ? 'On every day the number of staff on the floor follows the December trains less closely than today’s link'
     : 'Against today’s link, the floor follows the December trains ' + andList(fitBits.map(([d, w]) => `${w === 'the same' ? 'about the same' : `${w}`} on ${d}`)).replace(/closer on/g, 'more closely on').replace(/further on/g, 'less closely on');
-  const fitVerdict = closerDays.length === 3 ? ['Closer than today', 'good'] : closerDays.length === 0 ? ['Not as close as today', 'warn'] : [`Closer on ${closerDays.length} of 3 days`, 'mid'];
+  const fitVerdict = closerDays.length === 3 ? ['Closer than today', 'good'] : !closerDays.length && !furtherDays.length ? ['About the same as today', 'mid'] : closerDays.length === 0 ? ['Not as close as today', 'warn'] : [`Closer on ${closerDays.length} of 3 days`, 'mid'];
   const tWeekShare = T.checks.weekendsOff / tp.L, pWeekShare = P.checks.weekendsOff / pp.L;
   // FULL WEEKENDS A YEAR (owner, 2 Oct 2026): "7 in 26" against "4 in 20" made the reader divide, and a longer link's
   // larger count is not more weekends in a year. Said per year, as late finishes and 06:20 starts already are.
@@ -193,6 +196,10 @@ function front({ T, P, meta, pages, coverHead }) {
   for (const t of meta.thinMoments ?? []) { const m = /(\w+day) (\d\d:\d\d–\d\d:\d\d): only (one person|\d+ people)/.exec(t.replace(/<[^>]+>/g, '')); if (m) add(true, bad, 5, `Only ${m[3]} on duty in the whole station, ${m[1]} ${m[2]}`); }
   add(runF < runFT, good, 20, `Never more than ${runF} days in a row in the fixed duties (today ${runFT})`);
   add(runF > runFT, bad, 20, `Up to ${runF} days in a row in the fixed duties (today ${runFT})`);
+  // THE WORST CASE TOO, WHEN IT IS LONGER THAN TODAY'S (the pack's accuracy review, 6 Nov 2026): Balanced V5 and V6
+  // listed "never more than 5 days in a row in the fixed duties (today 7)" as a gain and named no concern for 10 if a
+  // cover week falls badly, against today's 9. Ranked after the single rest days, so the bottom line's two costs stand
+  add(runW > runWT, bad, 24, `Up to ${runW} days in a row if a cover week falls badly (today up to ${runWT})`);
   const dayDiff = Math.round(pp.daysYear) - Math.round(tp.daysYear);
   add(dayDiff <= -1, good, 25, `About ${-dayDiff} fewer contracted ${dayDiff === -1 ? 'day' : 'days'} at work a year`);
   add(dayDiff >= 1, bad, 25, `About ${dayDiff} more contracted ${dayDiff === 1 ? 'day' : 'days'} at work a year`);
@@ -218,7 +225,7 @@ function front({ T, P, meta, pages, coverHead }) {
   const cname = { wk: 'weekday', sat: 'Saturday', sun: 'Sunday' };
   if (shorter.length === cl.length && cl.length) {
     const lo = r5(mn(cl.map(([, p, t]) => mn(t) - mx(p)))), hi = r5(mx(cl.map(([, p, t]) => mx(t) - mn(p))));
-    add(true, good, 35, `Every closing shift shorter — by about ${lo === hi ? lo : `${lo} to ${hi}`} minutes`);
+    add(true, good, 35, `Every closing shift about ${lo === hi ? lo : `${lo} to ${hi}`} minutes shorter`);
   } else {
     add(shorter.length > 0, good, 35, `Shorter ${andList(shorter.map(([k]) => cname[k]))} closing shifts`);
     add(someShorter.length > 0, good, 36, `Some shorter ${andList(someShorter.map(([k]) => cname[k]))} closing shifts`);
@@ -256,8 +263,12 @@ function front({ T, P, meta, pages, coverHead }) {
   add(six(P) > six(T), bad, 21, `More six-day weeks — ${six(P)} (today ${six(T)})`);
   // the flip side of a week on one shift time: a colleague who prefers one kind waits longer for it to come round
   add(bkP.fixed > bkT.fixed + 1, bad, 63, `Earlies and lates in longer blocks — up to ${bkP.fixed} weeks of one kind${bkP.worst > bkP.fixed ? `, ${bkP.worst} if the cover weeks beside it go the same way` : ''} (today ${bkT.fixed})`);
-  add(one(P) < one(T) - 0.1, bad, 62, `Fewer weeks on one shift time, all earlies or all lates — ${P.feel.oneTurn} of ${P.feel.workingLines} (today ${T.feel.oneTurn} of ${T.feel.workingLines})`);
-  add(one(P) > one(T) + 0.1, good, 62, `More weeks on one shift time, all earlies or all lates — ${P.feel.oneTurn} of ${P.feel.workingLines} (today ${T.feel.oneTurn} of ${T.feel.workingLines})`);
+  // A YEAR EACH, AS THE SINGLE REST DAYS ARE (the pack's accuracy review, 6 Nov 2026): the test is a share, and Balanced V5
+  // and V6 read "Fewer weeks on one shift time — 7 of 21 (today 7 of 16)", the same count. A year each is what a person
+  // works, and it is fewer: about 14 against 18
+  const oneY = (X, L) => Math.round(X.feel.oneTurn * 52 / L);
+  add(one(P) < one(T) - 0.1, bad, 62, `Fewer weeks a year on one shift time, all earlies or all lates — about ${oneY(P, pp.L)} each (today ${oneY(T, tp.L)})`);
+  add(one(P) > one(T) + 0.1, good, 62, `More weeks a year on one shift time, all earlies or all lates — about ${oneY(P, pp.L)} each (today ${oneY(T, tp.L)})`);
   // on duty at the open, 22:00 and the close: a day with fewer than today is named, even when other days gain
   const DN = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
   for (const [key, what] of [['open', 'at the open'], ['at22', 'at 22:00'], ['close', 'through to the close']]) {
@@ -351,10 +362,14 @@ function front({ T, P, meta, pages, coverHead }) {
   const tile = (cls, qn, big, label, small) => `<div class="tile ptile ptile-${cls}"><span class="q">${qn}</span><b>${big}</b><span class="l">${label}</span><span class="s">${small}</span></div>`;
 
   // CAN IT WORK? — the manager's four questions
+  // a day within 5% of today's is said as "about the same", never counted as closer or as less close (fitCmp)
+  const dayWord = d => d === 'weekday' ? 'weekdays' : d, sameTail = sameDays.length ? `; ${andList(sameDays.map(dayWord))} about the same` : '';
   const trainsV = closerDays.length === 3
     ? (worseWeekdays.length ? ['Mostly', `closer than today — less close on ${andList(worseWeekdays)}`, 'warn'] : ['Yes', 'closer than today, weekdays and weekend', 'good'])
-    : closerDays.length === 0 ? ['No', 'less close than today on every day', 'warn']
-    : ['Partly', `closer than today on ${andList(closerDays.map(d => d === 'weekday' ? 'weekdays' : d))} only`, 'warn'];
+    : closerDays.length && !furtherDays.length ? ['Partly', `closer than today on ${andList(closerDays.map(dayWord))}${sameTail}`, 'good']
+    : !closerDays.length && !furtherDays.length ? ['No', 'about the same as today on every day', 'warn']
+    : closerDays.length === 0 ? ['No', `less close than today on ${furtherDays.length === 3 ? 'every day' : andList(furtherDays.map(dayWord))}${sameTail}`, 'warn']
+    : ['Partly', `closer than today on ${andList(closerDays.map(dayWord))} only`, 'warn'];
   const work = [
     tile(failed.length ? 'bad' : 'good', 'Does it meet the December staffing rules?', `${meta.decMet} of ${meta.decOf}`,
       failed.length ? `met — ${nWord(failed.length)} not met${waived.length ? `, ${nWord(waived.length)} waived` : ''}` : waived.length ? `met — ${nWord(waived.length)} waived` : 'rules met',
@@ -366,7 +381,7 @@ function front({ T, P, meta, pages, coverHead }) {
       present.length ? `avoidable ${present.length === 1 ? 'warning' : 'warnings'} in the fixed duties` : 'none in the fixed duties',
       `${present.length && presentPlain.length <= 2 ? `${esc(andList(presentPlain))} · ` : ''}today’s link has ${T.fixed.present}${worstDiffers ? ` · ${upTo}` : ''} · guidance, not a pass or fail · page 7`),
     tile(trainsV[2], 'Does staffing follow the trains better?', trainsV[0], trainsV[1],
-      `weekdays ${n1f(pw)} (today ${n1f(tw)}) · Sat ${n1f(ps)} (${n1f(ts)}) · Sun ${n1f(psu)} (${n1f(tsu)}) · on weekdays ${offWords(pw, tw) ?? 'lower is closer'} · page&nbsp;5`),
+      `weekday · Sat · Sun ${n1f(pw)} · ${n1f(ps)} · ${n1f(psu)} (today ${n1f(tw)} · ${n1f(ts)} · ${n1f(tsu)}) · ${fitCmp(pw, tw) === 'same' ? 'lower is closer' : `on weekdays ${offWords(pw, tw) ?? 'lower is closer'}`} · page&nbsp;5`),   /* "about the same" is the verdict's own words above it (whole-pack review, 6 Nov 2026) */   // today's beside all three, as page 2 sets them (the pack review, 6 Nov 2026)
   ].join('');
   const failItems = [...(breaks.length ? [`<b>It cannot be run as it stands</b> — ${esc(andList(breaks))}.`] : []), ...failed.map(r => `<b>${esc(r.rule)}</b> — here ${esc(String(r.value))}`)];
   const failBox = failItems.length ? `<div class="pbox pbox-bad"><h3>${breaks.length ? (failed.length ? `What stops it being run, and the ${nWord(failed.length)} December ${failed.length === 1 ? 'rule' : 'rules'} it does not meet` : 'What stops it being run') : `The ${nWord(failed.length)} December ${failed.length === 1 ? 'rule' : 'rules'} it does not meet`}</h3><ul>${failItems.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '';
@@ -430,6 +445,10 @@ function front({ T, P, meta, pages, coverHead }) {
   const byRule = (key, cls) => broken(key) ? 'no' : cls;
   const isWaived = key => rules.some(r => r.key === key && r.waived);
   const lab = l => { const i = l.indexOf(' — weekday'); return i < 0 ? l : `${l.slice(0, i)}<span class="psub">${l.slice(i + 3)}</span>`; };
+  // THREE FIGURES THAT MAY WRAP BETWEEN, NEVER INSIDE (the pack's visual review, 6 Nov 2026): the trio was nowrap, so
+  // Balanced V5's "8h 10m · 8h 40m–8h 55m · 8h 10m" ran 11px out of its cell, its ✓ alone on the line above. Each figure
+  // holds together, the dot holds to the figure before it, and a long trio takes the second line the ✓ already took
+  const trio = vs => `<span class="trio">${vs.map(v => `<span>${v}</span>`).join('\u00a0· ')}</span>`;
   const row = (label, t, p, cls, words) => `<tr><td>${lab(label)}</td><td class="num">${t}</td><td class="num ${cls}">${mark(cls)}<b>${p}</b></td><td class="muted">${words}</td></tr>`;
   const grp = title => `<tr class="pgrp"><td colspan="4">${title}</td></tr>`;
   const sumD = o => Object.values(o).reduce((a, b) => a + b, 0);
@@ -451,7 +470,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('On at the open — weekday · Sat · Sun', headTrio(T.heads.open), headTrio(P.heads.open), byRule('open', headCls('open')), `at least 4 every day — ${ruleMet('open')}`),
     row('Still on duty at 22:00 — weekday · Sat · Sun', headTrio(T.heads.at22), headTrio(P.heads.at22), byRule('at22', headCls('at22')), `at least 5 every day — ${ruleMet('at22')}`),
     row('Through to the close — weekday · Sat · Sun', headTrio(T.heads.close), headTrio(P.heads.close), byRule('close', headCls('close')), `at least 3 every day — ${ruleMet('close')}`),
-    row('How closely the floor follows the trains — weekday · Sat · Sun', `${n1(tw)} · ${n1(ts)} · ${n1(tsu)}`, `${n1(pw)} · ${n1(ps)} · ${n1(psu)}`, closerDays.length === 3 ? 'up' : closerDays.length === 0 ? 'down' : '', `lower is closer; weekdays ${offWords(pw, tw)?.replace(/^a score /, '') ?? 'as today'} — page 5`),
+    row('How closely the floor follows the trains — weekday · Sat · Sun', `${n1(tw)} · ${n1(ts)} · ${n1(tsu)}`, `${n1(pw)} · ${n1(ps)} · ${n1(psu)}`, closerDays.length === 3 ? 'up' : furtherDays.length === 3 ? 'down' : '', `lower is closer; weekdays ${offWords(pw, tw)?.replace(/^a score /, '') ?? 'as today'} — page 5`),
     row('Cover weeks — for leave and sickness', `lines ${T.feel.spareLines.join(', ')}`, `lines ${P.feel.spareLines.join(', ')}`, '', coverWords),
     // a design whose author named its office (NAMED_OFFICE in report-data.mjs) says its own Sunday late in its meta
     row('Ticket office late shift on a Sunday — people', 1, meta.namedOfficeSunLates ?? 2, '', meta.namedOfficeSunWords ?? `the December plan: both in the office 15:00–18:00, then one until 22:00; today one 14:30–23:25 closer keeps it until 22:00${(meta.pairDays ?? []).includes('sun') ? '' : ' — this rota does not mark them, so two are assumed from its duties'}`),
@@ -475,7 +494,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Early shifts, shortest to longest', tp.earlySpan, pp.earlySpan, '', 'an early starts before 11:00 · any day of the week'),
     row('Late shifts, shortest to longest', tp.lateSpan, pp.lateSpan, '', 'a late starts at 11:00 or after · any day of the week'),
     // the three closing figures are one unit, so they never break unevenly between the two cells ("8h 40m · 9h 10m ·" / "8h 55m")
-    row('Closing shift — weekday · Sat · Sun', `<span class="trio">${['wk', 'sat', 'sun'].map(k => tp.closerSpan[k]).join(' · ')}</span>`, `<span class="trio">${['wk', 'sat', 'sun'].map(k => pp.closerSpan[k]).join(' · ')}</span>`, (shorter.length + someShorter.length) && (longer.length + someLonger.length) ? '' : cmp(shorter.length + someShorter.length > 0, longer.length + someLonger.length === 0 && shorter.length + someShorter.length === 0), 'the shift that locks up'),
+    row('Closing shift — weekday · Sat · Sun', trio(['wk', 'sat', 'sun'].map(k => tp.closerSpan[k])), trio(['wk', 'sat', 'sun'].map(k => pp.closerSpan[k])), (shorter.length + someShorter.length) && (longer.length + someLonger.length) ? '' : cmp(shorter.length + someShorter.length > 0, longer.length + someLonger.length === 0 && shorter.length + someShorter.length === 0), 'the shift that locks up'),
     ...(stepT && stepP ? [row('How far the start time moves from one week to the next — on average', stepT, stepP, smT != null && smP != null ? cmp(smP < smT, Math.abs(smP - smT) < 5) : '', 'smaller is easier on the body clock')] : []),
     row('Different shift times', T.feel.distinctTimes, `${distinct} (${shared} worked today)`, byRule('times', cmp(distinct < T.feel.distinctTimes, distinct === T.feel.distinctTimes)), newTimes ? `${newTimes} new to learn, on ${newLines.length} of the ${P.feel.workingLines} working weeks — listed on page 4` : 'nothing new to learn'),
     grp('Each person’s year, on average'),
@@ -490,7 +509,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, failed.length ? 'no' : cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `confirmed verbally, 29 Sep 2026${waived.length ? `; ${nWord(waived.length)} more waived for this design` : ''} — page 6`),
   ].join('');
   const page2 = `<section class="page plain">
-  <div class="mast"><div><div class="eyebrow">Against today’s link</div><h1>What changes, in numbers</h1><div class="sub">Today’s 20-week link beside ${name}. <b>✓ green</b>: better than today on something the rules, hard limits or fatigue guidance aim for, or on a plain gain such as full weekends off or the fit to the trains · <b>▲ amber</b>: worse on one of those · <b>✕ red</b>: a rule or limit broken · <b>unshaded</b>: a fact, or for colleagues to weigh.</div></div></div>
+  <div class="mast"><div><div class="eyebrow">Against today’s link</div><h1>What changes, in numbers</h1><div class="sub">${name}’s figures are marked against today’s 20-week link. <b>✓ green</b>: better than today on something the rules, hard limits or fatigue guidance aim for, or on a plain gain such as full weekends off or the fit to the trains · <b>▲ amber</b>: worse on one of those · <b>✕ red</b>: a rule or limit broken · <b>unshaded</b>: a fact, or for colleagues to weigh.</div></div></div>
   <table class="t pcmp"><thead><tr><th>Question</th><th class="num">Today</th><th class="num">${name}</th><th>In plain words</th></tr></thead><tbody>${rows2}</tbody></table>
   <p class="pnext"><b>The workings:</b> the rota (page 3) · shift times (4) · staffing through the day (5) · the rules (6) · fatigue checks (7) · can I trust these numbers? (8)</p>
   ${foot(2, 'Against today’s link')}
@@ -512,7 +531,7 @@ function methodPage({ meta, pages }) {
   ].join('');
   const items = [
     ['Where the figures come from', 'Every figure is worked out from the rota on page 3, by the Marylebone Roster app’s own checks where it has them and by the tooling beside them for the rest, and the same calculation is run on today’s link. Only the one-line description under the name is written by hand.'],
-    ['Cover weeks', 'Marked on all seven days but worked on four, Monday to Saturday, placed by the roster clerk; its Sunday can be worked as overtime on top. A cover week counts as a full contracted week and as four days at work. Their shift times are not known yet, so the runs, rest gaps, yearly counts and fatigue warnings are worked out on the fixed duties — the cover weeks left out, and today’s link the same way. Where a cover week’s four duties could make a figure worse, the worst place they could fall, with its Sunday worked, is given beside it as “up to”, and the hard limits are tested at that worst case. Whatever is later given in a cover week must still be rostered within the normal limits.'],
+    ['Cover weeks', 'Each is marked on all seven days but worked on four, Monday to Saturday, placed by the roster clerk; its Sunday can be worked as overtime on top. A cover week counts as a full contracted week and as four days at work. Its shift times are not known yet, so the runs, rest gaps, yearly counts and fatigue warnings are worked out on the fixed duties — the cover weeks left out, and today’s link the same way. Where a cover week’s four duties could make a figure worse, the worst place they could fall, with its Sunday worked, is given beside it as “up to”, and the hard limits are tested at that worst case. Whatever is later given in a cover week must still be rostered within the normal limits.'],
     ['Sundays', 'Sunday is not in the contract: Sunday duties are overtime, as today. So “days at work” and the 35-hour week are Monday to Saturday. A Sunday off costs no annual leave.'],
     ['Each person, a year', `Every week’s duties, times 52, shared across everyone on the link — Sunday overtime included. “Days at work a year” is Monday to Saturday only: the days a week × 365 ÷ 7. ${52 % LINES === 0 ? `Fifty-two weeks are exactly ${52 / LINES === 2 ? 'two turns' : `${52 / LINES} turns`} of this link, so these are everyone’s figures whichever week they start on; today’s are averages over its 20 weeks.` : 'Somebody’s own year depends on which week they start on.'}`],
     ['Following the trains', 'For each hour, the share of the day’s floor staff is set against the share of the day’s train service in the December 2026 timetable, each train weighted by its length; the differences are squared — so one big mismatch counts far more than several small ones — added up and multiplied by 10,000. 0 would be a perfect match; lower is closer. The staff share uses the minutes each person spends on the floor, finer than the whole-person counts on page 5, where anyone on for part of an hour counts. It measures the shape of the day, not a staffing level: an extra person in a quiet hour makes it worse although nobody is worse off. The ticket office is taken out first: it is staffed to its opening hours, not to the trains, which is why its rows on page 5 carry no match figure.'],
@@ -528,8 +547,8 @@ function methodPage({ meta, pages }) {
   <div class="tboxes">${boxes}</div>
   <h2 class="pmh">What each figure is based on</h2>
   <div class="pcards">${items.map(([h, t]) => `<div class="pcard"><h4>${h}</h4><p>${t}</p></div>`).join('')}</div>
-  <p class="muted pimport">The rota is supplied beside this PDF as <span class="tt">${esc(meta.identity.name.replace(/ /g, '-'))}-${esc(meta.identity.code)}-import.txt</span>, ready to paste into the Links page (Import), which re-runs the hard limits, the fatigue checks, the weekends, the hours and the hour-by-hour staffing on it — giving the runs at their worst case, which pages 2 and 7 give as “up to” — though not the December rules or the yearly figures, which are this sheet’s. The fingerprint <b>${esc(meta.identity.fingerprint)}</b> in every footer is worked out from the ${LINES * 7} days of the rota and nothing else, so a printout always matches the design it came from.</p>
-  <div class="foot"><span>Page ${pages} of ${pages} — Can I trust these numbers?</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
+  <p class="muted pimport">The rota is supplied with this PDF, in the pack’s import files, as <span class="tt">${esc(meta.identity.name.replace(/ /g, '-'))}-${esc(meta.identity.code)}-import.txt</span>, ready to paste into the Links page (Import), which re-runs the hard limits, the fatigue checks, the weekends, the hours and the hour-by-hour staffing on it — giving the runs at their worst case, which pages 2 and 7 give as “up to” — though not the December rules or the yearly figures, which are this sheet’s. The fingerprint <b>${esc(meta.identity.fingerprint)}</b> in every footer is worked out from the ${LINES * 7} days of the rota and nothing else, so a printout always matches the design it came from.</p>
+  <div class="foot"><span>Page ${pages} of ${pages} — Workings · Can I trust these numbers?</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>`;
 }
 
@@ -712,8 +731,13 @@ table.p5r tr.p5r-p td { font-weight: 800; } table.p5r td.up { color: var(--succe
 .p5res p { margin: 0; font-size: 9.2px; line-height: 1.4; color: var(--text-mid); } .p5res p b { color: var(--text-dark, #1a1a2e); }
 table.p5t tr:has(> th.floor-day) th { font-weight: 800 !important; color: var(--primary-blue) !important; }
 table.p5t tr:has(> th.floor-day) .cov-heat-cell { font-weight: 800; }
-table.p5t tr:has(> th.office-day) .cov-heat-cell { opacity: .5; }
-table.p5t tr:has(> th.cov-heat-day:not(.office-day):not(.floor-day):not(.dem-day)) .cov-heat-cell { opacity: .62; }
+/* THE TWO ROWS THE MATCH DOES NOT COMPARE STAY READABLE (visual review, 6 Nov 2026). Faded with opacity, their figures
+   faded too, to about 2.5:1 on the darker hours, and printed faint. The COLOUR is faded instead, on a lighter scale of the
+   same blue (all on duty a step stronger than the ticket office, as the opacities were), and the figures keep the mid grey:
+   4.7:1 or better on every hour */
+table.p5t tr:has(> th.office-day) .cov-heat-cell, table.p5t tr:has(> th.cov-heat-day:not(.office-day):not(.floor-day):not(.dem-day)) .cov-heat-cell { color: var(--text-mid); }
+table.p5t tr:has(> th.cov-heat-day:not(.office-day):not(.floor-day):not(.dem-day)) .heat-b1 { background: color-mix(in srgb, var(--cov-early) 8%, white); } table.p5t tr:has(> th.cov-heat-day:not(.office-day):not(.floor-day):not(.dem-day)) .heat-b2 { background: color-mix(in srgb, var(--cov-early) 14%, white); } table.p5t tr:has(> th.cov-heat-day:not(.office-day):not(.floor-day):not(.dem-day)) .heat-b3 { background: color-mix(in srgb, var(--cov-early) 21%, white); } table.p5t tr:has(> th.cov-heat-day:not(.office-day):not(.floor-day):not(.dem-day)) .heat-b4 { background: color-mix(in srgb, var(--cov-early) 28%, white); } table.p5t tr:has(> th.cov-heat-day:not(.office-day):not(.floor-day):not(.dem-day)) .heat-b5 { background: color-mix(in srgb, var(--cov-early) 34%, white); } 
+table.p5t tr:has(> th.office-day) .heat-b1 { background: color-mix(in srgb, var(--cov-early) 6%, white); } table.p5t tr:has(> th.office-day) .heat-b2 { background: color-mix(in srgb, var(--cov-early) 11%, white); } table.p5t tr:has(> th.office-day) .heat-b3 { background: color-mix(in srgb, var(--cov-early) 17%, white); } table.p5t tr:has(> th.office-day) .heat-b4 { background: color-mix(in srgb, var(--cov-early) 23%, white); } table.p5t tr:has(> th.office-day) .heat-b5 { background: color-mix(in srgb, var(--cov-early) 29%, white); } 
 table.p5t tr:has(> th.dem-day) th { font-weight: 800 !important; }
 /* page 6 — hard limits as cards, the rules as a count */
 .hl-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 6px; }
@@ -798,7 +822,7 @@ table.p5t { width: 100%; margin: 0; }
    the border. These widths leave both triples about 3px inside the padding, and 34.5% is the narrowest words column that
    keeps every row of every sheet on the lines it had (at 34% Second Nature's weekends row wraps and its floor drops to 14). */
 table.pcmp th:nth-child(1) { width: 27%; } table.pcmp th:nth-child(2) { width: 18.2%; } table.pcmp th:nth-child(3) { width: 20.3%; } table.pcmp th:nth-child(4) { width: 34.5%; }
-table.pcmp .trio { white-space: nowrap; font-size: 9px; }
+table.pcmp .trio { font-size: 9px; } table.pcmp .trio > span { white-space: nowrap; }
 .rng { white-space: nowrap; }
 table.pcmp td { padding-top: 1.5px; padding-bottom: 1.5px; }
 p.pnext { margin-top: 7px; }
@@ -856,6 +880,12 @@ p.pimport { margin-top: 6px; }
 table.dutyt th.num, table.dutyt td.num { text-align: left; } table.dutyt th { white-space: nowrap; }
 table.t.dutyt tbody tr:nth-child(even) td.chg { background-color: color-mix(in srgb, var(--surface-sunken) 60%, white) !important; }
 table.ff th:nth-child(1) { width: 44%; } table.ff th:nth-child(2) { width: 23%; } table.ff th:nth-child(3) { width: 33%; }
+/* the widths are BINDING (visual review, 6 Nov 2026): under the automatic layout content moved them, and on three designs
+   the today column started 57px further right, so the factor captions wrapped differently from the other eighteen */
+table.ff { table-layout: fixed; }
+/* and so the "up to … if a cover week falls badly" line may wrap: .ff-st is nowrap (render.mjs), which under the automatic layout
+   widened the column instead, and under the fixed one ran 55px off Second Edition's page; the hanging indent below aligns it */
+table.ff td.ff-st .ff-alt { white-space: normal; }
 table.ff td.ff-st { padding-left: calc(6px + 1.1em); text-indent: -1.1em; }
 table.t.rules td:has(> .mk:first-child) { padding-left: calc(8px + 1.05em); text-indent: -1.05em; }
 /* text-indent is INHERITED, and the mark is an inline-block, so without this its glyph took the cell's -1.05em a second
@@ -990,7 +1020,10 @@ function rotaPage(s, { P }) {
   s = must(s, /You work four duties, Monday to Saturday/, 'Whoever is on it works four duties, Monday to Saturday', 'the Cover week gloss');
   s = must(s, /<div><b>Match<\/b> — [\s\S]*?<\/div>/, '', 'the Match gloss');
   // each figure is one unbreakable piece; the strip may wrap BETWEEN them, never run off the page (that overflow shrank four sheets)
-  return must(s, MAST_END, `$1\n  <div class="p3sum">${bits.map(b => `<span class="bit">${b}</span>`).join(' <span class="dot">·</span> ')}</div>`, 'the rota page head');
+  // TWO FIXED ROWS (visual review, 6 Nov 2026): wrapped where the page ran out, the strip left a "·" at the end of a line
+  // on twenty sheets and fitted one line on Second Look, so the page sat differently there. The week, then the person
+  const strip = xs => xs.map(b => `<span class="bit">${b}</span>`).join(' <span class="dot">·</span> ');
+  return must(s, MAST_END, `$1\n  <div class="p3sum">${strip(bits.slice(0, 3))}<br>${strip(bits.slice(3))}</div>`, 'the rota page head');
 }
 
 /** Page 4 — shift times. The question a colleague brings is "which times would I have to learn?", so the page answers it
@@ -1009,7 +1042,7 @@ function shiftPage(s, { T, P }) {
     <div class="p4n p4n-new"><b>${fresh.length}</b><span>${fresh.length === 1 ? 'is' : 'are'} new — nobody works ${fresh.length === 1 ? 'it' : 'them'} today</span></div>
   </div>
   ${fresh.length ? `<h2>The new ${fresh.length === 1 ? 'time' : 'times'} to learn</h2>
-  <div class="p4new${fresh.length >= 10 ? ' p4new-dense' : ''}" style="--n:${fresh.length <= 3 ? fresh.length : fresh.length === 4 ? 2 : fresh.length <= 6 ? 3 : fresh.length >= 10 ? [6, 5, 4].find(c => fresh.length % c !== 1) ?? 6 : [4, 3, 5].find(c => fresh.length % c !== 1) ?? 4}">${fresh.map(r => `<div class="p4t"><span class="tt">${r.time}</span><span>${len(r.minutes)} · ${kind(r)} · ${when(r)}</span></div>`).join('')}</div>` : '<p class="p4none">Every shift time in this link is one somebody already works today.</p>'}
+  <div class="p4new${fresh.length >= 10 ? ' p4new-dense' : ''}" style="--n:${fresh.length <= 3 ? fresh.length : fresh.length === 4 ? 2 : fresh.length <= 6 ? 3 : fresh.length >= 10 ? Math.min(6, Math.ceil(fresh.length / 2)) : [4, 3, 5].find(c => fresh.length % c !== 1) ?? 4}">${fresh.map(r => `<div class="p4t"><span class="tt">${r.time}</span><span>${len(r.minutes)} · ${kind(r)} · ${when(r)}</span></div>`).join('')}</div>` : '<p class="p4none">Every shift time in this link is one somebody already works today.</p>'}
   ${gone.length ? `<p class="p4gone"><b>No longer used:</b> ${gone.length} of today’s ${T.tableRows.length} shift times — ${gone.map(r => `<span class="tt">${r.time}</span>`).join(', ')}.</p>` : ''}`;
   s = must(s, /<div class="stack">[\s\S]*?<\/div>\s*<\/div>\s*(?=<h2>The duty table)/, `${learn}\n  `, 'the two tables above the duty table');
   // THE SHAPE OF A WEEK — restored (30 Sep 2026, "no important insight must be lost"). v2 moved four of the old table's
@@ -1048,12 +1081,13 @@ function hourAnswer(s, { T, P, meta }) {
   s = retitle(s, 'Staffing through the day', 'People on duty, hour by hour', 'Today’s link and the proposal, hour by hour, against the December 2026 timetable. A darker orange hour carries more of the day’s trains.');
   const t = [T.office.wkFit, T.office.fits.sat, T.office.fits.sun], p = [P.office.wkFit, P.office.fits.sat, P.office.fits.sun];
   const f = v => v == null ? '—' : Number(v).toFixed(1);
-  const cell = (pv, tv) => pv == null || tv == null ? `<td>${f(pv)}</td>` : pv < tv ? `<td class="up"><span class="pm pm-up">✓</span>${f(pv)}</td>` : pv > tv ? `<td class="down"><span class="pm pm-down">▲</span>${f(pv)}</td>` : `<td>${f(pv)}</td>`;
+  // ✓ and ▲ only outside the band page 1 and the words here use (fitCmp): within 5% of today's is about the same, unmarked
+  const cell = (pv, tv) => { const c = fitCmp(pv, tv); return c === 'closer' ? `<td class="up"><span class="pm pm-up">✓</span>${f(pv)}</td>` : c === 'further' ? `<td class="down"><span class="pm pm-down">▲</span>${f(pv)}</td>` : `<td>${f(pv)}</td>`; };
   const names = ['weekdays', 'Saturday', 'Sunday'];
-  const better = names.filter((_, i) => p[i] != null && t[i] != null && p[i] < t[i]), worse = names.filter((_, i) => p[i] != null && t[i] != null && p[i] > t[i]);
-  const verdict = !worse.length ? 'The floor follows the trains more closely than today on weekdays, Saturday and Sunday.'
-    : !better.length ? 'The floor follows the trains less closely than today on weekdays, Saturday and Sunday.'
-    : `The floor follows the trains more closely than today on ${andList(better)}, less closely on ${andList(worse)}.`;
+  const better = names.filter((_, i) => fitCmp(p[i], t[i]) === 'closer'), worse = names.filter((_, i) => fitCmp(p[i], t[i]) === 'further'), same = names.filter((_, i) => fitCmp(p[i], t[i]) === 'same');
+  const verdict = better.length === 3 ? 'The floor follows the trains more closely than today on weekdays, Saturday and Sunday.'
+    : worse.length === 3 ? 'The floor follows the trains less closely than today on weekdays, Saturday and Sunday.'
+    : `The floor follows the trains ${[better.length ? `more closely than today on ${andList(better)}` : '', same.length ? `about as closely as today on ${andList(same)}` : '', worse.length ? `less closely on ${andList(worse)}` : ''].filter(Boolean).join(', ')}.`;
   // the verdict with each day in words; when every day is closer, the days are named once and "as far off" once
   const p5words = (v, pv, tv, allCloser) => {
     const ws = ['weekdays', 'Saturday', 'Sunday'].map((d, i) => [d, offWords(pv[i], tv[i])]).filter(([, x]) => x);
@@ -1066,7 +1100,7 @@ function hourAnswer(s, { T, P, meta }) {
   const answer = `<div class="p5res"><table class="p5r"><thead><tr><th>How closely the floor follows the trains</th><th>Weekdays</th><th>Saturday</th><th>Sunday</th></tr></thead><tbody>
     <tr><td>Today’s link</td>${t.map(v => `<td>${f(v)}</td>`).join('')}</tr>
     <tr class="p5r-p"><td>${esc(meta.identity.name)}</td>${p.map((v, i) => cell(v, t[i])).join('')}</tr></tbody></table>
-    <p>${p5words(verdict, p, t, !worse.length)} Lower is closer; 0 is a perfect match.</p></div>`;
+    <p>${p5words(verdict, p, t, better.length === 3)} Lower is closer; 0 is a perfect match.</p></div>`;
   s = must(s, MAST_END, `$1\n  ${answer}`, 'the hour page head');
   // the legend's match line is now the answer box above; one shorter key remains
   s = must(s, /\s*<span><b>Match<\/b>, on the right[\s\S]*?<\/span><\/div>/, '<span><b>Strongest rows:</b> the floor and the trains — the two the match compares.</span></div>', 'the legend match line');
@@ -1079,7 +1113,7 @@ function hourAnswer(s, { T, P, meta }) {
 /** Page 6 — the rules. Three hard limits as cards (each a number against its limit), a count for the December rules,
  *  and the full table. The "Still to settle" list goes: a failed rule is shaded in the table and named on page 1. */
 function rulesPage(s, { T, P, meta }) {
-  s = retitle(s, 'The rules', 'Hard limits and the December 2026 rules', `Three hard limits a rota must meet to be run at all, then the ${['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven'][meta.decOf] ?? meta.decOf} December 2026 staffing rules, each with today’s link beside it.`);
+  s = retitle(s, 'The rules', 'Hard limits and the December 2026 rules', `Three hard limits a rota must meet to be run at all, and the ceiling of ${DAYS_CEILING} contracted days a year, then the ${['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven'][meta.decOf] ?? meta.decOf} December 2026 staffing rules, each with today’s link beside it.`);
   const rows = [...s.matchAll(/<div class="check-row check-(good|bad|warn)"><span class="check-icon[^"]*">[^<]*<\/span><div class="check-body"><b>([^<]*)<\/b>[\s\S]*?<div class="check-sub">([\s\S]*?)<\/div><\/div><\/div>/g)];
   if (rows.length !== 3) throw new Error(`plain appendix: expected 3 hard-limit rows, found ${rows.length}`);
   const hm2 = m => m == null ? '—' : `${Math.floor(m / 60)}h&nbsp;${String(m % 60).padStart(2, '0')}m`;

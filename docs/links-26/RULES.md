@@ -1,11 +1,11 @@
 # The rules — the new CEA link, 26 lines
 
-**Set on 1 Oct 2026.** This is the one list every 26-line design is judged against. It is the 24-line
-rule set (`../links-24/links-24-rules.pdf`, built by `../links-24/tooling/rules-sheet.mjs`) with **six
+**Set on 1 October 2026.** This is the one list every 26-line design is judged against. It is the 24-line
+rule set (`../links-24/links-24-rules.pdf` in the app's repository, built by `../links-24/tooling/rules-sheet.mjs`) with **six
 changes**, each marked **▲ CHANGED**: four set on 1 Oct, the weekday-closer rule (F3) added on 31 Oct, and the Saturday
 ticket-office late (S5) corrected on 6 Nov. Every other rule was reviewed and kept as it was.
 
-The staffing levels were confirmed **verbally** (29 Sep 2026), as was the 24-person link, which then turned out to
+The staffing levels were confirmed **verbally** (29 September 2026), as was the 24-person link, which then turned out to
 be 26. So it is worth getting the levels below in writing before a design is put forward.
 
 ## What changed from 24 lines
@@ -23,16 +23,16 @@ be 26. So it is worth getting the levels below in writing before a design is put
 ## The basics every rule assumes
 
 1. **Opening hours.** The station opens at 06:20 (07:15 on a Sunday) and closes at 23:55 (23:25 on a Sunday). No duty
-   runs past 23:25 on a Sunday, which is agreed practice (settled 28 Sep 2026). **The ticket office** is open 06:30–22:10
+   runs past 23:25 on a Sunday, which is agreed practice (settled 28 September 2026). **The ticket office** is open 06:30–22:10
    Monday to Saturday and on bank holidays, and 07:30–21:40 on a Sunday (National Rail's station page, checked 6 Nov
-   2026), and needs 20 minutes to cash up after it shuts (owner, 6 Nov 2026). The office lates' 22:30 finish (S5) gives
-   those 20 minutes Monday to Saturday; on a Sunday it gives 50. These hours were not written down until 6 Nov 2026,
+   2026), and needs 20 minutes to cash up after it shuts (confirmed 6 November 2026). The office lates' 22:30 finish (S5) gives
+   those 20 minutes Monday to Saturday; on a Sunday it gives 50. These hours were not written down until 6 November 2026,
    which is how the Saturday office came to be set at 22:00.
 2. **▲ CHANGED — The link.** **26 lines** are worked in turn, one week each, Sunday to Saturday. A person on line 26
    moves to line 1.
 3. **▲ CHANGED — Cover weeks.** **Five** of the 26 lines are cover weeks. A cover week is a line with no fixed shifts:
    four duties that week, placed by the roster clerk to cover leave and sickness. **The four are contracted days, Monday
-   to Saturday; the Sunday can be worked as overtime on top, as any Sunday can** (31 Oct 2026: the four can only be
+   to Saturday; the Sunday can be worked as overtime on top, as any Sunday can** (31 October 2026: the four can only be
    the contractual days, Monday to Saturday). Every worst case counts that Sunday as worked.
 4. **Early and late.** A shift starting before 11:00 is an early; from 11:00 it is a late.
 5. **The floor.** The floor is everyone on duty except the four ticket-office staff.
@@ -40,13 +40,13 @@ be 26. So it is worth getting the levels below in writing before a design is put
      08:00 and the evening one from 19:30.
    - **Sunday:** one early is on the floor until 09:00. The two lates are on the floor until 15:00, then both are in
      the office; one goes back to the floor from 18:00, and the other at 22:00, once the office has shut and cashed up
-     (6 Nov 2026).
+     (6 November 2026).
 6. **Today's link** is the 20-line link worked now. It is the yardstick, not the target: it meets 4 of the 9
    December rules.
 
 ## Hard limits — must be met, or the rota cannot be run
 
-| | Limit |
+| ID | Limit |
 |---|---|
 | H1 | **At least 12 hours between duties,** anywhere in the rotation. This includes Saturday into Sunday, and the last line into line 1. |
 | H2 | **No more than 13 days worked in a row,** taken at its worst case: a cover week's four duties placed as badly as they can be, and its Sunday worked as overtime. This is Chiltern's limit; its written source is still to be confirmed. |
@@ -57,13 +57,13 @@ be 26. So it is worth getting the levels below in writing before a design is put
 The headcounts are minimums: too few is the problem, never too many. **Unchanged from 24 lines**, but for the time the
 Saturday ticket-office lates finish (S5).
 
-| | Rule |
+| ID | Rule |
 |---|---|
 | S1 | **At least four on at the open,** every day (06:20, or 07:15 on a Sunday). |
 | S2 | **At least three through to the close,** every day (23:55, or 23:25 on a Sunday). |
 | S3 | **At least five still on duty at 22:00,** every day. Someone finishing at 22:00 does not count. |
 | S4 | **Ten on a Sunday,** counted as duties rostered that day. |
-| S5 | **The ticket office: two identical early and two identical late shifts, every day.** Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and **14:30–22:30**; Sun two starting 07:15 and two finishing 22:00 or 22:30 — the office shuts at 21:40 on a Sunday, so 22:00 gives the 20 minutes to cash up and 22:30 puts both on the floor for the last half hour (owner, 6 Nov 2026); every design here finishes them at 22:30, which the five at 22:00 (S3) need. **▲ CHANGED (6 Nov 2026)** — the Saturday lates read 14:30–22:00 until then, but the office shuts at 22:10 on a Saturday and needs 20 minutes to cash up (owner: "it does close at 22.10 and needs to be a 22.30 ticket office closer"). Today's roster still has them finishing at 22:00. |
+| S5 | **The ticket office: two identical early and two identical late shifts, every day.** Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and **14:30–22:30**; Sun two starting 07:15 and two finishing 22:00 or 22:30 — the office shuts at 21:40 on a Sunday, so 22:00 gives the 20 minutes to cash up and 22:30 puts both on the floor for the last half hour (confirmed 6 November 2026); every design here finishes them at 22:30, which the five at 22:00 (S3) need. **▲ CHANGED (6 November 2026)** — the Saturday lates read 14:30–22:00 until then, but the office shuts at 22:10 on a Saturday and needs 20 minutes to cash up. Today's roster still has them finishing at 22:00. |
 | S6 | **At least two on the floor at every moment** the station is open, checked every five minutes. |
 | S7 | **Handovers:** 15 minutes to each closer; 20 minutes in the ticket office (30 on a Sunday, from 15:00). On a Sunday each opener also stays until 15 minutes after the last closer arrives. |
 | S8 | **Every Sunday duty is between 8 and 9 hours long.** |
@@ -71,11 +71,11 @@ Saturday ticket-office lates finish (S5).
 
 ## Flexible rules — aimed for when designing, never scored on a sheet
 
-| | Rule |
+| ID | Rule |
 |---|---|
 | F1 | **Fourteen on a Saturday.** Unchanged. |
 | F2 | **▲ CHANGED — Five cover weeks, as evenly spread as possible.** 26 does not divide by 5, so "as even as possible" means the gaps between cover weeks differ by **at most one line**: four gaps of 5 and one gap of 6 (for example lines 1, 6, 11, 16 and 21). |
-| F3 | **▲ CHANGED — Every weekday closer starts at 15:45 or later.** 15:45 is the minimum: 15:30 is too small a change from today's 15:15 (31 Oct 2026). A 16:00 closer meets it. Saturday's closer is not covered. |
+| F3 | **▲ CHANGED — Every weekday closer starts at 15:45 or later.** 15:45 is the minimum: 15:30 is too small a change from today's 15:15 (31 October 2026). A 16:00 closer meets it. Saturday's closer is not covered. |
 
 ## The contracted-days ceiling — ▲ CHANGED
 
@@ -109,21 +109,23 @@ has more duties than any of them, and longer ones on average than all but Famili
   (MRSF) checks. FF2 and FF18 are standing factors, recorded but not counted.
 - **How the sheets count:**
   - runs and fatigue on the fixed duties, with the worst cover-week placement shown as "up to" (its Sunday worked as
-    overtime, since 31 Oct 2026);
+    overtime, since 31 October 2026);
   - hard limits tested at the worst case;
   - the 55-hour row's "up to" taking a cover week's four duties as 8 hours each, and its Sunday as an 8-hour duty. The
-    contract counts a cover week as 35 hours, so the sheets give the same week with four duties of 8h 45m beside it
-    (6 Nov 2026); longer duties would add more. No design is on a different side of 55 hours in either reading;
+    contract counts a cover week as 35 hours, so the sheets give the same week with the four duties at 8h 45m beside it,
+    the Sunday still 8 hours (6 November 2026); longer duties would add more. No design is on a different side of 55 hours in
+    either reading, nor with the Sunday at 8h 45m too;
   - FF11's "48-hour break" counted as two rest days together, which always give more than 48 hours off. A single rest
     day is not counted as a break even when the shifts either side leave 48 hours, so FF11 can only overstate a run.
-    One rest day in the pack does give 48 hours: Both Ways, line 2's Saturday into line 3's Monday, 49h 10m (6 Nov 2026);
+    One rest day in the pack does give 48 hours: Both Ways, line 2's Saturday into line 3's Monday, 49h 10m (6 November 2026);
   - the match to the trains scored hour by hour against the December service, weighted by train length.
 - **Waivers are per design,** decided design by design. None is carried into 26 lines yet.
 - **Still open:** where the 13-day limit is written down; and how FF19 treats a rest day.
 
 ## Where the code follows
 
-The tooling in `tooling/` applies all of this (set up 1 Oct 2026; see `README.md`):
+The tooling in `tooling/` applies all of this (set up 1 October 2026; see `README.md`). Both are in the Marylebone Roster app's
+repository, beside this file, and not in the pack:
 - **`tooling/link.mjs`** states the line count, the cover weeks, the contract, the ceiling and the headcounts for the
   sheets, the decks and the checks. The search and solver scripts (`skeleton.mjs`, `skeleton-start.mjs`, `exact-*.py`,
   `short-earlies.mjs`) carry their own copy of the link's shape, so a change of length is that edit and theirs.

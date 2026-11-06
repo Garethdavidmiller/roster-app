@@ -1,9 +1,9 @@
 // HTML → PDF, using the workspace's OWN stylesheets so the grid, chips, check rows and heat cells are
 // the app's rendering rather than an imitation of it. Own CSS covers only what a sheet of paper needs.
-import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES } from './link.mjs';
+import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, longDates } from './link.mjs';
 import { writeFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
-import { classifyShift, DAYS, hmFromHours, dutyMinutes, startMinutes, endMinutes, MAX_CONSECUTIVE_WORKED_DAYS, family, folderStats, weekdayFit } from './report-data.mjs';
+import { classifyShift, DAYS, hmFromHours, dutyMinutes, startMinutes, endMinutes, MAX_CONSECUTIVE_WORKED_DAYS, family, folderStats, weekdayFit, fitCmp } from './report-data.mjs';
 import { APP_VERSION } from '../../../roster-data.js';
 import { freshMeta, freshWords } from './fresh.mjs';
 import { soloEdition } from './solo.mjs';
@@ -190,7 +190,7 @@ export async function renderPdf(D, out) {
         // row's worst case is (31 Oct 2026 review): the long form, "if a cover week is worked as four 8-hour duties and a
         // Sunday's overtime", widened its column, wrapped every pattern title on the page and pushed page 7 onto a ninth
         // sheet from v25.03; the notes beneath the table say how the 55-hour worst case is made
-        if (a === P && /55 hours/i.test(r0.title) && meta.h55Cover) return `<span class="ff-alt ff-present">${icon('present')} up to ${hm(meta.h55Cover.hiMin)} if a cover week falls badly, with 8-hour cover duties</span>`;
+        if (a === P && /55 hours/i.test(r0.title) && meta.h55Cover) return `<span class="ff-alt ff-present">${icon('present')} up to ${hm(meta.h55Cover.hiMin)} if a cover week falls badly, with <span style="white-space:nowrap">8-hour</span> cover duties</span>`;   // it wraps now the columns are fixed (plain.mjs), and broke at the hyphen
         return !have || !w || !f || (w.status === f.status && String(val(w)) === String(val(f))) ? ''
           : `<span class="ff-alt ff-${w.status}">${icon(w.status)} up to ${esc(val(w))} if a cover week falls badly</span>`; }
       const v = have ? asRos(a, code) : null; return v === null ? ''
@@ -278,7 +278,7 @@ export async function renderPdf(D, out) {
       stands: `<b>${esc(meta.identity.name)}</b> is read two ways: against <b>Quarter To (QT-24-Q34)</b> and <b>By the Book (BB-24-D7)</b>, a searched answer for keeping today's times and one built from the rules; and within its own line, against ${meta.changed ? `<i>${esc(meta.changed.parent.name)}</i>, the parent whose changed cells are outlined on the next page` : 'the revision before it'}.` },
   }[fam];
   const question = meta.frame?.question ?? F.question, stands = meta.frame?.stands ?? F.stands;
-  const sunWorse = FRESH ? P.office.fits.sun > T.office.fits.sun : P.fits.sun !== null && T.fits.sun !== null && P.fits.sun > T.fits.sun;
+  const sunWorse = FRESH ? fitCmp(P.office.fits.sun, T.office.fits.sun) === 'further' : P.fits.sun !== null && T.fits.sun !== null && P.fits.sun > T.fits.sun;
   const cannot = [
     ...(FRESH ? [
       `Whether staff accept ${newTimes.length ? `the ${newTimes.length === 1 ? 'shift time' : `${newTimes.length} shift times`} nobody works today (page 5 lists ${newTimes.length === 1 ? 'it' : 'them'})` : 'the weeks as written'} — this sheet counts times already worked, which is only a rough guide to what people will accept.`,
@@ -289,8 +289,8 @@ export async function renderPdf(D, out) {
       ]),
     `How leave and sickness cover land on a ${LINES}-line link with ${COVER_WEEKS} cover weeks (lines ${P.feel.spareLines.join(', ')}); nothing here models absence.`,
     meta.wembleyLine ?? `Whether the December 2026 timetable demand curve holds on Wembley event days — the Saturday weighting approximates them, and the curve is a measured timetable, not a footfall count.`,
-    ...(FRESH && P.office.wkFit > T.office.wkFit ? [`Why the weekday floor follows the trains less closely than today’s (${Number(P.office.wkFit).toFixed(1)} against ${Number(T.office.wkFit).toFixed(1)}).`] : []),
-    ...(FRESH && P.office.fits.sat > T.office.fits.sat ? [`Why Saturday’s floor follows the trains less closely than today’s (${Number(P.office.fits.sat).toFixed(1)} against ${Number(T.office.fits.sat).toFixed(1)}).`] : []),
+    ...(FRESH && fitCmp(P.office.wkFit, T.office.wkFit) === 'further' ? [`Why the weekday floor follows the trains less closely than today’s (${Number(P.office.wkFit).toFixed(1)} against ${Number(T.office.wkFit).toFixed(1)}).`] : []),
+    ...(FRESH && fitCmp(P.office.fits.sat, T.office.fits.sat) === 'further' ? [`Why Saturday’s floor follows the trains less closely than today’s (${Number(P.office.fits.sat).toFixed(1)} against ${Number(T.office.fits.sat).toFixed(1)}).`] : []),
     ...(sunWorse ? [FRESH ? `Why Sunday’s floor follows the trains less closely than today’s (${Number(P.office.fits.sun).toFixed(1)} against ${Number(T.office.fits.sun).toFixed(1)}), and whether that matters on a Sunday.` : `Why Sunday's fit (${P.fits.sun}) is worse than today's (${T.fits.sun}) and whether anyone minds: the December 2026 headcount of ten is met by adding people, not by reshaping the day.`] : []),
     ...(meta.frame?.cannot ?? []),
   ];
@@ -727,6 +727,7 @@ ${meta.page9 ?? `<section class="page">
   // workings, and a method page — compared with today's link only (plain.mjs). TECH=1 renders the technical sheet,
   // with its comparisons against the other proposals removed (solo.mjs).
   if (FRESH) html = process.env.TECH ? soloEdition(html) : plainEdition(html, { T, P, meta });
+  html = longDates(html);   // the month in full, as the decks and the read-me write it (link.mjs)
   writeFileSync(out.replace(/\.pdf$/, '.html'), html);
   const b = await chromium.launch(); const pg = await b.newPage();
   await pg.goto('file://' + out.replace(/\.pdf$/, '.html')); await pg.evaluate(() => document.fonts.ready);

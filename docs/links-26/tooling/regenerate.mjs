@@ -94,7 +94,7 @@ export const SUPPLIED = [
     // 13:45 a weekday. Searched afresh and laid on Home Grown's weeks: nothing over 8h 30m Monday to Saturday, 19 weeks on one
     // shift time. Next Step is Even Step with only Clean Slate's three weekday changes. README.md → "Clean Slate and Next Step".
     { file: 'clean-slate.json',            name: 'Clean Slate',    code: 'CS-26-N2',   fp: 'e4486f13', strap: 'Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday' },
-    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: '150a0d25', strap: 'No shift over 8h 30m Monday to Saturday, a 13:45 finish every weekday, and a weekday fit to the trains of 30.3, where today’s is 52.0' },
+    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: '150a0d25', strap: 'No shift over 8h 30m Monday to Saturday, a 13:45 finish every weekday, and a weekday fit to the trains of 30.3 (today 52.0)' },
     // 4 Nov 2026: Fair Share is Next Step with its Sunday evened out, seven Sunday cells retimed (README.md → "Fair Share")
     { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: 'cb5849c3', strap: 'Every Sunday duty 8h 10m or 8h 15m, so a Sunday early and late pay within a few pounds, and no shift over 8h 30m on any day' },
     // 4 Nov 2026 (owner: "Do a proposal sheet for all of today's work. Put them into the repo"): Quarter Past, a one-page roster
@@ -110,8 +110,8 @@ export const SUPPLIED = [
     // QUARTER PAST TAKEN OUT, 4 NOV 2026 (owner: "Remove quarter past from the pack please"): the one-page roster QP-26-EXT ·
     // dfdbd724, in the pack for a few hours, and DELETED on 6 Nov 2026 (above). Open Return and Short Openers keep its shift
     // times and say so in their lineage, so its duty table stays (results/quarter-past-table.json): Open Return was drawn from it.
-    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '190eba69', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buying 30 days off, as today, and no fatigue warning, even if a cover week falls badly' },
-    { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '65f99952', dir: '30-days-off', strap: 'Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buying 30 days off, as today' },
+    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '190eba69', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buys 30 days off, as today, and no fatigue warning, even if a cover week falls badly' },
+    { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '65f99952', dir: '30-days-off', strap: 'Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buys 30 days off, as today' },
     // Grand Tour (4 Nov 2026): Fair Share's duties in new weeks, so that 14 days' leave buys 30 days off and four weeks off
     // take 14, as today — the answer to the owner's question that morning (README.md → "Fair Share", run e). It was a search
     // result with no name, sheet or import file until the 30-day folder was made
@@ -121,7 +121,7 @@ export const SUPPLIED = [
     // 4 Nov 2026: Common Ground is today's link taken to 26 weeks on the owner's brief, its weeks the 30-for-14 grid found on
     // Fair Share's duties (README.md → "Common Ground"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
     // with the other four (owner, the same evening: "add any other 30 days off proposals to the subfolder")
-    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: '03af96b2', dir: '30-days-off', strap: 'Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m on any day, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: '03af96b2', dir: '30-days-off', strap: 'Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m, and 14 days’ leave buys 30 days off, as today' },
     // 5 Nov 2026: Middle Ground is Common Ground's weeks with the shift times varied from week to week (README.md → "Middle
     // Ground"). Its rest days are Common Ground's, so it buys 30 days off for 14 days' leave too and ships into 30-days-off/
     { file: 'middle-ground.json',          name: 'Middle Ground',  code: 'MG-26-T8',   fp: '20668ac9', dir: '30-days-off', strap: 'Seven of today’s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together, and 14 days’ leave buys 30 days off, as today' },
@@ -130,7 +130,7 @@ export const SUPPLIED = [
     // RP-26-V5) is the owner's 15-minute weekday handover drawn from it. Both buy 30 days off for 14 days' leave, and both finish
     // the Saturday office lates at 22:30 as drawn, so the 6 Nov correction changed neither (README.md → "Balanced V5 and Balanced
     // V6 join the pack")
-    { file: 'results/balanced-v5.json',        name: 'Balanced V5',          code: 'MB-26-V5',  fp: 'ded4a15f', dir: '30-days-off', strap: 'Weeks of 06:20 starts and weeks of 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'results/balanced-v5.json',        name: 'Balanced V5',          code: 'MB-26-V5',  fp: 'ded4a15f', dir: '30-days-off', strap: 'Early weeks built from 06:20 and 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today' },
     { file: 'results/balanced-v6.json',        name: 'Balanced V6',          code: 'MB-26-V6',  fp: '1818a1c2', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today' },
 ];
 

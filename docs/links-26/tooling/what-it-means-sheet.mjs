@@ -12,6 +12,7 @@ import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { GROUPS, TC, C, RATE, sundayLoss, noOt, lo, hi, isBest, tidyText } from './what-it-means-data.mjs';
+import { longDates } from './link.mjs';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const OUT = fileURLToPath(new URL('../links-26-what-it-means.pdf', import.meta.url));
@@ -55,7 +56,7 @@ table.t tr.band .gist { display: block; font-size: 10.4px; color: var(--text-dar
 * { text-wrap: pretty; } h1 { text-wrap: balance; }
 </style></head><body>
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · What it means for you</div><h1>What it means if you…</h1>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · What it means if you…</div><h1>What it means if you…</h1>
   <div class="sub">What each shortlisted link would mean for six ways of working</div>
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
   <p class="lead">One person, a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. Pounds are gross, at the CEA rate of £${RATE.toFixed(2)}; the Pay Calculator in the app estimates a payslip. <b class="best" style="color:color-mix(in srgb, var(--success-green) 80%, black)">Bold green</b> marks the clear best of the three for that person.</p>
@@ -63,12 +64,12 @@ table.t tr.band .gist { display: block; font-size: 10.4px; color: var(--text-dar
 ${body}
   </table>
   <div class="notes"><p><b>How these are worked out.</b> Over 52 weeks, two turns of a 26-week link, so a design’s figures are everyone’s; today’s, on 20 weeks, are averages. An early starts before 11:00, a late at 11:00 or after. A swap is counted on the same day: each early against that day’s average late, and each 13:35 or 13:45 early — the only earlies that finish before 14:00 — swapped for that day’s longest late. That is the most these particular short-early swaps could make, not a forecast: it assumes a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip).</p><p>The swap rows are not ranked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within a few Saturday hours a year. The average late includes the closers; the shortlist sheet’s weekday lates leave them out. The Sunday figure is the presentations’ own, to £50; the others are to £10. Leave: a working day Monday to Saturday costs a day’s leave, a rest day or a Sunday none. “Up to” is the worst place a cover week’s duties could fall. Fatigue warnings are reported against the ORR’s good-practice list, never as pass or fail.</p></div>
-  <div class="foot"><span>Page 1 of 1 — Six ways of working</span><span><b>What it means for you</b> · <span class="nw">Common Ground</span>, <span class="nw">Even Step</span> and <span class="nw">Short Run</span> · Marylebone Roster — Links designer</span></div>
+  <div class="foot"><span>Page 1 of 1 — Six ways of working</span><span><b>What it means if you…</b> · <span class="nw">Common Ground</span>, <span class="nw">Even Step</span> and <span class="nw">Short Run</span> · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;
 // a figure keeps what it belongs to, as on the other sheets (tidyText, in the data module)
 const tidy = h => h.replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (mm, keep, txt) => keep ?? tidyText(txt));
-const htmlOut = fileURLToPath(new URL('links-26-what-it-means.html', import.meta.url)); writeFileSync(htmlOut, tidy(html));   // beside the tooling, gitignored
+const htmlOut = fileURLToPath(new URL('links-26-what-it-means.html', import.meta.url)); writeFileSync(htmlOut, longDates(tidy(html)));   // beside the tooling, gitignored
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
 // THE PAGE IS A FIXED HEIGHT, so content that does not fit would be HIDDEN under the footer: refuse to print it. Measured at

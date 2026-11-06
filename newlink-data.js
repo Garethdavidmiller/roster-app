@@ -32,10 +32,10 @@ export const CHANGES = deepFreeze([
     "Two more proposals sit beside Short\u00a0Run now: Common\u00a0Ground and Even\u00a0Step. Both were drawn up after Short\u00a0Run was first shown.",
     "Both keep a shift finishing at 13:45 on every weekday of the rota. Short\u00a0Run has no shift finishing at 13:35 or 13:45.",
     "Common\u00a0Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even\u00a0Step and Short\u00a0Run four weeks off take 15. The price on Common\u00a0Ground is more single rest days: about 12\u00a0a\u00a0year, where the other two have about 8.",
-    "Common\u00a0Ground has nothing over 8h\u00a030m on any day, and Even\u00a0Step nothing over 8h\u00a030m from Monday to Saturday. Short\u00a0Run has 9-hour weekday earlies and an 8h\u00a040m Saturday closer, about 26\u00a0a\u00a0year each.",
+    "Common\u00a0Ground has nothing over 8h\u00a030m on any day, and Even\u00a0Step nothing over 8h\u00a030m from Monday to Saturday. Short\u00a0Run has 9-hour weekday earlies and an 8h\u00a040m Saturday closer: together about 26\u00a0a\u00a0year each, 20 earlies and 6 closers.",
     "On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10. To keep the hours the same, one Saturday late on Short\u00a0Run is now 13:30–21:00, a time worked on Saturdays today. Those are the only changes to Short\u00a0Run’s shifts since it was shown.",
     "Short\u00a0Run still has the shortest lates of the three: 8h\u00a006m on average, closers included.",
-    "And when a cover week falls badly, the most days in a row is now 7, not 6, as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top."
+    "And when a cover week falls badly, the most days in a row is now 7, not 6 — the same as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top."
 ]);
 
 /** What all three proposals give everyone, against today. */
