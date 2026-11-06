@@ -79,7 +79,7 @@ design in the league.
 
 **Presentations.** Common Ground has a colleague deck and a managers' deck, made on 5 November 2026 at the owner's request.
 They were kept outside the pack for a few hours, in a folder since removed, and have been in `../presentations/` since it
-joined the shortlist the same day. The other four links here have none.
+joined the shortlist the same day. The other six links here, Middle Ground included, have none.
 
 **Taken out:** Quarter Past, whose shift times Open Return keeps, on the evening of 4 November 2026 (its grid stays in
 `../tooling/results/quarter-past.json`); and Well Kept, today's twenty weeks with six added, which was in this folder
