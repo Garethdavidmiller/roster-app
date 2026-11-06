@@ -23,15 +23,20 @@ import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.
  *  waived for that design (WAIVERS, below). */
 // 26 LINES (1 Oct 2026; nine designs by 3 Oct): a design's one-line description and how it was made go here, by code,
 // exactly as the 24-line sheets' did (../../links-24/tooling/fresh.mjs keeps theirs).
+// 6 NOV 2026 — THE SATURDAY TICKET OFFICE TO 22:30 (RULES.md S5; README.md → "The Saturday ticket office to 22:30"). Every
+// design's two Saturday office lates moved from 22:00 to 22:30 and its Saturday floor lates gave the half hour back, so
+// three headlines were reworded to stay true: Fine Tune's and Even Keel's heaviest week is now 42h 00m (it was 41h 30m),
+// Fine Tune's week-to-week change 1h 10m (1h 09m), and Home Grown's two new Saturday lates (14:30-22:30 and 14:00-22:00)
+// are times nobody works today.
 export const STRAPS = {
   'SL-26-G3': ['Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates', 'search'],
   'SE-26-F1': ['Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time', 'search'],
-  'FT-26-H1': ['No Mon–Sat week over 41h 30m, one week mixing earlies and lates, and a week-to-week change of 1h 09m', 'search'],
-  'EK-26-H1': ['18 of 21 weeks on one shift time, no Mon–Sat week over 41h 30m, and never less than 14h 35m between fixed duties', 'search'],
+  'FT-26-H1': ['No Mon–Sat week over 42h, one week mixing earlies and lates, and a week-to-week change of 1h 10m', 'search'],
+  'EK-26-H1': ['18 of 21 weeks on one shift time, no Mon–Sat week over 42h, and never less than 14h 35m between fixed duties', 'search'],
   'SR-26-F1': ['No run over five days outside the cover weeks, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time', 'search'],
   'LB-26-F1': ['Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week', 'search'],
   // 26 Oct 2026: today's link on 26 lines (README.md → "Today's link on 26 lines")
-  'HG-26-T1': ['Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, a 13:35 finish every weekday, and Saturday closing as today', 'search'],
+  'HG-26-T1': ['Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, and two new Saturday lates, with a 13:35 finish every weekday and Saturday closing as today', 'search'],
   'CT-26-T2': ['A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
   'BW-26-T3': ['A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today', 'search'],
   // 30 Oct 2026: Closing Time's weeks with the times searched again (README.md → "In Step")
@@ -55,11 +60,16 @@ export const STRAPS = {
   // 4 Nov 2026: today's link taken to 26 weeks on the owner's brief — openers finishing 13:45 or 14:20, closers from 15:45,
   // nothing over 8h 30m on a weekday or 9h at the weekend, an even Sunday, 30 days off for 14 days' leave (README.md →
   // "Common Ground"). Shortlisted on 5 Nov 2026, as the 30-day example (below)
-  'CG-26-T8': ['Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m Monday to Friday, and 14 days’ leave buys 30 days off, as today', 'search'],
+  'CG-26-T8': ['Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m on any day, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 5 Nov 2026: Common Ground's weeks with the shift times varied from week to week, so no two closing weeks and no two 06:20
   // weeks fall together (README.md → "Middle Ground"). Not shortlisted. NO STRAP NAMES ANOTHER DESIGN (owner, 5 Nov 2026:
   // "the proposal description headlines should not reference other proposals"); regenerate.mjs refuses one that does
   'MG-26-T8': ['Seven of today’s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together, and 14 days’ leave buys 30 days off, as today', 'search'],
+  // 6 NOV 2026 (owner: "Balanced v5 and Relief Point need adding to the pack, but can you rename Relief Point as Balanced v6"):
+  // its author's one-page Marylebone Balanced 26, version 5, and the owner's 15-minute handover drawn from it (README.md →
+  // "Balanced V5 and Balanced V6 join the pack"). Each says what it is, naming no other design
+  'MB-26-V5': ['Weeks of 06:20 starts and weeks of 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today', 'search'],
+  'MB-26-V6': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
@@ -88,8 +98,8 @@ if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is bo
 // In Step from 30 Oct, Even Step from 31 Oct (README.md has each) — and was retired with the marks; it is gone rather than
 // left null, so any script still reading it fails loudly instead of quietly recommending nothing.
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
-export const FAMILY = { SL: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', OR: 'Quarter Past', SO: 'Quarter Past', GT: 'Home Grown', CG: 'Home Grown', MG: 'Home Grown' };
-export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'OR-26-EXT': '4 Nov 2026', 'SO-26-EXT': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026' };
+export const FAMILY = { SL: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', OR: 'Quarter Past', SO: 'Quarter Past', GT: 'Home Grown', CG: 'Home Grown', MG: 'Home Grown', MB: 'Marylebone Balanced' };
+export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'OR-26-EXT': '4 Nov 2026', 'SO-26-EXT': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026', 'MB-26-V5': '5 Nov 2026', 'MB-26-V6': '5 Nov 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a

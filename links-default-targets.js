@@ -18,8 +18,8 @@
  * judged against are `docs/links-26/RULES.md`, set by the owner — and this table is not invented
  * here any more. It is the duty table of **Short Run (SR-26-F1)**, one of the three designs on the
  * owner's shortlist (redrawn 5 Nov 2026) — chosen on 3 Oct as Second Edition's (SE-26-F1), whose duties
- * Short Run shares exactly; Second Edition has since left the shortlist. Even Step, the recommended
- * design, and Common Ground staff the same number of duties each day at different times. A default that the owner's
+ * Short Run shares exactly; Second Edition has since left the shortlist. Even Step and Common Ground, the
+ * other two on it, staff the same number of duties each day at different times. A default that the owner's
  * own shortlist already satisfies is a better starting point than a table the app designed by
  * itself, which is what the 24-line default was (v21.00–v21.13).
  *
@@ -28,6 +28,11 @@
  *                                              -------
  *                                               44,100 min = 21 working lines × 35h EXACTLY
  *     89 duties a week → (89 + 4 × 5) ÷ 26 × 365 ÷ 7 = 218.6 contracted days a year (ceiling 219)
+ *
+ * THE SATURDAY TICKET OFFICE FINISHES AT 22:30 (6 Nov 2026, RULES.md S5 — the office shuts at 22:10 and needs 20
+ * minutes to cash up; it read 22:00 until then). Short Run's two Saturday office lates moved to 14:30-22:30 and its two
+ * Saturday floor lates gave the half hour back (14:00-22:30 became 14:00-22:00), so the rows below moved with it and
+ * Saturday's 6,900 minutes, and the contract, are unchanged.
  *
  * What it meets, from RULES.md: at least four on at the open and three at the close every day;
  * at least five still on at 22:00; ten on a Sunday, every Sunday duty 8–9 hours; the ticket office's
@@ -80,7 +85,7 @@ export const TARGET_DAYS_PER_WEEK = 89 / 21;
 /**
  * The table itself — Short Run's duties (Second Edition's too), one row per time, counts per day
  * class. Read across: the weekday's 15, Saturday's 14, Sunday's 10. The ticket office is the two
- * 06:20-14:20 and two 14:00-22:30 on a weekday (06:20-14:50 / 14:30-22:00 on a Saturday; 07:15
+ * 06:20-14:20 and two 14:00-22:30 on a weekday (06:20-14:50 / 14:30-22:30 on a Saturday; 07:15
  * starts and 22:30 finishes on a Sunday).
  *
  * @type {ReadonlyArray<Readonly<{time: string, weekday: number, sat: number, sun: number}>>}
@@ -93,16 +98,16 @@ const TABLE = Object.freeze([
     Object.freeze({ time: '06:20-14:50', weekday: 3, sat: 2, sun: 0 }),
     Object.freeze({ time: '07:00-16:00', weekday: 2, sat: 0, sun: 0 }),
     Object.freeze({ time: '12:00-20:00', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '14:00-22:30', weekday: 2, sat: 2, sun: 0 }),
+    Object.freeze({ time: '14:00-22:30', weekday: 2, sat: 0, sun: 0 }),
     Object.freeze({ time: '15:00-22:30', weekday: 2, sat: 0, sun: 0 }),
     Object.freeze({ time: '15:45-23:55', weekday: 3, sat: 0, sun: 0 }),
     Object.freeze({ time: '06:20-14:00', weekday: 0, sat: 3, sun: 0 }),
     Object.freeze({ time: '08:00-16:30', weekday: 0, sat: 2, sun: 0 }),
-    Object.freeze({ time: '14:30-22:00', weekday: 0, sat: 2, sun: 0 }),
+    Object.freeze({ time: '14:00-22:00', weekday: 0, sat: 2, sun: 0 }),
+    Object.freeze({ time: '14:30-22:30', weekday: 0, sat: 2, sun: 2 }),
     Object.freeze({ time: '15:15-23:55', weekday: 0, sat: 3, sun: 0 }),
     Object.freeze({ time: '07:15-15:45', weekday: 0, sat: 0, sun: 4 }),
     Object.freeze({ time: '09:00-18:00', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '14:30-22:30', weekday: 0, sat: 0, sun: 2 }),
     Object.freeze({ time: '15:15-23:25', weekday: 0, sat: 0, sun: 3 }),
 ]);
 

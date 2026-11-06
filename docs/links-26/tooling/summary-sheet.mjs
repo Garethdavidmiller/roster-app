@@ -54,10 +54,14 @@ const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><spa
 // cell's first line on one baseline, keeps tabular figures for the figures (they widened the hyphens in the codes and the
 // headings) and footnotes in two columns. The figures and the order are unchanged.
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
+// A COUNT IN WORDS, AND NEVER "undefined" (6 Nov 2026): the 30-day count was read from a list that stopped at six, so the
+// seventh 30-day design printed "and the undefined where 14 days' leave buys 30 days off". The list runs to twenty now, a
+// larger count prints as a figure, and the page is refused below if "undefined" or "NaN" reaches it from anywhere
+const countWord = n => 'no one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ')[n] ?? String(n);
 const PREPARED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>New CEA link proposals — at a glance</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><style>
-@page{size:A4 landscape;margin:8mm 10mm}
+@page{size:A4 landscape;margin:6mm 10mm}
 html, body{background:white !important;padding:0 !important;margin:0}
 body{font-family:var(--font-sans);color:var(--text-dark);font-size:9pt;line-height:1.3}
 .mast{background:var(--primary-blue);color:white;padding:7px 16px 6px;border-bottom:4px solid var(--accent-gold);border-radius:var(--radius);display:flex;gap:14px;align-items:center;margin-bottom:6px}
@@ -82,9 +86,11 @@ td.good .wv { color: var(--text-mid); font-weight: 400; }
 .pfoot{margin-top:6px;padding-top:4px;border-top:1px solid var(--border-light);color:var(--text-light);font-size:8pt;display:flex;justify-content:space-between} .pfoot b{color:var(--primary-blue)}
 /* DENSE ROWS, ONLY WHEN THE FLOOR IS NOT ENOUGH (4 Nov 2026, nineteen proposals): see the loop below */
 body.dense td{padding:0.5px 5px;line-height:1.18} body.dense .mast{margin-bottom:4px} body.dense .foot,body.dense .pfoot{margin-top:4px} body.dense .foot{line-height:1.3}
+/* TWENTY-ONE ROWS (6 Nov 2026): see the loop below */
+body.dense .mast{padding:4px 14px 3px;margin-bottom:3px} body.dense .mast img{width:30px;height:30px} body.dense th{padding:2px 5px} body.dense td{line-height:1.12}
 </style></head><body>
 <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
-<div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${['no', 'one', 'two', 'three', 'four', 'five', 'six'][SHORTLIST.length] ?? SHORTLIST.length} shortlisted ones marked ★, and the ${['no', 'one', 'two', 'three', 'four', 'five', 'six'][rows.filter(r => r.thirty).length]} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
+<div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${countWord(SHORTLIST.length)} shortlisted ones marked ★, and the ${countWord(rows.filter(r => r.thirty).length)} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
 <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
 <table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest rest between shifts§</th><th>Shift times</th><th>Days a year*</th><th>Heaviest week, <span style="white-space:nowrap">Mon–Sat</span></th><th>Weeks on one shift time, all earlies or all lates</th><th>Weeks mixing earlies and lates</th><th>Week-to-week change of start</th><th>Finishes 23:00+ a year†</th></tr></thead><tbody>
 ${tr(todayRow,'today')}
@@ -100,6 +106,7 @@ ${rows.map(r=>tr(r)).join('\n')}
 // the page to 93% with a strip left empty at the foot. Below 80% it stops, rather than print what nobody can read.
 const OUT = new URL('../links-26-summary.pdf', DIR).pathname;
 const pagesIn = buf => (buf.toString('latin1').match(/\/Type\s*\/Page(?!s)/g) ?? []).length;
+if (/\bundefined\b|\bNaN\b/.test(html.replace(/<style[\s\S]*?<\/style>/, ''))) throw new Error('summary-sheet: "undefined" or "NaN" in the page — a figure or a word is missing');
 const htmlOut = new URL('links-26-summary.html', import.meta.url).pathname; fs.writeFileSync(htmlOut, html);   // beside the tooling, gitignored
 const b = await chromium.launch(); const pg = await b.newPage(); await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
 // NINETEEN ROWS (4 Nov 2026): eighteen fitted at the 80% floor and a nineteenth did not, which the note above foresaw ("a
@@ -109,6 +116,10 @@ const b = await chromium.launch(); const pg = await b.newPage(); await pg.goto('
 // TWENTY ROWS (5 Nov 2026, Middle Ground): the dense page left the footnotes' last lines and the page footer on a second
 // sheet at the floor, so dense also sets the table's two-line cells and the footnotes a little closer (line-height 1.18
 // and 1.3, from the page's 1.3 and 1.38). The type and the floor are as they were.
+// TWENTY-ONE ROWS (6 Nov 2026, Balanced V5 and V6): the dense page ran about 25px onto a second sheet at the floor. Three
+// footnote columns were tried and came out taller (the paragraphs do not break). So the page's top and bottom margins come
+// down from 8mm to 6mm, and dense also tightens the band, the header row and the cells' line height (1.12): measured, that
+// prints at 82%, where the dense spacing alone fitted only at the 80% floor itself. The type and the floor are as they were.
 let scale = 1, pdf, dense = false;
 for (;;) { pdf = await pg.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
   if (pagesIn(pdf) === 1) break;

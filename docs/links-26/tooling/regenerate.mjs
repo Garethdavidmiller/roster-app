@@ -41,32 +41,32 @@ export const SUPPLIED = [
     // Second Look (2 Oct 2026): from the same restart as Second Sight, on a variation of Second Nature's duty table (table
     // G3: the Saturday 08:00-16:30 pair moved to 07:15-15:45), one of the only two rotas in it that met every floor (the
     // other, Second Gear, is withdrawn). README.md → "Second Look and Second Gear".
-    { file: 'second-look.json',            name: 'Second Look',    code: 'SL-26-G3',   fp: '7095fdda', strap: 'Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates' },
+    { file: 'second-look.json',            name: 'Second Look',    code: 'SL-26-G3',   fp: '5bc487e7', strap: 'Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates' },
     // Second Edition (2 Oct 2026): the owner asked for a roster stronger than any so far, at 219 days. Same duty table as
     // Second Nature; the weeks were built from a rest-day SKELETON (skeleton.mjs) that carries every rule a finished rota
     // must meet, then the times were searched. Weekends at most five apart, four single rest days, no mixed week, 18 of 21
     // weeks on one shift time, heaviest week 42h 00m, step 1h 01m — better than or equal to every design on every line.
     // README.md → "Second Edition".
-    { file: 'second-edition.json',         name: 'Second Edition', code: 'SE-26-F1',   fp: 'dea6417f', strap: 'Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time' },
+    { file: 'second-edition.json',         name: 'Second Edition', code: 'SE-26-F1',   fp: 'bcabb166', strap: 'Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time' },
     // Fine Tune (3 Oct 2026): Second Gear with its weeks reordered by an outside reviewer (their candidate SGR-26-C1, with
     // its own search and recount in external/second-gear-refined/). The same duties every day, so the same table figures;
     // one mixed week instead of two and a smaller week-to-week step. Checked here by the app's own code before shipping.
-    { file: 'fine-tune.json',              name: 'Fine Tune',      code: 'FT-26-H1',   fp: '9a7393d3', strap: 'No Mon–Sat week over 41h 30m, one week mixing earlies and lates, and a week-to-week change of 1h 09m' },
+    { file: 'fine-tune.json',              name: 'Fine Tune',      code: 'FT-26-H1',   fp: '702d7a15', strap: 'No Mon–Sat week over 42h, one week mixing earlies and lates, and a week-to-week change of 1h 10m' },
     // Even Keel (3 Oct 2026): a second reordering of Second Gear by the same outside reviewer (their SGR-26-C2, with its
     // recount in external/roster-search-results-2/). Same duties every day; 18 of 21 weeks on one shift time. Checked
     // here by the app's own code. Their other candidate, Five-Day Flow, was NOT shipped: README.md → "Even Keel".
-    { file: 'even-keel.json',              name: 'Even Keel',      code: 'EK-26-H1',   fp: '8e9a1bcf', strap: '18 of 21 weeks on one shift time, no Mon–Sat week over 41h 30m, and never less than 14h 35m between fixed duties' },
+    { file: 'even-keel.json',              name: 'Even Keel',      code: 'EK-26-H1',   fp: '250f90d5', strap: '18 of 21 weeks on one shift time, no Mon–Sat week over 42h, and never less than 14h 35m between fixed duties' },
     // Short Run (3 Oct 2026): the final targeted search's one find. Second Edition's duty table on a rest-day skeleton
     // the EXACT solver produced (exact-skeletons.py: no run over FIVE days, no mixed week, four single rest days — a
     // layout the annealing skeleton search never reached in 16 seeds), then the same soft → hard polish chain. Equal to
     // Second Edition on every line the sheets compare, with the longest run down from six days to five; the heaviest
     // week is 42h 30m against Second Edition's 42h 00m. README.md → "Short Run".
-    { file: 'short-run.json',              name: 'Short Run',      code: 'SR-26-F1',   fp: '618348d6', strap: 'No run over five days outside the cover weeks, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time' },
+    { file: 'short-run.json',              name: 'Short Run',      code: 'SR-26-F1',   fp: '9b0bf83a', strap: 'No run over five days outside the cover weeks, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time' },
     // Long Break (3 Oct 2026): the 14-day-leave search. Second Edition's duty table on an exact-solver skeleton
     // (exact-skeletons.py with FOUR=14) in which four full weeks off cost 14 days' leave, as today, where every other
     // 26-line design needs 15; its best leave stretch is 29 days. The price: five single rest days (not four), 16 of 21
     // weeks on one shift time (not 18) and a week-to-week step of 1h 44m. README.md → "Long Break".
-    { file: 'long-break.json',             name: 'Long Break',     code: 'LB-26-F1',   fp: 'c193b37e', strap: 'Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week' },
+    { file: 'long-break.json',             name: 'Long Break',     code: 'LB-26-F1',   fp: 'a85776e4', strap: 'Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week' },
     // Home Grown, Closing Time and Both Ways (26 Oct 2026): the owner's brief — today's 20-line link on 26 lines, five cover
     // weeks, a 16:00 closing shift, a 13:35 or 13:45 finish every weekday, every rule met and Short Run's fatigue factors
     // matched or improved. Today's week order carries four fatigue factors, so its shift TIMES were kept and the weeks
@@ -75,26 +75,26 @@ export const SUPPLIED = [
     // (short-earlies.mjs): Home Grown keeps Saturday's 14:45 closers, Closing Time adds 13:30-22:30, Both Ways adds that
     // and 07:00-16:00 to keep a 13:35 AND a 13:45 every weekday. Every fatigue factor's value is Short Run's or better
     // (factors-like.mjs). README.md → "Today's link on 26 lines".
-    { file: 'home-grown.json',             name: 'Home Grown',     code: 'HG-26-T1',   fp: '7d41fafb', strap: 'Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, a 13:35 finish every weekday, and Saturday closing as today' },
-    { file: 'closing-time.json',           name: 'Closing Time',   code: 'CT-26-T2',   fp: '77a235bc', strap: 'A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties' },
-    { file: 'both-ways.json',              name: 'Both Ways',      code: 'BW-26-T3',   fp: '7a513d87', strap: 'A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today' },
+    { file: 'home-grown.json',             name: 'Home Grown',     code: 'HG-26-T1',   fp: '1885ef0a', strap: 'Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, and two new Saturday lates, with a 13:35 finish every weekday and Saturday closing as today' },
+    { file: 'closing-time.json',           name: 'Closing Time',   code: 'CT-26-T2',   fp: '002f1a28', strap: 'A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties' },
+    { file: 'both-ways.json',              name: 'Both Ways',      code: 'BW-26-T3',   fp: '007b8b4d', strap: 'A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today' },
     // In Step (30 Oct 2026): the owner asked whether Closing Time could be improved to fix the Saturday open or fit the trains
     // better on a weekday, and to give the answer a new name. Closing Time's rest days and early and late weeks, held while
     // exact-rota.py chose every time from a table with 15:45 closers, five at every opening Monday to Saturday and two new
     // early times that finish by 15:45, so its 14h 35m rest holds. README.md → "In Step".
-    { file: 'in-step.json',                name: 'In Step',        code: 'IS-26-T4',   fp: '8d9239f3', strap: 'Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties' },
+    { file: 'in-step.json',                name: 'In Step',        code: 'IS-26-T4',   fp: '077b84ee', strap: 'Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties' },
     // Even Step (31 Oct 2026): the owner's one reservation about In Step was the length of its main early shift. The same
     // weeks (Closing Time's rest days and early and late weeks) with every duty Monday to Saturday 8h 30m or less, every
     // early one of today's times and every closer still 15:45; the lates take the half hour. README.md → "Even Step".
-    { file: 'even-step.json',              name: 'Even Step',      code: 'ES-26-T5',   fp: 'd1921b7a', strap: 'No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday' },
+    { file: 'even-step.json',              name: 'Even Step',      code: 'ES-26-T5',   fp: '95c87ef3', strap: 'No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday' },
     // Clean Slate (3 Nov 2026): the owner's question — the link if today's shift times carried no weight in the league, every
     // other rule applying, with the weekday rules closers from 15:45, nothing over 9 hours, openers at most 8h 30m, and one
     // 13:45 a weekday. Searched afresh and laid on Home Grown's weeks: nothing over 8h 30m Monday to Saturday, 19 weeks on one
     // shift time. Next Step is Even Step with only Clean Slate's three weekday changes. README.md → "Clean Slate and Next Step".
-    { file: 'clean-slate.json',            name: 'Clean Slate',    code: 'CS-26-N2',   fp: 'dc175c36', strap: 'Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday' },
-    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'No shift over 8h 30m Monday to Saturday, a 13:45 finish every weekday, and a weekday fit to the trains of 30.3, where today’s is 52.0' },
+    { file: 'clean-slate.json',            name: 'Clean Slate',    code: 'CS-26-N2',   fp: 'e4486f13', strap: 'Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday' },
+    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: '79145bc9', strap: 'No shift over 8h 30m Monday to Saturday, a 13:45 finish every weekday, and a weekday fit to the trains of 30.3, where today’s is 52.0' },
     // 4 Nov 2026: Fair Share is Next Step with its Sunday evened out, seven Sunday cells retimed (README.md → "Fair Share")
-    { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: 'ccf27576', strap: 'Every Sunday duty 8h 10m or 8h 15m, so a Sunday early and late pay within a few pounds, and no shift over 8h 30m on any day' },
+    { file: 'fair-share.json',             name: 'Fair Share',     code: 'FS-26-T7',   fp: '90e85eeb', strap: 'Every Sunday duty 8h 10m or 8h 15m, so a Sunday early and late pay within a few pounds, and no shift over 8h 30m on any day' },
     // 4 Nov 2026 (owner: "Do a proposal sheet for all of today's work. Put them into the repo"): Quarter Past, a one-page roster
     // supplied as a PDF and read in cell by cell; its duties in new weeks so 14 days' leave buys 30 days off (drawn as Quarter
     // Past Relaid, QR-26-EXT); and Short Openers, that link with every weekday 06:20 finishing by 14:20 and every weekday
@@ -109,22 +109,29 @@ export const SUPPLIED = [
     // dfdbd724, in the pack for a few hours. Its grid and meta stay in results/ (quarter-past.json); Open Return and Short
     // Openers keep its shift times and say so in their lineage. To rebuild it, restore its entry here and its strap, family
     // and date in fresh.mjs from git history.
-    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '544e1ee8', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buying 30 days off, as today, and no fatigue warning, even if a cover week falls badly' },
-    { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '38897b91', dir: '30-days-off', strap: 'Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buying 30 days off, as today' },
+    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '2b15826c', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buying 30 days off, as today, and no fatigue warning, even if a cover week falls badly' },
+    { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '6af8af45', dir: '30-days-off', strap: 'Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buying 30 days off, as today' },
     // Grand Tour (4 Nov 2026): Fair Share's duties in new weeks, so that 14 days' leave buys 30 days off and four weeks off
     // take 14, as today — the answer to the owner's question that morning (README.md → "Fair Share", run e). It was a search
     // result with no name, sheet or import file until the 30-day folder was made
     // WELL KEPT TAKEN OUT, 5 NOV 2026 (owner: "Remove well kept"): Same Again Tidy, WK-26-S2 · 1db1381a, in the 30-day folder
     // from the evening of 4 Nov. Its grid and meta stay in results/ (same-again-tidy.json). To rebuild it, restore its entry
     // here (dir: '30-days-off') and its strap, family and date in fresh.mjs from git history.
-    { file: 'results/fair-share-leave30.json',   name: 'Grand Tour',           code: 'GT-26-T7',  fp: '4172f888', dir: '30-days-off', strap: 'No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today' },
+    { file: 'results/fair-share-leave30.json',   name: 'Grand Tour',           code: 'GT-26-T7',  fp: 'f33bfd6c', dir: '30-days-off', strap: 'No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today' },
     // 4 Nov 2026: Common Ground is today's link taken to 26 weeks on the owner's brief, its weeks the 30-for-14 grid found on
     // Fair Share's duties (README.md → "Common Ground"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
     // with the other four (owner, the same evening: "add any other 30 days off proposals to the subfolder")
-    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'e02c295f', dir: '30-days-off', strap: 'Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m Monday to Friday, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: 'd6d1131d', dir: '30-days-off', strap: 'Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m on any day, and 14 days’ leave buys 30 days off, as today' },
     // 5 Nov 2026: Middle Ground is Common Ground's weeks with the shift times varied from week to week (README.md → "Middle
     // Ground"). Its rest days are Common Ground's, so it buys 30 days off for 14 days' leave too and ships into 30-days-off/
-    { file: 'middle-ground.json',          name: 'Middle Ground',  code: 'MG-26-T8',   fp: '573c7287', dir: '30-days-off', strap: 'Seven of today’s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'middle-ground.json',          name: 'Middle Ground',  code: 'MG-26-T8',   fp: 'a2417e62', dir: '30-days-off', strap: 'Seven of today’s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together, and 14 days’ leave buys 30 days off, as today' },
+    // 6 Nov 2026 (owner: "Balanced v5 and Relief Point need adding to the pack, but can you rename Relief Point as Balanced v6"):
+    // Balanced V5 is its author's one-page Marylebone Balanced 26, version 5, read cell by cell; Balanced V6 (drawn as Relief Point,
+    // RP-26-V5) is the owner's 15-minute weekday handover drawn from it. Both buy 30 days off for 14 days' leave, and both finish
+    // the Saturday office lates at 22:30 as drawn, so the 6 Nov correction changed neither (README.md → "Balanced V5 and Balanced
+    // V6 join the pack")
+    { file: 'results/balanced-v5.json',        name: 'Balanced V5',          code: 'MB-26-V5',  fp: 'ded4a15f', dir: '30-days-off', strap: 'Weeks of 06:20 starts and weeks of 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'results/balanced-v6.json',        name: 'Balanced V6',          code: 'MB-26-V6',  fp: '1818a1c2', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

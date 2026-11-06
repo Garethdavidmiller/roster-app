@@ -1,9 +1,9 @@
 # The rules — the new CEA link, 26 lines
 
 **Set on 1 Oct 2026.** This is the one list every 26-line design is judged against. It is the 24-line
-rule set (`../links-24/links-24-rules.pdf`, built by `../links-24/tooling/rules-sheet.mjs`) with **five
-changes**, each marked **▲ CHANGED**: four set on 1 Oct, and the weekday-closer rule (F3) added on 31 Oct. Every other
-rule was reviewed and kept as it was.
+rule set (`../links-24/links-24-rules.pdf`, built by `../links-24/tooling/rules-sheet.mjs`) with **six
+changes**, each marked **▲ CHANGED**: four set on 1 Oct, the weekday-closer rule (F3) added on 31 Oct, and the Saturday
+ticket-office late (S5) corrected on 6 Nov. Every other rule was reviewed and kept as it was.
 
 The staffing levels were confirmed **verbally** (29 Sep 2026), as was the 24-person link, which then turned out to
 be 26. So it is worth getting the levels below in writing before a design is put forward.
@@ -18,6 +18,7 @@ be 26. So it is worth getting the levels below in writing before a design is put
 | Contracted days a year | aimed at 217–219 | **219 or fewer**: today's figure is the ceiling |
 | Fourteen on a Saturday | flexible rule | flexible rule, **unchanged** |
 | Weekday closers | no rule | **start at 15:45 or later** — a new flexible rule, F3 (31 Oct) |
+| Saturday ticket-office lates | 14:30–22:00 | **14:30–22:30**: the office shuts at 22:10, with 20 minutes to cash up (S5, 6 Nov) |
 
 ## The basics every rule assumes
 
@@ -48,7 +49,8 @@ be 26. So it is worth getting the levels below in writing before a design is put
 
 ## The December 2026 staffing rules — scored on every sheet
 
-The headcounts are minimums: too few is the problem, never too many. **Unchanged from 24 lines.**
+The headcounts are minimums: too few is the problem, never too many. **Unchanged from 24 lines**, but for the time the
+Saturday ticket-office lates finish (S5).
 
 | | Rule |
 |---|---|
@@ -56,7 +58,7 @@ The headcounts are minimums: too few is the problem, never too many. **Unchanged
 | S2 | **At least three through to the close,** every day (23:55, or 23:25 on a Sunday). |
 | S3 | **At least five still on duty at 22:00,** every day. Someone finishing at 22:00 does not count. |
 | S4 | **Ten on a Sunday,** counted as duties rostered that day. |
-| S5 | **The ticket office: two identical early and two identical late shifts, every day.** Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:00; Sun two starting 07:15 and two finishing 22:30. |
+| S5 | **The ticket office: two identical early and two identical late shifts, every day.** Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and **14:30–22:30**; Sun two starting 07:15 and two finishing 22:30. **▲ CHANGED (6 Nov 2026)** — the Saturday lates read 14:30–22:00 until then, but the office shuts at 22:10 on a Saturday and needs 20 minutes to cash up (owner: "it does close at 22.10 and needs to be a 22.30 ticket office closer"). Today's roster still has them finishing at 22:00. |
 | S6 | **At least two on the floor at every moment** the station is open, checked every five minutes. |
 | S7 | **Handovers:** 15 minutes to each closer; 20 minutes in the ticket office (30 on a Sunday, from 15:00). On a Sunday each opener also stays until 15 minutes after the last closer arrives. |
 | S8 | **Every Sunday duty is between 8 and 9 hours long.** |
