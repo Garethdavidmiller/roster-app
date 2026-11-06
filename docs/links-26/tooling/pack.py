@@ -144,7 +144,8 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # Quarter Past Relaid was renamed Open Return, and Fair Share's 30-day search result joined as Grand Tour, the same day
 # (owner: "Give all proposals individual names")
 # Quarter Past was taken out the same evening (owner: "Remove quarter past from the pack please"), and Well Kept, drawn up on
-# 26 Oct 2026 as Same Again Tidy, joined the 30-day folder; it was taken out on 5 Nov 2026 (owner: "Remove well kept")
+# 26 Oct 2026 as Same Again Tidy, joined the 30-day folder; it was taken out on 5 Nov 2026 (owner: "Remove well kept"). Both
+# were deleted on 6 Nov 2026 (DELETED, below)
 # Common Ground joined the same day on main (owner: "give this new proposal a better name and create the sheet and put it in
 # the pack"): today's link taken to 26 weeks on the owner's brief, on Grand Tour's weeks. It buys 30 days off for 14 days'
 # leave, so it is in the 30-day folder too, and it is a late design
@@ -162,17 +163,15 @@ if LATE and LATE != LATE_SET:
 if AFTER_31_OCT != AFTER_31_OCT_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(AFTER_31_OCT_SET)} as drawn up after 31 October 2026; they are {AFTER_31_OCT}')
 LATE_WORDS = ', '.join(LATE[:-1]) + ' and ' + LATE[-1] if len(LATE) > 1 else ''.join(LATE)   # three since 4 Nov: 'A, B and C', never 'A and B and C'
-# THE FOUR WITHDRAWN (3 Nov 2026, owner: "Remove the four weak proposals please and reengineer the pack"). Named here, and
-# refused if any is back in SUPPLIED, because the paragraph below says they left the pack
-WITHDRAWN = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear']
-if any(n in names.split(', ') for n in WITHDRAWN):
-    raise SystemExit(f'pack: the read-me says {WITHDRAWN} were withdrawn; regenerate.mjs SUPPLIED lists one of them')
-# QUARTER PAST AND WELL KEPT, TAKEN OUT (owner, 4 Nov 2026: "Remove quarter past from the pack please"; 5 Nov 2026: "Remove
-# well kept"). Each was in the pack for a few hours, so the read-me says they left, as it does for the four above; refused
-# if either is back in SUPPLIED
-TAKEN_OUT = ['Quarter Past', 'Well Kept']
-if any(n in names.split(', ') for n in TAKEN_OUT):
-    raise SystemExit(f'pack: the read-me says {TAKEN_OUT} were taken out; regenerate.mjs SUPPLIED lists one of them')
+# DELETED, 6 NOV 2026 (owner: "Permanently delete well kept, quarter past, the four second designs, quiet friday, little and
+# often and same again"). Nine designs that had left the pack, or were never in it, are gone from the repository: grids,
+# metas and their own search files (README.md -> "Nine designs deleted"). Until then the read-me named six of them as
+# withdrawn or taken out, with their record "kept in the repository"; it now names none. Refused if one is back in SUPPLIED,
+# and refused if the read-me names one, so a deleted design cannot come back unnoticed
+DELETED = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear', 'Quiet Friday', 'Same Again', 'Little and Often',
+           'Quarter Past', 'Well Kept']   # Same Again Tidy was Well Kept; 'Same Again' also catches its name
+if any(n in names.split(', ') for n in DELETED):
+    raise SystemExit(f'pack: {DELETED} were deleted on 6 Nov 2026; regenerate.mjs SUPPLIED lists one of them')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
 THIRTY_SET = ['Balanced V5', 'Balanced V6', 'Common Ground', 'Grand Tour', 'Middle Ground', 'Open Return', 'Short Openers']
 THIRTY_IN = sorted(n for n, c, _ in proposals if DIR_OF[c] == '30-days-off')
@@ -237,6 +236,12 @@ readme = '\n'.join([
     # 1 January 2027, after the timetable changes in December (owner, 2 Nov 2026), and was "December 2026" here until then.
     'Marylebone CEA link from 1 January 2027 - 26 weeks',
     '',
+    # THE SATURDAY OFFICE, SAID FIRST (6 Nov 2026, the external review: "Give the Saturday correction one prominent
+    # sentence ... Bring a short version forward"). The whole account stays in how the shortlist came about, below
+    para('Saturday ticket-office lates finish at 22:30 on every link here, so that the office can cash up after it shuts '
+         'at 22:10 (corrected on 6 November 2026). On the links drawn before then the extra time comes off other Saturday '
+         'lates, so the contracted hours are unchanged.'),
+    '',
     'THE SHORTLIST',
     para(f'{WORDS[len(proposals)].capitalize()} candidate links were drawn up and {WORDS[len(SHORTLIST)]} shortlisted. They '
          'are listed A to Z, and none is recommended: each is the one to choose for something different.'
@@ -245,8 +250,8 @@ readme = '\n'.join([
          'off, Sunday to Saturday, for 14 days\' leave, and 30 days off for 14 at best. The price: more single rest days, '
          'about 12 a year where the other two have about 8, and a weaker weekday fit.'),
     item('Even Step', 'If keeping today\'s earlies and steady weeks matters most: every early from Monday to Saturday one '
-         'of today\'s times, and nothing over 8h 30m there. The price: the biggest change of start from week to week, and '
-         'four weeks off take 15 days\' leave.'),
+         'of today\'s times, and nothing over 8h 30m there. The price: the biggest change of start from week to week of the '
+         'three, and four weeks off take 15 days\' leave.'),
     item('Short Run', 'If the weekday fit and short weekday lates matter most. The price: 9-hour weekday earlies and an '
          '8h 40m Saturday closer, no shift finishing at 13:35 or 13:45, and four weeks off take 15 days\' leave.'),
     para('Page 2 of the shortlist sheet sets out each one\'s edge and its costs in full.'),
@@ -333,16 +338,19 @@ readme = '\n'.join([
     *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Open Return, Short Openers, Grand Tour and '
             'Common Ground (4 November 2026) came after the shortlist of 31 October. Clean Slate '
             'chooses every shift time afresh for the trains, with no shift over 8h 30m Monday to Saturday, one 13:45 '
-            'finish and a closer from 15:45 every weekday. Next Step is Even Step with three weekday shifts retimed for '
-            'the trains, still with no shift over 8h 30m Monday to Saturday. Fair Share is Next Step with an even Sunday: '
+            'finish and a closer from 15:45 every weekday. Next Step has Even Step\'s shift times with three weekday ones '
+            'retimed for the trains, laid on Home Grown\'s weeks, still with no shift over 8h 30m Monday to Saturday. Fair '
+            'Share is Next Step with an even Sunday: '
             'every Sunday duty is 8h 10m or 8h 15m, so a Sunday early and a Sunday late pay within a few pounds, and no '
-            'shift is over 8h 30m on any day. Open Return, Short Openers, Grand Tour and Common Ground are the links where '
+            'shift is over 8h 30m on any day. Open Return, Short Openers, Grand Tour and Common Ground are links where '
             '14 days\' leave buys 30 days off, and four weeks off take 14, as today; their sheets and import files have a '
             'folder of their own, 30 days off. Open Return has a 16:15 closer every weekday and no avoidable fatigue '
-            'warning. Short Openers is Open Return with every weekday 06:20 finishing by 14:20 and every weekday closer at '
-            '15:45. Grand Tour keeps Fair Share\'s shift times in new weeks. Common Ground is today\'s link taken to 26 '
-            'weeks, on Grand Tour\'s weeks: today\'s shift times kept where the rules allow, a 13:45 finish every weekday, '
-            'closers from 15:45, nothing over 8h 30m on any day, and an even Sunday.'), '']
+            'warning. Short Openers has Open Return\'s weeks, with every weekday 06:20 finishing by 14:20, every weekday '
+            'closer at 15:45, and two weekday lates 15 minutes shorter, which keeps each weekday\'s hours. Grand Tour keeps '
+            'Fair Share\'s shift times in new weeks. Common Ground was drawn on the brief of today\'s link taken to 26 '
+            'weeks, and is laid on Grand Tour\'s weeks: today\'s shift times kept where the rules allow, a 13:45 finish '
+            'every weekday, closers from 15:45 Monday to Saturday, nothing over 8h 30m on any day, and Sunday duties of 8h to '
+            '8h 30m.'), '']
       if AFTER_31_OCT else []),
     para(f'On {SHORTLIST_DATE.replace("Nov", "November")} the shortlist was drawn again, after every design then in the pack, '
          'and listed A to Z: Common Ground, as the example of the links that keep today\'s leave; Even Step, then first in '
@@ -358,12 +366,6 @@ readme = '\n'.join([
             '07:30-16:00s to the three 15:45 closers. All three buy 30 days off for 14 days\' leave too, and are in the '
             'folder 30 days off.'), '']
       if LATE else []),
-    *([para(f'Four more were drawn up and withdrawn on 3 November 2026 as the weakest in the pack: {", ".join(WITHDRAWN[:-1])} '
-            f'and {WITHDRAWN[-1]}. Each was the same as or worse than a design still here on everything the sheets measure '
-            'but one; their record is kept in the repository, docs/links-26/README.md.'), ''] if WITHDRAWN else []),
-    *([para('Two more were in the pack for a few hours and taken out: Quarter Past, a one-page roster drawn up outside '
-            'the app, on 4 November 2026, and Well Kept, today\'s twenty weeks with six added, on 5 November 2026. Their '
-            'record is kept in the repository too.'), ''] if TAKEN_OUT else []),
     # THE 22:30 OFFICE (6 Nov 2026; README.md -> "The Saturday ticket office to 22:30"): what it changed, said once, for a reader
     # holding a printout from before it, whose fingerprints no longer match
     para('On 6 November 2026 the rules were corrected: the ticket office shuts at 22:10 on a Saturday and takes 20 minutes '
@@ -379,13 +381,17 @@ readme = '\n'.join([
     'HOW THE FIGURES ARE WORKED OUT',
     para('Every figure in the summary, the shortlist sheet, the "What it means if you..." sheet, the rules sheet and the '
          'proposal sheets was worked out from '
-         'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them; what is typed by hand is the '
-         'rules\' own numbers and the one-line description under each design\'s name. The presentations are built by '
+         'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them. What is typed by hand is the '
+         'rules\' own numbers, the one-line description under each design\'s name, and the wording of the shortlist '
+         'sheet and the "What it means if you..." sheet, whose comparisons their builds check against the rotas. The '
+         'presentations are built by '
          'scripts, and every figure in their tables is checked against those counts (docs/links-26/tooling/deck-check.mjs '
          'in the repository).'),
     '',
 ])
 assert all(len(l) <= W for l in readme.split('\n')), [l for l in readme.split('\n') if len(l) > W]
+_named = [n for n in DELETED if n in ' '.join(readme.split())]
+if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6 Nov 2026 (owner: "Permanently delete ...")')
 # PLAIN ASCII: it opens in Notepad, and an older one reads a file with no byte-order mark in the PC's own code page
 if not readme.isascii(): raise SystemExit(f'pack: the read-me holds {sorted({c for c in readme if not c.isascii()})}; Notepad may garble them')
 # NO RECOMMENDATION IN IT EITHER (owner, 5 Nov 2026): the one use of the word is the sentence saying there is none
