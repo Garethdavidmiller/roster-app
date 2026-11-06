@@ -28,9 +28,10 @@
  */
 
 import { teamMembers, getBaseShift, getShiftBadge, getSpecialDayBadges, formatISO, isSunday,
-         DAY_NAMES, MONTH_ABB, escapeHtml, parseISODate } from './roster-data.js';
+         DAY_NAMES, MONTH_ABB, escapeHtml, parseISODate, isWorkedShift } from './roster-data.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 import { isRestShift, isForbiddenOnSunday, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
 // The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
@@ -210,6 +211,20 @@ export function buildWeekGridInto(container, dateStr) {
         const badgeHTML = badges.map(b => `<span class="day-badge" role="img" aria-label="${b.title}">${b.icon}</span>`).join('');
 
         const existing = memberDateMap.get(dateISO);
+        // CHRISTMAS LEAVE (v25.37) — said in the row, as the Sunday reason is, because the Base roster
+        // column shows the rest day `getBaseShift` makes both Christmas days for everybody. A member due
+        // at work is on leave that is never counted, unless work is recorded on the day; a Boxing Day
+        // worked by somebody due to work it adds a day in lieu (christmas-leave.js has the rules).
+        // Asked of the SAME resolver the Calendar draws with, so the note can never describe a day the
+        // Calendar shows differently — a correction there is rest, and says nothing here.
+        const xmasDue   = isChristmasLeaveDay(member, date);
+        const xmasShows = xmasDue ? resolveDayShift(existing ?? null, baseShift, isSunday(dateISO), true).shift : '';
+        const christmasNote = !xmasDue ? ''
+            : xmasShows === 'AL'
+                ? `${date.getDate() === 25 ? 'Christmas Day' : 'Boxing Day'}: due at work, so on annual leave that is never counted — nothing to record`
+            : date.getDate() === 26 && isWorkedShift(xmasShows)
+                ? 'Boxing Day worked when due at work: one day of annual leave in lieu is added to the allowance'
+            : '';
 
         const row = document.createElement('div');
         const isToday = dateISO === todayISO;
@@ -234,6 +249,7 @@ export function buildWeekGridInto(container, dateStr) {
             <div class="col-pills">
                 ${PILL_TYPES.map(t => `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`).join('\n                ')}
                 ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded</span>` : ''}
+                ${christmasNote ? `<span class="christmas-note">${escapeHtml(christmasNote)}</span>` : ''}
             </div>
             <div class="col-time">
                 <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" aria-label="Start time (HH:MM)" aria-describedby="${timeErrId}">

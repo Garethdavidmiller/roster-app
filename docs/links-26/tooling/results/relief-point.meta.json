@@ -1,0 +1,13 @@
+{
+ "date": "5 November 2026",
+ "identity": {
+  "table": "Balanced V5's duties with one change, the owner's: the three weekday 08:00-16:30s start half an hour earlier, 07:30-16:00. Saturday's two 08:00-16:30s are kept",
+  "seed": "Balanced V5's weeks, unchanged (balanced-v5.json, ded4a15f): only the 15 weekday 08:00-16:30 cells differ",
+  "lineage": "Drawn by the owner on 5 Nov 2026 from Balanced V5 (MB-26-V5): the weekday 08:00-16:30s become 07:30-16:00, so they overlap the three 15:45 closers for 15 minutes, a handover, and the floor never drops to three in the busy quarter-hour from 15:30. Named Relief Point: on the railway, where one crew hands over to the next."
+ },
+ "parent": {
+  "file": "results/balanced-v5.json",
+  "name": "Balanced V5",
+  "code": "MB-26-V5"
+ }
+}

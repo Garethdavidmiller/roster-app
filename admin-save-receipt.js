@@ -26,6 +26,8 @@
  * Pure — no DOM, no Firebase. Tested by admin-save-receipt.test.mjs.
  */
 
+import { isChristmasClosureDate } from './christmas-leave.js';
+
 /**
  * Build the receipt for one save.
  *
@@ -86,9 +88,17 @@ export function buildSaveReceipt({ toSave, removed, memberName, formatDate, desc
     // clear it, because the receipt is the last thing read before the grid is trusted.
     const kept = new Set(keptLeave);
     skipped.forEach(date => {
+        // CHRISTMAS DAY AND BOXING DAY are left alone for a different reason (v25.37): leave there is
+        // never counted, and a member due at work already has it, shown from the roster — so the day
+        // is named as itself, not as a rest day it may not have been.
+        const xmas = isChristmasClosureDate(date) ? (date.endsWith('-12-25') ? 'Christmas Day' : 'Boxing Day') : '';
         rows.push({
             date,
-            text: kept.has(date)
+            text: xmas
+                ? (kept.has(date)
+                    ? `${formatDate(date)} — ${xmas}; the leave already recorded here was left as it is and is never counted (untick the day to remove it)`
+                    : `${formatDate(date)} — ${xmas}, never counted: nothing to record`)
+                : kept.has(date)
                 ? `${formatDate(date)} — rest day; the leave already recorded here was left as it is (untick the day to remove it)`
                 : `${formatDate(date)} — rest day, no leave recorded`,
         });

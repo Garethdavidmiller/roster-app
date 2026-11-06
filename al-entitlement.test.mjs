@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices } from './al-entitlement.js';
+import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor } from './al-entitlement.js';
 import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
 
@@ -506,19 +506,23 @@ describe('a Dispatcher entitlement splits into the two things it is made of', ()
         assert.ok(split.lieu >= 0, `lieu must never be negative — got ${split.lieu}, the v22.51 defect`);
     });
 
-    test('base + lieu is ALWAYS the entitlement — the two cannot drift', () => {
+    test('base + lieu + Boxing Day is ALWAYS the entitlement — the parts cannot drift', () => {
         // This is the contract that keeps one formula. The split derives the base and infers the
-        // lieu; if getALEntitlement ever changes how the two combine, this fails rather than the
-        // caption quietly disagreeing with the number printed beside it.
+        // lieu; if the allowance ever changes how its parts combine, this fails rather than the
+        // caption quietly disagreeing with the number printed beside it. Asked with and without a
+        // worked Boxing Day (v25.37), whose day in lieu is a third part and never "BH lieu".
         for (const m of [
             disp(),
             disp({ startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } }),
             disp({ startDate: new Date(2026, 0, 2), proRatedAL: { 2026: 21 } }),
         ]) {
-            for (const year of [2026, 2027]) {
-                const split = dispatcherBreakdown({ member: m, year, overrides: [] });
-                assert.equal(split.base + split.lieu, getALEntitlement(m, year, []),
-                    `${m.name} ${year}: the caption must add up to the figure beside it`);
+            for (const year of [2026, 2027, 2028]) {
+                for (const overrides of [[], [{ memberName: m.name, date: `${year}-12-26`, type: 'rdw', value: '06:00-14:00' }]]) {
+                    const split = dispatcherBreakdown({ member: m, year, overrides });
+                    assert.equal(split.base + split.lieu + split.boxingDay, entitlementFor(m, year, overrides),
+                        `${m.name} ${year}: the caption must add up to the figure beside it`);
+                    assert.ok(split.lieu >= 0 && split.boxingDay >= 0);
+                }
             }
         }
     });

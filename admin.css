@@ -1849,7 +1849,8 @@
            minimum width makes the counts a column the eye can run down: "1 DAY" and "12 DAYS"
            packed against the delete control zig-zagged. */
         .al-period-count,
-        .sick-period-count {
+        .sick-period-count,
+        .al-period-free {
             flex: 0 0 auto;
             display: inline-block;
             min-width: 5.5em;
@@ -1865,6 +1866,11 @@
         }
         .al-period-count   { color: var(--al-deep);  background: var(--al-light); }
         .sick-period-count { color: var(--absence);  background: var(--absence-light); }
+        /* CHRISTMAS LEAVE (v25.37) — on record but never counted, so its pill is the card's quietest
+           pair rather than leave's teal, which would read as days spent. It stands where the other
+           rows' count pill stands: those rows end in a 44px delete control 8px after the pill, and
+           this row has nothing to delete, so the margin keeps the pills one column. */
+        .al-period-free    { color: var(--text-mid); background: var(--bg-faint); margin-right: 52px; }
         /* A 44px SQUARE, not a text link. The glyph is named by `aria-label` (the dates it would
            delete), so nothing is lost by dropping the word — fifteen buttons all announcing
            "Delete" told a screen-reader user nothing about which row they were on. */
@@ -2564,7 +2570,10 @@
 .other-rdw-auto { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }
 /* The Sunday reason, said in the row (v23.50) — replaces four `title` tooltips on the disabled
    pills, which a phone never showed. Sits on its own line under the pills (the row wraps). */
-.sunday-note { flex-basis: 100%; font-size: var(--type-small); font-weight: 500; color: var(--text-mid); margin-top: 2px; }
+.sunday-note,
+/* Christmas leave (v25.37): the same quiet line, for the same reason — the row's own explanation of a
+   day the Base roster column cannot describe (it shows the rest day both Christmas days are). */
+.christmas-note { flex-basis: 100%; font-size: var(--type-small); font-weight: 500; color: var(--text-mid); margin-top: 2px; }
 .other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: var(--type-badge); }
 .other-rdw-warn[hidden] { display: none; }
 .other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }

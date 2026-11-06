@@ -309,7 +309,10 @@ test('recorded-dates rows keep the chip and ✕ on the row, at every width and t
                 document.getElementById('alBookedBox').hidden = false;
                 list.render({ type: 'annual_leave', memberName: 'G. Miller', boxId: 'alBookedBox',
                     bodyId: 'alBookedBody', countFn: n => `${n} DAY${n === 1 ? '' : 'S'}`,
-                    countClass: 'al-period-count', feedbackId: 'alFeedback', preferredYear: '2026' });
+                    countClass: 'al-period-count', feedbackId: 'alFeedback', preferredYear: '2026',
+                    // The Christmas leave row too (v25.37): its "Not counted" pill stands where the
+                    // count does, with no delete control after it, and must hold the line the same way.
+                    christmas: { 2026: ['2026-12-25', '2026-12-26'] } });
 
                 // The collapsed card would measure everything at zero height.
                 let el = document.getElementById('alBookedBody');
@@ -325,10 +328,10 @@ test('recorded-dates rows keep the chip and ✕ on the row, at every width and t
 
                 return [...document.querySelectorAll('.al-period-row')].map(row => {
                     const d   = row.querySelector('.al-period-dates');
-                    const c   = row.querySelector('.al-period-count');
-                    const btn = row.querySelector('.btn-period-delete');
+                    const c   = row.querySelector('.al-period-count, .al-period-free');
+                    const btn = row.querySelector('.btn-period-delete');   // absent on the Christmas row
                     const dr = d.getBoundingClientRect(), cr = c.getBoundingClientRect(),
-                          br = btn.getBoundingClientRect();
+                          br = (btn ?? c).getBoundingClientRect();
                     return {
                         text: d.textContent.trim(),
                         // A control that has dropped to its own line starts at or below the date's
@@ -343,7 +346,7 @@ test('recorded-dates rows keep the chip and ✕ on the row, at every width and t
                 });
             }, { scale });
 
-            expect(rows.length, `no rows rendered at ${width}px — the guard measured nothing`).toBeGreaterThan(0);
+            expect(rows.length, `no rows rendered at ${width}px — the guard measured nothing`).toBeGreaterThan(1);
             const broken = rows.filter(r => r.chipWrapped || r.btnWrapped || r.clipped)
                 .map(r => `"${r.text}"${r.btnWrapped ? ' ✕ on its own line' : ''}`
                         + `${r.chipWrapped ? ' chip on its own line' : ''}${r.clipped ? ' date truncated' : ''}`);

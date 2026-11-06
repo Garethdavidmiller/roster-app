@@ -603,6 +603,8 @@ difference is.
 | **A SWAPPED working day booked off** | app shows **more** remaining | **The commonest real cause, ANSWERED BY THE OWNER 14 Sep 2026** — see below. |
 | **Employee of the Month** | **BOTH may show less entitlement** | **One extra AL day per award** [owner, 14 Sep 2026]. Neither system holds it: the workbook's allowance column reads a flat 32 for every CEA, and `getALEntitlement` returns a flat 32 too. **PARKED at the owner's request** — see below. |
 | **Leavers** | app may show a stale row | A leaver is `hidden` in the app but keeps their workbook row and figures. |
+| **Christmas Day and Boxing Day** | agree on the counts | The workbook marks both days `Closed` in every block, so neither is ever counted (§4). **The owner's rule [5 Nov 2026]:** anyone due at work on either day by their pattern — a named shift or a SPARE day, never a Sunday — is on leave that costs them nothing, and from Christmas 2026 the app SHOWS it as annual leave and lists it in the member's leave records, marked as not counted. **Built at v25.37** (`christmas-leave.js`): derived from the pattern and never stored, so the counts are untouched and the two systems agree on the figures — the app only displays what the workbook's `Closed` already implies. Leave somebody records on either day is not counted either. The published Christmas-week roster shows nothing for Christmas Day [owner, 5 Nov 2026], so no roster import will sit over it. |
+| **A Boxing Day WORKED by somebody due to work it** | check | **The owner's rule [5 Nov 2026]:** they earn **one annual-leave day in lieu**, added to their allowance. Somebody who works Boxing Day from a rest day earns none; it is overtime. **The app adds it to the Boxing Day's OWN year** [owner, 5 Nov 2026], and counts it **once** for a Dispatcher, whose bank-holiday rule already counts a Boxing Day that is a bank holiday [owner, 5 Nov 2026] — built at v25.37 (`boxingDayLieuDays`, read through `entitlementFor`). Whether the workbook's allowance column carries the lieu day, and on which year's row, is still **[unknown]** (§10, question 13) — the same open question as a Dispatcher's bank-holiday lieu days (question 4). If the clerks' sheet puts it on the next year's row, the two will differ by a day across the New Year and agree over the two years together. Note that 26 Dec is not always the bank holiday: in 2026 it is a Saturday and the holiday moves to Monday 28 Dec, which stays an ordinary bank holiday. |
 
 ### Employee of the Month — one extra day, held nowhere [owner, 14 Sep 2026] — **PARKED**
 
@@ -754,6 +756,11 @@ them change what a figure MEANS, so an unanswered one is not a tidiness problem.
    member on a bilingual line now, making the app's `rosterType` stale, or is the workbook's role
    column out of date? It changes no leave figure — both say 32 — but it is the line the app
    computes every shift from.
+
+13. **The Boxing Day lieu day** (§9, 5 Nov 2026) — when somebody due to work Boxing Day works it,
+   does the clerks' allowance column add the extra day, and on which year's row: the year of the
+   Boxing Day, or the next? **The app's answer is the Boxing Day's own year** [owner, 5 Nov 2026,
+   built v25.37], so the question that remains is only whether the clerks' sheet agrees.
 
 ---
 

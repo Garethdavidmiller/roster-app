@@ -4352,6 +4352,101 @@ drawn.
 **Checked:** `regenerate.mjs --check` (19 fingerprints, every headline equal to `fresh.mjs`'s and naming no other design),
 `check.mjs`, `newlink-data.mjs --check`, the shortlist sheet's claims, `pack.py`'s checks, and `npm test`.
 
+## Balanced V5 — a one-page roster, read and given its sheet (5 Nov 2026)
+
+Owner, uploading a one-page A3 PDF headed *Marylebone Balanced 26 / Version 5* ("Grouped 06:20 and 08:00 starts |
+Same-day exchanges | MB26-V1 remains favourite"): *"Please turn this into a proposal sheet"*.
+
+**How it was read**, as Quarter Past was: line by line from the PDF's own text, with nothing changed and nothing
+searched. Each SP week is a whole cover week, on lines 1, 6, 11, 16 and 21, and every time is as written. Every working
+week's Monday-to-Saturday hours and days match the sheet's own HRS and DAYS columns, and together they make exactly
+44,100 minutes, 35 hours for each of the 21 working weeks. The grid is `tooling/results/balanced-v5.json`, with a
+`.meta.json`; the PDF itself is not committed.
+
+**The name is its own**, shortened: Balanced V5, code `MB-26-V5` (its author's MB26-V5), fingerprint `ded4a15f`. It
+is not in the pack, the summary or the league; the sheet was rendered on its own (`supplied.mjs`).
+
+**What the sheet finds**, every figure computed from the cells:
+- inside every hard limit: 218.6 contracted days a year, a shortest rest of 13h 50m, at most 5 days in a row (10 if a
+  cover week falls badly);
+- 8 of the 9 December staffing rules. The ticket office's two identical earlies and two identical lates are missing
+  on a Saturday;
+- no avoidable fatigue warning in the fixed duties, as its own footer says, and up to 4 if a cover week falls badly,
+  one of them over 55 hours in seven days;
+- 14 days' leave buys 30 days off, and four weeks off take 14, as today, so it would belong with the 30-day links;
+- about 12 full weekends off a year (the shortlist 14, today 10), never more than 6 weeks apart;
+- 15 on duty every weekday, 14 on a Saturday and 10 on a Sunday, as its footer says.
+
+**Against the shortlist it costs:**
+- about 22 single rest days a year each (Common Ground 12, Even Step and Short Run 8, today 10), and three six-day
+  weeks (today one);
+- 7 of 21 weeks on one shift time, all earlies or all lates, where the shortlist has 18 or 19, and 3 weeks mixing
+  earlies and lates, where the shortlist has none;
+- start times moving 4h 06m from one week to the next (the shortlist 1h 12m to 1h 31m, today 4h 00m);
+- a weekday fit to the trains of 50.4, about today's 52.0, where the shortlist's is 29.1 to 32.7.
+
+## Relief Point — Balanced V5 with a 15-minute handover (5 Nov 2026)
+
+Owner, after going through Balanced V5's weekday fit hour by hour: *"Create another proposal with the 7.30 to 1600
+change on weekdays. This allows 15 minutes for a handover. Give the proposal a new name"*.
+
+**The one change.** Balanced V5's three weekday 08:00–16:30s become 07:30–16:00. The shift is the same 8h 30m, so the
+contract and every week's hours are untouched. That is 15 cells, on lines 3, 4, 12, 13, 20 and 22. Saturday's two
+08:00–16:30s are kept, as the owner asked. The grid is `tooling/results/relief-point.json`, with a `.meta.json` that
+names Balanced V5 as its parent. The sheet was rendered on its own, as Balanced V5's was:
+
+```
+WJ=$'⁠'
+OUT=/tmp/Relief-Point.pdf node supplied.mjs results/relief-point.json "Relief Point" "A 15-minute handover every weekday, from the three 07:30${WJ}–${WJ}16:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today" RP-26-V5
+```
+
+**The headline names no other design**, as the owner asked of every proposal headline the same day (*"the proposal
+description headlines should not reference other proposals"* — README → Middle Ground; `regenerate.mjs` enforces it
+for the pack). The first render began "The weekday 08:00–16:30s of Balanced V5…", and was redrawn after `main`'s
+Middle Ground merge brought the rule in. The word joiners either side of the dash keep 07:30–16:00 on one line of the
+masthead, as `plain.mjs` does for "three-quarters".
+
+**The name.** Relief Point, code `RP-26-V5`, fingerprint `1818a1c2`. On the railway, a relief point is where one crew
+hands over to the next; here the three 07:30–16:00s are on with the three 15:45 closers for 15 minutes. Two words,
+neither shared with another design's name. The code keeps its parent's `V5`, as Grand Tour kept Fair Share's `T7`, and
+`RP` was checked against every code in `links-24/` and `links-26/`. It is not in the pack, the summary or the league,
+and it is kept on the owner's word (*"Keep relief point for now please"*, 5 Nov 2026). Its grid and meta stay under
+`tooling/results/`, and the command above rebuilds the same sheet.
+
+**Why 07:30.** The weekday fit is scored hour by hour, and an hour can hide a quarter-hour. The fits below are the
+sheet's own (`officeSplit`, `dayFit`). The floor counts are everyone on duty, less the ticket office, plus its helper
+while helping. They are the same every weekday, except today's.
+
+| The three weekday 08:00–16:30s | Weekday fit | 07:00–07:30 | 07:30–08:00 | 15:30–15:45 | 15:45–16:00 | 16:00–16:30 |
+|---|---|---|---|---|---|---|
+| Carriages in and out | | 44 | 63 | 35 | 10 | 57 |
+| As drawn (Balanced V5) | 50.4 | 3 | 3 | 6 | 9 | 9 |
+| At 07:00–15:30 | 33.8 | 6 | 6 | **3** | 6 | 6 |
+| **At 07:30–16:00 (Relief Point)** | 40.0 | 3 | 6 | 6 | 9 | 6 |
+| Two at 07:00–15:30, one at 08:00–16:30 | 36.0 | 5 | 5 | 4 | 7 | 7 |
+| Today | 52.0 | 3 | 3 | 5–6 | 5–6 | 5–6 |
+
+15:30 to 15:45 is the 8th busiest of the weekday's 71 quarter-hours: 35 carriages, where the average is 24. Starting at
+07:00 scores best, but it leaves three on the floor then, after the 07:00s go and before the closers come. The closers
+cannot come in earlier, because 15:45 is the weekday minimum for a closer. Starting at 07:30 keeps six on then and gives
+the handover. It pays for that by keeping today's three from 07:00 to 07:30, and by putting nine on the floor in the
+quiet quarter after 15:45. The split was offered as a middle way; the owner asked for 07:30, for the handover.
+
+**Against Balanced V5, what the sheet now says:**
+- the weekday fit to the trains is 40.0, from 50.4 (today 52.0; the shortlist 29.1 to 32.7). The 07:00 hour averages
+  4.5 on the floor where it had 3, and the 16:00 hour 6 where it had 7½. Saturday (17.5) and Sunday (29.0) are
+  unchanged;
+- the shortest rest is 14h 20m, from 13h 50m. The two 16:30 finishes followed by a 06:20 start the next day now finish
+  at 16:00;
+- 17 shift times, 8 of them new, where Balanced V5 has 16 and 7. Nobody works 07:30–16:00 today, and 08:00–16:30,
+  which today's link does work, stays on Saturdays;
+- start times move 4h 08m from one week to the next, from 4h 06m (today 4h 00m).
+
+Everything else is Balanced V5's: the hours and the contract, every hard limit, and 8 of the 9 December rules (the
+Saturday ticket office is still the one missing). There is no fatigue warning in the fixed duties, and up to 4 if a
+cover week falls badly. It has about 12 full weekends off a year, about 22 single rest days a year and three six-day
+weeks, and 14 days' leave still buys 30 days off.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

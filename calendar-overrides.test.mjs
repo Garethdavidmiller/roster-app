@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 // Controllable getDocs mock — tests set _mockDocs before each async call.
 let _mockDocs = [];
 let _getBaseShiftFn = () => 'RD';
+let _getPatternShiftFn = () => 'RD';
 // When true, getDocs rejects — lets the failure-path tests simulate a Firestore fetch error.
 let _getDocsThrows = false;
 // When true, getDocs answers as Firestore does on a dead signal: from the CACHE (`metadata.fromCache`).
@@ -80,11 +81,21 @@ mock.module('./firebase-client.js', {
         COLLECTIONS: { overrides: 'overrides', linkDesigns: 'linkDesigns' },
     },
 });
+// The legend asks christmas-leave.js about 25/26 December (v25.37), which reads the member's
+// PATTERN and the shipped date helpers. Those are the real ones, reached past this mock the way
+// calendar-renderer.test.mjs reaches them (`?real` is a different URL, so it is not intercepted);
+// the pattern itself is a seam, like `getBaseShift`, so a test decides whether a member was due.
+const realRosterData = await import('./roster-data.js?real');
 mock.module('./roster-data.js', {
     namedExports: {
         getBaseShift: (...args) => _getBaseShiftFn(...args),
+        getPatternShift: (...args) => _getPatternShiftFn(...args),
         formatISO:    d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
         isSunday:     dateStr => new Date(dateStr + 'T12:00:00').getDay() === 0,
+        isChristmasRD:  realRosterData.isChristmasRD,
+        isWorkedShift:  realRosterData.isWorkedShift,
+        isBankHoliday:  realRosterData.isBankHoliday,
+        parseISODate:   realRosterData.parseISODate,
         CONFIG:       { MIN_YEAR: 2024, MAX_YEAR: 2030 },
         teamMembers:  [],
     },
@@ -285,6 +296,19 @@ describe('getShiftTypesInMonth', () => {
     beforeEach(() => {
         rosterOverridesCache.clear();
         _getBaseShiftFn = () => 'RD';
+        _getPatternShiftFn = () => 'RD';
+    });
+
+    test('Christmas leave lights AL in December 2026, where nothing is recorded (v25.37)', () => {
+        // Both days are a rest day for everybody (`getBaseShift`); a member whose PATTERN had them
+        // at work is on annual leave there, and the legend must say what the grid draws.
+        _getPatternShiftFn = () => '06:00-14:00';
+        assert.equal(getShiftTypesInMonth({ name: 'XmasDue' }, 2026, 11).has('AL'), true);
+        _getPatternShiftFn = () => 'RD';
+        assert.equal(getShiftTypesInMonth({ name: 'XmasRest' }, 2026, 11).has('AL'), false);
+        // …and before 2026 the days stay Rest, as they always were.
+        _getPatternShiftFn = () => '06:00-14:00';
+        assert.equal(getShiftTypesInMonth({ name: 'Xmas2025' }, 2025, 11).has('AL'), false);
     });
 
     test('returns empty set when all days are RD with no overrides', () => {

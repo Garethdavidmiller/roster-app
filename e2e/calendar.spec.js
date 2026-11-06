@@ -2094,6 +2094,64 @@ test('day detail: a January leave day moved to last year\'s allowance says so, a
     await expect(page.locator('#alLbTaken')).toHaveText('1');
 });
 
+// ── CHRISTMAS LEAVE (v25.37, owner 5 Nov 2026) ──────────────────────────────────────────────────
+//
+// The rules are unit-tested in christmas-leave.test.mjs and the grid's wiring in
+// calendar-renderer.test.mjs. This is the half only a browser sees: the panel SAYS it, and the leave
+// panel lists the day and counts the earned one. G. Miller's pattern has him on a late turn on both
+// days in 2026; the fixture records his Boxing Day as worked, and nothing else.
+test('christmas: a day due at work is leave never counted, and a worked Boxing Day adds a day', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'bx', memberName: 'G. Miller', date: '2026-12-26', type: 'rdw',
+            value: '13:30-21:00', note: '', source: 'manual' }];
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const cell = (/** @type {string} */ day) => page.locator(`.calendar-day:not(.other-month)[data-detail-day="${day}"]`);
+    const line = page.locator('#dayDetailChristmas');
+    await expect(cell('Friday 25 December 2026')).toHaveAttribute('data-detail-shift-value', 'AL');
+    await cell('Friday 25 December 2026').click();
+    await expect(line).toBeVisible();   // the text alone is no proof: a hidden line still holds it
+    await expect(line).toHaveText('Christmas Day: due at work, so this is annual leave. It does not come off the allowance.');
+    // The pair names the turn he was ROSTERED — never "Rest day", which `getBaseShift` makes the day.
+    await expect(page.locator('#dayDetailChange')).toHaveAttribute('aria-label', /^Base roster Late shift 14:00-22:30, changed to /);
+    await page.locator('#dayDetailClose').click();
+
+    await expect(cell('Saturday 26 December 2026')).toHaveAttribute('data-detail-shift-value', 'RDW');
+    await cell('Saturday 26 December 2026').click();
+    await expect(line).toBeVisible();
+    await expect(line).toHaveText('Worked Boxing Day when due at work: one day of annual leave in lieu is added to the 2026 allowance.');
+    await page.locator('#dayDetailClose').click();
+    // An ordinary day says nothing about Christmas — absent means HIDDEN, not an empty line.
+    await cell('Thursday 24 December 2026').click();
+    await expect(line).toBeHidden();
+    await page.locator('#dayDetailClose').click();
+
+    // The leave panel lists Christmas Day as leave not counted, and the allowance is one higher —
+    // with its reason beside it, or 33 would read as a mistake beside a colleague's 32.
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbYear')).toHaveText('2026');
+    await expect(page.locator('#alLbChristmas')).toHaveText('Christmas Day: annual leave, not counted');
+    await expect(page.locator('#alLbTaken')).toHaveText('0');
+    await expect(page.locator('#alLbEntitlement')).toHaveText('33');
+    await expect(page.locator('#alLbBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day');
+    await page.locator('#alLightboxClose').click();
+
+    // Team Week View says the same about the same days — it asks the same resolver. Two weeks on
+    // from today's: Sunday 20 to Saturday 26 December, so Friday is the sixth cell of his row.
+    await page.locator('#teamViewBtn').click();
+    await page.locator('#tvNextWeek').click();
+    await page.locator('#tvNextWeek').click();
+    await expect(page.locator('#tvWeekJump')).toContainText('20');
+    const row = page.locator('tr', { has: page.locator('th.tv-name-col', { hasText: 'G. Miller' }) });
+    await expect(row.locator('td.tv-cell').nth(5)).toHaveAttribute('aria-label', 'Annual leave (Christmas, not counted)');
+    await expect(row.locator('td.tv-cell').nth(6)).not.toHaveAttribute('aria-label', /Annual leave/);
+});
+
 test('day detail: an annual-leave day offers the leave dates, and no other day does', async ({ page }) => {
     // SIGNED IN, ON THEIR OWN CALENDAR — the only state the action is offered in since v23.04, and
     // it has to be seeded explicitly: this file's default is a VIEWER session (see its header), and
