@@ -285,7 +285,8 @@ const O = Object.fromEntries(others.map(d => [d.name, d])), K = Object.fromEntri
 // weeks of 21 on one shift time, so the designs that had kept those against Even Step, In Step and Short Run keep them no
 // longer: Long Break keeps nothing (its row says what it has beside Common Ground), Grand Tour, Open Return and Short Openers no
 // longer keep the leave, Home Grown and Fair Share no longer keep the earlies, Clean Slate no longer the weeks on one turn.
-// In Step, off the shortlist, keeps its steadier weeks and its closer Saturday fit
+// In Step, off the shortlist, keeps its steadier weekly hours and its closer Saturday fit ("steadier weeks" until the accuracy
+// check of 6 Nov 2026: it could be read as the weeks on one shift time, a different measure from the one the claim asserts)
 // MIDDLE GROUND SINCE 5 NOV 2026 (owner: "rename good turn as Middle Ground and add it to the pack"): Common Ground's weeks with
 // the shift times varied from week to week, so no two closing weeks and no two 06:20 weeks fall side by side. Common Ground is
 // on the shortlist and has its leave, rules and duties, so it keeps nothing the three lack on any measure here, and pays with
@@ -324,8 +325,10 @@ claim('outside the shortlist, Balanced V5, Balanced V6, Grand Tour, Long Break, 
 // Clean Slate's row says "the best weekend fit of all" (3 Nov 2026); the joint-most weeks on one turn it had with Common Ground
 // are no longer its row's, since Common Ground is shortlisted
 claim('Clean Slate: the best Saturday and Sunday fit of all', PACK.every(d => d.name === 'Clean Slate' || (d.F.fit[1] > CS.fit[1] && d.F.fit[2] > CS.fit[2])));
-// NEXT STEP IS EVEN STEP WITH A TRADE, and its row says exactly that: a closer weekday fit than Even Step's and a gentler
-// change of start, for one more new shift time (and so one more time in all) — every other measure the sheet reads the same
+// NEXT STEP HAS EVEN STEP'S FIGURES WITH A TRADE: a closer weekday fit than Even Step's and a gentler change of start, for one
+// more new shift time (and so one more time in all) — every other measure the sheet reads the same. Its row names the trade
+// and not what the design IS: until the accuracy check of 6 Nov 2026 it began "Even Step with", but Next Step's weeks are Home
+// Grown's (60 cells differ from Even Step's, 8 of them rest days), and only its shift times are Even Step's, three retimed
 const TRADE = ['fitWk', 'step', 'newT', 'times'], xNS = measure(NX), xES = measure(ES.F);
 claim('Next Step: Even Step’s figures but a closer weekday fit, a gentler change of start and one more new shift time', Object.keys(DIR).every(k => TRADE.includes(k) || xNS[k] === xES[k])
   && xNS.fitWk < xES.fitWk && xNS.step < xES.step && xNS.newT === xES.newT + 1 && xNS.times === xES.times + 1 && longMS(NX) === 0);
@@ -358,8 +361,9 @@ claim('Long Break: four weeks off for 14 days’ leave, as Common Ground, with f
   && LB.A.feel.isolatedRest === 5 && CG.F.A.feel.isolatedRest === 6 && Object.keys(LB.p).length === Object.keys(CG.F.p).length);   // fewer in the same 26 weeks, so fewer a year too
 claim('Second Edition the gentlest step of all, Fine Tune and Closing Time gentler than the three', PACK.every(d => d.name === 'Second Edition' || d.F.step > O['Second Edition'].F.step)
   && ['Fine Tune', 'Closing Time'].every(n => Math.round(O[n].F.step) < lowest(F => Math.round(F.step))));
-// IN STEP, OFF THE SHORTLIST SINCE 5 NOV 2026: its row says what it keeps against the three — steadier weeks, a closer Saturday fit
-claim('In Step: steadier weeks than the three — a lighter heaviest week and a narrower range', D.every(d => d.F.heavy > IF.heavy && d.F.heavy - d.F.light > IF.heavy - IF.light));
+// IN STEP, OFF THE SHORTLIST SINCE 5 NOV 2026: its row says what it keeps against the three — steadier weekly hours, a closer
+// Saturday fit
+claim('In Step: steadier weekly hours than the three — a lighter heaviest week and a narrower range', D.every(d => d.F.heavy > IF.heavy && d.F.heavy - d.F.light > IF.heavy - IF.light));
 // SINCE 6 NOV 2026 GRAND TOUR'S ROW SAYS WHAT IT HAS BESIDE COMMON GROUND, as Long Break's does: Common Ground has today's leave and
 // no shift over 8h 30m too, and Grand Tour has a closer weekday and Saturday fit
 claim('Grand Tour: Common Ground’s leave, with a closer weekday and Saturday fit', GT.lv.best === CG.F.lv.best && GT.lv.fourWeeks === CG.F.lv.fourWeeks
@@ -673,7 +677,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <h2>Why these ${N} and not the other ${word(others.length)}</h2>
   <p class="lead">Shortlisted on ${SHORTLIST_DATE}: Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen. Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, about a point and a half ahead of Even Step. Each other design has something, and pays for it:</p>
   <table class="t alts"><tbody>
-    <tr><td>In Step</td><td>steadier weeks and a closer Saturday fit — but the most long earlies, ${longEarlyMS(IF)} a year each</td></tr>
+    <tr><td>In Step</td><td>steadier weekly hours and a closer Saturday fit — but the most long earlies, ${longEarlyMS(IF)} a year each</td></tr>
     <tr><td>Closing Time</td><td>shorter closers and a closer Saturday fit — but fewer weeks on one shift time and a weaker weekday fit</td></tr>
     <tr><td>Both Ways</td><td>shorter closers and more early finishes — but fewer weeks on one shift time and more long shifts</td></tr>
     <tr><td>Home Grown</td><td>the fewest new shift times, ${word(HG.newT)} — but today’s ${hm(HG.closers[1])} Saturday closer and a weaker fit</td></tr>
@@ -681,7 +685,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>Second Edition</td><td>the steadiest start times from week to week — but ${word(O['Second Edition'].F.fixedRun)} days in a row, cover weeks aside</td></tr>
     <tr><td>Second Look</td><td>no 55-hour week at all — but ${word(SL.fixedRun)} days in a row and fewer weeks on one shift time</td></tr>
     <tr><td>Clean Slate</td><td>the best weekend fit of all — but ${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday</td></tr>
-    <tr><td>Next Step</td><td>Even Step with a closer weekday fit and a gentler change of start — but one more new time</td></tr>
+    <tr><td>Next Step</td><td>a closer weekday fit and a gentler change of start than Even Step’s — but one more new time</td></tr>
     <tr><td>Fair Share</td><td>Next Step with an even Sunday, no long shifts — but a weaker Sunday fit, ${word(FSx.newT - NX.newT)} more new times</td></tr>
     <tr><td>Grand Tour</td><td>Common Ground’s leave, a closer weekday and Saturday fit — but fewer weeks on one shift time</td></tr>
     <tr><td>Open Return, Short Openers</td><td>today’s leave and no 55-hour week — but a ${hm(orsoRest)} shortest rest and more long shifts</td></tr>

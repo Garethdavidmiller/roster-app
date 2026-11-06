@@ -4772,6 +4772,45 @@ on. Removing them from the history as well would mean rewriting it, which this r
 **Outside the repository.** If any of the nine was imported into the app's Links designer, that copy is saved there
 separately and is not touched by this; the Links designer's bin is the place to remove it.
 
+## The accuracy check's findings, fixed (6 Nov 2026)
+
+Owner: *"Do an accuracy check of the links 26 pack."* The mechanical checks passed then and pass now: every fingerprint
+(`regenerate.mjs --check`, 21 proposals), the sheet checks (`check.mjs`), every deck row (`deck-check.mjs`, 216 agree) and
+the pack build. An independent read of every typed sentence against the grids found two false and several ambiguous, all
+in typed wording, none in a figure. Each was checked against the grids again here before it was changed.
+
+The fixes were first made before *The Saturday ticket office to 22:30* reached this branch, and were made again on top of
+it: every claim below was checked a second time on the 22:30 grids, and none moved. Common Ground's "nothing over 8h 30m
+on any day" in the read-me is that change's own wording, since its 9-hour Saturday late went.
+
+| Where | Said | Now says | Why |
+|---|---|---|---|
+| Read-me | the shortlist drawn "after every design in the pack" | "after every design then in the pack" | three came after it (already fixed on main, with Balanced V5 and V6) |
+| Read-me | "Next Step is Even Step with three weekday shifts retimed" | "Next Step has Even Step's shift times with three weekday ones retimed …, laid on Home Grown's weeks" | **false as it stood**: 60 of Next Step's 182 cells differ from Even Step's, 8 of them rest days; from Home Grown's, none in which days are worked or which weeks are early or late |
+| Read-me | "Short Openers is Open Return with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45" | adds "and two weekday lates 15 minutes shorter, which keeps each weekday's hours" | the 12:00–21:00 became 12:00–20:45 and the 13:45–22:30 became 14:00–22:30: 7,450 minutes every weekday on both |
+| Read-me | "Common Ground is today's link taken to 26 weeks, on Grand Tour's weeks" | "was drawn on the brief of today's link taken to 26 weeks, and is laid on Grand Tour's weeks" | its weeks are Grand Tour's, not today's |
+| Read-me | Common Ground's "closers from 15:45" | "closers from 15:45 Monday to Saturday" | its Sunday closer starts at 15:15 |
+| Read-me | Common Ground's "an even Sunday" | "Sunday duties of 8h to 8h 30m" | the same paragraph calls Fair Share's 8h 10m or 8h 15m "an even Sunday" |
+| Read-me | Even Step's price, "the biggest change of start from week to week" | adds "of the three" | 1h 31m against Common Ground's 1h 12m and Short Run's 1h 13m; not the biggest in the pack |
+| Read-me | "are the links where 14 days' leave buys 30 days off" | "are links where" | three later designs buy 30 too |
+| Read-me | typed by hand: "the rules' own numbers and the one-line description under each design's name" | adds the wording of the shortlist sheet and the "What it means if you…" sheet, "whose comparisons their builds check against the rotas" | that wording is typed; what it compares is asserted (`claim()`) |
+| Shortlist sheet, page 2 | In Step: "steadier weeks" | "steadier weekly hours" | its claim is a lighter heaviest week and a narrower range of weekly hours, which "steadier weeks" could be read past |
+| Shortlist sheet, page 2 | Next Step: "Even Step with a closer weekday fit and a gentler change of start" | "a closer weekday fit and a gentler change of start than Even Step's" | as in the read-me: only its shift times are Even Step's |
+
+- **Next Step's identity file** said the same in its lineage ("Next Step is Even Step with only those three changed");
+  `tooling/next-step.meta.json` now says it "has Even Step's shift times with only those three changed, laid on Home
+  Grown's weeks", and that every figure the New link page shows "is the same as" Even Step's. The lineage is not printed
+  on the current sheets — the eight-page edition (`fresh.mjs`) leaves it out — so Next Step's sheet did not change; a
+  re-render changed only its "Prepared" date, and was put back.
+- **Checked and found true:** every one of the 24 figures the New link page shows is the same on Next Step as on Even Step
+  (recomputed with `deck-check.mjs`'s figures and the page's own counts); Fair Share differs from Next Step only on
+  Sundays, 7 cells; Grand Tour has Fair Share's duties on every day, in different weeks.
+- **Left as it is:** Middle Ground's "no two closing weeks and no two 06:20 weeks fall together". It is true as the
+  shortlist sheet asserts it, reading each week by its most common Monday-to-Friday duty; a week with a closer or two,
+  but another duty more often, does not count as a closing week.
+- **Re-rendered:** the shortlist sheet, its two rows only (still two pages). Unchanged: every proposal sheet, the summary,
+  the "What it means if you…" sheet, the rules sheet, the decks and the app.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
