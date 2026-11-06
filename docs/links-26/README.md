@@ -5269,7 +5269,7 @@ dashes and quotes.
 - `check.mjs`: everything agrees;
 - `deck-check.mjs`: 216 rows agree;
 - `newlink-data.mjs --check`: current;
-- `npm run check`: 4,154 hygiene and 2,349 unit tests pass.
+- `npm run check`: 4,182 hygiene and 2,362 unit tests pass, on the tree merged with #1700.
 
 ## Notes for the whole set
 
