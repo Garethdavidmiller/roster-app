@@ -98,14 +98,17 @@ export const teamMembers = [
       rosterChanges: [{ from: new Date(2026, 8, 13), rosterType: 'bilingual', currentWeek: 5 }] },
 
     // M. Campbell — started Tue 22 Sep 2026, the I. Melikian pattern. Phase 1 (to Sat 7 Nov): initial
-    // training Monday to Friday, which is `fixedRoster[2]` (09:00–16:00) as the BASE roster. Phase 2
+    // training Monday to Friday, which is `fixedRoster[3]` as the BASE roster — TRAINING WITH NO
+    // TIMES (owner, 6 Nov 2026: "show Other (Training flavour) with no shift times from her start
+    // date Monday to Friday until Friday 6th of November"). She joined at v25.38 on `fixedRoster[2]`,
+    // 09:00–16:00, which drew every training day as a timed shift. Phase 2
     // (from Sun 8 Nov): the BILINGUAL link one line BELOW T. Gherbi — `currentWeek: 7` is
     // REFERENCE-ANCHORED (T. Gherbi's 6, plus one), not the line she is on that week.
     // A CEA contract on a bilingual line, so no `bilingualContract` flag: 32 days, not 34.
     // ⚠️ `proRatedAL: 9` is PROVISIONAL — a day-count (101 of 365 days × 32 = 8.85), entered on the
     // owner's word ("pro rata for now", 6 Nov 2026) until the clerk's workbook figure is known.
     // REPLACE it with the workbook's `AL allowance`; it is the one figure here nobody has agreed.
-    { name: 'M. Campbell',             currentWeek: 2,  rosterType: 'fixed',      role: 'CEA',
+    { name: 'M. Campbell',             currentWeek: 3,  rosterType: 'fixed',      role: 'CEA',
       startDate: new Date(2026, 8, 22), proRatedAL: { 2026: 9 },
       rosterChanges: [{ from: new Date(2026, 10, 8), rosterType: 'bilingual', currentWeek: 7 }] },
 

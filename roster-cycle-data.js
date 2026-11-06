@@ -48,9 +48,18 @@ export const bilingualRoster = {
 //                 with a 9am start. Used by K. Jedlinski (new-starter line, 3–27 Jun 2026) and
 //                 S. Boyle (temporary, from 28 Jun 2026); each references it during their fixed
 //                 period via rosterChanges (June 2026).
+//   3 — TRAINING, NO TIMES           'TRG' Mon–Fri, RD weekends (v25.40, owner 6 Nov 2026). A new
+//                 starter's initial training shown as training — the Other family's Training
+//                 (OTHER_DAYS.md) — and not as a shift time, which pattern 2 drew on every training
+//                 day. M. Campbell, 22 Sep–7 Nov 2026 (the owner: "Training flavour with no shift
+//                 times"). A BARE 'TRG' and nothing else: no Sunday (an Other day can never be one), no
+//                 'RDW' marker and no times — `validateRosterPatterns` refuses all three in a pattern.
+//                 Pay is unchanged by it: contracted hours come from the grade, never the pattern,
+//                 and a weekday contributes nothing to the roster-assist either way.
 export const fixedRoster = {
     1: { sun: 'RD', mon: '12:00-19:00', tue: '12:00-19:00', wed: '12:00-19:00', thu: '12:00-19:00', fri: '12:00-19:00', sat: 'RD' },
     2: { sun: 'RD', mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00', thu: '09:00-16:00', fri: '09:00-16:00', sat: 'RD' },
+    3: { sun: 'RD', mon: 'TRG',         tue: 'TRG',         wed: 'TRG',         thu: 'TRG',         fri: 'TRG',         sat: 'RD' },
 };
 
 // 10-week CES (Customer Experience Supervisor) roster — Marylebone.

@@ -413,6 +413,37 @@ test('validateRosterPatterns: all roster patterns are valid (returns 0 errors)',
     assert.equal(validateRosterPatterns(), 0);
 });
 
+// A pattern may hold a BARE Other flavour Monday to Saturday (v25.40, fixedRoster[3] — training with
+// no times), and nothing else of the Other grammar. The reasons are in the validator's own header: a
+// time would be hidden in the cell and printed in the day panel, an RDW marker would be shown and not
+// paid, and an Other day can never be a Sunday. Each refusal is checked on its own, against a pattern
+// the test builds, so the shipped data is never edited to prove it.
+describe('validateRosterPatterns: the Other family in a pattern', () => {
+    const week = (/** @type {Record<string, string>} */ over) =>
+        ({ t: { 1: { sun: 'RD', mon: 'TRG', tue: 'TRG', wed: 'TRG', thu: 'TRG', fri: 'TRG', sat: 'RD', ...over } } });
+    // The validator reports through console.error, which is the point of it at load time and noise here.
+    const quietly = (/** @type {() => number} */ fn) => {
+        const was = console.error; console.error = () => {};
+        try { return fn(); } finally { console.error = was; }
+    };
+    test('a bare flavour on a weekday is accepted', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({}))), 0);
+        assert.equal(quietly(() => validateRosterPatterns(week({ mon: 'IND', sat: 'TEAM' }))), 0);
+    });
+    test('never on a Sunday', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({ sun: 'TRG' }))), 1);
+    });
+    test('never with an RDW marker', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({ mon: 'TRG RDW' }))), 1);
+    });
+    test('never with times', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({ mon: 'TRG 09:00-16:00' }))), 1);
+    });
+    test('an unknown word is still refused', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({ mon: 'TRAINING' }))), 1);
+    });
+});
+
 // ---------------------------------------------------------------------------
 // Annual leave entitlement — edge cases
 // ---------------------------------------------------------------------------
@@ -1475,6 +1506,25 @@ test('S. Boyle: main wk10 until 27 Jun, then fixed pattern 2 (28 Jun+)', () => {
     assert.equal(after.currentWeek, 2);
     assert.equal(getBaseShift(m, new Date(2026, 5, 29)), '09:00-16:00');  // Mon 29 Jun — fixed pattern 2
     assert.equal(getBaseShift(m, new Date(2026, 6, 4)),  'RD');           // Sat 4 Jul — fixed pattern 2 weekend
+});
+
+// M. Campbell's training weeks are TRAINING WITH NO TIMES (owner, 6 Nov 2026: "show Other (Training
+// flavour) with no shift times from her start date Monday to Friday until Friday 6th of November").
+// The whole span is walked, not its two ends: a pattern that slipped by a day would pass both.
+test('M. Campbell: pre-start RD, Training with no times Mon–Fri 22 Sep–6 Nov, then bilingual from 8 Nov', () => {
+    const m = teamMembers.find(x => x.name === 'M. Campbell');
+    assert.ok(m, 'M. Campbell not found');
+    assert.equal(getBaseShift(m, new Date(2026, 8, 21)), 'RD');            // Mon 21 Sep — before her start
+    for (const d = new Date(2026, 8, 22); d <= new Date(2026, 10, 7); d.setDate(d.getDate() + 1)) {
+        const weekend = d.getDay() === 0 || d.getDay() === 6;
+        assert.equal(getBaseShift(m, d), weekend ? 'RD' : 'TRG', d.toDateString());
+    }
+    const after = resolveMemberRoster(m, new Date(2026, 10, 8));           // Sun 8 Nov — the link
+    assert.equal(after.rosterType, 'bilingual');
+    assert.equal(after.currentWeek, 7);
+    for (let day = 8; day <= 14; day++) {                                   // and no training on it
+        assert.notEqual(getBaseShift(m, new Date(2026, 10, day)), 'TRG', `${day} Nov`);
+    }
 });
 
 test('B. Khalil: pre-start RD, then CES rotation from 9 Jun and across 1 Jul', () => {
