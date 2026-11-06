@@ -1163,7 +1163,12 @@ test('admin: Christmas leave is listed with the recorded leave, not counted, wit
     const xmas = rows.nth(1);
     await expect(xmas).toHaveClass(/al-period-row--christmas/);
     await expect(xmas.locator('.al-period-dates')).toContainText('25 Dec');
-    await expect(xmas.locator('.al-period-free')).toHaveText('Not counted');
+    // Laid out like every other row (v25.38): the day count in the pill column — outlined, not
+    // filled — and what makes it different on a second line under the dates.
+    // One day: he works the Boxing Day he was due to work, so only Christmas Day is leave.
+    await expect(xmas.locator('.al-period-free')).toHaveText('1 day');
+    await expect(xmas.locator('.al-period-note')).toContainText('Not counted');
+    await expect(xmas.locator('.al-period-note')).toBeVisible();
     await expect(xmas.locator('button'), 'nothing is stored, so there is nothing to delete').toHaveCount(0);
     // The real booking still counts one day — the Christmas row added nothing to it.
     await expect(rows.nth(0).locator('.al-period-count')).toHaveText('1 day');
