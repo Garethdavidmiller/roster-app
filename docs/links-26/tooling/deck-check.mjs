@@ -8,7 +8,7 @@
 //   node docs/links-26/tooling/deck-check.mjs        → exit 1 if any checked figure disagrees
 //   node docs/links-26/tooling/deck-check.mjs --print → every figure a deck row can quote, today's and each design's
 //
-// 26 LINES (2 Oct 2026): copied from ../../links-24/tooling/deck-check.mjs for the Second Nature decks, which were
+// 26 LINES (2 Oct 2026): copied from docs/links-24/tooling/deck-check.mjs (removed 7 Nov 2026; `git checkout 924b9dbc -- docs/links-24` restores it) for the Second Nature decks, which were
 // made from the Familiar Nine decks. The line count comes from link.mjs; nothing else changed in how a row is read.
 //
 // A label it does not know is listed as UNCHECKED, never passed silently: a new row on a slide needs a line in ROWS

@@ -1,4 +1,4 @@
-# Shared definitions for the 26-line exact repair solver (model.py). Adapted from ../../../links-24/tooling/exact, whose
+# Shared definitions for the 26-line exact repair solver (model.py). Adapted from docs/links-24/tooling/exact (removed 7 Nov 2026; `git checkout 924b9dbc -- docs/links-24` restores it), whose
 # model was checked against the sheets' own code (its check_model.py); this one is checked the same way, against the
 # JS judge itself (judge.mjs, check_model.py). Paths are relative to this folder.
 import json, os

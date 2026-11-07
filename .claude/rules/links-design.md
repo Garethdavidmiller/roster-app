@@ -510,9 +510,10 @@ of its 25 rows — a figure read at source in Aug 2026, after this file said 24 
   The row now reads `scoreOrder` from `links-adjacency.js` and states the typical weekly move, the
   largest, and how many boundaries exceed 2h. **Live main roster: 4h 0m typical / 8h 46m worst /
   9 of 20 over** — quote that as the baseline; the December default — the 26-line one since v24.47
-  (`links-default-targets.js`, every objective on) — measures typically 2h 13m, largest 8h 51m, 4 of
-  26 over, 10 unmeasurable across the cover weeks (re-measured 3 Nov 2026)
-  (`docs/links-24/tooling/default-baseline.mjs`).
+  (`links-default-targets.js`, every objective on) — measures typically 2h 37m, largest 8h 36m, 5 of
+  26 over, 10 unmeasurable across the cover weeks (re-measured 7 Nov 2026; it was 2h 13m, 8h 51m and 4
+  on 3 Nov, before three changes to `links-default-targets.js` on 5–6 Nov)
+  (`docs/links-26/tooling/default-baseline.mjs`).
   Two things not to "tidy": the status stays **`standing`** whenever the step is measurable rather
   than turning `present` above some figure — the ORR gives no FF18 threshold, and inventing one is
   the pass/fail rendering this panel forbids — and it derives to **`n/a`** for a design with no timed
@@ -1047,8 +1048,8 @@ would hide the trade. Measured on a generated design: gentle-only takes week-to-
 > **The all-on figure that used to sit here — "all four on gives 14 minutes and 12 weekends" — is
 > gone** (corrected v19.65). It was measured at v19.58, before `variety` existed, and it contradicted
 > the box above, which measured the shipped default at **95 min / 8 weekends** on the roster seed
-> *(3 Nov 2026: the 26-line December default measures typically 2h 13m, largest 8h 51m, 4 of 26 over
-> 2h — `docs/links-24/tooling/default-baseline.mjs`)*.
+> *(7 Nov 2026: the 26-line December default measures typically 2h 37m, largest 8h 36m, 5 of 26 over
+> 2h — `docs/links-26/tooling/default-baseline.mjs`; on 3 Nov it was 2h 13m, 8h 51m and 4)*.
 > Both were presented as "all switches on", so this file said two different things about the one
 > configuration a designer actually gets — and named four switches when there were five (six from
 > v20.02, which added the run cap, and five again since v25.06, when rest across the week boundary

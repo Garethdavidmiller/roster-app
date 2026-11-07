@@ -27,7 +27,7 @@ const fingerprint = p => createHash('sha256')
 
 /** The supplied designs: a grid, a name, a strap line and a code. */
 // 26 LINES (1 Oct 2026; nine by 3 Oct). Each 26-line design is one entry, in the shape the 24-line list used
-// (../../links-24/tooling/regenerate.mjs): { file, name, code, fp, strap }, the code carrying -26- (e.g. AB-26-EXT).
+// (docs/links-24/tooling/regenerate.mjs, removed 7 Nov 2026; `git checkout 924b9dbc -- docs/links-24` restores it): { file, name, code, fp, strap }, the code carrying -26- (e.g. AB-26-EXT).
 // A design ships into proposals/ unless its entry says `dir:` — one of report-data.mjs's PACK_DIRS — after its fp
 // (4 Nov 2026: the links where 14 days' leave buys 30 days off live in 30-days-off/, and are the pack all the same).
 export const SUPPLIED = [
@@ -136,6 +136,21 @@ export const SUPPLIED = [
     // duties, every one, laid again by exact-rota.py (MIXED) on Grand Tour's rest days, so it keeps V6's handover, closers, early
     // finishes and leave, with no six-day weeks and at most 7 days in a row however the cover weeks fall (README.md → "Balanced V7")
     { file: 'results/balanced-v7.json',        name: 'Balanced V7',          code: 'MB-26-V7',  fp: '75e9e7f3', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, no six-day weeks, and 14 days’ leave buys 30 days off, as today' },
+    // 7 Nov 2026 (owner: "create a proposal that keeps the 1345 finishes and converts all the 1335 finishes to 1345 too … all
+    // closers on a 1545 start on a weekday … 30 days off for 14 days AL … all the rules, fatigue rules, minimise numbers of shift
+    // times and be competitive with the best proposals in the league table"; then "give hb a new name and put that into the
+    // pack. Delete set fair as it would not work"; then "Needs a better name" and "Use railway names in future"): Crossover, drawn
+    // as Safe Hands the same day, two 13:45s every weekday, and no weekday early finishing between 15:00 and 16:00, so two are
+    // still on for the 15:45 closers' first 15 minutes. Set Fair, drawn first the same day, had three 07:15-15:45s leaving as the
+    // closers came on, and was deleted. Laid on Short Openers' rest days with the 55-hour worst case held (README.md →
+    // "Crossover"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
+    { file: 'crossover.json',              name: 'Crossover',            code: 'CO-26-T10', fp: '6596c0d9', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today' },
+    // 7 Nov 2026 (owner, of Crossover: "Middle ground is a reworking of common ground to make it a gentle change between weeks.
+    // As people don't want to do several weeks of closes. How possible is it to do the same to crossover?", then "Do it"):
+    // Level Crossing is Crossover's duties and rest days, its weeks chosen again so that no two closing weeks fall side by side,
+    // at 18 weeks of 21 on one shift time (README.md → "Level Crossing"). It buys 30 days off for 14 days' leave, so it ships
+    // into 30-days-off/
+    { file: 'level-crossing.json',         name: 'Level Crossing',       code: 'LC-26-T10', fp: '32241e32', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover to the three 15:45 closers, never two closing weeks in a row, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
@@ -220,6 +235,8 @@ for (const t of SEARCHED) {
     if (!files.length) { console.log(`skip ${t.proposal} — no candidates`); continue; }
     if (checkOnly) { if (checkShipped(t.proposal, t.fp)) { console.log(`ok   ${t.proposal}  ${t.fp} (shipped JSON; ${files.length} candidates on disk)`); done++; } continue; }
     process.stdout.write(`render ${t.proposal} … `);
+    // final.mjs is the 24-line tooling's and was never copied here (SEARCHED has been empty since); a SEARCHED entry
+    // needs it back from docs/links-24/tooling, removed 7 Nov 2026 (`git checkout 924b9dbc -- docs/links-24`).
     execFileSync('node', ['final.mjs', ...files], { stdio: 'inherit', env: { ...process.env, PROPOSAL: t.proposal, ...(t.env ?? {}) } });
     const pdf = readdirSync('.').find(f => f.endsWith(`-${t.fp}.pdf`)); if (!pdf) throw new Error(`${t.proposal}: no PDF ending -${t.fp}.pdf was written — did the pick change?`);
     shipFiles(pdf.slice(0, -`-${t.fp}.pdf`.length), t.fp, 'proposal.json', 'proposal-import.txt');

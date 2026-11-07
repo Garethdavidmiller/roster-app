@@ -1,7 +1,7 @@
 # THE FEWEST CELL CHANGES THAT MAKE A 26-LINE DESIGN MEET THE RULES (26 Oct 2026, owner: "How would you improve this
 # roster to meet the rules. Deep think it" — of Little and Often, the 26-week Word roster).
 #
-# An exact CP-SAT model, ported from the 24-line one (../../../links-24/tooling/exact/model.py, which found Just Enough
+# An exact CP-SAT model, ported from the 24-line one (docs/links-24/tooling/exact/model.py, removed 7 Nov 2026; `git checkout 924b9dbc -- docs/links-24` restores it; it found Just Enough
 # and All Clear) and brought to the 26-line rules (../../RULES.md):
 #   hard     12 hours' rest, 13 days in a row (a cover week as four duties at the worst place), the contract exactly
 #            (44,100 Monday-to-Saturday minutes) and the 219-day ceiling (at most 89 Monday-to-Saturday duties);
