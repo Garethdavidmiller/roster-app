@@ -486,7 +486,7 @@ test('a printed Team View is not headed with one member\'s name @print', async (
 });
 
 // ── PRINT THIS COUNTRY (v24.06) ─────────────────────────────────────────────────────────────────
-// ROADMAP print item 1: "Most readers want France, not the book." The guide is 25 sheets and a
+// The print review, item 1 (ROADMAP_HISTORY.md): "Most readers want France, not the book." The guide is 25 sheets and a
 // traveller checking one coupon before a trip needs one card.
 //
 // These assert the OUTCOME — how many sheets, carrying which country — by counting pages in the

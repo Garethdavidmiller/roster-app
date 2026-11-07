@@ -244,45 +244,6 @@ describe('the mechanics', () => {
     });
 });
 
-describe('the mechanics', () => {
-    test('every call returns a FRESH, mutable table', () => {
-        // The generator card edits these objects in place — a typed count assigns `slot.weekday`,
-        // the ✕ button splices the array. Handing out the frozen module-level table would make the
-        // first keystroke a silent no-op in production and a TypeError under strict mode.
-        const a = buildDefaultTargets(), b = buildDefaultTargets();
-        assert.notEqual(a.slots, b.slots);
-        assert.notEqual(a.slots[0], b.slots[0]);
-        a.slots[0].weekday = 99;
-        a.slots.splice(1, 1);
-        assert.notEqual(b.slots[0].weekday, 99, 'an edit to one copy reached another');
-        assert.equal(buildDefaultTargets().slots.length, b.slots.length, 'a splice shortened the source');
-    });
-
-    test('no day asks for more people than there are working lines', () => {
-        // `generateLink` refuses with `over-capacity` before it looks at hours, so this would be a
-        // refusal reported as the wrong problem.
-        for (const cls of DAY_CLASSES) {
-            assert.ok(dutiesOn(cls).length <= WORKING,
-                `${cls} asks for ${dutiesOn(cls).length} of ${WORKING} working lines`);
-        }
-    });
-
-    test('DEFAULT_SHIFT_TIMES lists every time in the table, and nothing else', () => {
-        // The coordinator feeds this list into the shift dropdowns, so a time in the table that is
-        // missing here renders as a value the designer can see and cannot re-select.
-        assert.deepEqual([...DEFAULT_SHIFT_TIMES].sort(), [...new Set(slots.map(s => s.time))].sort());
-    });
-
-    test('no time appears in two rows — shared times share a row', () => {
-        // The generator tolerates duplicates, but the card renders one row per slot: a time split
-        // across two rows shows the designer two counts for one shift, and editing either looks
-        // like editing the shift. Kept as a table invariant so a future edit appends safely.
-        const times = slots.map(s => s.time);
-        assert.equal(new Set(times).size, times.length,
-            'duplicate time rows: ' + times.filter((t, i) => times.indexOf(t) !== i).join(', '));
-    });
-});
-
 describe('the table IS Short Run\'s duties — the claim the module header makes', () => {
     test('each day class counts exactly Short Run\'s duties: every weekday, the Saturday and the Sunday', () => {
         // The header says this table is the duty table of Short Run, built in as a proposal. That held by hand

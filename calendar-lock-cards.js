@@ -131,7 +131,8 @@ export function showLockPanel() {
     // which the handler answers with a bare 405 before touching the throttle store, the secret or
     // any Firebase surface. Nothing is sent (no PIN — there isn't one yet), nothing is read from
     // the response, and a failure changes nothing (`catch` and move on) — the submit path neither
-    // knows nor cares whether the warm-up happened.
+    // knows nor cares whether the warm-up happened. It is also why the function needs no
+    // `minInstances` (a standing cost): this buys the same latency exactly when it is wanted.
     try { fetch(_deps.unlockUrl, { method: 'GET', cache: 'no-store' }).catch(() => {}); }
     catch { /* fetch unavailable — the submit path is unaffected */ }
 

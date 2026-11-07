@@ -145,9 +145,9 @@ let _teamView = null;
 /** @type {any} */
 let openAboutLightbox = null;
 
-// Returned by initCalendarLightboxes(); lets a day-cell tap (touch devices)
-// surface the same shift label / extras / override note that desktop users get
-// from the hover tooltip, and lets renderCalendar() close the AL lightbox on
+// Returned by initCalendarLightboxes(); lets a day-cell click or tap (any pointer)
+// open the day panel — the fuller form of what the hover tooltip previews — and
+// lets renderCalendar() close the AL lightbox on
 // member change (stale data). Both handles are ready before the swipe init.
 // NOT deferred behind Calendar access, and checked rather than assumed (v20.12). This attaches
 // handlers; it fetches nothing. The AL lightbox's own Firestore read happens in its `onOpen`, fired

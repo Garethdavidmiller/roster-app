@@ -442,7 +442,7 @@ export function createTargetPanel(deps) {
             });
         };
         document.getElementById('genDefaultBtn')?.addEventListener('click', async () => {
-            if (await _confirmDiscard('The recommended Dec 2026 staffing')) _resetTargets(buildDefaultTargets(), 'default');
+            if (await _confirmDiscard('The Dec 2026 staffing')) _resetTargets(buildDefaultTargets(), 'default');
         });
         document.getElementById('genSeedBtn')?.addEventListener('click', async () => {
             if (await _confirmDiscard("Today's roster")) _resetTargets(buildRosterTargets(), 'seed');

@@ -34,7 +34,7 @@ import {
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
   setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
-  _setSelectPeriod, buildYtdSourceSelect, ytdAutoSource, payslipMayBeInHand,
+  _setSelectPeriod, buildYtdSourceSelect, ytdAutoSource, payslipMayBeInHand, ytdUpdateFrom,
 } from './paycalc-periods.js';
 import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
@@ -67,7 +67,7 @@ import { initTransferCard } from './paycalc-transfer-card.js';
 import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildActualComparison, buildProvChips } from './paycalc-breakdown.js';
 
 import { setStatus } from './status-text.js';
-import { renderResultHeadline } from './paycalc-result-headline.js';
+import { renderResultHeadline, renderYtdLine, wireYtdLine } from './paycalc-result-headline.js';
 import { backPayBannerCopy, hppBannerCopy, paintBanner } from './paycalc-money-banner.js';
 import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
 /**
@@ -79,7 +79,7 @@ import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
  */
 /**
  * Withhold the calculator from a role it has no confirmed rates for, and say why (v21.78).
- * Rationale: AI_MAP → `gradeForRole`. Two things an editor here needs — it WITHHOLDS rather than
+ * Rationale: `gradeForRole`'s JSDoc (roster-data.js). Two things an editor here needs — it WITHHOLDS rather than
  * captioning (the page's whole output is one confident £ figure, and a member told "this may not
  * apply" and handed one will use it), and it still wires the drawer, so it is a refusal with a way
  * out rather than a dead end.
@@ -159,7 +159,7 @@ export function init() {
     // grade lookup treats "no grade stored" as CEA at every consumer, so every Dispatcher and
     // manager account was being handed a polished estimate at somebody else's rate. (The counts
     // that used to sit here went stale the first time a dispatcher joined — v22.42.) Before every
-    // other init step, so nothing can render a figure first. Why: AI_MAP → `gradeForRole`.
+    // other init step, so nothing can render a figure first. Why: `gradeForRole`'s JSDoc (roster-data.js).
     //
     // A SESSION NAME THE ROSTER DOES NOT HOLD REFUSES TOO (72-hour review): a leaver or a renamed
     // member keeps a valid local session, `getLoggedMember()` returns null, and a null used to skip
@@ -818,7 +818,7 @@ export function init() {
       // Resolve thresholds for the selected period's tax year
       const _pNum   = currentPeriodNum();
       const _curP   = getPeriods().find(/** @param {any} x */ x => x.num === _pNum);
-      if (!_curP) return;
+      if (!_curP) { renderYtdLine(null); return; }
       const _ty     = taxYearForPeriod(_curP);
       const thresholds = getThresholds(_ty.label);
       const _proRateFactor = getProRateFactor(_curP);
@@ -1105,6 +1105,9 @@ export function init() {
         bpThisPeriod: _bpThisPeriod, hppForPeriod: _hppForPeriod,
         bpIsEstimate: _bpIsEstimate, hppIsEstimate: _hppIsEstimate,
       });
+
+      // The Year to Date line under the £ (owner, 7 Nov 2026): the rule is ytdUpdateFrom, the words renderYtdLine.
+      renderYtdLine(_actual ? null : ytdUpdateFrom({ p: _curP, ty: _ty, src: _ytdSrc, inUse: usingCumulative, taxCode: taxCodeUsed }));
 
       // The two OPT-IN MONEY BANNERS — moved to paycalc-money-banner.js at v22.56. They were the
       // same three states written out twice (included · available and not included · nothing to
@@ -1818,6 +1821,7 @@ export function init() {
     initTransferCard();
     // The Calendar's Year to Date notice links to #payslipCard (v24.86): open that card, held in view.
     openCardNamedByHash('payslipCard', 'payslipCardBody', 'payslipCardToggle');
+    wireYtdLine();   // the take-home's Year to Date line opens the same card (paycalc-result-headline.js)
     // Pay data is localStorage-only and evictable until asked otherwise — see ls.js (v22.13).
     requestPersistentStorage(pcPrefix());
     // The year card's fill control (v22.06). After a bulk fill: reload the visible form ONLY if
@@ -1840,7 +1844,7 @@ export function init() {
       if (!hdr) return;
       const periodSel = /** @type {HTMLSelectElement | null} */ (document.getElementById('periodSelect'));
       const p = periodSel ? getPeriods().find(/** @param {any} x */ x => x.num === +periodSel.value) : null;
-      // The ROADMAP's print-provenance item named four surfaces; this is the fifth, and it had the
+      // The print review's provenance item named four surfaces; this is the fifth, and it had the
       // same two problems — no time, and a date spelled by ICU rather than the app. See
       // roster-data.js → "the provenance line every printable surface closes on".
       const printedNow = new Date();

@@ -59,7 +59,7 @@ import { isSunday } from './roster-data.js';
 export function offersSundayRelease(date, ctx) {
     if (!isSunday(date)) return false;
     if (!ctx) return false;
-    return ctx.isRest !== true;
+    return ctx.isRest !== true;   // read, and nothing said rest: rostered
 }
 
 /**

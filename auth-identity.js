@@ -39,7 +39,9 @@ export function normaliseSurname(fullName) {
  *
  * The @myb-roster.local domain is synthetic — these accounts are never used for email delivery.
  * Note: Firebase Auth's distinct error codes for auth/user-not-found vs auth/invalid-credential can
- * reveal whether an account exists for a given email; documented in KNOWN_LIMITATIONS.md.
+ * reveal whether an account exists for a given email, unless the project's email-enumeration
+ * protection folds both into auth/invalid-credential — the case the sign-in copy is written for
+ * (PASSWORD_DESIGN.md §3.5).
  *
  * @param {string} fullName - Display name exactly as stored in teamMembers
  * @returns {string} Firebase Auth email address

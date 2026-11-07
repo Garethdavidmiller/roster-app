@@ -11,7 +11,8 @@
 //   via isWorkingDate, the change-listener wiring, and the whole save→feedback→refresh flow
 //   incl. the session-expired vs generic error split.
 // Does NOT own: the AL entitlement maths, the AL confirm-bar flag, or the spare-shift warning —
-//   those live in admin-al.js and are injected via the preSave / renderReady hooks.
+//   admin-al.js injects them via the preSave / renderReady / project / swapQuestion hooks (the
+//   maths itself is admin-al-projection.js and admin-al-spare-note.js).
 
 import { teamMembers } from './roster-data.js';
 import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate, isSaveInFlight, setSaveInFlight } from './admin-overrides.js';
@@ -212,7 +213,7 @@ export function createRangeBookingSection(cfg) {
 
     /**
      * The days this save deliberately LEAVES ALONE — rest days answered "Rest day — free" — and the
-     * subset that already holds leave (polish round 2). CLAUDE.md → "AL on a rest day is ASKED
+     * subset that already holds leave (polish round 2). .claude/rules/admin.md → "AL on a rest day is ASKED
      * about": the receipt names the days it left alone, on BOTH surfaces, because a save may not do
      * nothing silently. The week grid did (v23.88/v23.93); this card said only "Recorded N days".
      *

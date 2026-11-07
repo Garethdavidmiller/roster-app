@@ -2,7 +2,7 @@
 /**
  * settings-app.js — Coordinator for settings.html.
  *
- * Owns: login/session check, push notifications card.
+ * Owns: login/session check and the page's cards, each reporting its state to settings-status.js.
  * Session is shared with admin-app.js via the same AUTH_KEY in localStorage —
  * a user already signed in on admin.html will arrive here without seeing the login overlay.
  */

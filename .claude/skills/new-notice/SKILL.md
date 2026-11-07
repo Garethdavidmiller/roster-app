@@ -247,21 +247,48 @@ Notices on other pages need no audience: those pages already require a session.
 
 ## After adding the notice
 
-Add a row to the "Current notices" table in `CLAUDE.md`:
+Add a row to the "Current notices" table below:
 
 | ID | Page | Title | Badge | Posted | Expiry | Status | Dismiss mechanism |
 |----|------|-------|-------|--------|--------|--------|-------------------|
 | `[id]` | `[page].html` | [Title] | [Badge] | [D Mon YYYY] | [28/90] days | ✅ live until [date] | One-time; `[DONE_KEY]` set on close |
 
-For an `index.html` notice, say which audience it declared — the note above that table names which
+For an `index.html` notice, say which audience it declared — the note above the table names which
 audiences are currently live, and anything other than `'members'` should read as a deliberate
 decision rather than a default.
 
+## Current notices
+
+Keep this table current. It moved here from `CLAUDE.md` on 7 Nov 2026; `CLAUDE.md` keeps the rules
+that fire by date or apply to every notice (the audience, `openNoticeIfClear`, the monthly cleanup)
+and points here for the rest.
+
+> **Every notice declares an AUDIENCE** (Audience, above). Every live notice is `'members'`, so **the
+> positive direction of the gate has nothing exercising it** until the next `'signed-out'` notice —
+> the warning under Audience names the two tests that come back with it.
+
+> **The Status column is load-bearing — keep it accurate.** A notice goes INERT the moment
+> `isNoticeExpired` fires: it is marked seen *without being shown*, while the removal rule only fires
+> at 180 days — so a row can read as live while nobody has seen it for weeks. Say so in the column.
+
+| ID | Page | Title | Badge | Posted | Expiry | Status | Dismiss mechanism |
+|----|------|-------|-------|--------|--------|--------|-------------------|
+| `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | **RE-POSTED 28 Aug 2026** (first run 6 Apr) | 90 days | ✅ live until ~26 Nov 2026 — run 2, on a NEW key (`myb_pc_ytd_notice_2_shown`); it opens LAST on the page. **When it lapses, decide rather than re-date** (Lessons, below) | One-time; `NOTICE_YTD_KEY` set on close |
+| `links-workspace-2026` | `links.html` | Links Workspace | 🔗 Links | 2 Aug 2026 | **none — removed at v22.59** | ✅ permanent ORIENTATION, reopened from the About panel (`#linksHowBtn`). **Not a candidate for the 180-day removal** — it is no longer a notice (Lessons, below) | One-time on first visit; `myb_links_welcome_seen` set on close. The button ignores the flag |
+| `timetable-2026` | `index.html` | A new timetable starts on 13 December | 🚆 Trains | 21 Oct 2026 | **ended 31 Oct 2026** (`OCTOBER_LAST_DAY`) | ⛔ **ended 31 Oct — inert**. Was `'members'`; a one-off, no snooze key. The first `notice-badge--trains` | One-time; `myb_notice_timetable_2026_done` set on any dismissal, the link included |
+| `ytd-figures-2026` | `index.html` | Make your pay estimates more accurate | 💷 Pay | 22 Oct 2026 | ended 31 Oct 2026, with the timetable notice | ⛔ **ended 31 Oct — inert**. Was `'members'`, only where the Pay Calculator prices (`gradeForRole`); came the load AFTER the timetable notice (`FOLLOWS`); its link counted as `ytd_2627` seen | One-time; `myb_notice_ytd_figures_2026_done` set on any dismissal, the link included |
+| `install-app-2026` | `index.html` | Put the roster on your home screen | 📣 General | 22 Oct 2026 | 90 days (~20 Jan 2027) | ✅ live — `'members'`, on a phone or tablet in a browser only (`installRoute`, install-prompt.js). Third in line, after the two above. On the Pages mirror it sends staff to myb-roster.web.app, never installing there. Answering it retires the install strip | One-time; `myb_notice_install_app_2026_done` set on any dismissal, its button and link included |
+| `timetable-soon-2026` | `index.html` | The new timetable starts on Sunday | 🚆 Trains | 6 Dec 2026 | ends 12 Dec 2026 | ⏳ **starts 6 Dec** — `'members'`; the first notice with a START date (`STARTS`; an early device is left unflagged, not dismissed). A push goes out on the Saturday evening too | One-time; `myb_notice_timetable_soon_2026_done` set on any dismissal |
+
+Retired early or replaced: `links-beta-2026` (replaced at v19.51 on a new key) and `sign-in-2026`
+(retired at v23.23 for being WRONG rather than old). Both stories, and the rule each one left, are in
+the Lessons below.
+
 ## Lessons from past notices
 
-Moved here from `CLAUDE.md`'s notice table on 3 Nov 2026, so that file can carry the live table and
-the rules without paying, in every session, for the history of notices that have ended. Each lesson
-below cost something once.
+Moved here from `CLAUDE.md`'s notice table on 3 Nov 2026 (and the live table followed on 7 Nov), so
+that file carries only the rules, without paying in every session for the history of notices that
+have ended. Each lesson below cost something once.
 
 ### A notice brought back needs a NEW storage key
 
@@ -329,13 +356,13 @@ myb-roster.web.app rather than installing there.
 
 ## Monthly cleanup — run on the 1st of each month
 
-**At the start of any session on the 1st of each month**, check the "Current notices" table in `CLAUDE.md` for notices whose posted date is more than 180 days ago. Those notices are completely inert — remove them.
+**At the start of any session on the 1st of each month**, check the "Current notices" table above for notices whose posted date is more than 180 days ago. Those notices are completely inert — remove them.
 
 **Remove a notice when `(today − Posted) > 180 days`:**
 
 1. Delete the `<div id="[Name]NoticeLb">` HTML block from the page file
 2. Delete the JS IIFE (the `NOTICE_DATE`/keys block, `createLightbox()` call, and event listeners)
-3. Remove the row from the "Current notices" table in `CLAUDE.md`
+3. Remove the row from the "Current notices" table above
 4. Bump the version (HTML and JS files are being modified)
 
 **Do not remove** a notice that is still within its archive window — users who haven't visited yet may still see it on their first visit.

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * about-lightbox.js — Shared About (#iconLightbox) panel for all six app pages.
+ * about-lightbox.js — Shared About (#iconLightbox) panel for every app page.
  *
  * One implementation of the version display, service-worker update status,
  * pre-filled bug-report mailto link, and optional print button that was

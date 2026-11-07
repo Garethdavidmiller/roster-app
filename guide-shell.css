@@ -161,7 +161,7 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
 
 /* ── Footer back link (shared, polish round 2) ──────────────────────────────────────────────────
    The last thing on the railcard, rangers and FIP guides: "← Back to calendar", pointing at `./`
-   like the header arrow (CLAUDE.md → "Guide pages back button → the app root"). It was three
+   like the header arrow (`.claude/rules/guide-pages.md` → the back buttons). It was three
    different links — railcard centred, regular weight, no underline and 38px tall; rangers left and
    bold; FIP a full-width text button reading "Back to roster" above the disclaimer. One recipe now,
    defined once. Centred under the page's closing note, and `fit-content` so the tap area is the

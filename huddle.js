@@ -4,10 +4,10 @@
  *
  * Owns: Notifications card (all staff), daily Huddle manual upload (admin only),
  *   Huddle viewer card collapse/expand toggle.
- * Does NOT own: Huddle ingest Cloud Function (functions/index.js), Firestore huddles
- *   collection writes (firebase-client.js uploadHuddle), roster data (roster-data.js).
- * Edit here for: notification subscribe/unsubscribe UI, VAPID key rotation handling,
- *   Huddle file upload form, Huddle card toggle.
+ * Does NOT own: Huddle ingest Cloud Function (functions/documents.js), Firestore huddles
+ *   collection writes (uploadHuddle, via firebase-client.js), the VAPID key and re-subscription
+ *   (notif.js), roster data (roster-data.js).
+ * Edit here for: notification subscribe/unsubscribe UI, Huddle file upload form, Huddle card toggle.
  */
 
 import { uploadHuddle } from './firebase-client.js';
@@ -91,7 +91,7 @@ export function initHuddleNotifications({ onState } = {}) {
     const _deniedMsg  = /** @type {HTMLElement} */ (deniedMsg);
 
     // peekNotifState reads state without triggering the VAPID-rotation side effect —
-    // calendar-app.js runs the full getNotifState() on load; this page only needs to read.
+    // calendar-notif-prompt.js runs the full getNotifState() on load; this page only needs to read.
     async function refreshUI() {
         const state = await peekNotifState();
         _enableBtn.style.display  = 'none';

@@ -18,7 +18,8 @@
  *    arrive as `RD`; since the prompt asks the model to REPORT an empty cell it arrives as `BLANK`,
  *    and `buildSafeEntries` turns a blank Saturday into the "no Saturday cell was read" question.
  *    `=== 'RD'` never matched it, so every real left-shift took the partial branch below and kept
- *    Mon–Fri a day out. Both shapes are the empty slot now.
+ *    Mon–Fri a day out. Only that question is the empty slot now: a Saturday reading `RD` is a
+ *    printed rest code, so its row is disputed rather than shifted (the branch below says why).
  *
  * 2. **The partial branch must not overwrite the Sunday claim.** It used to set Sunday to `RD`,
  *    which erased the one value the geometry witness (roster-geometry.js, applied later) could

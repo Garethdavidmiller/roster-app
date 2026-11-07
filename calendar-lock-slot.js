@@ -3,10 +3,11 @@
  * calendar-lock-slot.js — the ONE place on the Calendar page where a card can stand in for the grid.
  *
  * Owns: the element currently occupying the space the Calendar will fill (a sign-in card, the
- *   staff-PIN card, a member's own sign-in card, or the boot skeleton), the mount/unmount of it, and
+ *   staff-PIN card, a member's own sign-in card, the boot skeleton, or the member's stored roster
+ *   painted by calendar-app.js), the mount/unmount of it, and
  *   the skeleton's delay timer.
  * Does NOT own: any DECISION about which card to show (calendar-access.js), the cards' contents or
- *   wiring (calendar-access.js / login-overlay.js), or the workspace it stands in for.
+ *   wiring (calendar-lock-cards.js / login-overlay.js), or the workspace it stands in for.
  * Edit here for: how a card is put on the page and taken off it — never for what a card says.
  *
  * ── WHY A SLOT, AND NOT FOUR CARDS THAT EACH FIND THE CONTAINER ─────────────────────────────────

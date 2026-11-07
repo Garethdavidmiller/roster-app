@@ -863,10 +863,10 @@ export function isForbiddenOnSunday(type) { return SUNDAY_FORBIDDEN_TYPES.includ
  * Returns null when the type needs times and does not have a usable pair — the caller then has
  * nothing to write, which is the right answer for a half-filled entry.
  *
- * `other` is deliberately NOT supported: its grammar is `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`, composed
- * from a flavour chip, a rest-day tick and optional times that only the week editor offers. A second
- * partial implementation of that grammar is exactly where a wrong value would come from, so the
- * review says so and points at Change a Shift instead.
+ * `other` is deliberately NOT handled here: its grammar is `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`, composed
+ * from a flavour chip, a rest-day tick and optional times. A second partial implementation of that
+ * grammar is exactly where a wrong value would come from, so the review's entry control composes an
+ * Other day through `composeOtherValue` instead (roster-entry-control.js).
  *
  * @param {string} type an override type id (`PILL_TYPES` vocabulary)
  * @param {string} [from] `HH:MM`
@@ -897,4 +897,32 @@ export function manualCellValue(type, from = '', to = '') {
  *  Sunday work; as `RD` it turned a worked Sunday into rest (6 Nov 2026; roster-import.md). @param {string} value @returns {string} */
 export function sundaySafeValue(value) {
     return value === 'AL' || value === 'SICK' ? 'RD' : isOtherValue(value) ? (parseOtherValue(value)?.time || 'RD') : value;
+}
+
+/**
+ * Split an ordered list of override writes into batches Firestore will accept — its hard cap is 500
+ * writes a batch. Counted in WRITES, not items, because one item can be a set plus several deletes
+ * (each older manual duplicate adds one), and closed at `max` (450: the import's headroom). An item
+ * `keepWithPrevious` names never STARTS a batch while the hard cap still holds: a Sunday correction
+ * must share the server stamp of the leave beside it, which is how deleting the period later knows
+ * the edge Sunday was the booking's (`computePeriodDeleteIds`). Order kept, every item once. Pure.
+ * @template T
+ * @param {T[]} items
+ * @param {(item: T) => number} writesFor
+ * @param {{ max?: number, keepWithPrevious?: (item: T) => boolean }} [opts]
+ * @returns {T[][]}
+ */
+export function chunkByWrites(items, writesFor, { max = 450, keepWithPrevious = () => false } = {}) {
+    const HARD_CAP = 500;
+    /** @type {T[][]} */ const chunks = [];
+    /** @type {T[]} */ let cur = [];
+    let writes = 0;
+    for (const item of items) {
+        const n = writesFor(item);
+        const full = writes + n > max && !(keepWithPrevious(item) && writes + n <= HARD_CAP);
+        if (cur.length && full) { chunks.push(cur); cur = []; writes = 0; }
+        cur.push(item); writes += n;
+    }
+    if (cur.length) chunks.push(cur);
+    return chunks;
 }

@@ -43,11 +43,10 @@ export const bilingualRoster = {
 
 // Fixed rosters — per-member fixed patterns, one constant week each (no rotation).
 // A fixed member's `currentWeek` selects WHICH pattern they sit on; it does not advance.
-//   1 — C. Reen                      12:00–19:00 Mon–Fri, RD weekends
-//   2 — S. Boyle / K. Jedlinski      09:00–16:00 Mon–Fri, RD weekends — same shape as C. Reen
-//                 with a 9am start. Used by K. Jedlinski (new-starter line, 3–27 Jun 2026) and
-//                 S. Boyle (temporary, from 28 Jun 2026); each references it during their fixed
-//                 period via rosterChanges (June 2026).
+//   (Who sits on each pattern is roster-member-data.js, and only there: a list here drifts.)
+//   1 — 12:00–19:00 Mon–Fri, RD weekends.
+//   2 — 09:00–16:00 Mon–Fri, RD weekends: pattern 1's shape with a 9am start, for a new starter's
+//                 line or anyone temporarily off a rotating link (through rosterChanges).
 //   3 — TRAINING, NO TIMES           'TRG' Mon–Fri, RD weekends (v25.40, owner 6 Nov 2026). A new
 //                 starter's initial training shown as training — the Other family's Training
 //                 (OTHER_DAYS.md) — and not as a shift time, which pattern 2 drew on every training

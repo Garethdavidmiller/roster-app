@@ -295,7 +295,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
     }
 
     /**
-     * The live summary in the grid card's sticky bar (v19.57) — three figures and a way down.
+     * The live summary in the grid card's sticky bar (v19.57) — four figures and a way down. The
+     * fourth, hours a week, came later and is argued beside its chip.
      *
      * WHY IT EXISTS. The grid card is ~1,400px tall and the Coverage and Design-checks cards start
      * ~1,600px and ~2,300px below the fold (measured at 1440x900). Editing therefore meant: paint a
@@ -303,7 +304,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
      * updated live — you just could not see it happen, which for an inherently iterative task is the
      * single biggest drag on the tool.
      *
-     * WHICH THREE, and why not others. They are the three that change what you do next:
+     * WHICH FIGURES, and why not others. The first three change what you do next, and a fourth, the
+     * average week against the contracted hours, was added later (its reason is beside its chip):
      *   1. lines still undesigned — nothing else means anything until this is zero;
      *   2. staffed hours with trains and nobody on duty — the cover-versus-service finding;
      *   3. fatigue factors PRESENT — `standing` is deliberately excluded, because an unavoidable

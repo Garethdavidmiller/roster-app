@@ -19,6 +19,11 @@
  * `proposeCopyName` exists for the ONE flow where a new name is the point rather than a surprise —
  * Duplicate, which already pre-fills a suggestion the designer sees and can edit.
  *
+ * WHAT IT GUARANTEES IS NARROWER THAN "NO DUPLICATES EXIST". The check runs against the list this
+ * browser loaded, so two designers holding the same list can each create "Option B" before either
+ * sees the other's — Firestore keys on a random id, so both writes succeed. Closing that needs a
+ * server-owned uniqueness key, deliberately not built; KNOWN_LIMITATIONS.md records it.
+ *
  * CASE- AND SPACE-INSENSITIVE, because the collision is what a reader's eye makes of two rows, not
  * what a byte comparison makes of two strings: "Option A", "option a" and "Option  A" are one name
  * in a dropdown. Comparison folds internal whitespace for the same reason.

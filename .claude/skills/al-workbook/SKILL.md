@@ -13,9 +13,9 @@ would give it a second home to drift from.
 
 ## Why this skill exists at all
 
-The rule in §0 has now been broken **twice, on the same person, by two different sessions**
-(8 Sep and 14 Sep 2026 — the same colleague both times, reported one day short). Both times the
-document already contained the rule. Both times the session answered from the spreadsheet directly
+The rule in §0 has been broken **twice, on the same person, by two different sessions**
+(8 and 14 Sep 2026 — reported one day short both times). Both times the document already contained
+the rule. Both times the session answered from the spreadsheet directly
 and read the document afterwards, when corrected.
 
 So the failure is not a missing fact. It is **answering before reading**, and the only fix that has
@@ -26,8 +26,8 @@ ever worked for that is reading first.
 1. **Read `docs/AL_WORKBOOK.md`** — §0 (the rule that must not be got wrong) and §5 (the over-quota
    column) at minimum. §6 if you are going to read the file mechanically.
 1b. **And read `docs/AL_WORKBOOK.local.md` if it is there** — the per-person reconciliation log,
-   split out on 19 Sep 2026 because `docs/` is served by the Pages mirror at HTTP 200 and the log
-   names colleagues against their leave. It is **gitignored**, so a fresh checkout will not have
+   kept apart because `docs/` is served publicly by the Pages mirror and the log names colleagues
+   against their leave. It is **gitignored**, so a fresh checkout will not have
    it: that is expected, not a fault. Without it you still have the whole method; what you lose is
    what previous passes found about particular rows, so say so rather than assuming a row is
    unexamined.

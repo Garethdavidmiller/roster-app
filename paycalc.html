@@ -600,6 +600,10 @@
            ticked back-pay/HPP adds, calendar-filled hours. Written by calculate() via
            buildProvChips; EMPTY (and so invisible) on a normal payslip. -->
       <div class="prov-chips" id="provChips"></div>
+      <!-- The Year to Date pointer (owner, 7 Nov 2026). calculate() shows it only where the latest
+           figures would sharpen THIS estimate, and writes it on every run; the rule is
+           `ytdUpdateFrom` in paycalc-periods.js. -->
+      <p class="net-ytd" id="netYtdNudge" hidden>For a closer tax figure, copy the Year to Date figures from your <span id="netYtdNudgeDate"></span> payslip. <button type="button" class="net-ytd-btn" id="netYtdNudgeBtn">Add them</button></p>
       <div class="net-hint" id="netHint">Your estimate updates automatically as you enter your hours</div>
     </div>
     <div id="payBreakBar" aria-hidden="true"></div>
@@ -724,7 +728,7 @@
             </div>
           </div>
         </div>
-        <div class="field-hint">Both are in the <strong>Year to Date</strong> box at the bottom left of your payslip.</div>
+        <div class="field-hint">Both are in the <strong>Year to Date</strong> box at the bottom left of your payslip. Check the tax code in Your Settings is the one at the top of the same payslip: with the wrong code, these figures make the estimate less accurate, not more.</div>
       </div>
 
       <!-- Source payslip anchor (v17.98): records WHICH payslip the two totals were copied from,

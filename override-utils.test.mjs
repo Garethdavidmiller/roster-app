@@ -8,7 +8,7 @@ import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMem
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
          buildOverrideWrite, buildOverrideCacheRecord, collectOverrideRecords, SUNDAY_FORBIDDEN_TYPES, isForbiddenOnSunday, sundaySafeValue,
          CONTRACTED_WORK_TYPES, VOLUNTARY_WORK_TYPES, isContractedWorkOverride, nextReplacedType, manualCellValue,
-         LEGACY_OVERRIDE_TYPES, contractEvidence,
+         LEGACY_OVERRIDE_TYPES, contractEvidence, chunkByWrites,
 } from './override-utils.js';
 import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
 
@@ -1423,7 +1423,8 @@ describe('manualCellValue', () => {
     it('refuses `other`, because its grammar needs controls this surface does not have', () => {
         // FLAVOUR[" RDW"][" HH:MM-HH:MM"] is composed from a flavour chip, a rest-day tick and
         // optional times. A second partial implementation is where a wrong value would come from,
-        // so the review refuses and points at Change a Shift instead.
+        // so this refuses, and the review composes an Other day through composeOtherValue instead
+        // (roster-entry-control.js).
         assert.equal(manualCellValue('other'), null);
         assert.equal(manualCellValue('other', '06:00', '14:00'), null);
     });
@@ -1515,5 +1516,52 @@ describe('LEGACY_OVERRIDE_TYPES', () => {
             assert.equal(TYPES[t], undefined, `${t} is back in admin-shift-types.js TYPES`);
             assert.equal(WORKED_OVERRIDE_TYPES.has(t), false, `${t} is back in WORKED_OVERRIDE_TYPES`);
         }
+    });
+});
+
+// ── chunkByWrites — batches Firestore will accept (its cap is 500 writes a batch) ───────────────
+describe('chunkByWrites', () => {
+    const items = (/** @type {number[]} */ ws) => ws.map((w, i) => ({ i, w, type: 'annual_leave' }));
+    const sizes = (/** @type {any[][]} */ chunks) => chunks.map(c => c.reduce((n, it) => n + it.w, 0));
+
+    it('counts WRITES, not items: 200 days of three writes is two batches, not one of 600', () => {
+        // The range booking used to take 200 DATES a batch on the assumption of two writes a date. A
+        // date carrying two older manual duplicates is three, and 200 of them is 600 > 500.
+        const chunks = chunkByWrites(items(Array(200).fill(3)), it => it.w);
+        assert.ok(chunks.length >= 2, 'one batch of 600 writes is what Firestore rejects');
+        for (const n of sizes(chunks)) assert.ok(n <= 450, `a batch of ${n} writes is over the headroom`);
+    });
+
+    it('keeps order and every item exactly once', () => {
+        const all = items([1, 3, 2, 2, 1, 3, 3, 1]);
+        const flat = chunkByWrites(all, it => it.w, { max: 4 }).flat();
+        assert.deepEqual(flat.map(it => it.i), all.map(it => it.i));
+    });
+
+    it('a Sunday correction never starts a batch — it shares the stamp of the day before it', () => {
+        // 225 leave days of two writes fill a batch to exactly 450; the correction that follows would
+        // start the next batch alone, and an edge Sunday on a stamp of its own is not the booking's
+        // when the period is deleted (computePeriodDeleteIds).
+        const ops = [...items(Array(225).fill(2)), { i: 225, w: 2, type: 'correction' }, ...items([2]).map(o => ({ ...o, i: 226 }))];
+        const keep = (/** @type {any} */ it) => it.type === 'correction';
+        const chunks = chunkByWrites(ops, it => it.w, { keepWithPrevious: keep });
+        const at = chunks.findIndex(c => c.some(it => it.type === 'correction'));
+        assert.notEqual(chunks[at][0].type, 'correction', 'the correction opened a batch of its own');
+        assert.ok(sizes(chunks).every(n => n <= 500), 'keeping it there may not cross the hard cap');
+        // …and without the rule it WOULD have started one, so the assertion above is not vacuous.
+        const plain = chunkByWrites(ops, it => it.w);
+        assert.equal(plain.find(c => c.some(it => it.type === 'correction'))?.[0].type, 'correction');
+    });
+
+    it('the hard cap still wins over keeping a correction with its neighbour', () => {
+        // A batch already at 450 cannot take an item of 60 writes, correction or not: 510 is a
+        // batch Firestore rejects whole.
+        const ops = [...items(Array(225).fill(2)), { i: 225, w: 60, type: 'correction' }];
+        const chunks = chunkByWrites(ops, it => it.w, { keepWithPrevious: it => it.type === 'correction' });
+        assert.deepEqual(sizes(chunks), [450, 60]);
+    });
+
+    it('nothing in, nothing out', () => {
+        assert.deepEqual(chunkByWrites([], () => 1), []);
     });
 });

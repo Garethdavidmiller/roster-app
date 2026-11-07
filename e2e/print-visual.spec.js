@@ -11,7 +11,7 @@
  * The obvious cheap approach is `emulateMedia({ media: 'print' })` and a viewport screenshot. It is
  * not enough, and the reason is the whole point of this file: **emulateMedia applies the print
  * STYLESHEET but does not paginate.** No `@page` margin, no page break, no first-sheet boundary. It
- * would lock the CSS and miss the thing the ROADMAP row actually names — *the ones where a page
+ * would lock the CSS and miss the thing the print review's row actually names — *the ones where a page
  * break changes meaning*. A baseline that cannot see a page break is not a print baseline.
  *
  * So this renders the REAL PDF through `page.pdf()` — the same call `print.spec.js` reads its
@@ -20,7 +20,7 @@
  *
  * ── WHY ONLY TWO SURFACES, AND WHY PAGE ONE ─────────────────────────────────────────────────────
  *
- * Owner decision, 12 Sep 2026, answering the question the ROADMAP row said only they could:
+ * Owner decision, 12 Sep 2026, answering the question the print review said only they could:
  * **Calendar and Team View, first page only.** Those are the two roster surfaces, and the two where
  * a break genuinely changes meaning — a month split mid-week, or a 44-name team table that loses
  * its header row. Pixel-locking every printable surface would be cost without a reader, which that

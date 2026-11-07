@@ -122,7 +122,7 @@ export const SPARE_WORKED_DAYS = 4;
  * SPARE, a rest day or a timed RDW and the week is still four days of cover (v25.06, whole-app
  * review). Requiring all seven SPARE let a cover week written with its Sunday as a rest day count as
  * an EMPTY line — no days towards the 219-day ceiling, no hours towards the contract — so a design
- * over the ceiling read as under it. Hours, days and spread ask this (seed and rest repair see only SPARE-all-week rows).
+ * over the ceiling read as under it. Hours, days, spread and the roster seed ask this; the rest repair protects all-SPARE rows only.
  * @param {Record<string, any>|null|undefined} row
  * @returns {boolean}
  */
@@ -294,7 +294,7 @@ export function workedRunLengths(seq) { return runLengthsWhere(seq, s => !isRest
 /**
  * Classify a shift value into a colour/count class.
  * CEAs do not work nights — 'night' exists only as a defensive catch for
- * legacy or imported data (see CLAUDE.md → Links design model).
+ * legacy or imported data (see .claude/rules/links-design.md → Design and save model).
  * @param {string} shift
  * @returns {'rd'|'spare'|'early'|'late'|'night'}
  */
@@ -1131,8 +1131,8 @@ function slotAt(/** @type {Array<any>} */ group, /** @type {string} */ cls, /** 
  * a rest day or a spare week is not a turnaround at all.
  *
  * `endMinutesAbs`, never `endMinutes`: a duty running past midnight has to eat into the rest that
- * follows it rather than be credited with a phantom extra day of it.
- *
+ * follows it rather than be credited with a phantom extra day of it. `runDesignChecks` computes the
+ * same rest inline, so change the two together.
  * @param {string} from @param {string} to
  * @returns {number|null}
  */
@@ -1330,7 +1330,7 @@ export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, se
     // ── THE OPT-OUT, AND WHY IT IS NOT A BACK DOOR ──────────────────────────────────────────────
     //
     // `requireContract` defaults ON, so every real call is gated: `links-app.js` never passes it,
-    // and `links-contract-parity.test.mjs` fails if it ever does. What passes `false` is the
+    // and `links-contract.test.mjs` fails if it ever does. What passes `false` is the
     // CONSTRUCTION tests — wave containment, spare spread, turnarounds, fairness — whose fixtures
     // describe a rotation shape rather than a week's worth of work.
     //
@@ -1460,8 +1460,8 @@ export function runDesignChecks(patterns, rotatingLines = ROTATING_LINES) {
         if (!isWorked(shiftAt(w, 'sat')) && !isWorked(shiftAt(nextW, 'sun'))) weekendsOff++;
     }
 
-    // Short turnarounds: consecutive timed shifts with less than MIN_REST_MINUTES
-    // between the end of one and the start of the next. SPARE has no times, skip.
+    // Short turnarounds: under MIN_REST_MINUTES from one timed shift's end to the next's start
+    // (SPARE has no times, skip) — `restBetween`'s rest, inline: change the two together.
     // `endMinutesAbs` (not `endMinutes`) so a duty running past midnight eats into the rest it is
     // followed by instead of being credited with a phantom extra day of it — see that function.
     const turnarounds = [];

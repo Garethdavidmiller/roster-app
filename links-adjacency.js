@@ -19,8 +19,8 @@
  *
  * WHICH IS WHY THEY ARE SWITCHES, NOT A FORMULA (owner, Aug 2026). Turning one on takes freedom from
  * the others, and the honest thing for the tool to do is let you turn each on and SHOW what it cost
- * the rest — not to blend them into a single score that hides the trade. `scoreOrder` returns all
- * four figures whatever you optimised for, so the price is always visible.
+ * the rest — not to blend them into a single score that hides the trade. `scoreOrder` returns every
+ * figure whatever you optimised for, so the price is always visible.
  *
  * THE TRAP, and it is the same one this workspace keeps meeting: **a spare week must not read as a
  * gentle transition.** A spare line carries no times, so the step across it cannot be measured — and

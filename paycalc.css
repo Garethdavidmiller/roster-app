@@ -248,6 +248,19 @@
       border-color: color-mix(in srgb, var(--accent-gold) 35%, transparent);
       background: color-mix(in srgb, var(--accent-gold) 10%, transparent);
     }
+    /* The Year to Date pointer (owner, 7 Nov 2026): shown only where the latest figures would sharpen
+       this estimate (`ytdUpdateFrom`). Quiet like the hint below it; the button is white and
+       underlined so it reads as the one thing to press, and its padding takes it to 24px tall. */
+    .net-ytd {
+      font-size: var(--type-label); line-height: 1.45; color: var(--on-navy-muted);
+      margin: 10px auto 0; max-width: 34em; text-wrap: pretty;
+    }
+    .net-ytd-btn {
+      display: inline-block; padding: 3px 4px; margin: 0 -4px;
+      font: inherit; font-weight: 700; color: white; background: none; border: 0;
+      text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+    }
+    .net-ytd-btn:focus-visible { outline: var(--focus-outline-gold); outline-offset: 1px; border-radius: var(--radius-xs); }
 
     #payBreakBar {
       display: none; margin: 12px 16px 4px; height: 10px;
@@ -1266,7 +1279,7 @@
       .bd-btn, .show-more-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #payslipCard, #hppCard, #backPayCard, #backPayCardToggle, #decimalConverterCard,
       #payTransferCard,
-      .field-hint, .net-hint, .check-actual, .prov-chips:empty,
+      .field-hint, .net-hint, .net-ytd, .check-actual, .prov-chips:empty,
       .privacy-note-standalone, .guide-footer-link,
       #rosterHintBar, .joiner-notice, #stickyTotal,
       #payBreakBar, #payBreakLegend { display: none !important; }

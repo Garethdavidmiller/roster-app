@@ -392,7 +392,7 @@ document.addEventListener('guide:print-refused', resetStalePrint);
 
 // ── PRINT THIS COUNTRY (v24.06) ────────────────────────────────────────────────────────────────
 //
-// ROADMAP print item 1, and the row states the case: "Most readers want France, not the book."
+// The print review, item 1 (ROADMAP_HISTORY.md), and the row states the case: "Most readers want France, not the book."
 // The full guide is 25 sheets and a traveller checking one coupon before a trip needs one card.
 //
 // A BUTTON PER CARD, not one control in the header. A header control would have to know which

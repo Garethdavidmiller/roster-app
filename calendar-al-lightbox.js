@@ -6,6 +6,13 @@
  * Does NOT own: override cache (calendar-overrides.js), member selection (calendar-member.js),
  *   period arithmetic (paycalc-periods.js).
  * Edit here for: AL entitlement display, Dispatcher lieu-day breakdown, day-detail content.
+ *
+ * The day panel is the only place a touch user reads what a day IS. Every badge, glyph and
+ * marker on it comes from an authority elsewhere — `shiftBadgeParts` (roster-data.js),
+ * `dayMarkers` and `weekContext` (calendar-renderer.js) — so it can never colour or name a day
+ * differently from the grid it was opened from. The layout reasoning sits beside each zone in
+ * index.html and index.css, and the geometry is pinned by the `day detail:` block of
+ * e2e/calendar.spec.js, because no behavioural assertion can see one box overlapping another.
  */
 
 import { createLightbox } from './overlay.js';
@@ -30,7 +37,7 @@ import { lsGet, lsSet } from './ls.js';
  */
 /**
  * @param {{ navigateToPaycalc?: (paydayIso: string) => void }} [deps]
- *   navigateToPaycalc — wired to the day-detail "View pay estimate" button on pay-marked days.
+ *   navigateToPaycalc — wired to the day-detail "Pay estimate" button on pay-marked days.
  */
 export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   // ── ANNUAL LEAVE LIGHTBOX ───────────────────────────────────────────────────
@@ -254,10 +261,10 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
 
   document.getElementById('alBtn')?.addEventListener('click', () => alLb.open());
 
-  // ── DAY DETAIL LIGHTBOX (touch tap on a calendar cell) ─────────────────────
+  // ── DAY DETAIL LIGHTBOX (a click or tap on a calendar cell) ────────────────
   // Surfaces the shift time, what it was changed from, and the day markers when a staff
-  // member taps a day on a touch device — the same content desktop users read
-  // from the hover tooltip (which is unreachable on touch).
+  // member opens a day, on every pointer type (calendar-renderer.js's click handler says why);
+  // the hover tooltip is only a preview of it, and touch has no hover at all.
   const dayLb    = document.getElementById('dayDetailLightbox');
   const dateEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailDate'));
   const weekEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailWeek'));

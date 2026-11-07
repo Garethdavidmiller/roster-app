@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '25.46';
+export const APP_VERSION = '25.48';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -1223,8 +1223,8 @@ export function getMembersForGrade(grade) {
     // ⚠️ Management deliberately does NOT filter on `hidden`: every ACTIVE manager row carries
     // `hidden: true` as the standing convention (belt-and-braces with managerOnly to keep them out
     // of the calendar member selector) — so `!m.hidden` here would empty the Management login group,
-    // locking every manager out AND letting "Disable accounts for leavers" disable all six manager
-    // accounts (they'd vanish from ACTIVE_MEMBERS). A manager/clerk LEAVER is offboarded by removing
+    // locking every manager out AND letting "Disable accounts for leavers" disable every manager
+    // account (they'd vanish from ACTIVE_MEMBERS). A manager/clerk LEAVER is offboarded by removing
     // their row from teamMembers (and from CONFIG.MANAGER_NAMES) — not by `hidden: true`.
     if (grade === 'Management') return teamMembers.filter(m => m.managerOnly);
     return teamMembers.filter(m => m.role === grade && !m.hidden && !m.managerOnly);

@@ -530,7 +530,7 @@ service cloud.firestore {
       // their session) could write an arbitrary/oversized document. hasOnly rejects any field
       // beyond the known four; the `is` checks reject wrong types AND a missing field (a
       // missing key reads as null, and `null is string` is false). `patterns` is only
-      // type-checked as a map — its nested {"1".."28":{sun..sat}} shape isn't practical to
+      // type-checked as a map — its nested {"1".."N":{sun..sat}} shape isn't practical to
       // validate in rules, and the 1 MB document limit already bounds its size. The rename
       // path's merge:true write still satisfies hasOnly because request.resource.data reflects
       // the full post-merge document (existing patterns + the new name/updatedAt/updatedBy).
@@ -541,8 +541,8 @@ service cloud.firestore {
       // the resulting document has neither key and passes this rule unchanged.
       // NOTE the rules cannot express "only a designer may empty the bin" any more finely than
       // this: delete is already gated on isLinksWriter(), which is the same set of people who can
-      // soft-delete. The retention window is a CLIENT policy (links-deletion.js), not a server one
-      // — worth knowing before treating the 30 days as a guarantee.
+      // soft-delete. Nothing expires from the bin: a binned design stays until a designer deletes it
+      // for good (links-design-store.js), and no rule or client timer purges it.
       // `window` is the v19.54 OPERATING WINDOW — when the station is staffed, stored per design
       // so a proposal can test a moved boundary (the live case is Sunday, where five December 2026
       // movements fall after the current 23:25 finish). OPTIONAL, like deletedAt/deletedBy: every

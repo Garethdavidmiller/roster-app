@@ -1,6 +1,6 @@
 name: Workflow Lint
 
-# Why this exists (KNOWN_LIMITATIONS / external review L2):
+# Why this exists (raised by an external review):
 # The Tests workflow (e2e.yml) and the three deploy workflows all PATH-FILTER their
 # push triggers — e2e.yml `paths-ignore: .github/**`, the deploy workflows only fire
 # on their own code paths. That is deliberate (a CI/doc-only edit shouldn't spin up

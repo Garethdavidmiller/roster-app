@@ -301,6 +301,43 @@ test('every module has its own AI_MAP entry, not just a mention', () => {
         '\nGive each one a `### ` entry, or add it to an existing grouped heading.');
 });
 
+// ── AN AI_MAP ENTRY IS A ROUTING CARD, NOT A HISTORY (7 Nov 2026) ────────────────────────────────
+//
+// One pass took the map from about 757,000 characters to 326,000, and every entry it cut had grown
+// the same way: version stamps, "until vX it said" stories, measurements, and reasoning the module's
+// own header already held. An entry is the module's purpose, its exports with a short note each, and
+// its invariants as a line or a pointer; the argument lives beside the code, where it cannot drift.
+//
+// The cap is the largest entry that survived the pass, rounded up, so it can only come DOWN. An
+// entry that needs more room is a module whose header should hold the rest. The cap bounds an
+// ENTRY, not the map, so a new module still gets a full entry of its own.
+const AIMAP_ENTRY_CAP = 5_000;
+test('no AI_MAP entry outgrows a routing card', () => {
+    const entries = [];
+    let cur = null;
+    for (const line of AI_MAP.split('\n')) {
+        if (line.startsWith('### ')) {
+            if (cur) entries.push(cur);
+            cur = { head: line.slice(4), text: line + '\n' };
+        } else if (line.startsWith('## ')) {
+            if (cur) entries.push(cur);
+            cur = null;
+        } else if (cur) {
+            cur.text += line + '\n';
+        }
+    }
+    if (cur) entries.push(cur);
+    assert.ok(entries.length > 150, `only ${entries.length} AI_MAP entries read — the splitter is broken`);
+    const over = entries
+        .map(e => ({ head: e.head, size: [...e.text].length }))
+        .filter(e => e.size > AIMAP_ENTRY_CAP)
+        .map(e => `${e.head.slice(0, 80)} — ${e.size} characters`);
+    assert.deepEqual(over, [],
+        `these AI_MAP entries are over the ${AIMAP_ENTRY_CAP}-character cap:\n  ${over.join('\n  ')}\n` +
+        'Move the reasoning into the module header and leave a pointer; drop version stamps and ' +
+        'release history (git log holds it). Do not raise the cap to fit.');
+});
+
 // ── CONTRACT 1e: FILE_INDEX gives every module its OWN ROW, not merely a mention ───────────────
 //
 // Contract 1 reads FILE_INDEX as one string, so a module whose row was deleted or renamed still
@@ -405,7 +442,12 @@ const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './do
     './docs/FILE_INDEX.md',
     './.claude/rules/paycalc.md', './.claude/rules/roster-import.md',
     './.claude/rules/notifications.md', './.claude/rules/guide-pages.md',
-    './.claude/rules/roster-data.md'];
+    './.claude/rules/roster-data.md',
+    // THE FIVE AREA FILES SPLIT OUT OF CLAUDE.md's ARCHITECTURE TABLE (7 Nov 2026), on the day they
+    // were made, by the argument above: every row in them was under this guard yesterday as part of
+    // CLAUDE.md, and a split that silently drops a guard is how the estate loses coverage.
+    './.claude/rules/calendar.md', './.claude/rules/admin.md', './.claude/rules/nav-drawer.md',
+    './.claude/rules/pwa.md', './.claude/rules/sessions.md'];
 
 // ── CONTRACT 1c: AI_MAP KNOWS every export — the other direction of 1b ─────────────────────────
 //
@@ -780,7 +822,7 @@ test('every command README.md tells a reviewer to run actually exists', () => {
     const pkg = JSON.parse(read('./package.json'));
     const problems = [];
 
-    const scripts = [...readme.matchAll(/`?\bnpm run ([a-z0-9:]+)/g)].map(m => m[1]);
+    const scripts = [...readme.matchAll(/`?\bnpm run ([a-z0-9:-]+)/g)].map(m => m[1]);
     for (const s of new Set(scripts)) {
         if (!(s in (pkg.scripts ?? {}))) problems.push(`npm run ${s} — no such script in package.json`);
     }
@@ -800,7 +842,7 @@ test('and the README command reader still finds them — guard the guard', () =>
     // If the extraction above silently stopped matching, the contract would pass for ever while
     // the page rotted. Pin that it sees the two commands the page is built around.
     const readme = read('./README.md');
-    const found = [...readme.matchAll(/`?\bnpm run ([a-z0-9:]+)/g)].map(m => m[1]);
+    const found = [...readme.matchAll(/`?\bnpm run ([a-z0-9:-]+)/g)].map(m => m[1]);
     assert.ok(found.length >= 3, `only ${found.length} npm scripts read out of README.md`);
     assert.match(readme, /node scripts\/test-nodeps\.mjs/,
         'the no-install lane is the point of the page — if it is gone, so is the reason for it');
@@ -1004,10 +1046,22 @@ test('the guide-count guard still matches the form that shipped — guard the gu
 //
 // 900 is deliberately just above the largest survivor, not a round number: a cap with slack is a
 // cap nobody meets. Shrinking an entry is free. RAISING this number is a decision somebody makes
-// and defends, exactly like `coordinator-ratchet.test.mjs`. The next pass should bring it to ~600.
-const TREE_ENTRY_CAP = 900;
-//   · the tree may not accumulate release history. A handful of version stamps is fine (they date
-//     a decision); dozens means the changelog has moved back in.
+// and defends, exactly like `coordinator-ratchet.test.mjs`.
+//
+// RATCHETED 900 -> 710 on 7 Nov 2026. A second pass rewrote 423 rows as routing lines (what the
+// file is, what it owns, where its reasoning lives), taking the catalogue from 249,137 characters
+// to 152,855, the median row from 431 to 276 and the version stamps from 89 to 1. Each cut was
+// checked against the file's own comments first; the two arguments that lived only here moved into
+// `calendar-al-lightbox.js` and `overtime.html` before their rows lost them. The two rows written
+// by a parallel branch while the pass ran (`links-26/` at 838, `DECISIONS.md` at 620) were cut the
+// same way once it had merged: the folder's own README routes its contents, and DECISIONS.md's
+// header already carries why it exists. Every row is now 453 characters or less, and 455 sits just
+// above the longest. Raising it is still a decision somebody makes and defends.
+const TREE_ENTRY_CAP = 455;
+//   · the tree may not accumulate release history. The one version reference left is a library
+//     pin (DOMPurify's), not a release stamp; the date a decision was made belongs in git and the
+//     plan docs. RATCHETED 90 -> 2 with the pass above, and raising it is likewise a defended decision.
+const TREE_STAMP_CEILING = 2;
 test('the CLAUDE.md file tree stays a routing table', () => {
     const tree = (FILE_INDEX.match(/```[\s\S]*?```/) || [''])[0];
     assert.ok(tree.length > 10_000, 'the file tree was not found — this test is checking nothing');
@@ -1041,10 +1095,10 @@ test('the CLAUDE.md file tree stays a routing table', () => {
         'file is two descriptions that will drift:\n  ' + doubled.join('\n  '));
 
     const stamps = (tree.match(/v\d+\.\d+/g) || []).length;
-    assert.ok(stamps < 90,
-        `the tree carries ${stamps} version references — it was 208 before v20.11, which is a ` +
-        'changelog living in a routing table, loaded into every session. Release history belongs ' +
-        'in git and the plan docs.');
+    assert.ok(stamps < TREE_STAMP_CEILING,
+        `the tree carries ${stamps} version references against a ceiling of ${TREE_STAMP_CEILING - 1} ` +
+        '(the DOMPurify pin) — it was 208 before v20.11 and 89 before 7 Nov 2026, which is a ' +
+        'changelog living in a routing table. Release history belongs in git and the plan docs.');
 });
 
 // ── CONTRACT 3b: the ARCHITECTURE TABLE is held to the tree's own limits ───────────────────────
@@ -1076,7 +1130,9 @@ test('the CLAUDE.md architecture table states decisions, not retrospectives', ()
     assert.ok(start > 0, 'the architecture table was not found — this test is checking nothing');
     const end = lines.findIndex((l, i) => i > start + 3 && l.startsWith('## '));
     const rows = lines.slice(start, end).filter(l => l.startsWith('|'));
-    assert.ok(rows.length > 40, `expected the full table, found ${rows.length} rows`);
+    // 40 -> 25 (7 Nov 2026): the rows that bind one area left for their `.claude/rules/` files, and
+    // 28 stayed. This floor proves the table was READ; it is not a quota for rows to stay.
+    assert.ok(rows.length > 25, `expected the full table, found ${rows.length} rows`);
 
     const tooLong = rows
         .filter(l => l.length > ARCH_ROW_CAP)
@@ -1137,10 +1193,14 @@ test('the CLAUDE.md architecture table states decisions, not retrospectives', ()
 // left for `.claude/rules/roster-import.md`, which `paths:`-globs the parser and so costs nothing to a
 // session doing anything else. Leaving the cap at 140,000 afterwards would have banked the saving as
 // permission to spend it again, which is the deterioration this ratchet exists to prevent.
-const CLAUDE_MD_CAP = 125_000;
+// **RATCHETED DOWN 125,000 -> 72,000 on 7 Nov 2026**, the same move again: the rows that bind one area
+// left the architecture table for path-scoped `.claude/rules/` files, the test lanes' history for
+// README.md and the version-bump incidents for DECISIONS.md — moved, never cut — taking the file from
+// 122,788 characters to ~70,500. The floor below came down with it: it proves the file was READ.
+const CLAUDE_MD_CAP = 72_000;
 test('CLAUDE.md stays affordable — it is loaded into every session', () => {
     const chars = CLAUDE.length;
-    assert.ok(chars > 100_000, 'CLAUDE.md was not read — this test is checking nothing');
+    assert.ok(chars > 50_000, 'CLAUDE.md was not read — this test is checking nothing');
     assert.ok(chars <= CLAUDE_MD_CAP,
         `CLAUDE.md is ${chars.toLocaleString()} characters, over the ${CLAUDE_MD_CAP.toLocaleString()} ratchet.\n` +
         'This file is loaded into EVERY session, so this is a cost paid on every task regardless of\n' +
@@ -1206,12 +1266,15 @@ test('no doc writes down a repo-derived count that grows with the repo', () => {
     // Matched as a COUNT PHRASE near the word, not as "a number somewhere in the sentence" — the
     // first draft of this flagged `v15.46` out of "(v15.41; hardened v15.46)". A version is a
     // number in a sentence about the precache and is not a claim about its size.
+    //
+    // The service-worker text moved from CLAUDE.md to `.claude/rules/pwa.md` (7 Nov 2026), so the
+    // rule reads both: a figure that left with the paragraph would otherwise escape the check.
     const COUNT_PHRASE = /(?<![.\d])~?\d{2,4}\s+(?:of them\b|(?:precached\s+)?assets?\b)/gi;
-    const precacheClaims = [...CLAUDE.matchAll(COUNT_PHRASE)]
-        .filter(m => /precach/i.test(CLAUDE.slice(Math.max(0, m.index - 120), m.index + 120)))
-        .map(m => m[0].trim());
+    const precacheClaims = [CLAUDE, read('./.claude/rules/pwa.md')].flatMap(doc => [...doc.matchAll(COUNT_PHRASE)]
+        .filter(m => /precach/i.test(doc.slice(Math.max(0, m.index - 120), m.index + 120)))
+        .map(m => m[0].trim()));
     assert.deepEqual(precacheClaims, [],
-        `CLAUDE.md states the precache size (${precacheClaims.join(' | ')}). It grows with every ` +
+        `CLAUDE.md or pwa.md states the precache size (${precacheClaims.join(' | ')}). It grows with every ` +
         `module and has been wrong twice. It is ${actual.precache} today; derive it, do not write it.`);
 });
 

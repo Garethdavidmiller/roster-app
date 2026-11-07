@@ -461,7 +461,8 @@ export function summariseUpdateOpens(samples, { page }) {
  * THE MONTH THE MEASUREMENT CHANGED (Oct 2026). From CLEAN_TIMINGS_FROM a load nobody watched, and
  * time somebody spent typing, are left out of every page timing (perf-reporter.js); older versions
  * counted both. A month holding enough opens from older versions mixes the two, and the card says
- * so rather than presenting the improvement as the app getting faster.
+ * so rather than presenting the improvement as the app getting faster. Like UPDATE_OPENS_FROM, this
+ * MUST be the release that ships the recorder change.
  */
 export const CLEAN_TIMINGS_FROM = '24.98';
 

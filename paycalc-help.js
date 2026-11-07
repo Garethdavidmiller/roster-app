@@ -9,12 +9,19 @@
 
 import { TAX_YEARS, GRADES } from './paycalc-calc.js';
 
+// The contracted hours are read from the grade table, so this tip follows them if they ever change,
+// and says so per grade if the two grades stop matching.
+const _ceaContr = GRADES.cea.contr, _cesContr = GRADES.ces.contr;
+const CONTRACT_TIP = _ceaContr === _cesContr
+    ? `Your contract includes <strong>${_ceaContr} hours per period</strong> at your base rate. You don't enter those — they're included automatically as basic pay. (CES and CEA are both ${_ceaContr} hours.)`
+    : `Your contract includes your grade's hours per period at your base rate — <strong>CEA ${_ceaContr}, CES ${_cesContr}</strong>. You don't enter those — they're included automatically as basic pay.`;
+
 export const HELP_CONTENT = {
   hours: {
     title: 'Your Hours — how it works',
     tips: [
       '<strong>Glossary:</strong> AL = Annual Leave · RDW = Rest Day Worked (you worked on your scheduled day off) · BH = Bank Holiday · CEA / CES = your pay grade · HPP = Holiday Pay Premium (annual lump sum in January).',
-      'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay. (CES and CEA are both 140 hours.)',
+      CONTRACT_TIP,
       'If your name is in the roster, a gold hint card appears at the top of this section showing your special shifts for the period — Saturday, Sunday, bank holiday, bank holiday overtime, overtime, rest day working (RDW), and Boxing Day. Tap a category row to fill just that one from the roster. Tap <strong>Fill from calendar</strong> to fill every category in one go — once you\'ve typed values, the same button reads <strong>Replace with calendar values</strong> as a reminder it will overwrite them (tap "Clear all entries" to undo). Filled fields turn gold; the highlight clears as soon as you edit them. When online, the counts include shift changes recorded by admin, not just the base roster. One thing it will not guess: an ordinary weekday you worked on what should have been a rest day — a swap pays in ways the app cannot predict, so it is left for you to enter. It is deliberately cautious, and never invents a figure.',
       'Training, induction and assessment days pay as the day they replace, so a normal weekday training needs nothing here. A <strong>training rest-day</strong> pre-fills <strong>8 hours</strong> as a default — change it to the hours you actually did. It goes into the box the day itself calls for: normally RDW, but <strong>Bank Holiday Overtime</strong> if the day is a bank holiday, and the <strong>Boxing Day</strong> box on 26 December. If training ran past your rostered shift, put the extra time in the Overtime box.',
       'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (time-and-a-quarter, 1.25×), overtime (time-and-a-quarter, 1.25×), rest days and unrostered Saturdays (1.25×), Sundays (time-and-a-half, 1.5×), Boxing Day (triple time, 3×).',

@@ -611,7 +611,7 @@ describe('the swap answers', () => {
 // E. THE RECEIPT NAMES WHAT IT LEFT ALONE, AND WHO IT WAS FOR (polish round 2)
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 //
-// CLAUDE.md → "AL on a rest day is ASKED about": "Rest day — free" means nothing is written, and the
+// .claude/rules/admin.md → "AL on a rest day is ASKED about": "Rest day — free" means nothing is written, and the
 // save receipt NAMES the days it left alone — on BOTH surfaces. The week grid did (v23.88, and the
 // kept-leave wording at v23.93); this card said only "Recorded N days", so a rest day answered free
 // vanished from the one line the manager reads after pressing Save. These run the REAL projection

@@ -226,8 +226,8 @@ body.auth-ready .container { display: grid; }
    with it — carrying both the Save button (previously 1,400px from wherever you were editing) and a
    live reading of the three figures that decide whether the edit was any good.
 
-   `sticky` needs no scroll container here: the card uses `overflow: clip` at >=1024px (chosen for the
-   sticky thead precisely because it does NOT create one).
+   `sticky` needs no scroll container here: the card uses `overflow: clip` at every width (chosen for
+   the sticky thead precisely because it does NOT create one).
 
    THE CLAIM THAT USED TO FOLLOW — "the element keeps its place in flow, so it can never cover the
    last grid row" — IS FALSE, and was measured false at v20.04. A sticky element only keeps its flow
@@ -2109,7 +2109,7 @@ body.auth-ready .container { display: grid; }
    neighbour and the block are gone at v23.38: the cell editor no longer builds a `<select>` at
    all, so the guard it needed went with it. The lesson it taught stands, which is why this
    paragraph does.)
-   Declared here, at the end, so it beats the base rule; and an e2e now measures the computed size
+   Declared after its base rule, so it beats it; and an e2e now measures the computed size
    on a real coarse-pointer device rather than trusting the cascade to have gone the way it reads.
 
    2. TOUCH TARGETS. The app's rule is that a coarse pointer keeps 44px regardless of width
@@ -2541,7 +2541,7 @@ body.auth-ready .container { display: grid; }
 
 /* ═══ COMPARE: ONLY THE LINES THAT DIFFER (v22.77) ════════════════════════════════════════════════
 
-   The rotation is 24 lines and a real proposal changes three or four, so the reader's job was to
+   A rotation runs to `ROTATING_LINES` lines and a real proposal changes three or four, so the reader's job was to
    find those among 168 cells of agreement. The rows are always RENDERED and hidden here, so the
    markup stays a complete picture of the design — `Ctrl+F`, print and a screenshot all keep working
    on the whole thing, and the filter is a view rather than a truncation.

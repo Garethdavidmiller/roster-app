@@ -4,8 +4,8 @@
  *
  * Owns: Staff Login Accounts card — creates/disables Firebase Auth accounts for
  *   all roster members by calling the setupRosterAuth Cloud Function.
- * Does NOT own: login flow (admin-app.js), Firestore auth rules (firestore.rules),
- *   account credential derivation (firebase-client.js nameToEmail / nameToPassword).
+ * Does NOT own: login flow (login-overlay.js, session.js), Firestore auth rules (firestore.rules),
+ *   account credential derivation (auth-identity.js nameToEmail / surnamePassword).
  * Edit here for: account setup UI.
  *
  * Auth: Firebase ID token with admin custom claim (set by setupRosterAuth on first run).

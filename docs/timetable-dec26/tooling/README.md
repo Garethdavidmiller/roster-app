@@ -42,8 +42,8 @@ December lines with
 `python3 -I docs/timetable-dec26/tooling/simplifier.py $IN/sx.xlsx $IN/so.xlsx $IN/su.xlsx $IN/dec.json`;
 `build.py` tells the two outputs apart by their shape.
 
-Then `node --test trains-change.test.mjs trains-stations.test.mjs`. The last blocks of the first
-hold the generated tables to facts checked by hand against the printed books — the departure
+Then `node --test trains-change.test.mjs trains-stations.test.mjs`. The `trains-data.js` blocks
+of the first hold the generated tables to facts checked by hand against the printed books — the departure
 counts (rows, and a real Tuesday-to-Thursday), the 10:36 to Banbury running on to Birmingham, where
 December's 10:36 stops, the weekday grid as the page draws it (`stoppingGrid`), the restricted stops
 and the weekday versions. **If one of those moves, check the books before you change the test**: a
@@ -59,17 +59,17 @@ new issue of the books legitimately moves them, and a parser regression looks th
 - **`assemble.py`** joins a train continued across pages (`e` → `f`), keeps Chiltern trains that
   start or end at Marylebone, and folds a train printed in both books into one. A Mondays-and-Fridays
   and a not-Mondays-and-Fridays copy of the same train at the same time are ONE row — but only when
-  they stop alike (v24.83): the 17:45 to Oxford calls at High Wycombe on Mondays and Fridays and at
+  they stop alike: the 17:45 to Oxford calls at High Wycombe on Mondays and Fridays and at
   Beaconsfield on the other days, and merging them sent it to Beaconsfield every weekday. Copies that
   stop differently stay two rows, each with its days. It also keeps
   each train's **stops with times** (`timed_stops`): leaving Marylebone, the ARRIVAL at each stop
   (the first of a printed arr/dep pair); coming in, the DEPARTURE (the last). The Stations view's
   journey times and the basic-hour grid read these. Its output is `{ trains, order }`: the trains,
   and each book's station order (`row_order`, outward direction, longest block first).
-  **The letter after a time is read, never sliced off** (v24.83, `LETTERS`): `u` (pick up only) is
-  not a stop for anyone leaving London and `s` (set down only) not one for anyone coming in, so each
-  is dropped from that direction's stops — until then nine such stops read as ordinary ones and
-  moved the counts at Banbury, Bicester North, High Wycombe and Haddenham. `c` ("Arrives 8 minutes
+  **The letter after a time is read, never sliced off** (`LETTERS`): `u` (pick up only) is not a
+  stop for anyone leaving London and `s` (set down only) not one for anyone coming in, so each is
+  dropped from that direction's stops — read as ordinary stops, nine of them moved the counts at
+  Banbury, Bicester North, High Wycombe and Haddenham. `c` ("Arrives 8 minutes
   earlier") gives the arrival a passenger leaving London is told. An unknown letter stops the build:
   a new note must be read, not dropped. A bus is excluded by its `&` under Facilities — the books
   print CH as a bus's operator too.
@@ -85,15 +85,15 @@ new issue of the books legitimately moves them, and a parser regression looks th
   basic hour reads downwards in travel order — and only stations some kept train calls at. A row
   only December's book prints goes after the row that precedes it there.
 
-## December from the books (v24.80)
+## December from the books
 
-Until Chiltern published its December books, December came from the simplifier: a working document
-with no calling points, compared against a public one. Two things changed when the books arrived,
-and both are reasons the books are the right source:
+Before Chiltern published its December books, December came from the simplifier: a working
+document with no calling points, compared against a public one. The books are the right source for
+two reasons:
 
-- **Every December train has its stops**, so every station is answered in full. Before, a station
-  trains run THROUGH could compare only the trains that end there, or said it was waiting
-  (`decemberKnown` in `trains-stations.js` — still the rule for a stopless source).
+- **Every December train has its stops**, so every station is answered in full. From a stopless
+  source, a station trains run THROUGH can compare only the trains that end there, or says it is
+  waiting (`decemberKnown` in `trains-stations.js` — the rule for a stopless source).
 - **Like-for-like times.** Measured against the books, every Amersham-line arrival into Marylebone
   was 3 minutes later in public than in the simplifier, the published weekday evening peak was
   reshuffled from the draft, and weekdays gained a train (157 → 158). Saturdays and Sundays matched

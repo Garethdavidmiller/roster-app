@@ -6,15 +6,16 @@
  *   cleanup both share.
  * Does NOT own: what any notification SAYS or when. Payloads come from `buildPushPayload`
  *   (roster-parse-helpers.js) against the design language in `.claude/rules/notifications.md`, and
- *   the decision to send at all stays with the feature in index.js.
+ *   the decision to send at all stays with the feature's own module (documents.js,
+ *   auth-endpoints.js, overtime.js).
  *
  * ── WHY IT IS ITS OWN FILE (v20.52, external review) ────────────────────────────────────────────
  * `functions/index.js` had reached 2,229 lines holding several unrelated domains, and the review's
  * point was that the NEXT feature should land in a domain module rather than pushing it toward
  * 3,000. This is the first cut, and it was chosen to be the safest possible one: these are internal
  * helpers only, so no `exports.<endpoint>` moved and the deployed function surface is byte-identical
- * in shape. Account administration, password recovery and the reset queue are the next candidates,
- * and each of those DOES move an endpoint — worth doing deliberately, one at a time, not in a sweep.
+ * in shape. The later cuts (documents.js, auth-endpoints.js, overtime.js) each moved endpoints, and
+ * were made one at a time.
  *
  * ── THE TWO SENDERS ARE NOT INTERCHANGEABLE ─────────────────────────────────────────────────────
  * `fanOutPush` reaches every subscribed device. `sendTargetedPush` reaches only the uids it is

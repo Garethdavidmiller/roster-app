@@ -350,7 +350,7 @@ function validateWeekEnding(weekEnding, { nowMs, maxRosterYear }) {
 }
 
 /**
- * The Manager planning horizon: this week's Saturday plus the following five.
+ * The Manager planning horizon: `PLANNING_WEEKS` week-ending Saturdays, starting with this week's.
  *
  * Every row appears whether or not a window exists — this list is the ONLY thing standing between
  * the feature and its one catastrophic silent failure, a week nobody created. Nothing appears

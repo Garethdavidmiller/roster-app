@@ -159,7 +159,14 @@ const CAPS = {
     // was chosen for its size. Both were two parallel branches writing the same targets — an actual
     // against an estimate, a sum included against a sum merely available — which is the one shape
     // whose failure is silent, and both now carry the invariant plus the tests that hold it.
-    'paycalc-app.js':          1880,
+    // 1880 → 1884 at v25.47, a RAISE, said so. The file stood at exactly its cap, so the Year to
+    // Date line under the take-home £ (owner, 7 Nov 2026) could not add a line here. Its RULE went
+    // into `ytdUpdateFrom` (paycalc-periods.js) and its DOM writes and button into
+    // paycalc-result-headline.js, beside the other words under the figure. What is left is the hook:
+    // one call that hands calculate()'s own facts (the period, whether the cumulative method ran,
+    // the tax code it read) to the rule, a comment, and the button's wiring at init. The cap is the
+    // measured size, so the next addition is a raise too.
+    'paycalc-app.js':          1884,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.
@@ -210,6 +217,12 @@ const CAPS = {
     // 50–99, which is the honest cost of shrinking a file by less than the band is wide.
     'admin-app.js':            1700,
     'links-design.js':         1500,   // a DOMAIN module: large is less alarming here, but still capped
+    // NEW at v25.48, a decision rather than a discovery: `chunkByWrites` (the range booking's batches,
+    // counted in writes so none crosses Firestore's 500) took it from 900 to 928. It joined the other
+    // override WRITE helpers (`buildOverrideWrite`, `buildOverrideCacheRecord`) because it is the same
+    // kind of rule, pure and shared by every save path that wants it; admin-overrides.js, the caller,
+    // is at its own cap. A pure DOMAIN module like links-design.js, so capped where it stands.
+    'override-utils.js':        928,
     // 1350 → 1100 at v21.90. The three date-keyed document collections left for
     // documents-client.js — 1,308 measured lines down to 1,033 — taking the upload SEQUENCE with
     // them: signature check, versioned path, and what a failed or ambiguous commit does to the

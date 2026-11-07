@@ -2,17 +2,17 @@
 /**
  * admin-overrides.js — Change a Shift section of the admin portal.
  *
- * Owns: allOverrides cache, week grid render, bulk bar, save/delete to Firestore,
- *   Saved Changes table, shift rule validation, time input auto-format.
- * Does NOT own: login, AL booking, sick days, notifications.
- * Edit here for: grid rendering, override CRUD, bulk bar, validation rules.
- * Do not edit here for: AL/sick booking flows, auth, roster upload.
+ * Owns: the two save paths (executeSave, recordRangeOverrides), the shift-rule glue and
+ *   buildMemberDateMap; re-exports the grid, list, cache and type table for one import site.
+ * Does NOT own: the grid (admin-week-editor.js), the list (admin-saved-changes.js), the cache
+ *   (admin-override-store.js), the rules (admin-shift-rules.js), login, or the AL/absence cards.
+ * Edit here for: what a save writes. Do not edit here for: grid rendering, auth, roster upload.
  *
  * Initialised by admin-app.js via initOverrides().
  */
 
 import { teamMembers, getBaseShift, formatISO, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType, nextLeaveYear } from './override-utils.js';
+import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
 import { manualOverrideId } from './override-id.js';
 import { db, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { saveFailureMessage } from './claim-retry.js';
@@ -465,28 +465,28 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // save button is disabled when workDays === 0, computed with the same isWorkingDate rule.)
     if (!workingDates.length) return { workingCount: 0, sundayCount: 0 };
 
-    // Combine the two write sets into one op list and CHUNK it. A single un-chunked batch —
-    // delete existing + set new = up to 2 ops per date — blows Firestore's hard 500-writes-per-
-    // batch cap on a long absence range: ~250 working days each already carrying a roster_import
-    // override → ~500 ops, so the WHOLE commit was rejected and the booking silently lost
-    // (admin-sick allows a ~1-year range). Mirror _saveOverrideBatches' CHUNK=200 (200 dates ×
-    // 2 ops = 400 ops < 500). Each chunk is its own re-runnable writeWithClaimRetry thunk (a
-    // just-provisioned manager's stale `manager` claim self-heals per chunk), rebuilt on each
-    // attempt because a WriteBatch can't be re-committed. Accepts the same partial-commit-on-
-    // mid-range-failure trade-off _saveOverrideBatches already carries (v16.19).
-    // In DATE order, so a Sunday correction commits in the same batch as the leave beside it: one
-    // batch is one server timestamp, which is how deleting the period knows the edge Sunday is its own
-    // (computePeriodDeleteIds, re-review R-A2). The cache records share one stamp per batch to match.
+    // Combine the two write sets into one op list and CHUNK it. One un-chunked batch blew Firestore's
+    // hard 500-writes-per-batch cap on a long absence range (~250 working days each already carrying
+    // a roster_import override), so the WHOLE commit was rejected and the booking silently lost
+    // (admin-sick allows a ~1-year range). `chunkByWrites` counts WRITES, as the import's
+    // _saveOverrideBatches does: a date is its set plus a delete per id `idsReplacedBy` names, and an
+    // older manual duplicate adds one, so counting DATES (200 × 2) could still cross the cap. Each
+    // chunk is its own re-runnable writeWithClaimRetry thunk (a just-provisioned manager's stale
+    // `manager` claim self-heals per chunk), rebuilt on each attempt because a WriteBatch can't be
+    // re-committed; the partial-commit trade-off is the import's (v16.19). In DATE order, and a Sunday
+    // correction never starts a chunk: one batch is one server timestamp, which is how deleting the
+    // period knows the edge Sunday is its own (computePeriodDeleteIds, re-review R-A2). The cache
+    // records share one stamp per batch to match.
     const ops = [
         ...workingDates.map(date => ({ date, type, value })),
         ...sundayCorrections.map(date => ({ date, type: 'correction', value: 'RD' })),
     ].sort((a, b) => a.date.localeCompare(b.date));
-    const CHUNK = 200;
+    const chunks = chunkByWrites(ops, op => 1 + idsReplacedBy(memberName, op.date, ovByDate.get(op.date)?.id).length,
+        { keepWithPrevious: op => op.type === 'correction' });
     /** @type {any[]} */
     const newDocs = [];
     const deletedIds = new Set();
-    for (let i = 0; i < ops.length; i += CHUNK) {
-        const slice = ops.slice(i, i + CHUNK);
+    for (const slice of chunks) {
         let res;
         try {
             res = await withSlowSaveNotice(writeWithClaimRetry(async () => {
@@ -517,7 +517,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                 });
                 await batch.commit();
                 return { docs, delIds };
-            }), { batched: ops.length > CHUNK });
+            }), { batched: chunks.length > 1 });
         } catch (err) {
             // A chunk failed AFTER earlier chunks committed → Firestore holds partial data the
             // in-memory cache doesn't reflect (the cache update below never runs). Resync from

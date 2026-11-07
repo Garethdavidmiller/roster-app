@@ -1,6 +1,7 @@
 # The real-iPhone release checklist
 
-*Written v24.07, 18 September 2026 — ROADMAP "A real-iPhone release checklist".*
+*Not version-stamped; not a runtime asset. The decision behind it: ROADMAP_HISTORY → "The v23.01 external review", its row "A real-iPhone release
+checklist".*
 
 **Every line here is something no test in this repo can run.** That is the entry condition: if
 Playwright, axe or a baseline could answer it, it belongs in CI and not on this page. `npm run
@@ -40,16 +41,17 @@ keeping if an unrun check looks different from a passed one.
       any open lightbox's close button.
 - [ ] **Rotate to landscape and back.** The Team View grid is the one that changes layout on
       orientation; the Calendar month grid is the one whose columns are fractional at these widths.
-- [ ] **The last week of the Calendar month is reachable** at this viewport height. (v23.95's defect
-      was desktop-only, ≥1024px wide; on a phone this is a general reachability check.)
+- [ ] **The last week of the Calendar month is reachable** at this viewport height — a general
+      reachability check on a phone.
 - [ ] **A day panel opens and closes** from a tap, and the ✕ is reachable without stretching.
 
 ## B · Current iPhone — the engine staff meet next
 
 - [ ] **Every page loads past the splash**: Calendar, Admin, Pay Calculator, Settings, Operations,
-      Links, Trains, New link (admin only) — and Overtime, which is paused (v25.05) and should show
-      its closed message rather than a form. A stuck splash is the exact failure the hourly currency check answers "yes"
-      to, so it has to be looked at.
+      Links, Trains, New link (the admin, or a name in `CONFIG.NEWLINK_PREVIEW`) — and Overtime,
+      which is paused and should show its paused note rather than a form
+      (`OVERTIME_AVAILABILITY.md` → Paused). A stuck splash is the exact failure the hourly currency
+      check answers "yes" to, so it has to be looked at.
 - [ ] **A deep link works from a cold tab** — `/admin.html`, `/paycalc.html` — not just the root.
 - [ ] **The Calendar PIN card** accepts the code and the roster appears. Then close the browser
       entirely, reopen, and confirm it asks again — the PIN lasts only while the browser is open,
@@ -62,8 +64,8 @@ Install via Share → Add to Home Screen. **Reinstall if the manifest changed th
 `name`, `short_name`, `start_url` and the shortcuts only reach an existing install on reinstall.
 
 - [ ] **Not an iPhone check: the launch splash that draws `name` in the device's own font.** That is
-      Chrome's splash on Android before 12 (CLAUDE.md → `manifest.json` `name`; v23.55 shipped an em
-      dash there and it was reported as "a strange font") — check it on an Android phone.
+      Chrome's splash on Android before 12 (`.claude/rules/pwa.md` → `manifest.json` `name` — keep it short and
+      ASCII) — check it on an Android phone.
 - [ ] **There is no system Back.** So every overlay must close on its own ✕ or backdrop: the day
       panel, the About panel, the nav drawer, a one-time notice, the Huddle viewer. Open two at
       once and confirm closing the top one leaves the one beneath.
@@ -74,7 +76,7 @@ Install via Share → Add to Home Screen. **Reinstall if the manifest changed th
 - [ ] **Tap a notification while the app is already open**, and while it is backgrounded. Both
       should reach the same place.
 - [ ] **A guide's ⤓ PDF button explains, and offers "Open in Safari"** — an installed iOS app cannot
-      print (`print-guard.js`, v24.61), so the button must say so rather than do nothing.
+      print (`print-guard.js`), so the button must say so rather than do nothing.
 - [ ] **In a Safari tab (A or B), AirPrint a guide from the guide's own ⤓ PDF button** (not Share →
       Print — Safari fires **no `beforeprint`** for AirPrint, so only the button's click prepares the
       page). The sheet must carry the country/section bodies, not a list of headings. Then print one

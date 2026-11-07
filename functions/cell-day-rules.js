@@ -2,7 +2,8 @@
 
 /**
  * functions/cell-day-rules.js — what a roster cell MEANS, given which day of the week it sits in.
- * Requires nothing: no Firebase, no HTTP, no clock. Imported by `functions/roster-parse-helpers.js`.
+ * Requires nothing: no Firebase, no HTTP, no clock. Required by `roster-parse-helpers.js`,
+ * `roster-prompt.js` and `roster-sunday-repair.js`.
  * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
  *
  * ── ONE DAY RULE, AND TWO CODES THAT USED TO BE ONE ─────────────────────────────────────────────

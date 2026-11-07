@@ -1274,7 +1274,7 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
 
 /**
  * The exact sign-in count, driven for real — the last Auth handler with no handler-level test
- * (KNOWN_LIMITATIONS → "Still not covered at handler level"). It was left last deliberately: it is
+ * (KNOWN_LIMITATIONS → "Test coverage gaps"). It was left last deliberately: it is
  * a read, it returns four integers, and `summariseSignIns` pins its arithmetic next door. What the
  * pure test cannot see is the WIRING, and every property below is a property of the wiring:
  *

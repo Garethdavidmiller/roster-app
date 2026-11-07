@@ -5,7 +5,8 @@
  * Owns: the VERDICT on a generator target table (hours per line, the gap, on-target or not) and the
  *   words the card states it in — including the provenance note about where the table came from.
  * Does NOT own: the minutes arithmetic (`targetExSundayMinutes`/`dutyMinutes` in links-design.js),
- *   the default table (links-default-targets.js), or any DOM. `links-app.js` writes the result.
+ *   the default table (links-default-targets.js), or any DOM. `links-generator-targets.js` writes
+ *   the result.
  * Edit here for: the on-target rule, the wording of the gap, the provenance note.
  *
  * ── WHY THIS IS ITS OWN MODULE (v21.31) ─────────────────────────────────────────────────────────
@@ -163,7 +164,7 @@ export function targetHoursLines(a) {
 export function targetProvenanceNote({ fromMemory, differsFromDefault, setName = '' }) {
     if (!fromMemory || !differsFromDefault) return null;
     return (setName
-        ? `These hours came from the saved set “${setName}”, not the recommended Dec 2026 staffing. `
-        : 'These hours are from the table your device remembers, not the recommended Dec 2026 staffing. ')
-        + 'Press “Use the recommended Dec 2026 staffing” to load it; anything you change here is kept.';
+        ? `These hours came from the saved set “${setName}”, not the Dec 2026 staffing. `
+        : 'These hours are from the table your device remembers, not the Dec 2026 staffing. ')
+        + 'Press “Use the Dec 2026 staffing” to load it; anything you change here is kept.';
 }

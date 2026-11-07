@@ -100,7 +100,7 @@ test('every guide in the nav drawer has an open counter, and every guide counter
 });
 
 // ── 2. The "Other" day-family flavour grammar ───────────────────────────────────────────────────
-// OTHER_FLAVOURS in override-utils.js is the documented single source (CLAUDE.md → "grammar
+// OTHER_FLAVOURS in override-utils.js is the documented single source (OTHER_DAYS.md → "grammar
 // single-source"), and the CLIENT already derives its own accept-set from it (v18.91). But the
 // rules restate the alternation as a literal. A seventh flavour would therefore compose fine on the
 // client and be REJECTED by the rules — a failed save with a permission error, which reads like a

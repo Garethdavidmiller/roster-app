@@ -1,10 +1,10 @@
 // @ts-check
 /**
- * nav-panel.js — Slide-out navigation panel, shared by all seven app pages.
+ * nav-panel.js — Slide-out navigation panel, shared by every app page.
  *
  * Injects overlay + drawer HTML into document.body, then wires the burger
  * button (#navMenuBtn). Uses the same history.pushState / popstate pattern
- * as the existing overlay helpers in calendar-app.js so Android Back closes the panel.
+ * as overlay.js's lightboxes, so Android Back closes the panel.
  *
  * Usage (call once, after DOM is ready — ES modules are deferred by default):
  *   import { initNavPanel } from './nav-panel.js';
@@ -308,7 +308,7 @@ export function resetNavPanel() {
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
  *   canReadDocuments (v23.17, calendar only) — a THUNK: may the drawer's two document links read?
  *   authReady — resolves once a Firebase session exists; awaited before the Circular/Newsletter
- *   read (AUTH_PLAN.md → E1). Each page passes its own (calendar: `calendarAuthReady`; the five
+ *   read (AUTH_PLAN.md → E1). Each page passes its own (calendar: `calendarAuthReady`; the
  *   authenticated pages: `sessionReady`). Defaults to already-resolved.
  *   onLogoClick — opens the page's existing About/version lightbox when the
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,

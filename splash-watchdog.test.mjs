@@ -49,12 +49,16 @@ function extractFn(src, name) {
 
 /**
  * Build a fake `document` exposing only what `pageIsUsable` reads.
- * @param {{ lock?: boolean, banner?: 'visible'|'hidden'|'absent', display?: 'filled'|'empty'|'absent' }} state
+ * @param {{ lock?: boolean, snapshot?: boolean, skeleton?: boolean, banner?: 'visible'|'hidden'|'absent', display?: 'filled'|'empty'|'absent' }} state
  */
-function fakeDocument({ lock = false, banner = 'absent', display = 'absent' } = {}) {
+function fakeDocument({ lock = false, snapshot = false, skeleton = false, banner = 'absent', display = 'absent' } = {}) {
     /** @type {Record<string, any>} */
     const byId = {};
     if (lock) byId.calendarLock = { id: 'calendarLock' };
+    // The lock slot holds ONE card at a time (calendar-lock-slot.js): the stored roster or the boot
+    // skeleton, by their real ids.
+    if (snapshot) byId.calendarSnapshot = { id: 'calendarSnapshot' };
+    if (skeleton) byId.calendarBooting = { id: 'calendarBooting' };
     if (banner !== 'absent') {
         byId.errorBanner = { classList: { contains: (/** @type {string} */ c) => banner === 'visible' && c === 'visible' } };
     }
@@ -78,6 +82,15 @@ describe('pageIsUsable — what counts as a working page', () => {
         // Both v20.12's PIN card and v20.79's member sign-in card carry this id. Neither is a happy
         // outcome, and both are a page the member can act on: reloading over them would be wrong.
         assert.equal(usableWith(fakeDocument({ lock: true })), true);
+    });
+
+    test("the member's own stored roster is usable — it is their shifts, labelled", () => {
+        // `calendarSnapshot`, painted before the access decision (CALENDAR_DATA.md 17). Not counting
+        // it meant a stored roster still up at 20s was reloaded once and then covered by the
+        // recovery panel — the watchdog took away the one thing on screen worth having.
+        assert.equal(usableWith(fakeDocument({ snapshot: true })), true);
+        assert.equal(usableWith(fakeDocument({ snapshot: true, display: 'empty' })), true,
+            'the empty live container beside it must not outvote it');
     });
 
     test('a VISIBLE error banner is usable — the app ran and is reporting', () => {
@@ -106,7 +119,7 @@ describe('pageIsUsable — what counts as a working page', () => {
         // At 20s a skeleton is a load that failed, not one in progress — the bounds inside
         // `resolveAccess` cap the decision far below that. The check reads specific ids and never
         // asks "is anything on the page", which is what keeps this true without a rule for it.
-        assert.equal(usableWith(fakeDocument({ display: 'empty' })), false);
+        assert.equal(usableWith(fakeDocument({ skeleton: true, display: 'empty' })), false);
     });
 });
 
