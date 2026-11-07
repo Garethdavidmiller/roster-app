@@ -31,6 +31,7 @@ if set(IN_ZIP) != set(PACK_DIRS): raise SystemExit(f'pack: IN_ZIP {sorted(IN_ZIP
 files = [  # (source, path in the pack)
     (f'{ROOT}/links-26-summary.pdf', '1 Summary/links-26-summary.pdf'),
     (f'{ROOT}/links-26-shortlist.pdf', '1 Summary/links-26-shortlist.pdf'),
+    (f'{ROOT}/links-26-other-designs.pdf', '1 Summary/links-26-other-designs.pdf'),   # off the shortlist's page 2 (7 Nov 2026, the outside review)
     (f'{ROOT}/links-26-what-it-means.pdf', '1 Summary/links-26-what-it-means.pdf'),   # colleagues: what it means if you… (1 Nov 2026)
     (f'{ROOT}/links-26-rules.pdf', '2 Rules/links-26-rules.pdf'),
 ]
@@ -172,8 +173,12 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # Level Crossing joined later the same day (owner, of Crossover: "people don't want to do several weeks of closes. How possible
 # is it to do the same to crossover?", then "Do it"): Crossover's duties and rest days with its weeks chosen again, so that no
 # two closing weeks fall side by side. It is in the 30-day folder too, and the late paragraph says what it has
-AFTER_31_OCT_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Clean Slate', 'Common Ground', 'Crossover', 'Fair Share', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers']
-LATE_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Crossover', 'Level Crossing', 'Middle Ground']
+# Balanced V8 and Balanced V9 joined later the same day (owner: "Do the v7 week lay out again", then "Do A as Balanced V8 and B as
+# Balanced V9"): Balanced V7's duties with every rest day chosen again, no 55-hour week however the cover weeks fall, and four
+# weeks off for 13 days' leave. Both are in the 30-day folder, finish the Saturday office lates at 22:30 as drawn, and the late
+# paragraph says what each has
+AFTER_31_OCT_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Clean Slate', 'Common Ground', 'Crossover', 'Fair Share', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers']
+LATE_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Crossover', 'Level Crossing', 'Middle Ground']
 if LATE and LATE != LATE_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(LATE_SET)} as the designs after the shortlist; they are {LATE}')
 if AFTER_31_OCT != AFTER_31_OCT_SET:
@@ -200,7 +205,7 @@ RENAMED = {'Quarter Past Relaid': 'Open Return', 'Relief Point': 'Balanced V6', 
 if any(n in names.split(', ') for n in RENAMED):
     raise SystemExit(f'pack: regenerate.mjs SUPPLIED lists an old name; {", ".join(f"{o} is {n}" for o, n in RENAMED.items())}')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
-THIRTY_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Common Ground', 'Crossover', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Open Return', 'Short Openers']
+THIRTY_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Common Ground', 'Crossover', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Open Return', 'Short Openers']
 THIRTY_IN = sorted(n for n, c, _ in proposals if DIR_OF[c] == '30-days-off')
 if THIRTY_IN != THIRTY_SET:
     raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
@@ -256,8 +261,8 @@ decks = andl(SHORTLIST) + (f', the shortlist, and {andl(DECKS_KEPT)}, kept from 
 # recommendation), the two asks and the two routes in, then what is still open and what each folder holds; how the
 # shortlist came about follows. Every file the route names starts a line of its own, so no wrap splits a name.
 names_in = {n for n, _, _ in proposals}
-AT_2230 = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Crossover', 'Level Crossing']   # the read-me's 22:30 paragraph names
-if not set(AT_2230) <= names_in:   # these five as drawn with it, and counts the rest
+AT_2230 = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Crossover', 'Level Crossing']   # the read-me's
+if not set(AT_2230) <= names_in:   # 22:30 paragraph names these seven as drawn with it, and counts the rest
     raise SystemExit(f'pack: the read-me says {AT_2230} were drawn with the 22:30 office; the pack has {sorted(set(AT_2230) & names_in)}')
 sl30 = [n for n, c, _ in proposals if n in SHORTLIST and DIR_OF[c] == '30-days-off']   # shortlisted, in the 30-day folder
 readme = '\n'.join([
@@ -315,7 +320,8 @@ readme = '\n'.join([
     '',
     'WHAT IS IN THE PACK',
     item('1 Summary', f'The two-page shortlist sheet - the {WORDS[len(SHORTLIST)]} shortlisted designs against each other '
-         'and today: what they share, where they differ, and which to choose for what. A one-page sheet for colleagues, '
+         'and today: what they share, where they differ, and which to choose for what. A one-page sheet setting every other '
+         'design beside them: what each has, and what it pays. A one-page sheet for colleagues, '
          '"What it means if you...", on what each '
          'shortlisted link means for someone who prefers earlies or lates, swaps earlies for lates, works their share '
          'of Sundays or no overtime, or saves leave for long breaks. And one page with every proposal against today\'s '
@@ -388,38 +394,45 @@ readme = '\n'.join([
     para(f'On {SHORTLIST_DATE.replace("Nov", "November")} the shortlist was drawn again, after every design then in the pack, '
          'and listed A to Z: Common Ground, as the example of the links that keep today\'s leave; Even Step, then first in '
          'the pack\'s league; and Short Run, which colleagues had already seen. In Step left the shortlist, and its '
-         'presentations stay in the pack. Page 2 of the shortlist sheet sets every other design beside the three.'),
+         'presentations stay in the pack. A one-page sheet, links-26-other-designs.pdf, sets every other design beside the three.'),
     '',
     # described on its own terms, as its headline is (owner, 5 Nov 2026: "the proposal description headlines should not
     # reference other proposals")
-    *([para('Middle Ground, Balanced V5 and Balanced V6 (5 November 2026), Balanced V7 (6 November 2026), and Crossover '
-            'and Level Crossing (7 November 2026) came after it. Middle Ground has seven of today\'s shift times, varied from week to week so '
+    *([para('Middle Ground, Balanced V5 and Balanced V6 (5 November 2026), Balanced V7 (6 November 2026), and Crossover, '
+            'Level Crossing, Balanced V8 and Balanced V9 (7 November 2026) came after it. Middle Ground has seven of today\'s shift times, varied from week to week so '
             'that no two closing weeks and no two 06:20 weeks fall together. Balanced V5, a one-page roster drawn up outside '
             'the app, has weeks of 06:20 starts and weeks of 08:00 starts and a 15:45 closer every weekday. Balanced V6 has a '
             '15-minute handover every weekday, from three 07:30-16:00s to the three 15:45 closers. Balanced V7 has Balanced '
             'V6\'s duties, every one, laid in new weeks, with no six-day weeks. Crossover keeps two 13:45 finishes every '
             'weekday, where today has a 13:35 and a 13:45, and every weekday closer at 15:45, with two earlies on until '
-            '16:00, the closers\' first 15 minutes; no fatigue warning is present even if a cover week falls badly. Level '
+            '16:00, the closers\' first 15 minutes; no fatigue warning is present in any cover-week placement tested. Level '
             'Crossing has the same shift times and the same handover, laid in different weeks so that no two closing weeks '
-            'come in a row. All six buy 30 days off for 14 days\' leave too, and are in the folder 30 days off.'), '']
+            'come in a row. Balanced V8 and Balanced V9 have Balanced V7\'s duties again, every one, in new weeks: no '
+            'fatigue warning is present in any cover-week placement tested, and four full weeks off take 13 days\' leave. '
+            'Balanced V8 has 19 of its 21 working weeks on one shift time and no week mixing earlies and lates; Balanced V9 '
+            'has no more than three early or three late weeks in a row outside the cover weeks, with two weeks mixing them. '
+            'All eight buy 30 days off for 14 days\' leave too, and are in the folder 30 days off.'), '']
       if LATE else []),
     # THE 22:30 OFFICE (6 Nov 2026; README.md -> "The Saturday ticket office to 22:30"): what it changed, said once, for a reader
     # holding a printout from before it, whose fingerprints no longer match. THE COUNT IS READ SINCE 7 NOV 2026: it said "the
     # nineteen already in the pack", true on 6 Nov, until Both Ways and Fine Tune were deleted and a reader counting found 17
     para('On 6 November 2026 the rules were corrected: the ticket office shuts at 22:10 on a Saturday and takes 20 minutes '
          'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. Balanced '
-         'V5, Balanced V6 and Balanced V7 already finished them at 22:30, as Crossover and Level Crossing do. On the other '
+         'V5, Balanced V6 and Balanced V7 already finished them at 22:30, as Crossover, Level Crossing, Balanced V8 and '
+         'Balanced V9, drawn since, do. On the other '
          f'{WORDS[len(names_in - set(AT_2230))]} that hour comes off other Saturday lates, so the hours and the contract are '
          'as they were; every sheet and presentation was redrawn, and their fingerprints changed. Common Ground was then '
          'first in the pack\'s league, just over half a point ahead of the next; since 7 November 2026 Crossover is, by 0.4 '
          'points.'),
     '',
     'HOW THE FIGURES ARE WORKED OUT',
-    para('Every figure in the summary, the shortlist sheet, the "What it means if you..." sheet, the rules sheet and the '
+    para('Every figure in the summary, the shortlist sheet, the sheet of the other designs, the "What it means if you..." '
+         'sheet, the rules sheet and the '
          'proposal sheets was worked out from '
          'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them. What is typed by hand is the '
          'rules\' own numbers, the one-line description under each design\'s name, and the wording of the shortlist '
-         'sheet and the "What it means if you..." sheet, whose comparisons their builds check against the rotas. The '
+         'sheet, the sheet of the other designs and the "What it means if you..." sheet, whose comparisons their builds '
+         'check against the rotas. The '
          'presentations are built by '
          'scripts, and every figure in their tables is checked against those counts (docs/links-26/tooling/deck-check.mjs '
          'in the repository).'),
