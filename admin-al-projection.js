@@ -38,10 +38,10 @@
 // the week grid did. A shared decision layer is the only version of this that stays true, because
 // there is no second copy to forget.
 
-import { projectAnnualLeaveOverage } from './roster-data.js';
+import { projectAnnualLeaveOverage, parseISODate } from './roster-data.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType } from './al-entitlement.js';
-import { isChristmasClosureDate, boxingDayLieuDays } from './christmas-leave.js';
+import { isChristmasClosureDate } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 
 /**
@@ -96,10 +96,12 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *
  * And one subset of `writing`, because a day can cost nothing to SPEND and still cost a day:
  *
- *   `lieuLost`   — a worked Boxing Day that earns its day in lieu (christmas-leave.js) and that this
- *                  write turns into leave. The leave is free, but the day in lieu goes with the work,
- *                  so the allowance drops by one (6 Nov 2026 review: the preview called it "recorded
- *                  at no cost" and the warning missed it, and the member ended a day over).
+ *   `lieuLost`   — a day whose WORK earns a day in lieu and that this write turns into leave: a
+ *                  worked Boxing Day (christmas-leave.js), or any bank holiday a Dispatcher works
+ *                  (roster-data.js). The day in lieu goes with the work, so the allowance drops by
+ *                  one (6 Nov 2026 review: the preview called a Boxing Day "recorded at no cost" and
+ *                  the warning missed it). Read off the allowance itself (`lowersAllowance`), so a
+ *                  Dispatcher's bank holidays are covered by the rule that grants them (7 Nov 2026).
  *                  `projectAlOverage` costs it through the allowance; this names it for the preview.
  *
  * @param {object} args
@@ -150,13 +152,45 @@ export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers =
         // ordinary working day alike — `willConsume` is the rule, and there is no second copy of it.
         writing.push(date);
         (willConsume({ member, date, ovByDate, swapped }) ? consuming : freeWritten).push(date);
-        // The work on record that day is what earns the day in lieu, and the leave replaces it.
-        const held = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
-        if (held && date.endsWith('-12-26') && boxingDayLieuDays(member, date.slice(0, 4), [held]) > 0) lieuLost.push(date);
+        // The work that day is what earns the day in lieu, and the leave replaces it.
+        if (lowersAllowance(member, date, ovByDate)) lieuLost.push(date);
     }
 
     const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, christmas, writing, lieuLost };
     return { ...out, counts: _counts(out) };
+}
+
+/**
+ * Does leave written on `date` lower the member's allowance — the day in lieu its work earned going
+ * with the work? Asked of `entitlementFor` with and without the leave, so every rule that earns a day
+ * in lieu (a worked Boxing Day, a Dispatcher's worked bank holiday) answers through the one that
+ * grants it, rather than a second copy of either.
+ * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
+ * @returns {boolean}
+ */
+function lowersAllowance(member, date, ovByDate) {
+    const held = ovByDate && typeof ovByDate.values === 'function' ? [...ovByDate.values()].filter(Boolean) : [];
+    const year = date.slice(0, 4);
+    const before = entitlementFor(member, year, held);
+    if (before === null) return false;
+    const leave = { memberName: member.name, date, type: 'annual_leave', value: 'AL', createdAt: { seconds: 4102444800 } };
+    const after = entitlementFor(member, year, [...held.filter(o => o.date !== date), leave]);
+    return after !== null && after < before;
+}
+
+/**
+ * How the range card's preview names the days in lieu a booking takes back (7 Nov 2026): Christmas
+ * Day and Boxing Day by name, any other bank holiday — a Dispatcher's — by its date.
+ * @param {string[]} dates ISO dates, ascending @returns {string}
+ */
+export function lieuGoesWords(dates) {
+    const name = (/** @type {string} */ d) => d.endsWith('-12-25') ? 'Christmas Day' : d.endsWith('-12-26') ? 'Boxing Day'
+        : `the bank holiday on ${parseISODate(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`;
+    const names = dates.map(name);
+    const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : (names[0] ?? '');
+    return dates.length > 1
+        ? `${list} recorded as leave, so the days in lieu for working them go`
+        : `${list} recorded as leave, so the day in lieu for working it goes`;
 }
 
 /** @param {Record<string, string[]>} sets */
@@ -232,13 +266,19 @@ export function projectAlOverage({ member, memberName, overrides, consuming, exc
     const yearFor = (/** @type {string} */ d) => String(carriedFrom(winners.get(d), d) ?? d.substring(0, 4));
     const yearSet = new Set(consuming.map(yearFor));
     const allowance = after ?? overrides;
-    // …AND EVERY YEAR WHOSE ALLOWANCE THE SAVE MOVES (6 Nov 2026 review), spent in or not: deleting a
-    // worked Boxing Day can leave a member over with nothing booked in the same save.
+    // …AND EVERY YEAR WHOSE ALLOWANCE THE SAVE LOWERS (6 Nov 2026 review), spent in or not: deleting a
+    // worked Boxing Day can leave a member over with nothing booked in the same save. LOWERS, not
+    // moves (7 Nov 2026 review): recording the work RAISES the allowance, and a member already over
+    // was told they would be "1 day over — 34 used of 33" by a save that spends nothing and leaves
+    // them better off. A year this save spends in is checked above whichever way its allowance went.
     if (after) {
         const before = new Set(overrides), later = new Set(after), touched = new Set();
         for (const o of after) if (o && o.memberName === member.name && !before.has(o)) touched.add(String(o.date).slice(0, 4));
         for (const o of overrides) if (o && o.memberName === member.name && !later.has(o)) touched.add(String(o.date).slice(0, 4));
-        for (const y of touched) if (entitlementFor(member, y, overrides) !== entitlementFor(member, y, after)) yearSet.add(y);
+        for (const y of touched) {
+            const was = entitlementFor(member, y, overrides), now = entitlementFor(member, y, after);
+            if (was !== null && now !== null && now < was) yearSet.add(y);
+        }
     }
     const years = [...yearSet].sort();
     for (const yearStr of years) {

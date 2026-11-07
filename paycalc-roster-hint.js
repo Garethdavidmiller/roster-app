@@ -54,13 +54,18 @@ function fmtH(h, m) {
  * scheduled rota. Badges only appear when the source or certainty is non-obvious.
  * @param {any} cat
  * @param {any} fromOv
+ * @param {number} [estimateHours] the hours of a DEFAULT inside this row's figure — 8 for an untimed
+ *        Other rest day, 7 for a bare Training day on a bank holiday — or 0 when there is none
  */
-function _confBadge(cat, fromOv, hasEstimate = false) {
+export function _confBadge(cat, fromOv, estimateHours = 0) {
   // A defaulted Other rest-day means this bucket's figure INCLUDES an 8h guess — never let the
   // row claim "Recorded change"/"Possible overtime" for a number that is an estimate the member
   // must correct. The default routes by day (Boxing → box, BH → bhOt, else rdw), so the flag is
-  // PER BUCKET and follows the minutes.
-  if (hasEstimate)                    return { text: 'Includes an 8h estimate — check', cls: 'conf-possible' };
+  // PER BUCKET and follows the minutes. A bare Training day on a bank holiday is the 7h default
+  // (owner, 7 Nov 2026), in the bh bucket, and says so the same way.
+  if (estimateHours) {
+    return { text: `Includes ${estimateHours === 8 ? 'an' : 'a'} ${estimateHours}h estimate — check`, cls: 'conf-possible' };
+  }
   if (cat === 'ot' || cat === 'bhOt') return { text: 'Possible overtime', cls: 'conf-possible' };
   if (cat === 'rdw' || fromOv)        return { text: 'Recorded change',   cls: 'conf-recorded' };
   return null;
@@ -236,7 +241,7 @@ export function updateRosterHint() {
       const enteredMins = (hv === '' && mv === '') ? null
         : (parseInt(hv) || 0) * 60 + (parseInt(mv) || 0);
 
-      const conf     = _confBadge(r.cat, r.fromOv, !!(s.defaulted8h && s.defaulted8h[r.cat]));
+      const conf     = _confBadge(r.cat, r.fromOv, s.defaulted8h?.[r.cat] ? 8 : s.defaulted7h?.[r.cat] ? 7 : 0);
       const confHtml = conf ? `<span class="conf-badge ${conf.cls}">${conf.text}</span>` : '';
 
       // The meta column is a wrapping flex row (paycalc.css .roster-row-meta), so its text and the

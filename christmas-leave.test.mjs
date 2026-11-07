@@ -338,6 +338,19 @@ describe('a day shown wrongly — what each surface draws', () => {
         }
     });
 
+    test('leave RECORDED on a Christmas day the member rests by pattern is listed too (7 Nov 2026 review)', () => {
+        // The Calendar draws it as Christmas leave, not counted, and the ordinary rows drop it
+        // (consumesEntitlement), so unless it is listed here it can be deleted from nowhere.
+        assert.ok(RESTER && !isChristmasLeaveDay(RESTER, BOXING_2026), 'needs a CEA resting on Boxing Day 2026');
+        const recorded = [ov(RESTER, '2026-12-26', 'annual_leave', 'AL')];
+        assert.ok(christmasLeaveDates({ member: RESTER, year: 2026, overrides: recorded }).includes('2026-12-26'));
+        assert.ok(!christmasLeaveDates({ member: RESTER, year: 2026, overrides: [] }).includes('2026-12-26'), 'and only with the record');
+        // Before these rules, Christmas leave was ordinary leave and is listed with the rest.
+        assert.ok(!christmasLeaveDates({ member: RESTER, year: 2025, overrides: [ov(RESTER, '2025-12-26', 'annual_leave', 'AL')] }).includes('2025-12-26'));
+        // A Sunday shows no leave (Boxing Day 2027), so it lists none.
+        assert.ok(!christmasLeaveDates({ member: RESTER, year: 2027, overrides: [ov(RESTER, '2027-12-26', 'annual_leave', 'AL')] }).includes('2027-12-26'));
+    });
+
     test('by year: from 2026 up to this year only — no chip for a Christmas nobody has reached', () => {
         assert.deepEqual(Object.keys(christmasLeaveByYear({ member: CEA, overrides: [], thisYear: 2026 })), ['2026']);
         assert.deepEqual(christmasLeaveByYear({ member: CEA, overrides: [], thisYear: 2025 }), {});

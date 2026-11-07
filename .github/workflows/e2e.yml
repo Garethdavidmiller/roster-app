@@ -149,7 +149,12 @@ jobs:
 
           hundredths() { awk -F. '{printf "%d", $1*100 + substr($2 "00",1,2)}' <<<"$1"; }
 
-          MAIN=$(git show origin/main:roster-data.js | grep -m1 -oE "APP_VERSION = .[0-9]+[.][0-9]+." | grep -oE "[0-9]+[.][0-9]+")
+          # Main's copy goes to a FILE first (7 Nov 2026 review). `git show … | grep -m1` let grep
+          # exit at the first match while git was still writing, and roster-data.js is larger than
+          # a pipe's 64 KB buffer: git could take SIGPIPE, the pipeline exit 141 under pipefail,
+          # and the step's -e end the job there with nothing printed. About 1 run in 180.
+          git show origin/main:roster-data.js > "$RUNNER_TEMP/main-roster-data.js"
+          MAIN=$(grep -m1 -oE "APP_VERSION = .[0-9]+[.][0-9]+." "$RUNNER_TEMP/main-roster-data.js" | grep -oE "[0-9]+[.][0-9]+")
           OURS=$(grep -m1 -oE "APP_VERSION = .[0-9]+[.][0-9]+." roster-data.js | grep -oE "[0-9]+[.][0-9]+")
           echo "main is v$MAIN . this branch is v$OURS"
 

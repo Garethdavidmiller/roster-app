@@ -74,7 +74,8 @@ export const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFI
  * State meanings:
  *   MATCH    — PDF matches base roster, no override → nothing to do
  *   GUARDED  — PDF said something the app's rules refuse to record on that day (leave or an
- *              absence on a base rest day; anything on a Sunday). Writes NOTHING, exactly like
+ *              absence on a base rest day or a rest Sunday; a training or meeting day on ANY
+ *              Sunday, whatever is saved there — owner, 7 Nov 2026). Writes NOTHING, exactly like
  *              MATCH — but it is shown and explained, because the app decided rather than agreed
  *   DIFF     — PDF differs from base roster, no manual override → propose change
  *   CONFLICT — A manually entered override exists that differs from the PDF → flag it
@@ -160,11 +161,19 @@ export function computeCellStates(parsedResult, existingOverrides) {
                           .filter(v => v != null)
                     : [];
                 const opts = readings.map(v => normaliseCellValue(v, baseShift, date))
+                    // A Sunday training or meeting day is not a reading anything may write (owner,
+                    // 7 Nov 2026) — offered, it would have been a "Rest" button over a Sunday.
+                    .filter(o => o.guarded !== 'sunday-other')
                     // A pair that would WRITE the same thing is not a question worth asking (AL vs RD
                     // on a Sunday — both become RD). Compared on `display`, which is what the save
                     // writes: `value` strips the RDW marker, so "RDW at 14:30" and a 14:30 shift — two
                     // different writes, rest day worked against ordinary turn — used to collapse.
                     .filter((o, i, all) => all.findIndex(x => x.display === o.display) === i);
+                // …BUT TWO READINGS OF THE SAME HOURS ARE ONE ANSWER, so it is offered (7 Nov 2026
+                // review). A Sunday's "MEET 10:00-14:00" and "10:00-14:00" both write Sunday work at
+                // those hours, and collapsing them left a row with nothing to pick. A lone rest day is
+                // still not offered: written on a rostered Sunday it would take the shift away.
+                const offered = opts.length > 1 || (readings.length > 1 && opts.length === 1 && opts[0].value !== 'RD');
                 states.set(key, {
                     state: 'UNREADABLE',
                     // The DATE is carried on the state (v22.17). The in-place entry has to apply the
@@ -186,7 +195,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     // too, so the choice is made knowing what it costs.
                     isManual:    existing ? (existing.source !== 'roster_import') : false,
                     chosen:      null,
-                    options:     opts.length > 1 ? opts : null,
+                    options:     offered ? opts : null,
                     /** What the admin typed in, once they have (v22.17). `chosen === 'entered'`
                      *  selects it; until then it is a draft and writes nothing, exactly like an
                      *  unpicked reading. */
@@ -226,7 +235,13 @@ export function computeCellStates(parsedResult, existingOverrides) {
             const rdwMatches = isSun
                 || !/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(normParsed)
                 || ((existing?.type === 'rdw') === isRdwEncoded(parsedShift));
-            if (!existing || !isManual) {
+            if (guarded === 'sunday-other') {
+                // A TRAINING OR MEETING DAY CANNOT BE ON A SUNDAY (owner, 7 Nov 2026), so a roster
+                // saying one is not a change to make: not over the base, not over a saved record, not
+                // over an earlier import. The rewritten RD used to be compared with the base, and on a
+                // ROSTERED Sunday it was a ticked DIFF that turned a worked day into rest.
+                state = 'GUARDED';
+            } else if (!existing || !isManual) {
                 // No override, or only a previous import.
                 if (existing && !isManual && normRest(existing.value) === normParsed && rdwMatches) {
                     state = 'COVERED';  // previous import already equals the PDF — nothing to re-approve
@@ -352,7 +367,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
  * read like an error: nothing has gone wrong, a rule has been applied, and the row exists so the
  * admin can decide whether that rule fits this particular day.
  *
- * @param {'sunday'|'rest-day'|null} guard
+ * @param {'sunday'|'sunday-other'|'rest-day'|null} guard
  * @returns {string}
  */
 export function guardCopy(guard, asks = false) {
@@ -360,6 +375,11 @@ export function guardCopy(guard, asks = false) {
     // to end "— not recorded" too, and the row said it twice.
     if (guard === 'sunday') {
         return 'Sundays aren\u2019t contracted, so nothing is recorded on them.';
+    }
+    if (guard === 'sunday-other') {
+        // Owner, 7 Nov 2026. "Stays as it is" covers all three cases: a rest Sunday, a rostered
+        // Sunday, and one that already holds a saved record.
+        return 'Training and meetings can\u2019t be on a Sunday, so nothing is recorded and the day stays as it is.';
     }
     // 'rest-day' (and any future guard, which should add its own line rather than inherit this one).
     // v24.41 sent the admin to Change a Shift, which was wrong: there, an absence on a base rest day

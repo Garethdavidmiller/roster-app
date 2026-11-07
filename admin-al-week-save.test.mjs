@@ -15,13 +15,13 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { teamMembers, getBaseShift, getPatternShift, formatISO, isWorkedShift } from './roster-data.js';
+import { teamMembers, getBaseShift, getPatternShift, formatISO, isWorkedShift, getBankHolidays } from './roster-data.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
 // The cross-layer block at the foot needs the surfaces the review named, not just the planner:
 // what the Calendar draws, what the entitlement costs, and what the receipt says.
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { resolveEffectiveShift } from './override-utils.js';
-import { consumesEntitlement } from './al-entitlement.js';
+import { consumesEntitlement, entitlementFor } from './al-entitlement.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 
 // C. Reen's fixed Mon–Fri line: every weekend is a rest day and every weekday is worked, so
@@ -388,6 +388,50 @@ describe('a save that moves the Boxing Day day in lieu is costed against the all
 
     test('a save that spends nothing and moves no allowance never raises the bar, over or not', () => {
         const p = plan(leave(34), [{ memberName: cea.name, date: workdays[33], type: 'shift', value: '09:00-17:00', note: '' }]);
+        assert.equal(p.overage, null);
+    });
+
+    // ── 7 Nov 2026 review: the no-leave path raised the bar where the save over-books nobody ──
+    test('leave turned into a shift, in the save that removes the worked Boxing Day, ends AT the limit — no bar', () => {
+        // 33 on record against 33 (32 and the day in lieu). Retyping one day of leave and removing the
+        // work leaves 32 used of 32. The retyped day used to stay in the count: "1 day over".
+        const p = plan([...leave(33), worked],
+            [{ memberName: cea.name, date: workdays[32], type: 'shift', value: '09:00-17:00', note: '', existingId: 'w32' }], ['bx']);
+        assert.equal(p.overage, null);
+    });
+
+    test('recording the Boxing Day work for a member already over RAISES the allowance — no bar', () => {
+        // 34 of 32 before, 34 of 33 after: the save spends nothing and leaves them a day better off.
+        const p = plan(leave(34), [{ memberName: cea.name, date: BOXING, type: 'rdw', value: '06:00-14:00', note: '' }]);
+        assert.equal(p.overage, null);
+    });
+
+    test('…while removing the work from a member already over still raises it — the allowance falls', () => {
+        const p = plan([...leave(34), worked], [], ['bx']);
+        assert.ok(p.overage, '34 recorded against an allowance that drops from 33 to 32');
+        assert.equal(p.overage.over, 2);
+    });
+
+    test("a Dispatcher's RDW on a rest-day bank holiday raises the allowance — no bar for one already over", () => {
+        const disp = teamMembers.find(m => m.role === 'Dispatcher' && !m.hidden && !m.startDate && !m.proRatedAL && !m.rosterChanges);
+        assert.ok(disp, 'a plain Dispatcher on the roster');
+        const at = (/** @type {string} */ iso) => new Date(`${iso}T12:00:00`);
+        const bh = getBankHolidays(2026).map(formatISO)
+            .find(iso => at(iso).getMonth() < 11 && at(iso).getDay() !== 0 && !isWorkedShift(getBaseShift(disp, at(iso))));
+        assert.ok(bh, 'a 2026 bank holiday the Dispatcher rests on by pattern');
+        const allowance = /** @type {number} */ (entitlementFor(disp, '2026', []));
+        /** @type {any[]} */ const recs = [];
+        // TWO over, so the day in lieu leaves them one over: a check that still fired on a rising
+        // allowance would raise the bar here, and one over by one would land exactly at the limit.
+        for (let d = new Date(2026, 0, 2); recs.length < allowance + 2; d.setDate(d.getDate() + 1)) {
+            const iso = formatISO(d);
+            if (d.getDay() !== 0 && iso !== bh && isWorkedShift(getBaseShift(disp, d)) && getBaseShift(disp, d) !== 'SPARE')
+                recs.push({ id: 'd' + recs.length, memberName: disp.name, type: 'annual_leave', date: iso, value: 'AL' });
+        }
+        const rdw = { memberName: disp.name, date: bh, type: 'rdw', value: '08:00-16:00', note: '' };
+        assert.ok(/** @type {number} */ (entitlementFor(disp, '2026', [...recs, rdw])) > allowance, 'the RDW earns a day in lieu');
+        const p = planAlWeekSave({ member: disp, memberName: disp.name, toSave: [rdw], toDelete: [], overrides: recs,
+            ovByDate: new Map(recs.map(o => [o.date, o])) });
         assert.equal(p.overage, null);
     });
 });

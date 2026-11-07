@@ -153,10 +153,13 @@ export function resolveDayShift(override, baseShift, sunday, christmasLeave) {
  * owner asked for Christmas leave to be RECORDED, not merely shown. They are listed BESIDE the counted
  * days and never among them.
  *
- * A date is listed exactly when the Calendar shows the member, due at work by their pattern, on LEAVE
- * that day — because both ask `resolveDayShift`. That is the Christmas leave shown from the roster, or
- * leave somebody recorded there, which is never counted either. A worked Boxing Day is work, not
- * leave, and a correction is rest. One winner per date, resolved as every consumer resolves it.
+ * A date is listed exactly when the Calendar shows the member on Christmas LEAVE that day — because
+ * both ask `resolveDayShift`. That is the leave shown from the roster where the pattern had them due at
+ * work, or leave somebody RECORDED on the day whatever the pattern says, which is never counted either.
+ * The second half was due days only until 7 Nov 2026: a record on a day the member rests by pattern
+ * was drawn as "Christmas, not counted", dropped from the ordinary rows (`consumesEntitlement`), and so
+ * listed nowhere it could be deleted. A worked Boxing Day is work, not leave, and a correction is rest;
+ * a Sunday shows no leave, so lists none. One winner per date, resolved as every consumer resolves it.
  * @param {{ member: any, year: number|string, overrides: any[] }} args
  * @returns {string[]}
  */
@@ -169,9 +172,12 @@ export function christmasLeaveDates({ member, year, overrides }) {
     }
     return [25, 26]
         .map(day => new Date(y, 11, day))
-        .filter(d => isChristmasLeaveDay(member, d))
-        .map(d => formatISO(d))
-        .filter(iso => resolveDayShift(winners.get(iso) ?? null, 'RD', false, true).shift === 'AL');
+        .filter(d => {
+            const iso = formatISO(d), due = isChristmasLeaveDay(member, d), winner = winners.get(iso) ?? null;
+            if (!due && !(winner?.type === 'annual_leave' && isChristmasClosureDate(iso))) return false;
+            return resolveDayShift(winner, 'RD', d.getDay() === 0, due).shift === 'AL';
+        })
+        .map(d => formatISO(d));
 }
 
 /**

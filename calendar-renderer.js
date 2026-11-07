@@ -574,8 +574,10 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // Unrecorded, a Christmas day the member was due to work IS annual leave, so a record making
         // it work changed it from leave. Compared with the pattern instead, a worked shift entered
         // with exactly the pattern's times read "As rostered" with no "changed by" line — on a day
-        // that only shows as worked because somebody recorded it.
-        const rosteredShift = christmasDue ? (christmasLeave ? getPatternShift(member, currentDate) : 'AL') : baseShift;
+        // that only shows as worked because somebody recorded it. A record that is itself LEAVE
+        // changed nothing from that leave, so it is compared with the pattern again (7 Nov 2026
+        // review): against 'AL' it read "✓ As rostered" and lost who had recorded it.
+        const rosteredShift = christmasDue ? ((christmasLeave || shift === 'AL') ? getPatternShift(member, currentDate) : 'AL') : baseShift;
         // Leave here is never counted, from the pattern or recorded (christmas-leave.js → isUncountedChristmasLeave).
         const christmasNotCounted = isUncountedChristmasLeave(shift, dateStr, christmasLeave);
 

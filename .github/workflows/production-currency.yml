@@ -100,8 +100,11 @@ jobs:
 
           EXPECTED=$(grep -oE "APP_VERSION = '[^']+'" roster-data.js | head -1 | grep -oE "[0-9]+\.[0-9]+")
           # The version this run STARTED with, kept when main moves: the Hosting stand-down below
-          # needs it (6 Nov 2026 — the re-read's own false alarm, explained there).
+          # needs it (6 Nov 2026 — the re-read's own false alarm, explained there). SEEN is every
+          # version main held while this run waited, START included (7 Nov 2026 — explained there).
           START="$EXPECTED"
+          SEEN=" $START "
+          seen() { case "$SEEN" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
           # ⚠️ MAIN CAN MOVE WHILE THIS WAITS (6 Nov 2026). EXPECTED was read ONCE, from the commit
           # this run checked out, and the poll below then waits up to 25 minutes. The 10:53 run read
@@ -127,6 +130,7 @@ jobs:
             if [ -n "$now" ] && [ "$now" != "$EXPECTED" ]; then
               echo "main moved while this run waited: expected v$EXPECTED is now v$now."
               EXPECTED="$now"
+              SEEN="$SEEN$now "
             fi
             return 0
           }
@@ -204,7 +208,11 @@ jobs:
           # release in progress. Pages on START is a mirror one merge behind a main that moved
           # minutes ago; one stuck there is still reported, by the next run, which starts from the
           # new main. workflow-hygiene.test.mjs runs this script against stubbed reads for the case.
-          if [ -n "$LIVE_WEB" ] && [ "$LIVE_WEB" != "$EXPECTED" ] && { [ "$LIVE_PAGES" = "$EXPECTED" ] || [ "$LIVE_PAGES" = "$START" ]; }; then
+          # …AND ON ANY VERSION MAIN HELD IN BETWEEN (7 Nov 2026 review). Two merges inside one wait
+          # left the mirror on the first of them — neither START nor the main of the moment — and a
+          # healthy release train was reported stale. Every version main held is a version the mirror
+          # may still be building towards; an unreadable mirror (empty) is never one of them.
+          if [ -n "$LIVE_WEB" ] && [ "$LIVE_WEB" != "$EXPECTED" ] && { [ "$LIVE_PAGES" = "$EXPECTED" ] || seen "$LIVE_PAGES"; }; then
             # ONE LINE ON PURPOSE. The first cut of this piped into a `python3 -c "` heredoc
             # whose body sat at column 0 — below the `run: |` block scalar's own indent, which
             # ENDS the scalar and makes the whole workflow unparseable YAML. Indenting the body
@@ -261,7 +269,10 @@ jobs:
           echo "Both origins are serving v$EXPECTED."
 
       - name: Say so, once, in an issue
-        if: failure()
+        # Only when the COMPARISON failed (7 Nov 2026 review). A bare `failure()` is true when ANY
+        # step failed, so a checkout that could not run would post "staff are not being served the
+        # current version", with no version in it, about origins nobody had read.
+        if: failure() && steps.compare.outcome == 'failure'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

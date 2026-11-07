@@ -63,10 +63,16 @@ describe('writing a day the app forbids', () => {
         assert.equal(shiftValueToOverrideType('10:00-14:00', '06:00-14:00', SUN), 'rdw', 'and never a correction to rest');
     });
 
-    test('a BARE Other day on a Sunday has no times to keep, so it is still a rest day', () => {
-        assert.equal(normaliseCellValue('MEET', 'RD', SUN).value, 'RD');
-        assert.equal(normaliseCellValue('MEET', 'RD', SUN).guarded, 'sunday');
-        assert.equal(shiftValueToOverrideType('MEET', '06:00-14:00', SUN), 'correction');
+    test('a BARE Other day on a Sunday is refused under its OWN reason, so the review holds it (owner, 7 Nov 2026)', () => {
+        // "You can't have training or a meeting on a Sunday": not leave, which means not at work,
+        // but a roster that cannot be right. `computeCellStates` holds every such row, whatever the
+        // base says — admin-roster-upload.test.mjs drives that through the state machine.
+        for (const base of ['RD', '06:00-14:00']) {
+            assert.equal(normaliseCellValue('MEET', base, SUN).value, 'RD', `base ${base}`);
+            assert.equal(normaliseCellValue('MEET', base, SUN).guarded, 'sunday-other', `base ${base}`);
+            assert.equal(normaliseCellValue('TRG RDW', base, SUN).guarded, 'sunday-other', `base ${base}`);
+        }
+        assert.equal(normaliseCellValue('AL', '06:00-14:00', SUN).guarded, 'sunday', 'leave keeps the plain Sunday reason');
     });
 
     test('the same value on a MONDAY is untouched — the guard is about Sundays, not about AL', () => {

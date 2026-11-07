@@ -1156,6 +1156,18 @@ describe('Christmas leave — due at work on 25/26 December shows as leave that 
         assert.ok(cell.dataset.detailBy, 'and the record says who made it');
     });
 
+    test('leave RECORDED on a Christmas day the member was due to work: from the pattern, with who (7 Nov 2026 review)', () => {
+        // Leave booked there before v25.37, or by a roster import. Compared with the leave the day
+        // would have had anyway, it read "As rostered" beside a line saying leave was recorded here.
+        _overrideCache.set(`${MEMBER.name}|2026-12-25`, { type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'X. Manager' });
+        const cell = cellFor(build(MEMBER), 25);
+        assert.equal(cell.dataset.detailShiftValue, 'AL');
+        assert.equal(cell.dataset.detailBaseShift, realRosterData.getPatternShift(MEMBER, XMAS), 'the pair reads the rostered turn → Annual leave');
+        assert.equal(cell.dataset.detailAsRostered, undefined, 'not "As rostered": a record is on the day');
+        assert.ok(cell.dataset.detailBy, 'and the record says who made it');
+        assert.equal(cell.dataset.detailChristmasRecorded, '25');
+    });
+
     test('leave RECORDED on a Christmas day is not counted either, and says so (6 Nov 2026 review)', () => {
         // Not due at work, so this is not the pattern's leave: a stored record, which
         // consumesEntitlement does not charge. It was labelled plain "Annual leave".

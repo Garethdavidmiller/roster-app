@@ -1508,16 +1508,12 @@ describe('LEGACY_OVERRIDE_TYPES', () => {
             assert.match(list[1], new RegExp(`'${t}'`), `firestore.rules no longer accepts replacedType '${t}' — re-saving leave over a converted day would be refused`);
         }
     });
-    it('is no longer a type — no row in Admin\'s type table — but a SURVIVING record is still worked time (6 Nov 2026 review)', () => {
-        // Nothing can create one (no TYPES row). But the 4 Nov conversion skipped some records by
-        // design and nothing shows none survived, so a survivor must not be deleted by a Sunday
-        // correction, nor drawn as a plain shift on a Sunday.
+    it('is no longer a type: no row in Admin\'s type table, and not a worked day there', () => {
+        // No record is of these types (owner, 7 Nov 2026: Operations' count after the conversion
+        // read none left), so a defence for a survivor guards nothing and is not kept.
         for (const t of LEGACY_OVERRIDE_TYPES) {
             assert.equal(TYPES[t], undefined, `${t} is back in admin-shift-types.js TYPES`);
-            assert.equal(WORKED_OVERRIDE_TYPES.has(t), true, `${t} left WORKED_OVERRIDE_TYPES — a range booking would delete a surviving Sunday record of it`);
-            const drawn = resolveEffectiveShift({ type: t, value: '10:00-14:00' }, '07:55-15:55', true);
-            assert.equal(drawn.shift, 'RDW', `a surviving Sunday '${t}' record must draw as RDW, not a plain shift`);
-            assert.equal(drawn.rdwTime, '10:00-14:00');
+            assert.equal(WORKED_OVERRIDE_TYPES.has(t), false, `${t} is back in WORKED_OVERRIDE_TYPES`);
         }
     });
 });

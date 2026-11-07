@@ -786,6 +786,91 @@ describe('computeCellStates — a timed meeting on a Sunday is Sunday work, neve
     });
 });
 
+// ── A TRAINING OR MEETING DAY CAN'T BE ON A SUNDAY (owner, 7 Nov 2026) ───────────────────────────
+// Printed WITHOUT times, the Sunday guard made it RD and the state machine compared that with the
+// base: on a ROSTERED Sunday it was a ticked DIFF writing a correction that turned a worked day into
+// rest, and a saved record there became a CONFLICT whose "use new roster" did the same. The contract
+// said the row was held. It is now, whatever the base, a saved record or an earlier import says.
+describe('computeCellStates — a bare training or meeting day on a Sunday is never written', () => {
+    const SUNDAY = '2026-11-15';
+    const sundayOf = (/** @type {boolean} */ worked) => teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly
+        && !m.startDate && ((g => g !== 'RD' && g !== 'OFF')(getBaseShift(m, new Date(SUNDAY + 'T12:00:00'))) === worked));
+    const stateFor = (/** @type {any} */ m, /** @type {string} */ value, /** @type {any[]} */ existing = []) => computeCellStates(
+        { parsed: [{ memberName: m.name, shifts: { [SUNDAY]: value } }], dates: [SUNDAY] }, existing,
+    ).get(`${m.name}|${SUNDAY}`);
+
+    for (const value of ['MEET', 'TRG', 'TEAM RDW']) {
+        test(`${value} on a ROSTERED Sunday is held and unticked — never a correction to rest`, () => {
+            const m = sundayOf(true);
+            assert.ok(m, 'needs a member rostered that Sunday');
+            const st = stateFor(m, value);
+            assert.equal(st.state, 'GUARDED');
+            assert.equal(st.chosen, null);
+            assert.equal(st.guarded, 'sunday-other');
+            assert.deepEqual(guardedWrites(st, m.name, SUNDAY), [], 'nothing written, nothing deleted');
+        });
+        test(`${value} on a rest Sunday is held too`, () => {
+            const m = sundayOf(false);
+            assert.ok(m, 'needs a member resting that Sunday');
+            assert.equal(stateFor(m, value).state, 'GUARDED');
+        });
+    }
+
+    test('a saved record on that Sunday is kept: no CONFLICT offering to overwrite it', () => {
+        const m = sundayOf(true);
+        const manual = [{ id: 'man', memberName: m.name, date: SUNDAY, type: 'rdw', value: '14:00-22:00', source: 'manual' }];
+        const st = stateFor(m, 'MEET', manual);
+        assert.equal(st.state, 'GUARDED');
+        assert.deepEqual(guardedWrites(st, m.name, SUNDAY), []);
+    });
+
+    test('an earlier import on that Sunday is kept: no REMOVE_IMPORT', () => {
+        const m = sundayOf(false);
+        const earlier = [{ id: 'old', memberName: m.name, date: SUNDAY, type: 'rdw', value: '10:00-14:00', source: 'roster_import' }];
+        assert.equal(stateFor(m, 'MEET', earlier).state, 'GUARDED');
+    });
+
+    test('leave on a rostered Sunday is unchanged: layer 4 still records the rest day', () => {
+        const st = stateFor(sundayOf(true), 'AL');
+        assert.equal(st.state, 'DIFF');
+        assert.equal(st.displayShift, 'RD');
+    });
+
+    test('the row says why, in the admin\'s words', async () => {
+        const { guardCopy } = await import('./roster-review-states.js');
+        assert.equal(guardCopy('sunday-other'),
+            'Training and meetings can’t be on a Sunday, so nothing is recorded and the day stays as it is.');
+    });
+});
+
+// ── TWO READINGS OF ONE SUNDAY CELL (7 Nov 2026 review) ─────────────────────────────────────────
+describe('computeCellStates — two readings of a Sunday cell', () => {
+    const SUNDAY = '2026-11-15';
+    const m = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+        && !['RD', 'OFF'].includes(getBaseShift(x, new Date(SUNDAY + 'T12:00:00'))));
+    const run = (/** @type {string[]} */ cand) => computeCellStates({
+        parsed:  [{ memberName: m.name, shifts: { [SUNDAY]: 'UNKNOWN|one or the other? (PDF unclear)' } }],
+        dates:   [SUNDAY],
+        choices: { [`${m.name}|${SUNDAY}`]: cand },
+    }, []).get(`${m.name}|${SUNDAY}`);
+
+    test('a timed meeting and its bare time are the same hours, so they are ONE pick, not none', () => {
+        const c = run(['MEET 10:00-14:00', '10:00-14:00']);
+        assert.equal(c.state, 'UNREADABLE');
+        assert.equal(c.chosen, null, 'offered, never defaulted');
+        assert.deepEqual(c.options.map(/** @param {any} o */ o => o.display), ['10:00-14:00']);
+    });
+
+    test('a bare meeting reading is never offered: it would be a Rest button over the Sunday', () => {
+        const c = run(['MEET', '10:00-14:00']);
+        assert.deepEqual(c.options.map(/** @param {any} o */ o => o.display), ['10:00-14:00']);
+    });
+
+    test('a lone rest day is still not offered: on a rostered Sunday it would take the shift away', () => {
+        assert.equal(run(['AL', 'RD']).options, null);
+    });
+});
+
 // ── AN ABSENCE ALREADY ON RECORD MUST NOT SWALLOW A WORKED SHIFT ───────────────────────────────
 //
 // The manual branch of `computeCellStates` has one exemption: a hand-recorded AL or absence on a
