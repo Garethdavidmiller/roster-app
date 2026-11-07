@@ -300,7 +300,13 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
     });
 
     test('ENTITLEMENT: and it goes on costing nothing — the three layers agree on the money', () => {
-        assert.equal(consumesEntitlement({ member: reen, date: SAT, override: legacyAl }), false);
+        // The real signature is (member, date, ovByDate). This was called with ONE object, so `date`
+        // was undefined and the function returned false before it looked at anything — the assertion
+        // could not fail (test audit, 7 Nov 2026: charging every rest day left it green).
+        assert.equal(consumesEntitlement(reen, SAT, heldLegacy), false);
+        // The control, so a function that never charges anything cannot pass either: the Monday
+        // after is a working day on this line, and leave there costs a day.
+        assert.equal(consumesEntitlement(reen, '2026-06-15', new Map()), true, 'a working weekday must cost a day');
     });
 
     test('RECEIPT: the line says the leave was left, and how to clear it', () => {

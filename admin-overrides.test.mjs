@@ -483,6 +483,44 @@ describe('the leave-year choice — what is written', () => {
     });
 });
 
+// ── A SWAPPED REST DAY IS RECORDED AS ONE (test audit, 7 Nov 2026) ─────────────────────────────
+// The week grid asks, for leave on a rest day, whether the member swapped working days onto it. The
+// answer "Swapped — counts" must leave `replacedType: 'shift'` on the record: the allowance reads
+// that afterwards, and without it the day reads as a free rest day the moment the save lands. No
+// test passed `swapped: true` into executeSave, so writing the ordinary replacedType instead left
+// every suite green — the v23.75 defect, in which three of one member's days went missing.
+describe('executeSave — a day answered "swapped" carries the contracted-work stamp', () => {
+    const MEMBER = 'G. Miller';
+    const REST_DAY = '2027-01-13';                  // a Wednesday rest day on this line (premise below)
+    beforeEach(() => {
+        _batchWrites.length = 0;
+        _failNextCommits = 0;
+        setAllOverrides([]);
+        mockAuth.currentUser = { uid: 'gm', getIdToken: async () => {} };
+    });
+
+    test('the premise: it is a rest day on this line, so the question is asked at all', async () => {
+        const { getBaseShift, parseISODate } = await import('./roster-data.js');
+        const m = teamMembers.find(x => x.name === MEMBER);
+        assert.ok(isRestShift(getBaseShift(m, parseISODate(REST_DAY))));
+    });
+
+    test('"Swapped — counts" writes replacedType "shift", and the instruction itself is not stored', async () => {
+        await executeSave([{ memberName: MEMBER, date: REST_DAY, type: 'annual_leave', value: 'AL', note: '', swapped: true }]);
+        const w = _batchWrites.find(x => x.date === REST_DAY);
+        assert.ok(w, 'premise: the day was written');
+        assert.equal(w.replacedType, 'shift', 'the allowance would read the day as a free rest day');
+        assert.ok(!('swapped' in w), 'a stray key reaches hasOnly() in the rules and refuses the whole save');
+    });
+
+    test('CONTROL: the same day saved without the answer carries no such stamp', async () => {
+        await executeSave([{ memberName: MEMBER, date: REST_DAY, type: 'annual_leave', value: 'AL', note: '' }]);
+        const w = _batchWrites.find(x => x.date === REST_DAY);
+        assert.ok(w, 'premise: the day was written');
+        assert.notEqual(w.replacedType, 'shift');
+    });
+});
+
 // ── getEffectiveShift ─────────────────────────────────────────────────────────
 
 describe('getEffectiveShift', () => {

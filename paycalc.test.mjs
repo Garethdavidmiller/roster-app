@@ -901,6 +901,47 @@ describe('computeTax', () => {
     });
   });
 
+  // ── THE SAME GATE ON INVENTED FIGURES, so it runs on EVERY checkout (test audit, 7 Nov 2026) ──
+  //
+  // The block above is built from the real payslips, which only the owner's checkout holds — so on
+  // CI and everywhere else it SKIPS, and weakening the `&&` to `||` left every lane green. What it
+  // pins is which METHOD runs, and that needs no real payslip: a plausible year makes the wrong
+  // method's cost plain. Only the "lands on the real payslip" figures stay gated above.
+  describe('a half-filled Year to Date pair — on figures every checkout has', () => {
+    const PAY = 2600;                                        // one period's Taxable Pay
+    const N = 12;                                            // late in the year, where it costs most
+    const perPeriod = computeTax(PAY, '1257L', T25).tax;
+    const YTD = { ytdPay: PAY * (N - 1), ytdTax: perPeriod * (N - 1) };
+
+    test('both figures present → cumulative (the positive control)', () => {
+      const r = computeTax(PAY, '1257L', T25, { ...YTD, periodN: N });
+      assert.equal(r.usingCumulative, true, 'a complete pair must still sharpen the estimate');
+      // A steady year of identical payslips: the cumulative answer is that same period's tax (the 9 of
+      // the (code × 10) + 9 rule is the only difference, and it is pennies).
+      approx(r.tax, perPeriod, 'a steady year comes out at the steady figure', 2);
+    });
+
+    test('Taxable Pay typed, Tax Paid blank → computes exactly as no pair does', () => {
+      const r = computeTax(PAY, '1257L', T25, { ytdPay: YTD.ytdPay, ytdTax: null, periodN: N });
+      assert.equal(r.usingCumulative, false, 'half a pair is not a year-to-date position');
+      approx(r.tax, perPeriod, 'half a pair must compute exactly as no pair does', 0.005);
+      // The wrong answer, named: the whole year's tax against nothing collected, which the period's
+      // pay then bounds — a plausible-looking four-figure deduction.
+      assert.ok(r.tax < PAY * 0.5, `tax ${r.tax.toFixed(2)} is the whole year's, charged in one period`);
+    });
+
+    test('Tax Paid typed, Taxable Pay blank → non-cumulative too', () => {
+      const r = computeTax(PAY, '1257L', T25, { ytdPay: null, ytdTax: YTD.ytdTax, periodN: N });
+      assert.equal(r.usingCumulative, false, 'half a pair is not a year-to-date position');
+      approx(r.tax, perPeriod, 'half a pair must compute exactly as no pair does', 0.005);
+    });
+
+    test('a typed £0 is a FIGURE, not a blank — period 1 stays cumulative', () => {
+      const { usingCumulative } = computeTax(PAY, '1257L', T25, { ytdPay: 0, ytdTax: 0, periodN: 1 });
+      assert.equal(usingCumulative, true, 'zero is an answer; blank is not');
+    });
+  });
+
   test('no YTD provided → non-cumulative even for standard code', () => {
     const { usingCumulative } = computeTax(1200, '1257L', T25);
     assert.equal(usingCumulative, false);
@@ -967,6 +1008,17 @@ describe('computeGross', () => {
     const { gBankHol, bhCapped } = computeGross({ ...BASE, bhHrs: 8 });
     assert.equal(bhCapped, 8);
     approx(gBankHol, 8 * 20.74 * 1.25, 'BH pay');
+  });
+
+  test('Bank Holiday Overtime at 1.25× — on top of the day, never inside the contracted hours', () => {
+    // Every other case here has bhOtHrs: 0, so the £ for "Bank Holiday Overtime 1.25" could be priced
+    // at basic rate with this file green (test audit, 7 Nov 2026) — 25% short on every over-run of a
+    // worked bank holiday and every RDW on one.
+    const plain = computeGross(BASE);
+    const r = computeGross({ ...BASE, bhOtHrs: 4 });
+    approx(r.gBhOt, 4 * 20.74 * 1.25, 'Bank Holiday Overtime pay');
+    approx(r.gross - plain.gross, 4 * 20.74 * 1.25, 'it is ADDED to the period, not carved out of basic');
+    assert.equal(r.nonBhNorm, plain.nonBhNorm, 'the contracted hours are untouched');
   });
 
   test('BH hours cap: cannot exceed normHrs', () => {
@@ -1146,6 +1198,29 @@ describe('getPensionForPeriod', () => {
   test('29 Aug 2025 payslip onward → £154.77 until the 8 May 2026 step', () => {
     assert.equal(getPensionForPeriod('cea', new Date(2025, 7, 29)), 154.77);
     assert.equal(getPensionForPeriod('cea', new Date(2025, 8, 26)), 154.77);
+  });
+
+  // ── The CURRENT step — every estimate a member sees today (test audit, 7 Nov 2026) ─────────
+  // The tests above stop at the May 2026 step, and GRADES.pension (asserted at the top of this file)
+  // is only the fallback used before a payslip is resolved — so the £151.86 step from the award
+  // payslip could move a month, or take the old amount, with the whole estate green. Each would put
+  // every current take-home about £4.50 out.
+  test('the 28 Aug 2026 award payslip → £151.86; the payslip before it keeps £147.36', () => {
+    for (const grade of ['cea', 'ces']) {
+      assert.equal(getPensionForPeriod(grade, new Date(2026, 6, 31)), 147.36, `${grade}: 31 Jul 2026 — the last payslip before the award`);
+      assert.equal(getPensionForPeriod(grade, new Date(2026, 7, 27)), 147.36, `${grade}: the day before the step`);
+      assert.equal(getPensionForPeriod(grade, new Date(2026, 7, 28)), 151.86, `${grade}: the award payslip itself`);
+      assert.equal(getPensionForPeriod(grade, new Date(2026, 8, 25)), 151.86, `${grade}: 25 Sep 2026`);
+      assert.equal(getPensionForPeriod(grade, new Date(2026, 10, 20)), 151.86, `${grade}: 20 Nov 2026`);
+    }
+  });
+
+  test('the grade default IS the newest step — the fallback cannot drift from the record', () => {
+    // GRADES.pension is what a period shows before its payslip resolves; if it disagreed with the
+    // newest step, the same payslip would show two pensions depending on how it was reached.
+    for (const grade of ['cea', 'ces']) {
+      assert.equal(GRADES[grade].pension, PENSION_STEPS[0].amount, `${grade}: GRADES.pension and the newest PENSION_STEPS entry`);
+    }
   });
 
   test('PENSION_STEPS is newest-first with a null-from floor (the walk contract)', () => {

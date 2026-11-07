@@ -39,6 +39,8 @@ function setupDom(/** @type {string} */ period) {
     global.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => _els[id] ?? null });
 }
 
+/** A suggestion a test supplies, or null for the default. @type {null | ((p: any) => any)} */
+let _suggestion = null;
 /** @type {string} */ let _fetchState = 'base-only';
 /** @type {number} */ let _fetchCalls = 0;
 /** @type {(v: string) => void} */ let _resolveFetch = () => {};
@@ -47,8 +49,9 @@ mock.module('./paycalc-roster-suggestions.js', {
     namedExports: {
         bhsForYear: () => [],
         getOverridesFetchState: () => _fetchState,
-        // Every period's calendar says 5h overtime, tagged with the period so a cross-write is visible.
-        getRosterSuggestion: (/** @type {any} */ p) => ({ otH: 5, otM: p.num % 60 }),
+        // Every period's calendar says 5h overtime, tagged with the period so a cross-write is visible —
+        // unless a test hands in a suggestion of its own (the rendered-badge tests below).
+        getRosterSuggestion: (/** @type {any} */ p) => (_suggestion ? _suggestion(p) : { otH: 5, otM: p.num % 60 }),
         fetchOverridesForPeriod: () => {
             _fetchCalls++;
             return new Promise(r => { _resolveFetch = (v) => { if (v === 'loaded') _fetchState = 'loaded'; r(v); }; });
@@ -56,13 +59,13 @@ mock.module('./paycalc-roster-suggestions.js', {
     },
 });
 
-const { fillFromRoster, snapKey, _restoreRosterSuggested, _applyRosterSuggestion, _confBadge } = await import('./paycalc-roster-hint.js');
+const { fillFromRoster, snapKey, _restoreRosterSuggested, _applyRosterSuggestion, _confBadge, updateRosterHint } = await import('./paycalc-roster-hint.js');
 
 const A = '60', B = '61';
 /** @type {number} */ let _autosaves = 0;
 const autosave = () => { _autosaves++; };
 
-beforeEach(() => { _store.clear(); _fetchState = 'base-only'; _fetchCalls = 0; _autosaves = 0; });
+beforeEach(() => { _store.clear(); _fetchState = 'base-only'; _fetchCalls = 0; _autosaves = 0; _suggestion = null; });
 
 describe('fillFromRoster — the period on screen when the fetch returns is the one it was asked for', () => {
     test('switching payslip during the fetch writes NOTHING into the new one', async () => {
@@ -212,3 +215,29 @@ describe('the estimate badge', () => {
     });
 });
 
+// THE CALL SITE, not only the helper (test audit, 7 Nov 2026). The two tests above call _confBadge
+// directly, so the render could stop passing the 7h flag — `s.defaulted7h?.[r.cat] ? 7 : 0` dropped
+// from the call — with this file green, and the bank-holiday row would read as a figure off the roster.
+describe('the estimate badge reaches the rendered row', () => {
+    /** Render the hint for payslip A with this suggestion, and return the rows' HTML. */
+    function render(/** @type {any} */ suggestion) {
+        setupDom(A);
+        _els.rosterHintBar = { style: {} };
+        _els.rosterRows = { innerHTML: '' };
+        _suggestion = () => suggestion;
+        updateRosterHint();
+        return String(_els.rosterRows.innerHTML);
+    }
+
+    test('a 7h Training-day default on a bank holiday is labelled as an estimate', () => {
+        const html = render({ bhH: 7, bhM: 0, bhCount: 1, bhFromOv: false, defaulted7h: { bh: true }, defaulted8h: {} });
+        assert.match(html, /data-cat="bh"/, 'premise: the bank-holiday row rendered');
+        assert.match(html, /Includes a 7h estimate/, 'the default was drawn as if the roster said so');
+    });
+
+    test('an 8h RDW default is labelled too', () => {
+        const html = render({ rdwH: 8, rdwM: 0, rdwCount: 1, defaulted8h: { rdw: true }, defaulted7h: {} });
+        assert.match(html, /data-cat="rdw"/, 'premise: the RDW row rendered');
+        assert.match(html, /Includes an 8h estimate/);
+    });
+});

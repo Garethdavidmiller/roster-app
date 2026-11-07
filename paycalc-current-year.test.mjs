@@ -40,14 +40,15 @@
  * reading the source line, and re-checking it deliberately. That is the whole intent — the failure
  * it prevents is a silent edit, which is exactly what the mutation demonstrated.
  *
- * WHEN A NEW TAX YEAR ARRIVES this file fails, loudly, on `CURRENT` — which is the point: the new
- * year's figures want checking against the published tables, not inheriting.
+ * WHEN A NEW TAX YEAR ARRIVES this file fails, loudly, because `CURRENT` must be the newest entry in
+ * TAX_YEARS — which is the point: the new year's figures want checking against the published tables,
+ * not inheriting. (Until 7 Nov 2026 `CURRENT` was only a literal, so this sentence was not true.)
  */
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { TAX_BY_YEAR, NI_BY_YEAR, SL_BY_YEAR, SCOTTISH_TAX_BY_YEAR, P_YR } from './paycalc-calc.js';
+import { TAX_BY_YEAR, NI_BY_YEAR, SL_BY_YEAR, SCOTTISH_TAX_BY_YEAR, P_YR, TAX_YEARS } from './paycalc-calc.js';
 
 /** The year every live estimate uses. Bump deliberately, with the tables open. */
 const CURRENT = '2026/27';
@@ -56,6 +57,31 @@ const ANCHORED = '2025/26';
 
 /** Annual £ → the 4-weekly figure the tables store, so assertions read in real money. */
 const perPeriod = (/** @type {number} */ annual) => annual / P_YR;
+
+const TABLES = /** @type {[string, Record<string, any>][]} */ ([
+    ['TAX_BY_YEAR', TAX_BY_YEAR], ['NI_BY_YEAR', NI_BY_YEAR],
+    ['SL_BY_YEAR', SL_BY_YEAR], ['SCOTTISH_TAX_BY_YEAR', SCOTTISH_TAX_BY_YEAR],
+]);
+
+describe('a NEW tax year cannot arrive without coming through this file', () => {
+    // The header promised that a new tax year fails this file loudly. It could not: CURRENT was a
+    // literal, so adding 2027/28 to TAX_YEARS with no tax, NI, student-loan or Scottish entries at
+    // all left every test here passing (test audit, 7 Nov 2026) — and the estimate priced the new
+    // year quietly on 2025/26's tables. These two read TAX_YEARS itself, so the promise now holds.
+    test('CURRENT is the newest tax year the app is configured for', () => {
+        const newest = TAX_YEARS[TAX_YEARS.length - 1].label;
+        assert.equal(newest, CURRENT,
+            `TAX_YEARS now ends at ${newest}: check its figures against the published tables, then move CURRENT here`);
+    });
+
+    test('every configured tax year has an entry in all four tables', () => {
+        for (const ty of TAX_YEARS) {
+            for (const [name, table] of TABLES) {
+                assert.ok(table[ty.label], `${name} has no ${ty.label} entry — that year would silently be priced on another's`);
+            }
+        }
+    });
+});
 
 describe('the current tax year is present at all', () => {
     test('every table carries an entry for it — a missing one silently falls back a year', () => {

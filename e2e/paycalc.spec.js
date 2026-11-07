@@ -3,7 +3,7 @@ import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFir
 // The REAL pay tables, imported rather than restated: the unsupported-role block below asserts that
 // a CES is priced as a CES, and a literal rate there would go stale on the next award — or, worse,
 // be "corrected" to whatever the page happened to show.
-import { GRADES, AWARD_RATES, TAX_YEARS } from '../paycalc-calc.js';
+import { GRADES, AWARD_RATES, TAX_YEARS, computeGross, computeTax, computeNI, getThresholds, getPensionForPeriod } from '../paycalc-calc.js';
 
 
 test('paycalc: shows the in-place login when not signed in (no redirect)', async ({ page }) => {
@@ -1232,7 +1232,83 @@ test('paycalc: the back-pay lump joins take-home ONLY when the tick is on', asyn
     await expect(page.locator('#bpBannerText')).toContainText('not added to this estimate');
     await expect.poll(async () => poundsOf(await page.locator('#netDisplay').textContent()))
         .toBe(excluded);
+
+    // AND ONLY ON ITS OWN PAYSLIP (test audit, 7 Nov 2026). Until here this test never left the 28 Aug
+    // payslip, so deleting `_bpPNum === _pNum` — which added the whole lump to EVERY payslip of the
+    // year while the tick was on — kept it green. The banner has a gate of its own, so it hid on those
+    // payslips while the money stayed in the figure. The banner is set in the same calculation as the
+    // £, so its hiding is also the sign that the next payslip's figure is the one on screen.
+    const paidIn = await page.locator('#periodSelect').inputValue();
+    const nextPayslip = String(Number(paidIn) + 1);
+    await page.locator('#periodSelect').selectOption(nextPayslip);
+    await expect(page.locator('#bpActiveBanner'), 'premise: the next payslip does not carry the lump').toBeHidden();
+    const nextWithout = poundsOf(await page.locator('#netDisplay').textContent());
+    await page.locator('#periodSelect').selectOption(paidIn);
+    await page.locator('#bpBannerTick').check();
+    await expect(page.locator('#bpBannerText')).toContainText('✓ Includes');
+    await page.locator('#periodSelect').selectOption(nextPayslip);
+    await expect(page.locator('#bpActiveBanner')).toBeHidden();
+    expect(poundsOf(await page.locator('#netDisplay').textContent()),
+        'the lump was added to a payslip that does not carry it').toBe(nextWithout);
     expect(errors, 'Uncaught JS exceptions on the back-pay opt-in').toHaveLength(0);
+});
+
+// ── THE TAKE-HOME £ IS THE ENGINE'S OWN FIGURE FOR WHAT IS ON SCREEN (test audit, 7 Nov 2026) ─────
+// Every other test in this file checks that the figure MOVES, or that it agrees with itself on a
+// second look. None said what it should BE, so `calculate()` could assemble the pieces wrongly with
+// every lane green: charging NI on the pay before the pension comes off cost about £12 a payslip and
+// failed nothing. `calculate()` cannot be reached from a unit test, so this reads what the page is
+// showing — the hours, the tax code — composes it with the pure engine in paycalc-calc.js, and
+// requires the page's £ to equal that, to the penny. The rate, the London Allowance and the pension
+// come from the tables, not from the page, so a wrong one on screen cannot pass by agreement.
+test('paycalc: the take-home £ is the pay engine\'s figure for the payslip on screen', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    // The 23 Oct 2026 payslip: after the award, and no bank holiday or Boxing Day in its weeks.
+    await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await expect(page.locator('#periodSelect option:checked')).toContainText('23 Oct 2026');
+
+    const TY = /** @type {any} */ (TAX_YEARS.find(t => t.label === '2026/27'));
+    const th = getThresholds('2026/27');
+    const rate = AWARD_RATES.cea['2026/27'].rate;
+    const pension = getPensionForPeriod('cea', new Date(2026, 9, 23, 12));
+    /** What the page shows, read in ONE evaluate so a recalculation between two reads cannot split it. */
+    const read = () => page.evaluate(() => {
+        const v = (/** @type {string} */ id) => (/** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '').trim();
+        const hrs = (/** @type {string} */ h, /** @type {string} */ m) => (parseInt(v(h), 10) || 0) + (parseInt(v(m), 10) || 0) / 60;
+        return {
+            net: document.getElementById('netDisplay')?.textContent ?? '',
+            rate: v('hourlyRate'), pension: v('pensionAmt'), code: v('taxCode'), loan: v('studentLoan'),
+            pg: /** @type {HTMLInputElement|null} */ (document.getElementById('pgLoanCheck'))?.checked ?? null,
+            adj: v('otherAdj'), ytd: v('ytdPay') + v('ytdTax'),
+            sat: hrs('satH', 'satM'), ot: hrs('otH', 'otM'), rdw: hrs('rdwH', 'rdwM'), sun: hrs('sunH', 'sunM'),
+            peer: Number(document.getElementById('peerVal')?.textContent || 0),
+        };
+    });
+    /** The engine's take-home for those inputs: gross, the pension taken off first, then tax and NI on what is left. */
+    const engine = (/** @type {Awaited<ReturnType<typeof read>>} */ s) => {
+        const { gross } = computeGross({ effContr: GRADES.cea.contr, rate, satHrs: s.sat, bhHrs: 0, bhOtHrs: 0,
+            oHrs: s.ot, rHrs: s.rdw, sHrs: s.sun, bHrs: 0, peerDays: s.peer, otherAdj: 0, london: TY.londonAllow });
+        const sac = Math.max(0, gross - pension);
+        return sac - computeTax(sac, s.code, th).tax - computeNI(sac, th.ni);
+    };
+    // Compared until the roster-assist has filled in this payslip's Saturdays and Sundays — the
+    // figure moves when it does, and the inputs are read in the same moment as the figure.
+    await expect.poll(async () => { const s = await read(); return Math.abs(Math.round((poundsOf(s.net) - engine(s)) * 100)); },   // pennies apart; abs, as -0 is not 0 to toBe
+        'the take-home on screen is not what the pay engine makes of the inputs on screen').toBe(0);
+
+    // The premises the comparison rests on, checked rather than trusted.
+    const s = await read();
+    expect(poundsOf(s.net), 'premise: a figure was rendered').toBeGreaterThan(0);
+    expect(Number(s.rate), 'the hourly rate on screen is the 2026/27 settled rate').toBe(rate);
+    expect(s.pension === '' || Number(s.pension) === pension, `the pension on screen (${s.pension}) is this payslip's default`).toBe(true);
+    expect([s.loan, s.pg, s.ytd], 'premise: no student loan and no Year to Date figures').toEqual(['none', false, '']);
+    expect(s.adj === '' || Number(s.adj) === 0, 'premise: no other adjustment').toBe(true);
+    expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
 });
 
 test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on', async ({ page }) => {

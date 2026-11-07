@@ -225,6 +225,25 @@ describe('computeYearSoFar', () => {
         assert.ok(Math.abs(cutover.net - withSl.net - perSlip.sl) < 0.01, 'the freed deduction lands in take-home');
     });
 
+    test('the Postgraduate Loan is deducted ON TOP of the undergraduate plan — and stops with it', () => {
+        // Every case above runs with pgLoan: false, so the postgrad leg could be dropped from this
+        // card with the file green (test audit, 7 Nov 2026). HMRC deducts the two independently; a
+        // member with both would see a year summary about £90 a payslip too generous.
+        _ls.set('myb_pc_p60', JSON.stringify({ otH: 4, otM: 0 }));
+        _ls.set('myb_pc_p61', JSON.stringify({ otH: 4, otM: 0 }));
+        const both = computeYearSoFar(TY, { ...OPTS, plan: 'plan2', pgLoan: true });
+        const ug = mirror({ oHrs: 4, plan: 'plan2' });
+        const pg = mirror({ oHrs: 4, plan: 'postgrad' });
+        assert.ok(ug.sl > 0 && pg.sl > 0, 'fixture pay must clear both thresholds');
+        assert.ok(Math.abs(both.sl - (ug.sl + pg.sl) * 2) < 0.01,
+            `two payslips, both loans: got £${both.sl.toFixed(2)}, expected £${((ug.sl + pg.sl) * 2).toFixed(2)}`);
+        const ugOnly = computeYearSoFar(TY, { ...OPTS, plan: 'plan2' });
+        assert.ok(Math.abs(ugOnly.net - both.net - pg.sl * 2) < 0.01, 'the postgrad deduction comes out of take-home');
+        // The cutover covers both loans together (one control in Settings), and so does a skip.
+        const stopped = computeYearSoFar(TY, { ...OPTS, plan: 'plan2', pgLoan: true, slPaidOffFromP: 61 });
+        assert.ok(Math.abs(stopped.sl - (ug.sl + pg.sl)) < 0.01, 'from the cutover payslip, neither loan deducts');
+    });
+
     test("a payslip's own saved slSkip is honoured", () => {
         _ls.set('myb_pc_p60', JSON.stringify({ otH: 4, otM: 0, slSkip: true }));
         const y = computeYearSoFar(TY, { ...OPTS, plan: 'plan1' });

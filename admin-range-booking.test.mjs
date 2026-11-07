@@ -636,10 +636,11 @@ describe('the receipt names the rest days it left alone', () => {
         project: (/** @type {any} */ { dates, memberObj, ovByDate, swapAnswers }) =>
             projectAlBooking({ member: memberObj, dates, ovByDate, swapAnswers }),
     } };
-    const answerFree = (/** @type {string} */ date) => {
-        const target = { closest: () => ({ dataset: { date, answer: 'no' } }) };
+    const answer = (/** @type {string} */ date, /** @type {'yes'|'no'} */ ans) => {
+        const target = { closest: () => ({ dataset: { date, answer: ans } }) };
         for (const fn of el('alPreview')._on.click ?? []) fn({ target });
     };
+    const answerFree = (/** @type {string} */ date) => answer(date, 'no');
 
     test('the roster offers the case (a working day followed by a rest day)', () => {
         assert.ok(pair, `no working day followed by a rest day for ${MEMBER} — the cases below prove nothing`);
@@ -674,6 +675,33 @@ describe('the receipt names the rest days it left alone', () => {
         const text = el('alFeedback').textContent;
         assert.match(text, new RegExp(`${rest} — rest day; the leave already recorded here was left as it is`));
         assert.doesNotMatch(text, /no leave recorded/);
+    });
+
+    // THE MIRROR OF THE "FREE" CASE (test audit, 7 Nov 2026). Only "free" was ever saved, and it
+    // expects [] — so the write could send an empty list for every answer, and the toast would quietly
+    // count one day fewer than the preview and the allowance bar had just shown.
+    test('a rest day answered "swapped" is written AS swapped', async () => {
+        const { work, rest } = /** @type {any} */ (pair);
+        const { section } = wire(realAlCfg);
+        setRange(section, work, rest);
+        answer(rest, 'yes');
+        await save();
+        assert.equal(_writes.length, 1, 'premise: the save ran');
+        assert.deepEqual(_writes[0].swappedDates, [rest], 'the declared swap never reached the write');
+    });
+
+    test('the allowance check is handed the same answers the save is about to write', async () => {
+        // The check projects this save; until the write runs, a declared swap exists nowhere else.
+        // Handed an empty map, it under-counts by every swapped day — the v23.79 regression.
+        const { work, rest } = /** @type {any} */ (pair);
+        /** @type {any[]} */ const seen = [];
+        const { section } = wire({ ...realAlCfg, preSave: (/** @type {any} */ a) => { seen.push(a); return false; } });
+        setRange(section, work, rest);
+        answer(rest, 'yes');
+        await save();
+        assert.equal(seen.length, 1, 'premise: the check ran once');
+        assert.equal(seen[0].swapAnswers.get(rest), true, 'the check was not told about the swap');
+        assert.deepEqual(seen[0].dates, [work, rest]);
     });
 
     test('a range with no rest day adds no receipt lines', async () => {
