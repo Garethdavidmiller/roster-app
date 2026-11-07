@@ -3230,19 +3230,30 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
 
     test('the page sits where every other card page does: the same inset, at a desktop and on a phone (desktop audit, Nov 2026)', async ({ page }) => {
         // Overtime had no padding of its own and took shared.css's 16px fallback, so its header sat 4px higher and its
-        // burger further out than on the page before it.
+        // burger further out than on the page before it. The header's TOP EDGE is what the eye compares between pages,
+        // so it is measured against Settings' first; the whole inset is then held to Trains'.
         await seedSession(page, 'G. Miller');
         await off(page);
-        const inset = () => page.evaluate(() => {
-            const s = getComputedStyle(document.body);
-            return [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].join(' ');
-        });
+        const where = async () => {
+            await expect(page.locator('.app-header')).toBeVisible();
+            return page.evaluate(() => {
+                const s = getComputedStyle(document.body);
+                return {
+                    headerTop: Math.round(/** @type {HTMLElement} */ (document.querySelector('.app-header')).getBoundingClientRect().top),
+                    inset: [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].join(' '),
+                };
+            });
+        };
         for (const width of [1366, 390]) {
-            await page.setViewportSize({ width, height: 800 });
+            await page.setViewportSize({ width, height: 768 });
+            await page.goto('/settings.html');
+            const settings = await where();
             await page.goto('/trains.html');
-            const trains = await inset();
+            const trains = await where();
             await page.goto('/overtime.html');
-            expect(await inset(), `at ${width}px`).toBe(trains);
+            const overtime = await where();
+            expect(overtime.headerTop, `at ${width}px the header's top edge is Settings' (${settings.headerTop}px)`).toBe(settings.headerTop);
+            expect(overtime.inset, `at ${width}px`).toBe(trains.inset);
         }
     });
 
