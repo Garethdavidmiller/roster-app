@@ -1683,7 +1683,9 @@ button.lightbox-bug-link {
     -webkit-tap-highlight-color: transparent;
 }
 @media (hover: hover) and (pointer: fine) { .dp-nav-btn:hover { background: var(--bg-light); } }
-.dp-nav-btn:focus-visible { outline: var(--focus-outline-gold); outline-offset: -2px; }
+/* The light-surface ring, as the days below have had since v25.21 (desktop audit, Nov 2026): the
+   arrows sit on the white panel, where gold is ~1.5:1. */
+.dp-nav-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
 .dp-month { font-size: var(--type-body); font-weight: 700; color: var(--text-dark); }
 .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 8px; }
 .dp-dow { height: 28px; display: flex; align-items: center; justify-content: center; font-size: var(--type-badge); font-weight: 600; color: var(--text-light); }

@@ -105,15 +105,6 @@
     </div>
 </div>
 
-<!-- Staged changes bar — fixed bottom affordance so users can save without scrolling -->
-<div id="stagedBar" class="staged-bar" hidden aria-live="polite">
-    <span class="staged-bar-label">Unsaved: <strong id="stagedCount"></strong></span>
-    <div class="staged-bar-btns">
-        <button type="button" class="staged-discard-btn" id="stagedDiscardBtn">Discard</button>
-        <button type="button" class="staged-save-btn"    id="stagedSaveBtn">Save changes</button>
-    </div>
-</div>
-
 <!-- Boot placeholder (v20.80). `.container` is `display:none` until `body.auth-ready`, and the
      header lives INSIDE it — so until the module graph has loaded and run, this page is a blank
      navy screen with nothing on it at all, not even the burger. Measured at 622ms locally on a
@@ -208,6 +199,9 @@
                 </div>
                 <!-- Step 3: apply -->
                 <button type="button" class="btn-bulk-apply" id="bulkApplyBtn"><span class="bulk-step-num bulk-step-num--on-navy">3</span><span id="bulkApplyLabel">Apply to ticked days</span></button>
+                <!-- What Apply refused, said HERE (desktop audit, Nov 2026): it went to the card's foot,
+                     ~560px below the button and under the Unsaved bar. -->
+                <div class="feedback" id="bulkFeedback" role="status" aria-live="polite"></div>
             </div>
 
             <!-- 7-day week grid -->
@@ -219,7 +213,7 @@
             <div class="grid-preview" id="gridPreview" role="status" aria-live="polite" hidden></div>
 
             <button type="button" class="btn-save" id="saveBtn" disabled>Save changes</button>
-            <p class="save-hint" id="saveBtnHint">Select a type on at least one day, then tap Save changes</p>
+            <p class="save-hint" id="saveBtnHint">Select a type on at least one day, then save your changes</p>
             <div class="feedback" id="formFeedback" role="status" aria-live="polite"></div>
 
         </div>
@@ -417,6 +411,17 @@
     </div><!-- /col-side -->
 
 </main><!-- /container -->
+
+<!-- Staged changes bar — fixed bottom affordance so users can save without scrolling. AFTER <main>
+     (desktop audit, Nov 2026): it is drawn at the foot of the screen, and before <main> its two
+     buttons were the page's first Tab stops whenever anything was staged, ahead of the burger. -->
+<div id="stagedBar" class="staged-bar" hidden aria-live="polite">
+    <span class="staged-bar-label">Unsaved: <strong id="stagedCount"></strong></span>
+    <div class="staged-bar-btns">
+        <button type="button" class="staged-discard-btn" id="stagedDiscardBtn">Discard</button>
+        <button type="button" class="staged-save-btn"    id="stagedSaveBtn">Save changes</button>
+    </div>
+</div>
 
 <script type="module" src="./admin-boot.js"></script>
 </body>

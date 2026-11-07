@@ -42,10 +42,10 @@ import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBad
 // The grid's time boxes — typed formatting and the HH:MM check — moved out at v24.64, for the same
 // reason as the line above, and now share clock-input.js's rule rather than restating it.
 import { initTimeInputs } from './admin-time-inputs.js';
+import { setStatus } from './status-text.js';
 
 // ── INJECTED ──────────────────────────────────────────────────────────────────
 let _currentIsAdmin = false;
-/** @type {(msg: string) => void} */   let _showError    = () => {};
 /** @type {(msg: string) => void} */   let _showSuccess  = () => {};
 /** @type {() => void} */              let _markChanged  = () => {};
 /** @type {(m: string) => Map<string, any>} */ let buildMemberDateMap = () => new Map();
@@ -72,7 +72,6 @@ export function rosteredWords(baseShift) {
 /**
  * @param {object} deps
  * @param {boolean} deps.currentIsAdmin
- * @param {(msg: string) => void} deps.showError
  * @param {(msg: string) => void} deps.showSuccess
  * @param {() => void} deps.markChanged
  * @param {(m: string) => Map<string, any>} deps.memberDateMap
@@ -80,7 +79,6 @@ export function rosteredWords(baseShift) {
  */
 export function initWeekEditor(deps) {
     _currentIsAdmin   = deps.currentIsAdmin;
-    _showError        = deps.showError;
     _showSuccess      = deps.showSuccess;
     _markChanged      = deps.markChanged;
     buildMemberDateMap = deps.memberDateMap;
@@ -632,11 +630,16 @@ export function updateSaveBtn() {
         // Blank the hint only when the preview above is actually carrying the summary; if the
         // preview isn't showing (no member selected, or stale HTML without #gridPreview) fall
         // back to the guidance so there's never an enabled Save with no on-screen explanation.
-        hint.textContent = previewShown ? '' : 'Select a type on at least one day, then tap Save changes';
+        hint.textContent = previewShown ? '' : 'Select a type on at least one day, then save your changes';
     }
 }
 
+/** A bulk-bar refusal, said BESIDE the bar (desktop audit: at the card's foot it sat under the Unsaved bar). '' clears. */
+const _bulkSay = (/** @type {string} */ msg) => { const el = document.getElementById('bulkFeedback');
+    if (el) { el.className = msg ? 'feedback error' : 'feedback'; setStatus(el, msg ? '⚠ ' + msg : ''); } };
+
 function _updateBulkSelCount() {
+    _bulkSay('');
     const weekGrid = document.getElementById('weekGrid');
     const el = document.getElementById('bulkSelCount');
     if (!el || !weekGrid) return;
@@ -692,7 +695,7 @@ function _initBulkBar() {
             const type    = pill.dataset.type ?? '';
             const already = pill.classList.contains('active');
             if (already) { resetBulkPills(); return; }
-            bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
+            _bulkSay(''); bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
             pill.classList.add('active');
             pill.setAttribute('aria-pressed', 'true');
             _bulkActiveType = type;
@@ -792,7 +795,7 @@ function _initBulkBar() {
     });
 
     bulkApplyBtn?.addEventListener('click', () => {
-        if (!_bulkActiveType) { _showError('Choose a type in step 2 first, then tap Apply.'); return; }
+        if (!_bulkActiveType) { _bulkSay('Choose a type in step 2 first, then select Apply.'); return; }
         const typeMeta = TYPES[_bulkActiveType];
         let ticked = 0, applied = 0, sundaySkipped = 0;
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
@@ -816,8 +819,8 @@ function _initBulkBar() {
         });
         // Silent-no-op fixes: "Apply" used to do nothing (no feedback) when no days were
         // ticked, or when the only ticked day was a Sunday that AL/Absent/Other skips.
-        if (ticked === 0)  { _showError('Tick some days first — use the buttons above, or tap the day checkboxes.'); return; }
-        if (applied === 0) { _showError('Nothing applied — Sunday is not a contracted day. Tick a working day.'); return; }
+        if (ticked === 0)  { _bulkSay('Tick some days first — use the buttons above, or tick days in the week below.'); return; }
+        if (applied === 0) { _bulkSay('Nothing applied — Sunday is not a contracted day. Tick a working day.'); return; }
         _markChanged();
         updateSaveBtn();
         _updateBulkSelCount();

@@ -2523,3 +2523,93 @@ test.describe('operations: the roster read, cut off', () => {
         await page.context().setOffline(false);
     });
 });
+
+// ── THE DESKTOP AUDIT (Nov 2026) ─────────────────────────────────────────────────────────────────
+// Operations at the station PC's size. Geometry and computed style, because each defect here was
+// invisible to a behavioural assertion: every row and button was present and correct, and the page
+// was 4,617px of account rows, or its focus ring could not be seen.
+
+test('operations: with a mouse, each account is ONE line, its email at one x down the list, and the row does not pretend to be clickable', async ({ page }, info) => {
+    // Two lines per member — the head over the email line, sized for a thumb at 375px — made Account
+    // status 4,617px tall at every desktop width. And each row's border changed under the pointer
+    // though nothing on the row is a target except its buttons.
+    test.skip(isTouchProject(info), 'a desk-sized window and a mouse');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/operations.html');
+    await expect(page.locator('#accountStatusCard')).toBeVisible({ timeout: 10000 });
+    await page.evaluate(() => /** @type {HTMLElement|null} */ (
+        document.querySelector('#accountStatusCard .card-header-toggle'))?.click());
+    await expect(page.locator('.acct-row').first()).toBeVisible();
+    const rows = await page.evaluate(() => [...document.querySelectorAll('.acct-row')].map(r => {
+        const head = /** @type {HTMLElement} */ (r.querySelector('.acct-row-head')).getBoundingClientRect();
+        const mail = /** @type {HTMLElement} */ (r.querySelector('.acct-row-email')).getBoundingClientRect();
+        return { h: Math.round(r.getBoundingClientRect().height), sameLine: Math.abs(head.top - mail.top) < 4 && mail.left > head.right,
+                 mailX: Math.round(mail.left) };
+    }));
+    expect(rows.length, 'premise: the card lists the roster').toBeGreaterThan(10);
+    expect(rows.filter(r => !r.sameLine).length, 'every member is one line: name, password and Reset, then the email').toBe(0);
+    expect(Math.max(...rows.map(r => r.h)), 'so no row is two lines tall').toBeLessThan(50);
+    expect(new Set(rows.map(r => r.mailX)).size, 'every email starts at the same x').toBe(1);
+    // Not a control, so nothing changes under the pointer.
+    const row = page.locator('.acct-row').nth(3);
+    const edge = () => row.evaluate(el => getComputedStyle(el).borderTopColor);
+    await page.mouse.move(2, 2);
+    const resting = await edge();
+    const box = /** @type {{x:number,y:number,width:number,height:number}} */ (await row.boundingBox());
+    await page.mouse.move(box.x + 4, box.y + box.height / 2);
+    // Two frames for a hover to take effect, then until no transition is running: "did not change"
+    // passes trivially on a read taken before the change began.
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await expect.poll(() => row.evaluate(el => el.getAnimations().length)).toBe(0);
+    expect(await edge(), 'the row\'s edge does not answer the pointer').toBe(resting);
+});
+
+test('operations: the upload and Read roster buttons take the navy ring on the white card, not the gold one', async ({ page }, info) => {
+    // Gold is ~1.5:1 on a light surface — under the 3:1 a focus indicator needs. The ring is drawn
+    // only for a keyboard, so no screenshot sees it: this reads the outline each button actually gets.
+    test.skip(isTouchProject(info), 'a keyboard ring');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#huddleUploadBtn')).toBeVisible({ timeout: 10000 });
+    const navy = await page.evaluate(() => {
+        const el = document.createElement('i'); el.style.color = 'var(--primary-blue)'; document.body.append(el);
+        const c = getComputedStyle(el).color; el.remove(); return c;
+    });
+    // They are disabled until a file is chosen; the ring is the subject here, so they are let in.
+    await page.evaluate(() => ['huddleUploadBtn', 'circularUploadBtn', 'newsletterUploadBtn', 'rosterParseBtn']
+        .forEach(id => { const b = /** @type {HTMLButtonElement|null} */ (document.getElementById(id)); if (b) b.disabled = false; }));
+    await page.keyboard.press('Tab');
+    for (const id of ['huddleUploadBtn', 'rosterParseBtn']) {
+        const btn = page.locator(`#${id}`);
+        await btn.evaluate(el => el.closest('.card-collapsible-body')?.classList.add('open'));
+        await btn.focus();
+        expect(await btn.evaluate(el => ({ visible: el.matches(':focus-visible'), colour: getComputedStyle(el).outlineColor })),
+            `#${id}'s ring is the light-surface navy`).toEqual({ visible: true, colour: navy });
+    }
+});
+
+test('operations: the small things on a desk — the file button matches its field, and a capped hint does not orphan a word', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the desk layout');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('circularUploadBody')?.classList.add('open'));
+    const label = page.locator('label[for="circularFileInput"]');
+    const field = page.locator('#circularUploadBody .date-trigger');
+    await expect(field).toBeVisible({ timeout: 10000 });
+    const edge = (/** @type {import('@playwright/test').Locator} */ loc) => loc.evaluate(el => {
+        const cs = getComputedStyle(el); return { radius: cs.borderTopLeftRadius, width: cs.borderTopWidth, colour: cs.borderTopColor };
+    });
+    expect(await edge(label), '"Choose file" wears the corner and edge of the date field beside it').toEqual(await edge(field));
+    // Where the engine has it: `pretty` is progressive, and an engine without it wraps as before.
+    if (await page.evaluate(() => CSS.supports('text-wrap-style', 'pretty'))) {
+        expect(await page.locator('#errorLogCard .hint').evaluate(el => getComputedStyle(el).textWrapStyle),
+            'a capped card hint balances its last lines').toBe('pretty');
+    }
+    await expect(page.locator('#errorLogCard .hint'), 'and names no touch verb on a desk').not.toContainText(/\btap\b/i);
+});
