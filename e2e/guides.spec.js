@@ -324,6 +324,17 @@ test('guides: added to the Home Screen, every guide installs the app, under the 
     }
 });
 
+// ...AND THE STAFF GUIDE'S iPHONE STEPS SAY WHERE TO STAND (iPhone audit, 7 Nov 2026). Followed on the
+// guide itself, "Share → Add to Home Screen" added the guide; and on iOS 26 Safari keeps Share under •••.
+test('staff guide: the iPhone install card says to add it from the Calendar, and where Share is on iOS 26', async ({ page }) => {
+    await page.goto('/staff-guide.html');
+    const card = page.locator('.install-card').filter({ hasText: 'iPhone' });
+    await expect(card).toHaveCount(1);
+    await expect(card).toContainText('On the roster’s Calendar page, not this guide');
+    await expect(card).toContainText('Share (□↑), or ••• then Share');
+    await expect(card).toContainText('→ Add to Home Screen');
+});
+
 // Every country and ferry card states when it was checked. guide-sources.test.mjs proves the line is
 // PRESENT in the markup and that its date matches the register; this proves it is actually VISIBLE
 // once the card is open — a static check cannot tell an evidence line from one a stylesheet hides.
