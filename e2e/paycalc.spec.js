@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView, isTouchProject, waitForPageSettled, waitForReadsToLand } from './helpers.js';
 // The REAL pay tables, imported rather than restated: the unsupported-role block below asserts that
 // a CES is priced as a CES, and a literal rate there would go stale on the next award — or, worse,
 // be "corrected" to whatever the page happened to show.
@@ -2428,7 +2428,10 @@ test('paycalc: with the keypad up, the take-home bar comes when the £ is behind
         /** @type {any} */ (window).__keyboardTo = (/** @type {number} */ h) => { height = h; vv.dispatchEvent(new Event('resize')); };
     });
     await page.goto('/paycalc.html');
-    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    // Settled, and the calendar read answered: the roster hint bar arrives with it and would move
+    // every row under a geometry measured too soon.
+    await waitForPageSettled(page);
+    await waitForReadsToLand(page);
     const bar = page.locator('#stickyTotal');
 
     // The £ low in the layout viewport: in view by the observer's lights, so no bar yet.
