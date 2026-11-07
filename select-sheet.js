@@ -300,7 +300,12 @@ function ensureSheet() {
     search.appendChild(input);
     const list = document.createElement('div');
     list.className = 'picker-list';
-    content.append(close, head, search, list);
+    // The title, the ✕ and the box are ONE sticky block (shared.css → `.picker-top`): a sheet opened on
+    // a row far down the list (`centreRow`) still says what it is for and how to close it.
+    const top = document.createElement('div');
+    top.className = 'picker-top';
+    top.append(close, head, search);
+    content.append(top, list);
     overlay.appendChild(content);
     document.body.appendChild(overlay);
     const lb = _createLightbox({ overlay, content, closeBtn: close });

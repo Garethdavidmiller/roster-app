@@ -1538,16 +1538,17 @@ button.lightbox-bug-link {
    `select-sheet.js` owns that threshold and the reason for it.
 
    STICKY, and that is the whole point of it: the box exists for a ~50-name roster, and one that
-   scrolls away at row six is one you have to scroll back up to use. `.picker-sheet` is the scroll
-   container (it carries the `max-height` and `overflow-y`), so `top: 0` resolves against it.
+   scrolls away at row six is one you have to scroll back up to use. It sticks inside `.picker-top`,
+   with the title and the ✕, against `.picker-sheet`, the scroll container (`max-height`, `overflow-y`).
 
    The head drops its own rule while the box is showing — two hairlines 50px apart read as a
    mis-drawn box rather than as two sections. */
 .picker-head:has(+ .picker-search:not([hidden])) { border-bottom: 0; }
+/* One block (desktop audit, Nov 2026): the sheet opens on its chosen row, which scrolled the title and ✕ of a
+   long list away. 6px is the ✕'s 14 less the panel's 8 padding, so it stays where it was. */
+.picker-top { position: sticky; top: 0; z-index: 1; background: white; }
+.picker-top > .lb-close { top: 6px; right: 6px; }
 .picker-search {
-    position: sticky;
-    top: 0;
-    z-index: 1;
     background: white;
     padding: 4px 12px 10px;
     border-bottom: 1px solid var(--border-light);

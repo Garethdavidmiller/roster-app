@@ -2832,6 +2832,15 @@ test('paycalc: the pay-period picker opens on the payslip on screen', async ({ p
         return r.top >= search.bottom - 1 && r.bottom <= panel.bottom + 1;
     }), { message: 'the current payslip is in view below the search box' }).toBe(true);
     expect(await page.locator('.picker-sheet').evaluate(el => el.scrollTop), 'the sheet scrolled to it').toBeGreaterThan(0);
+    // …and the scroll that brought the payslip up did not take the sheet's title and ✕ away with it:
+    // they are one sticky block with the search box (shared.css → `.picker-top`).
+    const inPanel = await page.locator('.picker-sheet').evaluate(panel => {
+        const box = panel.getBoundingClientRect();
+        const shown = (/** @type {string} */ sel) => { const r = /** @type {Element} */ (panel.querySelector(sel)).getBoundingClientRect();
+            return r.top >= box.top - 1 && r.bottom <= box.bottom + 1; };
+        return { title: shown('.picker-head b'), close: shown('.lb-close') };
+    });
+    expect(inPanel, 'the title and the ✕ are still on screen').toEqual({ title: true, close: true });
 });
 
 // PAY9 — a 3px navy stripe on two notes that sit on the navy canvas: no stripe at all, only a white
