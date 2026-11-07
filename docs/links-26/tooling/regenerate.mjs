@@ -145,6 +145,12 @@ export const SUPPLIED = [
     // closers came on, and was deleted. Laid on Short Openers' rest days with the 55-hour worst case held (README.md →
     // "Crossover"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
     { file: 'crossover.json',              name: 'Crossover',            code: 'CO-26-T10', fp: '6596c0d9', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today' },
+    // 7 Nov 2026 (owner, of Crossover: "Middle ground is a reworking of common ground to make it a gentle change between weeks.
+    // As people don't want to do several weeks of closes. How possible is it to do the same to crossover?", then "Do it"):
+    // Level Crossing is Crossover's duties and rest days, its weeks chosen again so that no two closing weeks fall side by side,
+    // at 18 weeks of 21 on one shift time (README.md → "Level Crossing"). It buys 30 days off for 14 days' leave, so it ships
+    // into 30-days-off/
+    { file: 'level-crossing.json',         name: 'Level Crossing',       code: 'LC-26-T10', fp: '32241e32', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover to the three 15:45 closers, never two closing weeks in a row, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

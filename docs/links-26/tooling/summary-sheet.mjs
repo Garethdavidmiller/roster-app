@@ -104,6 +104,11 @@ body.dense .foot{margin-top:2px} body.dense .pfoot{margin-top:2px;padding-top:2p
 /* …and, measured at the printed width, the last 8px: the heading row, the subtitle and the footnotes set a little closer
    (line-height 1.1, 1.22 and 1.24), so the footer prints at 745px of the 748 the sheet has. The type sizes are unchanged */
 body.dense th{line-height:1.1;padding:1px 5px} body.dense .mast .sub{line-height:1.22} body.dense .foot{line-height:1.24}
+/* TWENTY-FOUR ROWS (7 Nov 2026, Level Crossing): the § footnote and the page footer went onto a second sheet at the floor (the
+   footnote never splits, so a few pixels over move all of it). Measured at the floor: margins of 5mm, hairline borders and a
+   quarter-pixel of padding each fell short; giving up the last half-pixel above and below each cell prints it on one sheet at
+   80%. The type, the borders and the floor are as they were */
+body.dense td{padding:0 5px}
 </style></head><body>
 <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
 <div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${countWord(SHORTLIST.length)} shortlisted ones marked ★, and the ${countWord(rows.filter(r => r.thirty).length)} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last.<span class="how"> Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them.</span> Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>

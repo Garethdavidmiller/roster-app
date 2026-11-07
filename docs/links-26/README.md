@@ -60,8 +60,9 @@ office to 22:30* has the old and new fingerprints and what moved. **Later that d
 sheets' model: sixteen fingerprints changed again, and the league with them. *The Saturday floor late back to 22:30* has
 those.
 
-**League places dated before 7 Nov 2026 have one design fewer.** Crossover joined that day, first, inside every range the
-league reads: no score moved, and every place below it is one lower. *Crossover* has the table. Set Fair, drawn earlier
+**League places dated before 7 Nov 2026 have two designs fewer.** Crossover and Level Crossing joined that day, first and
+second, inside every range the league reads: no score moved, and every place below them is two lower (one lower in
+*Crossover*, written before Level Crossing joined). *Crossover* and *Level Crossing* have the tables. Set Fair, drawn earlier
 the same day, was deleted in its place (*Set Fair*). **Crossover was drawn as Safe Hands** (`SH-26-T10`) and renamed the
 same day (owner: "Needs a better name", then "Use railway names in future"): `CO-26-T10`, fingerprint unchanged. **The
 pack's names are railway names from here on.**
@@ -166,7 +167,7 @@ still be rebuilt.
 | times pool | `half-hour-pool.mjs` | prints the start and finish times on the hour or the half hour, with the fixed opens, closes and office times, for `final-table.mjs`'s `POOL_ONLY=` (4 Nov; see "Common Ground") |
 | options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
 | fatigue values | `factors-like.mjs` | every fatigue factor's own value, on the fixed duties and in the worst case, against a reference grid; exits 1 if any is worse (`space-polish.mjs`'s `FACTORS_LIKE` holds a search to the same comparison) |
-| whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen, `MIXED=` allows that many weeks mixing earlies and lates, with `BF=`/`BW=` holding the runs of all-early or all-late weeks, `H55=` holds the 55-hour worst case with every cover week placed every way (until then checked only afterwards), and `SKELETON_FREE=` chooses some lines' rest days again on a held layout (see "Closing Time, improved", "In Step", "Balanced V7" and "Set Fair") |
+| whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen, `MIXED=` allows that many weeks mixing earlies and lates, with `BF=`/`BW=` holding the runs of all-early or all-late weeks, `H55=` holds the 55-hour worst case with every cover week placed every way (until then checked only afterwards), `SKELETON_FREE=` chooses some lines' rest days again on a held layout, and `OBJ=gentle` keeps the hardest weeks apart, with `GENTLE_STARTS=15:45 GENTLE_SHARED=0` the closing weeks alone (see "Closing Time, improved", "In Step", "Middle Ground", "Balanced V7", "Set Fair" and "Level Crossing") |
 | rest days with a leave rule | `leave-layouts.py` | the rest days alone for CP-SAT, with what 14 days' leave buys as a rule (`LV_BEST=`, `LV_WORST=`, `LV_FOUR=`), for `exact-rota.py`'s `SKELETON=` to lay a table's times on; `FRIOFF=1` keeps the Friday before every cover week off (no 55-hour week however the cover weeks fall), `HINT=` to climb from a valid layout, `FIX=` to check one (see "Quarter Past Relaid") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
@@ -5654,6 +5655,109 @@ FIX=crossover.json SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300
 - `deck-check.mjs`: 216 rows agree;
 - `newlink-data.mjs --check`: current;
 - the shortlist sheet's claims all hold, and its pages fit;
+- in the league, no other design's score moved.
+
+## Level Crossing — Crossover's closing weeks kept apart (7 Nov 2026)
+
+**The ask** (owner, 7 Nov 2026): *"Middle ground is a reworking of common ground to make it a gentle change between weeks.
+As people don't want to do several weeks of closes. How possible is it to do the same to crossover?"*; then, shown what
+each way of doing it costs, *"Do it"*.
+
+It is **Level Crossing** (`LC-26-T10` · **`32241e32`**), in the 30-day folder. The name is a railway one, as the owner asked
+for every design from Crossover on: a level crossing, and *level* for closing weeks spread evenly. It is Crossover's duties
+and rest days with its weeks chosen again so that **no two closing weeks come in a row**: Crossover has four together
+(lines 17 to 20), Level Crossing has them on lines 3, 9, 17 and 20.
+- **What stays.** Each day's duties and everyone's rest days are Crossover's, so the two 13:45 finishes and the handover,
+  the leave, the weekends, the December rules, the fit to the trains, the 14h 20m shortest rest and no fatigue warning
+  even if a cover week falls badly are Crossover's too. The solver also kept Crossover's early and late weeks, though they
+  were free, so the runs of earlies or lates are as they were.
+- **What it pays.** One week fewer on one shift time (18 of 21), a change of start of 1h 34m against 1h 31m, and a most
+  in any seven days of 50h 30m against 50h 10m.
+- It is not on the shortlist. The decks, "What it means if you…", the New link page and the app are unchanged.
+
+**How it was found.** `exact-rota.py` on Crossover's rest days, every one of Crossover's floors held (the 55-hour worst case,
+30 days off and four weeks off for 14 days' leave, a worst stretch of 19, the 14h 20m shortest rest), each run optimal for
+its objective. The run rows read each week by its most common Monday-to-Friday duty, as *Middle Ground* does:
+
+| Layout | Closing weeks in a row | 06:20 weeks in a row | Weeks on one shift time | Change of start | Main league |
+|---|---|---|---|---|---|
+| Crossover | 4 | 3 | 19 | 1h 31m | 87.3, 1st |
+| Middle Ground's objective, early and late weeks held | 1 | 3 | 19 | 2h 00m | 86.8 |
+| … with 18 weeks on one shift time | 1 | 2 | 18 | 2h 02m | 86.4 |
+| **The closing weeks alone, 18 weeks on one shift time — Level Crossing** | **1** | **3** | **18** | **1h 34m** | **86.8, 2nd** |
+| … with 17 | 1 | 3 | 17 | 1h 26m | 86.6 |
+| Closing and 06:20 weeks, early and late weeks free, 18 | 1 | 2 | 18 | 4h 25m | — |
+
+- **Keeping 19 weeks on one shift time costs a 2h 00m change of start.** That is the least for 19, proved with the early
+  and late weeks free as well. Giving up one week brings it to 1h 34m, and the closing weeks stay apart.
+- **The 17-week layout** keeps the closing weeks apart on the reading above, but a week beside one of them has a closing
+  duty in it, so it was not taken.
+- **The 06:20 weeks stay as Crossover has them, up to three together.** Middle Ground keeps its 06:20 weeks apart as
+  well. Crossover has five 06:20 starts every weekday, where Common Ground has four (the fifth came with the handover:
+  *Crossover*), and only two 07:30s to put between them. So two 06:20 weeks touch on some weekday in every layout: one
+  pair at the least, with the early and late weeks moved too, at a change of start of 3h 24m to 4h 25m, near today's
+  4h 00m. The ask was the closing weeks.
+- The shortest rest stays 14h 20m: 14h 35m is still proved impossible on these rest days.
+
+**The leagues** (24 designs; score · place):
+
+| Version | Level Crossing | Crossover | Common Ground | First, if another |
+|---|---|---|---|---|
+| Main | 86.8 · 2nd | **87.3 · 1st** | 86.6 · 3rd | |
+| Main, the proposals setting the scale | 88.5 · 3rd | **88.9 · 1st** | 88.4 · 4th | |
+| Main, without familiar times | 90.0 · 2nd | **90.5 · 1st** | 89.1 · 4th | |
+| Main, the run on the fixed rota | 86.8 · 3rd | 87.3 · 2nd | **87.3 · 1st** | |
+| Main, Sunday duties in familiar times | 86.5 · 2nd | **86.9 · 1st** | 85.6 · 4th | |
+| Six-factor (the 24-line work's weights, the proposals setting the scale) | 91.6 · 4th | 91.6 · 3rd | 87.4 · 13th | Second Look, 94.8 |
+| Weighted as before | 87.0 · 15th | 87.4 · 10th | 88.5 · 2nd | In Step, 89.7 |
+| — the proposals setting the scale | 87.7 · 15th | 88.1 · 14th | 90.9 · 4th | In Step, 93.3 |
+| — without familiar times | 90.8 · 13th | 91.3 · 10th | 92.5 · 3rd | In Step, 93.1 |
+| — the run on the fixed rota | 87.0 · 15th | 87.4 · 13th | 89.3 · 2nd | In Step, 90.4 |
+
+It sits inside every range the league reads, so no other design's score moved: compared with the last commit before it,
+in five of the versions, every one of the 23 others scores exactly as it did. Its half-point under Crossover is the change
+of start and the week fewer on one shift time.
+
+**The pack.**
+- **Its files.** `level-crossing.json` and `level-crossing.meta.json` in `tooling/`; its duty table is Crossover's,
+  `results/crossover-table.json`. `regenerate.mjs` lists it in `SUPPLIED`; `fresh.mjs` has its one-line description,
+  which names no other design, Home Grown's family and 7 Nov 2026.
+- **Its sheet** differs from Crossover's only in the weeks on one shift time, the change of start, the rota itself and
+  the most hours in any seven days.
+- **The summary** lists 24. At its 80% floor the 24th row put the § footnote and the page footer on a second sheet, so
+  dense cells give up their last half-pixel above and below; margins of 5mm, hairline borders and a quarter-pixel of
+  padding each fell short, measured. The type and the floor are as they were.
+- **The shortlist sheet** keeps its three.
+  - Page 2's lead now reads Crossover first, 0.4 points ahead of Level Crossing, which it prints from the league.
+  - Level Crossing's row says what it has beside Crossover, and the claims assert it: each day's duties Crossover's, no
+    two closing weeks side by side where Crossover has them, one week fewer on one shift time. It keeps and pays what
+    Crossover does against the three.
+  - The 30-day, four-weeks-off and no-55-hour lists name it, and the league claims put it second, with Common Ground third.
+  - The row's words were cut to one line, and headings and bullets give up a pixel each, to keep page 2 clear of its footer.
+- **The read-me** names it among the designs drawn after the shortlist and says what it has. Crossover's lead is 0.4 points.
+- **Tooling.** `exact-rota.py` gains `GENTLE_STARTS=` (which starts the first term of `OBJ=gentle` counts, 06:20 and 15:45
+  unless set) and `GENTLE_SHARED=0` (drops its third term, which buys variety with the change of start). The defaults leave
+  Middle Ground's objective as it was. Middle Ground's own `FIX=` line no longer returns OPTIMAL, before this change as after:
+  its grid has had the 22:30 Saturday office since 6 Nov 2026 and its duty table has not (*The Saturday ticket office to
+  22:30*).
+
+**Commands.** The first returns OPTIMAL in seconds on the same objective (CP-SAT can return either of two equal layouts), so
+the grid is committed and the second checks it:
+
+```
+cd docs/links-26/tooling
+SKELETON=crossover.json OBJ=gentle GENTLE_STARTS=15:45 GENTLE_SHARED=0 ONE_MIN=18 H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 REST=860 python3 exact-rota.py results/crossover-table.json /tmp/lc.json 300
+FIX=level-crossing.json SKELETON=crossover.json OBJ=gentle GENTLE_STARTS=15:45 GENTLE_SHARED=0 ONE_MIN=18 H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 REST=860 python3 exact-rota.py results/crossover-table.json /tmp/fix.json 60
+```
+
+**Checks:**
+- `regenerate.mjs --check`: 24 proposals, every fingerprint as pinned;
+- `check.mjs`: everything agrees;
+- `deck-check.mjs`: 216 rows agree;
+- `newlink-data.mjs --check`: current;
+- the shortlist sheet's claims all hold, and its pages fit; the summary prints on one page at 80%;
+- `factors-like.mjs crossover.json level-crossing.json`: every fatigue value Crossover's but the most hours in any seven
+  days, 50h 30m against 50h 10m;
 - in the league, no other design's score moved.
 
 ## Notes for the whole set

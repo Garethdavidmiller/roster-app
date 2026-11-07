@@ -38,6 +38,7 @@ its grid, and FIX= checks that grid against the model.
        SKELETON_FREE=<line,…> (7 Nov 2026: those lines' rest days and kind chosen again, the rest held)
        H55=<minutes> (7 Nov 2026: the 55-hour worst case held, cover weeks filled in as h55Worst fills them — below H7)
        MIXED=n BF= BW= (6 Nov 2026, Balanced V7: allow up to n weeks mixing earlies and lates — below)
+       GENTLE_STARTS=15:45 GENTLE_SHARED=0 (7 Nov 2026, Level Crossing: OBJ=gentle on the closing weeks alone — below)
   e.g. HINT=closing-time.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py results/closing-time-table.json /tmp/ct.json 1200
 
 MIXED WEEKS (6 Nov 2026, owner: Balanced V6 made again "without losing anything"). Every rota above has a week all earlies
@@ -290,6 +291,14 @@ for i in range(n):
 # week-to-week moves of the average start over GENTLE minutes; neighbouring weeks sharing any other weekday start; the step.
 # A week counts as starting at a time if it does on ANY weekday, forced by its duties, so a mixed week cannot hide a shared
 # time. Middle Ground is this on Common Ground's weeks with ONE_MIN=18 (README.md -> "Middle Ground").
+# GENTLE_STARTS= and GENTLE_SHARED=0 (7 Nov 2026, of Crossover: "people don't want to do several weeks of closes"). The first
+# term counts the starts GENTLE_STARTS names, 06:20 and 15:45 unless it is set, so GENTLE_STARTS=15:45 keeps only the closing
+# weeks apart. Crossover has five 06:20 starts every weekday and two 07:30s to put between them, so keeping its 06:20 weeks
+# apart too costs a start that moves over two hours a week or more. GENTLE_SHARED=0 drops the third term, which prefers
+# neighbours on different starts: it buys variety with the step, and the closing weeks are the variety asked for. With both,
+# the step comes straight after the moves over two hours. Level Crossing is this on Crossover's rest days with ONE_MIN=18
+# (README.md -> "Level Crossing"); the defaults leave Middle Ground's command as it was.
+GENTLE_STARTS = tuple(os.environ.get('GENTLE_STARTS', '06:20,15:45').split(','))
 co, big, oth = [], [], []
 if os.environ.get('OBJ') == 'gentle':
     starts = sorted({t[:5] for d in WKD for t in TYPES[d]}); wk = {}
@@ -301,7 +310,7 @@ if os.environ.get('OBJ') == 'gentle':
                     if t[:5] == g: M.AddImplication(x[(k, d, t)], wk[(k, g)])
     for (a, b), dv in zip(pairs, D):
         for d in WKD:
-            for g in ('06:20', '15:45'):
+            for g in GENTLE_STARTS:
                 s = M.NewBoolVar(f'co_{a}_{d}_{g}'); co.append(s)
                 M.Add(s >= sum(x[(a, d, t)] for t in TYPES[d] if t[:5] == g) + sum(x[(b, d, t)] for t in TYPES[d] if t[:5] == g) - 1)
         bg = M.NewBoolVar(f'big_{a}'); M.Add(dv <= 20 * env('GENTLE', 120)).OnlyEnforceIf(bg.Not()); big.append(bg)
@@ -316,7 +325,7 @@ elif OBJ == 'heavy': M.Minimize(heavyMax)   # the heaviest Monday-to-Saturday we
 elif OBJ == 'four': M.Minimize(four)        # the leave four full weeks from a Sunday cost
 elif OBJ == 'best': M.Minimize(best29)      # the leave the cheapest 29 days cost (14 is a best stretch of 29)
 elif OBJ == 'rest': M.Minimize(sum(tight))  # the rests under REST_TO (default 15h)
-elif OBJ == 'gentle': M.Minimize(sum(co) * 1000000 + sum(big) * 100000 + sum(oth) * 10000 + stepSum)   # see GENTLE above
+elif OBJ == 'gentle': M.Minimize(sum(co) * 1000000 + sum(big) * 100000 + sum(oth) * (10000 if env('GENTLE_SHARED', 1) else 0) + stepSum)   # see GENTLE above
 else: M.Maximize(one * 100000 - stepSum)   # 'both': the most one-turn weeks, then the smallest step
 S = cp_model.CpSolver(); S.parameters.num_workers = env('WORKERS', 4)
 S.parameters.max_time_in_seconds = LIMIT
@@ -324,7 +333,7 @@ if os.environ.get('LOG'): S.parameters.log_search_progress = True
 r = S.Solve(M)
 print('heavy', S.Value(heavyMax) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'four', S.Value(four) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'best29cost', S.Value(best29) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'tight', S.Value(sum(tight)) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None)
 print('step', round(S.Value(stepSum) / 20 / len(pairs), 2) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'FF17 b-f', (S.Value(sum(bw)) - S.Value(sum(fw))) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None)
-if OBJ == 'gentle' and r in (cp_model.OPTIMAL, cp_model.FEASIBLE): print('gentle: openers/closers side by side', sum(S.Value(v) for v in co), 'moves over GENTLE', sum(S.Value(v) for v in big), 'other shared starts', sum(S.Value(v) for v in oth))
+if OBJ == 'gentle' and r in (cp_model.OPTIMAL, cp_model.FEASIBLE): print('gentle:', '/'.join(GENTLE_STARTS), 'starts side by side', sum(S.Value(v) for v in co), 'moves over GENTLE', sum(S.Value(v) for v in big), 'other shared starts', sum(S.Value(v) for v in oth) if env('GENTLE_SHARED', 1) else 'not counted (GENTLE_SHARED=0)')
 print('status', S.StatusName(r), 'one-turn', S.ObjectiveValue() if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'bound', S.BestObjectiveBound(), 'time', round(S.WallTime(), 1), flush=True)
 if r in (cp_model.OPTIMAL, cp_model.FEASIBLE):
     P = {}

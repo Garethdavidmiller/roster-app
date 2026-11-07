@@ -169,8 +169,11 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # Drawn as Safe Hands, it was renamed the same day (owner: "Needs a better name", "Use railway names in future": RENAMED,
 # below). Crossover buys 30 days off for 14 days' leave, so it is in the 30-day folder; the late paragraph says what it has, as
 # it does the others, and the 22:30 paragraph says it is now first in the league
-AFTER_31_OCT_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Clean Slate', 'Common Ground', 'Crossover', 'Fair Share', 'Grand Tour', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers']
-LATE_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Crossover', 'Middle Ground']
+# Level Crossing joined later the same day (owner, of Crossover: "people don't want to do several weeks of closes. How possible
+# is it to do the same to crossover?", then "Do it"): Crossover's duties and rest days with its weeks chosen again, so that no
+# two closing weeks fall side by side. It is in the 30-day folder too, and the late paragraph says what it has
+AFTER_31_OCT_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Clean Slate', 'Common Ground', 'Crossover', 'Fair Share', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers']
+LATE_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Crossover', 'Level Crossing', 'Middle Ground']
 if LATE and LATE != LATE_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(LATE_SET)} as the designs after the shortlist; they are {LATE}')
 if AFTER_31_OCT != AFTER_31_OCT_SET:
@@ -194,7 +197,7 @@ RENAMED = {'Quarter Past Relaid': 'Open Return', 'Relief Point': 'Balanced V6', 
 if any(n in names.split(', ') for n in RENAMED):
     raise SystemExit(f'pack: regenerate.mjs SUPPLIED lists an old name; {", ".join(f"{o} is {n}" for o, n in RENAMED.items())}')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
-THIRTY_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Common Ground', 'Crossover', 'Grand Tour', 'Middle Ground', 'Open Return', 'Short Openers']
+THIRTY_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Common Ground', 'Crossover', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Open Return', 'Short Openers']
 THIRTY_IN = sorted(n for n, c, _ in proposals if DIR_OF[c] == '30-days-off')
 if THIRTY_IN != THIRTY_SET:
     raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
@@ -383,15 +386,16 @@ readme = '\n'.join([
     '',
     # described on its own terms, as its headline is (owner, 5 Nov 2026: "the proposal description headlines should not
     # reference other proposals")
-    *([para('Middle Ground, Balanced V5 and Balanced V6 (5 November 2026), Balanced V7 (6 November 2026) and Crossover '
-            '(7 November 2026) came after it. Middle Ground has seven of today\'s shift times, varied from week to week so '
+    *([para('Middle Ground, Balanced V5 and Balanced V6 (5 November 2026), Balanced V7 (6 November 2026), and Crossover '
+            'and Level Crossing (7 November 2026) came after it. Middle Ground has seven of today\'s shift times, varied from week to week so '
             'that no two closing weeks and no two 06:20 weeks fall together. Balanced V5, a one-page roster drawn up outside '
             'the app, has weeks of 06:20 starts and weeks of 08:00 starts and a 15:45 closer every weekday. Balanced V6 has a '
             '15-minute handover every weekday, from three 07:30-16:00s to the three 15:45 closers. Balanced V7 has Balanced '
             'V6\'s duties, every one, laid in new weeks, with no six-day weeks. Crossover keeps two 13:45 finishes every '
             'weekday, where today has a 13:35 and a 13:45, and every weekday closer at 15:45, with two earlies on until '
-            '16:00, the closers\' first 15 minutes; no fatigue warning is present even if a cover week falls badly. All five buy 30 days '
-            'off for 14 days\' leave too, and are in the folder 30 days off.'), '']
+            '16:00, the closers\' first 15 minutes; no fatigue warning is present even if a cover week falls badly. Level '
+            'Crossing has the same shift times and the same handover, laid in different weeks so that no two closing weeks '
+            'come in a row. All six buy 30 days off for 14 days\' leave too, and are in the folder 30 days off.'), '']
       if LATE else []),
     # THE 22:30 OFFICE (6 Nov 2026; README.md -> "The Saturday ticket office to 22:30"): what it changed, said once, for a reader
     # holding a printout from before it, whose fingerprints no longer match
@@ -399,8 +403,8 @@ readme = '\n'.join([
          'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. On the '
          'nineteen already in the pack that hour comes off other Saturday lates, so the hours and the contract are as they '
          'were; every sheet and presentation was redrawn, and their fingerprints changed. Balanced V5, Balanced V6 and '
-         'Balanced V7 already finished them at 22:30, as Crossover does. Common Ground was then first in the pack\'s '
-         'league, just over half a point ahead of the next; since 7 November 2026 Crossover is, by 0.6 points.'),
+         'Balanced V7 already finished them at 22:30, as Crossover and Level Crossing do. Common Ground was then first in '
+         'the pack\'s league, just over half a point ahead of the next; since 7 November 2026 Crossover is, by 0.4 points.'),
     '',
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
          'reference.'),

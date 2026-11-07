@@ -7,34 +7,35 @@ needs 14 or 15 days' leave for four weeks off.
 They were put in a folder of their own on 4 November 2026 (owner: "Put all of the links that give 30 days off for 14
 days AL into a subfolder within links 26"). They are still part of the pack: the summary sheet, the shortlist sheet's
 comparisons and the league count them like every other proposal. Common Ground has been on the shortlist since
-5 November 2026, as the example of the links that keep today's leave (owner); the other eight are not.
+5 November 2026, as the example of the links that keep today's leave (owner); the other nine are not.
 
 Each has the same three files as the proposals in `../proposals/`: the eight-page sheet (`<Name>-<CODE>-<fingerprint>.pdf`),
 the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name>-<CODE>-import.txt`).
 
-| | Crossover | Common Ground | Grand Tour | Middle Ground | Short Openers | Open Return | Balanced V7 | Balanced V6 | Balanced V5 | Today's link |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Code · fingerprint | `CO-26-T10` · `6596c0d9` | `CG-26-T8` · `03af96b2` | `GT-26-T7` · `d9b82d23` | `MG-26-T8` · `20668ac9` | `SO-26-EXT` · `65f99952` | `OR-26-EXT` · `190eba69` | `MB-26-V7` · `75e9e7f3` | `MB-26-V6` · `1818a1c2` | `MB-26-V5` · `ded4a15f` | 20 weeks |
-| What it is | Two 13:45 finishes and three 15:45 closers every weekday, with two earlies on until 16:00, the closers' first 15 minutes | Seven of today's shift times, a 13:45 finish every weekday, nothing over 8h 30m on any day | No shift over 8h 30m on any day | Seven of today's shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together | Every weekday 06:20 finishing by 14:20, and every weekday closer at 15:45 | A 16:15 closer every weekday | A 15-minute handover every weekday, from three 07:30–16:00s to the three 15:45 closers, and no six-day weeks | A 15-minute handover every weekday, from three 07:30–16:00s to the three 15:45 closers | Weeks of 06:20 starts and weeks of 08:00 starts, a 15:45 closer every weekday | — |
-| 14 days' leave buys: best · average · worst | **30** · 23.4 · 19 | **30** · 23.4 · 20 | **30** · 23.4 · 20 | **30** · 23.4 · 20 | **30** · 23.4 · 19 | **30** · 23.4 · 19 | **30** · 23.4 · 20 | **30** · 23.5 · 19 | **30** · 23.5 · 19 | 30 · 23.4 · 19 |
-| Leave for four weeks off | **14** | **14** | **14** | **14** | **14** | **14** | **14** | **14** | **14** | 14 |
-| December staffing rules met | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 4 of 9 |
-| Avoidable fatigue warnings (if a cover week falls badly) | 0 (0) | 0 (up to 1) | 0 (up to 1) | 0 (up to 1) | 0 (0) | 0 (0) | 0 (up to 1) | 0 (up to 4) | 0 (up to 4) | 4 (up to 5) |
-| Most days in a row (if a cover week falls badly) | 5 (up to 6) | 5 (up to 7) | 5 (up to 7) | 5 (up to 7) | 5 (up to 6) | 5 (up to 6) | 5 (up to 7) | 5 (up to 10) | 5 (up to 10) | 7 (up to 9) |
-| Full weekends off | 7 in 26 | 7 in 26 | 7 in 26 | 7 in 26 | 7 in 26 | 7 in 26 | 7 in 26 | 6 in 26 | 6 in 26 | 4 in 20 |
-| Single rest days, a year each (in the rotation) | 10 (5 in 26) | 12 (6 in 26) | 12 (6 in 26) | 12 (6 in 26) | 10 (5 in 26) | 10 (5 in 26) | 12 (6 in 26) | 22 (11 in 26) | 22 (11 in 26) | about 10 (4 in 20) |
-| Shortest rest between fixed duties | 14h 20m | 14h 35m | 14h 35m | 14h 35m | 13h 15m | 13h 15m | 14h 20m | 14h 20m | 13h 50m | 12h 30m |
-| Weeks on one shift time, all earlies or all lates | 19 of 21 | 19 of 21 | 16 of 21 | 18 of 21 | 18 of 21 | 18 of 21 | 13 of 21 | 7 of 21 | 7 of 21 | 7 of 16 |
-| Shift times (new to learn) | 13 (6) | 13 (6) | 16 (8) | 13 (6) | 14 (6) | 16 (8) | 17 (8) | 17 (8) | 16 (7) | 18 (—) |
-| Heaviest week, Monday to Saturday | 42h 30m | 42h 30m | 42h 00m | 42h 30m | 42h 00m | 43h 00m | 42h 55m | 42h 55m | 42h 55m | 43h 50m |
-| Weighted league, of 23 | 1st, 87.3 | 2nd, 86.6 | 6th, 85.9 | 8th, 85.8 | 10th, 84.5 | 18th, 82.4 | 21st, 77.2 | 22nd, 56.3 | 23rd, 53.7 | 20.7, for reference |
+| | Crossover | Level Crossing | Common Ground | Grand Tour | Middle Ground | Short Openers | Open Return | Balanced V7 | Balanced V6 | Balanced V5 | Today's link |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Code · fingerprint | `CO-26-T10` · `6596c0d9` | `LC-26-T10` · `32241e32` | `CG-26-T8` · `03af96b2` | `GT-26-T7` · `d9b82d23` | `MG-26-T8` · `20668ac9` | `SO-26-EXT` · `65f99952` | `OR-26-EXT` · `190eba69` | `MB-26-V7` · `75e9e7f3` | `MB-26-V6` · `1818a1c2` | `MB-26-V5` · `ded4a15f` | 20 weeks |
+| What it is | Two 13:45 finishes and three 15:45 closers every weekday, with two earlies on until 16:00, the closers' first 15 minutes | Crossover's shift times and handover, laid in new weeks so that no two closing weeks come in a row | Seven of today's shift times, a 13:45 finish every weekday, nothing over 8h 30m on any day | No shift over 8h 30m on any day | Seven of today's shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together | Every weekday 06:20 finishing by 14:20, and every weekday closer at 15:45 | A 16:15 closer every weekday | A 15-minute handover every weekday, from three 07:30–16:00s to the three 15:45 closers, and no six-day weeks | A 15-minute handover every weekday, from three 07:30–16:00s to the three 15:45 closers | Weeks of 06:20 starts and weeks of 08:00 starts, a 15:45 closer every weekday | — |
+| 14 days' leave buys: best · average · worst | **30** · 23.4 · 19 | **30** · 23.4 · 19 | **30** · 23.4 · 20 | **30** · 23.4 · 20 | **30** · 23.4 · 20 | **30** · 23.4 · 19 | **30** · 23.4 · 19 | **30** · 23.4 · 20 | **30** · 23.5 · 19 | **30** · 23.5 · 19 | 30 · 23.4 · 19 |
+| Leave for four weeks off | **14** | **14** | **14** | **14** | **14** | **14** | **14** | **14** | **14** | **14** | 14 |
+| December staffing rules met | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 4 of 9 |
+| Avoidable fatigue warnings (if a cover week falls badly) | 0 (0) | 0 (0) | 0 (up to 1) | 0 (up to 1) | 0 (up to 1) | 0 (0) | 0 (0) | 0 (up to 1) | 0 (up to 4) | 0 (up to 4) | 4 (up to 5) |
+| Most days in a row (if a cover week falls badly) | 5 (up to 6) | 5 (up to 6) | 5 (up to 7) | 5 (up to 7) | 5 (up to 7) | 5 (up to 6) | 5 (up to 6) | 5 (up to 7) | 5 (up to 10) | 5 (up to 10) | 7 (up to 9) |
+| Full weekends off | 7 in 26 | 7 in 26 | 7 in 26 | 7 in 26 | 7 in 26 | 7 in 26 | 7 in 26 | 7 in 26 | 6 in 26 | 6 in 26 | 4 in 20 |
+| Single rest days, a year each (in the rotation) | 10 (5 in 26) | 10 (5 in 26) | 12 (6 in 26) | 12 (6 in 26) | 12 (6 in 26) | 10 (5 in 26) | 10 (5 in 26) | 12 (6 in 26) | 22 (11 in 26) | 22 (11 in 26) | about 10 (4 in 20) |
+| Shortest rest between fixed duties | 14h 20m | 14h 20m | 14h 35m | 14h 35m | 14h 35m | 13h 15m | 13h 15m | 14h 20m | 14h 20m | 13h 50m | 12h 30m |
+| Weeks on one shift time, all earlies or all lates | 19 of 21 | 18 of 21 | 19 of 21 | 16 of 21 | 18 of 21 | 18 of 21 | 18 of 21 | 13 of 21 | 7 of 21 | 7 of 21 | 7 of 16 |
+| Shift times (new to learn) | 13 (6) | 13 (6) | 13 (6) | 16 (8) | 13 (6) | 14 (6) | 16 (8) | 17 (8) | 17 (8) | 16 (7) | 18 (—) |
+| Heaviest week, Monday to Saturday | 42h 30m | 42h 30m | 42h 30m | 42h 00m | 42h 30m | 42h 00m | 43h 00m | 42h 55m | 42h 55m | 42h 55m | 43h 50m |
+| Weighted league, of 24 | 1st, 87.3 | 2nd, 86.8 | 3rd, 86.6 | 7th, 85.9 | 9th, 85.8 | 11th, 84.5 | 19th, 82.4 | 22nd, 77.2 | 23rd, 56.3 | 24th, 53.7 | 20.7, for reference |
 
-The columns are in league order, and the places are as of 7 November 2026, when Crossover joined. Every other figure in
+The columns are in league order, and the places are as of 7 November 2026, when Crossover and Level Crossing joined. Every other figure in
 the table is as of 6 November 2026, after the Saturday ticket office's
 lates moved to 22:30, one Saturday floor late with them, and Balanced V5 and V6 joined (below); their two low scores
 widened the league's ranges, so every other score rose and the places moved. Balanced V7 joined later the same day inside
 every range the league reads, so no other score moved: it was 20th, and Balanced V6 and V5 21st and 22nd. Crossover
-joined on 7 November 2026 the same way, first: no score moved, and every place below it is one lower.
+joined on 7 November 2026 the same way, first: no score moved, and every place below it is one lower. Level Crossing
+joined later that day the same way, second: again no score moved, and every place below it is one lower again.
 
 **What the 30 days cost.** Every layout found that buys 30 days for 14 has more single rest days than Even Step and
 Short Run, the other two shortlisted links: 10, 12 or 22 a year each here, against their 8 (today about 10). Open Return and
@@ -44,9 +45,10 @@ has Grand Tour's weeks, so its 12 single rest days a year too, and a weaker week
 shortlisted links. Middle Ground has Common Ground's rest days and duties, so the same 12 and the same fit, and pays for
 spreading its closing and 06:20 weeks apart with one week fewer on one shift time (18 of 21) and a larger change of
 start from week to week. Balanced V7 has 12 too, and pays with three weeks mixing earlies and lates and 13 of 21 weeks on one
-shift time. Crossover has Short Openers' rest days, so their 10, and pays with the weakest Saturday fit to the trains in
-the folder, 17.6, where the Balanced three have 17.3 and the other five 9.8 to 10.4, and a worst stretch of 19 days for
-14 days' leave, a day under Common Ground's.
+shift time. Crossover and Level Crossing have Short Openers' rest days, so their 10, and pay with the weakest Saturday fit
+to the trains in the folder, 17.6, where the Balanced three have 17.3 and the other five 9.8 to 10.4, and a worst stretch
+of 19 days for 14 days' leave, a day under Common Ground's. Level Crossing pays for keeping its closing weeks apart with
+one week fewer on one shift time (18 of 21).
 
 **Common Ground** joined the folder on the evening of 4 November 2026. It was drawn up in another session, on the
 owner's brief for today's link taken to 26 weeks, and reached the pack through `main` (#1690) while this folder was being
@@ -125,9 +127,26 @@ three 15:45–23:55 closers, and no early finishes between 15:00 and 16:00.
 
 It is not on the shortlist. It replaced Set Fair, drawn earlier the same day and deleted (below).
 
+**Level Crossing** joined the folder later on 7 November 2026, on the owner's ask: "Middle ground is a reworking of common
+ground to make it a gentle change between weeks. As people don't want to do several weeks of closes. How possible is it
+to do the same to crossover?", then "Do it". It has Crossover's duties and rest days, laid in new weeks so that no two
+closing weeks come in a row, where Crossover has four together.
+- **What stays.** Everything above that is Crossover's: the two 13:45 finishes and the handover, the leave, the weekends,
+  the December rules, the fit to the trains, the 14h 20m shortest rest, and no fatigue warning even if a cover week falls
+  badly.
+- **What it pays.** One week fewer on one shift time (18 of 21), and a change of start from week to week of 1h 34m,
+  against Crossover's 1h 31m.
+- **Its 06:20 weeks** are as Crossover has them, up to three together. Keeping those apart as well was measured and set
+  aside: with five 06:20 starts every weekday and two 07:30s to put between them, it costs a start that moves over two
+  hours a week on average.
+- **The league.** It is second, 86.8, 0.4 points behind Crossover and 0.2 ahead of Common Ground. No other score moved.
+- **The name** is a railway one, as the owner asked: a level crossing, and level for closing weeks spread evenly.
+
+It is not on the shortlist.
+
 **Presentations.** Common Ground has a colleague deck and a managers' deck, made on 5 November 2026 at the owner's request.
 They were kept outside the pack for a few hours, in a folder since removed, and have been in `../presentations/` since it
-joined the shortlist the same day. The other eight links here, Middle Ground and Crossover included, have none.
+joined the shortlist the same day. The other nine links here, Middle Ground, Crossover and Level Crossing included, have none.
 
 **Taken out, and since deleted:** Quarter Past, whose shift times Open Return keeps, on the evening of 4 November 2026;
 and Well Kept, today's twenty weeks with six added, which was in this folder from that evening until 5 November 2026
@@ -144,4 +163,4 @@ Middle Ground → "Middle Ground — the shift times varied from week to week", 
 one-page roster, read and given its sheet", "Relief Point — Balanced V5 with a 15-minute handover" and "Balanced V5 and
 Balanced V6 join the pack", and for Balanced V7 → "Balanced V7 — Balanced V6 made again", and for Crossover → "Set Fair — two 13:45s every weekday,
 on the fewest shift times" (the search it stands on) and "Crossover — two 13:45s every weekday, and a handover to the
-closers".
+closers", and for Level Crossing → "Level Crossing — Crossover's closing weeks kept apart".
