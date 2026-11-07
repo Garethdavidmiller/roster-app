@@ -60,6 +60,10 @@ office to 22:30* has the old and new fingerprints and what moved. **Later that d
 sheets' model: sixteen fingerprints changed again, and the league with them. *The Saturday floor late back to 22:30* has
 those.
 
+**League places dated before 7 Nov 2026 have one design fewer.** Set Fair joined that day, first, inside every range the
+league reads: no score moved, and every place below it is one lower. *Set Fair* has the table, and every way to fewer
+shift times than its twelve.
+
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
 So a rebuild adds nothing about who decides, votes or recommends — the process is recorded in
@@ -134,7 +138,7 @@ still be rebuilt.
 
 | Stage | Script | What it does |
 |---|---|---|
-| 1 · duty table | `final-table.mjs` | the best table for one day, by fit to the trains, under every rule; a proof unless `ANNEAL=1`; `OPENERS_MIN=` and `FIXED_FREE=1` (a third duty on a ticket-office time) since "In Step" |
+| 1 · duty table | `final-table.mjs` | the best table for one day, by fit to the trains, under every rule; a proof unless `ANNEAL=1`; `OPENERS_MIN=` and `FIXED_FREE=1` (a third duty on a ticket-office time) since "In Step"; `KNOWN=` (with `NEWPEN=`, a cost for every time not in a given list, so a Saturday or a Sunday can be built on the weekday's times) and `EARLIES=` (exactly that many duties starting before 11:00, the split a layout's early and late weeks need) since "Set Fair" |
 | | `assemble-table.mjs` | three days' tables into one duty table (weekday · Saturday · Sunday) |
 | 2 · rota | `anneal.mjs` | arranges a table on the 26 lines; `TABLE=<table.json>`, `MODE=rules` for fatigue first |
 | | `carry-order.mjs` | lays a table onto an existing rota's week structure (how Familiar Nine borrowed Right Away's) |
@@ -153,14 +157,14 @@ still be rebuilt.
 | | `what-it-means-data.mjs` | the sheet's figures and asserted sentences, split out of it unchanged (2 Nov 2026) so the app's New link page reads the same ones; imported, never run |
 | | `newlink-data.mjs` | writes the app's `newlink-data.js` — the New link page's figures, sentences and pack list — from `what-it-means-data.mjs`; `--check` is what `newlink-data.test.mjs` runs. After `what-it-means-sheet.mjs` (step 4) |
 | 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`) → `common-ground-decks.py` → `deck-marks.py`; `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; Common Ground's, rewritten from Even Step's finished pair; the ✓ and ▲ beside every green and amber figure, run last (5 Nov 2026); the checker that reads every deck row back against the sheets and refuses an unmarked colour; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks |
-| league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them; `FAM_SUNDAY=1` for the main league with the Sunday duties counted in familiar shift times, as it was read before 3 Nov) — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
+| league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them; `FAM_SUNDAY=1` for the main league with the Sunday duties counted in familiar shift times, as it was read before 3 Nov; `EXTRA=Name=<grid.json>;…` scores a candidate beside the pack's proposals, inside the range and ranked, before anything is rendered, since "Set Fair") — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
 | | `skeleton-from.mjs` | reads a finished rota's rest days and early and late weeks back as a skeleton, so another table's times can be laid on the same weeks (26 Oct; see "Today's link on 26 lines") |
 | times pool | `half-hour-pool.mjs` | prints the start and finish times on the hour or the half hour, with the fixed opens, closes and office times, for `final-table.mjs`'s `POOL_ONLY=` (4 Nov; see "Common Ground") |
 | options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
 | fatigue values | `factors-like.mjs` | every fatigue factor's own value, on the fixed duties and in the worst case, against a reference grid; exits 1 if any is worse (`space-polish.mjs`'s `FACTORS_LIKE` holds a search to the same comparison) |
-| whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen, `MIXED=` allows that many weeks mixing earlies and lates, with `BF=`/`BW=` holding the runs of all-early or all-late weeks (see "Closing Time, improved", "In Step" and "Balanced V7") |
+| whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen, `MIXED=` allows that many weeks mixing earlies and lates, with `BF=`/`BW=` holding the runs of all-early or all-late weeks, `H55=` holds the 55-hour worst case with every cover week placed every way (until then checked only afterwards), and `SKELETON_FREE=` chooses some lines' rest days again on a held layout (see "Closing Time, improved", "In Step", "Balanced V7" and "Set Fair") |
 | rest days with a leave rule | `leave-layouts.py` | the rest days alone for CP-SAT, with what 14 days' leave buys as a rule (`LV_BEST=`, `LV_WORST=`, `LV_FOUR=`), for `exact-rota.py`'s `SKELETON=` to lay a table's times on; `FRIOFF=1` keeps the Friday before every cover week off (no 55-hour week however the cover weeks fall), `HINT=` to climb from a valid layout, `FIX=` to check one (see "Quarter Past Relaid") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
@@ -5272,6 +5276,214 @@ dashes and quotes.
 - `deck-check.mjs`: 216 rows agree;
 - `newlink-data.mjs --check`: current;
 - `npm run check`: 4,182 hygiene and 2,362 unit tests pass, on the tree merged with #1700.
+
+## Set Fair — two 13:45s every weekday, on the fewest shift times (7 Nov 2026)
+
+**The brief** (owner, 7 Nov 2026): *"Can you create a proposal that keeps the 1345 finishes and converts all the 1335
+finishes to 1345 too. That has all closers on a 1545 start on a weekday. It needs to have 30 days off for 14 days AL. And
+it needs to meet all the rules, fatigue rules, minimise numbers of shift times and be competitive with the best proposals
+in the league table. Check every possibility."*
+
+It is **Set Fair** (`SF-26-T9` · **`387ad295`**), in the 30-day folder. It has:
+- two 06:20–13:45s every weekday;
+- every weekday closer at 15:45–23:55;
+- 14 days' leave buying 30 days off, and four weeks off taking 14;
+- all nine December rules, the hard limits and the three flexible rules;
+- **no fatigue factor present, on the fixed duties or if a cover week falls badly**;
+- **twelve shift times, the fewest of any design in the pack** (five have 13).
+
+It is **first in the main league, 88.3, 1.6 points ahead of Common Ground**. It is in the pack, and not on the
+shortlist. The decks, "What it means if you…", the New link page and the Links designer's built-in designs are unchanged.
+
+**How the brief was read**, so that each reading can be overruled:
+- **The 13:45s.** Today's weekday has one 06:20–13:35 and one 06:20–13:45. Both become 06:20–13:45, so every weekday
+  has two, and no other weekday early finishes before 14:00. Today has none at the weekend, and Set Fair has none either.
+- **The closers.** Every weekday closer is 15:45–23:55, three a weekday, the fewest S2 allows.
+- **Every rule**: S1–S9, the hard limits and F1–F3. **Every fatigue rule**: no fatigue factor present, with the
+  cover weeks set aside and with every cover week placed as badly as it can be.
+- **The fewest shift times**, counted across the whole week, Sunday included, without giving up any rule for them.
+- **Competitive**: scored in the main league beside the 22 designs already in it.
+
+**The arithmetic.**
+- On a weekday, nine duties are fixed: the ticket office's four, the two 13:45s and the three closers, 4,340 minutes in
+  all.
+- Six more at 8h 30m make **7,400 minutes, the most a weekday can pay with nothing over 8h 30m**. That is 35 minutes
+  under Common Ground's weekday, whose second 06:20 finishes at 14:20.
+- The contract's 44,100 then leaves **7,100 for the Saturday's fourteen duties**, against Common Ground's 6,925.
+- 7,100 is more than the week's other times can pay. The office's four and three 15:45 closers come to 3,450 minutes,
+  so the other seven duties would need 521 minutes each, over 8h 30m. The Saturday therefore needs something longer:
+  either closers from 15:15 (8h 40m), as Set Fair has, or 9-hour earlies.
+- A lighter weekday would make the Saturday heavier still. Every 5 minutes off each weekday puts 25 more on the
+  Saturday, whose duties at 7,100 already average 8h 27m.
+
+**Every possibility checked.** Each search is exhaustive (`final-table.mjs`, then `exact-rota.py`):
+
+| What | How | Found |
+|---|---|---|
+| The weekday at every total | six times at every total from 7,400 to 7,550 with lates up to 9 hours; five times at 7,400 and from 7,405 to 7,550; seven from 7,410 to 7,470; 7,400 with nothing over 8h 30m at five to eight times | **At 7,400 the best six-time weekday fits 28.7 with a 9-hour late (11:15–20:15), and 30.0 with nothing over 8h 30m** (07:00–15:30 and 11:30–20:00). At 7,415 and 7,430 the best are 30.4 and 30.9; every other total fits 34 or worse. **Five times fit 36.6** (07:15–15:45 four times, no 11:00–19:30); a seventh time gains 1.1 to 1.7 |
+| Set Fair's weekday | the 40 best six-time tables at 7,400 with nothing over 8h 30m | today's 07:15–15:45 and 11:00–19:30 in place of 07:00–15:30 and 11:30–20:00, fit 32.6. Both are worked today, and **07:15–15:45 is also the Sunday's opening time**. A 07:00 or 06:20 start cannot be worked on a Sunday, which opens at 07:15 |
+| The Saturday at 7,100, any times | seven times, then eight; and seven times with the seven earlies every 30-day layout has | fit 14.0 at seven times and 13.7 at eight; **14.5 with seven earlies**, five of its seven times ones the weekday and the office do not work |
+| The Saturday on the week's own times | the weekday's six and the office's two alone, then with each of the other 253 times in the pool (`POOL_ONLY=`), and again with earlies up to 9 hours, over that pool's 273 others; then every table, each time outside the eight costing 3 on the fit (`KNOWN=`, `NEWPEN=3`, `EARLIES=7`: 2.9 million tables) | **none pays 7,100 with no new time or with one**. With two, **06:20–14:45 and 15:15–23:55: fit 18.5**, nothing over 8h 40m; 13:30–22:30 with 14:45–23:55 closers fits 18.6, but those closers are 9h 10m. With three (08:00–16:30 as well), 16.4 |
+| The Sunday on the week's own times | `SUN_PLAN=1`, every table at three to six times, the week's ten times known (`KNOWN=`, `NEWPEN=` 0 to 1,000) | the 23:25 closer is always new, since no other day closes then. With only that one new time: four closers (fit 88.7), or 11:00–19:30 as a fourth time (fit 50). Both have four earlies, where every 30-day layout has five. **With five earlies, two new is the fewest: 09:00–18:00 and 15:15–23:25, fit 31.2** (09:00–17:30 33.3, 08:00–16:30 43) |
+| The better-fitting weekdays as whole weeks | the 28.7 and 30.0 weekdays: the Saturday as above (each needs two new times: 18.7 and 19.5 at best), then the Sunday with five earlies | **thirteen times each**. Neither week has an early the Sunday can work, so its Sunday needs three new times, proved over every table |
+| Fewer than twelve | each way down, laid on Set Fair's rest days with every requirement held, and scored beside the pack | below |
+| The rest days | the table laid on each 30-day layout's rest days, then on any (`exact-rota.py`) | below |
+
+**Fewer than twelve.** Each design below meets every requirement of the brief. Scores are each design's own, added to
+the pack alone beside Set Fair:
+
+| Shift times | How | Fit, weekday · Saturday · Sunday | League |
+|---|---|---|---|
+| **12** | **Set Fair** | 32.9 · 17.6 · 29.2 | **88.3, 1st** |
+| 11 | the five-time weekday (a fourth 07:15–15:45 in place of 11:00–19:30), with Set Fair's Saturday and Sunday | 36.9 · 17.6 · 29.2 | 86.3, 3rd, 0.4 under Common Ground |
+| 11 | Set Fair's weekday, with the Saturday's second new time shared with the Sunday: 08:30–17:30, the best of 08:00–17:00 to 09:00–18:00 | 32.9 · 23.2 · 33.2 | 86.0, 3rd, 0.3 under Common Ground |
+| 10 | both of those at once | 36.9 · 23.2 · 33.2 | 84.2, 11th |
+| 9 | not possible | — | — |
+
+- **The first eleven.** It is 2.0 points below Set Fair: a weaker weekday fit, a change of start from week to week of
+  1h 54m (Set Fair's is 1h 06m), and one of today's times fewer. The league counts familiar times as a share of the
+  Monday-to-Saturday times, and 11:00–19:30 is one of them.
+- **The second eleven.** It has three 9-hour earlies every Saturday.
+- **Ten** has both costs, so twelve is where the fewest shift times and the top of the league meet.
+- **Why not nine.** Each of the ten five-time weekdays at 7,400 leaves a Saturday that needs two new times. That was
+  proved the same way as above, with earlies up to 9 hours, 275 pools each. The Sunday always needs its 23:25 closer, so
+  a five-time weekday makes ten at least. No four-time weekday pays 7,400 at all.
+
+**The 55-hour week decides the rest days.** Every design in the pack but three carries a fatigue warning when a cover
+week falls badly: more than 55 hours in seven days, with the cover week's four duties of 8 hours and its Sunday worked.
+Balanced V5 and V6 carry four; every other design carries one.
+- **The arithmetic.** Placed Monday to Thursday, a cover week with its Sunday is 40 hours in five days. The Friday and
+  Saturday before it can then add at most 15 hours. In Set Fair's table no Friday and Saturday come to 15 hours or
+  less, so **one of the two must be a rest day**.
+- **The pack measured.** Of the 22 designs, exactly the three that never carry the warning have a rest day there before
+  every cover week: Short Openers, Open Return and Second Look.
+- **The rest days that fail.** Common Ground's rest days cannot meet it, and Grand Tour, Middle Ground and Balanced V7
+  share them: lines 26, 5 and 20 work both the Friday and the Saturday before a cover week.
+- **The solver holds it now.** `exact-rota.py` holds that worst case itself (`H55=`, cover weeks filled in as
+  `h55Worst` fills them). It was checked against the sheets' own reading on the 17 designs the model can hold. Fifteen
+  are allowed at their worst seven days and refused a minute under. Short Openers and Open Return are allowed a minute
+  under too: their worst seven days are the fixed table's own, which no cover week raises, and the rule reads only the
+  weeks beside one.
+  The model cannot hold Long Break, Second Edition, Second Look, or Balanced V5 and V6, even with its rules loosened.
+- **Short Openers' rest days.** These meet it with the rest of the brief, as do Open Return's, which are the same. They
+  allow up to 10 shifts between 48-hour breaks (`FF11_FIXED=10`; the fatigue limit is 13), and their worst stretch for
+  14 days' leave is 19 days, as today's is. Second Look's buy at best 27 days.
+
+**The worst leave stretch is 19, not 20.** Common Ground's 20 was tried with the 55-hour rule held:
+- the whole model, every rest day free, found no layout in 20 minutes;
+- on Short Openers' rest days, freeing the weeks around the one stretch that buys 19 (from line 17's Thursday) is proved
+  impossible: four weeks, then six, then eight.
+
+**Its weeks.** Set Fair keeps Short Openers' rest days; the solver chose the early and late weeks and the times. Of the
+layouts with 19 weeks of 21 on one shift time, it has **the gentlest change of start, 1h 06m, proved the gentlest on
+these rest days**. Three other layouts were scored in one league run beside it:
+- 20 weeks on one time: possible, with a change of start of 1h 35m, and 0.1 lower;
+- 18 weeks: 58m, and 0.2 lower;
+- a heaviest week of 42h: possible only with 17 weeks on one time, and 0.3 lower.
+
+CP-SAT need not return the same layout twice, so the grid is committed and `FIX=` checks it:
+
+```
+cd docs/links-26/tooling
+CLS=weekday TOTAL=7400 FIXED_FREE=1 REQUIRE=06:20-13:45 REQUIRE_N=2 REQUIRE_MAX=2 ONLY_REQUIRED_EARLY_FINISH=1 EARLY_HI=510 HI=510 LATE_MAX=0 AT22_STRICT=1 EARLY_START_MAX=09:00 LATE_START_MIN=11:00 TODAY=1 CLOSERS_MAX=3 MAX_TURNS=6 TOPN=40 TOPN_OUT=/tmp/wk.json node final-table.mjs
+K=06:20-13:45,06:20-14:20,07:15-15:45,11:00-19:30,14:00-22:30,15:45-23:55,06:20-14:50,14:30-22:30
+CLS=sat TOTAL=7100 FIXED_FREE=1 EARLY_HI=510 HI=540 LATE_MAX=0 AT22_STRICT=1 EARLY_START_MAX=09:00 LATE_START_MIN=11:00 TODAY=1 CLOSERS_MAX=3 MAX_TURNS=8 EARLIES=7 BEST0=60 KNOWN=$K NEWPEN=3 node final-table.mjs
+CLS=sun SUN_PLAN=1 LO=480 HI=540 TODAY=1 MAX_TURNS=4 EARLIES=5 KNOWN=$K,06:20-14:45,15:15-23:55 NEWPEN=5 node final-table.mjs
+SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 OBJ=both python3 exact-rota.py results/set-fair-table.json /tmp/sf20.json 300
+HINT=/tmp/sf20.json SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 OBJ=step ONE_MIN=19 python3 exact-rota.py results/set-fair-table.json /tmp/sf.json 150
+FIX=set-fair.json SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 ONE_MIN=19 OBJ=step python3 exact-rota.py results/set-fair-table.json /tmp/fix.json 60
+```
+
+**Its duties** (`results/set-fair-table.json`):
+
+| | Shift times | Longest |
+|---|---|---|
+| Monday to Friday, each (7,400 minutes) | 06:20–13:45 ×2 · 06:20–14:20 ×2 · 07:15–15:45 ×3 · 11:00–19:30 · 14:00–22:30 ×4 · 15:45–23:55 ×3 | 8h 30m |
+| Saturday (7,100) | 06:20–14:45 ×2 · 06:20–14:50 ×2 · 07:15–15:45 ×3 · 14:00–22:30 ×2 · 14:30–22:30 ×2 · 15:15–23:55 ×3 | 8h 40m |
+| Sunday (5,010) | 07:15–15:45 ×4 · 09:00–18:00 · 14:30–22:30 ×2 · 15:15–23:25 ×3 | 9h |
+
+- **Shift times.** Twelve, against today's 18 (S9 allows 18). Seven of them are today's, including 7 of its 10
+  Monday-to-Saturday times, 70%, as Common Ground has.
+- **The five new times.** 06:20–14:45; 09:00–18:00; 14:30–22:30, the Saturday office late every design has; 15:15–23:25;
+  and 15:45–23:55.
+- **Length.** No early from Monday to Saturday is over 8h 30m.
+
+**Against the shortlist:**
+
+| | Set Fair | Common Ground | Even Step | Short Run |
+|---|---|---|---|---|
+| December rules · flexible rules | 9 · 3 | 9 · 3 | 9 · 3 | 9 · 3 |
+| Fatigue factors present, fixed duties · at worst | **0 · 0** | 0 · 1 | 0 · 1 | 0 · 1 |
+| Most days in a row, at worst | **6** | 7 | 7 | 7 |
+| Shift times (new) | **12 (5)** | 13 (6) | 13 (5) | 15 (6) |
+| 13:45 finishes a weekday | **2** | 1 | 1 | 0 |
+| Change of start, week to week | **1h 06m** | 1h 12m | 1h 30m | 1h 14m |
+| Weeks on one shift time | **19 of 21** | **19** | 18 | 18 |
+| 14 days' leave: best · worst · four weeks | **30** · 19 · **14** | **30 · 20 · 14** | 28 · 20 · 15 | 28 · 20 · 15 |
+| Single rest days, in 26 | 5 | 6 | **4** | **4** |
+| Fit to the trains, by days (0 = exact) | 30.2 | 28.8 | 28.9 | **26.9** |
+| Saturday fit | 17.6 | **9.8** | 10.4 | 13.6 |
+| Closing shift, Monday to Saturday average | 8h 15m | **8h 10m** | **8h 10m** | 8h 15m |
+| Heaviest · lightest week, Monday to Saturday | 42h 30m · 25h 30m | 42h 30m · 25h 30m | **42h 00m** · 25h 30m | 42h 30m · 24h 30m |
+| Shortest rest | 14h 35m | 14h 35m | 14h 35m | 14h 20m |
+
+**The leagues** (23 designs; score · place):
+
+| Version | Set Fair | Common Ground | First, if another |
+|---|---|---|---|
+| Main | **88.3 · 1st** | 86.6 · 2nd | |
+| Main, the proposals setting the scale | **90.1 · 1st** | 88.4 · 3rd | |
+| Main, without familiar times | **90.8 · 1st** | 89.1 · 3rd | |
+| Main, the run on the fixed rota | **88.3 · 1st** | 87.3 · 2nd | |
+| Main, Sunday duties in familiar times | **87.7 · 1st** | 85.6 · 3rd | |
+| Six-factor (the 24-line work's weights, the proposals setting the scale) | 92.0 · 3rd | 87.4 · 12th | Second Look, 94.8 |
+| Weighted as before | 88.5 · 3rd | 88.5 · 2nd | In Step, 89.7 |
+| — the proposals setting the scale | 89.3 · 11th | 90.9 · 4th | In Step, 93.3 |
+| — without familiar times | 92.0 · 4th | 92.5 · 3rd | In Step, 93.1 |
+| — the run on the fixed rota | 88.5 · 6th | 89.3 · 2nd | In Step, 90.4 |
+
+**Where the 1.6 points come from.** In the main league it is first in every version of the main weighting. Against
+Common Ground it:
+- gains 2.04 on fatigue, since it has no warning at worst;
+- gains 0.69 on the run at worst, 0.42 on single rest days and 0.09 on the change of start;
+- gives back 0.93 on the worst leave stretch, 0.44 on fit and 0.23 on the closing shift.
+
+**Why it is lower weighted as before.** That weighting does not count the 55-hour week a badly placed cover week can
+make, so the fatigue lead goes. It also averages the three days' fits, so the weaker Saturday counts as much as all five
+weekdays together.
+
+**What its joining moved.** It sits inside every range the main league reads, so no other design's score moved, and
+each below it moved down one place. The tables in the sections above keep the scores and places of their day.
+
+**The pack.**
+- **Its files.** `regenerate.mjs` lists Set Fair in `SUPPLIED`, in `30-days-off/`. `fresh.mjs` has its one-line
+  description, which names no other design; Home Grown's family, since its duty table starts from today's times; and
+  7 Nov 2026. Its sheet says how it was drawn (`set-fair.meta.json`).
+- **The summary** lists 23 on one page. At the 80% floor the dense page ran 13px onto a second sheet, so dense now:
+  - leaves out the subtitle's sentence on how the figures are worked out, which the band's "every figure is computed
+    from the rotas" already says;
+  - gives the mixed-weeks column room for its heading in three lines rather than four;
+  - halves the gaps above the footnotes and the footer;
+  - sets the heading row, the subtitle and the footnotes a little closer.
+
+  The type sizes and the floor are as they were.
+- **The shortlist sheet** keeps its three.
+  - Page 2's lead says that Set Fair, drawn after them, is first in the league, 1.6 points ahead of Common Ground; both
+    are read from the league.
+  - Its row says what it has and what it pays. The claims assert both: the fewest shift times, two 13:45s a weekday,
+    and a Saturday fit and worst leave stretch weaker than all three.
+  - The claims for the 30-day links, four weeks off for 14 days' leave and no 55-hour week include it.
+  - Every row of that table is a pixel shorter, half above and half below, which keeps the page with 6px to spare.
+- **The read-me** names it among the designs drawn after the shortlist, says what it is, and says it now leads the
+  league.
+- **Tooling:** `exact-rota.py` `H55=` and `SKELETON_FREE=`; `final-table.mjs` `KNOWN=` and `EARLIES=`; `league.mjs`
+  `EXTRA=` (the tooling table above).
+
+**Checks:**
+- `regenerate.mjs --check`: 23 proposals, the 22 fingerprints unchanged;
+- `check.mjs`: everything agrees;
+- `newlink-data.mjs --check`: current;
+- the shortlist sheet's claims all hold.
 
 ## Notes for the whole set
 

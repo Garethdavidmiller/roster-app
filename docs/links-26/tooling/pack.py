@@ -104,7 +104,8 @@ for said in ['is the one to choose for something different',
              '<b>Choose Short Run</b> if the weekday fit and short weekday lates matter most', 'a weaker weekday fit',
              'the biggest change of start',
              'Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen',
-             'Since the Saturday ticket office lates moved to 22:30, ${LEADER} is first, just over half a point ahead of the next']:
+             # SET FAIR FIRST SINCE 7 NOV 2026: the sheet names the leader, the day it was drawn and the gap, all read
+             'Since ${LEADER_DATE} ${LEADER}, drawn after them, is first in the league, ${f1(overNext)} points ahead of ${RANKED[1].name}']:
     if said not in SHEET: raise SystemExit(f'pack: the read-me repeats the shortlist sheet, which no longer says "{said}"')
 PAGE = open('newlink-data.js', encoding='utf-8').read().replace('\\u00a0', ' ')
 for said in ['four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best',
@@ -160,8 +161,13 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # Balanced V7 joined the same day (owner: Balanced V6 made again "without losing anything", then "Add v7 please"), drawn on 6 Nov
 # 2026: Balanced V6's duties laid on new weeks. It buys 30 days off for 14 days' leave too, so it is in the 30-day folder, and the
 # late paragraph says what it has, as it does the others
-AFTER_31_OCT_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Clean Slate', 'Common Ground', 'Fair Share', 'Grand Tour', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers']
-LATE_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Middle Ground']
+# Set Fair joined on 7 Nov 2026 (owner: "create a proposal that keeps the 1345 finishes and converts all the 1335 finishes to
+# 1345 too ... 30 days off for 14 days AL ... minimise numbers of shift times and be competitive with the best proposals in the
+# league table"): two 13:45s every weekday on twelve shift times, with no fatigue warning even if a cover week falls badly.
+# It buys 30 days off for 14 days' leave, so it is in the 30-day folder; the late paragraph says what it has, as it does the
+# others, and the 22:30 paragraph says it is now first in the league
+AFTER_31_OCT_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Clean Slate', 'Common Ground', 'Fair Share', 'Grand Tour', 'Middle Ground', 'Next Step', 'Open Return', 'Set Fair', 'Short Openers']
+LATE_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Middle Ground', 'Set Fair']
 if LATE and LATE != LATE_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(LATE_SET)} as the designs after the shortlist; they are {LATE}')
 if AFTER_31_OCT != AFTER_31_OCT_SET:
@@ -177,7 +183,7 @@ DELETED = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear', 'Quiet
 if any(n in names.split(', ') for n in DELETED):
     raise SystemExit(f'pack: {DELETED} were deleted on 6 Nov 2026; regenerate.mjs SUPPLIED lists one of them')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
-THIRTY_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Common Ground', 'Grand Tour', 'Middle Ground', 'Open Return', 'Short Openers']
+THIRTY_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Common Ground', 'Grand Tour', 'Middle Ground', 'Open Return', 'Set Fair', 'Short Openers']
 THIRTY_IN = sorted(n for n, c, _ in proposals if DIR_OF[c] == '30-days-off')
 if THIRTY_IN != THIRTY_SET:
     raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
@@ -366,13 +372,15 @@ readme = '\n'.join([
     '',
     # described on its own terms, as its headline is (owner, 5 Nov 2026: "the proposal description headlines should not
     # reference other proposals")
-    *([para('Middle Ground, Balanced V5 and Balanced V6 (5 November 2026) and Balanced V7 (6 November 2026) came after '
-            'it. Middle Ground has seven of today\'s shift times, varied from week to week so that no two closing weeks '
-            'and no two 06:20 weeks fall together. Balanced V5, a one-page roster drawn up outside the app, has weeks of '
-            '06:20 starts and weeks of 08:00 starts and a 15:45 closer every weekday. Balanced V6 has a 15-minute handover '
-            'every weekday, from three 07:30-16:00s to the three 15:45 closers. Balanced V7 has Balanced V6\'s duties, '
-            'every one, laid in new weeks, with no six-day weeks. All four buy 30 days off for 14 days\' leave too, and '
-            'are in the folder 30 days off.'), '']
+    *([para('Middle Ground, Balanced V5 and Balanced V6 (5 November 2026), Balanced V7 (6 November 2026) and Set Fair '
+            '(7 November 2026) came after it. Middle Ground has seven of today\'s shift times, varied from week to week so '
+            'that no two closing weeks and no two 06:20 weeks fall together. Balanced V5, a one-page roster drawn up outside '
+            'the app, has weeks of 06:20 starts and weeks of 08:00 starts and a 15:45 closer every weekday. Balanced V6 has a '
+            '15-minute handover every weekday, from three 07:30-16:00s to the three 15:45 closers. Balanced V7 has Balanced '
+            'V6\'s duties, every one, laid in new weeks, with no six-day weeks. Set Fair keeps two 13:45 finishes every '
+            'weekday, where today has a 13:35 and a 13:45, and every weekday closer at 15:45, on twelve shift times, the '
+            'fewest of any link here; no fatigue warning is present even if a cover week falls badly. All five buy 30 days '
+            'off for 14 days\' leave too, and are in the folder 30 days off.'), '']
       if LATE else []),
     # THE 22:30 OFFICE (6 Nov 2026; README.md -> "The Saturday ticket office to 22:30"): what it changed, said once, for a reader
     # holding a printout from before it, whose fingerprints no longer match
@@ -380,8 +388,8 @@ readme = '\n'.join([
          'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. On the '
          'nineteen already in the pack that hour comes off other Saturday lates, so the hours and the contract are as they '
          'were; every sheet and presentation was redrawn, and their fingerprints changed. Balanced V5, Balanced V6 and '
-         'Balanced V7 already finished them at 22:30. Since then Common Ground is first in the '
-         'pack\'s league, just over half a point ahead of the next.'),
+         'Balanced V7 already finished them at 22:30, as Set Fair does. Common Ground was then first in the pack\'s '
+         'league, just over half a point ahead of the next; since 7 November 2026 Set Fair is, by 1.6 points.'),
     '',
     para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
          'reference.'),

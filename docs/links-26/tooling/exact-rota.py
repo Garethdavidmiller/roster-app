@@ -21,8 +21,9 @@ feasible with its own figures:
   GAP weeks apart, at most ISO single rest days, the three leave figures (leave.mjs: LV_WORST, LV_BEST, LV_FOUR), the
   week-to-week step (scoreOrder's gentleMean, at most STEP minutes), and blocks of early or late weeks at most BLOCK —
   a stricter stand-in for scoreOrder's longest block, which a family change always ends.
-Not modelled, so checked afterwards by the sheets: the 55-hour worst case with cover weeks placed every way, and the
-rules a duty table settles on its own (the December rules, FF2, the late finishes).
+Not modelled unless asked, so checked afterwards by the sheets: the 55-hour worst case with cover weeks placed every way
+(H55=, below the H7 rule; 7 Nov 2026), and the rules a duty table settles on its own (the December rules, FF2, the late
+finishes).
 A RELAXATION run with fewer rules gives an upper bound; a run that returns a rota gives a candidate, and every rota
 it writes still goes through the sheets (factors-like.mjs, report-data.mjs) before anything is claimed for it.
 CP-SAT runs in parallel, so two runs of one command need not return the same rota — and its interleaved "deterministic"
@@ -34,6 +35,8 @@ its grid, and FIX= checks that grid against the model.
        BEST_LEN= (the days in a row OBJ=best prices; 29 unless set)
        SKELETON=<rota.json> (hold its rest days; FAMILY=1 holds its early and late weeks too: 30 Oct 2026, for a new table
        on a rota whose day headcounts and early/late split it shares — the solver then chooses only the times)
+       SKELETON_FREE=<line,…> (7 Nov 2026: those lines' rest days and kind chosen again, the rest held)
+       H55=<minutes> (7 Nov 2026: the 55-hour worst case held, cover weeks filled in as h55Worst fills them — below H7)
        MIXED=n BF= BW= (6 Nov 2026, Balanced V7: allow up to n weeks mixing earlies and lates — below)
   e.g. HINT=closing-time.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py results/closing-time-table.json /tmp/ct.json 1200
 
@@ -126,6 +129,20 @@ for i in range(n):
 for i in range(n):
     win = [seq[(i + j) % n] for j in range(7)]
     M.Add(sum(x[(k, d, t)] * mins(t) for (k, d) in win if k in WORK for t in TYPES[d]) <= H7)
+# THE 55-HOUR WORST CASE (7 Nov 2026, for a design asked to meet every fatigue rule): H55=<minutes> holds every seven days
+# to that many minutes with each cover week filled in as h55Worst (report-data.mjs) fills it — its four duties a block on
+# Monday to Saturday, placed every way, each 8 hours, and its Sunday worked as an 8-hour overtime duty on top. Over 55
+# hours there adds a fatigue warning to the worst case (the one Common Ground carries), and the header's "not modelled"
+# was this. Cover weeks are five lines apart, so a seven-day window touches one at most and each is placed on its own
+if os.environ.get('H55'):
+    for c in sorted(COVER):
+        c0 = (c - 1) * 7
+        for b0 in (1, 2, 3):   # the block starts Monday, Tuesday or Wednesday (cover-placement.mjs BLOCK_PLACEMENTS)
+            worked = {c0} | {c0 + b0 + j for j in range(4)}
+            for i in range(c0 - 6, c0 + 7):
+                idx = [(i + j) % n for j in range(7)]
+                M.Add(sum(x[(k, d, t)] * mins(t) for j in idx for (k, d) in [seq[j]] if k in WORK for t in TYPES[d])
+                      + 480 * sum(1 for j in idx if j in worked) <= env('H55', 3300))
 s = {}
 for i in range(n):
     if not work(i): continue
@@ -235,7 +252,10 @@ if os.environ.get('FIX'):
     for (k, d, t), v in x.items(): M.Add(v == (1 if F[str(k)][d] == t else 0))
 if os.environ.get('SKELETON'):   # hold that rota's rest days (and, with FAMILY=1, its early and late weeks); choose only the times
     F = rota(os.environ['SKELETON'])
+    # SKELETON_FREE=<line,line,…> (7 Nov 2026): those lines' rest days are chosen again; every other line's are held
+    free = {int(v) for v in os.environ.get('SKELETON_FREE', '').split(',') if v}
     for k in WORK:
+        if k in free: continue
         for d in DAYS: M.Add(on[(k, d)] == (0 if F[str(k)][d] == 'RD' else 1))
         if os.environ.get('FAMILY') == '1':
             fam = {early(F[str(k)][d]) for d in DAYS if F[str(k)][d] not in ('RD', 'SPARE')}

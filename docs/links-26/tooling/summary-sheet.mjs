@@ -92,11 +92,23 @@ body.dense .mast{padding:4px 14px 3px;margin-bottom:3px} body.dense .mast img{wi
    leaves the line empty — its words and type unchanged, one line fewer. See the loop below */
 body.dense .mast > div{display:grid;grid-template-columns:1fr auto;column-gap:14px} body.dense .mast .eyebrow{grid-column:1}
 body.dense .mast .meta{grid-row:1;grid-column:2;margin-top:0;align-self:end} body.dense .mast h1,body.dense .mast .sub{grid-column:1 / -1}
+/* TWENTY-THREE ROWS (7 Nov 2026, Set Fair): about 13px onto a second sheet at the floor. The subtitle's sentence on how the
+   figures are worked out says what the band's Prepared line beside it already says ("every figure is computed from the
+   rotas"), so dense leaves the sentence out; the band, the type and the floor are as they were */
+body.dense .mast .sub .how{display:none}
+/* …and the header row, whose height was the one four-line heading, "Weeks mixing earlies and lates" over a column of single
+   figures: dense gives that column the width of its heading's longest word pair, so every heading is three lines at most */
+body.dense th.mix{min-width:6.6em}
+/* …and the page footer, the last thing left on the second sheet: dense halves the gaps above the footnotes and the footer */
+body.dense .foot{margin-top:2px} body.dense .pfoot{margin-top:2px;padding-top:2px}
+/* …and, measured at the printed width, the last 8px: the heading row, the subtitle and the footnotes set a little closer
+   (line-height 1.1, 1.22 and 1.24), so the footer prints at 745px of the 748 the sheet has. The type sizes are unchanged */
+body.dense th{line-height:1.1;padding:1px 5px} body.dense .mast .sub{line-height:1.22} body.dense .foot{line-height:1.24}
 </style></head><body>
 <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
-<div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${countWord(SHORTLIST.length)} shortlisted ones marked ★, and the ${countWord(rows.filter(r => r.thirty).length)} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
+<div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${countWord(SHORTLIST.length)} shortlisted ones marked ★, and the ${countWord(rows.filter(r => r.thirty).length)} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last.<span class="how"> Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them.</span> Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
 <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
-<table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest rest between shifts§</th><th>Shift times</th><th>Days a year*</th><th>Heaviest week, <span style="white-space:nowrap">Mon–Sat</span></th><th>Weeks on one shift time, all earlies or all lates</th><th>Weeks mixing earlies and lates</th><th>Week-to-week change of start</th><th>Finishes 23:00+ a year†</th></tr></thead><tbody>
+<table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest rest between shifts§</th><th>Shift times</th><th>Days a year*</th><th>Heaviest week, <span style="white-space:nowrap">Mon–Sat</span></th><th>Weeks on one shift time, all earlies or all lates</th><th class="mix">Weeks mixing earlies and lates</th><th>Week-to-week change of start</th><th>Finishes 23:00+ a year†</th></tr></thead><tbody>
 ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}
 </tbody></table>

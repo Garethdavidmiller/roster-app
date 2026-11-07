@@ -91,6 +91,13 @@ const SUPPLIED = [...fs.readFileSync(new URL('./regenerate.mjs', import.meta.url
 const packFile = f => { const at = M26.PACK_DIRS.map(d => `links-26/${d}/${f}`).filter(x => fs.existsSync(R + x));
   if (at.length !== 1) throw new Error(`league: ${f} is in ${at.length} of the pack's folders, not one`); return at[0]; };
 const P = SUPPLIED.map(([n, c]) => stat(M26, n, load(packFile(`${n.replace(/ /g, '-')}-${c}.json`)), 26, false));
+// EXTRA=<Name>=<grid.json>;… (7 Nov 2026): candidate rotas scored beside the pack's proposals as each would be if it
+// shipped — inside the range and ranked — so a search can be judged in the league before anything is rendered or
+// committed. A path is read as given (absolute, or from where the command runs); a name the pack already uses is refused
+for (const spec of (process.env.EXTRA ?? '').split(';').filter(Boolean)) {
+  const i = spec.indexOf('='); if (i < 1) { console.error(`EXTRA: "${spec}" is not Name=grid.json`); process.exit(2); }
+  const name = spec.slice(0, i); if (P.some(r => r.name === name)) { console.error(`EXTRA: "${name}" is already a proposal`); process.exit(2); }
+  const j = JSON.parse(fs.readFileSync(spec.slice(i + 1), 'utf8')); P.push(stat(M26, name, j.patterns ?? j, 26, false)); }
 P.push(stat(M24, 'Familiar Nine (24)', load('links-24/proposals/Familiar-Nine-F9-24-K31s.json'), 24, false));
 const today = stat(M26, "Today's link", M26.today().patterns, 20, true);
 const fmt = (k, v) => k === 'fit' || k === 'late' || k === 'days' || k === 'lerl' ? v.toFixed(1) : k === 'rest' || k === 'step' || k === 'close' ? `${Math.floor(v / 60)}h${String(Math.round(v % 60)).padStart(2, '0')}` : k === 'heavy' ? `${Math.floor(v)}h${String(Math.round(v % 1 * 60)).padStart(2, '0')}` : ['wkends','iso','mixed','one','fam'].includes(k) ? `${Math.round(v * 100)}%` : String(v);

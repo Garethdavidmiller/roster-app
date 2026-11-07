@@ -129,7 +129,10 @@ const legalStartMin = s => s === OPEN || s >= OPEN + 40;
 const onGrid = m => m % 15 === 0;
 const extraOpenerEnds = [14 * 60 + 20, 14 * 60 + 50];
 const TODAY_TIMES = process.env.TODAY === '1' ? new Set(todayRows.map(r => r.time)) : new Set();
-const KNOWN = new Set(todayRows.map(r => r.time)); const NEWPEN = Number(process.env.NEWPEN ?? 0);
+// KNOWN=<time,time,…> (7 Nov 2026, a design asked to have the fewest shift times across the week): "new" means not in this
+// list rather than not worked today, so NEWPEN prices every time the other days do not already use — a Saturday or a Sunday
+// built to share the weekday's times. Off by default; TODAY=1 still decides only what is in the pool
+const KNOWN = new Set(process.env.KNOWN ? process.env.KNOWN.split(',') : todayRows.map(r => r.time)); const NEWPEN = Number(process.env.NEWPEN ?? 0);
 const POOL = []; const seenT = new Set();
 // SEVEN SWITCHES ADDED 3 NOV 2026 (Clean Slate, README.md → "Clean Slate and Next Step"), all off by default, so every table
 // built before is built the same way:
@@ -215,6 +218,9 @@ function evaluate(counts, cov, total, floorMin, floorSlots, fixedCounts) {
     n += k; turns++; starts.add(p.s); ends.add(p.e); if (p.s === OPEN) nO += k; if (p.e === CLOSE) nC += k; }
   if (n !== N || nO < OPENERS_MIN || nO > OPENERS_MAX || nC < CLOSERS_MIN || nC > CLOSERS_MAX || turns > MAX_TURNS) return null;
   if (!handoverOk(counts, fixedCounts)) return null;
+  // EARLIES=<n> (7 Nov 2026): exactly n duties starting before 11:00, the split a rota's early and late weeks need. Every
+  // 30-day design's rest days carry seven earlies on a Saturday and five on a Sunday, so a table laid on them must too
+  if (process.env.EARLIES) { let k = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && POOL[i].s < 660) k += counts[i]; if (k !== Number(process.env.EARLIES)) return null; }
   if (REQUIRE) { let k = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && REQUIRE.times.has(POOL[i].t)) k += counts[i]; if (k < REQUIRE.n || k > REQUIRE.max) return null; }
   if (LATE_MAX < Infinity) { let k = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && POOL[i].e !== CLOSE && POOL[i].e >= 1380) k += counts[i]; if (k > LATE_MAX) return null; }
   if (process.env.AT22_STRICT === '1') { let at22 = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && POOL[i].s <= 1320 && POOL[i].e > 1320) at22 += counts[i]; if (at22 < 5) return null; }   // five on AFTER 22:00, counted as currentRules counts them
