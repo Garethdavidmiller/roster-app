@@ -1845,7 +1845,30 @@
     cursor: pointer; padding: 4px 0; color: var(--text-faint);
   }
   .pfx--adj { width: 90px; }
-  #otherAdj { text-align: right; }
+  /* THE ADJUSTMENT BOX WEARS THE FIELD RECIPE (the iPhone audit, 7 Nov 2026). It sits in an
+     `.hours-row`, not a `.field`, so none of the field rules above ever reached it: it drew as the
+     browser's own input — Arial at 13.33px, an inset grey border, 19px tall — and iOS ZOOMED the
+     page every time it was focused, which it does for any field under 16px. The 16px sweep never
+     measured it, because it lives in the "Unusual deductions or corrections" disclosure, closed at
+     load, and a field with no box is skipped (e2e/pages.spec.js now opens it). 44px tall to match
+     the ± button beside it. At 16px the box is tight at 90px, so its £ sits 2px further in than the
+     wider boxes' and the paddings are trimmed: MEASURED, "999.99" now fits whole with 2px to spare
+     (it overflowed by 2px at the wider boxes' 12px £ and 24px padding); a longer figure scrolls
+     inside the box, as any field's does. The ID out-ranks `.pfx input`'s padding. */
+  .pfx--adj .pfx-sym { left: 10px; }
+  #otherAdj {
+    text-align: right; min-height: 44px; padding: 9px 6px 9px 22px;
+    border: var(--field-border); border-radius: var(--radius-field);
+    font-family: inherit; font-size: var(--type-medium); font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dark); background-color: var(--field-bg);
+    touch-action: manipulation;
+    transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
+  }
+  #otherAdj:focus-visible {
+    border-color: var(--primary-blue); box-shadow: var(--focus-ring);
+    outline: var(--focus-outline); outline-offset: 2px; background-color: white;
+  }
   .actuals-textarea { width: 100%; font-family: ui-monospace, monospace; font-size: var(--type-medium); box-sizing: border-box;
     resize: none; field-sizing: content; min-height: 6lh; max-height: 40vh; overflow: auto; }
   .actuals-status { font-size: var(--type-small); min-height: 18px; margin: 6px 0; }
