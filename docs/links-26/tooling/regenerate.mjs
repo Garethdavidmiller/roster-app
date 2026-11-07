@@ -235,6 +235,8 @@ for (const t of SEARCHED) {
     if (!files.length) { console.log(`skip ${t.proposal} — no candidates`); continue; }
     if (checkOnly) { if (checkShipped(t.proposal, t.fp)) { console.log(`ok   ${t.proposal}  ${t.fp} (shipped JSON; ${files.length} candidates on disk)`); done++; } continue; }
     process.stdout.write(`render ${t.proposal} … `);
+    // final.mjs is the 24-line tooling's and was never copied here (SEARCHED has been empty since); a SEARCHED entry
+    // needs it back from docs/links-24/tooling, removed 7 Nov 2026 (`git checkout 924b9dbc -- docs/links-24`).
     execFileSync('node', ['final.mjs', ...files], { stdio: 'inherit', env: { ...process.env, PROPOSAL: t.proposal, ...(t.env ?? {}) } });
     const pdf = readdirSync('.').find(f => f.endsWith(`-${t.fp}.pdf`)); if (!pdf) throw new Error(`${t.proposal}: no PDF ending -${t.fp}.pdf was written — did the pick change?`);
     shipFiles(pdf.slice(0, -`-${t.fp}.pdf`.length), t.fp, 'proposal.json', 'proposal-import.txt');

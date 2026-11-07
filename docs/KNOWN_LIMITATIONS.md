@@ -29,8 +29,9 @@ left, each for a decision rather than a default:
   file. The copies already committed stay in history; rewriting it was ruled out. `docs/links-24`, with
   its own 13 MB zip, was removed on 7 Nov 2026 (owner: no longer of use) — it too stays in history, and
   `git checkout 924b9dbc -- docs/links-24` restores it. The files still read were moved out first: the
-  two proposal grids the Links compare tests use to `test-fixtures/links-designs/`, and what the Links 26
-  tooling reuses to `docs/links-26/tooling/reference-24/` and `docs/links-26/tooling/default-baseline.mjs`.
+  two proposal grids the Links compare tests use to `test-fixtures/links-designs/`, what the Links 26
+  tooling reads to `docs/links-26/tooling/reference-24/`, and `default-baseline.mjs`, whose figures two docs
+  quote, to `docs/links-26/tooling/`.
 - **Size**: nine of the 28 modules in `coordinator-ratchet.test.mjs` sit exactly at their cap. The
   seven stylesheets over 900 lines are capped since v25.23 (`stylesheet-ratchet.test.mjs`, the same
   ratchet: `index.css` 3,861 lines and `shared.css` 3,852 on 3 Nov 2026). `e2e/pages.spec.js`

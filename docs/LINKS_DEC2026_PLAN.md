@@ -13,7 +13,8 @@ authoritative for how the workspace is built.*
 > below that says 24 describes the work done before then. That work was kept, unchanged, in `docs/links-24/` (it was
 > `docs/proposals/`) until 7 Nov 2026, when it was removed as no longer of use (owner); `git checkout 924b9dbc --
 > docs/links-24` restores it, and every `docs/links-24/` path below names it as it was. The few files still read were
-> moved out first, to `docs/links-26/tooling/reference-24/` and `test-fixtures/links-designs/`. The work from here on is in `docs/links-26/`,
+> moved out first, to `docs/links-26/tooling/reference-24/`, `docs/links-26/tooling/default-baseline.mjs` and
+> `test-fixtures/links-designs/`. The work from here on is in `docs/links-26/`,
 > whose README lists what carries over and what has to be recomputed. **The 26-line rules are `docs/links-26/RULES.md`**
 > (owner, 1 Oct 2026): five cover weeks as evenly spread as 26 allows, and 219 contracted days a year or fewer.
 

@@ -399,7 +399,8 @@ export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') 
  *  what "best in the folder is this one" means. Cached per process. */
 let _folder = null;
 // The 24-line proposals folder this defaulted to went with docs/links-24 (7 Nov 2026): the default now names
-// docs/links-26/tooling/proposals/, which does not exist, so a call without `dir` fails. Nothing calls it.
+// docs/links-26/tooling/proposals/, which does not exist, so a call without `dir` fails. Nothing reaches it: its one
+// caller, folderRank below, is called by nothing.
 export function folderStats(dir = new URL('../proposals/', import.meta.url)) {
   if (_folder) return _folder;
   const T0 = today(); const TA = { patterns: T0.patterns, ...assess(T0.patterns, T0.lines) }; const todays = new Set(TA.tableRows.map(r => r.time));

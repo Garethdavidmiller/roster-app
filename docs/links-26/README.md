@@ -8,8 +8,8 @@ because they are the new timetable's.
 **From 1 Oct 2026 the new link is 26 lines, not 24.** Everything drawn for 24 lines was kept in `../links-24/` — the
 grids unchanged, the sheets re-rendered once (2 Oct 2026, for the per-year weekends line) — until 7 Nov 2026, when it was
 removed as no longer of use (owner). `git checkout 924b9dbc -- docs/links-24` restores it whole, and every `../links-24/`
-path below names it as it was. The eight files still read were moved out first, unchanged — see *Links 24 removed*, near
-the end. This folder is for the work from here on.
+path below names it as it was. The eight files still read were moved out first, the grids and decks unchanged — see
+*Links 24 removed*, near the end. This folder is for the work from here on.
 
 The 24-line work is not wasted. The rules, the duty tables, the tooling and the designs all carry over. What has to
 change is the arithmetic that depends on the number of lines.
@@ -5771,14 +5771,14 @@ FIX=level-crossing.json SKELETON=crossover.json OBJ=gentle GENTLE_STARTS=15:45 G
 of use?"*; told that it would if deleted wholesale and not if the few live files moved first, *"Do it, but carefully. Don't
 break anything. Then bug and regression check that work"*.
 
-**What went:** `docs/links-24/`, 235 tracked files and 33.1 MB — the README, the hand-zipped `links-24-proposals.zip`, the
+**What went:** `docs/links-24/`, 235 tracked files and 34.7 MB — the README, the hand-zipped `links-24-proposals.zip`, the
 rules and summary PDFs, `presentations/` (8), `proposals/` (33), `silva-lining/` (6) and `tooling/` (184). 227 were deleted
 and 8 moved. It stays in the history: **`git checkout 924b9dbc -- docs/links-24`** restores it whole (924b9dbc is main at
 v25.46, whose `docs/links-24` is the folder removed here, tree for tree).
 
 **What was kept, and why.** Eight files were still read, and each was moved before anything was deleted. The grids and the
-decks are the same git blobs as before; the three scripts differ only by a header note and, in the two modules, their
-import depths:
+decks are the same git blobs as before; the three scripts differ only by comments (a header note in each, and one above
+the 24-line `folderStats`) and, in the two modules, their import depths:
 
 | Was in `docs/links-24/` | Now | Read by |
 |---|---|---|
@@ -5830,6 +5830,22 @@ designs are named in `docs/LINKS_DEC2026_PLAN.md` → Proposals.
 - `pack.py`: 70 files; every entry the same as a build before the change but the read-me (one paragraph fewer, still ASCII),
   `RULES.md` (its provenance line) and the two sheets (the committed PDFs, where the earlier build had packed a rebuild);
 - `npm run check`: lint and typecheck clean; 4,274 + 1 + 2,473 tests pass and 4 skip, the same counts as before the change.
+
+**Regression check** (the owner: *"Then bug and regression check that work"*), from a fresh checkout of the commit, which
+has no old folder and nothing installed:
+- `npm run test:nodeps`, the lane CI runs with nothing installed: 6,789 of 6,794 tests pass and 5 skip, the two compare tests
+  among them;
+- the ten league readings and `leave.mjs --check`: byte for byte the recording made before the move;
+- the README's whole deck chain (`second-nature-decks.py` to `deck-marks.py`, then `deck-check.mjs`): all eight shipped decks
+  rebuilt the same as the committed ones, part by part, but for the managers' embedded workbook's own build time;
+  `deck-check` agrees on all 216 rows;
+- each kept file taken away in turn: the league, the leave check, the deck template, both compare tests and
+  `default-baseline.mjs` stop with an error naming what is missing — ten cases, none carries on without its file.
+
+An independent review of the commit found nothing broken and six points of wording, all corrected (the size is 34.7 MB,
+not the 33.1 MiB first written; `folderStats`'s one caller, `folderRank`, is itself called by nothing; the three scripts are
+not unchanged; and `test-fixtures/links-designs/` now has its `FILE_INDEX.md` entry). It also found `regenerate.mjs` running
+a `final.mjs` that has never been in this folder: inert, since `SEARCHED` is empty, and now commented with where it is.
 
 ## Notes for the whole set
 
