@@ -1798,6 +1798,10 @@ test('paycalc: Replace never clears hours the calendar only learns about second-
 // than merely untidy.
 test('paycalc: the period picker names the period the page is computing', async ({ page }) => {
     const errors = collectFatalErrors(page);
+    // A payslip with one either side of it (test audit, 7 Nov 2026). On the real clock, once today's
+    // payslip is the last one the calculator holds (from mid-February 2027, until 2027/28 is added to
+    // TAX_YEARS), the second → is disabled and the click waits out the test's whole timeout.
+    await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
     await seedSession(page);
     await page.addInitScript(() => {
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');

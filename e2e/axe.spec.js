@@ -706,13 +706,16 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // them were unreadable: brand gold on its own pale tint (Admin, 1.49:1) and bright orange on its
     // own (Operations, 1.93:1). Each is opened the way a member opens it, from the drawer's logo.
     // Overtime is not here: it is paused (OVERTIME_ENABLED), so nobody can reach its panel.
+    // Each `ready` must be on screen whatever the DATE: the Trains page's used to be its changes list,
+    // which the page stops opening on from 11 Jan 2027 (it opens on Stations, v24.96), so the scan
+    // timed out there. The totals render in every phase, after the drawer is wired.
     for (const [name, url, ready, init] of /** @type {Array<[string, string, string, (() => void)?]>} */ ([
         ['admin', '/admin.html', '.day-row'],
         ['operations', '/operations.html', '#huddleUploadCard'],
         ['paycalc', '/paycalc.html', '#settingsCard', () => localStorage.setItem('myb_pc_ns_migrated', '1')],
         ['settings', '/settings.html', '#contactToggleHeader'],
         ['links', '/links.html', '#generatorToggleHeader', () => localStorage.setItem('myb_links_welcome_seen', '1')],
-        ['trains', '/trains.html', '#trChanges'],
+        ['trains', '/trains.html', '#trTotals .tr-total'],
         ['newlink', '/newlink.html', '[data-persona="all"]'],
     ])) {
         test(`About lightbox open (${name}) — the page's badge is readable on the panel`, async ({ page }) => {

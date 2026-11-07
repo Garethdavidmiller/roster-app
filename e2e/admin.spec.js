@@ -1282,7 +1282,9 @@ test('admin: a booking that crosses the year end appears in BOTH years, cut at t
 // to read it there (test audit, 7 Nov 2026). On the real clock, from 1 Jan 2027 the list opens on 2027 —
 // which holds G. Miller's and S. Silva's Christmas 2027 leave, so it is not empty and nothing falls back
 // — and all four failed (proved with the clock pinned to 4 Jan 2027). They are about the year chips
-// and the delete controls, not about today, so they pin a 2026 day.
+// and the delete controls, not about today, so they pin a 2026 day. So do three more further down
+// that seed 2026 leave — the year scroll, the stale delete and the over-limit message — which the
+// whole Chromium suite, run with the clock pinned to 4 Jan and 1 Mar 2027, found failing the same way.
 const LEAVE_LIST_DAY = new Date('2026-11-03T09:00:00Z');
 
 test('admin: each delete control is named by the dates it would remove', async ({ page }) => {
@@ -1479,6 +1481,7 @@ test('admin: a linked year holding only Christmas leave opens on its Christmas r
 });
 
 test('admin: scrolling the date picker into another year moves the list with the banner', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);   // "this year" is 2026, where the fixture's first booking is
     // The banner follows the picker's displayed year (v22.82); the list is meant to follow the
     // banner (pickBookedYear's `preferred` rung). Until v23.15 only the banner was re-run.
     await seedSession(page, 'G. Miller');
@@ -1514,12 +1517,12 @@ test('admin: scrolling the date picker into another year moves the list with the
     await expect(page.locator('#alBookedBody')).toBeVisible();
 
     const active = page.locator('#alBookedBody .al-year-chip.is-active');
-    await expect(active).toHaveText(String(new Date().getFullYear()));
+    await expect(active).toHaveText(String(LEAVE_LIST_DAY.getFullYear()));
 
     // Page the range picker forward until it is showing a month of NEXT year.
     const next = page.locator('#alRpNext');
     const label = page.locator('#alRpLabel');
-    const target = String(new Date().getFullYear() + 1);
+    const target = String(LEAVE_LIST_DAY.getFullYear() + 1);
     for (let i = 0; i < 14 && !(await label.textContent() || '').includes(target); i++) await next.click();
     await expect(label, 'the picker must actually be showing next year').toContainText(target);
 
@@ -1565,6 +1568,7 @@ test('admin: deleting a recorded booking confirms in the toast, not only at the 
 // removed what a colleague had written since. Before deleting, the page re-reads the documents; here
 // the server answers that the day now holds a different record.
 test('admin: a booked period a colleague has since changed is not deleted, and the admin is told', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);   // the list must open on 2026, where the booking is
     await seedMemberSession(page, 'G. Miller');
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
@@ -1783,6 +1787,12 @@ test('admin: the BASE ROSTER column shows the time, not just Early/Late', async 
     // is the same seven days for ever — five 12:00-19:00 and two rest days. That is what lets the
     // count below be EXACT rather than a floor, and a floor is what hid the problem: `> 2` also
     // passes on the week that has three.
+    //
+    // AND THE WEEK IS AN ORDINARY ONE (test audit, 7 Nov 2026). The grid opens on today's week, and in
+    // Christmas week one of those five days is 25 or 26 December, which the line is not rostered to
+    // work — so from 21 to 27 Dec 2026 the count read 4, and every Christmas week after. Pinned to a
+    // week with no bank holiday in it.
+    await page.clock.setFixedTime(new Date('2026-11-03T09:00:00Z'));
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page);
     await page.goto('/admin.html');
@@ -2329,6 +2339,7 @@ for (const w of [320, 340, 359, 360, 414]) {
 // than unhiding the element, because `updateALBanner` deciding to SHOW it is half of what broke.
 for (const w of [320, 360, 390]) {
     test(`admin: the over-limit message is not clipped at ${w}px @layout`, async ({ page }) => {
+        await page.clock.setFixedTime(LEAVE_LIST_DAY);   // the banner counts the year the seeded leave is in
         await page.setViewportSize({ width: w, height: 900 });
         await seedSession(page, 'G. Miller');
         await page.addInitScript(() => {
