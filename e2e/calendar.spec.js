@@ -3237,3 +3237,83 @@ for (const [width, height] of [[667, 375], [874, 402]]) {
         await expect(page.locator('#alLightbox')).not.toHaveClass(/open/);
     });
 }
+
+// ── THE TEAM WEEK'S DATE ROW STAYS ABOVE THE NAMES ON A PHONE (7 Nov 2026, iPhone audit) ─────────
+//
+// `.team-table-wrap { overflow-x: auto }` makes the wrapper the header's scroll container, and the
+// other axis then computes to `auto` too — so below 1024px, where nothing limited its height, the
+// wrapper was as tall as the table, never scrolled, and the sticky date row went off the top with
+// the page. A member reading the twentieth name had no day or date above the column. Now the
+// wrapper is capped there and the names scroll under the date row inside it.
+//
+// The assertion that bites is "a name other than the first is directly under the date row": with
+// the header gone off the screen, or moving WITH the names, the row beneath it is the first one at
+// every size. Landscape is in the list because there the page must scroll as well, and every row
+// still has to be reachable.
+for (const [width, height] of [[375, 667], [390, 844], [667, 375]]) {
+    test(`calendar: the Team View date row stays above the names as they scroll, at ${width}×${height}`, async ({ page }) => {
+        await page.setViewportSize({ width, height });
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('#teamViewBtn').click();
+        await expect(page.locator('.team-table tbody tr').nth(15), 'a grade long enough to need scrolling').toBeAttached();
+
+        // The page as far down as it goes, and the names as far down as THEY go — together, the
+        // furthest a member can scroll towards the last name.
+        const g = await page.evaluate(() => {
+            window.scrollTo(0, document.documentElement.scrollHeight);
+            const wrap = /** @type {HTMLElement} */ (document.querySelector('.team-table-wrap'));
+            wrap.scrollTop = wrap.scrollHeight;
+            const box = (/** @type {Element} */ e) => e.getBoundingClientRect();
+            // A header CELL, not the thead: `position: sticky` moves the cells, and the thead's own
+            // box stays where it was laid out.
+            const head = box(/** @type {Element} */ (document.querySelector('.team-table thead th:nth-child(2)')));
+            const w = box(wrap);
+            const rows = [...document.querySelectorAll('.team-table tbody tr')];
+            const under = document.elementFromPoint(w.left + w.width / 2, head.bottom + 4)?.closest('tr');
+            return { vh: innerHeight, head, w, last: box(rows[rows.length - 1]), under: under ? rows.indexOf(under) : -1 };
+        });
+        expect(g.head.top, 'the date row is off the top of the screen').toBeGreaterThanOrEqual(0);
+        expect(g.head.bottom, 'the date row is off the bottom of the screen').toBeLessThanOrEqual(g.vh);
+        expect(Math.abs(g.head.top - g.w.top), 'the date row is not at the top of the box the names scroll in').toBeLessThanOrEqual(1);
+        expect(g.under, 'the first name is still under the date row — nothing scrolled beneath it').toBeGreaterThan(0);
+        expect(g.last.bottom, 'the last name cannot be brought on screen').toBeLessThanOrEqual(Math.min(g.vh, g.w.bottom) + 1);
+        expect(g.w.top, 'scrolled to the end, the box the names scroll in is still above the screen').toBeGreaterThanOrEqual(0);
+
+        // The name column holds when the week scrolls sideways — the other sticky edge of the same
+        // box. Held sideways the phone is wide enough for all seven days, so there is nothing to scroll.
+        if (width > 600) return;
+        const side = await page.evaluate(() => {
+            const wrap = /** @type {HTMLElement} */ (document.querySelector('.team-table-wrap'));
+            wrap.scrollLeft = wrap.scrollWidth;
+            const left = (/** @type {string} */ s) => /** @type {Element} */ (document.querySelector(s)).getBoundingClientRect();
+            const names = document.querySelectorAll('.team-table tbody th.tv-name-col');
+            return { scrolled: wrap.scrollLeft, wrap: left('.team-table-wrap'), name: names[names.length - 1].getBoundingClientRect(),
+                headName: left('.team-table thead th.tv-name-col') };
+        });
+        expect(side.scrolled, 'the week did not need to scroll sideways at this width').toBeGreaterThan(0);
+        expect(Math.abs(side.name.left - side.wrap.left), 'the name column scrolled away with the days').toBeLessThanOrEqual(1);
+        expect(Math.abs(side.headName.left - side.wrap.left), 'the "Name" heading scrolled away').toBeLessThanOrEqual(1);
+        expect(Math.abs(side.headName.top - side.wrap.top), 'the "Name" heading left the top edge').toBeLessThanOrEqual(1);
+    });
+}
+
+// …and on PAPER the cap is lifted. A sheet is under 1024px wide, so the phone rule matches in print
+// too, and a printed grade would stop at the first screenful of names, with nothing to say so.
+test('calendar: a printed Team View is not cut to the phone\'s scroll box', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 420 });   // a box of 210px, under the printed table
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-table tbody tr').nth(15)).toBeAttached();
+    await page.emulateMedia({ media: 'print' });
+    const h = await page.evaluate(() => ({
+        wrap: /** @type {Element} */ (document.querySelector('.team-table-wrap')).getBoundingClientRect().height,
+        table: /** @type {Element} */ (document.querySelector('.team-table')).getBoundingClientRect().height,
+    }));
+    expect(h.wrap, `the printed grade is cut to a ${Math.round(h.wrap)}px box of a ${Math.round(h.table)}px table`)
+        .toBeGreaterThanOrEqual(h.table - 1);
+    await page.emulateMedia({ media: 'screen' });
+});
