@@ -612,6 +612,21 @@ describe('buildSafeEntries', () => {
         assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30');
         assert.equal(entries[0].shifts['2026-03-29'], 'RD');
     });
+    test('a member listed TWICE keeps the FIRST row — a repeat never replaces a real week (test audit, Nov 2026)', () => {
+        // A two-page roster can list somebody on both pages, and a model can invent a row. Without
+        // the skip both rows pass, and the client's Map keeps the LAST — the opposite of what is
+        // documented — so a repeat silently replaced the member's real week.
+        const warn = console.warn; console.warn = () => {};
+        try {
+            const entries = buildSafeEntries([
+                { memberName: 'G. Miller', Sun: 'RD', Mon: '05:30-11:30', Tue: '05:30-11:30', Wed: 'RD', Thu: '05:30-11:30', Fri: 'RD', Sat: 'RD' },
+                { memberName: ' G. Miller ', Sun: 'RD', Mon: 'AL', Tue: 'AL', Wed: 'AL', Thu: 'AL', Fri: 'AL', Sat: 'RD' },
+            ], HEADERS, DATES);
+            assert.equal(entries.length, 1, 'one member, one row');
+            assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30', 'the first row stands');
+        } finally { console.warn = warn; }
+    });
+
     // ── "NA" AND "NS" ARE REST DAYS, ON EVERY DAY (v25.38) ──────────────────────────────────────
     //
     // The owner's ruling, 6 Nov 2026: "NA and NS should be treated as rest days on the roster
@@ -1688,6 +1703,35 @@ describe('applyColumnScanCrossCheck', () => {
         applyColumnScanCrossCheck(entries, partial, HEADERS, DATES);
         assert.ok(entries[0].shifts[DATES[3]].startsWith('UNKNOWN|'), 'Wed flagged');
         assert.equal(entries[0].shifts[DATES[1]], '06:00-14:00', 'unsignalled days untouched');
+    });
+
+    // THE REPAIR'S TWO THRESHOLDS, AT THEIR EDGES (test audit, 7 Nov 2026). A repair needs at least
+    // two disagreeing days and five signalled ones. The isolated-cell case above puts its one
+    // disagreement on Thursday, where neither shift could ever verify, so it never tests the "two";
+    // and the "<5" case uses three signalled days, so a floor of four passed it too. Both lowered
+    // thresholds left every suite green.
+    test('ONE disagreement on a Saturday is a question — never silently "repaired" to a rest day', () => {
+        // Saturday is the one place a lone disagreement CAN verify as a shift (nothing follows it), so
+        // with the "two" lowered to one, a worked Saturday the scan read as blank is rewritten to RD —
+        // a MATCH where the base Saturday is a rest day, so nothing at all appears in the review.
+        const row = [...TRUE_ROW]; row[6] = '10:00-18:00';
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
+        const sat = entries[0].shifts[DATES[6]];
+        assert.ok(sat.startsWith('UNKNOWN|'), `a worked Saturday was resolved without asking: "${sat}"`);
+        assert.ok(sat.includes('10:00-18:00'), 'the admin must see the shift that was read');
+    });
+
+    test('FOUR signalled days are still too few to repair, even when a shift would verify', () => {
+        // Under a floor of four this exact read IS repaired (the suffix shift from Wednesday agrees on
+        // all four columns), which is how the boundary shows: five is the line, four is under it.
+        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        const four = { 'Wed': { 'G. Miller': 'blank' }, 'Thu': { 'G. Miller': '08:00-16:00' },
+                       'Fri': { 'G. Miller': '09:00-17:00' }, 'Sat': { 'G. Miller': 'blank' } };
+        applyColumnScanCrossCheck(entries, four, HEADERS, DATES);
+        assert.ok(entries[0].shifts[DATES[3]].startsWith('UNKNOWN|'), 'Wed must be flagged, not repaired to RD');
+        assert.ok(entries[0].shifts[DATES[4]].startsWith('UNKNOWN|'), 'Thu must be flagged too');
     });
 
     test('cells the row read already flagged UNKNOWN are left alone (no double-flag)', () => {

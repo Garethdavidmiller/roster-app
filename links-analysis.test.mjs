@@ -735,3 +735,38 @@ describe('the design-checks triage block', () => {
         }
     });
 });
+
+// ── THE HARD-LIMIT SUMMARIES SAY WHAT THE ROWS BELOW THEM SAY (test audit, 7 Nov 2026) ───────────
+// Two summaries sit above the limit rows: the triage block ("has to be fixed") and the section
+// heading's count. Neither was rendered against a breach or a part-built design, so leaving the
+// breach out of the triage printed "Nothing found that has to be fixed" over a design with 14 days in
+// a row, and forcing the heading to "within limits" labelled a half-drawn design as passing. The red
+// row underneath still showed both times — which is exactly what a summary must not contradict.
+describe('the hard-limit summaries', () => {
+    /** The limit section's heading, as rendered. */
+    const limitHead = () => (els.checksContent.innerHTML.match(/data-claim="limit"[\s\S]*?<\/div>/) || [''])[0];
+
+    test('a fully drawn design over a limit is named in the triage, and the heading counts it', () => {
+        resetDom();
+        const patterns = fullPatterns();
+        for (const w of ['1', '2']) {
+            for (const d of ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']) patterns[w][d] = '06:00-14:00';
+        }
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const html = els.checksContent.innerHTML;
+        assert.match(limitHead(), /\d+ breached/, 'the heading must count the breach');
+        assert.match(html, POLICY_SOURCE_CONFIRMED ? /company limits? breached/ : /configured limits? breached/,
+            'the triage must list the breach among the things that have to be fixed');
+        assert.doesNotMatch(html, /Nothing found that has to be fixed/);
+    });
+
+    test('a part-built design is "not yet assessable" — never "within limits"', () => {
+        resetDom();
+        const patterns = fullPatterns();
+        for (const d of ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']) patterns['3'][d] = 'RD';
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        assert.match(limitHead(), /not yet assessable/);
+        assert.doesNotMatch(limitHead(), /within limits/, 'a half-drawn design must never read as passing');
+    });
+});
+

@@ -7,7 +7,7 @@
  * is provided before the import so the module loads cleanly in Node.
  */
 
-import { test, describe, beforeEach } from 'node:test';
+import { test, describe, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 // ── Minimal browser-global stub (must be set before the import) ───────────────
@@ -568,3 +568,69 @@ describe('a double close does not unlock the page under an overlay that is still
         } finally { global.window.matchMedia = realMM; }
     });
 });
+
+// ── WHAT A CLOSE AND A TAB MUST STILL DO (test audit, 7 Nov 2026) ───────────────────────────────────
+// Three lines of this module could each be deleted with this file and the whole browser suite green:
+// the focus hand-back on close, the 500 ms fallback when `transitionend` never fires, and the focus
+// trap's skip of hidden controls. Every test above fires `transitionend` by hand, no stub here took
+// focus on open, and none had an `offsetParent` — so none of the three could be seen.
+describe('createLightbox — focus goes back to whatever opened it', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); });
+
+    test('closing returns focus to the opener, not to the panel that is going away', () => {
+        const opener  = makeBtn();
+        global.document.activeElement = opener;
+        const overlay = makeEl({});
+        const content = makeEl({});
+        content.focus = () => { global.document.activeElement = content; };   // the panel takes focus on open
+        const lb = createLightbox({ overlay, content, closeBtn: null });
+        lb.open();
+        assert.equal(global.document.activeElement, content, 'premise: focus moved into the dialog');
+        lb.close();
+        assert.equal(global.document.activeElement, opener,
+            'a keyboard or screen-reader user is left on a control that has just been hidden');
+        overlay._trigger('transitionend');
+    });
+});
+
+describe('createLightbox — a fade that never reports its end still finishes', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
+
+    // iOS suppresses `transitionend` on a backgrounded tab. Without the fallback the overlay stays
+    // `.visible` over the page with body scroll locked — the app looks frozen until a reload.
+    test('500 ms after a close with no transitionend, the overlay is gone and the page scrolls', () => {
+        mock.timers.enable({ apis: ['setTimeout'] });
+        try {
+            const overlay = makeEl({});
+            const lb = createLightbox({ overlay, content: makeEl({}), closeBtn: null });
+            lb.open();
+            lb.close();
+            mock.timers.tick(499);
+            assert.equal(overlay.classList.contains('visible'), true, 'premise: still fading at 499 ms');
+            mock.timers.tick(1);
+            assert.equal(overlay.classList.contains('visible'), false, 'the overlay never left the screen');
+            assert.equal(_bodyClasses.has('lb-open'), false, 'the page behind stayed locked');
+        } finally { mock.timers.reset(); }
+    });
+});
+
+describe('trapFocus — hidden controls are not tab stops', () => {
+    // The day-detail panel on an ordinary day: the ✕ is visible, its Leave link and Pay button are
+    // `hidden`. Counted as tab stops, the hidden button became "last", so Tab from the real last
+    // control did not wrap — focus walked out of the dialog into the page behind it.
+    test('Tab from the last VISIBLE control wraps to the first', () => {
+        const first  = makeBtn();
+        const last   = makeBtn();
+        const hidden = Object.assign(makeBtn(), { offsetParent: null });   // display:none / [hidden]
+        for (const b of [first, last]) Object.assign(b, { offsetParent: {} });
+        global.document.activeElement = last;
+        let prevented = false;
+        trapFocus(makeContainer([first, last, hidden]), {
+            key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(prevented, true, 'Tab was let through to the page behind the dialog');
+        assert.equal(first.wasFocused, true);
+        assert.equal(hidden.wasFocused, false);
+    });
+});
+

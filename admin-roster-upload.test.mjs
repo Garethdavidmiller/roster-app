@@ -48,13 +48,16 @@ mock.module('./firebase-client.js', {
         query: () => null,
         where: () => null,
         getDocs: async (/** @type {any} */ ...args) => _getDocsImpl(...args),
-        doc: () => ({}),
+        // The ref RECORDS its id (test audit, 7 Nov 2026). `doc: () => ({})` and a delete that kept
+        // nothing meant a delete pointed at the wrong document — the date, the member — passed every
+        // test, and the stale import it was meant to remove stayed on the Calendar.
+        doc: (/** @type {any} */ _db, /** @type {any} */ _col, /** @type {any} */ id) => ({ id: id ?? '(new)' }),
         writeBatch: () => {
             const ops = [];
             _batchOps.push(ops);
             return {
-                set:    (/** @type {any} */ _ref, /** @type {any} */ data) => ops.push({ op: 'set', data }),
-                delete: () => ops.push({ op: 'delete' }),
+                set:    (/** @type {any} */ ref, /** @type {any} */ data) => ops.push({ op: 'set', id: ref?.id, data }),
+                delete: (/** @type {any} */ ref) => ops.push({ op: 'delete', id: ref?.id }),
                 commit: async () => { _commitBehavior(); },
             };
         },
@@ -221,6 +224,30 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
             { memberName: 'G. Miller', date: SUN, value: '06:00-06:00', baseShift: 'RD', replaceId: 'w2', alsoDelete: ['dup3'] },
         ], 'G. Miller');
         assert.equal(_batchOps[0].filter(o => o.op === 'delete').length, 3, 'the winner and its two copies; the refused row touches nothing');
+    });
+
+    test('an OFF day over a worked base saves as a rest-day correction whose value is RD (test audit, Nov 2026)', async () => {
+        // Bilingual and CES rosters print OFF. It maps to a `correction`, and the rules allow a
+        // correction ONLY with the value 'RD' — so without the normalisation the whole batch is refused.
+        await _saveOverrideBatches([{ memberName: 'G. Miller', date: MON, value: 'OFF', baseShift: '06:30-14:30' }], 'G. Miller');
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.equal(sets.length, 1);
+        assert.equal(sets[0].data.type, 'correction');
+        assert.equal(sets[0].data.value, 'RD', 'a correction carrying OFF is refused by the rules — the whole batch with it');
+    });
+
+    test('the deletes name the RIGHT documents — the record replaced, and its copies, by id', async () => {
+        // Both delete sites: the stale import removed with nothing written (REMOVE_IMPORT, "Rest day —
+        // leave it"), and the record a new value replaces.
+        await _saveOverrideBatches([
+            { memberName: 'G. Miller', date: MON, value: null, baseShift: 'RD', replaceId: 'stale-import', deleteOnly: true, alsoDelete: ['dupA'] },
+            { memberName: 'G. Miller', date: SUN, value: '06:30-14:30', baseShift: 'RD', replaceId: 'old-record', alsoDelete: [] },
+        ], 'G. Miller');
+        const deleted = _batchOps[0].filter(o => o.op === 'delete').map(o => o.id);
+        assert.deepEqual(deleted, ['stale-import', 'dupA', 'old-record']);
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.equal(sets.length, 1, 'the delete-only row writes nothing');
+        assert.equal(sets[0].id, '(new)', 'the new value lands on a new document, not on the one deleted');
     });
 
     test('a chunk is built by OPERATIONS, so the copies cannot push a batch past 500', async () => {
@@ -1123,6 +1150,65 @@ describe('detectShiftedRow — the improvement bar, from both sides', () => {
     });
 });
 
+// ── THE 5-OF-7 FLOOR, FROM BOTH SIDES (test audit, 7 Nov 2026) ──────────────────────────────────
+//
+// Beside the improvement bar sits a second number: the ±1 alignment must match at least FIVE days.
+// The comment above says that floor "IS pinned"; it was only for raising the LEFT one, and only
+// incidentally. Raising the right floor to six left every suite green — measured on a realistic right
+// slide over the real roster, the detector's catches fell from 314 rows to 133 — and removing either
+// floor, or lowering the left one to four, survived too.
+//
+// The fixture: a member's own week read one day out (it matches all seven days at ±1 by
+// construction), with every day blanked to UNKNOWN except `keep` days whose value DIFFERS from the
+// honest alignment. UNKNOWN carries no signal, so the ±1 score is exactly `keep` and the honest score
+// is zero — which leaves the floor, and only the floor, to decide.
+describe('detectShiftedRow — the 5-of-7 floor, from both sides', () => {
+    const DATES  = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const ROSTER = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly);
+    const norm   = /** @param {string} v */ v => (v === 'OFF' ? 'RD' : v);
+    const baseOf = (/** @type {any} */ m, /** @type {string} */ d, off = 0) => {
+        const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off);
+        return getBaseShift(m, x);
+    };
+    /** The read, or null when this member's week cannot give `keep` days that differ. */
+    function sparseShiftedRead(/** @type {any} */ m, /** @type {number} */ off, /** @type {number} */ keep) {
+        const differs = DATES.filter(d => norm(baseOf(m, d, off)) !== norm(baseOf(m, d, 0)));
+        if (differs.length < keep) return null;
+        const kept = new Set(differs.slice(0, keep));
+        // The OTHER direction must not also line up on every kept day, or a right slide would be
+        // read as a left one (the left test runs first). Fixture choice, not the rule restated.
+        const other = [...kept].filter(d => norm(baseOf(m, d, off)) === norm(baseOf(m, d, -off))).length;
+        if (other >= keep) return null;
+        return Object.fromEntries(DATES.map(d => [d, kept.has(d) ? baseOf(m, d, off) : 'UNKNOWN|smudge']));
+    }
+    /** The first member on the real roster whose week can make this read. */
+    function caseFor(/** @type {number} */ off, /** @type {number} */ keep) {
+        for (const m of ROSTER) {
+            const row = sparseShiftedRead(m, off, keep);
+            if (row) return { m, row };
+        }
+        return null;
+    }
+
+    for (const [off, verdict] of /** @type {[number, 'left'|'right'][]} */ ([[1, 'left'], [-1, 'right']])) {
+        describe(`${verdict} drift`, () => {
+            test('five readable days lining up one day out IS suspect', () => {
+                const c = caseFor(off, 5);
+                assert.ok(c, 'fixture: some member must have five days that differ from their neighbours');
+                assert.equal(detectShiftedRow(c.m, c.row, DATES), verdict,
+                    `${c.m.name}: five of seven at ±1 and none at 0 is the floor itself, and must be flagged`);
+            });
+
+            test('four readable days is NOT, however clean the alignment', () => {
+                const c = caseFor(off, 4);
+                assert.ok(c, 'fixture: some member must have four days that differ from their neighbours');
+                assert.equal(detectShiftedRow(c.m, c.row, DATES), null,
+                    `${c.m.name}: four matching days is too little evidence to untick a member's week`);
+            });
+        });
+    }
+});
+
 // ── shiftDisplay / manualShiftDisplay — the review table's pure formatters (v18.85) ─────────────
 // Both were module-private and reachable only through the DOM-heavy review table, so their
 // branches (unreadable sentinel, RDW re-encoding, Other-family detail, Sunday promotion) went
@@ -1450,23 +1536,26 @@ describe('a row the PDF\'s own grid refused fails closed the same way', () => {
     // threshold and that would trade this silence for false refusals everywhere else.
     describe('coverage is uneven — a flat pattern carries no drift signal', () => {
         const flatWeek = (v) => ['RD', v, v, v, v, v, 'RD'];
-        const shift = (arr, off) => arr.map((_, i) => arr[(i - off + 7) % 7]);
 
         test('a flat Mon–Fri week cannot show a one-day shift, in either direction', () => {
+            // A member on fixed pattern 2 — the real 09:00–16:00 Monday-to-Friday line.
             const flat = { name: 'X', rosterType: 'fixed', currentWeek: 2, role: 'CEA' };
-            const base = flatWeek('09:00-16:00');
-            const stubbed = { ...flat, _week: base };
-            // Drive the REAL detector against a member whose base is that flat week.
+            const baseAt = (/** @type {string} */ d, off = 0) => {
+                const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off);
+                return getBaseShift(flat, x);
+            };
+            assert.deepEqual(DATES.map(d => baseAt(d)), flatWeek('09:00-16:00'),
+                'premise: fixed pattern 2 is the flat Monday-to-Friday line');
             for (const off of [-1, 1]) {
-                const parsed = Object.fromEntries(DATES.map((d, i) => [d, shift(base, off)[i]]));
-                const honestBase = Object.fromEntries(DATES.map((d, i) => [d, base[i]]));
-                // Both reads differ in at most two positions, which is below the threshold by
-                // construction — assert the arithmetic rather than the detector's opinion of it.
-                const differing = DATES.filter(d => parsed[d] !== honestBase[d]).length;
-                assert.ok(differing <= 2,
-                    `a one-day shift on a flat line moves ${differing} cells; the detector needs 3`);
+                // The member's OWN week read a day out — what a dropped or inserted cell produces.
+                const parsed = Object.fromEntries(DATES.map(d => [d, baseAt(d, off)]));
+                const differing = DATES.filter(d => parsed[d] !== baseAt(d)).length;
+                assert.ok(differing <= 2, `premise: a one-day shift on a flat line moves ${differing} cells`);
+                // THE REAL DETECTOR (test audit, 7 Nov 2026). This test used to stop at the arithmetic
+                // and never called it, so a detector that flagged EVERY row passed it.
+                assert.equal(detectShiftedRow(flat, parsed, DATES), null,
+                    `a flat line shifted ${off > 0 ? 'left' : 'right'} carries no signal, and must not be called drifted`);
             }
-            assert.ok(stubbed);
         });
 
         test('a real rotating line DOES carry the signal — the threshold is not simply too high', () => {
@@ -1677,7 +1766,11 @@ describe('a shifted read fails closed', () => {
         // It is defence in depth, it is unreachable from the UI today, and a static assertion is
         // the only form of protection available to it. Anchored on the two identifiers together so
         // a rename cannot quietly satisfy it.
-        const src = readFileSync('./admin-roster-upload.js', 'utf8');
+        // COMMENTS STRIPPED FIRST (test audit, 7 Nov 2026): matched against the raw text, the line
+        // commented out — `// if (state.rosterBlocked) continue;` — still satisfied this, so the one
+        // edit that disables the gate while leaving it on screen was the one it could not see.
+        const src = readFileSync('./admin-roster-upload.js', 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
         const loop = src.slice(src.indexOf('for (const [key, state] of _cellStates)'));
         assert.ok(/if \(state\.rosterBlocked\) continue;/.test(loop.slice(0, 1200)),
             'the save loop must skip a cell from a refused read, before any state check');

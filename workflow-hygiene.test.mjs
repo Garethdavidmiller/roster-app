@@ -323,6 +323,25 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
             'main\'s roster-data.js must be written to a file under $RUNNER_TEMP and read from there');
     });
 
+    test('the version comparison RUNS: an equal or lower version is refused, a higher one passes', () => {
+        // Read, the comparison looked right; it had never been run. Changing `-le` to `-lt` passed
+        // every check in this file (test audit, 7 Nov 2026) — and that is the v22.29 incident: one
+        // version shipped twice, service-worker.js byte-identical across two releases, and devices
+        // that took the first never install the second. So the job's own two lines are executed here.
+        const lines = blockOf('version').split('\n').map(l => l.trim());
+        const fn = lines.find(l => l.startsWith('hundredths()'));
+        const cmp = lines.find(l => l.startsWith('if [ "$(hundredths "$OURS")"'));
+        assert.ok(fn && cmp, 'the version job no longer defines hundredths() and compares versions with it');
+        const verdict = (/** @type {string} */ ours, /** @type {string} */ main) => execFileSync('bash',
+            ['-c', `${fn}\nOURS="$1"; MAIN="$2"\n${cmp} echo refused; else echo allowed; fi`, 'version-job', ours, main],
+            { encoding: 'utf8' }).trim();
+        assert.equal(verdict('25.45', '25.45'), 'refused', 'the same version twice is the v22.29 incident');
+        assert.equal(verdict('25.44', '25.45'), 'refused', 'a version behind main');
+        assert.equal(verdict('25.46', '25.45'), 'allowed');
+        assert.equal(verdict('26.00', '25.99'), 'allowed', 'a 0.01 bump across a whole number');
+        assert.equal(verdict('25.10', '25.09'), 'allowed', 'the minor is hundredths: 10 is above 09');
+    });
+
     test('the concurrency key collides a push with its own pull_request', () => {
         // The point of the whole change. `github.ref` is refs/heads/<branch> on a push and
         // refs/pull/<n>/merge on a PR, so keying on it alone puts the two events in different
@@ -1659,3 +1678,40 @@ describe('a stalled apt mirror costs a retry, not the job (23–24 Oct 2026)', (
         });
     });
 });
+
+// ── EVERY LANE RUNS ITS OWN COMMAND (test audit, 7 Nov 2026) ───────────────────────────────────────
+// Each of these was replaced with `echo skipped` and every workflow suite stayed green: the job still
+// existed, still ran, still went green. The rules lane matters most — it is the only place the real
+// `buildOverrideWrite` output meets the rules for a change that touches no rules file, because
+// deploy-rules fires only on a rules change and the Hosting deploy never runs the rules suite.
+describe('every CI lane runs the command it is there for', () => {
+    /** One job's block from a workflow file. @param {string} file @param {string} name */
+    const jobOf = (file, name) => {
+        const src = readFileSync(join(WF_DIR, file), 'utf8');
+        const body = src.slice(src.search(/^jobs:/m));
+        const start = body.search(new RegExp(`^ {2}${name}:[ \\t]*$`, 'm'));
+        assert.ok(start > -1, `${file} has no ${name} job`);
+        const rest = body.slice(start + 1);
+        const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+        return (next === -1 ? rest : rest.slice(0, next)).split('\n').filter(l => !l.trim().startsWith('#')).join('\n');
+    };
+    const LANES = /** @type {[string, string, string][]} */ ([
+        ['e2e.yml', 'unit', 'npm run check'],
+        ['e2e.yml', 'nodeps', 'npm run test:nodeps'],
+        ['e2e.yml', 'functions', 'npm run test:functions'],
+        ['e2e.yml', 'rules', 'npm run test:rules'],
+        ['e2e.yml', 'smoke', 'npm run test:e2e'],
+        ['e2e.yml', 'csp', 'npm run test:csp'],
+        ['deploy-hosting.yml', 'deploy', 'npm run check'],
+        ['deploy-hosting.yml', 'deploy', 'npm run test:e2e'],
+        ['deploy-hosting.yml', 'deploy', 'npm run test:csp'],
+    ]);
+    for (const [file, job, cmd] of LANES) {
+        test(`${file} → ${job} runs ${cmd}`, () => {
+            const esc = cmd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            assert.match(jobOf(file, job), new RegExp(`^\\s*(?:run:\\s*)?${esc}(?:\\s|$)`, 'm'),
+                `${file}'s ${job} job no longer runs \`${cmd}\` — the lane can go green having checked nothing`);
+        });
+    }
+});
+

@@ -529,6 +529,34 @@ test('runDesignChecks counts weekends off across the wrap', () => {
     assert.equal(runDesignChecks(patterns, 3).weekendsOff, 2);
 });
 
+// THE WRAP ITSELF (test audit, 7 Nov 2026). The two tests above are NAMED for the wrap and neither
+// crosses it: the turnaround sits between lines 1 and 2, and the weekend test's break is on line 2.
+// Both passed with the wrap removed — the rest check stopping one short of the last pair, the weekend
+// check reading past the last line into nothing (which reads as rest). Somebody on the last line
+// goes to line 1 next week (invariant 3), so that boundary is where both findings must be.
+test('a short turnaround from the LAST line into line 1 is found — the rotation laps', () => {
+    const patterns = {};
+    for (let w = 1; w <= 3; w++) {
+        patterns[String(w)] = { sun: 'RD', mon: 'RD', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+    }
+    patterns['3'].sat = '15:15-23:55';
+    patterns['1'].sun = '06:20-14:20';
+    const checks = runDesignChecks(patterns, 3);
+    assert.equal(checks.turnarounds.length, 1, 'a 6h 25m rest across the wrap is a finding');
+    assert.equal(checks.turnarounds[0].fromLine, 3);
+    assert.equal(checks.turnarounds[0].toLine, 1);
+});
+
+test('the last line\'s Saturday and line 1\'s Sunday are one weekend', () => {
+    const patterns = {};
+    for (let w = 1; w <= 3; w++) {
+        patterns[String(w)] = { sun: 'RD', mon: 'RD', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+    }
+    patterns['1'].sun = '06:20-14:20';   // breaks the line-3-Saturday → line-1-Sunday weekend
+    assert.equal(runDesignChecks(patterns, 3).weekendsOff, 2,
+        'read past the last line into nothing and the broken weekend counts as one off');
+});
+
 test('runDesignChecks longest stretch wraps the cycle', () => {
     const patterns = {
         '1': { sun: '06:20-14:20', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: '06:20-14:20' },
