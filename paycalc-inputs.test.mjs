@@ -3,7 +3,7 @@
 // `document`, so we install a minimal fake DOM. Part of test:hygiene.
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { numVal, numValOr, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap, decimalHoursText } from './paycalc-inputs.js';
+import { numVal, numValOr, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap, decimalHoursText, commitFocusedField } from './paycalc-inputs.js';
 
 // ── Minimal fake DOM ───────────────────────────────────────────────────────────
 class FakeEl {
@@ -316,5 +316,66 @@ describe('wireIosTap — guarded touch/click wiring', () => {
         el.fire('touchstart', touchEv(touch(10, 10), touch(50, 50)));
         el.fire('touchend', touchEv());
         assert.equal(calls, 0);
+    });
+
+    // releaseFocus (the iPhone audit, 7 Nov 2026). The preventDefault() that stops the duplicate
+    // click also cancels the tap's move of focus, so on the touch path the field being typed in kept
+    // it — and the prior-year Holiday Pay Premium, which commits only on `change`, committed AFTER the
+    // arrow had moved the page to another tax year. The ORDER is the property: blur, then act.
+    test('releaseFocus: the touch path lets go of the field BEFORE it acts', () => {
+        const order = [];
+        global.document = /** @type {any} */ ({ activeElement: { tagName: 'INPUT', blur: () => order.push('blur') } });
+        const el = fakeEl();
+        wireIosTap(/** @type {any} */ (el), () => order.push('action'), { releaseFocus: true });
+        el.fire('touchstart', touchEv(touch(10, 10)));
+        el.fire('touchend', touchEv());
+        assert.deepEqual(order, ['blur', 'action'], 'a field that commits on leaving must commit where it was typed');
+    });
+
+    test('without it, the field keeps the focus — the ± sign button, whose box is still being typed in', () => {
+        let blurred = 0;
+        global.document = /** @type {any} */ ({ activeElement: { tagName: 'INPUT', blur: () => { blurred++; } } });
+        const el = fakeEl();
+        let calls = 0;
+        wireIosTap(/** @type {any} */ (el), () => { calls++; });
+        el.fire('touchstart', touchEv(touch(10, 10)));
+        el.fire('touchend', touchEv());
+        assert.equal(calls, 1);
+        assert.equal(blurred, 0);
+    });
+
+    test('a click needs no releasing: the browser has already moved the focus', () => {
+        let blurred = 0;
+        global.document = /** @type {any} */ ({ activeElement: { tagName: 'INPUT', blur: () => { blurred++; } } });
+        const el = fakeEl();
+        let calls = 0;
+        wireIosTap(/** @type {any} */ (el), () => { calls++; }, { releaseFocus: true });
+        el.fire('click', {});
+        assert.equal(calls, 1);
+        assert.equal(blurred, 0);
+    });
+});
+
+// ── commitFocusedField (the iPhone audit, 7 Nov 2026) ─────────────────────────────────────────────
+describe('commitFocusedField — let go of the field in hand, and only a field', () => {
+    for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT']) {
+        test(`a focused ${tagName} is blurred, so what it commits on leaving commits now`, () => {
+            let blurred = 0;
+            global.document = /** @type {any} */ ({ activeElement: { tagName, blur: () => { blurred++; } } });
+            commitFocusedField();
+            assert.equal(blurred, 1);
+        });
+    }
+    test('a focused button or bar keeps its focus — there is nothing in it to commit', () => {
+        let blurred = 0;
+        for (const tagName of ['BUTTON', 'DIV', 'BODY']) {
+            global.document = /** @type {any} */ ({ activeElement: { tagName, blur: () => { blurred++; } } });
+            commitFocusedField();
+        }
+        assert.equal(blurred, 0);
+    });
+    test('nothing focused is not an error', () => {
+        global.document = /** @type {any} */ ({ activeElement: null });
+        assert.doesNotThrow(() => commitFocusedField());
     });
 });

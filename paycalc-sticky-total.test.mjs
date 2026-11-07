@@ -17,7 +17,8 @@
  *   · moving between fields (focusout → focusin) never un-pins it (v16.19).
  *
  * What stays device-only is whether iOS reports those viewport numbers — not what this code does
- * with them. No imports, no mocks: the module has none.
+ * with them. No mocks: the module's one import, `wireIosTap` (the bar's tap, since the iPhone audit
+ * of 7 Nov 2026), is the real one, so the tap is tested through what it actually runs.
  */
 import { test, describe, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,6 +74,7 @@ function setup({ withNet = true } = {}) {
     vv = Object.assign(el('vv'), { height: 800, offsetTop: 0 });
     globalThis.document = /** @type {any} */ ({
         body,
+        activeElement: null,
         getElementById: (/** @type {string} */ id) => (id === 'stickyTotal' ? bar : id === 'netDisplay' ? net : null),
         querySelector: (/** @type {string} */ s) => (s === '.result-card' ? card : null),
         addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { docOn[t] = fn; },
@@ -124,6 +126,19 @@ describe('the bar shows exactly while the figure is off-screen', () => {
         initPaycalcStickyTotal();
         bar.on.click();
         assert.equal(card.scrolled, 1);
+    });
+
+    // THE TAP iOS CANCELLED (the iPhone audit, 7 Nov 2026): with the keypad up, the keyboard's
+    // dismissal shifts the viewport and the tap never becomes a click — the bar took two taps,
+    // exactly while the member was typing. The touch alone must now do it, and let go of the field.
+    test('a tap whose click never comes still takes you to the result, and lets go of the field', () => {
+        initPaycalcStickyTotal();
+        let blurred = 0;
+        document.activeElement = /** @type {any} */ ({ tagName: 'INPUT', blur: () => { blurred++; } });
+        bar.on.touchstart({ touches: [{ clientX: 5, clientY: 5 }] });
+        bar.on.touchend({ preventDefault() {} });
+        assert.equal(card.scrolled, 1, 'the touch alone must reach the result');
+        assert.equal(blurred, 1, 'and the keyboard goes down, as a native tap would have taken it');
     });
 });
 

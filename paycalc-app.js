@@ -61,7 +61,7 @@ import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey,
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fdLong, fmt, decimalToHM, minutesFieldText } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
-import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap } from './paycalc-inputs.js';
+import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite } from './paycalc-form-data.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
 import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildActualComparison, buildProvChips } from './paycalc-breakdown.js';
@@ -697,9 +697,9 @@ export function init() {
       const btn = document.getElementById('clearBtn');
       if (btn) { btn.textContent = 'Clear all entries'; btn.classList.remove('confirming'); }
     }
-    // iOS suspends timers when a tab is backgrounded; on resume the queued setTimeout fires
-    // immediately, which could turn the "Tap again to confirm" prompt into an accidental wipe.
-    document.addEventListener('visibilitychange', () => { if (document.hidden) _resetClearConfirm(); });
+    // On hide: disarm "Tap again to confirm" (iOS fires a suspended timer at once on resume — an accidental wipe), and let
+    // go of the field in hand, so a figure that commits only on `change` (prior-year HPP) is kept if the page never returns.
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { _resetClearConfirm(); commitFocusedField(); } });
 
     function clearPeriod() {
       const btn = /** @type {HTMLElement | null} */ (document.getElementById('clearBtn'));
@@ -1397,10 +1397,10 @@ export function init() {
 
     // ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
 
-    // Period navigation
+    // Period navigation. The arrows (and the peer stepper, Save settings) take ONE tap with the keypad up (wireIosTap):
     /** @type {HTMLElement} */ (document.getElementById('periodSelect')).addEventListener('change', onPeriodChange);
-    /** @type {HTMLElement} */ (document.getElementById('prevBtn')).addEventListener('click', () => prevPeriod(onPeriodChange));
-    /** @type {HTMLElement} */ (document.getElementById('nextBtn')).addEventListener('click', () => nextPeriod(onPeriodChange));
+    wireIosTap(/** @type {HTMLElement} */ (document.getElementById('prevBtn')), () => prevPeriod(onPeriodChange), { releaseFocus: true });
+    wireIosTap(/** @type {HTMLElement} */ (document.getElementById('nextBtn')), () => nextPeriod(onPeriodChange), { releaseFocus: true });
     /** @type {HTMLElement} */ (document.getElementById('todayPeriodBtn')).addEventListener('click', () => {
       const sel = document.getElementById('periodSelect');
       _setSelectPeriod(sel, _defaultPeriodNum);
@@ -1452,9 +1452,9 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById(h)).addEventListener('blur', () => autoDecimalHours(h, m));
     });
 
-    // Peer training stepper
-    /** @type {HTMLElement} */ (document.getElementById('peerMinus')).addEventListener('click', () => stepPeer(-1));
-    /** @type {HTMLElement} */ (document.getElementById('peerPlus')).addEventListener('click',  () => stepPeer(1));
+    // Peer training stepper — through wireIosTap, like the period arrows (the field in hand commits first)
+    wireIosTap(/** @type {HTMLElement} */ (document.getElementById('peerMinus')), () => stepPeer(-1), { releaseFocus: true });
+    wireIosTap(/** @type {HTMLElement} */ (document.getElementById('peerPlus')),  () => stepPeer(1), { releaseFocus: true });
 
     // Back-pay inputs. New fields: a manual edit just recalcs. Old fields + the "Pay rise %"
     // shortcut: re-derive the New figures from Old × (1 + %) when a % is present, then recalc.
@@ -1503,7 +1503,7 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn')).addEventListener('click', toggleBpBreakdown);
     /** @type {HTMLElement} */ (document.getElementById('backPayPeriod')).addEventListener('change', _runCalcBackPay);
     /** @type {HTMLElement} */ (document.getElementById('bpIncludeTick')).addEventListener('change', _runCalcBackPay);
-    /** @type {HTMLElement} */ (document.getElementById('saveSettingsBtn')).addEventListener('click', () => confirmSettings(calculate));
+    wireIosTap(/** @type {HTMLElement} */ (document.getElementById('saveSettingsBtn')), () => confirmSettings(calculate), { releaseFocus: true });
 
     // Hours card — show more toggle
     /** @type {HTMLElement} */ (document.getElementById('hoursShowMore')).addEventListener('click', toggleHoursExtra);

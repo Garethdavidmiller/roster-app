@@ -2309,3 +2309,101 @@ test('paycalc: a browser that saves keeps its "Saved automatically" line', async
     await expect(page.locator('#hoursCard .hours-save-ok')).toBeVisible();
     await expect(page.locator('#hoursCard .hours-save-blocked')).toBeHidden();
 });
+
+/**
+ * A tap whose click iOS CANCELLED: with the soft keyboard up, tapping a control dismisses the
+ * keyboard first, the viewport shifts, and the tap never becomes a click — the repo's own
+ * measurement, recorded on `wireIosTap` (paycalc-inputs.js). touchstart and touchend reach the
+ * control; no click ever does. A real tap would deliver the click, which is why this is built by
+ * hand rather than with `tap()`.
+ * @param {import('@playwright/test').Locator} control
+ */
+const tapWithoutClick = (control) => control.evaluate((el) => {
+    for (const type of ['touchstart', 'touchend']) {
+        const e = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(e, 'touches', { value: type === 'touchstart' ? [{ clientX: 1, clientY: 1 }] : [] });
+        el.dispatchEvent(e);
+    }
+});
+
+test('paycalc: with the keypad up, ONE tap works the controls iOS needed two for', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    const period = () => page.locator('#periodSelect').evaluate(s => Number(/** @type {HTMLSelectElement} */ (s).value));
+    const start = await period();
+    await tapWithoutClick(page.locator('#prevBtn'));
+    await expect.poll(period, '← Earlier').toBe(start - 1);
+    await tapWithoutClick(page.locator('#nextBtn'));
+    await expect.poll(period, 'Later →').toBe(start);
+    await tapWithoutClick(page.locator('#peerPlus'));
+    await expect(page.locator('#peerVal'), 'the peer-training +').toHaveText('1');
+    await tapWithoutClick(page.locator('#peerMinus'));
+    await expect(page.locator('#peerVal'), 'the peer-training −').toHaveText('0');
+    await expect(page.locator('#setupBanner')).toBeVisible();
+    await tapWithoutClick(page.locator('#saveSettingsBtn'));
+    await expect(page.locator('#setupBanner'), 'Save settings confirms the year').toBeHidden();
+    // The take-home bar shows while the £ figure is off screen (below the fold at the top of a
+    // phone's page), and one tap takes the member to it.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator('#stickyTotal')).toBeVisible();
+    await tapWithoutClick(page.locator('#stickyTotal'));
+    await expect(page.locator('#netDisplay'), 'the take-home bar').toBeInViewport();
+    expect(errors).toHaveLength(0);
+});
+
+// The same tap must let go of the field FIRST, as a native tap would have: the guard that stops a
+// duplicate click also cancels the tap's move of focus. The prior-year Holiday Pay Premium commits
+// only on `change`, so a figure typed there and followed by "← Earlier" committed AFTER the page
+// had moved — here, into 2025/26, which has no prior year on record, so the figure was lost.
+test('paycalc: a tap on ← Earlier lets go of the field first, so its figure lands on the year it was typed for', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    // A figure already on record keeps the box open before the January 2027 payslip exists.
+    await page.addInitScript(() => localStorage.setItem('myb_pc_gmiller_hpp_actual_2025_26', '100.00'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    // P50 is the first 2026/27 payslip, so ONE step back crosses into 2025/26.
+    await page.locator('#periodSelect').evaluate((s) => {
+        /** @type {HTMLSelectElement} */ (s).value = '50';
+        s.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.locator('#hppCardToggle').click();
+    const box = page.locator('#priorHppActualInput');
+    await expect(box).toHaveValue('100.00');
+    await box.fill('1843.01');
+    await tapWithoutClick(page.locator('#prevBtn'));
+    await expect.poll(() => page.locator('#periodSelect').evaluate(s => /** @type {HTMLSelectElement} */ (s).value)).toBe('49');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_hpp_actual_2025_26')),
+        'the 2025/26 premium typed on a 2026/27 payslip is kept for 2025/26').toBe('1843.01');
+    expect(errors).toHaveLength(0);
+});
+
+// Typed, then swiped away from: the figure commits only on `change`, which fires when the field is
+// left — and a page that is hidden and never comes back is never left. Hiding now lets go of it.
+test('paycalc: hiding the page commits the prior-year Holiday Pay Premium being typed', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_gmiller_hpp_actual_2025_26', '100.00'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    await page.locator('#hppCardToggle').click();
+    const box = page.locator('#priorHppActualInput');
+    await expect(box).toHaveValue('100.00');
+    await box.fill('1843.01');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_hpp_actual_2025_26')),
+        'not yet — it commits on leaving the field, by design (v17.26)').toBe('100.00');
+    // What swiping to the Home Screen does to the page: it is hidden, and nothing else happens.
+    await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_hpp_actual_2025_26'))).toBe('1843.01');
+    expect(errors).toHaveLength(0);
+});

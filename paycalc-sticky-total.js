@@ -38,6 +38,8 @@
  * device — which is precisely why the reasoning is written down beside it rather than assumed.
  */
 
+import { wireIosTap } from './paycalc-inputs.js';
+
 /**
  * Wire the sticky take-home bar. Safe to call when the elements are absent.
  * @returns {void}
@@ -136,9 +138,12 @@ export function initPaycalcStickyTotal() {
     _vv.addEventListener('resize', _pinSticky, { passive: true });
     _vv.addEventListener('scroll', _pinSticky, { passive: true });
   }
-  stickyBar.addEventListener('click', () =>
-    resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  );
+  // ONE TAP WITH THE KEYPAD UP (the iPhone audit, 7 Nov 2026). The bar matters most while a field
+  // is being typed in, which is exactly when iOS cancelled its click — the keyboard's dismissal
+  // shifts the viewport and the tap never becomes a click — so it took two. It now goes through the
+  // calculator's one guarded tap (`wireIosTap`, paycalc-inputs.js), letting go of the field first as
+  // a native tap would, so the member lands on the result with the keyboard down.
+  wireIosTap(stickyBar, () => resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' }), { releaseFocus: true });
   stickyBar.addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault(); // Space must not also scroll the page
