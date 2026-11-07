@@ -178,13 +178,29 @@ export const getDocs = (/** @type {any} */ ref) => {
   // that was ATTEMPTED and rejected still counts.
   e2e.docReads = (e2e.docReads || 0) + 1;
   globalThis.__E2E = e2e;
+  // And SETTLED reads are counted as well (test audit, 7 Nov 2026). docReads moves when a read
+  // STARTS, so a spec that had to let a slow read land before asserting what it did had only a sleep
+  // to wait with. docReadsSettled moves when a read has ANSWERED (or failed), in a reaction
+  // registered before the page's own await — so once it equals docReads, every read started so far
+  // has been delivered, and whatever the page did with each answer synchronously or in microtasks
+  // has already happened. Counted on whichever __E2E is current when the read lands; a spec that
+  // REPLACES the object mid-read splits the two counts, so wait on them only where it mutates it.
+  // Attaching that reaction also marks a REJECTED read as handled. It hides nothing: every read the
+  // app makes is awaited or handed to Promise.all or Promise.race, which attach handlers of their
+  // own, so a failure the page leaves unhandled still surfaces on the promise its own code made.
+  // (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+  const settle = (p) => {
+    const done = () => { const g = globalThis.__E2E || {}; g.docReadsSettled = (g.docReadsSettled || 0) + 1; };
+    p.then(done, done);
+    return p;
+  };
   // failGetDocs true rejects with a generic error (a network-class failure). A STRING rejects with
   // that string as the message — pass 'permission-denied' to look like an ACCESS failure (v20.45),
   // a different branch everywhere that matters: the generic error earns a retry chip, the access
   // one re-locks the Calendar. Both must be reachable or the re-lock path is untestable end to end.
   // (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
   if (e2e.failGetDocs) {
-    return Promise.reject(new Error(typeof e2e.failGetDocs === 'string' ? e2e.failGetDocs : 'e2e: collection read failed'));
+    return settle(Promise.reject(new Error(typeof e2e.failGetDocs === 'string' ? e2e.failGetDocs : 'e2e: collection read failed')));
   }
   // PER-COLLECTION failure (v22.57), the sibling of docsByPath below. failGetDocs fails every read,
   // which is the wrong tool for a page that reads two collections: failing the designs load as well
@@ -194,7 +210,7 @@ export const getDocs = (/** @type {any} */ ref) => {
   const failByPath = e2e.failGetDocsByPath;
   if (failByPath && ref && ref.path && failByPath[ref.path]) {
     const why = failByPath[ref.path];
-    return Promise.reject(new Error(typeof why === 'string' ? why : 'e2e: collection read failed'));
+    return settle(Promise.reject(new Error(typeof why === 'string' ? why : 'e2e: collection read failed')));
   }
   // Per-collection seeding (v21.04): window.__E2E.docsByPath = { linkTargetSets: [rows] } serves
   // those rows ONLY to reads of that collection, so a page reading two collections (designs AND
@@ -214,7 +230,7 @@ export const getDocs = (/** @type {any} */ ref) => {
   const held = (v) => new Promise(r => {
     const t = setInterval(() => { if (!(globalThis.__E2E || {}).docsHeld) { clearInterval(t); r(v); } }, 25);
   });
-  const wrap = (v) => (e2e.docsHeld ? held(v)
+  const wrap = (v) => settle(e2e.docsHeld ? held(v)
     : e2e.docsDelayMs ? new Promise(r => setTimeout(() => r(v), e2e.docsDelayMs)) : Promise.resolve(v));
   // window.__E2E.docsFromCache marks every snapshot as served from the offline cache (Oct 2026) —
   // the shape a surface must REFUSE to present as current. Set it after load to aim it at one read.

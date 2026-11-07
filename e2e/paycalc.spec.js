@@ -420,8 +420,17 @@ test('paycalc: one edit reaches "This tax year so far" at once, not on the next 
 // that the button the "Not entered yet" line offers runs the real engine against the real
 // storage, that the receipt lands, and that a period the member ENTERED survives the bulk write.
 
+// THE CLOCK IS PINNED for Fill-the-year and for the joiner pair further down (test audit, 7 Nov 2026
+// — PAY-19). Each is about the 2026/27 tax year — the year whose payslips a bulk fill reaches, and the
+// joiner's first — and on the real clock the page opens on whatever tax year today is in, so from
+// April 2027 they would quietly be testing a different year: a fill that never goes near the seeded
+// payslip, and a joiner employed the whole year through. 7 Nov 2026 is the day these were last read
+// against the real clock, with identical results.
+const PAY_2026_27_DAY = new Date('2026-11-07T09:00:00Z');
+
 test('paycalc: Fill-the-year fills the empty paid periods, receipts by date, and spares entered data', async ({ page }) => {
     const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);   // inside 2026/27, the year p51 belongs to — see above
     await seedSession(page);
     // One period the member typed by hand — the untouchable one. The 8 May 2026 payslip is long paid;
     // 7h of Saturday is unmistakably hand-shaped data, and that payslip's calendar would suggest far more
@@ -537,6 +546,7 @@ test('paycalc: the re-posted YTD notice appears on a clean device', async ({ pag
 // (a start date, from the public roster — no payslip of theirs is involved), so their 2026/27
 // window's 10 Apr + 8 May payslips predate their employment.
 test('paycalc: a joiner is not asked to fill in pre-employment payslips', async ({ page }) => {
+    await page.clock.setFixedTime(PAY_2026_27_DAY);
     await page.setViewportSize({ width: 390, height: 844 });
     await seedSession(page, 'J. Davies');   // getLoggedMember reads the session, not the calendar member
     const oneSat = JSON.stringify({ satH:8,satM:0,bhH:0,bhM:0,bhOtH:0,bhOtM:0,otH:0,otM:0,rdwH:0,rdwM:0,sunH:0,sunM:0,boxH:0,boxM:0,peer:0,slSkip:false,otherAdj:0,actualNet:null });
@@ -547,25 +557,28 @@ test('paycalc: a joiner is not asked to fill in pre-employment payslips', async 
         localStorage.setItem('myb_pc_jdavies_p52', seed);   // p52 = 5 Jun 2026 — after her 5 May start
     }, oneSat);
     await page.goto('/paycalc.html');
-    await page.waitForSelector('#netDisplay');
-    await page.waitForTimeout(800);
+    // The page has calculated, waited for rather than slept past (test audit, 7 Nov 2026 — these
+    // were 800ms and 400ms). The figure is written by the opening period's calculate(), and the two
+    // lines below are then waited for by what they must SAY before anything is read as absent.
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
     await page.evaluate(() => {
         for (const id of ['hppCardToggle','backPayCardToggle']) {
             const t = document.getElementById(id);
             /** @type {HTMLElement} */ (t.querySelector('.collapse-chevron') || t).click();
         }
     });
-    await page.waitForTimeout(400);
-    const { hppBasis, bpNotice } = await page.evaluate(() => ({
-        hppBasis: document.getElementById('hppBasis')?.textContent.trim() || '',
-        bpNotice: document.getElementById('backPayNotice')?.textContent.trim() || '',
-    }));
+    const hppBasis = page.locator('#hppBasis');
+    const bpNotice = page.locator('#backPayNotice');
+    // Each line SAYS SOMETHING FIRST. The absence checks below used to be the only checks on the
+    // back-pay notice, and an absence also holds for a notice that is empty or never written — so
+    // every one of them would pass a page that had stopped telling the joiner anything at all.
+    await expect(hppBasis, 'HPP denominator excludes the 2 pre-start periods').toContainText('of 11');
+    await expect(bpNotice, 'back pay names the post-start payslips with no hours').toContainText('No hours are saved for 3 Jul, 31 Jul');
     // Pre-start payslips are neither named nor counted in the denominator.
-    expect(hppBasis, 'HPP must not name a pre-employment payslip').not.toContain('10 Apr');
-    expect(hppBasis).not.toContain('8 May');
-    expect(hppBasis, 'HPP denominator excludes the 2 pre-start periods').toContain('of 11');
-    expect(bpNotice, 'back pay must not name a pre-employment payslip').not.toContain('10 Apr');
-    expect(bpNotice).not.toContain('8 May');
+    await expect(hppBasis, 'HPP must not name a pre-employment payslip').not.toContainText('10 Apr');
+    await expect(hppBasis).not.toContainText('8 May');
+    await expect(bpNotice, 'back pay must not name a pre-employment payslip').not.toContainText('10 Apr');
+    await expect(bpNotice).not.toContainText('8 May');
 });
 
 // A mid-year joiner's rough "from Year to Date" HPP estimate must not subtract PRE-EMPLOYMENT
@@ -575,6 +588,7 @@ test('paycalc: a joiner is not asked to fill in pre-employment payslips', async 
 // £3050 sits between them. Every figure here is COMPUTED by the calculator from the published
 // rates and a public start date — none is read off anybody's payslip — buggy → £0, fixed → a real figure.
 test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', async ({ page }) => {
+    await page.clock.setFixedTime(PAY_2026_27_DAY);   // the joining tax year — see the note above Fill-the-year
     await page.setViewportSize({ width: 390, height: 844 });
     await seedSession(page, 'J. Davies');
     await page.addInitScript(() => {
@@ -584,14 +598,18 @@ test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', asy
         localStorage.setItem('myb_pc_jdavies_ytd_src_2026_27','52');
     });
     await page.goto('/paycalc.html');
-    await page.waitForSelector('#netDisplay');
-    await page.waitForTimeout(700);
+    // Calculated, not slept past (test audit, 7 Nov 2026 — 700ms): the figure appears in the same
+    // synchronous init that wires #ytdPay's listener, so a value typed from here is heard.
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const ytdFigure = async () => parseFloat(
+        ((await page.locator('#hppModeYtdAmt').textContent()) || '').replace(/[^0-9.]/g, '')) || 0;
+    expect(await ytdFigure(), 'premise: no Year to Date figure, no estimate from it').toBe(0);
     await page.fill('#ytdPay','3050');
     await page.dispatchEvent('#ytdPay','input');
-    await page.waitForTimeout(400);
-    const ytdAmt = await page.evaluate(() => document.getElementById('hppModeYtdAmt')?.textContent.trim() || '');
-    const num = parseFloat(ytdAmt.replace(/[^0-9.]/g,'')) || 0;
-    expect(num, 'joiner ytd HPP figure must be positive (not zeroed by phantom pre-employment pay)').toBeGreaterThan(0);
+    // Polled, where this read once after a 400ms sleep: the estimate is drawn by the recalculation
+    // the input starts, and a buggy page — one charging phantom pre-employment pay — never moves off 0.
+    await expect.poll(ytdFigure, { message: 'joiner ytd HPP figure must be positive (not zeroed by phantom pre-employment pay)' })
+        .toBeGreaterThan(0);
 });
 
 // The member's OWN Holiday Pay Premium figure is not labelled an estimate (polish round 2). The
@@ -1184,6 +1202,61 @@ const LUMP_QUIET = () => {
     localStorage.setItem('myb_pc_ns_migrated', '1');
     localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
 };
+
+// THE £ FIGURE BESIDE ITS LABEL IN THE BACK-PAY STATE — in a BLOCKING lane (test audit, 7 Nov 2026 —
+// UI-12). This check lived only in visual.spec.js, an opt-in lane whose CI job is report-only: any
+// failure there reads as "baselines drifted" and blocks nothing. So the row that broke on a real phone
+// — "Estimated take-home pay (inc. back pay)" wrapping into its own figure, `.sum-row` being
+// `space-between` with nothing to keep the two apart — had no guard that could stop a merge. The same
+// state and the same sentinels as the visual test, without the picture: the clock is that test's
+// (15 Jul 2026) and P55 is the payslip the 2026 award lands on.
+//
+// TWO THINGS ARE TIGHTER THAN THE VISUAL TEST'S CHECK, because as written there it could not fail
+// (measured by deleting each rule): at 390px no label in this state fills its row, so the gap
+// between label and figure was the row's slack rather than the `gap: 16px` that keeps them apart; and
+// "same line" was `val.top < lbl.bottom`, true of a figure anywhere beside a two-line label. So the
+// rows are also measured at 320px, where both labels fill them and the gap rule is all that is left
+// between the words and the money; the long back-pay row that actually broke is measured as well as
+// the take-home row; and "same line" means the figure's middle lies inside the headline's own line box.
+for (const width of [390, 320]) {
+    test(`paycalc: with back pay included, each £ sits beside its label and never touches it (${width}px)`, async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+        await page.setViewportSize({ width, height: 1600 });
+        await seedSession(page);
+        await page.addInitScript(LUMP_QUIET);
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        await page.locator('#periodSelect').selectOption('55');   // Paid 28 Aug 2026 · P24
+        await page.evaluate(() => document.getElementById('backPayHeader')?.click());
+        // The include tick lives in the card's paid-in wrap; set it the way its change handler hears it.
+        await page.evaluate(() => {
+            const t = /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'));
+            if (t) { t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true })); }
+        });
+        // Sentinels FIRST, waited for: without the back-pay state there is nothing long enough to break.
+        await expect(page.locator('#summary .sum-bp')).toHaveCount(1);
+        await expect(page.locator('#summary .sum-net-sub')).toHaveText('includes back pay');
+        const geom = await page.evaluate(() => Object.fromEntries(['sum-net', 'sum-bp'].map(cls => {
+            const row = /** @type {Element} */ (document.querySelector(`#summary .${cls}`));
+            const lblEl = /** @type {Element} */ (row.querySelector('.lbl'));
+            const lbl = lblEl.getBoundingClientRect();
+            const val = /** @type {Element} */ (row.querySelector('.val')).getBoundingClientRect();
+            // The headline's first line box: the label's own words, before the sub-line under them.
+            const words = [...lblEl.childNodes].find(n => n.nodeType === Node.TEXT_NODE && (n.textContent || '').trim());
+            const range = document.createRange();
+            if (words) range.selectNodeContents(words);
+            const first = words ? range.getClientRects()[0] : lbl;
+            const mid = (val.top + val.bottom) / 2;
+            return [cls, { gap: Math.round(val.left - lbl.right), sameLine: mid >= first.top - 0.5 && mid <= first.bottom + 0.5 }];
+        })));
+        for (const [cls, g] of Object.entries(geom)) {
+            expect(g.gap, `.${cls}: the £ figure must never touch the label`).toBeGreaterThan(4);
+        }
+        // The take-home row only: it alone is aligned to its headline's BASELINE (paycalc.css), so the
+        // figure stays on the words it belongs to; every other row centres its figure by design.
+        expect(geom['sum-net'].sameLine, 'the take-home £ sits beside the headline\'s first line, not under the sub-line').toBe(true);
+    });
+}
 
 test('paycalc: the back-pay lump joins take-home ONLY when the tick is on', async ({ page }) => {
     const errors = collectFatalErrors(page);

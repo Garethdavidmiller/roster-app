@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -2877,13 +2877,19 @@ for (const [held, signed, expected] of [
             window.open = /** @type {any} */ ((url) => { /** @type {any} */ (window).__opened.push(String(url)); return null; });
         }, [DOC_STORED, held]);
         await page.route('**/getDocumentUrl', route => route.fulfill({ contentType: 'application/json', body: signedFor(signed) }));
-        const minted = page.waitForResponse('**/getDocumentUrl');
+        await trackEndpointUse(page, 'getDocumentUrl');
         await seedMemberSession(page, 'G. Miller');
         await page.goto('/#huddle');
-        await minted;
         const btn = page.locator('#huddleOpenFileBtn');
         await expect(btn).toBeVisible({ timeout: 15_000 });
-        await page.waitForTimeout(200);   // let the minted link land on the button's closure
+        // THE MINTED LINK HAS LANDED ON THE BUTTON, waited for rather than slept past (test audit,
+        // 7 Nov 2026). This was a 200ms sleep, and the 'stored' case could not fail with it: a tap
+        // that beats the mint opens the stored url anyway (the test below shows an early tap does
+        // exactly that), so on a slow runner it passed whether or not the same-file check worked.
+        // The body read is counted a task after it resolves, and the viewer's `signed = minted` is
+        // in the microtasks before that — so from here the click resolves against the signed link.
+        await expect.poll(async () => (await endpointUse(page, 'getDocumentUrl')).bodiesRead,
+            { message: 'the page never finished reading the signed link' }).toBeGreaterThan(0);
         await btn.click();
         await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__opened), { timeout: 3000 })
             .toEqual([expected === 'stored' ? DOC_STORED : DOC_SIGNED]);

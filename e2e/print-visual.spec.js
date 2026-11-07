@@ -111,7 +111,11 @@ test.describe('the first printed sheet @print', () => {
         await settle(page, '.calendar-day');
         await page.locator('#teamViewBtn').click();
         await settle(page, '.team-week-text');
-        await page.evaluate(() => new Promise(r => setTimeout(r, 300)));
+        // The switch's own transitions run to their end before the sheet is printed — waited for,
+        // where this was a 300ms sleep (test audit, 7 Nov 2026). page.pdf() does not finish them itself.
+        await page.evaluate(() => Promise.all(document.getAnimations()
+            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+            .map((a) => a.finished.catch(() => null))));
         const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
 
         // The v23.20 rule, in the one place that can see it: the landscape `@page` is injected by

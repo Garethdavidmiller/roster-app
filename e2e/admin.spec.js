@@ -5,7 +5,7 @@
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText } from './helpers.js';
+import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
 import { SUNDAY_FORBIDDEN_TYPES } from '../override-utils.js';
 import { teamMembers, getBaseShift } from '../roster-data.js';
 
@@ -347,10 +347,14 @@ test('admin: with the leave question open over the drawer, Tab stays in it and E
     // one; ask again before it has gone and the page holds two copies of the same words.
     await expect(page.locator('.dialog-overlay'), 'the closed dialog has left the page').toHaveCount(0);
     // A hardware Back is the same rule: it closes the dialog, not the drawer beneath it.
-    await page.waitForTimeout(400);
+    // Each step waits for the history it depends on rather than 400ms (test audit, 7 Nov 2026): first the
+    // closed dialog's Back echo, so the next question's entry is not the one it pops…
+    const overlayEntry = () => page.evaluate(() => history.state?.mybOverlay ?? null);
+    await expect.poll(overlayEntry, { message: 'the closed dialog\'s history entry has gone' }).toBeNull();
     await page.locator('.nav-panel-pill--calendar').click();
     await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible();
-    await page.waitForTimeout(400);
+    // …then the new dialog's own entry, which is what a Back is meant to close.
+    await expect.poll(overlayEntry, { message: 'the dialog holds the top history entry' }).toBe(true);
     await page.evaluate(() => history.back());
     await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeHidden();
     await expect(page.locator('#navPanel'), 'Back closes the topmost surface only').toHaveClass(/open/);
@@ -649,14 +653,17 @@ test('admin: the over-entitlement question stays up past an earlier success mess
     await page.locator('#bulkTypePills .pill-annual_leave').click();
     await page.locator('#bulkApplyBtn').click();
     await expect(page.locator('#formFeedback')).toContainText('Sunday skipped');   // the timed message
-    const appliedAt = Date.now();
     for (const btn of await page.locator('.day-row .al-swap-btn[data-swap="no"]').all()) {
         if (await btn.isVisible()) await clickInView(btn);   // rest days: free, nothing written
     }
     await clickInView(page.locator('#saveBtn'));
     const bar = page.locator('#alConfirmBar');
     await expect(bar).toHaveClass(/visible/);
-    await page.waitForTimeout(Math.max(0, 7_600 - (Date.now() - appliedAt)));
+    // Past the success line's 7-second fade on the PAGE's clock, not by waiting it out (test audit, 7 Nov 2026:
+    // this was a real 7.6s sleep). setFixedTime above installed Playwright's clock, and fastForward
+    // fires every timer that falls due inside the jump — the fade's included — while Date stays
+    // pinned. 7.6s from here is past the fade however long the clicks above took.
+    await page.clock.fastForward(7_600);
     await expect(bar, 'the question must wait for an answer, not for a timer').toHaveClass(/visible/);
 });
 
@@ -670,7 +677,10 @@ test('admin: a leave preview drawn before the member\'s records arrive is redraw
     await page.addInitScript(() => { const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = []; });
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
-    await page.waitForTimeout(800);   // the first member's load has landed
+    // The first member's load has landed — counted, not guessed with an 800ms sleep (test audit, 7 Nov 2026).
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.docReads || 0),
+        'premise: the first member\'s records were asked for').toBeGreaterThan(0);
+    await waitForReadsToLand(page, 'the first member\'s load never landed');
     // From here a read is HELD until this test releases it, and holds a worked rest day (Mon 7 Sep is
     // RD on G. Miller's line). Held, not delayed: a 3-second docsDelayMs had to outlast the five steps
     // below, and on a loaded WebKit runner it did not (Nov 2026) — the records landed first, the preview
@@ -742,6 +752,11 @@ test('admin: a save that is waiting for the server says so, and the notice clear
 test('admin: a slow save says "Waiting for signal" only when the browser reports being offline (v24.54)', async ({ page, context }) => {
     await page.addInitScript(() => {
         window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true, slowSaveMs: 300 };
+        // The save's own 'done' event, kept for the spec: the diagnostic is decided when it fires.
+        window.addEventListener('myb-slow-save', (e) => {
+            const d = /** @type {CustomEvent} */ (e).detail;
+            if (d?.phase === 'done') /** @type {any} */ (window).__slowSaveDone = d;
+        });
     });
     await seedSession(page, 'G. Miller');
     await page.goto('/admin.html');
@@ -764,7 +779,12 @@ test('admin: a slow save says "Waiting for signal" only when the browser reports
     await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
     await expect(notice).toBeHidden({ timeout: 5000 });
     await expect(page.locator('#formFeedback')).toContainText('changes saved for', { timeout: 10000 });
-    await page.waitForTimeout(500);
+    // Not a 500ms sleep (test audit, 7 Nov 2026): the reporter writes its diagnostic, or does not, INSIDE the
+    // save's 'done' event (error-reporter.js), and the write is recorded as it is made. So once that
+    // event has fired the answer is in — and it must have said OFFLINE, or the absence below would
+    // be the absence of an online save's record, which proves nothing about this rule.
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__slowSaveDone?.onlineWhenSlow ?? 'no done event'),
+        { message: 'premise: the save ended, and it was slow while the browser said it was offline' }).toBe(false);
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
         .filter((/** @type {any} */ w) => /^Slow save/.test(w.data?.message ?? '')).length),
         'an offline-when-slow save must not be logged as a diagnostic').toBe(0);
@@ -840,12 +860,17 @@ test('admin: after a save left unconfirmed by a sign-out, the next save is refus
 // (out, then in as them) as this page's loss, and its re-login signed the colleague out.
 test('admin: a colleague signing in from another tab does not sign anybody out here', async ({ page }) => {
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.clock.install();   // runs in real time until the fastForward below; nothing is pinned
     await seedSession(page, 'G. Miller');
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
     const before = await page.evaluate(() => /** @type {any} */ (window).__E2E.signOutCount || 0);
     await page.evaluate(() => /** @type {any} */ (window).__E2E.otherTabSignIn());
-    await page.waitForTimeout(4500);   // past the watcher's 3s settle
+    // Past the watcher's 3s settle on the PAGE's clock (test audit, 7 Nov 2026: this was a real 4.5s sleep).
+    // A sign-out is judged only once it has lasted that long (watchIdentityLoss, claim-retry.js), so
+    // nothing can be concluded before the settle has run: fastForward fires every timer due inside
+    // the jump, the settle's included, and the assertions below read the page after it.
+    await page.clock.fastForward(4_500);
     await expect(page.locator('#loginPassword')).toHaveCount(0);
     expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.signOutCount || 0), 'nobody signed out').toBe(before);
     expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')), 'the shared session survives').not.toBeNull();
@@ -2154,19 +2179,15 @@ test('admin: a deep link to the Recorded Annual Leave dates box opens BOTH folds
     await seedSession(page, 'G. Miller');
     await page.goto('/admin.html#alBookedBox');
     await page.waitForSelector('.day-row', { timeout: 10000 });
-    await page.waitForTimeout(400);
-    const open = await page.evaluate(() => ({
-        card: document.getElementById('alBody')?.classList.contains('open'),
-        box:  document.getElementById('alBookedBody')?.classList.contains('open'),
-        cardAria: document.getElementById('alChevron')?.getAttribute('aria-expanded'),
-        boxAria:  document.getElementById('alBookedChevron')?.getAttribute('aria-expanded'),
-    }));
-    expect(open.card, 'the Annual Leave card must open — the box lives inside it').toBe(true);
-    expect(open.box, 'and the box\'s own fold, or the link lands on the thing it named, closed').toBe(true);
+    // Web-first, so each waits for the deep link to have been handled rather than a 400ms guess
+    // (test audit, 7 Nov 2026).
+    const OPEN = /(^|\s)open(\s|$)/;
+    await expect(page.locator('#alBody'), 'the Annual Leave card must open — the box lives inside it').toHaveClass(OPEN);
+    await expect(page.locator('#alBookedBody'), 'and the box\'s own fold, or the link lands on the thing it named, closed').toHaveClass(OPEN);
     // `initCardCollapse` only syncs aria on a click, so a class-only open would leave a screen
     // reader hearing "collapsed" on both.
-    expect(open.cardAria).toBe('true');
-    expect(open.boxAria).toBe('true');
+    await expect(page.locator('#alChevron')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#alBookedChevron')).toHaveAttribute('aria-expanded', 'true');
 });
 
 // FOLDS OPEN IS NOT THE SAME AS LANDED ON, and the second half is what was reported (6 Sep 2026:
@@ -2195,14 +2216,24 @@ test('admin: a deep link to the AL box lands with the WHOLE box on screen', asyn
     await page.goto('/admin.html#alBookedBox');
     await page.waitForSelector('.day-row', { timeout: 10000 });
     await expect(page.locator('#alBookedBox')).toBeVisible();
-    await page.waitForTimeout(1500);   // the smooth scroll, and anything that would fight it
-    const box = await page.evaluate(() => {
-        const r = document.getElementById('alBookedBox').getBoundingClientRect();
-        return { top: Math.round(r.top), bottom: Math.round(r.bottom), vh: window.innerHeight };
-    });
-    expect(box.top, 'the box must be on screen, not above it').toBeGreaterThanOrEqual(0);
-    expect(box.bottom, `the WHOLE box must be on screen — top ${box.top}, bottom ${box.bottom}, ` +
-        `viewport ${box.vh}`).toBeLessThanOrEqual(box.vh);
+    // Wait for the page to STOP and then judge where it stopped (test audit, 7 Nov 2026: this was a fixed 1.5s
+    // sleep). "Stopped" is the same box position on two samples 150ms apart — a smooth scroll moves
+    // it every frame — and the poll only accepts a stopped page with the whole box on screen, so a
+    // scroll that passes through the right place on its way somewhere else does not count, and a
+    // page that has not started scrolling yet (the box still below the fold) keeps it waiting.
+    // What it reports when it gives up is the last position it saw.
+    /** @type {{ top: number, bottom: number, vh: number } | null} */ let last = null;
+    await expect.poll(async () => {
+        const now = await page.evaluate(() => {
+            const r = /** @type {HTMLElement} */ (document.getElementById('alBookedBox')).getBoundingClientRect();
+            return { top: Math.round(r.top), bottom: Math.round(r.bottom), vh: window.innerHeight };
+        });
+        const stopped = !!last && last.top === now.top && last.bottom === now.bottom;
+        last = now;
+        if (stopped && now.top >= 0 && now.bottom <= now.vh) return 'the whole box on screen';
+        return `top ${now.top}, bottom ${now.bottom}, viewport ${now.vh}${stopped ? '' : ' (still moving)'}`;
+    }, { intervals: [150], timeout: 6_000, message: 'the box must be on screen, not above it — and the WHOLE box' })
+        .toBe('the whole box on screen');
 });
 
 // The existing deep links name a CARD, and must behave exactly as they did — the v22.91 change
@@ -2212,8 +2243,7 @@ test('admin: the existing card deep link still opens that card', async ({ page }
     await seedSession(page, 'G. Miller');
     await page.goto('/admin.html#book-annual-leave');
     await page.waitForSelector('.day-row', { timeout: 10000 });
-    await page.waitForTimeout(400);
-    expect(await page.evaluate(() => document.getElementById('alBody')?.classList.contains('open'))).toBe(true);
+    await expect(page.locator('#alBody')).toHaveClass(/(^|\s)open(\s|$)/);   // web-first, not a 400ms guess (test audit, 7 Nov 2026)
 });
 
 // ── THE AL AND ABSENCE PICKERS FOLLOW THE MEMBER (v23.42) ────────────────────────────────────────
@@ -2705,7 +2735,7 @@ test('admin: the week grid asks the swap question too, and refuses to save it un
     const t = /** @type {any} */ (target);
 
     await page.locator('#fieldMember').selectOption(t.name);
-    await page.waitForTimeout(400);
+    await waitForReadsToLand(page, `${t.name}'s records never answered`);   // not a 400ms guess (test audit, 7 Nov 2026)
     const row = page.locator(`.day-row[data-date="${t.date}"]`);
     await expect(row).toHaveCount(1);
 
@@ -2769,7 +2799,7 @@ test('admin: the save refuses an unanswered rest day even when the row never ask
     const t = /** @type {any} */ (target);
 
     await page.locator('#fieldMember').selectOption(t.name);
-    await page.waitForTimeout(400);
+    await waitForReadsToLand(page, `${t.name}'s records never answered`);   // not a 400ms guess (test audit, 7 Nov 2026)
     const row = page.locator(`.day-row[data-date="${t.date}"]`);
     await expect(row).toHaveCount(1);
 
@@ -2833,7 +2863,7 @@ test('admin: a skip-only save leaves the row showing the record that is still th
     }, { id: 'sick-1', memberName: t.name, date: t.date, type: 'sick', value: 'SICK', note: '', source: 'manual' });
     await page.goto('/admin.html');
     await page.locator('#fieldMember').selectOption(t.name);
-    await page.waitForTimeout(400);
+    await waitForReadsToLand(page, `${t.name}'s records never answered`);   // not a 400ms guess (test audit, 7 Nov 2026)
 
     const row = page.locator(`.day-row[data-date="${t.date}"]`);
     await expect(row.locator('.type-pill-btn[data-type="sick"]'), 'the row starts prefilled with the absence')
@@ -2893,7 +2923,7 @@ test('admin: a rest day that ALREADY holds leave is not reported as "no leave re
     }, { id: 'legacy-al', memberName: t.name, date: t.date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' });
     await page.goto('/admin.html');
     await page.locator('#fieldMember').selectOption(t.name);
-    await page.waitForTimeout(400);
+    await waitForReadsToLand(page, `${t.name}'s records never answered`);   // not a 400ms guess (test audit, 7 Nov 2026)
 
     const row = page.locator(`.day-row[data-date="${t.date}"]`);
     await expect(row.locator('.type-pill-btn[data-type="annual_leave"]'), 'the row starts prefilled with the leave')
@@ -2965,7 +2995,7 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
     const t = /** @type {any} */ (target);
 
     await page.locator('#fieldMember').selectOption(t.name);
-    await page.waitForTimeout(400);
+    await waitForReadsToLand(page, `${t.name}'s records never answered`);   // not a 400ms guess (test audit, 7 Nov 2026)
     const row = page.locator(`.day-row[data-date="${t.date}"]`);
     await expect(row).toHaveCount(1);
 

@@ -7,7 +7,8 @@
  * horizon lists weeks nobody has created.
  */
 import { test, expect } from './fixtures.js';
-import { seedSession, signInThroughOverlay } from './helpers.js';
+import { seedSession, signInThroughOverlay, trackEndpointUse, endpointUse, waitForReadsToLand } from './helpers.js';
+import { APP_PAGES } from '../scripts/app-pages.mjs';
 
 // Overtime is PAUSED for everyone (CONFIG.OVERTIME_ENABLED, owner, Nov 2026). These tests switch it back on
 // through the test seam (auth-policy.js `overtimeEnabled`), so the real page stays exercised while it waits.
@@ -1544,8 +1545,13 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
 
         // B lands first and paints: nobody is available on the Sunday any more.
         await expect(sunday.locator('.ot-section').first()).toContainText('Nobody');
-        // Now A lands, carrying v1. It must be discarded.
-        await page.waitForTimeout(2200);
+        // Now A lands, carrying v1. It must be discarded — and the test waits for A to have LANDED,
+        // where it slept 2,200ms past a 1,500ms delay (test audit, 7 Nov 2026): a sleep that ends
+        // before a slow runner delivers A asserts the guard against a page A never reached, and passes
+        // with the guard gone. Every read started so far has answered once the settled count catches
+        // the started one (e2e/fixtures.js), and the paint A would make follows its last read in the
+        // same microtasks — so from here the page shows whatever A was allowed to leave it showing.
+        await waitForReadsToLand(page, 'read A never landed');
         await expect(sunday.locator('.ot-section').first(),
             'the superseded read repainted the older answer over the newer one').toContainText('Nobody');
         await expect(sunday.locator('.ot-section').first()).not.toContainText('T. Bibi');
@@ -1580,13 +1586,19 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         await expect(page.locator('.ot-day-panel[data-date]:not([hidden])')).toHaveCount(1);
         expect(await reads(page), 'a lens change is a repaint, never a fetch').toBe(base);
 
+        // Every panel drawn BEFORE the refresh is marked, so the repaint is seen to happen rather than
+        // assumed to have: the lens checks below hold just as well on the old panels, and the 100ms
+        // sleep that stood here ("let the repaint land") could end before it (test audit, 7 Nov 2026).
+        await page.evaluate(() => document.querySelectorAll('#otWeekContent .ot-day-panel')
+            .forEach(p => { /** @type {HTMLElement} */ (p).dataset.e2eBeforeRefresh = '1'; }));
         await page.locator('.ot-refresh-btn').click();
         // Polled: the roster read is only issued once the first two resolve, so the count settles
         // a beat after the click. The final value is exact — more would mean a doubled handler.
         await expect.poll(() => reads(page),
             { message: 'Refresh must actually re-read (participants + submissions + roster)' })
             .toBe(base + 3);
-        await page.waitForTimeout(100);   // let the repaint that follows the last read land
+        await expect(page.locator('#otWeekContent [data-e2e-before-refresh]'),
+            'the refresh repainted the week').toHaveCount(0);
         // The lens survived the round trip: still one panel, and it is the chosen day.
         await expect(page.locator('.ot-day-panel[data-date]:not([hidden])')).toHaveCount(1);
         await expect(page.locator('.ot-day-panel[data-date]:not([hidden])')).toHaveAttribute('data-date', D0);
@@ -1603,9 +1615,18 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         await page.goto('/overtime.html');
         await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
         const base = await reads(page);
-        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-        await page.waitForTimeout(250);
-        expect(await reads(page), 'a visibility flick inside the debounce must not re-read').toBe(base);
+        // Read where a refetch WOULD start, not 250ms later (test audit, 7 Nov 2026). The handler's
+        // refetch begins its reads synchronously — refreshSelectedIfStale → renderWeekDetail →
+        // loadWeekDetail → getDocs, with no await before them — so a read it was going to start is
+        // counted by the time `dispatchEvent` returns; the second count, a task later, also catches
+        // one started after a microtask hop. A sleep proved neither, and passed on a page whose
+        // handler had not run yet.
+        const counted = await page.evaluate(() => new Promise(resolve => {
+            document.dispatchEvent(new Event('visibilitychange'));
+            const atReturn = /** @type {any} */ (window).__E2E.docReads || 0;
+            setTimeout(() => resolve({ atReturn, aTaskLater: /** @type {any} */ (window).__E2E.docReads || 0 }), 0);
+        }));
+        expect(counted, 'a visibility flick inside the debounce must not re-read').toEqual({ atReturn: base, aTaskLater: base });
     });
 
     test('a dirty form arms the leave-page warning; a clean one does not', async ({ page }) => {
@@ -2162,6 +2183,7 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
             status: 200, contentType: 'application/json',
             body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await trackEndpointUse(page, 'getMyOvertimeState');
         await page.goto('/overtime.html');
         await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
         for (let i = 0; i < 5; i++) {
@@ -2169,8 +2191,16 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         }
         await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
         await expect.poll(() => calls, 'the server was genuinely re-read').toBeGreaterThanOrEqual(2);
-        // Asserting an ABSENCE: give a rebuild time to start. A rebuild is a third read.
-        await page.waitForTimeout(500);
+        // Asserting an ABSENCE — so wait until the decision it is about has been TAKEN, where this
+        // slept 500ms to "give a rebuild time to start" (test audit, 7 Nov 2026). The resync decides
+        // as soon as it has read the second answer, and a rebuild starts at once: `loadMine` puts up
+        // "Loading your forms…" and calls the endpoint again before its first await. Both happen in
+        // the microtasks after the body read, so once the page has finished with that body
+        // (trackEndpointUse), a rebuild would already show here — the page's own count of calls is
+        // read, not the route's, which only hears about a request after it has crossed to Playwright.
+        await expect.poll(async () => (await endpointUse(page, 'getMyOvertimeState')).bodiesRead,
+            { message: 'the resync never finished with its answer' }).toBeGreaterThanOrEqual(2);
+        expect((await endpointUse(page, 'getMyOvertimeState')).calls, 'the card was not reloaded').toBe(2);
         expect(calls, 'the card was not reloaded').toBe(2);
         await expect(page.locator('.ot-day--set')).toHaveCount(5);
         await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
@@ -3124,9 +3154,17 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
     test('no other page offers the pill while paused', async ({ page }) => {
         // The admin sees every other pill, so a drawer that rendered none would fail the guard below
         // rather than pass the absence check.
+        //
+        // EVERY APP PAGE, read from scripts/app-pages.mjs (test audit, 7 Nov 2026 — OT-5). This
+        // visited four by hand, so Trains, the Pay Calculator, Links and New link could each hand
+        // their drawer an Overtime pill while paused and nothing here would look: `canOpenOvertime:
+        // !!member` on trains-app.js stayed green in every lane. A page added to the list is walked.
+        test.setTimeout(60_000);
         await seedSession(page, 'G. Miller');
         await off(page);
-        for (const path of ['/', '/admin.html', '/settings.html', '/operations.html']) {
+        const others = APP_PAGES.filter(p => p.id !== 'overtime').map(p => p.url);
+        expect(others.length, 'the walk reaches every other app page').toBe(APP_PAGES.length - 1);
+        for (const path of others) {
             await page.goto(path);
             const close = page.locator('.lb-overlay.open .lb-close').first();
             if (await close.count()) await close.click();

@@ -52,8 +52,14 @@ test('login overlay: while auth is in flight, button shows "Signing in…", no s
     // guard) must hit the JS preventDefault guard, so the page does NOT navigate away mid sign-in.
     await expect(page.locator('.login-back')).toHaveAttribute('aria-disabled', 'true');
     await expect(page.locator('.login-back')).toHaveClass(/login-back--busy/);
-    await page.locator('.login-back').dispatchEvent('click');
-    await page.waitForTimeout(150);
+    // THE GUARD'S OWN ANSWER, read when the click returns (test audit, 7 Nov 2026). This dispatched
+    // the click and then slept 150ms before checking the URL — but a navigation that had begun and
+    // not yet committed still reads admin.html, so on a slow runner the check passed with the guard
+    // gone. A link's click navigates unless a listener cancels it, and `dispatchEvent` returns only
+    // after every listener has run, so `defaultPrevented` is the decision itself, already made.
+    const cancelled = await page.locator('.login-back').evaluate(el =>
+        !el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })));
+    expect(cancelled, 'the Back link must cancel its own navigation during an in-flight sign-in').toBe(true);
     await expect(page, 'Back link must not navigate during an in-flight sign-in').toHaveURL(/admin\.html/);
     const stillNone = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
     expect(stillNone, 'still no session after the (blocked) Back click').toBeNull();

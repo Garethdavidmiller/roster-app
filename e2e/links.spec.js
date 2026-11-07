@@ -15,6 +15,26 @@ import { ROTATING_LINES } from '../links-design.js';
 import { PROPOSALS } from '../links-proposals.js';
 import { describeSetList } from '../links-target-sets.js';
 
+/**
+ * THE LINKS PAGE HAS FINISHED OPENING — waited for, not slept past (test audit, 7 Nov 2026).
+ *
+ * Ten tests here slept 600–700ms after `goto` before force-pressing Generate or reading a card, as a
+ * stand-in for "the page is ready". It is ready when the two reads it makes on open have answered and
+ * been drawn, because each one REPAINTS what a test is about to touch: a Generate that beats
+ * `loadDesigns` has its design swept away when the list lands (it resets the working copy and
+ * redraws the grid), and a check made before it can pass on the page's initial markup — the window
+ * editor is `hidden` in the HTML, so "hidden: no design yet" was true before anything had loaded.
+ * Each read leaves a mark only it writes:
+ *  - the DESIGNS: the masthead names the open design — or "No design open" — and is empty until then;
+ *  - the saved STAFFING SETUPS: their picker holds no option at all until that read answers, and at
+ *    least one (a set, or "No staffing setups saved yet") from then on.
+ * @param {import('@playwright/test').Page} page
+ */
+async function linksOpened(page) {
+    await expect(activeDesignName(page), 'the design list never loaded').toHaveText(/\S/);
+    await expect(page.locator('#genSetSelect option').first(), 'the saved staffing setups never loaded').toBeAttached();
+}
+
 // ── LINKS (links.html) ────────────────────────────────────────────────────
 
 test('links: shows the in-place login when not signed in', async ({ page }) => {
@@ -73,13 +93,15 @@ test('links: opening the auto-generator causes no horizontal page overflow (narr
     await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
     await page.goto('/links.html');
     await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+    // Both of the page's reads answered (test audit, 7 Nov 2026): each repaints the card being
+    // measured, so a width read before them describes a page that is about to change.
+    await linksOpened(page);
 
     // Ensure the generator body is expanded (it auto-opens in the empty state, but make it
     // deterministic regardless of stubbed-Firebase load order).
     const opened = await page.evaluate(() => document.getElementById('generatorBody')?.classList.contains('open'));
     if (!opened) await page.locator('#generatorChevron').click();
     await expect(page.locator('#generatorBody')).toHaveClass(/open/);
-    await page.waitForTimeout(150);
 
     const { scrollW, clientW } = await page.evaluate(() => ({
         scrollW: document.documentElement.scrollWidth,
@@ -610,7 +632,7 @@ test('links: the line-order switches change the design, and say what each one co
             const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
         });
         await page.goto('/links.html');
-        await page.waitForTimeout(600);
+        await linksOpened(page);   // was a 600ms sleep (test audit, 7 Nov 2026) — see the helper
         await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
         for (const id of off) await page.locator('#' + id).uncheck();
         await page.locator('#genApplyBtn').click({ force: true });
@@ -638,7 +660,7 @@ test('links: every line-order switch OFF leaves the generated order untouched', 
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
     });
     await page.goto('/links.html');
-    await page.waitForTimeout(600);
+    await linksOpened(page);   // was a 600ms sleep (test audit, 7 Nov 2026) — see the helper
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
     // Every switch, read from OBJECTIVES rather than hardcoded — a new objective added without a
     // line here would leave the reorder running and this test asserting "untouched" about a design
@@ -1252,7 +1274,9 @@ async function openLinksWithMemory(page, remembered) {
         localStorage.setItem(key, JSON.stringify(table));
     }, [STALE_SEED_KEY, remembered]);
     await page.goto('/links.html');
-    await page.waitForTimeout(700);
+    // Was a 700ms sleep (test audit, 7 Nov 2026). The design list's arrival is also what restores
+    // the remembered table (`refreshGenTargetsForDesign`), so a check before it reads the default.
+    await linksOpened(page);
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
 }
 
@@ -1345,7 +1369,7 @@ async function openLinksWithTargetSets(page) {
         w.__E2E.docsByPath = { linkTargetSets: rows };   // designs read falls back to (unset) docs
     }, TARGET_SET_ROWS);
     await page.goto('/links.html');
-    await page.waitForTimeout(700);
+    await linksOpened(page);   // was a 700ms sleep (test audit, 7 Nov 2026) — see the helper
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
 }
 
@@ -1420,7 +1444,7 @@ test('links sets: the admin is told the set is somebody else\'s, not that it is 
         w.__E2E.docsByPath = { linkTargetSets: rows };
     }, TARGET_SET_ROWS);
     await page.goto('/links.html');
-    await page.waitForTimeout(700);
+    await linksOpened(page);   // was a 700ms sleep (test audit, 7 Nov 2026) — see the helper
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
 
     await page.locator('#genSetSelect').selectOption('ts-silva');
@@ -1710,7 +1734,7 @@ test('links: Generate works on a card nobody has touched', async ({ page }) => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
     });
     await page.goto('/links.html');
-    await page.waitForTimeout(700);
+    await linksOpened(page);   // was a 700ms sleep (test audit, 7 Nov 2026) — see the helper
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
     await page.locator('#genApplyBtn').click({ force: true });
     await clickDialogConfirm(page);
@@ -2138,7 +2162,11 @@ test('links: the 30px control families keep their target @a11y', async ({ page }
     await page.locator('#genApplyBtn').click();
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
     await expect(page.locator('#linksSaveRow')).toBeVisible();
-    await page.waitForTimeout(400);
+    // The confirm is GONE, waited for rather than slept past (test audit, 7 Nov 2026 — this was a
+    // 400ms wait). The probe below hit-tests with `elementFromPoint` and skips anything covered, so
+    // a dialog still fading out over the page would turn every chip it covers into "unprobeable" and
+    // pass. The dialog's node is removed once its close has landed (overlay.js).
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
 
     const small = await page.evaluate(async () => {
         const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -2196,8 +2224,10 @@ test('links: a numeric objective clause does not come apart on a phone', async (
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
     await page.goto('/links.html');
+    // Opened, then the card opened — no sleep after (test audit, 7 Nov 2026): `.open` is
+    // `display: block`, so the clause is laid out the moment the class is on.
+    await linksOpened(page);
     await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
-    await page.waitForTimeout(250);
 
     // Measured on the RENDERED RESULT, not on the mechanism that produces it. The obvious version of
     // this test — "the `.gen-obj-numctl` wrapper is no taller than its own input" — is dead code:
@@ -2357,8 +2387,9 @@ test('links: the generator card lines up on one left edge at desktop width', asy
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/links.html');
+    // Opened, then the card opened — no sleep after (test audit, 7 Nov 2026; see the helper).
+    await linksOpened(page);
     await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
-    await page.waitForTimeout(250);
 
     const edges = await page.evaluate(() => {
         /** @type {Record<string, number>} */
@@ -2405,8 +2436,9 @@ test('links: the generator header is sticky on desktop, and provably not on mobi
     const phone = isTouchProject(info);
     await page.setViewportSize(phone ? { width: 390, height: 844 } : { width: 1280, height: 900 });
     await page.goto('/links.html');
+    // Opened, then the card opened — no sleep after (test audit, 7 Nov 2026; see the helper).
+    await linksOpened(page);
     await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
-    await page.waitForTimeout(250);
 
     const m = await page.evaluate(() => {
         const wrap = /** @type {Element} */ (document.querySelector('.gen-slot-table-wrap'));
@@ -2470,19 +2502,29 @@ test('links: editing a grid cell uses the app sheet, and cancelling changes noth
     // And pointing at it keeps it marked (v25.20): the hover rule out-ranked the current row's tint, so
     // on a desktop the ticked row went grey under the pointer — the one row wearing the page's colour.
     const currentRow = page.locator('.picker-opt[data-value="RD"]');
+    // A colour read mid-transition is an interpolation, not either end of it — so each read waits
+    // for the row's own transitions to FINISH (the Web Animations API lists CSS transitions), where
+    // these were two 250ms sleeps "past the row's fast background transition" (test audit, 7 Nov 2026).
+    const settledBackground = () => currentRow.evaluate(async el => {
+        await Promise.all(el.getAnimations().map(a => a.finished));
+        return getComputedStyle(el).backgroundColor;
+    });
     await page.mouse.move(1, 1);
-    await page.waitForTimeout(250);
-    const tint = await currentRow.evaluate(el => getComputedStyle(el).backgroundColor);
+    const tint = await settledBackground();
     expect(tint, 'the current row is tinted').not.toBe('rgba(0, 0, 0, 0)');
     await currentRow.hover();
-    await page.waitForTimeout(250);   // past the row's fast background transition
-    expect(await currentRow.evaluate(el => getComputedStyle(el).backgroundColor), 'hover keeps the tint').toBe(tint);
+    expect(await settledBackground(), 'hover keeps the tint').toBe(tint);
 
     // Dismissing changes nothing. The old editor needed a flag and a blur listener to guarantee
     // this; now it is true because nothing was destroyed in the first place.
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
-    await page.waitForTimeout(400);   // past the post-fade window a pick would have used
+    // A pick is applied once the sheet's close has LANDED — the fade AND the echo of its own
+    // `history.back()` (select-sheet.js → overlay.js). So wait for that landing, the moment a pick
+    // would have been written, rather than 400ms "past the post-fade window" (test audit,
+    // 7 Nov 2026): the sheet's history entry is gone only once the echo has arrived.
+    await expect.poll(() => page.evaluate(() => !!history.state?.mybOverlay),
+        { message: 'the sheet\'s close never landed' }).toBe(false);
     await expect(cellBtn).toHaveText('RD');
 
     // And a pick applies.
@@ -2701,9 +2743,14 @@ test('links: Escape closes the confirm on top, not the bin underneath it', async
     await expect(page.locator('.lb-overlay.visible')).toHaveCount(2);
 
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(600);
+    // SETTLED, not slept (test audit, 7 Nov 2026 — this was a 600ms wait and ONE sample of
+    // `.visible`). Two things make it deterministic. The confirm is waited for until it is gone: its
+    // node is removed once its close has landed. And the bin is read by `.open`, which
+    // `dismissOverlay` takes off the moment an overlay is asked to close — `.visible` lingers until
+    // the fade ends, so a sample taken mid-fade of a bin that WAS wrongly closed read as open.
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
     const after = await page.evaluate(() => ({
-        bin: !!document.querySelector('#designBinLightbox.visible'),
+        bin: !!document.querySelector('#designBinLightbox.visible.open'),
         open: document.querySelectorAll('.lb-overlay.visible').length,
         locked: document.body.classList.contains('lb-open'),
     }));
@@ -3195,7 +3242,9 @@ test('links generator: pressing Generate leaves the button under your finger and
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
     });
     await page.goto('/links.html');
-    await page.waitForTimeout(700);
+    // Was a 700ms sleep (test audit, 7 Nov 2026). The button's position is measured next, and the
+    // design list's arrival repaints the grid card above it — see the helper.
+    await linksOpened(page);
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
     await page.locator('#genApplyBtn').scrollIntoViewIfNeeded();
 
@@ -3260,7 +3309,11 @@ test('links window: generating the FIRST design reveals the window editor', asyn
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
     });
     await page.goto('/links.html');
-    await page.waitForTimeout(700);
+    // OPENED FIRST (test audit, 7 Nov 2026). This read the editor straight after a 700ms sleep, and
+    // `#windowEditor` is `hidden` in the HTML — so "hidden: no design yet" held before the page had
+    // loaded anything, and a page that SHOWED the editor with no design (the v19.55 defect) could
+    // pass on a slow runner. After the design list has loaded and been painted, it is a real answer.
+    await linksOpened(page);
     await expect(page.locator('#windowEditor')).toBeHidden();      // no design yet
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
     await page.locator('#genApplyBtn').click({ force: true });

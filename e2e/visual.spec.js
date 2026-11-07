@@ -79,22 +79,34 @@ test('paycalc — desktop 1440 (signed in)', async ({ page }) => {
 // about the card rather than about everything above it.
 const BACK_PAY_PERIOD = '55';   // Paid 28 Aug 2026 · P24 — the payslip the 2026 award lands on
 
+/**
+ * Every FINITE animation inside `locator` has run to its end — the transitions a fixed sleep used to
+ * guess the length of (test audit, 7 Nov 2026). The Web Animations API lists a running CSS
+ * transition, and asking for the list applies any pending style change first, so a transition the
+ * last click started is in it. Infinite ones (a pulse) are left out: they never finish.
+ * @param {import('@playwright/test').Locator} locator
+ */
+async function transitionsDone(locator) {
+    await locator.evaluate((el) => Promise.all(el.getAnimations({ subtree: true })
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => null))));
+}
+
 test('paycalc result card — with back pay (mobile 390)', async ({ page }) => {
     await prep(page, { width: 390, height: 1600 });
     await page.goto('/paycalc.html');
     await settle(page, '#summary');
 
+    // No sleeps between the steps (test audit, 7 Nov 2026 — there were 600, 600 and 800ms): each handler
+    // below acts as it is called, and the sentinels after them WAIT for the state they build.
     await page.locator('#periodSelect').selectOption(BACK_PAY_PERIOD);
-    await page.waitForTimeout(600);
     await page.evaluate(() => document.getElementById('backPayHeader')?.click());
-    await page.waitForTimeout(600);
     // The include tick lives in the result card's green banner, which is not scrolled into view at
     // this size; set it the way the change handler sees it rather than fighting the viewport.
     await page.evaluate(() => {
         const t = /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'));
         if (t) { t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true })); }
     });
-    await page.waitForTimeout(800);
 
     // Sentinels BEFORE the capture. Without them a regeneration that silently lost the back-pay
     // state would re-baseline the plain card as the new truth — the Usage-card lesson (v19.25), and
@@ -230,7 +242,7 @@ test('operations — Usage card, populated (desktop 1280)', async ({ page }) => 
     await expect(card.locator('.usage-origins .usage-bar-row')).toHaveCount(3);
     // The sign-in figures land in a placeholder (v25.00) — capture them landed, never the dashes.
     await expect(card.locator('.usage-signin')).not.toHaveAttribute('aria-busy', 'true');
-    await page.waitForTimeout(400);          // collapse transition + bar widths settle
+    await transitionsDone(card);             // collapse transition + bar widths settle
     await expect(card).toHaveScreenshot('operations-usage-card.png');
 });
 
@@ -258,7 +270,7 @@ test('operations — App Speed card, populated (desktop 1280)', async ({ page })
     // rendered — a COUNT of rows, which survives rewording, rather than policing copy. Ten names:
     // four pages, the stored copy, the wait after a release, two versions and two ways of opening.
     await expect(card.locator('.speed-row-name')).toHaveCount(10);
-    await page.waitForTimeout(400);
+    await transitionsDone(card);
     await expect(card).toHaveScreenshot('operations-speed-card.png');
 });
 
@@ -294,7 +306,7 @@ test('operations — roster review table, every row state (mobile 390)', async (
     await expect(page.locator('.roster-choice-btn[data-opt="0"].is-chosen')).toHaveCount(1);
 
     await page.evaluate(() => document.fonts.ready);
-    await page.waitForTimeout(300);          // let the button background transition settle
+    await transitionsDone(page.locator('#rosterReviewSection'));   // let the button background transition settle
 
     // A COLOUR contract this baseline provably cannot hold, so it is asserted directly. Deleting the
     // neutral-Skip rule (the v19.32 defect: Skip wearing the "this will be saved" green while meaning
@@ -843,6 +855,20 @@ test('team view — desktop 1280', async ({ page }) => {
 // all three zones and both marker chips are on screen. The clock is pinned past the month because
 // `calendar-state.js` refuses to restore a FUTURE month, and the panel is captured as an ELEMENT so
 // the baseline is the panel's own composition rather than whatever the grid behind it is doing.
+/**
+ * The day panel AT REST — full size, and nothing in it still moving — waited for, where each capture
+ * slept 600ms past the 500ms entry transition (test audit, 7 Nov 2026). Full size first:
+ * `createLightbox` adds `.open` a frame late, and until it does the panel sits at its entry scale with
+ * no transition running yet, which no animation list can see. (The frozen-at-85% defect above now
+ * fails here, by name, rather than at the pixel diff.)
+ * @param {import('@playwright/test').Page} page
+ */
+async function dayPanelAtRest(page) {
+    await expect(page.locator('#dayDetailContent'), 'the day panel never reached full size')
+        .toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+    await transitionsDone(page.locator('#dayDetailLightbox'));
+}
+
 async function openDenseDayPanel(page, { width, height }) {
     await page.clock.setFixedTime(new Date('2027-01-20T10:00:00Z'));
     await page.setViewportSize({ width, height });
@@ -868,8 +894,8 @@ async function openDenseDayPanel(page, { width, height }) {
     await cell.evaluate(el => /** @type {HTMLElement} */ (el).focus());
     await page.keyboard.press('Enter');
     await expect(page.locator('#dayDetailChange')).toBeVisible();
-    // Past the 500ms entry transition, so the baseline is the panel at rest and not mid-spring.
-    await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+    // The baseline is the panel at rest, not mid-spring.
+    await dayPanelAtRest(page);
 }
 
 test('overlay — day detail, densest state (calendar, mobile 390)', async ({ page }) => {
@@ -907,7 +933,7 @@ test('overlay — day detail, an annual-leave day (calendar, mobile 390)', async
     await cell.evaluate(el => /** @type {HTMLElement} */ (el).focus());
     await page.keyboard.press('Enter');
     await expect(page.locator('#dayDetailLeaveBtn')).toBeVisible();
-    await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+    await dayPanelAtRest(page);
     await expect(page.locator('#dayDetailContent')).toHaveScreenshot('day-detail-leave-mobile-390.png');
 });
 
@@ -935,7 +961,7 @@ test('overlay — day detail, an UNCHANGED day (calendar, mobile 390)', async ({
     await cell.evaluate(el => /** @type {HTMLElement} */ (el).focus());
     await page.keyboard.press('Enter');
     await expect(page.locator('#dayDetailAsRostered')).toBeVisible();
-    await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+    await dayPanelAtRest(page);
     await expect(page.locator('#dayDetailContent')).toHaveScreenshot('day-detail-plain-mobile-390.png');
 });
 

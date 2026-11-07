@@ -194,6 +194,33 @@ test.describe('new link', () => {
         expect(errors).toEqual([]);
     });
 
+    // WHO DECIDES IS NEVER SAID TO BE THE ADMIN — ANYWHERE ON THE PAGE, IN ANY STATE IT SHOWS (test audit, 7 Nov 2026,
+    // LNK-8). The test above reads only the Have-your-say card, so "The admin will choose one of the three." added after
+    // "Nothing is decided." in the status line passed every lane. This reads the page's whole text as it opens and with
+    // every way of working drawn in full — the changes, what all three share, the notes, the six personas and all three
+    // proposals' weeks are all in it then (the weeks are drawn for all three; the tabs only choose which one shows). The
+    // one place allowed to name the admin is the preview banner, which tells a PREVIEWER who else can see the page:
+    // S. Silva is told "only you and the admin can see this page", which is why the test reads as her too.
+    for (const reader of ['G. Miller', 'S. Silva']) {
+        test(`nothing names the admin, or managers, as the ones who decide — read as ${reader}`, async ({ page }) => {
+            await seedSession(page, reader);
+            await page.goto('/newlink.html');
+            await expect(page.locator('.nl-name-title')).toHaveCount(3);
+            const pageText = () => page.evaluate(() => {
+                const main = /** @type {HTMLElement} */ (document.getElementById('newlinkMain').cloneNode(true));
+                main.querySelector('#nlPreview')?.remove();
+                return (main.textContent || '').replace(/\s+/g, ' ');
+            });
+            const opened = await pageText();
+            expect(opened, 'premise: the status line, the changes and the notes are on the page').toContain('Nothing is decided.');
+            expect(opened, 'as the page opens').not.toMatch(/admin|managers decide/i);
+
+            await page.locator('[data-persona="all"]').click();
+            await expect(page.locator('#nlPersonaPanel .nl-persona')).toHaveCount(6);
+            expect(await pageText(), 'with all six ways of working drawn').not.toMatch(/admin|managers decide/i);
+        });
+    }
+
     test('the admin reaches it from the drawer', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/admin.html');

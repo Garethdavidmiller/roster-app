@@ -4,6 +4,7 @@
  * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
+import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors } from './helpers.js';
 
@@ -98,17 +99,17 @@ test('fip: the section chip-bar jumps to a section and marks it current', async 
 
 test('fip: scrollspy marks the chip for the section scrolled into view', async ({ page }) => {
     await page.goto('/fip-guide.html');
+    // No sleep after each scroll (test audit, 7 Nov 2026 — three 350ms waits): each assertion WAITS
+    // for its chip to become current, and every step moves the marker somewhere it was not, so none
+    // can pass on the state the scroll before it left behind.
     // A mid-page section scrolled under the sticky stack becomes current.
     await page.evaluate(() => document.getElementById('sec-ferries').scrollIntoView({ block: 'start' }));
-    await page.waitForTimeout(350);
     await expect(page.locator('.chip[data-target="sec-ferries"]')).toHaveAttribute('aria-current', 'true');
     // At the very bottom, the last chip (Apply) wins even if its short section never reached the line.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await page.waitForTimeout(350);
     await expect(page.locator('.chip[data-target="sec-apply"]')).toHaveAttribute('aria-current', 'true');
     // Back at the top, the first chip (Overview) wins (covers the page-intro above section 1).
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.waitForTimeout(350);
     await expect(page.locator('.chip[data-target="sec-need"]')).toHaveAttribute('aria-current', 'true');
 });
 
@@ -302,10 +303,25 @@ test('guides: the footer back link is one control with one wording on every guid
 // Every country and ferry card states when it was checked. guide-sources.test.mjs proves the line is
 // PRESENT in the markup and that its date matches the register; this proves it is actually VISIBLE
 // once the card is open — a static check cannot tell an evidence line from one a stylesheet hides.
+//
+// THE DATE IS READ FROM THE REGISTER, not written here (test audit, 7 Nov 2026 — UI-18). This
+// expected 'Checked Aug 2026' as a literal, and the Czech row is due for review again in December
+// 2026: the re-review it asks for — register row and card updated together, exactly as the static
+// test requires — would have broken this test for doing the right thing. The card's first cited row
+// is the one whose `Reviewed` it shows (guide-sources.test.mjs), so that is the date expected here.
 test('fip: an opened country card shows its checked date', async ({ page }) => {
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const register = readFileSync(new URL('../docs/GUIDE_SOURCES.md', import.meta.url), 'utf8');
+    const row = register.split('\n').find(l => l.startsWith('| fip-cz |'));
+    expect(row, 'the fip-cz register row').toBeTruthy();
+    // Columns: ID | Guide | Claim | Class | Reviewed | Next | Source — Reviewed is fifth.
+    const reviewed = String(row).split('|').slice(1, -1).map(c => c.trim())[4];
+    expect(reviewed, 'a YYYY-MM Reviewed date').toMatch(/^\d{4}-\d{2}$/);
+    const [year, month] = reviewed.split('-').map(Number);
+
     await page.goto('/fip-guide.html');
     await page.locator('#country-cz').evaluate(el => { el.open = true; });
     const line = page.locator('#country-cz .country-reviewed');
     await expect(line).toBeVisible();
-    await expect(line).toContainText('Checked Aug 2026');
+    await expect(line).toContainText(`Checked ${MONTHS[month - 1]} ${year}`);
 });
