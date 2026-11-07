@@ -185,16 +185,17 @@ test('operations — desktop 1280 (signed in)', async ({ page }) => {
 // Notifications and Pay Calculator Data cards were outside the capture entirely — and that is not a
 // hypothetical gap: `.card-explainer` on the Pay Calculator Data card was styled by a stylesheet
 // settings.html does not load, from v19.16 to v20.08, and this baseline could never have seen it.
-// The page is ~1215px at 390 wide with every card open, so 1400 holds it with room for the copy to
+// The page is ~1,500px at 390 wide with every card open, so 1600 holds it with room for the copy to
 // grow. Same reasoning as paycalc's 2700 — a baseline that stops short is a baseline that quietly
-// stops testing, and the missing part looks identical to a passing one.
+// stops testing, and the missing part looks identical to a passing one. (It had: at 1400 the last
+// card was 21px inside the frame, and the to-do links of 7 Nov 2026 pushed it out.)
 test('settings — mobile 390 (signed in)', async ({ page }) => {
-    await prep(page, { width: 390, height: 1400 });
+    await prep(page, { width: 390, height: 1600 });
     await page.goto('/settings.html');
     await settle(page, '.card');
-    // Sentinel: the card that used to fall outside the frame is inside it. Without this, a future
-    // viewport trim silently reverts the coverage and the baseline regenerates as though correct.
-    await expect(page.locator('#payDataCard')).toBeInViewport();
+    // Sentinel: the card that used to fall outside the frame is WHOLLY inside it. Without this, a
+    // future viewport trim silently reverts the coverage and the baseline regenerates as though correct.
+    await expect(page.locator('#payDataCard')).toBeInViewport({ ratio: 1 });
     await expect(page).toHaveScreenshot('settings-mobile-390.png');
 });
 
