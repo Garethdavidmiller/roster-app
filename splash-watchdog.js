@@ -20,9 +20,9 @@
 // risky window opened.
 //
 // The question is therefore "is anything usable on screen?", and the answer is any ONE of: the
-// splash gone AND the Calendar rendered, or an unlock/sign-in card up, or an error banner showing.
-// The boot skeleton is deliberately NOT on that list — at 20s a skeleton is a load that has failed,
-// which is the whole point of the check.
+// splash gone AND the Calendar rendered, or an unlock/sign-in card up, or the member's own stored
+// roster up, or an error banner showing. The boot skeleton is deliberately NOT on that list — at 20s
+// a skeleton is a load that has failed, which is the whole point of the check.
 //
 // CSP note: `script-src 'self'` forbids inline scripts, so this must be a same-origin file, not
 // an inline block. Runtime-only (guarded on `document`) so importing it in tests is a no-op.
@@ -41,6 +41,11 @@
         // The unlock card, the member sign-in card, or the re-lock card — every one of them is a
         // working page with a next step on it.
         if (document.getElementById('calendarLock')) return true;
+        // The member's own stored roster (`calendarSnapshot`): their real shifts, labelled as the
+        // stored copy and painted before the access decision (CALENDAR_DATA.md 17). It is the answer
+        // the member came for, not a failed load, so reloading over it and then covering it with the
+        // recovery panel would take it away. Unlike the skeleton, it carries data.
+        if (document.getElementById('calendarSnapshot')) return true;
         // An error banner: not a happy outcome, but it is calendar-app.js's own catch reporting,
         // which means the app ran. Reloading over the top of it would hide the message.
         var banner = document.getElementById('errorBanner');
