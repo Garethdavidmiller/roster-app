@@ -380,7 +380,8 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     // module is fetched while they read this card, and a tap that finds it here opens the form inside
     // the tap. A plain `import()` for the warm-up, not `lazyImport`: a failure here is nobody's tap,
     // so it must not reload the page — the tap's own load below still does, exactly as before.
-    if (!_signInForm) import('./login-overlay.js').then(m => { _signInForm = m; }, () => {});
+    if (!_signInForm) import('./login-overlay.js').then(m => { _signInForm = m; },
+        (e) => console.warn('[calendar-lock-cards] The sign-in form did not prefetch; the tap loads it:', e));
 
     submit.addEventListener('click', async () => {
         // The card's heading already names them; the form should not ask again (v23.58). The

@@ -1636,11 +1636,11 @@ export function init() {
             const d = _draft.peek(), member = String(d?.scope.member ?? ''), date = String(d?.scope.date ?? '');
             if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(date) || ![...fieldMember.options].some(o => o.value === member)
                 || !(currentIsAdmin || currentIsManager || member === currentUser)) return;
-            await ensureMemberLoaded(member).catch(() => {});
+            await ensureMemberLoaded(member).catch((e) => console.warn('[Admin] Draft offer: the member did not load:', e));
             if (!hasOverrideAuthorityFor(member)) return;   // kept, for a load that can read what it was edited over
             await _draft.offer({ ask: confirmDialog, apply: async (kept) => {
                 showInChangeAShift(member, date);
-                await ensureMemberLoaded(member).catch(() => {});
+                await ensureMemberLoaded(member).catch((e) => console.warn('[Admin] Draft restore: the member did not load:', e));
                 const { put, left } = applyWeekDraft(weekGrid, kept.data.rows, _savedOn(member));
                 if (put) markChanged();
                 updateSaveBtn();

@@ -950,6 +950,12 @@ body {
     white-space: nowrap;
     border: 0;
 }
+/* A HIDDEN USERNAME IS STILL A FIELD (iPhone audit, 7 Nov 2026). The sign-in card, the forced
+   password overlay and the Settings password card each carry one for the password manager
+   (`autocomplete="username"`, out of the Tab order). The iPhone keyboard's ‹ › arrows step through a
+   page's text fields whatever their tabindex, and a field under 16px zooms the page when it takes
+   focus — so it wears the field size, as every visible one does (e2e/pages.spec.js measures it). */
+input.visually-hidden[autocomplete="username"] { font-size: var(--type-medium); }
 
 /* ============================================================
    LIGHTBOX / MODAL BASE CLASSES
