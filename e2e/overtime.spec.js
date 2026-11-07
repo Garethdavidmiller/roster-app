@@ -1668,6 +1668,33 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
             'and the answer is still on the form').toBeChecked();
     });
 
+    test('unsent answers are asked about before a drawer pill or the About panel\'s link leaves (iPhone audit, Nov 2026)', async ({ page }) => {
+        // The page called warnOnUnload alone — the browser's own prompt, which a phone never shows — so
+        // any drawer pill or About-panel link dropped a half-filled form without a word.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        const answer = page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' });
+        await answer.click();
+        const question = page.getByText('You have unsaved changes. Leave this page anyway?');
+
+        await page.locator('#navMenuBtn').click();
+        await page.locator('.nav-panel-pill--calendar').click();
+        await expect(question).toBeVisible();
+        await page.getByRole('button', { name: 'Cancel' }).click();
+        await expect(question).toBeHidden();
+        await expect(page, 'Cancel keeps the page').toHaveURL(/overtime\.html/);
+
+        await page.locator('#navPanelBrand').click();   // the drawer is still open: its head opens About
+        await page.locator('#iconLightbox').getByRole('link', { name: 'View staff roster' }).click();
+        await expect(question).toBeVisible();
+        await page.getByRole('button', { name: 'Cancel' }).click();
+        await expect(question).toBeHidden();
+        await expect(page).toHaveURL(/overtime\.html/);
+        await expect(answer, 'and the answer is still on the form').toBeChecked();
+    });
+
     test('for a pure reviewer, `ready` means the workspace — not a loading line', async ({ page }) => {
         // The horizon auto-opens the week being planned, and until v21.48 it did so un-awaited: the
         // `ready` mark landed while the detail reads were still in flight, so the App Speed card

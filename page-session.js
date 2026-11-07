@@ -25,6 +25,9 @@
  * `warnOnUnload(isDirty)` — the browser's own "Leave site?" for unsaved work, which stands down once
  * a sign-out has been ANSWERED, so the member is not asked twice.
  *
+ * `askBeforeLeavingByDrawer(isDirty)` — the same question asked IN the page, before a link in the
+ * drawer or the About panel leaves it, because a phone never shows the browser's.
+ *
  * `askBeforeSignOut(isDirty)` — the drawer's `beforeSignOut`. It runs BEFORE anything is released,
  * so a Cancel leaves the session, the push record and the work exactly as they were.
  *
@@ -81,21 +84,38 @@ export function warnOnUnload(isDirty) {
     });
 }
 
+/** Where the app draws links that leave the page: the drawer, and every page's About panel
+ *  (`#iconLightbox`, about-lightbox.js) — Admin's "View staff roster" and "View quick guide" went
+ *  straight past the question for as long as it asked about the drawer alone (iPhone audit, Nov 2026). */
+const LEAVING_ZONES = ['.nav-panel', '#iconLightbox'];
+
 /**
- * Ask before a DRAWER LINK leaves the page with unsaved work (whole-app review, Oct 2026). The
- * browser's own unload prompt was the only guard on those exits, and a phone never shows it, so a
- * drawer pill discarded staged edits without a word. Capture phase on `document`, so it runs before
- * the link's own listeners and before the drawer navigates; on "Leave" it clicks the link again with
- * itself stood aside, so whatever the page hangs on that link still runs (Admin's Calendar pill
- * writes the month being edited first). A `_blank` link leaves the page where it is, so it passes.
+ * Does following this link take the member off the page? Not a fragment of it (Report a bug is
+ * `href="#"` until About opens), not mail (it is `mailto:` after), and not a `_blank` link, which
+ * leaves this page where it is.
+ * @param {HTMLAnchorElement} link
+ * @returns {boolean}
+ */
+function leavesPage(link) {
+    const href = link.getAttribute('href') ?? '';
+    return !!href && !href.startsWith('#') && !/^mailto:/i.test(href) && link.target !== '_blank';
+}
+
+/**
+ * Ask before a DRAWER or ABOUT-PANEL LINK leaves the page with unsaved work (whole-app review, Oct
+ * 2026; the About panel joined in the iPhone audit, Nov 2026). The browser's own unload prompt was the
+ * only guard on those exits, and a phone never shows it, so a drawer pill discarded staged edits
+ * without a word. Capture phase on `document`, so it runs before the link's own listeners and before
+ * the drawer navigates; on "Leave" it clicks the link again with itself stood aside, so whatever the
+ * page hangs on that link still runs (Admin's Calendar pill writes the month being edited first).
  * @param {() => boolean} isDirty
  */
 export function askBeforeLeavingByDrawer(isDirty) {
     let passing = false;
     document.addEventListener('click', (e) => {
         if (passing || !isDirty()) return;
-        const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target)?.closest?.('.nav-panel a[href]'));
-        if (!link || link.target === '_blank') return;
+        const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target)?.closest?.('a[href]'));
+        if (!link || !LEAVING_ZONES.some(zone => link.closest(zone)) || !leavesPage(link)) return;
         e.preventDefault();
         e.stopPropagation();
         confirmDialog({ message: 'You have unsaved changes. Leave this page anyway?', confirmLabel: 'Leave' })

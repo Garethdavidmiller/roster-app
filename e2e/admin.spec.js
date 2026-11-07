@@ -426,6 +426,47 @@ test('admin: the Calendar pill opens the Calendar on the month being edited, a f
     await expect(page.locator('.month-year').first()).toContainText('December');
 });
 
+// ── THE ABOUT PANEL'S LINKS ASK TOO (iPhone audit, Nov 2026) ─────────────────────────────────────
+// "View staff roster" and "View quick guide" sit in the About panel (#iconLightbox), outside the
+// drawer, and the in-page question looked for drawer links alone — so on an iPhone, where the browser
+// never asks, either one left staged rows behind without a word. Report a bug is mail, and leaves
+// nothing behind, so it never asks.
+test('admin: with staged edits, the About panel\'s links ask before leaving — Report a bug never does', async ({ page }) => {
+    await openAdminOnDecember(page);
+    const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
+    await clickInView(row.locator('.type-pill-btn[data-type="shift"]'));
+    await row.locator('.day-start').fill('06:00');
+    await row.locator('.day-end').fill('14:00');
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanelBrand').click();
+    const about = page.locator('#iconLightbox');
+    await expect(about).toBeVisible();
+
+    // Report a bug: no question. The mail app is kept shut and the tap is recorded as having arrived.
+    await page.locator('#adminBugReportLink').evaluate((el) => el.addEventListener('click', (e) => {
+        e.preventDefault(); /** @type {any} */ (window).__bugTapped = true;
+    }));
+    await page.locator('#adminBugReportLink').click();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__bugTapped), 'the tap reached the link').toBe(true);
+    await expect(page.locator('.dialog-overlay'), 'mail leaves the page where it is').toHaveCount(0);
+
+    // View staff roster: asked, and Cancel keeps the page and the edit.
+    const question = page.getByText('You have unsaved changes. Leave this page anyway?');
+    await about.getByRole('link', { name: 'View staff roster' }).click();
+    await expect(question).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(question).toBeHidden();
+    await expect(page, 'Cancel must keep the page').toHaveURL(/admin\.html/);
+    await expect(row.locator('.day-start')).toHaveValue('06:00');
+
+    // Leave goes — stopped at the network and read from the request, as the drawer test above does.
+    const leaving = page.waitForRequest((req) => req.isNavigationRequest() && !req.url().includes('admin.html'));
+    await page.route((url) => url.pathname === '/', (route) => route.fulfill({ status: 204 }));
+    await about.getByRole('link', { name: 'View staff roster' }).click();
+    await page.getByRole('button', { name: 'Leave', exact: true }).click({ noWaitAfter: true });
+    expect(new URL((await leaving).url()).pathname, 'Leave follows the link').toBe('/');
+});
+
 // ── THE BANNER DESCRIBES THE YEAR THE READER IS LOOKING AT (v22.82) ──────────────────────────
 // Reported by the owner: scrolled the picker to February 2027 and the four figures still described
 // 2026 — 26 taken, 2 remaining — so next year's untouched 32 days read as all but spent.

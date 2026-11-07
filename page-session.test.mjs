@@ -51,6 +51,27 @@ global.window = /** @type {any} */ ({
     location: { reload: () => log.push('reload'), replace: (/** @type {string} */ to) => log.push(`replace:${to}`) },
 });
 const fire = (/** @type {string} */ t, /** @type {any} */ e = {}) => (listeners[t] ?? []).forEach(fn => fn(e));
+/** A document that records listeners and can be hidden or shown. @type {Record<string, Function[]>} */
+let docListeners = {};
+global.document = /** @type {any} */ ({
+    visibilityState: 'visible',
+    addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (docListeners[t] ??= []).push(fn); },
+});
+const fireDoc = (/** @type {string} */ t, /** @type {any} */ e = {}) => (docListeners[t] ?? []).forEach(fn => fn(e));
+/** Hide or show the page the way iOS does: the state changes, then `visibilitychange` fires. */
+const setVisibility = (/** @type {'hidden'|'visible'} */ state) => {
+    /** @type {any} */ (global.document).visibilityState = state;
+    fireDoc('visibilitychange');
+};
+/** localStorage for the kept drafts (ls.js reads the global). @type {Map<string,string>} */
+const ls = new Map();
+global.localStorage = /** @type {any} */ ({
+    getItem: (/** @type {string} */ k) => ls.get(k) ?? null,
+    setItem: (/** @type {string} */ k, /** @type {string} */ v) => { ls.set(k, String(v)); },
+    removeItem: (/** @type {string} */ k) => { ls.delete(k); },
+    get length() { return ls.size; },
+    key: (/** @type {number} */ i) => [...ls.keys()][i] ?? null,
+});
 
 const ps = await import('./page-session.js');
 
@@ -61,7 +82,7 @@ const settle = async () => {
     for (let i = 0; i < 100 && !log.some(e => e.startsWith('login:')); i++) await new Promise(r => setTimeout(r, 20));
 };
 
-beforeEach(() => { ss.clear(); authCb = null; inFlight = 0; lastConfirm = ''; log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
+beforeEach(() => { ss.clear(); ls.clear(); docListeners = {}; /** @type {any} */ (global.document).visibilityState = 'visible'; authCb = null; inFlight = 0; lastConfirm = ''; log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
 
 describe('guardNamedSession', () => {
     test('an unconfirmed own session: clear, tear down the drawer, THEN the sign-in — and no watch', async () => {
@@ -273,5 +294,71 @@ describe('back/forward cache', () => {
             change(null, 'B. Member');
             assert.deepEqual(log, ['reload'], 'a signed-out (or PIN) tab follows a sign-in elsewhere');
         });
+    });
+});
+
+// ── LEAVING BY A LINK THE APP DRAWS (iPhone audit, Nov 2026) ─────────────────────────────────────
+// A phone never shows the browser's "Leave site?", so these are the only question an iPhone gets.
+// The About panel's links joined the drawer's: Admin's "View staff roster" left staged edits behind
+// without one, because the guard looked for `.nav-panel` alone.
+describe('leaving by a drawer or About-panel link (askBeforeLeavingByDrawer)', () => {
+    /** A tap on a link at `href`, inside `zone` ('.nav-panel', '#iconLightbox', or neither).
+     *  @param {{ href: string, zone?: string, target?: string }} o */
+    function tapOn({ href, zone = '#iconLightbox', target = '' }) {
+        /** @type {any} */ const link = {
+            target,
+            getAttribute: (/** @type {string} */ n) => (n === 'href' ? href : null),
+            closest: (/** @type {string} */ sel) => (sel === 'a[href]' ? link : sel === zone ? {} : null),
+            click: () => log.push(`follow:${href}`),
+        };
+        const e = { target: { closest: (/** @type {string} */ sel) => link.closest(sel) }, prevented: false,
+            preventDefault() { this.prevented = true; }, stopPropagation() {} };
+        fireDoc('click', e);
+        return e;
+    }
+    const answered = () => new Promise(r => setTimeout(r, 0));
+
+    test('an About-panel link asks first — Cancel stays, Leave follows the link', async () => {
+        const fresh = await import('./page-session.js?about-link');
+        fresh.askBeforeLeavingByDrawer(() => true);
+        confirmAnswer = false;
+        assert.equal(tapOn({ href: './' }).prevented, true, 'held while the question is open');
+        await answered();
+        assert.deepEqual(log, ['confirm'], 'Cancel: the page and its work stay');
+        assert.match(lastConfirm, /unsaved changes\. Leave this page anyway\?/);
+        log = []; confirmAnswer = true;
+        tapOn({ href: './staff-guide.html?from=admin.html' });
+        await answered();
+        assert.deepEqual(log, ['confirm', 'follow:./staff-guide.html?from=admin.html'], 'Leave: the link itself is followed');
+    });
+
+    test('the drawer\'s links still ask', async () => {
+        const fresh = await import('./page-session.js?drawer-link');
+        fresh.askBeforeLeavingByDrawer(() => true);
+        assert.equal(tapOn({ href: './', zone: '.nav-panel' }).prevented, true);
+        await answered();
+        assert.deepEqual(log, ['confirm', 'follow:./']);
+    });
+
+    test('Report a bug never asks: "#" until About opens it, mail after — nor does a new tab', async () => {
+        const fresh = await import('./page-session.js?not-leaving');
+        fresh.askBeforeLeavingByDrawer(() => true);
+        for (const t of [{ href: '#' }, { href: 'mailto:help@example.test?subject=Bug' }, { href: 'MAILTO:x@example.test' },
+            { href: 'https://www.nationalrail.co.uk/', target: '_blank' }]) {
+            assert.equal(tapOn(t).prevented, false, `${t.href} leaves the page where it is`);
+        }
+        await answered();
+        assert.deepEqual(log, [], 'nothing asked, nothing followed by the guard');
+    });
+
+    test('a link anywhere else on the page, or a page with nothing unsaved, is not asked about', async () => {
+        const fresh = await import('./page-session.js?elsewhere');
+        let dirty = true;
+        fresh.askBeforeLeavingByDrawer(() => dirty);
+        assert.equal(tapOn({ href: './', zone: '#somewhereElse' }).prevented, false, 'the page\'s own links have their own questions');
+        dirty = false;
+        assert.equal(tapOn({ href: './' }).prevented, false, 'clean: nothing to ask about');
+        await answered();
+        assert.deepEqual(log, []);
     });
 });

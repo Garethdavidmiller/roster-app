@@ -42,7 +42,7 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, isOvertimeReviewer, canOpenOvertime, canOpenNewlink, overtimeEnabled } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
-import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
@@ -283,18 +283,18 @@ export function init() {
         review.wireConfirmBar();
         wireDeadlineResync();
 
-        // ── Browser-level protection for a half-filled form (v21.48, external review) ───────────
+        // ── Leaving a half-filled form asks first (v21.48, external review; iPhone audit, Nov 2026) ──
         //
-        // `confirmDiscard` guards every navigation THIS PAGE performs — another week, back to the
-        // list, a rebuilding resync. It cannot see a reload, the drawer's links, browser Back or a
-        // closed tab, all of which discarded six answered days silently. Best-effort native
-        // protection while the form is dirty: the browser shows its own generic warning. No
-        // handler removal is needed — a successful submit makes `isDirty()` false, which disarms
-        // it. Deliberately NOT a localStorage draft, for the reasons on `confirmDiscard`: a copy
-        // of somebody's availability outliving them on a shared station PC is worse than the loss
-        // this prevents. A mobile OS killing the PWA outright remains uncatchable, and persisting
-        // drafts to catch it is the same bad trade.
-        warnOnUnload(() => !!currentForm?.isDirty());
+        // `confirmDiscard` guards every navigation THIS PAGE performs — another week, the list, a
+        // rebuilding resync, the logo. The drawer's links and the About panel's ask in the page too
+        // (`askBeforeLeavingByDrawer`), because a phone never shows the browser's warning, which
+        // covers a reload or a closed tab where it does. A submit makes `isDirty()` false, which
+        // disarms both. Deliberately NOT a localStorage draft, for the reasons on `confirmDiscard`: a
+        // copy of somebody's availability outliving them on a shared station PC is worse than the
+        // loss this prevents — so a mobile OS killing the PWA outright remains uncatchable here.
+        const formDirty = () => !!currentForm?.isDirty();
+        warnOnUnload(formDirty);
+        askBeforeLeavingByDrawer(formDirty);
 
         // ── The reviewer's week must not go quietly stale (v21.48, external review) ─────────────
         //
