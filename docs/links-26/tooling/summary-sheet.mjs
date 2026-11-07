@@ -92,7 +92,7 @@ body.dense .mast{padding:4px 14px 3px;margin-bottom:3px} body.dense .mast img{wi
    leaves the line empty — its words and type unchanged, one line fewer. See the loop below */
 body.dense .mast > div{display:grid;grid-template-columns:1fr auto;column-gap:14px} body.dense .mast .eyebrow{grid-column:1}
 body.dense .mast .meta{grid-row:1;grid-column:2;margin-top:0;align-self:end} body.dense .mast h1,body.dense .mast .sub{grid-column:1 / -1}
-/* TWENTY-THREE ROWS (7 Nov 2026, Set Fair; Safe Hands in its place the same day): about 13px onto a second sheet at the floor. The subtitle's sentence on how the
+/* TWENTY-THREE ROWS (7 Nov 2026, Set Fair; Crossover in its place the same day, drawn as Safe Hands): about 13px onto a second sheet at the floor. The subtitle's sentence on how the
    figures are worked out says what the band's Prepared line beside it already says ("every figure is computed from the
    rotas"), so dense leaves the sentence out; the band, the type and the floor are as they were */
 body.dense .mast .sub .how{display:none}

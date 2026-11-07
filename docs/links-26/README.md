@@ -60,9 +60,11 @@ office to 22:30* has the old and new fingerprints and what moved. **Later that d
 sheets' model: sixteen fingerprints changed again, and the league with them. *The Saturday floor late back to 22:30* has
 those.
 
-**League places dated before 7 Nov 2026 have one design fewer.** Safe Hands joined that day, first, inside every range the
-league reads: no score moved, and every place below it is one lower. *Safe Hands* has the table. Set Fair, drawn earlier
-the same day, was deleted in its place (*Set Fair*).
+**League places dated before 7 Nov 2026 have one design fewer.** Crossover joined that day, first, inside every range the
+league reads: no score moved, and every place below it is one lower. *Crossover* has the table. Set Fair, drawn earlier
+the same day, was deleted in its place (*Set Fair*). **Crossover was drawn as Safe Hands** (`SH-26-T10`) and renamed the
+same day (owner: "Needs a better name", then "Use railway names in future"): `CO-26-T10`, fingerprint unchanged. **The
+pack's names are railway names from here on.**
 
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
@@ -138,7 +140,7 @@ still be rebuilt.
 
 | Stage | Script | What it does |
 |---|---|---|
-| 1 · duty table | `final-table.mjs` | the best table for one day, by fit to the trains, under every rule; a proof unless `ANNEAL=1`; `OPENERS_MIN=` and `FIXED_FREE=1` (a third duty on a ticket-office time) since "In Step"; `KNOWN=` (with `NEWPEN=`, a cost for every time not in a given list, so a Saturday or a Sunday can be built on the weekday's times) and `EARLIES=` (exactly that many duties starting before 11:00, the split a layout's early and late weeks need) since "Set Fair"; `EARLY_HANDOVER=1` (no early finishing between 15:00 and 16:00, so none leaves as the weekday closers come on) since "Safe Hands" |
+| 1 · duty table | `final-table.mjs` | the best table for one day, by fit to the trains, under every rule; a proof unless `ANNEAL=1`; `OPENERS_MIN=` and `FIXED_FREE=1` (a third duty on a ticket-office time) since "In Step"; `KNOWN=` (with `NEWPEN=`, a cost for every time not in a given list, so a Saturday or a Sunday can be built on the weekday's times) and `EARLIES=` (exactly that many duties starting before 11:00, the split a layout's early and late weeks need) since "Set Fair"; `EARLY_HANDOVER=1` (no early finishing between 15:00 and 16:00, so none leaves as the weekday closers come on) since "Crossover" |
 | | `assemble-table.mjs` | three days' tables into one duty table (weekday · Saturday · Sunday) |
 | 2 · rota | `anneal.mjs` | arranges a table on the 26 lines; `TABLE=<table.json>`, `MODE=rules` for fatigue first |
 | | `carry-order.mjs` | lays a table onto an existing rota's week structure (how Familiar Nine borrowed Right Away's) |
@@ -5283,8 +5285,8 @@ dashes and quotes.
 ## Set Fair — two 13:45s every weekday, on the fewest shift times (7 Nov 2026)
 
 **Deleted later the same day** (owner: *"Okay, give hb a new name and put that into the pack. Delete set fair as it would
-not work"*). Its three weekday 07:15–15:45s left as the three 15:45 closers came on. *Safe Hands*, below, replaced it,
-keeping its Saturday, Sunday and rest days. This section is kept as the record of the search, most of which Safe Hands
+not work"*). Its three weekday 07:15–15:45s left as the three 15:45 closers came on. *Crossover*, below, replaced it,
+keeping its Saturday, Sunday and rest days. This section is kept as the record of the search, most of which Crossover
 stands on. Where it says Set Fair is in the pack, first in the league, or what the sheets say of it, it describes the
 hours before it was deleted. The eleven- and ten-time options below keep weekday 07:15–15:45s too (three or four), so
 they have the same changeover.
@@ -5495,14 +5497,14 @@ each below it moved down one place. The tables in the sections above keep the sc
 - `newlink-data.mjs --check`: current;
 - the shortlist sheet's claims all hold.
 
-## Safe Hands — two 13:45s every weekday, and a handover to the closers (7 Nov 2026)
+## Crossover — two 13:45s every weekday, and a handover to the closers (7 Nov 2026)
 
 **The ask** (owner, 7 Nov 2026, of Set Fair): *"I'm only slightly concerned that the 7.15 shift people will be getting
 ready to leave for 1545. Before their 1545 start replacements are fully ready. How does changing that affect the league
 table"*. Then, shown the options: *"Okay, give hb a new name and put that into the pack. Delete set fair as it would not
 work."*
 
-It is **Safe Hands** (`SH-26-T10` · **`6596c0d9`**), in the 30-day folder. It keeps Set Fair's Saturday, Sunday and rest
+It is **Crossover** (`CO-26-T10` · **`6596c0d9`**), in the 30-day folder. It keeps Set Fair's Saturday, Sunday and rest
 days, with a new weekday in which **no early finishes between 15:00 and 16:00**: two 07:30–16:00s stay for the 15:45
 closers' first 15 minutes, and a fifth 06:20 opener finishes at 14:50. Everything else the brief asked for stays:
 - two 06:20–13:45s every weekday, and every weekday closer at 15:45–23:55;
@@ -5515,6 +5517,11 @@ It is **first in the main league, 87.3, 0.6 points ahead of Common Ground**. It 
 so no other design's score moved. It is not on the shortlist. The decks, "What it means if you…", the New link page and
 the app are unchanged. Set Fair is deleted (below).
 
+**The name** (owner, the same day, of its first name: *"Needs a better name"*, then *"Use railway names in future"*). It
+was drawn as Safe Hands, `SH-26-T10`. On the railway, a crossover is the track that lets a train cross from one line to
+the other; on a rota, it is the time when both shifts are on together, which is what this design adds. The fingerprint
+is unchanged, because the grid is. The pack's names are railway names from here on.
+
 **How it was found.** Each option was laid on Set Fair's rest days with every requirement held, and scored alone beside
 the pack:
 
@@ -5526,10 +5533,10 @@ the pack:
 | The three moved to 08:00–16:30, today's time | 13 | 84.0, 11th |
 | The weekday searched again with no early finishing 15:00–16:00 (`EARLY_HANDOVER=1`), six times: three 07:30–16:00s, a fifth 06:20 opener, no 11:00–19:30 | 12 | 85.5, 9th |
 | … seven times: two 07:30–16:00s, a fifth 06:20 opener and 11:30–20:00 (the best weekday fit, 30.8) | 13 | 86.6, 3rd |
-| **… seven times: two 07:30–16:00s, a fifth 06:20 opener and today's 11:00–19:30 — Safe Hands** | **13** | **87.3, 1st** |
+| **… seven times: two 07:30–16:00s, a fifth 06:20 opener and today's 11:00–19:30 — Crossover** | **13** | **87.3, 1st** |
 
 - **The morning.** Moving all three earlies to 07:30 leaves three fewer people on the floor from 07:15 to 07:30: weekday
-  fit 37.3, against Set Fair's 32.9. Safe Hands covers the early morning with the fifth 06:20 opener instead, and its
+  fit 37.3, against Set Fair's 32.9. Crossover covers the early morning with the fifth 06:20 opener instead, and its
   weekday fit is 31.4, better than Set Fair's.
 - **The shortest rest is 14h 20m, and cannot be 14h 35m on these rest days.** A 16:00 finish before a 06:20 start the
   next day is 14h 20m, and the solver proves that no layout avoids one (`REST=875` is infeasible). Its default floor is
@@ -5538,7 +5545,7 @@ the pack:
   the gentlest there. 20 weeks on one time is not possible. 18 is, with a change of start of 1h 03m, and scores the same to
   a tenth (87.28 against 87.25).
 
-**Its duties** (`results/safe-hands-table.json`):
+**Its duties** (`results/crossover-table.json`):
 
 | | Shift times | Longest |
 |---|---|---|
@@ -5551,7 +5558,7 @@ and 15:15–23:55. Six are new: 06:20–14:45, 07:30–16:00, 09:00–18:00, 14:
 
 **Against the shortlist:**
 
-| | Safe Hands | Common Ground | Even Step | Short Run |
+| | Crossover | Common Ground | Even Step | Short Run |
 |---|---|---|---|---|
 | December rules · flexible rules | 9 · 3 | 9 · 3 | 9 · 3 | 9 · 3 |
 | Fatigue factors present, fixed duties · at worst | **0 · 0** | 0 · 1 | 0 · 1 | 0 · 1 |
@@ -5571,7 +5578,7 @@ and 15:15–23:55. Six are new: 06:20–14:45, 07:30–16:00, 09:00–18:00, 14:
 
 **The leagues** (23 designs; score · place):
 
-| Version | Safe Hands | Common Ground | First, if another |
+| Version | Crossover | Common Ground | First, if another |
 |---|---|---|---|
 | Main | **87.3 · 1st** | 86.6 · 2nd | |
 | Main, the proposals setting the scale | **88.9 · 1st** | 88.4 · 3rd | |
@@ -5584,7 +5591,7 @@ and 15:15–23:55. Six are new: 06:20–14:45, 07:30–16:00, 09:00–18:00, 14:
 | — without familiar times | 91.3 · 10th | 92.5 · 3rd | In Step, 93.1 |
 | — the run on the fixed rota | 87.4 · 13th | 89.3 · 2nd | In Step, 90.4 |
 
-**Where the 0.6 points come from.** Against Common Ground in the main league, Safe Hands:
+**Where the 0.6 points come from.** Against Common Ground in the main league, Crossover:
 - gains 2.04 on fatigue, with no warning at worst;
 - gains 0.69 on the run at worst and 0.42 on single rest days;
 - gives back 0.93 on the worst leave stretch, 0.66 on familiar times, 0.33 on the shortest rest, 0.28 on the change of
@@ -5600,7 +5607,7 @@ between 15:00 and 16:00:
 - Closing Time, Even Keel, Even Step, Fine Tune and Home Grown: two 07:15–15:45s;
 - Clean Slate, Fair Share, Grand Tour and Next Step: one.
 
-The other eleven, Safe Hands among them, have none, and two or three earlies on until 16:00 or later. The rules do not
+The other eleven, Crossover among them, have none, and two or three earlies on until 16:00 or later. The rules do not
 ask for it: S7's handover is from somebody already on the floor, which the lates give every design. Whether it should
 become a rule is the owner's.
 
@@ -5609,20 +5616,25 @@ become a rule is the owner's.
 - from `tooling/`: `set-fair.json`, `set-fair.meta.json` and `results/set-fair-table.json`.
 
 `pack.py` lists it in `DELETED`, so the build refuses it if it comes back and the read-me cannot name it. Its section above
-is kept as the record of the search, most of which Safe Hands stands on.
+is kept as the record of the search, most of which Crossover stands on.
 
 **The pack.**
-- **Its files.** `regenerate.mjs` lists Safe Hands in `SUPPLIED`, in Set Fair's place. `fresh.mjs` has its one-line
+- **Its files.** `regenerate.mjs` lists Crossover in `SUPPLIED`, in Set Fair's place. `fresh.mjs` has its one-line
   description, which names no other design; Home Grown's family; and 7 Nov 2026.
 - **The summary** still lists 23 on one page.
 - **The shortlist sheet** keeps its three.
-  - Page 2's lead says Safe Hands is first, 0.6 points ahead of Common Ground.
+  - Page 2's lead says Crossover is first, 0.6 points ahead of Common Ground.
   - Its row says what it has and pays. The claims assert both: two 13:45s a weekday; no weekday early finishing between
     15:00 and 16:00, with two still on at 16:00; more early finishes and a shorter worst run than all three; and a weaker
     Saturday fit, worst leave stretch and change of start.
   - The row's wording was cut by two characters to keep it on one line.
-- **The read-me** names Safe Hands among the designs drawn after the shortlist, says what it has, and says it now leads
+- **The read-me** names Crossover among the designs drawn after the shortlist, says what it has, and says it now leads
   the league by 0.6 points.
+- **The rename.** Its three tooling files are `crossover.json`, `crossover.meta.json` and `results/crossover-table.json`,
+  and its sheet, grid and import file were rendered again under the new name. `pack.py`'s `RENAMED` refuses the old name in
+  `SUPPLIED` and in the read-me, as `DELETED` does a deleted one. It holds the old names of the other designs renamed in
+  the pack too: Quarter Past Relaid (Open Return), Relief Point (Balanced V6) and Good Turn (Middle Ground). Same Again
+  Tidy, Well Kept's, is already refused, by `DELETED`'s Same Again.
 - **Tooling:** `final-table.mjs` `EARLY_HANDOVER=1`. It is off by default, so no earlier table changes.
 
 **Commands.** In the weekday search, the table that keeps today's 11:00–19:30 is sixth of the 40 (fit 31.7). The grid is
@@ -5631,9 +5643,9 @@ committed and `FIX=` checks it:
 ```
 cd docs/links-26/tooling
 EARLY_HANDOVER=1 CLS=weekday TOTAL=7400 FIXED_FREE=1 REQUIRE=06:20-13:45 REQUIRE_N=2 REQUIRE_MAX=2 ONLY_REQUIRED_EARLY_FINISH=1 EARLY_HI=510 HI=510 LATE_MAX=0 AT22_STRICT=1 EARLY_START_MAX=09:00 LATE_START_MIN=11:00 TODAY=1 CLOSERS_MAX=3 MAX_TURNS=7 TOPN=40 TOPN_OUT=/tmp/wk.json node final-table.mjs
-SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 REST=860 OBJ=both python3 exact-rota.py results/safe-hands-table.json /tmp/sh0.json 240
-HINT=/tmp/sh0.json SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 REST=860 OBJ=step ONE_MIN=19 python3 exact-rota.py results/safe-hands-table.json /tmp/sh.json 200
-FIX=safe-hands.json SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 REST=860 ONE_MIN=19 OBJ=step python3 exact-rota.py results/safe-hands-table.json /tmp/fix.json 60
+SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 REST=860 OBJ=both python3 exact-rota.py results/crossover-table.json /tmp/co0.json 240
+HINT=/tmp/co0.json SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 REST=860 OBJ=step ONE_MIN=19 python3 exact-rota.py results/crossover-table.json /tmp/co.json 200
+FIX=crossover.json SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 REST=860 ONE_MIN=19 OBJ=step python3 exact-rota.py results/crossover-table.json /tmp/fix.json 60
 ```
 
 **Checks:**

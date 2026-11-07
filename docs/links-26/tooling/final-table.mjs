@@ -150,7 +150,7 @@ const POOL = []; const seenT = new Set();
 const EARLY_HI = Number(process.env.EARLY_HI ?? Infinity), OPENER_HI = Number(process.env.OPENER_HI ?? Infinity);
 const EARLY_START_MAX = process.env.EARLY_START_MAX ? mm(process.env.EARLY_START_MAX) : Infinity, LATE_START_MIN = process.env.LATE_START_MIN ? mm(process.env.LATE_START_MIN) : 0;
 const onlyRequiredEarly = process.env.ONLY_REQUIRED_EARLY_FINISH === '1';
-// EARLY_HANDOVER=1 (7 Nov 2026, Safe Hands; owner, of Set Fair's three 07:15-15:45s: "getting ready to leave for 1545. Before
+// EARLY_HANDOVER=1 (7 Nov 2026, Crossover, drawn as Safe Hands; owner, of Set Fair's three 07:15-15:45s: "getting ready to leave for 1545. Before
 // their 1545 start replacements are fully ready"): no early may finish between 15:00 and 16:00, so none leaves as the weekday's
 // 15:45 closers come on. An early finishes by 15:00, or stays until 16:00 or later, the closers' first 15 minutes. Off by default
 const EARLY_HANDOVER = process.env.EARLY_HANDOVER === '1';
