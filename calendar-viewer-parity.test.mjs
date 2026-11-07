@@ -217,10 +217,21 @@ describe('Contract B — the PIN is not in the repository', () => {
     test('the client sends the PIN to the server and does nothing else with it', () => {
         const src = read('./calendar-access.js');
         assert.ok(src.includes('unlockCalendarViewer'), 'the client no longer calls the exchange endpoint');
-        // No storage of the entered value, in any of the app's storage wrappers or the raw APIs.
-        for (const sink of ['lsSet(', 'localStorage.setItem', 'sessionStorage.setItem']) {
-            const idx = src.indexOf(sink);
-            assert.equal(idx, -1, `calendar-access.js writes to ${sink} — the PIN must never be stored`);
+        // BOTH client modules that hold the entered value: the exchange, and the form itself, which
+        // has lived in calendar-lock-cards.js since v23.54. Only the first was scanned until the test
+        // audit (7 Nov 2026), so `localStorage.setItem('myb_last_pin', pin)` in the form passed every
+        // lane. No storage of the value in any wrapper or raw API, and no console line that names it.
+        const SINKS = ['lsSet(', 'localStorage.setItem', 'localStorage[', 'sessionStorage.setItem', 'sessionStorage[',
+            'indexedDB', 'document.cookie'];
+        for (const file of ['./calendar-access.js', './calendar-lock-cards.js']) {
+            const code = read(file);
+            for (const sink of SINKS) {
+                assert.equal(code.indexOf(sink), -1, `${file} writes to ${sink} — the PIN must never be stored`);
+            }
+            for (const line of code.split('\n')) {
+                if (!/console\.(log|warn|error|info|debug)/.test(line)) continue;
+                assert.doesNotMatch(line, /\bpin\b/i, `${file} logs something PIN-shaped: ${line.trim()}`);
+            }
         }
     });
 

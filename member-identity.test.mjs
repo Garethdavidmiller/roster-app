@@ -40,6 +40,26 @@ test('a name arriving any other way is nobody', () => {
     for (const c of impostors) assert.equal(memberNameFromClaims(/** @type {any} */ (c)), null, JSON.stringify(c));
 });
 
+test('the server\'s `member` stamp is not enough on its own — the provider and the email still decide', () => {
+    // Every impostor above also lacks `member === name`, so that ONE check refused them all and the
+    // other two could be deleted with this file green (test audit, 7 Nov 2026: removing the
+    // password-provider check, or the email binding, left 321 tests in six suites passing). These
+    // carry a correct stamp, so only the check under test can refuse them.
+    const stamped = (/** @type {object} */ rest) => ({ name: 'G. Miller', member: 'G. Miller', ...rest });
+    const impostors = [
+        // the right email, the wrong way in
+        stamped({ email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'google.com' } }),
+        stamped({ email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'anonymous' } }),
+        stamped({ email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'custom' } }),
+        stamped({ email: nameToEmail('G. Miller') }),
+        // the right way in, somebody else's address — or none
+        stamped({ email: nameToEmail('S. Silva'), firebase: { sign_in_provider: 'password' } }),
+        stamped({ email: 'attacker@myb-roster.local', firebase: { sign_in_provider: 'password' } }),
+        stamped({ firebase: { sign_in_provider: 'password' } }),
+    ];
+    for (const c of impostors) assert.equal(memberNameFromClaims(/** @type {any} */ (c)), null, JSON.stringify(c));
+});
+
 test('an email differing only in case is still the member (Firebase lower-cases emails)', () => {
     assert.equal(memberNameFromClaims({ ...real('G. Miller'), email: 'G.Miller@myb-roster.local' }), 'G. Miller');
 });

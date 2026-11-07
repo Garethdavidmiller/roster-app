@@ -1096,9 +1096,18 @@ describe('the viewer↔member race', () => {
     test('a VIEWER holding a stale local session may still unlock', async () => {
         // The guard is about a live MEMBER identity, not about a session record. A viewer whose
         // browser still holds an expired-but-present session must not be locked out of re-unlocking.
+        let reloads = 0;
+        globalThis.window.location.reload = () => { reloads++; };
         sessionValue = { name: 'G. Miller' };
         currentUser = { uid: 'calendar-viewer', isAnonymous: false };
+        ops = [];
         assert.deepEqual(await unlockWithPin('1234'), { ok: true });
+        // `{ ok: true }` is ALSO what the reload branch above returns, so on its own it could not
+        // tell an unlock from a reload (test audit, 7 Nov 2026: deleting the `!isViewerUser`
+        // exemption left this green). A station PC sent down the reload after a PIN rotation never
+        // gets back in, so assert the unlock really happened.
+        assert.equal(reloads, 0, 'a viewer was sent to the reload meant for a signed-in member');
+        assert.ok(ops.some(o => o.startsWith('signIn:')), 'the PIN was never exchanged for a viewer token');
     });
 });
 

@@ -914,6 +914,13 @@ describe('staffContact', () => {
         await assertSucceeds(getDoc(doc(adminDb(), 'staffContact', MEMBER)));
     });
 
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    // Staff are told "only you and the admin can see this email", so a manager reading it is a broken promise.
+    test("a manager cannot read a colleague's work email", async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'staffContact', MEMBER)));
+    });
+
     test('auth with name claim can create valid contact', async () => {
         await assertSucceeds(
             setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), VALID_CONTACT(MEMBER))
@@ -1042,6 +1049,12 @@ describe('resetRequests (the reset-request queue)', () => {
         await assertSucceeds(getDoc(doc(adminDb(), 'resetRequests', NAME)));
     });
 
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    test('a manager cannot read the reset-request queue', async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'resetRequests', NAME)));
+    });
+
     test('NO client may create — not anon, not the member, not even the admin', async () => {
         const payload = { memberName: NAME, requestedAt: new Date(), count: 1, provisioned: true };
         await assertFails(setDoc(doc(anonDb(), 'resetRequests', NAME), payload));
@@ -1079,14 +1092,33 @@ describe('passwordStatus (PASSWORD_DESIGN §6)', () => {
     test("a DIFFERENT named member cannot read someone else's record", async () => {
         await assertFails(getDoc(doc(namedDb('S. Silva'), 'passwordStatus', NAME)));
     });
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    test("a manager cannot read a colleague's password record", async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'passwordStatus', NAME)));
+    });
     test('the owner CREATEs with only passwordSetAt == server time', async () => {
         await assertSucceeds(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }));
     });
+    // EACH "CANNOT CREATE" TEST WRITES A RECORD THAT DOES NOT EXIST YET (test audit, 7 Nov 2026).
+    // The emulator is not cleared between tests, so once the test above had created G. Miller's
+    // record these two were exercising the UPDATE rule, and the CREATE rule's hasOnly and its
+    // server-time pin could be stripped with every rules test green.
+    const freshRecord = async (/** @type {string} */ name) => {
+        let exists = true;
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            exists = (await getDoc(doc(ctx.firestore(), 'passwordStatus', name))).exists();
+        });
+        assert.equal(exists, false, `fixture check: ${name}'s record must not exist, or this tests UPDATE`);
+        return name;
+    };
     test('the owner CANNOT create with resetAt (a client can never set the reset flag)', async () => {
-        await assertFails(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp(), resetAt: serverTimestamp() }));
+        const who = await freshRecord('N. Sobers');
+        await assertFails(setDoc(doc(namedDb(who), 'passwordStatus', who), { passwordSetAt: serverTimestamp(), resetAt: serverTimestamp() }));
     });
     test('a fixed (non-server) passwordSetAt is rejected — must be pinned to request.time', async () => {
-        await assertFails(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: new Date('2020-01-01') }));
+        const who = await freshRecord('H. Croft');
+        await assertFails(setDoc(doc(namedDb(who), 'passwordStatus', who), { passwordSetAt: new Date('2020-01-01') }));
     });
     test("a non-owner cannot write another member's record", async () => {
         await assertFails(setDoc(doc(namedDb('S. Silva'), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }));
@@ -1130,6 +1162,12 @@ describe('passwordStatus (PASSWORD_DESIGN §6)', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('clientErrors', () => {
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    test('a manager cannot read the error log', async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'clientErrors', 'any')));
+    });
+
     test('anon cannot create', async () => {
         await assertFails(addDoc(collection(anonDb(), 'clientErrors'), VALID_ERROR()));
     });
@@ -1521,36 +1559,60 @@ describe('pushSubscriptions', () => {
         await assertFails(setDoc(doc(anonDb(), 'pushSubscriptions', uid()), VALID_SUB()));
     });
 
-    test('anon cannot create with missing endpoint', async () => {
+    // THE FIELD CHECKS ARE RUN AS A SIGNED-IN MEMBER (test audit, 7 Nov 2026). These five used
+    // `anonDb()`, which is refused by `request.auth != null` before any field is looked at, so the
+    // whole 13-condition validation block could be deleted with all 405 rules tests green. A member
+    // passes the sign-in check, so only the field rule can refuse them; the four after them cover the
+    // limits nothing tested at all.
+    test('a member cannot create with missing endpoint', async () => {
         const { endpoint: _e, ...missing } = VALID_SUB();
-        await assertFails(setDoc(doc(anonDb(), 'pushSubscriptions', uid()), missing));
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), missing));
     });
 
-    test('anon cannot create with missing keys.p256dh', async () => {
+    test('a member cannot create with missing keys.p256dh', async () => {
         await assertFails(
-            setDoc(doc(anonDb(), 'pushSubscriptions', uid()), {
+            setDoc(doc(memberDb(), 'pushSubscriptions', uid()), {
                 ...VALID_SUB(), keys: { auth: 'xyz789' },
             })
         );
     });
 
-    test('anon cannot create with an extra field in the keys map (hasOnly)', async () => {
+    test('a member cannot create with an extra field in the keys map (hasOnly)', async () => {
         await assertFails(
-            setDoc(doc(anonDb(), 'pushSubscriptions', uid()), {
+            setDoc(doc(memberDb(), 'pushSubscriptions', uid()), {
                 ...VALID_SUB(), keys: { p256dh: 'abc123', auth: 'xyz789', injected: 'x' },
             })
         );
     });
 
-    test('anon cannot create without subscribedAt', async () => {
+    test('a member cannot create without subscribedAt', async () => {
         const { subscribedAt: _s, ...missing } = VALID_SUB();
-        await assertFails(setDoc(doc(anonDb(), 'pushSubscriptions', uid()), missing));
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), missing));
     });
 
-    test('anon cannot create with empty endpoint string', async () => {
+    test('a member cannot create with empty endpoint string', async () => {
         await assertFails(
-            setDoc(doc(anonDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), endpoint: '' })
+            setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), endpoint: '' })
         );
+    });
+
+    test('a member cannot create with an extra top-level field (hasOnly)', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), injected: 'x' }));
+    });
+
+    test('a member cannot create with an endpoint of 2048 characters or more', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()),
+            { ...VALID_SUB(), endpoint: 'https://fcm.googleapis.com/' + 'x'.repeat(2048) }));
+    });
+
+    test('a member cannot create with an oversized p256dh or auth key, or keys that are not a map', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), keys: { p256dh: 'p'.repeat(256), auth: 'a' } }));
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), keys: { p256dh: 'p', auth: 'a'.repeat(64) } }));
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), keys: 'p256dh:p,auth:a' }));
+    });
+
+    test('a member cannot create with a subscribedAt that is not a timestamp', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), subscribedAt: '2026-11-07' }));
     });
 
     test('anon cannot read', async () => {

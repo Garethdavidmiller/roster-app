@@ -1319,3 +1319,56 @@ describe('parseRosterPDF: a left-shifted row is repaired or sent to review, neve
             'a disputed Sunday the witness did not check must reach the admin, not be written either way');
     });
 });
+
+// ── EVERY ENDPOINT A BROWSER CALLS ANSWERS ONLY THE APP'S OWN ORIGINS (test audit, 7 Nov 2026) ─────
+//
+// `cors: ADMIN_FUNCTION_ORIGINS` is defence in depth — each endpoint's own token and claim checks
+// are the real control — but it is the line that stops another site's page reading these answers in
+// a signed-in member's browser, and nothing tested it: `cors: true` on the public reset request or on
+// the PIN exchange, or a foreign origin added to the allowlist, left all five Functions suites green.
+// These go through the REAL `onRequest` wrapper loaded above, whose CORS middleware runs before any
+// product code, so a preflight shows exactly what the deployed endpoint would grant.
+describe('CORS: only the app\'s own origins are granted', () => {
+    const BROWSER_CALLED = ['parseRosterPDF', 'unlockCalendarViewer', 'getDocumentUrl', 'setupRosterAuth',
+        'resetMemberPassword', 'requestPasswordReset', 'getSignInStats', 'getAccountSetupGaps'];
+    const APP_ORIGINS = ['https://garethdavidmiller.github.io', 'https://myb-roster.web.app', 'https://myb-roster.firebaseapp.com'];
+    const preflight = (origin) => withHelpers({
+        method: 'OPTIONS',
+        headers: { origin, 'access-control-request-method': 'POST', 'access-control-request-headers': 'authorization,content-type' },
+    });
+    const granted = (out) => {
+        const k = Object.keys(out.headers).find((h) => h.toLowerCase() === 'access-control-allow-origin');
+        return k ? out.headers[k] : undefined;
+    };
+
+    test('guard the guard — every endpoint named here is one index.js really exports', () => {
+        for (const name of BROWSER_CALLED) assert.equal(typeof index[name], 'function', `${name} is not exported`);
+    });
+
+    for (const name of BROWSER_CALLED) {
+        test(`${name}: a page on another site is granted nothing, and the app's own origin is`, async () => {
+            const foreign = await call(index[name], preflight('https://evil.example'));
+            const g = granted(foreign);
+            assert.ok(g !== 'https://evil.example' && g !== '*', `${name} granted a foreign origin: ${g}`);
+            // The positive control: without it a harness that dropped every header would pass the line above.
+            const own = await call(index[name], preflight('https://myb-roster.web.app'));
+            assert.equal(granted(own), 'https://myb-roster.web.app', `${name} refused the app's own origin`);
+        });
+    }
+
+    test('ingestHuddle is server-to-server (Power Automate) and grants no browser origin at all', async () => {
+        for (const origin of ['https://evil.example', ...APP_ORIGINS]) {
+            assert.equal(granted(await call(index.ingestHuddle, preflight(origin))), undefined, origin);
+        }
+    });
+
+    test('the allowlist is exactly the three places the app is served from', () => {
+        // Adding a hosting domain is a deliberate change: add it here, to ADMIN_FUNCTION_ORIGINS, and to
+        // the GCP API-key referrer allowlist in the same change (CLAUDE.md → the API key note).
+        const src = require('node:fs').readFileSync(require.resolve('./functions/index.js'), 'utf8');
+        const m = /const ADMIN_FUNCTION_ORIGINS = \[([^\]]*)\]/.exec(src);
+        assert.ok(m, 'ADMIN_FUNCTION_ORIGINS not found');
+        const listed = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]).sort();
+        assert.deepEqual(listed, [...APP_ORIGINS].sort());
+    });
+});

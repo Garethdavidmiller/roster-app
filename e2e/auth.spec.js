@@ -98,6 +98,81 @@ test('login overlay: Enter in the password field signs in through the form, whic
     await expect(page.locator('#loginUsername')).toHaveAttribute('autocomplete', 'username');
 });
 
+// ── WHAT A SIGN-IN IS HANDED, AND WHAT A FAILED ONE LEAVES BEHIND (test audit, 7 Nov 2026) ──────
+// Three lines of the overlay could each be broken with every lane green. The typed password could
+// stop reaching the sign-in: the unit test stubs the call, and this suite's Firebase stub resolved
+// whatever it was given. A failed sign-in could keep ANOTHER member's stored session. And a
+// connection failure could count towards the 30-second lockout. The stub now records what it was
+// handed (e2e/fixtures.js), so each is checked here, the lockout from both sides.
+test('login overlay: the password typed is the one signed in with', async ({ page }) => {
+    await page.goto('/admin.html');
+    await signInThroughOverlay(page, 'G. Miller', { submit: false });
+    // A password of the member's own: the surname default would also be what the app tries when it
+    // has no typed password, so typing that could not tell the two apart.
+    await page.locator('#loginPassword').fill('a-password-of-my-own-7');
+    await page.locator('#loginSubmit').click();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E?.signIns?.length ?? 0)).toBeGreaterThan(0);
+    const first = await page.evaluate(() => /** @type {any} */ (window).__E2E.signIns[0]);
+    expect(first, 'the sign-in was not handed what the member typed').toEqual(
+        { email: 'g.miller@myb-roster.local', password: 'a-password-of-my-own-7' });
+});
+
+// The one card that keeps a stored session behind it: the Calendar's come-back card, for a returning
+// member whose Firebase identity has gone (v24.56). Admin and the other pages clear the session before
+// their card appears, so there is nothing there for a failed attempt to keep or end.
+/** Reach the come-back card for G. Miller's stored session, with every sign-in failing, and open the form. */
+async function openComeBackSignIn(/** @type {import('@playwright/test').Page} */ page) {
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true }); });
+    await page.goto('/index.html');
+    await expect(page.locator('#calLockSubmit')).toBeEnabled({ timeout: 20_000 });
+    await page.locator('#calLockSubmit').click();
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+}
+const storedName = (/** @type {import('@playwright/test').Page} */ page) =>
+    page.evaluate(() => JSON.parse(localStorage.getItem('myb_admin_session') || 'null')?.name ?? null);
+
+test('login overlay: a failed sign-in as somebody ELSE ends the session already on this device', async ({ page }) => {
+    await openComeBackSignIn(page);
+    expect(await storedName(page), 'premise: the returning member\'s session is stored under the card').toBe('G. Miller');
+    await signInThroughOverlay(page, 'S. Silva');            // a different member, on the same device
+    await expect(page.locator('#loginError')).toBeVisible();
+    expect(await storedName(page), 'a shared device kept the previous member signed in after a failed attempt by another')
+        .toBeNull();
+});
+
+test('login overlay: CONTROL — a failed sign-in as the SAME member keeps their own session (v24.56)', async ({ page }) => {
+    await openComeBackSignIn(page);
+    await page.locator('#loginPassword').fill('miller');
+    await page.locator('#loginSubmit').click();
+    await expect(page.locator('#loginError')).toBeVisible();
+    expect(await storedName(page), 'one mistyped password wiped the session that would sign them back in').toBe('G. Miller');
+});
+
+for (const [kind, code, locks] of /** @type {[string, string|undefined, boolean][]} */ ([
+    ['a wrong password', undefined, true],
+    ['a connection failure', 'auth/network-request-failed', false],
+])) {
+    test(`login overlay: three failures from ${kind} ${locks ? 'lock' : 'never lock'} the button for 30 seconds`, async ({ page }) => {
+        await page.addInitScript((c) => { /** @type {any} */ (window).__E2E = { failSignIn: true, ...(c ? { failSignInCode: c } : {}) }; }, code);
+        await page.goto('/admin.html');
+        const submit = page.locator('#loginSubmit');
+        for (let i = 1; i <= 3; i++) {
+            await signInThroughOverlay(page, 'G. Miller');
+            await expect(page.locator('#loginError')).toBeVisible();
+            if (i < 3) await expect(submit).toHaveText('Sign in →');
+        }
+        if (locks) {
+            await expect(submit).toHaveText('Try again in 30s');
+            await expect(submit).toBeDisabled();
+        } else {
+            await expect(submit, 'a member on weak signal was locked out for having no connection').toHaveText('Sign in →');
+            await expect(submit).toBeEnabled();
+        }
+    });
+}
+
 // ── B1 NAMED-SESSION ENFORCEMENT ──────────────────────────────────────────────
 // These run with sign-in forced to fail (window.__E2E.failSignIn). They prove the per-page matrix:
 // admin/settings re-show the login overlay even though a valid LOCAL session was seeded;
@@ -901,3 +976,38 @@ test.describe('sign-in pickers', () => {
         await expect(page.locator('#loginCard')).toBeVisible();
     });
 });
+
+// ── BACK AFTER A SIGN-OUT RELOADS THE PAGE, ON EVERY PAGE (test audit, 7 Nov 2026) ───────────────
+// page-contract-parity checks that every coordinator CALLS page-session's back/forward-cache guard —
+// by spelling. Wrapping the call in a condition that is never true kept that check, and every lane,
+// green. A page the browser restores after a sign-out would then show the last member's roster, pay
+// or leave to whoever picks the device up next. The browser announces that restore with a `pageshow`
+// whose `persisted` is true, and that is the event sent here; whether headless Chromium would really
+// have cached the page is a different question, and not this test's.
+for (const [name, url, ready, init] of /** @type {Array<[string, string, string, (() => void)?]>} */ ([
+    // A returning member's grid waits for their Firebase identity, which the stub has only on request.
+    ['calendar', '/', '.calendar-day', () => { /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { authUser: true }); }],
+    ['admin', '/admin.html', '.day-row'],
+    ['operations', '/operations.html', '#huddleUploadCard'],
+    ['paycalc', '/paycalc.html', '#settingsCard', () => localStorage.setItem('myb_pc_ns_migrated', '1')],
+    ['settings', '/settings.html', '#contactToggleHeader'],
+    ['links', '/links.html', '#generatorToggleHeader', () => localStorage.setItem('myb_links_welcome_seen', '1')],
+    ['overtime', '/overtime.html', 'body[data-ot-paused]'],
+    ['trains', '/trains.html', '#trTotals .tr-total'],
+    ['newlink', '/newlink.html', '[data-persona="all"]'],
+])) {
+    test(`Back to ${name} after a sign-out reloads the page instead of showing it`, async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await seedMember(page, 'G. Miller');
+        if (init) await page.addInitScript(init);
+        await page.goto(url);
+        await expect(page.locator(ready).first()).toBeAttached();
+        const reloaded = page.waitForEvent('framenavigated', { predicate: f => f === page.mainFrame(), timeout: 5_000 })
+            .then(() => true, () => false);
+        await page.evaluate(() => {
+            localStorage.removeItem('myb_admin_session');          // signed out on another page since
+            window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+        }).catch(() => {});                                       // the reload may land first
+        expect(await reloaded, `${name} was restored for the next person instead of reloading`).toBe(true);
+    });
+}

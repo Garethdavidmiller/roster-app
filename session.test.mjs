@@ -109,8 +109,10 @@ mock.module('./firebase-client.js', {
 // current at the time, because the delete must happen while the departing member still holds it.
 /** @type {any[]} */
 const _pushReleases = [];
+/** Runs INSIDE the release, so a test can land a login while it is in flight. @type {null | (() => any)} */
+let _duringPushRelease = null;
 mock.module('./notif.js', {
-    namedExports: { releaseDevicePush: async () => { _pushReleases.push(auth.currentUser); } },
+    namedExports: { releaseDevicePush: async () => { _pushReleases.push(auth.currentUser); if (_duringPushRelease) await _duringPushRelease(); } },
 });
 
 mock.module('./ls.js', {
@@ -457,8 +459,8 @@ describe('reconcileExpiredIdentity', () => {
         name: 'G. Miller', ver: SESSION_VER, expiry: Date.now() + SESSION_MS,
     });
 
-    beforeEach(() => { store.clear(); _signOutCalled = false; _existingUser = null; });
-    afterEach(() => { auth.currentUser = null; _existingUser = null; });   // don't leak identity into other tests
+    beforeEach(() => { store.clear(); _signOutCalled = false; _existingUser = null; _duringPushRelease = null; });
+    afterEach(() => { auth.currentUser = null; _existingUser = null; _duringPushRelease = null; });   // don't leak identity into other tests
 
     test('releases the push record BEFORE the sign-out, while the expired member still holds it', async () => {
         _pushReleases.length = 0;
@@ -468,6 +470,18 @@ describe('reconcileExpiredIdentity', () => {
         assert.equal(_pushReleases.length, 1, 'an ending hold releases this device\'s push record');
         assert.equal(_pushReleases[0], member, 'and does it while the departing member is still the identity');
         assert.equal(_signOutCalled, true);
+    });
+
+    test('a sign-in that lands WHILE the push release runs is never signed straight out', async () => {
+        // The release is a network round trip, and it is awaited BEFORE the sign-out — so a member
+        // signing in on this device can complete inside it. The re-check after the release is the only
+        // thing that stands reconcile down, and nothing exercised it (test audit, 7 Nov 2026: deleting
+        // that line left all 127 tests here green). Without it the new member is signed out the moment
+        // their sign-in lands, by a teardown that was about somebody else.
+        auth.currentUser = /** @type {any} */ ({ isAnonymous: false, email: 'g.miller@myb.test' });
+        _duringPushRelease = () => { store.set(AUTH_KEY, validSession()); };   // the login commits mid-release
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, false, 'a login that landed during the release was signed out by the teardown');
     });
 
     test('signs out a NAMED identity when there is no valid local session', async () => {
@@ -1290,7 +1304,11 @@ describe('B5: superseded login is identity-honest, not a spurious failure', () =
         _signInGate = new Promise(r => { releaseGate = r; });
 
         const login = ensureNamedSession('G. Miller', { delayMs: 0 });   // G1 — parks at the gate
-        for (let i = 0; i < 6; i++) await Promise.resolve();
+        // Wait until the login has REACHED the gate (test audit, 7 Nov 2026). This waited six
+        // microtask ticks, which is not long enough: the login had not got to sign-in, the gate was
+        // cleared before it parked, and the race this test names never happened — so dropping the
+        // identity check below (`return ok;`) left it green. The sibling test above waits this way.
+        await signInEntered(1);
         _signInGate = null;
 
         auth.currentUser = { isAnonymous: false, email: nameToEmail('A. Panchal') };
@@ -1309,7 +1327,11 @@ describe('B5: superseded login is identity-honest, not a spurious failure', () =
         _signInGate = new Promise(r => { releaseGate = r; });
 
         const login = ensureNamedSession('G. Miller', { delayMs: 0 });   // G1 — parks at the gate
-        for (let i = 0; i < 6; i++) await Promise.resolve();
+        // Wait until the login has REACHED the gate (test audit, 7 Nov 2026). This waited six
+        // microtask ticks, which is not long enough: the login had not got to sign-in, the gate was
+        // cleared before it parked, and the race this test names never happened — so dropping the
+        // identity check below (`return ok;`) left it green. The sibling test above waits this way.
+        await signInEntered(1);
         _signInGate = null;
 
         clearSession();                 // ++_authGen (supersede) + firebaseSignOut → currentUser cleared
@@ -1393,6 +1415,22 @@ describe('shedCalendarViewer — fail closed, or the shared viewer goes long-liv
         await shedCalendarViewer();
         assert.equal(_signOutCalled, false, 'this function only ever sheds the shared viewer');
         assert.deepEqual(_persistenceRestores, []);
+    });
+
+    test('a member sign-in that cannot shed the viewer is ABANDONED — it never carries on past it', async () => {
+        // The CALL SITE, not the helper. Every test above drives shedCalendarViewer directly, so the
+        // `return` after a failed shed in ensureFirebaseSession could be deleted with this file green
+        // (test audit, 7 Nov 2026) — and the sign-in then carried on with the shared viewer still the
+        // current identity, which is the state this whole block exists to refuse.
+        mockAuth.currentUser = viewer;
+        _signOutBehavior = 'auth/network-request-failed';
+        _signInCalls = 0;
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, false, 'the sign-in reports that it failed');
+        assert.equal(_signInCalls, 0, 'no member credential is presented while the viewer is still current');
+        assert.deepEqual(_persistenceRestores, [], 'and persistence is never re-armed');
+        assert.equal(getFirebaseAuthError(), 'auth/viewer-shed-failed', 'the failure is named for what happened');
+        assert.notEqual(getFirebaseIdentity(), 'named');
     });
 });
 

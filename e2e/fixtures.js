@@ -364,11 +364,17 @@ export const onSnapshot = (_q, onNext, onError) => {
 //      current user behind, the way the real SDK does. Opt-in, because currentUser staying null
 //      after sign-in is what a great many specs are written against, and scoped to the one call so
 //      an anonymous fallback can never be mistaken for a named identity.
-const _e2eAuth = (code, establishes) => () => {
-    const e2e = globalThis.__E2E || {};
+//   window.__E2E = { failSignIn: true, failSignInCode: 'auth/network-request-failed' } → fail with
+//      THAT code instead — a connection failure, which must never count towards the lockout.
+// Every call is RECORDED in window.__E2E.signIns as { email, password } (test audit, 7 Nov 2026).
+// The stub used to ignore its arguments, so the overlay could stop passing the typed password and
+// every lane stayed green: nothing could see which credential was signed in with.
+const _e2eAuth = (code, establishes) => (_auth, email, password) => {
+    const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+    (e2e.signIns || (e2e.signIns = [])).push({ email, password });
     if (e2e.hangSignIn) return new Promise(() => {});
-    if (e2e.failSignIn) return Promise.reject(Object.assign(new Error('e2e'), { code }));
-    if (establishes && e2e.signInEstablishes) { e2e.authUser = true; globalThis.__E2E = e2e; }
+    if (e2e.failSignIn) return Promise.reject(Object.assign(new Error('e2e'), { code: e2e.failSignInCode || code }));
+    if (establishes && e2e.signInEstablishes) e2e.authUser = true;
     return Promise.resolve({ user: { uid: 'test' } });
 };
 // currentUser is null by default — the stub never really signs anyone in, and a great many tests

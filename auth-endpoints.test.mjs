@@ -70,7 +70,7 @@
  * through one of its callers and assumed to be covered for the rest — which reads, from the test
  * file, exactly like coverage.
  */
-import { test, describe } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
@@ -171,6 +171,8 @@ function makeDb(seed = {}) {
  * @param {object}  o
  * @param {boolean} o.adminResolves  can the admin NAME be resolved to a uid at all
  * @param {number}  o.pushAccepts    how many subscriptions accept each targeted push (0 = nobody)
+ * @param {boolean} o.pushHangs      the push service never answers — the case the reset request's
+ *                                  10-second limit exists for
  * @param {object}  o.seed           starting Firestore contents, by collection
  * @param {object}  o.authFail       force one Auth call to throw, e.g. { setCustomUserClaims: 'boom' }
  * @param {object}  o.token          what verifyIdToken resolves to (null → it throws, i.e. no token)
@@ -193,6 +195,7 @@ function build({
     adminResolves = true,
     pushAccepts = 1,
     pushFail = null,
+    pushHangs = false,
     seed = {},
     authFail = {},
     token = { admin: true, name: ADMIN },
@@ -293,6 +296,7 @@ function build({
             // treats a push failure as a reportable stage rather than a failed reset, and that
             // branch is unreachable from a fake that can only succeed.
             if (pushFail) throw new Error(pushFail);
+            if (pushHangs) return new Promise(() => {});
             // The REAL sendTargetedPush returns how many subscriptions accepted the message, and
             // the reset endpoint acts on that number. A fake returning undefined would make every
             // "did it record that the admin was reached?" assertion vacuous.
@@ -392,6 +396,57 @@ describe('the reset request tells the ADMIN, and only the admin', () => {
         const { eps, sends } = build({ seed: { resetRequests: { [MEMBER]: { requestedAt: { toMillis: () => NOW } } } } });
         await call(eps.requestPasswordReset, reqFor(MEMBER));
         assert.equal(sends.length, 0);
+    });
+
+    test('a recorded request and a throttled repeat get the IDENTICAL answer (v18.94)', async () => {
+        // The endpoint is public and the roster names are public, so an answer that told the two
+        // apart would let anybody poll the names and learn who is locked out RIGHT NOW. The
+        // difference belongs in the log line, where only the admin sees it. Nothing compared the
+        // two bodies until the test audit (7 Nov 2026): `{ ok: true, throttled: !recorded }` left
+        // every test in every lane green.
+        const recorded = build();
+        const first = await call(recorded.eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(recorded.sends.length, 1, 'fixture check: the first request was recorded');
+
+        const throttled = build({ seed: { resetRequests: { [MEMBER]: { requestedAt: { toMillis: () => NOW } } } } });
+        const repeat = await call(throttled.eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(throttled.sends.length, 0, 'fixture check: the repeat really was throttled');
+
+        assert.deepEqual(repeat, first, 'the two answers must not differ in anything a caller can read');
+    });
+
+    // THE ADMIN'S PUSH IS A COURTESY ON TOP OF THE ROW, and two protections keep it one (test audit,
+    // 7 Nov 2026 — each could be deleted with every test green, because the push seam was only ever
+    // exercised on `resetMemberPassword`). The row in Firestore is the doorbell: once it is written
+    // the member has been heard, and nothing the push service does afterwards may turn that into an
+    // error telling them nobody was.
+    test('a push service that never answers cannot hold up a request that was recorded', async () => {
+        mock.timers.enable({ apis: ['setTimeout'] });
+        try {
+            const { eps, sends, db } = build({ pushHangs: true });
+            const pending = call(eps.requestPasswordReset, reqFor(MEMBER));
+            // Let the handler record the row and reach the push, then let the 10 s limit expire.
+            for (let i = 0; i < 50 && sends.length === 0; i++) await new Promise(r => setImmediate(r));
+            assert.equal(sends.length, 1, 'fixture check: the handler reached the push');
+            mock.timers.tick(10_000);
+            // Bounded, never a bare `await pending`: if the limit is gone the request never answers,
+            // and an unbounded await would hang past `finally`, leaving the mocked clock in place
+            // for every test after this one — one regression reported as eighty.
+            let out = null;
+            pending.then(o => { out = o; });
+            for (let i = 0; i < 50 && out === null; i++) await new Promise(r => setImmediate(r));
+            assert.ok(out, 'the request answered once the 10-second limit expired');
+            assert.equal(out.code, 200, 'recorded is recorded, however long the push service takes');
+            assert.ok(db._dump('resetRequests')[MEMBER], 'and the row is there');
+        } finally { mock.timers.reset(); }
+    });
+
+    test('a push that throws cannot fail a request that was recorded', async () => {
+        const { eps, db } = build({ pushFail: 'push service down' });
+        const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(out.code, 200);
+        assert.deepEqual(out.body, { ok: true });
+        assert.ok(db._dump('resetRequests')[MEMBER], 'the row was written before the push was tried');
     });
 });
 

@@ -254,6 +254,7 @@ const TOKENS = {
     tok_member:  { name: 'G. Miller', member: 'G. Miller', uid: 'uid_g', admin: true, email: 'g.miller@myb-roster.local', firebase: { sign_in_provider: 'password' } },     // rostered Master Admin
     tok_plain:   { name: 'S. Silva',  member: 'S. Silva', uid: 'uid_s', email: 's.silva@myb-roster.local', firebase: { sign_in_provider: 'password' } },                  // ordinary member
     tok_manager: { name: 'H. Croft',  member: 'H. Croft', uid: 'uid_h', manager: true, email: 'h.croft@myb-roster.local', firebase: { sign_in_provider: 'password' } },   // reviewer, not a participant
+    tok_admin_out: { name: 'D. Watts', member: 'D. Watts', uid: 'uid_d', admin: true, email: 'd.watts@myb-roster.local', firebase: { sign_in_provider: 'password' } }, // an admin who is NOT in the window
     tok_viewer:  { uid: 'calendar-viewer', calendarViewer: true },     // the shared PIN identity
     // v24.23 — tokens that CARRY a member's name without being the member. Firebase copies a
     // self-set display name into `name`; each of these is one real way that arrives.
@@ -1057,6 +1058,26 @@ describe('getMyOvertimeState — the member sees their own windows and nobody el
         unfreeze();
         assert.equal(JSON.stringify(r.body).includes('S. Silva'), false,
             'no part of a colleague may leak into a member payload');
+        // The name search above cannot see a leak of the colleague's DATA: `publicHead` never sends
+        // `memberName`, so S. Silva's whole week could arrive as G. Miller's own submission and that
+        // line stay green (test audit, 7 Nov 2026 — reading the window's first submission instead of
+        // the caller's own passed every test). G. Miller has filed nothing, so his must be empty.
+        assert.equal(r.body.windows.length, 1, 'fixture check: the member sees the window');
+        assert.equal(r.body.windows[0].submission, null, "a colleague's week came back as the member's own");
+    });
+
+    test('the state is read for the TOKEN\'s member, whatever a body names (invariant 6)', async () => {
+        // "Identity is never the request body." The endpoint takes no member field today, and that is
+        // exactly why nobody wrote this: a later change that read one would have passed every test.
+        freeze(Date.parse('2026-08-17T09:00:00Z'));
+        const { eps } = build(seededWindow({
+            [`overtimeWindows/${WEEK}/participants/S. Silva`]: { memberName: 'S. Silva', grade: 'CEA', rosterOrder: 5 },
+            [`overtimeWindows/${WEEK}/submissions/S. Silva`]: { memberName: 'S. Silva', currentRevision: 1, days: noDays() },
+        }));
+        const r = await call(eps.getMyOvertimeState, req({ memberName: 'S. Silva' }));   // signed in as G. Miller
+        unfreeze();
+        assert.equal(r.code, 200);
+        assert.equal(r.body.windows[0].submission, null, 'the body chose whose declaration came back');
     });
 
     test('an expired window is omitted even though the document still exists', async () => {
@@ -1212,10 +1233,29 @@ describe('submitOvertimeAvailability — the only mutation', () => {
         freeze(Date.parse('2026-08-17T09:00:00Z'));
         const { db, eps } = build(seededWindow());
         const r = await call(eps.submitOvertimeAvailability, req(good(), 'tok_plain'));
-        unfreeze();
         assert.equal(r.code, 403);
         assert.equal(r.body.error, 'not-a-participant');
         assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/S. Silva`), false);
+        // …and the case the title names, which this test never tried until the test audit (7 Nov 2026):
+        // `tok_plain` is an ordinary member, so letting admins through (`&& !who.admin`) stayed green.
+        const a = await call(eps.submitOvertimeAvailability, req(good(), 'tok_admin_out'));
+        unfreeze();
+        assert.equal(a.code, 403, 'a Master Admin outside the window filed a declaration');
+        assert.equal(a.body.error, 'not-a-participant');
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/D. Watts`), false);
+    });
+
+    test('a submission is filed under the TOKEN\'s member, whatever the body names (invariant 6)', async () => {
+        freeze(Date.parse('2026-08-17T09:00:00Z'));
+        const { db, eps } = build(seededWindow({
+            [`overtimeWindows/${WEEK}/participants/S. Silva`]: { memberName: 'S. Silva', grade: 'CEA', rosterOrder: 5 },
+        }));
+        const r = await call(eps.submitOvertimeAvailability, req(good({ memberName: 'G. Miller' }), 'tok_plain'));
+        unfreeze();
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/G. Miller`), false,
+            "the body filed a colleague's declaration");
+        assert.equal(r.code, 200, `S. Silva's own submission was refused: ${JSON.stringify(r.body)}`);
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/S. Silva`), true);
     });
 
     test('a malformed week is refused with the reason and the offending date', async () => {
