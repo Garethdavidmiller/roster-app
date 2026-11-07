@@ -16,7 +16,7 @@
  *
  * ── THE RULE THAT GOVERNS ALL SIX ───────────────────────────────────────────────────────────────
  *
- * **The client never refuses what the server would accept.** It may offer less than the server
+ * **The client never refuses what the server would accept.** It may offer more than the server
  * allows — an extra request costs nothing — and it may never offer less than the member is owed.
  * Every asymmetry below runs that way and each says so at the branch:
  *

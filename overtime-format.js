@@ -3,11 +3,11 @@
  * overtime-format.js — the PURE client side of Overtime: how a window, a phase and a day's answer
  * are put into words, and the one piece of arithmetic the browser is allowed to do about time.
  *
- * No DOM and no Firebase, so every branch is reachable from a Node test. It imports exactly one
- * thing — `getShiftBadge` from `roster-data.js`, which is pure and Node-loadable — because the
- * roster chip is now drawn on BOTH sides of the feature (v20.87: the reviewer's rows gained the
- * roster the member's form always had) and a second copy of that markup is how the override→display
- * ladder drifted apart before v16.48. The invariant this module keeps is Node-testability, not an
+ * No DOM and no Firebase, so every branch is reachable from a Node test. Everything it imports is
+ * pure and Node-loadable: `roster-data.js` (`getShiftBadge` — the roster chip is drawn on BOTH sides
+ * of the feature, and a second copy of that markup is how the override→display ladder drifted apart
+ * before v16.48), `date-format.js`, `overtime-phase.js`, `overtime-sunday-release.js` and
+ * `overtime-clock.js`. The invariant this module keeps is Node-testability, not an
  * empty import list; do not add anything that breaks the former.
  *
  * ── THE CLIENT CLOCK IS PRESENTATIONAL, AND THAT IS THE WHOLE POINT OF `clockOffset` ────────────

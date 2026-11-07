@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * login-overlay.js — the single shared in-place sign-in overlay for every protected page
- * (admin, settings, operations, links, paycalc).
+ * (grep for the import), and the Calendar's front door, where it is mounted inline.
  *
  * WHY THIS EXISTS: each page used to either carry its own copy of the login overlay + wiring
  * (admin, settings — duplicated logic) or redirect to admin to sign in (operations, links,
@@ -16,7 +16,7 @@
  *   lockout, and the Firebase named-session establishment (B1: ensureNamedSession + the
  *   failure messaging).
  * Does NOT own: what happens AFTER a confirmed sign-in — the caller passes onSuccess (typically a
- *   reload, or admin's inline email-check-then-reload).
+ *   page's in-place init, with a reload only as the fallback).
  *
  * ── TWO WAYS TO MOUNT IT (v23.19) ───────────────────────────────────────────────────────────────
  *

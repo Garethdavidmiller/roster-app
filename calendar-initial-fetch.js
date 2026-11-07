@@ -41,13 +41,13 @@ const RETRY_AUTH_WAIT_MS = 2000;
  * `authReady` and then runs the authoritative server read. The phases are ordered this way so that
  * requiring a session for reads (Track E, E2/E5) can never put a `signInAnonymously` round-trip in
  * front of data the device already holds — the failure mode that would break offline-first on the
- * app's primary surface. Under today's open rules both phases succeed and the only visible change is
- * that the cached roster paints sooner.
+ * app's primary surface. Reads now need Calendar access, and this runs only once access is granted,
+ * so both phases are permitted whenever they run.
  *
  * @param {{ isTeamViewMode: () => boolean, renderCalendar: () => void, renderTeamView?: () => void,
  *           refetchTeamView?: () => void, authReady?: Promise<any>, onAccessLost?: (() => void)|null }} deps
  *   authReady — resolves once a usable Firebase Auth session exists (the calendar passes
- *   `calendarAuthReady`). Defaults to already-resolved, so callers and tests that don't care are
+ *   `calendarAccessReady`). Defaults to already-resolved, so callers and tests that don't care are
  *   unaffected. Phase 2 waits on it; phase 1 deliberately does NOT.
  *   onAccessLost — called when a read is refused because Calendar ACCESS has gone (v20.12), rather
  *   than because the network is poor. The distinction is the whole reason it exists: an expired
@@ -190,8 +190,8 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   // the injected renderCalendar: the header is rebuilt by buildCalendarContainer on EVERY calendar
   // render, and most of those (swipe, month navigation, member change, first-run name selection) do
   // not pass through this module's callbacks — so a callback hook would miss exactly the transitions
-  // that matter. The observer only exists while a chip is owed AND no header exists, and disconnects
-  // the moment either changes, so the common path costs nothing.
+  // that matter. The observer exists only while a chip is owed — it keeps watching once the chip is
+  // up, because a rebuild can take it away — and disconnects when the state is cleared.
   function watchForHeader() {
     if (_headerWatcher || typeof MutationObserver !== 'function' || !document.body) return;
     _headerWatcher = new MutationObserver(() => {
@@ -251,7 +251,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     try {
       // A retry is user-initiated with a visible "Retrying…" state, so waiting is expected — but it
       // must not be UNBOUNDED, which a plain `await authReady` would be (v19.07 fix to v19.01).
-      // calendarAuthReady starts at page load, and this chip only appears after the 10s timeout, so
+      // The auth promise starts at page load, and this chip only appears after the 10s timeout, so
       // an auth promise still pending HERE has already hung for 10s+ and may never settle. Awaiting
       // it plainly would strand the chip on "Retrying…" — disabled, with no handler and no way back,
       // which is worse than the failure it was trying to recover from.

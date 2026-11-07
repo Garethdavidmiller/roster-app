@@ -2,9 +2,9 @@
 /**
  * tips-lightbox.js — Shared per-card Tips (#tipsLightbox) panel.
  *
- * Used by admin.html, operations.html, settings.html, links.html and overtime.html — FIVE pages;
- * this said four until v22.38, having missed the one that arrived last, which is the failure mode
- * a module header shares with help text. Each
+ * Used by every page whose cards carry a `?` Tips button — grep for the import rather than keeping a
+ * list here: one went stale twice, each time missing the page that arrived last, which is the failure
+ * mode a module header shares with help text. Each
  * page keeps only its CARD_TIPS content data; the lifecycle, renderer, and
  * ? button wiring live here (previously copy-pasted four times, with drift:
  * two pages never moved focus into the dialog, two never updated the dialog's

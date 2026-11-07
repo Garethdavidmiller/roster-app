@@ -378,9 +378,9 @@ export function setSnapshotSource(fn) { _snapshotSource = fn; }
  * @param {{ onDayDetail?: Function, onRetryMonth?: Function, member?: any, snapshot?: Map<string, any>|null, checking?: boolean }} [opts]
  *   onDayDetail       — called when ANY day cell is activated, on every pointer type (v23.59)
  *   onRetryMonth      — called as (year, month) from the "Try again" button of the withheld-grid
- *                       panel. Omitted by callers that have no fetch to re-run (the swipe carousel's
- *                       off-screen panels), in which case no button is drawn — an inert control is
- *                       worse than none.
+ *                       panel. Omitted while the first 3-month read runs (calendar-app.js and
+ *                       calendar-swipe.js both do), in which case no button is drawn — an inert
+ *                       control is worse than none.
  *   checking          — the first 3-month read is still running (v25.06). A cached month then draws
  *                       no "couldn't check" note: the check has not failed, it has not finished, and
  *                       the sync chip is that read's label.

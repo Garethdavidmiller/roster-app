@@ -147,9 +147,9 @@ export function settleOrTimeout(promise, ms) {
  *  · `flagOn`      — CONFIG.FORCE_PASSWORD_SET, the one-line kill switch.
  *  · `hasMarker`   — only immediately after a confirmed sign-in (see the header).
  *  · `authStatus`  — must be exactly `'named'`. NOT "an auth user exists": on the calendar that user
- *                    is ANONYMOUS, and on paycalc (a `soft` policy page) a member can be locally
- *                    signed in with a FAILED Firebase session. In either case `updatePassword` cannot
- *                    succeed, so showing a hard block would trap them with no way through.
+ *                    may be the shared PIN viewer, and on paycalc (a `soft` policy page) a member
+ *                    can be locally signed in with a FAILED Firebase session. In either case
+ *                    `updatePassword` cannot succeed, so a hard block would trap them with no way through.
  *  · `!migrated`   — nothing to compel once they have their own password.
  *
  * @param {{ flagOn: boolean, hasMarker: boolean, authStatus: string, migrated: boolean }} input
