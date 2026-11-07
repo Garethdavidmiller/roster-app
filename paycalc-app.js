@@ -34,7 +34,7 @@ import {
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
   setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
-  _setSelectPeriod, buildYtdSourceSelect, ytdAutoSource, payslipMayBeInHand,
+  _setSelectPeriod, buildYtdSourceSelect, ytdAutoSource, payslipMayBeInHand, ytdUpdateFrom,
 } from './paycalc-periods.js';
 import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
@@ -67,7 +67,7 @@ import { initTransferCard } from './paycalc-transfer-card.js';
 import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildActualComparison, buildProvChips } from './paycalc-breakdown.js';
 
 import { setStatus } from './status-text.js';
-import { renderResultHeadline } from './paycalc-result-headline.js';
+import { renderResultHeadline, renderYtdLine, wireYtdLine } from './paycalc-result-headline.js';
 import { backPayBannerCopy, hppBannerCopy, paintBanner } from './paycalc-money-banner.js';
 import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
 /**
@@ -818,7 +818,7 @@ export function init() {
       // Resolve thresholds for the selected period's tax year
       const _pNum   = currentPeriodNum();
       const _curP   = getPeriods().find(/** @param {any} x */ x => x.num === _pNum);
-      if (!_curP) return;
+      if (!_curP) { renderYtdLine(null); return; }
       const _ty     = taxYearForPeriod(_curP);
       const thresholds = getThresholds(_ty.label);
       const _proRateFactor = getProRateFactor(_curP);
@@ -1105,6 +1105,9 @@ export function init() {
         bpThisPeriod: _bpThisPeriod, hppForPeriod: _hppForPeriod,
         bpIsEstimate: _bpIsEstimate, hppIsEstimate: _hppIsEstimate,
       });
+
+      // The Year to Date line under the £ (owner, 7 Nov 2026): the rule is ytdUpdateFrom, the words renderYtdLine.
+      renderYtdLine(_actual ? null : ytdUpdateFrom({ p: _curP, ty: _ty, src: _ytdSrc, inUse: usingCumulative, taxCode: taxCodeUsed }));
 
       // The two OPT-IN MONEY BANNERS — moved to paycalc-money-banner.js at v22.56. They were the
       // same three states written out twice (included · available and not included · nothing to
@@ -1818,6 +1821,7 @@ export function init() {
     initTransferCard();
     // The Calendar's Year to Date notice links to #payslipCard (v24.86): open that card, held in view.
     openCardNamedByHash('payslipCard', 'payslipCardBody', 'payslipCardToggle');
+    wireYtdLine();   // the take-home's Year to Date line opens the same card (paycalc-result-headline.js)
     // Pay data is localStorage-only and evictable until asked otherwise — see ls.js (v22.13).
     requestPersistentStorage(pcPrefix());
     // The year card's fill control (v22.06). After a bulk fill: reload the visible form ONLY if

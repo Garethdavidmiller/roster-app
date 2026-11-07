@@ -12,7 +12,7 @@
  */
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { calcProRateFactor } from './paycalc-calc.js';
+import { calcProRateFactor, computeTax, getThresholds } from './paycalc-calc.js';
 
 // ── Mock-controllable state ───────────────────────────────────────────────────
 
@@ -105,7 +105,7 @@ const {
     _setSelectPeriod, prevPeriod, nextPeriod,
     computeEarliestVisiblePNum, setEarliestVisiblePeriod, getEarliestVisiblePNum,
     visiblePeriods, isTaxYearVisible, ytdAutoSource, ytdSourceOffered, payslipMayBeInHand,
-    periodLinkMissNote,
+    periodLinkMissNote, ytdUpdateFrom,
 } = await import('./paycalc-periods.js');
 
 const {
@@ -945,5 +945,94 @@ describe('Year to Date source — offered and auto-anchored only where the app c
                     `${p.payday.toDateString()} on ${day.toDateString()}`);
             }
         }
+    });
+});
+
+// ── THE YEAR TO DATE LINE UNDER THE TAKE-HOME £ (owner, 7 Nov 2026) ──────────────────────────────
+// The figures change on every payslip, so a one-off notice cannot keep them current: the line asks
+// for the latest ones wherever copying them would change the estimate on screen, and nowhere else.
+// Dates are the real grid's. On Sat 7 Nov 2026 the 23 Oct payslip has been paid and the 20 Nov one
+// is next; 20 Nov cuts off on Sat 14 Nov, and 18 Dec on Sat 12 Dec.
+describe('ytdUpdateFrom — when the take-home asks for the latest Year to Date figures', () => {
+    const TY = /** @type {any} */ (PC_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2026/27'));
+    const byPayday = (/** @type {number} */ y, /** @type {number} */ m, /** @type {number} */ d) => /** @type {any} */ (getPeriods().find(
+        (/** @type {any} */ p) => p.payday.getFullYear() === y && p.payday.getMonth() === m && p.payday.getDate() === d));
+    const sep25 = byPayday(2026, 8, 25), oct23 = byPayday(2026, 9, 23), nov20 = byPayday(2026, 10, 20);
+    const dec18 = byPayday(2026, 11, 18), jan15 = byPayday(2027, 0, 15);
+    const first = /** @type {any} */ (getPeriods().find((/** @type {any} */ p) => p.num === 48 + TY.first));
+    const NOV7 = new Date(2026, 10, 7, 10);
+    /** The 20 Nov payslip on 7 Nov, nothing in use, then whatever a case changes. @param {object} [o] */
+    const ask = (o = {}) => ytdUpdateFrom({ p: nov20, ty: TY, src: 0, inUse: false, taxCode: '1257L', now: NOV7, ...o });
+
+    test('fixture: the real grid has the payslips these cases name', () => {
+        assert.ok(sep25 && oct23 && nov20 && dec18 && jan15 && first);
+        assert.equal(nov20.cutoff.getDate(), 14);
+        assert.equal(dec18.cutoff.getDate(), 12);
+    });
+
+    test('asks for the payslip just paid when no figures are in use', () => {
+        assert.equal(ask(), oct23);
+    });
+
+    test('asks again when the figures are from an older payslip: they change every payslip', () => {
+        assert.equal(ask({ src: sep25.num }), oct23);
+    });
+
+    test('quiet once the figures are in use', () => {
+        assert.equal(ask({ src: oct23.num, inUse: true }), null);
+    });
+
+    test('a source on record whose boxes are empty or unreadable is not in use, so it asks', () => {
+        // inUse is computeTax's usingCumulative, which is false for a blank or unreadable box.
+        assert.equal(ask({ src: oct23.num, inUse: false }), oct23);
+    });
+
+    test('quiet when the figures come from this payslip or a later one', () => {
+        assert.equal(ask({ src: nov20.num }), null);
+        assert.equal(ask({ src: dec18.num }), null);
+    });
+
+    test('never on a payslip already paid: the year keeps one pair of figures', () => {
+        assert.equal(ask({ p: oct23 }), null);
+        // The paid line is the payday itself: the morning after, 23 Oct is paid and 20 Nov is next.
+        assert.equal(ask({ p: oct23, now: new Date(2026, 9, 22, 10) }), sep25, 'the day before it paid');
+    });
+
+    test('never on the first payslip of the tax year, where Year to Date starts again', () => {
+        // On 1 Apr the year's first payslip is next, and the one before it (March's) is in hand.
+        assert.equal(ask({ p: first, now: new Date(2026, 3, 1, 10) }), null);
+    });
+
+    test('only once the payslip to copy from can be in hand, from its cut-off', () => {
+        // The 18 Dec estimate needs the 20 Nov figures: not before that payslip cuts off on 14 Nov.
+        assert.equal(ask({ p: dec18 }), null, 'on 7 Nov the 20 Nov payslip is not out');
+        assert.equal(ask({ p: dec18, now: new Date(2026, 10, 15, 10) }), nov20, 'after its cut-off');
+        // A payslip further ahead asks for one that does not exist yet.
+        assert.equal(ask({ p: jan15 }), null);
+    });
+
+    test('no payslip on screen, or none before it in the grid, says nothing', () => {
+        assert.equal(ask({ p: null }), null);
+        assert.equal(ask({ p: getPeriods()[0] }), null);
+    });
+
+    test('tax codes: quiet exactly where the figures cannot move the tax — the engine decides', () => {
+        // Cross-checked against computeTax rather than restated, so the rule cannot drift from the
+        // engine. A code's tax "moves" with the figures if some Tax Paid figure changes it; the
+        // spread is wide because the K-code 50% limit and the pay itself cap the tax at the low end.
+        const t = getThresholds(TY.label);
+        const periodN = nov20.num - 48 - TY.first + 1;
+        /** @param {string} code */
+        const moves = code => new Set([0, 1000, 2000, 4000, 8000, 16000].map(ytdTax =>
+            computeTax(2400, code, t, { ytdPay: 15000, ytdTax, periodN }).tax)).size > 1;
+        const codes = ['1257L', ' 1257l ', '', '1257L W1', '1257LM1', '1257LX', 'K100', 'S1257L', 'C1257L',
+            '0T', 'BR', 'D0', 'SD2', 'NT', 'CNT', 'nt', ' NT ', 'N T', 'SNT', 'NTX', '1257L W1 '];
+        for (const code of codes) {
+            assert.equal(ask({ taxCode: code }) !== null, moves(code), `tax code ${JSON.stringify(code)}`);
+        }
+        // And the cases that matter most, named, in case the engine ever treats them all alike.
+        assert.equal(ask({ taxCode: '1257L W1' }), null, 'week 1 never uses the figures');
+        assert.equal(ask({ taxCode: 'NT' }), null, 'no tax to sharpen');
+        assert.equal(ask({ taxCode: '1257L' }), oct23);
     });
 });

@@ -462,3 +462,35 @@ export function nextPeriod(onPeriodChange) {
   const idx     = periods.findIndex((/** @type {any} */ x) => x.num === +sel.value);
   if (idx < periods.length - 1) { _setSelectPeriod(sel, periods[idx + 1].num); onPeriodChange(); }
 }
+
+/**
+ * The payslip whose Year to Date figures would sharpen the estimate for `p`, or null when the result
+ * card should say nothing about them (owner, 7 Nov 2026).
+ *
+ * The figures change on every payslip, and calculate() uses them only on the payslip straight after
+ * the one they were copied from; anywhere else tax is estimated from that payslip alone. So the line
+ * under the take-home £ asks for the latest figures wherever copying them would change THIS
+ * estimate, and stays quiet everywhere else:
+ *  - never on a payslip already paid: the year keeps ONE pair of figures, so asking for an older
+ *    payslip's would undo the estimate the member is waiting on;
+ *  - never on the tax year's first payslip, where Year to Date starts fresh;
+ *  - never for a non-cumulative code (W1, M1, X) or NT, which the figures cannot change;
+ *  - never while the figures are IN USE (`inUse` is computeTax's `usingCumulative`, so a box holding
+ *    something unreadable counts as not in use), nor when they come from this payslip or a later one;
+ *  - and only once the payslip to copy from can be in the member's hand (from its cut-off).
+ * @param {{ p: any, ty: { first: number }, src: number, inUse: boolean, taxCode: string, now?: Date }} a
+ * @returns {any} the period to copy the figures from, or null
+ */
+export function ytdUpdateFrom({ p, ty, src, inUse, taxCode, now = new Date() }) {
+  const prevP = p ? getPeriods().find((/** @type {any} */ x) => x.num === p.num - 1) : null;
+  if (!prevP) return null;
+  if (p.num < _todayAt(now).today) return null;
+  if (p.num <= 48 + ty.first) return null;
+  // Read as computeTax reads it (paycalc-calc.js), so the two cannot disagree about a code: a
+  // non-cumulative code never uses the figures, and NT (or the Welsh CNT) has no tax to sharpen.
+  const code = String(taxCode ?? '').toUpperCase().replace(/\s+/g, '') || '1257L';
+  if (/[WM]1$|X$/.test(code)) return null;
+  if (code.replace(/^C/, '') === 'NT') return null;
+  if (inUse || (src && src >= p.num)) return null;
+  return payslipMayBeInHand(prevP, now) ? prevP : null;
+}

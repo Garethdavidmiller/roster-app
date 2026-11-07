@@ -1536,6 +1536,78 @@ test('paycalc: Year to Date figures showing tax over-collected say a refund may 
     expect(errors).toHaveLength(0);
 });
 
+// ── THE YEAR TO DATE LINE UNDER THE TAKE-HOME £ (owner, 7 Nov 2026) ─────────────────────────────
+// The figures change on every payslip, so the result card asks for the latest ones wherever they
+// would sharpen the estimate on screen. The rule is unit-tested (paycalc-periods.test.mjs →
+// ytdUpdateFrom); these pin the wiring: calculate() writing the line on every run, the date it
+// names, the button, and the line going once the figures are in. On 7 Nov 2026 the 23 Oct payslip
+// (internal 57) is the latest paid, 20 Nov (58) is next, and 18 Dec (59) is not yet out.
+test('paycalc: the take-home asks for the latest Year to Date figures, and stops once they are in', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+
+    const line = page.locator('#netYtdNudge');
+    await expect(line).toBeVisible();
+    await expect(line).toContainText('copy the Year to Date figures from your 23 Oct payslip');
+
+    // The button opens the card, brings it into view and puts the cursor in the first box.
+    await expect(page.locator('#payslipCardBody')).not.toHaveClass(/\bopen\b/);
+    await page.locator('#netYtdNudgeBtn').click();
+    await expect(page.locator('#payslipCardBody')).toHaveClass(/\bopen\b/);
+    await expect(page.locator('#ytdPay')).toBeFocused();
+    await expect(page.locator('#payslipCard')).toBeInViewport();
+
+    // One figure is not a pair: the estimate cannot use it yet, so the line stays.
+    await page.fill('#ytdPay', '13200');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await expect(line).toBeVisible();
+    // Both figures, stamped to the 23 Oct payslip: in use, so the line goes.
+    await page.fill('#ytdTax', '1650');
+    await page.dispatchEvent('#ytdTax', 'input');
+    await expect(page.locator('#ytdSrcSelect')).toHaveValue('57');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
+    await expect(line).toBeHidden();
+
+    // Quiet on a payslip already paid, and on one whose previous payslip is not out yet.
+    await page.locator('#periodSelect').selectOption('57');
+    await expect(page.locator('#netPeriod')).toContainText('23 Oct');
+    await expect(line).toBeHidden();
+    await page.locator('#periodSelect').selectOption('59');
+    await expect(page.locator('#netPeriod')).toContainText('18 Dec');
+    await expect(line).toBeHidden();
+    expect(errors, 'Uncaught JS exceptions on the Year to Date line').toHaveLength(0);
+});
+
+test('paycalc: Year to Date figures from an older payslip are asked for again', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '56');   // the 25 Sep payslip
+        localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '11000');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '1400');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
+    await expect(page.locator('#netYtdNudge')).toBeVisible();
+    await expect(page.locator('#netYtdNudge')).toContainText('from your 23 Oct payslip');
+    expect(errors).toHaveLength(0);
+});
+
 // ── THE PAYSLIP IN HAND BEFORE PAYDAY (72-hour review) ───────────────────────────────────────────
 // Payslips arrive before payday. Figures typed on 22 Sep 2026 may come from the 25 Sep payslip (cut
 // off 19 Sep), which the picker did not offer, so a member who had it in hand could not say so. The
