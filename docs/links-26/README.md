@@ -5801,7 +5801,7 @@ the 24-line `folderStats`) and, in the two modules, their import depths:
 | `tooling/report-data.mjs`, `tooling/cover-placement.mjs` (the 24-line ones, not this folder's) | `tooling/reference-24/` | `league.mjs`, for its Familiar Nine (24) row |
 | `proposals/Familiar-Nine-F9-24-K31s.json` | `tooling/reference-24/` | that row, and `leave.mjs --check`'s second case |
 | `presentations/Familiar-Nine-for-colleagues.pptx`, `…-for-managers.pptx` | `tooling/reference-24/` | `second-nature-decks.py`, which builds the template every deck in the pack starts from |
-| `tooling/default-baseline.mjs` | `tooling/default-baseline.mjs` | `.claude/rules/links-design.md` and `docs/LINKS_DEC2026_PLAN.md`, which quote what it prints |
+| `tooling/default-baseline.mjs` | `tooling/default-baseline.mjs` | `.claude/rules/links-design.md`, which sends a reader to it to measure the default, and `docs/LINKS_DEC2026_PLAN.md`, which quotes what it printed at 24 lines |
 | `proposals/Fifteen-Turns-FT-24-EXT.json`, `proposals/Weekday-Lates-WL-24-EXT.json` | `test-fixtures/links-designs/`, lower-cased as the fixtures there are | `links-compare.test.mjs` and `links-compare-analysis.test.mjs` |
 
 The Familiar Nine row could not simply go: it sits inside the main league's range (`REF_IN_RANGE=1`), so every score
@@ -5824,7 +5824,9 @@ folder gone from the disk:
 on 3 Nov (typically 2h 13m, largest 8h 51m, 4 of 26 over 2h; the script reproduces those on that day's tree). Three changes
 to `links-default-targets.js` on 5–6 Nov moved it, and the line was not re-measured: it is now typically 2h 37m, largest 8h 36m, 5 of
 26 over, still 10 unmeasurable across the cover weeks. Not caused by the removal; found because that line named the script
-being moved.
+being moved. **Since #1707, merged the same day, the rule file quotes no step figure for the default:** a pass over the
+rule files took dated measurements out of them, since they go stale as this one had. It quotes today's link's step only
+and sends a reader to `default-baseline.mjs` for the default, so the figures above are kept here and nowhere else.
 
 **Elsewhere.** The pack's read-me no longer offers `links-24-proposals.zip`, and `RULES.md` no longer points into the folder
 for the 24-line rules. ESLint, `payroll-anonymity.test.mjs` and `doc-parity.test.mjs` lost the folder from their patterns;
