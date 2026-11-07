@@ -185,11 +185,12 @@ What it costs, worst first: **Pay Calculator figures**, the one thing here that 
 the notice flags (so a notice can come round again); and the Usage card's counts, which see the tab
 and the installed app as two devices (`usage-reporter.js` keys its flags in localStorage).
 
-What the app does about it (since 7 Nov 2026): the install wording on the Calendar, in Settings and in the Staff
-Guide tells an iPhone member to copy their figures first with 💾 Move Your Pay Data and that they will
-sign in again; the Pay page says the figures are kept in this browser; the transfer card explains the
-iPhone split; an emptied calculator points at Restore; and on an iPhone the backup goes through the
-share sheet, so it can be saved to Files from a tab or the installed app. **What it cannot do** is
+What the app does about it (since 7 Nov 2026): the install wording on the Calendar and in Settings
+tells an iPhone member to copy their figures first with 💾 Move Your Pay Data and that they will sign
+in again (the Staff Guide, which has no printed line to spare, sends them to the Calendar to add it);
+the Pay page says the figures are kept in this browser; the transfer card explains the iPhone split;
+an emptied calculator points at Restore; and on an iPhone the backup goes through the share sheet, so
+it can be saved to Files from a tab or the installed app. **What it cannot do** is
 move the figures by itself (the two stores never meet), or protect a member who uses only a Safari tab
 and stays away for a week — telling them is the lever. Whether Safari grants `navigator.storage.persist()`
 (called by `requestPersistentStorage` in `ls.js`), and whether a grant would exempt a tab from the
@@ -841,6 +842,14 @@ re-record, that is the signal to store more than the type.
 
 ### No `inert` behind dialogs (focus is trapped; the background is not inert)
 Every dialog traps Tab/Shift+Tab — the nav panel and every lightbox through `createLightbox` (`overlay.js`) — and each is declared `role="dialog" aria-modal="true"`. Screen-reader users can still reach page content behind the overlay via browse mode: `inert` on background content is deferred (its only uses are local, in `admin-roster-upload.js` and `paycalc-inputs.js`). Android and iOS are both first class here, so this matters to TalkBack and VoiceOver alike.
+
+### The drawer does not pull back focus the iPhone keyboard's arrows move out of it
+The ‹ › arrows above the iPhone keyboard move focus to the previous or next text field in the document
+and fire no key event, so a Tab trap never sees them. Since 7 Nov 2026 every `createLightbox` dialog
+pulls such focus back (`_guardFocus`, `overlay.js`); the nav drawer, its two lightboxes and the Huddle
+viewer keep their own Tab traps and have no guard, so the arrows can leave the drawer's *Search the
+guides* box for a field behind it. Deferred because `nav-panel.js` is at its line cap; the device check
+is in `IPHONE_RELEASE_CHECKLIST.md` → B.
 
 ---
 

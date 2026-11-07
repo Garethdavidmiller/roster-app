@@ -64,11 +64,13 @@ keeping if an unrun check looks different from a passed one.
       Share is behind •••), then again from a link opened in Outlook, Teams or WhatsApp — both
       routes say what to do.
 - [ ] **The keyboard and search:** in the drawer, type "fip coupon " (with the space) in *Search the
-      guides*; on the Calendar, type four letters of a surname in the name picker; on Trains, type
-      "haddenham " in the station box. Results stay visible above the keyboard, nothing is
-      autocorrected, and the keyboard's Search key closes it.
-- [ ] **The keyboard's ‹ › arrows** inside an open dialog (the drawer search, a Links name prompt)
-      keep focus inside the dialog.
+      guides*; on the sign-in card, type four letters of a surname in the name picker's search; on
+      Trains, type "haddenham " in the station box. Results stay visible above the keyboard and
+      nothing is autocorrected. In the drawer and the picker the keyboard's Search key puts the
+      keyboard away; on Trains its Go key opens the first match.
+- [ ] **The keyboard's ‹ › arrows** inside an open dialog (a Links name prompt, the picker's search
+      over the sign-in card) keep focus inside the dialog. The DRAWER is not guarded yet — its own
+      trap catches Tab only — so note what the arrows do from its search box rather than failing it.
 - [ ] **Pay Calculator, no zoom:** Unusual deductions → *Any other payslip adjustment* — tapping the
       box does not zoom the page.
 - [ ] **Pay Calculator, keypad up:** focus the Rest Day Working hours (portrait and landscape). The
@@ -116,8 +118,9 @@ Install via Share → Add to Home Screen. **Reinstall if the manifest changed th
       name.
 - [ ] **An update while the app is away:** let a release land with the app in the background, return
       after 30 seconds — no unexpected reload and no "couldn't finish loading".
-- [ ] **Unsaved Links edits:** paint a few cells, spend a minute in another app (or swipe the app
-      away and reopen) — the page offers to restore them.
+- [ ] **Unsaved Links edits:** paint a few cells, swipe the app away and reopen it — the page offers
+      to restore them. (Back from another app with the page still alive, the edits are simply still
+      there: the offer is for a page that was reloaded or discarded.)
 - [ ] **Admin left open for a day:** return to it — the week shows what was booked elsewhere in the
       meantime.
 - [ ] **Durable storage (Web Inspector):** after a Pay Calculator save, `await
