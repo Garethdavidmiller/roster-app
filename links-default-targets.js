@@ -45,7 +45,7 @@
  * The 24-line table is GONE, not kept for reference (owner, 3 Oct 2026: "we can delete any 24 line
  * specific code"). A device that remembered it keeps that memory — it is no longer recognised as an
  * old default — and the generator refuses it with the hours gap named; one tap on "Use the
- * recommended Dec 2026 staffing" replaces it.
+ * Dec 2026 staffing" replaces it.
  *
  * ── WHAT THIS IS NOT ───────────────────────────────────────────────────────────────────────────
  *

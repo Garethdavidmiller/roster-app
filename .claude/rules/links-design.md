@@ -726,7 +726,7 @@ rotation can still be refused.
 
 ### The default table and the roster seed
 
-Two buttons, for two questions: *↺ Use the recommended Dec 2026 staffing* and *↺ Copy staffing from
+Two buttons, for two questions: *↺ Use the Dec 2026 staffing* and *↺ Copy staffing from
 today's roster*. A proposal wants both — design tomorrow, measure today. **Neither label may say
 "reset" without saying to WHAT**: with two of them, that word alone is the one thing a designer cannot
 act on.
