@@ -57,7 +57,7 @@
  */
 
 import { CONFIG, weeklyRoster } from './roster-data.js';
-import { DAYS, dayClass } from './links-design.js';
+import { DAYS, dayClass, isCoverWeek } from './links-design.js';
 
 /** Values that mean "this line is not working a timed duty on this day". */
 const NOT_A_DUTY = new Set(['RD', 'OFF', 'SPARE']);
@@ -134,8 +134,11 @@ export function buildRosterTargets(sources = rosterSeedLines()) {
         sun:     perDay[time].sun,
     }));
 
-    // Every fully-spare source line is one spare WEEK, so counting them gives the number directly.
-    const spareLines = sources.filter(src => src && DAYS.every(d => src[d] === 'SPARE')).length;
+    // Every cover-week source line is one spare WEEK, so counting them gives the number directly. A
+    // cover week is SPARE Monday to Saturday whatever its Sunday (`isCoverWeek`, the one rule the hours,
+    // the per-line totals and the contracted-days ceiling read); a worked Sunday on one is counted above
+    // as a Sunday duty, on top of the week's cover.
+    const spareLines = sources.filter(src => isCoverWeek(src)).length;
 
     return { slots, spareLines };
 }

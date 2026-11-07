@@ -99,6 +99,22 @@ describe('what is counted from them', () => {
         assert.equal(buildRosterTargets(sources).spareLines, 2);
     });
 
+    test('a cover week counts whatever its Sunday says — the rule the hours and the ceiling read', () => {
+        // `isCoverWeek`: SPARE Monday to Saturday, the Sunday not asked about, because it is not
+        // contracted. The seed used to demand all seven SPARE, so a cover week written with a rest-day
+        // Sunday, or a Sunday worked as overtime on top, measured one spare week short.
+        const SUN = '09:00-17:00';
+        const sources = [
+            line(RD, SP, SP, SP, SP, SP, SP),
+            line(E, E, E, E, E, RD, RD),
+            line(SUN, SP, SP, SP, SP, SP, SP),
+        ];
+        const { slots, spareLines } = buildRosterTargets(sources);
+        assert.equal(spareLines, 2);
+        // …and the worked Sunday is still a Sunday duty, counted on top of the cover.
+        assert.equal(slots.find(s => s.time === SUN)?.sun, 1);
+    });
+
     test('scattered spare days do NOT add up to a spare line, however many there are', () => {
         // THE CASE THAT SEPARATES THE TWO MODELS, and the one the first draft of this suite missed.
         // Seven lines carrying one spare day each is seven spare DAYS — which the v19.58 per-day
