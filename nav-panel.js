@@ -1324,7 +1324,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
                 <button type="button" id="navNoticesClose" class="lb-close" aria-label="Close">✕</button>
                 <div class="nav-cs-title">📣 App Notices</div>
                 <div id="navNoticesList" class="nav-notices-list"></div>
-                <div id="navNoticesEmpty" class="nav-notices-empty" hidden>No notices yet — check back soon.</div>
+                <div id="navNoticesEmpty" class="nav-notices-empty" hidden>Notices you’ve read on this device appear here.</div>
             </div>
         </div>`;
 

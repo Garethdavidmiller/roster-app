@@ -3601,3 +3601,17 @@ test('about: a bug report from a desktop browser says it was not the installed a
     expect(body).not.toContain('iOS version');
     expect(body).toContain('Browser: Mozilla/5.0 (Windows NT 10.0');
 });
+
+test('App Notices with nothing on this device says where notices appear, not that there were none', async ({ page }) => {
+    // The archive is this device's own storage, and Safari wipes it, and the installed app keeps a
+    // separate one — so an empty list says nothing about whether notices were posted.
+    await seedMember(page);   // marks the live notices done without archiving them: the list stays empty
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#navMenuBtn').click();                 // Reference is expanded by default (v20.09)
+    await page.locator('.nav-panel-link--notices').first().click();
+    const empty = page.locator('#navNoticesEmpty');
+    await expect(empty).toBeVisible();
+    await expect(empty).toHaveText('Notices you’ve read on this device appear here.');
+    await expect(empty).not.toContainText('No notices');
+});
