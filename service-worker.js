@@ -862,7 +862,7 @@ self.addEventListener("fetch", event => {
             // cache (`no-cache` — a revalidation, a 304 when unchanged) and stored. Freshness comes
             // from the version bump → new worker → new cache, as it always did.
             // `new Request(url, …)`, not opts on the existing Request: older Safari ignores a cache
-            // mode passed that way (CLAUDE.md → SW new Request(url) fetch pattern).
+            // mode passed that way (.claude/rules/pwa.md → SW new Request(url) fetch pattern).
             let network = null;
             if (!cached) {
                 network = fetch(new Request(event.request.url, {

@@ -64,7 +64,7 @@ Install via Share → Add to Home Screen. **Reinstall if the manifest changed th
 `name`, `short_name`, `start_url` and the shortcuts only reach an existing install on reinstall.
 
 - [ ] **Not an iPhone check: the launch splash that draws `name` in the device's own font.** That is
-      Chrome's splash on Android before 12 (CLAUDE.md → `manifest.json` `name` — keep it short and
+      Chrome's splash on Android before 12 (`.claude/rules/pwa.md` → `manifest.json` `name` — keep it short and
       ASCII) — check it on an Android phone.
 - [ ] **There is no system Back.** So every overlay must close on its own ✕ or backdrop: the day
       panel, the About panel, the nav drawer, a one-time notice, the Huddle viewer. Open two at

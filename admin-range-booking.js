@@ -213,7 +213,7 @@ export function createRangeBookingSection(cfg) {
 
     /**
      * The days this save deliberately LEAVES ALONE — rest days answered "Rest day — free" — and the
-     * subset that already holds leave (polish round 2). CLAUDE.md → "AL on a rest day is ASKED
+     * subset that already holds leave (polish round 2). .claude/rules/admin.md → "AL on a rest day is ASKED
      * about": the receipt names the days it left alone, on BOTH surfaces, because a save may not do
      * nothing silently. The week grid did (v23.88/v23.93); this card said only "Recorded N days".
      *

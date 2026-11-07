@@ -294,7 +294,7 @@ export function workedRunLengths(seq) { return runLengthsWhere(seq, s => !isRest
 /**
  * Classify a shift value into a colour/count class.
  * CEAs do not work nights — 'night' exists only as a defensive catch for
- * legacy or imported data (see CLAUDE.md → Links design model).
+ * legacy or imported data (see .claude/rules/links-design.md → Design and save model).
  * @param {string} shift
  * @returns {'rd'|'spare'|'early'|'late'|'night'}
  */

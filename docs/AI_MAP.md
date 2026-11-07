@@ -36,7 +36,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | What the Calendar knows about each month, and so what it may show | `calendar-data-state.js` |
 | The Calendar's access gate, the cards that stand in for it, and its pure rules | `calendar-access.js` · `calendar-lock-cards.js` · `calendar-lock-slot.js` · `calendar-access-core.js` |
 | The member's own roster kept on the device, shown labelled before the sign-in check finishes | `calendar-snapshot.js` |
-| The Calendar page's one-time notices (which are live: CLAUDE.md → "Current notices") | `calendar-notices.js` |
+| The Calendar page's one-time notices (which are live: the new-notice skill → "Current notices") | `calendar-notices.js` |
 | Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
 | The phone's text scale, measured rather than asked, for the Calendar's control rows — LARGE_FROM, LARGE_VALUE, COMPACT_FROM, COMPACT_VALUE, tierFor, isCompact, measureTextScale, applyTextScale | `text-scale.js` |
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, dayCellParts, dayCellName, getSwipeDirection | `calendar-renderer.js` |
@@ -601,7 +601,7 @@ five things it protects. Feature design: `OVERTIME_AVAILABILITY.md`.
 
 ### `calendar-notices.js`
 The Calendar page's one-time notices, in one place — a `/new-notice` for `index.html` lands here. The
-notice HTML stays in `index.html`; which notices are wired and live: CLAUDE.md → "Current notices".
+notice HTML stays in `index.html`; which notices are wired and live: the new-notice skill → "Current notices".
 - `initCalendarNotices({ after })` — called once by `calendar-app.js`. Every notice waits for
   `calendarAccessReady` AND `after` (the forced set-password step), then 1,500 ms past the Huddle
   auto-open, and opens through `openNoticeIfClear`, never `open()`.
@@ -1274,7 +1274,7 @@ Asking to be taken off a Sunday you are ROSTERED to work. Pure: one predicate, o
 - **It grants nothing** — no override, no roster change, no leave — and no surface may word it as agreed (`docs/OVERTIME_AVAILABILITY.md` invariant 14). The control is in `overtime-form.js`; `functions/overtime-core.js` stores it as `releaseRequested`.
 
 ### `al-swapped-days.js`
-Which days in an annual-leave booking need the SWAPPED-DAY question, and what to write when the answer is yes. Pure, no DOM. Leave on a base-roster rest day costs nothing unless the member swapped a working day onto it, which only the person booking knows — so both booking surfaces ASK, only when a day is affected, and never default; both rules are the owner's (CLAUDE.md → "AL on a rest day is ASKED about"). The defect it closes, and why "rest day" is not the whole test: the header.
+Which days in an annual-leave booking need the SWAPPED-DAY question, and what to write when the answer is yes. Pure, no DOM. Leave on a base-roster rest day costs nothing unless the member swapped a working day onto it, which only the person booking knows — so both booking surfaces ASK, only when a day is affected, and never default; both rules are the owner's (.claude/rules/admin.md → "AL on a rest day is ASKED about"). The defect it closes, and why "rest day" is not the whole test: the header.
 - `swapDecisionDates({ dates, memberObj, ovByDate })` → the dates needing an answer, ascending. Never a Sunday, Christmas Day or Boxing Day (leave there costs nothing whatever the answer), or a day whose record already settles the contract question — read through leave and an absence to what they replaced (`contractEvidence`), with the helpers `consumesEntitlement` uses, so the two cannot drift. **Pass `ovByDate`**: without it a settled day is asked again.
 - `replacedTypeForSwap(existing, newType)` → the `replacedType` for a declared swap: `'shift'`, unless the record already names stronger contracted work (`spare_shift`, `other`), which it keeps. Every value is in the vocabulary `firestore.rules` validates.
 - `rangeWriteDates({ type, dates, memberObj, ovByDate, swappedDates })` → the dates `recordRangeOverrides` writes: an asked date only when answered swapped ("Rest day — free" writes nothing), every other date by `isWorkingDate`. Absence is never asked, so an absence range is unchanged.
@@ -1779,7 +1779,7 @@ The "Needs attention" strip on `operations.html`: an index of exceptional card s
 - Fed by the reset-request refresh and the account-setup audit (`operations-app.js`) and the Error Log (`operations-errors.js`), at the moments the card header chips update, so the strip and the chips cannot disagree. A failed card load reports nothing.
 
 ### `nav-panel.js`
-The slide-out drawer every app page carries: it injects the overlay and drawer, wires the burger (`#navMenuBtn`), and renders the footer (initials badge, notification bell, Sign out). The three zones and the rules each keeps are the module header and CLAUDE.md → "Nav panel"; the reasoning is beside the code. Tested by `nav-panel.test.mjs`. **At its line cap** (`coordinator-ratchet.test.mjs`).
+The slide-out drawer every app page carries: it injects the overlay and drawer, wires the burger (`#navMenuBtn`), and renders the footer (initials badge, notification bell, Sign out). The three zones and the rules each keeps are the module header and .claude/rules/nav-drawer.md; the reasoning is beside the code. Tested by `nav-panel.test.mjs`. **At its line cap** (`coordinator-ratchet.test.mjs`).
 - `initNavPanel({ currentPage, memberName, onSignOut, beforeSignOut, isAdmin, isLinksDesigner, canOpenOvertime, canOpenNewlink, onLogoClick, authReady, onLockCalendar, canReadDocuments })` — call once; a second call returns early (`burger.dataset.navPanelInit`). The four permission flags decide which `NAV_PAGES` pills appear (`adminOnly`, `linksDesignerOnly`, `overtimeAudienceOnly`, `newlinkAudienceOnly`); the current page is an inert `aria-current` pill, never omitted. `memberName` with `onSignOut` shows the footer. `onLogoClick` opens the page's About panel once the drawer's Back echo has landed. `onLockCalendar` (`{ isViewer, lock }`) is the PIN viewer's Lock row on the Calendar and Trains. `authReady` is awaited, bounded, before a document read; `canReadDocuments` is the Calendar's document gate.
 - **Sign out runs in a fixed order**: `beforeSignOut` first (resolving `false` cancels), then `releaseDevicePush` (`notif.js`), then `onSignOut`. A cancel after the release would leave a signed-in device with no push record.
 - `resetNavPanel()` — tears the drawer down (injected DOM, the burger's listeners, the guard, module state) so a later `initNavPanel` rebuilds it with a fresh identity; Admin's in-place re-sign-in uses it.
@@ -1868,7 +1868,7 @@ The bar that keeps the take-home figure on screen. `initPaycalcStickyTotal()` �
 The Admin week grid's swipe gesture and week arrows, which share one cooldown so a swipe and a press cannot both commit.
 - `initAdminWeekSwipe({ weekGrid, fieldDate, prevWeekBtn, nextWeekBtn, canNavigate, onWeekCommitted, onSettled, shiftWeek })`.
 - A pointer state machine and a carousel: it decides when a drag is a horizontal swipe (nothing starts until the intent is confirmed), builds the adjacent week panels, animates the commit and holds the cooldown. **It holds no business rule**: what a week change means stays in `admin-app.js` behind `onWeekCommitted` and `onSettled`, and whether the move may happen at all is `canNavigate`.
-- Deliberately not shared with `calendar-swipe.js` (the header says why). Two rules from CLAUDE.md: Pointer Events, never Touch Events, and `setPointerCapture` on the GRID, not the clip.
+- Deliberately not shared with `calendar-swipe.js` (the header says why). Two rules: Pointer Events, never Touch Events (CLAUDE.md), and `setPointerCapture` on the GRID, not the clip (`.claude/rules/admin.md`).
 
 ### `overtime-review-controller.js`
 The reviewer's side of `overtime.html`: the planning horizon, the week selection, the detail workspace, the grade and day lenses, the creation preview and the confirm bar. Overtime is paused — `docs/OVERTIME_AVAILABILITY.md` → Paused.
