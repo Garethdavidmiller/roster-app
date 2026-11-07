@@ -427,7 +427,7 @@ test('admin: the Calendar pill opens the Calendar on the month being edited, a f
 });
 
 // ── THE ABOUT PANEL'S LINKS ASK TOO (iPhone audit, Nov 2026) ─────────────────────────────────────
-// "View staff roster" and "View quick guide" sit in the About panel (#iconLightbox), outside the
+// "View staff roster" and "Staff & Admin Guide" sit in the About panel (#iconLightbox), outside the
 // drawer, and the in-page question looked for drawer links alone — so on an iPhone, where the browser
 // never asks, either one left staged rows behind without a word. Report a bug is mail, and leaves
 // nothing behind, so it never asks.

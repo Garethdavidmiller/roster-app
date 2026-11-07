@@ -2116,6 +2116,10 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await day.getByRole('radio', { name: 'All day', exact: true }).click();
         await expect(day).toHaveClass(/ot-day--changed/);
         await page.locator('.ot-submit').click();
+        // The request must have REACHED the route before the budget runs out. Jumped at once, the 65s
+        // timer could fire first, and the re-read rightly said "it never reached the server" (seen 1
+        // run in 290 under load, desktop audit, Nov 2026). Not a sleep: the count is the condition.
+        await expect.poll(() => submits, 'the submit reached the server stub').toBe(1);
         await page.clock.fastForward(70_000);            // past the 65s budget
         await expect(page.locator('.ot-feedback')).toContainText('did save');
         await expect(page.locator('.ot-day--changed'), 'told it saved, so nothing is pending')

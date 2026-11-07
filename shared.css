@@ -1916,6 +1916,10 @@ button.lightbox-bug-link {
     .notice-cta:hover { background-color: var(--accent-gold-dark); }
 }
 .notice-cta:active { transform: scale(var(--press-scale)); }
+/* A primary button on the sheet wears its CTA's gold: navy, it vanished into the navy (Pay's "Yes, it's mine"). */
+.notice-lb-content .btn-primary { background-color: var(--accent-gold); color: var(--primary-blue); }
+.notice-lb-content .btn-primary:active { background-color: var(--accent-gold-dark); }
+@media (hover: hover) and (pointer: fine) { .notice-lb-content .btn-primary:hover { background-color: var(--accent-gold-dark); } }
 
 /* Secondary dismiss — a muted text button, full width beneath the CTA so the pair reads as one
    stacked control rather than a button with a stray word under it. */

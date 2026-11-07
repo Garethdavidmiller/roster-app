@@ -517,6 +517,23 @@ test('paycalc: the data-ownership prompt opens for legacy data, and alone', asyn
     // must never sit in front of a decision about whose pay data this device is holding.
     await expect(page.locator('#noticeYtdLightbox.visible')).toHaveCount(0);
 
+    // Both answers must read as BUTTONS on the navy sheet (desktop audit, Nov 2026): the primary was
+    // navy on navy, 1:1, so "Yes, it's mine" was words with no button round them. 3:1 is WCAG's floor
+    // for a control's edge. A canvas reads each computed colour back as RGB, whatever its notation.
+    const edges = await page.evaluate(() => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
+        const rgb = (/** @type {string} */ c) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        const lum = (/** @type {number[]} */ c) => c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const fill = (/** @type {string} */ id) => lum(rgb(getComputedStyle(/** @type {Element} */ (document.getElementById(id))).backgroundColor));
+        const sheet = fill('dataOwnerContent');
+        return ['dataOwnerMine', 'dataOwnerFresh'].map(id => {
+            const [hi, lo] = [fill(id), sheet].sort((a, b) => b - a);
+            return { id, ratio: Math.round((hi + 0.05) / (lo + 0.05) * 100) / 100 };
+        });
+    });
+    for (const { id, ratio } of edges) expect(ratio, `#${id} against the navy sheet`).toBeGreaterThanOrEqual(3);
+
     // WHAT THIS CAN AND CANNOT CATCH, measured by mutation rather than assumed. Two INDEPENDENT
     // guards keep the notice out: `_ownerPending` (will-open) and `openNoticeIfClear` (is-open).
     // Removing EITHER leaves this test green, because the other still holds — so a single-guard
