@@ -27,7 +27,7 @@ const fingerprint = p => createHash('sha256')
 
 /** The supplied designs: a grid, a name, a strap line and a code. */
 // 26 LINES (1 Oct 2026; nine by 3 Oct). Each 26-line design is one entry, in the shape the 24-line list used
-// (../../links-24/tooling/regenerate.mjs): { file, name, code, fp, strap }, the code carrying -26- (e.g. AB-26-EXT).
+// (docs/links-24/tooling/regenerate.mjs, removed 7 Nov 2026; `git checkout 924b9dbc -- docs/links-24` restores it): { file, name, code, fp, strap }, the code carrying -26- (e.g. AB-26-EXT).
 // A design ships into proposals/ unless its entry says `dir:` — one of report-data.mjs's PACK_DIRS — after its fp
 // (4 Nov 2026: the links where 14 days' leave buys 30 days off live in 30-days-off/, and are the pack all the same).
 export const SUPPLIED = [

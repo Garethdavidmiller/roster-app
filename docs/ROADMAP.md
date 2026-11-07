@@ -599,7 +599,7 @@ names what is happening; the five switches are depth.
 
 **The trigger is the owner.** It is a visible change to the card a designer uses most, the December
 2026 proposals are being settled against its checks right now (drawn by the `docs/links-26/tooling`
-scripts running the Links modules under Node — `docs/links-24/` has been frozen since 1 Oct 2026 — or supplied as grids and imported — not in this card), and two of this app's collapse decisions have been
+scripts running the Links modules under Node — `docs/links-24/` was frozen on 1 Oct 2026 and removed on 7 Nov — or supplied as grids and imported — not in this card), and two of this app's collapse decisions have been
 reverted after shipping (the admin task navigator, the drawer's notification row). It wants a
 decision, not a sweep. If it goes ahead, `links-tips.js`'s "The default table" section and the
 generator card's one `.links-desc` sentence move with it — the desktop left-edge e2e check counts

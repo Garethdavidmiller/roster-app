@@ -1,7 +1,7 @@
 # The rules — the new CEA link, 26 lines
 
 **Set on 1 October 2026.** This is the one list every 26-line design is judged against. It is the 24-line
-rule set (`../links-24/links-24-rules.pdf` in the app's repository, built by `../links-24/tooling/rules-sheet.mjs`) with **six
+rule set (the 24-line pack's `links-24-rules.pdf`, kept in the app's repository until 7 November 2026) with **six
 changes**, each marked **▲ CHANGED**: four set on 1 Oct, the weekday-closer rule (F3) added on 31 Oct, and the Saturday
 ticket-office late (S5) corrected on 6 Nov. Every other rule was reviewed and kept as it was.
 

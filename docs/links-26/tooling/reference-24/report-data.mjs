@@ -1,13 +1,18 @@
 // Everything the PDF states, computed by the app's own modules for BOTH the live roster and the proposal.
+// KEPT FROM THE 24-LINE WORK (moved here from docs/links-24/tooling on 7 Nov 2026, when that folder was removed;
+// restore it whole with `git checkout 924b9dbc -- docs/links-24`). Unchanged but for its import depths: league.mjs
+// scores the Familiar Nine (24) reference row with it, and that row sits inside the main league's range, so every
+// score in the pack depends on it reading Familiar Nine exactly as it always has. Do not fold it into the 26-line
+// report-data.mjs one folder up: the two have diverged since, and the row's figures are this module's.
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { asRosteredRuns, materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs';
-import { runDesignChecks, weeklyHours, lineTotals, calcHourlyCoverage, classifyShift, startMinutes, endMinutes, endMinutesAbs, dutyMinutes, DAYS, hmFromHours } from '../../../links-design.js';
-import { assessFatigue, maxHoursInAny7Days, toSequence } from '../../../links-fatigue.js';
-import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from '../../../links-limits.js';
-import { scoreOrder, reorderLines, applyOrder, OBJECTIVES } from '../../../links-adjacency.js';
-import { DEC_2026_DEMAND, demandBucket, peakCars, movementsOutside, DEC_2026_MOVEMENTS } from '../../../links-demand.js';
-import { weeklyRoster } from '../../../roster-cycle-data.js';
+import { runDesignChecks, weeklyHours, lineTotals, calcHourlyCoverage, classifyShift, startMinutes, endMinutes, endMinutesAbs, dutyMinutes, DAYS, hmFromHours } from '../../../../links-design.js';
+import { assessFatigue, maxHoursInAny7Days, toSequence } from '../../../../links-fatigue.js';
+import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from '../../../../links-limits.js';
+import { scoreOrder, reorderLines, applyOrder, OBJECTIVES } from '../../../../links-adjacency.js';
+import { DEC_2026_DEMAND, demandBucket, peakCars, movementsOutside, DEC_2026_MOVEMENTS } from '../../../../links-demand.js';
+import { weeklyRoster } from '../../../../roster-cycle-data.js';
 
 // Early / late for the one-turn and mixing counts. The managers' edition splits at 11:00, as every sheet defines an
 // early (accuracy check, 28 Sep 2026 — at 09:00 a week could count as one shift time AND as mixing early and late);
@@ -393,6 +398,8 @@ export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') 
  *  claim. Read at render time from `<Name>-<CODE>.json`; the sheet being rendered is in the set, which is
  *  what "best in the folder is this one" means. Cached per process. */
 let _folder = null;
+// The 24-line proposals folder this defaulted to went with docs/links-24 (7 Nov 2026): the default now names
+// docs/links-26/tooling/proposals/, which does not exist, so a call without `dir` fails. Nothing calls it.
 export function folderStats(dir = new URL('../proposals/', import.meta.url)) {
   if (_folder) return _folder;
   const T0 = today(); const TA = { patterns: T0.patterns, ...assess(T0.patterns, T0.lines) }; const todays = new Set(TA.tableRows.map(r => r.time));

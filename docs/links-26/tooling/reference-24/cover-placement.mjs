@@ -1,5 +1,9 @@
 // The two readings of a cover week, and why a sheet has to print both.
 //
+// KEPT FROM THE 24-LINE WORK (moved from docs/links-24/tooling on 7 Nov 2026, with reference-24/report-data.mjs, which
+// imports it). It is NOT the 26-line cover-placement.mjs one folder up — the two differ — and it is unchanged here but
+// for its import depths.
+//
 // ── THE QUESTION ────────────────────────────────────────────────────────────────────────────────
 // A cover week is SPARE on all seven days and worked on four of them (`SPARE_WORKED_DAYS`), and
 // nothing in the link says WHICH four — the roster clerk places them. Every run-based rule therefore
@@ -41,8 +45,8 @@
 // "how many 8-hour duties in a row" must assume a cover duty is one, and a row that asks about
 // early starts must assume it is early. Handing every row the same sentinel would let a rule go
 // quiet on the cover week, which is the v21.98 defect one level down.
-import { DAYS, SPARE_WORKED_DAYS, ROTATING_LINES, runLengthsWhere, worstCaseWorkedRun, dutyMinutes } from '../../../links-design.js';
-import { longestRunBetween48hBreaks, isEarlyStart, toSequence } from '../../../links-fatigue.js';
+import { DAYS, SPARE_WORKED_DAYS, ROTATING_LINES, runLengthsWhere, worstCaseWorkedRun, dutyMinutes } from '../../../../links-design.js';
+import { longestRunBetween48hBreaks, isEarlyStart, toSequence } from '../../../../links-fatigue.js';
 
 /** The block placements of a cover week's four duties: true = worked. */
 export const BLOCK_PLACEMENTS = [0, 1, 2, 3].map(start =>

@@ -1,5 +1,5 @@
 # THE SECOND NATURE PRESENTATIONS (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis").
-# The two Familiar Nine decks (../../links-24/presentations/, the template Right Away's were made from too) are copied
+# The two Familiar Nine decks (reference-24/, kept from the 24-line work, the template Right Away's were made from too) are copied
 # and every Familiar-Nine-specific word and figure is replaced, shape by shape, so the design is theirs unchanged.
 # The figures were not typed from memory: they are deck-check.mjs --print (the sheets' own counts) and leave.mjs (the
 # leave model, checked against the 24-line decks' published figures), and deck-check.mjs reads the finished decks back
@@ -11,7 +11,7 @@ import re, shutil, zipfile, tempfile, os, io
 from xml.sax.saxutils import escape
 import openpyxl
 
-SRC = 'docs/links-24/presentations'
+SRC = 'docs/links-26/tooling/reference-24'   # the two Familiar Nine decks, moved from docs/links-24/presentations on 7 Nov 2026
 # Second Nature's decks are the TEMPLATE every shipped deck is built from, and are no longer shipped themselves (owner,
 # 3 Oct 2026: only the shortlist's presentations are kept). They are built into a gitignored folder and read from there.
 OUT = 'docs/links-26/tooling/deck-template'

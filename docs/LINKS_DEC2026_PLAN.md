@@ -10,8 +10,10 @@ authoritative for how the workspace is built.*
 > says Dec 2026 it means the timetable change; anywhere the code says 26 Dec it means Boxing Day.
 
 > **26 LINES, NOT 24 (1 Oct 2026).** The December 2026 link was confirmed on 1 Oct 2026 as **26 lines**. Everything
-> below that says 24 describes the work done before then. That work is kept, unchanged, in `docs/links-24/` (it was
-> `docs/proposals/`) for reference and in case the 24-line link returns. The work from here on is in `docs/links-26/`,
+> below that says 24 describes the work done before then. That work was kept, unchanged, in `docs/links-24/` (it was
+> `docs/proposals/`) until 7 Nov 2026, when it was removed as no longer of use (owner); `git checkout 924b9dbc --
+> docs/links-24` restores it, and every `docs/links-24/` path below names it as it was. The few files still read were
+> moved out first, to `docs/links-26/tooling/reference-24/` and `test-fixtures/links-designs/`. The work from here on is in `docs/links-26/`,
 > whose README lists what carries over and what has to be recomputed. **The 26-line rules are `docs/links-26/RULES.md`**
 > (owner, 1 Oct 2026): five cover weeks as evenly spread as 26 allows, and 219 contracted days a year or fewer.
 
@@ -488,7 +490,7 @@ every objective in it was a preference. It can make a design worse than the one 
 **The run cap does not always reach its target, and the reason is a decision for the room.** The
 "Most shifts in a row" box defaults to **6**. With that switch on alone the reorder reaches 6; with
 the full set on it reaches **8** on the roster seed (the shipped December default reaches 7, with 5
-of 24 weekends off — `docs/links-24/tooling/default-baseline.mjs`), and the status line says so rather than letting the box imply a
+of 24 weekends off — measured at 24 lines by `default-baseline.mjs`, now in `docs/links-26/tooling/`), and the status line says so rather than letting the box imply a
 guarantee.
 
 It could be made to reach 6 with the full set on. Re-measured after the spare-spread fix — the
@@ -775,7 +777,7 @@ Ordered by how much they change if the answer is unexpected.
    over 2h** — the baseline to read any proposal's figure against, and the number to take into the
    conversation below. For comparison the workspace's December default, generated with every
    line-order objective on, measures typically 4h 16m, largest 8h 37m, 8 of 24 over 2h
-   (`docs/links-24/tooling/default-baseline.mjs`).
+   (measured at 24 lines by `default-baseline.mjs`, now in `docs/links-26/tooling/`, where it measures at 26).
 
    The STATUS deliberately stays `standing` whenever the step is measurable rather than turning
    `present` above some figure: the ORR gives no threshold for FF18, so inventing one would be the

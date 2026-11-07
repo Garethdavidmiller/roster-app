@@ -41,7 +41,7 @@
 // as it was read. The JSON says which (`famSunday`).
 import fs from 'fs';
 const R = new URL('../../', import.meta.url).pathname;   // docs/
-const M24 = await import(R + 'links-24/tooling/report-data.mjs'), M26 = await import(R + 'links-26/tooling/report-data.mjs');
+const M24 = await import(R + 'links-26/tooling/reference-24/report-data.mjs'), M26 = await import(R + 'links-26/tooling/report-data.mjs');
 const { scoreOrder } = await import(new URL('../../../links-adjacency.js', import.meta.url).href);
 const { leave } = await import(R + 'links-26/tooling/leave.mjs');
 const { daysAYear } = await import(R + 'links-26/tooling/link.mjs');
@@ -76,7 +76,7 @@ const HI = { lerl: 0, close: 0, met: 1, fit: 0, fat: 0, rest: 1, run: 0, wkends:
 const LABEL = { met: 'December rules met', fit: OLD ? 'Fit to the trains' : 'Fit to the trains, by days', fat: 'Fatigue warnings (worst case)', rest: 'Shortest rest', run: 'Longest run (worst case)', wkends: 'Full weekends, share of weeks', gap: 'Longest wait between weekends', iso: 'Single rest days, per working week', mixed: 'Mixed weeks, share', one: 'One-turn weeks, share', step: 'Start-time change, week to week', heavy: 'Heaviest week', late: 'Late finishes a year', fam: FAM_SUNDAY ? 'Familiar shift times, share' : 'Familiar shift times, Mon–Sat duties, share', lvBest: 'Leave: best stretch', lvWorst: 'Leave: worst stretch', lvFour: 'Leave for four weeks off', days: 'Contracted days a year', lerl: 'Earlies over 8h30, Mon–Sat, a year', close: 'Closing shift, Mon–Sat average' };
 // WEIGHTS=k:v,… (27 Oct 2026): these factors at these weights instead, every other left out. The 24-line work's standing
 // league is WEIGHTS=met:35,fat:20,fit:20,wkends:10,fam:10,run:5 with the proposals alone setting the range (links-24
-// README → Silva Lining); its published scores come back to within 0.1 that way with OLD_READINGS=1 (the fit and fatigue as
+// README → Silva Lining; that folder was removed on 7 Nov 2026, `git checkout 924b9dbc -- docs/links-24`); its published scores come back to within 0.1 that way with OLD_READINGS=1 (the fit and fatigue as
 // they were read then), fatigue and the run read at the worst case
 if (process.env.WEIGHTS) { const pairs = process.env.WEIGHTS.split(',').filter(Boolean).map(x => x.split(':'));
   for (const [k] of pairs) if (!(k in W)) { console.error(`WEIGHTS: no factor "${k}" (factors: ${Object.keys(W).join(', ')})`); process.exit(2); }
@@ -98,7 +98,7 @@ for (const spec of (process.env.EXTRA ?? '').split(';').filter(Boolean)) {
   const i = spec.indexOf('='); if (i < 1) { console.error(`EXTRA: "${spec}" is not Name=grid.json`); process.exit(2); }
   const name = spec.slice(0, i); if (P.some(r => r.name === name)) { console.error(`EXTRA: "${name}" is already a proposal`); process.exit(2); }
   const j = JSON.parse(fs.readFileSync(spec.slice(i + 1), 'utf8')); P.push(stat(M26, name, j.patterns ?? j, 26, false)); }
-P.push(stat(M24, 'Familiar Nine (24)', load('links-24/proposals/Familiar-Nine-F9-24-K31s.json'), 24, false));
+P.push(stat(M24, 'Familiar Nine (24)', load('links-26/tooling/reference-24/Familiar-Nine-F9-24-K31s.json'), 24, false));
 const today = stat(M26, "Today's link", M26.today().patterns, 20, true);
 const fmt = (k, v) => k === 'fit' || k === 'late' || k === 'days' || k === 'lerl' ? v.toFixed(1) : k === 'rest' || k === 'step' || k === 'close' ? `${Math.floor(v / 60)}h${String(Math.round(v % 60)).padStart(2, '0')}` : k === 'heavy' ? `${Math.floor(v)}h${String(Math.round(v % 1 * 60)).padStart(2, '0')}` : ['wkends','iso','mixed','one','fam'].includes(k) ? `${Math.round(v * 100)}%` : String(v);
 // REFERENCE ONLY (owner, 3 Oct 2026): today's link and Familiar Nine are scored against the PROPOSALS' range, clamped

@@ -22,7 +22,7 @@ import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.
  *  rule, the minimum proven by an exact solver (tooling/exact/). `exact-waived`: the same, with rules the owner
  *  waived for that design (WAIVERS, below). */
 // 26 LINES (1 Oct 2026; nine designs by 3 Oct): a design's one-line description and how it was made go here, by code,
-// exactly as the 24-line sheets' did (../../links-24/tooling/fresh.mjs keeps theirs).
+// exactly as the 24-line sheets' did (docs/links-24/tooling/fresh.mjs kept theirs — removed 7 Nov 2026; `git checkout 924b9dbc -- docs/links-24` restores it).
 // 6 NOV 2026 — THE SATURDAY TICKET OFFICE TO 22:30 (RULES.md S5; README.md → "The Saturday ticket office to 22:30"). Every
 // design's two Saturday office lates moved from 22:00 to 22:30 and its Saturday floor lates gave the half hour back, so
 // three headlines were reworded to stay true: Fine Tune's and Even Keel's heaviest week is now 42h 00m (it was 41h 30m),

@@ -5,8 +5,11 @@ Until then this folder called it "the December 2026 link", and the dated section
 with; *The new link starts on 1 January 2027* at the end says what changed. The "December 2026 rules" keep their name,
 because they are the new timetable's.
 
-**From 1 Oct 2026 the new link is 26 lines, not 24.** Everything drawn for 24 lines is kept in `../links-24/` — the
-grids unchanged, the sheets re-rendered once (2 Oct 2026, for the per-year weekends line) — both for reference and in case the 24-line link comes back. This folder is for the work from here on.
+**From 1 Oct 2026 the new link is 26 lines, not 24.** Everything drawn for 24 lines was kept in `../links-24/` — the
+grids unchanged, the sheets re-rendered once (2 Oct 2026, for the per-year weekends line) — until 7 Nov 2026, when it was
+removed as no longer of use (owner). `git checkout 924b9dbc -- docs/links-24` restores it whole, and every `../links-24/`
+path below names it as it was. The eight files still read were moved out first, unchanged — see *Links 24 removed*, near
+the end. This folder is for the work from here on.
 
 The 24-line work is not wasted. The rules, the duty tables, the tooling and the designs all carry over. What has to
 change is the arithmetic that depends on the number of lines.
@@ -78,7 +81,8 @@ reviewed*).
 
 ## What is in this folder
 
-The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, owner: "consistent naming"):
+The two link folders, `links-24` and `links-26`, shared one layout (2 Oct 2026, owner: "consistent naming"; `links-24` was
+removed on 7 Nov 2026):
 
 | | What it is |
 |---|---|
@@ -90,7 +94,7 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 | `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: the three shortlisted designs', and In Step's, kept from when it was on the shortlist |
-| `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
+| `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs, and `tooling/reference-24/` the few 24-line files they still read (since 7 Nov 2026) |
 | `RULES.md` | the rules in prose, with their sources and the open questions (26 lines only) |
 | `README.md` | this record — the repository's working record, not part of the pack (left out of the zip since 5 Nov 2026, owner) |
 
@@ -113,7 +117,7 @@ ceiling allows **at most 89 Monday-to-Saturday duties, averaging at least about 
 - **The rules, in their three tiers,** with the changes above: the 3 hard limits (plus the 219-day ceiling, which is hard too), the 9 December staffing rules
   and the 3 flexible rules. See `RULES.md`.
 - **The shift-time sets** of the strongest 24-line designs, as starting points:
-  - **Familiar Nine** (`../links-24/proposals/Familiar-Nine-F9-24-K31s.json`): every rule met, 14 of 20 weeks on one turn.
+  - **Familiar Nine** (`tooling/reference-24/Familiar-Nine-F9-24-K31s.json` since 7 Nov 2026): every rule met, 14 of 20 weeks on one turn.
   - **Right Away** (`../links-24/proposals/Right-Away-FR-24-F34s.json`).
   - **Silva Lining** (`../links-24/proposals/Silva-Lining-SL-24-Hs.json`, version H of its series): 14 times, no fatigue warnings, a
     9-hour cap.
@@ -126,8 +130,8 @@ The 24-line pipeline, copied and set to 26 lines. **`tooling/link.mjs` states th
 tables are built to (15 a weekday, 14 on a Saturday, 10 on a Sunday). The sheets, the decks and the checks read those
 from there; the search and solver scripts (`skeleton.mjs`, `skeleton-start.mjs`, `exact-*.py`, `short-earlies.mjs`)
 carry their own copy of the link's shape, so a change of length is that edit and theirs (`link.mjs` says so). The
-24-line tooling is in `../links-24/tooling/`, changed only for the per-year weekends line of 2 Oct 2026, so that pack can
-still be rebuilt.
+24-line tooling was in `../links-24/tooling/`, changed only for the per-year weekends line of 2 Oct 2026, until it went
+with that folder on 7 Nov 2026; two of its modules live on in `tooling/reference-24/`, for the league's Familiar Nine row.
 
 **What it checks, beyond the 24-line set** (`RULES.md`):
 - **Cover weeks:** five, with gaps differing by one line at most (`coverSpread`). It is a flexible rule, as before.
@@ -137,7 +141,7 @@ still be rebuilt.
 - **No waivers and no named offices** are carried over from 24 lines (`fresh.mjs`, `report-data.mjs`).
 
 **The scripts kept** are the ones the Familiar Nine / Right Away method uses. The one-off searches for particular
-24-line designs stay in `links-24` only.
+24-line designs stayed in `links-24` only, and went with it on 7 Nov 2026.
 
 | Stage | Script | What it does |
 |---|---|---|
@@ -271,7 +275,8 @@ limit, and has **no avoidable fatigue warnings**, even with a cover week placed 
    from those grown starts (Familiar Nine, Right Away, Silva Lining) and from random ones. The best were searched again
    at a lower temperature and polished, with no figure allowed to get worse. Silva Lining's weeks gave the best result.
 
-**Rebuild it** (from `tooling/`; every step is deterministic, and this reproduces the shipped grid exactly):
+**Rebuild it** (from `tooling/`; every step is deterministic, and this reproduces the shipped grid exactly — Silva
+Lining's grid, its first input, went with `docs/links-24` on 7 Nov 2026, so restore that folder first):
 
 ```
 TOP=1 MODE=rules node grow-from-24.mjs results/second-nature-table.json /tmp/sn ../../links-24/proposals/Silva-Lining-SL-24-Hs.json
@@ -5759,6 +5764,72 @@ FIX=level-crossing.json SKELETON=crossover.json OBJ=gentle GENTLE_STARTS=15:45 G
 - `factors-like.mjs crossover.json level-crossing.json`: every fatigue value Crossover's but the most hours in any seven
   days, 50h 30m against 50h 10m;
 - in the league, no other design's score moved.
+
+## Links 24 removed (7 Nov 2026)
+
+**The ask** (owner, 7 Nov 2026): *"Would it cause any damage to lose the links 24 work from the repo now, that is no longer
+of use?"*; told that it would if deleted wholesale and not if the few live files moved first, *"Do it, but carefully. Don't
+break anything. Then bug and regression check that work"*.
+
+**What went:** `docs/links-24/`, 235 tracked files and 33.1 MB — the README, the hand-zipped `links-24-proposals.zip`, the
+rules and summary PDFs, `presentations/` (8), `proposals/` (33), `silva-lining/` (6) and `tooling/` (184). 227 were deleted
+and 8 moved. It stays in the history: **`git checkout 924b9dbc -- docs/links-24`** restores it whole (924b9dbc is main at
+v25.46, whose `docs/links-24` is the folder removed here, tree for tree).
+
+**What was kept, and why.** Eight files were still read, and each was moved before anything was deleted. The grids and the
+decks are the same git blobs as before; the three scripts differ only by a header note and, in the two modules, their
+import depths:
+
+| Was in `docs/links-24/` | Now | Read by |
+|---|---|---|
+| `tooling/report-data.mjs`, `tooling/cover-placement.mjs` (the 24-line ones, not this folder's) | `tooling/reference-24/` | `league.mjs`, for its Familiar Nine (24) row |
+| `proposals/Familiar-Nine-F9-24-K31s.json` | `tooling/reference-24/` | that row, and `leave.mjs --check`'s second case |
+| `presentations/Familiar-Nine-for-colleagues.pptx`, `…-for-managers.pptx` | `tooling/reference-24/` | `second-nature-decks.py`, which builds the template every deck in the pack starts from |
+| `tooling/default-baseline.mjs` | `tooling/default-baseline.mjs` | `.claude/rules/links-design.md` and `docs/LINKS_DEC2026_PLAN.md`, which quote what it prints |
+| `proposals/Fifteen-Turns-FT-24-EXT.json`, `proposals/Weekday-Lates-WL-24-EXT.json` | `test-fixtures/links-designs/`, lower-cased as the fixtures there are | `links-compare.test.mjs` and `links-compare-analysis.test.mjs` |
+
+The Familiar Nine row could not simply go: it sits inside the main league's range (`REF_IN_RANGE=1`), so every score
+depends on it. Without it all 24 main-league scores move (Crossover's by +0.32) and so does the order. `links-compare.test.mjs`
+now refuses a grid it has no fixture for, rather than looking for it in the old folder.
+
+**Proved unchanged.** Every output that reads those files was recorded before the move and rebuilt after it, with the
+folder gone from the disk:
+- **the league**, in all ten readings this README quotes (main; the proposals setting the scale; without familiar times; run
+  on the fixed rota; Sunday duties in familiar times; the six-factor league; the four old readings): JSON and printed tables
+  byte for byte the same;
+- **`leave.mjs --check`**: the same, both cases ok;
+- **the deck template** (`second-nature-decks.py`): both decks the same as a build from the untouched tree, part by part — 87
+  and 69 parts, the parts inside the managers' deck's embedded workbook included — but for that workbook's own "modified"
+  time, which every build stamps;
+- **the shortlist and summary sheets**, rebuilt: text the same as the committed PDFs, which were left as committed;
+- **`default-baseline.mjs`**: the same output from its old place, in a copy of the untouched tree, as from its new one.
+
+**One figure corrected on the way.** `.claude/rules/links-design.md` quoted the December default's week-to-week step as it was
+on 3 Nov (typically 2h 13m, largest 8h 51m, 4 of 26 over 2h; the script reproduces those on that day's tree). Three changes
+to `links-default-targets.js` on 5–6 Nov moved it, and the line was not re-measured: it is now typically 2h 37m, largest 8h 36m, 5 of
+26 over, still 10 unmeasurable across the cover weeks. Not caused by the removal; found because that line named the script
+being moved.
+
+**Elsewhere.** The pack's read-me no longer offers `links-24-proposals.zip`, and `RULES.md` no longer points into the folder
+for the 24-line rules. ESLint, `payroll-anonymity.test.mjs` and `doc-parity.test.mjs` lost the folder from their patterns;
+`hosting-ignore-parity.test.mjs` and `deploy-hosting.yml` mention it only in history ("later `docs/links-24/`, removed 7 Nov
+2026"). The scripts here that came from that folder say so, with the restore command. The dated
+sections above, and `docs/LINKS_DEC2026_PLAN.md`, name `../links-24/` paths as they were; the note at the top of each says so.
+
+**For a check of a new code or name** (the sections above checked them "against every code in `links-24/`"): the 24-line
+codes began AC, B2, BB, C17, CF, CFT, CS, EF, F9, FO, FR, FT, JE, P2, PC, PT, Q2, QT, RR, S4, SL, ST, TF, TM, TN, WL, WL2,
+WL3, WL4 and WS, each followed by `-24-`; the eleven shipped sheets were All Clear, Anchored Lines, Clean Sweep, Evening Peak,
+Familiar Nine, Fifteen Turns, Full Overhaul, Polished Clean, Right Away, Silva Lining and Weekday Lates, and the withdrawn
+designs are named in `docs/LINKS_DEC2026_PLAN.md` → Proposals.
+
+**Checks** (after the move, the folder gone):
+- `regenerate.mjs --check`: 24 proposals, every fingerprint as pinned;
+- `check.mjs`: everything agrees;
+- `deck-check.mjs`: 216 rows agree;
+- `newlink-data.mjs --check`: current;
+- `pack.py`: 70 files; every entry the same as a build before the change but the read-me (one paragraph fewer, still ASCII),
+  `RULES.md` (its provenance line) and the two sheets (the committed PDFs, where the earlier build had packed a rebuild);
+- `npm run check`: lint and typecheck clean; 4,274 + 1 + 2,473 tests pass and 4 skip, the same counts as before the change.
 
 ## Notes for the whole set
 

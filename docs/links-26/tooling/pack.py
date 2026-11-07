@@ -1,6 +1,6 @@
 # THE ONE-DOWNLOAD PACK (2 Oct 2026, owner: "a different zip for the links 26 proposals … matching our folder names").
 # Builds docs/links-26/links-26-proposals.zip from the files in this folder, laid out as the 24-line pack was
-# (../../links-24/links-24-proposals.zip): a read-me, then summary, rules, presentations, sheets, import files and
+# (links-24-proposals.zip, in docs/links-24 until that folder was removed on 7 Nov 2026): a read-me, then summary, rules, presentations, sheets, import files and
 # technical notes, in the order a reader wants them. The 24-line pack was zipped by hand, so it went stale whenever a
 # sheet was re-rendered; this one is rebuilt by running the script after any re-render:
 #   python3 docs/links-26/tooling/pack.py
@@ -405,9 +405,6 @@ readme = '\n'.join([
          'were; every sheet and presentation was redrawn, and their fingerprints changed. Balanced V5, Balanced V6 and '
          'Balanced V7 already finished them at 22:30, as Crossover and Level Crossing do. Common Ground was then first in '
          'the pack\'s league, just over half a point ahead of the next; since 7 November 2026 Crossover is, by 0.4 points.'),
-    '',
-    para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
-         'reference.'),
     '',
     'HOW THE FIGURES ARE WORKED OUT',
     para('Every figure in the summary, the shortlist sheet, the "What it means if you..." sheet, the rules sheet and the '

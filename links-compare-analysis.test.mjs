@@ -1,7 +1,7 @@
 // links-compare-analysis.test.mjs — what the difference between two Links designs MEANS (v24.25).
 // Pure: no DOM, no install. The render is pinned in links-compare.test.mjs; this pins the arithmetic.
 //
-// The fixtures are REAL designs — proposal sheets from docs/links-24, or withdrawn ones kept unchanged in
+// The fixtures are REAL designs — 24-line proposal sheets and withdrawn designs, all kept unchanged in
 // test-fixtures/links-designs/ — so a comparison asserted here is one a designer would actually make.
 // Organised by what a wrong answer costs: a comparison that paired the wrong rows, read a design
 // against the other's hours, or hid a factor both carry would mislead the room it is taken into.
@@ -13,12 +13,12 @@ import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits } from './links-limits.js';
 import { calcHourlyCoverage, ROTATING_LINES } from './links-design.js';
 
-const sheet = (/** @type {string} */ f) => JSON.parse(readFileSync(new URL(`./docs/links-24/proposals/${f}`, import.meta.url), 'utf8'));
-// Pinned Turns and Round Times were withdrawn from the proposal folder (owner, 30 Sep 2026); their grids are kept,
-// unchanged, as fixtures, because the figures asserted here are theirs.
+// Pinned Turns and Round Times were withdrawn from the proposal folder (owner, 30 Sep 2026), and Fifteen Turns and
+// Weekday Lates left with docs/links-24 (removed 7 Nov 2026); their grids are kept, unchanged, as fixtures, because the
+// figures asserted here are theirs.
 const fixture = (/** @type {string} */ f) => JSON.parse(readFileSync(new URL(`./test-fixtures/links-designs/${f}`, import.meta.url), 'utf8'));
 const PT = { patterns: fixture('pinned-turns-PT-24-P34.json').patterns };   // zero factors present
-const FT = { patterns: sheet('Fifteen-Turns-FT-24-EXT.json').patterns };  // seven present, an 11h15 rest
+const FT = { patterns: fixture('fifteen-turns-FT-24-EXT.json').patterns };  // seven present, an 11h15 rest
 
 test('two identical designs: nothing changes, and every factor is counted as the same', () => {
     const r = compareDesigns(PT, PT);
@@ -44,7 +44,7 @@ test('a factor present in both at DIFFERENT figures is still named as present in
     // comparison is likeliest to hide, stated as its opposite.
     // Weekday Lates: FF8b, FF15, MRSF and FF19 present in both, at different figures (Short Closer, the fixture until
     // it was withdrawn on 29 Sep 2026, had the same shape)
-    const WL = { patterns: sheet('Weekday-Lates-WL-24-EXT.json').patterns };
+    const WL = { patterns: fixture('weekday-lates-WL-24-EXT.json').patterns };
     const r = compareDesigns(WL, FT);
     const fb = assessFatigue(FT.patterns).results;
     const both = assessFatigue(WL.patterns).results
