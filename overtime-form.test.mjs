@@ -270,6 +270,43 @@ describe('a timeout must never become a second, contradictory declaration', () =
         assert.equal(f.savedCount(), 0);
     });
 
+    test('a NETWORK failure on submit is reconciled like a timeout — and a save that landed says so', async () => {
+        // iOS suspends a page mid-request, and a 200 whose body was cut off comes back as `network`
+        // too (overtime-data.js). Both are a request the server may well have written. Reported as
+        // "Couldn't reach the server", the member pressed Submit again for a week already saved.
+        submitResults = [{ ok: false, code: 'network', mutationId: 'm1' }];
+        stateResult = { ok: true, data: { windows: [{
+            weekEnding: WEEK_ENDING,
+            submission: { days: answeredWeek('all_day'), currentRevision: 7, lastMutationId: 'm1' },
+        }] } };
+
+        const f = await mountForm();
+        await f.submit();
+
+        assert.equal(calls.filter(c => c.call === 'state').length, 1, 'a cut-off submit goes into reconciliation');
+        assert.match(f.feedback(), /did save/, 'the member is told the submission that was cut off landed');
+        assert.doesNotMatch(f.feedback(), /Couldn't reach/, 'a claim the re-read has just disproved');
+        assert.equal(f.win.submission.currentRevision, 7, 'and the form builds on the revision it found');
+        assert.equal(f.savedCount(), 1);
+    });
+
+    test('…and when the re-read cannot tell, the retry that meets our own save is not "a newer version"', async () => {
+        // The second half of the same report. With the id dropped, the retry's conflict compared
+        // against nothing, and the member's own cut-off save was described as somebody else's.
+        submitResults = [
+            { ok: false, code: 'network', mutationId: 'm1' },
+            { ok: false, code: 'revision-conflict', data: { lastMutationId: 'm1', currentRevision: 8, days: answeredWeek('all_day') } },
+        ];
+        stateResult = { ok: false };   // still offline when it re-reads
+
+        const f = await mountForm();
+        await f.submit();
+        assert.match(f.feedback(), /couldn't confirm whether your form was saved/, 'an unknown outcome admits it');
+        await f.submit();
+        assert.match(f.feedback(), /Your earlier submission did save/);
+        assert.doesNotMatch(f.feedback(), /newer version/, 'the member\'s own save, called somebody else\'s');
+    });
+
     test('an ordinary refusal does NOT reconcile — there is nothing ambiguous about it', async () => {
         // Reconciliation exists because an abort leaves the outcome unknown. A server that answered
         // has already said what happened, and re-reading after one would be an extra round trip

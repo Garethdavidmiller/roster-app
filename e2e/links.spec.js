@@ -5,7 +5,7 @@
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, isTouchProject } from './helpers.js';
+import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, isTouchProject, waitForReadsToLand } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -3144,8 +3144,10 @@ test('links re-review: a save still in flight locks only ITS design, and a delet
     await expect(page.locator('.dialog-overlay.visible')).toHaveCount(0); // and no dialog about it
 });
 
-test('links re-review: an offline save says it is on this device, not "✓ Saved"', async ({ page, context }) => {
+test('links re-review: an offline save says it is in this browser, not "✓ Saved"', async ({ page, context }) => {
     // The store queues the write and returns 'queued'; the page read that as a server-confirmed save.
+    // And it promised an upload "when you're back online", which a page iOS has closed cannot make: the
+    // queue goes up the next time Links is open in this browser with a connection (iPhone audit, Nov 2026).
     await openWindowDesign(page);
     await page.evaluate(() => {   // no server, and no cached copy to consult — so the store queues
         const w = /** @type {any} */ (window);
@@ -3157,7 +3159,8 @@ test('links re-review: an offline save says it is on this device, not "✓ Saved
     await page.locator('#winMonSatEnd').dispatchEvent('change');
     await page.locator('#linksSaveBtn').click();
     const status = page.locator('#linksSaveStatus');
-    await expect(status).toContainText('Saved on this device');
+    await expect(status).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    await expect(status).not.toContainText('back online');
     await expect(status).not.toContainText('✓');
     await expect(status).not.toHaveClass(/\bok\b/);
     await context.setOffline(false);
@@ -3179,6 +3182,92 @@ test('links re-review: declining to replace your OWN other version is not worded
     await expect(dialog).toContainText('Keep your version too?');
     await expect(dialog).toContainText('That version stays as it is');
     await expect(dialog).not.toContainText('Their');
+});
+
+// ── UNSAVED WORK OUTLIVES THE PAGE (iPhone audit, Nov 2026) ─────────────────────────────────────
+// The grid and the window lived only in memory, and iOS discards a hidden page without asking. The
+// working copy is now kept whenever the page is hidden and offered on the next load (unsaved-draft.js)
+// — with the baseline it was edited against, so a colleague's save since still meets the conflict
+// question instead of being overwritten by a copy nobody has looked at again.
+/** Hide or show the page the way iOS does: the state changes, then the event fires.
+ *  @param {import('@playwright/test').Page} page @param {'hidden'|'visible'} state */
+async function setVisibility(page, state) {
+    await page.evaluate((s) => {
+        Object.defineProperty(document, 'visibilityState', { value: s, configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+    }, state);
+}
+/** Reload past the browser's own "Leave site?", which unsaved work arms on a desktop engine.
+ *  @param {import('@playwright/test').Page} page */
+async function reloadPastLeaveSite(page) {
+    const accept = (/** @type {import('@playwright/test').Dialog} */ d) => d.accept().catch(() => {});
+    page.on('dialog', accept);
+    await page.reload();
+    page.off('dialog', accept);
+}
+const LINKS_DRAFT = 'myb_draft_links_G.%20Miller';
+
+/** Move the Mon–Sat finish on "Morning heavy", hide the page, and return the time the offer names.
+ *  @param {import('@playwright/test').Page} page */
+async function editWindowAndHide(page) {
+    await page.clock.setFixedTime(new Date('2026-11-07T14:20:00Z'));
+    await openWindowDesign(page);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+    await setVisibility(page, 'hidden');
+    const kept = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), LINKS_DRAFT);
+    expect(kept?.scope, 'hidden while unsaved: the design is kept').toEqual({ design: 'd1' });
+    expect(kept?.data?.window?.monSat?.end).toBe('14:20');
+    expect(kept?.data?.baseline, '…with the version it was edited against')
+        .toEqual({ loadedRevision: null, loadedUpdatedAt: 1750000000000, baselineUnknown: false });
+    return page.evaluate(() => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
+}
+
+test('links: unsaved work kept when the page was hidden is offered on the next load — and a colleague\'s save since still asks', async ({ page }) => {
+    const clock = await editWindowAndHide(page);
+    // S. Silva saves "Morning heavy" while this phone has Links in the background. The reload reads HER
+    // version, so only the baseline the draft kept can tell the next save what it would overwrite.
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.docs = w.__E2E.docs.map((/** @type {any} */ d) => (d.id === 'd1'
+            ? { ...d, revision: 7, updatedAt: 1760000000000, updatedBy: 'S. Silva' } : d));
+    });
+    await reloadPastLeaveSite(page);
+    const offer = page.locator('.dialog-overlay.visible');
+    await expect(offer).toContainText(`Restore your unsaved changes from ${clock}?`);
+    await expect(page.locator('#winMonSatEnd'), 'nothing is put back before the answer').toHaveValue('23:55');
+    await offer.getByRole('button', { name: 'Restore' }).click();
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('14:20');
+    await expect(page.locator('#linksSaveBtn'), 'back as UNSAVED work').toBeEnabled();
+    expect(await page.evaluate((k) => localStorage.getItem(k), LINKS_DRAFT), 'cleared once it is the page\'s work again').toBeNull();
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('Someone else saved');
+    await expect(dialog).toContainText('S. Silva saved a different version');
+});
+
+test('links: Discard deletes the kept work and leaves the saved design as it was', async ({ page }) => {
+    const clock = await editWindowAndHide(page);
+    await reloadPastLeaveSite(page);
+    const offer = page.locator('.dialog-overlay.visible');
+    await expect(offer).toContainText(`Restore your unsaved changes from ${clock}?`);
+    await offer.getByRole('button', { name: 'Discard' }).click();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('23:55');
+    await expect(page.locator('#linksSaveBtn'), 'nothing unsaved').toBeDisabled();
+    expect(await page.evaluate((k) => localStorage.getItem(k), LINKS_DRAFT)).toBeNull();
+});
+
+test('links: another designer signing in on the same phone is offered nothing', async ({ page }) => {
+    await editWindowAndHide(page);
+    await seedSession(page, 'S. Silva');   // a later init script: this reload is S. Silva's
+    await reloadPastLeaveSite(page);
+    await linksOpened(page);
+    await waitForReadsToLand(page);
+    await expect(page.locator('.dialog-overlay'), 'never across members').toHaveCount(0);
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('23:55');
+    expect(await page.evaluate((k) => localStorage.getItem(k), LINKS_DRAFT), 'G. Miller\'s copy is left for G. Miller').not.toBeNull();
 });
 
 test('links memory: a stamped SEED is a designer\'s choice and survives a release', async ({ page }) => {
@@ -3342,4 +3431,40 @@ test('links window: generating the FIRST design reveals the window editor', asyn
     // is the v19.58 per-day model's failure and is invisible to a unit test of the seed.
     expect(spareDays.filter(n => n === 7).length,
         'the seeded spare weeks must survive to the rendered grid').toBe(4);
+});
+
+// ── THE iPHONE KEYBOARD (iPhone audit, 7 Nov 2026) ──────────────────────────────────────────────────
+
+// iOS raises its keyboard only for a focus made SYNCHRONOUSLY inside the tap. "+ Save as new…" opens
+// its name prompt inside the click, and `createLightbox` used to focus the box a frame later, outside
+// it — so the caret blinked in a field with no keyboard to type with. The click and the read are one
+// `evaluate`, so what is focused when the click handler returns is exactly what the keyboard got.
+test('links sets: the name prompt focuses its box inside the tap that opened it', async ({ page }) => {
+    await openLinksWithTargetSets(page);
+    const inTheTap = await page.evaluate(() => {
+        document.getElementById('genSetSaveAsBtn')?.click();
+        return document.activeElement?.classList.contains('dialog-input') ?? false;
+    });
+    expect(inTheTap, 'the prompt\'s box was focused a frame later — on an iPhone no keyboard comes up').toBe(true);
+    await expect(page.locator('.dialog-overlay .dialog-input')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+});
+
+// A `type="number"` box opens the numbers-AND-PUNCTUATION keyboard on an iPhone; `inputmode="numeric"`
+// is the digit pad. Asserted on the rendered table, every count in it, with the type and its range
+// kept — the attribute is ADDED to the number box, it does not replace it.
+test('links: every target count in the generator table asks for the digit pad', async ({ page }) => {
+    await openLinksWithTargetSets(page);
+    const counts = await page.locator('#genSlotRows .gen-slot-count').evaluateAll(els => els.map(el => ({
+        mode: el.getAttribute('inputmode'), type: el.getAttribute('type'),
+        min: el.getAttribute('min'), max: el.getAttribute('max'),
+    })));
+    expect(counts.length, 'the table rendered no counts, so this proves nothing').toBeGreaterThan(0);
+    for (const c of counts) {
+        expect(c.mode, 'a count opens the numbers-and-punctuation keyboard on an iPhone').toBe('numeric');
+        expect(c.type).toBe('number');
+        expect(c.min).toBe('0');
+        expect(c.max).toMatch(/^\d+$/);
+    }
 });

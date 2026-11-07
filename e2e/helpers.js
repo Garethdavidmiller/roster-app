@@ -322,8 +322,9 @@ export async function openReference(page) {
  * Seed a signed-in MEMBER for the Calendar: the local session AND the Firebase identity.
  *
  * BOTH are required, and that is the point rather than an inconvenience. `decideAccess` demands a
- * live local session *and* a restorable named identity — a member holding only one of the two sees
- * the PIN, which is a real state (iOS ITP evicts IndexedDB after ~7 days of no PWA use). A helper
+ * live local session *and* a restorable named identity — a member holding only one of the two is
+ * asked to sign in rather than shown their roster, which is a real state (KNOWN_LIMITATIONS → "One
+ * interaction to expect on iOS" — not Safari's seven-day rule, which deletes both halves together). A helper
  * that seeded only the session would make every "member sees no PIN" test fail for a reason that
  * has nothing to do with what it was written to check.
  */

@@ -122,8 +122,10 @@ export const auth = initializeAuth(app, {
 
 /**
  * Explicit persistence chain for a MEMBER identity: IndexedDB (longest-lived) → localStorage →
- * sessionStorage. iOS ITP can evict IndexedDB after 7 days of no PWA use, causing silent sign-outs,
- * so the fallbacks are real rather than theoretical.
+ * sessionStorage. On iPhones an IndexedDB read can fail (WebKit closes IndexedDB connections in
+ * hidden pages), so the fallbacks are real rather than theoretical. Safari's seven-day rule is NOT
+ * that case: it deletes all of a tab's storage together, these fallbacks included (KNOWN_LIMITATIONS
+ * → "One interaction to expect on iOS").
  *
  * Factored into a function at v20.12 because there are now TWO persistence modes and the app has to
  * be able to move between them (see `setViewerPersistence`). Signing a member in after a Calendar

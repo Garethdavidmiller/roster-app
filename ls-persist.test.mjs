@@ -244,3 +244,39 @@ describe('lsSetBothVerified — two keys or neither', () => {
         assert.equal(mod.lsSetBothVerified('a', '1', 'b', '2'), false, 'iOS private mode, not a crash');
     });
 });
+
+// ── WILL THIS BROWSER SAVE AT ALL? (the iPhone audit, 7 Nov 2026) ───────────────────────────────
+//
+// The Pay Calculator promised "Saved automatically as you type" over storage that kept nothing.
+// `lsAvailable` is what it now asks first, and the two wrong answers cost different things: a false
+// YES is that promise again, over figures that vanish when the page closes; a false NO puts a
+// warning in front of a member whose figures are perfectly safe.
+describe('lsAvailable — a write that reads back, or not available', () => {
+    test('working storage says yes, and leaves nothing behind', async () => {
+        const store = fakeStorage({ 'myb_pc_gmiller_p24': '{"satH":8}' });
+        const { mod } = await load({ store, persistImpl: undefined });
+        assert.equal(mod.lsAvailable(), true);
+        assert.deepEqual(Object.keys(store._map()), ['myb_pc_gmiller_p24'],
+            'the probe must be removed — a stray key would ride along in a scan of the device');
+    });
+
+    test('storage that throws on every access says no, without throwing', async () => {
+        const { mod } = await load({ store: fakeStorage({}, { throwOnAccess: true }), persistImpl: undefined });
+        assert.equal(mod.lsAvailable(), false);
+    });
+
+    test('READS WORK, WRITES THROW (a full quota) — the shape in which a page renders and saves nothing', async () => {
+        const store = fakeStorage({ 'myb_admin_session': '{"name":"G. Miller"}' });
+        store.setItem = () => { throw new Error('QuotaExceededError'); };
+        const { mod } = await load({ store, persistImpl: undefined });
+        assert.equal(mod.lsGet('myb_admin_session'), '{"name":"G. Miller"}', 'the session still reads');
+        assert.equal(mod.lsAvailable(), false, 'and yet nothing typed would be kept');
+    });
+
+    test('a write that is silently DROPPED is caught by the read-back', async () => {
+        const store = fakeStorage({});
+        store.setItem = () => {};   // accepts the call, keeps nothing
+        const { mod } = await load({ store, persistImpl: undefined });
+        assert.equal(mod.lsAvailable(), false);
+    });
+});

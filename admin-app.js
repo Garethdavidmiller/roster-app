@@ -18,12 +18,14 @@ import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage } from './page-session.js';
+import { createDraftSlot, savedSignature, weekRestoredLine } from './unsaved-draft.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
-import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
+import { readWeekDraft, applyWeekDraft } from './admin-week-row-state.js';
 import { initLeaveYearPanel } from './admin-leave-year.js';
 import { setLeaveYear } from './admin-leave-year-save.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
@@ -34,7 +36,7 @@ import { openDatePicker } from './date-picker.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { SELECTED_MEMBER, VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
 import { initNavPanel } from './nav-panel.js';
-import { initCardCollapse, createLightbox } from './overlay.js';
+import { initCardCollapse, createLightbox, confirmDialog } from './overlay.js';
 import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -1601,6 +1603,9 @@ export function init() {
                 `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`
             ).join('');
         }
+        // UNSAVED WEEK EDITS OUTLIVE THE PAGE (iPhone audit, Nov 2026): iOS discards a hidden page and a swipe back asks
+        // nothing, so the staged rows are kept whenever the page is hidden and offered on the next load (unsaved-draft.js).
+        const _draft = createDraftSlot({ page: 'admin', by: currentUser ?? '', usable: (d) => Array.isArray(d.rows) && d.rows.length > 0 });
         initOverrides({
             currentUser,
             currentIsAdmin,
@@ -1614,13 +1619,40 @@ export function init() {
                 // …and a range already picked, drawn while this member's records were still loading
                 // — it asked about rest days its records answer (whole-app review, Oct 2026).
                 _refreshAlPreview?.(); _refreshSickPreview?.();
+                if (!hasUnsavedChanges()) _draft.forget();   // saved: the kept copy is not work any more
             },
             markChanged,
             onEditRow: handleEdit,
         });
+        /** The saved record on each day NOW, for one member — what a kept row's `was` is checked against. @param {string} m */
+        const _savedOn = (m) => { const map = buildMemberDateMap(m); return (/** @type {string} */ d) => savedSignature(map.get(d)); };
+        keepDraftWhenHidden(hasUnsavedChanges, {
+            keep: () => _draft.keep({ member: fieldMember.value, date: fieldDate.value }, { rows: readWeekDraft(weekGrid, _savedOn(fieldMember.value)) }),
+            forget: () => _draft.forget(),
+        });
+        /** Offered once the member it is for has loaded, to somebody who may still edit them; Restore shows that member
+         *  and week and puts back each row whose saved record has not changed since. */
+        const _offerDraft = async () => {
+            const d = _draft.peek(), member = String(d?.scope.member ?? ''), date = String(d?.scope.date ?? '');
+            if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(date) || ![...fieldMember.options].some(o => o.value === member)
+                || !(currentIsAdmin || currentIsManager || member === currentUser)) return;
+            await ensureMemberLoaded(member).catch((e) => console.warn('[Admin] Draft offer: the member did not load:', e));
+            if (!hasOverrideAuthorityFor(member)) return;   // kept, for a load that can read what it was edited over
+            await _draft.offer({ ask: confirmDialog, apply: async (kept) => {
+                showInChangeAShift(member, date);
+                await ensureMemberLoaded(member).catch((e) => console.warn('[Admin] Draft restore: the member did not load:', e));
+                const { put, left } = applyWeekDraft(weekGrid, kept.data.rows, _savedOn(member));
+                if (put) markChanged();
+                updateSaveBtn();
+                (put ? showSuccess : showError)(weekRestoredLine(put, left.map(formatDisplay)));
+            } });
+        };
         // Loads the SELECTED MEMBER only (v21.38) — see admin-override-coverage.js. (It also marked the
         // speed ladder's `rosterLive` rung until the App Speed review retired the ladder, Oct 2026.)
-        loadOverrides();
+        loadOverrides().then(_offerDraft).catch((err) => console.error('[Admin] The unsaved-changes offer failed:', err));
+        // AN INSTALLED APP STAYS OPEN FOR DAYS (iPhone audit, Nov 2026), and this week was read once, its "Today" stamped
+        // as it drew. Back after five minutes away, with nothing staged and nothing sending, it is read and drawn again.
+        onReturnToPage(5 * 60_000, () => { if (!hasUnsavedChanges() && writesInFlight() === 0 && !isSaveInFlight()) loadOverrides(); });
 
         // WHERE A HASH LANDS is `admin-deep-link.js`'s decision — which folds to open (a nested
         // target needs its card AND its own), and what to scroll to. This opens and scrolls, and

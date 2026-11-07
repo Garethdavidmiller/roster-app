@@ -2078,3 +2078,76 @@ describe('the roster parse is never abandoned before the server could finish', (
     });
 });
 
+// ── A READ CUT OFF IN TRANSIT IS NOT A SLOW READ (7 Nov 2026, iPhone audit) ─────────────────────
+// Safari reports EVERY network failure as "Load failed", and the import answered all of them with
+// "the PDF may be large" — so a phone that lost its signal two seconds in, or was left for another
+// app while the read ran, sent the admin to shrink a PDF that was fine. `parseFailureLine` is
+// private to the module (no export, so its documented surface is unchanged), so it is sliced out of
+// the source by name and that exact code is run, the technique splash-watchdog.test.mjs uses. A
+// rename makes the slice throw rather than pass. The click handler that feeds it is driven in
+// e2e/operations.spec.js.
+describe('a roster read that fails in transit says what happened', () => {
+    const src = readFileSync(new URL('./admin-roster-upload.js', import.meta.url), 'utf8');
+    const start = src.indexOf('function parseFailureLine(');
+    let end = src.indexOf(') {', start) + 2;   // the BODY's brace — the parameters destructure one of their own
+    for (let depth = 0; end < src.length; end++) {
+        if (src[end] === '{') depth++;
+        else if (src[end] === '}' && --depth === 0) { end++; break; }
+    }
+    const expectedMs = Number(/const PARSE_EXPECTED_MS = ([\d_]+);/.exec(src)?.[1].replace(/_/g, ''));
+    /** @type {(err: any, seen: { online: boolean, elapsedMs: number, wasHidden: boolean }) => string|null} */
+    const line = new Function('PARSE_EXPECTED_MS', `${src.slice(start, end)}\nreturn parseFailureLine;`)(expectedMs);
+
+    const DROPPED = /^The connection dropped before it finished\. .*keep this screen open/;
+    const SLOW = /^Parsing took longer than expected/;
+    const UNREACHABLE = /^Couldn't reach the server/;
+    const seen = (/** @type {Partial<{ online: boolean, elapsedMs: number, wasHidden: boolean }>} */ o = {}) =>
+        ({ online: true, elapsedMs: 60_000, wasHidden: false, ...o });
+    const loadFailed = () => new TypeError('Load failed');
+    const aborted = () => Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' });
+
+    test('guard the guard — the helper and the read time were found in the module', () => {
+        assert.ok(start > 0, 'admin-roster-upload.js no longer defines parseFailureLine — update this test');
+        assert.ok(expectedMs >= 5_000 && expectedMs < PARSE_ABORT_MS, `PARSE_EXPECTED_MS read as ${expectedMs}`);
+    });
+
+    test('Safari\'s "Load failed" within seconds of starting is a dropped connection, not a slow PDF', () => {
+        assert.match(line(loadFailed(), seen({ elapsedMs: 2_000 })), DROPPED);
+        assert.match(line(loadFailed(), seen({ elapsedMs: expectedMs - 1 })), DROPPED,
+            'a read that failed before it could have finished cannot have taken longer than expected');
+    });
+
+    test('…so is any failure while the device is OFFLINE, however long it ran', () => {
+        assert.match(line(loadFailed(), seen({ online: false })), DROPPED);
+        assert.match(line(new TypeError('Failed to fetch'), seen({ online: false })), DROPPED);
+        assert.match(line(aborted(), seen({ online: false })), DROPPED, 'our own timeout, with the connection gone');
+    });
+
+    test('…and a network failure after the screen was LEFT during the read', () => {
+        // iOS suspends a page put down for another app, and its request with it.
+        assert.match(line(loadFailed(), seen({ wasHidden: true })), DROPPED);
+        assert.match(line(new TypeError('Failed to fetch'), seen({ wasHidden: true })), DROPPED);
+    });
+
+    test('a "Load failed" long into the read keeps the slow-PDF answer — iOS\'s own cut-off', () => {
+        assert.match(line(loadFailed(), seen({ elapsedMs: expectedMs })), SLOW);
+        assert.match(line(loadFailed(), seen({ elapsedMs: 61_000 })), SLOW);
+    });
+
+    test('this page\'s own timeout while online is a slow read, whether or not the screen was left', () => {
+        assert.match(line(aborted(), seen({ elapsedMs: PARSE_ABORT_MS })), SLOW);
+        assert.match(line(aborted(), seen({ elapsedMs: PARSE_ABORT_MS, wasHidden: true })), SLOW);
+    });
+
+    test('Chrome\'s "Failed to fetch" online still says the server could not be reached', () => {
+        assert.match(line(new TypeError('Failed to fetch'), seen({ elapsedMs: 1_000 })), UNREACHABLE);
+        assert.match(line(new TypeError('NetworkError when attempting to fetch resource.'), seen()), UNREACHABLE);
+    });
+
+    test('anything that is not a failure in transit is left to the caller, which carries the server\'s words', () => {
+        assert.equal(line(Object.assign(new Error('The AI found no recognisable staff members'), { serverMessage: 'x' }), seen()), null);
+        assert.equal(line(new SyntaxError('Unexpected token'), seen({ elapsedMs: 1 })), null);
+        assert.equal(line(new TypeError('Cannot read properties of undefined'), seen({ elapsedMs: 1 })), null);
+    });
+});
+

@@ -1297,7 +1297,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
                              list below as ordinary guide links — the delegated handler above gives
                              them counting, ?from= and the history dance with no second copy. -->
                         <input id="navGuideSearchInput" class="nav-gs-input" type="search"
-                               enterkeyhint="search" autocomplete="off" spellcheck="false"
+                               enterkeyhint="search" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="none"
                                placeholder="Search the guides…" aria-label="Search the staff guides">
                         <div class="nav-gs-status" id="navGuideSearchStatus" role="status"></div>
                         <ul class="nav-panel-links nav-panel-guides-list" id="navGuideSearchResults" hidden></ul>
@@ -1324,7 +1324,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
                 <button type="button" id="navNoticesClose" class="lb-close" aria-label="Close">✕</button>
                 <div class="nav-cs-title">📣 App Notices</div>
                 <div id="navNoticesList" class="nav-notices-list"></div>
-                <div id="navNoticesEmpty" class="nav-notices-empty" hidden>No notices yet — check back soon.</div>
+                <div id="navNoticesEmpty" class="nav-notices-empty" hidden>Notices you’ve read on this device appear here.</div>
             </div>
         </div>`;
 

@@ -104,6 +104,35 @@ export function lsSetBothVerified(keyA, valueA, keyB, valueB) {
     return false;
 }
 
+/** The key `lsAvailable` writes, reads back and removes at once. Device-level and never a pay key
+ *  (no `myb_pc_` prefix), so no backup, inventory or ownership scan can ever count it. */
+const PROBE_KEY = 'myb_ls_probe';
+
+/**
+ * Will this browser let the app SAVE? True only when a probe write reads back; the probe is then
+ * removed.
+ *
+ * WHY A WRITE, NOT A READ. Everything else here forgives a refused write on purpose, which is right
+ * for a preference and wrong for a page that PROMISES to keep what is typed into it: the Pay
+ * Calculator said "Saved automatically as you type" over storage that kept nothing (the iPhone
+ * audit, 7 Nov 2026). Storage refuses in two shapes and a read catches only one. The getter can
+ * throw (Safari's "Block All Cookies") — but then a page cannot read its own session either, and
+ * the member meets the sign-in card, never the promise. Or reads succeed while writes throw (a full
+ * quota): the shape in which a page renders, reads its session, and loses every figure typed in.
+ *
+ * Not cached: storage that fills up mid-session is exactly the case a remembered "yes" would hide.
+ * It costs one tiny write, so ask it when the answer is wanted, not in a loop.
+ * @returns {boolean}
+ */
+export function lsAvailable() {
+    try {
+        localStorage.setItem(PROBE_KEY, '1');
+        const ok = localStorage.getItem(PROBE_KEY) === '1';
+        localStorage.removeItem(PROBE_KEY);
+        return ok;
+    } catch (e) { _warnOnce(e); return false; }
+}
+
 /** Snapshot of all localStorage key names (empty array if storage is unavailable).
  *  Uses the standard length/key(i) enumeration so it never clashes with object
  *  methods, and returns a snapshot so callers can safely delete keys while iterating. */
@@ -132,12 +161,16 @@ const PERSIST_ASKED_KEY = 'myb_storage_persist_asked';
  * exists, `persisted()` is false and the quota is ~820MB, i.e. the data sits in exactly that
  * evictable class today, and nothing has ever asked otherwise.
  *
- * WHY IT IS AN ANDROID FIX SPECIFICALLY. WebKit exposes no `navigator.storage` at all — measured:
- * `persist`, `persisted` and `estimate` are all absent and throw on a secure origin — so on iOS
- * there is nothing to call and installing to the Home Screen is the only lever. On Chromium the API
- * is there, Chrome grants by heuristic (installed / engaged) without a prompt, and this is a real
- * request that can be granted. It protects the whole ORIGIN, so the Firestore cache and the saved
- * session benefit too.
+ * ON ANDROID IT IS A REAL REQUEST; ON AN iPHONE ITS EFFECT IS UNKNOWN (corrected 7 Nov 2026, iPhone
+ * audit). On Chromium the API is there, Chrome grants by heuristic (installed / engaged) without a
+ * prompt, and the grant protects the whole ORIGIN, so the Firestore cache and the saved session
+ * benefit too. This used to say WebKit has no `navigator.storage` at all — but that was measured on
+ * the Linux WebKit build the test suite runs, not on Safari, which has had the whole Storage API since
+ * Safari 17 / iOS 17 and grants `persist()` by heuristic, such as being opened as a Home Screen web app
+ * (WebKit, "Updates to Storage Policy", 2023). So on an iPhone this call is made. Whether it is granted
+ * in a Safari tab, and whether a grant spares the tab Safari's seven-day deletion, nobody has measured
+ * (IPHONE_RELEASE_CHECKLIST.md → C has the device check); installing stays the known lever
+ * (KNOWN_LIMITATIONS → "iPhones keep two separate copies…").
  *
  * WHY IT ASKS ONLY WHEN THERE IS SOMETHING TO LOSE. Firefox (unlike Chrome) shows a permission
  * doorhanger for this, and a first-run visitor with no pay data would meet it having nothing at
@@ -157,7 +190,7 @@ export function requestPersistentStorage(keyPrefix) {
         if (!lsKeys().some(k => k.startsWith(keyPrefix))) return;   // nothing worth protecting yet
         lsSet(PERSIST_ASKED_KEY, '1');                              // one-shot, before the await
         const s = /** @type {any} */ (navigator).storage;
-        if (!s || typeof s.persist !== 'function') return;          // WebKit: no API at all
+        if (!s || typeof s.persist !== 'function') return;          // no API: older engines, Linux WebKit
         s.persist().catch(() => { /* refused or unsupported — nothing to do */ });
     } catch { /* storage unavailable — the member has no saved data here anyway */ }
 }

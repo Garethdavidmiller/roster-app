@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView, isTouchProject, waitForPageSettled, waitForReadsToLand } from './helpers.js';
 // The REAL pay tables, imported rather than restated: the unsupported-role block below asserts that
 // a CES is priced as a CES, and a literal rate there would go stale on the next award — or, worse,
 // be "corrected" to whatever the page happened to show.
@@ -61,9 +61,18 @@ for (const { name, seed, topVisible } of [
         const top = page.locator('#privacyNoteTop');
         if (topVisible) await expect(top).toBeVisible();
         else await expect(top).toBeHidden();
-        // The foot of the page says it on EVERY visit, whatever the top does.
+        // THE SETUP BANNER'S RESTORE LINE KEEPS THE SAME RULE (the iPhone audit, 7 Nov 2026): it
+        // points an EMPTY calculator at Restore, so it shows exactly when the top note does. Its own
+        // `hidden` is the rule's answer — read directly, because saved settings also confirm the
+        // year and hide the whole banner, and a line inside a hidden banner is hidden whatever the
+        // rule said. Where the rule says show, it must really be on screen.
+        const restore = page.locator('#setupRestore');
+        await expect(restore).toHaveJSProperty('hidden', !topVisible);
+        if (topVisible) await expect(restore).toBeVisible();
+        // The foot of the page says it on EVERY visit, whatever the top does — and says WHERE: in
+        // this browser, because on an iPhone Safari and the Home Screen app keep separate copies.
         await expect(page.locator('.disclaimer .disclaimer-privacy')).toBeVisible();
-        await expect(page.locator('.disclaimer .disclaimer-privacy')).toContainText('saved on this device only');
+        await expect(page.locator('.disclaimer .disclaimer-privacy')).toContainText('saved in this browser on this device');
         expect(errors).toHaveLength(0);
     });
 }
@@ -2124,4 +2133,337 @@ test('paycalc: the "Includes an 8h estimate" chip wraps inside its row instead o
     await expect(chip).toBeInViewport({ ratio: 1 });
     await row.screenshot({ path: testInfo.outputPath('rdw-row.png') });
     expect(errors, 'Uncaught JS exceptions on the estimate chip').toHaveLength(0);
+});
+
+// ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
+// Each block below is one finding, proved where a member meets it: the page, not the helper.
+
+// The converter was the one figure box still read with a bare parseFloat, so "7,5" from a
+// decimal-comma keypad answered "7 hrs". The rule is unit-tested (`decimalHoursText`,
+// paycalc-inputs.test.mjs); this proves the card asks it.
+test('paycalc: the Decimal Hours Converter reads a decimal comma as the point', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html');
+    await page.locator('#decimalConverterToggle').click();
+    const box = page.locator('#decimalHrsInput');
+    const answer = page.locator('#decimalHrsResult');
+    await box.fill('7,5');
+    await expect(answer).toHaveText('7 hrs 30 mins');
+    await box.fill('');
+    await expect(answer, 'a cleared box asks nothing, so answers nothing').toHaveText('–');
+    expect(errors).toHaveLength(0);
+});
+
+// "Download backup" said "Saved as …" the instant the tap landed — before iOS had saved anything —
+// and a blob download in the Home Screen app may open a preview rather than save. On an iPhone it now
+// opens the share sheet (Save to Files, in a tab and in the installed app), IN the tap, and reports
+// how the sheet ended; everywhere else it stays a download, worded as what to expect. The platform is
+// set per test rather than taken from the project, so both branches run on both engines.
+const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
+/** A device that CAN share files, recording each share and ending it as `__shareEnds` says. */
+const fakeShareDevice = (/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ ua) => page.addInitScript((agent) => {
+    const w = /** @type {any} */ (window);
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => agent });
+    Object.defineProperty(navigator, 'platform', { configurable: true, get: () => (agent.includes('iPhone') ? 'iPhone' : 'Linux armv8l') });
+    w.__shares = [];
+    w.__shareEnds = 'resolve';
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: (/** @type {any} */ d) => !!d?.files?.length });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: (/** @type {any} */ d) => {
+        w.__shares.push(d.files.map((/** @type {File} */ f) => f.name));
+        return w.__shareEnds === 'abort' ? Promise.reject(new DOMException('cancelled', 'AbortError')) : Promise.resolve();
+    } });
+    // IN THE TAP: a listener on the document runs AFTER the button's own handler, in the same
+    // dispatch. A share recorded by then was started inside the tap; one deferred to a later task —
+    // an awaited file read, a timer — was not, and iOS refuses it for want of a gesture. (A microtask
+    // also runs before this listener, because the browser checkpoints them between listeners, so this
+    // cannot tell one from a synchronous call; the handler makes the call synchronously anyway.)
+    document.addEventListener('click', (e) => {
+        if (/** @type {Element} */ (e.target)?.id === 'ptDownload') w.__sharedInTap = w.__shares.length;
+    });
+}, ua);
+
+test('paycalc: on an iPhone, Download backup opens the share sheet in the tap and says how it ended', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_gmiller_p16', '{"satH":7,"satM":30}'));
+    await fakeShareDevice(page, IPHONE_UA);
+    let downloads = 0;
+    page.on('download', () => { downloads++; });
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    const status = page.locator('#ptSaveStatus');
+
+    await page.locator('#ptDownload').click();
+    await expect(status).toContainText('If you chose Save to Files, look for');
+    await expect(status).toContainText('in the Files app');
+    expect(await page.evaluate(() => /** @type {any} */ (window).__sharedInTap),
+        'navigator.share must be called inside the tap, or iOS refuses it for want of a gesture').toBe(1);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__shares[0][0])).toMatch(/^myb-pay-backup-gmiller-\d{4}-\d{2}-\d{2}\.json$/);
+
+    // Closing the sheet saves nothing, and the card must not say otherwise.
+    await page.evaluate(() => { /** @type {any} */ (window).__shareEnds = 'abort'; });
+    await page.locator('#ptDownload').click();
+    await expect(status).toContainText('Not saved');
+    await expect(status).toHaveClass(/pt-status--warn/);
+    expect(downloads, 'an iPhone that can share files gets the share sheet, never a blob download').toBe(0);
+    expect(errors).toHaveLength(0);
+});
+
+test('paycalc: away from an iPhone, Download backup stays a download and says what to expect', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_gmiller_p16', '{"satH":7,"satM":30}'));
+    // Android CAN share files too — and must still get the download it has always had.
+    await fakeShareDevice(page, ANDROID_UA);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+
+    const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#ptDownload').click()]);
+    expect(download.suggestedFilename()).toMatch(/^myb-pay-backup-gmiller-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__shares.length), 'Android is never sent to the share sheet').toBe(0);
+    const status = page.locator('#ptSaveStatus');
+    await expect(status).toContainText(`If you're asked, choose Download`);
+    await expect(status, 'the page cannot see a download finish, so it must not claim one').not.toContainText('Saved as');
+    await expect(status, 'and it is not dressed as a confirmation either').not.toHaveClass(/pt-status--ok/);
+    expect(errors).toHaveLength(0);
+});
+
+// Pay figures live in the browser that saved them, and on an iPhone that is two places: Safari and
+// the Home Screen app keep separate copies, and Safari clears its own after about a week unvisited.
+// So the commonest way to find the calculator EMPTY is to have had figures somewhere else — and the
+// setup banner now says where to get them back. Its link must OPEN the card: a bare jump to
+// #payTransferCard lands on a closed header, which reads as a dead link.
+test('paycalc: an empty calculator points at Restore, and the link opens the backup card', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html');
+    const line = page.locator('#setupRestore');
+    await expect(line).toBeVisible();
+    // Not "on this phone": the line shows on a first visit anywhere, the station PC included.
+    await expect(line).toContainText('Used the Pay Calculator before?');
+    await expect(page.locator('#payTransferBody')).not.toHaveClass(/open/);
+    await line.getByRole('link', { name: 'Move Your Pay Data' }).click();
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await expect(page.locator('#payTransferCard')).toBeInViewport();
+    // The card it lands on says why the figures were not here: the iPhone's two copies.
+    await expect(page.locator('#payTransferBody')).toContainText('Safari and the Home Screen app keep separate copies');
+    expect(errors).toHaveLength(0);
+});
+
+// "Saved automatically as you type" was promised whatever the browser did with the figures. Storage
+// refuses in two shapes, and only one of them reaches this page:
+//   · READS WORK, WRITES THROW — a full quota. The session still reads, the calculator renders, and
+//     every figure typed in is gone when the page closes. That is where the promise was false.
+//   · THE GETTER THROWS — Safari's "Block All Cookies". The session cannot be read either, so the
+//     member meets the sign-in card, never the calculator (the second test pins that, so the
+//     warning is never needed there and nobody adds a promise where it would be).
+test('paycalc: a browser that will not save says so where it used to promise "Saved automatically"', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    // AFTER the seeders, so the session they wrote is there to read — then every later write throws.
+    await page.addInitScript(() => {
+        Object.getPrototypeOf(localStorage).setItem = function () {
+            throw new DOMException('quota', 'QuotaExceededError');   // as a full device does
+        };
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    const header = page.locator('#hoursCard .card-header');
+    await expect(header.locator('.hours-save-blocked')).toBeVisible();
+    await expect(header).toContainText("This browser isn't letting the app save, so figures you enter here will be lost when you close the page.");
+    await expect(header.locator('.hours-save-ok'), 'the promise it cannot keep is gone').toBeHidden();
+    // Nothing is saved here, so this is an "empty calculator" — but a restore needs the same
+    // writes, so it is not pointed at one.
+    await expect(page.locator('#setupBanner')).toBeVisible();
+    await expect(page.locator('#setupRestore')).toBeHidden();
+    expect(errors).toHaveLength(0);
+});
+
+test('paycalc: with storage blocked outright, the member meets sign-in, never a calculator that cannot keep figures', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => {
+        Object.defineProperty(window, 'localStorage', {
+            configurable: true,
+            get() { throw new DOMException('The operation is insecure.', 'SecurityError'); },
+        });
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    // The calculator never initialised: no session could be read, so nothing below the sign-in card
+    // was built (its static markup sits under the overlay, unpopulated).
+    await expect(page.locator('#periodSelect option')).toHaveCount(0);
+});
+
+test('paycalc: a browser that saves keeps its "Saved automatically" line', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    await expect(page.locator('#hoursCard .hours-save-ok')).toBeVisible();
+    await expect(page.locator('#hoursCard .hours-save-blocked')).toBeHidden();
+});
+
+/**
+ * A tap whose click iOS CANCELLED: with the soft keyboard up, tapping a control dismisses the
+ * keyboard first, the viewport shifts, and the tap never becomes a click — the repo's own
+ * measurement, recorded on `wireIosTap` (paycalc-inputs.js). touchstart and touchend reach the
+ * control; no click ever does. A real tap would deliver the click, which is why this is built by
+ * hand rather than with `tap()`.
+ * @param {import('@playwright/test').Locator} control
+ */
+const tapWithoutClick = (control) => control.evaluate((el) => {
+    for (const type of ['touchstart', 'touchend']) {
+        const e = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(e, 'touches', { value: type === 'touchstart' ? [{ clientX: 1, clientY: 1 }] : [] });
+        el.dispatchEvent(e);
+    }
+});
+
+test('paycalc: with the keypad up, ONE tap works the controls iOS needed two for', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    const period = () => page.locator('#periodSelect').evaluate(s => Number(/** @type {HTMLSelectElement} */ (s).value));
+    const start = await period();
+    await tapWithoutClick(page.locator('#prevBtn'));
+    await expect.poll(period, '← Earlier').toBe(start - 1);
+    await tapWithoutClick(page.locator('#nextBtn'));
+    await expect.poll(period, 'Later →').toBe(start);
+    await tapWithoutClick(page.locator('#peerPlus'));
+    await expect(page.locator('#peerVal'), 'the peer-training +').toHaveText('1');
+    await tapWithoutClick(page.locator('#peerMinus'));
+    await expect(page.locator('#peerVal'), 'the peer-training −').toHaveText('0');
+    await expect(page.locator('#setupBanner')).toBeVisible();
+    await tapWithoutClick(page.locator('#saveSettingsBtn'));
+    await expect(page.locator('#setupBanner'), 'Save settings confirms the year').toBeHidden();
+    // The take-home bar shows while the £ figure is off screen (below the fold at the top of a
+    // phone's page), and one tap takes the member to it.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator('#stickyTotal')).toBeVisible();
+    await tapWithoutClick(page.locator('#stickyTotal'));
+    await expect(page.locator('#netDisplay'), 'the take-home bar').toBeInViewport();
+    expect(errors).toHaveLength(0);
+});
+
+// The same tap must let go of the field FIRST, as a native tap would have: the guard that stops a
+// duplicate click also cancels the tap's move of focus. The prior-year Holiday Pay Premium commits
+// only on `change`, so a figure typed there and followed by "← Earlier" committed AFTER the page
+// had moved — here, into 2025/26, which has no prior year on record, so the figure was lost.
+test('paycalc: a tap on ← Earlier lets go of the field first, so its figure lands on the year it was typed for', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    // A figure already on record keeps the box open before the January 2027 payslip exists.
+    await page.addInitScript(() => localStorage.setItem('myb_pc_gmiller_hpp_actual_2025_26', '100.00'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    // P50 is the first 2026/27 payslip, so ONE step back crosses into 2025/26.
+    await page.locator('#periodSelect').evaluate((s) => {
+        /** @type {HTMLSelectElement} */ (s).value = '50';
+        s.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.locator('#hppCardToggle').click();
+    const box = page.locator('#priorHppActualInput');
+    await expect(box).toHaveValue('100.00');
+    await box.fill('1843.01');
+    await tapWithoutClick(page.locator('#prevBtn'));
+    await expect.poll(() => page.locator('#periodSelect').evaluate(s => /** @type {HTMLSelectElement} */ (s).value)).toBe('49');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_hpp_actual_2025_26')),
+        'the 2025/26 premium typed on a 2026/27 payslip is kept for 2025/26').toBe('1843.01');
+    expect(errors).toHaveLength(0);
+});
+
+// Typed, then swiped away from: the figure commits only on `change`, which fires when the field is
+// left — and a page that is hidden and never comes back is never left. Hiding now lets go of it.
+test('paycalc: hiding the page commits the prior-year Holiday Pay Premium being typed', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_gmiller_hpp_actual_2025_26', '100.00'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    await page.locator('#hppCardToggle').click();
+    const box = page.locator('#priorHppActualInput');
+    await expect(box).toHaveValue('100.00');
+    await box.fill('1843.01');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_hpp_actual_2025_26')),
+        'not yet — it commits on leaving the field, by design (v17.26)').toBe('100.00');
+    // What swiping to the Home Screen does to the page: it is hidden, and nothing else happens.
+    await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_hpp_actual_2025_26'))).toBe('1843.01');
+    expect(errors).toHaveLength(0);
+});
+
+// THE TAKE-HOME BAR WITH THE KEYPAD UP. The keyboard covers the bottom of the layout viewport without
+// shrinking it, so typing on the Overtime or Rest Day Working rows put the £ behind the keys while the
+// IntersectionObserver still called it "in view" — and no bar came. Where the bar did come, pinned
+// above the keys, it sat on the very box being typed in. The rules are unit-tested
+// (paycalc-sticky-total.test.mjs); this runs the real module on a real page. Playwright raises no
+// soft keyboard, so a stand-in visualViewport — read by nothing else in the app — is shrunk instead.
+test('paycalc: with the keypad up, the take-home bar comes when the £ is behind the keys, and clears the box being typed in', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the keyboard rules are for a coarse pointer');
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => {
+        const vv = new EventTarget();
+        let height = window.innerHeight;
+        Object.defineProperty(vv, 'height', { get: () => height });
+        Object.defineProperty(vv, 'offsetTop', { get: () => 0 });
+        Object.defineProperty(window, 'visualViewport', { configurable: true, get: () => vv });
+        /** @type {any} */ (window).__keyboardTo = (/** @type {number} */ h) => { height = h; vv.dispatchEvent(new Event('resize')); };
+    });
+    await page.goto('/paycalc.html');
+    // Settled, and the calendar read answered: the roster hint bar arrives with it and would move
+    // every row under a geometry measured too soon.
+    await waitForPageSettled(page);
+    await waitForReadsToLand(page);
+    const bar = page.locator('#stickyTotal');
+
+    // The £ low in the layout viewport: in view by the observer's lights, so no bar yet.
+    await page.evaluate(() => {
+        const net = /** @type {HTMLElement} */ (document.getElementById('netDisplay'));
+        window.scrollBy(0, net.getBoundingClientRect().top - (window.innerHeight - 60));
+    });
+    await expect(bar).toBeHidden();
+
+    // Type on the Rest Day Working row, and raise a keyboard whose top is just below the box — where
+    // iOS puts a focused box — so the £ is now behind the keys.
+    const geometry = await page.evaluate(() => {
+        const box = /** @type {HTMLInputElement} */ (document.getElementById('rdwH'));
+        box.focus({ preventScroll: true });
+        const boxBottom = box.getBoundingClientRect().bottom;
+        const keysTop = Math.round(boxBottom + 20);
+        /** @type {any} */ (window).__keyboardTo(keysTop);
+        const net = /** @type {HTMLElement} */ (document.getElementById('netDisplay')).getBoundingClientRect();
+        return { keysTop, netTop: net.top, innerHeight: window.innerHeight };
+    });
+    expect(geometry.netTop, 'the setup must put the £ behind the keys and inside the layout viewport')
+        .toBeGreaterThan(geometry.keysTop);
+    expect(geometry.netTop).toBeLessThan(geometry.innerHeight);
+    await expect(bar, 'the £ is behind the keyboard, so the bar must carry it').toBeVisible();
+    await expect(bar).toHaveClass(/keyboard-up/);
+
+    // …and the bar, pinned above the keys, does not sit on the box being typed in.
+    await expect.poll(() => page.evaluate(() => {
+        const box = /** @type {HTMLElement} */ (document.getElementById('rdwH')).getBoundingClientRect();
+        const b = /** @type {HTMLElement} */ (document.getElementById('stickyTotal')).getBoundingClientRect();
+        return Math.round(b.top - box.bottom);
+    }), { message: 'the gap between the box and the bar above the keys' }).toBeGreaterThanOrEqual(7);
+    expect(errors).toHaveLength(0);
 });

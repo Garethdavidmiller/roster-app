@@ -122,12 +122,14 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         return { ok: false, kind: 'credential', error: 'Password not recognised — if you’ve forgotten it, or your account isn’t set up yet, ask the admin.' };
     }
     // Commit ONLY now that auth has genuinely resolved. If the write is swallowed (storage blocked —
-    // iOS Private Browsing), fail cleanly: without the local session every page re-check returns null,
+    // on an iPhone, Safari's Block All Cookies; Private Browsing has not refused storage since iOS 11,
+    // so the old advice to turn it off sent members after the wrong setting), fail cleanly: without
+    // the local session every page re-check returns null,
     // so an in-place re-init or reload would just loop back to this overlay. Sign back out (clearSession)
     // so we don't strand a signed-in Firebase identity with no app session, and tell the user why.
     if (!saveSession()) {
         clearSession();
-        return { ok: false, kind: 'storage', error: 'This browser is blocking storage. Turn off Private Browsing, or open the installed app, then sign in again.' };
+        return { ok: false, kind: 'storage', error: 'This browser is blocking storage, which the app needs to keep you signed in. Allow cookies and website data for this site — on an iPhone, turn off Block All Cookies in Safari’s settings — then sign in again.' };
     }
     return { ok: true };
 }
@@ -341,7 +343,25 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // returns null and the trigger is a button that does nothing. Silent: the control renders, it
     // just never opens. Every other caller passes it; this one has to as well.
     enhanceSelect(gradeSelect, { title: 'Select your grade', createLightbox });
-    const refreshName = enhanceSelect(nameSelect, { title: 'Select your name', createLightbox });
+    // ── THE PASSWORD BOX IS FOCUSED INSIDE THE TAP ON A NAME (iPhone audit, 7 Nov 2026) ────────────
+    //
+    // The `change` handler below focuses the password box once the name is set — but the sheet sets
+    // it only after its close has LANDED (select-sheet.js → `openOptionSheet`), long after the tap,
+    // and iOS raises its keyboard only for a focus made synchronously inside the tap. So an iPhone
+    // got a caret in the box and no keyboard. `focusOnPick` runs IN the tap, after the sheet has
+    // handed focus back to the name control. It empties the box there too, for a DIFFERENT name —
+    // which is what the handler below does — and notes for whom, because the member can start typing
+    // before the pick lands and the handler must not then wipe what they typed (`_pwClearedFor`).
+    // The same name picked again keeps whatever is in the box, as it always did.
+    let _pwClearedFor = '';
+    const refreshName = enhanceSelect(nameSelect, {
+        title: 'Select your name', createLightbox,
+        focusOnPick: (value) => {
+            if (!value) return null;
+            if (value !== nameSelect.value) { passwordInput.value = ''; _pwClearedFor = value; }
+            return passwordInput;
+        },
+    });
 
     // The name refresher IS captured, unlike the other callers, because this cascade repaints itself
     // and then immediately acts on the result. `enhanceSelect` repaints from a MutationObserver,
@@ -354,8 +374,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // ── WHO IS THIS CARD FOR? (v23.58) ──────────────────────────────────────────────────────────
     //
     // The Calendar's come-back card already says "Calendar · G. Miller" in its heading — a member
-    // whose local session outlived their Firebase identity, which on iPhone is every member who
-    // goes a week without opening the app. Until now, tapping its Sign in button opened this form
+    // whose local session outlived their Firebase identity. (Not, as this said until 7 Nov 2026, every
+    // iPhone member who goes a week without opening the app: Safari's seven-day rule deletes the local
+    // session WITH the identity — KNOWN_LIMITATIONS → "One interaction to expect on iOS".) Until now,
+    // tapping its Sign in button opened this form
     // asking them to pick their grade and then their own name from the whole roster, on the way to
     // the one field only they can fill. With `FORCE_PASSWORD_SET` on, the silent surname re-auth
     // fails for every migrated member, so this card IS their routine way back in — the taps were
@@ -430,7 +452,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     nameSelect.addEventListener('change', () => {
         errorEl.classList.remove('visible');
         resetResetRequest();   // see the grade handler
-        passwordInput.value = '';
+        // Already emptied in the tap for this name (`focusOnPick`, above): anything here now was
+        // typed for it, after the pick. Any other change — a test's `selectOption` — clears as before.
+        if (_pwClearedFor !== nameSelect.value) passwordInput.value = '';
+        _pwClearedFor = '';
         if (nameSelect.value) passwordInput.focus();
     });
 

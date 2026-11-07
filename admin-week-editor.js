@@ -37,7 +37,7 @@ import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-o
 // The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
 // headroom. Same names, so every call site below is unchanged; see that module's header for why
 // this cluster was the seam and the bulk bar was not.
-import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow, _syncAlSwap }
+import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow, _syncAlSwap, isStagedRow }
     from './admin-week-row-state.js';
 // The grid's time boxes — typed formatting and the HH:MM check — moved out at v24.64, for the same
 // reason as the line above, and now share clock-input.js's rule rather than restating it.
@@ -107,15 +107,12 @@ export function initWeekEditor(deps) {
  *  type). Used to avoid re-rendering the week grid over the admin's in-progress edits — by
  *  loadOverrides AND by the Saved-Changes delete paths (v16.82: deleting an unrelated saved change
  *  must not silently discard staged pills; the old active-pill-only check also missed staged
- *  removals). Exported so admin-app's period-delete path can apply the same guard. */
+ *  removals). Exported so admin-app's period-delete path can apply the same guard. The row test is
+ *  `isStagedRow` (admin-week-row-state.js), which a kept draft reads its rows with too. */
 export function _hasStagedEdits() {
     const weekGrid = document.getElementById('weekGrid');
     if (!weekGrid) return false;
-    return [...weekGrid.querySelectorAll('.day-row')].some(r => {
-        const el = /** @type {HTMLElement} */ (r);
-        return (el.dataset.type && !el.classList.contains('prefilled-existing')) // staged add/change
-            || (!el.dataset.type && el.dataset.existingId);                       // staged removal
-    });
+    return [...weekGrid.querySelectorAll('.day-row')].some(r => isStagedRow(/** @type {HTMLElement} */ (r)));
 }
 
 /**

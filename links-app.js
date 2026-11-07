@@ -34,7 +34,7 @@ import {
     ROTATING_LINES,
     DEFAULT_MAX_RUN,
     classifyShift,
-    normaliseCustomShift,
+    normaliseCustomShift, normalisePatterns,
     calcCoverage,
     generateLink,
     CONTRACTED_HOURS_PER_WEEK,
@@ -59,7 +59,8 @@ import { baselineFromEntry } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden } from './page-session.js';
+import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
 import {
     isDeleted, canSoftDelete, sortByDeleted,
 } from './links-deletion.js';
@@ -93,7 +94,7 @@ export function init() {
             if (hasUnconfirmedWrite()) return;
             if (!_isDirty() || await confirmDialog({
                 title: 'Update available',
-                message: 'Reload to apply the update? Unsaved changes will be lost.',
+                message: 'Reload to apply the update? Your unsaved changes are kept in this browser, and you’ll be asked whether to restore them.',
                 confirmLabel: 'Reload',
             })) {
                 reloadForUpdate();   // not a bare reload: it notes a release caused the next load
@@ -250,6 +251,8 @@ export function init() {
     let design = null;
     let dirty  = false;
     _isDirty = () => dirty;   // point the SW beforeReload at THIS pass's flag (v16.23)
+    // Unsaved work kept for a page that goes without asking — offered only with a grid it can restore WHOLE.
+    const draftSlot = createDraftSlot({ page: 'links', by: currentUser ?? '', usable: (d) => !!d.patterns && typeof d.patterns === 'object' && Object.keys(d.patterns).length > 0 });
     /** Designs with a save in flight — by id, or 'unsaved' for ANY first save (never the design object:
      *  a window edit or a generator apply replaces it mid-save, re-enabling Save for a second create —
      *  whole-app review). PER DESIGN, so a write that cannot finish never locks the others (Sep 2026). */
@@ -913,6 +916,20 @@ export function init() {
         updateSaveBtn();
         updateLastSaved(d.updatedBy, lastSaveTime(d));
         refreshGenTargetsForDesign();   // targets are per design (v19.38)
+    }
+
+    /** A kept draft back as the UNSAVED working copy (unsaved-draft.js), on its own design with the baseline it was edited
+     *  against, so a colleague's save since still asks; a design gone from the list, or never saved, comes back as a new
+     *  one, which Save names. @param {any} kept */
+    function restoreDraft(kept) {
+        const entry = [...designs, ...PROPOSAL_ENTRIES].find(x => x.id === kept.scope.design);
+        if (entry) _activateDesign(entry);
+        else { activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, ''); activation++; compare.resetCompare(); }
+        const own = entry ? design : null;   // the working copy `_activateDesign` has just made, or nothing
+        design = { id: own?.id ?? null, name: own?.name ?? '', patterns: normalisePatterns(kept.data.patterns), window: normaliseWindow(kept.data.window) };
+        if (entry && activeDesignId) ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = draftBaseline(kept.data.baseline));
+        dirty = true;
+        renderDesignPicker(); renderGrid(); renderBrushBar(); renderDesignChecks(); renderCoverageCard(); compare.renderCompare(); updateSaveBtn();
     }
 
     // COMPARE MODE was extracted to links-compare.js (v17.71); wired via `compare` above.
@@ -1872,8 +1889,10 @@ export function init() {
             const same = JSON.stringify([design?.patterns, normaliseWindow(design?.window)])
                 === JSON.stringify([written.patterns, written.window]);
             dirty = !same;
+            if (same) draftSlot.forget();   // saved — or queued in Firestore's own persistent queue: no copy to keep
             updateSaveBtn();
-            const [said, lead] = queued ? ['Saved on this device — it will upload when you’re back online', 'Saved on this device'] : ['✓ Saved', '✓ Saved'];
+            // Queued is IN THIS BROWSER (iPhone audit, Nov 2026): "when you're back online" promised what a closed page cannot do.
+            const [said, lead] = queued ? ['Saved in this browser — it uploads the next time Links is open here with a connection', 'Saved in this browser'] : ['✓ Saved', '✓ Saved'];
             if (status) { setStatus(status, same ? said : `${lead} — your later changes are not saved yet`); status.className = `links-save-status${queued ? '' : ' ok'}`; }
             updateLastSaved(currentUser, lastSaveTime(entry) ?? new Date());
         };
@@ -2224,6 +2243,13 @@ export function init() {
     // UNSAVED CHANGES GUARD
     // ============================================
     warnOnUnload(() => dirty);
+    // …and for the exits nothing asks about, iOS discarding a hidden page or a swipe back (iPhone audit, Nov 2026): the
+    // working copy and its baseline are kept while the page is hidden, and offered on the next load (BOOT, below).
+    keepDraftWhenHidden(() => dirty && !!design, {
+        keep: () => draftSlot.keep({ design: activeDesignId ?? activeProposalId }, { patterns: design?.patterns, window: design?.window ?? null,
+            baseline: { loadedRevision, loadedUpdatedAt, baselineUnknown } }),
+        forget: () => draftSlot.forget(),
+    });
 
     document.addEventListener('click', e => {
         if (!dirty) return;
@@ -2366,6 +2392,8 @@ export function init() {
     // ============================================
     // BOOT
     // ============================================
-    loadDesigns();
+    // A kept draft is offered once the list is in, never over a FAILED load: its design is not there to restore onto.
+    loadDesigns().then(() => { if (!loadFailed) return draftSlot.offer({ ask: confirmDialog, apply: restoreDraft }); })
+        .catch((err) => console.error('[Links] The unsaved-changes offer failed:', err));
 
 }

@@ -4,9 +4,14 @@
  *
  * Owns: turning one `.day-row` on and off, and keeping the four things that depend on a row's
  *   current type in step with it — the RDW warning, the Spare submenu mode, the swapped-day
- *   question, and the overwrite badge.
- * Does NOT own: which rows exist, what is staged, the bulk bar, or any save.
- * Edit here for: a new per-row control, or a change to what an active/inactive row shows.
+ *   question, and the overwrite badge. And, since the iPhone audit (Nov 2026), a row's staged state
+ *   AS DATA: `isStagedRow` (the one test of "is this row staged?") and the reading and putting back
+ *   of a week's staged rows that a kept draft is made of (`readWeekDraft` / `applyWeekDraft`,
+ *   unsaved-draft.js).
+ * Does NOT own: which rows exist, which week is shown, the bulk bar, the draft's storage, or any save.
+ * Edit here for: a new per-row control, or a change to what an active/inactive row shows. A new
+ *   per-row control that a save reads must be read and put back here too, or a restored draft
+ *   silently drops it.
  *
  * ── WHY IT IS ITS OWN MODULE (v23.98) ──────────────────────────────────────────────────────────
  *
@@ -196,4 +201,124 @@ export function _deactivateRow(row, checkbox, pills, startEl, endEl) {
     }
     _syncAlSwap(row);
     _syncOverwriteBadge(row);
+}
+
+// ── A ROW'S STAGED STATE AS DATA (iPhone audit, Nov 2026) ─────────────────────────────────────────
+//
+// A kept draft (unsaved-draft.js) is the staged rows of one week, read off the grid when the page is
+// hidden and put back on the next load. Both halves are here, beside the two states they read and
+// recreate, so a new per-row control is read and restored in the same place it is drawn.
+
+/**
+ * Is this row STAGED — a change, or a removal, that Save would write? The one test of it: a row given
+ * a type that is not its untouched prefill, or a prefilled row whose type was taken away (a staged
+ * DELETE, which leaves nothing on the row to look unsaved). `_hasStagedEdits` asks it of the grid.
+ * @param {HTMLElement} row
+ * @returns {boolean}
+ */
+export function isStagedRow(row) {
+    return row.dataset.type ? !row.classList.contains('prefilled-existing') : !!row.dataset.existingId;
+}
+
+/**
+ * @typedef {{ date: string, remove?: boolean, type?: string, start?: string, end?: string,
+ *             flavour?: string, rdw?: boolean, swap?: string, was?: string }} RowDraft
+ */
+
+/**
+ * One row's staged state as data, or null for a row with nothing staged. Everything the save
+ * collector reads from a row (admin-app.js): the type, the times, the Other flavour and RDW tick, and
+ * the swapped-day answer.
+ * @param {HTMLElement} row
+ * @returns {RowDraft|null}
+ */
+export function readRowDraft(row) {
+    if (!isStagedRow(row)) return null;
+    const date = row.dataset.date ?? '';
+    if (!row.dataset.type) return { date, remove: true };
+    const box = (/** @type {string} */ sel) => /** @type {HTMLInputElement|null} */ (row.querySelector(sel))?.value ?? '';
+    const flavour = /** @type {HTMLElement|null} */ (row.querySelector('.other-flavour-btn.active'))?.dataset.flavour ?? '';
+    const rdw = !!(/** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb')))?.checked;
+    return { date, type: row.dataset.type, start: box('.day-start'), end: box('.day-end'), flavour, rdw, swap: row.dataset.alSwap ?? '' };
+}
+
+/**
+ * Put one row back into the staged state `d` describes, through the same two states a tap reaches.
+ * False — and the row left exactly as it was — when the row can no longer take it: a removal of a
+ * record that is not there any more, or a type this day does not offer (a Sunday's disabled pills).
+ * @param {HTMLElement} row
+ * @param {RowDraft} d
+ * @returns {boolean}
+ */
+export function applyRowDraft(row, d) {
+    const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
+    const pills    = row.querySelectorAll('.type-pill-btn');
+    const startEl  = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
+    const endEl    = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
+    const pill = /** @type {HTMLButtonElement|undefined} */ ([...pills].find(p => /** @type {HTMLElement} */ (p).dataset.type === d.type));
+    if (d.remove ? !row.dataset.existingId : (!pill || pill.disabled)) return false;
+    // Cleared FIRST, as bulk apply does: `_activateRow` asks the swapped-day question only of a row
+    // that is being booked, and a row still marked as its prefill is not.
+    row.classList.remove('prefilled-existing');
+    if (d.remove) { _deactivateRow(row, checkbox, pills, startEl, endEl); return true; }
+    _activateRow(row, checkbox, pills, startEl, endEl, /** @type {string} */ (d.type));
+    if (startEl) startEl.value = String(d.start ?? '');
+    if (endEl) endEl.value = String(d.end ?? '');
+    if (d.type === 'other') {
+        row.querySelectorAll('.other-flavour-btn').forEach(b => {
+            const on = /** @type {HTMLElement} */ (b).dataset.flavour === d.flavour;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-pressed', String(on));
+        });
+        const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
+        if (cb && !cb.disabled) cb.checked = !!d.rdw;
+        _syncOtherSpareMode(row);   // Spare hides the tick and the times; it re-syncs the RDW warning too
+    }
+    // Only where the question is asked of this row now: `_activateRow` has just shown or hidden it.
+    const asked = !/** @type {HTMLElement|null} */ (row.querySelector('.col-al-swap'))?.hidden;
+    if (asked && (d.swap === 'yes' || d.swap === 'no')) {
+        row.dataset.alSwap = d.swap;
+        row.querySelectorAll('.al-swap-btn').forEach(b =>
+            b.setAttribute('aria-pressed', String(/** @type {HTMLElement} */ (b).dataset.swap === d.swap)));
+    }
+    return true;
+}
+
+/**
+ * Every staged row of the week on screen, as the draft keeps it: each with `was`, the saved record
+ * the row was edited over (`savedSignature`, unsaved-draft.js), so a restore can tell when that has
+ * changed since.
+ * @param {ParentNode} grid
+ * @param {(date: string) => string} was
+ * @returns {RowDraft[]}
+ */
+export function readWeekDraft(grid, was) {
+    return /** @type {RowDraft[]} */ ([...grid.querySelectorAll('.day-row')]
+        .map(r => readRowDraft(/** @type {HTMLElement} */ (r)))
+        .filter(Boolean))
+        .map(d => ({ ...d, was: was(d.date) }));
+}
+
+/**
+ * Put a kept week back on the grid on screen. A row is restored only while its saved record is still
+ * the one it was edited over: a colleague's change since, or a booking made from another card, is
+ * never overwritten by a draft nobody has looked at again. Those days come back in `left`, with any
+ * row this week no longer has.
+ * @param {ParentNode} grid
+ * @param {any} rows      the draft's rows, as read back from storage
+ * @param {(date: string) => string} was  the saved record on each day NOW
+ * @returns {{ put: number, left: string[] }}
+ */
+export function applyWeekDraft(grid, rows, was) {
+    const byDate = new Map([...grid.querySelectorAll('.day-row')]
+        .map(r => [/** @type {HTMLElement} */ (r).dataset.date, /** @type {HTMLElement} */ (r)]));
+    let put = 0;
+    /** @type {string[]} */ const left = [];
+    for (const d of Array.isArray(rows) ? rows : []) {
+        if (!d || typeof d.date !== 'string') continue;
+        const row = byDate.get(d.date);
+        if (row && d.was === was(d.date) && applyRowDraft(row, d)) put++;
+        else left.push(d.date);
+    }
+    return { put, left };
 }

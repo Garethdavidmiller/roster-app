@@ -17,6 +17,12 @@
  * Evidence chips: a provisional state the page declares is shown on the row, one chip per state,
  * never merged into a "worst" and never dropped — a member deciding at a gateline must meet the
  * page's own doubt IN the result, not after the tap (guide-search.js header, rule 1).
+ *
+ * SEARCH MODE (iPhone audit, 7 Nov 2026): while a query is active the drawer's page pills and its
+ * Latest section step aside, so the results sit just under the box rather than ~500px down the
+ * drawer — under the iPhone keyboard, which does not resize the page. The rules (which state
+ * drives it, when it comes back, why the box is held still on the way out) are beside
+ * `syncSearchMode` below; the hiding itself is one CSS rule, `.nav-panel--searching` in shared.css.
  */
 
 import { GUIDE_INDEX } from './guide-index.js';
@@ -47,6 +53,36 @@ export function initGuideSearch({ guides }) {
     // Re-bound after the guard so the closures below see non-null types (narrowing does not
     // survive into a nested function).
     const results = _results, status = _status, list = _list;
+    const panel = document.getElementById('navPanel');
+    const zone  = document.getElementById('navGuideSearchZone');
+
+    /** Whether the drawer is in search mode — the class is the state; this only spares a re-read. */
+    let searching = false;
+    /**
+     * Put the drawer into search mode while a query is active, and take it out again.
+     *
+     * Driven by the QUERY (the attribute `render()` publishes), not by focus: the box can be tapped
+     * and left empty without the drawer's map disappearing under the reader. Off while the Reference
+     * section is folded, because the fold hides the box — search mode with no box is an empty drawer.
+     *
+     * Two scroll rules, one per direction. Going IN, the drawer scrolls to its top, so the box is
+     * just under the header wherever the member had scrolled to reach it. Coming OUT with the box
+     * still focused (a cleared query), the box is held where it is: the pills and Latest come back
+     * ABOVE it, and without the correction they would push it ~500px down — under the keyboard the
+     * member is still typing on.
+     */
+    function syncSearchMode() {
+        const on = results.dataset.gsActive === '1' && !zone?.hidden;
+        if (!panel || on === searching) return;
+        const body = panel.querySelector('.nav-panel-body');
+        const holdBox = !on && document.activeElement === input;
+        const before = holdBox ? /** @type {HTMLInputElement} */ (input).getBoundingClientRect().top : 0;
+        panel.classList.toggle('nav-panel--searching', on);
+        searching = on;
+        if (!body) return;
+        if (on) body.scrollTop = 0;
+        else if (holdBox) body.scrollTop += /** @type {HTMLInputElement} */ (input).getBoundingClientRect().top - before;
+    }
 
     /** Guide metadata by basename — result rows join the index to the drawer's own entries. */
     const byPage = new Map(guides.map(g => [g.url.replace(/^\.\//, ''), g]));
@@ -101,6 +137,7 @@ export function initGuideSearch({ guides }) {
             results.textContent = '';
             list.hidden = false;
             status.textContent = '';
+            syncSearchMode();
             return;
         }
         const hits = searchGuideIndex(GUIDE_INDEX, q, { limit: RESULT_LIMIT });
@@ -116,6 +153,7 @@ export function initGuideSearch({ guides }) {
         status.textContent = hits.length === 0
             ? 'No matches in the guides'
             : `${hits.length} ${hits.length === 1 ? 'match' : 'matches'}`;
+        syncSearchMode();
     }
 
     input.addEventListener('input', render);
@@ -128,7 +166,32 @@ export function initGuideSearch({ guides }) {
             input.value = '';
             render();
         }
+        // THE KEYBOARD'S SEARCH KEY PUTS THE KEYBOARD AWAY (iPhone audit, 7 Nov 2026). Results arrive
+        // as you type, so there is nothing to submit; "done typing" is the key's only useful meaning,
+        // and on an iPhone the keyboard is what covers the results. Not mid-IME composition, where
+        // Enter commits the characters instead.
+        if (e.key === 'Enter' && !e.isComposing) {
+            e.preventDefault();
+            input.blur();
+        }
     });
+
+    // RESTORED WHEN THE DRAWER NEXT OPENS, not as it closes: cleared on the way out, the pills and
+    // Latest would reappear while the drawer is still sliding away. The member next sees a drawer
+    // with its map back and an empty box either way. A drawer re-built by `resetNavPanel` is a new
+    // element with no query, and these observers go with the old one.
+    if (panel && typeof MutationObserver === 'function') {
+        let wasOpen = panel.classList.contains('open');
+        new MutationObserver(() => {
+            const open = panel.classList.contains('open');
+            if (open && !wasOpen && input.value) { input.value = ''; render(); }
+            wasOpen = open;
+        }).observe(panel, { attributes: true, attributeFilter: ['class'] });
+    }
+    // Folding Reference hides the box (nav-panel.js's toggle), so search mode follows it both ways.
+    if (zone && typeof MutationObserver === 'function') {
+        new MutationObserver(syncSearchMode).observe(zone, { attributes: true, attributeFilter: ['hidden'] });
+    }
 
     render();   // the focus that loaded the module may follow typed characters
 }

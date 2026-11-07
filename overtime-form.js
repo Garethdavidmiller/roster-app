@@ -26,8 +26,9 @@
  *    greys the button out on its own clock has denied somebody who was in time and left them
  *    nothing to do about it.
  *
- * 3. **A timeout is not a failure.** `AbortController` stops us waiting; it does not stop the
- *    server writing. So a timeout goes into RECONCILIATION — re-read state, look for our own
+ * 3. **A timeout is not a failure — and nor is a lost connection on a submit.** `AbortController`
+ *    stops us waiting; it does not stop the server writing. So a timeout or a `network` failure
+ *    goes into RECONCILIATION — re-read state, look for our own
  *    `clientMutationId` — and only reports what it can actually establish. The three outcomes
  *    ("it did save" / "it did not" / "we could not tell") each have their own copy, because
  *    collapsing them is how a member ends up submitting a second, contradictory version.
@@ -36,7 +37,7 @@
 import * as OTD from './overtime-data.js';
 import { confirmDialog } from './overlay.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
-import { isClockTime } from './clock-input.js';
+import { isClockTime, formatClockInput, finaliseClockInput } from './clock-input.js';
 import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was a local copy)
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines, phaseChip, phaseTone,
@@ -383,29 +384,47 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             focusRelease(date);
             updateSubmitState();
         }));
-        daysHost.querySelectorAll('.ot-custom-input').forEach(inp => inp.addEventListener('change', () => {
-            const date = String(inp.getAttribute('data-date'));
-            const which = String(inp.getAttribute('data-which'));
-            const cur = answers[date];
-            if (!cur || cur.mode !== 'custom') return;
-            // TEXT boxes, so the browser no longer guarantees `HH:MM` (customRow says why the
-            // control changed). `dayUnfinished` asks only whether the two times are present and
-            // differ — it cannot tell `9am` from a time — so anything that is not a REAL clock
-            // time is stored as empty and the day stays unfinished. `isClockTime` is the app's one
-            // definition of that, shared with the roster review's entry control.
-            const raw = normaliseTyped(/** @type {HTMLInputElement} */ (inp).value);
-            cur[which] = isClockTime(raw) ? raw : '';
-            // Write the normalised form back so `0600` and `6:00` become `06:00` in the box the
-            // member is looking at, rather than being silently discarded.
-            if (cur[which]) /** @type {HTMLInputElement} */ (inp).value = raw;
-            // `nextDay` is DERIVED from the two times, never asked. The server refuses a mismatch,
-            // so computing it here is not belt-and-braces — it is the only way a member can enter
-            // an overnight period at all.
-            cur.nextDay = !!(cur.start && cur.end && cur.end < cur.start);
-            paintCustomHint(date);
-            retintDay(date);
-            updateSubmitState();
-        }));
+        daysHost.querySelectorAll('.ot-custom-input').forEach(el => {
+            const inp = /** @type {HTMLInputElement} */ (el);
+            // SHAPED AS IT IS TYPED (7 Nov 2026, iPhone audit), by the rule every text clock box
+            // shares (clock-input.js): the box is `inputmode="numeric"` and an iPhone's number pad has
+            // no colon, so "0600" used to stay "0600" until the box was left.
+            inp.addEventListener('input', () => {
+                const shaped = formatClockInput(inp.value);
+                if (shaped !== inp.value) inp.value = shaped;
+            });
+            // COMMITTED ON BLUR AS WELL AS CHANGE: setting `.value` from `input` resets WebKit's
+            // change baseline, so on an iPhone `change` may never fire when the box is left
+            // (admin-week-editor.js measured it). `commitCustom` is idempotent.
+            inp.addEventListener('change', () => commitCustom(inp));
+            inp.addEventListener('blur', () => commitCustom(inp));
+        });
+    }
+
+    /** One custom-time box, as left, judged and written into its day's answer. @param {HTMLInputElement} inp */
+    function commitCustom(inp) {
+        const date = String(inp.getAttribute('data-date'));
+        const which = String(inp.getAttribute('data-which'));
+        const cur = answers[date];
+        if (!cur || cur.mode !== 'custom') return;
+        // TEXT boxes, so the browser no longer guarantees `HH:MM` (customRow says why the
+        // control changed). `dayUnfinished` asks only whether the two times are present and
+        // differ — it cannot tell `9am` from a time — so anything that is not a REAL clock
+        // time is stored as empty and the day stays unfinished. `isClockTime` is the app's one
+        // definition of that, shared with the roster review's entry control. Leaving the box is
+        // what settles a three-digit "630" or "240" (`finaliseClockInput`).
+        const raw = finaliseClockInput(inp.value);
+        cur[which] = isClockTime(raw) ? raw : '';
+        // Write the settled form back so `0600` and `6:00` become `06:00` in the box the
+        // member is looking at, rather than being silently discarded.
+        if (cur[which]) inp.value = raw;
+        // `nextDay` is DERIVED from the two times, never asked. The server refuses a mismatch,
+        // so computing it here is not belt-and-braces — it is the only way a member can enter
+        // an overnight period at all.
+        cur.nextDay = !!(cur.start && cur.end && cur.end < cur.start);
+        paintCustomHint(date);
+        retintDay(date);
+        updateSubmitState();
     }
 
     /**
@@ -588,23 +607,6 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                 <span>${esc(SUNDAY_RELEASE_LABEL)}</span>
             </label>
             ${on ? `<p class="ot-release-said" role="status">${esc(SUNDAY_RELEASE_ASKED)}</p>` : ''}`;
-    }
-
-    /**
-     * What a member typed, in the shape the rest of the app stores. Accepts `0600`, `6:00` and
-     * `06:00`; anything else comes back unchanged and then fails `isClockTime`, which is what
-     * leaves the day unfinished rather than guessing at an intention.
-     * @param {string} v
-     */
-    function normaliseTyped(v) {
-        const t = String(v ?? '').trim();
-        const digits = /^(\d{3,4})$/.exec(t.replace(/\D/g, ''));
-        if (digits && t.indexOf(':') === -1) {
-            const d = digits[1].padStart(4, '0');
-            return `${d.slice(0, 2)}:${d.slice(2)}`;
-        }
-        const m = /^(\d{1,2}):(\d{2})$/.exec(t);
-        return m ? `${m[1].padStart(2, '0')}:${m[2]}` : t;
     }
 
     /** @param {string} date @param {any} a */
@@ -810,7 +812,11 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         // The button stays disabled THROUGH reconciliation: it re-reads state to decide whether
         // the timed-out write landed, and a second submission racing that read is exactly the
         // contradictory-double this feature is careful about everywhere else.
-        if (r.code === 'timeout') {
+        // A `network` failure is as unknown as a timeout for a WRITE (7 Nov 2026, iPhone audit): iOS
+        // suspends a page mid-request, and a 200 whose body was cut off reads as `network` too
+        // (overtime-data.js). Told "couldn't reach the server", the member retried and was shown
+        // their own save as "a newer version"; keeping the id lets that conflict say it was theirs.
+        if (r.code === 'timeout' || r.code === 'network') {
             pendingMutationId = r.mutationId;
             await reconcile();
             submitBtn.disabled = false;
@@ -834,7 +840,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     }
 
     /**
-     * A timed-out submission may still have been written. Re-read and look for OUR mutation id.
+     * A timed-out or cut-off submission may still have been written. Re-read and look for OUR mutation id.
      *
      * Three outcomes, three messages, and the third one is the important one: when the network is
      * still down there is no honest answer, so it says so instead of guessing. Guessing "failed"

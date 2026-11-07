@@ -193,7 +193,7 @@
                         <label class="field-eyebrow tr-label" for="trLookupInput">Time</label>
                         <!-- A full keyboard, not the numeric pad: "5.15pm" needs letters (v24.79). -->
                         <input type="text" class="tr-input" id="trLookupInput" autocomplete="off"
-                               autocapitalize="off" spellcheck="false" placeholder="17:15 or 5.15pm" maxlength="9">
+                               autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="17:15 or 5.15pm" maxlength="9">
                         <div id="trLookupResult" aria-live="polite"></div>
                     </div>
                 </div>
@@ -258,8 +258,12 @@
                          of 266px below it; "Change station" brings them back (v24.92). -->
                     <div id="trStationPicker">
                         <label class="field-eyebrow tr-label" for="trStationInput">Station</label>
+                        <!-- A SEARCH, so no autocorrect and no capital (iPhone audit, 7 Nov 2026): iOS replaced a
+                             half-typed station with a dictionary word at the space, and the matches with it.
+                             `go`, because Enter opens the first match (trains-app.js). -->
                         <input type="text" class="tr-input tr-input--wide" id="trStationInput"
-                               autocomplete="off" placeholder="Start typing a station">
+                               autocomplete="off" autocorrect="off" autocapitalize="none" enterkeyhint="go"
+                               placeholder="Start typing a station">
                         <div class="tr-picks" id="trStationPicks"></div>
                     </div>
                     <button type="button" class="tr-more tr-change-station" id="trStationChange" hidden>Change station</button>

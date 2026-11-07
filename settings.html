@@ -190,7 +190,14 @@
                     <button type="button" class="btn-action btn-secondary" id="pwChangeBtn">Change password</button>
                 </div>
 
-                <div id="pwForm">
+                <!-- A REAL FORM, FOR THE PASSWORD MANAGER (iPhone audit, Nov 2026) — the sign-in card's
+                     shape (login-overlay.js). With no <form> and no username field, iCloud Keychain had
+                     nothing to file a changed password under, so it was saved on nobody's name or not
+                     at all. The hidden username is the member's roster name — the value the sign-in
+                     card gives it — set by settings-app.js. The form never goes anywhere: every submit
+                     is cancelled, and only a password that passes the checks is submitted through it. -->
+                <form id="pwForm" action="#" method="post" novalidate>
+                    <input type="text" id="pwUsername" name="username" class="visually-hidden" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
                     <label class="contact-label" for="pwCurrent">Current password</label>
                     <input type="password" id="pwCurrent" class="contact-email-input"
                            autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
@@ -217,7 +224,7 @@
                     </label>
 
                     <button type="button" class="btn-action btn-primary" id="pwSaveBtn">Set password</button>
-                </div>
+                </form>
                 <div class="contact-feedback" id="pwFeedback" aria-live="polite"></div>
             </div>
         </div>
@@ -258,7 +265,7 @@
 
     <!-- ── INSTALL IS A DEVICE SETTING, NOT A NOTIFICATION SETTING (v22.37, owner review) ──────
          It lived inside Notifications because installing is what makes notifications possible on
-         iOS and what makes this device's stored pay data durable — both true, and neither is
+         iOS and what makes pay data saved in the installed app durable — both true, and neither is
          something a member knows. Somebody looking for "how do I put this on my home screen?" does
          not think Notifications, so the control was effectively undiscoverable to the one person
          it was for.
@@ -277,8 +284,12 @@
             </div>
         </div>
         <div class="card-body">
-            <p class="install-note" id="installNote">Installing puts the roster on your home screen, and keeps
-                this device’s saved pay data safe from being cleared to free up space.</p>
+            <!-- THE PROMISE COVERS WHAT IS SAVED IN THE INSTALLED APP (iPhone audit, Nov 2026). It said
+                 installing "keeps this device's saved pay data safe from being cleared", and on an
+                 iPhone the figures ALREADY saved stay in the browser: a Home Screen app keeps its own
+                 storage. The iPhone steps below say so, and carry the figures across first. -->
+            <p class="install-note" id="installNote">Installing puts the roster on your home screen. Pay figures
+                you save in the installed app are far less likely to be cleared to free up space.</p>
             <button type="button" class="btn-action btn-secondary" id="installBtn">Install the app</button>
             <!-- WebKit fires no install event, so on iPhone the app says what to tap instead.
                  Hidden by default and revealed only on that path — the same two-mode shape the
@@ -289,10 +300,17 @@
                  none of them is Safari and none of them puts the button in the same place. Naming
                  the browser and the position made the one instruction that matters read as wrong to
                  anybody not in Safari. Name the CONTROL, not its chrome. -->
+            <!-- WHAT THE INSTALL COSTS ON AN iPHONE (iPhone audit, Nov 2026). The Home Screen app keeps
+                 its own storage, so the member signs in there once, and Pay Calculator figures saved in
+                 the browser stay behind — the first step carries them across, and is shown only where
+                 this device holds some (the Pay Calculator Data card's own count, settings-app.js).
+                 Share is under ••• on iOS 26, and an email or chat app has no Add to Home Screen. -->
             <ol class="install-steps" id="installSteps" hidden>
-                <li>Tap your browser’s <strong>Share</strong> button.</li>
+                <li id="installStepPay" hidden>Copy your Pay Calculator figures first, with 💾&nbsp;<strong>Move Your Pay Data</strong> on the Pay page — the Home Screen app starts without them.</li>
+                <li>Opened this from an email or a chat? Open it in <strong>Safari</strong> first — those apps cannot add it.</li>
+                <li>Tap your browser’s <strong>Share</strong> button — on iOS 26 or later it is under <strong>•••</strong>.</li>
                 <li>Choose <strong>Add to Home Screen</strong>.</li>
-                <li>Open the roster from your Home Screen from now on.</li>
+                <li>Open the roster from your Home Screen from now on, and sign in there once.</li>
             </ol>
         </div>
     </div>
@@ -307,7 +325,7 @@
         <div class="card-header card-header-toggle" id="payDataToggleHeader">
             <div>
                 <h2><span aria-hidden="true">💾</span> Pay Calculator Data</h2>
-                <span class="hint">Saved on this device only — keep a copy before you switch</span>
+                <span class="hint">Saved in this browser only — keep a copy before you switch</span>
             </div>
             <div class="card-header-actions">
                 <span class="card-year-chip" id="payDataStatusChip"></span>

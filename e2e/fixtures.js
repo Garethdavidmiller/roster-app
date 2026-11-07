@@ -397,6 +397,9 @@ const _e2eAuth = (code, establishes) => (_auth, email, password) => {
 // depend on that. A test that needs a signed-in Firebase user (e.g. to reach an admin Cloud Function
 // caller, which bails with "Not signed in" before it ever fetches) opts in with
 // window.__E2E = { authUser: true }; everything else is unchanged.
+// window.__E2E.authUserEmail gives that user an email (opt-in, iPhone audit, 7 Nov 2026). Re-authentication
+// needs one, so without it a password change under the stub could never succeed; and session.js treats a
+// user whose email is the member's own as that member's account, which is why it is not on by default.
 // NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
 const _viewerUser = () => ({
     uid: 'calendar-viewer',
@@ -437,7 +440,7 @@ const _currentUser = () => {
     // getIdTokenResult() — and a stub with only one of them fails whichever path it does not cover
     // with an unhelpful TypeError halfway through an upload.
     if (e2e.authUser) return {
-        uid: 'test', isAnonymous: false,
+        uid: 'test', isAnonymous: false, email: e2e.authUserEmail,
         getIdToken: () => Promise.resolve('e2e-token'),
         getIdTokenResult: () => Promise.resolve({ token: 'e2e-token', claims: { admin: true } }),
     };

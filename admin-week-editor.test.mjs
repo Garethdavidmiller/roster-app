@@ -483,3 +483,156 @@ test('while a save is in flight the unsaved banner\'s Discard is held too (revie
     setSaveInFlight(false);
     assert.equal(discard.disabled, false);
 });
+
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// A WEEK'S STAGED ROWS AS A KEPT DRAFT (iPhone audit, Nov 2026)
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// iOS discards a hidden page and a swipe back asks nothing, so Admin keeps the staged rows when the
+// page is hidden and offers them on the next load (unsaved-draft.js). What can go wrong silently is
+// the round trip: a control the save reads that the draft drops, a row put back over a record that
+// changed since, or a row the draft cannot take left half-changed — a phantom staged edit.
+
+const { isStagedRow, readRowDraft, applyRowDraft, readWeekDraft, applyWeekDraft } = await import('./admin-week-row-state.js');
+const { PILL_TYPES } = await import('./admin-shift-types.js');
+
+/** A row carrying every control the save collector reads (admin-app.js), found by selector. */
+function draftRow({ date = '2026-12-08', type = '', existingId = '', prefilled = false, start = '', end = '',
+                    alSwapAsk = '', baseIsRd = '', disabled = [] } = {}) {
+    const r = row({ type, existingId, prefilled });
+    r.dataset.date = date;
+    r.dataset.alSwapAsk = alSwapAsk;
+    r.dataset.baseIsRd = baseIsRd;
+    const pills = PILL_TYPES.map(t => { const b = makeEl('button'); b.dataset.type = t; b.disabled = disabled.includes(t); return b; });
+    if (type) pills.find(p => p.dataset.type === type)?.classList.add('active');
+    const startEl = makeEl('input'), endEl = makeEl('input');
+    startEl.value = start; endEl.value = end;
+    startEl.removeAttribute = endEl.removeAttribute = () => {};   // _deactivateRow clears aria-invalid
+    const checkbox = makeEl('input');
+    const swapBox = makeEl(); swapBox.hidden = true;
+    const swapBtns = ['yes', 'no'].map(v => { const b = makeEl('button'); b.dataset.swap = v; return b; });
+    const otherOpts = makeEl(); otherOpts.hidden = true;
+    const flavours = ['TRG', 'IND', 'SPARE'].map(f => { const b = makeEl('button'); b.dataset.flavour = f; return b; });
+    const rdwCb = makeEl('input');
+    const activeFlavour = () => flavours.find(f => f.classList.contains('active')) ?? null;
+    r.querySelector = sel => ({
+        '.day-cb': checkbox, '.day-start': startEl, '.day-end': endEl, '.col-al-swap': swapBox,
+        '.other-opts': otherOpts, '.other-rdw-cb': rdwCb, '.other-flavour-btn.active': activeFlavour(),
+        '.other-flavour-btn.active[data-flavour="SPARE"]': activeFlavour()?.dataset.flavour === 'SPARE' ? activeFlavour() : null,
+    })[sel] ?? null;
+    r.querySelectorAll = sel => (sel === '.type-pill-btn' ? pills : sel === '.al-swap-btn' ? swapBtns
+        : sel === '.other-flavour-btn' ? flavours : []);
+    return { r, pills, startEl, endEl, swapBox, swapBtns, flavours, rdwCb };
+}
+/** A grid element holding `rows`. */
+const gridOf = (rows) => ({ querySelectorAll: sel => (sel === '.day-row' ? rows : []) });
+
+describe('isStagedRow is the one test of a staged row, and _hasStagedEdits asks it', () => {
+    test('a change and a removal are staged; an untouched prefill and an empty row are not', () => {
+        assert.equal(isStagedRow(row({ type: 'rdw' })), true);
+        assert.equal(isStagedRow(row({ existingId: 'ov1' })), true, 'a prefilled row with its type taken away is a staged DELETE');
+        assert.equal(isStagedRow(row({ type: 'shift', existingId: 'ov1', prefilled: true })), false);
+        assert.equal(isStagedRow(row()), false);
+    });
+});
+
+describe('a staged row read as draft data, and put back', () => {
+    test('everything the save reads is read: type, times, the Other flavour and tick, the swapped-day answer', () => {
+        const shift = draftRow({ type: 'shift', start: '06:00', end: '14:00' });
+        assert.deepEqual(readRowDraft(shift.r), { date: '2026-12-08', type: 'shift', start: '06:00', end: '14:00', flavour: '', rdw: false, swap: '' });
+        const other = draftRow({ type: 'other' });
+        other.flavours[1].classList.add('active');
+        other.rdwCb.checked = true;
+        assert.equal(readRowDraft(other.r).flavour, 'IND');
+        assert.equal(readRowDraft(other.r).rdw, true);
+        const al = draftRow({ type: 'annual_leave', alSwapAsk: '1' });
+        al.r.dataset.alSwap = 'yes';
+        assert.equal(readRowDraft(al.r).swap, 'yes');
+        assert.deepEqual(readRowDraft(draftRow({ existingId: 'ov1' }).r), { date: '2026-12-08', remove: true });
+        assert.equal(readRowDraft(draftRow({ type: 'sick', existingId: 'ov1', prefilled: true }).r), null, 'an untouched prefill is not work');
+    });
+
+    test('a change goes back over an untouched prefill as a STAGED change, times and all', () => {
+        const target = draftRow({ type: 'annual_leave', existingId: 'ov1', prefilled: true });
+        assert.equal(applyRowDraft(target.r, { date: '2026-12-08', type: 'shift', start: '06:00', end: '14:00' }), true);
+        assert.equal(target.r.dataset.type, 'shift');
+        assert.equal(target.r.classList.contains('prefilled-existing'), false, 'it now counts as staged');
+        assert.deepEqual([target.startEl.value, target.endEl.value], ['06:00', '14:00']);
+        assert.deepEqual(target.pills.filter(p => p.classList.contains('active')).map(p => p.dataset.type), ['shift']);
+        assert.equal(isStagedRow(target.r), true);
+    });
+
+    test('a removal goes back as a staged DELETE — and only while there is still a record to remove', () => {
+        const target = draftRow({ type: 'sick', existingId: 'ov1', prefilled: true });
+        assert.equal(applyRowDraft(target.r, { date: '2026-12-08', remove: true }), true);
+        assert.equal(target.r.dataset.type, undefined);
+        assert.equal(isStagedRow(target.r), true);
+        const gone = draftRow();
+        assert.equal(applyRowDraft(gone.r, { date: '2026-12-08', remove: true }), false);
+        assert.equal(isStagedRow(gone.r), false);
+    });
+
+    test('a type the day no longer offers is refused, and the row is left EXACTLY as it was — no phantom edit', () => {
+        const sunday = draftRow({ type: 'rdw', existingId: 'ov1', prefilled: true, disabled: ['annual_leave', 'sick', 'other', 'shift'] });
+        assert.equal(applyRowDraft(sunday.r, { date: '2026-12-06', type: 'annual_leave' }), false);
+        assert.equal(sunday.r.classList.contains('prefilled-existing'), true, 'a cleared prefill flag alone would stage the old value');
+        assert.equal(sunday.r.dataset.type, 'rdw');
+        assert.equal(applyRowDraft(draftRow().r, { date: '2026-12-08', type: 'not-a-type' }), false);
+    });
+
+    test('an Other day comes back with its flavour and tick; the tick a rest day locks stays locked', () => {
+        const target = draftRow();
+        applyRowDraft(target.r, { date: '2026-12-08', type: 'other', flavour: 'IND', rdw: true });
+        assert.deepEqual(target.flavours.filter(f => f.classList.contains('active')).map(f => f.dataset.flavour), ['IND']);
+        assert.equal(target.rdwCb.checked, true);
+        const restDay = draftRow({ baseIsRd: '1' });
+        restDay.rdwCb.disabled = true; restDay.rdwCb.checked = true;
+        applyRowDraft(restDay.r, { date: '2026-12-08', type: 'other', flavour: 'TRG', rdw: false });
+        assert.equal(restDay.rdwCb.checked, true, 'RDW is automatic on a rest day');
+    });
+
+    test('the swapped-day answer comes back only where the day is asked about now', () => {
+        const asked = draftRow({ alSwapAsk: '1' });
+        applyRowDraft(asked.r, { date: '2026-12-08', type: 'annual_leave', swap: 'yes' });
+        assert.equal(asked.swapBox.hidden, false);
+        assert.equal(asked.r.dataset.alSwap, 'yes');
+        const notAsked = draftRow({ alSwapAsk: '' });
+        applyRowDraft(notAsked.r, { date: '2026-12-08', type: 'annual_leave', swap: 'yes' });
+        assert.equal(notAsked.r.dataset.alSwap, undefined, 'a stale answer would charge a day nobody was asked about');
+    });
+});
+
+describe('a week of staged rows, kept and put back', () => {
+    test('read: only the staged rows, each carrying the saved record it was edited over', () => {
+        const rows = [draftRow({ date: '2026-12-07' }), draftRow({ date: '2026-12-08', type: 'sick' }),
+            draftRow({ date: '2026-12-09', type: 'rdw', existingId: 'ov9', prefilled: true }), draftRow({ date: '2026-12-10', existingId: 'ov10' })];
+        const kept = readWeekDraft(gridOf(rows.map(x => x.r)), d => `was:${d}`);
+        assert.deepEqual(kept.map(k => [k.date, k.type ?? 'remove', k.was]),
+            [['2026-12-08', 'sick', 'was:2026-12-08'], ['2026-12-10', 'remove', 'was:2026-12-10']]);
+    });
+
+    test('put back: a day whose saved record has changed since is LEFT, and named', () => {
+        const fresh = [draftRow({ date: '2026-12-08' }), draftRow({ date: '2026-12-09' })];
+        const now = { '2026-12-08': '', '2026-12-09': 'ov9|sick|SICK' };   // a colleague recorded an absence since
+        const { put, left } = applyWeekDraft(gridOf(fresh.map(x => x.r)), [
+            { date: '2026-12-08', type: 'shift', start: '06:00', end: '14:00', was: '' },
+            { date: '2026-12-09', type: 'annual_leave', was: '' },
+            { date: '2026-12-11', type: 'rdw', was: '' },   // not in this week any more
+            null, { date: 42 },
+        ], d => now[d] ?? '');
+        assert.equal(put, 1);
+        assert.deepEqual(left, ['2026-12-09', '2026-12-11']);
+        assert.equal(fresh[0].r.dataset.type, 'shift');
+        assert.equal(fresh[1].r.dataset.type, undefined, 'never put over a record nobody has looked at again');
+    });
+
+    test('the round trip: what is read off one grid comes back identical on a freshly drawn one', () => {
+        const before = [draftRow({ date: '2026-12-08', type: 'shift', start: '07:15', end: '15:15' }),
+            draftRow({ date: '2026-12-09', type: 'annual_leave', alSwapAsk: '1' }), draftRow({ date: '2026-12-10', existingId: 'ov10' })];
+        before[1].r.dataset.alSwap = 'no';
+        const kept = JSON.parse(JSON.stringify(readWeekDraft(gridOf(before.map(x => x.r)), () => '')));   // through storage
+        const after = [draftRow({ date: '2026-12-08' }), draftRow({ date: '2026-12-09', alSwapAsk: '1' }),
+            draftRow({ date: '2026-12-10', type: 'sick', existingId: 'ov10', prefilled: true })];
+        assert.deepEqual(applyWeekDraft(gridOf(after.map(x => x.r)), kept, () => ''), { put: 3, left: [] });
+        assert.deepEqual(readWeekDraft(gridOf(after.map(x => x.r)), () => ''), kept);
+    });
+});

@@ -539,9 +539,12 @@ full-height navy void.
   layout changes with a **rendered screenshot** (Playwright at 1366/1440), not just the geometry e2e.
 
 **Sticky take-home bar (`#stickyTotal`)** — a fixed bottom bar on **all widths** (desktop capped to
-`--content-max-width`, centred, rounded top corners). An `IntersectionObserver` on `#netDisplay` shows
-it when the £ figure scrolls off; `body.sticky-active` adds bottom padding. The bar is the **sole**
-keep-the-£-visible mechanism on every width.
+`--content-max-width`, centred, rounded top corners). It shows when the £ figure is off screen —
+an `IntersectionObserver` on `#netDisplay` decides, except with a phone's keyboard up, when the VISUAL
+viewport does (the keys cover the layout viewport without shrinking it, so the observer called a £
+behind them "in view"): `stickyBarShows` in `paycalc-sticky-total.js`, which also scrolls the field
+being typed in clear of the bar once per focus (`scrollToClearBar`). `body.sticky-active` adds bottom
+padding. The bar is the **sole** keep-the-£-visible mechanism on every width.
 
 **Desktop card placement** — explicit grid-row placement (mobile DOM order is untouched — every rule
 lives inside `@media (min-width:1024px)`): rows 1–2 the banners and privacy note (cols 1–2 — the

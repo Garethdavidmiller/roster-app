@@ -100,6 +100,11 @@ const SUBMIT_LABEL = 'Unlock Calendar →';
 
 /** @type {any} */ let _backoffTimer = null;
 
+/** The sign-in form's module once the member card has fetched it, so "Sign in →" can open the form
+ *  inside the tap (`showMemberPanel`). Null until then, and after a failed fetch.
+ *  @type {typeof import('./login-overlay.js')|null} */
+let _signInForm = null;
+
 /** Take whatever card is up off the page. The slot owns the element and the skeleton timer
  *  (calendar-lock-slot.js); the PIN card's backoff timer is this module's and is cleared here. */
 export function hideLockPanel() {
@@ -306,11 +311,13 @@ export async function showSignInPanel(notice = '') {
  *
  * ── WHY THIS IS A SEPARATE SCREEN ───────────────────────────────────────────────────────────────
  *
- * `decideAccess` needs BOTH a local session and a restored Firebase user, and the commonest way to
- * hold one without the other is not a bug: iOS evicts IndexedDB after ~7 days of not opening the
- * PWA, so a member with a 60-day local session loses the identity behind it while still being, as
- * far as they and the app are concerned, signed in. Answering that with the staff PIN is wrong twice
- * over. It asks a signed-in member for a code they may not have, and it offers them a SHARED
+ * `decideAccess` needs BOTH a local session and a restored Firebase user, and holding one without
+ * the other is not a bug: a member with a 60-day local session can lose the identity behind it while
+ * still being, as far as they and the app are concerned, signed in. (It is not Safari's seven-day
+ * rule, as this said until 7 Nov 2026 — that deletes the local session WITH the identity;
+ * KNOWN_LIMITATIONS → "One interaction to expect on iOS" has the likelier route.) Answering that
+ * with the staff PIN is wrong twice over. It asks a signed-in member for a code they may not have,
+ * and it offers them a SHARED
  * capability — unlocking would leave them viewing the Calendar as an anonymous viewer with their own
  * name still in the drawer, and the first thing they tried to do on Admin would fail.
  *
@@ -365,7 +372,24 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     const whyEl = /** @type {HTMLElement|null} */ (panel.querySelector('#calLockWhy'));
     if (whyEl) whyEl.textContent = why;
 
+    // ── THE FORM IS FETCHED NOW, SO THE TAP CAN OPEN IT AT ONCE (iPhone audit, 7 Nov 2026) ─────────
+    //
+    // The form lands focus on the password box, and iOS raises its keyboard only for a focus made
+    // synchronously inside the tap. Behind an `await` of the module it was outside it: the member
+    // tapped "Sign in →", got a focused box, and had to tap the box again for a keyboard. So the
+    // module is fetched while they read this card, and a tap that finds it here opens the form inside
+    // the tap. A plain `import()` for the warm-up, not `lazyImport`: a failure here is nobody's tap,
+    // so it must not reload the page — the tap's own load below still does, exactly as before.
+    if (!_signInForm) import('./login-overlay.js').then(m => { _signInForm = m; },
+        (e) => console.warn('[calendar-lock-cards] The sign-in form did not prefetch; the tap loads it:', e));
+
     submit.addEventListener('click', async () => {
+        // The card's heading already names them; the form should not ask again (v23.58). The
+        // overlay pre-selects grade and name and lands on the password field. `presetName` is a
+        // convenience the overlay is free to ignore — it never widens who may sign in.
+        const open = (/** @type {typeof import('./login-overlay.js')} */ m) =>
+            m.initLoginOverlay({ pageLabel: 'the Calendar', onSuccess: () => window.location.reload(), presetName: name });
+        if (_signInForm) { open(_signInForm); return; }   // inside the tap — see the block above
         /** @type {typeof import('./login-overlay.js')} */ let mod;
         // A failed load must not leave a dead button: say so and keep the button live. After a
         // release has claimed the page, `lazyImport` reloads onto it instead.
@@ -374,11 +398,7 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
             if (whyEl) whyEl.textContent = 'The sign-in form could not load. Check your connection and try again.';
             return;
         }
-        const { initLoginOverlay } = mod;
-        // The card's heading already names them; the form should not ask again (v23.58). The
-        // overlay pre-selects grade and name and lands on the password field. `presetName` is a
-        // convenience the overlay is free to ignore — it never widens who may sign in.
-        initLoginOverlay({ pageLabel: 'the Calendar', onSuccess: () => window.location.reload(), presetName: name });
+        open(mod);
     });
 
     // ── LEAVING A NAMED IDENTITY IS A SIGN-OUT, NOT A PANEL SWAP (v21.23, external review) ─────────

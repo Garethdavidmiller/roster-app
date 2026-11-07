@@ -426,6 +426,190 @@ test('admin: the Calendar pill opens the Calendar on the month being edited, a f
     await expect(page.locator('.month-year').first()).toContainText('December');
 });
 
+// ── THE ABOUT PANEL'S LINKS ASK TOO (iPhone audit, Nov 2026) ─────────────────────────────────────
+// "View staff roster" and "View quick guide" sit in the About panel (#iconLightbox), outside the
+// drawer, and the in-page question looked for drawer links alone — so on an iPhone, where the browser
+// never asks, either one left staged rows behind without a word. Report a bug is mail, and leaves
+// nothing behind, so it never asks.
+test('admin: with staged edits, the About panel\'s links ask before leaving — Report a bug never does', async ({ page }) => {
+    await openAdminOnDecember(page);
+    const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
+    await clickInView(row.locator('.type-pill-btn[data-type="shift"]'));
+    await row.locator('.day-start').fill('06:00');
+    await row.locator('.day-end').fill('14:00');
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanelBrand').click();
+    const about = page.locator('#iconLightbox');
+    await expect(about).toBeVisible();
+
+    // Report a bug: no question. The mail app is kept shut and the tap is recorded as having arrived.
+    await page.locator('#adminBugReportLink').evaluate((el) => el.addEventListener('click', (e) => {
+        e.preventDefault(); /** @type {any} */ (window).__bugTapped = true;
+    }));
+    await page.locator('#adminBugReportLink').click();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__bugTapped), 'the tap reached the link').toBe(true);
+    await expect(page.locator('.dialog-overlay'), 'mail leaves the page where it is').toHaveCount(0);
+
+    // View staff roster: asked, and Cancel keeps the page and the edit.
+    const question = page.getByText('You have unsaved changes. Leave this page anyway?');
+    await about.getByRole('link', { name: 'View staff roster' }).click();
+    await expect(question).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(question).toBeHidden();
+    await expect(page, 'Cancel must keep the page').toHaveURL(/admin\.html/);
+    await expect(row.locator('.day-start')).toHaveValue('06:00');
+
+    // Leave goes — stopped at the network and read from the request, as the drawer test above does.
+    const leaving = page.waitForRequest((req) => req.isNavigationRequest() && !req.url().includes('admin.html'));
+    await page.route((url) => url.pathname === '/', (route) => route.fulfill({ status: 204 }));
+    await about.getByRole('link', { name: 'View staff roster' }).click();
+    await page.getByRole('button', { name: 'Leave', exact: true }).click({ noWaitAfter: true });
+    expect(new URL((await leaving).url()).pathname, 'Leave follows the link').toBe('/');
+});
+
+// ── STAGED ROWS OUTLIVE THE PAGE (iPhone audit, Nov 2026) ────────────────────────────────────────
+// iOS discards a page it has put in the background, and a swipe back asks nothing, so the staged rows
+// are kept whenever the page is hidden and offered on the next load — to the same member only, and
+// never put back without asking (unsaved-draft.js). Driven through a real hide, the state and then
+// the event as iOS sends them, and a real reload.
+/** @param {import('@playwright/test').Page} page @param {'hidden'|'visible'} state */
+async function setVisibility(page, state) {
+    await page.evaluate((s) => {
+        Object.defineProperty(document, 'visibilityState', { value: s, configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+    }, state);
+}
+/** Reload past the browser's own "Leave site?", which the staged rows arm on a desktop engine.
+ *  @param {import('@playwright/test').Page} page */
+async function reloadPastLeaveSite(page) {
+    const accept = (/** @type {import('@playwright/test').Dialog} */ d) => d.accept().catch(() => {});
+    page.on('dialog', accept);
+    await page.reload();
+    page.off('dialog', accept);
+}
+const ADMIN_DRAFT = 'myb_draft_admin_G.%20Miller';
+
+/** Mark a December weekday Absent, hide the page, and return that day and the time the offer names.
+ *  @param {import('@playwright/test').Page} page */
+async function stageAbsenceAndHide(page) {
+    await openAdminOnDecember(page);
+    const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="sick"]:not([disabled])') }).first();
+    const date = /** @type {string} */ (await row.getAttribute('data-date'));
+    await clickInView(row.locator('.type-pill-btn[data-type="sick"]'));
+    await expect(page.locator('#saveBtn')).toBeEnabled();
+    await setVisibility(page, 'hidden');
+    const kept = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), ADMIN_DRAFT);
+    expect(kept?.scope, 'hidden with a staged row: the member and the week are kept').toEqual({ member: 'G. Miller', date: '2026-12-07' });
+    expect(kept?.data?.rows).toEqual([expect.objectContaining({ date, type: 'sick', was: '' })]);
+    const clock = await page.evaluate(() => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
+    return { date, clock };
+}
+
+test('admin: staged rows kept when the page was hidden are offered on the next load, and Restore puts them back on their week', async ({ page }) => {
+    const { date, clock } = await stageAbsenceAndHide(page);
+    await reloadPastLeaveSite(page);
+    const offer = page.locator('.dialog-overlay.visible');
+    await expect(offer).toContainText(`Restore your unsaved changes from ${clock}?`);
+    // The page opened on this week, not December: Restore takes the grid to the week the rows are for.
+    await expect(page.locator('#weekNavLabel')).toContainText('Aug 2026');
+    await offer.getByRole('button', { name: 'Restore' }).click();
+    await expect(page.locator('#weekNavLabel')).toContainText('Dec 2026');
+    await expect(page.locator(`.day-row[data-date="${date}"] .type-pill-btn[data-type="sick"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#saveBtn'), 'back as UNSAVED work, for the member to check and save').toBeEnabled();
+    await expect(page.locator('#formFeedback')).toContainText('Your unsaved changes are back — check them, then tap Save changes.');
+    expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'cleared once it is the page\'s work again').toBeNull();
+    // And a save clears it for good: the next hide, with nothing unsaved, keeps nothing.
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+    await setVisibility(page, 'hidden');
+    expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'saved: nothing to keep').toBeNull();
+});
+
+test('admin: Discard deletes the kept rows, changes nothing, and the next load asks nothing', async ({ page }) => {
+    const { clock } = await stageAbsenceAndHide(page);
+    await reloadPastLeaveSite(page);
+    const offer = page.locator('.dialog-overlay.visible');
+    await expect(offer).toContainText(`Restore your unsaved changes from ${clock}?`);
+    await offer.getByRole('button', { name: 'Discard' }).click();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('#weekNavLabel'), 'nothing moved').toContainText('Aug 2026');
+    await expect(page.locator('#saveBtn'), 'nothing staged').toBeDisabled();
+    expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT)).toBeNull();
+    await page.reload();
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await waitForReadsToLand(page);
+    await expect(page.locator('.dialog-overlay'), 'discarded is discarded').toHaveCount(0);
+});
+
+test('admin: another member signing in on the same phone is offered nothing — the rows stay G. Miller\'s', async ({ page }) => {
+    await stageAbsenceAndHide(page);
+    await seedMemberSession(page, 'S. Silva');   // a later init script: this reload is S. Silva's
+    await reloadPastLeaveSite(page);
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await waitForReadsToLand(page);
+    await expect(page.locator('.dialog-overlay'), 'never across members').toHaveCount(0);
+    await expect(page.locator('#saveBtn')).toBeDisabled();
+    expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'G. Miller\'s copy is left for G. Miller').not.toBeNull();
+});
+
+// ── A WEEK LEFT OPEN IS READ AGAIN WHEN THE APP COMES BACK (iPhone audit, Nov 2026) ─────────────
+// An installed app is not reloaded when it is reopened — iOS keeps it resident for days — and Admin
+// read its week once, with "Today" stamped as it drew. Back after five minutes away, with nothing
+// staged and nothing sending, the week is read and drawn again; a glance at another app is not.
+/** Open Admin on this week (Thu 27 Aug 2026) with the clock fixed at midday UTC, so the local date
+ *  is the same in any time zone the runner is in. @param {import('@playwright/test').Page} page */
+async function openAdminOnThisWeek(page) {
+    await page.clock.setFixedTime(new Date('2026-08-27T12:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await waitForReadsToLand(page);
+    await expect(page.locator('.day-row.today')).toHaveAttribute('data-date', '2026-08-27');
+}
+/** A colleague's booking of Tue 25 Aug, arriving on the server while this page is away. @param {import('@playwright/test').Page} page */
+const colleagueBooksTuesday = (page) => page.evaluate(() => {
+    /** @type {any} */ (window).__E2E.docs = [{ id: 'away1', memberName: 'G. Miller', date: '2026-08-25',
+        type: 'annual_leave', value: 'AL', note: '', source: 'manual' }];
+});
+const reads = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => /** @type {any} */ (window).__E2E.docReads || 0);
+
+test('admin: back after five minutes away, the week is read and drawn again — Today included — and not after a glance', async ({ page }) => {
+    await openAdminOnThisWeek(page);
+    const tuesday = page.locator('.day-row[data-date="2026-08-25"]');
+    await expect(tuesday).not.toHaveClass(/has-override/);
+    const before = await reads(page);
+    await setVisibility(page, 'hidden');
+    await colleagueBooksTuesday(page);
+    await page.clock.setFixedTime(new Date('2026-08-27T12:04:00Z'));
+    await setVisibility(page, 'visible');
+    expect(await reads(page), 'four minutes away is a glance: nothing is read').toBe(before);
+    await expect(tuesday).not.toHaveClass(/has-override/);
+
+    await setVisibility(page, 'hidden');
+    await page.clock.setFixedTime(new Date('2026-08-28T12:00:00Z'));   // the phone sleeps until the next day
+    await setVisibility(page, 'visible');
+    await expect(tuesday, 'the colleague\'s booking is on the week now').toHaveClass(/has-override/);
+    await expect(page.locator('.day-row.today'), 'and Today has moved on with the clock').toHaveAttribute('data-date', '2026-08-28');
+    expect(await reads(page)).toBeGreaterThan(before);
+});
+
+test('admin: with staged rows, coming back reads nothing and leaves the edit alone', async ({ page }) => {
+    await openAdminOnThisWeek(page);
+    const thursday = page.locator('.day-row[data-date="2026-08-27"]');
+    await clickInView(thursday.locator('.type-pill-btn[data-type="sick"]'));
+    await expect(page.locator('#saveBtn')).toBeEnabled();
+    const before = await reads(page);
+    await setVisibility(page, 'hidden');
+    await colleagueBooksTuesday(page);
+    await page.clock.setFixedTime(new Date('2026-08-28T12:00:00Z'));
+    await setVisibility(page, 'visible');
+    // Read where a re-read WOULD have started: `loadOverrides` reaches getDocs a microtask after the
+    // event, long before this next round trip to the page.
+    expect(await reads(page), 'nothing is read over unsaved work').toBe(before);
+    await expect(thursday.locator('.type-pill-btn[data-type="sick"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.day-row[data-date="2026-08-25"]')).not.toHaveClass(/has-override/);
+});
+
 // ── THE BANNER DESCRIBES THE YEAR THE READER IS LOOKING AT (v22.82) ──────────────────────────
 // Reported by the owner: scrolled the picker to February 2027 and the four figures still described
 // 2026 — 26 taken, 2 remaining — so next year's untouched 32 days read as all but spent.
@@ -974,6 +1158,11 @@ test('admin: a bulk sweep of all seven days stages six — the Sunday is dropped
         // "All 7 → 6 applied" is a surprise unless it is stated. This is the only place the manager
         // is told, and it is what stops the drop reading as a lost tap.
         await expect(page.locator('#formFeedback')).toContainText('Sunday skipped');
+        // Each visit leaves the page CLEAN (iPhone audit, Nov 2026). Rows left staged when a page goes
+        // are kept and offered back on the next load (unsaved-draft.js) — the next visit would open on
+        // that question, which is not what this loop is about.
+        await page.locator('#stagedDiscardBtn').click();
+        await expect(page.locator('#saveBtn')).toBeDisabled();
     }
 });
 

@@ -40,6 +40,7 @@
  */
 
 import { lsGet, lsSet, lsDel, lsKeys } from './ls.js';
+import { isIOS } from './notif.js';
 import { pcPrefix, memberSlug } from './paycalc-migrations.js';
 import { getLoggedMember } from './paycalc-settings.js';
 
@@ -163,8 +164,27 @@ export function initTransferCard() {
     }
 
     dlBtn?.addEventListener('click', () => {
+        // BUILT SYNCHRONOUSLY, IN THE TAP: the iPhone branch below needs the tap's user gesture, and
+        // an await before navigator.share() would spend it.
         const b = makeBackup();
         if (!b) { saveStatus('There is nothing to save yet.', 'warn'); return; }
+        // ON AN IPHONE, THE SHARE SHEET — NOT A DOWNLOAD (the iPhone audit, 7 Nov 2026). A blob
+        // download there asks "Download?" or, in the Home Screen app, may open a preview instead,
+        // and this card used to say "Saved as …" the instant the tap landed, before iOS had saved
+        // anything. The share sheet offers Save to Files in a Safari tab and in the installed app
+        // alike, and its promise SAYS how it ended — so the line under the button reports that,
+        // and only that: a completed sheet does not tell us WHICH destination was chosen.
+        // iPhone only (isIOS, notif.js) and feature-detected: Android keeps its download.
+        const file = new File([b.text], b.name, { type: 'application/json' });
+        if (isIOS() && typeof navigator.share === 'function' && navigator.canShare?.({ files: [file] })) {
+            navigator.share({ files: [file] }).then(
+                () => saveStatus(`Done. If you chose Save to Files, look for ${b.name} in the Files app — `
+                    + 'treat that file like a payslip.', 'ok'),
+                (err) => saveStatus(err?.name === 'AbortError'
+                    ? 'Not saved — the share sheet was closed. Tap Download backup again and choose Save to Files.'
+                    : "Couldn't open the share sheet. Try Download backup again, or use Copy as text.", 'warn'));
+            return;
+        }
         const url = URL.createObjectURL(new Blob([b.text], { type: 'application/json' }));
         const a = document.createElement('a');
         a.href = url;
@@ -172,15 +192,17 @@ export function initTransferCard() {
         document.body.appendChild(a);
         a.click();
         a.remove();
-        // Revoking immediately can cancel the download on some Android builds — give it a moment.
-        setTimeout(() => URL.revokeObjectURL(url), 10_000);
-        // NAME THE FILE, DON'T RE-ARGUE THE WARNING (v19.86 for the warning; trimmed v22.14). The
-        // full "readable text holding your pay figures" statement is now the paragraph directly
-        // above the button, ~100px away, so repeating it here was the card saying one fact twice
-        // in one glance — the thing the v18.48 back-pay pass exists to stop. What this line has to
-        // add is the FILENAME, which the paragraph cannot know, plus the one-clause reminder of
-        // how to treat it.
-        saveStatus(`Saved as ${b.name} — treat that file like a payslip.`, 'ok');
+        // A MINUTE, NOT TEN SECONDS. A phone that asks "Download?" needs the file still there when
+        // the member answers, and revoking any sooner can cancel the download (some Android builds
+        // did it at once). A 60-second-old blob URL costs nothing.
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        // WHAT TO EXPECT, NOT A RESULT THIS PAGE CANNOT SEE (the iPhone audit). A download's outcome
+        // never comes back to the page, so "Saved as …" was a claim about something that had not
+        // happened yet and might not — and it is NEUTRAL, not the green of a confirmation. The
+        // filename stays, because the paragraph above the button cannot know it, with the one-clause
+        // reminder of how to treat it (the full warning is that paragraph's, ~100px away).
+        saveStatus(`Downloading ${b.name}. If you're asked, choose Download — it goes to your Downloads. `
+            + 'Treat that file like a payslip.');
     });
 
     copyBtn?.addEventListener('click', async () => {
@@ -317,4 +339,20 @@ export function initTransferCard() {
     // fragment jump would land the member on a closed header; the shared helper opens it and keeps
     // it in view while the page finishes growing (overlay.js, which says why that is the hard part).
     openCardNamedByHash('payTransferCard', 'payTransferBody', 'payTransferToggle');
+
+    // AN IN-PAGE LINK HERE OPENS THE CARD TOO (the iPhone audit, 7 Nov 2026). The setup banner's
+    // "Used the Pay Calculator before?" line sends an empty calculator here, and the same bare jump
+    // would land on the closed header. It goes through the deep link's own open-and-keep-in-view
+    // above, not a scroll of its own: the banner is the first thing on the page, so a quick tap lands
+    // while the cards above this one are still arriving, and a single scroll then stops short of a
+    // card the growth has moved — measured, ~975px short at 390×844. The address takes the same
+    // fragment a link from Settings gives it (replaceState: no Back step, no hashchange). Any such
+    // link, wherever it sits, so a second one needs no wiring of its own.
+    document.addEventListener('click', (e) => {
+        const link = /** @type {Element|null} */ (e.target instanceof Element ? e.target : null)?.closest('a[href="#payTransferCard"]');
+        if (!link) return;
+        e.preventDefault();
+        history.replaceState(history.state, '', '#payTransferCard');
+        openCardNamedByHash('payTransferCard', 'payTransferBody', 'payTransferToggle');
+    });
 }

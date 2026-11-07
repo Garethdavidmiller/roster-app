@@ -4,11 +4,13 @@
  *
  * ── WHAT IT IS ──────────────────────────────────────────────────────────────────────────────────
  *
- * A small state machine with three inputs and one output. The inputs are whether the result figure
+ * A small state machine with three inputs and two outputs. The inputs are whether the result figure
  * is in the viewport (IntersectionObserver), whether a field is focused, and where the visual
- * viewport currently sits; the output is whether `#stickyTotal` is shown and how far up it is
- * translated. It touches no money, no period, no storage and no calculation — the figure inside it
- * is written by `calculate()`, which does not know this file exists.
+ * viewport currently sits; the outputs are whether `#stickyTotal` is shown and how far up it is
+ * translated, and — with the keyboard up — a scroll that moves the field being typed in clear of
+ * it. The decisions are the pure `stickyBarShows` and `scrollToClearBar`, unit-tested. It touches no
+ * money, no period, no storage and no calculation — the figure inside it is written by
+ * `calculate()`, which does not know this file exists.
  *
  * ── WHY IT IS ITS OWN MODULE ────────────────────────────────────────────────────────────────────
  *
@@ -33,10 +35,63 @@
  *     because moving between fields fires focusout→focusin and the keyboard never goes down.
  *   · The translate COMPOSES with the desktop centring rule; an iPad soft keyboard satisfies both,
  *     and a bare translateY threw the bar to the left edge for exactly that user.
+ *   · With the keyboard up, the VISUAL viewport decides whether the bar shows, not the observer —
+ *     the keys cover the layout viewport without shrinking it, so on the Overtime and Rest Day
+ *     Working rows the £ sat behind them and no bar came. And the bar, pinned where iOS has just
+ *     scrolled the focused box, moves that box clear of itself once (the iPhone audit, 7 Nov 2026).
  *
  * None of this is reproducible in headless or e2e — visual-viewport keyboard behaviour needs a real
  * device — which is precisely why the reasoning is written down beside it rather than assumed.
  */
+
+import { wireIosTap } from './paycalc-inputs.js';
+
+/** The figure counts as on screen from this far below the top edge. The observer's rootMargin and
+ *  the visual-viewport test in `stickyBarShows` read the same number, so they cannot disagree. */
+const TOP_INSET = 8;
+/** The gap kept between a field being typed in and the top of the bar pinned above the keyboard. */
+const FIELD_GAP = 8;
+
+/**
+ * Whether the take-home bar shows — the whole decision, PURE, so it is tested without a phone.
+ *
+ * With the keyboard DOWN the observer's answer is the truth: the layout viewport is the screen. With
+ * it UP it is not (the iPhone audit, 7 Nov 2026). The keyboard covers the bottom of the layout
+ * viewport without shrinking it, so a figure the observer calls "in view" can sit behind the keys —
+ * typing on the Overtime or Rest Day Working rows put it exactly there, and no bar came, the moment
+ * the live figure mattered most. Then only the VISUAL viewport is on screen, and the figure counts
+ * as seen only where it overlaps that. Both rects are in layout-viewport coordinates (what
+ * getBoundingClientRect reports, and what visualViewport.offsetTop is measured in).
+ *
+ * @param {{ inLayoutView: boolean, keyboardUp: boolean,
+ *           figure?: { top: number, bottom: number } | null,
+ *           visual?: { top: number, height: number } | null }} s
+ *   `inLayoutView`: the observer's answer · `figure`: the £ figure's rect ·
+ *   `visual`: visualViewport's offsetTop and height. Without both rects, the observer decides.
+ * @returns {boolean}
+ */
+export function stickyBarShows({ inLayoutView, keyboardUp, figure = null, visual = null }) {
+  if (!keyboardUp || !figure || !visual) return !inLayoutView;
+  const seen = figure.bottom > visual.top + TOP_INSET && figure.top < visual.top + visual.height;
+  return !seen;
+}
+
+/**
+ * How far to scroll so the field being typed in sits clear of the bar pinned above the keyboard —
+ * 0 when it already does. PURE. The bar's bottom is the visual viewport's bottom (the translate in
+ * `initPaycalcStickyTotal` puts it there), so its top is that less its own height. Never so far that
+ * the field's own top leaves the visible area: a field taller than the room keeps its top in view.
+ *
+ * @param {{ field: { top: number, bottom: number }, visual: { top: number, height: number },
+ *           barHeight: number }} a  rects in layout-viewport coordinates, as for `stickyBarShows`
+ * @returns {number} pixels to scroll the page DOWN by; never negative
+ */
+export function scrollToClearBar({ field, visual, barHeight }) {
+  const barTop = visual.top + visual.height - barHeight;
+  const overlap = field.bottom + FIELD_GAP - barTop;
+  if (overlap <= 0) return 0;
+  return Math.max(0, Math.min(overlap, field.top - (visual.top + FIELD_GAP)));
+}
 
 /**
  * Wire the sticky take-home bar. Safe to call when the elements are absent.
@@ -68,15 +123,43 @@ export function initPaycalcStickyTotal() {
   // now deliberately SHOWS the bar — that is the feature: the take-home stays visible while
   // entering hours above it.
   const netDisplay = document.getElementById('netDisplay') || resultCard;
+  // ONE DECISION, TWO SOURCES (the iPhone audit, 7 Nov 2026). The observer answers for the layout
+  // viewport; with the soft keyboard up (`_keyboardUp`, set by `_pinSticky` below) the VISUAL
+  // viewport answers instead — `stickyBarShows` holds the rule. Feature-detected: without
+  // visualViewport the keyboard is never "up" here and the observer alone decides, as it always did.
+  const _vv = window.visualViewport || null;
+  let _inLayoutView = true;
+  let _keyboardUp = false;
+  /** @type {Element|null} The field already moved clear of the bar, this time it was focused. */
+  let _clearedFor = null;
+  const _apply = () => {
+    const visual = _keyboardUp && _vv ? { top: _vv.offsetTop, height: _vv.height } : null;
+    const show = stickyBarShows({ inLayoutView: _inLayoutView, keyboardUp: _keyboardUp,
+      figure: visual ? netDisplay.getBoundingClientRect() : null, visual });
+    stickyBar.classList.toggle('visible', show);
+    document.body.classList.toggle('sticky-active', show);
+    // A BAR OVER THE KEYS MUST NOT COVER THE BOX BEING TYPED IN. iOS scrolls a focused field to
+    // just above the keyboard — which is where the pinned bar now sits — so move the page by the
+    // difference (`scrollToClearBar`). ONCE per field per focus: a member who then scrolls it back
+    // under the bar on purpose is not fought, and the scroll this causes cannot re-trigger it.
+    const f = document.activeElement;
+    if (!show || !visual || !f || f === _clearedFor || !/^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName)) return;
+    const dy = scrollToClearBar({ field: f.getBoundingClientRect(), visual, barHeight: stickyBar.offsetHeight });
+    if (dy > 0) { _clearedFor = f; window.scrollBy(0, dy); }
+  };
   // rAF wrapper prevents class-toggle flicker during iOS momentum scroll, where
-  // IntersectionObserver can fire repeatedly within a single frame.
+  // IntersectionObserver can fire repeatedly within a single frame — coalesced, so a burst of
+  // observer and scroll callbacks is one decision per frame.
+  let _queued = false;
+  const _applySoon = () => {
+    if (_queued) return;
+    _queued = true;
+    requestAnimationFrame(() => { _queued = false; _apply(); });
+  };
   const obs = new IntersectionObserver(([entry]) => {
-    requestAnimationFrame(() => {
-      const show = !entry.isIntersecting;
-      stickyBar.classList.toggle('visible', show);
-      document.body.classList.toggle('sticky-active', show);
-    });
-  }, { threshold: 0, rootMargin: '-8px 0px 0px 0px' });
+    _inLayoutView = entry.isIntersecting;
+    _applySoon();
+  }, { threshold: 0, rootMargin: `-${TOP_INSET}px 0px 0px 0px` });
   obs.observe(netDisplay);
   // PIN the sticky bar to the top of the iOS soft keyboard (v21.65 — was hide, and the hide
   // WAS the staff-reported "pay total is slow to update on iOS"). iOS anchors position:fixed
@@ -89,13 +172,13 @@ export function initPaycalcStickyTotal() {
   // behaviour by translating the bar up by the visual-viewport gap (glued on vv resize AND
   // scroll — iOS pans the visual viewport while the keyboard is open). The maths was never
   // slow; the figure was invisible. Needs real-iOS verification, like the code it replaces.
-  if (window.visualViewport) {
-    const _vv = window.visualViewport;
+  if (_vv) {
     let _inputFocused = false;
     let _baseVVH = _vv.height;
     const _pinSticky = () => {
       const keyboardUp = window.matchMedia('(pointer: coarse)').matches
           && _inputFocused && (_baseVVH - _vv.height) > 120;
+      _keyboardUp = keyboardUp;
       stickyBar.classList.toggle('keyboard-up', keyboardUp);
       // The desktop rule centres the bar with translateX(-50%); an iPad soft keyboard can
       // satisfy both, so compose rather than replace — a bare translateY would throw the
@@ -104,14 +187,22 @@ export function initPaycalcStickyTotal() {
       stickyBar.style.transform = keyboardUp
         ? `${_centred}translateY(-${Math.max(0, window.innerHeight - _vv.height - _vv.offsetTop)}px)`
         : '';
+      _apply();   // the keyboard moved, so the visible area did: re-decide in the same frame as the pin
     };
 
     document.addEventListener('focusin', e => {
       _inputFocused = /^(INPUT|TEXTAREA|SELECT)$/.test(/** @type {Element} */ (e.target).tagName);
+      // Field to field with the keyboard already up: no viewport event may follow (the new box can
+      // already be in view, under the bar), so look at it now.
+      if (_keyboardUp) _applySoon();
     });
+    // With the keyboard up, scrolling the PAGE moves the figure in and out of the visible area
+    // without the observer noticing — the figure can stay inside the layout viewport throughout.
+    window.addEventListener('scroll', () => { if (_keyboardUp) _applySoon(); }, { passive: true });
 
     document.addEventListener('focusout', () => {
       _inputFocused = false;
+      _clearedFor = null;
       // Defer BOTH the keyboard-up removal AND the baseline rebase behind the same
       // !_inputFocused check. Moving directly from one field to the next fires
       // focusout→focusin, so an input is refocused before this timer runs and the soft
@@ -136,9 +227,12 @@ export function initPaycalcStickyTotal() {
     _vv.addEventListener('resize', _pinSticky, { passive: true });
     _vv.addEventListener('scroll', _pinSticky, { passive: true });
   }
-  stickyBar.addEventListener('click', () =>
-    resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  );
+  // ONE TAP WITH THE KEYPAD UP (the iPhone audit, 7 Nov 2026). The bar matters most while a field
+  // is being typed in, which is exactly when iOS cancelled its click — the keyboard's dismissal
+  // shifts the viewport and the tap never becomes a click — so it took two. It now goes through the
+  // calculator's one guarded tap (`wireIosTap`, paycalc-inputs.js), letting go of the field first as
+  // a native tap would, so the member lands on the result with the keyboard down.
+  wireIosTap(stickyBar, () => resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' }), { releaseFocus: true });
   stickyBar.addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault(); // Space must not also scroll the page

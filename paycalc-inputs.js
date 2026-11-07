@@ -100,6 +100,29 @@ export function _decHintEl(hId, make) {
   return hint;
 }
 
+/**
+ * The Decimal Hours Converter's answer for what the member typed: "7 hrs 30 mins", "15 mins",
+ * "7 hrs", or "–" when there is nothing usable to convert. PURE.
+ *
+ * A decimal COMMA is a decimal point here too, as it is in every other figure box on the page
+ * (`hmPair` above): a phone set to a decimal-comma region offers "," on the decimal keypad, and the
+ * converter's bare `parseFloat("7,5")` read 7 — the iPhone audit, 7 Nov 2026. `parseSmartFloatOrNull`,
+ * not `parseSmartFloat`: that one floors a blank or unreadable box to 0, and the card would then
+ * answer "0 mins" to a question nobody had asked yet.
+ * @param {string} raw the box's text
+ * @returns {string}
+ */
+export function decimalHoursText(raw) {
+  const v = parseSmartFloatOrNull(raw);
+  const hm = v === null ? null : decimalToHM(v);   // single source: paycalc-format.js (60→next-hour guard)
+  if (!hm) return '–';
+  const hrs = `${hm.h} hr${hm.h !== 1 ? 's' : ''}`;
+  const mins = `${hm.m} min${hm.m !== 1 ? 's' : ''}`;
+  if (hm.h === 0) return mins;
+  if (hm.m === 0) return hrs;
+  return `${hrs} ${mins}`;
+}
+
 // Live "= 7h 30m" preview shown WHILE a decimal is being typed, so the on-blur
 // split is a visible transformation rather than a silent one (trust on a pay form).
 /** @param {string} hId */
@@ -114,6 +137,20 @@ export function decPreview(hId) {
     const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, false));
     if (hint) hint.hidden = true;
   }
+}
+
+/**
+ * Let go of the field being typed in, so whatever it does on leaving — a `change` handler, the
+ * "7.5" → 7h 30m split — happens NOW, while the page is still on the payslip it was typed for.
+ * Only a field: a focused button or bar keeps its focus. Used by `wireIosTap`'s `releaseFocus`, and
+ * by the coordinator when the page is hidden (the iPhone audit, 7 Nov 2026): the prior-year Holiday
+ * Pay Premium commits only on `change`, and a figure typed and then swiped away from was lost
+ * whenever the page did not come back.
+ * @returns {void}
+ */
+export function commitFocusedField() {
+  const f = /** @type {HTMLElement|null} */ (document.activeElement);
+  if (f && /^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName)) f.blur();
 }
 
 /**
@@ -144,11 +181,20 @@ export function decPreview(hId) {
  *    values" is destructive. A touch that moved more than the slop, or was ever multi-finger, is a
  *    scroll, not a tap, and must fall through to the browser (which will not send a click either).
  *
+ * `releaseFocus` (the iPhone audit, 7 Nov 2026): the `preventDefault()` that stops the duplicate
+ * click ALSO cancels the tap's move of focus, so the field being typed in keeps it — the keyboard
+ * stays up, and a field that commits only on leaving (the prior-year Holiday Pay Premium commits on
+ * `change`) commits LATER, after the action has moved the page to another payslip or tax year. With
+ * the option, the touch path lets go of the field first (`commitFocusedField`), as a native tap
+ * would have. For navigation, Save and the take-home bar; NOT for the ± sign button, whose own field
+ * the member is still typing in, nor the calendar fill, which leaves the keyboard where it was.
+ *
  * @param {HTMLElement} el
  * @param {(e: Event) => void} action  Receives the triggering event (touchend or click), so
  *   delegated callers can read `e.target`.
+ * @param {{ releaseFocus?: boolean }} [opts]
  */
-export function wireIosTap(el, action) {
+export function wireIosTap(el, action, { releaseFocus = false } = {}) {
   const SLOP = 12;
   /** How long a synthesised click may trail its touch. Generous — the cost of being too long is a
    *  deliberate second activation within the window being dropped (a double-tap, which nothing
@@ -177,6 +223,7 @@ export function wireIosTap(el, action) {
     if (moved || inert()) return;
     e.preventDefault();
     lastTouchActivation = Date.now();
+    if (releaseFocus) commitFocusedField();   // BEFORE the action: the field commits where it was typed
     action(e);
   }, { passive: false });
   el.addEventListener('click', (e) => {

@@ -477,21 +477,32 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             /** @type {HTMLElement} */ (calendarDisplay.querySelector('#tvNextWeek'))?.focus();
         });
 
-        // Scroll hint — show once per device; lsSet marks it seen after first scroll.
-        const tableWrap = calendarDisplay.querySelector('.team-table-wrap');
+        // Scroll hint — show once per device, until the MEMBER first swipes the week sideways
+        // (7 Nov 2026, iPhone audit). Two scrolls are not that swipe, and both used to retire it for
+        // good: the APP's own, which puts the week back or brings today into view just below (it moves
+        // the box a pixel or two even on a Sunday, so the hint went on nearly every first open, within a
+        // frame, unread); and a scroll DOWN the names, which below 1024px happen inside this box under
+        // the date row (index.css). So a scroll that leaves the week where the app last put it is
+        // neither — `appLeft` is that place, re-read after each of the app's own moves.
+        const tableWrap = /** @type {HTMLElement|null} */ (calendarDisplay.querySelector('.team-table-wrap'));
         const scrollHint = calendarDisplay.querySelector('.tv-scroll-hint');
+        let appLeft = tableWrap ? tableWrap.scrollLeft : 0;
         if (scrollHint && lsGet('myb_team_scroll_seen')) {
             /** @type {HTMLElement} */ (scrollHint).style.display = 'none';
         } else if (tableWrap && scrollHint) {
-            tableWrap.addEventListener('scroll', () => {
+            const onScroll = () => {
+                if (tableWrap.scrollLeft === appLeft) return;   // the app's own move, or down the names
+                tableWrap.removeEventListener('scroll', onScroll);
                 /** @type {HTMLElement} */ (scrollHint).style.display = 'none';
                 lsSet('myb_team_scroll_seen', '1');
-            }, { once: true });
+            };
+            tableWrap.addEventListener('scroll', onScroll, { passive: true });
         }
 
         // Restore scroll: keep position on grade-tab/fetch re-render; scroll today into view on open/week-nav.
         if (prevScrollLeft > 0 && tableWrap) {
             tableWrap.scrollLeft = prevScrollLeft;
+            appLeft = tableWrap.scrollLeft;          // read back: the box clamps and rounds what it is given
         } else if (todayIndex >= 0 && tableWrap) {
             requestAnimationFrame(() => {
                 const todayTh = tableWrap.querySelector('th.tv-today-col');
@@ -507,6 +518,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
                     // scroll a partial column somewhere is unavoidable with a sticky first column;
                     // having it fall on the far side, away from today, is the better trade.
                     tableWrap.scrollLeft = cellLeft - wrapLeft - nameWidth;
+                    appLeft = tableWrap.scrollLeft;
                 }
             });
         }

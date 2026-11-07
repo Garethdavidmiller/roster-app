@@ -695,3 +695,182 @@ describe('trapFocus — hidden controls are not tab stops', () => {
     });
 });
 
+// ── FOCUS THAT ARRIVES WITHOUT A KEY (iPhone audit, 7 Nov 2026) ─────────────────────────────────────
+// The ‹ › arrows over the iPhone keyboard move focus to the previous or next text field in the
+// DOCUMENT and fire no key event, so `trapFocus` never sees them: typing walked out of a prompt into
+// a field behind it. `createLightbox` now watches `focusin` while open. These drive the real factory
+// through a tiny node tree that can answer `contains`, and a document that records its `focusin`
+// listeners and dispatches to them the way a browser does — every `focus()` here fires the event.
+describe('createLightbox — focus that lands outside the open overlay is pulled back in', () => {
+    /** @type {Function[]} */ let focusin = [];
+    const realAdd = global.document.addEventListener;
+    const realRemove = global.document.removeEventListener;
+    beforeEach(() => {
+        _drainLock(); _bodyClasses.clear(); global.document.activeElement = null;
+        focusin = [];
+        global.document.addEventListener = (type, fn) => { if (type === 'focusin') focusin.push(fn); };
+        global.document.removeEventListener = (type, fn) => { if (type === 'focusin') focusin = focusin.filter(f => f !== fn); };
+        // No other modal surface on the page unless a test puts one there.
+        global.document.querySelectorAll = () => [];
+        global.getComputedStyle = () => ({ zIndex: 'auto' });
+    });
+    const restore = () => {
+        global.document.addEventListener = realAdd;
+        global.document.removeEventListener = realRemove;
+        delete global.document.querySelectorAll;
+        delete global.getComputedStyle;
+    };
+
+    /** A node in a little tree: `contains` walks `parent`, and `focus()` behaves like a browser's. */
+    function node(parent = null, tagName = 'DIV') {
+        const n = makeEl({ tagName });
+        Object.assign(n, { nodeType: 1, isConnected: true, parent, offsetParent: {} });
+        n.contains = (other) => { for (let x = other; x; x = x.parent) if (x === n) return true; return false; };
+        n.focus = () => {
+            global.document.activeElement = n;
+            focusin.slice().forEach(fn => fn({ target: n }));
+        };
+        return n;
+    }
+    /** An overlay with a panel holding a button, a text field and another button. */
+    function dialog() {
+        const overlay = node();
+        const content = node(overlay);
+        const first = node(content, 'BUTTON');
+        const field = node(content, 'INPUT');
+        const second = node(content, 'BUTTON');
+        content.querySelectorAll = () => [first, field, second];
+        const lb = createLightbox({ overlay, content, closeBtn: null });
+        return { overlay, content, first, field, second, lb };
+    }
+
+    test('back to the control last focused inside', () => {
+        try {
+            const { field, lb } = dialog();
+            lb.open();
+            field.focus();                 // the member is typing in the dialog
+            node().focus();                // the keyboard's ‹ arrow lands on a field behind it
+            assert.equal(global.document.activeElement, field,
+                'focus stayed behind the dialog, so the next keystrokes go somewhere nobody can see');
+        } finally { restore(); }
+    });
+
+    test('or, with nothing focused inside yet, to the first control', () => {
+        try {
+            const { first, content, lb } = dialog();
+            // The panel takes the default focus on open; strip that so "nothing inside yet" is real.
+            content.focus = () => {};
+            lb.open();
+            node().focus();
+            assert.equal(global.document.activeElement, first);
+        } finally { restore(); }
+    });
+
+    test('ONLY the topmost overlay pulls — a buried one never drags focus under the dialog on top', () => {
+        try {
+            const lower = dialog();
+            const upper = dialog();
+            lower.lb.open();
+            upper.lb.open();
+            upper.field.focus();
+            lower.field.focus();           // ‹ stepped into the overlay UNDERNEATH
+            assert.equal(global.document.activeElement, upper.field,
+                'the topmost dialog did not take focus back from the one buried under it');
+            // Close the top one: the lower one is now the top, and guards again.
+            upper.lb.close();
+            upper.overlay._trigger('transitionend');
+            lower.field.focus();
+            node().focus();
+            assert.equal(global.document.activeElement, lower.field,
+                'with the top dialog gone, the one beneath it must guard its own focus again');
+        } finally { restore(); }
+    });
+
+    test('a closing overlay lets go first — the focus hand-back to the opener is not pulled back', () => {
+        try {
+            const opener = node();
+            opener.focus();
+            const { field, lb, overlay } = dialog();
+            lb.open();
+            field.focus();
+            lb.close();
+            assert.equal(global.document.activeElement, opener,
+                'the guard fought the close: focus went back into a dialog that is going away');
+            assert.equal(focusin.length, 0, 'the closed overlay left its focusin listener behind');
+            overlay._trigger('transitionend');
+        } finally { restore(); }
+    });
+
+    test('it stands down for an UNSTACKED surface painted above it — the sign-in card over a dialog', () => {
+        // `#loginOverlay` is not on the overlay stack, and a lost session mounts it OVER whatever dialog
+        // was open. A guard that pulled focus back from it would leave the member unable to type a password.
+        try {
+            const { field, lb, overlay } = dialog();
+            lb.open();
+            field.focus();
+            const card = node();
+            card.getClientRects = () => [{}];
+            const z = new Map([[overlay, '8000'], [card, '9000']]);
+            global.document.querySelectorAll = () => [card];
+            global.getComputedStyle = (el) => ({ zIndex: z.get(el) ?? 'auto' });
+            const password = node(card, 'INPUT');
+            password.focus();
+            assert.equal(global.document.activeElement, password, 'the guard took focus from the card above it');
+
+            // The same card BELOW the dialog is just another thing behind it — pulled back as usual.
+            z.set(card, '7800');
+            password.focus();
+            assert.equal(global.document.activeElement, field);
+        } finally { restore(); }
+    });
+});
+
+// ── A TEXT FIELD IS FOCUSED INSIDE THE TAP (iPhone audit, 7 Nov 2026) ───────────────────────────────
+// iOS raises the keyboard only for a focus made synchronously inside the user's gesture, and the
+// frame `open()` defers its focus to is outside it. So the frames are HELD here and only run when the
+// test says: what is focused when `open()` returns is what the keyboard got.
+describe('createLightbox — a text field takes focus synchronously, everything else in the frame after', () => {
+    /** @type {Function[]} */ let frames = [];
+    const realRaf = global.requestAnimationFrame;
+    beforeEach(() => {
+        _drainLock(); _bodyClasses.clear(); global.document.activeElement = null;
+        frames = [];
+        global.requestAnimationFrame = (fn) => { frames.push(fn); return 0; };
+    });
+    const focusable = (tagName, type = '') => {
+        const el = makeEl({ tagName });
+        Object.assign(el, { type, focus: () => { global.document.activeElement = el; } });
+        return el;
+    };
+    const openWith = (initialFocus) => {
+        const lb = createLightbox({ overlay: makeEl({}), content: makeEl({}), closeBtn: null, initialFocus });
+        lb.open();
+        return lb;
+    };
+
+    for (const [tag, type] of [['INPUT', 'text'], ['INPUT', 'search'], ['INPUT', 'number'], ['TEXTAREA', '']]) {
+        test(`${tag.toLowerCase()}${type ? `[type=${type}]` : ''} — focused before open() returns`, () => {
+            try {
+                const field = focusable(tag, type);
+                openWith(() => field);
+                assert.equal(global.document.activeElement, field,
+                    'the field waits for the next frame, outside the tap — on an iPhone no keyboard comes up');
+                frames.forEach(fn => fn());
+                assert.equal(global.document.activeElement, field, 'and the frame leaves it there');
+            } finally { global.requestAnimationFrame = realRaf; }
+        });
+    }
+
+    for (const [tag, type] of [['BUTTON', ''], ['INPUT', 'checkbox'], ['SELECT', '']]) {
+        test(`${tag.toLowerCase()}${type ? `[type=${type}]` : ''} — still focused in the frame after`, () => {
+            try {
+                const control = focusable(tag, type);
+                openWith(control);
+                assert.equal(global.document.activeElement, null, 'a control that raises no keyboard moved early');
+                frames.forEach(fn => fn());
+                assert.equal(global.document.activeElement, control);
+            } finally { global.requestAnimationFrame = realRaf; }
+        });
+    }
+});
+
