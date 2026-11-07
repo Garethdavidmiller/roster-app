@@ -1,6 +1,6 @@
 import { describe, it, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { printIsBlocked, PRINT_UNAVAILABLE_TEXT, explainNoPrint } from './print-guard.js';
+import { printIsBlocked, printOrExplain, PRINT_UNAVAILABLE_TEXT, explainNoPrint } from './print-guard.js';
 
 // print-guard.test.mjs — the one rule that decides whether a print control prints or explains
 // (iOS 27 audit A1). Organised by cost: BLOCKING a print that would have worked takes a feature away
@@ -14,10 +14,40 @@ import { printIsBlocked, PRINT_UNAVAILABLE_TEXT, explainNoPrint } from './print-
 
 const IPHONE_FROZEN = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148';
 
+/**
+ * Run `fn` on a page whose `navigator` is this one — the DEFAULT path, which reads the live page
+ * rather than an argument. Node defines a getter-only `navigator`, so it is redefined and restored.
+ * @param {{ userAgent: string, standalone?: boolean }} nav @param {() => void} fn
+ */
+function onDevice(nav, fn) {
+    const saved = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    Object.defineProperty(globalThis, 'navigator', { value: nav, configurable: true, writable: true });
+    try { fn(); } finally {
+        if (saved) Object.defineProperty(globalThis, 'navigator', saved);
+        else delete /** @type {any} */ (globalThis).navigator;
+    }
+}
+
 describe('printIsBlocked — any page launched from the Home Screen on an iPhone or iPad', () => {
     it('a home-screen app is blocked whatever its user agent claims — every recent iPhone says 18_7', () => {
-        assert.equal(IPHONE_FROZEN.includes('18_7'), true, 'the fixture is the frozen string a real iOS 27 device sends');
-        assert.equal(printIsBlocked({ standalone: true }), true);
+        // THE USER AGENT IS NOW HANDED TO THE CODE (test audit, 7 Nov 2026). This test checked a
+        // property of its own constant and passed `{ standalone: true }` straight in, so the guard
+        // never saw a user agent at all — the version read the header describes could come back and
+        // this would stay green. Here the page's own navigator carries each string, the guard reads
+        // it the way it does on a phone, and the frozen 18_7 is blocked like every other.
+        for (const ua of [IPHONE_FROZEN,
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+            'Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148']) {
+            onDevice({ userAgent: ua, standalone: true }, () => {
+                assert.equal(printIsBlocked(), true, `a home-screen launch was allowed to print: ${ua}`);
+                let printed = 0, explained = 0;
+                assert.equal(printOrExplain({ print: () => { printed++; }, explain: () => { explained++; } }), false);
+                assert.deepEqual([printed, explained], [0, 1], 'the control printed nothing and explained nothing');
+            });
+            onDevice({ userAgent: ua, standalone: false }, () => {
+                assert.equal(printIsBlocked(), false, `the same device in a Safari tab must print: ${ua}`);
+            });
+        }
     });
     it('a Safari tab prints — the bug is in the web-app shell, not the engine', () => {
         assert.equal(printIsBlocked({ standalone: false }), false);

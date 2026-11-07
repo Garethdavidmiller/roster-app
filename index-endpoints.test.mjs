@@ -39,6 +39,9 @@
  * status line, and only the recording tells them apart.
  *
  * ORGANISED BY WHAT A WRONG ANSWER COSTS, not one block per function.
+ *
+ * The LAST block is wiring rather than a handler of this file's (test audit, 7 Nov 2026): the one
+ * line here that decides whether the Overtime retention purge deletes, run through the real export.
  */
 
 import { test, describe, before, after } from 'node:test';
@@ -1388,5 +1391,117 @@ describe('CORS: only the app\'s own origins are granted', () => {
         assert.ok(m, 'ADMIN_FUNCTION_ORIGINS not found');
         const listed = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]).sort();
         assert.deepEqual(listed, [...APP_ORIGINS].sort());
+    });
+});
+
+// ── THE RETENTION PURGE, AS index.js WIRES IT (test audit, 7 Nov 2026) ─────────────────────────────
+//
+// While Overtime is paused the purge is the ONE Overtime function still deployed, and it is the only
+// irreversible thing the feature does. Whether a run DELETES is decided by a single line in the
+// composition root — `purgeArmed: purgeArmedAt` — and nothing ran that line: `true` (deleting from
+// the first expiry on 21 Nov, before a single dry run had named a real week), `false` (staff
+// availability kept past its 91-day retention for ever) and `purgeArmedAt()` (the date read ONCE, at
+// load, so a warm instance that booted before 1 Dec goes on dry-running after it) all left every
+// Functions suite green. overtime-endpoints.test.mjs drives the handler with a flag it picks itself
+// and overtime-core.test.mjs pins the date; this drives the flag production passes, through the
+// export Cloud Scheduler calls, from one instance that stays warm across the arming date.
+describe('the retention purge as index.js wires it: armed on 1 December, decided per run', () => {
+    const OT = require('./functions/overtime-core.js');
+    // The first week the scheduler made, ending Sat 22 Aug 2026: expired from 21 Nov, so the 30 Nov
+    // run has a real window to report and the 1 Dec run a real window to delete.
+    const WEEK = '2026-08-22';
+    const RETENTION = OT.deriveMilestones(WEEK).retentionUntil;
+    // The scheduled 04:00 London runs either side of the owner's date (GMT in winter, so 04:00 UTC).
+    const LAST_DRY_RUN = Date.UTC(2026, 10, 30, 4, 0);
+    const FIRST_ARMED  = Date.UTC(2026, 11, 1, 4, 0);
+
+    /** An expired window with a tree beneath it, as the purge walks it. */
+    const tree = () => ({
+        [`overtimeWindows/${WEEK}`]: { weekEnding: WEEK, retentionUntil: { toMillis: () => RETENTION } },
+        [`overtimeWindows/${WEEK}/participants/A. Member`]: { memberName: 'A. Member' },
+        [`overtimeWindows/${WEEK}/submissions/A. Member`]: { currentRevision: 1 },
+        [`overtimeWindows/${WEEK}/submissions/A. Member/revisions/0001`]: { revision: 1 },
+    });
+
+    /** Just enough Firestore for the purge: listings by path, `.select()`, and batched deletes. */
+    function makeWindowsDb(seed) {
+        const store = new Map(Object.entries(seed));
+        const kids = (path) => [...store.keys()]
+            .filter((k) => k.startsWith(`${path}/`) && !k.slice(path.length + 1).includes('/')).sort();
+        const docRef = (path) => ({ path, id: path.split('/').pop(), collection: (n) => collRef(`${path}/${n}`) });
+        const collRef = (path) => {
+            const get = async () => {
+                const docs = kids(path).map((k) => ({ id: k.split('/').pop(), ref: docRef(k), data: () => store.get(k) }));
+                return { docs, size: docs.length };
+            };
+            return { path, get, select: () => ({ get }) };
+        };
+        return {
+            store,
+            collection: (name) => {
+                assert.equal(name, 'overtimeWindows', 'the purge touches exactly one top-level collection');
+                return collRef(name);
+            },
+            batch: () => {
+                const doomed = [];
+                return {
+                    delete: (ref) => { doomed.push(ref.path); },
+                    commit: async () => { for (const p of doomed) store.delete(p); },
+                };
+            },
+        };
+    }
+
+    /**
+     * index.js required FRESH with the clock at `ms` — a Cloud Function instance that cold-started
+     * then. The cached copy the rest of this file uses is put back afterwards.
+     * @param {number} ms
+     */
+    function bootIndexAt(ms) {
+        const indexPath = require.resolve('./functions/index.js');
+        const held = require.cache[indexPath];
+        const realNow = Date.now;
+        Date.now = () => ms;
+        delete require.cache[indexPath];
+        try { return require(indexPath); }
+        finally { Date.now = realNow; require.cache[indexPath] = held; }
+    }
+
+    test('guard the guard — the instants below are the runs Cloud Scheduler really makes', () => {
+        const trigger = index.purgeExpiredOvertimeWindows.__endpoint.scheduleTrigger;
+        assert.deepEqual({ schedule: trigger.schedule, timeZone: trigger.timeZone },
+            { schedule: '0 4 * * *', timeZone: 'Europe/London' });
+        assert.ok(RETENTION < LAST_DRY_RUN, 'the fixture week must already be past its retention on 30 Nov');
+    });
+
+    test('one warm instance: the 30 Nov run only reports, the 1 Dec run deletes', async () => {
+        const db = makeWindowsDb(tree());
+        W = { auth: null, db };
+        // Booted the evening before the last dry run and never cold-started again — the instance a
+        // date read at load would leave disarmed on the 1st.
+        const warm = bootIndexAt(LAST_DRY_RUN - 8 * HOUR);
+        const realNow = Date.now;
+        const realLog = console.log;
+        const logs = [];
+        console.log = (...a) => { logs.push(a.join(' ')); };
+        try {
+            Date.now = () => LAST_DRY_RUN;
+            await warm.purgeExpiredOvertimeWindows.run({});
+            assert.equal(db.store.size, 4,
+                'the 30 Nov run deleted — the purge armed before the owner\'s 1 December');
+            assert.ok(logs.some((l) => l.includes(`${WEEK}:`) && l.includes('would delete (dry run)')),
+                `the dry run did not name the week it would remove: ${logs.join(' | ')}`);
+
+            Date.now = () => FIRST_ARMED;
+            await warm.purgeExpiredOvertimeWindows.run({});
+            assert.equal(db.store.size, 0,
+                'the 1 Dec run deleted nothing — the arming date is not 1 December, or it was read '
+                + 'once when the instance booted rather than on every run');
+            assert.ok(logs.some((l) => l.includes(`${WEEK}:`) && l.includes('DELETED')),
+                `the armed run did not report what it removed: ${logs.join(' | ')}`);
+        } finally {
+            Date.now = realNow;
+            console.log = realLog;
+        }
     });
 });

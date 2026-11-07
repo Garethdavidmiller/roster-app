@@ -20,12 +20,15 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { checkShiftRules, constrainingTime, effectiveEndMins, parseMinutes, fmtHours } from './admin-shift-rules.js';
+import { TYPES } from './admin-shift-types.js';
 
 /** A harness with no neighbours unless the test supplies them. */
 function check(toSave, { shifts = {}, base = {} } = {}) {
     return checkShiftRules({
         toSave,
-        isFixedType: t => t === 'annual_leave' || t === 'sick' || t === 'rdw',
+        // Production's own predicate (admin-overrides.js), not a list of this file's (test audit,
+        // 7 Nov 2026): the list here named `rdw` as fixed, so no case could see an RDW time checked.
+        isFixedType: t => Boolean(TYPES[t]?.fixed),
         resolveShift: iso => shifts[iso] ?? '',
         baseShiftFor: iso => base[iso] ?? '',
         formatDate: iso => iso,
@@ -120,10 +123,17 @@ describe('a refusal that must not be raised', () => {
     });
 
     test('a fixed-value type is never time-checked', () => {
-        // AL/absence/RDW carry 'AL', 'SICK', 'RDW' — not times. Checking them would compare
-        // nonsense and could only ever produce a false refusal.
+        // AL, absence, Spare and Rest Day carry 'AL', 'SICK', 'SPARE', 'RD' — not times. Checking
+        // them would compare nonsense and could only ever produce a false refusal. RDW is NOT one of
+        // them (this said it was until the test audit, 7 Nov 2026): it carries the worked times.
         const { errors } = check([{ date: '2026-06-15', value: 'AL', type: 'annual_leave' }]);
         assert.deepEqual(errors, []);
+    });
+
+    test('…and a Rest Day Worked IS, like any shift', () => {
+        const { errors } = check([{ date: '2026-06-13', value: '06:00-19:00', type: 'rdw' }]);
+        assert.equal(errors.length, 1, 'a 13-hour RDW went unchecked');
+        assert.match(errors[0], /13h — max is 12h/);
     });
 
     test('an untimed Other day on a REST day is exempt', () => {

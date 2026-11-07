@@ -196,8 +196,11 @@ describe('an unusable date does not render as arithmetic', () => {
         assert.equal(formatDayMonth(d), '18 Sep');
         assert.equal(formatClock(d), '14:23');
         // The epoch is a VALID date and must not be swallowed — `0` is falsy, and a guard written
-        // as a truthiness check rather than a NaN check would lose it.
-        assert.equal(formatDayMonthYear(new Date(0)), formatDayMonthYear(new Date(0)));
+        // as a truthiness check rather than a NaN check would lose it. Pinned to what it SAYS (test
+        // audit, 7 Nov 2026): this line compared the value with itself, and the one beside it only
+        // ruled out the em-dash, so a blank or a garbled epoch passed both. It is 1 January 1970 in
+        // UTC and east of it, and still 31 December 1969 west of it, where the no-install lane runs.
+        assert.match(formatDayMonthYear(new Date(0)), /^(?:1 Jan 1970|31 Dec 1969)$/);
         assert.notEqual(formatDayMonthYear(new Date(0)), '—');
     });
 });

@@ -40,6 +40,10 @@ const US_ONLY = [
     'canceled', 'canceling', 'cancelation', 'traveled', 'traveling', 'travelers?', 'labeled', 'labeling',
     'modeled', 'modeling', 'enrolls?', 'enrollments?', 'jewelry', 'aluminum', 'judgments?', 'acknowledgments?',
     'gray(?:s|ed|er|est|ish)?',
+    // Two the audit walked through (test audit, 7 Nov 2026). `color` itself stays off — CSS defines
+    // it — but no platform defines `colored` or `colorful`. `authorization` stays off too: it is the
+    // HTTP header's own name (`Authorization: Bearer …`), as `unauthorized` is Firebase's error code.
+    'color(?:ed|ing|ful|less|s)', 'authoriz(?:e|es|ed|ing)',
     // the -ize and -yze verbs; UK English writes -ise and -yse throughout this app
     '(?:organi|recogni|reali|customi|prioriti|summari|minimi|maximi|apologi|finali|optimi|standardi|analy'
         + '|initiali|personali|categori|emphasi|memori|utili|critici|synthesi)z(?:e|es|ed|ing|ation|ations|er|ers)',
@@ -50,6 +54,10 @@ const US_RE = new RegExp(`(?<![.$#-])\\b(?:${US_ONLY.join('|')})\\b`, 'gi');
 const BEHAVIOR_RE = /(?<![-\w$.`])behaviors?\b(?!\s*:)(?![-`])/gi;
 /** A US locale handed to a formatter writes dates month-first and times on the 12-hour clock. */
 const LOCALE_RE = /\b(?:toLocale\w*|DateTimeFormat|NumberFormat|Collator|PluralRules|RelativeTimeFormat|ListFormat)\(\s*(['"`])en-US\1/g;
+/** NO locale at all is the same defect on any phone set to US English — the device's own locale is
+ *  used — and passed until the test audit (7 Nov 2026): `new Date().toLocaleTimeString()` reads
+ *  "2:05:00 PM" in this very container. Empty brackets, or `undefined`/`[]` where the locale goes. */
+const NO_LOCALE_RE = /\b(?:toLocale(?:Date|Time)?String|DateTimeFormat|NumberFormat)\(\s*(?:\)|undefined\b|\[\s*\])/g;
 /** A language tag of US English on generated markup (a page, a deck's text run): spell-checkers and
  *  screen readers act on it. The decks carried one on every run until 3 Nov 2026 (deck-polish.py). */
 const LANG_RE = /\b(?:lang|altLang|xml:lang)=\\?(['"])en-US\\?\1/g;
@@ -78,7 +86,10 @@ const FILES = [
 /** Every hit in one source, as "file:line  word". */
 function hits(/** @type {string} */ file, /** @type {string} */ src) {
     const out = [];
-    for (const re of [US_RE, BEHAVIOR_RE, LOCALE_RE, LANG_RE]) for (const m of src.matchAll(re)) {
+    // NO_LOCALE_RE is about what the APP shows. The Links 26 tooling's bare `toLocaleString()` prints
+    // a count of searched tables to the developer's own terminal, which is not copy anybody receives.
+    const res = [US_RE, BEHAVIOR_RE, LOCALE_RE, LANG_RE, ...(file.startsWith('./docs/') ? [] : [NO_LOCALE_RE])];
+    for (const re of res) for (const m of src.matchAll(re)) {
         out.push(`${file.replace(/^\.\//, '')}:${src.slice(0, m.index).split('\n').length}  "${m[0]}"`);
     }
     return out;
@@ -96,6 +107,11 @@ describe('the app speaks UK English', () => {
         assert.deepEqual(hits('x', "el.scrollIntoView({ behavior: 'smooth' }); html { scroll-behavior: auto }"), []);
         assert.deepEqual(hits('x', 'colour, behaviour, cancelled, organised, analyse, grey, favourite'), []);
         assert.deepEqual(hits('x', 'size, prize, seize, travelling, labelled, enrolled'), []);
+        // The test audit's additions (7 Nov 2026), and the platform names beside them they must spare.
+        assert.deepEqual(hits('x', 'a colored bar; not authorized to edit').length, 2);
+        assert.deepEqual(hits('x', "headers: { Authorization: 'Bearer x' }; err.code === 'storage/unauthorized'; @media (forced-colors: active) { a { color: red } }"), []);
+        assert.deepEqual(hits('x', 'p.textContent = new Date().toLocaleTimeString(); n.toLocaleString(undefined, o)').length, 2);
+        assert.deepEqual(hits('x', "d.toLocaleTimeString('en-GB', { hour: '2-digit' }); n.toLocaleString('en-GB')"), []);
     });
 
     test('every page, and the offline page the service worker writes, declares UK English', () => {

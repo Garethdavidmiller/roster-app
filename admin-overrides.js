@@ -445,10 +445,10 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
             if (isRestShift(base)) return false;
             // Skip the RD correction when the existing override is already a rest shift (RD/OFF —
             // nothing to correct, avoid churn) OR is a genuinely WORKED override that correction/RD
-            // would silently ERASE. WORKED_OVERRIDE_TYPES covers both the current types
-            // (rdw/shift/spare_shift) AND the retired ones (allocated/overtime/swap — Sunday work is always
-            // overtime, so a record the 4 Nov 2026 conversion skipped is likeliest on a Sunday; v25.32 dropped
-            // them and a range booking then clobbered one — restored 6 Nov). A NON-worked override that
+            // would silently ERASE — WORKED_OVERRIDE_TYPES, the current rdw/shift/spare_shift. The
+            // three retired types (allocated/overtime/swap) are NOT in it: put back on 6 Nov 2026 as a
+            // defence, they left again on 7 Nov once no record of them was found (admin-shift-types.js
+            // says why). A NON-worked override that
             // shouldn't be on a Sunday (sick/AL) still gets corrected to RD, preserving the v12.61
             // masking behaviour for those. (v16.19)
             const ov = ovByDate.get(dateStr);

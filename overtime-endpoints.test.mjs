@@ -18,7 +18,7 @@
  * orchestration calling them.
  */
 
-import { test, describe, beforeEach } from 'node:test';
+import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
@@ -323,8 +323,13 @@ function seededWindow(extra = {}) {
 }
 
 // Every test runs against the frozen clock below unless it says otherwise.
-let realNow;
-beforeEach(() => { realNow = Date.now; });
+//
+// The REAL clock is captured once, at load, and put back after EVERY test (test audit, 7 Nov 2026).
+// It used to be re-read in a `beforeEach`, and many tests assert between `freeze` and `unfreeze`
+// with no try/finally — so one failure left Date.now frozen, the next test saved the frozen
+// function as "real", and every later failure in the file was a cascade from the first.
+const realNow = Date.now;
+afterEach(() => { Date.now = realNow; });
 function freeze(ms) { Date.now = () => ms; }
 function unfreeze() { Date.now = realNow; }
 
@@ -392,11 +397,33 @@ describe('the auth ladder — the same four rungs on every endpoint', () => {
         }
     });
 
-    test('an ordinary member is refused the two reviewer endpoints and allowed the two member ones', async () => {
-        const { eps } = build(seededWindow());
-        assert.equal((await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_plain'))).code, 403);
-        assert.equal((await call(eps.getOvertimeManagerOverview, req({}, 'tok_plain'))).code, 403);
+    test('an ordinary member is refused the three reviewer endpoints and allowed the two member ones', async () => {
+        // It said "the two reviewer endpoints" and tried two of three, and one of the two member ones
+        // (test audit, 7 Nov 2026). Every body is VALID, so a 403 is the role refusal and not a bad
+        // request — and the member's submission goes all the way to a stored write.
+        freeze(Date.parse('2026-08-17T09:00:00Z'));
+        const { db, eps } = build(seededWindow({
+            [`overtimeWindows/${WEEK}/participants/S. Silva`]: { memberName: 'S. Silva', grade: 'CEA', rosterOrder: 5 },
+        }));
+        const reviewerOnly = {
+            createOvertimeWindow: { weekEnding: WEEK },
+            getOvertimeManagerOverview: {},
+            withdrawOvertimeParticipant: { weekEnding: WEEK, memberName: 'G. Miller', withdrawn: true },
+        };
+        for (const [name, body] of Object.entries(reviewerOnly)) {
+            const r = await call(eps[name], req(body, 'tok_plain'));
+            assert.equal(r.code, 403, `${name} let an ordinary member through: ${JSON.stringify(r.body)}`);
+            assert.match(String(r.body.error), /reviewer access required/, name);
+        }
+        assert.equal(db._store.get(`overtimeWindows/${WEEK}/participants/G. Miller`).withdrawn, undefined,
+            'the refused withdrawal still changed the record');
         assert.equal((await call(eps.getMyOvertimeState, req({}, 'tok_plain'))).code, 200);
+        const sent = await call(eps.submitOvertimeAvailability, req({
+            weekEnding: WEEK, days: allDay(), ifRevision: 0, clientMutationId: 'member-route-01',
+        }, 'tok_plain'));
+        unfreeze();
+        assert.equal(sent.code, 200, `the member's own submission was refused: ${JSON.stringify(sent.body)}`);
+        assert.ok(db._store.has(`overtimeWindows/${WEEK}/submissions/S. Silva`));
     });
 });
 
@@ -1285,6 +1312,21 @@ describe('submitOvertimeAvailability — the only mutation', () => {
         const r = await call(eps.submitOvertimeAvailability, req(good()));
         unfreeze();
         assert.equal(r.code, 404);
+    });
+
+    test('an EXPIRED window answers as one that does not exist — 404, not 409 closed', async () => {
+        // Retention is checked BEFORE the phase: an expired week is gone as far as the app is
+        // concerned, whether or not the purge has reached it, and the read endpoint already omits it.
+        // Deleting that check left every suite green and turned this into a 409 `closed` — still a
+        // refusal, but about a week the member's own state says is not there (test audit, 7 Nov 2026).
+        // Frozen ON the retention instant, so `<=` is pinned too.
+        freeze(M.retentionUntil);
+        const { db, eps } = build(seededWindow());
+        const r = await call(eps.submitOvertimeAvailability, req(good()));
+        unfreeze();
+        assert.equal(r.code, 404);
+        assert.equal(r.body.error, 'no-window');
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/G. Miller`), false);
     });
 
     test('the participant uid is stamped on first contact, as the rename recovery route', async () => {

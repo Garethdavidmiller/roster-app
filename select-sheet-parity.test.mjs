@@ -85,10 +85,11 @@ const MODULES = readdirSync(ROOT)
         && f !== 'eslint.config.js' && f !== 'generate-sri.mjs')
     .sort();
 
-const APP_STYLESHEETS = [
-    'shared.css', 'index.css', 'admin.css', 'paycalc.css',
-    'operations.css', 'settings.css', 'links.css', 'overtime.css',
-];
+/** shared.css and every app page's stylesheet, from scripts/app-pages.mjs — ONE list for contracts 4,
+ *  12 and 13 (test audit, 7 Nov 2026). They each held their own, hand-written, and the three
+ *  disagreed with one another and with the registry: none read trains.css or newlink.css, and
+ *  contract 12 did not read overtime.css either. */
+const APP_STYLESHEETS = ['shared.css', ...new Set(Object.values(pageStylesheets()))];
 
 /**
  * The selects that stay native, and WHY. A key is `<file>#<id>` or `<file>.<first-class>` — whatever
@@ -314,16 +315,26 @@ test('every id-level CSS rule on an enhanced select also names its trigger', () 
     const { ids } = findEnhanced();
     const misses = /** @type {string[]} */ ([]);
     const allSelectors = APP_STYLESHEETS.flatMap(f => selectorsOf(read(f)).map(s => ({ f, s })));
+    let idRules = 0;
     for (const id of ids) {
         for (const { f, s } of allSelectors) {
             for (const m of s.matchAll(new RegExp(`#${id}(:[a-z-]+)?(?![\\w-])`, 'g'))) {
+                idRules++;
                 const suffix = m[1] ?? '';
                 const wanted = `#${id}Trigger${suffix}`;
-                if (allSelectors.some(x => x.s.includes(wanted))) continue;
-                misses.push(`${f}: "${s}" styles #${id}${suffix} but nothing styles ${wanted}`);
+                // IN THE SAME RULE (test audit, 7 Nov 2026). This asked whether ANY rule anywhere named
+                // the trigger, so taking `#periodSelectTrigger` out of `#periodSelect,
+                // #periodSelectTrigger {` — the very rule this message points at — passed: another rule
+                // mentioned the trigger, and the pay-period picker lost its width, border, 16px text
+                // and chevron. A counterpart in another rule can carry different declarations.
+                if (new RegExp(`${wanted}(?![\\w-])`).test(s)) continue;
+                misses.push(`${f}: "${s}" styles #${id}${suffix} but does not name ${wanted} in the same rule`);
             }
         }
     }
+    // Guard the guard: paycalc.css's `#periodSelect` rules are the shape this contract cites, so a
+    // scan that read none of them would be checking nothing.
+    assert.ok(idRules >= 1, 'no id rule on an enhanced select was found — the scan is wrong');
     assert.deepEqual([...new Set(misses)].sort(), [],
         'add the trigger beside the select in the same rule — see #periodSelect in paycalc.css');
 });
@@ -411,7 +422,10 @@ test('no module calls .focus() on a select that is enhanced', () => {
     const offenders = /** @type {string[]} */ ([]);
     for (const f of MODULES) {
         const src = strip(read(f));
-        for (const m of src.matchAll(/([A-Za-z_$][\w$]*)\s*\??\.focus\(\)/g)) {
+        // `.focus(` with or without arguments (test audit, 7 Nov 2026). The pattern was `.focus()`, so
+        // `sel.focus({ preventScroll: true })` — the idiom eight modules use — passed on an enhanced
+        // select: same wrong destination, one argument longer.
+        for (const m of src.matchAll(/([A-Za-z_$][\w$]*)\s*\??\.focus\s*\(/g)) {
             const ident = m[1];
             // Which select is this identifier? ONLY what the FILE says it is — resolved from a
             // `getElementById` or a `createElement` in the same source. Matching the identifier's
@@ -425,7 +439,7 @@ test('no module calls .focus() on a select that is enhanced', () => {
             if (resolved && ids.has(resolved)) offenders.push(`${f}: ${ident}.focus() — #${resolved} is enhanced; focus #${resolved}Trigger instead`);
         }
         // …and the inline shape, which has no identifier to resolve at all.
-        for (const m of src.matchAll(/getElementById\(\s*['"]([^'"]+)['"]\s*\)\s*\??\.focus\(\)/g)) {
+        for (const m of src.matchAll(/getElementById\(\s*['"]([^'"]+)['"]\s*\)\s*\??\.focus\s*\(/g)) {
             if (ids.has(m[1])) offenders.push(`${f}: getElementById('${m[1]}').focus() — enhanced; focus #${m[1]}Trigger instead`);
         }
     }
@@ -756,7 +770,7 @@ test('a `.value =` on an enhanced select announces itself, or rebuilds, or repai
 // Derived, not listed: any rule that collapses a box this way is found and required to position
 // itself, so a seventh collapsible card inherits the requirement without anybody remembering it.
 test('every box that collapses to zero height is a containing block', () => {
-    const files = ['shared.css', 'paycalc.css', 'admin.css', 'index.css', 'operations.css', 'settings.css', 'links.css'];
+    const files = APP_STYLESHEETS;   // the registry's list, shared with contracts 4 and 13
     const offenders = [];
     let examined = 0;
     for (const f of files) {
@@ -789,7 +803,7 @@ test('every box that collapses to zero height is a containing block', () => {
 // trigger and which sets a non-`none` display requires the `!important` companion, so a page that
 // later styles its trigger's display cannot quietly reopen the hole.
 test('a trigger with a display rule still honours `hidden`', () => {
-    const files = ['shared.css', 'paycalc.css', 'admin.css', 'index.css', 'operations.css', 'settings.css', 'links.css', 'overtime.css'];
+    const files = APP_STYLESHEETS;   // the registry's list, shared with contracts 4 and 12
     const setters = [];
     for (const f of files) {
         const css = readFileSync(new URL('./' + f, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');

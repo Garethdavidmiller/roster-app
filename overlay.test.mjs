@@ -614,6 +614,67 @@ describe('createLightbox — a fade that never reports its end still finishes', 
     });
 });
 
+// ── THE BACKDROP AND A THROWING onClose (test audit, 7 Nov 2026) ─────────────────────────────────
+// Deleting the backdrop listener, inverting its target check, and removing the try/catch round
+// `onClose` each passed every suite: no test clicked a `createLightbox` backdrop, and no `onClose`
+// here had ever thrown.
+describe('createLightbox — a tap on the backdrop closes it, a tap on the panel does not', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
+
+    function build() {
+        const overlay  = makeEl({});
+        const content  = makeEl({});
+        const closeBtn = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn });
+        lb.open();
+        return { overlay, content, closeBtn, lb };
+    }
+
+    test('a click whose target is the overlay itself closes it', () => {
+        const { overlay } = build();
+        overlay._trigger('click', { target: overlay });
+        assert.equal(overlay.classList.contains('open'), false, 'the backdrop tap left the dialog open');
+        overlay._trigger('transitionend');
+        assert.equal(overlay.classList.contains('visible'), false);
+        assert.equal(_bodyClasses.has('lb-open'), false, 'and the page behind is unlocked');
+    });
+
+    test('a click that lands inside the panel — and bubbles up to the overlay — does not', () => {
+        const { overlay, content } = build();
+        overlay._trigger('click', { target: content });
+        assert.equal(overlay.classList.contains('open'), true,
+            'a tap on the panel\'s own text or a field closed the dialog under the reader');
+        assert.equal(_bodyClasses.has('lb-open'), true);
+    });
+
+    test('the ✕ closes it', () => {
+        const { overlay, closeBtn } = build();
+        closeBtn._trigger('click', { target: closeBtn });
+        assert.equal(overlay.classList.contains('open'), false);
+    });
+});
+
+describe('createLightbox — an onClose that throws cannot strand the overlay', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
+
+    test('the overlay still closes, the page unlocks, and the error is reported', () => {
+        const errors = mock.method(console, 'error', () => {});
+        try {
+            const overlay = makeEl({});
+            const lb = createLightbox({ overlay, content: makeEl({}), closeBtn: null,
+                onClose: () => { throw new Error('a page bug in its own onClose'); } });
+            lb.open();
+            assert.doesNotThrow(() => { lb.close(); }, 'the throw escaped close() — the dismiss below it never ran');
+            assert.equal(overlay.classList.contains('open'), false, 'still .open — the overlay is stranded on screen');
+            overlay._trigger('transitionend');
+            assert.equal(overlay.classList.contains('visible'), false);
+            assert.equal(_bodyClasses.has('lb-open'), false, 'the page behind stayed locked');
+            assert.equal(errors.mock.callCount(), 1, 'the throw is reported, not swallowed');
+            assert.match(String(errors.mock.calls[0].arguments[0]), /onClose threw/);
+        } finally { errors.mock.restore(); }
+    });
+});
+
 describe('trapFocus — hidden controls are not tab stops', () => {
     // The day-detail panel on an ordinary day: the ✕ is visible, its Leave link and Pay button are
     // `hidden`. Counted as tab stops, the hidden button became "last", so Tab from the real last

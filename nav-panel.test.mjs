@@ -346,3 +346,158 @@ describe('a drawer-link click with the drawer SHUT closes nothing (48-hour revie
         assert.equal(scrollUnlocks, 1, 'open, the same click closes it for the navigation');
     });
 });
+
+// ── The drawer's two hand-made lightboxes (test audit, 7 Nov 2026) ─────────────────────────────────
+// App Notices and the coming-soon panel run their own lifecycle — they share the drawer's history
+// entry, so createLightbox cannot own them — and nothing here had ever opened one: deleting their
+// 500 ms fallback, or breaking Escape, passed this file. overlay-parity finds a hand-rolled overlay by
+// its dismissOverlay import, which these do not have, so it could not see them either. Driven
+// through the real drawer: the burger opens it, a tap on the panel's link opens the lightbox.
+
+/** An element with a working classList, several listeners per event (`once` honoured), and focus. */
+function liveEl(/** @type {string[]} */ classes = []) {
+    const cls = new Set(classes);
+    /** @type {Record<string, Array<{ fn: Function, once: boolean }>>} */
+    const listeners = {};
+    /** @type {any} */
+    const el = {
+        dataset: {}, style: {}, textContent: '', hidden: false, firstChild: null,
+        classList: {
+            add: (/** @type {string[]} */ ...c) => c.forEach(x => cls.add(x)),
+            remove: (/** @type {string[]} */ ...c) => c.forEach(x => cls.delete(x)),
+            toggle: (/** @type {string} */ c, /** @type {boolean} */ force) => {
+                const on = force ?? !cls.has(c); if (on) cls.add(c); else cls.delete(c); return on;
+            },
+            contains: (/** @type {string} */ c) => cls.has(c),
+        },
+        addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn, /** @type {any} */ opts) => {
+            (listeners[t] ??= []).push({ fn, once: !!opts?.once });
+        },
+        removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => {
+            listeners[t] = (listeners[t] ?? []).filter(l => l.fn !== fn);
+        },
+        fire: (/** @type {string} */ t, /** @type {any} */ ev = {}) => {
+            for (const l of [...(listeners[t] ?? [])]) { if (l.once) el.removeEventListener(t, l.fn); l.fn(ev); }
+        },
+        setAttribute() {}, removeAttribute() {}, getAttribute: () => null, hasAttribute: () => false,
+        focus() { /** @type {any} */ (global.document).activeElement = el; },
+        remove() {}, appendChild() {}, append() {}, querySelector: () => null, querySelectorAll: () => [],
+        cloneNode: () => ({ removeAttribute() {}, setAttribute() {} }), replaceWith() {},
+    };
+    return el;
+}
+
+/** Mount the drawer on a page whose elements behave, and return the handles a test drives. */
+function mountLive() {
+    /** @type {Map<string, any>} */
+    const els = new Map([
+        ['navComingSoonLightbox', liveEl(['lb-overlay'])],   // the classes the injected markup gives them
+        ['navNoticesLightbox',    liveEl(['lb-overlay'])],
+    ]);
+    /** @type {Function[]} */
+    const keydown = [];
+    const page = {
+        backs: 0,
+        /** Every open `.lb-overlay` this page holds — what `_overlayAbove` reads. */
+        openOverlays: () => [...els.values()].filter(e => e.classList.contains('lb-overlay') && e.classList.contains('open')),
+    };
+    global.document = /** @type {any} */ ({
+        activeElement: null,
+        getElementById: (/** @type {string} */ id) => { if (!els.has(id)) els.set(id, liveEl()); return els.get(id); },
+        createElement: () => liveEl(), body: liveEl(),
+        addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { if (t === 'keydown') keydown.push(fn); },
+        removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => {
+            const i = keydown.indexOf(fn); if (t === 'keydown' && i !== -1) keydown.splice(i, 1);
+        },
+        querySelectorAll: (/** @type {string} */ sel) => (sel === '.lb-overlay.open' ? page.openOverlays() : []),
+        querySelector: (/** @type {string} */ sel) => (sel === '.lb-overlay.open' ? page.openOverlays()[0] ?? null : null),
+    });
+    global.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }),
+        setTimeout: (/** @type {any[]} */ ...a) => setTimeout(...a), clearTimeout: (/** @type {any} */ t) => clearTimeout(t) });
+    global.history = /** @type {any} */ ({ pushState() {}, back() { page.backs += 1; } });
+    global.requestAnimationFrame = /** @type {any} */ ((/** @type {Function} */ fn) => { fn(); return 0; });
+    resetNavPanel();   // the module keeps its flags between mounts — start each test from a closed drawer
+    initNavPanel({ currentPage: 'links', memberName: 'A. Test', onSignOut: () => {} });
+    const $ = (/** @type {string} */ id) => document.getElementById(id);
+    /** Fire a key at every document keydown listener, as the browser would; true if one prevented it. */
+    const press = (/** @type {string} */ key) => {
+        let prevented = false;
+        for (const fn of [...keydown]) fn({ key, shiftKey: false, preventDefault: () => { prevented = true; } });
+        return prevented;
+    };
+    /** Open the drawer, then tap the link whose class is `linkClass`. */
+    const openFromDrawer = (/** @type {string} */ linkClass) => {
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        const trigger = { dataset: { csTitle: 'Rail Staff Travel' } };
+        /** @type {any} */ ($('navPanel')).fire('click',
+            { target: { closest: (/** @type {string} */ sel) => (sel === linkClass ? trigger : null) }, button: 0, preventDefault() {} });
+        page.backs = 0;
+        scrollUnlocks = 0;
+    };
+    return { $, press, openFromDrawer, page, els };
+}
+
+const LIGHTBOXES = [
+    { name: 'App Notices', link: '.nav-panel-link--notices',     box: 'navNoticesLightbox',    close: 'navNoticesClose' },
+    { name: 'coming soon', link: '.nav-panel-link--coming-soon', box: 'navComingSoonLightbox', close: 'navComingSoonClose' },
+];
+
+describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promises', () => {
+    beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
+    afterEach(() => mock.timers.reset());
+
+    for (const lb of LIGHTBOXES) {
+        test(`${lb.name}: Escape closes it, and gives the drawer's history entry back`, () => {
+            const { $, press, openFromDrawer, page } = mountLive();
+            openFromDrawer(lb.link);
+            assert.equal($(lb.box).classList.contains('open'), true, 'premise: the lightbox opened');
+            press('Escape');
+            assert.equal($(lb.box).classList.contains('open'), false, 'Escape did nothing — a keyboard user cannot leave');
+            assert.equal(page.backs, 1, 'the shared history entry was not popped');
+        });
+
+        test(`${lb.name}: a close whose transitionend never comes still finishes at 500 ms`, () => {
+            // iOS suppresses transitionend on a backgrounded tab. Without the fallback the lightbox
+            // stays `.visible` over the page with the scroll still locked — the app looks frozen.
+            const { $, openFromDrawer } = mountLive();
+            openFromDrawer(lb.link);
+            $(lb.close).fire('click');
+            mock.timers.tick(499);
+            assert.equal($(lb.box).classList.contains('visible'), true, 'premise: still fading at 499 ms');
+            mock.timers.tick(1);
+            assert.equal($(lb.box).classList.contains('visible'), false, 'the lightbox never left the screen');
+            assert.equal(scrollUnlocks, 1, 'the page behind stayed locked');
+            assert.equal(document.activeElement, $('navMenuBtn'), 'focus was not handed back to the burger');
+        });
+
+        test(`${lb.name}: a second ✕ tap during the fade closes nothing more`, () => {
+            // Two finishers for one lock: with a dialog open beneath, the second unlock released the
+            // page behind it. createLightbox has refused a second close since v21.86; these had not.
+            const { $, openFromDrawer, page } = mountLive();
+            openFromDrawer(lb.link);
+            $(lb.close).fire('click');
+            $(lb.close).fire('click');                          // the double tap, mid-fade
+            $(lb.box).fire('click', { target: $(lb.box) });     // …and a backdrop tap for good measure
+            $(lb.box).fire('transitionend');
+            mock.timers.tick(500);
+            assert.equal(scrollUnlocks, 1, 'one open, one unlock');
+            assert.equal(page.backs, 1, 'one history entry popped');
+        });
+
+        test(`${lb.name}: an overlay opened above it owns the keyboard`, () => {
+            // A Huddle viewer opened by a notification tap sits over the archive. One Escape used to
+            // close both, and Tab was dragged back into the panel the reader could no longer see.
+            const { $, press, openFromDrawer, els } = mountLive();
+            openFromDrawer(lb.link);
+            const viewer = liveEl(['lb-overlay', 'open']);
+            els.set('huddleViewer', viewer);
+            assert.equal(press('Tab'), false, 'Tab was trapped into the lightbox underneath');
+            assert.notEqual(document.activeElement, $(lb.close));
+            press('Escape');
+            assert.equal($(lb.box).classList.contains('open'), true, 'one Escape closed the lightbox under the viewer too');
+            viewer.classList.remove('open');                    // the viewer closes; now this one is on top
+            press('Escape');
+            assert.equal($(lb.box).classList.contains('open'), false, 'and once on top, Escape reaches it again');
+        });
+    }
+});

@@ -21,7 +21,7 @@ import { planAlWeekSave } from './admin-al-week-save.js';
 // what the Calendar draws, what the entitlement costs, and what the receipt says.
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { resolveEffectiveShift } from './override-utils.js';
-import { consumesEntitlement, entitlementFor } from './al-entitlement.js';
+import { consumesEntitlement, countedAlDates, entitlementFor } from './al-entitlement.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 
 // C. Reen's fixed Mon–Fri line: every weekend is a rest day and every weekday is worked, so
@@ -43,6 +43,12 @@ const oneDayLeft = (() => {
     }
     return dates.map((date, i) => ({ id: 'x' + i, memberName: 'C. Reen', type: 'annual_leave', date, value: 'AL' }));
 })();
+
+test('premise: `oneDayLeft` leaves exactly ONE day of the year\'s allowance', () => {
+    // Every case that uses it assumes this, and nothing checked it (test audit, 7 Nov 2026).
+    assert.equal(entitlementFor(reen, '2026', oneDayLeft), oneDayLeft.length + 1);
+    assert.equal(countedAlDates({ overrides: oneDayLeft, member: reen, year: '2026' }).size, oneDayLeft.length);
+});
 
 describe('a batch with no leave in it is not this module\'s business', () => {
     test('the SAME array comes back — not a copy, so nothing downstream can diverge', () => {

@@ -50,6 +50,11 @@
  * `var(--navy)` there would resolve to nothing on the one launch it exists for. It is named below
  * with that reason rather than pattern-exempted, so a SECOND file claiming the same licence has to
  * argue for it here.
+ *
+ * Since the test audit (7 Nov 2026) the JS half reads the colour FUNCTIONS as well as `#…`, and one
+ * call is exempt by its own text rather than by file: `avatarHue` in roster-data.js derives a hue
+ * from each member's name, and a token cannot be minted per person. The CSS half reads named colours
+ * (`darkorange`) too — the one spelling with nothing in it a hex or function scan could see.
  */
 
 import { test, describe } from 'node:test';
@@ -93,6 +98,44 @@ const OKLCH = /oklch\(/g;
 const OKLCH_EXEMPT = /** @type {Array<[string, RegExp, string]>} */ ([
     ['index.css', /var\(--today-glow-alpha\)/,
         'the Today cell\'s glow animates its ALPHA through @property, and a static token has no alpha to animate'],
+]);
+
+/**
+ * The CSS named colours — every keyword the platform paints as a colour — minus `white` and `black`,
+ * which are NEUTRAL here exactly as pure white or black rgb() is (the three-surface model writes
+ * `white` on purpose). `transparent`, `currentColor` and the system colours are not on it: none is a
+ * colour choice. Not followed by `(`, so the `tan()` maths function is not a colour.
+ */
+const NAMED = new RegExp(`(?<![\\w-])(?:${[
+    'aliceblue', 'antiquewhite', 'aqua', 'aquamarine', 'azure', 'beige', 'bisque', 'blanchedalmond', 'blue',
+    'blueviolet', 'brown', 'burlywood', 'cadetblue', 'chartreuse', 'chocolate', 'coral', 'cornflowerblue',
+    'cornsilk', 'crimson', 'cyan', 'darkblue', 'darkcyan', 'darkgoldenrod', 'darkgray', 'darkgreen', 'darkgrey',
+    'darkkhaki', 'darkmagenta', 'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon',
+    'darkseagreen', 'darkslateblue', 'darkslategray', 'darkslategrey', 'darkturquoise', 'darkviolet', 'deeppink',
+    'deepskyblue', 'dimgray', 'dimgrey', 'dodgerblue', 'firebrick', 'floralwhite', 'forestgreen', 'fuchsia',
+    'gainsboro', 'ghostwhite', 'gold', 'goldenrod', 'gray', 'green', 'greenyellow', 'grey', 'honeydew', 'hotpink',
+    'indianred', 'indigo', 'ivory', 'khaki', 'lavender', 'lavenderblush', 'lawngreen', 'lemonchiffon', 'lightblue',
+    'lightcoral', 'lightcyan', 'lightgoldenrodyellow', 'lightgray', 'lightgreen', 'lightgrey', 'lightpink',
+    'lightsalmon', 'lightseagreen', 'lightskyblue', 'lightslategray', 'lightslategrey', 'lightsteelblue',
+    'lightyellow', 'lime', 'limegreen', 'linen', 'magenta', 'maroon', 'mediumaquamarine', 'mediumblue',
+    'mediumorchid', 'mediumpurple', 'mediumseagreen', 'mediumslateblue', 'mediumspringgreen', 'mediumturquoise',
+    'mediumvioletred', 'midnightblue', 'mintcream', 'mistyrose', 'moccasin', 'navajowhite', 'navy', 'oldlace',
+    'olive', 'olivedrab', 'orange', 'orangered', 'orchid', 'palegoldenrod', 'palegreen', 'paleturquoise',
+    'palevioletred', 'papayawhip', 'peachpuff', 'peru', 'pink', 'plum', 'powderblue', 'purple', 'rebeccapurple',
+    'red', 'rosybrown', 'royalblue', 'saddlebrown', 'salmon', 'sandybrown', 'seagreen', 'seashell', 'sienna',
+    'silver', 'skyblue', 'slateblue', 'slategray', 'slategrey', 'snow', 'springgreen', 'steelblue', 'tan', 'teal',
+    'thistle', 'tomato', 'turquoise', 'violet', 'wheat', 'whitesmoke', 'yellow', 'yellowgreen',
+].join('|')})(?![\\w-]|\\s*\\()`, 'gi');
+/** The properties a named colour can paint through. A keyword anywhere else (a selector, a font, an
+ *  animation's name) is not a colour, so it is only read in these. */
+const COLOUR_PROP = /^(?:-webkit-)?(?:color|background(?:-color|-image)?|border(?:-[a-z]+)*|outline(?:-color)?|box-shadow|text-shadow|fill|stroke|caret-color|accent-color|text-decoration(?:-color)?|text-emphasis(?:-color)?|column-rule(?:-color)?|scrollbar-color|tap-highlight-color|stop-color|flood-color|lighting-color)$/;
+
+/** A colour BUILT in JS by function — the spellings beside `#…` that a style can be handed. */
+const JS_COLOUR_FN = /\b(?:rgba?|hsla?|hwb|oklch|oklab|lch|lab|color-mix)\(/g;
+/** The colour functions JS may build, each tied to its call and the reason no token can carry it. */
+const JS_COLOUR_FN_EXEMPT = /** @type {Array<[string, RegExp, string]>} */ ([
+    ['roster-data.js', /oklch\(52% 0\.12 \$\{h\}deg\)/,
+        'avatarHue: one hue per member NAME, derived from the name — there is no token per person'],
 ]);
 
 /** A colour written as rgb()/rgba(); group 1 is what is inside the brackets. */
@@ -212,12 +255,46 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
             for (const m of src.matchAll(HEX)) {
                 offenders.push(`${file}:${lineOf(src, m.index)}  ${m[0]}`);
             }
+            // The function spellings too (test audit, 7 Nov 2026): `p.style.color = 'rgb(200, 30,
+            // 30)'` paints exactly what '#c81e1e' does, and passed because only `#…` was read.
+            for (const m of src.matchAll(JS_COLOUR_FN)) {
+                const line = src.split('\n')[lineOf(src, m.index) - 1];
+                if (JS_COLOUR_FN_EXEMPT.some(([f, re]) => f === file && re.test(line))) continue;
+                offenders.push(`${file}:${lineOf(src, m.index)}  ${line.trim().slice(0, 80)}`);
+            }
         }
         assert.deepEqual(offenders, [],
-            'hex literals in JS — set a class, or read the token with getComputedStyle; a colour '
+            'hex literals and colour functions in JS — set a class, or read the token with getComputedStyle; a colour '
             + 'built in JS is invisible to every stylesheet guard:\n  ' + offenders.join('\n  ')
             + '\nIf the module genuinely cannot read a token (see splash-watchdog.js), add it to '
-            + 'JS_EXEMPT with that reason.');
+            + 'JS_EXEMPT, or the call to JS_COLOUR_FN_EXEMPT, with that reason.');
+        for (const [file, re, reason] of JS_COLOUR_FN_EXEMPT) {
+            assert.match(readFileSync(file, 'utf8'), re, `${file}'s colour-function exemption names a call that is gone — drop it (${reason})`);
+        }
+    });
+
+    // ── named colours — the spelling with no digits at all (test audit, 7 Nov 2026) ──────────────
+    // `color: darkorange` passed every check in this file: no `#`, no `rgb(`, no `oklch(`. None of the
+    // app's stylesheets uses one today, so this is a plain ban rather than a ratchet.
+    test('no app stylesheet names a colour by keyword', () => {
+        const offenders = [];
+        for (const file of SHEETS) {
+            const css = blankComments(readFileSync(file, 'utf8'));
+            const prints = printRegions(css);
+            for (const m of css.matchAll(NAMED)) {
+                const at = declAnchor(css, m.index);
+                if (prints.some(([s, e]) => at >= s && at < e)) continue;      // 4. paper
+                const decl = declarationAt(css, at);
+                const prop = decl.split(':')[0].trim().toLowerCase();
+                if (prop.startsWith('--')) continue;                            // 1. the definition
+                if (!COLOUR_PROP.test(prop)) continue;                          // a selector, a font, a name
+                const declStart = css.lastIndexOf(decl, at);
+                if (insideVar(decl, at - declStart)) continue;                  // 2. a fallback
+                offenders.push(`${file}:${lineOf(css, at)}  ${decl.trim().slice(0, 90)}`);
+            }
+        }
+        assert.deepEqual(offenders, [],
+            'a named colour typed into a rule — define a token in :root and read it with var():\n  ' + offenders.join('\n  '));
     });
 
     test('every JS exemption is still a real file with a real reason', () => {
@@ -311,6 +388,13 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
         assert.equal([...".a { background: url(\"data:image/svg+xml,%3Csvg stroke='%23ff0000'/%3E\") }".matchAll(URL_HEX)].length, 1,
             'the URL-encoded extractor misses a colour in a data URI');
         assert.equal([...'.a { color: oklch(50% 0.1 20deg) }'.matchAll(OKLCH)].length, 1, 'the oklch() extractor sees nothing');
+        // Named colours: seen as a whole word, never inside a token name or a class, never `tan()`.
+        assert.deepEqual([...'.a { color: darkorange; border: 1px solid Teal }'.matchAll(NAMED)].map(m => m[0]), ['darkorange', 'Teal']);
+        assert.equal([...'.badge-red { color: var(--error-red); width: calc(tan(45deg) * 1px) }'.matchAll(NAMED)].length, 0,
+            'the named-colour extractor reads a class, a token name or a maths function as a colour');
+        assert.ok(COLOUR_PROP.test('border-left-color') && COLOUR_PROP.test('background') && !COLOUR_PROP.test('font-family'));
+        assert.equal([..."p.style.color = 'rgb(200, 30, 30)'; el.style.background = `hsl(${h} 50% 40%)`".matchAll(JS_COLOUR_FN)].length, 2,
+            'the JS colour-function extractor sees nothing');
 
         // 1 · a token definition is exempt, and is the reason shared.css passes at all.
         const defs = [...shared.matchAll(HEX)]
