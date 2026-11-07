@@ -364,10 +364,12 @@ claim('Crossover: no weekday early finishing between 15:00 and 16:00, and two on
 // folder, and every one keeps four weeks off for 14 too. Since 5 Nov 2026 Common Ground is on the shortlist as their example.
 // FOR 14 OR LESS SINCE 7 NOV 2026: Balanced V8 and V9 take four weeks off for 13, a day less than today, the first in the pack to
 const THIRTY = PACK.filter(d => d.F.lv.best >= TF.lv.best);
+// in the 30-day folder, or since 7 Nov 2026 its subfolder for the five Balanced designs (report-data.mjs PACK_DIRS)
+const in30 = dir => dir.split('/')[0] === '30-days-off';
 claim('Balanced V5 to V9, Common Ground, Crossover, Grand Tour, Level Crossing, Middle Ground, Open Return and Short Openers: today’s 30 days off for 14 days’ leave and four weeks off for 14 or less, and every one of them in the 30-day folder',
   TF.lv.best === 30 && THIRTY.map(d => d.name).sort().join() === 'Balanced V5,Balanced V6,Balanced V7,Balanced V8,Balanced V9,Common Ground,Crossover,Grand Tour,Level Crossing,Middle Ground,Open Return,Short Openers'
-  && THIRTY.every(d => d.F.lv.fourWeeks <= TF.lv.fourWeeks && stats.find(s => s.name === d.name).dir === '30-days-off')
-  && stats.filter(s => s.dir === '30-days-off').length === THIRTY.length);
+  && THIRTY.every(d => d.F.lv.fourWeeks <= TF.lv.fourWeeks && in30(stats.find(s => s.name === d.name).dir))
+  && stats.filter(s => in30(s.dir)).length === THIRTY.length);
 claim('of the three, Common Ground alone keeps today’s leave', D.filter(d => THIRTY.includes(d)).map(d => d.name).join() === 'Common Ground');
 // the leave cost's "outside the shortlist": the other 30-day links keep four weeks for 14 too, and only Long Break besides
 const FOUR_OUT = PACK.filter(d => !D.includes(d) && d.F.lv.fourWeeks <= TF.lv.fourWeeks);
@@ -708,9 +710,9 @@ table.t td.all { color: var(--text-mid); }
 /* THE OTHER DESIGNS' SHEET (7 Nov 2026): a page of its own, so a row may take two lines and has and pays sit in columns. Page
    2's one-line table, and the pixels each of its rows gave up to stay on the page, went with it */
 table.t.others { table-layout: fixed; margin: 3px 0 2px; } table.t.others th:first-child { width: 25%; } table.t.others th:nth-child(2) { width: 36%; }
-table.t.others td { padding: 3px 7px 3.5px; } table.t.others td:first-child b { display: block; color: var(--text-dark, #1a1a2e); }
+table.t.others td { padding: 2.5px 7px 3px; }   /* half a pixel less each side since the Balanced group's heading (7 Nov 2026) */ table.t.others td:first-child b { display: block; color: var(--text-dark, #1a1a2e); }
 table.t.others .code { display: block; font-size: 8.6px; color: var(--text-light); white-space: nowrap; margin-bottom: 1px; }
-.fnote { font-size: 9.6px; color: var(--text-mid); margin: 8px 0 0; } sup { font-size: 70%; line-height: 0; }
+.fnote { font-size: 9.6px; color: var(--text-mid); margin: 5px 0 0; } sup { font-size: 70%; line-height: 0; }
 /* page 2 gives the room its table left to its own words: a little more type and air, and nothing else moves */
 .p2 h2 { margin-top: 11px; } .p2 .lead { font-size: 11.8px; } .p2 ul.list { font-size: 11.2px; line-height: 1.45; } .p2 ul.list li { margin: 3px 0; }
 /* the two comparison tables share one set of column widths (5 Nov 2026, the looks review: page 2's columns sat up to 41pt left of page 1's) */
@@ -860,8 +862,11 @@ claim('each row of the other designs’ sheet holds designs from one folder', AL
 claim('the other designs’ sheet says “no 55-hour week” only where no cover placement tested makes one, at 8 hours or at 8h 45m',
   ALTS.filter(r => r.has.includes(n55)).flatMap(r => r.n).every(x => { const h = h55Of(O[x].F); return h && !h.adds && h.hiMin <= 55 * 60 && h.hi35Min <= 55 * 60; }));
 const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+// THE BALANCED FIVE IN A GROUP OF THEIR OWN (7 Nov 2026, owner: "Put all the Balanced proposals in their own subfolder"): the sheet
+// follows the pack's folders, so they have a heading of their own under the 30-day folder's, naming the subfolder
 const OTHER_GROUPS = [['proposals', 'Proposal sheets', 'the folder 4 Proposal sheets'],
-  ['30-days-off', '30 days off for 14 days’ leave, as today', 'the folder 4 Proposal sheets/30 days off']];
+  ['30-days-off', '30 days off for 14 days’ leave, as today', 'the folder 4 Proposal sheets/30 days off'],
+  ['30-days-off/balanced', 'The Balanced designs, 30 days off for 14 days’ leave too', 'the folder 4 Proposal sheets/30 days off/Balanced']];
 const rowsOf = dir => ALTS.filter(r => dirOf(r.n[0]) === dir).sort((a, b) => a.n[0].localeCompare(b.n[0])).map(r =>
   `<tr><td>${r.n.map(x => `<b>${esc(x)}</b><span class="code">${O[x].code} · ${O[x].fp}</span>`).join('')}</td><td>${cap(r.has)}</td><td>${cap(r.pays)}</td></tr>`).join('\n    ');
 const othersHtml = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The other designs — the new CEA link</title>
@@ -870,7 +875,7 @@ ${STYLE}</head><body>
   <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · Beside the shortlist</div><h1>The other ${word(others.length)} designs</h1>
   <div class="sub">What each has, and what it pays, beside ${esc(list(D.map(d => d.name)))}</div>
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
-  <p class="lead">Beside the ${N} on the shortlist, each of the other designs in the pack has something, and pays for it. Every one meets every December staffing rule, and each has its own eight-page sheet; here they are A to Z, in the pack’s two folders.</p>
+  <p class="lead">Beside the ${N} on the shortlist, each of the other designs in the pack has something, and pays for it. Every one meets every December staffing rule, and each has its own eight-page sheet; here they are A to Z, folder by folder.</p>
   ${OTHER_GROUPS.map(([dir, title, note]) => `<h2>${title}<span class="note">${note}</span></h2>
   <table class="t others"><thead><tr><th>Design</th><th>What it has</th><th>What it pays</th></tr></thead><tbody>
     ${rowsOf(dir)}

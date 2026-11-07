@@ -10,7 +10,10 @@ comparisons and the league count them like every other proposal. Common Ground h
 5 November 2026, as the example of the links that keep today's leave (owner); the other eleven are not.
 
 Each has the same three files as the proposals in `../proposals/`: the eight-page sheet (`<Name>-<CODE>-<fingerprint>.pdf`),
-the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name>-<CODE>-import.txt`).
+the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name>-<CODE>-import.txt`). **The five Balanced designs
+are in this folder's subfolder `balanced/`** (*Balanced* in the zip) since 7 November 2026 (owner: "Put all the Balanced
+proposals in their own subfolder"): they buy 30 days off for 14 days' leave too, so they stay inside this folder, and this
+README and its table still cover them.
 
 | | Crossover | Level Crossing | Common Ground | Grand Tour | Middle Ground | Balanced V8 | Short Openers | Balanced V9 | Open Return | Balanced V7 | Balanced V6 | Balanced V5 | Today's link |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|

@@ -101,9 +101,9 @@ removed on 7 Nov 2026):
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
 | `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
 | `links-26-shortlist.pdf` | the three shortlisted designs (Common Ground, Even Step and Short Run, A to Z, since 5 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
-| `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z in the pack's two folders, on one page (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
+| `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z folder by folder, on one page (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
-| `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary |
+| `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary; since 7 Nov 2026 the five Balanced designs are in its subfolder `30-days-off/balanced/` (owner: "Put all the Balanced proposals in their own subfolder"), *Balanced* in the zip |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: the three shortlisted designs', and In Step's, kept from when it was on the shortlist |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs, and `tooling/reference-24/` the few 24-line files they still read (since 7 Nov 2026) |
@@ -6123,6 +6123,45 @@ leads Even Step, now by 0.15 rather than 0.6, and Next Step by 0.05.
 
 **Unchanged:** every other design's grid and fingerprint, the rules sheet, the "What it means if you…" sheet, the decks
 and the app (`links-proposals.js` builds in the shortlist only).
+
+## The Balanced designs in a subfolder of their own (7 Nov 2026)
+
+**The ask** (owner, 7 Nov 2026): *"Put all the Balanced proposals in their own subfolder"*.
+
+**Where.** `30-days-off/balanced/`, which is *30 days off/Balanced* in the zip, under both *4 Proposal sheets* and *5 Import
+files for the Links page*. The five (Balanced V5, V6, V7, V8 and V9) each buy 30 days off for 14 days' leave. That is what
+`30-days-off/` holds (owner, 4 Nov 2026), so the subfolder sits inside it rather than beside it. The 30-day folder still
+holds every 30-day design, and its README and table still cover all twelve.
+
+**What moved.** 15 files, three for each design: the sheet, the grid and the Import text. They moved by `git mv`, each the
+same blob as before, so `git log --follow` keeps their history. No grid, fingerprint, figure or score changed.
+
+**What follows the folder:**
+- **`tooling/report-data.mjs`.** `PACK_DIRS` gains `30-days-off/balanced`, so everything that reads the pack's designs
+  finds them there: the league, the summary, the shortlist sheets and `check.mjs`.
+- **`tooling/regenerate.mjs`.** The five render into the subfolder. The stray-file check no longer reads the subfolder as
+  a stray file in `30-days-off/`.
+- **`tooling/shortlist-sheet.mjs`.**
+  - The other-designs sheet has a third group, *The Balanced designs, 30 days off for 14 days' leave too*, after the 30-day
+    group, and it names their folder.
+  - Its lead now reads "A to Z, folder by folder".
+  - The claim that every 30-day design is in the 30-day folder now reads each design's top folder, so the five still pass
+    it from the subfolder.
+  - To keep the page to one sheet, the rows lost half a pixel of padding at top and bottom, and the footnote's margin is
+    5px (was 8px).
+- **`tooling/pack.py`.** The zip puts the five in *30 days off/Balanced/*. The read-me says so in both places that name the
+  30-day folder.
+- **The summary and shortlist sheets.** Rebuilt, they came out the same: the same text, and the shortlist's pages the same
+  pixel for pixel. The committed copies stand.
+
+**Checked after the move:**
+- **The league** (main reading): JSON and table byte for byte the same as before.
+- **`regenerate.mjs --check`**: 24 proposals, the five found in `30-days-off/balanced/`.
+- **The other checks**: `check.mjs` (everything agrees), `deck-check.mjs` (216 rows agree), `leave.mjs --check` and
+  `newlink-data.mjs --check` (current).
+- **`pack.py`**: 71 files, as before.
+
+The app needs nothing: it reads only the shortlisted designs, and Common Ground's sheet stays in `30-days-off/`.
 
 ## Notes for the whole set
 
