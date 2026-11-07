@@ -553,8 +553,10 @@ describe('5 · the install notice: a phone browser, third in line, and the right
             'Chromium has handed over its offer: one tap, and no "already installed" line, since it offers only where it is not'],
         [{ how: 'menu', mirror: false }, ['installNoticeHave', 'installNoticeMenu'],
             'any other phone browser: its own menu'],
-        [{ how: 'ios', mirror: false }, ['installNoticeHave', 'installNoticeIos'],
-            'an iPhone or iPad: Share, then Add to Home Screen'],
+        // Two more lines since the iPhone audit (7 Nov 2026): an email or chat app cannot add it, and the
+        // Home Screen app's storage is its own. Android shares one storage, so its routes carry neither.
+        [{ how: 'ios', mirror: false }, ['installNoticeHave', 'installNoticeIos', 'installNoticePayIos', 'installNoticeSafari'],
+            'an iPhone or iPad: Share, then Add to Home Screen — and what does not come with it'],
         // The mirror gets no steps of its own: the main address shows them once the member is there,
         // and with them the card ran past a phone's screen and hid its one button.
         [{ how: 'ios', mirror: true }, ['installNoticeActions', 'installNoticeGo', 'installNoticeMirror', 'installNoticePay'],
@@ -644,6 +646,59 @@ describe('5 · the install notice: a phone browser, third in line, and the right
             assert.deepEqual(_archived.map(n => [n.id, n.section, n.date]), [['install-app-2026', 'General', '22 Oct 2026']]);
             assert.match(_archived[0].body, how, JSON.stringify(route));
             if (route.mirror) assert.doesNotMatch(_archived[0].body, /browser’s menu|Share/, 'on the mirror the record sends them to the main address');
+        }
+    });
+
+    // ── WHAT AN iPHONE IS TOLD (iPhone audit, 7 Nov 2026) ──────────────────────────────────────────
+    // A Home Screen app on an iPhone keeps storage of its own: the sign-in and the Pay Calculator's
+    // figures stay in the browser it was added from. The notice promised the opposite — "your saved
+    // pay figures are far less likely to be cleared" — and gave the iPhone only "Share, then Add to
+    // Home Screen", which on iOS 26 is behind ••• and in an email or chat app is not there at all.
+    /** The text of one of the notice's lines, as the markup gives it. @param {string} id */
+    const lineText = (id) => {
+        const page = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+        const m = new RegExp(`<p class="notice-body" id="${id}" hidden>([\\s\\S]*?)</p>`).exec(page);
+        assert.ok(m, `#${id} is not a notice line in index.html`);
+        return (m?.[1] ?? '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
+    };
+
+    test('it promises durability only for what is saved IN the home screen app — never for what is already saved', async () => {
+        const page  = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+        const block = page.slice(page.indexOf('id="installNoticeLb"'), page.indexOf('<!-- Annual Leave lightbox'))
+            .replace(/<!--[\s\S]*?-->/g, ' ');
+        assert.doesNotMatch(block, /your saved pay figures are far less likely/, 'the old promise is back on screen');
+        assert.match(block, /pay figures you save in the home screen app are far less likely to be cleared/);
+        for (const route of [{ how: 'ios', mirror: false }, { how: 'menu', mirror: false }, { how: 'prompt', mirror: false }, { how: 'menu', mirror: true }]) {
+            await wire({ ...SHOWN, route: /** @type {typeof _route} */ (route) });
+            await settleAccess();
+            opened()._cfg.onOpen();
+            assert.doesNotMatch(_archived[0].body, /your saved pay figures are far less likely/, `the App Notices record still promises it (${JSON.stringify(route)})`);
+            assert.match(_archived[0].body, /pay figures you save in the home screen app/);
+        }
+    });
+
+    test('on an iPhone it says where Share is on iOS 26, to open the roster in Safari first, and what stays behind', () => {
+        assert.match(lineText('installNoticeIos'), /Share button, then Add to Home Screen — on iOS 26 or later, Share is under •••/);
+        assert.match(lineText('installNoticeSafari'), /email or a chat\? Open it in Safari first/);
+        const pay = lineText('installNoticePayIos');
+        assert.match(pay, /keeps its own storage/, 'it must say WHY the figures do not follow');
+        assert.match(pay, /sign in there once/, 'the member is signed out in the Home Screen app, and is not told');
+        assert.match(pay, /copy them first with 💾 Move Your Pay Data on the Pay page/, 'and the card that carries them across');
+        // The Pay page's card is called exactly this; a renamed card leaves the notice naming nothing.
+        assert.match(readFileSync(new URL('./paycalc.html', import.meta.url), 'utf8'), /Move Your Pay Data/);
+    });
+
+    test('the App Notices record keeps the iPhone lines too — and Android\'s record carries none of them', async () => {
+        await wire({ ...SHOWN, route: { how: 'ios', mirror: false } });
+        await settleAccess();
+        opened()._cfg.onOpen();
+        const ios = _archived[0].body;
+        for (const said of [/under •••/, /Open it in Safari first/, /sign in there once/, /Move Your Pay Data/]) assert.match(ios, said);
+        for (const route of [{ how: 'menu', mirror: false }, { how: 'prompt', mirror: false }]) {
+            await wire({ ...SHOWN, route: /** @type {typeof _route} */ (route) });
+            await settleAccess();
+            opened()._cfg.onOpen();
+            assert.doesNotMatch(_archived[0].body, /•••|Safari|sign in there once/, `Android shares one storage — ${route.how} says none of it`);
         }
     });
 

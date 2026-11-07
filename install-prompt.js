@@ -52,8 +52,10 @@
  * disappears whichever way the member answers.
  *
  * WebKit fires nothing: iOS has no programmatic install, and the only route is Share → Add to Home
- * Screen. So that branch offers INSTRUCTIONS and no button. It is shown on the app's own judgement
- * rather than the browser's, which is why it carries the extra guards above.
+ * Screen (Share sits under ••• in iOS 26's default Safari layout, and an email or chat app's browser
+ * has no Add to Home Screen at all). So that branch offers INSTRUCTIONS and no button — the copy is
+ * in index.html. It is shown on the app's own judgement rather than the browser's, which is why it
+ * carries the extra guards above.
  *
  * ── AND IT IS MOBILE-ONLY, WHICH IS A BEHAVIOUR AND NOT JUST A LAYOUT ─────────────────────────
  *

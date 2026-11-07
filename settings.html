@@ -258,7 +258,7 @@
 
     <!-- ── INSTALL IS A DEVICE SETTING, NOT A NOTIFICATION SETTING (v22.37, owner review) ──────
          It lived inside Notifications because installing is what makes notifications possible on
-         iOS and what makes this device's stored pay data durable — both true, and neither is
+         iOS and what makes pay data saved in the installed app durable — both true, and neither is
          something a member knows. Somebody looking for "how do I put this on my home screen?" does
          not think Notifications, so the control was effectively undiscoverable to the one person
          it was for.
@@ -277,8 +277,12 @@
             </div>
         </div>
         <div class="card-body">
-            <p class="install-note" id="installNote">Installing puts the roster on your home screen, and keeps
-                this device’s saved pay data safe from being cleared to free up space.</p>
+            <!-- THE PROMISE COVERS WHAT IS SAVED IN THE INSTALLED APP (iPhone audit, Nov 2026). It said
+                 installing "keeps this device's saved pay data safe from being cleared", and on an
+                 iPhone the figures ALREADY saved stay in the browser: a Home Screen app keeps its own
+                 storage. The iPhone steps below say so, and carry the figures across first. -->
+            <p class="install-note" id="installNote">Installing puts the roster on your home screen. Pay figures
+                you save in the installed app are far less likely to be cleared to free up space.</p>
             <button type="button" class="btn-action btn-secondary" id="installBtn">Install the app</button>
             <!-- WebKit fires no install event, so on iPhone the app says what to tap instead.
                  Hidden by default and revealed only on that path — the same two-mode shape the
@@ -289,10 +293,17 @@
                  none of them is Safari and none of them puts the button in the same place. Naming
                  the browser and the position made the one instruction that matters read as wrong to
                  anybody not in Safari. Name the CONTROL, not its chrome. -->
+            <!-- WHAT THE INSTALL COSTS ON AN iPHONE (iPhone audit, Nov 2026). The Home Screen app keeps
+                 its own storage, so the member signs in there once, and Pay Calculator figures saved in
+                 the browser stay behind — the first step carries them across, and is shown only where
+                 this device holds some (the Pay Calculator Data card's own count, settings-app.js).
+                 Share is under ••• on iOS 26, and an email or chat app has no Add to Home Screen. -->
             <ol class="install-steps" id="installSteps" hidden>
-                <li>Tap your browser’s <strong>Share</strong> button.</li>
+                <li id="installStepPay" hidden>Copy your Pay Calculator figures first, with 💾&nbsp;<strong>Move Your Pay Data</strong> on the Pay page — the Home Screen app starts without them.</li>
+                <li>Opened this from an email or a chat? Open it in <strong>Safari</strong> first — those apps cannot add it.</li>
+                <li>Tap your browser’s <strong>Share</strong> button — on iOS 26 or later it is under <strong>•••</strong>.</li>
                 <li>Choose <strong>Add to Home Screen</strong>.</li>
-                <li>Open the roster from your Home Screen from now on.</li>
+                <li>Open the roster from your Home Screen from now on, and sign in there once.</li>
             </ol>
         </div>
     </div>

@@ -338,6 +338,15 @@ export function initCalendarNotices({ after } = {}) {
     // shows the steps itself — its install strip at once, then this notice, for a device that is
     // new there.
     //
+    // ON AN iPHONE IT SAYS WHAT THE INSTALL COSTS (iPhone audit, 7 Nov 2026). A Home Screen app keeps
+    // storage of its own, separate from the browser it was added from — the sign-in, the Pay
+    // Calculator's figures and these notices' own flags all stay behind — and the notice used to
+    // promise the opposite ("your saved pay figures are far less likely to be cleared"). So the iOS
+    // route adds three things: where Share is on iOS 26 (under •••), that an email or chat app has no
+    // Add to Home Screen (open the roster in Safari first), and the storage fact, with the card that
+    // carries the figures across. Android shares one storage between the browser and the app, so none
+    // of that is said there. The iOS route has no button to push out of sight; its card scrolls.
+    //
     // ONE ASK AT A TIME with the strip: once this notice is decided, the strip and the notification
     // ask leave the screen for the visit, and once it is answered the strip does not ask again on this
     // device. Archived on OPEN, because two of its answers leave the page or the browser.
@@ -372,7 +381,8 @@ export function initCalendarNotices({ after } = {}) {
                     id: NOTICE_ID, title: 'Put the roster on your home screen', section: 'General',
                     date: NOTICE_DATE,
                     body: 'The roster works better from your phone’s home screen than from its web address: it opens '
-                        + 'in one tap, fills the screen, and your saved pay figures are far less likely to be cleared. '
+                        + 'in one tap, fills the screen, and the pay figures you save in the home screen app are far '
+                        + 'less likely to be cleared. '
                         + INSTALL_HOW[route.mirror ? 'mirror' : route.how],
                 });
             },
@@ -400,7 +410,10 @@ export function initCalendarNotices({ after } = {}) {
 const INSTALL_HOW = {
     prompt: 'To add it later, open your browser’s menu and look for Install app or Add to Home screen.',
     menu:   'Open your browser’s menu and look for Install app or Add to Home screen.',
-    ios:    'Tap your browser’s Share button, then Add to Home Screen.',
+    ios:    'Tap your browser’s Share button, then Add to Home Screen — on iOS 26 or later, Share is under •••. '
+          + 'Opened the roster from an email or a chat? Open it in Safari first. The home screen app keeps its own '
+          + 'storage: you sign in there once, and Pay Calculator figures saved in the browser do not move across by '
+          + 'themselves — copy any first with Move Your Pay Data on the Pay page.',
     mirror: 'Add it from the app’s main address, myb-roster.web.app — and if you have saved Pay Calculator '
           + 'figures, move them first with Move Your Pay Data on the Pay page.',
 };
@@ -415,8 +428,10 @@ function _showInstallRoute({ how, mirror }) {
     const shown = {
         installNoticeMirror:  mirror,
         installNoticeIos:     !mirror && how === 'ios',
+        installNoticeSafari:  !mirror && how === 'ios',     // an email or chat app has no Add to Home Screen
         installNoticeMenu:    !mirror && how === 'menu',
         installNoticePay:     mirror,
+        installNoticePayIos:  !mirror && how === 'ios',     // the Home Screen app's storage is its own — Android's is not
         installNoticeHave:    !mirror && how !== 'prompt',   // Chromium offers only where it is not installed
         installNoticeActions: mirror || how === 'prompt',
         installNoticeInstall: !mirror && how === 'prompt',   // never an Install button on the mirror, whatever `how` says (v24.96)

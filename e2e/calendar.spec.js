@@ -1385,7 +1385,8 @@ test.describe('install notice — in an Android browser', () => {
         const notice = page.locator('#installNoticeLb');
         await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
         await expect(page.locator('#installNoticeInstall')).toBeVisible();
-        for (const id of ['#installNoticeMenu', '#installNoticeIos', '#installNoticeMirror', '#installNoticeGo', '#installNoticeHave']) {
+        for (const id of ['#installNoticeMenu', '#installNoticeIos', '#installNoticeMirror', '#installNoticeGo', '#installNoticeHave',
+                          '#installNoticeSafari', '#installNoticePayIos']) {
             await expect(page.locator(id), `${id} is another browser's answer`).toBeHidden();
         }
         // The browser's offer would have put the strip up too. One ask at a time: it has stood down.
@@ -1410,6 +1411,10 @@ test.describe('install notice — in an Android browser', () => {
         await expect(page.locator('#installNoticeMenu')).toBeVisible();
         await expect(page.locator('#installNoticeHave'), 'it may already be installed: Chrome offers only where it is not').toBeVisible();
         await expect(page.locator('#installNoticeActions'), 'nothing to press — the browser\'s menu does it').toBeHidden();
+        // Android keeps ONE storage for the browser and the installed app, so the iPhone's storage
+        // lines (sign in again, the figures stay behind) would tell an Android member something false.
+        await expect(page.locator('#installNoticeSafari')).toBeHidden();
+        await expect(page.locator('#installNoticePayIos')).toBeHidden();
         await page.locator('#installNoticeClose').click();
         await expect(notice).not.toHaveClass(/\bopen\b/);
         expect(await page.evaluate(() => [localStorage.getItem('myb_notice_install_app_2026_done'),
@@ -1438,6 +1443,66 @@ test.describe('install notice — on an iPhone', () => {
         // On an iPhone the strip shows its own steps the moment access is decided — the same moment
         // the notice is decided — so this is the strip coming up and going straight back down.
         await expect(page.locator('#installPrompt')).toBeHidden();
+        expect(errors).toHaveLength(0);
+    });
+
+    // THE iPHONE IS TOLD WHAT THE INSTALL COSTS (iPhone audit, 7 Nov 2026). Its Home Screen app keeps its
+    // own storage, so the member is signed out there and the Pay Calculator's figures stay behind in the
+    // browser — the notice promised the opposite. And Share is under ••• on iOS 26, and absent from an
+    // email or chat app altogether. Driven through the real detection, at the smallest iPhone that runs
+    // iOS 16.4 (the SE, 375×667), because these lines made the card longer than its screen.
+    test('it says where Share is, to open in Safari first, and what stays behind — and all of it can be read', async ({ page }, info) => {
+        test.skip(!isTouchProject(info), 'it is offered only on a touch screen');
+        const errors = collectFatalErrors(page);
+        await page.setViewportSize({ width: 375, height: 667 });
+        await memberDueTheInstallNotice(page);
+        await page.goto('/');
+        const notice = page.locator('#installNoticeLb');
+        await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await expect(page.locator('#installNoticeIos')).toContainText('on iOS 26 or later, Share is under •••');
+        await expect(page.locator('#installNoticeSafari')).toBeVisible();
+        await expect(page.locator('#installNoticeSafari')).toContainText('Open it in Safari first');
+        const pay = page.locator('#installNoticePayIos');
+        await expect(pay).toBeVisible();
+        await expect(pay).toContainText('sign in there once');
+        await expect(pay).toContainText('Move Your Pay Data');
+        await expect(page.locator('#installNoticePay'), 'the mirror\'s line, which says the figures stay at an ADDRESS').toBeHidden();
+        await expect(notice).not.toContainText('your saved pay figures are far less likely');
+        // The card runs past this screen, so it must scroll to its last line, with the ✕ never lost.
+        const close = page.locator('#installNoticeClose');
+        await expect(close).toBeInViewport();
+        const last = page.locator('#installNoticeHave');
+        await last.scrollIntoViewIfNeeded();
+        await expect(last).toBeInViewport();
+        await close.click();
+        await expect(notice).not.toHaveClass(/\bopen\b/);
+        const archived = await page.evaluate(() =>
+            JSON.parse(localStorage.getItem('myb_app_notices') || '[]').find((/** @type {{ id: string }} */ n) => n.id === 'install-app-2026')?.body);
+        expect(archived, 'the App Notices record keeps the same three points').toMatch(/under •••[\s\S]*Safari first[\s\S]*Move Your Pay Data/);
+        expect(errors).toHaveLength(0);
+    });
+
+    test('the strip names the ••• too, and still fits the smallest iPhone', async ({ page }, info) => {
+        // The strip asks on any later visit the notice did not take — once the notice is answered or
+        // past its 90 days. Its iOS line is the two taps plus where Share is on iOS 26.
+        test.skip(!isTouchProject(info), 'the strip is mobile-only');
+        const errors = collectFatalErrors(page);
+        await page.setViewportSize({ width: 375, height: 667 });
+        await seedMemberSession(page, 'G. Miller');      // the notice is flagged done, so the strip is not stood down
+        await page.goto('/');
+        const strip = page.locator('#installPrompt');
+        await expect(strip).toBeVisible({ timeout: 15_000 });
+        const steps = page.locator('#installPromptSteps');
+        await expect(steps).toBeVisible();
+        await expect(steps).toHaveText('Tap Share, then Add to Home Screen (iOS 26 or later: Share is under •••)');
+        await expect(page.locator('#installPromptAction'), 'WebKit has no install event, so there is nothing to press').toBeHidden();
+        const fit = await page.evaluate(() => {
+            const s = /** @type {HTMLElement} */ (document.getElementById('installPrompt')).getBoundingClientRect();
+            const x = /** @type {HTMLElement} */ (document.getElementById('installPromptDismiss')).getBoundingClientRect();
+            return { right: s.right, dismissRight: x.right, width: document.documentElement.clientWidth };
+        });
+        expect(fit.right, 'the strip stays inside the page').toBeLessThanOrEqual(fit.width);
+        expect(fit.dismissRight, 'and its × stays on screen').toBeLessThanOrEqual(fit.width);
         expect(errors).toHaveLength(0);
     });
 });

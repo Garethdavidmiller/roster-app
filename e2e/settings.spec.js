@@ -124,6 +124,36 @@ test('settings: an iPhone in a browser is told to install, not that it is all se
     expect(await size('#installNote')).toBe(await size('#payDataCard .card-explainer'));
 });
 
+// ── WHAT AN iPHONE INSTALL DOES NOT CARRY (iPhone audit, 7 Nov 2026) ─────────────────────────────
+// A Home Screen app on an iPhone keeps storage of its own: the member is signed out there, and Pay
+// Calculator figures saved in the browser stay in the browser. The card promised the opposite —
+// installing "keeps this device's saved pay data safe from being cleared" — and its last step sent
+// the member to an app that held none of it. The first step now carries the figures across, shown
+// from the Pay Calculator Data card's own count, so the two cards cannot disagree about what is here.
+for (const [label, payKeys, payStep] of [['with pay figures, the first step carries them across', 2, true],
+                                         ['with none, there is nothing to carry and no such step', 0, false]]) {
+    test(`settings: an iPhone install — ${label}`, async ({ page }) => {
+        await openSettings(page, { configured: true, iphone: true, payKeys });
+        const steps = page.locator('#installSteps');
+        await expect(steps).toBeVisible();
+        await expect(page.locator('#payDataStatusChip'), 'premise: the Pay Calculator Data card\'s count').toHaveText(payKeys ? `${payKeys} payslips` : 'None saved');
+        const shown = steps.locator('li:visible');
+        if (payStep) {
+            await expect(page.locator('#installStepPay')).toBeVisible();
+            await expect(shown.first(), 'copying the figures is the FIRST thing to do').toHaveAttribute('id', 'installStepPay');
+            await expect(shown.first()).toContainText('Move Your Pay Data');
+        } else {
+            await expect(page.locator('#installStepPay')).toBeHidden();
+        }
+        await expect(steps).toContainText('Open it in Safari first');                  // an email or chat app cannot add it
+        await expect(steps).toContainText('on iOS 26 or later it is under •••');        // where Share is now
+        await expect(shown.last()).toContainText('sign in there once');                 // the Home Screen app is signed out
+        // The promise covers what is saved in the installed app — never what is already saved here.
+        await expect(page.locator('#installNote')).toContainText('Pay figures you save in the installed app');
+        await expect(page.locator('#deviceCard')).not.toContainText('saved pay data safe');
+    });
+}
+
 test('settings: a saved work email says so before it offers to remove it', async ({ page }) => {
     // Polish round 2 (owner-approved): "Remove saved email" sat ABOVE "✓ Saved — last updated", so
     // the card offered to undo the save before confirming it. The confirmation answers the Save

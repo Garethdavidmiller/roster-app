@@ -244,13 +244,15 @@ export function init() {
         _cardHandles['notifications'] = initHuddleNotifications({
             onState: (state, chip, tone) => reportSetting('notifications', state, chip, tone),
         });
+        // Pay Calculator Data — a pointer card, so collapse and the inventory are all it has. Read
+        // BEFORE the Install card (Nov 2026): on an iPhone its first step copies the figures across
+        // when this device holds some, and this card's inventory is the one count of them.
+        _cardHandles['pay-data'] = initCardCollapse('payDataToggleHeader', 'payDataBody', 'payDataChevron');
+        const holdsPayFigures = initPayDataCard();
+
         // Install. Not collapsible and it has no chip — it is either an offer or, on an iPhone
         // in a browser, the prerequisite for the card above it. Either way it reports at once.
-        initDeviceCard((state, chip) => reportSetting('install', state, chip), installOffer);
-
-        // Pay Calculator Data — a pointer card, so collapse and the inventory are all it has.
-        _cardHandles['pay-data'] = initCardCollapse('payDataToggleHeader', 'payDataBody', 'payDataChevron');
-        initPayDataCard();
+        initDeviceCard((state, chip) => reportSetting('install', state, chip), installOffer, holdsPayFigures);
 
         // Icon lightbox
         initIconLightbox();
@@ -265,6 +267,7 @@ export function init() {
     //
     // It reports `n/a`: there is no wrong amount of pay data, so this card can never be a to-do
     // and can never delay "all set". The chip is information, not a verdict.
+    /** @returns {boolean} whether this device holds pay calculator history — what the line says */
     function initPayDataCard() {
         const line = document.getElementById('payDataInventory');
         try {
@@ -291,10 +294,12 @@ export function init() {
                 : 'No pay calculator history saved yet';
             reportSetting('pay-data', 'n/a',
                 inv.periods ? `${inv.periods} payslip${inv.periods === 1 ? '' : 's'}` : 'None saved');
+            return bits.length > 0;
         } catch (err) {
             console.warn('[payData] Inventory failed:', err);
             if (line) line.textContent = '';
             reportSetting('pay-data', 'n/a');
+            return false;
         }
     }
 
@@ -517,7 +522,7 @@ export function init() {
                     ]},
                     { heading: 'iPhone users', items: [
                         // Browser-neutral: every iOS browser is WebKit, so this reaches Chrome/Edge/Firefox too (v22.45).
-                        { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> — tap your browser\u2019s Share button, then Add to Home Screen.' },
+                        { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> — tap your browser\u2019s Share button (under ••• on iOS 26 or later), then Add to Home Screen.' },
                     ]},
                 ],
             },
@@ -785,36 +790,16 @@ export function init() {
 }
 
 /**
- * The install affordance, wired to the browser's own offer (v22.13).
+ * The conditional "Install on this device" card (v22.13; its own card since v22.37, owner review).
  *
- * `beforeinstallprompt` fires on Chromium when the app is installable and NOT already installed —
- * so on Android in a browser tab, which is exactly the population this helps and no one else. It
- * never fires on WebKit (iOS has no such event; the Home Screen route is what the notifications
- * copy above already explains) and never fires inside an installed PWA. The row therefore stays
- * `hidden` for everybody the offer would be meaningless to, rather than being conditionally
- * reasoned about — nothing is drawn unless the browser has told us it can act.
- *
- * WHY IT EARNS A PLACE IN SETTINGS. Installing is what makes push possible on iOS and what makes
- * this device's stored pay data durable on both platforms — the two subjects this page is already
- * about. It is deliberately NOT on the calendar, which is meant to stay one thing.
- *
- * The event must be `preventDefault()`ed to keep the deferred prompt usable, and a saved prompt is
- * single-use: after `prompt()` the reference is spent, so the row goes away whichever way the
- * member answers. `appinstalled` hides it too, for the case where they install from Chrome's own
- * menu while this page is open.
- */
-/**
- * The conditional "Install on this device" card (v22.37, owner review).
- *
- * It used to be a row inside Notifications, because installing is what makes notifications
- * possible on iOS and what makes this device's saved pay data durable. Both true, and neither is
- * something a member knows — so somebody looking for "how do I put this on my home screen?" would
- * never have thought to open Notifications, and the control was undiscoverable to exactly the
- * person it was for.
- *
- * The whole CARD is conditional rather than just the button: it appears only while there is an
- * install to offer and disappears the moment there is not. A permanent "✓ Installed" row would be
- * a card that never does anything again, which is the opposite of what this page is becoming.
+ * It earns its place because installing makes push possible on iOS and makes pay data saved IN
+ * the installed app durable — the two subjects this page is about, and neither something a member
+ * knows. The whole CARD is conditional: it appears only while there is an install to offer, since
+ * a permanent "✓ Installed" row would be a card that never does anything again. Chromium's
+ * `beforeinstallprompt` (never on WebKit, never inside an installed PWA) is the offer on Android;
+ * it is single-use, so the card goes the moment it is spent, or on `appinstalled`. On an iPhone the
+ * card states the taps instead — and, since the Home Screen app keeps storage of its own, what does
+ * NOT come with the install: the sign-in, and the pay figures (iPhone audit, 7 Nov 2026).
  */
 /**
  * Hold the browser's install offer from page start until the Device card can use it.
@@ -840,7 +825,8 @@ function captureInstallOffer() {
 }
 
 function initDeviceCard(/** @type {(state: import('./settings-status.js').CardState, chip?: string) => void} */ report,
-                        /** @type {{ event: any, onChange: null | (() => void) }} */ offer) {
+                        /** @type {{ event: any, onChange: null | (() => void) }} */ offer,
+                        /** @type {boolean} */ holdsPayFigures) {
     const row   = document.getElementById('deviceCard');
     const btn   = /** @type {HTMLElement|null} */ (document.getElementById('installBtn'));
     const steps = /** @type {HTMLElement|null} */ (document.getElementById('installSteps'));
@@ -868,6 +854,9 @@ function initDeviceCard(/** @type {(state: import('./settings-status.js').CardSt
     if (iosNeedsInstall) {
         btn.hidden   = true;         // WebKit fires no event, so there is nothing to press
         steps.hidden = false;        // say what to tap instead
+        // …starting with the figures, where there are any: the Home Screen app keeps its own storage.
+        const payStep = document.getElementById('installStepPay');
+        if (payStep) payStep.hidden = !holdsPayFigures;
         row.hidden   = false;
     }
 
