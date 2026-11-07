@@ -54,7 +54,7 @@ export const STRAPS = {
   // with eight-hour openers and 15:45 closers on a weekday (Short Openers). README.md → each by name. Not shortlisted
   // Open Return was drawn as Quarter Past Relaid (QR-26-EXT), renamed the same day for a name of its own (owner, 4 Nov 2026:
   // "Give all proposals individual names"); Grand Tour is Fair Share's 30-day search result, which had no name until then
-  'OR-26-EXT': ['A 16:15 closer every weekday, 14 days’ leave buys 30 days off, as today, and no fatigue warning, even if a cover week falls badly', 'hand+search'],
+  'OR-26-EXT': ['A 16:15 closer every weekday, 14 days’ leave buys 30 days off, as today, and no fatigue warning in any cover-week placement tested', 'hand+search'],
   'SO-26-EXT': ['Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buys 30 days off, as today', 'search'],
   'GT-26-T7': ['No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today', 'search'],
   // 4 Nov 2026: today's link taken to 26 weeks on the owner's brief — openers finishing 13:45 or 14:20, closers from 15:45,
@@ -78,11 +78,11 @@ export const STRAPS = {
   // into the pack. Delete set fair as it would not work": Set Fair's three weekday 07:15-15:45s left as the 15:45 closers came
   // on). Two weekday earlies stay until 16:00, the closers' first 15 minutes. Drawn as Safe Hands (SH-26-T10), renamed the same
   // day for a railway name (owner: "Needs a better name", "Use railway names in future"): README.md → "Crossover"
-  'CO-26-T10': ['Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today', 'search'],
+  'CO-26-T10': ['Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 7 NOV 2026, LATER (owner, of Crossover: "people don't want to do several weeks of closes", then "Do it"): Crossover's duties
   // and rest days with its weeks chosen again, so that no two closing weeks fall side by side. NO STRAP NAMES ANOTHER DESIGN, so
   // this one says what it has, not whose weeks it re-lays: README.md → "Level Crossing"
-  'LC-26-T10': ['Two 13:45 finishes every weekday, a 15-minute handover to the three 15:45 closers, never two closing weeks in a row, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today', 'search'],
+  'LC-26-T10': ['Two 13:45 finishes every weekday, a 15-minute handover to the three 15:45 closers, never two closing weeks in a row, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */

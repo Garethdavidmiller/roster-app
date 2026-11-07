@@ -95,6 +95,7 @@ removed on 7 Nov 2026):
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
 | `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
 | `links-26-shortlist.pdf` | the three shortlisted designs (Common Ground, Even Step and Short Run, A to Z, since 5 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
+| `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z in the pack's two folders, on one page (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
 | `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
@@ -5935,6 +5936,60 @@ made from the tree before the cut; `pack.py`, 66 files, the read-me ASCII; and `
 
 **Outside the repository.** If either was imported into the app's Links designer, that copy is saved there separately and
 is not touched by this; the Links designer's bin is the place to remove it.
+
+## The outside review of the 22-design pack: the fatigue headline qualified, and the other designs on a sheet of their own (7 Nov 2026)
+
+An outside reviewer checked the pack sent after *Both Ways and Fine Tune deleted* and reported no numerical discrepancy:
+- all 4,004 rota cells against the 22 import files, and all 1,144 printed weekly hours totals;
+- the contract totals, the shortest fixed-duty rest, opening and closing staffing, and the least floor cover;
+- their own recount of the staffing-fit scores, and the eight decks' text against their PDF exports.
+
+Their comparison of Common Ground, Crossover and Level Crossing was re-measured here from the grids, and agrees on every
+figure (Common Ground · Crossover · Level Crossing):
+- **Leave:** 30 · 30 · 30 days off at best for 14 days' leave, and 20 · 19 · 19 at worst.
+- **Early finishes:** 12 · 20 · 20 a year before 14:00.
+- **Saturday closer:** 8h 10m · 8h 40m · 8h 40m.
+- **Fit, weekday · Saturday:** 32.7 · 9.8 on Common Ground, 31.4 · 17.6 on the other two.
+- **A cover week placed badly:** 57h 00m · 50h 30m · 50h 30m in seven days with 8-hour cover duties, and 60h 00m · 52h 00m ·
+  52h 00m with their 8h 45m ones.
+- **06:20 starts:** 48 a year on Common Ground, 58 on the other two.
+
+They recommended four changes. Two were made on the owner's word ("Do the other work to the links pack apart from the
+shortlist change"):
+- **The fatigue headline is qualified.** "No fatigue warning even if a cover week falls badly" claimed more than was
+  tested.
+  - The descriptions under Open Return, Crossover and Level Crossing, and the read-me, now say "in any cover-week placement
+    tested". Their three sheets were re-rendered, and only the descriptions changed.
+  - On the sheet of the other designs (below), "no 55-hour week" carries a footnote saying what was tested: a cover week's
+    four duties worked together, wherever they fall from Monday to Saturday, at 8 hours and again at 8h 45m, its Sunday
+    worked as overtime. A claim holds the footnote to both readings.
+- **The other designs have a sheet of their own.** Page 2 of the shortlist sheet held a table of the other nineteen, one
+  line each, and it grew with every design added.
+  - It is now `links-26-other-designs.pdf`, one page, written by `shortlist-sheet.mjs` so that the claims pinning each
+    row stay beside it.
+  - What each design has and what it pays sit in two columns, A to Z within the pack's two folders, each design with its
+    code. Balanced V7's row names whose gains it shares, where it used to rely on sitting under their row.
+  - Page 2 keeps why these three and says where the others are; its lists take the room the table left.
+  - Mutations confirm both new claims: "no 55-hour week" put on Grand Tour, which has the risk, stops the build, and so
+    does a design dropped from the sheet.
+  - The pack has 67 files.
+
+The other two wait on the shortlist decision, which is the owner's and S. Silva's: bring Crossover or Level Crossing into
+it, and give whichever joins a pair of presentations, as the shortlisted designs have.
+
+**What it would take to bring Balanced V6 or V7 up to the leaders** (owner's question, the same day). Balanced V7 is V6's
+duties laid out in new weeks, and the layout alone took it from 56.3 to 77.2. It is 10.1 points behind Crossover on the
+main league:
+- **About 7 points are the layout:** 13 of 21 weeks on one shift time, against 19; one fatigue warning when a cover week
+  falls badly; three mixed weeks; a 2h 33m change of start, against 1h 31m; and a run of 7, against 6.
+- **About 3 are the duties:** mainly the weekday fit, 40.0 against 31.4, and fewer of today's shift times.
+
+Another layout of its duties could reach about 85 at best. The rest needs the weekday duties changed, which makes them,
+more or less, Crossover's: Crossover already has V6's handover from the 07:30–16:00s to the 15:45 closers, and its Sunday
+duty for duty.
+
+**Checks:** the shortlist's claims and both sheets' footer guard; `regenerate.mjs --check`, 22 proposals; `check.mjs`;
+`deck-check.mjs`, 216 rows; `newlink-data.mjs --check`; `pack.py`, 67 files with the read-me ASCII; and `npm run check`.
 
 ## Notes for the whole set
 

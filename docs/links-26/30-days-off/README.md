@@ -116,7 +116,7 @@ three 15:45–23:55 closers, and no early finishes between 15:00 and 16:00.
 - **The handover.** Two 07:30–16:00s stay for the closers' first 15 minutes, and a fifth 06:20 opener finishes at 14:50,
   so nobody leaves as the closers come on.
 - **Shift times.** Thirteen; seven of them are worked today.
-- **Fatigue.** No fatigue factor is present, even if a cover week falls badly. Its rest days are Short Openers', whose
+- **Fatigue.** No fatigue factor is present in any cover-week placement tested. Its rest days are Short Openers', whose
   cover weeks can never make a 55-hour week; its duties and its weeks are its own.
 - **The league.** It is first, 87.3, 0.6 points ahead of Common Ground. It sits inside every range the league reads, so
   no other score moved.

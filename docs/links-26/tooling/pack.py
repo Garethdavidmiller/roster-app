@@ -31,6 +31,7 @@ if set(IN_ZIP) != set(PACK_DIRS): raise SystemExit(f'pack: IN_ZIP {sorted(IN_ZIP
 files = [  # (source, path in the pack)
     (f'{ROOT}/links-26-summary.pdf', '1 Summary/links-26-summary.pdf'),
     (f'{ROOT}/links-26-shortlist.pdf', '1 Summary/links-26-shortlist.pdf'),
+    (f'{ROOT}/links-26-other-designs.pdf', '1 Summary/links-26-other-designs.pdf'),   # off the shortlist's page 2 (7 Nov 2026, the outside review)
     (f'{ROOT}/links-26-what-it-means.pdf', '1 Summary/links-26-what-it-means.pdf'),   # colleagues: what it means if you… (1 Nov 2026)
     (f'{ROOT}/links-26-rules.pdf', '2 Rules/links-26-rules.pdf'),
 ]
@@ -315,7 +316,8 @@ readme = '\n'.join([
     '',
     'WHAT IS IN THE PACK',
     item('1 Summary', f'The two-page shortlist sheet - the {WORDS[len(SHORTLIST)]} shortlisted designs against each other '
-         'and today: what they share, where they differ, and which to choose for what. A one-page sheet for colleagues, '
+         'and today: what they share, where they differ, and which to choose for what. A one-page sheet setting every other '
+         'design beside them: what each has, and what it pays. A one-page sheet for colleagues, '
          '"What it means if you...", on what each '
          'shortlisted link means for someone who prefers earlies or lates, swaps earlies for lates, works their share '
          'of Sundays or no overtime, or saves leave for long breaks. And one page with every proposal against today\'s '
@@ -388,7 +390,7 @@ readme = '\n'.join([
     para(f'On {SHORTLIST_DATE.replace("Nov", "November")} the shortlist was drawn again, after every design then in the pack, '
          'and listed A to Z: Common Ground, as the example of the links that keep today\'s leave; Even Step, then first in '
          'the pack\'s league; and Short Run, which colleagues had already seen. In Step left the shortlist, and its '
-         'presentations stay in the pack. Page 2 of the shortlist sheet sets every other design beside the three.'),
+         'presentations stay in the pack. A one-page sheet, links-26-other-designs.pdf, sets every other design beside the three.'),
     '',
     # described on its own terms, as its headline is (owner, 5 Nov 2026: "the proposal description headlines should not
     # reference other proposals")
@@ -399,7 +401,7 @@ readme = '\n'.join([
             '15-minute handover every weekday, from three 07:30-16:00s to the three 15:45 closers. Balanced V7 has Balanced '
             'V6\'s duties, every one, laid in new weeks, with no six-day weeks. Crossover keeps two 13:45 finishes every '
             'weekday, where today has a 13:35 and a 13:45, and every weekday closer at 15:45, with two earlies on until '
-            '16:00, the closers\' first 15 minutes; no fatigue warning is present even if a cover week falls badly. Level '
+            '16:00, the closers\' first 15 minutes; no fatigue warning is present in any cover-week placement tested. Level '
             'Crossing has the same shift times and the same handover, laid in different weeks so that no two closing weeks '
             'come in a row. All six buy 30 days off for 14 days\' leave too, and are in the folder 30 days off.'), '']
       if LATE else []),
@@ -415,11 +417,13 @@ readme = '\n'.join([
          'points.'),
     '',
     'HOW THE FIGURES ARE WORKED OUT',
-    para('Every figure in the summary, the shortlist sheet, the "What it means if you..." sheet, the rules sheet and the '
+    para('Every figure in the summary, the shortlist sheet, the sheet of the other designs, the "What it means if you..." '
+         'sheet, the rules sheet and the '
          'proposal sheets was worked out from '
          'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them. What is typed by hand is the '
          'rules\' own numbers, the one-line description under each design\'s name, and the wording of the shortlist '
-         'sheet and the "What it means if you..." sheet, whose comparisons their builds check against the rotas. The '
+         'sheet, the sheet of the other designs and the "What it means if you..." sheet, whose comparisons their builds '
+         'check against the rotas. The '
          'presentations are built by '
          'scripts, and every figure in their tables is checked against those counts (docs/links-26/tooling/deck-check.mjs '
          'in the repository).'),

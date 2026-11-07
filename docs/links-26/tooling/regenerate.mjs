@@ -110,7 +110,7 @@ export const SUPPLIED = [
     // QUARTER PAST TAKEN OUT, 4 NOV 2026 (owner: "Remove quarter past from the pack please"): the one-page roster QP-26-EXT ·
     // dfdbd724, in the pack for a few hours, and DELETED on 6 Nov 2026 (above). Open Return and Short Openers keep its shift
     // times and say so in their lineage, so its duty table stays (results/quarter-past-table.json): Open Return was drawn from it.
-    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '190eba69', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buys 30 days off, as today, and no fatigue warning, even if a cover week falls badly' },
+    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '190eba69', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buys 30 days off, as today, and no fatigue warning in any cover-week placement tested' },
     { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '65f99952', dir: '30-days-off', strap: 'Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buys 30 days off, as today' },
     // Grand Tour (4 Nov 2026): Fair Share's duties in new weeks, so that 14 days' leave buys 30 days off and four weeks off
     // take 14, as today — the answer to the owner's question that morning (README.md → "Fair Share", run e). It was a search
@@ -144,13 +144,13 @@ export const SUPPLIED = [
     // still on for the 15:45 closers' first 15 minutes. Set Fair, drawn first the same day, had three 07:15-15:45s leaving as the
     // closers came on, and was deleted. Laid on Short Openers' rest days with the 55-hour worst case held (README.md →
     // "Crossover"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
-    { file: 'crossover.json',              name: 'Crossover',            code: 'CO-26-T10', fp: '6596c0d9', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'crossover.json',              name: 'Crossover',            code: 'CO-26-T10', fp: '6596c0d9', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
     // 7 Nov 2026 (owner, of Crossover: "Middle ground is a reworking of common ground to make it a gentle change between weeks.
     // As people don't want to do several weeks of closes. How possible is it to do the same to crossover?", then "Do it"):
     // Level Crossing is Crossover's duties and rest days, its weeks chosen again so that no two closing weeks fall side by side,
     // at 18 weeks of 21 on one shift time (README.md → "Level Crossing"). It buys 30 days off for 14 days' leave, so it ships
     // into 30-days-off/
-    { file: 'level-crossing.json',         name: 'Level Crossing',       code: 'LC-26-T10', fp: '32241e32', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover to the three 15:45 closers, never two closing weeks in a row, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'level-crossing.json',         name: 'Level Crossing',       code: 'LC-26-T10', fp: '32241e32', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover to the three 15:45 closers, never two closing weeks in a row, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
