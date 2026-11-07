@@ -167,6 +167,34 @@ picks the change up without being removed and re-added, and how the solid bar lo
 fallback is to keep `black-translucent` and push the header down instead — a guess at the band's
 depth.
 
+## iPhones keep two separate copies of what the app stores, and Safari clears one of them
+
+Two iOS behaviours, reported rather than documented by Apple (WebKit bug 181849; WebKit's own
+tracking-prevention policy), found by the iPhone audit of 7 Nov 2026:
+
+- **The Home Screen app does not share Safari's storage.** Installed from Safari, it starts with no
+  sign-in, no Pay Calculator figures, no notice flags and an empty App Notices list. Since iOS 26
+  every site added to the Home Screen opens this way by default. Android shares storage between the
+  browser and the installed app, so none of this applies there.
+- **A Safari tab loses everything after seven days of Safari use without a visit** — localStorage,
+  IndexedDB, the service worker and its caches together. The Home Screen app keeps its own count,
+  which moves only on the days it is opened.
+
+What it costs, worst first: **Pay Calculator figures**, the one thing here that cannot be recreated
+(they live only in localStorage, by design); the sign-in; the Links workspace's staffing-table edits;
+the notice flags (so a notice can come round again); and the Usage card's counts, which see the tab
+and the installed app as two devices (`usage-reporter.js` keys its flags in localStorage).
+
+What the app does about it (since 7 Nov 2026): the install wording on the Calendar, in Settings and in the Staff
+Guide tells an iPhone member to copy their figures first with 💾 Move Your Pay Data and that they will
+sign in again; the Pay page says the figures are kept in this browser; the transfer card explains the
+iPhone split; an emptied calculator points at Restore; and on an iPhone the backup goes through the
+share sheet, so it can be saved to Files from a tab or the installed app. **What it cannot do** is
+move the figures by itself (the two stores never meet), or protect a member who uses only a Safari tab
+and stays away for a week — telling them is the lever. Whether Safari grants `navigator.storage.persist()`
+(called by `requestPersistentStorage` in `ls.js`), and whether a grant would exempt a tab from the
+seven-day rule, is unknown; `IPHONE_RELEASE_CHECKLIST.md` has the device check.
+
 ## Development-tool advisories that only a downgrade would clear
 
 The ROOT tree is development tooling only — the Firebase CLI, the rules-test harness, Playwright,
@@ -514,13 +542,23 @@ security one.
 
 **One interaction to expect on iOS.** `decideAccess` grants `named` only when a live local session
 is backed by a **restored Firebase identity** — both halves, because either alone is a real failure
-(see `calendar-access-core.js`). iOS ITP evicts IndexedDB, where the Firebase identity lives, after
-roughly **7 days** of no PWA use, so an iPhone user who stays away for a fortnight can hold a valid
-local session with **no restorable identity** — for up to about seven weeks of the session's 60 days.
-That member gets the member sign-in card ("This device needs to sign you in again…") instead of their
-roster, never the PIN. A silent re-sign-in is tried first, and one tap on "Sign in" re-establishes
-the identity, so it is recoverable rather than a lockout — but it will generate a support question,
-it will land on iPhone users specifically, and it is worth expecting rather than diagnosing.
+(see `calendar-access-core.js`). A device can hold the session without the identity, and that member
+gets the member sign-in card ("This device needs to sign you in again…") instead of their roster,
+never the PIN. A silent re-sign-in is tried first, and one tap on "Sign in" re-establishes the
+identity, so it is recoverable rather than a lockout — but it will generate a support question, it
+will land on iPhone users specifically, and it is worth expecting rather than diagnosing.
+
+**The cause is NOT Safari's seven-day rule** (corrected 7 Nov 2026, iPhone audit — this paragraph and
+five module headers said it was). WebKit's tracking prevention deletes ALL of a site's script-writable
+storage together, in a Safari tab, after seven days of Safari use without a visit: IndexedDB,
+localStorage, sessionStorage, the service worker and its caches. It cannot leave the local session
+behind, so its victim arrives signed out on what looks like a new device, not at this card; and an
+app on the Home Screen keeps its own day count, which moves only on the days it is opened. The
+likelier route here is an IndexedDB read that fails — WebKit closes IndexedDB connections in hidden
+pages, and Firebase Auth then falls back to localStorage, where no user is stored — which nobody has
+confirmed on a device. The handling above is right whatever the cause. What the seven-day rule really
+costs iPhone users is the entry **"iPhones keep two separate copies of what the app stores, and Safari
+clears one of them"**, beside the iPhone status bar entry near the top of this file.
 
 ### The four v11 security tasks — task #1 still binds; the other three are history
 

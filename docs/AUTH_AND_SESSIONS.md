@@ -84,7 +84,9 @@ claim                the JWT        what that identity may write
 ```
 
 **A member can hold the first without the second two.** That is not an error state — it happens on a
-slow restore and after iOS ITP evicts IndexedDB (~7 days, against a 60-day session). The Calendar's
+slow restore, and on iPhones when the identity's IndexedDB read fails (not, as this said until 7 Nov
+2026, Safari's seven-day rule, which deletes the session too — KNOWN_LIMITATIONS → "One interaction to
+expect on iOS"). The Calendar's
 access gate handles it with a silent re-establishment behind the boot skeleton, a sign-in card only
 when silence fails, and a late-identity watcher — never by sending a member to the staff PIN. See
 `CALENDAR_DATA.md` invariant 11 and, for the order (silence before any sign-in surface), the boot path

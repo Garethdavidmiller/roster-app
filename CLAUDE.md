@@ -485,9 +485,11 @@ Override cache key: `"memberName|YYYY-MM-DD"`
     direction of travel**, not a permanent property: the Android install path
     (`beforeinstallprompt`) is as load-bearing as the iOS one, not a fallback behind it.
   - **The iOS hazards stay defended — they are PLATFORM FACTS, not a claim about numbers.** Web Push
-    exists only inside an installed PWA, there is no system Back, `localStorage` throws in private
-    mode, ITP evicts, and Safari fires neither `beforeprint` for AirPrint nor `transitionend` on a
-    backgrounded tab. `install-prompt.js` and `notif.js` already branch correctly for both engines.
+    exists only inside an installed PWA, there is no system Back, `localStorage` can throw, a Safari
+    tab loses ALL its storage after a week away while the Home Screen app keeps a separate store, and
+    Safari fires neither `beforeprint` for AirPrint nor `transitionend` on a backgrounded tab.
+    `install-prompt.js` and `notif.js` already branch correctly for both engines. **Oldest iOS
+    supported: 16.4** (owner, 7 Nov 2026 — DECISIONS.md).
   - **Chromium gates every deploy and WebKit does not** (`npm run test:webkit` is branch CI only) —
     an unequal gate under equal service, weighed and left as it is (owner, 8 Sep 2026; DECISIONS.md,
     with the trigger that would reopen it). **Weigh a WebKit failure on a branch accordingly**: it is

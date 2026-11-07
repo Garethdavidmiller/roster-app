@@ -126,8 +126,9 @@ export function noticeAudienceAllows(audience, accessType) {
  *
  *   1. **Not in viewer mode**, whatever the device remembers. It is tempting to check the identity
  *      alone and call the PIN case covered, since `decideAccess` returns `named` whenever there is
- *      a live session. It does not: rule 1 requires a RESTORED FIREBASE USER as well, so an iOS ITP
- *      eviction (~7 days of no PWA use) leaves a perfectly valid 60-day local session that falls
+ *      a live session. It does not: rule 1 requires a RESTORED FIREBASE USER as well, so an identity
+ *      that fails to restore (on iPhones, an IndexedDB read that fails — KNOWN_LIMITATIONS → "One
+ *      interaction to expect on iOS") leaves a perfectly valid 60-day local session that falls
  *      through to `viewer` the moment a PIN token is restored. The name is still in localStorage,
  *      and an identity-only rule would light both buttons on exactly the shared screen this exists
  *      to keep them off. That state is reachable, not defensive.
@@ -165,10 +166,11 @@ export function decideAccess({ session, firebaseUser }) {
 
     // Rule 1: a live named session backed by a restored named Firebase identity.
     // BOTH halves are required, and each rejects a real case the other cannot see:
-    //   · session without a Firebase user — iOS ITP evicts IndexedDB after ~7 days of no PWA use,
-    //     so a member can hold a valid 60-day local session with no restorable identity (a window
-    //     that doubled at v20.47 with `SESSION_MS`). Reads would then be denied by the rules and
-    //     the Calendar would silently show the base roster.
+    //   · session without a Firebase user — the identity can fail to restore (on iPhones an
+    //     IndexedDB read can fail; Safari's seven-day rule is NOT this case, since it deletes the
+    //     session too), so a member can hold a valid 60-day local session with no restorable
+    //     identity. Reads would then be denied by the rules and the Calendar would silently show
+    //     the base roster.
     //   · Firebase user without a session — that is precisely what `reconcileExpiredIdentity` exists
     //     to tear down. Trusting it here would let an expired member keep their privileges.
     //   · a Firebase user who is somebody ELSE (v24.38). On a shared browser another tab can sign a

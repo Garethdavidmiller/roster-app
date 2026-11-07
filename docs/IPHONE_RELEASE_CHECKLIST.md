@@ -44,6 +44,8 @@ keeping if an unrun check looks different from a passed one.
 - [ ] **The last week of the Calendar month is reachable** at this viewport height — a general
       reachability check on a phone.
 - [ ] **A day panel opens and closes** from a tap, and the ✕ is reachable without stretching.
+- [ ] **Landscape, the tall panels:** the day panel on a busy day and the annual-leave panel for a
+      member with Christmas leave keep their ✕ and their bottom row on screen, and scroll.
 
 ## B · Current iPhone — the engine staff meet next
 
@@ -56,7 +58,27 @@ keeping if an unrun check looks different from a passed one.
 - [ ] **The Calendar PIN card** accepts the code and the roster appears. Then close the browser
       entirely, reopen, and confirm it asks again — the PIN lasts only while the browser is open,
       and the card says so.
-- [ ] **Sign in as a member**, then confirm the roster shows *that member's* shifts.
+- [ ] **Sign in as a member**, then confirm the roster shows *that member's* shifts. After picking the
+      name, the keyboard comes up on the password field without a second tap.
+- [ ] **Follow the install wording literally** in Safari's default layout (on iOS 26 and later,
+      Share is behind •••), then again from a link opened in Outlook, Teams or WhatsApp — both
+      routes say what to do.
+- [ ] **The keyboard and search:** in the drawer, type "fip coupon " (with the space) in *Search the
+      guides*; on the Calendar, type four letters of a surname in the name picker; on Trains, type
+      "haddenham " in the station box. Results stay visible above the keyboard, nothing is
+      autocorrected, and the keyboard's Search key closes it.
+- [ ] **The keyboard's ‹ › arrows** inside an open dialog (the drawer search, a Links name prompt)
+      keep focus inside the dialog.
+- [ ] **Pay Calculator, no zoom:** Unusual deductions → *Any other payslip adjustment* — tapping the
+      box does not zoom the page.
+- [ ] **Pay Calculator, keypad up:** focus the Rest Day Working hours (portrait and landscape). The
+      take-home £ stays visible, the box is clear of the blue bar, and the bar and peer ± act on the
+      FIRST tap.
+- [ ] **Pay Calculator, Download backup:** the share sheet opens; *Save to Files* saves it and the
+      status says so; cancelling says nothing was saved.
+- [ ] **Unsaved Admin edits:** stage a change, then About → *View staff roster* — it asks first. Stage
+      one again, swipe back from the left edge and return — the page offers to restore it.
+- [ ] **Press and hold the header logo:** no image menu appears.
 
 ## C · Installed to the Home Screen — the things a tab cannot have
 
@@ -83,6 +105,23 @@ Install via Share → Add to Home Screen. **Reinstall if the manifest changed th
       country with its `⤓ Print <country>` button and confirm you get one sheet naming that country.
 - [ ] **Turn the network off and launch it.** It must open to the cached roster, not an error.
       Then back on, and confirm it updates within an open or two.
+- [ ] **What the Home Screen app does NOT bring from Safari** (KNOWN_LIMITATIONS → "iPhones keep two
+      separate copies…"): enter a pay figure in a Safari tab, install, open the icon. It should open
+      signed out with an empty Pay Calculator, as the install wording warned. Then move the figures —
+      Safari: 💾 Move Your Pay Data → Copy as text; app: paste → Replace — and confirm they are back.
+- [ ] **Add to Home Screen from `staff-guide.html`:** the icon is named like the app and opens the
+      roster, not the guide.
+- [ ] **A changed password and iCloud Keychain:** change it in Settings with *Use Strong Password*,
+      sign out, sign in from the Keychain suggestion — it offers the NEW password under the member's
+      name.
+- [ ] **An update while the app is away:** let a release land with the app in the background, return
+      after 30 seconds — no unexpected reload and no "couldn't finish loading".
+- [ ] **Unsaved Links edits:** paint a few cells, spend a minute in another app (or swipe the app
+      away and reopen) — the page offers to restore them.
+- [ ] **Admin left open for a day:** return to it — the week shows what was booked elsewhere in the
+      meantime.
+- [ ] **Durable storage (Web Inspector):** after a Pay Calculator save, `await
+      navigator.storage.persisted()` — record the answer for a tab and for the installed app.
 
 ## D · Larger Text — the axis a viewport cannot express
 

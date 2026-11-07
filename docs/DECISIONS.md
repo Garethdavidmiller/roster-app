@@ -254,6 +254,12 @@ shown that yet.
   shape, not a rescheduled one. Nobody loses pay data by there being no notice — the card exists with
   a working deep link (`paycalc.html#payTransferCard`), and figures are lost only by switching
   address and expecting them to follow. There is no deadline.
+  **On iPhones that last premise does not hold** (iPhone audit, 7 Nov 2026): Safari clears a tab's
+  storage after a week away, and the Home Screen app keeps a store of its own, so figures go missing
+  with no change of address (KNOWN_LIMITATIONS → "iPhones keep two separate copies…"). The notice
+  stays dismissed. What answered it instead is the "different shape" this entry asks for: contextual
+  lines where the moment arises — the install wording, the transfer card, and an emptied calculator
+  pointing at Restore (owner: "Do all of your suggestions", 7 Nov 2026).
 - **Admin task navigator — BUILT, THEN REMOVED** (owner, Aug 2026). A chip row under the member bar
   (Change a Shift · Annual leave · Absence · Saved changes) shipped at v21.38 and came out at v21.40:
   *"Feels like clutter."* It has since been re-recommended by an external review, so the decision is
@@ -465,6 +471,22 @@ button would mean a different reserve per engine, measured on hardware this repo
 
 `native-surface-parity.test.mjs` fails a `title` attribute anywhere served, so the next one has to be
 argued for rather than typed.
+
+## The oldest iOS supported is 16.4 (owner, 7 Nov 2026)
+
+Settled by the iPhone audit of 7 Nov 2026, which found the app working everywhere from iOS 16.4 and
+degrading below it: the 114 `color-mix()` rules (Safari 16.2) drop their colours on 16.1 and earlier
+— the Links heat map's busiest hours go white on white — and below 15.4 `:has()` and `Object.hasOwn`
+are missing too (the latter breaks Operations' App Speed card). 16.4 is also where Web Push for an
+installed app begins, so it is the first version on which every feature of the app exists. The
+phones that stop short of it are the iPhone 6s, 7 and first-generation SE, whose last iOS is 15.8.
+
+**What it means in practice:** below 16.4 nothing is fixed and no fallback is added; anything newer
+than Safari 16.4 must still be feature-detected, as everything is today. A report from an older
+iPhone is answered with this entry rather than a patch.
+
+**What would reopen it:** a member of staff who cannot replace a phone below 16.4 and depends on the
+app — that is an owner conversation, not a code one.
 
 ## No build step — the trade, and the two things that would reopen it
 
