@@ -143,6 +143,12 @@
 // pays in two columns, A to Z within the pack's two folders, each name with its code. Page 2 keeps why these three, and says
 // where the others are. Three rows said "no 55-hour week" flatly; they carry a footnote saying what was tested (the review's
 // other point, which the three designs' descriptions and the read-me take too: "in any cover-week placement tested").
+// BALANCED V8 AND V9, 7 NOV 2026 (owner: "Do A as Balanced V8 and B as Balanced V9"): Balanced V7's duties with every rest day
+// chosen again, both with no 55-hour week however the cover weeks fall, and four weeks off for 13 days' leave, a day less than
+// today and the first in the pack to need less than 14. Each has a row on the other designs' sheet, V9's leaning on V8's, and
+// the claims listing the 30-day links, the designs with four weeks for 14 or less and those with no 55-hour week name them. Four
+// weeks for 13 is the league's new best, so its range widens and every design needing 14 or 15 drops by up to half a point:
+// Crossover still leads Level Crossing, by 0.43, with Common Ground third.
 //   node shortlist-sheet.mjs        → ../links-26-shortlist.pdf and ../links-26-other-designs.pdf (each .html stays in tooling/, gitignored)
 import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -166,7 +172,7 @@ const hm = x => `${Math.floor(x / 60)}h\u00a0${String(Math.round(x % 60)).padSta
 const dur = x => { if (!(x > 0)) throw new Error(`a difference printed as a length must be more than nothing, not ${x}`);
   const r = Math.round(x); return x < 60 ? `${r}\u00a0${r === 1 ? 'minute' : 'minutes'}` : x === 60 ? 'an hour' : hm(x); };
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const WORD = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ');
+const WORD = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-two twenty-three twenty-four twenty-five'.split(' ');
 const word = n => WORD[n] ?? `${n}`, Word = n => word(n)[0].toUpperCase() + word(n).slice(1);
 const ORD = 'zeroth first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth twentieth'.split(' '), ord = n => ORD[n] ?? `${n}th`;
 const many = (n, one, more = `${one}s`) => (n === 1 ? one : more);
@@ -327,7 +333,11 @@ const NAMED = { 'Clean Slate': 'fitSat,fitSun', 'Closing Time': 'closerSat,close
   // LEVEL CROSSING, LATER THE SAME DAY (owner, of Crossover: "people don't want to do several weeks of closes", then "Do it"):
   // Crossover's duties and rest days, its weeks chosen again so that no two closing weeks fall side by side. It keeps what
   // Crossover keeps against the three; its row says what it has beside Crossover, which claims pin
-  'Level Crossing': 'earlyOff,worstRun' };
+  'Level Crossing': 'earlyOff,worstRun',
+  // BALANCED V8 AND V9, 7 NOV 2026 (owner: "Do A as Balanced V8 and B as Balanced V9"): Balanced V7's duties with every rest day
+  // chosen again, and no 55-hour week however the cover weeks fall. Against the three each keeps V5's, V6's and V7's gains — shorter
+  // runs of earlies or lates, more early finishes — and a shorter worst run and four weeks off for 13 days' leave, a day less
+  'Balanced V8': 'block,earlyOff,lvFour,worstRun', 'Balanced V9': 'block,earlyOff,lvFour,worstRun' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
 const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k => loses(O[n]).includes(k)));
 // what each pays, on the five priorities the paragraph names wherever it pays on them (days in a row, weekends, one turn,
@@ -340,6 +350,8 @@ pays('Second Look', 'fixedRun', 'one'); pays('Middle Ground', 'step'); pays('Cro
 const BAL = ['Balanced V5', 'Balanced V6'], BV = BAL.map(n => O[n].F); BAL.forEach(n => pays(n, 'iso', 'one'));
 // Balanced V7 keeps what they keep without their single rest days, and pays with the weeks on one shift time and its mixed weeks
 const B7 = O['Balanced V7'].F; pays('Balanced V7', 'one', 'mixed');
+// Balanced V8 pays with a larger change of start and the weekday fit V5 to V7 have too; V9 with those and its two mixed weeks
+const B8 = O['Balanced V8'].F, B9 = O['Balanced V9'].F; pays('Balanced V8', 'step', 'fitWk'); pays('Balanced V9', 'step', 'fitWk', 'mixed');
 const PACK = [...D, ...others], CT = O['Closing Time'].F, HG = O['Home Grown'].F, CS = O['Clean Slate'].F, NX = O['Next Step'].F, IF = O['In Step'].F, GT = O['Grand Tour'].F;
 const LB = O['Long Break'].F, SL = O['Second Look'].F, CX = O['Crossover'].F;
 // Crossover's row: its two 13:45s a weekday, and the handover its row names, read from the grid: no weekday early finishes
@@ -349,17 +361,18 @@ claim('Crossover: no weekday early finishing between 15:00 and 16:00, and two on
   const ends = Object.values(CX.p).map(r => r[d]).filter(t => /^\d\d:\d\d-\d\d:\d\d$/.test(t) && t < '11:00').map(t => t.slice(6));
   return !ends.some(e => e > '15:00' && e < '16:00') && ends.filter(e => e === '16:00').length === 2; }));
 // THE 30-DAY LINKS (4 Nov 2026): the designs where 14 days' leave buys 30 days off, as today, are exactly the ones in the 30-day
-// folder, and every one keeps four weeks off for 14 too. Since 5 Nov 2026 Common Ground is on the shortlist as their example
+// folder, and every one keeps four weeks off for 14 too. Since 5 Nov 2026 Common Ground is on the shortlist as their example.
+// FOR 14 OR LESS SINCE 7 NOV 2026: Balanced V8 and V9 take four weeks off for 13, a day less than today, the first in the pack to
 const THIRTY = PACK.filter(d => d.F.lv.best >= TF.lv.best);
-claim('Balanced V5, Balanced V6, Balanced V7, Common Ground, Crossover, Grand Tour, Level Crossing, Middle Ground, Open Return and Short Openers: today’s 30 days off and four weeks off for 14 days’ leave, and every one of them in the 30-day folder',
-  TF.lv.best === 30 && THIRTY.map(d => d.name).sort().join() === 'Balanced V5,Balanced V6,Balanced V7,Common Ground,Crossover,Grand Tour,Level Crossing,Middle Ground,Open Return,Short Openers'
-  && THIRTY.every(d => d.F.lv.fourWeeks === TF.lv.fourWeeks && stats.find(s => s.name === d.name).dir === '30-days-off')
+claim('Balanced V5 to V9, Common Ground, Crossover, Grand Tour, Level Crossing, Middle Ground, Open Return and Short Openers: today’s 30 days off for 14 days’ leave and four weeks off for 14 or less, and every one of them in the 30-day folder',
+  TF.lv.best === 30 && THIRTY.map(d => d.name).sort().join() === 'Balanced V5,Balanced V6,Balanced V7,Balanced V8,Balanced V9,Common Ground,Crossover,Grand Tour,Level Crossing,Middle Ground,Open Return,Short Openers'
+  && THIRTY.every(d => d.F.lv.fourWeeks <= TF.lv.fourWeeks && stats.find(s => s.name === d.name).dir === '30-days-off')
   && stats.filter(s => s.dir === '30-days-off').length === THIRTY.length);
 claim('of the three, Common Ground alone keeps today’s leave', D.filter(d => THIRTY.includes(d)).map(d => d.name).join() === 'Common Ground');
 // the leave cost's "outside the shortlist": the other 30-day links keep four weeks for 14 too, and only Long Break besides
 const FOUR_OUT = PACK.filter(d => !D.includes(d) && d.F.lv.fourWeeks <= TF.lv.fourWeeks);
-claim('outside the shortlist, Balanced V5, Balanced V6, Balanced V7, Crossover, Grand Tour, Level Crossing, Long Break, Middle Ground, Open Return and Short Openers keep four weeks off for 14 days’ leave, and no other design does',
-  FOUR_OUT.map(d => d.name).sort().join() === 'Balanced V5,Balanced V6,Balanced V7,Crossover,Grand Tour,Level Crossing,Long Break,Middle Ground,Open Return,Short Openers' && D.every(d => d === CG || d.F.lv.fourWeeks > TF.lv.fourWeeks));
+claim('outside the shortlist, Balanced V5 to V9, Crossover, Grand Tour, Level Crossing, Long Break, Middle Ground, Open Return and Short Openers keep four weeks off for 14 days’ leave or less, and no other design does',
+  FOUR_OUT.map(d => d.name).sort().join() === 'Balanced V5,Balanced V6,Balanced V7,Balanced V8,Balanced V9,Crossover,Grand Tour,Level Crossing,Long Break,Middle Ground,Open Return,Short Openers' && D.every(d => d === CG || d.F.lv.fourWeeks > TF.lv.fourWeeks));
 // Clean Slate's row says "the best weekend fit of all" (3 Nov 2026); the joint-most weeks on one turn it had with Common Ground
 // are no longer its row's, since Common Ground is shortlisted
 claim('Clean Slate: the best Saturday and Sunday fit of all', PACK.every(d => d.name === 'Clean Slate' || (d.F.fit[1] > CS.fit[1] && d.F.fit[2] > CS.fit[2])));
@@ -394,9 +407,10 @@ claim('Even Keel: four to the Saturday close, where the three have three', O['Ev
 // SECOND LOOK'S ROW SAYS WHAT IT ALONE HAD (3 Nov 2026): no 55-hour week, however the cover weeks fall. Since 4 Nov 2026 Open
 // Return and Short Openers have none either (the Friday before every cover week is off), and their row says so; the claim pins
 // who shares it rather than saying "only"
-// CROSSOVER SINCE 7 NOV 2026: drawn with the 55-hour worst case held (exact-rota.py H55=), on Short Openers' rest days
-claim('Second Look, Open Return, Short Openers, Crossover and Level Crossing: the designs where a badly placed cover week makes no 55-hour week',
-  PACK.filter(d => !h55Of(d.F)?.adds).map(d => d.name).sort().join() === 'Crossover,Level Crossing,Open Return,Second Look,Short Openers');
+// CROSSOVER SINCE 7 NOV 2026: drawn with the 55-hour worst case held (exact-rota.py H55=), on Short Openers' rest days; BALANCED
+// V8 AND V9 the same day, laid with it held too
+claim('Second Look, Open Return, Short Openers, Crossover, Level Crossing and Balanced V8 and V9: the designs where a badly placed cover week makes no 55-hour week',
+  PACK.filter(d => !h55Of(d.F)?.adds).map(d => d.name).sort().join() === 'Balanced V8,Balanced V9,Crossover,Level Crossing,Open Return,Second Look,Short Openers');
 claim('Closing Time: more even weeks', (CT.heavy - CT.light) < lowest(F => F.heavy - F.light));
 const meetsAll = F => F.met === F.of;
 // THE FEWEST NEW, NOT THE FEWEST TIMES, SINCE 6 NOV 2026: Common Ground, Even Step and three others have its 13 shift times
@@ -808,7 +822,8 @@ const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace
 // "but" now in a column of its own. The rows are typed; the NAMED and pays() claims above pin what each keeps and pays against
 // the three, and the figures in them are read. Balanced V7's row names whose gains it shares: on page 2 it said "the same
 // gains", pinned to sit under their row, and NAMED pins that its gains are theirs
-const n55 = 'no 55-hour week<sup>*</sup>';   // the footnote says what was tested (the outside review of 7 Nov 2026)
+const n55 = 'no 55-\u2060hour week<sup>*</sup>';   // the footnote says what was tested (the outside review of 7 Nov 2026);
+// a word joiner after the hyphen keeps "55-hour" on one line (Balanced V8's row broke it there, 7 Nov 2026)
 const ALTS = [
   { n: ['In Step'], has: 'steadier weekly hours', pays: `the most long earlies, ${longEarlyMS(IF)} a year each` },
   { n: ['Closing Time'], has: 'shorter closers and a closer Saturday fit', pays: 'fewer weeks on one shift time and a weaker weekday fit' },
@@ -827,7 +842,15 @@ const ALTS = [
   { n: ['Long Break'], has: `Common Ground’s four weeks for ${LB.lv.fourWeeks} days’ leave and fewer single rest days`, pays: `${word(LB.fixedRun)} days in a row` },
   { n: ['Balanced V5', 'Balanced V6'], has: 'shorter runs of earlies or lates and more early finishes', pays: `${balIso[0]} single rest days a year, ${balOne[0]} of ${BV[0].A.feel.workingLines} weeks on one shift time` },
   { n: ['Balanced V7'], has: 'the same gains as Balanced V5 and V6', pays: `${b7One} of ${B7.A.feel.workingLines} weeks on one shift time and ${word(b7Mixed)} weeks mixing earlies and lates` },
+  { n: ['Balanced V8'], has: `the same gains as Balanced V5 and V6, ${n55} and four weeks off for ${B8.lv.fourWeeks} days’ leave`, pays: 'a larger change of start from week to week and a weaker weekday fit' },
+  { n: ['Balanced V9'], has: 'Balanced V8’s gains, with shorter runs of earlies or lates', pays: `Balanced V8’s costs, and ${word(B9.A.feel.hybrid)} weeks mixing earlies and lates` },
 ];
+// BALANCED V8 AND V9'S ROWS (7 Nov 2026): V8's figure is read; V9's row leans on V8's, so it is pinned to keep what V8 keeps and
+// pay what V8 pays, with shorter runs and its mixed weeks on top, and to sit under it (A to Z puts it there)
+claim('Balanced V8 and V9: four weeks off for the same leave, a day less than today', B8.lv.fourWeeks === B9.lv.fourWeeks && B8.lv.fourWeeks === TF.lv.fourWeeks - 1);
+claim('Balanced V9: Balanced V8’s gains with shorter runs of earlies or lates, and its costs with mixed weeks where V8 has none',
+  K['Balanced V9'] === K['Balanced V8'] && B9.block.worst < B8.block.worst && B9.block.fixed < B8.block.fixed
+  && ['step', 'fitWk'].every(k => loses(O['Balanced V8']).includes(k) && loses(O['Balanced V9']).includes(k)) && B8.A.feel.hybrid === 0 && B9.A.feel.hybrid > 0);
 { const names = ALTS.flatMap(r => r.n);
   claim('the other designs’ sheet names every other design once', names.length === others.length && [...names].sort().join() === others.map(d => d.name).sort().join()); }
 const dirOf = n => stats.find(s => s.name === n).dir;

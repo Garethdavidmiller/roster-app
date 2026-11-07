@@ -1,0 +1,13 @@
+{
+ "date": "7 November 2026",
+ "identity": {
+  "table": "Balanced V7's duties, every one, unchanged, which are Balanced V6's (results/balanced-v7-table.json, counted from Balanced V6's grid): a weekday of 7,390 minutes (06:20-13:35, 06:20-13:45, 06:20-14:20 x2, 07:30-16:00 x3, 12:00-20:30, 13:30-22:00 x2, 14:00-22:30 x2, 15:45-23:55 x3), a Saturday of 7,150 (06:20-14:50 x4, 06:20-15:00, 08:00-16:30 x2, 14:00-22:30 x2, the office 14:30-22:30 x2, 15:00-23:55 x2, 15:15-23:55) and a Sunday of 07:15-15:45 x4, 09:00-18:00, 14:30-22:30 x2 and 15:15-23:25 x3. So the 15:45 closers, the 15-minute handover from the 07:30-16:00s, the 13:35, 13:45 and 14:20 finishes, the staffing and the contract are Balanced V7's and Balanced V6's",
+  "seed": "Laid by the exact solver (exact-rota.py) with every rest day chosen again. It started from Short Openers' rest days, on which these duties leave one rest under 14h 20m (whoever works the Sunday 09:00-18:00 is back at 07:30 on Monday), freed the early weeks' rest days to clear it, and then let the whole rota move. Held throughout: every week all earlies or all lates, no 55-hour week with the cover weeks placed every way (H55=3300), a shortest rest of 14h 20m, 14 days' leave buying 30 days off and at worst 20, four weeks off for 14 days' leave or less, at most 6 single rest days in 26 weeks, no week over 42h 55m and at most 10 shifts between two-day breaks. Then the most weeks on one shift time, and the smallest week-to-week change of start. FIX= checks this grid against that model; the commands are in exact-rota.py's header",
+  "lineage": "Asked for on 7 Nov 2026 (owner: \"What type of change would have to happen to get balanced v6 or v7 upto the standard of the leaders\", then \"Do the v7 week lay out again\", then \"Do A as Balanced V8 and B as Balanced V9\"): Balanced V7's duties kept exactly and its weeks laid out again, to see how far the layout alone could take it. Against Balanced V7: no fatigue warning in any cover-week placement tested (V7 up to one, more than 55 hours in seven days), 19 weeks of 21 on one shift time (13), no week mixing earlies and lates (3), a week-to-week change of start of 1h 39m (2h 33m), at most 6 days in a row with a cover week placed badly (7), a heaviest week of 42h 30m (42h 55m) and four weeks off for 13 days' leave (14). It pays with longer runs of early or late weeks, 4 and up to 6 with the cover weeks (3 and up to 5), four 06:20 earlies in a row (3), at most 51.0 hours in seven days (50.5), as many backward steps between shifts as forward, 12 of each (7 and 20), and a lightest week with its Sunday of 29h 00m (30h 15m)"
+ },
+ "parent": {
+  "file": "results/balanced-v7.json",
+  "name": "Balanced V7",
+  "code": "MB-26-V7"
+ }
+}

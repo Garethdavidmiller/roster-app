@@ -151,6 +151,14 @@ export const SUPPLIED = [
     // at 18 weeks of 21 on one shift time (README.md → "Level Crossing"). It buys 30 days off for 14 days' leave, so it ships
     // into 30-days-off/
     { file: 'level-crossing.json',         name: 'Level Crossing',       code: 'LC-26-T10', fp: '32241e32', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover to the three 15:45 closers, never two closing weeks in a row, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
+    // 7 Nov 2026 (owner: "What type of change would have to happen to get balanced v6 or v7 upto the standard of the leaders",
+    // then "Do the v7 week lay out again", then "Do A as Balanced V8 and B as Balanced V9"): Balanced V7's duties, every one,
+    // with every rest day chosen again by exact-rota.py to the leaders' standard: no 55-hour week however the cover weeks fall,
+    // and V7's 30 days off and worst stretch of 20 for 14 days' leave. Balanced V8 has no week mixing earlies and lates and 19
+    // weeks of 21 on one shift time; Balanced V9 keeps V7's short runs of early or late weeks, with two mixed weeks (README.md →
+    // "Balanced V8 and Balanced V9"). Both buy 30 days off for 14 days' leave, so both ship into 30-days-off/
+    { file: 'results/balanced-v8.json',        name: 'Balanced V8',          code: 'MB-26-V8',  fp: '9ac65459', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, 19 of 21 weeks on one shift time, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'results/balanced-v9.json',        name: 'Balanced V9',          code: 'MB-26-V9',  fp: '8c679ae2', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never more than three early or three late weeks in a row outside the cover weeks, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

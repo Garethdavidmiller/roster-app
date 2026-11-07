@@ -75,6 +75,12 @@ both ways and fine tune from the links 26 pack"). Both sat inside every range th
 of its ten readings; on the main league In Step, Open Return and Second Look are one place higher and Balanced V5, V6 and
 V7 two. *Both Ways and Fine Tune deleted*, near the end, has the table.
 
+**League scores dated before Balanced V8 and V9 joined, late on 7 Nov 2026, are on the range before four weeks off for 13
+days' leave.** Both need 13, the first in the pack to need fewer than 14, so the league's range for that figure widened:
+every design needing 14 scores 0.46 less, those needing 15 nothing less. Crossover is still first and Level Crossing
+second; Closing Time passed Grand Tour, and Long Break, Open Return and Second Look moved. *Balanced V8 and Balanced V9*,
+near the end, has the table.
+
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
 So a rebuild adds nothing about who decides, votes or recommends — the process is recorded in
@@ -5990,6 +5996,133 @@ duty for duty.
 
 **Checks:** the shortlist's claims and both sheets' footer guard; `regenerate.mjs --check`, 22 proposals; `check.mjs`;
 `deck-check.mjs`, 216 rows; `newlink-data.mjs --check`; `pack.py`, 67 files with the read-me ASCII; and `npm run check`.
+
+## Balanced V8 and Balanced V9 — Balanced V7's weeks laid out again (7 Nov 2026)
+
+**The ask.** The owner asked what would bring Balanced V6 or V7 up to the leaders (*The outside review of the 22-design
+pack*, above: about 7 of V7's 10.1 points behind Crossover were the layout, about 3 the duties), then *"Do the v7 week lay
+out again"*. Two layouts came back, and the owner: *"Do A as Balanced V8 and B as Balanced V9"*.
+
+**What was kept, by construction.** Balanced V7's duties, every one, which are Balanced V6's
+(`tooling/results/balanced-v7-table.json`): the three 15:45 closers and the 15-minute handover from the three
+07:30–16:00s, the 13:35, 13:45 and 14:20 finishes, the staffing and the contract. Only which week works which duty, and
+which days are rest days, were chosen again: every rest day this time, where V7 kept Grand Tour's.
+
+**Why not the leaders' rest days as they are.** On Short Openers' rest days, which Crossover and Level Crossing use, these
+duties cannot be laid with a 14h 20m shortest rest, even with every other rule loosened. `exact-rota.py` with `OBJ=rest`
+shows the one rest that cannot be cleared: whoever works the Sunday 09:00–18:00 is back at 07:30 on Monday, 13h 30m later.
+That duty needs a week with the Monday off and no 06:20 on the Saturday before. There, the only early week with the Monday
+off follows a 06:20 Saturday, because the two 08:00–16:30 Saturdays are needed in the weeks before cover weeks, where a
+06:20 Saturday is not allowed. Freeing the early weeks' rest days cleared it. The whole model, every rest day free, then
+climbed from that grid; from nothing it had found no first rota in ten minutes. The nine steps are in `exact-rota.py`'s
+header, and `FIX=` checks both grids against their floors: feasible.
+
+**Held throughout:**
+- no 55-hour week however the cover weeks fall (`H55=3300`);
+- a shortest rest of 14h 20m;
+- 14 days' leave buying 30 days off;
+- four weeks off for 14 days' leave or less;
+- at most 6 single rest days in 26 weeks, no week over 42h 55m, and at most 10 shifts between two-day breaks.
+
+Then the most weeks on one shift time, and the smallest change of start.
+
+**A worst stretch of 20, with the 55-hour rule held.** V7's worst stretch for 14 days' leave is 20, and *Crossover* recorded
+that 20 had not been found with the 55-hour rule held: the whole model found no layout in 20 minutes, and freeing weeks of
+Short Openers' rest days was proved impossible. From a grid that already met the 55-hour rule at 19, the whole model found
+20 in ten minutes (step 6). It is not a rule a sheet tests, so nothing else changes; Crossover's and Level Crossing's 19 stand
+as they are.
+
+**Against Balanced V7**, every figure computed from the cells (the sheets, `factors-like.mjs`, the league):
+
+| | Balanced V7 | **Balanced V8** | **Balanced V9** |
+|---|---|---|---|
+| Code · fingerprint | `MB-26-V7` · `75e9e7f3` | **`MB-26-V8` · `9ac65459`** | **`MB-26-V9` · `8c679ae2`** |
+| Duties, closers, handover, finishes, staffing, contract | — | the same | the same |
+| 14 days' leave buys: best · average · worst | 30 · 23.4 · 20 | 30 · **23.5** · 20 | 30 · **23.5** · 20 |
+| Leave for four weeks off | 14 | **13** | **13** |
+| Avoidable fatigue warnings (if a cover week falls badly) | 0 (up to 1) | 0 (**0**) | 0 (**0**) |
+| Most days in a row (if a cover week falls badly) | 5 (up to 7) | 5 (**up to 6**) | 5 (**up to 6**) |
+| Full weekends off; single rest days a year | 7 in 26; 12 | 7 in 26; 12 | 7 in 26; 12 |
+| Weeks on one shift time | 13 of 21 | **19 of 21** | **18 of 21** |
+| Weeks mixing earlies and lates | 3 | **0** | **2** |
+| Runs of early or late weeks (with the cover weeks beside them) | 3 (5) | 4 (6) | 3 (**4**) |
+| Week-to-week change of start | 2h 33m | **1h 39m** | **1h 51m** |
+| Heaviest week, Monday to Saturday | 42h 55m | **42h 30m** | **42h 40m** |
+| Individual weeks, Monday to Saturday (with the Sunday) | 24h 00m–42h 55m (30h 15m–42h 55m) | 24h 00m–42h 30m (29h 00m–42h 30m) | 22h 15m–42h 40m (29h 00m–42h 40m) |
+| 06:20 earlies in a row (FF15) | 3 | 4 | 4 |
+| Most hours in seven days | 50.5 | 51.0 | 51.0 |
+| Steps between shifts, backward · forward (FF17) | 7 · 20 | 12 · 12 | 12 · 12 |
+| Main league, of 24 | 22nd, 76.7 | **10th, 84.7** | **16th, 83.1** |
+
+No figure is a fatigue warning, on either. What each pays against V7 is in the last four rows above the league:
+- a lightest week with its Sunday of 29h 00m, against 30h 15m (and on V9 a lightest Monday to Saturday of 22h 15m, against 24h 00m);
+- four 06:20 earlies in a row, against three;
+- at most 51.0 hours in seven days, against 50.5;
+- as many backward steps between shifts as forward.
+
+V8 also pays with longer runs of early or late weeks. On 6 Nov the owner had turned down V7's first all-one-kind layout
+because its runs were 5 (7), where V6's were 3 (5); V9 is the layout that keeps them.
+
+**The league.** The 7.9 points V8 gains on V7 are all layout: the weeks on one shift time (2.3 points), the 55-hour week
+gone (2.0), the mixed weeks (1.2), the change of start (0.8), the run (0.7), four weeks off for 13 (0.5) and the heaviest
+week (0.4); V9 gains 6.4. On the league's layout measures V8 is now about 0.9 points ahead of Crossover. It is 2.1 behind
+overall because of the duties, which cost it 3.0: the weekday fit to the trains (2.0), fewer of today's shift times (0.7),
+and the long Saturday earlies and closers (0.3).
+
+**Four weeks for 13 moved every other score.** Both new designs need 13 days' leave for four weeks off, where every other
+design needs 14 or 15, so the league's range for that figure widened. Every design needing 14 lost 0.46 points, and those
+needing 15 nothing:
+
+| | before | after |
+|---|---|---|
+| Crossover | 1st, 87.3 | 1st, 86.8 |
+| Level Crossing | 2nd, 86.8 | 2nd, 86.4 |
+| Common Ground | 3rd, 86.6 | 3rd, 86.2 |
+| Next Step · Even Step · Fair Share | 4th–6th, 86.1 · 86.0 · 85.9 | the same |
+| Closing Time · Grand Tour | 8th, 85.8 · 7th, 85.9 | **7th**, 85.8 · **8th**, 85.4 |
+| Middle Ground | 9th, 85.8 | 9th, 85.3 |
+| **Balanced V8** | — | **10th, 84.7** |
+| Clean Slate · Short Openers | 10th, 84.6 · 11th, 84.5 | 11th, 84.6 · 12th, 84.0 |
+| Home Grown · Second Edition · Even Keel | 12th–14th | 13th–15th, scores unchanged |
+| **Balanced V9** | — | **16th, 83.1** |
+| Short Run · In Step | 16th, 82.9 · 17th, 82.6 | 17th · 18th, scores unchanged |
+| Long Break | 15th, 83.0 | **19th**, 82.6 |
+| Second Look · Open Return | 19th, 82.2 · 18th, 82.4 | **20th**, 82.2 · **21st**, 81.9 |
+| Balanced V7 · V6 · V5 | 20th–22nd | 22nd–24th, each 0.46 lower |
+
+On the weighting before 31 Oct 2026 (`OLD_READINGS=1`), In Step is still first, V8 12th and V9 19th. Common Ground still
+leads Even Step, now by 0.15 rather than 0.6, and Next Step by 0.05.
+
+**Into the pack:**
+- **Entries.** `regenerate.mjs`'s `SUPPLIED` and `fresh.mjs` (family *Marylebone Balanced*, drawn 7 Nov 2026), both
+  shipping into `30-days-off/`. The codes `MB-26-V8` and `MB-26-V9` are new to `links-24/` (as it was) and `links-26/`.
+  Their meta files name Balanced V7 as the parent, so page 4 outlines every cell that differs from it.
+- **Headlines.** Each says what it has and names no other design.
+  - V8: "A 15-minute handover every weekday, from the three 07:30–16:00s to the three 15:45 closers, 19 of 21 weeks on one
+    shift time, no fatigue warning in any cover-week placement tested, and 14 days' leave buys 30 days off, as today".
+  - V9: the same with "never more than three early or three late weeks in a row outside the cover weeks" in place of the
+    weeks on one shift time.
+- **The other 22 sheets.** They were re-rendered, and their text is the same but for the date, so the shipped copies stand.
+- **The other designs' sheet.** It is now "the other twenty-one designs", with a row for each:
+  - V8: the gains V5 and V6 have, no 55-hour week (footnoted) and four weeks off for 13 days' leave, for a larger change of
+    start and a weaker weekday fit;
+  - V9: V8's gains with shorter runs of earlies or lates, and V8's costs with its two mixed weeks.
+  - Claims pin each against the three: what each keeps, and what each pays.
+  - "55-hour" keeps to one line: it had broken at the hyphen on V8's row.
+- **Shortlist sheet claims.** The 30-day set, the designs with four weeks for 14 or less, and those with no 55-hour week
+  name V8 and V9. Page 2 counts "the other twenty-one" (the number words now run past twenty). Crossover still leads Level
+  Crossing by 0.4, which the lead says.
+- **The summary.** 24 rows ran 2px onto a second sheet at the 80% floor. The cells' line height in dense mode comes down
+  from 1.12 to 1.1, which ends the footer 7px inside; the type and the floor are as they were.
+- **The read-me** (`pack.py`):
+  - "Twenty-four candidate links";
+  - V8 and V9 among the designs after the shortlist, with a sentence each;
+  - "All eight" of those in the 30-day folder;
+  - both among the designs drawn with the 22:30 office.
+- **`30-days-off/README.md`.** Their columns, in league order, every place re-read, and a paragraph.
+
+**Unchanged:** every other design's grid and fingerprint, the rules sheet, the "What it means if you…" sheet, the decks
+and the app (`links-proposals.js` builds in the shortlist only).
 
 ## Notes for the whole set
 
