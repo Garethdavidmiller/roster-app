@@ -275,8 +275,24 @@ describe('Overtime paused (owner, Nov 2026) — closed to everyone, the admin in
         /** @type {any} */ (globalThis).__E2E = { overtimeEnabled: true };
         assert.equal(overtimeEnabled(), true);
         assert.equal(canOpenOvertime(admin), true, 'switched on, the admin reaches it again by the reviewer route');
-        /** @type {any} */ (globalThis).__E2E = { overtimeEnabled: 'yes' };
-        assert.equal(overtimeEnabled(), false, 'a truthy non-boolean must not switch it on');
+        // A non-boolean seam is IGNORED, so the committed switch decides — tried at BOTH committed
+        // values, set on CONFIG here and put back, never by editing the source (test audit, 7 Nov 2026).
+        // This asserted that a seam of 'yes' reads false, which holds only while the switch is off,
+        // so following "To bring it back" failed here despite the docs promising no test edit.
+        const committed = CONFIG.OVERTIME_ENABLED;
+        try {
+            for (const sw of [false, true]) {
+                CONFIG.OVERTIME_ENABLED = sw;
+                for (const junk of ['yes', 'false', 1, 0, null]) {
+                    /** @type {any} */ (globalThis).__E2E = { overtimeEnabled: junk };
+                    assert.equal(overtimeEnabled(), sw, `a seam of ${JSON.stringify(junk)} overrode a committed ${sw}`);
+                }
+                /** @type {any} */ (globalThis).__E2E = { overtimeEnabled: !sw };
+                assert.equal(overtimeEnabled(), !sw, `a real boolean seam must override a committed ${sw}`);
+            }
+        } finally {
+            CONFIG.OVERTIME_ENABLED = committed;
+        }
     });
 });
 

@@ -21,7 +21,7 @@ import { planAlWeekSave } from './admin-al-week-save.js';
 // what the Calendar draws, what the entitlement costs, and what the receipt says.
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { resolveEffectiveShift } from './override-utils.js';
-import { consumesEntitlement, entitlementFor } from './al-entitlement.js';
+import { consumesEntitlement, countedAlDates, entitlementFor } from './al-entitlement.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 
 // C. Reen's fixed Mon–Fri line: every weekend is a rest day and every weekday is worked, so
@@ -43,6 +43,12 @@ const oneDayLeft = (() => {
     }
     return dates.map((date, i) => ({ id: 'x' + i, memberName: 'C. Reen', type: 'annual_leave', date, value: 'AL' }));
 })();
+
+test('premise: `oneDayLeft` leaves exactly ONE day of the year\'s allowance', () => {
+    // Every case that uses it assumes this, and nothing checked it (test audit, 7 Nov 2026).
+    assert.equal(entitlementFor(reen, '2026', oneDayLeft), oneDayLeft.length + 1);
+    assert.equal(countedAlDates({ overrides: oneDayLeft, member: reen, year: '2026' }).size, oneDayLeft.length);
+});
 
 describe('a batch with no leave in it is not this module\'s business', () => {
     test('the SAME array comes back — not a copy, so nothing downstream can diverge', () => {
@@ -300,7 +306,13 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
     });
 
     test('ENTITLEMENT: and it goes on costing nothing — the three layers agree on the money', () => {
-        assert.equal(consumesEntitlement({ member: reen, date: SAT, override: legacyAl }), false);
+        // The real signature is (member, date, ovByDate). This was called with ONE object, so `date`
+        // was undefined and the function returned false before it looked at anything — the assertion
+        // could not fail (test audit, 7 Nov 2026: charging every rest day left it green).
+        assert.equal(consumesEntitlement(reen, SAT, heldLegacy), false);
+        // The control, so a function that never charges anything cannot pass either: the Monday
+        // after is a working day on this line, and leave there costs a day.
+        assert.equal(consumesEntitlement(reen, '2026-06-15', new Map()), true, 'a working weekday must cost a day');
     });
 
     test('RECEIPT: the line says the leave was left, and how to clear it', () => {

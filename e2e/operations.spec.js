@@ -1505,8 +1505,11 @@ test('operations: the review table Skip button is not the success colour', async
 
     const flagged = page.locator('.roster-change-row').filter({ has: page.locator('.roster-choice-btn[data-opt="0"]') });
     await flagged.first().locator('.roster-choice-btn[data-opt="0"]').click();
-    await page.waitForTimeout(300);   // the background transition must settle, or both read as
-                                      // interpolated oklab() and a string compare is meaningless
+    // The background transitions must FINISH, or both read as interpolated oklab() and a string
+    // compare is meaningless — so wait for them to finish (the Web Animations API lists a CSS
+    // transition), where this was a 300ms sleep guessing their length (test audit, 7 Nov 2026).
+    await page.evaluate(() => Promise.all([...document.querySelectorAll('.roster-choice-btn')]
+        .flatMap(el => el.getAnimations()).map(a => a.finished)));
     const [skipBg, valueBg] = await page.evaluate(() => [
         getComputedStyle(/** @type {Element} */ (document.querySelector('.roster-choice-btn--skip.is-chosen'))).backgroundColor,
         getComputedStyle(/** @type {Element} */ (document.querySelector('.roster-choice-btn[data-opt="0"].is-chosen'))).backgroundColor,
@@ -1525,9 +1528,25 @@ test('operations: the review table Skip button is not the success colour', async
 // on-screen error count is the stub's artefact, not the app's: assert presence, not arithmetic).
 
 test('operations: a clean page has NO attention strip — absence is the all-clear', async ({ page }) => {
+    // EVERY CARD THAT FEEDS THE STRIP HAS ANSWERED BEFORE ITS ABSENCE IS READ (test audit, 7 Nov
+    // 2026). This asserted "hidden" as soon as the Account status card was on screen — which is
+    // before any of the strip's three sources has loaded, so it passed against a page whose cards
+    // had reported nothing yet, and would have passed against a strip that never rendered at all.
+    // So all three are made to answer, and answer CLEAN: the reset requests, the error log, and the
+    // account audit (whose endpoint is unreachable in this harness unless routed — the audit then
+    // reports nothing, by design, which is not the all-clear this test is about).
     await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route('https://europe-west2-myb-roster.cloudfunctions.net/getAccountSetupGaps', route => route.fulfill({
+        status: 200, contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ setUp: [], leavers: [] }),
+    }));
     await page.goto('/operations.html');
     await expect(page.locator('#accountStatusCard')).toBeVisible();
+    await expect(page.locator('#resetRequestsContent'), 'the reset requests answered').toContainText('No outstanding requests');
+    await expect(page.locator('#errorLogContent'), 'the error log answered').toContainText('No errors recorded');
+    await expect(page.locator('#authSetupGaps'), 'the account audit answered').toContainText('Everyone on the roster has a login');
     await expect(page.locator('#attentionStrip')).toBeHidden();
 });
 
@@ -1764,7 +1783,12 @@ test('operations: a roster read that looks a day out is refused, and writes noth
         const b = /** @type {HTMLButtonElement} */ (document.getElementById('rosterApplyBtn'));
         if (b) { b.disabled = false; b.click(); }
     });
-    await page.waitForTimeout(500);
+    // THE SAVE HAS ANSWERED before its writes are counted (test audit, 7 Nov 2026 — this was a
+    // 500ms sleep before a count of zero, which also holds for a save that had not run yet). Either
+    // way it ends with a line in the feedback: "Nothing to save" when the gate held, "Done — N
+    // changes applied" once a batch has been written. So the count below is read after the
+    // decision, and a gate that failed shows as writes rather than as a timeout.
+    await expect(page.locator('#rosterApplyFeedback')).toHaveText(/Nothing to save|Done —/);
     const writes = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []).length);
     expect(writes, 'a refused read must write nothing even if every row is forced on').toBe(0);
 });
@@ -2135,7 +2159,10 @@ test('operations: an unreadable cell can be answered in the review, and the entr
     await expect(page.locator('#rosterApplyBtn')).toHaveText(/Save 4 changes/);
 
     await page.locator('#rosterApplyBtn').click();
-    await page.waitForTimeout(700);
+    // The save's own receipt, not a 700ms sleep (test audit, 7 Nov 2026): it is written once every
+    // batch has committed, so the writes are all recorded by then — and "exactly once" is a count
+    // of a finished save rather than of however much of one had landed.
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Done — 4 changes applied');
     const written = await page.evaluate(() =>
         (/** @type {any} */ (window).__E2E?.batchWrites || []).filter(/** @param {any} w */ w => w.date === '2026-08-05'));
     expect(written.length, 'the entered day must be written exactly once').toBe(1);
@@ -2158,7 +2185,8 @@ test('operations: entry times typed without a colon are shaped into real times a
     await expect(row.locator('.roster-entry-time[data-part="to"]')).toHaveValue('14:00');
     await expect(row.locator('.roster-entry-hint')).toContainText('will be saved');
     await page.locator('#rosterApplyBtn').click();
-    await page.waitForTimeout(700);
+    // The save's receipt, not a 700ms sleep (test audit, 7 Nov 2026) — see the test above.
+    await expect(page.locator('#rosterApplyFeedback')).toContainText(/Done — \d+ changes? applied/);
     const written = await page.evaluate(() =>
         (/** @type {any} */ (window).__E2E?.batchWrites || []).filter(/** @param {any} w */ w => w.date === '2026-08-05'));
     expect(written.map(/** @param {any} w */ w => w.value)).toEqual(['06:00-14:00']);
@@ -2178,7 +2206,8 @@ test('operations: an entered RDW is written as RDW, not as an ordinary shift', a
     await row.locator('.roster-entry-time[data-part="from"]').fill('09:00');
     await row.locator('.roster-entry-time[data-part="to"]').fill('17:00');
     await page.locator('#rosterApplyBtn').click();
-    await page.waitForTimeout(700);
+    // The save's receipt, not a 700ms sleep (test audit, 7 Nov 2026) — see the test above.
+    await expect(page.locator('#rosterApplyFeedback')).toContainText(/Done — \d+ changes? applied/);
     const written = await page.evaluate(() =>
         (/** @type {any} */ (window).__E2E?.batchWrites || []).filter(/** @param {any} w */ w => w.date === '2026-08-05'));
     expect(written.length).toBe(1);

@@ -180,6 +180,10 @@ beforeEach(() => {
     _resetKnowledge();
     knowTestMonth();
     _overrideCache.clear();
+    // Reset here, with every other knob (test audit, 7 Nov 2026): four tests put the member back on
+    // their LAST line, so one failed assertion left a permanent-shift member in place for every test
+    // after it and turned one real failure into a run of unrelated ones.
+    _member = FAKE_MEMBER;
     _mockGetBaseShift   = () => 'RD';
     _mockIsBeforeMember = () => false;
     _mockIsPayday       = () => false;
@@ -478,14 +482,19 @@ describe('createDayCell', () => {
         assert.ok(html.includes('09:00-'));
     });
 
+    // Each over a time of the OTHER kind (test audit, 7 Nov 2026). Over an early time 'early', and
+    // over a late time 'late', is what the time's own badge says anyway — so dropping either word
+    // from the permanent-shift branch left both tests green, across six Calendar suites.
     test('worked shift with permanentShift=early → early badge overrides getShiftBadge', () => {
-        const html = createDayCell(JAN_1, '06:00-14:00', 'early', true);
-        assert.ok(html.includes('badge-early'));
+        const html = createDayCell(JAN_1, '14:00-22:00', 'early', true);
+        assert.ok(html.includes('badge-early'), 'a late time, drawn as the member\'s permanent Early');
+        assert.ok(!html.includes('badge-late'));
     });
 
     test('worked shift with permanentShift=late → late badge overrides getShiftBadge', () => {
-        const html = createDayCell(JAN_1, '11:00-19:00', 'late', true);
-        assert.ok(html.includes('badge-late'));
+        const html = createDayCell(JAN_1, '06:00-14:00', 'late', true);
+        assert.ok(html.includes('badge-late'), 'an early time, drawn as the member\'s permanent Late');
+        assert.ok(!html.includes('badge-early'));
     });
 
     test('worked shift with no permanentShift → shift-time div present', () => {
@@ -731,7 +740,6 @@ describe('buildCalendarContainer — shift classes', () => {
         assert.ok(cell?._classes.has('spare-day'), 'SPARE keeps its own class');
         assert.ok(!cell?._classes.has('early-shift'),
             'the permanent-shift branch is for WORKED days — standby is not one');
-        _member = FAKE_MEMBER;
     });
 
     test('and a rest day likewise — the same branch, the other end of the set', () => {
@@ -740,7 +748,6 @@ describe('buildCalendarContainer — shift classes', () => {
         const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
         assert.ok(cell?._classes.has('rest-day'));
         assert.ok(!cell?._classes.has('late-shift'));
-        _member = FAKE_MEMBER;
     });
 
     test('while a real turn DOES take the permanent-shift class', () => {
@@ -753,7 +760,6 @@ describe('buildCalendarContainer — shift classes', () => {
         _mockGetBaseShift = () => '06:00-14:00';
         const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
         assert.ok(cell?._classes.has('late-shift'), 'a worked day still follows the permanent shift');
-        _member = FAKE_MEMBER;
     });
 });
 
@@ -966,7 +972,6 @@ describe('buildCalendarContainer — the base-roster line', () => {
         _overrideCache.set('G. Miller|2026-01-02', { type: 'shift', value: '07:00-16:00', note: '', source: 'manual' });
         const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
         assert.equal(cell?.dataset.detailBase, 'Early shift 06:20-14:20');
-        _member = FAKE_MEMBER;
     });
 });
 

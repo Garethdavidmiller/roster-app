@@ -125,11 +125,24 @@ describe('the wiring (links-design-library.js, links-app.js, links.html)', () =>
     const lib = readFileSync(new URL('./links-design-library.js', import.meta.url), 'utf8');
     const app = readFileSync(new URL('./links-app.js', import.meta.url), 'utf8');
     const html = readFileSync(new URL('./links.html', import.meta.url), 'utf8');
+    /**
+     * A source fragment as a pattern that survives a REFORMAT (test audit, 7 Nov 2026): any whitespace between tokens,
+     * line breaks included, and either quote mark. As exact strings these failed on a harmless re-wrap while the wiring
+     * was untouched. The tokens, and their order, must still match exactly.
+     * @param {string} fragment
+     */
+    const code = (fragment) => {
+        const esc = (/** @type {string} */ s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const tokens = fragment.match(/'[^']*'|"[^"]*"|\w+|\S/g) ?? [];
+        return new RegExp(tokens.map((t, i) =>
+            (i === 0 ? '' : /\w$/.test(tokens[i - 1]) && /^\w/.test(t) ? '\\s+' : '\\s*')
+            + (/^['"]/.test(t) ? `['"]${esc(t.slice(1, -1))}['"]` : esc(t))).join(''));
+    };
 
     test('each move goes through binIfStill with the same rule that listed it', () => {
-        assert.match(lib, /ctx\.store\.binIfStill\(d\.id, ctx\.currentUser, isOlderDesign\)/);
-        assert.match(lib, /const keepOffered = \(\) => !keeping && canKeepOnlyShortlist\(\{ isAdmin, designs: ctx\.getDesigns\(\) \}\);/);
-        assert.match(lib, /async function keepOnlyShortlist\(\) \{\n\s+if \(!keepOffered\(\)\) return;/, 'the press re-asks the rule, not only the row');
+        assert.match(lib, code('ctx.store.binIfStill(d.id, ctx.currentUser, isOlderDesign)'));
+        assert.match(lib, code('const keepOffered = () => !keeping && canKeepOnlyShortlist({ isAdmin, designs: ctx.getDesigns() });'));
+        assert.match(lib, code('async function keepOnlyShortlist() { if (!keepOffered()) return;'), 'the press re-asks the rule, not only the row');
     });
 
     test('the shortlist stays READ-ONLY: nothing in the press creates a design', () => {
@@ -139,9 +152,9 @@ describe('the wiring (links-design-library.js, links-app.js, links.html)', () =>
     });
 
     test('the row is wired in the library, starts hidden, and the coordinator lends ONE hook', () => {
-        assert.match(lib, /getElementById\('designMoreBtn'\)\?\.addEventListener\('click', \(\) => \{ if \(keepRow\) keepRow\.style\.display = keepOffered\(\) \? '' : 'none'; \}\);/);
-        assert.match(lib, /keepRow\?\.addEventListener\('click', \(\) => \{ const h = ctx\.getHeader\(\); if \(h\) h\.viaSheet\(keepOnlyShortlist\); else keepOnlyShortlist\(\); \}\);/);
-        assert.match(html, /<button class="dm-menu-btn" id="keepShortlistBtn" type="button" style="display:none">/);
-        assert.match(app, /removeDesigns: \(\/\*\* @type \{Set<string>\} \*\/ ids\) => \{ designs = designs\.filter\(d => !ids\.has\(d\.id\)\); compare\.resetCompare\(\); if \(ids\.has\(activeDesignId\)\) _activateDesign\(designs\[0\] \?\? PROPOSAL_ENTRIES\[0\]\); else renderDesignPicker\(\); \},/);
+        assert.match(lib, code("getElementById('designMoreBtn')?.addEventListener('click', () => { if (keepRow) keepRow.style.display = keepOffered() ? '' : 'none'; });"));
+        assert.match(lib, code("keepRow?.addEventListener('click', () => { const h = ctx.getHeader(); if (h) h.viaSheet(keepOnlyShortlist); else keepOnlyShortlist(); });"));
+        assert.match(html, code('<button class="dm-menu-btn" id="keepShortlistBtn" type="button" style="display:none">'));
+        assert.match(app, code('removeDesigns: (/** @type {Set<string>} */ ids) => { designs = designs.filter(d => !ids.has(d.id)); compare.resetCompare(); if (ids.has(activeDesignId)) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]); else renderDesignPicker(); },'));
     });
 });

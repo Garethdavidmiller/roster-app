@@ -17,9 +17,16 @@
  * A per-function suite would pass on exactly the code that produces the first: `pickBookedYear` is
  * trivially right about every year it is HANDED, and the defect is handing it one that is not there.
  */
-import { describe, it } from 'node:test';
+import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { bookedYears, pickBookedYear, splitAtYearEnd, createBookedPeriods } from './admin-booked-periods.js';
+
+// The delete control's "Confirm?" disarms itself after 5 s on a REAL timer, and nothing here waits
+// for it — so it held the process open after the last test, 5.1 s of wall for ~100 ms of tests
+// (test audit, 7 Nov 2026). Mocked, it is a fake timer the reset throws away. Not
+// `--test-force-exit`, which has silently dropped tests in this repo.
+beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); });
+afterEach(() => { mock.timers.reset(); });
 
 /** @param {string[]} starts */
 const periods = starts => starts.map(s => ({ start: s, end: s, count: 1 }));

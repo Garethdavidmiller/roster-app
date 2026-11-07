@@ -19,8 +19,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { pageStylesheets } from './scripts/app-pages.mjs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { pageStylesheets, APP_PAGES } from './scripts/app-pages.mjs';
 
 const read = (f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
@@ -87,6 +87,31 @@ test('no app stylesheet hardcodes a font-size that already has a token', () => {
 // a mouse and comfortable on a thumb (`.gen-input`, `.hhmm-field input`). Checkbox/radio and the
 // `::before`/`::after` pseudo-elements are out of scope: they carry no text and cannot be typed in,
 // so no focus zoom follows.
+// The classes the app puts ON a text field, learnt from the markup — every page's HTML and every
+// template string a module builds — rather than from the wording of a selector (test audit, 7 Nov
+// 2026). `.li-paste` and `.pt-paste` are both textarea classes and neither selector says `textarea`,
+// so deleting `.pt-paste`'s touch override passed this test, and `.li-paste` sat at 14px under a
+// comment claiming the 16px floor. A field built with createElement is still invisible here.
+const NOT_TEXT = /\btype\s*=\s*["'](checkbox|radio|hidden|range|button|submit|reset|color|file|image)["']/i;
+const FIELD_SOURCES = [...APP_PAGES.map(p => p.file),
+    ...readdirSync(new URL('.', import.meta.url)).filter(f => f.endsWith('.js') && !f.includes('.test.'))];
+const TEXT_FIELD_CLASSES = new Set();
+for (const f of FIELD_SOURCES) {
+    for (const m of read(f).matchAll(/<(textarea|input)\b([^>]*)>/gi)) {
+        if (m[1].toLowerCase() === 'input' && NOT_TEXT.test(m[2])) continue;
+        const cls = /\bclass\s*=\s*["']([^"']+)["']/i.exec(m[2]);
+        for (const c of (cls ? cls[1].split(/\s+/) : [])) if (/^[a-z][\w-]*$/i.test(c)) TEXT_FIELD_CLASSES.add(c);
+    }
+}
+const namesTextField = (/** @type {string} */ sel) => /\b(input|textarea)\b|-input\b/i.test(sel)
+    || [...TEXT_FIELD_CLASSES].some(c => new RegExp(`\\.${c}(?![\\w-])`).test(sel));
+
+test('the markup scan finds the text fields it is there for', () => {
+    // If the scan stopped reading the markup, the class-based half of the test below would check
+    // nothing and still pass — so the two classes this was written for must be in it.
+    for (const c of ['li-paste', 'pt-paste']) assert.ok(TEXT_FIELD_CLASSES.has(c), `${c} is not recognised as a text field`);
+});
+
 test('no text-entry field is under 16px without a coarse-pointer override', () => {
     const px = new Map();                       // --type-* → number
     for (const file of APP_CSS) {
@@ -119,7 +144,7 @@ test('no text-entry field is under 16px without a coarse-pointer override', () =
             const sel = rule[1].trim().replace(/\s+/g, ' ');
             // Text-entry only: an element/class naming an input or textarea, never a pseudo-element,
             // and never the checkbox/radio family, which cannot receive typed text.
-            if (!/\b(input|textarea)\b|-input\b/i.test(sel)) continue;
+            if (!namesTextField(sel)) continue;
             if (/::(before|after|placeholder|-webkit-)/.test(sel)) continue;
             if (/checkbox|radio/i.test(sel)) continue;
             const fs = rule[2].match(/font-size:\s*([^;]+);/);

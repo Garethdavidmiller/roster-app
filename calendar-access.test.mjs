@@ -469,7 +469,12 @@ describe('unlockWithPin — every failure leaves the Calendar LOCKED', () => {
         assert.equal(getAccessType(), 'none');
     });
 
-    test('a rejected PIN (401) stays locked and says so without naming a number', async () => {
+    test('a rejected PIN (401) stays locked and says so without naming a number', async (t) => {
+        // MOCK TIMERS for every refused exchange (test audit, 7 Nov 2026). A refusal is classified
+        // from its status and its body is never read, and `fetchWithTimeout` keeps its 15s deadline
+        // armed until a body read — harmless in a browser, but on the real clock it held this file
+        // open for fifteen seconds after its last test.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
         fetchQueue = [{ ok: false, status: 401, json: async () => ({}) }];
         const r = await unlockWithPin('0000');
         assert.equal(r.ok, false);
@@ -478,8 +483,9 @@ describe('unlockWithPin — every failure leaves the Calendar LOCKED', () => {
         assert.equal(/\d/.test(r.message), false);
     });
 
-    test('a throttled attempt (429) is distinguishable from a wrong PIN', async () => {
+    test('a throttled attempt (429) is distinguishable from a wrong PIN', async (t) => {
         // The member needs to know that waiting will help, which "PIN not recognised" would not say.
+        t.mock.timers.enable({ apis: ['setTimeout'] });   // a refused exchange — see the 401 test
         fetchQueue = [{ ok: false, status: 429, json: async () => ({}) }];
         const r = await unlockWithPin('1234');
         assert.equal(r.kind, 'throttled');
@@ -1096,9 +1102,18 @@ describe('the viewer↔member race', () => {
     test('a VIEWER holding a stale local session may still unlock', async () => {
         // The guard is about a live MEMBER identity, not about a session record. A viewer whose
         // browser still holds an expired-but-present session must not be locked out of re-unlocking.
+        let reloads = 0;
+        globalThis.window.location.reload = () => { reloads++; };
         sessionValue = { name: 'G. Miller' };
         currentUser = { uid: 'calendar-viewer', isAnonymous: false };
+        ops = [];
         assert.deepEqual(await unlockWithPin('1234'), { ok: true });
+        // `{ ok: true }` is ALSO what the reload branch above returns, so on its own it could not
+        // tell an unlock from a reload (test audit, 7 Nov 2026: deleting the `!isViewerUser`
+        // exemption left this green). A station PC sent down the reload after a PIN rotation never
+        // gets back in, so assert the unlock really happened.
+        assert.equal(reloads, 0, 'a viewer was sent to the reload meant for a signed-in member');
+        assert.ok(ops.some(o => o.startsWith('signIn:')), 'the PIN was never exchanged for a viewer token');
     });
 });
 
@@ -1137,6 +1152,39 @@ describe('a visitor with nothing is locked — there is no open, anonymous Calen
             assert.equal(settled, 'none', 'the decision must resolve despite the hung reconcile');
         } finally {
             reconcileHangs = false;
+        }
+    });
+
+    test('the reconcile and the boot restore SHARE one budget — a slow first step shortens the second (v21.29)', async (t) => {
+        // The two waits used to be sequential bounds, so a wedged auth layer held the decision for
+        // ~12.5s. `bootRestoreHangs` and `bootWaitedMs` were declared for exactly this and never set
+        // (test audit, 7 Nov 2026): handing the restore a fresh, full budget brought the stacked wait
+        // back with every test green. Here the reconcile is slow, not stuck — 4s of the 6.5s — and
+        // the restore never answers, so it may have only the 2.5s that is left.
+        t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date(2026, 10, 7, 12) });
+        // `turn` is a setTimeout, which is mocked here; an immediate is not.
+        const settle = async () => { for (let i = 0; i < 12; i++) await new Promise(r => setImmediate(r)); };
+        bootRestoreHangs = true;
+        bootWaitedMs = 0;
+        reconcileGate = new Promise(r => setTimeout(() => r(undefined), 4000));
+        try {
+            /** @type {string|null} */ let settled = null;
+            initCalendarAccess({ onGranted: () => {} }).then(v => { settled = v; });
+            await settle();
+            t.mock.timers.tick(4000);   // the reconcile answers, 4s into the budget
+            await settle();
+            assert.equal(settled, null, 'guard: the restore is still waiting');
+            t.mock.timers.tick(2500);   // the budget is spent
+            await settle();
+            assert.equal(bootWaitedMs, 2500, 'the boot restore was not given what was LEFT of the budget');
+            // The decision is made; what follows it (the sign-in card's lazy import) needs real
+            // turns, not time, so the clock goes back before waiting on the outcome.
+            t.mock.timers.reset();
+            await waitFor(() => settled !== null, 'the access decision to settle');
+            assert.equal(settled, 'none');
+        } finally {
+            bootRestoreHangs = false;
+            bootWaitedMs = 0;
         }
     });
 });
@@ -1202,10 +1250,11 @@ describe('the cards themselves', () => {
             });
     });
 
-    test('a failed unlock CLEARS the PIN field', async () => {
+    test('a failed unlock CLEARS the PIN field', async (t) => {
         // On a shared PC a PIN left in a form field is readable by the next person through devtools
         // or autofill — and on a failure a cleared field is what the member wants anyway, since
         // they are retyping it. Asserted on the real form handler, not on `unlockWithPin`.
+        t.mock.timers.enable({ apis: ['setTimeout'] });   // a refused exchange — see the 401 test
         globalThis.window.location.hash = '#staff-pin';
         await initCalendarAccess({ onGranted: () => {} });
         const input = document.getElementById('calLockPin');

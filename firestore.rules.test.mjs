@@ -4,9 +4,11 @@
  * Run:  npm run test:rules
  *       (firebase emulators:exec starts the Firestore emulator, runs these tests, stops it)
  *
- * Covers all 9 collections in firestore.rules:
- *   overrides, huddles, linkDesigns, staffContact, passwordStatus,
- *   clientErrors, circulars, newsletters, pushSubscriptions, analytics
+ * Covers every top-level collection in firestore.rules — overrides, huddles, circulars,
+ * newsletters, linkDesigns, linkTargetSets, staffContact, passwordStatus, resetRequests,
+ * clientErrors, pushSubscriptions, viewerAttempts, overtimeWindows and analytics. This said "all 9
+ * collections" over a list of ten while the rules held fourteen (test audit, 7 Nov 2026); the rules
+ * file is the authority, and a new collection there needs its own describe here.
  *
  * Each collection tests: auth boundaries, field validation, enum/format guards.
  */
@@ -21,6 +23,9 @@ import { buildOverrideWrite } from './override-utils.js';
 import { manualOverrideId } from './override-id.js';
 import { teamMembers } from './roster-member-data.js';
 import { buildAnalyticsClient } from './analytics-client.js';
+import { APP_VERSION } from './roster-data.js';
+import { monthKey, dayKey, originLabel } from './usage-stats.js';
+import { targetSetPayload, MAX_SET_NAME, MAX_SET_SLOTS, SPARE_WEEKS_CAP } from './links-target-sets.js';
 import {
     setDoc, getDoc, addDoc, deleteDoc, updateDoc, getDocs,
     collection, doc, serverTimestamp, increment, Timestamp,
@@ -120,6 +125,30 @@ const VALID_SUB = () => ({
 // ── Unique IDs (avoid cross-test interference) ────────────────────────────────
 let _seq = 0;
 function uid() { return `doc_${++_seq}`; }
+
+// ── The REAL client writers (test audit, 7 Nov 2026) ──────────────────────────
+// Most cases in this file write a literal, so a field a client writer gained would pass all of them
+// and be refused in production. The telemetry writers SWALLOW that refusal by design, so the Error
+// Log and the Usage card would simply stop changing. These helpers let a test drive the real writer
+// against the emulator and still await the write the writer itself never reports.
+
+/** Wrap one SDK write so every promise it returns is kept for the test to await. */
+const recording = (/** @type {Function} */ fn, /** @type {Promise<unknown>[]} */ into) =>
+    (/** @type {any[]} */ ...a) => { const p = fn(...a); into.push(p); return p; };
+
+/** The real analytics-client.js on a test identity's Firestore, with the real SDK. */
+function realAnalyticsClient(/** @type {any} */ db, /** @type {Record<string, Function>} */ swap = {}) {
+    return buildAnalyticsClient({
+        db,
+        collections: { clientErrors: 'clientErrors', analytics: 'analytics' },
+        fs: {
+            doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, updateDoc, collection, query, where, limit,
+            serverTimestamp, increment, deleteField, FieldPath, ...swap,
+        },
+        writeWithClaimRetry: (/** @type {any} */ fn) => fn(),
+        appVersion: APP_VERSION,
+    });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // overrides
@@ -788,9 +817,10 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
         const { updatedAt, ...noTs } = DESIGN();
         await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), noTs));
     });
-    // `revision` — the v22.15 concurrency identity, shipped rules-first (no client writes it yet).
-    // Both directions matter and they are not symmetric: rejecting a legitimate revision would
-    // permission-deny every Links save the moment the client half lands, while accepting a bad one
+    // `revision` — the v22.15 concurrency identity, shipped rules-first and now stamped on every save
+    // by links-design-store.js (this said "no client writes it yet" long after one did; test audit,
+    // 7 Nov 2026). Both directions matter and they are not symmetric: rejecting a legitimate revision
+    // would permission-deny every Links save, while accepting a bad one
     // lets a value through that the co-editing guard then compares against. A design with NO
     // revision must keep working, because every design that exists today is one.
     test('a designer CAN write a revision', async () => {
@@ -912,6 +942,13 @@ describe('staffContact', () => {
 
     test('admin can read any doc', async () => {
         await assertSucceeds(getDoc(doc(adminDb(), 'staffContact', MEMBER)));
+    });
+
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    // Staff are told "only you and the admin can see this email", so a manager reading it is a broken promise.
+    test("a manager cannot read a colleague's work email", async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'staffContact', MEMBER)));
     });
 
     test('auth with name claim can create valid contact', async () => {
@@ -1042,6 +1079,12 @@ describe('resetRequests (the reset-request queue)', () => {
         await assertSucceeds(getDoc(doc(adminDb(), 'resetRequests', NAME)));
     });
 
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    test('a manager cannot read the reset-request queue', async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'resetRequests', NAME)));
+    });
+
     test('NO client may create — not anon, not the member, not even the admin', async () => {
         const payload = { memberName: NAME, requestedAt: new Date(), count: 1, provisioned: true };
         await assertFails(setDoc(doc(anonDb(), 'resetRequests', NAME), payload));
@@ -1079,14 +1122,33 @@ describe('passwordStatus (PASSWORD_DESIGN §6)', () => {
     test("a DIFFERENT named member cannot read someone else's record", async () => {
         await assertFails(getDoc(doc(namedDb('S. Silva'), 'passwordStatus', NAME)));
     });
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    test("a manager cannot read a colleague's password record", async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'passwordStatus', NAME)));
+    });
     test('the owner CREATEs with only passwordSetAt == server time', async () => {
         await assertSucceeds(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }));
     });
+    // EACH "CANNOT CREATE" TEST WRITES A RECORD THAT DOES NOT EXIST YET (test audit, 7 Nov 2026).
+    // The emulator is not cleared between tests, so once the test above had created G. Miller's
+    // record these two were exercising the UPDATE rule, and the CREATE rule's hasOnly and its
+    // server-time pin could be stripped with every rules test green.
+    const freshRecord = async (/** @type {string} */ name) => {
+        let exists = true;
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            exists = (await getDoc(doc(ctx.firestore(), 'passwordStatus', name))).exists();
+        });
+        assert.equal(exists, false, `fixture check: ${name}'s record must not exist, or this tests UPDATE`);
+        return name;
+    };
     test('the owner CANNOT create with resetAt (a client can never set the reset flag)', async () => {
-        await assertFails(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp(), resetAt: serverTimestamp() }));
+        const who = await freshRecord('N. Sobers');
+        await assertFails(setDoc(doc(namedDb(who), 'passwordStatus', who), { passwordSetAt: serverTimestamp(), resetAt: serverTimestamp() }));
     });
     test('a fixed (non-server) passwordSetAt is rejected — must be pinned to request.time', async () => {
-        await assertFails(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: new Date('2020-01-01') }));
+        const who = await freshRecord('H. Croft');
+        await assertFails(setDoc(doc(namedDb(who), 'passwordStatus', who), { passwordSetAt: new Date('2020-01-01') }));
     });
     test("a non-owner cannot write another member's record", async () => {
         await assertFails(setDoc(doc(namedDb('S. Silva'), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }));
@@ -1130,6 +1192,12 @@ describe('passwordStatus (PASSWORD_DESIGN §6)', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('clientErrors', () => {
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    test('a manager cannot read the error log', async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'clientErrors', 'any')));
+    });
+
     test('anon cannot create', async () => {
         await assertFails(addDoc(collection(anonDb(), 'clientErrors'), VALID_ERROR()));
     });
@@ -1204,6 +1272,28 @@ describe('clientErrors', () => {
         await assertFails(
             updateDoc(doc(memberDb(), 'clientErrors', ref.id), { resolved: true })
         );
+    });
+
+    // THE REAL WRITER (test audit, 7 Nov 2026). Every case above writes VALID_ERROR. This is the
+    // production `logClientError`, at the caps error-reporter.js slices to (message 300, stack 800,
+    // user agent 150), under BOTH identities that report: a member, and the staff PIN, for which the
+    // Calendar and Trains start the reporter too. A refusal here is one the reporter would swallow,
+    // leaving the Error Log empty exactly when something is wrong.
+    test('the real error writer is accepted at the reporter\'s caps, for a member and for the PIN', async () => {
+        for (const [db, memberName] of [[memberDb(), 'S. Boyle'], [viewerDb(), 'unknown']]) {
+            /** @type {Promise<unknown>[]} */ const writes = [];
+            realAnalyticsClient(db, { addDoc: recording(addDoc, writes) }).logClientError({
+                memberName, page: 'index.html', message: 'm'.repeat(300), stack: 's'.repeat(800),
+                appVersion: APP_VERSION, userAgent: 'u'.repeat(150),
+            });
+            assert.equal(writes.length, 1, 'the writer wrote');
+            await assertSucceeds(writes[0]);
+        }
+    });
+
+    test('the admin\'s real Resolve is accepted', async () => {
+        const ref = await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
+        await assertSucceeds(realAnalyticsClient(adminDb()).resolveClientError(ref.id));
     });
 });
 
@@ -1428,6 +1518,26 @@ describe('linkTargetSets — saved generator target sets, per-creator write (v21
         await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), name: '' }));
         await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), updatedAt: 'now' }));
     });
+
+    // THE REAL PAYLOAD (test audit, 7 Nov 2026). Every case above writes SET(), a literal; the store
+    // writes `targetSetPayload`'s output exactly as built (`tx.set(ref, payload)`), so this drives the
+    // real builder at the module's OWN caps: the name it truncates to, the most slots it allows and
+    // the most spare lines. A cap raised on the client and not in the rules, or a field the builder
+    // gains, would permission-deny every save of a full table; it fails here instead.
+    test('the real payload builder is accepted at its own caps, on a create and an overwrite', async () => {
+        const db = designerAs('S. Silva', 'silva');
+        const id = uid();
+        const table = {
+            name: '  ' + 'n'.repeat(MAX_SET_NAME + 20),
+            slots: Array.from({ length: MAX_SET_SLOTS }, (_, i) => ({ time: '06:20-14:20', weekday: i % 3, sat: 1, sun: 0 })),
+            spareLines: SPARE_WEEKS_CAP,
+        };
+        await assertSucceeds(setDoc(doc(db, 'linkTargetSets', id),
+            targetSetPayload(table, 'S. Silva', 'S. Silva', serverTimestamp())));
+        // An overwrite passes the existing `createdBy` through, as links-generator-targets.js does.
+        await assertSucceeds(setDoc(doc(db, 'linkTargetSets', id),
+            targetSetPayload({ ...table, spareLines: 0 }, 'S. Silva', 'S. Silva', serverTimestamp())));
+    });
 });
 
 describe('newsletters', () => {
@@ -1521,36 +1631,60 @@ describe('pushSubscriptions', () => {
         await assertFails(setDoc(doc(anonDb(), 'pushSubscriptions', uid()), VALID_SUB()));
     });
 
-    test('anon cannot create with missing endpoint', async () => {
+    // THE FIELD CHECKS ARE RUN AS A SIGNED-IN MEMBER (test audit, 7 Nov 2026). These five used
+    // `anonDb()`, which is refused by `request.auth != null` before any field is looked at, so the
+    // whole 13-condition validation block could be deleted with all 405 rules tests green. A member
+    // passes the sign-in check, so only the field rule can refuse them; the four after them cover the
+    // limits nothing tested at all.
+    test('a member cannot create with missing endpoint', async () => {
         const { endpoint: _e, ...missing } = VALID_SUB();
-        await assertFails(setDoc(doc(anonDb(), 'pushSubscriptions', uid()), missing));
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), missing));
     });
 
-    test('anon cannot create with missing keys.p256dh', async () => {
+    test('a member cannot create with missing keys.p256dh', async () => {
         await assertFails(
-            setDoc(doc(anonDb(), 'pushSubscriptions', uid()), {
+            setDoc(doc(memberDb(), 'pushSubscriptions', uid()), {
                 ...VALID_SUB(), keys: { auth: 'xyz789' },
             })
         );
     });
 
-    test('anon cannot create with an extra field in the keys map (hasOnly)', async () => {
+    test('a member cannot create with an extra field in the keys map (hasOnly)', async () => {
         await assertFails(
-            setDoc(doc(anonDb(), 'pushSubscriptions', uid()), {
+            setDoc(doc(memberDb(), 'pushSubscriptions', uid()), {
                 ...VALID_SUB(), keys: { p256dh: 'abc123', auth: 'xyz789', injected: 'x' },
             })
         );
     });
 
-    test('anon cannot create without subscribedAt', async () => {
+    test('a member cannot create without subscribedAt', async () => {
         const { subscribedAt: _s, ...missing } = VALID_SUB();
-        await assertFails(setDoc(doc(anonDb(), 'pushSubscriptions', uid()), missing));
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), missing));
     });
 
-    test('anon cannot create with empty endpoint string', async () => {
+    test('a member cannot create with empty endpoint string', async () => {
         await assertFails(
-            setDoc(doc(anonDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), endpoint: '' })
+            setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), endpoint: '' })
         );
+    });
+
+    test('a member cannot create with an extra top-level field (hasOnly)', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), injected: 'x' }));
+    });
+
+    test('a member cannot create with an endpoint of 2048 characters or more', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()),
+            { ...VALID_SUB(), endpoint: 'https://fcm.googleapis.com/' + 'x'.repeat(2048) }));
+    });
+
+    test('a member cannot create with an oversized p256dh or auth key, or keys that are not a map', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), keys: { p256dh: 'p'.repeat(256), auth: 'a' } }));
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), keys: { p256dh: 'p', auth: 'a'.repeat(64) } }));
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), keys: 'p256dh:p,auth:a' }));
+    });
+
+    test('a member cannot create with a subscribedAt that is not a timestamp', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), subscribedAt: '2026-11-07' }));
     });
 
     test('anon cannot read', async () => {
@@ -1780,6 +1914,51 @@ describe('analytics', () => {
         client.recordPerfSample({ page: 'calendar', metric: 'readyUpdate', bucket: 'lt500ms', mode: 'standalone', conn: '4g' });
         await flushed(2);
         await assertSucceeds(writes[1]);
+    });
+
+    // THE REAL USAGE-COUNTER WRITERS (test audit, 7 Nov 2026). The "real increment()" cases below
+    // COPY the payloads these build; this CALLS them, with arguments shaped the way usage-reporter.js
+    // shapes them: page and document ids, a first month and day, a rolling count MOVED from an
+    // earlier day (-1 there and +1 today in one merged write), and the per-address visit and
+    // installed counts, moved the same way.
+    test('the real usage-counter writers are accepted — a first count, and a moved day', async () => {
+        const now = new Date();
+        const today = dayKey(now);
+        const earlier = dayKey(new Date(now.getTime() - 10 * 86_400_000));
+        const origin = originLabel('myb-roster.web.app');
+        // The cases around this one share these documents and the emulator is never cleared, so
+        // whatever they held is put back afterwards: this test leaves no state behind.
+        const ids = [`pv_${monthKey(now)}`, 'activeAccounts', 'origins'];
+        /** @type {Map<string, any>} */ const before = new Map();
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            for (const id of ids) {
+                const snap = await getDoc(doc(ctx.firestore(), 'analytics', id));
+                before.set(id, snap.exists() ? snap.data() : null);
+            }
+        });
+        /** @type {Promise<unknown>[]} */ const writes = [];
+        try {
+            const client = realAnalyticsClient(memberDb(), { setDoc: recording(setDoc, writes) });
+            client.recordPageView('calendar');
+            client.recordPageView('guide-fip');
+            client.recordActiveAccount({ month: monthKey(now), day: earlier, fromDay: null });
+            client.recordActiveAccount({ month: null, day: today, fromDay: earlier });
+            client.recordOriginUse({ day: earlier, origin, countVisit: true, fromDay: null, installed: true, fromPwaDay: null });
+            client.recordOriginUse({ day: today, origin, countVisit: true, fromDay: earlier, installed: true, fromPwaDay: earlier });
+            assert.equal(writes.length, 6, 'each call wrote once');
+            for (const w of writes) await assertSucceeds(w);
+        } finally {
+            // Every write landed or was refused BEFORE the documents go back. A refusal throws above
+            // with the later writes still in flight, and a restore racing them left their keys behind
+            // for the next case to trip over (seen while proving this test, 7 Nov 2026).
+            await Promise.allSettled(writes);
+            await testEnv.withSecurityRulesDisabled(async ctx => {
+                for (const [id, data] of before) {
+                    const ref = doc(ctx.firestore(), 'analytics', id);
+                    if (data) await setDoc(ref, data); else await deleteDoc(ref);
+                }
+            });
+        }
     });
 
     // ── B4: anti-wipe guard — a non-admin overwrite may not REMOVE existing keys (destructive wipe),

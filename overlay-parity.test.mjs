@@ -56,6 +56,38 @@ const HAND_ROLLED = {
 const handRolledModules = () => JS.filter(f => f !== 'overlay.js'
     && /import\s*\{[^}]*\bdismissOverlay\b[^}]*\}\s*from\s*'\.\/overlay\.js'/.test(read(f)));
 
+/**
+ * Is the element with this id HANDED to createLightbox in this (comment-stripped) source? Two shapes:
+ * a call, `createLightbox({ overlay: lb, … })`, whose `overlay` is the id itself or an identifier
+ * last assigned from it; and an injected factory, `{ overlay: $('designMoreLb'), …, create:
+ * createLightbox }`, the overlay and the factory written together for another module to call.
+ *
+ * Per OVERLAY (test audit, 7 Nov 2026). This asked only whether an owning module MENTIONED
+ * createLightbox, so a page could hand-roll one of its overlays and pass while the same module built
+ * another one properly — the select-sheet header's "a module-level answer reported them as covered".
+ * @param {string} src @param {string} id
+ */
+function handsToCreateLightbox(src, id) {
+    const literal = new RegExp(`['"]${id}['"]`);
+    /** @param {string} expr @param {number} at */
+    const resolves = (expr, at) => {
+        if (literal.test(expr)) return true;
+        const ident = expr.replace(/\/\*\*[\s\S]*?\*\//g, '').replace(/[()]/g, ' ').trim().split(/\s+/)[0];
+        if (!/^[A-Za-z_$][\w$]*$/.test(ident)) return false;
+        const last = [...src.slice(0, at).matchAll(new RegExp(`\\b${ident}\\s*=(?!=)([^;\\n]*)`, 'g'))].pop();
+        return !!last && literal.test(last[1]);
+    };
+    for (const m of src.matchAll(/\bcreateLightbox\(\s*\{/g)) {
+        const arg = src.slice(m.index, m.index + 400);
+        const keyed = arg.match(/[{,\s]overlay\s*:\s*([^,}\n]+)/);
+        const expr = keyed ? keyed[1] : /[{,]\s*overlay\s*[,}]/.test(arg) ? 'overlay' : '';
+        if (expr && resolves(expr, m.index)) return true;
+    }
+    // The injected factory: the overlay and createLightbox written together, on one line.
+    return src.split('\n').some(line => /\bcreateLightbox\b/.test(line)
+        && literal.test(line.match(/[{,\s]overlay\s*:\s*([^,}\n]+)/)?.[1] ?? ''));
+}
+
 test('every .lb-overlay in a served page is built with createLightbox', () => {
     /** @type {string[]} */ const problems = [];
     for (const page of HTML) {
@@ -67,8 +99,8 @@ test('every .lb-overlay in a served page is built with createLightbox', () => {
             if (id in HAND_ROLLED) continue;
             const owners = JS.filter(f => read(f).includes(`'${id}'`) || read(f).includes(`"${id}"`));
             if (!owners.length) { problems.push(`${page}: #${id} is not referenced by any module`); continue; }
-            if (!owners.some(f => /\bcreateLightbox\b/.test(read(f)))) {
-                problems.push(`${page}: #${id} is owned by ${owners.join(', ')}, none of which imports `
+            if (!owners.some(f => handsToCreateLightbox(stripComments(read(f)), id))) {
+                problems.push(`${page}: #${id} is owned by ${owners.join(', ')}, none of which hands IT to `
                     + 'createLightbox — a hand-written lifecycle drifts from the shared one');
             }
         }
@@ -112,8 +144,18 @@ test('a hand-rolled lifecycle refuses a second close', () => {
         // The guard must sit at the TOP of the close function, before the state it reads is cleared.
         const close = src.match(/function close\w*\(\)\s*\{([\s\S]{0,400}?)\bdismissOverlay\b/);
         if (!close) { problems.push(`${f}: no close function found calling dismissOverlay`); continue; }
-        if (!/\bif\s*\(\s*!?\w+\s*\)\s*return\b/.test(close[1])) {
+        const guard = close[1].match(/\bif\s*\(\s*!?\s*([A-Za-z_$][\w$]*)\s*\)\s*return\b/);
+        if (!guard) {
             problems.push(`${f}: its close has no already-closing guard before dismissOverlay`);
+            continue;
+        }
+        // The guard must read the state THIS close changes (test audit, 7 Nov 2026). Any `if (!x)
+        // return` passed, so `if (!viewer) return;` — a null check on an element that is always there —
+        // stood in for `if (!_viewerOpen) return;` and the second close ran the whole body again.
+        const flag = guard[1];
+        if (!new RegExp(`\\b${flag.replace(/\$/g, '\\$')}\\s*=(?!=)`).test(close[1].slice(guard.index + guard[0].length))) {
+            problems.push(`${f}: its close guards on \`${flag}\`, which the close itself never sets — `
+                + 'so a second close cannot be told from the first');
         }
     }
     assert.deepEqual(problems, [], 'double-close defects:\n  ' + problems.join('\n  '));

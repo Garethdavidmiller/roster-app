@@ -156,6 +156,13 @@ beforeEach(() => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// A READ LEFT HANGING RUNS ON MOCK TIMERS (test audit, 7 Nov 2026). The module's 10s failure deadline
+// and 800ms loading timer are cleared only when the read SETTLES, which is right in the app — so a
+// test that left the read unsettled on the real clock held this file open for ten seconds after its
+// last assertion (10.2s for about 0.1s of tests). Such a test enables `t.mock.timers`, which are
+// discarded with the test. Not `--test-force-exit`: through scripts/run-tests.mjs that reported 35
+// or 36 of this file's 52 tests and exited 0.
+
 async function flushAsync(ticks = 3) {
     for (let i = 0; i < ticks; i++) await Promise.resolve();
 }
@@ -167,32 +174,76 @@ function getSyncChip() {
 // ── Pre-fetch synchronous setup ───────────────────────────────────────────────
 
 describe('pre-fetch synchronous setup', () => {
-    test('setInitialFetchInProgress(true) called synchronously before any await', () => {
+    test('setInitialFetchInProgress(true) called synchronously before any await', (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });   // the read never settles — see Helpers
         _fetchImpl = () => new Promise(() => {});
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
         assert.equal(_progressHistory[0], true);
     });
 
-    test('addFetchedMonths called once with three month keys', () => {
+    test('addFetchedMonths called once with three month keys', (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
         _fetchImpl = () => new Promise(() => {});
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
         assert.equal(_addMonthsHistory.length, 1);
         assert.equal(_addMonthsHistory[0].length, 3);
     });
+    // WHICH three months: the pinned-clock block below (test audit, 7 Nov 2026).
+});
 
-    test('pre-claimed keys are the consecutive prev/current/next months', () => {
-        _fetchImpl = () => new Promise(() => {});
-        const now  = new Date();
-        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        const fmt  = (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`;
-        const expected = [
-            fmt(prev.getFullYear(), prev.getMonth()),
-            fmt(now.getFullYear(),  now.getMonth()),
-            fmt(next.getFullYear(), next.getMonth()),
-        ];
+// ── THE WINDOW THE BOOT READ ASKS FOR, ON A PINNED CLOCK (test audit, 7 Nov 2026) ────────────────
+//
+// The three months are claimed, and then marked `authoritative`, as ONE window — so the range the
+// read asks for must be exactly those three months. A read one month short still marks the third
+// month current although nothing was ever read for it: a base shift drawn as settled. Nothing
+// checked the range: narrowing either end left every Node suite green. And the months themselves
+// were re-derived here from the REAL clock with the module's own arithmetic, which cannot disagree
+// with it and crossed a year only when the suite happened to run in December or January. These
+// dates are written out by hand instead.
+const BOOT_WINDOWS = [
+    { what: 'an ordinary month',                       today: new Date(2026, 6, 15, 12),
+      months: ['2026-06', '2026-07', '2026-08'], range: ['2026-06-01', '2026-08-31'] },
+    { what: 'New Year\'s Eve — next month is next year', today: new Date(2026, 11, 31, 23, 30),
+      months: ['2026-11', '2026-12', '2027-01'], range: ['2026-11-01', '2027-01-31'] },
+    { what: 'New Year\'s Day — last month is last year', today: new Date(2027, 0, 1, 0, 5),
+      months: ['2026-12', '2027-01', '2027-02'], range: ['2026-12-01', '2027-02-28'] },
+    { what: 'the 31st, with a leap February closing the window', today: new Date(2028, 0, 31, 12),
+      months: ['2027-12', '2028-01', '2028-02'], range: ['2027-12-01', '2028-02-29'] },
+];
+
+describe('the boot read asks for exactly the three months it claims', () => {
+    for (const { what, today, months, range } of BOOT_WINDOWS) {
+        test(`${what}: claims ${months.join(' · ')} and reads ${range.join(' to ')}`, async (t) => {
+            t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: today });
+            resetKnowledge();   // knowledge is monotonic and module-wide — start this window from nothing
+            /** @type {string[][]} */ const cacheReads = [];
+            /** @type {string[][]} */ const serverReads = [];
+            _cacheFetchImpl = (/** @type {string} */ from, /** @type {string} */ to) => { cacheReads.push([from, to]); return Promise.resolve(false); };
+            _fetchImpl      = (/** @type {string} */ from, /** @type {string} */ to) => { serverReads.push([from, to]); return Promise.resolve(); };
+            try {
+                initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+                assert.deepEqual(_addMonthsHistory[0], months, 'the months claimed before the read');
+                await flushAsync();
+                assert.deepEqual(cacheReads, [range], 'phase 1 — the local cache — must read the claimed window');
+                assert.deepEqual(serverReads, [range], 'phase 2 — the server — must read the claimed window');
+                for (const key of months) assert.equal(knowledgeOf(key), 'authoritative', `${key} after the read`);
+            } finally { resetKnowledge(); }
+        });
+    }
+
+    test('a RETRY reads the same window', async (t) => {
+        const { today, range } = BOOT_WINDOWS[1];
+        t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: today });
+        /** @type {string[][]} */ const reads = [];
+        _fetchImpl = (/** @type {string} */ from, /** @type {string} */ to) => { reads.push([from, to]); return Promise.reject(new Error('offline')); };
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
-        assert.deepEqual(_addMonthsHistory[0], expected);
+        await flushAsync();
+        const chip = getSyncChip();
+        assert.ok(chip?._classes.has('sync-chip-error'), 'guard: the failed boot read must offer the retry');
+        _fetchImpl = (/** @type {string} */ from, /** @type {string} */ to) => { reads.push([from, to]); return Promise.resolve(); };
+        chip._fire('click');
+        await flushAsync();
+        assert.deepEqual(reads, [range, range], 'the boot read, then the retry, over the same three months');
     });
 });
 
@@ -300,7 +351,8 @@ describe('failure path', () => {
         assert.equal(getSyncChip()?.textContent, "⚠ Couldn't update — tap to retry");
     });
 
-    test('retry is wired via onclick — one click issues exactly one request', async () => {
+    test('retry is wired via onclick — one click issues exactly one request', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });   // a successful retry clears its announcement 3s later
         let calls = 0;
         // First call (initial fetch) rejects; subsequent calls (the retry) resolve.
         _fetchImpl = () => { calls++; return calls === 1 ? Promise.reject(new Error('x')) : Promise.resolve(); };
@@ -378,6 +430,71 @@ describe('failure path', () => {
         // short-circuit them forever (no retry chip exists in team-view/first-run).
         assert.deepEqual(new Set(_clearMonthsHistory), new Set(_addMonthsHistory[0]));
         assert.equal(_clearMonthsHistory.length, 3);
+    });
+});
+
+// ── A REFUSAL IS HANDED TO THE ACCESS LAYER; A NETWORK FAULT IS NOT (test audit, 7 Nov 2026) ─────
+//
+// Both `onAccessLost && isAccessFailure` branches — the boot read's and the retry's — could be
+// switched off with every Node suite green: the only test passing `onAccessLost` was the
+// earlier-grant case, which is meant NOT to call it. A session that expires at boot then got
+// "Couldn't update — tap to retry", and every tap was refused again: the loop the member cannot win.
+// Each direction is pinned on each path, because dropping the classifier (re-locking on ANY
+// failure) is the same mistake the other way round — a PIN demanded from somebody whose signal
+// dropped.
+describe('a refused read re-locks; a failed one offers the retry', () => {
+    const DENIED  = () => Object.assign(new Error('denied'), { code: 'permission-denied' });
+    const OFFLINE = () => Object.assign(new Error('offline'), { code: 'unavailable' });
+
+    test('a boot read REFUSED for access hands over to the access layer, with no retry chip', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(DENIED());
+        let lost = 0;
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, onAccessLost: () => { lost++; } });
+        await flushAsync();
+        assert.equal(lost, 1, 'a refused boot read must re-open the unlock card');
+        assert.equal(getSyncChip(), null, 'no "tap to retry" beside the unlock card — it could never win');
+        assert.equal(_clearMonthsHistory.length, 3, 'the three months are still released for the next grant');
+    });
+
+    test('a boot read that FAILED for the network keeps the retry, and does not re-lock', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(OFFLINE());
+        let lost = 0;
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, onAccessLost: () => { lost++; } });
+        await flushAsync();
+        assert.equal(lost, 0, 'a network failure was treated as lost access');
+        assert.ok(getSyncChip()?._classes.has('sync-chip-error'), 'the retry chip is the recovery for a network failure');
+    });
+
+    test('a RETRY refused for access hands over too, and takes the chip away', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(OFFLINE());
+        let lost = 0;
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, onAccessLost: () => { lost++; } });
+        await flushAsync();
+        const chip = getSyncChip();
+        assert.ok(chip?._classes.has('sync-chip-error'), 'guard: the boot failure must offer the retry');
+
+        _fetchImpl = () => Promise.reject(DENIED());   // the session expired while the chip was up
+        chip._fire('click');
+        await flushAsync();
+        assert.equal(lost, 1, 'a refused retry must re-open the unlock card');
+        assert.equal(chip._removed, true, 'the retry chip must go — another tap would be refused again');
+    });
+
+    test('a RETRY that failed for the network keeps the chip, and does not re-lock', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(OFFLINE());
+        let lost = 0;
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, onAccessLost: () => { lost++; } });
+        await flushAsync();
+        const chip = getSyncChip();
+        chip._fire('click');
+        await flushAsync();
+        assert.equal(lost, 0, 'a network failure on the retry was treated as lost access');
+        assert.notEqual(chip._removed, true, 'the chip is still the way to try again');
+        assert.equal(chip.textContent, "⚠ Couldn't update — tap to retry");
     });
 });
 
@@ -558,13 +675,15 @@ describe('retry', () => {
 // registration and the "does not fire when hidden" guard are testable here.
 
 describe('visibilitychange', () => {
-    test('visibilitychange handler registered on document', () => {
+    test('visibilitychange handler registered on document', (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });   // the read never settles — see Helpers
         _fetchImpl = () => new Promise(() => {});
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
         assert.ok((_docListeners['visibilitychange']?.length ?? 0) > 0);
     });
 
-    test('handler does not call renderCalendar when document.hidden is true', () => {
+    test('handler does not call renderCalendar when document.hidden is true', (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
         _fetchImpl = () => new Promise(() => {});
         let rendered = false;
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => { rendered = true; } });
@@ -577,7 +696,8 @@ describe('visibilitychange', () => {
     // released the stale months and then repainted Team View FROM CACHE, so nothing asked for them
     // again and a station PC left on Team View showed hours-old leave as current. The return must
     // take the path that re-reads.
-    test('in Team View, months released on return are RE-READ, not merely repainted', () => {
+    test('in Team View, months released on return are RE-READ, not merely repainted', (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
         _fetchImpl = () => new Promise(() => {});
         _releaseImpl = () => ['2026-10'];
         let repaints = 0, refetches = 0;
@@ -608,7 +728,8 @@ describe('visibilitychange', () => {
 // server read) is the only part allowed to wait.
 
 describe('E1 — auth must not gate the cache paint', () => {
-    test('the cache read still paints when authReady never resolves', async () => {
+    test('the cache read still paints when authReady never resolves', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });   // phase 2 waits out a hung sign-in — see Helpers
         let cacheCalled = false;
         let serverCalled = false;
         _cacheFetchImpl = () => { cacheCalled = true; return Promise.resolve(true); };
@@ -630,7 +751,8 @@ describe('E1 — auth must not gate the cache paint', () => {
 
     // PER MONTH (whole-app review, Oct 2026): the cache read names the months it held rows for,
     // and only those may be drawn as known. One cached month used to mark the whole window.
-    test('phase 1 marks as cached only the months the cache held rows for', async () => {
+    test('phase 1 marks as cached only the months the cache held rows for', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
         resetKnowledge();
         const key = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const now = new Date();
@@ -649,7 +771,8 @@ describe('E1 — auth must not gate the cache paint', () => {
         resetKnowledge();
     });
 
-    test('an empty cache paints nothing (no spurious render) but still does not block', async () => {
+    test('an empty cache paints nothing (no spurious render) but still does not block', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
         _cacheFetchImpl = () => Promise.resolve(false);   // first visit / evicted IndexedDB
         const renderCalendar = mock.fn();
 

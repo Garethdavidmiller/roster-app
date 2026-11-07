@@ -165,12 +165,22 @@ describe('a false all-clear — the failure this card exists to prevent', () => 
         assert.match(gaps.textContent, /Everyone on the roster has a login/);
     });
 
-    test('a garbled response is not read as clean', async () => {
-        // A body with neither array is not "no gaps found" — but it IS an answered request, so the
-        // guard that matters is that nothing is invented from it.
-        const { gaps } = await wire({});
-        assert.ok(!/not set up/.test(gaps.textContent));
-    });
+    // A body without both lists is not "no gaps found" (test audit, 7 Nov 2026). This test used to
+    // check only that no GAP was invented — and the app read `{}` as the all-clear, which is the line
+    // /leaver step 6 reads as proof that a leaver can no longer sign in.
+    for (const [what, body] of /** @type {[string, any][]} */ ([
+        ['an empty body', {}],
+        ['a body with only one list', { setUp: [] }],
+        ['lists that are not lists', { setUp: 'none', leavers: null }],
+    ])) {
+        test(`${what} is not read as clean — it says it could not check`, async () => {
+            const { gaps, reported } = await wire(body);
+            assert.doesNotMatch(gaps.textContent, /Everyone on the roster has a login/,
+                'an unreadable answer must never render the all-clear');
+            assert.match(gaps.textContent, /Couldn’t check/);
+            assert.deepEqual(reported, [], 'and nothing is reported to the attention strip, in either direction');
+        });
+    }
 });
 
 describe('and the gaps themselves reach both the card and the strip', () => {

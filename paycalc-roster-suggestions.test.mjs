@@ -243,6 +243,67 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
 // it RDW, in which case it is rest-day-worked. And an RDW written on any spare-week day is picked
 // up as RDW regardless of the SPARE base. These pin those three cases against a real SPARE base.
 
+// ── Shifts that run past midnight, and a rostered Saturday that ran long (test audit, 7 Nov 2026) ──
+//
+// Every case above uses daytime CEA shifts, so the two `+= 24 * 60` wraps — one on the worked shift,
+// one on the base shift it is measured against — could be deleted, or "fixed" to `mins = -mins`, with
+// this file green. CES lines finish after midnight routinely, and their Saturdays and Sundays carry
+// the premiums this engine exists to pre-fill.
+//   F. Mohamed (CES): base Tue 2026-04-07 15:30-00:30 (9h), base Sat 2026-04-11 15:00-00:30 (9h30)
+//   L. Springer (main): base Sat 2026-04-25 06:20-14:50 (8h30)
+// (verified against getBaseShift).
+describe('getRosterSuggestion — overnight shifts and long Saturdays', () => {
+  const fMohamed = teamMembers.find(m => m.name === 'F. Mohamed');
+
+  test('an overnight base Saturday counts its real length: 15:00-00:30 is 9h30', () => {
+    _setOverridesForTest(new Map());
+    const s = getRosterSuggestion(period('2026-04-11'), fMohamed);
+    assert.ok(s);
+    assert.equal(s.satCount, 1);
+    assert.equal(s.satH, 9);
+    assert.equal(s.satM, 30, 'not -14h30 (no wrap) and not 14h30 (the sign flipped)');
+  });
+
+  test('an overnight weekday shift worked an hour longer → exactly 1h overtime', () => {
+    // Both wraps matter here: the worked 15:30-01:30 (10h) and the base 15:30-00:30 (9h).
+    _setOverridesForTest(new Map([
+      ['2026-04-07', { type: 'shift', value: '15:30-01:30', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-07'), fMohamed);
+    assert.ok(s);
+    assert.equal(s.otCount, 1);
+    assert.equal(s.otH, 1, 'the base must wrap too, or the whole shift reads as overtime');
+    assert.equal(s.otM, 0);
+  });
+
+  test('an overnight Saturday worked longer → the rostered 9h30 at 1.25x, the extra hour as overtime', () => {
+    _setOverridesForTest(new Map([
+      ['2026-04-11', { type: 'shift', value: '15:00-01:30', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-11'), fMohamed);
+    assert.ok(s);
+    assert.equal(s.satH, 9);
+    assert.equal(s.satM, 30);
+    assert.equal(s.otH, 1);
+    assert.equal(s.otM, 0);
+  });
+
+  test('a rostered daytime Saturday that ran long: capped at the base, the excess to overtime', () => {
+    // The bank-holiday twin of this rule is tested above; the Saturday one was not, so crediting the
+    // whole 10h30 at the Saturday rate (no cap) left the file green.
+    _setOverridesForTest(new Map([
+      ['2026-04-25', { type: 'shift', value: '06:20-16:50', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-25'), lSpringer);
+    assert.ok(s);
+    assert.equal(s.satH, 8);
+    assert.equal(s.satM, 30, 'the rostered 06:20-14:50');
+    assert.equal(s.otCount, 1);
+    assert.equal(s.otH, 2, 'the two hours past it are overtime, not Saturday hours');
+    assert.equal(s.otM, 0);
+  });
+});
+
 describe('getRosterSuggestion — spare weeks (RDW vs contracted Saturday)', () => {
 
   test('RDW override on a SPARE weekday → rdw bucket (SPARE base does not suppress it)', () => {
@@ -397,6 +458,10 @@ describe('getRosterSuggestion — training days', () => {
     assert.equal(s.boxCount, 1);
     assert.equal(s.boxH, 8);
     assert.equal(s.rdwCount, 0, 'must not land in the 1.25× RDW bucket');
+    // …and the 8h is a DEFAULT, so the Boxing Day row must say so. The flag follows the minutes into
+    // the box bucket; deleting it left this file green (test audit, 7 Nov 2026), and the row would then
+    // have read "Recorded change" over a guess the member is meant to correct.
+    assert.deepEqual(s.defaulted8h, { rdw: false, bhOt: false, box: true });
   });
 
   test('NEVER-LESS floor: timed training that ran SHORT of a BH shift still pays the full shift', () => {
@@ -511,6 +576,10 @@ describe('getRosterSuggestion — absence pays as the day underneath (full pay)'
     assert.equal(s.satH, 7);
     assert.equal(s.satM, 30);
     assert.equal(s.rdwCount + s.otCount, 0);
+    // The hours are the ROSTER'S, not a recorded time, so the row must not be badged "Recorded change"
+    // (_confBadge reads this flag). Treating the absence as an ordinary override moved no money and left
+    // this file green (test audit, 7 Nov 2026).
+    assert.equal(s.satFromOv, false, 'an absence is paid from the roster, not from a recorded shift');
   });
 
   test('absence on a rostered BANK HOLIDAY → bh bucket at base hours', () => {
@@ -522,6 +591,7 @@ describe('getRosterSuggestion — absence pays as the day underneath (full pay)'
     assert.ok(s);
     assert.equal(s.bhCount, 1);
     assert.equal(s.bhH, 7);
+    assert.equal(s.bhFromOv, false, 'an absence is paid from the roster, not from a recorded shift');
   });
 
   test('absence on a plain weekday → null (basic pay already covers it)', () => {
@@ -605,13 +675,22 @@ describe('fetchOverridesForPeriod — override priority', () => {
 
   test('getDocs failure → returns base-only, cache remains empty', async () => {
     const date = '2026-04-11';
+    // The PREVIOUS payslip's recorded changes are still in the cache when the next one is opened — a
+    // shift on this Saturday, which would suggest 9h of RDW. This test used to empty the cache itself
+    // before asserting, so it could not see a leak (test audit, 7 Nov 2026): deleting the clear in
+    // resetOverrides left the whole file green, and a failed fetch would then have shown one payslip
+    // the other's hours.
+    _setOverridesForTest(new Map([
+      [date, { type: 'shift', value: '10:00-19:00', _ts: 1, _manual: true }],
+    ]));
+    assert.equal(getRosterSuggestion(period(date), cReen)?.rdwH, 9, 'premise: the stale override would be suggested');
     _mockGetDocs = async () => { throw new Error('network error'); };
     resetOverrides('checking');
     const result = await fetchOverridesForPeriod({ start: new Date(date), cutoff: new Date(date) }, 'C. Reen');
     assert.equal(result, 'base-only');
-    // Cache empty → base roster used → BH on Easter Monday still shows
-    _setOverridesForTest(new Map());
-    assert.strictEqual(getRosterSuggestion(period(date), cReen), null); // Sat=RD base, no override
+    assert.equal(getOverridesFetchState(), 'base-only', 'the badge must say the recorded changes are not included');
+    // Nothing cached → the base roster alone → C. Reen's base Saturday is a rest day → nothing to suggest.
+    assert.strictEqual(getRosterSuggestion(period(date), cReen), null, 'a failed fetch must not leave the last payslip\'s changes in place');
   });
 
   // AN ANSWER FROM THIS DEVICE'S CACHE IS NOT THE SERVER'S (72-hour review). With the persistent

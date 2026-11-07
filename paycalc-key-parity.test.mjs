@@ -31,6 +31,17 @@ const KEY_RE = /^myb_pc_[A-Za-z0-9_]+$/;
 const SOURCES = readdirSync('.').filter(f => f.endsWith('.js') && !f.endsWith('.test.mjs'));
 const ALL_SRC = SOURCES.map(f => readFileSync(f, 'utf8')).join('\n');
 
+/**
+ * The source with comments removed, for the literal scan. Comments name keys in backticks all the
+ * time (`myb_pc_rate` in a JSDoc), and the scan now reads backtick and double-quoted literals too —
+ * so a comment would otherwise read as code. Block comments, whole-line comments, and a trailing
+ * ` // ` comment (space on both sides, so `https://` in a string is never taken for one) go.
+ */
+const CODE_SRC = ALL_SRC
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+    .replace(/\s\/\/\s.*$/gm, '');
+
 describe('hardcoded myb_pc_ keys must be declared device-level', () => {
     test('every literal key in the app is in DEVICE_KEYS', () => {
         // A hardcoded literal is BY DEFINITION not namespaced. So it is either a genuine
@@ -38,8 +49,11 @@ describe('hardcoded myb_pc_ keys must be declared device-level', () => {
         // carried to a fresh device (importing `ns_migrated` would suppress the legacy-ownership
         // prompt on a device that needs it) — or it is member data with no per-member isolation,
         // which is a privacy bug on a shared device.
-        const literals = [...ALL_SRC.matchAll(/'(myb_pc_[a-z0-9_]+)'/g)]
-            .map(m => m[1])
+        // EVERY quote style (test audit, 7 Nov 2026): this matched single quotes only, so writing a
+        // member's tax code to `myb_pc_code` or "myb_pc_code" — un-namespaced, on a shared device —
+        // passed, and ESLint has no quotes rule to force the single-quoted form this could see.
+        const literals = [...CODE_SRC.matchAll(/(['"`])(myb_pc_[a-z0-9_]+)\1/g)]
+            .map(m => m[2])
             .filter(k => k !== 'myb_pc_');            // the bare prefix itself, in pcPrefix()
         const undeclared = [...new Set(literals)].filter(k => !DEVICE_KEYS.has(k)).sort();
         assert.deepEqual(undeclared, [],

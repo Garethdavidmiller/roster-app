@@ -31,6 +31,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'module';
+import { pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
 
@@ -49,11 +50,17 @@ const require = createRequire(import.meta.url);
 // adapter reads), and skipping it would leave the roster import's only non-AI witness untested
 // with the suite green. Hence two questions, not one — is it loadable, and is it supposed to be.
 const PDFJS_SPECIFIER = 'pdfjs-dist/legacy/build/pdf.mjs';
+// ASKED FROM WHERE THE ADAPTER ASKS (test audit, 7 Nov 2026). `functions/roster-geometry.js` imports
+// pdfjs by bare name, so Node looks in `functions/node_modules` first. This file sits at the root, and
+// asking from here gave the wrong answer wherever only `cd functions && npm ci` had been run: the
+// real-pdfjs cases skipped and told the reader to run the command they had just run, while the
+// adapter beside them read the grid fine.
+const adapterRequire = createRequire(new URL('./functions/roster-geometry.js', import.meta.url));
 const pdfjsLoads = await (async () => {
-    try { await import(PDFJS_SPECIFIER); return true; } catch { return false; }
+    try { await import(pathToFileURL(adapterRequire.resolve(PDFJS_SPECIFIER)).href); return true; } catch { return false; }
 })();
 const pdfjsInstalled = (() => {
-    try { require.resolve('pdfjs-dist/package.json'); return true; } catch { return false; }
+    try { adapterRequire.resolve('pdfjs-dist/package.json'); return true; } catch { return false; }
 })();
 // Skip ONLY the genuinely-absent case. Installed-but-unloadable falls through and fails loudly.
 const REAL_PDFJS_SKIP = (!pdfjsLoads && !pdfjsInstalled)
@@ -279,6 +286,10 @@ describe('applyGeometryWitness — refused, not weighed', () => {
         const v = DATES.map(d => e.shifts[d]);
         DATES.forEach((d, i) => { e.shifts[d] = v[i + 1] ?? 'RD'; });
         assert.equal(e.shifts[DATES[0]], 'RD', 'the collapse puts Monday (RD) in Sunday — not detectable here');
+        // …and the witness, handed it, refuses nothing (test audit, 7 Nov 2026: this fixture was built
+        // and never run). An RD on an empty cell is what the honest read says, and every other value
+        // sits on an occupied cell, so this is the reach it states — not a miss to "fix".
+        assert.deepEqual(applyGeometryWitness([e], geo(MILLER), DATES).refused, [], 'a collapse onto a rest Monday is invisible here');
         // …so use a row whose Monday is a DUTY, which is the case that actually bites.
         const e2 = honest(); e2.shifts[DATES[0]] = '06:20-14:20';   // a duty claimed on the empty Sunday
         const s = applyGeometryWitness([e2], geo(MILLER), DATES);

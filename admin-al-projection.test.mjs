@@ -22,7 +22,7 @@ import { readFileSync } from 'node:fs';
 
 import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift, getBankHolidays } from './roster-data.js';
 import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave, lieuGoesWords } from './admin-al-projection.js';
-import { consumesEntitlement } from './al-entitlement.js';
+import { consumesEntitlement, countedAlDates, entitlementFor } from './al-entitlement.js';
 
 // C. Reen is the fixed Mon–Fri 12:00–19:00 line: every weekend is a rest day and every weekday is
 // worked, which makes "working day" and "rest day" unambiguous without any override at all.
@@ -145,6 +145,16 @@ describe('projectAlOverage — the warning the manager did not get', () => {
         // figures genuinely differ, which is what made the v23.78 bug silent.
         const p = projectAlBooking({ member: reen, dates: [MON, SAT], ovByDate: NO_OV });
         assert.deepEqual(p.consuming, [MON]);
+        // …and the check the name promises, which this never ran (test audit, 7 Nov 2026).
+        assert.equal(projectAlOverage({
+            member: reen, memberName: 'The member', overrides: existing, consuming: p.consuming,
+        }), null, 'one consuming day against one remaining must fit');
+    });
+
+    test('premise: the fixture leaves exactly ONE day of the year\'s allowance', () => {
+        // Every case in this block assumes it, and nothing checked it (test audit, 7 Nov 2026).
+        assert.equal(entitlementFor(reen, '2026', existing), usedDates.length + 1);
+        assert.equal(countedAlDates({ overrides: existing, member: reen, year: '2026' }).size, usedDates.length);
     });
 
     test('no entitlement on record → no bar, and no throw', () => {
@@ -169,14 +179,22 @@ describe('projectAlOverage — the warning the manager did not get', () => {
         // and re-booking the same day must not warn — it is the same day, already counted there.
         const overrides = [...existing, moved];
         assert.equal(projectAlOverage({ member: reen, memberName: 'C. Reen', overrides, consuming: [JAN] }), null);
-        // Charged to 2027 by mistake it would not warn either (2027 is empty), so prove the bucket
-        // directly: with 2026 at its limit BEFORE the move, the moved day puts it one over — and
-        // re-booking that day reports it only if the day is charged to 2026.
+        // With 2026 at its limit BEFORE the move, the moved day puts it one over, and re-booking it
+        // reports that. It does NOT show which year the re-booked day is charged to, though: the
+        // moved day is already in 2026's EXISTING count, so 2026 is over either way (test audit,
+        // 7 Nov 2026 — charging new days by their own date's year left this green).
         assert.ok(!existing.some(e => e.date === '2026-04-15'), 'fixture: the extra 2026 day is a new one');
         const full = [...existing, { id: 'x31', memberName: 'C. Reen', type: 'annual_leave', date: '2026-04-15', value: 'AL' }];
         const over = projectAlOverage({ member: reen, memberName: 'C. Reen', overrides: [...full, moved], consuming: [JAN] });
         assert.ok(over, 'charged to 2026, which the moved day has put one over');
         assert.match(over.headline, /2026 AL entitlement/);
+        // The bucket itself: a save that OVERWRITES the moved day re-accounts it (`exclude`), so it
+        // is out of the existing count and in this save's — and only charging it to 2026 finds 2026
+        // one over. Charged to 2027, the year of its date, the save would pass with no warning.
+        const resaved = projectAlOverage({ member: reen, memberName: 'The member', overrides: [...full, moved],
+            consuming: [JAN], exclude: new Set([JAN]) });
+        assert.ok(resaved, 'the re-saved January day was not charged to 2026, the year it was moved to');
+        assert.match(resaved.headline, /1 day over their 2026 AL entitlement/);
     });
 });
 

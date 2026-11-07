@@ -55,9 +55,18 @@ describe('saying yes when it does not know', () => {
     });
 
     test('an empty record forgets everything, including full coverage', () => {
-        const cov = emptyCoverage();
-        assert.equal(hasAuthorityFor(cov, 'G. Miller'), false);
-        assert.equal(coversEveryone(cov), false);
+        // It repeated the first test word for word (test audit, 7 Nov 2026). What the name promises:
+        // granting coverage builds a NEW record, so the record it was built from — and any empty one
+        // made after — still knows nothing. Widened in place, the cache vouches for staff never read.
+        const before = emptyCoverage();
+        const full = withAll(before);
+        const named = withMember(before, 'G. Miller');
+        assert.equal(coversEveryone(full), true, 'premise: the derived record has full coverage');
+        assert.equal(hasAuthorityFor(named, 'G. Miller'), true, 'premise: and this one has the member');
+        for (const cov of [before, emptyCoverage()]) {
+            assert.equal(hasAuthorityFor(cov, 'G. Miller'), false);
+            assert.equal(coversEveryone(cov), false);
+        }
     });
 });
 

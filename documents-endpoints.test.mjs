@@ -146,9 +146,19 @@ function build({ seed = {}, objects = [], maxFileBytes = 20 * 1024 * 1024 } = {}
     // The token world. `tokenClaims === null` means verifyIdToken THROWS — an absent, expired or
     // REVOKED token are the same refusal to the handler and must stay so.
     let tokenClaims = /** @type {any} */ (null);
+    // A REVOKED token is a separate state, not another `null` (test audit, 7 Nov 2026). The real SDK
+    // verifies a revoked token perfectly by signature and refuses it only when the caller passes
+    // `checkRevoked = true`; this fake used to ignore the argument and model revocation as a throw
+    // that happened either way, so dropping `true` from the handler left every test green — and a
+    // disabled member, or a viewer whose PIN was rotated, could have gone on minting document links
+    // for the rest of the token's hour.
+    let tokenRevoked = false;
     stub(authPath, { getAuth: () => ({
-        verifyIdToken: async (/** @type {string} */ t) => {
+        verifyIdToken: async (/** @type {string} */ t, /** @type {boolean} */ checkRevoked) => {
             if (!t || tokenClaims === null) throw new Error('bad token');
+            if (tokenRevoked && checkRevoked === true) {
+                throw Object.assign(new Error('revoked'), { code: 'auth/id-token-revoked' });
+            }
             return tokenClaims;
         },
     }) });
@@ -177,7 +187,8 @@ function build({ seed = {}, objects = [], maxFileBytes = 20 * 1024 * 1024 } = {}
         ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
     });
     return { eps, sends, setNow: (/** @type {any} */ n) => { now = n; },
-        setClaims: (/** @type {any} */ c) => { tokenClaims = c; }, ...fsFake, ...stFake };
+        setClaims: (/** @type {any} */ c) => { tokenClaims = c; },
+        setRevoked: (/** @type {boolean} */ r) => { tokenRevoked = r; }, ...fsFake, ...stFake };
 }
 
 // ── request/response fakes (the overtime-endpoints shape) ──────────────────────────────────────
@@ -571,6 +582,18 @@ describe('getDocumentUrl — the door, and that it is exactly the rules\' door',
         assert.equal((await askForUrl(w.eps, { kind: 'huddle' })).code, 401);
         assert.equal((await askForUrl(w.eps, { kind: 'huddle' }, null)).code, 401);
         assert.deepEqual(w.signed, [], 'a refused caller reached the signer');
+    });
+
+    test('a token that still verifies by signature but has been REVOKED is refused (checkRevoked)', async () => {
+        // The handler's own header calls this load-bearing: Firebase does not check revocation unless
+        // asked. Every door is tried, because each is a different way a token reaches the signer.
+        for (const claims of [MEMBER_GM, { admin: true }, { calendarViewer: true, firebase: { sign_in_provider: 'custom' } }]) {
+            const w = build({ seed: PUBLISHED });
+            w.setClaims(claims);
+            w.setRevoked(true);
+            assert.equal((await askForUrl(w.eps, { kind: 'huddle' })).code, 401, `${JSON.stringify(claims)} was let through`);
+            assert.deepEqual(w.signed, [], 'a revoked caller reached the signer');
+        }
     });
 
     test('a token with NO door is 403, and still nothing is signed', async () => {

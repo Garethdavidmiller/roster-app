@@ -19,6 +19,8 @@ export default defineConfig({
     timeout: 45_000,
     expect: { timeout: 10_000 },
     retries: 0,
+    // A stray `test.only` must not quietly shrink this lane to one test on CI (runner-parity.test.mjs).
+    forbidOnly: !!process.env.CI,
     reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
     use: {
         // Match the hosting-emulator bind in firebase.json (127.0.0.1, not "localhost", to avoid the

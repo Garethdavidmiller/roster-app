@@ -1449,9 +1449,16 @@ test('every teamMember.startDate is a Date instance when present', () => {
     );
 });
 
-test('every teamMember.rosterChanges is sorted ascending by from date', () => {
+/**
+ * The members whose `rosterChanges` are not strictly ascending by `from`. A function, so the check
+ * can be run on a made-up roster as well as the real one (test audit, 7 Nov 2026): no member carries
+ * two changes today, so on the real roster it compares nothing, and a check that could never fail
+ * passed. The fixture test below is what makes "roster-data.test.mjs fails an unsorted array" true.
+ * @param {any[]} members @returns {string[]}
+ */
+function unsortedRosterChanges(members) {
     const bad = [];
-    for (const m of teamMembers) {
+    for (const m of members) {
         if (!m.rosterChanges || m.rosterChanges.length < 2) continue;
         for (let i = 1; i < m.rosterChanges.length; i++) {
             if (m.rosterChanges[i].from <= m.rosterChanges[i - 1].from) {
@@ -1460,7 +1467,20 @@ test('every teamMember.rosterChanges is sorted ascending by from date', () => {
             }
         }
     }
+    return bad;
+}
+
+test('every teamMember.rosterChanges is sorted ascending by from date', () => {
+    const bad = unsortedRosterChanges(teamMembers);
     assert.deepEqual(bad, [], `rosterChanges not sorted ascending:\n  ${bad.join('\n  ')}`);
+});
+
+test('the sort check fails an unsorted array — it is not vacuous (test audit, 7 Nov 2026)', () => {
+    const on = (/** @type {number} */ month) => ({ from: new Date(2026, month, 1), rosterType: 'fixed', currentWeek: 2 });
+    assert.deepEqual(unsortedRosterChanges([{ name: 'X', rosterChanges: [on(5), on(6), on(8)] }]), []);
+    assert.deepEqual(unsortedRosterChanges([{ name: 'X', rosterChanges: [on(6), on(5)] }]), ['X: entry 1 is not after entry 0']);
+    assert.deepEqual(unsortedRosterChanges([{ name: 'X', rosterChanges: [on(5), on(5)] }]), ['X: entry 1 is not after entry 0'],
+        'two changes on the same day leave which one applies to the order they were typed in');
 });
 
 test('every rosterChanges entry has a valid rosterType and currentWeek', () => {

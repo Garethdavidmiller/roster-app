@@ -78,6 +78,8 @@ describe('a mode change keeps the request (review of v23.85, bug 2)', () => {
 
     test('the bulk "Mark all seven days Not available" is a mode change per day — same rule', () => {
         // The form applies withMode('unavailable') to each day; a staged Sunday request must survive.
+        // This is the RULE, over a hand-written loop; the page's real button is driven in
+        // overtime-form.test.mjs, which is what fails if the form stops using it (test audit, 7 Nov 2026).
         const days = { sun: { releaseRequested: true }, mon: { mode: 'all_day' }, tue: undefined };
         const after = Object.fromEntries(Object.entries(days).map(([d, a]) => [d, withMode(a, 'unavailable', SHIFT)]));
         assert.deepEqual(after.sun, { mode: 'unavailable', releaseRequested: true });

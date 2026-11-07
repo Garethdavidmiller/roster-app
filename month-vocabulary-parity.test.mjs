@@ -78,8 +78,12 @@ const MODULES = readdirSync(new URL('.', import.meta.url))
  *
  * `narrow` is banned although nothing uses it: it renders single letters, so June and July are both
  * "J". That is a worse failure than "Sept" and costs nothing to close now.
+ *
+ * `dateStyle: 'medium'` asks for the same short month WITHOUT saying `month` (test audit, 7 Nov
+ * 2026): en-GB renders it "18 Sept 2026", and it passed this file. `long` and `full` spell the month
+ * in full, and `short` is all digits ("18/09/2026"), so `medium` is the one style that is banned.
  */
-const ASKS_FOR_A_MONTH_NAME = /month:\s*['"](short|narrow)['"]/g;
+const ASKS_FOR_A_MONTH_NAME = /month:\s*['"](short|narrow)['"]|dateStyle:\s*['"]medium['"]/g;
 
 describe('no shipped module spells a month with ICU', () => {
     test('every root module composes month names from the app\'s own table', () => {
@@ -117,12 +121,18 @@ describe('no shipped module spells a month with ICU', () => {
             "new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })",
             "new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', month: 'short' })",
             'd.toLocaleString("en-GB", { month: "narrow" })',
+            "new Date().toLocaleDateString('en-GB', { dateStyle: 'medium' })",
         ]) {
             ASKS_FOR_A_MONTH_NAME.lastIndex = 0;
             assert.ok(ASKS_FOR_A_MONTH_NAME.test(shipped), `no longer caught: ${shipped}`);
         }
+        // The measurement behind banning `medium` and nothing else of dateStyle.
+        const sept = new Date(2026, 8, 18);
+        assert.match(sept.toLocaleDateString('en-GB', { dateStyle: 'medium' }), /Sept/, 'dateStyle medium no longer spells "Sept" — revisit the ban');
+        assert.doesNotMatch(sept.toLocaleDateString('en-GB', { dateStyle: 'short' }), /[A-Za-z]/, 'dateStyle short spells a month now');
         // ...and does not flag the numeric form the shim needs, or an unrelated word.
         for (const fine of ["{ month: 'numeric', day: 'numeric' }", "const month = 'short';",
+                            "d.toLocaleDateString('en-GB', { dateStyle: 'long' })",
                             // the exempt register, per the measurement below
                             'd.toLocaleString("en-GB", { month: "long", year: "numeric" })']) {
             ASKS_FOR_A_MONTH_NAME.lastIndex = 0;

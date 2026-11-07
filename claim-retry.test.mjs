@@ -125,7 +125,14 @@ describe('abandonOnSignOut', () => {
 test('withClaimRetry wraps every request in abandonOnSignOut, watching the live auth state', async () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(new URL('./firebase-client.js', import.meta.url), 'utf8');
-    const body = src.slice(src.indexOf('export async function withClaimRetry('), src.indexOf('export const writeWithClaimRetry'));
+    // BOTH markers must be found, in this order (test audit, 7 Nov 2026). The end marker used to read
+    // `export const writeWithClaimRetry`, which does not exist, so the slice ran to the end of the file
+    // and the uid and watch patterns below also matched guardCommit and the push save — any one of the
+    // three holding kept all three assertions green, and dropping the uid here survived every lane.
+    const start = src.indexOf('export async function withClaimRetry(');
+    const end = src.indexOf('export function writeWithClaimRetry');
+    assert.ok(start > -1 && end > start, `withClaimRetry was not found where expected (start ${start}, end ${end})`);
+    const body = src.slice(start, end);
     assert.match(body, /return abandonOnSignOut\(runWithClaimRetry\(/, 'the retry runs INSIDE the sign-out watch');
     assert.match(body, /uid: auth\.currentUser\?\.uid/, 'the account is captured when the request starts');
     assert.match(body, /onAuthStateChanged\(auth, cb\)/, 'the watch is the real auth state');
@@ -320,6 +327,9 @@ test('WIRING: every write, the document commit and the push record are bounded b
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(new URL('./firebase-client.js', import.meta.url), 'utf8');
     assert.match(src, /export function writeWithClaimRetry\(fn\) \{ return runGatedWrite\(\(\) => withClaimRetry\(fn\)\); \}/);
-    assert.match(src, /guardCommit: \(\/\*\* @type \{Promise<any>\} \*\/ p\) => abandonOnSignOut\(p,/);
-    assert.match(src, /await abandonOnSignOut\(setDoc\(doc\(db, COLLECTIONS\.pushSubscriptions, id\), data\)/);
+    // The ACCOUNT each watch is bounded by, not only that a watch exists (test audit, 7 Nov 2026): with
+    // the uid set to null, abandonOnSignOut has nobody to watch for, and both survived every lane.
+    assert.match(src, /guardCommit: \(\/\*\* @type \{Promise<any>\} \*\/ p\) => abandonOnSignOut\(p, \{ uid: auth\.currentUser\?\.uid, watch: cb => onAuthStateChanged\(auth, cb\) \}\)/);
+    assert.match(src, /await abandonOnSignOut\(setDoc\(doc\(db, COLLECTIONS\.pushSubscriptions, id\), data\), \{ uid: owner, watch: cb => onAuthStateChanged\(auth, cb\) \}\)/);
+    assert.match(src, /const owner = auth\.currentUser\?\.uid;/, 'the push record is bounded by the uid it is stamped with');
 });

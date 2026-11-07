@@ -51,6 +51,15 @@ function longRunPatterns() {
     return p;
 }
 
+/** A fully drawn design OVER the 13-day limit: lines 1 and 2 worked every day, fourteen in a row. */
+function breachPatterns() {
+    const p = fullPatterns();
+    for (const w of ['1', '2']) {
+        for (const d of ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']) p[w][d] = '06:00-14:00';
+    }
+    return p;
+}
+
 test('empty state (getDesign → null) shows the empty messages and hides the heatmap', () => {
     resetDom();
     const a = initLinksAnalysis({ getDesign: () => null });
@@ -311,10 +320,15 @@ test('the strength of the limit claim matches whether its source is confirmed', 
 // heading and the row build separate strings in separate files, which is how "Chiltern company
 // limit" once ended up in three places and stale in one.
 test('no row states a consequence the evidence does not support', () => {
-    for (const [label, patterns] of [['a clean design', fullPatterns()], ['a design over the limit', longRunPatterns()]]) {
+    // The breach is the state this is about — a confirmed source would let its row say "cannot be run". The fixture
+    // called "over the limit" was the nine-day run, inside the 13, so no breach row was ever read here (test audit,
+    // 7 Nov 2026); it keeps its own, truthful, label.
+    for (const [label, patterns] of [['a clean design', fullPatterns()], ['a run past the design target, inside the limit', longRunPatterns()],
+                                     ['a design over the limit', breachPatterns()]]) {
         resetDom();
         initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
         const text = els.checksContent.innerHTML.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+        if (label === 'a design over the limit') assert.match(text, /\d+ breached/, 'premise: the over-limit fixture breaches');
         if (POLICY_SOURCE_CONFIRMED) continue;
         assert.doesNotMatch(text, /cannot be run|must not be run|is not permitted/i,
             `${label}: the panel states the design cannot be run, on a limit whose policy source is ` +
@@ -602,6 +616,55 @@ test('the summary never says "no fatigue factors" while standing factors exist',
     }
 });
 
+// ── ADVISORY ON SCREEN, NOT ONLY IN THE MODEL (invariant 2; test audit, 7 Nov 2026) ─────────────
+// A PRESENT factor is amber (`check-warn-row`) and never the hard limit's `check-bad` red, and a
+// STANDING row stays inline beside the findings rather than behind the "nothing to report"
+// disclosure. Both could be broken with every unit test green: nothing read a fatigue row's class,
+// and the e2e asserts only the limit row's.
+describe('fatigue rows are advisory on screen', () => {
+    /** Every rendered fatigue row: its class, and the code + title it opens with. A fatigue row always
+     *  carries a `check-code` span and a limit row never does, which is how the two are told apart. */
+    const fatigueRows = (/** @type {string} */ html) =>
+        [...html.matchAll(/<div class="check-row ([^"]+)">(?:(?!<div class="check-row ).)*?<span class="check-code">([^<]*)<\/span>([^<—]*)/gs)]
+            .map(m => ({ cls: m[1], code: m[2], title: m[3].trim() }));
+    const render = () => {
+        resetDom();
+        const patterns = fullPatterns();   // FF15 present; FF2 and FF18 standing; most of the rest clear
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        return { html: els.checksContent.innerHTML, results: assessFatigue(patterns, ROTATING_LINES).results };
+    };
+
+    test('a PRESENT factor is amber — never the red a breached limit wears', () => {
+        const { html, results } = render();
+        const rows = fatigueRows(html);
+        const present = results.filter(r => r.status === 'present');
+        assert.ok(present.length > 0, 'fixture no longer produces a present factor, so this test cannot see the defect');
+        for (const r of present) {
+            const row = rows.find(x => x.code === r.code && x.title === r.title);
+            assert.ok(row, `${r.code} "${r.title}" is not rendered`);
+            assert.equal(row.cls, 'check-warn-row', `${r.code} is advisory: present means amber`);
+        }
+        assert.deepEqual(rows.filter(x => x.cls === 'check-bad').map(x => x.code), [], 'no fatigue row may wear check-bad');
+    });
+
+    test('a STANDING factor renders inline — it is not "nothing to report"', () => {
+        const { html, results } = render();
+        const at = html.indexOf('<details class="check-quiet">');
+        assert.ok(at > -1, 'fixture has clear rows, so the disclosure renders');
+        const end = html.indexOf('</details>', at);
+        const quiet = html.slice(at, end), inline = html.slice(0, at) + html.slice(end);
+        const standing = results.filter(r => r.status === 'standing');
+        assert.ok(standing.length > 0, 'fixture no longer produces a standing factor — give it early starts');
+        for (const r of standing) {
+            const mark = `<span class="check-code">${r.code}</span>${r.title}`;
+            assert.ok(inline.includes(mark), `${r.code} is standing and must render inline`);
+            assert.ok(!quiet.includes(mark), `${r.code} must not sit behind the "nothing to report" disclosure`);
+        }
+        // …and what the disclosure does hold is clear or not applicable, never a finding.
+        assert.ok(fatigueRows(quiet).every(x => x.cls === 'check-good' || x.cls === 'check-neutral'));
+    });
+});
+
 // ── THE TRIAGE BLOCK SAYS WHAT TO DO, AND NEVER MORE THAN THE ROWS BELOW (v22.60) ───────────────
 //
 // The card is ~30 rows and treated them as peers, so "is this good enough to show somebody?" meant
@@ -735,3 +798,35 @@ describe('the design-checks triage block', () => {
         }
     });
 });
+
+// ── THE HARD-LIMIT SUMMARIES SAY WHAT THE ROWS BELOW THEM SAY (test audit, 7 Nov 2026) ───────────
+// Two summaries sit above the limit rows: the triage block ("has to be fixed") and the section
+// heading's count. Neither was rendered against a breach or a part-built design, so leaving the
+// breach out of the triage printed "Nothing found that has to be fixed" over a design with 14 days in
+// a row, and forcing the heading to "within limits" labelled a half-drawn design as passing. The red
+// row underneath still showed both times — which is exactly what a summary must not contradict.
+describe('the hard-limit summaries', () => {
+    /** The limit section's heading, as rendered. */
+    const limitHead = () => (els.checksContent.innerHTML.match(/data-claim="limit"[\s\S]*?<\/div>/) || [''])[0];
+
+    test('a fully drawn design over a limit is named in the triage, and the heading counts it', () => {
+        resetDom();
+        const patterns = breachPatterns();
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const html = els.checksContent.innerHTML;
+        assert.match(limitHead(), /\d+ breached/, 'the heading must count the breach');
+        assert.match(html, POLICY_SOURCE_CONFIRMED ? /company limits? breached/ : /configured limits? breached/,
+            'the triage must list the breach among the things that have to be fixed');
+        assert.doesNotMatch(html, /Nothing found that has to be fixed/);
+    });
+
+    test('a part-built design is "not yet assessable" — never "within limits"', () => {
+        resetDom();
+        const patterns = fullPatterns();
+        for (const d of ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']) patterns['3'][d] = 'RD';
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        assert.match(limitHead(), /not yet assessable/);
+        assert.doesNotMatch(limitHead(), /within limits/, 'a half-drawn design must never read as passing');
+    });
+});
+

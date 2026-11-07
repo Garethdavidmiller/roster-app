@@ -927,12 +927,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         }
         el.addEventListener('transitionend', done, { once: true });
     }
-
-    function _finishComingSoonClose() { _finishNavLightboxClose(/** @type {HTMLElement} */ (csLightbox)); }
+    /** Another overlay open over a drawer lightbox (a dialog, a viewer a notification tap opened) owns the keyboard — `_isTopOverlay`'s rule, read from the DOM because these share the drawer's history entry (test audit, 7 Nov 2026). */
+    const _overlayAbove = (/** @type {Element|null} */ own) => Array.from(document.querySelectorAll('.lb-overlay.open')).some(el => el !== own);
 
     // Called by user action (Escape, ✕, backdrop) — pop the shared entry.
     function _closeComingSoon() {
-        if (!csLightbox) return;
+        if (!csLightbox || !_comingSoonOpen) return;   // ONCE: a second ✕/backdrop tap mid-fade unlocked twice (test audit)
         _comingSoonOpen = false;
         document.removeEventListener('keydown', _onComingSoonKey);
         csLightbox.classList.remove('open');
@@ -941,7 +941,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             suppressNextPop();   // don't let the echo reach the overlay stack (v16.23)
             history.back();
         }
-        _finishComingSoonClose();
+        _finishNavLightboxClose(/** @type {HTMLElement} */ (csLightbox));
     }
 
     // Called from popstate — history.back() already happened.
@@ -951,7 +951,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         _historyPushed  = false;
         document.removeEventListener('keydown', _onComingSoonKey);
         csLightbox.classList.remove('open');
-        _finishComingSoonClose();
+        _finishNavLightboxClose(/** @type {HTMLElement} */ (csLightbox));
     }
 
     // Escape closes the lightbox. Tab is trapped — the lightbox has only one
@@ -962,6 +962,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // document-level listener — a copy surviving a reset-while-open would swallow every Tab
         // page-wide and its Escape would steal the REBUILT drawer's history entry. Self-remove.
         if (!_comingSoonOpen) { document.removeEventListener('keydown', _onComingSoonKey); return; }
+        if (_overlayAbove(csLightbox)) return;   // one Escape closed both, and Tab was dragged back under it
         if (e.key === 'Escape') { _closeComingSoon(); return; }
         if (e.key === 'Tab')    { e.preventDefault(); csClose?.focus(); }
     }
@@ -1036,10 +1037,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         setTimeout(() => noticesClose?.focus(), 60);
     }
 
-    function _finishNoticesClose() { _finishNavLightboxClose(/** @type {HTMLElement} */ (noticesLightbox)); }
-
     function _closeNotices() {
-        if (!noticesLightbox) return;
+        if (!noticesLightbox || !_noticesOpen) return;   // ONCE — see _closeComingSoon (test audit)
         _noticesOpen = false;
         document.removeEventListener('keydown', _onNoticesKey);
         noticesLightbox.classList.remove('open');
@@ -1048,7 +1047,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             suppressNextPop();   // don't let the echo reach the overlay stack (v16.23)
             history.back();
         }
-        _finishNoticesClose();
+        _finishNavLightboxClose(/** @type {HTMLElement} */ (noticesLightbox));
     }
 
     function _closeNoticesFromBack() {
@@ -1057,13 +1056,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         _historyPushed  = false;
         document.removeEventListener('keydown', _onNoticesKey);
         noticesLightbox.classList.remove('open');
-        _finishNoticesClose();
+        _finishNavLightboxClose(/** @type {HTMLElement} */ (noticesLightbox));
     }
 
     /** @param {any} e */
     function _onNoticesKey(e) {
         // Stale-survivor guard — see _onComingSoonKey (v16.23).
         if (!_noticesOpen) { document.removeEventListener('keydown', _onNoticesKey); return; }
+        if (_overlayAbove(noticesLightbox)) return;   // the topmost rule — see _onComingSoonKey
         if (e.key === 'Escape') { _closeNotices(); return; }
         if (e.key === 'Tab')    { e.preventDefault(); noticesClose?.focus(); }
     }

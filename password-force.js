@@ -459,13 +459,16 @@ export async function initPasswordForce(member, { ready } = {}) {
 
     /** @type {any} */
     let status;
+    /** @type {ReturnType<typeof setTimeout>|undefined} */ let readTimer;
     try {
         status = await Promise.race([
             getPasswordStatus(member),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('passwordStatus read timed out')), STATUS_READ_TIMEOUT_MS)),
+            new Promise((_, reject) => { readTimer = setTimeout(() => reject(new Error('passwordStatus read timed out')), STATUS_READ_TIMEOUT_MS); }),
         ]);
     } catch {
         return false;      // fail open: never block on a read we couldn't complete
+    } finally {
+        clearTimeout(readTimer);   // the read answered; its losing timer has nothing left to do (test audit, 7 Nov 2026)
     }
 
     if (!shouldForcePasswordSet({

@@ -25,7 +25,7 @@
  * this page (owner: "No, signed-in only"), so it signs out on arrival like every page that does not ask for it.
  */
 
-import { CONFIG } from './roster-data.js';
+import { CONFIG, formatISO } from './roster-data.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -40,7 +40,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
-import { PHASE, CLOSES, STARTS, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
+import { PHASE, CLOSES, STARTS, TIMETABLE_STARTS, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
 import { renderStatus, renderPreviewBanner, renderList, renderCommon, renderPersonas, renderPersonaChips,
     renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou, aToZ } from './newlink-render.js';
 
@@ -130,7 +130,7 @@ function previewOthers(member) {
  * @param {string} member  who is reading: the banner names everyone else who can see the preview
  */
 function renderStatic(member) {
-    setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES, starts: STARTS }));
+    setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES, starts: STARTS, timetable: TIMETABLE_STARTS, today: formatISO(new Date()) }));
     const banner = el('nlPreview');
     if (banner) {
         banner.hidden = PHASE !== 'preview';

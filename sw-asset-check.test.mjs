@@ -23,6 +23,23 @@ function toHundredths(v) {
     return parseInt(maj, 10) * 100 + parseInt(min.padEnd(2, '0').slice(0, 2), 10);
 }
 
+/** COMMENTS ARE NOT ENTRIES (test audit, 7 Nov 2026). Every membership check below read the raw
+ *  text of an array, so an entry that had been COMMENTED OUT still counted as listed: commenting
+ *  `"./calendar-app.js"` out of CORE_ASSETS, or `'calendar-state.js'` out of NETWORK_FIRST_FILES,
+ *  left all 511 tests in the 18 suites that read the worker green. The second is a mixed-version
+ *  page — the module would fall through to the cache-first branch, whose `caches.match` prefers
+ *  the OLDEST cache. The strip storage-key-parity.test.mjs uses (a test file cannot be imported
+ *  without running its suite, so it is copied); the `[^:]` keeps the `//` of a URL. */
+function stripComments(/** @type {string} */ src) {
+    return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+}
+
+/** The LIVE body of `const <name> = [ … ];` in the worker's source — its comments removed. */
+function swArray(/** @type {string} */ sw, /** @type {string} */ name) {
+    const m = sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`));
+    return m ? stripComments(m[1]) : '';
+}
+
 test('every root JS module is in BOTH the SW network-first list and a precache list', () => {
     const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
 
@@ -36,10 +53,7 @@ test('every root JS module is in BOTH the SW network-first list and a precache l
     // membership of each list SEPARATELY. The old check only required a module to
     // appear *somewhere* in the file, so a module that was network-first but never
     // precached (or vice-versa) passed silently — exactly the half-listed-module gap.
-    const arrayOf = (name) => {
-        const m = sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`));
-        return m ? m[1] : '';
-    };
+    const arrayOf = (name) => swArray(sw, name);
     const networkFirst = arrayOf('NETWORK_FIRST_FILES');
     // A module is "precached" if it is in CORE_ASSETS (core app) or SUPPLEMENTARY_ASSETS
     // (the guides, cached individually). Both are required to be offline-available.
@@ -76,7 +90,7 @@ test('every root .html and .css file is precached (offline availability, non-JS 
     // NETWORK_FIRST_FILES here (the pre-fix bug) made that regression pass CI. (Mirrors the JS test's
     // precache set above, which was already correct.)
     const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
-    const arrayOf = (name) => { const m = sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`)); return m ? m[1] : ''; };
+    const arrayOf = (name) => swArray(sw, name);
     const precache = arrayOf('CORE_ASSETS') + arrayOf('SUPPLEMENTARY_ASSETS');
     const inList = (f) => precache.includes(`'${f}'`) || precache.includes(`"${f}"`) || precache.includes(`'./${f}'`) || precache.includes(`"./${f}"`);
     const assets  = readdirSync(ROOT).filter(f => (f.endsWith('.html') || f.endsWith('.css')) && !f.includes('.test.'));
@@ -91,7 +105,7 @@ test('purify.es.mjs is network-first AND precached (the .mjs runtime asset the .
     // sanitising. Assert its membership explicitly. (Broadening the .js glob to .mjs is wrong — the
     // dev-only playwright.*.mjs / generate-sri.mjs are NOT runtime assets and must not be SW-listed.)
     const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
-    const arrayOf = (name) => { const m = sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`)); return m ? m[1] : ''; };
+    const arrayOf = (name) => swArray(sw, name);
     const inList = (list, f) => list.includes(`'${f}'`) || list.includes(`"${f}"`) || list.includes(`'./${f}'`) || list.includes(`"./${f}"`);
     const F = 'purify.es.mjs';
     assert.ok(inList(arrayOf('NETWORK_FIRST_FILES'), F), 'purify.es.mjs must be in NETWORK_FIRST_FILES (served stale-while-revalidate)');
@@ -208,7 +222,7 @@ test('the push notification names the BADGE asset, the ICON asset, and re-bases 
     // (this test asserted the wrong pair on its first run and failed, which is the only reason that is
     // written down rather than shipped), and an array dropping OUT of the warm-up is exactly the
     // regression worth catching — a hardcoded name would keep reading a list nothing precaches.
-    const arrayOf = (n) => sw.match(new RegExp(`const ${n}\\s*=\\s*\\[([\\s\\S]*?)\\];`))?.[1] ?? '';
+    const arrayOf = (n) => swArray(sw, n);
     // To the CALLBACK ARROW, not to the first comma: one warm-up call passes a spread of two arrays
     // (`[...FONT_ASSETS, ...ICON_ASSETS]`), and stopping at the first comma silently captured only
     // the first of them — so the icons this test is ABOUT were the one pair it could not see.
@@ -305,10 +319,7 @@ test('every SW-listed asset actually exists on disk (no ghost entries)', () => {
     // caches are NEVER swept and the warm-up retries on every SW wake, silently and forever.
     // This closes that gap by asserting the reverse direction. (v16.81 debt sweep.)
     const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
-    const arrayOf = (name) => {
-        const m = sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`));
-        return m ? m[1] : '';
-    };
+    const arrayOf = (name) => swArray(sw, name);
     const LISTS = ['NETWORK_FIRST_FILES', 'CORE_ASSETS', 'SUPPLEMENTARY_ASSETS', 'FONT_ASSETS', 'ICON_ASSETS'];
     const ghosts = [];
     for (const name of LISTS) {

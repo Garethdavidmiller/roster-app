@@ -42,6 +42,14 @@ import { teamMembers } from './roster-data.js';
 export const STARTS = '2027-01-01';
 
 /**
+ * When the new TIMETABLE starts, 'YYYY-MM-DD' — the day the status line's "comes first, in December" becomes "started in
+ * December" (test audit, 7 Nov 2026: the line had no date logic at all). The Trains page owns this date, as `CHANGE_DATE`
+ * in trains-data.js; this copy keeps the whole timetable out of this page, and newlink-config.test.mjs fails if the two
+ * ever differ.
+ */
+export const TIMETABLE_STARTS = '2026-12-13';
+
+/**
  * Who colleagues go to about the new link, spelt as `teamMembers` spells them (owner, 2 Nov 2026: "Sara Silva (S. Silva)
  * is the primary contact for it not me"). Every line that names a person is built from this one.
  */

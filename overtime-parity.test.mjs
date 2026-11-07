@@ -175,22 +175,39 @@ describe('may this withdrawal be undone? — the client and the server must agre
         ['after the deadline, one ms after it',      DL + 1,    DL + 9000],
         ['after the deadline, no stamp at all',      null,      DL + 9000],
         ['after the deadline, unreadable stamp',     NaN,       DL + 9000],
+        // A finished week, which the client copy now models itself rather than leaving to the panel's
+        // `closed` flag (test audit, 7 Nov 2026) — the first is the case it used to get wrong.
+        ['a CLOSED week, withdrawn after the deadline', DL + 5000, M.finalDeadlineAt + 1000],
+        ['ON the final deadline',                    DL + 5000, M.finalDeadlineAt],
+        ['an EXPIRED week',                          DL + 5000, M.retentionUntil + 1000],
     ];
 
     for (const [label, withdrawnAt, now] of CASES) {
         test(label, () => {
-            assert.equal(clientCanRestore(DL, withdrawnAt, now),
+            assert.equal(clientCanRestore(DL, withdrawnAt, now, M.finalDeadlineAt),
                 serverCanRestore(M, withdrawnAt, now).ok,
                 'the button and the endpoint disagree about this state');
         });
     }
 
     test('and the client is allowed to be wrong ONLY by offering less', () => {
-        // A closed or expired week refuses server-side for reasons the client copy does not model —
-        // it is handed `closed` separately by the panel. So the one direction that must never occur
-        // is the client saying yes where the server says no; the reverse is merely a quiet button.
-        const closedNow = M.finalDeadlineAt + 1000;
-        assert.equal(serverCanRestore(M, closedNow - 10, closedNow).ok, false);
+        // The one direction that must never occur is the client saying yes where the server says no;
+        // the reverse is merely a quiet button. This used to assert the SERVER's refusal on a closed
+        // week and never ask the client (test audit, 7 Nov 2026) — which, asked, said yes. Swept over
+        // every phase of the week's life, as the panel calls it, final deadline included.
+        const nows = [DL - 1000, DL, DL + 9000, M.finalDeadlineAt - 1, M.finalDeadlineAt,
+            M.finalDeadlineAt + 1000, M.retentionUntil, M.retentionUntil + 1000];
+        let offered = 0;
+        for (const now of nows) {
+            for (const withdrawnAt of [null, NaN, DL - 5000, DL, DL + 1, now - 10]) {
+                if (!clientCanRestore(DL, withdrawnAt, now, M.finalDeadlineAt)) continue;
+                offered++;
+                assert.equal(serverCanRestore(M, withdrawnAt, now).ok, true,
+                    `the client offers a restore the server refuses: now ${now}, withdrawn ${withdrawnAt}`);
+            }
+        }
+        // A client that never offered anything would pass the loop above by checking nothing.
+        assert.ok(offered >= 10, `only ${offered} states offered the button — the sweep checked almost nothing`);
     });
 });
 

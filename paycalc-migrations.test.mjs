@@ -16,7 +16,7 @@ import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-    pcPrefix, setPaycalcNamespace, SK,
+    pcPrefix, setPaycalcNamespace, SK, memberSlug,
     periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey,
     runMigrations, hasPendingLegacyMigration, resolveLegacyMigration,
     parseSavedPeriod,
@@ -26,6 +26,29 @@ import { TAX_YEARS } from './paycalc-calc.js';
 
 // Mirror of the private _memberSlug() in paycalc-migrations.js: lowercase, alphanumerics only.
 const slug = (/** @type {string} */ name) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+// ── Every member has a namespace of their own (test audit, 7 Nov 2026) ─────────────────────────
+// memberSlug's own comment says unique names mean unique slugs. They do not: punctuation and case
+// are dropped, so 'Q. Example' and 'Q Example' are the same slug. Two members sharing one would share
+// every key on a shared device and pass each other's backup identity check, and nothing checked the
+// roster for it. Hidden members count: a leaver's data can still be on a shared device.
+describe('memberSlug — one namespace per member', () => {
+    test('punctuation and case are not part of a slug, so the ROSTER is what keeps them apart', () => {
+        assert.equal(memberSlug('Q. Example'), memberSlug('Q Example'));
+        assert.equal(memberSlug('Q. Example'), memberSlug('q.example'));
+    });
+
+    test('no two roster names share a slug, and none is empty', () => {
+        /** @type {Map<string, string>} */
+        const seen = new Map();
+        for (const m of teamMembers) {
+            const s = memberSlug(m.name);
+            assert.ok(s, `${m.name} has an empty slug`);
+            assert.ok(!seen.has(s), `${m.name} and ${seen.get(s)} would share the namespace myb_pc_${s}_`);
+            seen.set(s, m.name);
+        }
+    });
+});
 
 // ── localStorage stub ─────────────────────────────────────────────────────────
 function makeLocalStorage(initial = {}) {

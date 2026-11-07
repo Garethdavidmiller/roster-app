@@ -30,9 +30,12 @@ const THEM = 'S. Silva';
 const ts = (ms) => ({ toMillis: () => ms, toDate: () => new Date(ms) });
 
 /**
- * A Firestore fake with real transaction semantics for the one property that matters: the callback
- * re-runs when the document changed under it. `onRead` fires between the transaction's read and its
- * commit, which is where a competing writer belongs.
+ * A Firestore fake for the one property that matters: what a transaction DECIDES when the document
+ * moves under it. `onRead` fires inside the transaction's read, and the snapshot reads the store
+ * lazily, so the body decides on whatever `onRead` left there — the competing writer, landing
+ * between the read and the commit. The body runs ONCE. This said it "re-runs when the document
+ * changed", which it never did (test audit, 7 Nov 2026); a test that needs a retried transaction
+ * installs its own `runTransaction` — see "a RETRIED forced save decides afresh".
  */
 function makeDb({ initial = null, onRead = null, failTx = null } = {}) {
     let store = initial ? { ...initial } : null;
@@ -294,6 +297,34 @@ describe('a SAVE never downgrades its guarantee while online', () => {
         assert.deepEqual(writes, [], 'nothing was written');
     });
 
+    test('a RETRIED forced save decides afresh — the losing attempt\'s verdict does not survive', async () => {
+        // Firestore re-runs a transaction's body when a document it read changed before the commit,
+        // and the forced save clears its verdicts at the top of the body for exactly that. `makeDb`
+        // runs the body ONCE, so the reset had no test and the code said so (test audit, 7 Nov 2026).
+        // Here the body runs twice: the first attempt finds the design in the bin, the second finds a
+        // colleague has restored it, at the very version this user agreed to replace — so it writes.
+        const { api, writes } = makeDb();
+        let attempt = 0;
+        const live = { name: 'A', updatedAt: ts(2000), updatedBy: THEM };
+        const tx = {
+            get: async () => {
+                attempt++;
+                const d = attempt === 1 ? { ...live, deletedAt: ts(2500), deletedBy: THEM } : live;
+                return { exists: () => true, data: () => d };
+            },
+            set: (/** @type {any} */ _ref, /** @type {any} */ payload) => writes.push({ kind: 'tx-set', payload }),
+            delete: () => writes.push({ kind: 'tx-delete' }),
+        };
+        api.runTransaction = async (/** @type {any} */ _db, /** @type {Function} */ fn) => { await fn(tx); return fn(tx); };
+        const res = await createDesignStore(api).save({
+            id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, baselineUnknown: false,
+            currentUser: ME, forcing: true, forceAgainstRevision: 2000,
+        });
+        assert.equal(attempt, 2, 'premise: the body ran twice');
+        assert.equal(writes.filter(w => w.kind === 'tx-set').length, 1, 'the second attempt wrote');
+        assert.equal(res.status, 'saved', 'and the save says so — not the bin the first attempt saw');
+    });
+
     test('a design deleted while we had it open is reported as such', async () => {
         // Not the same event as "someone saved a different version": a plain overwrite would
         // resurrect a design somebody deliberately deleted.
@@ -310,13 +341,17 @@ describe('a permanent delete re-checks the row it was pressed on', () => {
     test('a design restored by somebody else is NOT removed', async () => {
         // The stale-row race, and the one destructive action in the workspace with no undo. A opens
         // the bin, B restores, A presses Remove for good on the row they can still see.
-        const { api } = makeDb({
+        const { api, writes, current } = makeDb({
             initial: { name: 'A', deletedAt: ts(500), deletedBy: ME },
             onRead: (n, setStore) => { if (n === 1) setStore({ name: 'A', updatedAt: ts(2000), updatedBy: THEM }); },
         });
         const outcome = await createDesignStore(api).purge(ID);
         assert.equal(outcome, 'restored-elsewhere');
-        assert.notEqual(api.getDocs, null);
+        // The DESIGN, not just the word for it (test audit, 7 Nov 2026). This asserted
+        // `api.getDocs !== null`, which cannot fail, so a purge that reported the restore and then
+        // deleted the design anyway passed — the one destructive action here with no undo.
+        assert.deepEqual(writes.filter(w => w.kind === 'tx-delete'), [], 'nothing was deleted');
+        assert.equal(current()?.updatedBy, THEM, 'the restored design is still there');
     });
 
     test('a still-deleted design IS removed', async () => {

@@ -321,7 +321,7 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
         ${awaitingPanel(participants, submissions, { now, frozenAt: frozenAt(active) })}
         ${askedPanel(participants, submissions, win.phase === 'CLOSED')}
         ${withdrawnPanel(ofGrade(withdrawn, grade), win.phase === 'CLOSED',
-            { initialDeadlineAt: win.initialDeadlineAt, now })}`;
+            { initialDeadlineAt: win.initialDeadlineAt, finalDeadlineAt: win.finalDeadlineAt, now })}`;
 }
 
 /**
@@ -711,7 +711,7 @@ function askedPanel(participants, submissions, closed = false) {
  * another reads as a rendering fault, and the reviewer's next move would be to reload.
  * @param {any[]} withdrawn
  * @param {boolean} [closed] the week's final deadline has passed
- * @param {{ initialDeadlineAt?: number, now?: number }} [win] milestones for the per-row rule
+ * @param {{ initialDeadlineAt?: number, finalDeadlineAt?: number, now?: number }} [win] milestones for the per-row rule
  */
 function withdrawnPanel(withdrawn, closed = false, win = {}) {
     if (!withdrawn.length) return '';
@@ -722,7 +722,8 @@ function withdrawnPanel(withdrawn, closed = false, win = {}) {
                 already said are kept.</div>
             ${withdrawn.map(p => {
                 const restorable = !closed
-                    && canRestoreNow(Number(win.initialDeadlineAt), p.withdrawnAt, Number(win.now));
+                    && canRestoreNow(Number(win.initialDeadlineAt), p.withdrawnAt, Number(win.now),
+                        Number(win.finalDeadlineAt));
                 return `
                 <div class="ot-person ot-person--withdrawn">
                     <span class="ot-person-name">${esc(p.memberName)}</span>

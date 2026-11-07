@@ -169,14 +169,20 @@ async function resolveAccess() {
     // resolve promptly and nothing waits at all.
     const started   = Date.now();
     const remaining = () => Math.max(0, ACCESS_DECISION_BUDGET_MS - (Date.now() - started));
+    /** @type {ReturnType<typeof setTimeout>|undefined} */ let reconcileBound;
     try {
         // The race leaves reconcile running in the background if it is merely slow: it is an
         // idempotent teardown, and the decision below reads ground truth either way.
         await Promise.race([
             reconcileExpiredIdentity({ preserveCalendarViewer: true }),
-            new Promise(resolve => setTimeout(resolve, remaining())),
+            new Promise(resolve => { reconcileBound = setTimeout(resolve, remaining()); }),
         ]);
     } catch { /* best effort — the decision below is made from ground truth either way */ }
+    finally {
+        // Settled: the losing bound has nothing left to decide (test audit, 7 Nov 2026 — it ran on
+        // for 6.5s after every prompt reconcile, holding this module's suite open).
+        clearTimeout(reconcileBound);
+    }
     // `auth.currentUser` alone MISSES a cold restore: persistence being configured does not mean the
     // persisted user has loaded, and the boot restore is what delivers it. Reading too early would
     // report `none` for a member who is signed in and put the PIN in front of them — the exact
@@ -461,14 +467,16 @@ const SILENT_BEFORE_CARD_MS = 4000;
  * @returns {Promise<boolean>}
  */
 async function trySilentReauth(name) {
+    /** @type {ReturnType<typeof setTimeout>|undefined} */ let bound;
     try {
         // Bounded, like every other wait on this path. Timing out does not cancel the sign-in — it
         // just stops the button pretending to work; a late success is picked up by the watcher.
         await Promise.race([
             ensureNamedSession(name),
-            new Promise(resolve => setTimeout(resolve, 8000)),
+            new Promise(resolve => { bound = setTimeout(resolve, 8000); }),
         ]);
     } catch { /* a failed re-auth is the expected outcome for a migrated member */ }
+    finally { clearTimeout(bound); }   // settled — the 8s bound must not outlive the answer (test audit, 7 Nov 2026)
     try {
         return decideAccess({ session: getSession(), firebaseUser: auth.currentUser }) === 'named';
     } catch { return false; }

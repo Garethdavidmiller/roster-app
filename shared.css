@@ -54,6 +54,10 @@
        navy is baked into the SVG's `stroke` where no token can reach it, so a third copy was the
        point at which one of them would eventually diverge. Sized by the consumer. */
     --caret-chevron: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    /* Its smaller twin, 12×7 and lighter-stroked: the arrow on the plain selects (Admin, Operations, the
+       sign-in card). Three copies were written out inline until the test audit (7 Nov 2026), alongside
+       five of the one above — the copying this token was made to end. */
+    --caret-chevron-small: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23001e3c' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     /* ── Typeface ────────────────────────────────────────────────
        Inter first (self-hosted @font-face above), then the original
        system-font stack as graceful fallback. Every page sets its
@@ -475,6 +479,13 @@
        would have made the same mistake. The drawer now aliases these rather than restating them. */
     --on-navy-muted:    rgba(255, 255, 255, 0.70);   /* secondary text */
     --on-navy-faint:    rgba(255, 255, 255, 0.55);   /* small headings — see the contrast note */
+    /* Section names in the drawer's App Notices archive, which sits on the navy: each page's colour
+       lifted to 72% lightness so it reads as TEXT there — the pills' own shades are fills under white
+       text, too dark for this. Literals in the rules themselves until the test audit (7 Nov 2026). */
+    --on-navy-pay:      oklch(72% 0.13 144.2deg);
+    --on-navy-links:    oklch(72% 0.14 313.0deg);
+    --on-navy-settings: oklch(72% 0.14 272.0deg);
+    --on-navy-trains:   oklch(72% 0.14 357.0deg);
 
     --focus-outline: 2px solid var(--primary-blue);
     --focus-outline-gold: 2px solid var(--accent-gold);
@@ -2926,14 +2937,14 @@ button.nav-panel-link--notices {
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.55);
 }
-.notices-item-section--pay      { color: oklch(72% 0.13 144.2deg); }
-.notices-item-section--links    { color: oklch(72% 0.14 313.0deg); }
-.notices-item-section--settings { color: oklch(72% 0.14 272.0deg); }
+.notices-item-section--pay      { color: var(--on-navy-pay); }
+.notices-item-section--links    { color: var(--on-navy-links); }
+.notices-item-section--settings { color: var(--on-navy-settings); }
 .notices-item-section--ops      { color: var(--orange); }
 .notices-item-section--calendar { color: var(--accent-gold); }
 /* The Trains pill's raspberry, lifted to the same 72% lightness as the three above so it reads on the
    navy archive panel — the pill's own L51% is a FILL under white text, too dark to be text here. */
-.notices-item-section--trains   { color: oklch(72% 0.14 357.0deg); }
+.notices-item-section--trains   { color: var(--on-navy-trains); }
 .notices-item-date {
     font-size: var(--type-badge);
     color: rgba(255, 255, 255, 0.65); /* raised from 0.35 (2.79:1) to clear WCAG AA */
@@ -3266,7 +3277,7 @@ button.nav-panel-link--notices {
 .login-field select,
 .login-field .fieldpick {
     /* Restore the dropdown arrow that appearance:none removes. */
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23001e3c' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: var(--caret-chevron-small);
     background-repeat: no-repeat;
     background-position: right 10px center;
     padding-right: 30px;

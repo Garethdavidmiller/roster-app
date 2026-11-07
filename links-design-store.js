@@ -258,9 +258,9 @@ export function createDesignStore(deps) {
                 try {
                     await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
                         // A retried transaction must not keep the losing attempt's verdict — the same
-                        // reset `rename` makes below, for the same reason. NOT covered by a test: the
-                        // suite's fake calls the callback exactly once, so it cannot express a retry.
-                        // Stated rather than left to look tested.
+                        // reset `rename` makes below, for the same reason. Pinned by "a RETRIED forced
+                        // save decides afresh" in links-design-store.test.mjs, whose fake runs this
+                        // body twice (test audit, 7 Nov 2026; until then nothing could see it).
                         deletedData = null; gone = false; movedOn = null;
                         const snap = await tx.get(ref);
                         if (!snap.exists()) { gone = true; return; }

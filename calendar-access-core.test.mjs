@@ -63,13 +63,15 @@ describe('decideAccess', () => {
         assert.equal(decideAccess({ session, firebaseUser: member }), 'named');
     });
 
-    test('NAMED BEATS VIEWER — a member holding a viewer session is still a member', () => {
-        // Order matters. Answering `viewer` would hand the app an identity with no `name` claim, so
-        // every owner-scoped read and on-behalf write would then be deciding against the wrong
-        // thing — while the member appears, to themselves, to be signed in.
-        assert.equal(decideAccess({ session, firebaseUser: viewer }), 'viewer');
-        // ...but only because the Firebase identity genuinely IS the viewer. With a member identity
-        // present, the session wins:
+    test('the IDENTITY decides, not the session — a member\'s session over the viewer\'s token is `viewer`', () => {
+        // Renamed at the test audit (7 Nov 2026): it was called "NAMED BEATS VIEWER" while asserting
+        // `viewer`. The session says who SHOULD be here; the token is who the reads actually run as
+        // (AUTH_AND_SESSIONS 17). Answering `named` over the viewer's token would label the page as
+        // that member while every read and on-behalf write went out under an identity with no `name`
+        // claim (invariant 7) — signed in to themselves, nobody to the rules.
+        assert.equal(decideAccess({ session, firebaseUser: viewer }), 'viewer',
+            'a stale member session over the shared viewer\'s token was treated as that member');
+        // ...and with the member's own identity restored, the same session is the member:
         assert.equal(decideAccess({ session, firebaseUser: member }), 'named');
     });
 

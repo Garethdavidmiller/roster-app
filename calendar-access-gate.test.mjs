@@ -24,6 +24,9 @@
  */
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
+
+const read = (/** @type {string} */ f) => readFileSync(new URL(`./${f}`, import.meta.url), 'utf8');
 
 /** @type {{ server: number, cache: number }} */
 const calls = { server: 0, cache: 0, serverError: null };
@@ -65,6 +68,8 @@ const {
 // the calendar reads back to decide what it may SHOW. A month the gate was supposed to skip
 // entirely, left recorded as `error`, is the difference between a cached grid and a failure panel.
 const { knowledgeOf, forget } = await import('./calendar-data-state.js');
+// Also not mocked: the classifier every caller of the authoritative read keys its recovery on.
+const { isAccessFailure } = await import('./claim-retry.js');
 
 const OVERRIDE = {
     date: '2026-08-12', memberName: 'G. Miller', type: 'annual_leave',
@@ -196,10 +201,85 @@ describe('month navigation and Team View obey the same gate', () => {
         // Structural, not behavioural: since v18.76 the Team Week View has no fetch of its own and
         // is handed `ensureOverridesCached`. Asserting that keeps the gate's coverage honest — a
         // second fetch path re-introduced there would be invisible to every test above.
-        const src = mod;
-        assert.equal(typeof src.ensureOverridesCached, 'function');
+        //
+        // Both halves are read from the SOURCE (test audit, 7 Nov 2026). This test used to assert
+        // only `typeof ensureOverridesCached === 'function'`, which cannot fail: handing Team View a
+        // wrapper that read `getDocsFromCache` itself left every suite green.
+        //
+        // 1. The coordinator hands Team View the very binding it imported from this module. A
+        //    wrapper in its place could read the cache before the gate is asked.
+        const app = read('calendar-app.js');
+        assert.match(app, /^import \{[^}]*\bensureOverridesCached\b[^}]*\} from '\.\/calendar-overrides\.js';$/m,
+            'calendar-app.js no longer imports ensureOverridesCached from calendar-overrides.js');
+        const entry = _callArgEntries(app, 'initTeamView(').find(p => /^ensureOverridesCached\b/.test(p));
+        assert.ok(entry, 'initTeamView is no longer handed ensureOverridesCached — where does Team View read overrides now?');
+        assert.match(entry, /^ensureOverridesCached(\s*:\s*ensureOverridesCached)?$/,
+            `Team View must be handed the imported ensureOverridesCached itself, not "${entry}" — `
+            + 'anything else can reach Firestore without passing through this gate');
+
+        // 2. Team View cannot reach Firestore on its own: nothing it imports, statically or lazily,
+        //    leads to the Firebase client or the SDK.
+        const { modules, external } = _importClosure('calendar-team-view.js');
+        assert.ok(modules.has('calendar-data-state.js'), 'guard: the walk must actually follow imports');
+        assert.ok(!modules.has('firebase-client.js'),
+            'calendar-team-view.js now reaches firebase-client.js — a second override read that this gate does not see');
+        assert.deepEqual(external, [],
+            'calendar-team-view.js now reaches a module outside the app (the Firebase SDK is one) — Team View must not read Firestore itself');
     });
 });
+
+/** Source with comments removed, so an import named in a JSDoc example is not counted. */
+function _stripComments(/** @type {string} */ src) {
+    return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+}
+
+/**
+ * The top-level entries of the object literal passed to the ONE call starting `anchor`, e.g.
+ * `initTeamView({ a, b: () => ({ c }) })` → `['a', 'b: () => ({ c })']`. Strings are skipped so a
+ * brace or comma inside one cannot move the split.
+ */
+function _callArgEntries(/** @type {string} */ src, /** @type {string} */ anchor) {
+    const code = _stripComments(src);
+    const at = code.indexOf(`${anchor}{`);
+    assert.ok(at !== -1 && code.indexOf(`${anchor}{`, at + 1) === -1, `expected exactly one ${anchor}{ … } call`);
+    const entries = [];
+    let depth = 0, start = at + anchor.length + 1;
+    for (let i = start; i < code.length; i++) {
+        const ch = code[i];
+        if (ch === "'" || ch === '"' || ch === '`') {
+            for (i++; i < code.length && code[i] !== ch; i++) if (code[i] === '\\') i++;
+        } else if ('({['.includes(ch)) depth++;
+        else if (')]'.includes(ch) || (ch === '}' && depth > 0)) depth--;
+        else if (ch === '}' || (ch === ',' && depth === 0)) {
+            entries.push(code.slice(start, i).trim());
+            if (ch === '}') return entries.filter(Boolean);
+            start = i + 1;
+        }
+    }
+    assert.fail(`${anchor}{ … } never closed`);
+}
+
+/** Every local module `entry` reaches through static, side-effect and dynamic imports, and every
+ *  non-local specifier met on the way (a CDN URL, a bare package). */
+function _importClosure(/** @type {string} */ entry) {
+    const modules = new Set(), external = [];
+    const queue = [entry];
+    while (queue.length) {
+        const f = /** @type {string} */ (queue.shift());
+        if (modules.has(f)) continue;
+        modules.add(f);
+        const code = _stripComments(read(f));
+        for (const re of [/from\s+['"]([^'"]+)['"]/g, /^\s*import\s+['"]([^'"]+)['"]/gm, /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g]) {
+            for (const [, spec] of code.matchAll(re)) {
+                if (!spec.startsWith('./')) { external.push(`${f} → ${spec}`); continue; }
+                const next = spec.slice(2);
+                assert.ok(existsSync(new URL(`./${next}`, import.meta.url)), `${f} imports ${spec}, which does not exist`);
+                queue.push(next);
+            }
+        }
+    }
+    return { modules, external };
+}
 
 describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not the initial fetch', () => {
     // Found by the v20.15 bug sweep. The initial fetch had an access-lost recovery from the start;
@@ -210,8 +290,14 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
     // It is not a theoretical trigger. Revoking the shared viewer's refresh tokens is a documented
     // step of rotating the staff PIN, and it lands exactly here on every viewer's next navigation.
 
-    test('a permission-denied month fetch SHUTS THE GATE and calls the handler', async () => {
+    test('a permission-denied month fetch SHUTS THE GATE, forgets what was known and calls the handler', async () => {
         setOverrideAccess(true);
+        // A month read while access held, so there is something to forget. Without it the forget
+        // below could be deleted with this test green, and was (test audit, 7 Nov 2026): a month
+        // still known `authoritative` after the session lost its right to read it would draw that
+        // roster again the moment anything re-rendered it.
+        await ensureOverridesCached(2026, 2, () => {});
+        assert.equal(knowledgeOf(monthKey(2026, 2)), 'authoritative', 'guard: the earlier month must be known first');
         let lost = 0;
         setOverrideAccessLostHandler(() => { lost++; });
         calls.serverError = Object.assign(new Error('denied'), { code: 'permission-denied' });
@@ -220,6 +306,8 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
         assert.equal(lost, 1, 'the access-lost handler was not called');
         assert.equal(hasOverrideAccess(), false,
             'the gate stayed OPEN — a later render could still paint from the local cache');
+        assert.equal(knowledgeOf(monthKey(2026, 2)), 'unknown',
+            'a month read under the lost access is still known — it would be drawn as current');
         setOverrideAccessLostHandler(null);
         calls.serverError = null;
     });
@@ -270,10 +358,17 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
         setOverrideAccessLostHandler(() => { lost++; });
         // The gate short-circuits ensureOverridesCached before the fetch, so drive the throw
         // directly through the authoritative read the way a stale caller would.
-        await assert.rejects(() => fetchOverridesForRange('2026-05-01', '2026-05-31'),
-            /calendar-access-required/);
+        const err = await fetchOverridesForRange('2026-05-01', '2026-05-31').then(() => null, (/** @type {any} */ e) => e);
+        assert.match(String(err?.message), /calendar-access-required/, 'the shut gate must refuse with its sentinel');
+        // What the name says, asserted (test audit, 7 Nov 2026). This used to check only that the
+        // handler was NOT called, which is true of every error this read throws. The callers'
+        // recovery is keyed on `isAccessFailure`, whose own tests hand it a built `{ code }` — and
+        // the error this read really throws carries the sentinel in its MESSAGE. So the real error
+        // goes through the real classifier here.
+        assert.equal(isAccessFailure(err), true,
+            'the shut gate\'s own error is not recognised as an access failure — its callers would offer a retry that cannot win');
         setOverrideAccessLostHandler(null);
-        assert.equal(lost, 0, 'the pre-gate short-circuit should not fire the handler');
+        assert.equal(lost, 0, 'the read itself fires no handler — its callers do, through isAccessFailure');
     });
 });
 

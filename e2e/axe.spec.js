@@ -243,25 +243,36 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // against the navy page header; the chip actually sits inside the white calendar card) —
     // the chip test below now guards both states against the real composited background.
 
-    test('calendar sync-chip states (forced)', async ({ page }) => {
-        await seedMember(page);
-        await page.goto('/');
-        await expect(page.locator('.calendar-day').first()).toBeVisible();
-        // Recreate both chips exactly as calendar-initial-fetch.js builds them, in their real
-        // parent (.calendar-header) so the composited navy background is authentic.
-        await page.evaluate(() => {
-            const header = document.querySelector('.calendar-header');
-            const loading = document.createElement('button');
-            loading.type = 'button'; loading.className = 'sync-chip'; loading.disabled = true;
-            loading.textContent = '↻ Updating your shifts…';
-            const error = document.createElement('button');
-            error.type = 'button'; error.className = 'sync-chip sync-chip-error';
-            error.textContent = '⚠ Couldn’t update — tap to retry';
-            header?.append(loading, error);
+    // THE REAL CHIPS, PUT THERE BY THE REAL SYNC (test audit, 7 Nov 2026 — UI-23). This scan used to
+    // build its own two buttons, copying the markup and the words of calendar-initial-fetch.js — so a
+    // change to the real chip (a class, a colour, the words, where it is attached) was invisible here:
+    // the scan kept passing on its copy. Each state is now reached the way a member reaches it, over a
+    // grid painted from the device's cache (the one place the chip is shown at all — index.css hides
+    // it while the grid's own panel speaks): a server read that has not answered yet puts up
+    // "Updating your shifts…" at 800ms, and one that fails puts up "Couldn't update — tap to retry".
+    // Know what each one measures: the "updating" chip is a DISABLED button, and WCAG exempts an
+    // inactive control, so axe skips its colours — that case scans the page around a live sync. The
+    // failure chip is the one whose own contrast is checked (mutation-checked: an unreadable chip
+    // written by the real code fails it; the old hand-built copy passed the same mutation).
+    for (const [name, server, chip] of /** @type {Array<[string, Record<string, any>, string]>} */ ([
+        ['updating', { docsDelayMs: 30_000 }, '.sync-chip:not(.sync-chip-error)'],
+        ['could not update', { failGetDocs: true }, '.sync-chip.sync-chip-error'],
+    ])) {
+        test(`calendar sync chip — the real "${name}" chip over a painted grid`, async ({ page }) => {
+            await seedMember(page);
+            await page.addInitScript((serverSeam) => {
+                const d = new Date();
+                const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-15`;
+                window.__E2E = Object.assign(window.__E2E || {}, serverSeam,
+                    { cacheDocs: [{ id: 'x', memberName: 'G. Miller', date: iso, type: 'rdw', value: '09:00-17:00' }] });
+            }, server);
+            await page.goto('/');
+            await expect(page.locator('.calendar-day').first()).toBeVisible();
+            await expect(page.locator(chip), 'the sync put its own chip on screen').toBeVisible();
+            const v = await scan(page, { exclude: ['.other-month'] });
+            expect(v.length, report(v)).toBe(0);
         });
-        const v = await scan(page, { exclude: ['.other-month'] });
-        expect(v.length, report(v)).toBe(0);
-    });
+    }
 
     test('admin type-pills in the ACTIVE state (forced)', async ({ page }) => {
         await seedSession(page);
@@ -332,7 +343,15 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         });
         await page.goto('/paycalc.html');
         await expect(page.locator('#settingsCard')).toBeVisible();
-        await page.waitForTimeout(500);
+        // SETTLED, not slept (test audit, 7 Nov 2026 — this was 500ms). The figure is on screen once
+        // the opening period has been calculated, and the roster-assist bar, gold fields and its
+        // badge are drawn when the background read of recorded changes answers — so the scan waits
+        // for that read to stop being 'checking' (the module the page itself imports, read from the
+        // page). Scanning before it would leave out the parts of the card that read draws.
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        await expect.poll(() => page.evaluate(async () =>
+            (await import('./paycalc-roster-suggestions.js')).getOverridesFetchState()),
+            { message: 'the recorded-changes read never answered' }).not.toBe('checking');
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
     });
@@ -705,15 +724,32 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // View — so the badge every other page shows in that panel had never been scanned, and two of
     // them were unreadable: brand gold on its own pale tint (Admin, 1.49:1) and bright orange on its
     // own (Operations, 1.93:1). Each is opened the way a member opens it, from the drawer's logo.
-    // Overtime is not here: it is paused (OVERTIME_ENABLED), so nobody can reach its panel.
+    // Overtime IS here, paused (test audit, 7 Nov 2026 — OT-12). This line said nobody could reach its
+    // panel while OVERTIME_ENABLED is off, which is not so: the paused page still wires the drawer and
+    // the About panel (overtime.spec.js opens it from the drawer's logo), and overtime.html carries the
+    // badge — so its contrast was never scanned. Its `ready` is the pause notice, which is all it shows.
+    //
+    // AND THE SCAN HAS TO BE ABLE TO SEE IT, which on that page it could not. axe treats text lying
+    // outside the box of an `overflow: hidden` ancestor as clipped, and skips it as INAPPLICABLE — no
+    // violation, no pass, nothing. The open panel's scroll lock puts `overflow: hidden` on `body`, and
+    // the paused page is so short that its body box ended at y=299 while the badge sat at y=416
+    // (measured), so the badge was skipped whatever its colours: a 1.1:1 badge passed. A body as tall
+    // as the viewport is what the reader is looking at, and it changes no colour, so this case gives
+    // it one; and every case now asks axe whether it ASSESSED the badge, so a page short enough to
+    // hide one again fails here rather than passing on nothing.
+    // Each `ready` must be on screen whatever the DATE: the Trains page's used to be its changes list,
+    // which the page stops opening on from 11 Jan 2027 (it opens on Stations, v24.96), so the scan
+    // timed out there. The totals render in every phase, after the drawer is wired.
     for (const [name, url, ready, init] of /** @type {Array<[string, string, string, (() => void)?]>} */ ([
         ['admin', '/admin.html', '.day-row'],
         ['operations', '/operations.html', '#huddleUploadCard'],
         ['paycalc', '/paycalc.html', '#settingsCard', () => localStorage.setItem('myb_pc_ns_migrated', '1')],
         ['settings', '/settings.html', '#contactToggleHeader'],
         ['links', '/links.html', '#generatorToggleHeader', () => localStorage.setItem('myb_links_welcome_seen', '1')],
-        ['trains', '/trains.html', '#trChanges'],
+        ['trains', '/trains.html', '#trTotals .tr-total'],
         ['newlink', '/newlink.html', '[data-persona="all"]'],
+        ['overtime, paused', '/overtime.html', '#otMineContent .ot-state',
+            () => document.addEventListener('DOMContentLoaded', () => { document.body.style.minHeight = '100vh'; })],
     ])) {
         test(`About lightbox open (${name}) — the page's badge is readable on the panel`, async ({ page }) => {
             await seedSession(page, 'G. Miller');
@@ -725,6 +761,9 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
             await expect(page.locator('#iconLightbox .lightbox-badge')).toBeVisible();
             const v = await scan(page);
             expect(v.length, report(v)).toBe(0);
+            const badge = await new AxeBuilder({ page }).include('#iconLightbox .lightbox-badge').withRules(['color-contrast']).analyze();
+            expect(badge.passes.length + badge.violations.length,
+                'axe never assessed the badge\'s contrast — it called it inapplicable, so the scan above said nothing about it').toBeGreaterThan(0);
         });
     }
 
@@ -792,7 +831,8 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
         await expect(page.locator('#installNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-        await page.waitForTimeout(600);      // let the fade finish — mid-transition is the bug
+        // The fade is waited out by scan() itself, which lets running CSS transitions finish before it
+        // measures — a 600ms sleep here stood in for that (test audit, 7 Nov 2026).
         const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);
     });
@@ -810,7 +850,8 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
         await expect(page.locator('#timetableNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-        await page.waitForTimeout(600);      // let the fade finish — mid-transition is the bug
+        // The fade is waited out by scan() itself, which lets running CSS transitions finish before it
+        // measures — a 600ms sleep here stood in for that (test audit, 7 Nov 2026).
         const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);
     });
@@ -828,7 +869,26 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
         await expect(page.locator('#ytdNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-        await page.waitForTimeout(600);      // let the fade finish — mid-transition is the bug
+        // The fade is waited out by scan() itself, which lets running CSS transitions finish before it
+        // measures — a 600ms sleep here stood in for that (test audit, 7 Nov 2026).
+        const v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    test('the timetable\'s final-week notice open (calendar) — live from 6 December (v24.96)', async ({ page }) => {
+        // NEVER SCANNED until the test audit (7 Nov 2026 — UI-23): `timetable-soon-2026` is the one
+        // live notice with a START date, so on the real clock it has not opened yet, and nothing here
+        // pinned a clock inside its life. Members only, 6–12 December; the clock is pinned to the
+        // Monday of that week. The seeders mark every notice done, so clearing this one's flag alone
+        // is the setup — the install notice, still live in December, stays answered and out of the way.
+        await page.clock.setFixedTime(new Date('2026-12-07T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await seedMemberSession(page, 'G. Miller');
+        await seedMember(page);
+        await clearNoticeFlags(page, ['myb_notice_timetable_soon_2026_done']);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await expect(page.locator('#timetableSoonNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
         const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);
     });

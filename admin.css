@@ -112,7 +112,7 @@
             -webkit-appearance: none;
             appearance: none;
             background-color: white;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-image: var(--caret-chevron);
             background-repeat: no-repeat;
             background-position: right 8px center;
             background-size: 1em;
@@ -373,7 +373,7 @@
 
         /* Restore dropdown arrow removed by appearance: none */
         select, .fieldpick {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23001e3c' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-image: var(--caret-chevron-small);
             background-repeat: no-repeat;
             background-position: right 10px center;
             padding-right: 30px;
@@ -2288,7 +2288,7 @@
                    the inherited chevron background-image. Dark chevron because this desktop
                    variant is a white field (the base white arrow would be invisible). */
                 background-color: white;
-                background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+                background-image: var(--caret-chevron);
                 border-color: var(--border-light);
                 color: var(--text-dark);
             }

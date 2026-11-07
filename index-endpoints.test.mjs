@@ -39,6 +39,9 @@
  * status line, and only the recording tells them apart.
  *
  * ORGANISED BY WHAT A WRONG ANSWER COSTS, not one block per function.
+ *
+ * The LAST block is wiring rather than a handler of this file's (test audit, 7 Nov 2026): the one
+ * line here that decides whether the Overtime retention purge deletes, run through the real export.
  */
 
 import { test, describe, before, after } from 'node:test';
@@ -1196,6 +1199,24 @@ describe('parseRosterPDF — the geometry path', () => {
         }
     });
 
+    // Test audit, 7 Nov 2026: the reverse of the case above, through the real handler, so the CALL
+    // is guarded as well as the rule. The reply reads Tuesday as a rest day; the grid shows Tuesday
+    // EMPTY. Monday to Saturday a blank is a question — the import must ask, not write the rest day.
+    test('a rest day read for an EMPTY weekday cell reaches the review as a question, not as a rest day', async () => {
+        GEO.row = { memberName: 'L. Springer', cells: ['', '05:30-11:30', '', 'RD', '05:30-11:30', 'RD', 'RD'] };
+        try {
+            const out = await onGeometryPath();
+            assert.equal(out.code, 200);
+            const s = out.body.parsed[0].shifts;
+            assert.match(String(s['2026-09-01']), /^UNKNOWN\|this Tuesday cell is empty on the PDF/,
+                `the empty Tuesday came back as ${s['2026-09-01']}`);
+            assert.equal(s['2026-09-02'], 'RD', 'Wednesday prints RD, and is a rest day');
+            assert.equal(s['2026-08-30'], 'RD', 'a blank Sunday is still a rest day');
+        } finally {
+            GEO.row = null;
+        }
+    });
+
     test('the LEGACY path still requires columnHeaders — the guard was narrowed, not removed', async () => {
         build({ aiReply: JSON.stringify({ parsed: [PARSED_ROW] }) });   // GEO.usable stays false
         const out = await call(index.parseRosterPDF, rosterRequest());
@@ -1317,5 +1338,170 @@ describe('parseRosterPDF: a left-shifted row is repaired or sent to review, neve
         assert.equal(out.code, 200);
         assert.match(out.body.parsed[0].shifts[SUN], /^UNKNOWN\|05:30-11:30 was read for Sunday/,
             'a disputed Sunday the witness did not check must reach the admin, not be written either way');
+    });
+});
+
+// ── EVERY ENDPOINT A BROWSER CALLS ANSWERS ONLY THE APP'S OWN ORIGINS (test audit, 7 Nov 2026) ─────
+//
+// `cors: ADMIN_FUNCTION_ORIGINS` is defence in depth — each endpoint's own token and claim checks
+// are the real control — but it is the line that stops another site's page reading these answers in
+// a signed-in member's browser, and nothing tested it: `cors: true` on the public reset request or on
+// the PIN exchange, or a foreign origin added to the allowlist, left all five Functions suites green.
+// These go through the REAL `onRequest` wrapper loaded above, whose CORS middleware runs before any
+// product code, so a preflight shows exactly what the deployed endpoint would grant.
+describe('CORS: only the app\'s own origins are granted', () => {
+    const BROWSER_CALLED = ['parseRosterPDF', 'unlockCalendarViewer', 'getDocumentUrl', 'setupRosterAuth',
+        'resetMemberPassword', 'requestPasswordReset', 'getSignInStats', 'getAccountSetupGaps'];
+    const APP_ORIGINS = ['https://garethdavidmiller.github.io', 'https://myb-roster.web.app', 'https://myb-roster.firebaseapp.com'];
+    const preflight = (origin) => withHelpers({
+        method: 'OPTIONS',
+        headers: { origin, 'access-control-request-method': 'POST', 'access-control-request-headers': 'authorization,content-type' },
+    });
+    const granted = (out) => {
+        const k = Object.keys(out.headers).find((h) => h.toLowerCase() === 'access-control-allow-origin');
+        return k ? out.headers[k] : undefined;
+    };
+
+    test('guard the guard — every endpoint named here is one index.js really exports', () => {
+        for (const name of BROWSER_CALLED) assert.equal(typeof index[name], 'function', `${name} is not exported`);
+    });
+
+    for (const name of BROWSER_CALLED) {
+        test(`${name}: a page on another site is granted nothing, and the app's own origin is`, async () => {
+            const foreign = await call(index[name], preflight('https://evil.example'));
+            const g = granted(foreign);
+            assert.ok(g !== 'https://evil.example' && g !== '*', `${name} granted a foreign origin: ${g}`);
+            // The positive control: without it a harness that dropped every header would pass the line above.
+            const own = await call(index[name], preflight('https://myb-roster.web.app'));
+            assert.equal(granted(own), 'https://myb-roster.web.app', `${name} refused the app's own origin`);
+        });
+    }
+
+    test('ingestHuddle is server-to-server (Power Automate) and grants no browser origin at all', async () => {
+        for (const origin of ['https://evil.example', ...APP_ORIGINS]) {
+            assert.equal(granted(await call(index.ingestHuddle, preflight(origin))), undefined, origin);
+        }
+    });
+
+    test('the allowlist is exactly the three places the app is served from', () => {
+        // Adding a hosting domain is a deliberate change: add it here, to ADMIN_FUNCTION_ORIGINS, and to
+        // the GCP API-key referrer allowlist in the same change (CLAUDE.md → the API key note).
+        const src = require('node:fs').readFileSync(require.resolve('./functions/index.js'), 'utf8');
+        const m = /const ADMIN_FUNCTION_ORIGINS = \[([^\]]*)\]/.exec(src);
+        assert.ok(m, 'ADMIN_FUNCTION_ORIGINS not found');
+        const listed = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]).sort();
+        assert.deepEqual(listed, [...APP_ORIGINS].sort());
+    });
+});
+
+// ── THE RETENTION PURGE, AS index.js WIRES IT (test audit, 7 Nov 2026) ─────────────────────────────
+//
+// While Overtime is paused the purge is the ONE Overtime function still deployed, and it is the only
+// irreversible thing the feature does. Whether a run DELETES is decided by a single line in the
+// composition root — `purgeArmed: purgeArmedAt` — and nothing ran that line: `true` (deleting from
+// the first expiry on 21 Nov, before a single dry run had named a real week), `false` (staff
+// availability kept past its 91-day retention for ever) and `purgeArmedAt()` (the date read ONCE, at
+// load, so a warm instance that booted before 1 Dec goes on dry-running after it) all left every
+// Functions suite green. overtime-endpoints.test.mjs drives the handler with a flag it picks itself
+// and overtime-core.test.mjs pins the date; this drives the flag production passes, through the
+// export Cloud Scheduler calls, from one instance that stays warm across the arming date.
+describe('the retention purge as index.js wires it: armed on 1 December, decided per run', () => {
+    const OT = require('./functions/overtime-core.js');
+    // The first week the scheduler made, ending Sat 22 Aug 2026: expired from 21 Nov, so the 30 Nov
+    // run has a real window to report and the 1 Dec run a real window to delete.
+    const WEEK = '2026-08-22';
+    const RETENTION = OT.deriveMilestones(WEEK).retentionUntil;
+    // The scheduled 04:00 London runs either side of the owner's date (GMT in winter, so 04:00 UTC).
+    const LAST_DRY_RUN = Date.UTC(2026, 10, 30, 4, 0);
+    const FIRST_ARMED  = Date.UTC(2026, 11, 1, 4, 0);
+
+    /** An expired window with a tree beneath it, as the purge walks it. */
+    const tree = () => ({
+        [`overtimeWindows/${WEEK}`]: { weekEnding: WEEK, retentionUntil: { toMillis: () => RETENTION } },
+        [`overtimeWindows/${WEEK}/participants/A. Member`]: { memberName: 'A. Member' },
+        [`overtimeWindows/${WEEK}/submissions/A. Member`]: { currentRevision: 1 },
+        [`overtimeWindows/${WEEK}/submissions/A. Member/revisions/0001`]: { revision: 1 },
+    });
+
+    /** Just enough Firestore for the purge: listings by path, `.select()`, and batched deletes. */
+    function makeWindowsDb(seed) {
+        const store = new Map(Object.entries(seed));
+        const kids = (path) => [...store.keys()]
+            .filter((k) => k.startsWith(`${path}/`) && !k.slice(path.length + 1).includes('/')).sort();
+        const docRef = (path) => ({ path, id: path.split('/').pop(), collection: (n) => collRef(`${path}/${n}`) });
+        const collRef = (path) => {
+            const get = async () => {
+                const docs = kids(path).map((k) => ({ id: k.split('/').pop(), ref: docRef(k), data: () => store.get(k) }));
+                return { docs, size: docs.length };
+            };
+            return { path, get, select: () => ({ get }) };
+        };
+        return {
+            store,
+            collection: (name) => {
+                assert.equal(name, 'overtimeWindows', 'the purge touches exactly one top-level collection');
+                return collRef(name);
+            },
+            batch: () => {
+                const doomed = [];
+                return {
+                    delete: (ref) => { doomed.push(ref.path); },
+                    commit: async () => { for (const p of doomed) store.delete(p); },
+                };
+            },
+        };
+    }
+
+    /**
+     * index.js required FRESH with the clock at `ms` — a Cloud Function instance that cold-started
+     * then. The cached copy the rest of this file uses is put back afterwards.
+     * @param {number} ms
+     */
+    function bootIndexAt(ms) {
+        const indexPath = require.resolve('./functions/index.js');
+        const held = require.cache[indexPath];
+        const realNow = Date.now;
+        Date.now = () => ms;
+        delete require.cache[indexPath];
+        try { return require(indexPath); }
+        finally { Date.now = realNow; require.cache[indexPath] = held; }
+    }
+
+    test('guard the guard — the instants below are the runs Cloud Scheduler really makes', () => {
+        const trigger = index.purgeExpiredOvertimeWindows.__endpoint.scheduleTrigger;
+        assert.deepEqual({ schedule: trigger.schedule, timeZone: trigger.timeZone },
+            { schedule: '0 4 * * *', timeZone: 'Europe/London' });
+        assert.ok(RETENTION < LAST_DRY_RUN, 'the fixture week must already be past its retention on 30 Nov');
+    });
+
+    test('one warm instance: the 30 Nov run only reports, the 1 Dec run deletes', async () => {
+        const db = makeWindowsDb(tree());
+        W = { auth: null, db };
+        // Booted the evening before the last dry run and never cold-started again — the instance a
+        // date read at load would leave disarmed on the 1st.
+        const warm = bootIndexAt(LAST_DRY_RUN - 8 * HOUR);
+        const realNow = Date.now;
+        const realLog = console.log;
+        const logs = [];
+        console.log = (...a) => { logs.push(a.join(' ')); };
+        try {
+            Date.now = () => LAST_DRY_RUN;
+            await warm.purgeExpiredOvertimeWindows.run({});
+            assert.equal(db.store.size, 4,
+                'the 30 Nov run deleted — the purge armed before the owner\'s 1 December');
+            assert.ok(logs.some((l) => l.includes(`${WEEK}:`) && l.includes('would delete (dry run)')),
+                `the dry run did not name the week it would remove: ${logs.join(' | ')}`);
+
+            Date.now = () => FIRST_ARMED;
+            await warm.purgeExpiredOvertimeWindows.run({});
+            assert.equal(db.store.size, 0,
+                'the 1 Dec run deleted nothing — the arming date is not 1 December, or it was read '
+                + 'once when the instance booted rather than on every run');
+            assert.ok(logs.some((l) => l.includes(`${WEEK}:`) && l.includes('DELETED')),
+                `the armed run did not report what it removed: ${logs.join(' | ')}`);
+        } finally {
+            Date.now = realNow;
+            console.log = realLog;
+        }
     });
 });

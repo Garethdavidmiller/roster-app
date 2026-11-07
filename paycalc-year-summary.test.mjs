@@ -212,6 +212,23 @@ describe('computeYearSoFar', () => {
         assert.equal(y.projectedNet, 0);
     });
 
+    test('a payslip whose saved pension is bigger than its pay adds £0 to the year, never a negative sum', () => {
+        // The floor under the taxable base, `Math.max(0, gross − pension)`, could be deleted with every
+        // lane green (test audit, 7 Nov 2026): the one test that named it computed the max itself. Below
+        // £0 every deduction is £0, so without the floor this card would add the negative base to the
+        // year and cancel out a real payslip's pay. The real case is a decimal point typed in the wrong
+        // place: £151.86 entered as 15186.
+        _ls.set('myb_pc_p60', JSON.stringify({ otH: 4, otM: 0 }));
+        _ls.set('myb_pc_p61', JSON.stringify({ otH: 4, otM: 0, pension: 15186 }));
+        const y = computeYearSoFar(TY, OPTS);
+        const m60 = mirror({ oHrs: 4 });
+        assert.equal(y.entered, 2, 'premise: both payslips count as entered');
+        assert.ok(Math.abs(y.taxable - m60.sacGross) < 0.01,
+            `taxable £${y.taxable.toFixed(2)}: the over-pensioned payslip must add £0, not subtract`);
+        assert.ok(Math.abs(y.net - m60.net) < 0.01,
+            `take-home £${y.net.toFixed(2)}: the over-pensioned payslip must add £0, not subtract`);
+    });
+
     test('Student Loan: deducted per payslip; the repaid cutover (item 9) zeroes from its payslip on', () => {
         _ls.set('myb_pc_p60', JSON.stringify({ otH: 4, otM: 0 }));
         _ls.set('myb_pc_p61', JSON.stringify({ otH: 4, otM: 0 }));
@@ -223,6 +240,25 @@ describe('computeYearSoFar', () => {
         const cutover = computeYearSoFar(TY, { ...OPTS, plan: 'plan1', slPaidOffFromP: 61 });
         assert.ok(Math.abs(cutover.sl - perSlip.sl) < 0.01, 'only the pre-cutover payslip deducts');
         assert.ok(Math.abs(cutover.net - withSl.net - perSlip.sl) < 0.01, 'the freed deduction lands in take-home');
+    });
+
+    test('the Postgraduate Loan is deducted ON TOP of the undergraduate plan — and stops with it', () => {
+        // Every case above runs with pgLoan: false, so the postgrad leg could be dropped from this
+        // card with the file green (test audit, 7 Nov 2026). HMRC deducts the two independently; a
+        // member with both would see a year summary about £90 a payslip too generous.
+        _ls.set('myb_pc_p60', JSON.stringify({ otH: 4, otM: 0 }));
+        _ls.set('myb_pc_p61', JSON.stringify({ otH: 4, otM: 0 }));
+        const both = computeYearSoFar(TY, { ...OPTS, plan: 'plan2', pgLoan: true });
+        const ug = mirror({ oHrs: 4, plan: 'plan2' });
+        const pg = mirror({ oHrs: 4, plan: 'postgrad' });
+        assert.ok(ug.sl > 0 && pg.sl > 0, 'fixture pay must clear both thresholds');
+        assert.ok(Math.abs(both.sl - (ug.sl + pg.sl) * 2) < 0.01,
+            `two payslips, both loans: got £${both.sl.toFixed(2)}, expected £${((ug.sl + pg.sl) * 2).toFixed(2)}`);
+        const ugOnly = computeYearSoFar(TY, { ...OPTS, plan: 'plan2' });
+        assert.ok(Math.abs(ugOnly.net - both.net - pg.sl * 2) < 0.01, 'the postgrad deduction comes out of take-home');
+        // The cutover covers both loans together (one control in Settings), and so does a skip.
+        const stopped = computeYearSoFar(TY, { ...OPTS, plan: 'plan2', pgLoan: true, slPaidOffFromP: 61 });
+        assert.ok(Math.abs(stopped.sl - (ug.sl + pg.sl)) < 0.01, 'from the cutover payslip, neither loan deducts');
     });
 
     test("a payslip's own saved slSkip is honoured", () => {

@@ -9,7 +9,7 @@
  * operations.spec.js, settings.spec.js and guides.spec.js, moved test for test and unchanged.
  */
 import { test, expect } from './fixtures.js';
-import { seedSession, seedMember, isTouchProject, scaleText, tooWide } from './helpers.js';
+import { seedSession, seedMember, isTouchProject, scaleText, tooWide, waitForPageSettled } from './helpers.js';
 import { teamMembers } from '../roster-data.js';
 import { APP_PAGES as APP_PAGES_LIST } from '../scripts/app-pages.mjs';
 
@@ -34,7 +34,9 @@ test('a card title\'s emoji sits inside its title, on its first line, and a wrap
     let measured = 0, wrapped = 0;
     for (const p of APP_PAGES_LIST.filter(x => x.cards)) {
         await page.goto(p.url);
-        await page.waitForTimeout(700);
+        // SETTLED, not slept (test audit, 7 Nov 2026): a 700ms sleep let a slow runner measure a
+        // page whose cards were not laid out yet, skip every title, and pass it. See the helper.
+        await waitForPageSettled(page);
         const found = await page.evaluate((sel) => [...document.querySelectorAll(sel)]
             .filter(e => e.getClientRects().length)          // rendered, not inside a hidden card
             .map(e => {
@@ -63,6 +65,9 @@ test('a card title\'s emoji sits inside its title, on its first line, and a wrap
                     onFirstLine: ls.length ? mid >= ls[0].top - 0.5 && mid <= ls[0].bottom + 0.5 : true,
                 };
             }), EMOJI);
+        // EACH page, not only the walk as a whole: every card page titles its cards, so a page
+        // that yields none was measured before it was laid out — or the selector stopped matching.
+        expect(found.length, `${p.url}: no card title was measured — this page proves nothing`).toBeGreaterThan(0);
         measured += found.length;
         const hanging = found.filter(f => f.hangs > 0.5);
         expect(hanging, `${p.url}: an emoji hangs outside its title by → ${hanging.map(b => `${b.title} (${b.hangs}px)`).join(' · ')}`).toEqual([]);
@@ -315,6 +320,43 @@ test('drawer: a NETWORK failure still blames the network', async ({ page }) => {
  */
 const APP_URLS = APP_PAGES_LIST.map(p => p.url);
 
+/**
+ * THE PER-PAGE FLOOR for the computed-style sweeps below (test audit, 7 Nov 2026).
+ *
+ * Each sweep skips an element with no box. That is right for a field inside a closed dialog and wrong
+ * for a page measured before it was laid out — and from inside the sweep the two look the same, so a
+ * page could pass having measured nothing. Each page therefore also counts the elements of the kind
+ * it HOLDS, and how many of them had a box: a page that holds some and measured none fails.
+ *
+ * The drawer and the header are left out of both counts because they are on every page — the
+ * drawer's guide-search box alone would otherwise meet the floor on a page that had drawn nothing of
+ * its own. So is anything the page hides ON PURPOSE, which has no box by design: a closed dialog's
+ * contents, a `[hidden]` block, and anything under a `display: none` of the page's own (the paused
+ * Overtime page hides its cards' header actions that way). The one `display: none` that is NOT on
+ * purpose is `.container`'s: Admin, Operations and Links hide the whole page under it until
+ * `body.auth-ready` (shared.css), and a page in that state is exactly the one that was not laid out.
+ * @param {import('@playwright/test').Page} page @param {string} selector
+ * @returns {Promise<{ held: number, withBox: number }>}
+ */
+const ownElements = (page, selector) => page.evaluate((sel) => {
+    /** @param {Element} el */
+    const hiddenOnPurpose = (el) => {
+        if (el.closest('#navPanel, .nav-panel, header, [hidden], .lb-overlay, .dialog-overlay, [role="dialog"]')) return true;
+        for (let p = /** @type {Element|null} */ (el); p && p !== document.body; p = p.parentElement) {
+            if (p.matches('.container')) continue;
+            if (getComputedStyle(p).display === 'none') return true;
+        }
+        return false;
+    };
+    const own = [...document.querySelectorAll(sel)].filter(el => !hiddenOnPurpose(el));
+    return {
+        held: own.length,
+        withBox: own.filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).length,
+    };
+}, selector);
+/** The text-entry fields the 16px sweep measures — everything but the kinds it skips by type. */
+const TEXT_FIELDS = 'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]), select, textarea';
+
 // ── Every page renders in the app's typeface (v20.63) ────────────────────────────────────────────
 //
 // `shared.css` declares the `@font-face` and the `--font-sans` token but applies neither: each
@@ -387,11 +429,16 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
 
     for (const url of APP_URLS) {
         await page.goto(url);
-        await page.waitForTimeout(700);
-        // Open every collapsible, or the fields inside a closed card are never measured.
+        // SETTLED, not slept (test audit, 7 Nov 2026) — see waitForPageSettled.
+        await waitForPageSettled(page);
+        // Open every collapsible, or the fields inside a closed card are never measured. No wait
+        // after it: `.open` is `display: block` (shared.css), so the fields have their boxes the
+        // moment the class is on — nothing animates, and nothing is drawn on open.
         await page.evaluate(() => document.querySelectorAll('.card-collapsible-body')
             .forEach(el => el.classList.add('open')));
-        await page.waitForTimeout(250);
+        const own = await ownElements(page, TEXT_FIELDS);
+        expect(own.held === 0 || own.withBox > 0,
+            `${url} holds ${own.held} fields of its own and none had a box — the page was not laid out, so this proves nothing`).toBe(true);
         const bad = await page.evaluate(async () => {
             // A member's name is DATA, not copy — see the header. Derived from the roster so it
             // follows a new starter instead of going stale.
@@ -521,10 +568,15 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
 
     for (const url of APP_URLS) {
         await page.goto(url);
-        await page.waitForTimeout(700);
+        // SETTLED, not slept (test audit, 7 Nov 2026) — and for Links that includes the seeded
+        // design having loaded, which is the state this walk exists to reach (see above).
+        await waitForPageSettled(page);
+        // No wait after opening: `.open` is `display: block`, nothing animates (the 16px sweep above).
         await page.evaluate(() => document.querySelectorAll('.card-collapsible-body')
             .forEach(el => el.classList.add('open')));
-        await page.waitForTimeout(250);
+        const own = await ownElements(page, 'button, select, [role=button], input[type=checkbox], input[type=radio]');
+        expect(own.held === 0 || own.withBox > 0,
+            `${url} holds ${own.held} controls of its own and none had a box — the page was not laid out, so this proves nothing`).toBe(true);
         const scan = () => page.evaluate(() => {
             const reach = (el, dx, dy) => {
                 const r = el.getBoundingClientRect();
@@ -738,16 +790,25 @@ test('no select option is cut off at 360px', async ({ page }) => {
         localStorage.setItem('myb_links_welcome_seen', '1');
     });
     const offenders = [];
+    let selectsMeasured = 0;
     for (const url of APP_URLS) {
         await page.goto(url);
-        await page.waitForTimeout(1100);
+        // SETTLED, not slept (test audit, 7 Nov 2026) — see waitForPageSettled.
+        await waitForPageSettled(page);
         await page.evaluate(() => {
             document.querySelectorAll('.card-collapsible-body').forEach(el => el.classList.add('open'));
             // Pick a loan plan — the real user action that reveals the cutover select.
             const sl = /** @type {HTMLSelectElement|null} */ (document.getElementById('studentLoan'));
             if (sl) { sl.value = 'plan2'; sl.dispatchEvent(new Event('change', { bubbles: true })); }
         });
-        await page.waitForTimeout(400);
+        // The reveal, ASSERTED rather than slept past (it was a 400ms wait): the change handler
+        // recalculates synchronously, and `calculate()` is what un-hides the cutover field.
+        if (url === '/paycalc.html') await expect(page.locator('#slPaidOffField')).not.toHaveClass(/\bhidden\b/);
+        // Only a NATIVE select can cut its own option text — an enhanced one is skipped below.
+        const own = await ownElements(page, 'select:not(.fieldpick-native)');
+        expect(own.held === 0 || own.withBox > 0,
+            `${url} holds ${own.held} native selects and none had a box — the page was not laid out, so this proves nothing`).toBe(true);
+        selectsMeasured += own.withBox;
         const bad = await page.evaluate(async () => {
             // A member's name is DATA, not copy — see the header. Derived from the roster so it
             // follows a new starter instead of going stale.
@@ -785,6 +846,9 @@ test('no select option is cut off at 360px', async ({ page }) => {
         });
         offenders.push(...bad.map(b => `${url} → ${b}`));
     }
+    // Most pages hold no native select at all since v23.33 (select-sheet.js), so the floor here is
+    // the walk's: something must have been measured somewhere, or the guard is watching nothing.
+    expect(selectsMeasured, 'no native select was measured on any page — this guard is watching nothing').toBeGreaterThan(0);
     expect(offenders, 'select options cut off at 360px — a native select cuts mid-word, silently').toEqual([]);
 });
 

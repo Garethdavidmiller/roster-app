@@ -42,7 +42,13 @@ const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.ur
  *  name; `MYB` before "Station", "staff", a route or nothing is the station code. `member` is here
  *  because "MYB member" means "a member of this app", which is the same mistake in a different
  *  grammar — and is the exact string the owner caught on the staff-PIN card. */
-const PRODUCT_WORDS = ['Roster', 'Calendar', 'Pay Calculator', 'Paycalc', 'App', 'app', 'member', 'Member'];
+const PRODUCT_WORDS = ['Roster', 'Calendar', 'Pay Calculator', 'pay calculator', 'Paycalc', 'paycalc',
+    'App', 'app', 'member', 'Member'];
+// Case is the point for two of these (test audit, 7 Nov 2026, which found lowercase "MYB roster"
+// passing). "Roster" and "Calendar" capitalised are this software's name; lowercase they are the
+// STATION's — overtime-form.js tells a member it "couldn't confirm your current MYB roster", meaning
+// their rota at Marylebone, which is the station sense and correct. So those two stay case-sensitive
+// and the case is pinned by the station-code test below. "pay calculator" names nothing but the tool.
 
 const RE = new RegExp(`\\bMYB\\s+(?:${PRODUCT_WORDS.map(w => w.replace(/ /g, '\\s+')).join('|')})\\b`, 'g');
 
@@ -61,11 +67,14 @@ function code(/** @type {string} */ src) {
               .replace(/<meta[^>]*apple-mobile-web-app-title[^>]*>/g, ' ');
 }
 
-/** Everything served to a browser. Test files are excluded — they must be able to name the strings
- *  they assert about, exactly as this one does. */
-const SERVED = readdirSync(new URL('.', import.meta.url))
-    .filter(f => /\.(html|js)$/.test(f))
-    .filter(f => !f.includes('.test.') && f !== 'purify.es.mjs');
+/** Everything served to a browser — and the Cloud Functions, which write the push notifications a
+ *  member reads on a lock screen (test audit, 7 Nov 2026: a `'MYB Roster Huddle'` headline in
+ *  functions/ passed, because only the root was read). Test files are excluded — they must be able
+ *  to name the strings they assert about, exactly as this one does. */
+const SERVED = [
+    ...readdirSync(new URL('.', import.meta.url)).filter(f => /\.(html|js)$/.test(f)),
+    ...readdirSync(new URL('./functions/', import.meta.url)).filter(f => f.endsWith('.js')).map(f => `functions/${f}`),
+].filter(f => !f.includes('.test.') && f !== 'purify.es.mjs');
 
 describe('"MYB" never names the app', () => {
     // THE MANIFEST IS SERVED TOO, and was outside this guard until v22.13 — it filters on
@@ -131,16 +140,21 @@ describe('"MYB" never names the app', () => {
         // them would leave this file passing for ever while guarding nothing.
         for (const shipped of ['MYB Pay Calculator · Printed 3 Jul 2026',
                                'MYB member? Sign in instead',
-                               'Welcome to the MYB Roster app']) {
+                               'Welcome to the MYB Roster app',
+                               'Open the MYB pay calculator']) {
             RE.lastIndex = 0;
             assert.ok(RE.test(shipped), `the pattern no longer catches: ${shipped}`);
         }
-        // ...and still lets the station code through.
+        // ...and still lets the station code through — including the station's own rota, lowercase.
         for (const fine of ['Chiltern Railways · MYB Station',
                             'Typical MYB — Network-area journeys',
-                            'trains from MYB to Banbury']) {
+                            'trains from MYB to Banbury',
+                            "Couldn't confirm your current MYB roster"]) {
             RE.lastIndex = 0;
             assert.equal(RE.test(fine), false, `the pattern wrongly flags the station code: ${fine}`);
         }
+        // The scan reaches the notification copy, which is where the next one is likeliest to land.
+        assert.ok(SERVED.includes('functions/roster-parse-helpers.js') && SERVED.includes('functions/index.js'),
+            'the Cloud Functions write push notifications and must be read');
     });
 });

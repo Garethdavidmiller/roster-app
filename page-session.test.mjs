@@ -187,14 +187,18 @@ describe('signing out', () => {
         assert.deepEqual(log, ['clearSession', 'reload'], 'no destination: this page shows its own sign-in');
     });
 
-    test('the browser\'s "Leave site?" stands down once a sign-out has been answered', () => {
-        // Runs after the two tests above, deliberately: signOutAndLeave has now marked the page as
-        // leaving, and module state is not reset between tests.
+    test('the browser\'s "Leave site?" stands down once a sign-out has been answered', async () => {
+        // A fresh copy of the module, signed out HERE. This test used to rely on running after the
+        // one above (signOutAndLeave marks the page as leaving in module state), and failed when run
+        // on its own (test audit, 7 Nov 2026). Asking first proves it is the sign-out that stands
+        // the warning down, not a warning that never asks.
+        const fresh = await import('./page-session.js?leave-answered');
         listeners = {};
-        ps.warnOnUnload(() => true);
-        const e = { prevented: false, returnValue: undefined, preventDefault() { this.prevented = true; } };
-        fire('beforeunload', e);
-        assert.equal(e.prevented, false, 'an answered sign-out must not be asked about a second time');
+        fresh.warnOnUnload(() => true);
+        const ask = () => { const e = { prevented: false, returnValue: undefined, preventDefault() { this.prevented = true; } }; fire('beforeunload', e); return e.prevented; };
+        assert.equal(ask(), true, 'unsaved work and no sign-out yet: the browser asks');
+        fresh.signOutAndLeave({ to: './' });
+        assert.equal(ask(), false, 'an answered sign-out must not be asked about a second time');
     });
 });
 
@@ -215,12 +219,15 @@ describe('back/forward cache', () => {
         assert.deepEqual(log, ['reload'], 'signed out since: the page must not come back with their data');
     });
 
-    test('another member signing in on ANOTHER TAB does not get this page back — the Pay Calculator case', () => {
-        // The page was built for A (the guard was installed above with A signed in, then A signed
-        // out and the restore reloaded). Re-arm the scenario: B signs in elsewhere while this page
-        // still shows A, the page is left, and B presses Back. Comparing only at pagehide would
-        // record B and let A's page through.
-        log = [];
+    test('another member signing in on ANOTHER TAB does not get this page back — the Pay Calculator case', async () => {
+        // The page was built for A. B signs in elsewhere while this page still shows A, the page is
+        // left, and B presses Back. Comparing only at pagehide would record B and let A's page
+        // through. A fresh copy of the module, built for A HERE: this test used to inherit the guard
+        // the test above installed, and failed when run on its own (test audit, 7 Nov 2026).
+        const fresh = await import('./page-session.js?other-tab');
+        listeners = {}; log = [];
+        session = { name: 'A. Member' };
+        fresh.reloadIfRestoredForSomeoneElse();
         session = { name: 'B. Member' };
         fire('pagehide');
         fire('pageshow', { persisted: true });
