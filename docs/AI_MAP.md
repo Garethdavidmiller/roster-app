@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: November 2026 — v25.40 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.50 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -212,7 +212,9 @@ day is. The reasoning sits beside each step, in `index.css` (layout) and in `ind
   (`al-entitlement.js`), adding the carry line (`leave-year.js`) and the Christmas line
   (`christmas-leave.js`). A last-known-good memo per member and year paints at once; a refresh that fails,
   or that the offline cache answered, keeps it. A `null` entitlement shows the em-dash state. The panel
-  has its own year (‹ ›), opening on the Calendar's.
+  has its own year (‹ ›), opening on the Calendar's, and names whose leave it is (`#alLbWho`, and the
+  dialog's own name) from the same member its figures are counted for — on every open, because the
+  member picker moves under a page that is never reloaded.
 - **Day panel.** Filled from the cell's `data-detail-*` attributes (`calendar-renderer.js` writes them):
   the date and roster week, the shift with its kind glyph, the change as two badges built from
   `shiftBadgeParts` with `textContent` (never markup from an attribute), who last saved it, "As rostered"
@@ -816,12 +818,14 @@ The shared per-card Tips panel (`#tipsLightbox`); each page keeps only its `CARD
 The one sign-in card for every protected page: every page signs in on the spot and none redirects
 elsewhere to authenticate. It injects its own markup. Per-page ACCESS (admin-only Operations,
 designer-only Links) stays with each coordinator, after sign-in.
-- `initLoginOverlay({ pageLabel, onSuccess, host?, alternative?, notice?, presetName? })` — call only when
+- `initLoginOverlay({ pageLabel, onSuccess, host?, alternative?, notice?, presetName?, about? })` — call only when
   signed out. By default a fixed modal (scroll lock, focus trap, Escape, "← Back to roster"); `host` mounts
   the SAME card inline with none of those (the Calendar's front door, `calendar-lock-cards.js`), and
   `alternative` replaces the back link. `notice` goes into the card's status line after the card is in
   the tree. `presetName` pre-selects grade and name through `getMembersForGrade`, dispatching `input`,
-  and focuses the password. The typed password goes straight to `ensureNamedSession`: the server is the
+  and focuses the password. `about` (`LoginAbout`: lines, a relative guide link, a footnote) puts the page's own
+  explanation under the subtitle and describes the dialog with it; its link is inert mid-sign-in, as Back is (the Pay
+  Calculator's, `paycalc-role-card.js`). The typed password goes straight to `ensureNamedSession`: the server is the
   arbiter, and only a `credential` failure counts towards the three-strike client lockout. On success it
   writes the one-shot set-password marker (`PW_FORCE_PENDING_PREFIX`) and calls `onSuccess(name)`.
 - `runNamedSignIn(deps)` — the DOM-free sign-in core (`login-overlay.test.mjs`). It time-boxes
@@ -831,6 +835,9 @@ designer-only Links) stays with each coordinator, after sign-in.
   LOGIN_INCIDENT.md.
 - `dismissLoginOverlay()` — removes the overlay and unlocks scroll; safe to call unconditionally on a
   coordinator's authorised path, which runs in place.
+- `isAboutLinkAllowed(href)` — PURE: whether an `about` link may go on the card — a same-origin relative
+  path (`./…`) only, never an absolute, protocol-relative or `javascript:` URL. `fillAbout` drops a refused
+  link silently, so the rule is unit-tested rather than read (`login-overlay.test.mjs`).
 - While a sign-in is in flight the back link is disabled and the status line escalates; `primeAuth()`
   warms Firebase Auth as the card mounts.
 - **The reset request:** "Can't get in? Ask the admin to reset your password" is always on the card; two
@@ -1476,7 +1483,7 @@ The Weekly Roster Upload coordinator on Operations: pick a file → `parseRoster
 
 ### `paycalc-app.js`
 The Pay Calculator coordinator for `paycalc.html`: no pay maths and no period arithmetic. `init()` is called by `paycalc-boot.js` (CSP blocks an inline call). The pay rules are `.claude/rules/paycalc.md`.
-- **The gates, in order.** A signed-out visitor gets the in-place sign-in — deliberately not `requirePage`, because the page needs a local member to namespace its storage; the Firebase-confirmation path (`_initErrorReporting`) does ask `requirePage(…, 'paycalc')`, which is `soft` and never blocks the calculator. A member whose role has no confirmed rates (`gradeForRole` is null), or whose session name is not on the roster, gets a card naming the gap instead of a calculator (`_showUnsupportedRole`), before anything can render a figure.
+- **The gates, in order.** A signed-out visitor gets the in-place sign-in, which says what the page is and that the staff PIN does not open it (`PAYCALC_SIGN_IN_ABOUT`) — deliberately not `requirePage`, because the page needs a local member to namespace its storage; the Firebase-confirmation path (`_initErrorReporting`) does ask `requirePage(…, 'paycalc')`, which is `soft` and never blocks the calculator. A member whose role has no confirmed rates (`gradeForRole` is null), or whose session name is not on the roster, gets a card naming the gap instead of a calculator (`_showUnsupportedRole`), before anything can render a figure; its words are written for its reader by `paycalc-role-card.js`.
 - Internal to `init()`: `calculate()` (the engine, over `paycalc-calc.js`), `onPeriodChange()`, `autosave()`, and the back-pay state `_bpAmount` / `_bpPNum` — the lump joins the take-home only when its tick is on and its paid-in payslip is the one viewed.
 - Delegates periods to `paycalc-periods.js`, settings to `paycalc-settings.js`, the hint bar to `paycalc-roster-hint.js`, HPP to `paycalc-hpp.js`, back pay to `paycalc-backpay.js`, the form round trip to `paycalc-form-data.js`, the headline and banners to `paycalc-result-headline.js` and `paycalc-money-banner.js`, the result markup to `paycalc-breakdown.js`, and the overlays to `paycalc-lightboxes.js`.
 
@@ -1883,6 +1890,13 @@ The bar that keeps the take-home figure on screen. `initPaycalcStickyTotal()` �
 - `stickyBarShows({ inLayoutView, keyboardUp, figure, visual })` — PURE, the whole show/hide decision: the observer's answer with the keyboard down; with it up, whether the £ overlaps the VISUAL viewport (the keys cover the layout viewport without shrinking it, so the observer called a £ behind them "in view").
 - `scrollToClearBar({ field, visual, barHeight })` — PURE: how far to scroll so the focused box sits above the bar pinned over the keys, never pushing its top out of view. Applied once per focus, so a member's own scroll is not fought.
 - Every guard fixes a reported iOS behaviour that headless tests cannot reproduce, which is why each carries its reasoning in the header: no `pagehide` disconnect, pinned above the keyboard rather than hidden behind it, the deferred `focusout` rebase, and a translate that composes with the desktop centring. The bar's tap goes through `wireIosTap`. Tested by `paycalc-sticky-total.test.mjs`, and on a page (with a stand-in visualViewport) by `e2e/paycalc.spec.js`.
+
+### `paycalc-role-card.js`
+What the Pay Calculator says to somebody it will not price, and on its sign-in card. **Words only** — the coordinator still decides who is refused (`gradeForRole`) and hides the calculator.
+- `unsupportedRoleCopy(role)` — PURE: `{ title, what, why }` for a Dispatcher (not covered YET; added once Dispatcher rates are confirmed — never a date), a manager (who it is for; nothing promised), any other role (the general refusal, ask the admin) and a name the roster no longer holds (`what: null`).
+- `paintRoleCard(member, doc?)` — writes those three slots of `#unsupportedGradeBanner`, and hides the whole "What it does" box (`#unsupportedGradeAbout` — heading, sentence and guide link) where there is no explanation. The card wears the sign-in card's panel (shared.css → `.pc-role-card` joins the do-this-first recipe) and its `.login-about` box, so the page's two refusals look like one door.
+- `PAYCALC_SIGN_IN_ABOUT` — the sign-in card's `about` (login-overlay.js): what it does, both grades in full, that the staff PIN does not open it (worded for everyone — this page signs the PIN out on arrival), the guide link and the shared-screen footnote. `PAYCALC_GUIDE_URL` — the guide, which needs no sign-in.
+- Tested by `paycalc-role-card.test.mjs` (the properties of each message) and `e2e/paycalc.spec.js` (each card on the page).
 
 ### `admin-week-swipe.js`
 The Admin week grid's swipe gesture and week arrows, which share one cooldown so a swipe and a press cannot both commit.

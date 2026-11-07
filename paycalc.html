@@ -83,6 +83,7 @@
   <link rel="modulepreload" href="./print-guard.js">
   <link rel="modulepreload" href="./paycalc-app.js">
   <link rel="modulepreload" href="./paycalc-sticky-total.js">
+  <link rel="modulepreload" href="./paycalc-role-card.js">
   <link rel="modulepreload" href="./paycalc-backpay.js">
     <link rel="modulepreload" href="./paycalc-backpay-state.js">
     <link rel="modulepreload" href="./paycalc-pension.js">
@@ -157,11 +158,25 @@
        take-home figure with nothing saying it did not apply to them. An explicit refusal is worth
        more than a confident answer: the numbers are not merely unverified for these roles, they
        are somebody else's. Shown INSTEAD of the calculator, not above it — a banner over a working
-       form is an invitation to use the form. -->
-  <div class="setup-banner hidden" id="unsupportedGradeBanner">
-    <h2 id="unsupportedGradeTitle">Pay Calculator isn't available for your role yet</h2>
-    <p>It only models <strong>CEA</strong> and <strong>CES</strong> pay. Other roles need confirmed rates and contract terms before they can be added, and guessing them would give you a figure that looks right and isn't. If you'd like yours added, ask the admin.</p>
-    <p>Everything else in the app works as normal — use the ☰ menu to go back to your roster.</p>
+       form is an invitation to use the form.
+       THE WORDS ARE WRITTEN BY paycalc-role-card.js (v25.50), because they differ by who is reading —
+       a Dispatcher, a manager, a name the roster no longer holds — so the three text slots are empty
+       here and filled in the same call that shows the card. The reason comes straight after the
+       title, because it answers the question the reader arrived with; then what the calculator DOES
+       and its guide, in the sign-in card's own "about" box, since the page's own guide link is hidden
+       on the refusal (paycalc.css). It wears the sign-in card's panel too (shared.css), so the two
+       ways this page turns somebody away look like one door — down to the same way out. -->
+  <div class="pc-role-card hidden" id="unsupportedGradeBanner">
+    <div class="pc-role-icon" aria-hidden="true">💷</div>
+    <h2 class="pc-role-title" id="unsupportedGradeTitle"></h2>
+    <p class="pc-role-why" id="unsupportedGradeWhy"></p>
+    <div class="login-about" id="unsupportedGradeAbout">
+      <p class="field-eyebrow">What it does</p>
+      <p class="login-about-line" id="unsupportedGradeWhat"></p>
+      <a class="login-about-link" href="./paycalc-guide.html">Read the Pay Calculator Guide →</a>
+    </div>
+    <p class="login-help">Everything else in the app works as normal.</p>
+    <a href="./" class="login-back pc-role-back">← Back to roster</a>
   </div>
 
   <!-- PRIVACY NOTE — FIRST VISIT ONLY (v24.32, owner). The same sentence is the first line of the

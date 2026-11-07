@@ -942,6 +942,9 @@ test('paycalc: an unidentifiable member cannot back up or restore', async ({ pag
     await page.goto('/paycalc.html#payTransferCard');
     await expect(page.locator('#unsupportedGradeBanner')).toBeVisible();
     await expect(page.locator('#unsupportedGradeBanner')).toContainText('current roster');
+    // Told what has happened, and not what a page it cannot use does: the "What it does" box goes
+    // whole — its heading and guide link with it (paycalc-role-card.js → paintRoleCard).
+    await expect(page.locator('#unsupportedGradeAbout')).toBeHidden();
     await expect(page.locator('.pc-side'), 'the backup card must not be reachable').toBeHidden();
     await expect(page.locator('.pc-work'), 'and no figure is shown').toBeHidden();
     expect(await page.evaluate(() => Object.keys(localStorage).filter(k => /^myb_pc_p\d+$/.test(k))),
@@ -1749,19 +1752,109 @@ test('paycalc: a Dispatcher is told the calculator does not cover their pay, and
     await seedSession(page, 'D. Minto');
     await page.goto('/paycalc.html');
 
-    await expect(page.locator('#unsupportedGradeBanner')).toBeVisible();
-    // It names the two roles it DOES model and why the others are missing — "we haven't got the
-    // rates" is the truth, and it tells a Dispatcher whether it is worth asking for. A bare "not
-    // supported" reads as a decision rather than a gap.
-    await expect(page.locator('#unsupportedGradeBanner')).toContainText('CEA');
-    await expect(page.locator('#unsupportedGradeBanner')).toContainText('confirmed rates');
+    const card = page.locator('#unsupportedGradeBanner');
+    await expect(card).toBeVisible();
+    // Written FOR a Dispatcher (v25.50, paycalc-role-card.js): their pay is not covered YET, and the
+    // condition for adding it is the rates — "we haven't got them" is the truth, and it tells a
+    // Dispatcher this is a gap rather than a decision. No date: the condition is information.
+    await expect(page.locator('#unsupportedGradeTitle')).toHaveText("The Pay Calculator doesn't cover Dispatcher pay yet");
+    await expect(card).toContainText('once Dispatcher rates are confirmed');
+    // ...it says what the calculator DOES, naming the grades it serves in full...
+    await expect(page.locator('#unsupportedGradeWhat')).toContainText("Customer Experience Ambassador's or Supervisor's (CEA or CES)");
+    // ...and links the guide, which is the only "what is this for" left on a refusal: the page's own
+    // guide link is hidden with the calculator.
+    await expect(card.locator('a[href="./paycalc-guide.html"]')).toBeVisible();
+    await expect(page.locator('main > .guide-footer-link')).toBeHidden();
+    // ONE DOOR: the refusal wears the sign-in card's panel, so on a wide screen it is centred over the
+    // page as that card is — not parked in the work columns the calculator would have used (v25.50).
+    const [cardBox, mainBox] = await Promise.all([card.boundingBox(), page.locator('main').boundingBox()]);
+    expect(cardBox && mainBox && Math.abs((cardBox.x + cardBox.width / 2) - (mainBox.x + mainBox.width / 2)),
+        'the refusal card is centred on the page').toBeLessThan(2);
+    // ...at the sign-in card's width (a box dropped from the shared panel recipe is full-width, and
+    // a full-width box is centred too — so the centre alone cannot tell the two apart).
+    const standard = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--modal-standard')));
+    expect(cardBox?.width, 'the refusal card is the sign-in card\'s width').toBeCloseTo(standard, 0);
     // WITHHELD, not captioned — the form's whole output is one confident £ figure, and a member
     // told "this may not apply" and then handed one will use it.
     await expect(page.locator('.pc-work')).toBeHidden();
     await expect(page.locator('.pc-side')).toBeHidden();
-    // ...and it is a refusal with a way out, not a dead end.
+    // ...and it is a refusal with a way out, not a dead end — the sign-in card's own.
     await expect(page.locator('#navMenuBtn')).toBeVisible();
+    await expect(card.locator('a.login-back')).toHaveAttribute('href', './');
     expect(errors, 'Uncaught JS exceptions on the unsupported-role gate').toHaveLength(0);
+});
+
+// A MANAGER is refused the same way and told something different (owner, 7 Nov 2026): who the
+// calculator is FOR, and why they might point their team at it. Not "yet", not "will be added" —
+// managers are not in line for it, so either would be untrue to this reader. D. Watts is a
+// Management row: hidden from every picker, but a manager signs in all the same.
+test('paycalc: a manager is told who the calculator is for — with nothing promised — and shown no figure', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page, 'D. Watts');
+    await page.goto('/paycalc.html');
+
+    const card = page.locator('#unsupportedGradeBanner');
+    await expect(card).toBeVisible();
+    await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
+    await expect(card).toContainText('someone in your team');
+    await expect(card).not.toContainText('will be added');
+    await expect(card).not.toContainText('Dispatcher');
+    await expect(card.locator('a[href="./paycalc-guide.html"]')).toBeVisible();
+    await expect(page.locator('.pc-work')).toBeHidden();
+    await expect(page.locator('.pc-side')).toBeHidden();
+    expect(errors, 'Uncaught JS exceptions on the manager card').toHaveLength(0);
+});
+
+// THE SIGN-IN CARD EXPLAINS THE PAGE (v25.50). A visitor with no named session — a member whose
+// session lapsed, or the shared staff PIN, which carries no name — met a bare "Pay Calculator · Sign
+// in" with nothing to say what it was or who it was for. The PIN line is worded for everybody rather
+// than shown on detection: this page signs the PIN out moments after it arrives, by design.
+test('paycalc: the sign-in card says what the calculator is, who it is for, and that the staff PIN does not open it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/paycalc.html');
+    const about = page.locator('#loginAbout');
+    await expect(about).toBeVisible();
+    await expect(about).toContainText('Customer Experience Ambassadors and Supervisors (CEA and CES)');
+    await expect(about).toContainText("the staff PIN doesn't open it");
+    await expect(about.locator('a.login-about-link')).toHaveAttribute('href', './paycalc-guide.html');
+    await expect(page.locator('#loginFootnote')).toContainText('shared screen');
+    // The words DESCRIBE the dialog, so a screen reader announces them with the card.
+    await expect(page.locator('#loginOverlay')).toHaveAttribute('aria-describedby', 'loginAbout');
+    // The explanation sits ABOVE the form, so it is read before the fields it explains.
+    const [aboutBox, fieldBox] = await Promise.all([about.boundingBox(), page.locator('#loginCard .login-field').first().boundingBox()]);
+    expect(aboutBox && fieldBox && aboutBox.y + aboutBox.height <= fieldBox.y, 'the explanation is above the first field').toBe(true);
+    expect(errors, 'Uncaught JS exceptions on the explained sign-in card').toHaveLength(0);
+});
+
+// ...and only on this page: every other page's sign-in card is exactly what it was.
+test('the sign-in explanation is the Pay Calculator\'s alone — another page\'s card is unchanged', async ({ page }) => {
+    await page.goto('/settings.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    await expect(page.locator('#loginAbout')).toHaveCount(0);
+    await expect(page.locator('#loginFootnote')).toHaveCount(0);
+    expect(await page.locator('#loginOverlay').getAttribute('aria-describedby')).toBeNull();
+});
+
+// The guide link is a second way OFF the sign-in card, so it keeps the Back link's rule: a sign-in in
+// flight cannot be abandoned through it (the half signed-in state, v14.75). Read as the click's own
+// answer, as the Back link's test does — `dispatchEvent` returns after every listener has run.
+test('paycalc: the sign-in card\'s guide link is inert while a sign-in is in flight', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { hangSignIn: true }; });
+    await page.goto('/paycalc.html');
+    const link = page.locator('#loginAbout a.login-about-link');
+    await expect(link).toBeVisible();
+    await expect(link).not.toHaveAttribute('aria-disabled', 'true');
+
+    const { pw } = await pickFirstMemberAndPassword(page);
+    await page.locator('#loginPassword').fill(pw);
+    await page.locator('#loginSubmit').click();
+    await expect(page.locator('#loginSubmit')).toHaveText('Signing in…');
+
+    await expect(link).toHaveAttribute('aria-disabled', 'true');
+    const cancelled = await link.evaluate(el =>
+        !el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })));
+    expect(cancelled, 'the guide link must cancel its own navigation during an in-flight sign-in').toBe(true);
+    await expect(page).toHaveURL(/paycalc\.html/);
 });
 
 // ...and at the RIGHT RATE. "a figure appeared" is not the assertion that matters here: the gate

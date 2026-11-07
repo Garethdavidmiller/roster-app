@@ -3144,6 +3144,50 @@ test('calendar: the leave panel steps to next year and links to that year\'s rec
     await expect(year).toHaveText('2026');
 });
 
+// ── WHOSE LEAVE IT IS (v25.50, owner, 7 Nov 2026) ──────────────────────────────────────────────
+// "When I choose a name in calendar I can see their individual AL amounts, which is fine. But the AL
+// calendar screen doesn't actually tell me whose AL I'm looking at." The panel now names the member on
+// every open, from the member its figures are counted for. The failures worth catching are naming
+// nobody, naming the SIGNED-IN member on a colleague's calendar, and naming whoever was chosen when the
+// page loaded after the picker has moved — a name read once at init, which no single open can see.
+test('calendar: the leave panel names whose leave it is, and follows the member picker', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        // A whole working week, so some of it costs leave whatever S. Silva's pattern makes of any
+        // single date (a rest day costs nothing, and the figure would read 0 for the wrong reason).
+        w.__E2E.docs = ['2026-03-02', '2026-03-03', '2026-03-04', '2026-03-05', '2026-03-06'].map((date, i) =>
+            ({ id: 's' + i, memberName: 'S. Silva', date, type: 'annual_leave', value: 'AL', note: '' }));
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const who = page.locator('#alLbWho');
+    const dialog = page.locator('#alLightbox');
+    await page.locator('#alBtn').click();
+    await expect(who).toHaveText('G. Miller');
+    // ...and the dialog's own name says it, so a screen reader hears whose balance it is on arrival.
+    await expect(dialog).toHaveAttribute('aria-label', 'Annual Leave balance, G. Miller');
+    await expect(page.locator('#alLbTaken'), 'G. Miller has no leave in this fixture').toHaveText('0');
+    await page.locator('#alLightboxClose').click();
+    await expect(dialog).not.toHaveClass(/open/);
+
+    // A colleague chosen in the picker, with no reload — the case the owner reported.
+    await page.evaluate(() => {
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('teamMemberSelect'));
+        const opt = [...sel.options].find(o => o.textContent?.trim() === 'S. Silva');
+        if (!opt) throw new Error('S. Silva is not in the member picker');
+        sel.value = opt.value;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.locator('#alBtn').click();
+    await expect(who).toHaveText('S. Silva');
+    await expect(dialog).toHaveAttribute('aria-label', 'Annual Leave balance, S. Silva');
+    // The name and the figures belong to the same person: S. Silva's March leave, not G. Miller's none.
+    await expect(page.locator('#alLbTaken')).not.toHaveText(/^(0|…|—)$/);
+});
+
 // ── A TALL PANEL ON A PHONE ON ITS SIDE (7 Nov 2026, iPhone audit) ──────────────────────────────
 //
 // The day panel and the leave panel had no height cap, and `.lb-content` scrolls only once

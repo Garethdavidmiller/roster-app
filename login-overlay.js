@@ -152,16 +152,20 @@ export function dismissLoginOverlay() {
 
 /** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in".
  *  `alternative` (host mode) replaces the back link with a button the caller wires; `notice` is one
- *  line under the subtitle saying WHY the card is up when that is not obvious ("access has expired").
+ *  line under the subtitle saying WHY the card is up when that is not obvious ("access has expired");
+ *  `about` reserves the page's own explanation under the subtitle and a footnote at the foot — both
+ *  filled with textContent by `fillAbout`, never interpolated.
  *  @param {string} pageLabel
  *  @param {{ label: string, hint?: string }|null} alternative
- *  @param {string} notice */
-function overlayHtml(pageLabel, alternative, notice) {
+ *  @param {string} notice
+ *  @param {LoginAbout|null} about */
+function overlayHtml(pageLabel, alternative, notice, about) {
     return `
     <div id="loginCard">
         <img src="icon-192.png" alt="Marylebone Roster">
         <div class="login-app-name">Marylebone Roster</div>
         <div class="login-subtitle" id="loginSubtitle">${pageLabel} · Sign in</div>
+        ${about ? '<div class="login-about" id="loginAbout"></div>' : ''}
         ${notice ? '<p class="login-hint login-notice" id="loginNotice" role="status"></p>' : ''}
         <!-- A REAL FORM, for the password manager (Oct 2026 review). With no <form> and no username
              field, Safari, Chrome and Android saved the password with no account attached — so it
@@ -207,7 +211,54 @@ function overlayHtml(pageLabel, alternative, notice) {
             ? `<button type="button" class="login-back" id="loginAlternative"></button>` +
               (alternative.hint ? `<p class="login-help" id="loginAlternativeHint"></p>` : '')
             : `<a href="./" class="login-back">← Back to roster</a>`}
+        ${about?.footnote ? '<p class="login-help login-footnote" id="loginFootnote"></p>' : ''}
     </div>`;
+}
+
+/**
+ * A page's own explanation on its sign-in card (v25.50 — the Pay Calculator's, paycalc-role-card.js):
+ * what the page is and who it is for, so a visitor it will not serve — the staff PIN, somebody on
+ * the wrong grade — learns that from the card rather than from a failed sign-in.
+ * @typedef {{ lines: readonly string[], link?: Readonly<{ href: string, label: string }>, footnote?: string }} LoginAbout
+ */
+
+/**
+ * Whether a link may go on the sign-in card's explanation: a same-origin RELATIVE path ("./…") and
+ * nothing else. This card is every page's way in, so it never carries a link elsewhere — not an
+ * absolute URL, not a protocol-relative "//host", not a `javascript:` one. Pure, so the rule is
+ * unit-tested (login-overlay.test.mjs) rather than read; `fillAbout` drops a refused link silently.
+ * @param {unknown} href
+ * @returns {boolean}
+ */
+export function isAboutLinkAllowed(href) {
+    return typeof href === 'string' && /^\.\/[\w.\-/#?=&]*$/.test(href);
+}
+
+/**
+ * Write the explanation into the card. Nodes and textContent only, as for the notice: the words are
+ * the app's own today, and the front door is not the place to rely on that. The link must pass
+ * `isAboutLinkAllowed`.
+ * @param {HTMLElement} overlay
+ * @param {LoginAbout} about
+ */
+function fillAbout(overlay, about) {
+    const box = overlay.querySelector('#loginAbout');
+    if (!box) return;
+    for (const line of about.lines) {
+        const p = document.createElement('p');
+        p.className = 'login-about-line';
+        p.textContent = line;
+        box.appendChild(p);
+    }
+    if (about.link && isAboutLinkAllowed(about.link.href)) {
+        const a = document.createElement('a');
+        a.className = 'login-about-link';
+        a.href = about.link.href;
+        a.textContent = about.link.label;
+        box.appendChild(a);
+    }
+    const foot = overlay.querySelector('#loginFootnote');
+    if (foot && about.footnote) foot.textContent = about.footnote;
 }
 
 /**
@@ -230,9 +281,12 @@ function overlayHtml(pageLabel, alternative, notice) {
  *   lands focus on the password field, so the only thing left to do is the one thing only they can
  *   do. A name no grade lists (a leaver, a typo) is ignored and the card behaves as if none was
  *   given: the preset is a convenience, never a gate. Empty does nothing.
+ * @param {LoginAbout|null} [opts.about]  What the page IS, under the subtitle, with an optional link
+ *   to its guide and a footnote at the foot (see `LoginAbout`). It also describes the dialog, so a
+ *   screen reader announces it with the card. Absent renders nothing: every other page is unchanged.
  * @returns {void}
  */
-export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternative = null, notice = '', presetName = '' }) {
+export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternative = null, notice = '', presetName = '', about = null }) {
     // Inject the overlay (idempotent — never double-mount).
     if (document.getElementById('loginOverlay')) return;
     const inline = !!host;
@@ -247,13 +301,18 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         overlay.setAttribute('aria-label', `Sign in to ${pageLabel}`);
         overlay.setAttribute('aria-modal', 'true');
     }
-    overlay.innerHTML = overlayHtml(pageLabel, alternative, notice);
+    overlay.innerHTML = overlayHtml(pageLabel, alternative, notice, about);
     // textContent for the three caller-supplied strings, never interpolation: the label and the
     // notice are the app's own words today, but a card built by string concatenation on the front
     // door is not the place to rely on where a value came from.
     if (alternative) {
         const a = overlay.querySelector('#loginAlternative'); if (a) a.textContent = alternative.label;
         const h = overlay.querySelector('#loginAlternativeHint'); if (h && alternative.hint) h.textContent = alternative.hint;
+    }
+    if (about) {
+        fillAbout(overlay, about);
+        // Static words, not a live region: describing the dialog is what gets them read with it.
+        if (!inline) overlay.setAttribute('aria-describedby', 'loginAbout');
     }
     (inline ? /** @type {HTMLElement} */ (host) : document.body).appendChild(overlay);
     // From here the page is waiting for a person, so its speed sample must stop (perf-reporter.js →
@@ -595,6 +654,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             _signingIn = true;
             backLink.classList.add('login-back--busy');
             backLink.setAttribute('aria-disabled', 'true');
+            overlay.querySelector('.login-about-link')?.setAttribute('aria-disabled', 'true');
             startStatusProgress();
             // Start the login-to-usable timer (perf telemetry) — the moment the user commits to signing
             // in. Read once on the destination page; cleared on failure below. (See perf-reporter.js.)
@@ -703,6 +763,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             _signingIn = false;
             backLink.classList.remove('login-back--busy');
             backLink.removeAttribute('aria-disabled');
+            overlay.querySelector('.login-about-link')?.removeAttribute('aria-disabled');
             clearStatusProgress();   // belt-and-braces: no progress timer outlives an attempt
         }
     }
@@ -716,6 +777,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         if (_signingIn) { e.preventDefault(); return; }
         if (alternative) alternative.onSelect();
     });
+    // The explanation's guide link is a second way OFF this card, so it takes the same guard: a guide
+    // opened mid-submit is the half signed-in escape the Back link was made inert to close.
+    overlay.querySelector('.login-about-link')?.addEventListener('click', e => { if (_signingIn) e.preventDefault(); });
 
     // One route in: the form's submit, which both the button and Enter in the password field raise.
     // Never let it navigate — `action="#"` exists for the password manager, not for the browser.

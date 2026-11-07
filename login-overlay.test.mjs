@@ -38,7 +38,7 @@ mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBo
 mock.module('./select-sheet.js', { namedExports: { enhanceSelect: () => () => {} } });
 mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {}, markAwaitingInput: () => {} } });
 
-const { runNamedSignIn } = await import('./login-overlay.js');
+const { runNamedSignIn, isAboutLinkAllowed } = await import('./login-overlay.js');
 
 /** Build a deps object with call-recording session helpers and sensible defaults. */
 function makeDeps(over = {}) {
@@ -160,5 +160,22 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         resolveAuth(true);
         assert.deepEqual(await p, { ok: true });
         assert.equal(calls.save, 1);
+    });
+});
+
+// A page's explanation on its sign-in card may carry ONE link (v25.50 — the Pay Calculator's guide).
+// The card is every page's way in, so the link may only lead somewhere else in the app.
+describe('isAboutLinkAllowed — the sign-in card links only within the app', () => {
+    test('a relative path to a page of the app is allowed, with a hash or a query', () => {
+        for (const href of ['./paycalc-guide.html', './fip-guide.html#coupons', './index.html?m=2026-11']) {
+            assert.equal(isAboutLinkAllowed(href), true, href);
+        }
+    });
+
+    test('anything that could leave the app, or run code, is refused', () => {
+        for (const href of ['https://example.com/', '//example.com/x', 'javascript:alert(1)', 'data:text/html,x',
+            '/paycalc-guide.html', 'paycalc-guide.html', './x.html"onmouseover="y', ' ./x.html', '', null, undefined, 42]) {
+            assert.equal(isAboutLinkAllowed(href), false, String(href));
+        }
     });
 });

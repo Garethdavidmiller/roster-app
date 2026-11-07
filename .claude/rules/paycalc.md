@@ -160,6 +160,16 @@ the rates and contractual terms are not on record. **A session name the roster d
 the same way**: a leaver or a renamed member keeps a valid local session, and pricing them would fall
 back to CEA rates in the bare shared `myb_pc_` namespace.
 
+**The card's words are written for its reader** (`paycalc-role-card.js`, owner, 7 Nov 2026): a
+Dispatcher is told their pay is not covered *yet* and will be added once Dispatcher rates are
+confirmed — never a date; a manager is told who it is for, with nothing promised; each says what the
+calculator does and links its guide, because the page's own guide link goes with the calculator. The
+page's **sign-in card** carries the same explanation (login-overlay.js → `about`), including that the
+staff PIN does not open it — worded for everyone, because this page signs the PIN out moments after it
+arrives. **The two are one door**: the refusal wears the sign-in card's panel (`.pc-role-card` joins the
+shared do-this-first recipe), its "What it does" box and its "← Back to roster", centred over the page on
+desktop rather than parked in the work columns — `e2e/paycalc.spec.js` pins the width and the centring.
+
 `saveSettings` guards the pension default on joining periods — it writes `getPensionDefault(curP)`
 (full rate), not the field value (pro-rated). Without this guard, saving Settings on the joining
 period corrupts the default for later periods.
