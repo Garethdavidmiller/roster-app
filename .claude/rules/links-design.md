@@ -726,7 +726,7 @@ rotation can still be refused.
 
 ### The default table and the roster seed
 
-Two buttons, for two questions: *↺ Use the recommended Dec 2026 staffing* and *↺ Copy staffing from
+Two buttons, for two questions: *↺ Use the Dec 2026 staffing* and *↺ Copy staffing from
 today's roster*. A proposal wants both — design tomorrow, measure today. **Neither label may say
 "reset" without saying to WHAT**: with two of them, that word alone is the one thing a designer cannot
 act on.
@@ -946,8 +946,8 @@ you HOPE to fill, which is why the table labels it `RDW`; and "weekends off" cou
 going to work, which is why `links-adjacency.js` splits days off from contracted days given.
 
 - **A cover week IS Mon–Sat SPARE; its Sunday is not asked about** (`isCoverWeek` in `links-design.js`,
-  read by the hours, the per-line totals, the contracted-days ceiling and the spare spread). A cover week
-  written with its Sunday as a rest day is still a cover week.
+  read by the hours, the per-line totals, the contracted-days ceiling, the spare spread and the roster
+  seed). A cover week written with its Sunday as a rest day is still a cover week.
 - **A spare week's four days come from Monday to Saturday.** Its Sunday stays RDW if the roster clerk
   gives it, on top of the four (`spareDrawsOnFour`; the owner's words are under Fatigue factors). All
   seven days are still marked SPARE, which is what "available for cover" means.

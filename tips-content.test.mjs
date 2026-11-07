@@ -116,6 +116,21 @@ describe('paycalc-help.js — HELP_CONTENT', () => {
         assert.deepEqual(orphans, [],
             `paycalc-help.js: entries no button opens: ${orphans.join(', ')}`);
     });
+
+    test('the contracted-hours tip reads the grade table, so it follows a change of hours', async () => {
+        // It said "140 hours" by hand. Change the table, load a fresh copy of the help, and the tip
+        // must say the new figure — per grade when the two grades differ.
+        const { GRADES } = await import('./paycalc-calc.js');
+        const tipOf = (/** @type {any} */ mod) => mod.HELP_CONTENT.hours.tips.find((/** @type {string} */ t) => t.startsWith('Your contract includes'));
+        assert.match(tipOf({ HELP_CONTENT }), new RegExp(`${GRADES.cea.contr} hours per period`));
+        const saved = [GRADES.cea.contr, GRADES.ces.contr];
+        try {
+            GRADES.cea.contr = 150; GRADES.ces.contr = 150;
+            assert.match(tipOf(await import('./paycalc-help.js?same')), /150 hours per period.*both 150 hours/);
+            GRADES.ces.contr = 147;
+            assert.match(tipOf(await import('./paycalc-help.js?differ')), /CEA 150, CES 147/);
+        } finally { [GRADES.cea.contr, GRADES.ces.contr] = saved; }
+    });
 });
 
 for (const { js, html, scope } of PAGES) {

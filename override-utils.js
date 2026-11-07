@@ -898,3 +898,31 @@ export function manualCellValue(type, from = '', to = '') {
 export function sundaySafeValue(value) {
     return value === 'AL' || value === 'SICK' ? 'RD' : isOtherValue(value) ? (parseOtherValue(value)?.time || 'RD') : value;
 }
+
+/**
+ * Split an ordered list of override writes into batches Firestore will accept — its hard cap is 500
+ * writes a batch. Counted in WRITES, not items, because one item can be a set plus several deletes
+ * (each older manual duplicate adds one), and closed at `max` (450: the import's headroom). An item
+ * `keepWithPrevious` names never STARTS a batch while the hard cap still holds: a Sunday correction
+ * must share the server stamp of the leave beside it, which is how deleting the period later knows
+ * the edge Sunday was the booking's (`computePeriodDeleteIds`). Order kept, every item once. Pure.
+ * @template T
+ * @param {T[]} items
+ * @param {(item: T) => number} writesFor
+ * @param {{ max?: number, keepWithPrevious?: (item: T) => boolean }} [opts]
+ * @returns {T[][]}
+ */
+export function chunkByWrites(items, writesFor, { max = 450, keepWithPrevious = () => false } = {}) {
+    const HARD_CAP = 500;
+    /** @type {T[][]} */ const chunks = [];
+    /** @type {T[]} */ let cur = [];
+    let writes = 0;
+    for (const item of items) {
+        const n = writesFor(item);
+        const full = writes + n > max && !(keepWithPrevious(item) && writes + n <= HARD_CAP);
+        if (cur.length && full) { chunks.push(cur); cur = []; writes = 0; }
+        cur.push(item); writes += n;
+    }
+    if (cur.length) chunks.push(cur);
+    return chunks;
+}
