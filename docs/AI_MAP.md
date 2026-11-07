@@ -740,8 +740,9 @@ reassurance and false alarm); the wiring by `e2e/settings.spec.js`.
 - `CARD_ORDER` — password, work email, install, notifications: declared, so the to-do list does not
   reshuffle between loads. Pay data is deliberately absent; it has no wrong state.
 - `shouldOpen(state)` — `action`, `blocked` and `error` open their card; `ok`, `unknown` and `n/a` do not.
-- `summarise(states)` → `{ tone, headline, items }`. **Silence is not success:** a card that has not
+- `summarise(states)` → `{ tone, headline, items, ids, cards }`. **Silence is not success:** a card that has not
   reported is `unknown`, which outranks every answer, and a failed read is `error` — never "all set".
+  `ids`/`cards` say which card each to-do is about, and its element id: the strip's items link there.
 
 ### `settings-app.js`
 Coordinator for `settings.html`, for every signed-in member. `init()` is invoked by `settings-boot.js`.
@@ -1534,7 +1535,8 @@ Grade, contracted hours, the pension controls and Settings persistence for `payc
 - `gradeForRole(role)` — re-exported from `roster-data.js`, whose JSDoc carries the reasoning: the grade this app has confirmed rates for, or **null**, on which `paycalc-app.js` refuses rather than pricing somebody at another grade's rate.
 - **The pension.** `getPensionDefault(pObj)` — the period-aware default, and the ONE place the out-of-scheme answer is applied (0 only from the payslip the member named), so the field, `calculate()`, the HPP estimate and the year summary agree. `isPensionOptedOut(pObj)` — out of the scheme ON THIS PAYSLIP; with no period in hand it answers contributing. `getPensionTimeline()` / `savePensionTimeline(timeline)` — `SK.pensionTimeline`, read fresh each time. `periodDefaultPension(p)` — the £ a payslip's pension field shows with nothing typed (the default × the joiner pro-rate, to 2dp), the one source for those comparisons. `buildPensionFromSelect(timeline)` — the "not in the scheme from which payslip?" control, set to the payslip ON RECORD, not today's. `applyPensionOptOutUI(pObj)` — disables `#pensionAmt` at £0.00 for a payslip outside the scheme (disabled, never hidden). `wirePensionControls({ autosave })` — the tick and the select; the order inside the handler matters twice (its JSDoc).
 - **The rate.** `getStoredRateForYear(ty)` — fixed by grade from `AWARD_RATES`, never stored. `updateRateForPeriod(ty, p)` — loads the period-aware rate (a pre-award period gets the old one) into the read-only field. `updateYtdForTaxYear(ty)` — the Year to Date figures.
-- `settingsKey(ty)` (the per-year confirmed flag) · `saveSettings()` (records the pension change BEFORE the amount, and on a joining period stores the full default rather than the pro-rated figure) · `confirmSettings(calculate)` · `setSettingsCardOpen(open)` · `loadSettings()`.
+- `settingsKey(ty)` (the per-year confirmed flag) · `saveSettings()` (records the pension change BEFORE the amount, and on a joining period stores the full default rather than the pro-rated figure) · `confirmSettings(calculate)` · `setSettingsCardOpen(open)` (a close hands focus inside the card to its arrow) · `loadSettings()`.
+- `wireSettingsCard({ openCardNamedByHash })` — from 1024px moves the card after Hours IN THE DOM, so Tab follows the decided desktop order (CSS `order` moves paint, not focus); and opens the card from the setup banner's `#settingsCard` link (and that fragment), focus on the grade. The helper is injected: overlay.js cannot load in Node.
 
 ### `paycalc-roster-hint.js`
 The roster-assist hint bar on `paycalc.html`: render, fill, and the snapshot of what was suggested. The suggestion engine is `paycalc-roster-suggestions.js`; viewing a period never persists a suggestion, and the engine never infers an ambiguous category (`.claude/rules/paycalc.md` invariant 11). It takes `autosave` as a parameter rather than importing the coordinator.

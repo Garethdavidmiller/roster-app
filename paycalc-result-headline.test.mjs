@@ -205,8 +205,10 @@ describe('the take-home bar is named by what it shows', () => {
             const shown = `${els.stickyLabel.innerHTML.replace(/<[^>]+>/g, ' ')} ${els.stickyAmount.textContent}`;
             const name = els.stickyTotal.getAttribute('aria-label');
             assert.ok(inOrder(name, shown), `the strip shows "${shown.replace(/\s+/g, ' ').trim()}" but is named "${name}"`);
-            // Pressing it scrolls to the result and opens nothing — it promised the breakdown.
-            assert.match(name, /tap to go to the result$/, 'and the name still says what pressing it does');
+            // Pressing it scrolls to the result and opens nothing — it promised the breakdown. Said
+            // without "tap" (desktop audit, 7 Nov 2026): a keyboard reaches the bar as well as a thumb.
+            assert.match(name, / — go to the result$/, 'and the name still says what pressing it does');
+            assert.doesNotMatch(name, /\btap\b/i, 'in words a keyboard user can follow too');
         });
     }
 });

@@ -121,7 +121,8 @@ Use these tokens, not inline `cubic-bezier(...)` or a bare `ease`.
 
 **Two overlay corner families, both named:** compact white DIALOGS (month-jump, team info, login,
 Tips, confirm/prompt) use `--radius-xl` (20px); full navy GLASS SHEETS (About, notices, day detail, AL)
-use `--radius-panel` (24px).
+use `--radius-panel` (24px). The Pay Calculator's `?` help sheet is a see-through glass sheet at the
+Tips' `--modal-standard` width — one width at every size (desktop audit, 7 Nov 2026; it was 620px).
 
 **Within the glass family, four are SOLID:** the one-time notices, the About panel and the drawer's
 App Notices and Coming Soon panels share one opaque navy sheet (`.notice-lb-content,

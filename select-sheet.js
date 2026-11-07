@@ -163,7 +163,7 @@ function optionRow(/** @type {SheetOption} */ o, /** @type {boolean} */ current)
     return b;
 }
 
-/** @typedef {{ overlay: HTMLElement, lb: { open: () => void, close: () => (Promise<void>|void) }, title: HTMLElement, sub: HTMLElement, list: HTMLElement, search: HTMLElement, input: HTMLInputElement }} Sheet */
+/** @typedef {{ overlay: HTMLElement, lb: { open: () => void, close: () => (Promise<void>|void) }, title: HTMLElement, sub: HTMLElement, list: HTMLElement, search: HTMLElement, input: HTMLInputElement, panel: HTMLElement }} Sheet */
 /** The one sheet every enhanced select on a page shares. Built on first use.
  *  @type {Sheet|null} */
 let _sheet = null;
@@ -304,7 +304,7 @@ function ensureSheet() {
     overlay.appendChild(content);
     document.body.appendChild(overlay);
     const lb = _createLightbox({ overlay, content, closeBtn: close });
-    _sheet = { overlay, lb, title, sub, list, search, input };
+    _sheet = { overlay, lb, title, sub, list, search, input, panel: content };
     return _sheet;
 }
 
@@ -503,6 +503,8 @@ export function openOptionSheet(opts) {
     const count = groups.reduce((n, g) => n + g.options.length, 0);
     const searchable = shouldOfferSearch(count);
 
+    /** The current row as last painted — what the sheet opens on. @type {any} */
+    let currentRow = null;
     /** Paint the list for the current query. Runs on open and on every keystroke. */
     const paint = (/** @type {string} */ query) => {
         const shown = filterGroups(groups, query);
@@ -511,6 +513,7 @@ export function openOptionSheet(opts) {
             ? `${showing} of ${count}`
             : (opts.subtitle || (count === 1 ? '1 option' : `${count} options`));
         sheet.list.textContent = '';
+        currentRow = null;
         for (const g of shown) {
             const wrap = document.createElement('div');
             wrap.className = 'picker-group';
@@ -523,7 +526,10 @@ export function openOptionSheet(opts) {
                 h.textContent = g.label;
                 wrap.appendChild(h);
             }
-            for (const o of g.options) wrap.appendChild(optionRow(o, o.value === opts.current));
+            for (const o of g.options) {
+                const row = wrap.appendChild(optionRow(o, o.value === opts.current));
+                if (o.value === opts.current) currentRow = row;
+            }
             sheet.list.appendChild(wrap);
         }
         if (!showing) {
@@ -573,6 +579,30 @@ export function openOptionSheet(opts) {
         landed.then(() => opts.onPick(value));
     };
     sheet.lb.open();
+    centreRow(sheet.panel, currentRow);
+}
+
+/**
+ * THE CHOSEN ROW IS IN VIEW WHEN THE SHEET OPENS (desktop audit, 7 Nov 2026) — as a native `<select>`
+ * opens on its selected option. The pay-period sheet opened at April 2025 with the payslip on screen
+ * ~17 rows down and out of sight, so the one row the member had come to move from was the one they
+ * could not see. It is centred in the panel; a short list, or a current row near the top, stays put
+ * (the browser clamps the scroll), and a sheet with nothing chosen opens at the top — the sheet is
+ * SHARED, and must not open where the last list was left.
+ *
+ * Offsets, not `scrollIntoView`: only the panel should move, never the page behind it, and offsets
+ * are layout values, so the open's scale-in transform cannot skew them. Called after `open()`,
+ * which is what gives the panel a box to measure.
+ * @param {any} panel the sheet's scrolling panel  @param {any} row the current row, or null
+ */
+function centreRow(panel, row) {
+    if (!panel) return;
+    panel.scrollTop = 0;
+    if (!row || typeof row.offsetTop !== 'number') return;
+    // Summed up to the panel, which `.lb-content`'s `position: relative` makes the rows' offsetParent.
+    let y = 0, el = row;
+    while (el && el !== panel) { y += el.offsetTop; el = el.offsetParent; }
+    if (el === panel) panel.scrollTop = y + row.offsetHeight / 2 - panel.clientHeight / 2;
 }
 
 /**

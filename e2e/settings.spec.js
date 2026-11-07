@@ -711,3 +711,59 @@ test('settings (signed in): the Pay Calculator Data pointer card renders and lin
     await page.locator('#payDataChevron').click();
     await expect(card.locator('a[href*="paycalc.html#payTransferCard"]')).toBeVisible();
 });
+
+// ── THE DESKTOP AUDIT (7 Nov 2026) ──────────────────────────────────────────────────────────────
+
+// SET3 — the to-do strip ran the page's width with three short lines stacked at its left, and the
+// items named a thing to finish without leading to it. On a desktop they run along the strip now, and
+// each is a link to the card that fixes it, opening that card on the way even after it was shut.
+test('settings: on a desktop the to-dos run along the strip, and each one opens its card', async ({ page }) => {
+    await openSettings(page, { configured: false, noPush: true });   // two to-dos: password, work email
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const items = page.locator('#settingsSummaryItems a');
+    await expect(items).toHaveText(['Set your own password', 'Add your work email']);
+    const tops = [...await items.evaluateAll(as => as.map(a => Math.round(a.getBoundingClientRect().top))),
+        await page.locator('#settingsSummaryLine').evaluate(el => Math.round(el.getBoundingClientRect().top))];
+    expect(Math.max(...tops) - Math.min(...tops), 'the count and its to-dos share one row').toBeLessThanOrEqual(6);
+
+    await page.locator('#contactChevron').click();   // the card opened itself; the member shuts it
+    expect(await cardOpen(page, 'contactBody')).toBe(false);
+    await items.nth(1).click();
+    await expect.poll(() => cardOpen(page, 'contactBody'), { message: 'the link opens the card it names' }).toBe(true);
+    await expect(page).toHaveURL(/#contactCard$/);
+    await expect(page.locator('#contactCard')).toBeInViewport();
+});
+
+// SET1 — the Work Email explainer ran ~103 characters a line across the main column: the card's own
+// hint was capped at 68ch and its opening paragraph was not.
+test('settings: on a desktop the Work Email explainer keeps a reading measure', async ({ page }) => {
+    await openSettings(page, { configured: false, noPush: true });   // the email card opens itself
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const m = await page.locator('#contactBody .card-explainer').evaluate(el => {
+        const probe = document.createElement('span');
+        probe.style.whiteSpace = 'nowrap';
+        probe.textContent = '0'.repeat(68);
+        el.appendChild(probe);
+        const cap = probe.getBoundingClientRect().width;
+        probe.remove();
+        return { width: el.getBoundingClientRect().width, cap, room: /** @type {HTMLElement} */ (el.parentElement).clientWidth };
+    });
+    expect(m.room - m.cap, 'the column is wider than the measure, so the cap is what holds the line').toBeGreaterThan(40);
+    expect(m.width).toBeLessThanOrEqual(m.cap + 1);
+});
+
+// SET2 — "You'll get: …" was one run joined with " · ", so a line could end "· Pay" and the next start
+// "reminder". Each kind and its separator is unbreakable now; a line breaks only after a "·".
+test('settings: the notification kinds break between themselves, never inside one', async ({ page }) => {
+    await page.addInitScript(() => {
+        Object.defineProperty(window, 'Notification', { value: { permission: 'default' }, configurable: true });
+    });
+    await openSettings(page, { configured: true, forcePush: true });
+    if (!(await cardOpen(page, 'notifBody'))) await page.locator('#notifChevron').click();
+    for (const width of [1366, 390, 360]) {
+        await page.setViewportSize({ width, height: 844 });
+        const split = await page.locator('#notifBody .notif-kind').evaluateAll(
+            els => els.filter(e => e.getClientRects().length > 1).map(e => e.textContent));
+        expect(split, `kinds split across lines at ${width}px`).toEqual([]);
+    }
+});

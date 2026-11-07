@@ -4,7 +4,8 @@
  *
  * Owns: grade cache, getContr/getLoggedMember/getEffectiveContr/getProRateFactor/
  *   getPensionDefault, updateRateForPeriod, updateYtdForTaxYear, settingsKey,
- *   saveSettings, confirmSettings, setSettingsCardOpen, loadSettings.
+ *   saveSettings, confirmSettings, setSettingsCardOpen, loadSettings, and wireSettingsCard — the
+ *   card's place in the desktop Tab order and the setup banner's link to it.
  * Does NOT own: period arithmetic (paycalc-periods.js), pay maths (paycalc-calc.js),
  *   roster hints (paycalc-roster-hint.js).
  * Edit here for: grade helpers, settings persistence, rate/YTD field updates.
@@ -487,12 +488,64 @@ export function confirmSettings(calculate) {
 export function setSettingsCardOpen(open) {
   const toggle = document.getElementById('settingsToggle');
   const body   = document.getElementById('settingsBody');
-  if (toggle) toggle.classList.toggle('open', open);
-  if (body)   body.classList.toggle('open', open);
   // aria-expanded lives on the collapse CONTROL (the arrow), not the header — the header is no
   // longer role="button" (v17.50), so aria-expanded on it is invalid ARIA. Mirror initCardCollapse.
   const ctrl = toggle?.querySelector('.card-toggle-arrow') || toggle;
+  // A shut body is out of the Tab order (paycalc.css → `.collapsible-body`), so the save's own
+  // close, 2.5s after "Save settings", would strand a keyboard member's focus on a control that is
+  // about to vanish. Hand it to the arrow that reopens the card — the disclosure pattern — without
+  // scrolling the page out from under them.
+  if (!open && body?.contains?.(document.activeElement)) /** @type {HTMLElement|null} */ (ctrl)?.focus?.({ preventScroll: true });
+  if (toggle) toggle.classList.toggle('open', open);
+  if (body)   body.classList.toggle('open', open);
   if (ctrl) ctrl.setAttribute('aria-expanded', String(open));
+}
+
+/**
+ * WHERE THE SETTINGS CARD SITS, AND THE WAY TO IT (desktop audit, 7 Nov 2026). Wiring, both halves.
+ *
+ * ITS PLACE. On a phone the card leads the work column, in the DOM, which is how a first-time
+ * member meets it first. On a desktop the decided order is the period band, Hours, then Settings
+ * (paycalc.md → Layout decisions), and that used to be CSS `order` alone — which moves the PAINT,
+ * not the FOCUS: Tab ran through Your Settings' `?` and arrow at the foot of the page before it went
+ * back up to the tax-year tabs (WCAG 2.4.3). So from 1024px the card itself moves after Hours, and
+ * back in front of the period band below it, on the grid's own breakpoint. paycalc.css keeps the
+ * `order` rules, which now agree with the DOM, so the paint before this runs is already the decided one.
+ *
+ * THE WAY TO IT. The setup banner asks a member to check their grade and tax code in "⚙️ Your
+ * Settings" — on a desktop ~1,450px below the banner, behind the whole Hours card. Those words are a
+ * link (`#settingsCard`, written by paycalc-app.js), and it goes the road the banner's Restore link
+ * does (paycalc-transfer-card.js): the deep link's open-and-keep-in-view, so a tap while the page is
+ * still growing still lands — then focus on the grade, the first thing the banner asks about. The
+ * fragment is a deep link in its own right too. `openCardNamedByHash` is INJECTED, as
+ * `wirePensionControls` takes `autosave`: overlay.js touches `window` at import, and this module is
+ * unit-tested in Node.
+ * @param {{ openCardNamedByHash: (cardId: string, bodyId: string, toggleId: string) => boolean }} deps
+ */
+export function wireSettingsCard({ openCardNamedByHash }) {
+  const card  = document.getElementById('settingsCard');
+  const hours = document.getElementById('hoursCard');
+  const band  = document.querySelector('.period-controls');
+  const wide  = window.matchMedia?.('(min-width: 1024px)');
+  if (card && hours && band && wide) {
+    const place = () => {
+      const focused = document.activeElement;
+      if (wide.matches) { if (hours.nextElementSibling !== card) hours.after(card); }
+      else if (band.previousElementSibling !== card) band.before(card);
+      // Moving a node takes its focus with it; a member part-way through the card keeps their place.
+      if (focused instanceof HTMLElement && card.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
+    };
+    place();
+    wide.addEventListener('change', place);
+  }
+  openCardNamedByHash('settingsCard', 'settingsBody', 'settingsToggle');   // a no-op without the fragment
+  document.addEventListener('click', (e) => {
+    if (!(e.target instanceof Element) || !e.target.closest('a[href="#settingsCard"]')) return;
+    e.preventDefault();
+    history.replaceState(history.state, '', '#settingsCard');   // no Back step, no hashchange
+    openCardNamedByHash('settingsCard', 'settingsBody', 'settingsToggle');
+    (document.getElementById('gradeSelectTrigger') ?? document.getElementById('gradeSelect'))?.focus({ preventScroll: true });
+  });
 }
 
 /** Load persisted settings into the form fields. */

@@ -117,11 +117,11 @@ export function init() {
         box.setAttribute('data-tone', s.tone);
         setStatus(line, s.headline);
         items.textContent = '';
-        for (const t of s.items) {
-            const li = document.createElement('li');
-            li.textContent = t;
-            items.appendChild(li);
-        }
+        s.items.forEach((t, i) => {   // each to-do is a link to the card that fixes it (desktop audit, 7 Nov 2026)
+            const a = items.appendChild(document.createElement('li')).appendChild(document.createElement('a'));
+            a.href = `#${s.cards[i]}`; a.textContent = t;
+            a.onclick = () => _cardHandles[s.ids[i]]?.setOpen(true);   // open first, so the jump lands on it open
+        });
     }
 
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
@@ -488,7 +488,7 @@ export function init() {
                     { items: [
                         { icon: '🔑', html: 'Replace your <strong>surname default</strong> with a password only you know — anyone who knows your name can guess the default.' },
                         { icon: '✏️', html: 'Enter your <strong>current</strong> password (your surname, if you haven\'t changed it yet), then a new one of <strong>at least 8 characters</strong>.' },
-                        { icon: '↩️', html: 'Forgotten it? On the sign-in screen tap <strong>“Can’t get in?”</strong> — that asks the admin for you. They reset it back to your surname, and you choose a new one when you next sign in.' },
+                        { icon: '↩️', html: 'Forgotten it? On the sign-in screen select <strong>“Can’t get in?”</strong> — that asks the admin for you. They reset it back to your surname, and you choose a new one when you next sign in.' },
                         { icon: '🔒', html: 'Your password is never shown to anyone, not even the admin.' },
                     ]},
                 ],
@@ -516,9 +516,9 @@ export function init() {
                         { icon: '💷', html: '<strong>Pay reminder</strong> — on the cut-off Saturday, six days before payday, to enter your hours.' },
                     ]},
                     { heading: 'How it works', items: [
-                        { icon: '📲', html: 'Tap <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
-                        { icon: '🔕', html: 'Tap <strong>Disable notifications</strong> to stop them at any time. You can turn them back on later.' },
-                        { icon: '🚫', html: 'If you tapped <strong>Don\'t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn notifications back on for this app in your phone\'s own settings.' },
+                        { icon: '📲', html: 'Select <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
+                        { icon: '🔕', html: 'Select <strong>Disable notifications</strong> to stop them at any time. You can turn them back on later.' },
+                        { icon: '🚫', html: 'If you chose <strong>Don\'t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn notifications back on for this app in your phone\'s own settings.' },
                     ]},
                     { heading: 'iPhone users', items: [
                         // Browser-neutral: every iOS browser is WebKit, so this reaches Chrome/Edge/Firefox too (v22.45).

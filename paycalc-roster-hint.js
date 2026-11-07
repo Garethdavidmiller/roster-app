@@ -273,7 +273,7 @@ export function updateRosterHint() {
         totalText = `${fmtH(entH, entM)} entered`;
         metaText  = `<span>Calendar: ${fmtH(r.h, r.m)}</span>${confHtml}`;
         arrowHtml = `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>`;
-        action    = 'tap to use calendar values';
+        action    = 'use the calendar values';
       }
 
       return `<button class="${rowClass}" type="button" data-cat="${r.cat}">` +
@@ -571,7 +571,7 @@ export async function fillFromRoster(autosave) {
     const _what = _names.length > 3 ? `${written.length} categories` : _names.join(' + ');
     const _gone = cleared.map(c => _CAT_LABELS[c] ?? c).join(' + ');
     setStatus(hint, written.length > 0
-      ? `✓ Filled ${_what}${cleared.length ? ` + cleared ${_gone}` : ''} — tap "Clear all entries" to undo`
+      ? `✓ Filled ${_what}${cleared.length ? ` + cleared ${_gone}` : ''} — select "Clear all entries" to undo`
       : cleared.length > 0
         ? `✓ Cleared ${_gone} — your calendar shows none`
         : (getOverridesFetchState() === 'loaded'

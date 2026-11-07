@@ -41,7 +41,7 @@ import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
   applyPensionOptOutUI, wirePensionControls, gradeForRole, periodDefaultPension,
   updateRateForPeriod, updateYtdForTaxYear, settingsKey, setSettingsCardOpen,
-  saveSettings, confirmSettings, loadSettings, getStoredRateForYear,
+  saveSettings, confirmSettings, loadSettings, getStoredRateForYear, wireSettingsCard,
 } from './paycalc-settings.js';
 import {
   updateRosterHint, updateJoinerNotice, toggleRosterDays,
@@ -471,7 +471,7 @@ export function init() {
           `✓ ${ty.label} — £${rate}/hr${_hintPreAward ? ' · pre-rise' : ''}`;
       } else {
         /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
-          `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
+          `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in <a href="#settingsCard" class="setup-settings-link">⚙️ Your Settings</a>, then select <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.remove('hidden');
         // Auto-open settings once per session per TY — only for returning users (new users
         // already see the settings card open). Show the in-card notice for returning users.
@@ -482,8 +482,8 @@ export function init() {
             const notice = document.getElementById('settingsNewYearNotice');
             if (notice) {
               notice.textContent = ty.rateUnconfirmed
-                ? `New tax year ${ty.label} — a pay award has been accepted but isn't on payslips yet. Your rate stays on last year's until the award lands on a payslip, then it updates automatically. Check your tax code, then tap Save settings.`
-                : `New tax year ${ty.label} — your hourly rate updates automatically. Check your tax code and pension, then tap Save settings.`;
+                ? `New tax year ${ty.label} — a pay award has been accepted but isn't on payslips yet. Your rate stays on last year's until the award lands on a payslip, then it updates automatically. Check your tax code, then select Save settings.`
+                : `New tax year ${ty.label} — your hourly rate updates automatically. Check your tax code and pension, then select Save settings.`;
               notice.classList.remove('hidden');
             }
           }
@@ -681,7 +681,7 @@ export function init() {
 
     const _clearState = /** @type {{ pending: boolean, timer: ReturnType<typeof setTimeout> | null, countdownTimer: ReturnType<typeof setInterval> | null }} */ ({ pending: false, timer: null, countdownTimer: null });
 
-    // Disarm the two-tap "tap again to confirm" clear. Called on tab-hide AND on period change
+    // Disarm the two-press "select again to confirm" clear. Called on tab-hide AND on period change
     // (v16.84): without the period-change reset, arming Clear on period A then switching to B left
     // the confirm live, so ONE tap of Clear on B wiped B with no confirm.
     function _resetClearConfirm() {
@@ -694,7 +694,7 @@ export function init() {
       const btn = document.getElementById('clearBtn');
       if (btn) { btn.textContent = 'Clear all entries'; btn.classList.remove('confirming'); }
     }
-    // On hide: disarm "Tap again to confirm" (iOS fires a suspended timer at once on resume — an accidental wipe), and let
+    // On hide: disarm "Select again to confirm" (iOS fires a suspended timer at once on resume — an accidental wipe), and let
     // go of the field in hand, so a figure that commits only on `change` (prior-year HPP) is kept if the page never returns.
     document.addEventListener('visibilitychange', () => { if (document.hidden) { _resetClearConfirm(); commitFocusedField(); } });
 
@@ -703,11 +703,11 @@ export function init() {
       if (!_clearState.pending) {
         _clearState.pending = true;
         let secs = 3;
-        if (btn) { btn.textContent = `Tap again to confirm (${secs})`; btn.classList.add('confirming'); }
+        if (btn) { btn.textContent = `Select again to confirm (${secs})`; btn.classList.add('confirming'); }
         // Countdown tick every second
         _clearState.countdownTimer = setInterval(() => {
           secs--;
-          if (secs > 0 && btn) btn.textContent = `Tap again to confirm (${secs})`;
+          if (secs > 0 && btn) btn.textContent = `Select again to confirm (${secs})`;
         }, 1000);
         _clearState.timer = setTimeout(() => {
           clearInterval(_clearState.countdownTimer ?? undefined);
@@ -1819,6 +1819,7 @@ export function init() {
     // The Calendar's Year to Date notice links to #payslipCard (v24.86): open that card, held in view.
     openCardNamedByHash('payslipCard', 'payslipCardBody', 'payslipCardToggle');
     wireYtdLine();   // the take-home's Year to Date line opens the same card (paycalc-result-headline.js)
+    wireSettingsCard({ openCardNamedByHash });   // its desktop place in the Tab order, and the banner's link to it
     // Pay data is localStorage-only and evictable until asked otherwise — see ls.js (v22.13).
     requestPersistentStorage(pcPrefix());
     // The year card's fill control (v22.06). After a bulk fill: reload the visible form ONLY if

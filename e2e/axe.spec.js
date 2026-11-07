@@ -408,6 +408,33 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // EVERY CARD OPEN (desktop audit, 7 Nov 2026). A shut card's body is `visibility: hidden` now
+    // (paycalc.css → COLLAPSIBLE CARDS), so the scan above no longer reads what is inside one; it
+    // did before, because a body clipped to no height stays in the accessibility tree. Opened by
+    // their arrows, so each card draws what it draws on open (the back-pay card computes).
+    test('paycalc (signed in) — every card open', async ({ page }) => {
+        await seedSession(page);
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        await expect.poll(() => page.evaluate(async () =>
+            (await import('./paycalc-roster-suggestions.js')).getOverridesFetchState()),
+            { message: 'the recorded-changes read never answered' }).not.toBe('checking');
+        for (const [toggle, body] of [['settingsToggle', 'settingsBody'], ['payslipCardToggle', 'payslipCardBody'],
+            ['hppCardToggle', 'hppCardBody'], ['backPayCardToggle', 'backPayBody'],
+            ['decimalConverterToggle', 'decimalConverterBody'], ['payTransferToggle', 'payTransferBody']]) {
+            if (!await page.locator(`#${body}`).evaluate(el => el.classList.contains('open'))) {
+                await page.locator(`#${toggle} .card-toggle-arrow`).click();
+            }
+            await expect(page.locator(`#${body}`), `#${body} opened`).toHaveCSS('visibility', 'visible');
+        }
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('operations (admin, signed in)', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/operations.html');

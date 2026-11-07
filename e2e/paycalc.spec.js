@@ -630,6 +630,8 @@ test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', asy
     const ytdFigure = async () => parseFloat(
         ((await page.locator('#hppModeYtdAmt').textContent()) || '').replace(/[^0-9.]/g, '')) || 0;
     expect(await ytdFigure(), 'premise: no Year to Date figure, no estimate from it').toBe(0);
+    // Opened first: a closed card's fields are out of reach (paycalc.css → `.collapsible-body`).
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
     await page.fill('#ytdPay','3050');
     await page.dispatchEvent('#ytdPay','input');
     // Polled, where this read once after a 400ms sleep: the estimate is drawn by the recalculation
@@ -1501,6 +1503,9 @@ test('paycalc: Year to Date figures sharpen ONLY the payslip after their source'
     }, [String(SRC), YTD_PAY, YTD_TAX]);
     await page.goto('/paycalc.html');
     await expect(page.locator('#pensionAmt')).toBeVisible();
+    // The two boxes are in the Year to Date card, which starts closed — and a closed card's fields
+    // are out of reach, for this test as for a member (paycalc.css → `.collapsible-body`).
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
 
     /** Take-home with the two boxes filled, then emptied, then refilled — on the payslip on screen. */
     const netWithAndWithoutFigures = async () => {
@@ -1653,6 +1658,8 @@ test('paycalc: between cut-off and payday the new payslip can be picked as the Y
     });
     await page.goto('/paycalc.html');
     await expect(page.locator('#pensionAmt')).toBeVisible();
+    // Opened first: a closed card's fields are out of reach (paycalc.css → `.collapsible-body`).
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
     await page.fill('#ytdPay', '23100');
     await page.dispatchEvent('#ytdPay', 'input');
     await page.fill('#ytdTax', '3266.20');
@@ -2543,6 +2550,10 @@ test('paycalc: with the keypad up, the take-home bar comes when the £ is behind
     // every row under a geometry measured too soon.
     await waitForPageSettled(page);
     await waitForReadsToLand(page);
+    // …and a first visit's Settings card has finished opening: it grows ~900px in the 0.3s after the
+    // page is ready, so a scroll taken mid-reveal left the £ wherever the rest of it pushed the page.
+    await page.evaluate(() => Promise.all(document.getAnimations()
+        .filter(a => a instanceof CSSTransition).map(a => a.finished.catch(() => null))));
     const bar = page.locator('#stickyTotal');
 
     // The £ low in the layout viewport: in view by the observer's lights, so no bar yet.
@@ -2576,4 +2587,311 @@ test('paycalc: with the keypad up, the take-home bar comes when the £ is behind
         return Math.round(b.top - box.bottom);
     }), { message: 'the gap between the box and the bar above the keys' }).toBeGreaterThanOrEqual(7);
     expect(errors).toHaveLength(0);
+});
+
+// ── THE DESKTOP AUDIT (7 Nov 2026) ──────────────────────────────────────────────────────────────
+// A laptop with a keyboard and a mouse — the station PC's shape. Each test pins one finding by what a
+// member meets there: where Tab goes, what it can reach, what the pointer does to what it points at.
+// July is the audit's own day (the visual harness's): P20, seventeen rows into a 26-row period list,
+// with Saturday and Sunday shifts the calendar row can match.
+const AUDIT_DAY = new Date('2026-07-15T09:00:00Z');
+
+/** Calculated, and the calendar read answered, so the roster card and its rows are drawn. Not
+ *  `waitForPageSettled`: the pinned clock suppresses `performance.mark`, which it waits on. */
+async function payPageReady(page) {
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await expect.poll(() => page.evaluate(async () =>
+        (await import('./paycalc-roster-suggestions.js')).getOverridesFetchState()),
+        { message: 'the recorded-changes read never answered' }).not.toBe('checking');
+}
+
+/** A returning member: settings saved, so Your Settings starts SHUT, as it does for everyone after
+ *  their first visit; the one-time notices out of the way. */
+async function openReturning(page, size = { width: 1366, height: 768 }) {
+    await page.clock.setFixedTime(AUDIT_DAY);
+    await page.setViewportSize(size);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_gmiller_setup', '1'); });
+    await page.goto('/paycalc.html');
+    await payPageReady(page);
+}
+
+/** Every stop the REAL Tab key makes from the top of the page until focus leaves it, measured after
+ *  the scroll it causes has settled — the take-home bar follows that scroll a frame later. */
+async function tabStops(page, { settleBar = false } = {}) {
+    const stops = [];
+    let waitForBar = settleBar;
+    for (let i = 0; i < 150; i++) {
+        await page.keyboard.press('Tab');
+        await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+        // A walk that reads the bar waits for it to agree with where the £ now is: WebKit, with the
+        // clock pinned, gets there a few stops late. A bar that misses a second is not waited on
+        // again, and the assertions judge it as it stands. 8px is the bar's TOP_INSET.
+        if (waitForBar) await page.waitForFunction(() => {
+            const bar = document.getElementById('stickyTotal');
+            const net = document.getElementById('netDisplay')?.getBoundingClientRect();
+            if (!bar || !net) return true;
+            return bar.classList.contains('visible')
+                ? net.bottom <= 9 || net.top >= innerHeight - 1
+                : net.bottom >= 7 && net.top <= innerHeight + 1;
+        }, null, { timeout: 1000, polling: 50 }).catch(() => { waitForBar = false; });
+        const stop = await page.evaluate(() => {
+            const el = document.activeElement;
+            if (!el || el === document.body) return null;
+            const r = el.getBoundingClientRect();
+            const bar = /** @type {HTMLElement} */ (document.getElementById('stickyTotal'));
+            const barUp = bar.classList.contains('visible') && el !== bar;
+            const b = bar.getBoundingClientRect();
+            return {
+                id: el.id || `${el.tagName.toLowerCase()}.${el.className}`,
+                shut: !!el.closest('.collapsible-body:not(.open)'),
+                region: el.closest('#settingsCard') ? 'settings' : el.closest('.period-controls') ? 'band'
+                    : el.closest('#hoursCard') ? 'hours' : 'other',
+                barUp,
+                under: barUp ? Math.max(0, Math.round(Math.min(r.bottom, b.bottom) - Math.max(r.top, b.top))) : 0,
+            };
+        });
+        if (!stop) break;
+        stops.push(stop);
+    }
+    return stops;
+}
+
+// PAY1 — the collapsed cards hid their bodies from the EYE only: 20 of 61 Tab stops sat inside them,
+// and one Space on the unseen "not in the pension scheme" tick moved the take-home with the card shut.
+test('paycalc: a shut card keeps its controls out of the Tab order and the accessibility tree', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard walk at a laptop size');
+    await openReturning(page);
+    await expect(page.locator('#settingsBody')).not.toHaveClass(/open/);
+    // The tick that moved the £: neither reachable nor named while its card is shut.
+    await expect(page.locator('#pensionOptOutCheck')).toBeHidden();
+    await expect(page.getByRole('checkbox', { name: /not in the pension scheme/i })).toHaveCount(0);
+
+    const stops = await tabStops(page);
+    expect(stops.length, 'the walk must reach the foot of the page to prove anything').toBeGreaterThan(25);
+    expect(stops.filter(s => s.shut).map(s => s.id), 'no Tab stop inside a shut card').toEqual([]);
+
+    // Opening the card gives its fields back: from its arrow, the next Tab lands inside it.
+    await page.locator('#settingsToggle .card-toggle-arrow').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#settingsBody')).toHaveClass(/open/);
+    await page.keyboard.press('Tab');
+    await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('#settingsBody')),
+        { message: 'Tab from the open card\'s arrow goes into the card' }).toBe(true);
+    await expect(page.getByRole('checkbox', { name: /not in the pension scheme/i })).toHaveCount(1);
+});
+
+// …and the save's own close, 2.5s after "Save settings", must not strand a keyboard member's focus on
+// a button that has just left the Tab order: it hands focus to the arrow that reopens the card.
+test('paycalc: Settings saved from the keyboard hands focus to its arrow as it closes', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard path');
+    await page.clock.setFixedTime(AUDIT_DAY);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);   // a first visit, so the card is open with its Save button
+    await page.goto('/paycalc.html');
+    await payPageReady(page);
+    await page.locator('#saveSettingsBtn').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#settingsBody')).not.toHaveClass(/open/, { timeout: 5000 });
+    await expect(page.locator('#settingsToggle .card-toggle-arrow')).toBeFocused();
+});
+
+// PAY2 — on a desktop CSS `order` drew Settings last and left it FIRST in the DOM, so Tab went from the
+// header to Your Settings at the foot of the page before coming back up to the tax-year tabs.
+test('paycalc: on a desktop Tab follows the page — the period band and Hours before Your Settings', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard walk at a laptop size');
+    await openReturning(page);
+    const stops = await tabStops(page);
+    const regions = stops.map(s => s.region);
+    expect(regions.indexOf('band'), 'the period band is reached').toBeGreaterThan(-1);
+    expect(regions.indexOf('band'), 'the tax-year tabs come before anything in Your Settings')
+        .toBeLessThan(regions.indexOf('settings'));
+    expect(regions.lastIndexOf('hours'), 'and the whole of Hours').toBeLessThan(regions.indexOf('settings'));
+    expect(stops[regions.indexOf('band')].id).toBe('tyTab0');
+
+    // The order is the DOM's, so it has to follow the breakpoint both ways: below 1024px the card
+    // leads the work column again, as a first-time member on a phone meets it.
+    await page.setViewportSize({ width: 900, height: 900 });
+    await expect.poll(() => page.evaluate(() => document.querySelector('.pc-work')?.firstElementChild?.id)).toBe('settingsCard');
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await expect.poll(() => page.evaluate(() => document.getElementById('hoursCard')?.nextElementSibling?.id)).toBe('settingsCard');
+});
+
+// PAY3 — the browser scrolls a newly focused control only just into view, which at the foot of the page
+// put it under the fixed bar (the Move Your Pay Data arrow 84% covered, the guide link 95%); and the
+// bar's own ring was navy on its navy fill.
+test('paycalc: a control reached with Tab is never under the take-home bar, and the bar shows its own ring', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard walk at a laptop size');
+    await openReturning(page);   // 1366×768, the audit's size: the foot of the page meets the bar
+    const stops = await tabStops(page, { settleBar: true });
+    expect(stops.some(s => s.barUp), 'the bar must be up for part of the walk, or this proves nothing').toBe(true);
+    expect(stops.filter(s => s.under > 0).map(s => `${s.id}: ${s.under}px under the bar`)).toEqual([]);
+
+    await page.locator('#disclaimerToggle').focus();
+    await expect(page.locator('#stickyTotal'), 'at the foot of the page the bar is up, and so a Tab stop').toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#stickyTotal')).toBeFocused();
+    const ring = await page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.outline = 'var(--focus-outline-light)';
+        document.body.appendChild(probe);
+        const want = getComputedStyle(probe).outlineColor;
+        probe.remove();
+        const s = getComputedStyle(/** @type {HTMLElement} */ (document.getElementById('stickyTotal')));
+        return { want, colour: s.outlineColor, style: s.outlineStyle, offset: parseFloat(s.outlineOffset), fill: s.backgroundColor };
+    });
+    expect(ring.style).toBe('solid');
+    expect(ring.colour, 'the light token, which shows on the bar\'s navy').toBe(ring.want);
+    expect(ring.colour).not.toBe(ring.fill);
+    expect(ring.offset, 'drawn inside the bar: its bottom edge is the window\'s').toBeLessThan(0);
+});
+
+// PAY5 — the setup banner asked a member to check "⚙️ Your Settings below", and on a desktop the card is
+// ~1,450px below it. The words are a link now, and it opens the card even after it was shut.
+test('paycalc: the setup banner\'s "Your Settings" opens the card and brings it up', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the distance is a desktop one');
+    await page.clock.setFixedTime(AUDIT_DAY);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);   // a first visit: nothing saved, so the banner asks
+    await page.goto('/paycalc.html');
+    await payPageReady(page);
+    const link = page.locator('#setupBanner a[href="#settingsCard"]');
+    await expect(link).toBeVisible();
+    await expect(page.locator('#setupBannerBody')).not.toContainText(/\btap\b/i);
+    await page.locator('#settingsToggle .card-toggle-arrow').click();
+    await expect(page.locator('#settingsBody')).not.toHaveClass(/open/);
+    await page.evaluate(() => window.scrollTo(0, 0));
+
+    await link.click();
+    await expect(page.locator('#settingsBody')).toHaveClass(/open/);
+    await expect(page.locator('#gradeSelectTrigger'), 'focus on the first thing the banner asks about').toBeFocused();
+    await expect.poll(async () => Math.round((await page.locator('#settingsCard').boundingBox())?.y ?? 9999),
+        { message: 'the card is brought up to the top of the screen' }).toBeLessThan(768 / 3);
+});
+
+// PAY6 — the `?` sheet grew to 620px on a desktop while Settings' `?` opens at the Tips' 340, beside an
+// overlay scale that allows three widths and one cap. It is the Tips' width at every size now.
+test('paycalc: the ? help sheet is the Tips\' width at every size', async ({ page }) => {
+    await openReturning(page);
+    for (const width of [1366, 820, 390]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.locator('#hoursCard .help-btn').click();
+        await expect(page.locator('#helpLightbox')).toHaveClass(/open/);
+        const w = await page.evaluate(() => {
+            const probe = document.createElement('div');
+            probe.style.cssText = 'position:absolute;width:min(var(--modal-standard), var(--modal-cap))';
+            document.body.appendChild(probe);
+            const want = probe.offsetWidth;
+            probe.remove();
+            return { want, got: /** @type {HTMLElement} */ (document.getElementById('helpLightboxContent')).offsetWidth };
+        });
+        expect(w.got, `the sheet at ${width}px`).toBe(w.want);
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#helpLightbox')).not.toHaveClass(/visible/);
+    }
+});
+
+// PAY7 — `.roster-row:hover` (0,2,0) outranked the "matches"/"differs" tints (0,1,0), so pointing at a
+// row that carried a verdict turned it the plain grey of a row with none.
+test('paycalc: pointing at a calendar row keeps its "matches" tint', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'hover is a fine pointer\'s');
+    await openReturning(page);
+    const row = page.locator('.roster-row--matched').first();
+    await expect(row, 'the July payslip\'s weekend shifts match the calendar').toBeVisible();
+    const paint = () => row.evaluate(el => {
+        const probe = document.createElement('div');
+        probe.style.background = 'var(--bg-faint)';
+        document.body.appendChild(probe);
+        const grey = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return { bg: getComputedStyle(el).backgroundColor, grey };
+    });
+    const rest = (await paint()).bg;
+    await row.hover();
+    await expect.poll(async () => (await paint()).bg, { message: 'the hover lands' }).not.toBe(rest);
+    // The row eases its background, so read the colour it SETTLES on: mid-ease, every value differs
+    // from both ends, and the grey would pass for a tint.
+    await row.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => null))));
+    const hovered = await paint();
+    expect(hovered.bg, 'a verdict row keeps its own tint under the pointer, not the plain grey').not.toBe(hovered.grey);
+});
+
+// PAY8 — the period sheet opened at April 2025 with the payslip on screen ~17 rows down, out of view.
+test('paycalc: the pay-period picker opens on the payslip on screen', async ({ page }) => {
+    await openReturning(page);
+    await page.locator('#periodSelectTrigger').click();
+    const current = page.locator('.picker-sheet .picker-opt.is-current');
+    await expect(current).toHaveCount(1);
+    await expect.poll(() => current.evaluate(el => {
+        const panel = /** @type {HTMLElement} */ (el.closest('.picker-sheet')).getBoundingClientRect();
+        const search = /** @type {HTMLElement} */ (document.querySelector('.picker-sheet .picker-search')).getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        return r.top >= search.bottom - 1 && r.bottom <= panel.bottom + 1;
+    }), { message: 'the current payslip is in view below the search box' }).toBe(true);
+    expect(await page.locator('.picker-sheet').evaluate(el => el.scrollTop), 'the sheet scrolled to it').toBeGreaterThan(0);
+});
+
+// PAY9 — a 3px navy stripe on two notes that sit on the navy canvas: no stripe at all, only a white
+// edge 3px inside every other card's.
+test('paycalc: the notes on the navy canvas carry no navy stripe', async ({ page }) => {
+    await openReturning(page);
+    for (const sel of ['.disclaimer', '#privacyNoteTop']) {
+        expect(await page.locator(sel).evaluate(el => getComputedStyle(el).borderLeftWidth), sel).toBe('0px');
+    }
+});
+
+// PAY10 — capped at 1,100px, the take-home bar had no edge on the navy canvas, and `space-between`
+// put its label ~760px from the £ it names.
+test('paycalc: on a desktop the take-home bar has an edge, and its label sits beside the £', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the capped bar is a desktop one');
+    await openReturning(page);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect(page.locator('#stickyTotal')).toBeVisible();
+    const g = await page.evaluate(() => {
+        const bar = /** @type {HTMLElement} */ (document.getElementById('stickyTotal'));
+        // The label's WORDS, not its box: a label left to grow fills the bar and still ends at the £.
+        const words = document.createRange();
+        words.selectNodeContents(/** @type {HTMLElement} */ (document.getElementById('stickyLabel')));
+        const amount = /** @type {HTMLElement} */ (document.getElementById('stickyAmount')).getBoundingClientRect();
+        const probe = document.createElement('div');
+        probe.style.color = 'var(--on-navy-hairline)';
+        document.body.appendChild(probe);
+        const hairline = getComputedStyle(probe).color;
+        probe.remove();
+        const s = getComputedStyle(bar);
+        return { gap: Math.round(amount.left - words.getBoundingClientRect().right), edge: s.borderTopWidth, edgeColour: s.borderTopColor, hairline };
+    });
+    expect(g.gap, 'the label sits beside its £').toBeLessThan(40);
+    expect(g.edge).toBe('1px');
+    expect(g.edgeColour).toBe(g.hairline);
+});
+
+// PAY11 — six period-band controls and notes at --type-micro (10px), read at arm's length on a laptop.
+// A density call, so a fine pointer gets the small step and a coarse one keeps the phone's.
+test('paycalc: the period band\'s small print is the small step on a desktop with a mouse', async ({ page }, info) => {
+    await openReturning(page);
+    const sizes = await page.evaluate(() => ['#saveStatus', '#clearBtn', '#rosterViewLink', '.period-hint', '#rosterDaysToggle', '#periodBadge']
+        .map(sel => getComputedStyle(/** @type {Element} */ (document.querySelector(sel))).fontSize));
+    expect(sizes).toEqual(Array(6).fill(isTouchProject(info) ? '10px' : '12px'));
+});
+
+// PAY12 — "tap" in words a mouse and a keyboard read. Swept on the page a desktop first visit meets,
+// with the Hours help open and the corrections row showing.
+test('paycalc: nothing a mouse or a keyboard reads says "tap"', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the touch words are for touch');
+    await page.clock.setFixedTime(AUDIT_DAY);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html');
+    await payPageReady(page);
+    await page.locator('#hoursShowMore').click();
+    await page.locator('#hoursCard .help-btn').click();
+    await expect(page.locator('#helpLightbox')).toHaveClass(/open/);
+    const words = await page.evaluate(() => [document.body.innerText,
+        ...[...document.querySelectorAll('[aria-label]')].map(e => e.getAttribute('aria-label'))].join('\n'));
+    expect(words.match(/[^\n]*\btap(s|ped|ping)?\b[^\n]*/gi) ?? []).toEqual([]);
 });
