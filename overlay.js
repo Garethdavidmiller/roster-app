@@ -314,18 +314,18 @@ const _NO_KEYBOARD = new Set(['button', 'submit', 'reset', 'checkbox', 'radio', 
 const _isTextEntry = (/** @type {any} */ el) => el?.tagName === 'TEXTAREA' || (el?.tagName === 'INPUT' && !_NO_KEYBOARD.has(String(el.type || 'text').toLowerCase()));
 
 /**
- * Mark a lightbox panel that has more content below the fold, so the fade in shared.css appears.
+ * Mark a panel with more below its fold, for shared.css's fade: every lightbox, and the drawer's body.
  *
  * Toggled rather than always-on: fading the last line of a panel that FITS would invent the
  * ambiguity this exists to remove. Re-measured on scroll (the fade must go once you reach the
  * bottom) and on resize — a phone rotating turns a scrolling panel into a fitting one.
  *
- * Everything is best-effort: this is decoration, and a panel that never gains the class simply
- * looks the way it did before v21.36.
+ * Best-effort decoration: a panel that never gains the class looks as it did before v21.36.
  *
- * @param {HTMLElement|null} panel the  element
+ * @param {HTMLElement|null} panel the scrolling element
+ * @returns {() => void} stops watching
  */
-function _watchScrollFade(panel) {
+export function watchScrollFade(panel) {
     if (!panel) return () => {};
     const sync = () => {
         const more = panel.scrollHeight - panel.clientHeight - panel.scrollTop > 2;
@@ -349,8 +349,8 @@ function _watchScrollFade(panel) {
     // matters: a MutationObserver runs as a microtask, and `sync` reads `scrollHeight`, which forces
     // the layout it needs. ResizeObserver and requestAnimationFrame both ride the rendering loop,
     // which headless WebKit throttled in about half of measured runs — the fade stayed on with the
-    // observer never called. The box observer stays for a size change with no DOM change (a font
-    // arriving late). Disconnected with the rest.
+    // observer never called. The box observer stays for a size change with no DOM change (a late
+    // font), and `hidden` is watched for a fold — the drawer's Reference — that adds no node.
     if (typeof ResizeObserver === 'function') {
         const ro = new ResizeObserver(sync);
         ro.observe(panel);
@@ -358,7 +358,7 @@ function _watchScrollFade(panel) {
     }
     if (typeof MutationObserver === 'function') {
         const mo = new MutationObserver(sync);
-        mo.observe(panel, { childList: true, subtree: true });
+        mo.observe(panel, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
         ac.signal.addEventListener('abort', () => mo.disconnect());
     }
     return () => ac.abort();
@@ -432,7 +432,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         lockBodyScroll();
         _pushOverlayState(close);
         overlay.classList.add('visible');
-        _stopScrollFade = _watchScrollFade(/** @type {HTMLElement|null} */ (content ?? null));
+        _stopScrollFade = watchScrollFade(/** @type {HTMLElement|null} */ (content ?? null));
         _stopFocusGuard = _guardFocus(overlay, content ?? overlay, () => _isTopOverlay(close));   // after the push: already top
         // A TEXT FIELD IS FOCUSED NOW, IN THE TAP (iPhone audit, 7 Nov 2026): iOS raises its keyboard only for
         // a focus made synchronously in the gesture, and the frame below is not. The rest keep the frame.

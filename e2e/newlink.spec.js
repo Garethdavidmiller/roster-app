@@ -211,7 +211,7 @@ test.describe('new link', () => {
         await page.locator('#navMenuBtn').click();
         await page.locator('#navPanelBrand').click();
         await expect(page.locator('#iconLightbox')).toBeVisible();
-        await expect(page.locator('#iconLightbox .lightbox-badge')).toHaveText('New link');
+        await expect(page.locator('#iconLightbox .lightbox-badge')).toHaveText('🔁 New link');
         await page.locator('#iconLightboxClose').click();
 
         // the header logo goes back to the Calendar, as its alt text has always said — and the test waits

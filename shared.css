@@ -475,13 +475,15 @@
        would have made the same mistake. The drawer now aliases these rather than restating them. */
     --on-navy-muted:    rgba(255, 255, 255, 0.70);   /* secondary text */
     --on-navy-faint:    rgba(255, 255, 255, 0.55);   /* small headings — see the contrast note */
-    /* Section names in the drawer's App Notices archive, which sits on the navy: each page's colour
-       lifted to 72% lightness so it reads as TEXT there — the pills' own shades are fills under white
-       text, too dark for this. Literals in the rules themselves until the test audit (7 Nov 2026). */
-    --on-navy-pay:      oklch(72% 0.13 144.2deg);
-    --on-navy-links:    oklch(72% 0.14 313.0deg);
-    --on-navy-settings: oklch(72% 0.14 272.0deg);
-    --on-navy-trains:   oklch(72% 0.14 357.0deg);
+    /* Section names in the drawer's App Notices archive: each page's colour lifted so it reads as
+       TEXT on the navy (the pills' shades are fills under white text). 82%, not 72% (desktop audit,
+       Nov 2026): on the opaque sheet's lit top under an item's own tint 72% measured 3.5:1; 82%
+       measures 4.8–5.6:1 there. e2e/axe.spec.js → "App Notices open over a light page". */
+    --on-navy-pay:      oklch(82% 0.13 144.2deg);
+    --on-navy-links:    oklch(82% 0.14 313.0deg);
+    --on-navy-settings: oklch(82% 0.14 272.0deg);
+    --on-navy-trains:   oklch(82% 0.14 357.0deg);
+    --on-navy-ops:      oklch(82% 0.15 64.1deg);
 
     --focus-outline: 2px solid var(--primary-blue);
     --focus-outline-gold: 2px solid var(--accent-gold);
@@ -1012,8 +1014,9 @@ body.lb-open #stickyTotal { display: none !important; }
    A mask rather than an overlaid gradient: on a scroll container the mask is applied to the border
    box, so it stays pinned at the bottom edge instead of scrolling away with the content. `has-more`
    is toggled by overlay.js, so a panel that fits is never faded — fading the last line of a SHORT
-   panel would invent the very ambiguity this removes. */
-.lb-content.has-more {
+   panel would invent the very ambiguity this removes. The drawer's body wears it too (nav-panel.js). */
+.lb-content.has-more,
+.nav-panel-body.has-more {
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
             mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
 }
@@ -1180,11 +1183,9 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 /* ============================================================
-   ICON / ABOUT LIGHTBOX
-   Both pages show the same "About MYB Roster" panel when the
-   app icon is tapped. Page-specific additions (index: SW status
-   + tips; admin: role badge) live in each page's own <style>.
-   Uses .lb-overlay / .lb-content / .lb-close for structure.
+   ABOUT LIGHTBOX (#iconLightbox) — every app page; about-lightbox.js.
+   One order on every page: masthead, badge, the page's own note
+   or tips, Print, the link rows, Report a bug (desktop audit).
    ============================================================ */
 
 /* Content card — layout only; structural rules from .lb-content. Its SURFACE is the opaque navy
@@ -1226,15 +1227,10 @@ body.lb-open #stickyTotal { display: none !important; }
     letter-spacing: 0.3px;
 }
 
-/* Section badge — a pill below the version naming the page ("Admin", "Pay Calculator"), in the
-   page's colour: a pale tint of it, and the colour as text. The colour is the page's
-   --page-accent trio (v25.14) and no page restates it here; gold is Admin's and the Calendar's.
-   THE TEXT IS --page-accent-text, NOT THE ACCENT (v25.12). Brand gold on its own 15% tint measured
-   1.49:1 — the badge text sits on a near-white pill, and bright gold is a colour to see, not to
-   read, which is why --gold-text exists. Operations had the orange twin of the same defect (1.93:1)
-   and reads in --orange-text; Overtime, which had no rule and so wore this gold, wears its own --ot
-   (4.68:1). The rest were already above 4.5:1 (measured: pay 4.82, trains 5.03, settings 5.48,
-   links 6.26, new link 9.00). axe scans every page's About panel (e2e/axe.spec.js). */
+/* The page's badge — its drawer pill's emoji and name ("📝 Admin", "💷 Pay"; page-identity-parity),
+   on a pale tint of the page's colour. THE TEXT IS --page-accent-text, NOT THE ACCENT (v25.12): brand
+   gold on its own tint is 1.49:1 and bright orange 1.93:1 — colours to see, not to read. axe scans
+   every page's About panel (e2e/axe.spec.js). */
 .lightbox-badge {
     margin-top: 10px;
     padding: 5px 14px;
@@ -1248,17 +1244,14 @@ body.lb-open #stickyTotal { display: none !important; }
     letter-spacing: 0.6px;
 }
 
-/* Utility links at the bottom of the About lightbox (View guide / Report a bug).
-   Light-polish (v18.70): each used to carry its OWN full-width top-border, so the stack read as a
-   dense ledger of dividers. They're now soft rounded tappable rows (subtle white tint, brightening
-   on press/hover) separated by spacing — the single divider above the privacy note is the only rule
-   between the identity block and the actions. Matches the Tips-panel and Account-status treatment. */
+/* The About panel's link rows (a guide, Report a bug): soft tinted rows separated by spacing, not a
+   ledger of dividers (v18.70). */
 .lightbox-bug-link {
     display: block;
     box-sizing: border-box;
     margin-top: 8px;
     padding: 9px 12px;
-    border-radius: 10px;
+    border-radius: var(--radius-button);   /* the Print button's corner too (desktop audit, Nov 2026) */
     background: rgba(255,255,255,0.05);
     width: 100%;
     text-align: center;
@@ -1817,11 +1810,13 @@ button.lightbox-bug-link {
     max-height: 80dvh;
 }
 
-/* THE OPAQUE NAVY SHEET — one surface, two panels (v25.14): every one-time notice, and the About
-   panel. One rule rather than a copy in each, so the two cannot drift apart; the reasoning for the
-   surface is point 1 above. A third panel that wants it joins this selector list. */
+/* THE OPAQUE NAVY SHEET — one surface: the one-time notices, About, and (desktop audit, Nov 2026) App
+   Notices and coming-soon, whose see-through labels failed AA over a light page. One rule, so they
+   cannot drift; the reasoning is point 1 above. A panel that wants it joins this list. */
 .notice-lb-content,
-#iconLightboxContent {
+#iconLightboxContent,
+#navNoticesContent,
+#navComingSoonContent {
     background-color: var(--primary-blue);
     background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
     border: 1px solid rgba(255, 255, 255, 0.16);
@@ -1959,11 +1954,17 @@ button.lightbox-bug-link {
     #iconLightboxClose:hover { color: white; }
 }
 
+/* Focus on the navy sheet (desktop audit, Nov 2026): the fallback ring is navy, invisible here. Gold,
+   as in the drawer; the 2px offset puts it on the navy, so it serves the gold CTA too. The ✕ only on
+   the sheet — a white dialog's keeps its navy ring. e2e/pages.spec.js reads each computed ring. */
+.notice-lb-content .lb-close:focus-visible, #iconLightboxClose:focus-visible, #navNoticesClose:focus-visible,
+#navComingSoonClose:focus-visible, .notice-lb-content .btn-action:focus-visible, .lightbox-bug-link:focus-visible,
+.lightbox-print-btn:focus-visible, .notice-cta:focus-visible, .notice-later:focus-visible {
+    outline: var(--focus-outline-gold); outline-offset: 2px;
+}
+
 /* ============================================================
-   LIGHTBOX EXTRAS — shared by all three pages
-   Update status pill, update button, tips section, print button.
-   index.html shows all of these; admin shows status only;
-   paycalc shows status + tips.
+   ABOUT LIGHTBOX EXTRAS — the update status, tips and Print.
    ============================================================ */
 
 /* Update status pill */
@@ -2029,6 +2030,10 @@ button.lightbox-bug-link {
 /* Keyboard-only tips: visible on pointer devices only */
 .lightbox-tip.keyboard-only { display: none; }
 @media (hover: hover) and (pointer: fine) {
+    /* Where the keyboard rows show, the other tips and the heading align with their labels rather than
+       centring over them (desktop audit, Nov 2026) — the same query as the rows, on purpose. */
+    .lightbox-tips-title { text-align: left; }
+    .lightbox-tip { justify-content: flex-start; text-align: left; }
     .lightbox-tip.keyboard-only { display: flex; justify-content: space-between; }
 }
 /* touch-only: hidden by default, revealed on coarse-pointer devices.
@@ -2053,9 +2058,7 @@ button.lightbox-bug-link {
     flex-shrink: 0;
 }
 
-/* Print button row inside the about lightbox. Divider dropped (v18.70 glass polish) — the print
-   button is already a distinct bordered control, so spacing separates it from the link chips above;
-   this keeps the panel to a single rule (above the privacy note), matching the Tips-panel treatment. */
+/* The About panel's Print group: a bordered button and its caption, set apart by space, not a rule. */
 .lightbox-print-wrap {
     margin-top: 12px;
     width: 100%;
@@ -2068,7 +2071,7 @@ button.lightbox-bug-link {
     background: rgba(255,255,255,0.1);
     color: white;
     border: 1px solid rgba(255,255,255,0.2);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-button);   /* the rows' corner — it was a 20px pill (desktop audit) */
     font-family: inherit;
     font-size: var(--type-label);
     font-weight: 600;
@@ -2086,6 +2089,8 @@ button.lightbox-bug-link {
     font-size: var(--type-badge);
     color: rgba(255,255,255,0.65); /* raised from 0.35 to clear WCAG AA */
 }
+/* Print comes before the link rows on every page; the row after it keeps the group's own 12px. */
+.lightbox-print-wrap + .lightbox-bug-link { margin-top: 12px; }
 
 /* ============================================================
    APP HEADER
@@ -2109,6 +2114,10 @@ button.lightbox-bug-link {
     justify-content: center;
     gap: 10px;
     overflow: hidden;
+    /* Room for the logo's focus ring and hover grow, which `overflow: hidden` would clip; the margin
+       hands the 4px back. Vertical only — sideways the box would overlap the burger. */
+    padding-block: 4px;
+    margin-block: -4px;
 }
 
 .app-header img, .app-icon {
@@ -2129,7 +2138,15 @@ button.lightbox-bug-link {
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
+    transition: transform var(--dur-fast) var(--ease-standard);
 }
+/* The logo is a control (desktop audit, Nov 2026): the burger's light ring, not the fallback's navy
+   on navy, and the Calendar's own logo's grow and press (`.title-icon`, index.css). */
+.app-icon:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+    .app-icon:hover { transform: scale(1.12); }
+}
+.app-icon:active { transform: scale(var(--press-scale)); }
 
 .app-header h1 {
     font-size: var(--type-large);
@@ -2143,8 +2160,6 @@ button.lightbox-bug-link {
     text-overflow: ellipsis;
     min-width: 0;
 }
-
-/* Badge — sits at the right edge naturally; brand's flex:1 fills all space before it */
 
 /* Page badge — the pill at the right of the header naming the current page, in the page's own
    colour (--page-accent / --page-accent-ink, v25.14 — see :root). Admin alone styles its badge
@@ -2194,10 +2209,6 @@ button.lightbox-bug-link {
     .badge-name-full  { display: inline; }
 }
 
-/* Header back button removed (v10.63) — navigation is via the nav drawer.
-   .btn-back still lives in fip-guide.html / railcard-guide.html (their own CSS). */
-/* Sign-out moved to nav panel footer (v10.59) */
-
 @media (max-width: 768px) {
     body {
         padding-left:  max(10px, env(safe-area-inset-left));
@@ -2224,11 +2235,7 @@ button.lightbox-bug-link {
     .app-header {
         padding: 16px 20px;
     }
-    /* Desktop header mode — there is ample horizontal room here, so lift the
-       narrow-screen clip (the max-width cap + ellipsis added for phones) and
-       always render the full "Marylebone Roster" title. The brand stays
-       absolutely centred; the badge and burger are far too small at these
-       widths to ever collide with a ~200px centred title. */
+    /* Room to spare from here: lift the phone's ellipsis and always show the whole title. */
     .app-header-brand { gap: 14px; }
     .app-header h1 { font-size: 20px; overflow: visible; text-overflow: clip; }
     .app-icon,
@@ -2335,15 +2342,18 @@ button.lightbox-bug-link {
     border-radius: 6px;
     -webkit-user-select: none;
     user-select: none;
+    transition: background-color var(--dur-fast) var(--ease-standard);
 }
 
+/* A quiet hover — the drawer's own raised rung (desktop audit, Nov 2026); it had only a press. */
+@media (hover: hover) and (pointer: fine) {
+    .btn-burger:hover { background-color: var(--on-navy-raised); }
+}
 .btn-burger:active { opacity: 0.5; }
 .btn-burger:focus-visible {
     outline: var(--focus-outline-light);
     outline-offset: 2px;
 }
-
-/* All headers are now navy canvas — burger is white throughout. */
 
 /* Dim overlay behind the drawer */
 .nav-panel-overlay {
@@ -2875,14 +2885,12 @@ button.nav-panel-link--notices {
     touch-action: manipulation;
 }
 
-/* Coming-soon placeholder lightbox — theme only; structure from .lb-content/.lb-close */
+/* Coming-soon placeholder lightbox — layout only; its surface is the opaque navy sheet (above). */
 #navComingSoonContent {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: var(--radius-panel);
     padding: 40px 40px 32px;
     width: min(var(--modal-compact), var(--modal-cap));
@@ -2896,14 +2904,12 @@ button.nav-panel-link--notices {
     #navComingSoonClose:hover { color: white; }
 }
 
-/* App Notices archive lightbox — theme only; structure from .lb-content/.lb-close */
+/* App Notices archive lightbox — layout only; its surface is the opaque navy sheet (above). */
 #navNoticesContent {
     display: flex;
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: var(--radius-panel);
     padding: 40px 40px 32px;
     width: min(var(--modal-compact), var(--modal-cap));
@@ -2958,14 +2964,14 @@ button.nav-panel-link--notices {
     font-weight: 700;
     letter-spacing: 0.4px;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--on-navy-muted);   /* 0.70, not 0.55 — the sheet's lit top measured 4.1:1 at 0.55 */
 }
 .notices-item-section--pay      { color: var(--on-navy-pay); }
 .notices-item-section--links    { color: var(--on-navy-links); }
 .notices-item-section--settings { color: var(--on-navy-settings); }
-.notices-item-section--ops      { color: var(--orange); }
+.notices-item-section--ops      { color: var(--on-navy-ops); }
 .notices-item-section--calendar { color: var(--accent-gold); }
-/* The Trains pill's raspberry, lifted to the same 72% lightness as the three above so it reads on the
+/* The Trains pill's raspberry, lifted to the same lightness as the three above so it reads on the
    navy archive panel — the pill's own L51% is a FILL under white text, too dark to be text here. */
 .notices-item-section--trains   { color: var(--on-navy-trains); }
 .notices-item-date {
@@ -2981,7 +2987,7 @@ button.nav-panel-link--notices {
 }
 .notices-item-body {
     font-size: var(--type-small);
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--on-navy-muted);   /* 0.70, not 0.6 — 4.5:1 exactly at the sheet's lit top, no margin */
     line-height: 1.5;
 }
 
@@ -3144,7 +3150,7 @@ button.nav-panel-link--notices {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   LOGIN OVERLAY — shared by admin.html and settings.html
+   LOGIN OVERLAY — the shared sign-in card, on every page that asks for one
    ═══════════════════════════════════════════════════════════════ */
 #loginOverlay, #pwForceOverlay {
     display: none;
@@ -3461,6 +3467,20 @@ button.login-back:focus-visible { outline: var(--focus-outline); outline-offset:
     line-height: 1.35;
 }
 
+/* A SHORT DESKTOP WINDOW (desktop audit, Nov 2026): a laptop's window is ~600–650px tall, and Pay's
+   card (894px) put "Sign in →" under the fold. Here the card drops its logo and tightens — ~150px
+   back, the button on screen at 600px on every page; the words and their order stay. Wide AND short
+   only: a phone scrolls a tall card. e2e/auth.spec.js → "on a short laptop window…". */
+@media (min-width: 1024px) and (max-height: 820px) {
+    #loginOverlay, #pwForceOverlay { padding-top: max(14px, env(safe-area-inset-top)); }
+    #loginCard img, #pwForceContent img, .cal-lock-card img { display: none; }
+    #loginCard, #pwForceContent, .cal-lock-card { padding-top: 24px; padding-bottom: 22px; }
+    .login-subtitle { margin-bottom: 16px; }
+    .login-about { padding: 10px 14px; margin-bottom: 16px; }
+    .login-about-line { line-height: 1.4; }
+    .login-field { margin-bottom: 10px; }
+}
+
 
 /* ── Boot placeholder ────────────────────────────────────────────────────────────────────────────
    admin / operations / links hide `.container` until `body.auth-ready`, and their header is inside
@@ -3498,9 +3518,7 @@ body.auth-ready .boot-placeholder { display: none; }
 @media print { .boot-placeholder { display: none !important; } }
 
 /* ══════════════════════════════════════════════════════════════════
-   SHARED CARD COMPONENTS
-   Used by admin.html, operations.html, and settings.html.
-   Was duplicated in each page's inline <style> / admin.css.
+   SHARED CARD COMPONENTS — every card page (scripts/app-pages.mjs → cardPageFiles).
    ══════════════════════════════════════════════════════════════════ */
 
 /* ── Card header / body ─────────────────────────────────────────── */

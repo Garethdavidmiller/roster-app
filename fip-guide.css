@@ -551,6 +551,18 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 .country-jump a:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 .country-jump a.not-fip { color: var(--mid); }
 
+/* ── A reading measure from 1024px (desktop audit, Nov 2026) ─────────────────────────────────────
+   The 760px column held this page's 12–14px prose — the introductions, every country's paragraphs,
+   the rule lists — at ~110–130 characters a line. The app's own rule for prose on a desktop
+   (css-tokens.md → "Reading measure") is a ~64–72ch cap from 1024px, and the guides keep it too: a
+   paragraph or a list line stops at 68ch. The coloured boxes, tables and cards keep the column, and
+   so does each country's "✓ Checked" line, whose hairline spans its card. The centred disclaimer
+   stays centred. Screen only: print is as it was. */
+@media screen and (min-width: 1024px) {
+    main p:not(.country-reviewed), .rule-list li { max-width: 68ch; }
+    .foot-disclaimer { margin-inline: auto; }
+}
+
 
 /* ── Print ───────────────────────────────── */
 @media print {

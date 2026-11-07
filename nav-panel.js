@@ -22,9 +22,7 @@
  * carrying the whole argument. The drawer had grown FIVE competing treatments for one list of
  * destinations, which is what "cluttered" turned out to mean — measured, it was not dense; there
  * was ~130px of dead space. Now: **pills** = go to a page · **Latest** = the documents you open on
- * a shift · **Reference** = look something up. (The zone's IDIOM is "on a shift"; its HEADING is
- * "Latest" — the argument is beside it in `_inject`. This line said "Today" for a release and a
- * half after the heading changed, which is a module header describing a word it stopped rendering.)
+ * a shift · **Reference** = look something up. (The idiom is "on a shift"; the heading "Latest" — `_inject`.)
  *
  * Three consequences that look like taste and are not:
  *
@@ -52,7 +50,7 @@
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications, releaseDevicePush } from './notif.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl, currentUserAfterBoot } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
-import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
 import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
@@ -60,12 +58,9 @@ import { recordOpen } from './usage-reporter.js';
 /**
  * Page navigation destinations. The current page is NOT omitted — it renders as an inert
  * `aria-current` pill (see `_inject`), so the row is the same shape on every page and the
- * drawer doubles as a map rather than a list of exits. This comment said "omitted" from
- * v10.57 to v20.06 while the code did the opposite.
- * colorClass mirrors the equivalent quick-action button on the calendar page:
- *   calendar → gold (matches Today button)
- *   admin    → navy + gold text (matches Admin button)
- *   paycalc  → green (matches Pay button)
+ * drawer doubles as a map rather than a list of exits.
+ * colorClass is the page's own colour, Admin's navy with gold text (css-tokens.md → "A page is one
+ * colour and one emoji"); `label` is its emoji and name, which its header and About badges repeat.
  */
 const NAV_PAGES = [
     { id: 'calendar',   label: '📅 Calendar',   url: './',      colorClass: 'nav-panel-pill--calendar'   },
@@ -183,6 +178,8 @@ registerPopInterceptor(() => _historyPushed && (_comingSoonOpen || _noticesOpen 
 // (v16.23) — a copy surviving a reset-while-open closed over the detached lightbox and could steal
 // the REBUILT drawer's history entry on Escape (the in-handler open-flag guards remain as backup).
 /** @type {any[]} */ let _navLbKeyHandlers = [];
+// The body's "more below" fade, as every scrolling lightbox wears (desktop audit, Nov 2026); open to close.
+/** @type {() => void} */ let _stopBodyFade = () => {};
 
 /** localStorage key for the archived notices list. */
 /** How long a drawer document tap waits for a session before reading anyway (v19.07). The user has
@@ -280,6 +277,7 @@ export function resetNavPanel() {
     if (_popstateHandler)   { window.removeEventListener('popstate', _popstateHandler);   _popstateHandler = null; }
     _navLbKeyHandlers.forEach(fn => document.removeEventListener('keydown', fn));
     _navLbKeyHandlers = [];
+    _stopBodyFade(); _stopBodyFade = () => {};
     ['navPanel', 'navPanelOverlay', 'navComingSoonLightbox', 'navNoticesLightbox']
         .forEach(id => document.getElementById(id)?.remove());
     const burger = document.getElementById('navMenuBtn');
@@ -349,6 +347,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             history.pushState({ mybNavPanel: _navEntry }, '');
             _historyPushed = true;
         }
+        _stopBodyFade(); _stopBodyFade = watchScrollFade(/** @type {HTMLElement|null} */ (panel.querySelector('.nav-panel-body')));
         // Permission/subscription can change between opens (toggled in admin, or
         // at OS level), so re-read the bell state every time the panel opens.
         _refreshBell();
@@ -362,6 +361,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // before calling this, so we never set aria-hidden over the focused element.
     function _applyClosedState() {
         _panelOpen = false;
+        _stopBodyFade(); _stopBodyFade = () => {};
         panel.setAttribute('aria-hidden', 'true');
         overlay.setAttribute('aria-hidden', 'true');
         overlay.classList.remove('open');

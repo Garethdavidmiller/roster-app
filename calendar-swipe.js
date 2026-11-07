@@ -293,7 +293,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
             }
 
             changeMonth(direction === 'left' ? 1 : -1);
-            document.title = `Marylebone Roster — ${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()}`;
+            document.title = `${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()} — Marylebone Roster`;
             updateLegend();
             updateNavButtonState?.();   // refresh Prev/Next disabled state at year boundaries after a swipe
 

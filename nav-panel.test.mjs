@@ -51,6 +51,7 @@ mock.module('./overlay.js', {
         lockBodyScroll: () => {}, unlockBodyScroll: () => { scrollUnlocks += 1; },
         suppressNextPop: () => {}, registerPopInterceptor: () => {},   // v16.23 pop-ownership hooks
         whenHistorySettled: (/** @type {() => void} */ fn) => fn(),
+        watchScrollFade: () => () => {},   // the body's "more below" fade — decoration; e2e/pages.spec.js tests it
     },
 });
 mock.module('./ls.js', {

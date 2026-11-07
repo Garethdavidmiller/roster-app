@@ -2217,7 +2217,10 @@
         /* ── Tablet: 768px — single-column with more breathing room ── */
         @media (min-width: 768px) {
             .container { gap: 14px; }
-            .app-header { margin-bottom: 0; }
+            /* net gap = 14px - 10px = 4px, the gap under the header on every card page (desktop audit,
+               Nov 2026: this was 0, so Admin, Operations and Links set their first card 10px lower
+               than Pay, Settings, Trains, New link and Overtime). e2e/pages.spec.js measures all eight. */
+            .app-header { margin-bottom: -10px; }
             .col-main, .col-side { gap: 14px; }
 
             .list-toolbar { gap: 10px; }

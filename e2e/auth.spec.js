@@ -775,6 +775,40 @@ test('login overlay geometry is identical across every page that shows it', asyn
     }
 });
 
+// ── A SHORT LAPTOP WINDOW SHOWS THE WAY IN (desktop audit, Nov 2026) ────────────────────────────────
+// A laptop's browser window is ~600–650px tall, and the Pay Calculator's card — explanation and all —
+// was 894px, so "Sign in →" sat under the fold with nothing to say the form went on; the Calendar's
+// front door hid "Use the staff PIN instead" the same way. On a wide, short window the card drops its
+// logo and tightens (shared.css → "A SHORT DESKTOP WINDOW"). Measured on screen, unscrolled, at both
+// ends of that range — and a tall window keeps the logo, so the rule cannot quietly widen.
+test('on a short laptop window the sign-in button is on screen, and so is the front door\'s other way in', async ({ page }) => {
+    for (const [width, height] of [[1366, 650], [1280, 600]]) {
+        await page.setViewportSize({ width, height });
+        for (const url of ['/admin.html', '/paycalc.html']) {
+            await page.goto(url);
+            await page.locator('#loginOverlay.visible').waitFor();
+            await expect(page.locator('#loginSubmit'), `${url} at ${width}×${height}: "Sign in →" is under the fold`).toBeInViewport({ ratio: 1 });
+        }
+        // On the Pay card the explanation still leads, in the page and on screen: it is read before
+        // the fields it explains, and tightening the card must not have moved it.
+        expect(await page.evaluate(() => {
+            const about = /** @type {HTMLElement} */ (document.getElementById('loginAbout'));
+            const grade = /** @type {HTMLElement} */ (document.getElementById('loginGrade'));
+            return about.getBoundingClientRect().bottom <= grade.getBoundingClientRect().top
+                && !!(about.compareDocumentPosition(grade) & Node.DOCUMENT_POSITION_FOLLOWING);
+        }), 'the explanation comes before the fields, in the page and on screen').toBe(true);
+
+        await page.goto('/');
+        await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+        await expect(page.locator('#loginAlternative'), `the Calendar's front door at ${width}×${height}: "Use the staff PIN instead" is under the fold`)
+            .toBeInViewport({ ratio: 1 });
+    }
+    await page.setViewportSize({ width: 1366, height: 1000 });
+    await page.goto('/admin.html');
+    await page.locator('#loginOverlay.visible').waitFor();
+    await expect(page.locator('#loginCard img'), 'a window with room keeps the card\'s logo').toBeVisible();
+});
+
 // ── The INDETERMINATE password write (v18.97, external review) ─────────────────────────────────
 // The defect: Promise.race stops WAITING but does not CANCEL, so a slow updatePassword could land a
 // second after the overlay had said "Couldn't connect". The member then believes their old password

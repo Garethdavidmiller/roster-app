@@ -385,7 +385,7 @@ function renderCalendar() {
         const calendarDisplay = document.getElementById('calendarDisplay');
         if (!calendarDisplay) throw new Error('Calendar display element not found');
 
-        document.title = `Marylebone Roster — ${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()}`;
+        document.title = `${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()} — Marylebone Roster`;
 
         // Persist so the user returns to the same month after closing the app
         persistViewedMonth();

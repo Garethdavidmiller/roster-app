@@ -123,11 +123,14 @@ Use these tokens, not inline `cubic-bezier(...)` or a bare `ease`.
 Tips, confirm/prompt) use `--radius-xl` (20px); full navy GLASS SHEETS (About, notices, day detail, AL)
 use `--radius-panel` (24px).
 
-**Within the glass family, two are SOLID:** the one-time notices and the About panel share one opaque
-navy sheet (`.notice-lb-content, #iconLightboxContent` in shared.css — a third panel that wants it
+**Within the glass family, four are SOLID:** the one-time notices, the About panel and the drawer's
+App Notices and Coming Soon panels share one opaque navy sheet (`.notice-lb-content,
+#iconLightboxContent, #navNoticesContent, #navComingSoonContent` in shared.css — a panel that wants it
 joins the selector list, never copies it). Day detail and AL stay see-through, because they are a
 look at something still on screen behind them; a notice wants a decision and About describes the app,
-and a see-through About would make each pill's contrast depend on whatever page was underneath.
+and a see-through About would make each pill's contrast depend on whatever page was underneath. App
+Notices joined for that reason (desktop audit, Nov 2026): over Admin's light cards its section labels
+measured 3.0–3.4:1.
 
 **An overlay never wears the card radius.** `--radius-lg` is the radius `.card` uses on every page,
 and sharing a silhouette with the card underneath flattens the layering an overlay depends on — a

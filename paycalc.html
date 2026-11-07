@@ -28,7 +28,7 @@
   <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-  <title>Marylebone Roster — Pay Calculator</title>
+  <title>Pay Calculator — Marylebone Roster</title>
   <link rel="stylesheet" href="./paycalc.css">
 
   <!--
@@ -1108,10 +1108,10 @@
     <div class="lightbox-app-name">Marylebone Roster</div>
     <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
     <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-    <div class="lightbox-badge">Pay Calculator</div>
+    <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">💷</span> Pay</div>
     <div class="lightbox-privacy">Pay data stays in this browser — never shared.</div>
-    <a href="./paycalc-guide.html" class="lightbox-bug-link"><span aria-hidden="true">📖</span> View pay guide</a>
-    <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
+    <!-- Print, then the link rows, then Report a bug — the order every About panel keeps (desktop
+         audit, Nov 2026; Print came last here and first on the Calendar). -->
     <div class="lightbox-print-wrap">
       <!-- "Print pay estimate", not "Print this page" (v23.27, external review). The print
            stylesheet builds a CURATED artefact — result first, then the hours entered, then the
@@ -1121,6 +1121,8 @@
       <button type="button" id="lightboxPrintBtn" class="lightbox-print-btn"><span aria-hidden="true">🖨️</span> Print pay estimate</button>
       <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the estimate, hours entered and settings used</span>
     </div>
+    <a href="./paycalc-guide.html" class="lightbox-bug-link"><span aria-hidden="true">💷</span> Pay Calculator Guide</a>
+    <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
   </div>
 </div>
 

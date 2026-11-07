@@ -175,3 +175,27 @@ test('the scan finds the focus rules, every exemption is in use, and each remova
     assert.equal(caught('.x:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }'), 0);
     assert.equal(caught('.x:focus-visible { /* not outline: none */ outline: var(--focus-outline); }'), 0);
 });
+
+// ── 3. A control on a NAVY surface never wears the navy ring (desktop audit, Nov 2026) ─────────────
+// The fallback ring is `--focus-outline` — navy — so a control on navy with no rule of its own is a
+// Tab stop with no visible indicator (1:1). These are the shared code's controls on the navy header
+// and the opaque navy sheet; each must name a ring drawn for a dark surface. A static floor beside
+// the e2e (pages.spec.js → "keyboard focus is visible on the navy surfaces"), which reads the computed
+// ring: this one names the rule, that one proves the cascade lets it win.
+test('the shared controls on a navy surface name a ring drawn for one', () => {
+    const src = read('shared.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const ON_NAVY = ['.app-icon:focus-visible', '#iconLightboxClose:focus-visible', '.notice-lb-content .lb-close:focus-visible',
+        '#navNoticesClose:focus-visible', '#navComingSoonClose:focus-visible', '.lightbox-bug-link:focus-visible',
+        '.lightbox-print-btn:focus-visible', '.notice-cta:focus-visible', '.notice-later:focus-visible',
+        '.notice-lb-content .btn-action:focus-visible'];
+    /** @type {Record<string, string>} */ const ring = {};
+    for (const m of src.matchAll(/([^{}]*:focus-visible[^{}]*)\{([^}]*)\}/g)) {
+        for (const s of selectorList((m[1].split(';').pop() ?? '').trim().replace(/\s+/g, ' '))) {
+            const o = /(?:^|[\s;])outline:\s*([^;]+)/.exec(m[2])?.[1].trim();
+            if (o) ring[s] = o;
+        }
+    }
+    const wrong = ON_NAVY.filter(s => !/^var\(--focus-outline-(?:gold|light)\)$/.test(ring[s] ?? ''))
+        .map(s => `${s} → ${ring[s] ?? 'no rule: the navy fallback'}`);
+    assert.deepEqual(wrong, [], 'a control on navy needs --focus-outline-gold or --focus-outline-light');
+});

@@ -1383,7 +1383,9 @@ body.auth-ready .container { display: grid; }
 /* ---- Tablet/Desktop ---- */
 @media (min-width: 768px) {
     .container { gap: 14px; }
-    .app-header { margin-bottom: 0; }
+    /* net gap = 14px - 10px = 4px, the gap under the header on every card page (desktop audit,
+       Nov 2026; it was 0 — the first card 10px lower than on Pay or Settings). */
+    .app-header { margin-bottom: -10px; }
 }
 
 /* ---- Design picker strip ---- */

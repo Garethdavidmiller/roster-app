@@ -793,6 +793,9 @@ runtime, so `overlay-parity.test.mjs`'s scan of the served HTML cannot see them.
   `prompt()`. Async, so never inside a capture-phase navigation guard or a `beforeunload`; `onConfirm`
   runs inside the tap, for work that needs the gesture.
 - `lockBodyScroll()` / `unlockBodyScroll()` — depth-counted and iOS-safe.
+- `watchScrollFade(panel)` → stop function — toggles `.has-more` (the "more below" fade in shared.css)
+  while a scrolling panel has content past its fold. Every lightbox gets it through `createLightbox`; the
+  nav drawer's body is the one other caller (`nav-panel.js`), from open to close.
 - `initCardCollapse(headerId, bodyId, chevronId, onToggle)` — the chevron is the focusable toggle, never
   a header that holds another button (WCAG `nested-interactive`).
 - `openCardNamedByHash(cardId, bodyId, toggleId)` → boolean — opens the collapsed card the URL fragment

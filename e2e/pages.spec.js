@@ -9,7 +9,7 @@
  * operations.spec.js, settings.spec.js and guides.spec.js, moved test for test and unchanged.
  */
 import { test, expect } from './fixtures.js';
-import { seedSession, seedMember, isTouchProject, scaleText, tooWide, waitForPageSettled } from './helpers.js';
+import { seedSession, seedMember, seedMemberSession, isTouchProject, scaleText, tooWide, waitForPageSettled } from './helpers.js';
 import { teamMembers } from '../roster-data.js';
 import { APP_PAGES as APP_PAGES_LIST } from '../scripts/app-pages.mjs';
 
@@ -231,6 +231,252 @@ test('drawer brand → About: Back closes About and stays on the page', async ({
     await page.evaluate(() => history.back());
     await expect(about).toBeHidden();
     await expect(page).toHaveURL(/admin\.html/);
+});
+
+// ── THE DRAWER SAYS THERE IS MORE BELOW (desktop audit, Nov 2026) ───────────────────────────────
+// On a laptop window (1366×625) an admin's drawer ended at "Marylebone Newsletter", with Reference —
+// the guides, their search and App Notices — below the fold and nothing to say it was there. The body
+// now wears the fade every scrolling lightbox wears, from the same watcher: there while more is below,
+// gone at the end, gone when it all fits — and re-measured when the Reference fold opens or closes,
+// which changes the content's height with no node added or removed.
+test('drawer: the body fades at the fold only while there is more below it', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 1366, height: 625 });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#navMenuBtn').click();
+    const body = page.locator('.nav-panel-body');
+    await expect(body, 'Reference is below the fold and the body does not say so').toHaveClass(/\bhas-more\b/);
+    expect(await body.evaluate(el => getComputedStyle(el).maskImage || getComputedStyle(el).webkitMaskImage),
+        'the class is there but nothing draws the fade').toMatch(/linear-gradient/);
+    await body.evaluate(el => { el.scrollTop = el.scrollHeight; });
+    await expect(body, 'scrolled to the end, there is nothing more below').not.toHaveClass(/\bhas-more\b/);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#navPanel')).not.toHaveClass(/\bopen\b/);
+
+    // A window where the body fits only with Reference folded: the fold alone moves the answer.
+    await page.setViewportSize({ width: 1366, height: 800 });
+    await page.locator('#navMenuBtn').click();
+    const toggle = page.locator('#navGuidesToggle');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await body.evaluate(el => { el.scrollTop = 0; });   // the drawer keeps its scroll between opens
+    await expect(body).toHaveClass(/\bhas-more\b/);
+    await toggle.click();
+    await expect(body, 'Reference folded away: it all fits, and the fade must go').not.toHaveClass(/\bhas-more\b/);
+    await toggle.click();
+    await expect(body, 'Reference open again: more below again').toHaveClass(/\bhas-more\b/);
+    await page.keyboard.press('Escape');
+
+    await page.setViewportSize({ width: 1366, height: 1300 });
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel')).toHaveClass(/\bopen\b/);
+    await page.waitForTimeout(100);   // two frames for the first measure
+    await expect(body, 'a drawer that fits wears no fade').not.toHaveClass(/\bhas-more\b/);
+});
+
+// ── THE FIRST CARD SITS THE SAME DISTANCE UNDER THE HEADER ON EVERY PAGE (desktop audit, Nov 2026) ─
+// From 768px Admin, Operations and Links set it 14px down (their grid's gap, the header's margin 0)
+// and the other five 4px (the header's own margin) — so hopping pages, the content jumped 10px under
+// a header that did not move. What is measured is what a reader sees: the first thing PAINTED below
+// the header — a box with a fill, or words — not a wrapper's edge.
+test('every card page puts its first card the same distance under the header, at 1366', async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); localStorage.setItem('myb_links_welcome_seen', '1'); });
+    /** @type {Record<string, number>} */
+    const gaps = {};
+    for (const p of APP_PAGES_LIST.filter(x => x.cards)) {
+        await page.goto(p.url);
+        await waitForPageSettled(page);
+        gaps[p.file] = await page.evaluate(() => {
+            const header = /** @type {HTMLElement} */ (document.querySelector('.app-header'));
+            const bottom = header.getBoundingClientRect().bottom;
+            const painted = [...document.querySelectorAll('body *')].filter(el => {
+                if (header.contains(el) || !(header.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) return false;
+                const cs = getComputedStyle(el);
+                if (cs.position === 'fixed' || cs.visibility === 'hidden' || !el.getClientRects().length) return false;
+                const fill = !/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor);
+                const words = [...el.childNodes].some(n => n.nodeType === 3 && (n.textContent || '').trim());
+                return fill || words;
+            }).map(el => el.getBoundingClientRect().top);
+            return Math.round(Math.min(...painted) - bottom);
+        });
+    }
+    expect(new Set(Object.values(gaps)).size, `header → first card, by page: ${JSON.stringify(gaps)}`).toBe(1);
+});
+
+// ── THE ABOUT PANEL IS ONE DESIGN ON EVERY PAGE (desktop audit, Nov 2026) ───────────────────────
+// It was assembled from mismatched parts: Print a 20px pill above 10px rows; Print before the links on
+// the Calendar and after them on Pay; one centred tip over three edge-aligned keyboard rows, and tips
+// that said "Tap" to a mouse. Measured on the rendered panels — the Calendar's (tips, Print, guide,
+// bug) and Pay's (badge, Print, guide, bug).
+test('About panel: one order, one corner, and the tips line up with the keyboard rows', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard rows are a fine pointer\'s');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); localStorage.setItem('myb_pc_ytd_notice_2_shown', '1'); });
+    /** Top-to-bottom order of the panel's actions, and each one's corner. */
+    const layout = () => page.evaluate(() => [...document.querySelectorAll('#iconLightbox .lightbox-print-btn, #iconLightbox .lightbox-bug-link')]
+        .filter(el => /** @type {HTMLElement} */ (el).getClientRects().length)
+        .map(el => ({ kind: el.classList.contains('lightbox-print-btn') ? 'print' : el.id.toLowerCase().includes('bug') ? 'bug' : 'link',
+                      top: el.getBoundingClientRect().top, radius: getComputedStyle(el).borderTopLeftRadius })));
+
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toBeVisible();
+    const cal = await layout();
+    expect(cal.map(r => r.kind), 'the Calendar: Print, then the guide, then Report a bug').toEqual(['print', 'link', 'bug']);
+    expect(new Set(cal.map(r => r.radius)), 'one corner for every action in the panel').toEqual(new Set(['12px']));
+    const tips = await page.evaluate(() => {
+        // Where the WORDS start — every line of them — not where the box does: a centred line in a
+        // full-width box starts its box at the edge and its words in the middle.
+        const left = (/** @type {Element|null} */ el) => {
+            if (!el) return -1;
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            return Math.max(...[...range.getClientRects()].filter(r => r.width > 1).map(r => Math.round(r.left)));
+        };
+        const rows = [...document.querySelectorAll('#calendarTips .lightbox-tip')].filter(el => /** @type {HTMLElement} */ (el).getClientRects().length);
+        return { title: left(document.querySelector('#calendarTips .lightbox-tips-title')), plain: left(rows.find(r => !r.classList.contains('keyboard-only'))?.firstElementChild ?? null),
+                 keys: rows.filter(r => r.classList.contains('keyboard-only')).map(r => left(r.firstElementChild)) };
+    });
+    expect(tips.keys.length, 'premise: the keyboard rows show on a fine pointer').toBe(3);
+    expect(new Set([tips.title, tips.plain, ...tips.keys]).size, `the tips start at one x: heading ${tips.title}, tip ${tips.plain}, keyboard rows ${tips.keys}`).toBe(1);
+    // A tip every pointer reads names no one input — Team Week View's set included. A touch-only
+    // tip may still say "Swipe".
+    const said = await page.locator('#iconLightbox .lightbox-tip:not(.touch-only)').allTextContents();
+    expect(said.length, 'premise: both tip sets, the month\'s and Team Week View\'s').toBeGreaterThan(5);
+    expect(said.filter(t => /^\s*(Tap|Click)\b/.test(t)), 'a tip a mouse reads too says "Select", not "Tap"').toEqual([]);
+
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#settingsCard')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanelBrand').click();
+    await expect(page.locator('#iconLightbox')).toBeVisible();
+    const pay = await layout();
+    expect(pay.map(r => r.kind), 'Pay: the same order as the Calendar').toEqual(['print', 'link', 'bug']);
+    expect(new Set(pay.map(r => r.radius))).toEqual(new Set(['12px']));
+    await expect(page.locator('#iconLightbox .lightbox-badge'), 'the drawer pill\'s emoji and name').toHaveText('💷 Pay');
+});
+
+// ── THE HEADER ANSWERS A MOUSE (desktop audit, Nov 2026) ─────────────────────────────────────────
+// The burger had only a pressed state, and the sub-page logo — Back to calendar — no hover at all,
+// while the Calendar's own logo grows on hover. Read off the rendered controls under a real mouse.
+test('header: the burger and the sub-page logo answer a mouse', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a hover is a fine pointer\'s');
+    await seedSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/settings.html');
+    const burger = page.locator('#navMenuBtn');
+    await expect(burger).toBeVisible();
+    const raised = await page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.backgroundColor = 'var(--on-navy-raised)';
+        document.body.append(probe);
+        const c = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return c;
+    });
+    await burger.hover();
+    await expect.poll(() => burger.evaluate(el => getComputedStyle(el).backgroundColor), { message: 'the burger on hover' }).toBe(raised);
+    const logo = page.locator('#appIcon');
+    await logo.hover();
+    await expect.poll(() => logo.evaluate(el => getComputedStyle(el).transform), { message: 'the logo grows on hover, as the Calendar\'s does' })
+        .toBe('matrix(1.12, 0, 0, 1.12, 0, 0)');
+});
+
+// ── KEYBOARD FOCUS ON THE NAVY SURFACES THE SHARED CODE DRAWS (desktop audit, Nov 2026) ──────────
+// A ring is drawn only while a keyboard user is on the element, so no screenshot and no axe rule sees
+// one. These had no focus rule of their own, so each fell to the app-wide fallback — the NAVY ring —
+// on navy: the sub-page header logo, and on the solid navy sheet the About panel's ✕, Print, guide and
+// bug rows, a notice's ✕, call to action and "Not now", and App Notices' ✕. Each is reached with a
+// real Tab (so `:focus-visible` is the keyboard's) and its computed ring compared with the colour the
+// token resolves to on the same page.
+
+/** The colour a focus token resolves to on this page, read off a probe element.
+ *  @param {import('@playwright/test').Page} page @param {string} token */
+const ringColourOf = (page, token) => page.evaluate((t) => {
+    const probe = document.createElement('div');
+    probe.style.outline = `var(${t})`;
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).outlineColor;
+    probe.remove();
+    return colour;
+}, token);
+
+/** Press Tab until `selector` holds focus, then return its outline.
+ *  @param {import('@playwright/test').Page} page @param {string} selector */
+async function tabToRing(page, selector, presses = 10) {
+    for (let i = 0; i < presses; i++) {
+        await page.keyboard.press('Tab');
+        const ring = await page.evaluate((sel) => {
+            const el = document.activeElement;
+            if (!el?.matches(sel)) return null;
+            const cs = getComputedStyle(el);
+            return { style: cs.outlineStyle, width: cs.outlineWidth, colour: cs.outlineColor };
+        }, selector);
+        if (ring) return ring;
+    }
+    throw new Error(`Tab never reached ${selector}`);
+}
+
+test('keyboard focus is visible on the navy surfaces the shared code draws', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    // Inside the new-timetable notice's life (21–31 Oct), so the Calendar puts one up to Tab through.
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify([
+        { id: 'timetable-2026', title: 'A new timetable starts on 13 December', section: 'Trains', date: '21 Oct 2026', body: 'Some trains leave Marylebone at different times.', archivedAt: '2026-10-21T09:00:00.000Z' },
+    ])));
+
+    // The sub-page header logo — Back to calendar, on the navy header beside the burger.
+    await page.goto('/settings.html');
+    await expect(page.locator('#appIcon')).toBeVisible();
+    const light = await ringColourOf(page, '--focus-outline-light');
+    const gold = await ringColourOf(page, '--focus-outline-gold');
+    const navy = await ringColourOf(page, '--focus-outline');
+    expect(new Set([light, gold, navy]).size, 'premise: the three ring tokens are three colours').toBe(3);
+    const logo = await tabToRing(page, '#appIcon');
+    expect(logo, 'the header logo wears the light ring the burger beside it wears').toEqual({ style: 'solid', width: '2px', colour: light });
+    // …and all of it is drawn: the brand clips its overflow (for the title's ellipsis), and a clip
+    // cuts an outline like anything else — the ring reaches 4px past the logo (2px offset + 2px).
+    const room = await page.evaluate(() => {
+        const icon = /** @type {HTMLElement} */ (document.getElementById('appIcon')).getBoundingClientRect();
+        const clip = /** @type {HTMLElement} */ (document.querySelector('.app-header-brand')).getBoundingClientRect();
+        return { above: Math.round(icon.top - 4 - clip.top), below: Math.round(clip.bottom - icon.bottom - 4) };
+    });
+    expect(room.above, 'the brand\'s overflow clips the ring above the logo').toBeGreaterThanOrEqual(0);
+    expect(room.below, 'the brand\'s overflow clips the ring below the logo').toBeGreaterThanOrEqual(0);
+
+    // App Notices, from the drawer — its ✕ sits on the opaque navy sheet now.
+    await page.locator('#navMenuBtn').click();
+    const toggle = page.locator('#navGuidesToggle');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    await page.locator('.nav-panel-link--notices').click();
+    await expect(page.locator('#navNoticesLightbox')).toBeVisible();
+    expect(await tabToRing(page, '#navNoticesClose'), 'App Notices ✕').toEqual({ style: 'solid', width: '2px', colour: gold });
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#navNoticesLightbox')).toBeHidden();
+
+    // A one-time notice on the Calendar: its ✕, its call to action and "Not now".
+    await page.addInitScript(() => localStorage.removeItem('myb_notice_timetable_2026_done'));
+    await page.goto('/');
+    await expect(page.locator('#timetableNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+    for (const [sel, name] of [['#timetableNoticeClose', 'the notice ✕'], ['#timetableNoticeGo', 'the call to action'], ['#timetableNoticeLater', '"Not now"']]) {
+        expect(await tabToRing(page, sel), name).toEqual({ style: 'solid', width: '2px', colour: gold });
+    }
+    await page.locator('#timetableNoticeLater').click();
+    await expect(page.locator('#timetableNoticeLb')).toBeHidden();
+
+    // The About panel — the Calendar's carries every row kind: ✕, Print, the guide and the bug report.
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toBeVisible();
+    for (const [sel, name] of [['#iconLightboxClose', 'About ✕'], ['#lightboxPrintBtn', 'Print'],
+                               ['#iconLightbox a[href^="./staff-guide.html"]', 'the guide row'], ['#bugReportLink', 'Report a bug']]) {
+        expect(await tabToRing(page, sel), name).toEqual({ style: 'solid', width: '2px', colour: gold });
+    }
 });
 
 // A SIGNED-OUT VISIT STILL TAKES AN UPDATE (whole-app review, Oct 2026). Pay, Trains and Overtime

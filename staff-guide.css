@@ -104,6 +104,16 @@
     white-space: nowrap;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
+/* EACH LABEL WEARS ITS REAL BUTTON'S COLOURS (desktop audit, Nov 2026). Every label was navy, while
+   the Calendar's buttons are gold 📍, navy 👥 Team, teal 🏖️ AL, navy-with-gold 📝 Admin and green
+   💷 Pay — so the guide described five buttons a reader could not match to the screen by sight.
+   Team keeps the navy above. The guides load no app tokens, so the two the shell does not carry are
+   mirrored: AL is guide-doc's own AL teal, and the Pay green is declared below. */
+.feature-label--today { background: var(--gold);      color: var(--navy); }
+.feature-label--al    { background: var(--sb-al);     color: white; }
+.feature-label--admin { background: var(--navy);      color: var(--gold); }
+.feature-label--pay   { background: var(--pay-green); color: white; }
+:root { --pay-green: #15731f; /* = the app's --green, oklch(48.5% 0.145 144.2deg): the 💷 Pay button */ }
 .feature-desc { font-size: 11px; color: var(--mid); line-height: 1.45; }
 .feature-desc strong { color: var(--text); }
 

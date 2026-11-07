@@ -11,7 +11,7 @@
          firebase.json, and is the ONLY noindex signal the GitHub Pages mirror gets (it cannot serve
          headers). Rationale in robots.txt; enforced by sw-asset-check.test.mjs. -->
     <meta name="robots" content="noindex, nofollow">
-    <title>Marylebone Roster</title>
+    <title>Calendar — Marylebone Roster</title>
     
     <!-- PWA Meta Tags -->
     <meta name="description" content="Marylebone station shift roster calendar for Chiltern Railways staff">
@@ -162,11 +162,11 @@
             <div class="lightbox-app-name">Marylebone Roster</div>
             <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
             <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-            <div class="lightbox-badge" id="teamViewBadge" hidden>👥 Team Week View</div>
+            <div class="lightbox-badge" id="teamViewBadge" hidden><span class="badge-glyph" aria-hidden="true">👥</span> Team Week View</div>
             <div class="lightbox-tips" id="calendarTips">
                 <div class="lightbox-tips-title">Tips</div>
                 <div class="lightbox-tip touch-only"><span>Swipe left / right to change month</span></div>
-                <div class="lightbox-tip"><span>Tap the month heading to jump</span></div>
+                <div class="lightbox-tip"><span>Select the month heading to jump</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Keyboard: navigate months</span><span class="lightbox-tip-key">← →</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Go to today</span><span class="lightbox-tip-key">T</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
@@ -174,15 +174,15 @@
             <div class="lightbox-tips" id="teamViewTips" hidden>
                 <div class="lightbox-tips-title">Tips</div>
                 <div class="lightbox-tip touch-only"><span>Swipe the table to see all 7 days</span></div>
-                <div class="lightbox-tip"><span>Tap CEA, CES or Dispatcher to switch grade</span></div>
-                <div class="lightbox-tip"><span>Tap ☰ → Daily Huddle for the latest day plan</span></div>
-                <div class="lightbox-tip"><span>Tap 📍, or Back to this week under the dates, to return to the current week</span></div>
+                <div class="lightbox-tip"><span>Select CEA, CES or Dispatcher to switch grade</span></div>
+                <div class="lightbox-tip"><span>Open ☰ → Daily Huddle for the latest day plan</span></div>
+                <div class="lightbox-tip"><span>Select 📍, or Back to this week under the dates, to return to the current week</span></div>
             </div>
             <div class="lightbox-print-wrap">
                 <button type="button" id="lightboxPrintBtn" class="lightbox-print-btn"><span aria-hidden="true">🖨️</span> Print this calendar</button>
                 <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current month's calendar</span>
             </div>
-            <a href="./staff-guide.html" class="lightbox-bug-link" style="margin-top:4px"><span aria-hidden="true">📖</span> View staff guide</a>
+            <a href="./staff-guide.html" class="lightbox-bug-link"><span aria-hidden="true">📘</span> Staff &amp; Admin Guide</a>
             <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
         </div>
     </div>
