@@ -343,7 +343,25 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // returns null and the trigger is a button that does nothing. Silent: the control renders, it
     // just never opens. Every other caller passes it; this one has to as well.
     enhanceSelect(gradeSelect, { title: 'Select your grade', createLightbox });
-    const refreshName = enhanceSelect(nameSelect, { title: 'Select your name', createLightbox });
+    // ── THE PASSWORD BOX IS FOCUSED INSIDE THE TAP ON A NAME (iPhone audit, 7 Nov 2026) ────────────
+    //
+    // The `change` handler below focuses the password box once the name is set — but the sheet sets
+    // it only after its close has LANDED (select-sheet.js → `openOptionSheet`), long after the tap,
+    // and iOS raises its keyboard only for a focus made synchronously inside the tap. So an iPhone
+    // got a caret in the box and no keyboard. `focusOnPick` runs IN the tap, after the sheet has
+    // handed focus back to the name control. It empties the box there too, for a DIFFERENT name —
+    // which is what the handler below does — and notes for whom, because the member can start typing
+    // before the pick lands and the handler must not then wipe what they typed (`_pwClearedFor`).
+    // The same name picked again keeps whatever is in the box, as it always did.
+    let _pwClearedFor = '';
+    const refreshName = enhanceSelect(nameSelect, {
+        title: 'Select your name', createLightbox,
+        focusOnPick: (value) => {
+            if (!value) return null;
+            if (value !== nameSelect.value) { passwordInput.value = ''; _pwClearedFor = value; }
+            return passwordInput;
+        },
+    });
 
     // The name refresher IS captured, unlike the other callers, because this cascade repaints itself
     // and then immediately acts on the result. `enhanceSelect` repaints from a MutationObserver,
@@ -434,7 +452,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     nameSelect.addEventListener('change', () => {
         errorEl.classList.remove('visible');
         resetResetRequest();   // see the grade handler
-        passwordInput.value = '';
+        // Already emptied in the tap for this name (`focusOnPick`, above): anything here now was
+        // typed for it, after the pick. Any other change — a test's `selectOption` — clears as before.
+        if (_pwClearedFor !== nameSelect.value) passwordInput.value = '';
+        _pwClearedFor = '';
         if (nameSelect.value) passwordInput.focus();
     });
 

@@ -1510,6 +1510,14 @@ button.lightbox-bug-link {
    surface. Caught by the e2e that clicks a real row rather than by the three tests that only read
    the trigger's label — the label was right the whole time. */
 .picker-sheet-overlay { z-index: var(--z-picker); }
+/* A SHEET WITH A SEARCH BOX SITS AT THE TOP OF THE SCREEN (iPhone audit, 7 Nov 2026). Centred, the
+   panel re-centred on every keystroke that shortened the list, so the box and its matches slid DOWN
+   the screen — towards the iPhone keyboard, which does not resize the page and so covers whatever is
+   under it. Anchored, nothing moves while the member types. `select-sheet.js` adds the class only
+   while the box is shown; a short sheet stays centred. The margin clears the notch in an installed
+   app, where the page runs up under the status bar. */
+.picker-sheet-overlay--search { align-items: flex-start; }
+.picker-sheet-overlay--search .picker-sheet { margin-top: max(12px, env(safe-area-inset-top)); }
 
 .picker-sheet {
     background: white;
@@ -2793,6 +2801,12 @@ button.lightbox-bug-link {
    handler, same hover states); everything below only adds the two-line text layout and the
    evidence chips. Colours are the drawer's scoped tokens — nothing hardcoded. */
 #navGuideSearchZone { padding: 2px 0 4px; }
+/* SEARCH MODE (iPhone audit, 7 Nov 2026): while a query is active, everything in the drawer body but
+   the section holding the search steps aside — today the page pills and Latest — so the results sit
+   just under the box instead of ~500px down the drawer, under the iPhone keyboard. Named by what it
+   KEEPS rather than by what it hides, so a section added to the drawer later steps aside too rather
+   than wedging itself between the box and its results. `nav-guide-search.js` → `syncSearchMode`. */
+.nav-panel--searching .nav-panel-body > :not(:has(#navGuideSearchZone)) { display: none; }
 .nav-gs-input {
     width: 100%;
     box-sizing: border-box;

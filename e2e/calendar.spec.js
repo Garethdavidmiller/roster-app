@@ -3423,3 +3423,140 @@ test('overlay: a sign-in card mounted over an open dialog keeps the focus it tak
     await page.evaluate(() => document.getElementById('loginPassword')?.focus());
     expect(await focusIsIn(page)).toBe('sign-in');
 });
+
+/** Wait for an element's running transitions and animations to end — the sheets open with a scale. */
+const settledBox = (/** @type {import('@playwright/test').Locator} */ loc) => loc.evaluate(async el => {
+    await Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished.catch(() => {})));
+    const r = el.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, viewport: window.innerHeight };
+});
+
+test('picker: a sheet with a search box sits at the top and stays there as the list shrinks', async ({ page }) => {
+    // Centred, every keystroke that shortened the list re-centred the panel, sliding the box and its
+    // matches DOWN — towards the iPhone keyboard, which covers the bottom of the page without resizing
+    // it. Measured on the real name sheet, before and after a filter.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('#teamMemberSelectTrigger')).toBeVisible();
+    await page.locator('#teamMemberSelectTrigger').click();
+    const box = page.locator('.picker-search-input');
+    await expect(box).toBeVisible();
+    const panel = page.locator('.picker-sheet');
+    const before = await settledBox(panel);
+    expect(before.top, 'the sheet with a search box opened centred, not at the top').toBeLessThanOrEqual(24);
+
+    const name = await page.evaluate(() => {
+        const sel = /** @type {any} */ (document.getElementById('teamMemberSelect'));
+        return Array.from(sel.options).map((/** @type {any} */ o) => o.text.trim()).find(t => t.includes('.')) || '';
+    });
+    await box.fill(name.split('.').pop().trim().slice(0, 4));
+    const after = await settledBox(panel);
+    expect(Math.abs(after.top - before.top), 'the panel moved as the list shrank').toBeLessThanOrEqual(1);
+    expect(after.bottom, 'premise: the filter shortened the panel').toBeLessThan(before.bottom);
+
+    // The keyboard's Search key puts the keyboard away: the box lets go, focus stays in the sheet.
+    await box.press('Enter');
+    await expect(box).not.toBeFocused();
+    expect(await page.evaluate(() => !!document.activeElement?.closest('.picker-sheet')),
+        'Enter dropped focus out of the sheet').toBe(true);
+    await expect(page.locator('.picker-sheet-overlay')).toHaveClass(/open/);   // still open, still filtered
+});
+
+test('guide search: while searching, the results sit under the box — and the drawer comes back', async ({ page }) => {
+    // ~500px of page pills and Latest sat above the box, so at 390×844 its results began below the
+    // fold — under the iPhone keyboard. While a query is active those step aside.
+    await page.setViewportSize({ width: 390, height: 844 });
+    const input = await openGuideSearch(page);
+    const pills = page.locator('#navPanel .nav-panel-pills');
+    const latest = page.locator('#navPanel .nav-panel-section').first();
+    await expect(pills).toBeVisible();
+    await expect(latest).toBeVisible();
+    const boxTopAtRest = await input.evaluate(el => el.getBoundingClientRect().top);
+
+    await input.fill('gold card');
+    const first = page.locator('#navGuideSearchResults a').first();
+    await expect(first).toBeVisible();
+    await expect(pills).toBeHidden();
+    await expect(latest).toBeHidden();
+    await expect(page.locator('#navGuidesToggle'), 'the box keeps its own section heading').toBeVisible();
+    const geometry = await page.evaluate(() => ({
+        box: /** @type {HTMLElement} */ (document.getElementById('navGuideSearchInput')).getBoundingClientRect().top,
+        result: /** @type {HTMLElement} */ (document.querySelector('#navGuideSearchResults a')).getBoundingClientRect().top,
+    }));
+    expect(boxTopAtRest, 'premise: at rest the box sits well down the drawer').toBeGreaterThan(300);
+    expect(geometry.box, 'the box did not come up to the top of the drawer').toBeLessThan(200);
+    expect(geometry.result, 'the first result is not just under the box').toBeLessThan(geometry.box + 100);
+
+    // The keyboard's Search key puts the keyboard away, and leaves the results where they are.
+    await input.press('Enter');
+    await expect(input).not.toBeFocused();
+    await expect(first).toBeVisible();
+
+    // Clearing the query brings the drawer's map back…
+    await input.fill('');
+    await expect(pills).toBeVisible();
+    await expect(latest).toBeVisible();
+    // …and so does closing the drawer with a query still in the box.
+    await input.fill('gold card');
+    await expect(pills).toBeHidden();
+    await page.locator('#navPanelClose').click();
+    await page.locator('#navMenuBtn').click();
+    await expect(pills).toBeVisible();
+    await expect(latest).toBeVisible();
+    await expect(input).toHaveValue('');
+});
+
+test('sign-in card: picking your name focuses the password box inside the tap', async ({ page }) => {
+    // The sheet sets the name only once its close has landed, long after the tap, and iOS raises its
+    // keyboard only for a focus made synchronously inside it — so an iPhone got a caret and no
+    // keyboard. The tap and the read are one `evaluate`. The Calendar's front door is the card inline.
+    await page.addInitScript(() => { try { sessionStorage.removeItem('__e2e_viewer'); } catch { /* noop */ } });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('#loginGradeTrigger')).toBeVisible();
+    await page.locator('#loginGradeTrigger').click();
+    const sheet = page.locator('.picker-sheet-overlay');
+    await expect(sheet).toHaveClass(/open/);
+    // A short sheet has no search box, and stays centred.
+    await expect(sheet).not.toHaveClass(/picker-sheet-overlay--search/);
+    await page.locator('.picker-sheet .picker-opt[data-value]:not([data-value=""])').first().click();
+    await expect(sheet).not.toHaveClass(/open/);
+    await expect(page.locator('#loginNameTrigger')).toBeEnabled();
+    await page.locator('#loginNameTrigger').click();
+    await expect(sheet).toHaveClass(/open/);
+
+    const tap = await page.evaluate(() => {
+        const row = /** @type {HTMLElement} */ (document.querySelector('.picker-sheet .picker-opt[data-value]:not([data-value=""])'));
+        row.click();
+        const focused = document.activeElement?.id;
+        // The member starts typing before the pick has landed (the sheet is still fading): that is
+        // THEIR password for THIS name, and the name's own `change` must not wipe it when it arrives.
+        /** @type {HTMLInputElement} */ (document.getElementById('loginPassword')).value = 'typed-in-time';
+        return { focused, name: row.dataset.value };
+    });
+    expect(tap.focused, 'the password box was not focused inside the tap').toBe('loginPassword');
+    await expect(page.locator('#loginName')).toHaveValue(/** @type {string} */ (tap.name));   // the pick landed
+    await expect(page.locator('#loginPassword')).toHaveValue('typed-in-time');
+    await expect(page.locator('#loginPassword')).toBeFocused();
+});
+
+test('member card: "Sign in →" opens the form with the password box focused inside the tap', async ({ page }) => {
+    // A member whose identity has gone is offered their own sign-in, which lands on the password box.
+    // It used to `await` the form's module first, so the focus came after the tap and no keyboard rose.
+    // The card now fetches the form while the member reads it, and a tap that finds it opens it at once.
+    await page.addInitScript(() => { try { sessionStorage.removeItem('__e2e_viewer'); } catch { /* noop */ } });
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true }); });
+    await page.goto('/');
+    await expect(page.locator('#calLockWho')).toContainText('G. Miller');
+    await expect(page.locator('#calLockSubmit')).toBeEnabled({ timeout: 20_000 });
+    // Wait for the card's own fetch of the form to land — the module, then one task for its `then`.
+    await page.evaluate(async () => { await import('./login-overlay.js'); await new Promise(r => setTimeout(r, 0)); });
+    const focused = await page.evaluate(() => {
+        document.getElementById('calLockSubmit')?.click();
+        return document.activeElement?.id;
+    });
+    expect(focused, 'the form opened a step after the tap — on an iPhone, no keyboard').toBe('loginPassword');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+});
