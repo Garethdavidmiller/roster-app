@@ -13,7 +13,7 @@
  * Mock strategy mirrors paycalc-periods.test.mjs (firebase-client / session / ls / roster-data /
  * roster-suggestions stubbed; paycalc-calc + paycalc-migrations are REAL).
  */
-import { test, describe, before, mock } from 'node:test';
+import { test, describe, before, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 const _ls = new Map();
@@ -446,6 +446,13 @@ describe('the pay field and the year card agree about a joiner’s pension', () 
 //   · "£151.86", a figure pasted from the payslip, parsed to NaN → 0, a £0 opt-out nobody chose.
 // Driven through the REAL confirmSettings over a fake DOM, so the call site is what is tested.
 describe('confirmSettings — the pension it writes into the viewed payslip obeys the round trip', () => {
+    // A successful save ends with `setTimeout(…, 2500)`, which clears "✓ Settings saved" and folds the
+    // card away. On real timers that held this file open 2.5 s after its last assertion — 2.7 s for
+    // 0.2 s of tests (test audit, 7 Nov 2026). Fake timers instead; each test's collapse is RUN before
+    // they are reset, so a callback that throws on this fake page still fails the test that queued it.
+    beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); });
+    afterEach(() => { try { mock.timers.runAll(); } finally { mock.timers.reset(); } });
+
     /** @type {Record<string, any>} */ let els = {};
     const makeEl = () => {
         /** @type {any} */ const el = {

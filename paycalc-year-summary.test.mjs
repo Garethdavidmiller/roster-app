@@ -212,6 +212,23 @@ describe('computeYearSoFar', () => {
         assert.equal(y.projectedNet, 0);
     });
 
+    test('a payslip whose saved pension is bigger than its pay adds £0 to the year, never a negative sum', () => {
+        // The floor under the taxable base, `Math.max(0, gross − pension)`, could be deleted with every
+        // lane green (test audit, 7 Nov 2026): the one test that named it computed the max itself. Below
+        // £0 every deduction is £0, so without the floor this card would add the negative base to the
+        // year and cancel out a real payslip's pay. The real case is a decimal point typed in the wrong
+        // place: £151.86 entered as 15186.
+        _ls.set('myb_pc_p60', JSON.stringify({ otH: 4, otM: 0 }));
+        _ls.set('myb_pc_p61', JSON.stringify({ otH: 4, otM: 0, pension: 15186 }));
+        const y = computeYearSoFar(TY, OPTS);
+        const m60 = mirror({ oHrs: 4 });
+        assert.equal(y.entered, 2, 'premise: both payslips count as entered');
+        assert.ok(Math.abs(y.taxable - m60.sacGross) < 0.01,
+            `taxable £${y.taxable.toFixed(2)}: the over-pensioned payslip must add £0, not subtract`);
+        assert.ok(Math.abs(y.net - m60.net) < 0.01,
+            `take-home £${y.net.toFixed(2)}: the over-pensioned payslip must add £0, not subtract`);
+    });
+
     test('Student Loan: deducted per payslip; the repaid cutover (item 9) zeroes from its payslip on', () => {
         _ls.set('myb_pc_p60', JSON.stringify({ otH: 4, otM: 0 }));
         _ls.set('myb_pc_p61', JSON.stringify({ otH: 4, otM: 0 }));

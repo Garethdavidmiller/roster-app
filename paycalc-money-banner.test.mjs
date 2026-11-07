@@ -178,9 +178,10 @@ function fakeDom() {
 // recognise — a variable renamed, the amount computed inline, the whole block moved to another
 // module. Each of those would fail here loudly rather than silently, which is the behaviour wanted
 // from a static guard; none of them would be a silent pass. What it genuinely cannot see is a change
-// to what `_bpThisPeriod` MEANS: if line 840's own expression stopped requiring the tick, the two
-// sides would still match and the banner would faithfully describe a wrong figure. Contract 3 below
-// closes that one as far as text can.
+// to what `_bpThisPeriod` MEANS: if its own expression stopped requiring the tick, the two sides
+// would still match and the banner would faithfully describe a wrong figure. Contract 3 below closes
+// that one by RUNNING the two expressions over each case (since 7 Nov 2026 — it used to look for the
+// tick's name, which `(_bpIncluded || true)` satisfies).
 
 describe('the CALLER passes the added sum, not the available one', () => {
     const APP = readFileSync(new URL('./paycalc-app.js', import.meta.url), 'utf8');
@@ -216,17 +217,28 @@ describe('the CALLER passes the added sum, not the available one', () => {
         assert.match(hppPaint.slice(0, 400), /included:\s*_hppIncluded\b/, 'the HPP tick no longer reflects the opt-in state');
     });
 
-    test('3 — and the sum only exists once the member has opted in', () => {
+    test('3 — and the sum only exists once the member has opted in, on the payslip that carries it', () => {
         // What contract 1 cannot see: the two sides agreeing about a value that stopped meaning
         // "added". Both are defined from their own tick, and if either definition drops it the
         // banner would say "Includes" truthfully about a figure nobody asked for.
         const bp = APP.match(/const _bpThisPeriod\s*=\s*([^;]+);/);
         const hpp = APP.match(/const _hppForPeriod\s*=\s*([^;]+);/);
         assert.ok(bp && hpp, 'the two added-sum variables are no longer declared here — re-read this guard');
-        assert.match(bp[1], /_bpIncluded/, 'the back-pay lump joins the total without consulting the tick');
-        assert.match(bp[1], /_bpAmount/, 'the back-pay lump is no longer the amount the card computed');
-        assert.match(hpp[1], /_hppIncluded/, 'the Holiday Pay Premium joins the total without consulting the tick');
-        assert.match(hpp[1], /_hppAmount/, 'the premium is no longer the amount the card computed');
+        // RUN the two expressions over every case, rather than looking for the tick's NAME in them (test
+        // audit, 7 Nov 2026): `(_bpIncluded || true)` names the tick, ignores it, and passed. Any name an
+        // expression uses that is not handed in here throws, so a rewrite fails loudly, never quietly.
+        const bpAdded  = new Function('_bpPNum', '_pNum', '_bpIncluded', '_bpAmount', `return ${bp[1]};`);
+        const hppAdded = new Function('_hppIncluded', '_hppAmount', `return ${hpp[1]};`);
+        const LUMP = 476.18, HPP = 1843.01;
+        assert.equal(bpAdded(55, 55, true, LUMP), LUMP, 'ticked, on the payslip that carries it: the lump is added');
+        assert.equal(bpAdded(55, 55, false, LUMP), 0, 'the back-pay lump joins the total without consulting the tick');
+        // The payslip gate as well (PAY-3): deleting `_bpPNum === _pNum` put the lump on EVERY payslip
+        // of the year while the banner, which has a gate of its own, hid on all but one.
+        assert.equal(bpAdded(55, 56, true, LUMP), 0, 'ticked, but this is another payslip: nothing is added');
+        // No paid-in payslip, and none on screen yet (an empty period list reads as 0).
+        assert.equal(bpAdded(0, 0, true, LUMP), 0, 'no payslip carries the lump: nothing is added');
+        assert.equal(hppAdded(true, HPP), HPP, 'ticked: the premium is added');
+        assert.equal(hppAdded(false, HPP), 0, 'the Holiday Pay Premium joins the total without consulting the tick');
     });
 
     test('4 — every banner the page paints goes through this module', () => {

@@ -423,12 +423,16 @@ test('paycalc: one edit reaches "This tax year so far" at once, not on the next 
 test('paycalc: Fill-the-year fills the empty paid periods, receipts by date, and spares entered data', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await seedSession(page);
-    // One period the member typed by hand — the untouchable one. P2's payday (8 May 2026) is
-    // long paid; 7h of Saturday is unmistakably hand-shaped data.
+    // One period the member typed by hand — the untouchable one. The 8 May 2026 payslip is long paid;
+    // 7h of Saturday is unmistakably hand-shaped data, and that payslip's calendar would suggest far more
+    // (three rostered Saturdays, Easter Monday and a Sunday), so a bulk fill over it cannot hide.
+    // STORAGE KEYS USE THE INTERNAL PERIOD NUMBER, NOT THE PRINTED ONE: 8 May 2026 is p51 (the 13 Feb
+    // 2026 anchor is p48, the range runs p37–p62) and prints as P8. This seeded `p2` until 7 Nov 2026
+    // (test audit) — a key no period reads, so "the entered period survived" could not fail.
     await page.addInitScript(() => {
         // 'G. Miller' → memberSlug 'gmiller'; the trailing _ is pcPrefix's namespace separator.
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');   // its lightbox would cover the button
-        localStorage.setItem('myb_pc_gmiller_p2', JSON.stringify({
+        localStorage.setItem('myb_pc_gmiller_p51', JSON.stringify({
             satH: 7, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0,
             rdwH: 0, rdwM: 0, sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0,
             slSkip: false, otherAdj: 0, actualNet: null,
@@ -452,13 +456,13 @@ test('paycalc: Fill-the-year fills the empty paid periods, receipts by date, and
     await expect(block.locator('.yearso-receipt')).toContainText('Review the suggested hours');
 
     // The entered period survived byte-for-byte — rule 1, proven against real storage.
-    const p2 = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_pc_gmiller_p2') || 'null'));
-    expect(p2.satH).toBe(7);
+    const entered = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_pc_gmiller_p51') || 'null'));
+    expect(entered.satH).toBe(7);
     // …and at least one previously-empty paid period now holds data plus its gold snapshot.
     const filled = await page.evaluate(() => {
         const out = [];
         for (const k of Object.keys(localStorage)) {
-            if (/^myb_pc_gmiller_p\d+$/.test(k) && k !== 'myb_pc_gmiller_p2') out.push(k);
+            if (/^myb_pc_gmiller_p\d+$/.test(k) && k !== 'myb_pc_gmiller_p51') out.push(k);
         }
         return out.map(k => ({ k, snap: !!localStorage.getItem(k.replace(/_p(\d+)$/, '_snap_$1')) }));
     });

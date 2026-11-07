@@ -2,7 +2,7 @@
 // Run with: node --test paycalc.test.mjs
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION, AWARD_RATES, awardRatesFor, getRateForPeriod, capHours,
@@ -100,6 +100,9 @@ function approx(actual, expected, msg, tol = 0.01) {
 
 const T25 = getThresholds('2025/26');
 const T26 = getThresholds('2026/27');
+// The result card's calculate(), as TEXT: it has no seam a test can call, so the block that checks
+// its deductions runs its own lines (see "calculate()'s own lines" below).
+const APP_SRC = readFileSync(new URL('./paycalc-app.js', import.meta.url), 'utf8');
 const TY25 = TAX_YEARS[0]; // 2025/26
 const TY26 = TAX_YEARS[1]; // 2026/27
 
@@ -501,6 +504,76 @@ describe('computeSL', () => {
     assert.equal(computeSL(gross, 'plan1', T25.sl), 100);
   });
 
+});
+
+// ── calculate()'s OWN deduction lines, run against the real engine (test audit, 7 Nov 2026) ────────
+//
+// The tests above price each loan; nothing checked that the result card takes both off. Zeroing the
+// Postgraduate Loan leg in paycalc-app.js (`const slPost = 0`) left every Node lane green, and the
+// browser suite only ticks the box — so a member repaying a Postgraduate Loan would have been shown
+// about £83 a payslip too much. calculate() is a closure inside init() with no seam a test can call
+// (paycalc-money-banner.test.mjs explains why), so its lines are sliced out of the source and run.
+// A rewrite this cannot find fails loudly here rather than passing quietly.
+describe("calculate()'s own lines — both loans, and the floor under the take-home base", () => {
+  /**
+   * Run the statements from `const <first>` to the end of `const <last> …;` in calculate(), with the
+   * named inputs, and return the named results. Any name the lines use that is not handed in throws.
+   */
+  function runAppLines(/** @type {string} */ first, /** @type {string} */ last,
+                       /** @type {Record<string, any>} */ inputs, /** @type {string[]} */ results) {
+    const decl = (/** @type {string} */ name, /** @type {number} */ after) => {
+      const re = new RegExp(`const ${name}\\s*=`, 'g');
+      re.lastIndex = after;
+      return re.exec(APP_SRC)?.index ?? -1;
+    };
+    const from = decl(first, 0);
+    const lastAt = decl(last, from);
+    assert.ok(from > 0 && lastAt >= from, `calculate() no longer declares ${first} … ${last} — re-read this guard`);
+    const body = APP_SRC.slice(from, APP_SRC.indexOf(';', lastAt) + 1);
+    const names = Object.keys(inputs);
+    return new Function(...names, `${body}\nreturn { ${results.join(', ')} };`)(...names.map(n => inputs[n]));
+  }
+
+  // A £3,000.00 payslip in 2026/27, figures worked from the published SL3 tables:
+  //   Plan 2:   £29,385 ÷ 13 = £2,260.38 (penny-floored) → (3,000 − 2,260.38) × 9% = £66.57 → £66
+  //   Postgrad: £21,000 ÷ 13 = £1,615.38 (penny-floored) → (3,000 − 1,615.38) × 6% = £83.08 → £83
+  // Tax and NI are inputs to these lines, not computed by them; round figures keep the sum readable.
+  const SAC = 3000, TAX = 400, NI = 160;
+  const loans = (/** @type {Record<string, any>} */ over) => runAppLines('slUnder', 'net', {
+    computeSL, sacGross: SAC, thresholds: getThresholds('2026/27'), tax: TAX, ni: NI,
+    plan: 'none', pgLoan: false, slSkip: false, slPaidOff: false, ...over,
+  }, ['slUnder', 'slPost', 'sl', 'net']);
+
+  test('a plan AND a Postgraduate Loan: both come off take-home', () => {
+    const r = loans({ plan: 'plan2', pgLoan: true });
+    assert.equal(r.slUnder, 66, 'the Plan 2 deduction');
+    assert.equal(r.slPost, 83, 'the Postgraduate Loan deduction');
+    assert.equal(r.sl, 149);
+    assert.equal(r.net, 3000 - 400 - 160 - 149, 'take-home is short of both');
+  });
+
+  test('a Postgraduate Loan on its own still deducts', () => {
+    const r = loans({ pgLoan: true });
+    assert.equal(r.slPost, 83);
+    assert.equal(r.net, 3000 - 400 - 160 - 83);
+  });
+
+  test('the stop-deducting payslip and "not deducted this period" stop the Postgraduate Loan too', () => {
+    // One control in Settings covers both loans (.claude/rules/paycalc.md → Deductions STOP).
+    assert.equal(loans({ plan: 'plan2', pgLoan: true, slPaidOff: true }).sl, 0, 'from the cutover payslip');
+    assert.equal(loans({ plan: 'plan2', pgLoan: true, slSkip: true }).sl, 0, 'a skipped payslip');
+    assert.equal(loans({}).net, 3000 - 400 - 160, 'no loan → nothing comes off');
+  });
+
+  test('a pension bigger than the pay floors the take-home base at £0, never below', () => {
+    // The test this replaces (under "salary sacrifice") computed `Math.max(0, 100 - 200)` itself, so it
+    // tested nothing, and deleting the clamp in calculate() left every lane green. Below £0 every
+    // deduction is £0, so the take-home would have been the negative base: money that is not there.
+    const base = (/** @type {number} */ grossWithBp, /** @type {number} */ pension) =>
+      runAppLines('sacGross', 'sacGross', { grossWithBp, pension }, ['sacGross']).sacGross;
+    assert.equal(base(100, 200), 0, 'pension over pay');
+    approx(base(3203.76, 151.86), 3051.90, 'an ordinary payslip is untouched');
+  });
 });
 
 // ── computeTax ────────────────────────────────────────────────────────────────
@@ -1107,12 +1180,16 @@ describe('salary sacrifice', () => {
     assert.ok(sl < slFull, 'pension sacrifice should reduce SL repayment');
   });
 
-  test('pension exceeding gross → sacGross clamps to 0', () => {
-    const sacGross0 = Math.max(0, 100 - 200); // pension > gross
-    assert.equal(sacGross0, 0);
-    const { tax } = computeTax(0, '1257L', T25);
-    assert.equal(tax, 0);
-    assert.equal(computeNI(0, T25.ni), 0);
+  test('a £0 or negative base owes no tax, NI or student loan — so only the floor keeps take-home ≥ £0', () => {
+    // This computed `Math.max(0, 100 - 200)` itself and called that the clamp, which tested nothing
+    // (test audit, 7 Nov 2026). The two real floors are now run: calculate()'s in "calculate()'s own
+    // lines" above, the year summary's in paycalc-year-summary.test.mjs. What this pins is why they
+    // matter: below £0 every deduction is £0, so nothing else stops a negative base reaching take-home.
+    for (const base of [0, -100]) {
+      assert.equal(computeTax(base, '1257L', T25).tax, 0, `tax on £${base}`);
+      assert.equal(computeNI(base, T25.ni), 0, `NI on £${base}`);
+      assert.equal(computeSL(base, 'plan2', T25.sl), 0, `student loan on £${base}`);
+    }
   });
 });
 
@@ -1141,6 +1218,18 @@ describe('integration fixture (CEA Period 8 2025/26)', () => {
 
   test('tax + NI < sacGross', () => {
     assert.ok(tax + ni < sacGross, `deductions (${(tax + ni).toFixed(2)}) should not exceed sacGross (${sacGross.toFixed(2)})`);
+  });
+
+  test('the take-home it builds is the figure worked by hand from the published rates', () => {
+    // `net` was computed above and never asserted (test audit, 7 Nov 2026), so the one block named
+    // "integration" checked the gross and a bound, and not the answer. Worked from the rules, not from
+    // the functions: £3,221.24 − £154.77 pension = £3,066.47 taxable;
+    //   tax: 1257L gives £12,570 ÷ 13 = £966.92 a period; £2,099.55 above it, floored to £2,099 × 20% = £419.80
+    //   NI:  (£3,066.47 − £968.00, which is £242 a week × 4) × 8% = £167.88
+    approx(sacGross, 3066.47, 'taxable pay after the pension');
+    approx(tax, 419.80, 'income tax');
+    approx(ni, 167.88, 'National Insurance');
+    approx(net, 2478.79, 'take-home');
   });
 });
 
