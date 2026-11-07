@@ -354,8 +354,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // ── WHO IS THIS CARD FOR? (v23.58) ──────────────────────────────────────────────────────────
     //
     // The Calendar's come-back card already says "Calendar · G. Miller" in its heading — a member
-    // whose local session outlived their Firebase identity, which on iPhone is every member who
-    // goes a week without opening the app. Until now, tapping its Sign in button opened this form
+    // whose local session outlived their Firebase identity. (Not, as this said until 7 Nov 2026, every
+    // iPhone member who goes a week without opening the app: Safari's seven-day rule deletes the local
+    // session WITH the identity — KNOWN_LIMITATIONS → "One interaction to expect on iOS".) Until now,
+    // tapping its Sign in button opened this form
     // asking them to pick their grade and then their own name from the whole roster, on the way to
     // the one field only they can fill. With `FORCE_PASSWORD_SET` on, the silent surname re-auth
     // fails for every migrated member, so this card IS their routine way back in — the taps were

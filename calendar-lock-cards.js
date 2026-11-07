@@ -306,11 +306,13 @@ export async function showSignInPanel(notice = '') {
  *
  * ── WHY THIS IS A SEPARATE SCREEN ───────────────────────────────────────────────────────────────
  *
- * `decideAccess` needs BOTH a local session and a restored Firebase user, and the commonest way to
- * hold one without the other is not a bug: iOS evicts IndexedDB after ~7 days of not opening the
- * PWA, so a member with a 60-day local session loses the identity behind it while still being, as
- * far as they and the app are concerned, signed in. Answering that with the staff PIN is wrong twice
- * over. It asks a signed-in member for a code they may not have, and it offers them a SHARED
+ * `decideAccess` needs BOTH a local session and a restored Firebase user, and holding one without
+ * the other is not a bug: a member with a 60-day local session can lose the identity behind it while
+ * still being, as far as they and the app are concerned, signed in. (It is not Safari's seven-day
+ * rule, as this said until 7 Nov 2026 — that deletes the local session WITH the identity;
+ * KNOWN_LIMITATIONS → "One interaction to expect on iOS" has the likelier route.) Answering that
+ * with the staff PIN is wrong twice over. It asks a signed-in member for a code they may not have,
+ * and it offers them a SHARED
  * capability — unlocking would leave them viewing the Calendar as an anonymous viewer with their own
  * name still in the drawer, and the first thing they tried to do on Admin would fail.
  *
