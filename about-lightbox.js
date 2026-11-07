@@ -74,10 +74,22 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
         if (!bugLink) return;
         const date  = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         const user  = getUserName?.();
-        const body  = 'Please describe the bug:\n\n\n\n— Auto-filled —\n'
+        // TWO THINGS AN iPHONE'S REPORT CANNOT SAY FOR ITSELF (iPhone audit, 7 Nov 2026). Whether it came
+        // from the home-screen app — half the iOS behaviour differs there, and the user agent is the same
+        // either way — and which iOS: from iOS 26 Safari freezes the version in the user agent at 18_7,
+        // so the line below would report every newer iPhone as 18.7. The first is read here; the second
+        // only the reporter knows, so it is a line for them to fill, with where to find it, above the
+        // auto-filled block (an iPad that reports itself as a Mac is caught by its touch points).
+        const installed = /** @type {any} */ (navigator).standalone === true
+            || !!window.matchMedia?.('(display-mode: standalone)').matches;
+        const ua    = navigator.userAgent;
+        const ios   = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+        const body  = 'Please describe the bug:\n\n\n\n'
+            + (ios ? 'iOS version (Settings → General → About): \n\n' : '')
+            + '— Auto-filled —\n'
             + `App: ${appLabel} Version ${APP_VERSION}\n`
             + (user ? `User: ${user}\n` : '')
-            + `Date: ${date}\nBrowser: ${navigator.userAgent}`;
+            + `Date: ${date}\nInstalled app: ${installed ? 'yes' : 'no'}\nBrowser: ${ua}`;
         bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — ${appLabel} Version ${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
     }
 

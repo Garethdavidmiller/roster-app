@@ -3560,3 +3560,44 @@ test('member card: "Sign in →" opens the form with the password box focused in
     expect(focused, 'the form opened a step after the tap — on an iPhone, no keyboard').toBe('loginPassword');
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
+
+test('about: a bug report says whether it came from the installed app, and asks an iPhone for its iOS', async ({ page }) => {
+    // From iOS 26 the user agent says 18_7 whatever the phone runs, and it reads the same in the
+    // installed app and in Safari — so a report from an iPhone could say neither. Both stubbed, so
+    // the answer does not depend on which engine runs this.
+    await seedMember(page);
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'standalone', { configurable: true, get: () => true });
+        Object.defineProperty(navigator, 'userAgent', { configurable: true,
+            get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148' });
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+    const body = await page.locator('#bugReportLink').evaluate(a =>
+        new URL(/** @type {HTMLAnchorElement} */ (a).href).searchParams.get('body') || '');
+    expect(body).toContain('Installed app: yes');
+    const ask = body.indexOf('iOS version (Settings → General → About):');
+    expect(ask, 'an iPhone report does not ask for the iOS version').toBeGreaterThan(-1);
+    expect(ask, 'the line to fill in is buried in the auto-filled block').toBeLessThan(body.indexOf('— Auto-filled —'));
+});
+
+test('about: a bug report from a desktop browser says it was not the installed app, and asks nothing', async ({ page }) => {
+    await seedMember(page);
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'standalone', { configurable: true, get: () => undefined });
+        Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 0 });
+        Object.defineProperty(navigator, 'userAgent', { configurable: true,
+            get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' });
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+    const body = await page.locator('#bugReportLink').evaluate(a =>
+        new URL(/** @type {HTMLAnchorElement} */ (a).href).searchParams.get('body') || '');
+    expect(body).toContain('Installed app: no');
+    expect(body).not.toContain('iOS version');
+    expect(body).toContain('Browser: Mozilla/5.0 (Windows NT 10.0');
+});
