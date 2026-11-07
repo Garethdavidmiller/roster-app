@@ -2488,6 +2488,13 @@
             border-radius: var(--radius-panel);
             padding: 30px 24px 26px;
             width: min(320px, 90vw);
+            /* CAPPED, SO A TALL PANEL SCROLLS INSIDE ITSELF (7 Nov 2026, iPhone audit). `.lb-content`
+               scrolls only once something limits its height, and nothing did: the overlay centres
+               its panel, so on a phone turned on its side (375–402px tall) a busy day ran off the top
+               and the bottom of the screen together, its ✕ and its last row out of reach. SIZE only —
+               `transform` stays shared.css's (the note above). */
+            max-height: 86vh;
+            max-height: 86dvh;
             text-align: center;
         }
         /* THE DATE CLEARS THE CLOSE BUTTON, SYMMETRICALLY (v22.70). `.lb-close` is a 44x44 touch
@@ -2899,8 +2906,19 @@
             border-radius: var(--radius-panel);
             padding: 32px 20px 28px;
             width: min(340px, 92vw);
+            /* Capped for the same reason as the day panel's (#dayDetailContent): on a phone in
+               landscape the leave panel is taller than the screen. No `transform` here either. */
+            max-height: 86vh;
+            max-height: 86dvh;
             text-align: center;
         }
+        /* …AND IT SCROLLS, IT DOES NOT SQUASH. A capped flex column shrinks a child before it scrolls
+           whenever that child's flex minimum is zero, and `.al-lb-stats` clips its corners with
+           `overflow: hidden`, which does exactly that: under the cap at 667×375 the four figures were
+           cut to a 15px strip and the panel itself never scrolled. Measured, not reasoned. The day
+           panel has no such zone today; one given `overflow` would need this rule there too, and the
+           landscape e2e in calendar.spec.js measures every zone of both panels for it. */
+        #alLightboxContent > * { flex-shrink: 0; }
         #alLightboxClose { color: rgba(255,255,255,0.5); }
         @media (hover: hover) and (pointer: fine) {
             #alLightboxClose:hover { color: white; }

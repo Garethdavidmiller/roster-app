@@ -3143,3 +3143,97 @@ test('calendar: the leave panel steps to next year and links to that year\'s rec
     await page.locator('#alBtn').click();
     await expect(year).toHaveText('2026');
 });
+
+// ── A TALL PANEL ON A PHONE ON ITS SIDE (7 Nov 2026, iPhone audit) ──────────────────────────────
+//
+// The day panel and the leave panel had no height cap, and `.lb-content` scrolls only once
+// something caps it. The overlay centres its panel, so on a phone in landscape — 375 to 402px of
+// height — a tall panel ran off the top and the bottom together, the ✕ that closes it with it.
+// MEASURED, because every element is present and readable either way: nothing behavioural fails,
+// and the visual baselines are portrait.
+//
+// Each case is one that CAN fail. The leave panel with a Christmas line (measured 426px of content)
+// is taller than either screen at the default text size. The tallest day panel at the default size
+// is Christmas Day's, and at 318px it FITS a 375px screen — so it is also read under 1.3× text, the
+// way an Android phone set to large text draws it, where it does not. And the cap brought its own
+// failure, which is why "nothing squashed" is asserted beside "on screen": a capped flex column
+// shrinks a child whose flex minimum is zero before it scrolls, and the leave panel's figures were
+// cut to a 13px strip with the panel still not scrolling.
+for (const [width, height] of [[667, 375], [874, 402]]) {
+    test(`day detail and the leave panel fit a phone held sideways, ✕ and all, at ${width}×${height}`, async ({ page }) => {
+        await page.setViewportSize({ width, height });
+        await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+        await seedMemberSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+            // A worked Boxing Day, so the leave panel carries its lieu-day breakdown as well.
+            w.__E2E.docs = [{ id: 'bx', memberName: 'G. Miller', date: '2026-12-26', type: 'rdw',
+                value: '13:30-21:00', note: '', source: 'manual' }];
+        });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+        /** Every used font size in a panel × k, read before any is written so none compounds.
+         *  @param {string} sel @param {number} k */
+        const scaleTextIn = (sel, k) => page.evaluate(([s, mult]) => {
+            const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll(`${s}, ${s} *`)]);
+            const px = els.map(e => parseFloat(getComputedStyle(e).fontSize));
+            els.forEach((e, i) => { if (px[i]) e.style.fontSize = `${px[i] * Number(mult)}px`; });
+        }, [sel, String(k)]);
+
+        /** The panel and its ✕ are on screen, no zone is squashed, and its last row scrolls into view.
+         *  @param {string} panel @param {string} close @param {string} what */
+        const fitsTheScreen = async (panel, close, what) => {
+            const g = await page.evaluate(([p, c]) => {
+                const el = /** @type {HTMLElement} */ (document.querySelector(p));
+                const zones = [...el.children].filter(k => {
+                    const cs = getComputedStyle(k);
+                    return cs.display !== 'none' && cs.position !== 'absolute';   // the ✕ is out of flow
+                });
+                const box = (/** @type {Element} */ e) => e.getBoundingClientRect();
+                // SQUASHED = shorter under the cap than without it. Not scrollHeight against
+                // clientHeight: a glyph that hangs below its line overflows its zone by a pixel or two
+                // at any height, and that is not the cap's doing.
+                const capped = zones.map(z => box(z).height);
+                el.style.maxHeight = 'none';
+                const free = zones.map(z => box(z).height);
+                el.style.maxHeight = '';
+                const out = { panel: box(el), close: box(/** @type {Element} */ (document.querySelector(c))), vh: innerHeight,
+                    squashed: zones.filter((z, i) => capped[i] < free[i] - 0.5).map(z => `${z.id || z.className} ${capped[zones.indexOf(z)]}/${free[zones.indexOf(z)]}px`),
+                    lastBottom: 0, panelBottom: 0 };
+                el.scrollTop = el.scrollHeight;               // as far down as the member can scroll it
+                out.lastBottom = box(zones[zones.length - 1]).bottom;
+                out.panelBottom = box(el).bottom;
+                el.scrollTop = 0;
+                return out;
+            }, [panel, close]);
+            expect(g.panel.top, `${what}: the top of the panel is above the screen`).toBeGreaterThanOrEqual(0);
+            expect(g.panel.bottom, `${what}: the bottom of the panel is below the screen`).toBeLessThanOrEqual(g.vh);
+            expect(g.close.top, `${what}: the ✕ is off the top of the screen`).toBeGreaterThanOrEqual(0);
+            expect(g.close.bottom, `${what}: the ✕ is off the screen`).toBeLessThanOrEqual(g.vh);
+            expect(g.squashed, `${what}: squashed to fit instead of scrolling`).toEqual([]);
+            expect(g.lastBottom, `${what}: the last row cannot be scrolled into view`).toBeLessThanOrEqual(g.panelBottom + 1);
+        };
+
+        // ── The day panel: Christmas Day, due at work, so leave never counted ──
+        const christmas = page.locator('.calendar-day:not(.other-month)[data-detail-day="Friday 25 December 2026"]');
+        const dayPanel = page.locator('#dayDetailContent');
+        await christmas.click();
+        await expect(page.locator('#dayDetailChristmas')).toBeVisible();
+        await expect(dayPanel).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+        await fitsTheScreen('#dayDetailContent', '#dayDetailClose', 'the day panel');
+        await scaleTextIn('#dayDetailContent', 1.3);
+        await fitsTheScreen('#dayDetailContent', '#dayDetailClose', 'the day panel under 1.3× text');
+        await page.locator('#dayDetailClose').click();
+        await expect(page.locator('#dayDetailLightbox')).not.toHaveClass(/open/);
+
+        // ── The leave panel, carrying the Christmas line ──
+        await page.locator('#alBtn').click();
+        await expect(page.locator('#alLbChristmas')).toBeVisible();
+        await expect(page.locator('#alLightboxContent')).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+        await fitsTheScreen('#alLightboxContent', '#alLightboxClose', 'the leave panel');
+        // And the ✕ closes it — reachable is the point.
+        await page.locator('#alLightboxClose').click();
+        await expect(page.locator('#alLightbox')).not.toHaveClass(/open/);
+    });
+}
