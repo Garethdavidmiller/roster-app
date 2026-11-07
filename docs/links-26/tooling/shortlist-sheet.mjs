@@ -136,7 +136,20 @@
 // BOTH WAYS AND FINE TUNE DELETED, 7 NOV 2026 (owner: "Please cut both ways and fine tune from the links 26 pack"). Page 2
 // loses Both Ways' row and Fine Tune's name from Even Keel's, and the guide's closer and fourth-at-the-close rows name one
 // design each, Closing Time and Even Keel, with no "too". Every other row, claim and figure is read from the folder.
-//   node shortlist-sheet.mjs        → ../links-26-shortlist.pdf (the .html stays in tooling/, gitignored)
+// THE OTHER DESIGNS ON A SHEET OF THEIR OWN, 7 NOV 2026 (owner: "Do the other work to the links pack apart from the shortlist
+// change", after an outside review: "Reduce the shortlist's second-page density ... Move the full explanation of excluded designs
+// into a separate supporting comparison"). Page 2's table of every other design, one line each, is a one-page sheet of its
+// own, links-26-other-designs.pdf, written here so that the claims pinning each row stay beside it: what each has and what it
+// pays in two columns, A to Z within the pack's two folders, each name with its code. Page 2 keeps why these three, and says
+// where the others are. Three rows said "no 55-hour week" flatly; they carry a footnote saying what was tested (the review's
+// other point, which the three designs' descriptions and the read-me take too: "in any cover-week placement tested").
+// BALANCED V8 AND V9, 7 NOV 2026 (owner: "Do A as Balanced V8 and B as Balanced V9"): Balanced V7's duties with every rest day
+// chosen again, both with no 55-hour week however the cover weeks fall, and four weeks off for 13 days' leave, a day less than
+// today and the first in the pack to need less than 14. Each has a row on the other designs' sheet, V9's leaning on V8's, and
+// the claims listing the 30-day links, the designs with four weeks for 14 or less and those with no 55-hour week name them. Four
+// weeks for 13 is the league's new best, so its range widens and every design needing 14 or 15 drops by up to half a point:
+// Crossover still leads Level Crossing, by 0.43, with Common Ground third.
+//   node shortlist-sheet.mjs        → ../links-26-shortlist.pdf and ../links-26-other-designs.pdf (each .html stays in tooling/, gitignored)
 import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -150,7 +163,7 @@ import { SHORTLIST, SHORTLIST_DATE, FIRST } from './fresh.mjs';
 import { kindBlocks, blockText } from './blocks.mjs';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
-const OUT = new URL('../links-26-shortlist.pdf', import.meta.url).pathname;
+const OUT = new URL('../links-26-shortlist.pdf', import.meta.url).pathname, OUT_OTHERS = new URL('../links-26-other-designs.pdf', import.meta.url).pathname;
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'], MS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const timed = s => /^\d\d:\d\d-\d\d:\d\d$/.test(s), m = s => +s.slice(0, 2) * 60 + +s.slice(3, 5), mins = s => (m(s.slice(6)) - m(s) + 1440) % 1440;
 const hm = x => `${Math.floor(x / 60)}h\u00a0${String(Math.round(x % 60)).padStart(2, '0')}m`;   // no-break space: a figure never splits across a line
@@ -159,7 +172,7 @@ const hm = x => `${Math.floor(x / 60)}h\u00a0${String(Math.round(x % 60)).padSta
 const dur = x => { if (!(x > 0)) throw new Error(`a difference printed as a length must be more than nothing, not ${x}`);
   const r = Math.round(x); return x < 60 ? `${r}\u00a0${r === 1 ? 'minute' : 'minutes'}` : x === 60 ? 'an hour' : hm(x); };
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const WORD = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ');
+const WORD = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-two twenty-three twenty-four twenty-five'.split(' ');
 const word = n => WORD[n] ?? `${n}`, Word = n => word(n)[0].toUpperCase() + word(n).slice(1);
 const ORD = 'zeroth first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth twentieth'.split(' '), ord = n => ORD[n] ?? `${n}th`;
 const many = (n, one, more = `${one}s`) => (n === 1 ? one : more);
@@ -320,7 +333,11 @@ const NAMED = { 'Clean Slate': 'fitSat,fitSun', 'Closing Time': 'closerSat,close
   // LEVEL CROSSING, LATER THE SAME DAY (owner, of Crossover: "people don't want to do several weeks of closes", then "Do it"):
   // Crossover's duties and rest days, its weeks chosen again so that no two closing weeks fall side by side. It keeps what
   // Crossover keeps against the three; its row says what it has beside Crossover, which claims pin
-  'Level Crossing': 'earlyOff,worstRun' };
+  'Level Crossing': 'earlyOff,worstRun',
+  // BALANCED V8 AND V9, 7 NOV 2026 (owner: "Do A as Balanced V8 and B as Balanced V9"): Balanced V7's duties with every rest day
+  // chosen again, and no 55-hour week however the cover weeks fall. Against the three each keeps V5's, V6's and V7's gains — shorter
+  // runs of earlies or lates, more early finishes — and a shorter worst run and four weeks off for 13 days' leave, a day less
+  'Balanced V8': 'block,earlyOff,lvFour,worstRun', 'Balanced V9': 'block,earlyOff,lvFour,worstRun' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
 const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k => loses(O[n]).includes(k)));
 // what each pays, on the five priorities the paragraph names wherever it pays on them (days in a row, weekends, one turn,
@@ -333,6 +350,8 @@ pays('Second Look', 'fixedRun', 'one'); pays('Middle Ground', 'step'); pays('Cro
 const BAL = ['Balanced V5', 'Balanced V6'], BV = BAL.map(n => O[n].F); BAL.forEach(n => pays(n, 'iso', 'one'));
 // Balanced V7 keeps what they keep without their single rest days, and pays with the weeks on one shift time and its mixed weeks
 const B7 = O['Balanced V7'].F; pays('Balanced V7', 'one', 'mixed');
+// Balanced V8 pays with a larger change of start and the weekday fit V5 to V7 have too; V9 with those and its two mixed weeks
+const B8 = O['Balanced V8'].F, B9 = O['Balanced V9'].F; pays('Balanced V8', 'step', 'fitWk'); pays('Balanced V9', 'step', 'fitWk', 'mixed');
 const PACK = [...D, ...others], CT = O['Closing Time'].F, HG = O['Home Grown'].F, CS = O['Clean Slate'].F, NX = O['Next Step'].F, IF = O['In Step'].F, GT = O['Grand Tour'].F;
 const LB = O['Long Break'].F, SL = O['Second Look'].F, CX = O['Crossover'].F;
 // Crossover's row: its two 13:45s a weekday, and the handover its row names, read from the grid: no weekday early finishes
@@ -342,17 +361,18 @@ claim('Crossover: no weekday early finishing between 15:00 and 16:00, and two on
   const ends = Object.values(CX.p).map(r => r[d]).filter(t => /^\d\d:\d\d-\d\d:\d\d$/.test(t) && t < '11:00').map(t => t.slice(6));
   return !ends.some(e => e > '15:00' && e < '16:00') && ends.filter(e => e === '16:00').length === 2; }));
 // THE 30-DAY LINKS (4 Nov 2026): the designs where 14 days' leave buys 30 days off, as today, are exactly the ones in the 30-day
-// folder, and every one keeps four weeks off for 14 too. Since 5 Nov 2026 Common Ground is on the shortlist as their example
+// folder, and every one keeps four weeks off for 14 too. Since 5 Nov 2026 Common Ground is on the shortlist as their example.
+// FOR 14 OR LESS SINCE 7 NOV 2026: Balanced V8 and V9 take four weeks off for 13, a day less than today, the first in the pack to
 const THIRTY = PACK.filter(d => d.F.lv.best >= TF.lv.best);
-claim('Balanced V5, Balanced V6, Balanced V7, Common Ground, Crossover, Grand Tour, Level Crossing, Middle Ground, Open Return and Short Openers: today’s 30 days off and four weeks off for 14 days’ leave, and every one of them in the 30-day folder',
-  TF.lv.best === 30 && THIRTY.map(d => d.name).sort().join() === 'Balanced V5,Balanced V6,Balanced V7,Common Ground,Crossover,Grand Tour,Level Crossing,Middle Ground,Open Return,Short Openers'
-  && THIRTY.every(d => d.F.lv.fourWeeks === TF.lv.fourWeeks && stats.find(s => s.name === d.name).dir === '30-days-off')
+claim('Balanced V5 to V9, Common Ground, Crossover, Grand Tour, Level Crossing, Middle Ground, Open Return and Short Openers: today’s 30 days off for 14 days’ leave and four weeks off for 14 or less, and every one of them in the 30-day folder',
+  TF.lv.best === 30 && THIRTY.map(d => d.name).sort().join() === 'Balanced V5,Balanced V6,Balanced V7,Balanced V8,Balanced V9,Common Ground,Crossover,Grand Tour,Level Crossing,Middle Ground,Open Return,Short Openers'
+  && THIRTY.every(d => d.F.lv.fourWeeks <= TF.lv.fourWeeks && stats.find(s => s.name === d.name).dir === '30-days-off')
   && stats.filter(s => s.dir === '30-days-off').length === THIRTY.length);
 claim('of the three, Common Ground alone keeps today’s leave', D.filter(d => THIRTY.includes(d)).map(d => d.name).join() === 'Common Ground');
 // the leave cost's "outside the shortlist": the other 30-day links keep four weeks for 14 too, and only Long Break besides
 const FOUR_OUT = PACK.filter(d => !D.includes(d) && d.F.lv.fourWeeks <= TF.lv.fourWeeks);
-claim('outside the shortlist, Balanced V5, Balanced V6, Balanced V7, Crossover, Grand Tour, Level Crossing, Long Break, Middle Ground, Open Return and Short Openers keep four weeks off for 14 days’ leave, and no other design does',
-  FOUR_OUT.map(d => d.name).sort().join() === 'Balanced V5,Balanced V6,Balanced V7,Crossover,Grand Tour,Level Crossing,Long Break,Middle Ground,Open Return,Short Openers' && D.every(d => d === CG || d.F.lv.fourWeeks > TF.lv.fourWeeks));
+claim('outside the shortlist, Balanced V5 to V9, Crossover, Grand Tour, Level Crossing, Long Break, Middle Ground, Open Return and Short Openers keep four weeks off for 14 days’ leave or less, and no other design does',
+  FOUR_OUT.map(d => d.name).sort().join() === 'Balanced V5,Balanced V6,Balanced V7,Balanced V8,Balanced V9,Crossover,Grand Tour,Level Crossing,Long Break,Middle Ground,Open Return,Short Openers' && D.every(d => d === CG || d.F.lv.fourWeeks > TF.lv.fourWeeks));
 // Clean Slate's row says "the best weekend fit of all" (3 Nov 2026); the joint-most weeks on one turn it had with Common Ground
 // are no longer its row's, since Common Ground is shortlisted
 claim('Clean Slate: the best Saturday and Sunday fit of all', PACK.every(d => d.name === 'Clean Slate' || (d.F.fit[1] > CS.fit[1] && d.F.fit[2] > CS.fit[2])));
@@ -387,9 +407,10 @@ claim('Even Keel: four to the Saturday close, where the three have three', O['Ev
 // SECOND LOOK'S ROW SAYS WHAT IT ALONE HAD (3 Nov 2026): no 55-hour week, however the cover weeks fall. Since 4 Nov 2026 Open
 // Return and Short Openers have none either (the Friday before every cover week is off), and their row says so; the claim pins
 // who shares it rather than saying "only"
-// CROSSOVER SINCE 7 NOV 2026: drawn with the 55-hour worst case held (exact-rota.py H55=), on Short Openers' rest days
-claim('Second Look, Open Return, Short Openers, Crossover and Level Crossing: the designs where a badly placed cover week makes no 55-hour week',
-  PACK.filter(d => !h55Of(d.F)?.adds).map(d => d.name).sort().join() === 'Crossover,Level Crossing,Open Return,Second Look,Short Openers');
+// CROSSOVER SINCE 7 NOV 2026: drawn with the 55-hour worst case held (exact-rota.py H55=), on Short Openers' rest days; BALANCED
+// V8 AND V9 the same day, laid with it held too
+claim('Second Look, Open Return, Short Openers, Crossover, Level Crossing and Balanced V8 and V9: the designs where a badly placed cover week makes no 55-hour week',
+  PACK.filter(d => !h55Of(d.F)?.adds).map(d => d.name).sort().join() === 'Balanced V8,Balanced V9,Crossover,Level Crossing,Open Return,Second Look,Short Openers');
 claim('Closing Time: more even weeks', (CT.heavy - CT.light) < lowest(F => F.heavy - F.light));
 const meetsAll = F => F.met === F.of;
 // THE FEWEST NEW, NOT THE FEWEST TIMES, SINCE 6 NOV 2026: Common Ground, Even Step and three others have its 13 shift times
@@ -664,8 +685,7 @@ const an = s => (/^(8|11|18)/.test(s) ? 'an ' : 'a ') + s;   // "an 8h 40m", "a 
 // THE FAMILY'S BAND AND FOOTER (pack polish, 1 Nov 2026): the date moves from the footer into a "Prepared" line in the band, as on
 // every proposal sheet and the rules, and the footer reads as theirs do — the page's section, then the title and the app
 const PREPARED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The shortlist — the new CEA link</title>
-<link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
+const STYLE = `<link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }
 html, body { background: white !important; color: var(--text-dark); padding: 0 !important; margin: 0; font-family: var(--font-sans); font-size: 11.1px; line-height: 1.38; }
@@ -685,10 +705,14 @@ table.t th.num, table.t td.num { text-align: center; font-variant-numeric: tabul
 table.t td.today { color: var(--text-light); }
 table.t td.best, table.t .bestv { font-weight: 800; color: color-mix(in srgb, var(--success-green) 80%, black); }
 table.t td.all { color: var(--text-mid); }
-/* SET FAIR'S ROW (7 Nov 2026; CROSSOVER'S SINCE, IN ITS PLACE) ran page 2 24px into its footer: every row of this table gives up half a pixel above and half
-   below (1.5px 7px 2px before), a pixel a row, and the page has 6px to spare. The type and the column widths are unchanged */
-table.t.alts td { padding: 1px 7px 1.5px; }
-table.t.alts td:first-child { width: 30.5%; font-weight: 700; color: var(--text-dark, #1a1a2e); }   /* 30.5 since 4 Nov 2026: "Grand Tour, Short Openers, Open Return" on one line, Clean Slate's and Fair Share's rows still on one */
+/* THE OTHER DESIGNS' SHEET (7 Nov 2026): a page of its own, so a row may take two lines and has and pays sit in columns. Page
+   2's one-line table, and the pixels each of its rows gave up to stay on the page, went with it */
+table.t.others { table-layout: fixed; margin: 3px 0 2px; } table.t.others th:first-child { width: 25%; } table.t.others th:nth-child(2) { width: 36%; }
+table.t.others td { padding: 3px 7px 3.5px; } table.t.others td:first-child b { display: block; color: var(--text-dark, #1a1a2e); }
+table.t.others .code { display: block; font-size: 8.6px; color: var(--text-light); white-space: nowrap; margin-bottom: 1px; }
+.fnote { font-size: 9.6px; color: var(--text-mid); margin: 8px 0 0; } sup { font-size: 70%; line-height: 0; }
+/* page 2 gives the room its table left to its own words: a little more type and air, and nothing else moves */
+.p2 h2 { margin-top: 11px; } .p2 .lead { font-size: 11.8px; } .p2 ul.list { font-size: 11.2px; line-height: 1.45; } .p2 ul.list li { margin: 3px 0; }
 /* the two comparison tables share one set of column widths (5 Nov 2026, the looks review: page 2's columns sat up to 41pt left of page 1's) */
 table.t.cmp { table-layout: fixed; } table.t.cmp th:first-child { width: 44%; } table.t.cmp th.num { width: 14%; padding-inline: 2px; letter-spacing: 0; }   /* 14% holds "52.0 · 65.9 · 71.7" on one line, and "Common Ground" in the head */
 table.t.cmp td.all3 { color: var(--text-dark, #1a1a2e); font-weight: 700; }
@@ -716,7 +740,9 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
    name, a code or the date (30 Oct 2026: "Closing | Time" on page 1, "30 | Oct 2026" on page 2) */
 .foot .nw, .nw { white-space: nowrap; }
 * { text-wrap: pretty; } h1, h2 { text-wrap: balance; }
-</style></head><body>
+</style>`;
+const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The shortlist — the new CEA link</title>
+${STYLE}</head><body>
 <section class="page">
   <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · The shortlist</div><h1>${Word(D.length)} good links, one edge each</h1>
   <div class="sub">${esc(list(D.map(d => d.name)))}, against each other and against today’s link</div>
@@ -756,7 +782,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <div class="foot"><span>Page 1 of 2 — What they share, where they differ, which to choose</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Links designer</span></div>
 </section>
 
-<section class="page">
+<section class="page p2">
   <div class="mast"><div><div class="eyebrow">The shortlist · continued</div><h1>Against today, and how to choose</h1>
   <div class="sub">On most of what a colleague feels the ${N} are the same, and a figure they share spans their columns</div></div></div>
 
@@ -764,26 +790,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <table class="t cmp"><thead><tr>${todayHead}</tr></thead><tbody>${todayHtml}</tbody></table>
 
   <h2>Why these ${N} and not the other ${word(others.length)}</h2>
-  <p class="lead">Shortlisted on ${SHORTLIST_DATE}: Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen. Since ${LEADER_DATE} ${LEADER}, drawn after them, is first in the league, ${f1(overNext)} points ahead of ${RANKED[1].name}. Each other design has something, and pays for it:</p>
-  <table class="t alts"><tbody>
-    <tr><td>In Step</td><td>steadier weekly hours — but the most long earlies, ${longEarlyMS(IF)} a year each</td></tr>
-    <tr><td>Closing Time</td><td>shorter closers and a closer Saturday fit — but fewer weeks on one shift time and a weaker weekday fit</td></tr>
-    <tr><td>Home Grown</td><td>the fewest new shift times, ${word(HG.newT)} — but today’s ${hm(HG.closers[1])} Saturday closer and a weaker fit</td></tr>
-    <tr><td>Even Keel</td><td>four at the Saturday close — but weeks mixing earlies and lates, and longer blocks</td></tr>
-    <tr><td>Second Edition</td><td>the steadiest start times from week to week — but ${word(O['Second Edition'].F.fixedRun)} days in a row, cover weeks aside</td></tr>
-    <tr><td>Second Look</td><td>no 55-hour week at all — but ${word(SL.fixedRun)} days in a row and fewer weeks on one shift time</td></tr>
-    <tr><td>Clean Slate</td><td>the best weekend fit of all — but ${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday</td></tr>
-    <tr><td>Next Step</td><td>a closer weekday fit and a gentler change of start than Even Step’s — but ${nsOpen} starts at 06:20 a year each, not ${esOpen}, ${ns2245} finishes at 22:45 rather than 22:30, and one more new time</td></tr>
-    <tr><td>Fair Share</td><td>Next Step with an even Sunday, no long shifts — but a weaker Sunday fit, ${word(FSx.newT - NX.newT)} more new times</td></tr>
-    <tr><td>Grand Tour</td><td>Common Ground’s leave and a closer weekday fit — but fewer weeks on one shift time</td></tr>
-    <tr><td>Open Return, Short Openers</td><td>today’s leave and no 55-hour week — but a ${hm(orsoRest)} shortest rest and more long shifts</td></tr>
-    <tr><td>Middle Ground</td><td>today’s leave, with no two closing or 06:20 weeks side by side where Common Ground has both, for a larger change of start from week to week (${hm(Math.round(MGF.step))} against ${hm(Math.round(CG.F.step))}). Which is better is a matter of preference: the hardest weeks apart, or steadier start times</td></tr>
-    <tr><td>Crossover</td><td>two 13:45s every weekday, a handover to the closers, no 55-hour week — but a weaker Saturday fit</td></tr>
-    <tr><td>Level Crossing</td><td>Crossover’s shift times, no two closing weeks together — but one week fewer on one shift time</td></tr>
-    <tr><td>Long Break</td><td>Common Ground’s four weeks for ${LB.lv.fourWeeks} days’ leave and fewer single rest days — but ${word(LB.fixedRun)} days in a row</td></tr>
-    <tr><td>Balanced V5, Balanced V6</td><td>shorter runs of earlies or lates and more early finishes — but ${balIso[0]} single rest days a year, ${balOne[0]} of ${BV[0].A.feel.workingLines} weeks on one shift time</td></tr>
-    <tr><td>Balanced V7</td><td>the same gains — but ${b7One} of ${B7.A.feel.workingLines} weeks on one shift time and ${word(b7Mixed)} weeks mixing earlies and lates</td></tr>
-  </tbody></table>
+  <p class="lead">Shortlisted on ${SHORTLIST_DATE}: Common Ground, as the example of the links that keep today’s leave; Even Step, then first in the pack’s league; Short Run, which colleagues have seen. Since ${LEADER_DATE} ${LEADER}, drawn after them, is first in the league, ${f1(overNext)} points ahead of ${RANKED[1].name}. Each other design has something, and pays for it: <b>links-26-other-designs.pdf</b>, beside this sheet, sets the ${word(others.length)} side by side.</p>
 
   <h2>The honest costs, against today</h2>
   <ul class="list">
@@ -811,30 +818,86 @@ const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace
   .replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt
     .replace(/\b(\d+) (to|in|of) (\d+)\b/g, '$1\u00a0$2\u00a0$3').replace(/\b(\d+) a year\b/g, '$1\u00a0a\u00a0year')
     .replace(/\b(today|Sun|Sat) (?=\d)/g, '$1\u00a0'));
-// page 2's table names every other design exactly once (a cell may list two; their spaces are no-break where it does)
-{ const rows = [...html.match(/<table class="t alts">([\s\S]*?)<\/table>/)[1].matchAll(/<tr><td>([^<]+)<\/td>/g)].map(m => m[1].replace(/\u00a0/g, ' ').split(', '));
-  const names = rows.flat();
-  claim('page 2’s table names every other design once', names.length === others.length && [...names].sort().join() === others.map(d => d.name).sort().join());
-  // "THE SAME GAINS" (6 Nov 2026, the merge with the second outside review): page 2 ran 7px into its footer with Middle
-  // Ground's longer row, and Balanced V7's row repeated the row above it word for word before its "but". It now says "the
-  // same gains", which reads as V5's and V6's only while it sits directly under their row — so that is pinned
-  claim('Balanced V7’s row sits directly under Balanced V5’s and V6’s, whose gains its “the same gains” names',
-    /<tr><td>Balanced V5, Balanced V6<\/td><td>shorter runs of earlies or lates and more early finishes — but [^<]*<\/td><\/tr>\s*<tr><td>Balanced V7<\/td><td>the same gains — but /.test(html)); }
-const htmlOut = new URL('links-26-shortlist.html', import.meta.url).pathname; const htmlTidy = longDates(tidy(html)); writeFileSync(htmlOut, htmlTidy);   // beside the tooling, gitignored
-const b = await chromium.launch(); const pg = await b.newPage();
-await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
+// THE OTHER DESIGNS' SHEET (7 Nov 2026): page 2's table, one row per design or pair, each row's words either side of its
+// "but" now in a column of its own. The rows are typed; the NAMED and pays() claims above pin what each keeps and pays against
+// the three, and the figures in them are read. Balanced V7's row names whose gains it shares: on page 2 it said "the same
+// gains", pinned to sit under their row, and NAMED pins that its gains are theirs
+const n55 = 'no 55-\u2060hour week<sup>*</sup>';   // the footnote says what was tested (the outside review of 7 Nov 2026);
+// a word joiner after the hyphen keeps "55-hour" on one line (Balanced V8's row broke it there, 7 Nov 2026)
+const ALTS = [
+  { n: ['In Step'], has: 'steadier weekly hours', pays: `the most long earlies, ${longEarlyMS(IF)} a year each` },
+  { n: ['Closing Time'], has: 'shorter closers and a closer Saturday fit', pays: 'fewer weeks on one shift time and a weaker weekday fit' },
+  { n: ['Home Grown'], has: `the fewest new shift times, ${word(HG.newT)}`, pays: `today’s ${hm(HG.closers[1])} Saturday closer and a weaker fit` },
+  { n: ['Even Keel'], has: 'four at the Saturday close', pays: 'weeks mixing earlies and lates, and longer blocks' },
+  { n: ['Second Edition'], has: 'the steadiest start times from week to week', pays: `${word(O['Second Edition'].F.fixedRun)} days in a row, cover weeks aside` },
+  { n: ['Second Look'], has: n55, pays: `${word(SL.fixedRun)} days in a row and fewer weeks on one shift time` },
+  { n: ['Clean Slate'], has: 'the best weekend fit of all', pays: `${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday` },
+  { n: ['Next Step'], has: 'a closer weekday fit and a gentler change of start than Even Step’s', pays: `${nsOpen} starts at 06:20 a year each, not ${esOpen}, ${ns2245} finishes at 22:45 rather than 22:30, and one more new time` },
+  { n: ['Fair Share'], has: 'Next Step with an even Sunday, no long shifts', pays: `a weaker Sunday fit, ${word(FSx.newT - NX.newT)} more new times` },
+  { n: ['Grand Tour'], has: 'Common Ground’s leave and a closer weekday fit', pays: 'fewer weeks on one shift time' },
+  { n: ['Open Return', 'Short Openers'], has: `today’s leave and ${n55}`, pays: `a ${hm(orsoRest)} shortest rest and more long shifts` },
+  { n: ['Middle Ground'], has: 'today’s leave, with no two closing or 06:20 weeks side by side where Common Ground has both', pays: `a larger change of start from week to week (${hm(Math.round(MGF.step))} against ${hm(Math.round(CG.F.step))}); which is better is a matter of preference: the hardest weeks apart, or steadier start times` },
+  { n: ['Crossover'], has: `two 13:45s every weekday, a handover to the closers, ${n55}`, pays: 'a weaker Saturday fit' },
+  { n: ['Level Crossing'], has: 'Crossover’s shift times, no two closing weeks together', pays: 'one week fewer on one shift time' },
+  { n: ['Long Break'], has: `Common Ground’s four weeks for ${LB.lv.fourWeeks} days’ leave and fewer single rest days`, pays: `${word(LB.fixedRun)} days in a row` },
+  { n: ['Balanced V5', 'Balanced V6'], has: 'shorter runs of earlies or lates and more early finishes', pays: `${balIso[0]} single rest days a year, ${balOne[0]} of ${BV[0].A.feel.workingLines} weeks on one shift time` },
+  { n: ['Balanced V7'], has: 'the same gains as Balanced V5 and V6', pays: `${b7One} of ${B7.A.feel.workingLines} weeks on one shift time and ${word(b7Mixed)} weeks mixing earlies and lates` },
+  { n: ['Balanced V8'], has: `the same gains as Balanced V5 and V6, ${n55} and four weeks off for ${B8.lv.fourWeeks} days’ leave`, pays: 'a larger change of start from week to week and a weaker weekday fit' },
+  { n: ['Balanced V9'], has: 'Balanced V8’s gains, with shorter runs of earlies or lates', pays: `Balanced V8’s costs, and ${word(B9.A.feel.hybrid)} weeks mixing earlies and lates` },
+];
+// BALANCED V8 AND V9'S ROWS (7 Nov 2026): V8's figure is read; V9's row leans on V8's, so it is pinned to keep what V8 keeps and
+// pay what V8 pays, with shorter runs and its mixed weeks on top, and to sit under it (A to Z puts it there)
+claim('Balanced V8 and V9: four weeks off for the same leave, a day less than today', B8.lv.fourWeeks === B9.lv.fourWeeks && B8.lv.fourWeeks === TF.lv.fourWeeks - 1);
+claim('Balanced V9: Balanced V8’s gains with shorter runs of earlies or lates, and its costs with mixed weeks where V8 has none',
+  K['Balanced V9'] === K['Balanced V8'] && B9.block.worst < B8.block.worst && B9.block.fixed < B8.block.fixed
+  && ['step', 'fitWk'].every(k => loses(O['Balanced V8']).includes(k) && loses(O['Balanced V9']).includes(k)) && B8.A.feel.hybrid === 0 && B9.A.feel.hybrid > 0);
+{ const names = ALTS.flatMap(r => r.n);
+  claim('the other designs’ sheet names every other design once', names.length === others.length && [...names].sort().join() === others.map(d => d.name).sort().join()); }
+const dirOf = n => stats.find(s => s.name === n).dir;
+claim('each row of the other designs’ sheet holds designs from one folder', ALTS.every(r => r.n.every(x => dirOf(x) === dirOf(r.n[0]))));
+// "NO 55-HOUR WEEK" IS SAID WITH WHAT WAS TESTED (the outside review of 7 Nov 2026: "Qualify the headline ... the headline
+// should reflect its limits"): the footnote names both readings, 8-hour cover duties and 8h 45m ones, so both are pinned
+claim('the other designs’ sheet says “no 55-hour week” only where no cover placement tested makes one, at 8 hours or at 8h 45m',
+  ALTS.filter(r => r.has.includes(n55)).flatMap(r => r.n).every(x => { const h = h55Of(O[x].F); return h && !h.adds && h.hiMin <= 55 * 60 && h.hi35Min <= 55 * 60; }));
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+const OTHER_GROUPS = [['proposals', 'Proposal sheets', 'the folder 4 Proposal sheets'],
+  ['30-days-off', '30 days off for 14 days’ leave, as today', 'the folder 4 Proposal sheets/30 days off']];
+const rowsOf = dir => ALTS.filter(r => dirOf(r.n[0]) === dir).sort((a, b) => a.n[0].localeCompare(b.n[0])).map(r =>
+  `<tr><td>${r.n.map(x => `<b>${esc(x)}</b><span class="code">${O[x].code} · ${O[x].fp}</span>`).join('')}</td><td>${cap(r.has)}</td><td>${cap(r.pays)}</td></tr>`).join('\n    ');
+const othersHtml = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The other designs — the new CEA link</title>
+${STYLE}</head><body>
+<section class="page">
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · Beside the shortlist</div><h1>The other ${word(others.length)} designs</h1>
+  <div class="sub">What each has, and what it pays, beside ${esc(list(D.map(d => d.name)))}</div>
+  <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
+  <p class="lead">Beside the ${N} on the shortlist, each of the other designs in the pack has something, and pays for it. Every one meets every December staffing rule, and each has its own eight-page sheet; here they are A to Z, in the pack’s two folders.</p>
+  ${OTHER_GROUPS.map(([dir, title, note]) => `<h2>${title}<span class="note">${note}</span></h2>
+  <table class="t others"><thead><tr><th>Design</th><th>What it has</th><th>What it pays</th></tr></thead><tbody>
+    ${rowsOf(dir)}
+  </tbody></table>`).join('\n  ')}
+  <p class="fnote"><sup>*</sup> In every cover-week placement tested: a cover week’s four duties worked together, wherever they fall from Monday to Saturday, as 8-hour duties and again as 8h&nbsp;45m ones, with its Sunday worked as overtime.</p>
+  <div class="foot"><span>Page 1 of 1 — Beside the shortlist: what each other design has, and what it pays</span><span><b>The other designs</b> · Marylebone Roster — Links designer</span></div>
+</section>
+</body></html>`;
 // THE PAGE IS A FIXED HEIGHT, so content that does not fit is HIDDEN, not pushed onto another page — a row added on
 // 5 Oct 2026 silently hid the choice guide's last row and the closing paragraph. Refuse to print a page that overflows.
 // Measured at the PRINT width (A4 less the 11 mm side margins, 711 px) under print media: at screen width the text
 // wraps less and an over-full page looks fine, which is how the first version of this guard passed a broken page.
 // AND 8PX CLEAR OF IT (5 Nov 2026, the looks review): "not over the footer" let a last line sit 3.5pt above its rule, which
-// printed as text on the line
+// printed as text on the line. BOTH SHEETS (7 Nov 2026): the other designs' sheet is held to the same, on the same page
 const CLEAR = 8;
-{ await pg.emulateMedia({ media: 'print' }); await pg.setViewportSize({ width: 711, height: 1100 });
+const b = await chromium.launch(); const pg = await b.newPage();
+for (const [doc, name, out] of [[html, 'links-26-shortlist.html', OUT], [othersHtml, 'links-26-other-designs.html', OUT_OTHERS]]) {
+  const htmlOut = new URL(name, import.meta.url).pathname; writeFileSync(htmlOut, longDates(tidy(doc)));   // beside the tooling, gitignored
+  await pg.emulateMedia({ media: null }); await pg.setViewportSize({ width: 1280, height: 720 });   // each sheet loads as on a fresh page
+  await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
+  await pg.emulateMedia({ media: 'print' }); await pg.setViewportSize({ width: 711, height: 1100 });
   const over = await pg.evaluate((CLEAR) => [...document.querySelectorAll('.page')].map((p, i) => { const foot = p.querySelector('.foot');
     const lim = foot ? foot.getBoundingClientRect().top : p.getBoundingClientRect().bottom;
     const low = Math.max(...[...p.children].filter(c => c !== foot).map(c => c.getBoundingClientRect().bottom));
     return [i + 1, Math.round(Math.max(low - lim + CLEAR, p.scrollHeight - p.clientHeight, p.scrollWidth - p.clientWidth))]; }).filter(([, d]) => d > 1), CLEAR);   // and nothing wider than the page
-  if (over.length) throw new Error(`content runs into the footer, within ${CLEAR}px of it, or off the page (page, px): ${JSON.stringify(over)}`); }
-await pg.pdf({ path: OUT, format: 'A4', printBackground: true, preferCSSPageSize: true });
-await b.close(); console.log('wrote', OUT);
+  if (over.length) throw new Error(`${name}: content runs into the footer, within ${CLEAR}px of it, or off the page (page, px): ${JSON.stringify(over)}`);
+  await pg.pdf({ path: out, format: 'A4', printBackground: true, preferCSSPageSize: true });
+  console.log('wrote', out);
+}
+await b.close();

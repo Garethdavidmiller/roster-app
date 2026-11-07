@@ -55,7 +55,28 @@ With every week one family the two agree; a mixed week can have one weekday time
 ONE_MIN counts and the sheets do not. Balanced V7 has two, so ONE_MIN=15 below is the sheets' 13. Balanced V7:
   MIXED=3 BF=3 BW=5 SKELETON=../30-days-off/Grand-Tour-GT-26-T7.json REST=860 H7=3054 FF17=-12 HEAVY=2575 FF11_FIXED=9
   FF11_WORST=12 LV_BEST=30 LV_FOUR=14 LV_WORST=20 ISO=6 GAP=7 BLOCK=20 OBJ=step ONE_MIN=15 HINT=<a rota from OBJ=one,
-  then OBJ=step ONE_MIN=17> WORKERS=4 python3 exact-rota.py results/balanced-v7-table.json <out.json> 300"""
+  then OBJ=step ONE_MIN=17> WORKERS=4 python3 exact-rota.py results/balanced-v7-table.json <out.json> 300
+
+BALANCED V8 AND V9 (7 Nov 2026, owner: "Do the v7 week lay out again", then "Do A as Balanced V8 and B as Balanced V9"):
+Balanced V7's duties with every rest day chosen again, to the leaders' standard. On Short Openers' rest days these duties
+are infeasible with REST=860 alone (every other floor loosened), and OBJ=rest with REST=0 REST_TO=860 shows why: one rest
+under 14h 20m is forced, the Sunday 09:00-18:00 before a Monday 07:30. Its worker needs the Monday off and no 06:20 the
+Saturday before, and there the only early week with the Monday off follows a 06:20 Saturday, both 08:00-16:30 Saturdays
+being needed before cover weeks. Freeing the early weeks' rest days (SKELETON_FREE) clears it; the whole model, every rest
+day free, then climbs from that grid, though from nothing it found no first rota in ten minutes. Each step's HINT= is the
+step before's output; F is the floors every step holds unless it says otherwise:
+  F = H55=3300 LV_BEST=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2575 REST=860
+  1. F SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json REST=0 REST_TO=860 OBJ=rest                        60 s
+  2. F SKELETON=(the same) SKELETON_FREE=4,5,12,13,14,22,23,24,25,26 OBJ=one                                  240 s
+  3. the same, ONE_MIN=19 OBJ=step                                                                             300 s
+  4, 5. F ONE_MIN=19 OBJ=step, no SKELETON, twice                                                              600 s each
+  6. F LV_WORST=20 ONE_MIN=18 OBJ=step                                                                         600 s
+  7. F LV_WORST=20 OBJ=both: Balanced V8 (results/balanced-v8.json)                                            600 s
+  8. F LV_WORST=20 MIXED=3 BF=3 BW=5 BLOCK=20 OBJ=one, from V8                                                  600 s
+  9. the same, ONE_MIN=19 OBJ=step: Balanced V9 (results/balanced-v9.json; ONE_MIN's 19 is the sheets' 18)      600 s
+Step 6's worst stretch of 20 with the 55-hour rule held is the one README.md said no search had found ("The worst leave
+stretch is 19, not 20"). FIX= checks both grids, V8 with step 7's floors and V9 with step 9's: feasible. README.md ->
+"Balanced V8 and Balanced V9"."""
 import sys, json, os
 from ortools.sat.python import cp_model
 TABLE, OUT = sys.argv[1], sys.argv[2]; LIMIT = float(sys.argv[3]) if len(sys.argv) > 3 else 600

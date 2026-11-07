@@ -109,6 +109,10 @@ body.dense th{line-height:1.1;padding:1px 5px} body.dense .mast .sub{line-height
    quarter-pixel of padding each fell short; giving up the last half-pixel above and below each cell prints it on one sheet at
    80%. The type, the borders and the floor are as they were */
 body.dense td{padding:0 5px}
+/* TWENTY-FOUR ROWS AGAIN (7 Nov 2026, Balanced V8 and V9, after Both Ways and Fine Tune went): the page footer ended 2px past
+   the sheet at the floor, measured at the printed width. The cells' line height comes down from 1.12 to 1.1, which ends it
+   7px inside; the type, the padding, the borders and the floor are as they were */
+body.dense td{line-height:1.1}
 </style></head><body>
 <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
 <div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${countWord(SHORTLIST.length)} shortlisted ones marked ★, and the ${countWord(rows.filter(r => r.thirty).length)} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last.<span class="how"> Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them.</span> Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
