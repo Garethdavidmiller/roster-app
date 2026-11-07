@@ -168,6 +168,9 @@ export async function fetchOverridesForPeriod(p, memberName) {
 }
 
 // ── SUGGESTION ENGINE ─────────────────────────────────────────────────────────
+/** A bare Training day from the pattern, on a bank holiday: the contracted day (owner, 7 Nov 2026). */
+export const BARE_TRAINING_DAY_MINS = 7 * 60;
+
 /**
  * Scan the period window using the logged-in member's base roster, merged with
  * any admin-entered overrides from Firestore. Categorises each worked shift into:
@@ -192,6 +195,8 @@ export function getRosterSuggestion(p, member) {
   // Which buckets contain an 8h ESTIMATE from an untimed Other rest-day (the default routes
   // by day: Boxing → box, BH → bhOt, else rdw — the flag must follow the minutes).
   const defaulted8h = { rdw: false, bhOt: false, box: false };
+  // …and which hold the 7h DEFAULT for a bare Training day from the pattern on a bank holiday.
+  const defaulted7h = { bh: false };
   const days = [];
 
   const cur = new Date(p.start);
@@ -264,6 +269,23 @@ export function getRosterSuggestion(p, member) {
         if (_pay.mode === 'timed') { effValue = _pay.time;  effType = 'shift'; _otherFromOv = true; }
         else                       { effValue = baseValue;  effType = null;    _otherFromOv = false; }
       }
+    }
+
+    // A TRAINING DAY FROM THE PATTERN HAS NO TIMES (fixed pattern 3, a trainee's weeks), so the
+    // timed branch below priced it as nothing, and on a bank holiday the member lost their "Bank
+    // Holiday Rostered" hours. It is the contracted 7-hour day there (owner, 7 Nov 2026: "Yes", like
+    // the Monday-to-Friday 09:00-16:00 line), flagged as a default the member checks — a figure not
+    // on record is never presented as one that is (paycalc.md, invariant 1). Only a bank holiday: a
+    // weekday is contracted basic pay, a Sunday or Boxing Day cannot be a training day, and no
+    // pattern has a bare Training Saturday. Absence and an untimed Other day on top pay as the day
+    // underneath, so they reach this too (effValue is the base).
+    const _bareBase = effValue === baseValue ? parseOtherValue(baseValue) : null;
+    if (_bareBase && !_bareBase.time && !_bareBase.rdw && cur.getDay() !== 0
+        && !(cur.getMonth() === 11 && cur.getDate() === 26) && _isDateBH(cur)) {
+      bhMins += BARE_TRAINING_DAY_MINS; bhCount++; defaulted7h.bh = true;
+      days.push({ date: new Date(cur), shift: `${BARE_TRAINING_DAY_MINS / 60}h default — adjust to actual`, type: 'bh', source: 'base' });
+      cur.setDate(cur.getDate() + 1);
+      continue;
     }
 
     if (effValue && effValue.includes('-') && effValue.includes(':')) {
@@ -407,7 +429,7 @@ export function getRosterSuggestion(p, member) {
     satFromOv, sunFromOv, bhFromOv,
     // bhOtFromOv is always true: BH overtime only arises from an explicit override on a BH day,
     // never from the base roster alone. rdwFromOv likewise — base roster never schedules RDW.
-    bhOtFromOv: true, boxFromOv, rdwFromOv: true, defaulted8h,
+    bhOtFromOv: true, boxFromOv, rdwFromOv: true, defaulted8h, defaulted7h,
     memberName: member.name,
     days: days.sort((a, b) => +a.date - +b.date),
   };

@@ -615,6 +615,30 @@ test('calendar: a grade tab\'s arrows, and modified keys, do not reach the page 
     await expect(week).toHaveText(/** @type {string} */ (weekBefore));
 });
 
+// v25.43 made the team week's sideways-scrolling table a tab stop on a narrow screen, so that a
+// keyboard can reach the days off the edge — and the page's own → handler then turned the key into
+// next week, re-rendering the grid and moving focus to the Next button (7 Nov 2026 review). On the
+// focused table the arrows are the table's: it scrolls, and the week stays.
+test('calendar: → on the focused team week table scrolls it, and the week stays', async ({ page }) => {
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.setViewportSize({ width: 375, height: 820 });
+    await page.goto('/');
+    await page.waitForSelector('.control-group--actions', { state: 'attached' });
+    await page.locator('#teamViewBtn').click();
+    const panel = page.locator('#gradeTabPanel');
+    const week = page.locator('.team-week-text').first();
+    await expect(week).toBeVisible();
+    const weekBefore = await week.textContent();
+    expect(await panel.evaluate(el => el.scrollWidth - el.clientWidth),
+        'the table must be wider than the screen, or this proves nothing').toBeGreaterThan(0);
+    await panel.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(week).toHaveText(/** @type {string} */ (weekBefore));
+    await expect(panel).toBeFocused();
+    await expect.poll(() => panel.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
+});
+
 // A month read is EVERYONE's overrides, so a member switched while it is in flight is waiting on
 // it too. The repaint used to be guarded on the member who started the read, and the second caller
 // was dropped on the in-flight claim — so the new member sat on "Checking this month" for good.

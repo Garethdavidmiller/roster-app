@@ -10,7 +10,7 @@ import { escapeHtml } from './roster-data.js';
 import { getAllOverrides, buildMemberDateMap } from './admin-overrides.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 import { swapDecisionDates } from './al-swapped-days.js';
-import { projectAlBooking, projectAlOverage, overridesAfterSave } from './admin-al-projection.js';
+import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords } from './admin-al-projection.js';
 import { spareShiftNote, countSpareDays } from './admin-al-spare-note.js';
 
 const esc = escapeHtml;
@@ -127,10 +127,12 @@ export function initALSection({
             // …EXCEPT A WORKED BOXING DAY (6 Nov 2026 review): its leave is free, but the work it
             // replaces earned a day in lieu, which goes with it. "At no cost" was untrue of it, so it
             // is named on its own, and the over-allowance check counts the day it takes back.
-            const lieu = c.lieuLost ?? 0;
-            const free = c.freeWritten - lieu;
+            // A Dispatcher's worked bank holiday is the same, and its leave is NOT free (7 Nov 2026
+            // review), so only a lieu day that is also free comes out of "at no cost".
+            const lieuDays = /** @type {string[]} */ (projection.lieuLost ?? []);
+            const free = c.freeWritten - lieuDays.filter(d => projection.freeWritten.includes(d)).length;
             if (free > 0) parts.push(`${free} day${free > 1 ? 's' : ''} recorded at no cost`);
-            if (lieu > 0) parts.push('Boxing Day recorded as leave, so the day in lieu for working it goes');
+            if (lieuDays.length) parts.push(lieuGoesWords(lieuDays));
             // Christmas Day and Boxing Day are named as themselves (v25.37): never counted, and for a
             // member due at work already shown as leave, so "rest day" would be the wrong word.
             const rest = c.skipped - (c.christmas ?? 0);

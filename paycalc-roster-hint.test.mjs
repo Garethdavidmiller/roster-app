@@ -56,7 +56,7 @@ mock.module('./paycalc-roster-suggestions.js', {
     },
 });
 
-const { fillFromRoster, snapKey, _restoreRosterSuggested, _applyRosterSuggestion } = await import('./paycalc-roster-hint.js');
+const { fillFromRoster, snapKey, _restoreRosterSuggested, _applyRosterSuggestion, _confBadge } = await import('./paycalc-roster-hint.js');
 
 const A = '60', B = '61';
 /** @type {number} */ let _autosaves = 0;
@@ -197,3 +197,18 @@ describe('the background fill treats an hours box and its minutes box as ONE fig
         assert.equal(_els.rdwM.value, '15');
     });
 });
+
+// ── A DEFAULT IS NEVER DRESSED AS A RECORD (paycalc.md, invariant 1) ──────────────────────────
+// The suggestion engine flags the buckets holding a default; this is what the member then reads.
+// The 7h Training-day default on a bank holiday (owner, 7 Nov 2026) arrives in the `bh` bucket,
+// where an unflagged row carries no badge at all and so reads as a figure taken from the roster.
+describe('the estimate badge', () => {
+    test('an 8h default says so', () => {
+        assert.deepEqual(_confBadge('rdw', true, 8), { text: 'Includes an 8h estimate \u2014 check', cls: 'conf-possible' });
+    });
+    test('the 7h Training-day default says so too, on a row that otherwise carries no badge', () => {
+        assert.deepEqual(_confBadge('bh', false, 7), { text: 'Includes a 7h estimate \u2014 check', cls: 'conf-possible' });
+        assert.equal(_confBadge('bh', false, 0), null, 'unflagged, the base bank-holiday row has no badge — which is why the flag matters');
+    });
+});
+

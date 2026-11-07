@@ -20,8 +20,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift } from './roster-data.js';
-import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave } from './admin-al-projection.js';
+import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift, getBankHolidays } from './roster-data.js';
+import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave, lieuGoesWords } from './admin-al-projection.js';
 import { consumesEntitlement } from './al-entitlement.js';
 
 // C. Reen is the fixed Mon–Fri 12:00–19:00 line: every weekend is a rest day and every weekday is
@@ -352,3 +352,47 @@ describe('the day in lieu reaches the over-entitlement warning (v25.37)', () => 
             'admin-al.js must pass `after: overridesAfterSave(getAllOverrides(), { … writing … })` to projectAlOverage');
     });
 });
+
+// ── A DISPATCHER'S BANK HOLIDAY EARNS A DAY IN LIEU TOO (7 Nov 2026 review) ──────────────────────
+// Leave over a bank holiday a Dispatcher works takes that day in lieu back, exactly as leave over a
+// worked Boxing Day does — and unlike Boxing Day the leave itself is charged. The preview named only
+// Boxing Day, so it said "1 day" for a booking that left the member two down. `lieuLost` is now read
+// off the allowance, so it covers every rule that earns a day in lieu.
+describe('the preview names every day in lieu a booking takes back', () => {
+    const disp = teamMembers.find(m => m.role === 'Dispatcher' && !m.hidden && !m.startDate && !m.proRatedAL && !m.rosterChanges);
+    const at = (/** @type {string} */ iso) => new Date(`${iso}T12:00:00`);
+    const bh = getBankHolidays(2026).map(formatISO)
+        .find(iso => at(iso).getMonth() < 11 && at(iso).getDay() !== 0 && isWorkedShift(getBaseShift(disp, at(iso))));
+
+    test('the fixture is a Dispatcher rostered on a 2026 bank holiday', () => {
+        assert.ok(disp, 'a plain Dispatcher');
+        assert.ok(bh, 'a bank holiday they work by pattern');
+    });
+
+    test('leave on a bank holiday the Dispatcher works is CHARGED and takes the day in lieu back', () => {
+        const proj = projectAlBooking({ member: disp, dates: [bh], ovByDate: new Map() });
+        assert.deepEqual(proj.consuming, [bh], 'the leave itself costs a day');
+        assert.deepEqual(proj.lieuLost, [bh], 'and so does the day in lieu it loses');
+    });
+
+    test('a worked Christmas Day takes its bank-holiday day in lieu with it, though the leave is free', () => {
+        const worked = { id: 'x', memberName: disp.name, type: 'rdw', date: '2026-12-25', value: '06:00-14:00' };
+        const proj = projectAlBooking({ member: disp, dates: ['2026-12-25'], ovByDate: new Map([['2026-12-25', worked]]) });
+        assert.deepEqual(proj.lieuLost, ['2026-12-25']);
+    });
+
+    test('a CEA\'s ordinary bank holiday earns nothing in lieu, so nothing is named', () => {
+        const cea = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.rosterChanges
+            && isWorkedShift(getBaseShift(m, at(bh))));
+        assert.ok(cea, 'a CEA rostered on that bank holiday');
+        assert.deepEqual(projectAlBooking({ member: cea, dates: [bh], ovByDate: new Map() }).lieuLost, []);
+    });
+
+    test('the words name each day: Christmas and Boxing Day by name, any other by its date', () => {
+        assert.equal(lieuGoesWords(['2026-12-26']), 'Boxing Day recorded as leave, so the day in lieu for working it goes');
+        assert.equal(lieuGoesWords(['2026-12-25', '2026-12-26']),
+            'Christmas Day and Boxing Day recorded as leave, so the days in lieu for working them go');
+        assert.equal(lieuGoesWords(['2026-08-31']), 'the bank holiday on 31 August recorded as leave, so the day in lieu for working it goes');
+    });
+});
+

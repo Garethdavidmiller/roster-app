@@ -311,6 +311,18 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
         }
     });
 
+    test('the version job reads main\'s file from disk, never through a pipe that can close early', () => {
+        // 7 Nov 2026 review. `git show origin/main:roster-data.js | grep -m1` let grep exit at its
+        // first match while git was still writing a file larger than a pipe's buffer: SIGPIPE, exit
+        // 141 under pipefail, and the job ended there with nothing printed — about 1 run in 180.
+        const script = blockOf('version').split('\n').filter(l => !l.trim().startsWith('#')).join('\n');
+        assert.doesNotMatch(script, /git show[^\n|]*\|/,
+            'the version job pipes `git show` into a reader again; grep -m1 stops reading at its '
+            + 'first match, and git can then die of SIGPIPE and take the job with it, silently');
+        assert.match(script, /git show origin\/main:roster-data\.js > "\$RUNNER_TEMP\/[\w.-]+"/,
+            'main\'s roster-data.js must be written to a file under $RUNNER_TEMP and read from there');
+    });
+
     test('the concurrency key collides a push with its own pull_request', () => {
         // The point of the whole change. `github.ref` is refs/heads/<branch> on a push and
         // refs/pull/<n>/merge on a PR, so keying on it alone puts the two events in different
@@ -1164,9 +1176,10 @@ describe('the currency canary stands down for a deploy in flight', () => {
                 '#!/usr/bin/env bash',
                 'url="${@: -1}"; t=$(cat "$SIMCLOCK")',
                 "ver() { printf \"export const APP_VERSION = '%s';\\n\" \"$1\"; }",
-                'pick() { if [ "$t" -ge "$2" ]; then echo "$3"; else echo "$1"; fi; }',
+                // An optional third stage ($4 at, $5 value): main can move TWICE inside one wait.
+                'pick() { if [ -n "${5:-}" ] && [ "$t" -ge "$4" ]; then echo "$5"; elif [ "$t" -ge "$2" ]; then echo "$3"; else echo "$1"; fi; }',
                 'case "$url" in',
-                '  *contents/roster-data.js*) ver "$(pick "$START_V" "$MAIN_AT" "$MAIN_V")" ;;',
+                '  *contents/roster-data.js*) ver "$(pick "$START_V" "$MAIN_AT" "$MAIN_V" "${MAIN2_AT:-}" "${MAIN2_V:-}")" ;;',
                 '  https://myb-roster.web.app/roster-data.js) ver "$(pick "$WEB_V0" "$WEB_AT" "$WEB_V1")" ;;',
                 '  https://garethdavidmiller.github.io/roster-app/roster-data.js) ver "$(pick "$PAGES_V0" "$PAGES_AT" "$PAGES_V1")" ;;',
                 '  */actions/workflows/*/runs*) printf \'{"workflow_runs":[{"status":"%s","html_url":"https://example.invalid/run/1"}]}\\n\' "$RUN_STATUS" ;;',
@@ -1212,6 +1225,14 @@ describe('the currency canary stands down for a deploy in flight', () => {
                 PAGES_V0: '25.39', PAGES_V1: '25.40', PAGES_AT: 180, RUN_STATUS: 'in_progress' });
             assert.equal(ahead.status, 0, `the 6 Nov case reported again:\n${ahead.out}`);
             assert.match(ahead.out, /Both origins are serving v25\.40/);
+            // TWO merges inside one wait (7 Nov 2026 review): v25.41 at 600s and v25.42 at 1450s,
+            // with Hosting on 25.40 and deploying, and the mirror on 25.41 — neither START nor the
+            // main of the moment, and a healthy release train reported stale.
+            const twice = run({ START_V: '25.40', MAIN_V: '25.41', MAIN_AT: 600, MAIN2_V: '25.42', MAIN2_AT: 1450,
+                WEB_V0: '25.39', WEB_V1: '25.40', WEB_AT: 900, PAGES_V0: '25.40', PAGES_V1: '25.41', PAGES_AT: 660,
+                RUN_STATUS: 'in_progress' });
+            assert.equal(twice.status, 0, `two merges in one wait were reported:\n${twice.out}`);
+            assert.match(twice.out, /Standing down/);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -1232,6 +1253,17 @@ describe('the currency canary stands down for a deploy in flight', () => {
         assert.equal(code.split(out).length - 1, 1, 'the expected version is written to the step output once');
         assert.ok(code.indexOf(out) > code.indexOf(loop[0]) + loop[0].length,
             'and AFTER the poll, so the issue names the version the verdict was reached against');
+    });
+
+    test('only a failure of the comparison itself reaches the issue', () => {
+        // 7 Nov 2026 review — the same fix live-health.yml took in Oct 2026. A bare `failure()` is
+        // true when ANY earlier step failed, so a checkout that could not run filed "staff are not
+        // being served the current version", naming no version, about origins nobody had read.
+        const issue = code.match(/- name: Say so, once, in an issue\n([\s\S]*?)\n\s*run: \|/);
+        assert.ok(issue, 'the issue step must be found');
+        assert.match(issue[1], /^\s*if:\s*failure\(\)\s*&&\s*steps\.compare\.outcome\s*==\s*'failure'\s*$/m,
+            'the issue step must run only when the compare step itself failed');
+        assert.match(code, /^\s*id:\s*compare\s*$/m, 'and the compare step must keep the id it is read by');
     });
 });
 
@@ -1300,20 +1332,30 @@ describe('the live check looks twice before it reports', () => {
         // had no limits at all, so a slow setup could spend the job before a hung site was cut off.
         // A step that installs or runs something must carry its own limit, and the job must cover
         // all of them plus the site step and five minutes for the quick steps and the alert.
+        //
+        // AND SO MUST EVERY OTHER STEP BUT THE ALERT (7 Nov 2026 review). Counting only `run:` and
+        // local actions left out the checkout, setup-node's npm cache and the browser cache — all
+        // downloads, none limited — and the report upload, which runs AFTER the site step and BEFORE
+        // the alert. Any of them stalling in a GitHub-side incident spent the job's time unseen.
         const stepLimit = limitOf(body, 8);
         const jobLimit = limitOf(code, 4);
         assert.ok(stepLimit >= 10,
             `the site step needs its own timeout-minutes of at least 10 (found ${stepLimit}): two looks and the pause take about three minutes, and a hung site must still be cut off by THIS limit`);
-        const before = code.slice(code.indexOf('steps:'), code.indexOf('- name: Open the live site on both origins'));
-        const steps = before.split(/\n(?=\s*- (?:name|uses):)/).filter(s => /^\s*- (?:name|uses):/.test(s));
-        const working = steps.filter(s => /^\s+run:|uses: \.\/\.github\/actions\//m.test(s));
-        assert.ok(working.length >= 3, `the install steps must be found (found ${working.length})`);
-        const unbounded = working.filter(s => !(limitOf(s, 8) > 0)).map(s => s.match(/- name: (.*)/)?.[1] ?? s.trim().slice(0, 60));
+        const steps = code.slice(code.indexOf('steps:')).split(/\n(?=\s*- (?:name|uses):)/)
+            .filter(s => /^\s*- (?:name|uses):/.test(s));
+        const nameOf = (/** @type {string} */ s) => s.match(/- (?:name|uses): (.*)/)?.[1] ?? s.trim().slice(0, 60);
+        const alertAt = steps.findIndex(s => /- name: Say so, once, in an issue/.test(s));
+        assert.equal(alertAt, steps.length - 1, 'the alert step must be found, and must be the last step');
+        const others = steps.slice(0, alertAt).filter(s => !/- name: Open the live site on both origins/.test(s));
+        for (const want of ['actions/checkout', 'actions/setup-node', 'actions/cache', 'npm ci', 'actions/upload-artifact']) {
+            assert.ok(others.some(s => s.includes(want)), `the ${want} step must be found among the steps counted`);
+        }
+        const unbounded = others.filter(s => !(limitOf(s, 8) > 0)).map(nameOf);
         assert.deepEqual(unbounded, [],
-            `every step before the site check that installs or runs something needs its own timeout-minutes; these have none, so the job can run out before the site step does: ${unbounded.join(', ')}`);
-        const installs = working.reduce((n, s) => n + limitOf(s, 8), 0);
-        assert.ok(installs + stepLimit + 5 <= jobLimit,
-            `the job limit (${jobLimit}) must cover the steps before it (${installs} minutes between them), the site step's ${stepLimit} and five minutes for everything else. Otherwise the job runs out first, and a hung site is never reported.`);
+            `every step but the alert needs its own timeout-minutes; these have none, so the job can run out before the site step does: ${unbounded.join(', ')}`);
+        const rest = others.reduce((n, s) => n + limitOf(s, 8), 0);
+        assert.ok(rest + stepLimit + 5 <= jobLimit,
+            `the job limit (${jobLimit}) must cover every other step (${rest} minutes between them), the site step's ${stepLimit} and five minutes for the alert. Otherwise the job runs out first, and a hung site is never reported.`);
     });
 
     test('only a failure of the site check itself reaches the issue', () => {

@@ -38,7 +38,8 @@ memberName   Must match teamMembers[n].name exactly — one char mismatch = sile
 type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick" | "other"
              Retired: "allocated" | "overtime" | "swap". No document is of these types: every one was
              converted on 4 Nov 2026 (Allocated shift and Swap → shift; Overtime → rdw on a base rest
-             day, shift on a working day; any on a Sunday → rdw). The names survive in `replacedType`
+             day, shift on a working day; any on a Sunday → rdw), and Operations' count afterwards read
+             none left (owner, 7 Nov 2026). The names survive in `replacedType`
 value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick;
              training uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — flavour "TRG"|"IND"|"ASSESS"|"TEAM"|"UNION"|"MEET" (the authority is OTHER_FLAVOURS in override-utils.js — UNION v18.56 and MEET v18.61 were missing here), optional rest-day
              marker, optional actual times (see OTHER_DAYS.md; grammar single-source: override-utils.js)

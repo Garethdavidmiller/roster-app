@@ -662,3 +662,61 @@ describe('getRosterSuggestion — Sunday-on-BH payroll rule', () => {
   });
 
 });
+
+// ── A TRAINING DAY FROM THE PATTERN ON A BANK HOLIDAY (owner, 7 Nov 2026) ──────────────────────
+// Fixed pattern 3 is a bare TRG Monday to Friday — no times — and the engine prices only a timed
+// day, so a bank holiday inside a trainee's weeks suggested no "Bank Holiday Rostered" hours at all,
+// where the 09:00-16:00 line it stands for suggests 7. The owner's answer: suggest the 7 hours,
+// flagged as a default the member checks.
+describe('getRosterSuggestion — a bare Training day from the pattern on a bank holiday', () => {
+  const campbell = teamMembers.find(m => m.name === 'M. Campbell');
+  const BH = '2026-10-14';   // a Wednesday inside her training weeks, made a bank holiday for the test
+
+  test('the fixture is a Training day with no times', async () => {
+    const { getBaseShift } = await import('./roster-data.js');
+    assert.equal(getBaseShift(campbell, parseISODate(BH)), 'TRG');
+  });
+
+  test('suggests the 7-hour day as Bank Holiday Rostered, flagged as a default', () => {
+    _addBhDateForTest(2026, BH);
+    try {
+      _setOverridesForTest(new Map());
+      const s = getRosterSuggestion(period(BH), campbell);
+      assert.ok(s, 'a suggestion, not nothing');
+      assert.equal(s.bhH, 7);
+      assert.equal(s.bhM, 0);
+      assert.equal(s.bhCount, 1);
+      assert.deepEqual(s.defaulted7h, { bh: true });
+      assert.equal(s.days.find(d => d.type === 'bh')?.shift, '7h default — adjust to actual');
+    } finally {
+      _removeBhDateForTest(2026, BH);
+    }
+  });
+
+  test('an absence on it still pays as the day underneath — the same 7 hours', () => {
+    _addBhDateForTest(2026, BH);
+    try {
+      _setOverridesForTest(new Map([[BH, { type: 'sick', value: 'SICK', _ts: 1, _manual: true }]]));
+      assert.equal(getRosterSuggestion(period(BH), campbell)?.bhH, 7);
+    } finally {
+      _removeBhDateForTest(2026, BH);
+    }
+  });
+
+  test('recorded times replace the default — the day is priced as worked, and flagged as nothing', () => {
+    _addBhDateForTest(2026, BH);
+    try {
+      _setOverridesForTest(new Map([[BH, { type: 'other', value: 'TRG 09:00-17:00', _ts: 1, _manual: true }]]));
+      const s = getRosterSuggestion(period(BH), campbell);
+      assert.equal(s.bhH + s.bhOtH, 8, 'the eight hours recorded');
+      assert.deepEqual(s.defaulted7h, { bh: false });
+    } finally {
+      _removeBhDateForTest(2026, BH);
+    }
+  });
+
+  test('on an ordinary weekday it suggests nothing — the day is contracted basic pay', () => {
+    _setOverridesForTest(new Map());
+    assert.equal(getRosterSuggestion(period(BH), campbell), null);
+  });
+});
