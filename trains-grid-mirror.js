@@ -30,6 +30,21 @@
 let mirror = null;
 
 /**
+ * How far the copy slides: the grid's sideways scroll, held to the range a scroll can really have.
+ *
+ * iOS reports a `scrollLeft` OUTSIDE that range while it rubber-bands at either end of the grid —
+ * below 0 at the start, past the last column at the end — and the copy followed the raw figure, so
+ * it slid off the columns it names until the bounce settled (7 Nov 2026, iPhone audit). Clamped, it
+ * stays on the first or the last column while the grid springs back to it.
+ * @param {number} left  the box's scrollLeft, as reported
+ * @param {number} scrollWidth @param {number} clientWidth
+ * @returns {number}
+ */
+function sideways(left, scrollWidth, clientWidth) {
+    return Math.min(Math.max(left, 0), Math.max(0, scrollWidth - clientWidth));
+}
+
+/**
  * Rebuild the mirror for the grid inside `host` — or remove it, when `host` holds no grid.
  * @param {HTMLElement|null} host   the element the grid is rendered into (#trPattern)
  */
@@ -83,7 +98,7 @@ export function syncGridMirror(host) {
         stick.style.width = `${w.width}px`;
         st.style.width = `${heads[0].getBoundingClientRect().width}px`;
         cells.forEach((c, i) => { c.style.width = `${heads[i + 1].getBoundingClientRect().width}px`; });
-        row.style.transform = `translateX(${-wrap.scrollLeft}px)`;
+        row.style.transform = `translateX(${-sideways(wrap.scrollLeft, wrap.scrollWidth, wrap.clientWidth)}px)`;
     };
     const onSync = () => { if (!raf) raf = requestAnimationFrame(place); };
     window.addEventListener('scroll', onSync, { passive: true });

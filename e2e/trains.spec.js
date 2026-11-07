@@ -747,3 +747,51 @@ test.describe('trains — the eight improvements (v24.94)', () => {
         await expect(page.locator('#trPattern .tr-grid-colbtn[aria-pressed="true"]')).toHaveCount(0);
     });
 });
+
+// ── THE HEADINGS' COPY STAYS ON ITS COLUMNS THROUGH A RUBBER-BAND (7 Nov 2026, iPhone audit) ─────
+//
+// iOS reports a scrollLeft OUTSIDE the box's range while it bounces at either end of the grid —
+// below 0 at the start, past the last column at the end — and the fixed copy of the heads
+// (trains-grid-mirror.js) followed the raw figure off its columns. No desktop engine bounces, so
+// the out-of-range figure is supplied by hand: the box's own `scrollLeft` is made to report it,
+// and the real scroll listener and `place()` do the rest.
+test.describe('trains — the heads copy is clamped to the grid', () => {
+    test('a scroll reported past either end leaves the copy on the first or the last column', async ({ page }) => {
+        await page.setViewportSize({ width: 393, height: 727 });
+        await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="grid"]').click();
+        await expect(page.locator('#trPattern .tr-dot').first()).toBeVisible();
+        const stick = page.locator('#trPattern .tr-grid-stick');
+        await page.locator('#trPattern .tr-grid tbody tr', { hasText: 'Banbury' }).scrollIntoViewIfNeeded();
+        await page.evaluate(() => window.scrollBy(0, 120));
+        await expect(stick).toBeVisible();
+
+        const max = await page.locator('#trPattern .tr-grid-wrap').evaluate(w => w.scrollWidth - w.clientWidth);
+        expect(max, 'the grid fits its box at this width — there is nothing to scroll sideways').toBeGreaterThan(40);
+
+        /** Make the box report `left` (null: its real value) and fire its scroll, as a bounce does.
+         *  @param {number|null} left */
+        const report = (left) => page.locator('#trPattern .tr-grid-wrap').evaluate((w, l) => {
+            if (l === null) delete /** @type {any} */ (w).scrollLeft;
+            else Object.defineProperty(w, 'scrollLeft', { configurable: true, get: () => l });
+            w.dispatchEvent(new Event('scroll'));
+        }, left);
+        const slid = () => page.locator('#trPattern .tr-grid-stick-row').evaluate(r => /** @type {HTMLElement} */ (r).style.transform);
+
+        // In range it follows the grid exactly. Each step below must CHANGE the value, so a poll can
+        // never pass on a frame that has not been drawn yet.
+        await page.locator('#trPattern .tr-grid-wrap').evaluate(w => { w.scrollLeft = 30; });
+        await expect.poll(slid).toBe('translateX(-30px)');
+
+        await report(-40);                       // the bounce at the start
+        await expect.poll(slid, { message: 'the copy slid right, off the first column' }).toBe('translateX(0px)');
+
+        await report(max + 40);                  // and at the end
+        await expect.poll(slid, { message: 'the copy slid left, past the last column' }).toBe(`translateX(-${max}px)`);
+
+        await report(null);                      // the bounce settles: back to following the grid
+        await expect.poll(slid).toBe('translateX(-30px)');
+    });
+});
