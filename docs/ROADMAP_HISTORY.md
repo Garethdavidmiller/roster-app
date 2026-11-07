@@ -80,7 +80,7 @@ part.**
 - **Cross-page / navy-chrome / typography consistency passes** (v11.64–v11.88) — CSS-only, no behaviour change; all resulting token/surface/motion/type rules live in `.claude/rules/css-tokens.md`.
 - **Huddle DOCX flow rework** (v11.66) — Power Automate flow made DOCX-first (the old noon time-of-day condition meant afternoon emails always sent PDF even with a DOCX attached); the viewer's auto-open + manual-click branches unified (`if htmlContent render inline; else "Open Huddle" button`).
 - **Pay reminder infrastructure fix** (v11.65) — the daily 08:00 reminder had **never fired**: the deploy SA lacked `roles/cloudscheduler.admin` (Firebase silently failed to create the Scheduler job every deploy) and a stale `us-central1` record blocked deploys; first live 27 Jun 2026.
-- **CSS extraction + infra hardening** (v12.01–05) — page/guide CSS extracted to external files; DOMPurify self-hosted; security headers (HSTS/COOP/Permissions-Policy); pre-commit ESLint + single-SDK check. **v12.05 reverted** the v12.04 anonymous-auth requirement on calendar `overrides` reads (more complexity than value — anyone can mint an anonymous token as easily as the app; KNOWN_LIMITATIONS → "Override data is publicly readable").
+- **CSS extraction + infra hardening** (v12.01–05) — page/guide CSS extracted to external files; DOMPurify self-hosted; security headers (HSTS/COOP/Permissions-Policy); pre-commit ESLint + single-SDK check. **v12.05 reverted** the v12.04 anonymous-auth requirement on calendar `overrides` reads (more complexity than value — anyone can mint an anonymous token as easily as the app; "Override data is publicly readable", below, is how that closed).
 - **Links design workspace** (v12.06–v12.47) — `.claude/rules/links-design.md`. Durable decisions: patterns-only documents (decouples pattern design from assignment); a slot-based generator over an early/late binary (the station is staffed in **waves**, 28 distinct start times, distinct Sat/Sun); an hourly heat map over a per-type bar chart (shows the real on-duty shape/gaps); CEAs do not work nights (`normaliseCustomShift` rejects 21:00–03:59).
 - **E2E smoke tests** (v12.65 → removed v12.75 → restored v13.95) — CLAUDE.md → `e2e/`. **The one principle to preserve — whatever E2E tool is ever chosen, keep the Firebase CDN-stub approach** (`e2e/fixtures.js`): every page's module graph statically imports the gstatic Firebase SDK, and in ES modules one failed static import aborts the whole graph — so a slow/blocked CDN on a CI runner fails every test in ways no timeout/retry can fix. Intercept `gstatic.com/firebasejs/**` and serve local no-op stubs; any tool with request interception can do it.
 
@@ -1223,7 +1223,7 @@ Two things a future major will hit again:
   (npm's `engines` is advisory without `engine-strict`) and then exercised every handler on a Node
   the SDK does not support. That job now opens a Node 22 window around the functions install and
   tests and steps back to 20 for the deploy tool, satisfying both constraints in sequence rather
-  than choosing between them.
+  than choosing between them. (Gone since v25.30: the workflow runs Node 24 throughout.)
 
 The scoped `overrides: { "uuid": "^11.1.1" }` **is still needed** and was re-checked here, not
 assumed: `@google-cloud/storage@7.22.0` still pulls `gaxios@6.7.1`, which declares `uuid ^9.0.1`.
@@ -2424,8 +2424,8 @@ intermediate Google deps do). Re-check with `npm audit` / `npm outdated` periodi
   stays true if the shift later moves) — it checks the CALENDAR instead, and refuses the field on any
   day but a Sunday (v23.87). This bullet said "server-side only … nothing writes it, and no surface
   shows it" from v23.80 until v23.87, a release after both halves had shipped; the sequencing it
-  described (rules first, form once the functions deploy was confirmed) is recorded in
-  OVERTIME_AVAILABILITY.md → "First-release deploy ordering".
+  described (rules first, form once the functions deploy was confirmed) is the backend-first rule,
+  CLAUDE.md → "Workflows".
 
 - **"Away for a rostered Sunday duty" is therefore a REQUEST in the app, not an absence.** Sundays
   are uncontracted for every grade, so annual leave and absence cannot be written on one

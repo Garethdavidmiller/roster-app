@@ -27,7 +27,7 @@ them. This file holds the area's working notes, moved here from `CLAUDE.md` → 
 its architecture table. The rules every session needs stayed there: writes need a CLAIM, every write
 page re-establishes the Firebase session on load, the three claim tiers, and never granting a manager
 `admin: true`. The history of the strict cutover is `SECURITY_RELEASE_PLAN.md` → B2/B3 and
-`KNOWN_LIMITATIONS.md` task #2.
+`ROADMAP_HISTORY.md` → "The four v11 security tasks".
 
 ## One local session, every page
 

@@ -98,7 +98,7 @@ export const formatWeekdayDate = (d, withYear = false) => (usable(d)
  *
  * ONE SHAPE ACROSS FIVE SURFACES (v24.06). The Calendar, Team View, Overtime, Links and the Pay
  * Calculator all print a "when", and each said it differently: a long month with "at" before the
- * time, a bare date with no time at all, and a weekday-led stamp with one. The ROADMAP listed four
+ * time, a bare date with no time at all, and a weekday-led stamp with one. The print review listed four
  * of the five and called unifying them tidiness; the argument for it is stronger than that, and it
  * was already written beside the Overtime one, which is why ITS shape is the one the other four
  * adopt rather than the other way round:

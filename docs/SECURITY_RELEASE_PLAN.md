@@ -61,7 +61,8 @@ rule text and gate cases:
   moderate drift does NOT fail CI** — it is caught only by looking. Re-check when reading this doc.
   firebase-admin is on `^14` (the exact range is `functions/package.json`); the namespaced `admin.*`
   API v14 removed was migrated to the modular entry points before the move, so the version change
-  itself changed no code — KNOWN_LIMITATIONS.md carries what to expect at the next major. · A2 —
+  itself changed no code — ROADMAP_HISTORY.md → "firebase-admin upgrade to v14" names the two things
+  the next major will hit again. · A2 —
   Workload Identity Federation, keyless OIDC on all three deploy workflows; the SA JSON key and the
   `FIREBASE_SERVICE_ACCOUNT` secret both deleted (**Appendix A2**). · A3 — doc-only accuracy.
 - **Track B (authorization release):** B0 — named-vs-anonymous identity signal. · B1 — named-session

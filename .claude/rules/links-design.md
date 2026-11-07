@@ -974,7 +974,7 @@ Measured at 390px and 1280px, not eyeballed. The reasoning for each rule is besi
 - **The iOS focus-zoom guard must come AFTER the rule it beats.** The coarse-pointer block that sets the
   generator's fields to `--type-medium` sits after the base `.gen-input, .gen-select` rule; placed
   above it at equal specificity, it did nothing. `e2e/pages.spec.js` measures the computed size on a
-  real coarse pointer (`css-tokens.md` → "The 16px focusable-field rule is now MEASURED").
+  real coarse pointer (`css-tokens.md` → "The 16px focusable-field rule is MEASURED").
 - **Touch targets:** on a coarse pointer the fields are at least 40px tall and the row ✕ and the text
   links 44px. Density is gated on `pointer: fine`, never on width.
 - **The SHIFT TIME column is sticky below 768px**, where the table scrolls inside its card and hides the

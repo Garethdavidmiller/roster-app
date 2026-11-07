@@ -1,6 +1,6 @@
 # The real-iPhone release checklist
 
-*Not version-stamped; not a runtime asset. The decision behind it: ROADMAP → "A real-iPhone release
+*Not version-stamped; not a runtime asset. The decision behind it: ROADMAP_HISTORY → "The v23.01 external review", its row "A real-iPhone release
 checklist".*
 
 **Every line here is something no test in this repo can run.** That is the entry condition: if

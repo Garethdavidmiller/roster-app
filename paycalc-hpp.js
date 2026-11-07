@@ -88,7 +88,7 @@ export function _decodeHours(p, d) {
  *
  * London Allowance is a FIXED allowance paid EVERY period — including the periods you are on
  * leave — so it needs no holiday premium and does NOT accrue HPP. This is the documented payroll
- * rule (KNOWN_LIMITATIONS.md #3: "basic pay / London Allowance (no HPP)"), confirmed by the owner;
+ * rule (.claude/rules/paycalc.md invariant 6: London Allowance accrues no HPP), confirmed by the owner;
  * a real payslip shows the annual HPP lump as its own line, separate from London Allowance. London
  * was wrongly folded into the HPP base (v16.90, priced settled-whole-year); removed at v17.23.
  * @param {any} p - Period object.

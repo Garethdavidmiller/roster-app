@@ -1844,7 +1844,7 @@ export function init() {
       if (!hdr) return;
       const periodSel = /** @type {HTMLSelectElement | null} */ (document.getElementById('periodSelect'));
       const p = periodSel ? getPeriods().find(/** @param {any} x */ x => x.num === +periodSel.value) : null;
-      // The ROADMAP's print-provenance item named four surfaces; this is the fifth, and it had the
+      // The print review's provenance item named four surfaces; this is the fifth, and it had the
       // same two problems — no time, and a date spelled by ICU rather than the app. See
       // roster-data.js → "the provenance line every printable surface closes on".
       const printedNow = new Date();

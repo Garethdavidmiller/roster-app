@@ -469,8 +469,8 @@ known to serve about one open in eight hundred while carrying a provisional gran
 cross-member control locking and scope plumbing through `setOverrideAccess` — security-adjacent
 machinery whose cost is real and whose benefit is now measured at nearly nothing. Whether to keep it
 is a judgement about access and risk appetite, on one month of data, and deleting a security path on
-that basis would be the same hurry this file spent two months refusing. Recorded in
-`KNOWN_LIMITATIONS.md`; not acted on here.
+that basis would be the same hurry this file spent two months refusing. It was put to the owner
+rather than acted on here; the answer is below, and in `DECISIONS.md`.
 
 **The correction above sharpens that question into two options (26 Sep 2026). DECIDED the same day:
 the owner took the second — RETIRE.** Why, in one line: the paint's cache read queues behind the very

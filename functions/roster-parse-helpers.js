@@ -623,9 +623,11 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         // flag ordinary rest days across a whole CES roster — which is what that test is named for.
         //
         // Do not rebuild this on the column scan. The independent witness this needs is the PDF's
-        // own text geometry (experiments/roster-pdf-geometry), where occupancy is a physical fact
-        // the model cannot influence. Until then the residual is real and documented in
-        // KNOWN_LIMITATIONS.md rather than papered over with a check that cries wolf.
+        // own text geometry, where occupancy is a physical fact the model cannot influence — and on
+        // the geometry path it now exists: a rest day read for an empty weekday goes to the review
+        // (`reviewRestReadsOfEmptyCells`, roster-prompt.js). On the PDF fallback the residual is
+        // real, and documented in KNOWN_LIMITATIONS.md rather than papered over with a check that
+        // cries wolf.
 
         const signalDates = Object.keys(colRead);
         if (signalDates.length >= 5) stats.checked++;

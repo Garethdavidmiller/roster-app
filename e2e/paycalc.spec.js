@@ -669,7 +669,7 @@ test('paycalc: the Settings deep link lands on the backup card OPEN', async ({ p
     // throwaway prototype that hid the card behind a disclosure control: the body still gained
     // `.open`, every scroll correction ran as a no-op against `display: none`, and the member landed
     // at the top of the page with nothing to explain why. This line makes that regression fail as
-    // what it is. (The prototype was not adopted — ROADMAP.md, "More pay tools" — but the weakness
+    // what it is. (The prototype was not adopted — DECISIONS.md, "More pay tools" — but the weakness
     // it found in this test was real.)
     const card = page.locator('#payTransferCard');
     await expect(card, 'the backup card must be visible before its landing position means anything').toBeVisible();

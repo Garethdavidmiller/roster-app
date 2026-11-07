@@ -430,7 +430,7 @@ coordinator gates the gross addition (`_bpThisPeriod`) on it.
   produces. `calcHPP()` takes no back-pay argument (`calcBackPay` still returns `bpVarAmount`, unused).
   Do not re-thread back pay into HPP without switching the whole-year pricing to period-aware rates —
   rejected, because it made the estimate shift with the viewed period.
-- **London Allowance does NOT accrue HPP** (invariant 6; KNOWN_LIMITATIONS.md #3, owner-confirmed):
+- **London Allowance does NOT accrue HPP** (invariant 6, owner-confirmed):
   `_varPayForPeriod` adds no London, so the HPP base is the genuinely variable premiums only
   (OT/RDW/Sun/Sat/BH/Boxing). The back-pay lump still pays London arrears (in `backPay`), but
   `_accrueBackPayPeriod`'s `varPay` (the HPP-accruing portion) excludes London too.

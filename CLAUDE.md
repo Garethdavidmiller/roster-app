@@ -45,7 +45,7 @@ The Firebase web API key is restricted to specific HTTP referrers in GCP Console
 - `myb-roster.web.app/*`
 - `garethdavidmiller.github.io/*` ← staff-facing URL, must stay until GitHub Pages is retired
 
-If a new custom domain is ever added, update the GCP allowlist **and `ADMIN_FUNCTION_ORIGINS` in `functions/index.js`** in the same change. See KNOWN_LIMITATIONS.md task #1 for full history.
+If a new custom domain is ever added, update the GCP allowlist **and `ADMIN_FUNCTION_ORIGINS` in `functions/index.js`** in the same change. The rule is KNOWN_LIMITATIONS.md task #1; its history is ROADMAP_HISTORY.md → "The four v11 security tasks".
 
 ---
 
@@ -500,8 +500,9 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 
 ## Known issues & deferred work
 
-Active constraints, deferred fixes, and the four v11 security tasks: **see `KNOWN_LIMITATIONS.md`**.
-UX experiments tried and reverted, plus future capabilities: **see `ROADMAP.md`**. Decisions already
+Active constraints and deferred fixes, including task #1 of the four v11 security tasks: **see
+`KNOWN_LIMITATIONS.md`**. Future capabilities: **see `ROADMAP.md`**; UX experiments tried and
+reverted, and everything closed: `ROADMAP_HISTORY.md` → "Tried and held back". Decisions already
 taken, so they are not re-argued: **`DECISIONS.md`**.
 
 **Do-not-change UI labels (Claude-relevant):**
