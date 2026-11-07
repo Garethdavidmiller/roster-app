@@ -798,6 +798,25 @@ test.describe('trains — the heads copy is clamped to the grid', () => {
 
 // ── THE iPHONE KEYBOARD AND TOUCH (iPhone audit, 7 Nov 2026) ─────────────────────────────────────────
 
+test('the header logo — the installed app\'s way back — opens no image menu when held', async ({ page }) => {
+    // On a sub-page the logo is the only Back an iPhone home-screen app has, and holding it opened
+    // iOS's image menu (Save to Photos, Copy, Share). `user-select` is read off the element in both
+    // engines. `-webkit-touch-callout` is iOS's own property — neither test engine parses it, so the
+    // computed style cannot carry it — and is read from the stylesheet the page actually loaded.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/trains.html');
+    const logo = page.locator('#appIcon');
+    await expect(logo).toBeVisible();
+    expect(await logo.evaluate(el => getComputedStyle(el).userSelect), 'holding the logo starts a text selection')
+        .toBe('none');
+    const rule = await page.evaluate(async () => {
+        const css = await (await fetch('./shared.css')).text();
+        return css.replace(/\/\*[\s\S]*?\*\//g, '').match(/\.app-header img,\s*\.app-icon\s*\{([^}]*)\}/)?.[1] ?? '';
+    });
+    expect(rule, 'the header-logo rule was not found in shared.css, so this checks nothing').not.toBe('');
+    expect(rule, 'holding the logo opens iOS\'s image menu').toMatch(/-webkit-touch-callout:\s*none/);
+});
+
 test('the station and time boxes keep what is typed into them', async ({ page }) => {
     // iOS autocorrects the word before a space unless the field says not to: a half-typed station
     // became a dictionary word, and its matches with it. Enter opens the first match, so the key says Go.

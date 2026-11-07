@@ -2120,6 +2120,13 @@ button.lightbox-bug-link {
     /* Subtle ring (v16.73): the icon's own dark tile nearly vanished against the navy
        header — a faint white ring anchors it without competing with the title. */
     box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.22);
+    /* IT IS A CONTROL, NOT A PICTURE (iPhone audit, 7 Nov 2026). On a sub-page this logo is the
+       installed app's way back to the calendar — iOS gives a home-screen app no Back — and holding it
+       opened iOS's image menu (Save to Photos, Copy, Share) over the page instead. No callout, and no
+       text selection starting on it. `-webkit-touch-callout` is iOS's own property; nothing else reads it. */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .app-header h1 {
