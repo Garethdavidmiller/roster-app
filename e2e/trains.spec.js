@@ -795,3 +795,19 @@ test.describe('trains — the heads copy is clamped to the grid', () => {
         await expect.poll(slid).toBe('translateX(-30px)');
     });
 });
+
+// ── THE iPHONE KEYBOARD AND TOUCH (iPhone audit, 7 Nov 2026) ─────────────────────────────────────────
+
+test('the station and time boxes keep what is typed into them', async ({ page }) => {
+    // iOS autocorrects the word before a space unless the field says not to: a half-typed station
+    // became a dictionary word, and its matches with it. Enter opens the first match, so the key says Go.
+    // The static scan (select-sheet-parity.test.mjs, contract 14) holds every search box; this is the
+    // markup the page actually serves.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/trains.html');
+    const station = page.locator('#trStationInput');
+    await expect(station).toHaveAttribute('autocorrect', 'off');
+    await expect(station).toHaveAttribute('autocapitalize', 'none');
+    await expect(station).toHaveAttribute('enterkeyhint', 'go');
+    await expect(page.locator('#trLookupInput')).toHaveAttribute('autocorrect', 'off');
+});
