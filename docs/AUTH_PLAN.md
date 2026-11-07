@@ -7,37 +7,32 @@ canonical track table owns the STATUS of every phase. This file owns the DESIGN.
 A–E and keeps the phase list (E0…E6) in the order they may ship. **This file is authoritative for the
 design**: what "behind authentication" can actually mean here, what is exposed today, how each phase is
 built, the offline answer, and what to measure. Neither file restates the other's half — if they ever
-disagree, that is a defect, and the v19.00 sweep found exactly that kind of drift once already
-(Track E claimed the Level‑1 gate was "≈ zero cost" while `KNOWN_LIMITATIONS.md` correctly called it a
-real breakage risk; the code sided with KNOWN_LIMITATIONS).
+disagree, that is a defect, and `auth-plan-parity.test.mjs` holds their phase lists and their rollout
+sequence together.
 
 **How much to trust each part.** Written down because the phases are not equally worked out, and a plan
 that reads uniformly confident invites someone to start at the wrong end:
 
 | | Confidence |
 |---|---|
-| §1 framing, §2 current exposure, E0, E2 | **Verified against code** (§2 re-checked 26 Sep 2026). Safe to act on. |
+| §1 framing, §2 current exposure, E0, E2 | **Verified against code** (§2 re-checked 7 Nov 2026). Safe to act on. |
 | E1 | **✓ SHIPPED v19.01.** |
 | E3, the decision gate, §6 measurement | **Sound, unverified.** Design is right; numbers are missing. |
-| §4 offline (E4) | Designed; its one load-bearing assumption is now **demonstrated** — `experiments/firestore-offline-proof/`, see §4. |
+| §4 offline (E4) | Designed; its one load-bearing assumption is **demonstrated** — `experiments/firestore-offline-proof/`, see §4. |
 | E5 | **Under-analysed.** The claim-tier work the B-track proved necessary has not been done for reads. |
-| §5 documents (E6) | **DECIDED 19 Sep 2026 and BUILT** (server v24.16–18, client v24.19): the Office viewer stays and is handed a 15-minute signed link. The tokens already in circulation are not rotated (ARCHITECTURE.md EXC-007). |
+| §5 documents (E6) | **DECIDED 19 Sep 2026 and BUILT**: the Office viewer stays and is handed a 15-minute signed link. The tokens already in circulation are not rotated (ARCHITECTURE.md EXC-007). |
 
 **Status: the read closure is IN FORCE since 26 Aug 2026; INDIVIDUAL authentication is still
-undecided.** `overrides` reads require a verified member (`isMember()`: password sign-in, derived email,
-server-set `member` claim — v24.23/v24.27), `admin`, or the shared staff-PIN `calendarViewer` capability, and the `allow read;` line that sat above them is gone. See E2 below,
-which records how the staff PIN superseded the phase as designed and what it does NOT close — in
+undecided.** `overrides` reads require a verified member (`isMember()`: password sign-in, derived
+email, server-set `member` claim), `admin`, or the shared staff-PIN `calendarViewer` capability. See E2
+below, which records how the staff PIN superseded the phase as designed and what it does NOT close — in
 particular that a device which unlocked earlier still holds what it cached, because rules are
-evaluated server-side and a local cache hit never reaches one.
-**E0 shipped v19.00** (search engines excluded) and **E1 shipped
-v19.01** (the cache-first, auth-aware client preparation) — both were deliberately chosen as the two
-phases needing no decision. **The first real security boundary was E2's job, and the staff PIN did it
-instead (v20.12)** — see E2 below. Nothing beyond that is committed. The most likely trigger is
-external: if the app
-becomes, or is assessed as, official Chiltern infrastructure, IT may require the roster data to sit
-behind authentication rather than a public URL. Until then the staff-PIN design stands. (This sentence read "the deliberate public-calendar design
-stands" until v21.63 — a clause SECURITY_RELEASE_PLAN.md had already recorded as false in its own
-copy and corrected there, leaving the two files disagreeing.)
+evaluated server-side and a local cache hit never reaches one. **E0 shipped v19.00** (search engines
+excluded) and **E1 shipped v19.01** (the cache-first, auth-aware client preparation) — both chosen as
+the two phases needing no decision. **The first real security boundary was E2's job, and the staff PIN
+did it instead** — see E2 below. Nothing beyond that is committed. The most likely trigger is external:
+if the app becomes, or is assessed as, official Chiltern infrastructure, IT may require each person to
+authenticate rather than a station to share a code. Until then the staff-PIN design stands.
 
 ---
 
@@ -48,7 +43,7 @@ only one of them is enforcement.
 
 | Layer | Can it go behind auth? | Where the work is |
 |---|---|---|
-| **Data** — Firestore reads | **Yes, server-enforced.** The only real control. | the staff PIN (v20.12, in E2's place) / E5 (rules) + E1 (client prep) |
+| **Data** — Firestore reads | **Yes, server-enforced.** The only real control. | the staff PIN (in E2's place) / E5 (rules) + E1 (client prep) |
 | **Files** — Storage documents | **Not by any rules change.** Direct Storage reads are admin-only; everyone else opens a document by its stored bearer URL or a short-lived signed URL (`getDocumentUrl`), neither of which the rules see. | E6 (delivery-model change) |
 | **Shell** — HTML/CSS/JS | **No.** Static files on public hosting. A client gate is UX, never security. | E3 (UX only) |
 
@@ -63,41 +58,33 @@ Two consequences follow, and both are easy to get wrong:
 
 ---
 
-## 2. What is actually exposed today (re-verified 26 Sep 2026)
+## 2. What is actually exposed today
 
-Open reads (`allow read;` in `firestore.rules`): **none.** The last three — **`huddles`, `circulars`,
-`newsletters`**, open because a notification tap carried no session — were closed by owner decision
-(7 Sep 2026): the client stopped reading them without access at v23.17 (`calendar-doc-access.js` — §5
-below), and the rules closed them at v23.18, mirroring `overrides`. Every collection now requires auth,
-and most require a claim. The bearer-URL exposure in §5 is unchanged by either.
+Open reads (`allow read;` in `firestore.rules`): **none.** Every read rule asks for a claim — a bound
+member, `admin`, the staff-PIN `calendarViewer` capability, or something narrower — never for a bare
+session. The bearer-URL exposure in §5 is unchanged by that.
 
-- **`overrides` is NO LONGER open** (closed 26 Aug 2026, v21.78). It carries `memberName` + `date` +
-  `type` + `value` — AL, absence and shift changes for every member — and was readable by anyone with
-  the URL from the app's first Firestore write until that date. Reads now require a verified member
-  (`isMember()`, v24.23/v24.27), `admin`, or the shared `calendarViewer` capability. (The app never stores a *reason* for an
-  absence — a deliberate GDPR decision recorded in CLAUDE.md — but "who was absent, and when" was
-  readable for as long as the rule stood, and **a device that cached it before the tightening still
-  holds what it saw**: see E2 below.)
-
-  *This section listed `overrides` as an open read until 28 Aug, two days after it was closed and in
-  the same file whose status header said so — which is why the heading now carries the date it was
-  last checked rather than the version it was first written against.*
-- **The three document collections** carry the download URLs for internal Chiltern operational
-  documents.
+- **`overrides`** carries `memberName` + `date` + `type` + `value` — AL, absence and shift changes for
+  every member — and was readable by anyone with the URL until 26 Aug 2026. (The app never stores a
+  *reason* for an absence — a deliberate GDPR decision recorded in CLAUDE.md — but "who was absent,
+  and when" was readable for as long as the open rule stood, and **a device that cached it before the
+  tightening still holds what it saw**: see E2 below.)
+- **The three document collections** — `huddles`, `circulars`, `newsletters` — carry the download URLs
+  for internal Chiltern operational documents. They were the last open reads, closed by owner decision
+  (7 Sep 2026): the client refuses the read at source without access (`calendar-doc-access.js` — §5
+  below), and the rules mirror `overrides`.
 - **`storageUrl` is a permanent tokenised bearer URL**, so the document *files* are not protected by
   rules at all — see §5.
 
 - **The SHIPPED JAVASCRIPT carries the base roster, and that is a deliberate classification**
-  (owner, 4 Sep 2026 — external review). This section answered "what is exposed?" as a Firestore
-  question for as long as it existed: open collections, then Storage bearer URLs. There is a third
-  category, and §1 above names it without following it through — the shell is public *by
-  construction*, and `roster-data.js` is part of the shell.
+  (owner, 4 Sep 2026 — external review). The shell is public *by construction* (§1), and
+  `roster-data.js` is part of the shell.
 
-  Measured against the live site with no session, no PIN and no token: **every named member with
-  their roster type and cycle position, plus join dates, pro-rated leave entitlements and scheduled
-  roster moves where a member carries them**, and
-  `roster-cycle-data.js` (9 KB) carrying the patterns those numbers index into. Together they let a
-  stranger compute any named member's shift for any date, past or future.
+  With no session, no PIN and no token, anyone can read **every named member with their roster type
+  and cycle position, plus join dates, pro-rated leave entitlements, scheduled roster moves and which
+  members hold a bilingual contract, where a member carries them**, and `roster-cycle-data.js`, the
+  patterns those numbers index into. Together they let a stranger compute any named member's shift for
+  any date, past or future.
 
   **The owner's decision is that this is not confidential**: shift patterns are printed on the
   station's own rosters and staff share them freely. So it is recorded here rather than as an
@@ -105,10 +92,10 @@ and most require a claim. The bearer-URL exposure in §5 is unchanged by either.
 
   Two things follow, and the second is the one that matters:
 
-  - **The PIN protects the CHANGES to the roster, not the roster.** `overrides` was closed in
-    Aug 2026 so an outsider could not read who was off and when; the base shift underneath every
-    unchanged day was public then and is public now. Anyone describing the Calendar as "behind a
-    code" should know which half that sentence covers.
+  - **The PIN protects the CHANGES to the roster, not the roster.** `overrides` was closed so an
+    outsider could not read who was off and when; the base shift underneath every unchanged day is
+    public. Anyone describing the Calendar as "behind a code" should know which half that sentence
+    covers.
   - **A field added to `teamMembers` is published the moment it ships.** That is the live hazard —
     not somebody publishing a phone number deliberately, but somebody adding one for a good reason
     without ever learning this file is world-readable. `public-data-classification.test.mjs` holds
@@ -120,9 +107,10 @@ and most require a claim. The bearer-URL exposure in §5 is unchanged by either.
 already lets any staff member view any colleague's roster and leave, by design. Track E does not change
 that and is not intended to.
 
-**Be honest about the bar.** The Firebase project config ships in the client JS, so a determined reader
-can replicate the anonymous sign-in. Level 1 raises the cost from "trivially public" to "must script an
-anonymous session against our project". Only Level 2 (named) means "must be staff".
+**Be honest about the bar.** The Firebase project config ships in the client JS, so anyone can create
+an anonymous session against the project — which is why no rule may accept one, and why a rule that
+asked only for *a* session (Level 1, E2 as designed) would have been no barrier. The PIN raises the bar
+to "must hold the station code". Only a named rule (Level 2) means "must be staff".
 
 ---
 
@@ -130,11 +118,9 @@ anonymous session against our project". Only Level 2 (named) means "must be staf
 
 **Rollout discipline:** migrate, don't cut over — **E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5**.
 Never make the calendar's front door and named-only read rules a single flip. E6 is independent and
-can start at any point. The two soaking phases are E1 (client preparation, no rule change) and the
-PIN that took E2's place (the first real boundary); everything after the gate is undecided. This exact sequence is pinned in
-both Track E documents by `auth-plan-parity.test.mjs` — the phase headings below were already
-guarded, but the prose that tells a maintainer what ORDER to work in was not, so a superseded
-three-stage shorthand survived the v19.08 renumbering in the sequencing doc as a result.
+can start at any point. The two soaked phases were E1 (client preparation, no rule change) and the
+PIN that took E2's place (the first real boundary); everything after the gate is undecided. This exact
+sequence is pinned in both Track E documents by `auth-plan-parity.test.mjs`.
 
 ### E0 — exclude search engines ✓ SHIPPED v19.00
 `X-Robots-Tag: noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in every
@@ -145,9 +131,9 @@ signal rather than the page. Guarded by `sw-asset-check.test.mjs`. Needed no dec
 nothing below.
 
 ### E1 — make the calendar's reads auth-aware ✓ SHIPPED v19.01
-**Ship as its own release, before any rules change.** `calendarAuthReady` (`calendar-app.js`) gates only
-*writes* — error reporter, usage counter, push renewal. Four paths read with whatever auth state happens
-to exist:
+**Shipped as its own release, before any rules change.** Before it, `calendarAuthReady`
+(`calendar-app.js`) gated only *writes* — error reporter, usage counter, push renewal — and four paths
+read with whatever auth state happened to exist:
 
 | Path | Reads |
 |---|---|
@@ -156,34 +142,30 @@ to exist:
 | `calendar-doc-viewer.js` | `#circular` / `#newsletter` (notification taps) |
 | `nav-panel.js` | the drawer's Circular/Newsletter open |
 
-Harmless under `allow read;`. The moment reads need a session, all four race `signInAnonymously` on a
-cold start — an empty calendar, or a notification tap that opens nothing. This ships green under today's
-rules, so it soaks alone and turns E2 from "a rules edit that might break notification taps" into "a
-rules edit".
+The moment reads need a session, a path that reads too early gets an empty calendar, or a notification
+tap that opens nothing. E1 soaked alone, so that the later rules change was only a rules change.
 
-#### The design (settled after a pass over the four call sites)
+#### The design
 
 **The four paths are not one problem — they split two ways, and only one is delicate.**
 
 | | Paths | Why |
 |---|---|---|
-| **User-initiated** | huddle subscribe · doc viewer · nav-panel doc open | The user just tapped something and all three already show a pending state, so waiting is what they expect — but a **BOUNDED** wait (v19.07/19.08). A plain `await` was shipped here first and was wrong three times over; see the correction below. |
+| **User-initiated** | huddle subscribe · doc viewer · nav-panel doc open | The user just tapped something and all three show a pending state, so waiting is what they expect — but only a **BOUNDED** wait (below). |
 | **Render path** | the 3-month `overrides` fetch | The only one on the critical path to seeing your roster, and the only one that must work offline. A plain `await` here is the offline-first regression. |
 
 So the risky work is **one** path, not four.
 
-**A bare `await` on the render path is wrong.** `signInAnonymously` is a live round-trip with no client
-timeout. Today `fetchOverridesForRange` fires immediately and Firestore serves from its persistent cache
-on bad signal; gate it on auth and a returning device with flaky signal waits on the network for data it
-already has. The obvious patch — bound the wait, then read anyway — is also wrong: under E2's rules the
-unauthenticated read is denied, so a slow first visit shows a spurious "⚠ Couldn't update". That trades an
-offline-first regression for a flakiness one, and needs a timeout constant with no basis to pick it.
+**A bare `await` on the render path is wrong.** A sign-in is a live round trip with no client timeout,
+and a returning device with flaky signal would wait on the network for data it already has. The obvious
+patch — bound the wait, then read anyway — is also wrong: with a session required, the unauthenticated
+read is denied, so a slow first visit shows a spurious "⚠ Couldn't update". That trades an offline-first
+regression for a flakiness one, and needs a timeout constant with no basis to pick it.
 
-**CORRECTION (v19.07–19.08) — "user-initiated" does not mean "may wait forever".** The first cut of
-E1 used a plain `await authReady` on all three tap paths and on the retry, reasoning that a visible
-pending state made waiting acceptable. It does not: a loading state tells you something is happening,
-it does not make an unbounded wait **recoverable**. Three defects followed, found across two review
-passes:
+**"User-initiated" does not mean "may wait forever."** The first cut used a plain `await authReady` on
+all three tap paths and on the retry, reasoning that a visible pending state made waiting acceptable.
+It does not: a loading state tells you something is happening, it does not make an unbounded wait
+**recoverable**. Three defects followed:
 
 | Path | What a never-settling `authReady` did |
 |---|---|
@@ -191,44 +173,44 @@ passes:
 | `nav-panel.js` (operations/links) | Those pages leave `sessionReady` unresolved until sign-in, so a signed-out tap stalled the full 8s and failed — where before it opened instantly. |
 | `doRetry` | The retry chip stuck on "Retrying…", disabled, with no handler — a dead end worse than the failure it was recovering from. |
 
-All four now wait a bounded moment and then read regardless: that succeeds under today's open rules
-and, once reads require a session, fails into an existing retryable path. **The rule to carry into
-E2/E5: no user-facing path may await auth without a deadline, and every failure state needs a
-control, not just text.** The render path is the one place that must not wait at all — for the
-opposite reason (the data is already cached).
+All of them now wait a bounded moment and then read regardless, failing into an existing retryable
+path. **The rule to carry into every later phase: no user-facing path may await auth without a
+deadline, and every failure state needs a control, not just text.** The render path is the one place
+that must not wait at all — for the opposite reason (the data is already cached).
 
-**Instead: paint from cache immediately, refresh authoritatively once auth lands.**
+**Instead, the two-phase load: paint from cache immediately, refresh authoritatively once auth lands.**
 
-1. **`reconcileRangeIntoCache` gains an `authoritative` flag.** Its eviction sweep (step 2 — drop in-range
-   keys the snapshot omits) is already a separable loop. A **cache** snapshot is by definition a possibly
-   stale subset, so it must merge additively and evict nothing. Skipping eviction is the whole change.
-   **This is the load-bearing detail:** two authoritative reconcilers racing on one range is exactly the
-   v18.76 Team View bug, where the staler snapshot wiped the grid back to base roster.
-2. **A cache-only sibling to `fetchOverridesForRange`** using `getDocsFromCache` (available in the SDK,
-   not currently imported into `firebase-client.js`). It never sets the error chip — a cache miss is
-   normal, not a failure.
-3. **`initInitialFetch` becomes two-phase:** fire the cache read immediately and paint; then
-   `await calendarAuthReady` and run the existing authoritative server read.
-4. **Generation guard** — reuse the existing `_fetchGen` supersession pattern so a slow cache read can
-   never clobber a server read that already landed.
-5. **The sync chip keeps tracking the server phase only.** The 800ms "↻ Updating your shifts…" still means
-   "fetching fresh", which is still true.
+1. **`reconcileRangeIntoCache` takes an `authoritative` flag** (`override-utils.js`). Its eviction
+   sweep (drop in-range keys the snapshot omits) is a separable loop. A **cache** snapshot is by
+   definition a possibly stale subset, so it must merge additively and evict nothing. **This is the
+   load-bearing detail:** two authoritative reconcilers racing on one range is exactly the Team View
+   bug where the staler snapshot wiped the grid back to base roster.
+2. **A cache-only sibling to `fetchOverridesForRange`**, `fetchOverridesForRangeFromCache`
+   (`calendar-overrides.js`), reads with `getDocsFromCache`. It never sets the error chip — a cache
+   miss is normal, not a failure.
+3. **`initInitialFetch` is two-phase:** fire the cache read immediately and paint; then await the
+   access grant and run the authoritative server read.
+4. **Generation guard** — the `_fetchGen` supersession pattern, so a slow cache read can never clobber a
+   server read that already landed.
+5. **The sync chip tracks the server phase only.** "↻ Updating your shifts…" means "fetching fresh",
+   which is still true.
 
-**Two properties worth noting.** It needs **no timeout constant anywhere** — the objection that killed the
-bounded-wait shape. And a cache-first paint is exactly what E4's grace mode needs, so that phase gets
-part of its work done here.
+**Two properties worth noting.** It needs **no timeout constant anywhere** — the objection that killed
+the bounded-wait shape. And a cache-first paint is exactly what E4's grace mode needs, so that phase
+had part of its work done here.
 
 **The three user-initiated paths, concretely:**
 
-- **Huddle** — `await calendarAuthReady` before `startHuddleSubscription()`, and move the 8s safety
-  timeout to *cover* the auth wait (start it on invocation, not on attach) so time-to-error is unchanged.
-  Gating the attach also fixes a real E2/E5 hazard: an `onSnapshot` that hits `permission-denied` is
-  **terminated**, not retried, and today only recovers on the next `visibilitychange` — useless to
-  someone staring at a notification tap.
-- **Doc viewer** — `await` inside `openDoc()` before the fetch; the existing loading state covers it.
-- **nav-panel** — add `authReady` to the `initNavPanel({…})` options bag (default `Promise.resolve()`),
-  each page passing its own: `calendarAuthReady` on the calendar, `sessionReady` on the five authenticated
-  pages. Follows the existing per-page injection precedent (`isAdmin`, `onLogoClick`).
+- **Huddle** — the subscription awaits auth before it attaches, and the 8s safety timeout covers the
+  auth wait (started on invocation, not on attach) so time-to-error is unchanged. Gating the attach
+  also matters for denied reads: an `onSnapshot` that hits `permission-denied` is **terminated**, not
+  retried, and only recovers on the next `visibilitychange` — useless to someone staring at a
+  notification tap. (Since the documents moved behind the PIN, the viewers also wait on
+  `calendar-doc-access.js` — `CALENDAR_DATA.md` 15.)
+- **Doc viewer** — awaits auth inside `openDoc()` before the fetch; the existing loading state covers it.
+- **nav-panel** — `authReady` is in the `initNavPanel({…})` options bag (default `Promise.resolve()`),
+  each page passing its own: `calendarAuthReady` on the calendar, `sessionReady` on the authenticated
+  pages. It follows the per-page injection precedent (`isAdmin`, `onLogoClick`).
 
 **The guards (written first, both teeth-verified):**
 
@@ -239,8 +221,6 @@ part of its work done here.
 Both land in `npm test`, so CI gates them — unlike `e2e/offline.spec.js`, which is opt-in and stubs
 Firebase at the network layer, so it could neither gate this nor observe real cache behaviour.
 
-**Behaviour under today's rules is unchanged** — both reads succeed; the cache paint just arrives sooner.
-
 ### E2 — Level 1 rules: `request.auth != null` — SUPERSEDED, and by something STRICTER (v20.12)
 
 **Not built as designed, and it should not be.** E2's whole content was "require *any* Firebase
@@ -249,8 +229,8 @@ the barrier was one `signInAnonymously()` call, i.e. no barrier at all to anyone
 it. The decision gate below existed precisely to ask whether that was enough.
 
 **v20.12 answered the gate a third way the phase list did not contain: a server-validated SHARED
-credential.** `overrides` reads now require a verified member (`isMember()`, v24.23/v24.27) **or** the
-`calendarViewer` capability, minted by the `unlockCalendarViewer` Cloud Function in exchange for a four-digit staff
+credential.** `overrides` reads require a verified member (`isMember()`) **or** the `calendarViewer`
+capability, minted by the `unlockCalendarViewer` Cloud Function in exchange for a four-digit staff
 PIN. Anonymous is DENIED outright.
 
 Why this is not merely E2 with extra steps:
@@ -282,29 +262,27 @@ Everything past this gate touches the app's front door, opened many times a day.
 
 ### E3 — named calendar, soft posture
 
-> **Not E3, and worth saying so (v23.19):** the Calendar's front door now leads with the member
-> SIGN-IN card and offers the staff PIN one tap behind it (owner decision, 7 Sep 2026). That is the
-> ORDER of two cards, not a requirement: nothing is asked of anyone that was not asked before, no
-> policy flips to `requireNamed`, and the PIN still grants exactly what it did. E3 remains dormant.
+> **Not E3, and worth saying so:** the Calendar's front door leads with the member SIGN-IN card and
+> offers the staff PIN one tap behind it (owner decision, 7 Sep 2026). That is the ORDER of two cards,
+> not a requirement: nothing is asked of anyone that was not asked before, no policy flips to
+> `requireNamed`, and the PIN still grants exactly what it did. E3 remains dormant.
 
 Flip `PAGE_POLICIES.calendar` to `{ requireNamed: true }` in `auth-policy.js` (genuinely one line — the
-policy layer is clean) and wire the shared `login-overlay.js`. Start in a **soft**
-posture and *measure* (§6) before hardening (the `ENFORCE_NAMED_SESSION` switch this once named as
-the gate was retired v24.34 — the write pages' named-session requirement is now unconditional, so a
-soft Calendar posture would need its own policy flag). Do not tighten rules in the same window.
+policy layer is clean) and wire the shared `login-overlay.js`. Start in a **soft** posture and
+*measure* (§6) before hardening — which would need a Calendar policy flag of its own, since the write
+pages' named-session requirement is unconditional. Do not tighten rules in the same window.
 
-Two things make this less of a leap than it sounds: the calendar already has session-gated affordances
-(the pay-period strip in `calendar-app.js` then; removed at v24.31), and `login-overlay.js` is proven on the six protected pages. It also
-*removes* an inconsistency — today the app has two contradictory onboarding stories, one where a new
-starter picks a name from a dropdown and one where they sign in.
+`login-overlay.js` is proven on every protected page, which makes this less of a leap than it sounds.
+It also *removes* an inconsistency — the app has two onboarding stories, one where a new starter picks
+a name from a dropdown and one where they sign in.
 
 ### E4 — offline grace mode (ships **with** E3, not after)
 See §4. Without it, E3 is a genuine regression; with it, it is not.
 
 ### E5 — Level 2 rules: `isMember()` + hard gate
-Only after E3 soaks and the numbers say the wall is survivable. `signInAnonymously` is already dead code
-(the "retire the anonymous fallback" residual completed at v24.34), so **disabling the Anonymous provider
-project-wide** — real hardening — no longer waits on E5: it is a Console step that can be taken now.
+Only after E3 soaks and the numbers say the wall is survivable. Nothing in the app calls
+`signInAnonymously` any more, so **disabling the Anonymous provider project-wide** — real hardening —
+does not wait on E5: it is a Console step that can be taken now.
 
 > **⚠️ NOT YET ANALYSED — do not treat `isMember()` as a one-line rule.** (It is already the live `overrides`
 > read rule's member door — AUTH_AND_SESSIONS invariant 19; a bare `token.name != null` is weaker, since any
@@ -314,7 +292,7 @@ project-wide** — real hardening — no longer waits on E5: it is a Console ste
 > for **reads** has not been done. Two things already found by inspection, both of which E5 must answer:
 >
 > 1. **Reads have no claim-retry anywhere on the calendar or paycalc.** `withClaimRetry` wraps reads on
->    `operations-app.js`, but no calendar or paycalc read uses it. So a stale-claim read just fails,
+>    the Operations cards, but no calendar or paycalc read uses it. So a stale-claim read just fails,
 >    where the equivalent write would recover. Either reads gain the retry before E5, or E5 must prove no
 >    legitimate reader can hold a stale claim — the B-track's answer was a token sweep, not an assumption.
 > 2. **paycalc's soft posture silently loses its calendar assist.** `paycalc-app.js` reads overrides via
@@ -338,16 +316,15 @@ See §5. Does **not** depend on the calendar decision.
 Track E originally called offline lockout "the sharpest consequence… a genuine regression to weigh". It
 is softer than that, because **both halves are ours**:
 
-- The 60-day expiry (30 until v20.47) is *our* localStorage construct (`SESSION_MS` in `session.js`; the 7-day idle cutoff and `IDLE_MS` were removed at v20.41), not
-  Firebase's. Firebase refresh tokens do not expire on that schedule.
+- The 60-day expiry is *our* localStorage construct (`SESSION_MS` in `session.js`), not Firebase's.
+  Firebase refresh tokens do not expire on that schedule.
 - **Firestore rules are evaluated server-side.** The persistent local cache serves offline reads without
   consulting them. The roster is still on the device.
 
-> **✅ The second bullet was an UNVALIDATED assumption until Aug 2026, and is now DEMONSTRATED.** It was
-> always how Firestore is documented to work, and this section rests on it entirely — so it was carrying
-> a warning that no one should rely on it. The experiment this note used to ask for has been run:
-> `experiments/firestore-offline-proof/`, against the Firestore emulator and the production SDK build,
-> in a real headless Chromium with a real IndexedDB cache.
+> **✅ The second bullet is DEMONSTRATED, not assumed.** It is how Firestore is documented to work, and
+> this section rests on it entirely, so it was tested: `experiments/firestore-offline-proof/`, against
+> the Firestore emulator and the production SDK build, in a real headless Chromium with a real
+> IndexedDB cache.
 >
 > Cached `overrides` survive a page reload, **a full browser restart**, a rules tightening and the loss
 > of the network, **in any combination** — while the server read on the same query returns
@@ -365,17 +342,17 @@ is softer than that, because **both halves are ours**:
 So an offline member with a lapsed session would not be locked out by Firebase — they would be locked out
 by *our own overlay*. That makes it a design problem, not a constraint.
 
-**And the same measurement settles the security half, which matters sooner.** The mechanism cuts both
-ways: because the cache is served without consulting the rules, closing the `overrides` read rule
-(RECOVERY_RUNBOOK step 4) protects the roster on devices that have **not** already seen it, and does
-nothing whatever about devices that have. That is exactly what `calendar-overrides.js`'s own gate exists
-for, and it is now a measured statement rather than an inherited one.
+**And the same measurement settles the security half.** The mechanism cuts both ways: because the cache
+is served without consulting the rules, closing the `overrides` read rule protected the roster on
+devices that had **not** already seen it, and did nothing whatever about devices that had. That is
+exactly what `calendar-overrides.js`'s own gate exists for, and it is a measured statement rather than
+an inherited one.
 
 **The design:**
 
 1. Keep a **durable device marker** ("this device has previously held a valid named session"), separate
-   from the expiring session blob. `reconcileExpiredIdentity()` currently signs the Firebase user out on
-   expiry, so the marker cannot be inferred from auth state afterwards — it must be written deliberately.
+   from the expiring session blob. `reconcileExpiredIdentity()` signs the Firebase user out on expiry,
+   so the marker cannot be inferred from auth state afterwards — it must be written deliberately.
 2. On launch: session expired **and** `navigator.onLine === false` **and** marker present → render the
    cached roster **read-only** with a calm banner ("Showing your saved roster — sign in when you're back
    online"), instead of the login overlay.
@@ -385,38 +362,35 @@ for, and it is now a measured statement rather than an inherited one.
 4. The moment connectivity returns, require the real login.
 
 **Why this costs nothing against the threat being defended.** Grace mode only helps someone holding a
-device that was already signed in — the device-theft threat model, not outsider-with-URL. It was no weaker
-than the behaviour when this was written, where a cached roster always rendered.
+device that was already signed in — the device-theft threat model, not outsider-with-URL.
 
-> **Since 26 Aug 2026 the front door is closed, so read the rest of this section as the reasoning, not
-> as today.** The Calendar does not start without a member session or the staff PIN; a member's own
-> stored roster is shown before the grant but deleted when their session expires (CALENDAR_DATA.md
-> invariant 17); and the document reads closed at v23.17/v23.18.
+> **The front door is closed today, so read the next paragraph as the reasoning for E3, not as
+> today.** The Calendar does not start without a member session or the staff PIN; a member's own stored
+> roster is shown before the grant but deleted when their session expires (CALENDAR_DATA.md invariant
+> 17); and the document reads are behind the same gate.
 
 **The other three front-door consequences**, for completeness: notification deep-links must survive the
 login flow (a `#huddle` tap on a lapsed session lands on a login screen); first-run onboarding becomes
-"sign in" rather than "pick your name"; and the document viewers currently rely on open reads *because*
-the calendar had no session, so E5 couples them to login working on every path.
+"sign in" rather than "pick your name"; and the document viewers couple to login working on every path.
 
 ---
 
 ## 5. The documents are the gap nobody asks about (E6)
 
 `storage.rules` gates direct Storage SDK reads, and those are admin-only — staff never read documents that
-way. They open the permanent tokenised `storageUrl` saved in the Firestore doc (or, since v24.19, a
-short-lived signed URL from `getDocumentUrl`), which carries its own access and **bypasses the rules
-entirely**.
+way. They open the permanent tokenised `storageUrl` saved in the Firestore doc, or a short-lived signed
+URL from `getDocumentUrl`; both carry their own access and **bypass the rules entirely**.
 
 **Therefore: no phase in E1–E5 puts these documents behind authentication.** Those phases change who can
-*discover* a URL. Anyone who has ever held one — a forwarded link, browser history, a synced bookmark —
-keeps access until the object is deleted, and revocation means rewriting the object, not editing a rule.
+*discover* a URL. Anyone who has ever held a permanent one — a forwarded link, browser history, a synced
+bookmark — keeps access until the object is deleted, and revocation means rewriting the object, not
+editing a rule.
 
-**BUT NOT FOREVER, AND THE DOCUMENTS SAID FOREVER UNTIL 19 SEP 2026.** Both retention sweeps
-DELETE the Storage object, which is what actually kills a bearer URL: **Huddles at 3 months**
-(`pruneOldHuddles`, server-side in `functions/documents.js`), **Circulars and Newsletters at 6
-months** (`pruneOldDocs`, browser-side in `doc-retention.js`). So a leaked URL is bounded by the
-retention window, not unbounded — which materially lowers this finding's priority and was worth
-getting right in both directions.
+**But not forever.** Both retention sweeps DELETE the Storage object, which is what actually kills a
+bearer URL: **Huddles at 3 months** (`pruneOldHuddles`, server-side in `functions/documents.js`),
+**Circulars and Newsletters at 6 months** (`pruneOldDocs`, browser-side in `doc-retention.js`). So a
+leaked URL is bounded by the retention window, not unbounded — which materially lowers this finding's
+priority.
 
 **Three things stop that being a guarantee, and they are the residual risk:**
 
@@ -433,61 +407,28 @@ getting right in both directions.
 Worth stating plainly when prioritising: **the change everyone reaches for first (a login on the
 calendar) protects the personal data and leaves the company-confidential documents exactly as they are.**
 
-### E6 is a sketch, not yet a plan — the Office viewer blocks the obvious route
+### The Office viewer, and why it shaped E6
 
-**A third party already fetches these documents by URL.** Word circulars and newsletters open through
+**A third party fetches these documents by URL.** Word circulars and newsletters open through
 `officeViewerUrl` (`storage-utils.js`), which hands the storage URL to **Microsoft's Office Online
-viewer**, and Microsoft fetches the document **server-side**. Two consequences that reframe E6:
+viewer**, and Microsoft fetches the document **server-side**. Two consequences:
 
 - **Authenticated `getBlob` — the cheapest option — would break `.docx` viewing outright.** Microsoft
-  cannot fetch an auth-gated URL. Any design that removes public fetchability must replace the Word
-  rendering path at the same time, not as a follow-up. That is a UX change (Word documents currently
-  render with images instead of downloading — the v16.45 fix), not a plumbing change.
+  cannot fetch an auth-gated URL, so any design that removes public fetchability must replace the Word
+  rendering path at the same time.
 - **"The documents are behind authentication" cannot be claimed while this path exists**, whatever the
-  rules say. That is true *today* and independent of Track E; it belongs in any conversation with IT
-  about where the data goes.
+  rules say. That is independent of Track E, and it belongs in any conversation with IT about where the
+  data goes.
 
-So the options are narrower than they first look:
+The options that were weighed:
 
 | Option | Verdict |
 |---|---|
 | Authenticated `getBlob` | **Breaks Word viewing.** Only viable bundled with a replacement renderer (or accepting download-instead-of-render for `.docx`). |
-| Short-lived signed URLs from an authenticated Function | Plausible — but the window must be long enough for Microsoft to fetch, and the document still reaches Microsoft. Narrows exposure from *forever* to *the signing window*; does not remove the third party. |
-| Convert `.docx` → HTML at upload (as the Huddle already does via Mammoth) | Removes the Microsoft dependency entirely and makes `getBlob` viable. Biggest change, best end state. Worth costing before assuming signed URLs are the answer. |
-| Accept it | Fine, but as a recorded decision rather than an accident. |
-
-Whichever is chosen, **existing tokens must be rotated** — old URLs stay live until the objects are
-rewritten, or until retention deletes them (3 months / 6 months, above).
-
-### Costed, 19 Sep 2026 — and the table above ranks option 3 WRONGLY
-
-The line above asks for this, so here it is. Reading the code changes the order.
-
-**Option 3 — convert `.docx` → HTML at upload — is the CHEAPEST to build, not the biggest change.**
-Every piece of it already ships and is in production for the Huddle:
-
-- `doc-upload.js` already takes a `transform` as a CONFIG KEY, and its JSDoc names the Huddle's
-  DOCX→HTML as the example. The Circular and Newsletter cards (`operations-app.js`) call the very
-  same `initDocUploadCard`, already accept `.docx`, and simply omit that one key.
-- The converter is already loaded, SRI-pinned and CDN-failure-tolerant (`_loadMammoth`, `huddle.js`),
-  with the 200 KB cap, the parse-failure abort and the download-only fallback all written.
-- The viewer already renders inline HTML when a document carries it — that is how the Huddle works.
-
-So the plumbing is roughly: generalise `_convertHuddleDocx` out of `huddle.js`, pass it to two more
-cards, and teach `calendar-doc-viewer.js` to prefer `htmlContent` over `officeViewerUrl`.
-
-**The real cost is FIDELITY, not plumbing, and it is a UX decision rather than an engineering one.**
-`mammoth.convertToHtml` is called with no image handler, so images inline as base64 data URIs and
-count against the 200 KB cap. A Huddle is text and tables and converts well. **A Retail Circular is
-the document most likely to be image-heavy**, and on exceeding the cap `htmlContent` becomes `null`
-and the card falls back to download-only — losing exactly the "renders with images" behaviour the
-Office viewer was adopted for at v16.45. That is the thing to measure, and measuring it is cheap:
-convert one real circular and look at the result.
-
-**Ordering, which the table did not state.** Removing the Microsoft dependency and putting documents
-behind authentication are TWO steps, and only the first is blocked today. Option 3 unblocks
-authenticated `getBlob` by removing the third party; it does not by itself authenticate anything.
-Nor does it help documents already uploaded — those ride their bearer URLs until rotated or pruned.
+| Short-lived signed URLs from an authenticated Function | **Chosen.** The window must be long enough for Microsoft to fetch, and the document still reaches Microsoft. Narrows exposure from *forever* to *the signing window*; does not remove the third party. |
+| Convert `.docx` → HTML at upload (as the Huddle already does via Mammoth) | **Refused** (below). The cheapest to BUILD — `doc-upload.js` already takes a `transform`, and the Huddle's converter (`_convertHuddleDocx` in `huddle.js`) is in production — but its real cost is FIDELITY: images inline as base64 against the 200 KB cap, and an image-heavy Circular would fall back to download-only. |
+| Require PDF | **Refused** (below). |
+| Accept it | Fine, but only as a recorded decision rather than an accident. |
 
 ### DECIDED 19 Sep 2026 — short-lived signed URLs, and the two options that were REFUSED
 
@@ -498,92 +439,58 @@ not a one-off change but a manual export on every weekly issue, for ever. Both o
 would have removed Microsoft entirely therefore cost either fidelity or recurring work, and neither
 cost is worth paying for a leak that retention already bounds.
 
-**So the Office viewer stays and its URL becomes short-lived.** `getDocumentUrl` (v24.16,
-`functions/documents.js`, rules in `functions/doc-url-core.js`) mints a 15-minute read URL for the
-latest document of a named KIND. Exposure goes from "until retention deletes the object" to "the
-signing window", and **nothing a member sees or an admin does changes** — which is what made this
-the option worth taking.
+**So the Office viewer stays and its URL is short-lived.** `getDocumentUrl` (`functions/documents.js`,
+rules in `functions/doc-url-core.js`) mints a 15-minute read URL for the latest document of a named
+KIND. Exposure goes from "until retention deletes the object" to "the signing window", and **nothing a
+member sees or an admin does changes** — which is what made this the option worth taking. The nav
+drawer, `calendar-doc-viewer.js` and `calendar-huddle-viewer.js` all fetch it through
+`document-url.js`, and the stored permanent link stays as the fallback (owner, 7 Oct 2026 —
+DECISIONS.md).
 
 **Stated plainly, because it will be claimed otherwise later: this does NOT remove Microsoft.** A
 `.docx` still opens through the Office Online viewer, which still fetches it server-side, and if
 Microsoft caches what it fetched then the window bounds THIS app's leak and not their copy. That was
-understood when the option was chosen. It also does nothing for URLs already in circulation.
+understood when the option was chosen. It also does nothing for URLs already in circulation, which is
+why `ARCHITECTURE.md` EXC-007 stays open until the old URLs are rotated.
 
 **Deploy prerequisite, and it is not optional:** signing needs
 `roles/iam.serviceAccountTokenCreator` on the runtime service account, granted to ITSELF. Without it
 every call answers 503 — which the client is required to treat as "use the stored URL", so a missing
-grant degrades to today's behaviour rather than to a dead button. RECOVERY_RUNBOOK.md holds the
-grant. The client half shipped at v24.19 (the nav drawer, `calendar-doc-viewer.js` and
-`calendar-huddle-viewer.js` all fetch the short-lived URL through `document-url.js`), so
-`ARCHITECTURE.md` EXC-007 now stays open only until the old URLs are rotated.
+grant degrades to the old behaviour rather than to a dead button. RECOVERY_RUNBOOK.md holds the grant.
 
-**And one action needs no decision at all.** Rotation is a step every option shares, and it can be
-taken alone: re-writing the objects turns "whoever ever held a URL" into "whoever held one since the
-rotation", without choosing a delivery model. Doing it periodically would bound the exposure on
-purpose rather than relying on retention to do it as a side effect — and would also clear the
-orphaned-object case, which retention by construction cannot reach.
+**And one action needs no decision at all.** Rotation can be taken alone: re-writing the objects turns
+"whoever ever held a URL" into "whoever held one since the rotation", without choosing a delivery model.
+Doing it periodically would bound the exposure on purpose rather than relying on retention to do it as
+a side effect — and would also clear the orphaned-object case, which retention by construction cannot
+reach.
 
-### E6 vs the notifications — DECIDED 7 Sep 2026; the gate half is BUILT (recorded 10 Aug 2026 as a possibility)
+### E6 vs the notifications — DECIDED 7 Sep 2026, and BUILT
 
-*Owner decision, 7 Sep 2026: the Huddle, the Weekly Retail Circular and the Marylebone Newsletter
-must not be visible without the PIN or a password. What was built (v23.17 client, v23.18 rules) is exactly the two things the paragraph below said would need designing: the viewers moved
-behind the access gate (`calendar-doc-access.js`, opened on the full grant only, refusing the read at
-source so the local cache cannot answer it) and the deep link survives the unlock (a tap made while
-locked is HELD and finished when access arrives — no `_entryHash` was ever needed; the viewers keep
-their intent in memory). The judgement call below was taken as "accept the friction and state it":
-a notification still arrives, and a locked device's tap lands on the PIN card with the Huddle one
-PIN away. What this does NOT do is the rest of E6 — bearer URLs already in circulation stay live
-until the objects are rotated, and Microsoft still fetches Word documents server-side. That remains
-open, costed in the table above, and is now `ARCHITECTURE.md` EXC-007.*
+*Owner decision, 7 Sep 2026: the Huddle, the Weekly Retail Circular and the Marylebone Newsletter must
+not be visible without the PIN or a password.* What was built is exactly the two things a gate needed:
+the viewers moved behind the access gate (`calendar-doc-access.js`, opened on the full grant only,
+refusing the read at source so the local cache cannot answer it), and the deep link survives the
+unlock (a tap made while locked is HELD and finished when access arrives — the viewers keep their intent
+in memory, because `initHuddleViewer` and `initDocViewer` strip their own hash synchronously). The
+judgement call was taken as "accept the friction and state it": a notification still arrives, and a
+locked device's tap lands on the PIN card with the Huddle one PIN away. The client shipped before the
+rules (a tightening ships client-first, the reverse of a schema expansion).
 
-*The original record follows unchanged.*
+**The notification itself cannot break.** `fanOutPush` builds the payload server-side with the Admin
+SDK, which bypasses rules entirely; the push service delivers it; the service worker renders title and
+body straight from the payload. There is no Firestore read and no auth anywhere in that path, and no
+document content in the message — only "📋 Latest Huddle" and a tap target. **No rule change can stop
+a notification arriving.**
 
-*Owner-raised while the PIN was soaking: "the documents should not be visible until the PIN or a
-password is entered — but how does that interfere with notifications?" Recorded here as a
-**possibility with its cost attached**, not as scheduled work, and deliberately NOT given an E-number:
-the phase list is E0–E6 and `auth-plan-parity.test.mjs` pins it. If this is ever committed to, it is
-part of E6, not a phase of its own.*
+**What this does NOT do is the rest of E6** — bearer URLs already in circulation stay live until the
+objects are rotated, and Microsoft still fetches Word documents server-side. That remains open, and is
+`ARCHITECTURE.md` EXC-007.
 
-**The notification itself cannot break, and that is worth knowing before the rest of this frightens
-anyone off.** `fanOutPush` builds the payload server-side with the Admin SDK, which bypasses rules
-entirely; the push service delivers it; the service worker renders title and body straight from the
-payload. There is no Firestore read and no auth anywhere in that path, and no document content in the
-message — only "📋 Latest Huddle" and a tap target. **No rule change can stop a notification arriving.**
-
-**What a gate WOULD affect is the tap-through.** The viewer reads `huddles/{date}` (or the latest
-circular/newsletter) to get the file URL. Gate that read and an unauthenticated tap gets
-permission-denied. The population that hits is precisely the roster-only staff the PIN exists for —
-the people who never sign in, and plausibly the people most reliant on a Huddle notification the
-evening before a shift.
-
-**The trap, and the reason this must not ship alone.** Gating those three collections does not put the
-documents behind authentication — see everything above in this section. The bearer URL is the control,
-so a rules-only change buys "new people cannot discover a URL" while every URL already in circulation
-keeps working for ever, and Microsoft carries on fetching the Word ones server-side. **Rules-first here
-is the expensive-and-useless ordering: it costs a daily-use notification its tap-through and protects
-nothing.** Delivery model first (the table above), rules last.
-
-**If it is ever built, two things need designing rather than discovering:**
-
-- **The viewers move behind the access gate.** They currently take `authReady` (persistence configured),
-  **not** `calendarAccessReady` — a deliberate choice recorded in `calendar-app.js`, and the reason a
-  notification tap opens a document today even on a locked Calendar. That line is load-bearing; changing
-  it is the change.
-- **The deep link has to survive the unlock.** Tap → PIN or sign-in → *continue to the document*, not
-  arrive at the calendar having lost the reason for coming. Note `initHuddleViewer` and `initDocViewer`
-  strip their own hash **synchronously** via `history.replaceState`, so the intent has to be kept in
-  memory before the gate, not re-read from the URL after it. (This used to name an `_entryHash`
-  that never existed; the viewers hold `_autoOpen` / a pending key instead — built v23.17.)
-
-**And one judgement call that is not a technical one:** a notification for something the recipient then
-cannot open is worse than no notification. Either the send becomes conditional on being able to action
-it, or the friction is accepted and stated. Do not leave it to be discovered by the first person who
-taps.
-
-**Ordering.** The PIN has soaked and the `overrides` hold line is
-removed (RECOVERY_RUNBOOK step 4). The roster is the more sensitive surface — it carries annual leave,
-absence and individual shifts — and it is worth being explicit that closing it first was the right
-order, not an accident of what was easy.
+**The ordering lesson, for anything like it.** Gating those reads alone did not put the documents
+behind authentication — the bearer URL is the control — so a rules-only change would have cost a
+daily-use notification its tap-through and protected nothing. The roster was the more sensitive surface
+(annual leave, absence and individual shifts), and closing it first was the right order, not an
+accident of what was easy.
 
 ---
 
@@ -592,7 +499,7 @@ order, not an accident of what was easy.
 ### Before the gate — using data that already exists
 
 Do this *first*: the decision does not have to wait for E3 telemetry. **`getSignInStats.neverSignedIn`
-(shipped v18.96) already counts provisioned accounts that have never signed in** — a decent proxy for the
+already counts provisioned accounts that have never signed in** — a decent proxy for the
 pure-roster-viewer population, which is precisely who E3 would wall and who Track C5 cannot reach. If
 that number is small, the front-door cost is small and the gate is easier. If it is large, E3 is a much
 bigger behaviour change than "add a login" and the E4 grace mode carries more weight.
@@ -613,12 +520,12 @@ Shipping the soft posture blind means guessing at the hard cutover. `perf-report
 
 Two weeks turns "is a login wall on the home screen acceptable?" from an opinion into a number.
 
-### ⚠️ PRE-REGISTER THE DECISION RULE — before the telemetry starts, not after (v19.97)
+### ⚠️ PRE-REGISTER THE DECISION RULE — before the telemetry starts, not after
 
-Collecting four numbers is only half a decision procedure. This section said what to measure and
-never said **what result means GO to E5 versus STOP and revise E3–E4**, which leaves the choice to be
-made after seeing the figures — and a threshold chosen after the fact is not a threshold, it is a
-rationalisation. The whole reason for measuring is to be bound by the answer.
+Collecting four numbers is only half a decision procedure. The plan must also say **what result means
+GO to E5 versus STOP and revise E3–E4** — otherwise the choice is made after seeing the figures, and a
+threshold chosen after the fact is not a threshold, it is a rationalisation. The whole reason for
+measuring is to be bound by the answer.
 
 **The rule: the owner writes the thresholds down BEFORE the E3 telemetry is switched on, and they
 may not be revised once data exists.** Revising them afterwards is allowed exactly once and must be
@@ -650,38 +557,39 @@ stop condition: it means the experiment has no failure criterion, so it can only
 | Is grace mode (§4) an acceptable answer to offline? | E4 | If not, the alternative is longer sessions, not "accept the lockout". |
 | Member selector vs identity | E3 | Default to your own roster, or keep a free selector with login as a pure gate? UX, not security. |
 | Analytics identity guarantee | E3 | Keep the calendar identity-free, or make it an active-account surface? |
-| Anonymous provider fate | — | **Overtaken (v24.34):** nothing signs in anonymously, so disabling the provider is a Console step that no longer waits on E5. |
+| Anonymous provider fate | — | **Overtaken:** nothing signs in anonymously, so disabling the provider is a Console step that no longer waits on E5. |
 | Retire the GitHub Pages mirror? | asserting "behind auth" — **and passkeys outright** | See §8. Passkeys make this binding rather than presentational: a WebAuthn credential is bound to one RP ID, and the two origins share no parent domain, so a passkey registered on one can never work on the other. `PASSWORD_DESIGN.md` → "Passkeys — POSSIBLE, not planned". |
 | Do E6 at all, and which delivery model? | E6 | **Decided 19 Sep 2026 (§5):** short-lived signed links, the Office viewer kept. |
-| ~~**The identity round trip**~~ — may the Calendar paint before `accounts:lookup` confirms the stored account? **ANSWERED yes, narrowly, 5 Sep 2026 (v22.97)** — `CALENDAR_DATA.md` 13 | nothing here — it was `ROADMAP.md`'s *Calendar start* entry, now in `ROADMAP_HISTORY.md` | **NOT the E3 gate, though both read as "the calendar auth decision"**: E3 adds friction for security, this removes a wait at security's expense, and conflating them decides one by answering the other. Coupled to E3 (which scales its cost to every load) and to §4's grace mode (the same trust question at greater severity — and the measured offline behaviour, `experiments/auth-firestore-split-proof/`, shows the check is only enforced when the network is up). |
+| ~~**The identity round trip**~~ — may the Calendar paint before `accounts:lookup` confirms the stored account? | nothing here | **Answered yes (5 Sep 2026), then RETIRED by the owner (26 Sep 2026)** — `DECISIONS.md` → "The provisional paint"; `AUTH_AND_SESSIONS.md` 17. **It was never the E3 gate, though both read as "the calendar auth decision"**: E3 adds friction for security, this would have removed a wait at security's expense, and conflating them decides one by answering the other. The measured offline behaviour is `experiments/auth-firestore-split-proof/`. |
 
 ---
 
 ## 8. Dependencies and anti-goals
 
-**Track E is the missing precondition for Track C5.** The forced password-set (v18.92) only reaches people
-who sign in somewhere; `PASSWORD_DESIGN.md` records that a pure roster-viewer is never compelled. So the
-≥90% migration metric gating retirement of the surname default **cannot converge** without E3/E5. If
-finishing the password work matters, that is an argument for Track E with nothing to do with IT.
+**Track E is the missing precondition for Track C5 — on the route the plan currently takes.** The forced
+password-set only reaches people who sign in somewhere; `PASSWORD_DESIGN.md` records that a pure
+roster-viewer is never compelled. So the ≥90% migration metric gating retirement of the surname default
+**cannot converge** without E3/E5. `CREDENTIAL_LIFECYCLE.md` §7 records a second route (C6) that would
+answer the credential question without E3 — **not adopted**; the owner decides.
 
 **The GitHub Pages mirror is a second public front door.** Level 2 rules protect the data on both origins
 (same Firebase project), so it is not a hole. But if the driver is "roster data must not sit on a public
 URL", a second public origin that cannot serve headers undercuts the claim. Retiring it is likely a
 prerequisite for *asserting* the app is behind auth, separate from *being* behind auth.
 
-**A second, harder driver arrived with the passkey question (10 Aug 2026).** "Behind auth" is a claim
-someone can argue about; a WebAuthn RP ID is not. A passkey is bound to one origin's registrable
-domain, and `web.app` and `github.io` are both public suffixes with no shared parent — so the mirror
-does not weaken passkeys, it **excludes** them for everyone still on it. That turns this row from a
-presentational decision into a technical precondition. Design, options and costs:
-`PASSWORD_DESIGN.md` → "Passkeys — POSSIBLE, not planned" (credential METHOD is that file's subject;
-this file's subject is what sits behind the boundary, which passkeys do not change).
+**A second, harder driver: passkeys.** "Behind auth" is a claim someone can argue about; a WebAuthn RP
+ID is not. A passkey is bound to one origin's registrable domain, and `web.app` and `github.io` are both
+public suffixes with no shared parent — so the mirror does not weaken passkeys, it **excludes** them for
+everyone still on it. That turns this row from a presentational decision into a technical precondition.
+Design, options and costs: `PASSWORD_DESIGN.md` → "Passkeys — POSSIBLE, not planned" (credential METHOD
+is that file's subject; this file's subject is what sits behind the boundary, which passkeys do not
+change).
 
 **Anti-goals — do not:**
 
 - **Do not** ship E3 (client gate) as if it were security. Without E5 the data is unchanged.
-- **Do not** bundle E1 into E2. The read-await must soak on its own; that is the whole point of splitting
-  them.
+- **Do not** bundle client preparation into the rules change it prepares for. The read-await must soak
+  on its own; that is the whole point of splitting them.
 - **Do not** flip in one step. E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5, reusing the staged posture the B-track
   proved.
 - **Do not** treat E6 as part of the rules work. Different failure domain, different fix, independent
@@ -689,19 +597,19 @@ this file's subject is what sits behind the boundary, which passkeys do not chan
 - **Do not** verify any of this from an installed phone. Always a **fresh private window with a cold
   cache** — the installed PWA launches from the service-worker cache and will happily hide a broken live
   site (CLAUDE.md → "Deployment health check").
-- **Starting E2 consciously REVERSES a documented anti-goal** (the calendar's deliberate anonymous read
-  surface, SECURITY_RELEASE_PLAN → "What NOT to do"). Re-stamp that entry when it happens — do not
-  violate it silently.
+- **Starting E3 consciously REVERSES a recorded decision** — `CREDENTIAL_LIFECYCLE.md` §4, keep both
+  kinds of Calendar access (the staff PIN for the shared station PC). Record the reversal when it
+  happens — do not make it silently.
 
 ---
 
 ## 9. Verification checklist (per phase)
 
 - [ ] Fresh **private window**, cold cache — not an installed PWA.
-- [ ] Notification tap on a cold start opens the Huddle (E1/E2/E5 all touch this path).
+- [ ] Notification tap on a cold start opens the Huddle (E1/E5 and the PIN all touch this path).
 - [ ] Drawer → Circular and Newsletter still open in one tap.
 - [ ] Aeroplane mode with a valid session: cached roster renders (E4).
 - [ ] Aeroplane mode with an expired session: grace mode, not a login wall (E4).
 - [ ] `npm run test:rules` — the rules behave as written.
 - [ ] `npm test` — `firestore-contract-parity.test.mjs` still passes (the client↔rules lists).
-- [ ] Rollback rehearsed: every phase is a flag flip or a rules revert, no data migration.
+- [ ] Rollback rehearsed: every phase is a release revert or a rules revert, no data migration.

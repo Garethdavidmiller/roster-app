@@ -18,41 +18,31 @@ orphans the previous file or races the Firestore commit. The exact path is recor
 `uploadHuddle` cleanup falls back to the legacy fixed `huddles/{date}.{fileType}`, and the prune
 sweeps by prefix — see Auto-prune below.)
 
-Storage URL strategy (v15.19+): `ingestHuddle` writes a permanent `firebaseStorageDownloadTokens`
-download URL to `storageUrl`. It does NOT use a signed URL — GCS caps v4 signed-URL expiry at
-7 days, far shorter than the 3-month Huddle retention window (the old "1-year signed URL" code
-always threw and silently fell back to the token path anyway).
+**Storage URL strategy:** `ingestHuddle` writes a permanent `firebaseStorageDownloadTokens`
+download URL to `storageUrl`. It does NOT use a signed URL for the stored link — GCS caps v4
+signed-URL expiry at 7 days, far shorter than the 3-month Huddle retention window. Members open the
+file through a 15-minute signed link from `getDocumentUrl` when one can be minted, with the stored
+URL as the fallback (AUTH_PLAN.md §5).
 
-Download-token URL format (`ingestHuddle` always writes this — it never uses a signed URL):
+Download-token URL format (`ingestHuddle` always writes this — it never stores a signed URL):
 ```
 https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD-{uploadId}.pdf?alt=media&token={uuid}
 ```
 
 **Auto-prune (3 months):** at the end of every `ingestHuddle` run, `pruneOldHuddles()` deletes
 huddle Firestore docs *and* their Storage objects older than 3 months (`HUDDLE_RETENTION_MONTHS`).
-Storage deletion sweeps by the `huddles/<date>` **prefix** (Jul 2026, a functions-only change —
-no app-version bump) — covering versioned paths, legacy fixed paths, and orphaned objects alike,
-superseding the old storagePath-based delete.
-It is awaited (so it runs before Cloud Run reclaims the container) but best-effort — failures are
-swallowed and never block the upload response. Circulars/newsletters keep 6 months; huddles are
-higher-volume and rarely referenced after the day, so retention is shorter.
+Storage deletion sweeps by the `huddles/<date>` **prefix** — covering versioned paths, legacy fixed
+paths, and orphaned objects alike. It is awaited (so it runs before Cloud Run reclaims the container)
+but best-effort — failures are swallowed and never block the upload response. Circulars/newsletters
+keep 6 months; huddles are higher-volume and rarely referenced after the day, so retention is shorter.
 
 ### Firestore — `huddles` collection
 
-Document ID = `YYYY-MM-DD` (the London date of the huddle).
-
-```
-date         string     "YYYY-MM-DD"
-storageUrl   string     Download-token URL (see above)
-storagePath  string     Versioned Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf"
-                        (absent on docs written before versioned paths — the prune's prefix sweep covers those too)
-fileType     string     "pdf" | "docx" (browser writes are rule-constrained to these since v14.29)
-uploadedAt   timestamp  Firestore server timestamp
-uploadedBy   string     "power-automate" (Cloud Function) | member name string (manual admin upload)
-htmlContent  string     (optional) DOCX converted to HTML by mammoth.js at upload time.
-                        Present for DOCX files only. Missing for PDFs and large DOCX
-                        conversions (> 200,000 characters — `MAX_HUDDLE_HTML_CHARS`). Viewer falls back to storageUrl if absent.
-```
+Document ID = `YYYY-MM-DD` (the London date of the huddle). The fields are **`docs/DATA_MODEL.md` →
+huddles**, which is their one home. Two operational points: `uploadedBy` is `"power-automate"` for the
+Cloud Function and a member name for a manual admin upload; and `htmlContent` (DOCX converted to HTML
+by mammoth.js at upload time) is absent for PDFs and for a conversion longer than
+`MAX_HUDDLE_HTML_CHARS` (200,000 characters) — the viewer then falls back to the file.
 
 ### Cloud Function — `ingestHuddle` request format
 
@@ -92,7 +82,7 @@ Uses the **HTTP** (Premium) connector — not "Send an HTTP request (Office 365)
 
 **Trigger:** "When a new email arrives (V3)" on the Huddle mailbox, filtered to emails with attachments.
 
-**Priority:** DOCX is preferred — it converts to HTML server-side and renders inline in the app. PDF is the fallback if no DOCX attachment is present. The old time-of-day condition (before/after noon) has been replaced with an attachment-type check.
+**Priority:** DOCX is preferred — it converts to HTML server-side and renders inline in the app. PDF is the fallback if no DOCX attachment is present. The choice is an attachment-type check, never a time-of-day condition.
 
 **Overall structure:**
 
@@ -191,37 +181,34 @@ Note: `'GMT Standard Time'` has spaces — `'GMTStandardTime'` is invalid.
 ### Firestore Security Rules — `huddles` collection
 
 Access posture: **read requires access, write admin-only** — a read needs a bound member identity,
-the admin claim, or the staff-PIN viewer capability (open from v10.76 until v23.18). (The live rule in `firestore.rules` is the
-authority — since v14.29 it also shape-validates browser writes: `hasOnly` field allowlist,
-bounded `YYYY-MM-DD` date, `fileType in ['pdf','docx']`, typed `uploadedAt`/`uploadedBy`, a
-250,000-char `htmlContent` cap, and a separate admin-only delete rule. Don't quote the rule
-here — it drifts; read the file.)
+the admin claim, or the staff-PIN viewer capability. The live rule in `firestore.rules` is the
+authority — it also shape-validates browser writes: `hasOnly` field allowlist, bounded `YYYY-MM-DD`
+date, `fileType in ['pdf','docx']`, typed `uploadedAt`/`uploadedBy`, a 250,000-char `htmlContent` cap,
+and a separate admin-only delete rule. Don't quote the rule here — it drifts; read the file.
 
-Read was open from v10.76 because a notification tap on a fresh first visit carried no Firebase
-Auth session, and requiring auth broke auto-open. Since v23.18 it requires access: the client holds
-such a tap behind the PIN card and refuses the read at source (v23.17, `calendar-doc-access.js`) —
-see "Behind the PIN" below. Browser writes (the manual admin
-upload path in `huddle.js`) require the admin claim (v10.83); the automated
-`ingestHuddle` Cloud Function uses the Admin SDK, which bypasses rules entirely. The matching
-Storage rule (`storage.rules`) also requires the admin claim for huddle file writes.
+Reads need access because the three documents are behind the PIN or a password (owner decision,
+7 Sep 2026): a notification tap on a locked device is held on the PIN card, and the client refuses
+the read at source (`calendar-doc-access.js`) — see "Behind the PIN" below. Browser writes (the
+manual admin upload path in `huddle.js`) require the admin claim; the automated `ingestHuddle` Cloud
+Function uses the Admin SDK, which bypasses rules entirely. The matching Storage rule (`storage.rules`)
+also requires the admin claim for huddle file writes.
 
-### Huddle notification tap behaviour (v10.71)
+### Huddle notification tap behaviour
 
-When a push notification is tapped, the service worker (`notificationclick` handler) **re-bases the payload's route onto its OWN scope** (`registration.scope`) and opens it via `focusedClient.navigate()` or `clients.openWindow()` — e.g. `https://myb-roster.web.app/#huddle` on a Firebase Hosting install (or `https://garethdavidmiller.github.io/roster-app/#huddle` on the GitHub Pages mirror). It deliberately ignores the payload's origin: the Cloud Function sets one `STAFF_SITE_URL` (now the canonical `https://myb-roster.web.app` since v14.29), but installs live on different origins/paths, so only the payload's trailing page + hash are used and the origin is taken from the SW's own scope. A bare-origin fallback was the cause of the 16 Jun 2026 notification 404 (fixed v14.26). On load — or via the `hashchange` listener if the page is already open — `calendar-huddle-viewer.js` fires `_triggerAutoOpen(huddle)`. The nav-panel **Daily Huddle** link points at the same `#huddle` hash, so it runs the identical path; there is no separate button trigger (the old `#huddleBtn` was removed at v12.57).
+When a push notification is tapped, the service worker (`notificationclick` handler) **re-bases the payload's route onto its OWN scope** (`registration.scope`) and opens it via `focusedClient.navigate()` or `clients.openWindow()` — e.g. `https://myb-roster.web.app/#huddle` on a Firebase Hosting install (or `https://garethdavidmiller.github.io/roster-app/#huddle` on the GitHub Pages mirror). It deliberately ignores the payload's origin: the Cloud Function sets one `STAFF_SITE_URL` (the canonical `https://myb-roster.web.app`), but installs live on different origins/paths, so only the payload's trailing page + hash are used and the origin is taken from the SW's own scope. Never fall back to the bare origin — that was the cause of the 16 Jun 2026 notification 404. On load — or via the `hashchange` listener if the page is already open — `calendar-huddle-viewer.js` fires `_triggerAutoOpen(huddle)`. The nav-panel **Daily Huddle** link points at the same `#huddle` hash, so it runs the identical path; there is no separate button trigger.
 
-**The Huddle is not printed (owner decision, 7 Sep 2026).** Printing while the viewer is open
-gives a short notice, not the day plan — the Huddle is read in the app and replaced daily. Before
-this it printed, badly and quietly: the viewer is `position: fixed` over a scrolling body, so a
-40-row plan reached paper as 30 rows with nothing saying the rest existed. Closing the viewer prints
-the calendar as normal. This governs what the APP puts on paper — a PDF Huddle opens in the
-browser's own PDF viewer and can be printed from there like any file.
+**The Huddle is not printed (owner decision, 7 Sep 2026).** Printing while the viewer is open gives a
+short notice, not the day plan — the Huddle is read in the app and replaced daily, and the viewer is
+`position: fixed` over a scrolling body, so a long plan would reach paper truncated with nothing saying
+the rest existed. Closing the viewer prints the calendar as normal. This governs what the APP puts on
+paper — a PDF Huddle opens in the browser's own PDF viewer and can be printed from there like any file.
 
 **Two render paths inside `_triggerAutoOpen` — do not unify:**
 
 | `htmlContent` | Behaviour (identical for the nav-panel link and a notification tap) |
 |---------------|--------------------------------------------------------------------|
 | Present (DOCX converted server-side) | Renders sanitised HTML inline in the viewer overlay |
-| Absent (PDF, or DOCX conversion failed) | Shows an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`); tapping it calls `window.open(url, '_blank', 'noopener')` with the short-lived `getDocumentUrl` URL minted when the button was drawn, or the stored `storageUrl` if none has arrived by the tap (v24.19) or the signed one names a different file than this Huddle's `storagePath` (v24.33 — an upload landed between the two reads) |
+| Absent (PDF, or DOCX conversion failed) | Shows an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`); tapping it calls `window.open(url, '_blank', 'noopener')` with the short-lived `getDocumentUrl` URL minted when the button was drawn — or the stored `storageUrl` if none has arrived by the tap, or if the signed one names a different file than this Huddle's `storagePath` (an upload landed between the two reads) |
 
 **Why the in-overlay button (no `htmlContent`):**
 
@@ -231,11 +218,11 @@ A notification tap provides no transient user activation in the page. This means
 
 Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window.open(url, '_blank', 'noopener')` then opens the file as an Android Custom Tab overlaid on top of the intact standalone PWA. The Android Back gesture dismisses the Custom Tab and returns directly to the clean standalone app.
 
-**Important:** Both triggers (nav-panel link and notification tap) reach the viewer through the `#huddle` hash and the single `_triggerAutoOpen` path, so the no-`htmlContent` case always opens the file via the in-overlay button — never a direct `window.open`/`location.href` at open time. A notification tap carries no user activation (direct `window.open` would be pop-up-blocked; a `location.href` to the cross-origin file would knock the PWA out of standalone mode), and routing both triggers through the explicit button avoids relying on activation that may not be present. DOCX files with `htmlContent` bypass this entirely — they render inline.
+**Important:** Both triggers (nav-panel link and notification tap) reach the viewer through the `#huddle` hash and the single `_triggerAutoOpen` path, so the no-`htmlContent` case always opens the file via the in-overlay button — never a direct `window.open`/`location.href` at open time. Routing both triggers through the explicit button avoids relying on activation that may not be present. DOCX files with `htmlContent` bypass this entirely — they render inline.
 
-**Behind the PIN since v23.17 (owner decision, 7 Sep 2026).** The notification itself cannot break — it is built server-side and carries no document content — but the TAP-THROUGH now needs access: the viewers consult `calendar-doc-access.js`, which the Calendar opens on the full grant. A tap on a device that is signed in or holds a viewer session opens the Huddle as before. A tap on a device that is locked lands on the PIN card with the tap HELD: entering the PIN (or signing in) finishes it and the Huddle opens. No read — cached or live — is issued while locked, which is what a rules change alone could not guarantee. The rules closed the three collections' reads at v23.18, one release after the client (backend tightening ships client-first, the reverse of a schema expansion).
+**Behind the PIN (owner decision, 7 Sep 2026).** The notification itself cannot break — it is built server-side and carries no document content — but the TAP-THROUGH needs access: the viewers consult `calendar-doc-access.js`, which the Calendar opens on the full grant. A tap on a device that is signed in or holds a viewer session opens the Huddle as before. A tap on a device that is locked lands on the PIN card with the tap HELD: entering the PIN (or signing in) finishes it and the Huddle opens. No read — cached or live — is issued while locked, which is what a rules change alone could not guarantee. The rules closing the three collections' reads shipped one release after the client: a read-tightening ships client-first, the reverse of a schema expansion.
 
-**Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/documents.js` (it moved there with the v20.55 domain split; this said `index.js` until v23.44, which is the wrong file to open in the middle of an incident), Huddle ingestion succeeds but no push is sent. To re-enable: set it back to `false`, redeploy Functions, and verify `STAFF_SITE_URL` is correct (since v14.29 it is the bare `https://myb-roster.web.app` origin — the service worker discards the payload origin/path and re-bases only the trailing page/hash onto its own `registration.scope`, so no `/roster-app` sub-path is needed; a notification-target mismatch was the real cause of the 16 Jun 2026 pause).
+**Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/documents.js`, Huddle ingestion succeeds but no push is sent. To re-enable: set it back to `false`, redeploy Functions, and verify `STAFF_SITE_URL` (`functions/index.js`) is the bare `https://myb-roster.web.app` origin — the service worker discards the payload origin/path and re-bases only the trailing page/hash onto its own `registration.scope`, so no `/roster-app` sub-path is needed.
 
 ---
 
@@ -243,11 +230,16 @@ Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window
 
 ### Cloud Function — `parseRosterPDF`
 
+**The parse's contract — every defence against a week written onto the wrong days, what a blank cell
+means, the review's states and controls — is `.claude/rules/roster-import.md`. Read it before changing
+anything in the import.** This section is the request/response reference and the review pipeline.
+
 - **Region:** `europe-west2` (London)
-- **Auth:** Firebase ID token — browser sends `Authorization: Bearer <idToken>` where idToken comes from `auth.currentUser.getIdToken()`. The function validates via Firebase Admin SDK. `ROSTER_SECRET` is no longer used anywhere — both `parseRosterPDF` and `setupRosterAuth` use Firebase ID token auth with an admin custom claim.
-- **CORS:** `cors: ADMIN_FUNCTION_ORIGINS` — an explicit origin allowlist (`functions/index.js`): `https://garethdavidmiller.github.io`, `https://myb-roster.web.app`, `https://myb-roster.firebaseapp.com`. This is defence-in-depth; the real control is the Firebase ID token + admin claim, so a browser from an unlisted origin is blocked at preflight *and* would fail auth. `setupRosterAuth` uses the same allowlist. Add any new hosting domain to the `ADMIN_FUNCTION_ORIGINS` array. (`ingestHuddle` keeps `cors: false` — server-to-server.)
-- **AI model:** `MODEL_REQUEST` in `functions/roster-prompt.js` (since v25.28; a constant in the Functions' entry file before) — currently `claude-sonnet-5-5` (since v25.28; `claude-sonnet-5` before), `max_tokens: 16000`, `thinking: { type: 'between_tools' }` with `output_config: { effort: 'high' }`, non-streaming `messages.create` through `@anthropic-ai/sdk` 1.x on API version `2026-10-21` (since v25.35; 0.x sent `2023-06-01`), `timeoutSeconds: 120`. The model ID is complete as written: current Anthropic IDs carry no dated snapshot to pin (`MODEL_REQUEST`'s header has the 4 Sep 2026 check). **Thinking is OFF, as far as the model allows** — Sonnet 5 ran adaptive thinking by DEFAULT when `thinking` was omitted (Sonnet 4.6 ran thinking-off), which — combined with Sonnet 5's ~30% higher token count — truncated the roster JSON past `max_tokens` and surfaced as "The AI returned an unreadable response". Turning thinking off restored the deterministic-extraction behaviour; `max_tokens` was raised 8192 → 16000 for headroom. **Sonnet 5.5 has no `disabled`** (a 400): its lowest setting is `between_tools`, which does no extended thinking on a call with no tools, and is accepted only alone inside `thinking` and at effort `high` or below — so the effort is stated. `index-endpoints.test.mjs` pins that shape, and a decline (`stop_reason: 'refusal'`) is reported as a decline rather than as an unreadable answer to retry. Since v25.35 it also drives the REAL SDK against a local server, which pins the API version on the wire: a newer one is a migration to read up on (the guide is named in the failure), not a routine bump. **History (v16.27 → rolled back v16.28):** thinking was briefly re-enabled via streaming to improve day-column reading accuracy, but the live thinking+streaming call failed in production ("Couldn't read the roster — unexpected error"), so it was reverted. The day-shift accuracy issue is instead handled deterministically server-side, which does not depend on the model — so reading accuracy is protected without touching the AI call. Two server layers (v16.68): `applySundayScanCorrections` (the original Sunday-anchored Case A/B repair) and **`applyColumnScanCrossCheck`** — the prompt demands a second, column-by-column read of the whole table (`columnScan`) and every cell is cross-checked against the row read. Agreement → keep; a disagreement realigning exactly under a one-day suffix shift (anchored at the first disagreeing day, ≥2 disagreements, ≥5 signalled days) → deterministic repair; anything else → the cell becomes a skip-only `UNKNOWN|row or col? (PDF unclear)` UNREADABLE review cell carrying both readings. Fails open if the AI omits `columnScan`. A third, AI-independent layer runs client-side: `assessRosterAlignment` (roster-alignment.js) correlates each parsed week against the member's own base roster at ±1-day offsets, and REFUSES the whole read when three or more members drift the same way — catching the residual case where both AI reads misread identically. **Read "cross-check" carefully: the row read and `columnScan` are not independent WITNESSES.** They are two readings by one model of one PDF in one call, so they agree with each other precisely when the model has collapsed a blank cell — which is the failure they exist to catch. That is why the third layer compares against something the PDF cannot influence, and why it is a refusal rather than a warning. The strong witness is the PDF's own drawn grid: `experiments/roster-pdf-geometry/` finds every column boundary present, with nothing at all inside the Sunday cell that drifts — measured across **12 real documents** (three roster types x three week-endings, draft and final), zero of which failed to carry the grid. That witness is now the FOURTH layer and the last to run (v22.31, `functions/roster-geometry.js`): `parseRosterPDF` reads the drawn rules and text positions from the PDF bytes (before the model call since v24.04, inside a time budget — `awaitGeometryWithin`), and after the column cross-check and the Sunday corrections it refuses any AI day that lands in a physically EMPTY cell — the cell becomes an `UNKNOWN|…` UNREADABLE review cell and the member is returned in `geometryRefused`, which the review treats exactly like a base-roster drift (row unticked; three trip the breaker). It never repairs and never weighs. It fails open at every step — no `pdfjs-dist`, a page without the nine-column grid, a scanned sheet with no text layer, a name the PDF spells differently — and REPORTS that it did in `geometry.status`, so a witness that did not run is visible on the response rather than assumed. Zero false refusals measured on the corpus; what it cannot see (a fully occupied week, an `RD` written into an occupied cell) is in KNOWN_LIMITATIONS.md. **Phase 2 is built (v24.04):** when the grid places every member, the cells are extracted by coordinate and the model only normalises them — it never assigns a day and is sent no PDF (`buildCellTable`, `functions/roster-prompt.js`); one unplaced name falls the whole document back to the PDF path described here. Detail: `.claude/rules/roster-import.md` → Phase 2.
-- **Why direct PDF input (the fallback path since v24.04):** Text extraction (pdf-parse) destroys table column structure and causes day-column misalignment. Claude reads the visual layout directly.
+- **Auth:** Firebase ID token — browser sends `Authorization: Bearer <idToken>` where idToken comes from `auth.currentUser.getIdToken()`. The function validates it via the Firebase Admin SDK and requires the admin custom claim, as `setupRosterAuth` does. There is no shared roster secret.
+- **CORS:** `cors: ADMIN_FUNCTION_ORIGINS` — an explicit origin allowlist (`functions/index.js`): `https://garethdavidmiller.github.io`, `https://myb-roster.web.app`, `https://myb-roster.firebaseapp.com`. This is defence-in-depth; the real control is the Firebase ID token + admin claim, so a browser from an unlisted origin is blocked at preflight *and* would fail auth. Add any new hosting domain to the `ADMIN_FUNCTION_ORIGINS` array. (`ingestHuddle` keeps `cors: false` — server-to-server.)
+- **AI model and settings:** `MODEL_REQUEST` in `functions/roster-prompt.js` — which model, how it may think, `max_tokens` — sent as one non-streaming `messages.create` through `@anthropic-ai/sdk`, `timeoutSeconds: 120`. Its header holds the reasoning: why thinking stays off as far as the model allows (it spends `max_tokens`, and truncated the roster JSON into "The AI returned an unreadable response"), why the model ID is complete as written, and why a newer API version is a migration rather than a dependency bump. `index-endpoints.test.mjs` pins the request shape through the real handler, and a decline (`stop_reason: 'refusal'`) is reported as a decline (`DECLINED_ERROR`) rather than as an unreadable answer to retry. **Re-enabling thinking through streaming failed in production** (v16.27, "Couldn't read the roster — unexpected error", rolled back at v16.28); day-column accuracy is protected by the server-side defences instead, which do not depend on the model.
+- **The defences, in one line each** (the contract is `.claude/rules/roster-import.md`): `applySundayScanCorrections` (the Sunday-anchored repair) and `applyColumnScanCrossCheck` (a second, column-by-column read cross-checked cell by cell) on the server; `assessRosterAlignment` (`roster-alignment.js`) on the client, which correlates each parsed week against the member's own base roster and REFUSES the whole read when three or more members drift the same way; and the PDF's own drawn grid (`functions/roster-geometry.js`), which refuses any AI day landing in a physically EMPTY cell. **The row read and `columnScan` are not independent witnesses** — two readings by one model of one PDF in one call — which is why the alignment check compares against something the PDF cannot influence, and why the grid is the strong witness. When the grid places every member, the cells are extracted by coordinate and the model only normalises them (`buildCellTable`) — it never assigns a day and is sent no PDF; one unplaced name falls the whole document back to the PDF path.
+- **Why direct PDF input (the fallback path):** Text extraction (pdf-parse) destroys table column structure and causes day-column misalignment. Claude reads the visual layout directly.
 
 **Request format:**
 
@@ -270,9 +262,10 @@ Body:
   "rosterType": "cea",
   "dates": ["2026-03-29", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04"],
   "crossCheck": "complete",
+  "missingMembers": [],
+  "choices": {},
   "geometry": { "status": "complete", "checked": 28, "total": 28, "pagesRead": 2, "pagesRejected": 0 },
   "geometryRefused": [],
-  "missingMembers": [],
   "parsed": [
     {
       "memberName": "G. Miller",
@@ -287,25 +280,28 @@ Body:
 }
 ```
 
-- **`geometry`** (v22.31) — `{ status, checked, total, pagesRead, pagesRejected }` for the PDF's-own-grid witness (`functions/roster-geometry.js`): `status` is `"complete"` (every returned member was matched to a geometry row and checked), `"partial"` (some — the rest are named in the Functions log as unmatched) or `"unavailable"` (no grid found, no text layer, `pdfjs-dist` absent, or nobody matched — the witness did not run for this read). Unlike `crossCheck`, this IS an independent witness: it reads the file's coordinates, not the model.
-- **`geometryRefused`** (v22.31) — the member names whose rows the witness refused (a claim read where the PDF's cell is empty), filtered to names on the review. Consumed by `assessRosterAlignment` (roster-alignment.js): such a row starts unticked with its own wording, and refusals count toward the three-member breaker. The refused cells themselves are already `UNKNOWN|…` in `parsed`.
-- **`crossCheck`** (v16.70) — the column-scan cross-check status: `"complete"` (every returned member re-verified against a SECOND column-by-column read — by the same model, of the same PDF, in the same call, so it is a second reading and **not** an independent witness; see the note above), `"partial"` (some), or `"unavailable"` (the AI omitted/garbled `columnScan` so the check never ran), or `"not-applicable"` on the geometry path (v24.23 — that prompt asks for no column re-read). The review UI shows an advisory note when it isn't `"complete"`.
-- **`missingMembers`** (v16.98) — roster members of this `rosterType` the AI returned NO row for (advisory: could be a dropped row OR a genuine absence — leaver/new starter/other page). The review UI lists them so a silently-dropped member is visible.
+- **`crossCheck`** — the column-scan cross-check status: `"complete"` (every returned member re-verified against a SECOND column-by-column read — by the same model, of the same PDF, in the same call, so it is a second reading and **not** an independent witness), `"partial"` (some), `"unavailable"` (the AI omitted/garbled `columnScan` so the check never ran), or `"not-applicable"` on the geometry path (that prompt asks for no column re-read). The review UI shows an advisory note when it isn't `"complete"` or `"not-applicable"`.
+- **`missingMembers`** — roster members of this `rosterType` the AI returned NO row for (advisory: could be a dropped row OR a genuine absence — leaver/new starter/other page). The review UI lists them so a silently-dropped member is visible.
+- **`choices`** — the two candidate readings for each cell the cross-check flagged, keyed `"memberName|date"`, so the review can offer a pick instead of a dead "couldn't read" row.
+- **`geometry`** — `{ status, checked, total, pagesRead, pagesRejected }` for the PDF's-own-grid witness (`functions/roster-geometry.js`): `status` is `"complete"` (every returned member was matched to a geometry row and checked), `"partial"` (some — the rest are named in the Functions log as unmatched) or `"unavailable"` (no grid found, no text layer, `pdfjs-dist` absent, or nobody matched — the witness did not run for this read). Unlike `crossCheck`, this IS an independent witness: it reads the file's coordinates, not the model. It is counted over the rows the admin will see, never a hallucinated name.
+- **`geometryRefused`** — the member names whose rows the witness refused (a claim read where the PDF's cell is empty), filtered to names on the review. Consumed by `assessRosterAlignment` (roster-alignment.js): such a row starts unticked with its own wording, and refusals count toward the three-member breaker. The refused cells themselves are already `UNKNOWN|…` in `parsed`.
 
-### AI prompt key rules (do not weaken without testing)
+### What the roster codes mean (do not weaken without testing)
 
-- RDW cells: AI returns `"RDW HH:MM-HH:MM"` — **never strip RDW from the return value**
-- Blank/absent Sunday cells: return `"RD"` — do not copy Monday's shift
-- **Cell layout is decided by CONTENT, never by line POSITION (v19.31 — this rule replaced the one that caused the AL bug).** A duty/diagram code (`"CEA 16"`, `"D24"`) is ignored *wherever it appears*; a status code (`AL`, `SPARE`, an absence code) is the cell's value *wherever it appears*, second line included. The retired wording was "duty codes sit on a second line — ignore them; only the first line is the shift value", which was true of a WORKED cell and false of every other one: on a non-worked day the second line holds the STATUS code, so that rule plus "blank = RD" composed into *discard the annual leave, see an empty first line, return RD*. It read most of the table perfectly and silently dropped leave and sickness — RD sits on that same second line and came out right by accident, which is why it hid. Pinned by `roster-prompt-parity.test.mjs`; do not reintroduce any line-position rule
-- `"NA"` / `"N/A"` and `"NS"` = not available = **a rest day, on every day** (owner, 6 Nov 2026; v25.38). The model returns the code and the server records `RD`, Sundays included. Before that `NA` was **Absent** Monday to Saturday (v24.22) and `NS` the Sunday code, so weeks imported between 24 Sep and 6 Nov 2026 hold their NA days as Absent; nothing stored says which absences those were, so they change only when that week's roster is uploaded again
-- **A BLANK cell means different things on different days** (v22.19). Sunday is uncontracted and the sheets leave a non-working Sunday empty — 24 of 50 member rows on the three real rosters — so a blank or absent Sunday is filled with `RD`, and that holds whether or not the sheet even has a Sunday column. **Mon–Sat is the opposite**: those rosters state an unworked weekday explicitly (`RD`, `AL`, `SC`, `SN`, `OD`, `HA`, `ML`, `CL`, `NA`), so a blank there is a cell nobody read and becomes an UNREADABLE review row rather than a silent rest day. Expect a handful of these where a member appears on TWO rosters and works only part of the week on the second — `S. Horsman` is on both the Supervisor and Dispatch sheets, which is five such rows on Dispatch every week. That is deliberate: defaulting them to RD would write rest days over the shifts the other roster's import had just recorded. If the roster office puts explicit `RD`s in those cells, the rows go away.
-- **A worked Sunday does NOT carry an RDW marker, and must never be treated as suspicious for lacking one** (v22.19). Measured across the CEA, Supervisor and Dispatch sheets: 21 Sundays holding a timed duty, none marked; all 10 RDW markers on Mon–Sat. RDW means *a rest day being worked* — Sunday is uncontracted, so its work is inherently overtime and the sheet never labels it. v22.16 briefly flagged unmarked Sunday times as unreadable and that was wrong twice over: it would have sent all 21 to review, and it fed the client's alignment check an UNKNOWN exactly where its strongest drift evidence sits.
-- **`"SC"` and `"SN"` are NOT the same code** (owner, Sep 2026 — read as one from v15.45 to v22.53). `SC` is sickness on a day the person **was** booked to work, so it is an absence; `SN` is sickness on a day they were **not** booked to work, so the day recorded is the **rest day it already was** (`"RD"`). The old reading was invisible wherever the base roster also said rest — the review rewrote it to RD anyway — and wrong exactly where it mattered: an `SN` against a base WORKED shift wrote Absent onto a day the roster office had marked as not booked.
-- **A day the guards REFUSE to record is now SHOWN (v23.97).** Leave or an absence on a base REST day (and anything on a Sunday) normalises to `RD` before the review picks a state, so the cell compared equal to base and classified `MATCH` — which renders no row. Nothing was written, which is correct; the admin was simply not told. It is a `GUARDED` row now: no tick, nothing to approve, "rest day on the roster — not recorded", excluded from the pending count. Write behaviour unchanged. Since v24.90 a person whose only rows are notices shows no count and no **Skip all** (a "0" read as an alert), and **Skip all** on a person takes back an answered "Swapped — record it", which until then was still written under the skipped section.
-- **`"HA"` (hospital appointment), `"OD"` (paid absence / long-term sick marking), `"SC"` (sick on a booked turn), `"ML"` (maternity leave, v17.19), and `"CL"` (compassionate leave, v23.94) → `"SICK"`** (v15.45; SC/ML/CL added later). A code that is NOT in that list is **not** read as a rest day — it reaches the admin as an UNREADABLE review row carrying the raw text, which is how `CL` behaved before it was added. So an absence arriving as REST is never this list: it is the base-rest-day guard below. On a base REST day the review normalises them to RD (never written; a stale imported one REMOVE_IMPORTs on re-upload) — full-pay absence only applies to rostered days. Sundays: blocked like all absence. A **Rest↔Absence cross-check disagreement** (one AI pass reads the absence code, the other blank) now **records the absence** rather than flagging UNREADABLE (v17.14, `applyColumnScanCrossCheck`) — dropping a real absence is the dangerous silent failure; the review message uses app language ("Absent", never "sick")
-- `"AL"`, `"A/L"`, `"A.L."` all mean annual leave — return `"AL"`
-- **Other family (v15.34; Team Day added v15.51, Union course added v18.56, Meeting added v18.61, OTHER_DAYS.md):** `"TRG"`/`"TRAINING"`/`"TRAIN"` → `"TRG"`; `"INDUCTION"`/`"IND"` → `"IND"`; `"ASSESSMENT(S)"`/`"ASSESS"` → `"ASSESS"`; `"TEAM DAY"`/`"TEAM DAYS"`/`"TEAM"` → `"TEAM"`; `"UNION COURSE"`/`"UNION"` → `"UNION"`; `"MTG"`/`"MEETING(S)"` → `"MEET"` ("Team Day" and "Union course" are the multi-word roster labels; "MTG" is the meeting code); an RDW marker either side (`"TRG RDW"`, `"RDW TRG"`) is preserved as the canonical `"FLAVOUR RDW"`. Saved as `type: 'other'` with the value verbatim. **A meeting is always a meeting (v25.38)**: the `"MEET"` the prompt asks for is read as one (it was not, so every meeting reached the review as unreadable), and a meeting printed with its times keeps them in either order — `"10:00-14:00 MTG"` → `"MEET 10:00-14:00"`; a meeting cell it cannot read cleanly goes to review, never to a plain shift. Any other Other cell WITH times is unexpected (rosters never set them) → UNREADABLE review row when the code comes first; written time-first it still imports as a plain shift, a known gap left as it is. **An Other day on a Sunday is invalid** — normalised to RD like AL/SICK
-- **AL or Absent on a Sunday is invalid** — Sundays are non-contracted for all grades. The review pipeline (`computeCellStates`, in `roster-review-states.js` since v23.53) normalises a Sunday `"AL"`/`"SICK"` to `"RD"`, so it classifies as MATCH and is never written as a Sunday annual-leave/absence override. A worked Sunday time stays RDW. Mirrors the in-app rule — see CLAUDE.md "Sundays are non-contracted".
+The code table the model is given is `SHIFT_VOCABULARY` in `functions/roster-prompt.js` — the ONE copy
+both prompts interpolate, held to `normaliseShift` in both directions by `roster-prompt-parity.test.mjs`.
+In one line each (the reasoning is `.claude/rules/roster-import.md`):
+
+- **RDW cells:** the AI returns `"RDW HH:MM-HH:MM"` — **never strip RDW from the return value**.
+- **`AL`, `A/L`, `A.L.`** → `"AL"`. **`SP` / `SPARE`** → `"SPARE"`. **`OFF`** (CES and bilingual rosters) → `"RD"`.
+- **Absence:** `SC` (sick on a day the person WAS booked to work), `HA` (hospital appointment), `OD` (paid absence / long-term sick marking), `ML` (maternity leave) and `CL` (compassionate leave) → `"SICK"`, which the app calls Absent. **`SN` is NOT the same code as `SC`**: sickness on a day the person was NOT booked to work, so the day is the rest day it already was → `"RD"` (owner, Sep 2026).
+- **`NA` / `N/A` and `NS`** (not available) → **a rest day, on every day, Sundays included** (owner, 6 Nov 2026). Weeks imported between 24 Sep and 6 Nov 2026 hold their NA days as Absent; nothing stored says which absences those were, so they change only when that week's roster is uploaded again.
+- **The Other family** (OTHER_DAYS.md): `TRG`/`TRAINING`/`TRAIN` → `"TRG"`; `INDUCTION`/`IND` → `"IND"`; `ASSESSMENT(S)`/`ASSESS` → `"ASSESS"`; `TEAM DAY`/`TEAM` → `"TEAM"`; `UNION COURSE`/`UNION` → `"UNION"`; `MTG`/`MEETING` → `"MEET"`; an RDW marker either side is preserved as the canonical `"FLAVOUR RDW"`. Saved as `type: 'other'` with the value verbatim. **A meeting is always a meeting**, and keeps printed times in either order (`"10:00-14:00 MTG"` → `"MEET 10:00-14:00"`); a meeting cell it cannot read cleanly goes to review, never to a plain shift. Any other Other cell WITH times goes to review when the code comes first; written time-first it still imports as a plain shift — a known gap. **A training or meeting day on a Sunday is never recorded** (a GUARDED row); one printed WITH times is rest-day working at those times.
+- **Cell layout is decided by CONTENT, never by line POSITION.** A duty/diagram code (`"CEA 16"`, `"D24"`) is ignored *wherever it appears*; a status code (`AL`, `SPARE`, an absence code) is the cell's value *wherever it appears*, second line included. A line-position rule ("only the first line is the shift value") once silently discarded annual leave, because on a non-worked day the second line holds the STATUS code. Pinned by `roster-prompt-parity.test.mjs`; do not reintroduce any line-position rule.
+- **A blank cell means different things on different days.** A blank or absent Sunday is `RD`, never a copy of Monday's shift (Sunday is uncontracted and the sheets leave a non-working Sunday empty). **Mon–Sat is the opposite**: the rosters state an unworked weekday explicitly, so a blank there is a cell nobody read and becomes an UNREADABLE review row rather than a silent rest day. Expect a handful where a member appears on TWO rosters and works only part of the week on the second — defaulting them to RD would write rest days over the shifts the other roster's import had just recorded. If the roster office puts explicit `RD`s in those cells, the rows go away.
+- **A worked Sunday does NOT carry an RDW marker, and must never be treated as suspicious for lacking one.** RDW means *a rest day being worked*; Sunday is uncontracted, so its work is inherently overtime and the sheet never labels it.
+- **A code that is not in the table is never read as a rest day** — it reaches the admin as an UNREADABLE review row carrying the raw text.
+- **Leave, an absence or an Other day on a Sunday is never recorded, and leave or an absence on a base REST day is recorded only when the admin answers that it was a swapped working day** — both arrive as GUARDED rows (below), never silently. Full-pay absence applies only to rostered days. Mirrors the in-app rule — CLAUDE.md "Sundays are non-contracted".
 
 ### Review pipeline
 
@@ -313,48 +309,46 @@ Body:
 parsedResult (from Cloud Function)
         ↓
 computeCellStates(parsedResult, existingOverrides)
-  — roster-review-states.js (v23.53; re-exported by admin-roster-upload.js, so the
-    existing import path still works). Classifies each day:
-    MATCH      = PDF matches base roster, nothing to do
-    DIFF       = PDF differs from base roster, needs saving
-    CONFLICT   = manual override already exists but differs from PDF
-    COVERED    = manual override already matches PDF, nothing to do
-    REMOVE_IMPORT = a stale previous PDF import whose day now matches base — approving
-                 DELETES the stale doc and writes nothing (a fresh base-matching override
-                 would be redundant and mask a future base-roster change) (v15.31)
-    UNREADABLE = normaliseShift couldn't parse the cell (UNKNOWN| sentinel). NOT a dead end
-                 since v22.17 — the row can be ANSWERED where the question is asked, three ways:
-                 (a) pick one of the server's two candidate readings (v19.32), offered only when
-                 they survive normalisation as DIFFERENT values — a pair that both collapse to RD
-                 is not a question with one answer; (b) ENTER the shift on the row — type pills
-                 generated from `PILL_TYPES` plus 24-hour HH:MM boxes for Shift/RDW
-                 (`roster-entry-control.js`), composed through `manualCellValue` and then the SAME
-                 `normaliseCellValue` guards every parsed value passes, so entering a value is
-                 never a route to write what the parsed path would have refused (`other` is
-                 deliberately unsupported — its grammar needs the week editor's flavour chips, and
-                 the row says so rather than offering a pill that does nothing); (c) leave it, which
-                 is still the default and still writes nothing. The real Supervisor roster carries
-                 cells reading `SEE NATHAN` and `See CEM`, which no parser will ever resolve —
-                 that is what (b) is for (v15.30)
+  — roster-review-states.js (re-exported by admin-roster-upload.js). Classifies each day:
+    MATCH         = PDF matches base roster, nothing to do (not shown)
+    DIFF          = PDF differs from base roster — pre-ticked to save
+    CONFLICT      = a manual override already exists but differs from PDF — "Keep saved" (the default,
+                    writes nothing) or "Use new roster"
+    COVERED       = an override already matches PDF, nothing to do
+    REMOVE_IMPORT = a stale previous PDF import whose day now matches base — approving DELETES the
+                    stale doc and writes nothing (a fresh base-matching override would be redundant
+                    and mask a future base-roster change)
+    GUARDED       = the PDF said something the app's rules refuse to record on that day — leave or an
+                    absence on a base REST day, anything on a Sunday, a training or meeting day on a
+                    Sunday. Shown and explained, never silently dropped. Leave or an absence on a rest
+                    day ASKS "Was it a swapped working day?": only "Swapped — record it" writes (stamped
+                    `replacedType`); "Rest day — leave it" writes nothing and clears an earlier record
+                    on that day; unanswered writes nothing. "Skip all" takes an answer back
+    UNREADABLE    = normaliseShift couldn't parse the cell (UNKNOWN| sentinel). Answered on the row:
+                    (a) pick one of the server's two candidate readings (`choices`), offered only when
+                    they survive normalisation as DIFFERENT values; (b) ENTER the shift — type pills
+                    generated from `PILL_TYPES` (Other included, with the week editor's flavour chips)
+                    plus 24-hour HH:MM boxes (`roster-entry-control.js`), composed through
+                    `manualCellValue` and then the SAME `normaliseCellValue` guards every parsed value
+                    passes; (c) leave it, which is the default and writes nothing. Real rosters carry
+                    cells like `SEE NATHAN`, which no parser will ever resolve — that is what (b) is for
+    A member whose rows look a day out starts UNTICKED; three drifting the same way refuse the whole read.
         ↓
-renderReviewTable() — per-person card list (presentation reworked v15.52):
+renderReviewTable() — per-person card list:
   • plain-language OUTCOME SUMMARY above the list ("what Save will do")
-  • each change row = a Save tick + action tag (Update / Clear old / Your choice / Not saved; an unreadable row reads
-    "Couldn't read" until a reading is picked or an entry is finished — v24.30)
-  • conflicts = inline "Keep yours / Use new roster" (was Manual / PDF); no separate banner
-  • Save button shows a live count. State machine + `chosen` model UNCHANGED.
-  • the ORIGINAL PDF stays reachable from the review (v22.52) — every message on this page ends
-    in "check it against the PDF", and until then the file had left the workflow at parse time.
-    It is a DOWNLOAD, not a new tab: a blob: document inherits the creating page's CSP, and the
-    app's `object-src 'none'` blocks Chrome's plugin-backed PDF viewer, so a preview would open
-    a blank frame. The object URL is created at CLICK time (so it cannot go stale) and revoked
-    on a timer (an immediate revoke cancels the download on Android)
-  shiftDisplay(shiftStr, baseShift)
-    — detects "RDW|" prefix → shows 💼 RDW badge + time
-    — falls back to baseShift==='RD' detection for plain times
+  • each change row = a Save tick + an action tag saying what Save will do with it
+  • the ORIGINAL PDF stays reachable from the review — every message on this page ends in "check it
+    against the PDF". It is a DOWNLOAD, not a new tab: a blob: document inherits the creating page's
+    CSP, and the app's `object-src 'none'` blocks Chrome's plugin-backed PDF viewer, so a preview
+    would open a blank frame. The object URL is created at CLICK time (so it cannot go stale) and
+    revoked on a timer (an immediate revoke cancels the download on Android)
+  shiftDisplay(shiftStr, date)
+    — "RDW|" prefix → 💼 RDW badge + time; a timed Sunday → RDW (Sundays are uncontracted)
+    — an Other day shows its RDW marker and times beside the badge
+    — an UNKNOWN| value → "couldn't read …"
         ↓
 Apply approved changes:
-  shiftValueToOverrideType(value, baseShift, date) → Firestore type field
+  shiftValueToOverrideType(value, baseShift, date) → Firestore type field (roster-cell-rules.js)
     — date detects Sunday: worked times → 'rdw'; AL/SICK → 'correction' (RD) backstop
   Strip "RDW|" prefix → save plain time as value
   source: 'roster_import' on all saved docs
@@ -366,12 +360,12 @@ Apply approved changes:
 
 ### Overview
 
-Two independent document-upload flows with identical mechanics: an admin uploads a PDF from the Operations page; staff access the latest document via the nav-panel drawer. Both are handled by the same upload engine in `documents-client.js` (split out of `firebase-client.js` at v21.90; `firebase-client.js` still re-exports the entry points, so importers are unchanged).
+Two independent document-upload flows with identical mechanics: an admin uploads a PDF from the Operations page; staff access the latest document via the nav-panel drawer. Both are handled by the same upload engine in `documents-client.js` (`firebase-client.js` re-exports the entry points).
 
 ### Upload flow (admin, Operations page)
 
 1. Admin opens the Operations page and expands the relevant card (Weekly Retail Circular or Marylebone Newsletter).
-2. Selects an upload date using the date input (capped to today — `dateInput.max = formatISO(new Date())`).
+2. Selects an upload date using the date input (capped to today; the shared `doc-upload.js` card takes a `maxDateOffsetDays`, which only the Huddle's sets, to tomorrow).
 3. Selects a PDF or Word (.docx) file and clicks **Upload**.
 4. `uploadCircular(date, file, uploadedBy)` / `uploadNewsletter(date, file, uploadedBy)` — exported from `firebase-client.js`, implemented in `documents-client.js`:
    - Writes the file (PDF or Word .docx) to Firebase Storage at a versioned path: `circulars/{date}-{uploadId}.{ext}` / `newsletters/{date}-{uploadId}.{ext}` (the random suffix prevents overwriting the existing file before Firestore has committed the new doc)
@@ -384,41 +378,37 @@ Re-uploading for the same date overwrites the Firestore doc and replaces the Sto
 ### 6-month auto-prune
 
 `pruneOldDocs(collectionName, excludeDate, storage, refFn, deleteObject, fs)` in **`doc-retention.js`**
-(extracted from `firebase-client.js` at v21.86, and renamed off its underscore in the same move; `fs`
-is the injected Firestore handle set, which is what lets the sweep be driven against fakes in Node):
+(`fs` is the injected Firestore handle set, which is what lets the sweep be driven against fakes in
+Node). It is the browser's only destructive operation on shared data, so check `doc-retention.js`
+before relying on this summary:
 
 - **Reads a SERVER time first** and skips the whole sweep if it cannot get one. The just-written
-  anchor document carries `uploadedAt: serverTimestamp()`, so reading it back costs one read. The
-  cutoff used to come from `new Date()` — a destructive delete driven by whichever admin device
-  happened to upload, so a clock running months fast silently took months of current documents. No
-  server time → no sweep, deliberately: retention is housekeeping and the next upload runs it again.
+  anchor document carries `uploadedAt: serverTimestamp()`, so reading it back costs one read. Never a
+  client clock: a destructive delete driven by whichever admin device happened to upload would let a
+  clock running months fast take months of current documents. No server time → no sweep,
+  deliberately: retention is housekeeping and the next upload runs it again.
 - Derives the month-underflow-safe cutoff via `sixMonthCutoffISO` (`storage-utils.js`), queries the
-  collection for `date < cutoff`, and skips the just-uploaded `excludeDate`
-- **Deletes only what it read.** The query is a snapshot; a re-upload for one of those dates between
-  the query and the delete used to destroy the FRESH metadata while cleaning up the stale object —
-  document gone, new file orphaned. Each delete now re-reads inside a `runTransaction` and stands
-  down if the `storagePath` has moved (logged as "changed since the query — left alone")
+  collection for `date < cutoff`, and skips the just-uploaded `excludeDate`.
+- **Deletes only what it read.** The query is a snapshot, and a re-upload for one of those dates
+  between the query and the delete would otherwise destroy the FRESH metadata while cleaning up the
+  stale object — document gone, new file orphaned. Each delete re-reads inside a `runTransaction` and
+  stands down if the `storagePath` has moved (logged as "changed since the query — left alone").
 - Only after that transaction commits is the Storage object removed. A Storage delete failure is
   logged via `console.warn` and never thrown; a Firestore delete failure is caught per-doc and logged
-  via `console.error` so one bad delete can't abort the rest
+  via `console.error` so one bad delete can't abort the rest.
 - Called fire-and-forget from the shared upload engine's `postCommit` for both `uploadCircular` and
-  `uploadNewsletter` — a failed prune never blocks the upload
+  `uploadNewsletter` — a failed prune never blocks the upload.
 - Covered by `doc-retention.test.mjs`, whose Firestore fake has an `onBeforeDelete` seam that slips a
   competing writer between the query and the transaction — the interleaving no ordering of real calls
-  can force
-
-*This section described the pre-v21.86 implementation — the wrong name, the wrong file, a signature
-one argument short, and a `new Date()` cutoff — until 28 Aug 2026. It is the operational reference
-for the browser's only destructive operation on shared data, so it is worth re-reading against
-`doc-retention.js` rather than trusting this paragraph.*
+  can force.
 
 ### Staff access flow
 
 1. Staff taps ☰ → **Weekly Retail Circular** or **Marylebone Newsletter** in the nav-panel drawer.
-2. `nav-panel.js` click handler fires. A `_docFetching` boolean guard at module scope returns early if a fetch is already in-flight (tap-guard against rapid repeated taps). On the Calendar, a visitor without access (`!canReadDocuments()`, v23.17) is refused first — the lightbox names the PIN or sign-in — and no tab is opened.
+2. `nav-panel.js` click handler fires. A `_docFetching` boolean guard at module scope returns early if a fetch is already in-flight (tap-guard against rapid repeated taps). On the Calendar, a visitor without access (`!canReadDocuments()`) is refused first — the lightbox names the PIN or sign-in — and no tab is opened.
 3. `window.open('', '_blank')` is called **synchronously** in the same event tick as the click — this is required for Safari/iOS to allow the new tab. The blank tab is opened before any async work begins.
-4. `getLatestCircular()` / `getLatestNewsletter()` is awaited, raced against an 8s timeout, with a short-lived URL requested from `getDocumentUrl` alongside it (v24.19; in parallel since v24.23):
-   - On success with a `storageUrl`: `newTab.location.href = url` opens the file — the short-lived URL, or the stored `storageUrl` when none was minted or when the server signed a different file than the one read (v24.33 — its returned `storagePath` does not match; a PDF previews in the tab by its own URL; a Word `.docx` is routed through Microsoft's Office Online viewer via `officeViewerUrl` (v16.45) so it renders with images instead of downloading — still no Mammoth-style inline HTML conversion, unlike the Huddle); `closePanelForNavigation()` closes the drawer.
+4. `getLatestCircular()` / `getLatestNewsletter()` is awaited, raced against an 8s timeout, with a short-lived URL requested from `getDocumentUrl` in parallel:
+   - On success with a `storageUrl`: `newTab.location.href = url` opens the file — the short-lived URL, or the stored `storageUrl` when none was minted or when the server signed a different file than the one read (its returned `storagePath` does not match — `resolveDocumentOpenUrl`). A PDF previews in the tab by its own URL; a Word `.docx` is routed through Microsoft's Office Online viewer via `officeViewerUrl` so it renders with images instead of downloading (no Mammoth-style inline HTML conversion, unlike the Huddle). `closePanelForNavigation()` closes the drawer.
    - On success with no document (null): `newTab.close()` cancels the blank tab; the coming-soon lightbox is shown.
    - On Firestore error: same as null — cancels the blank tab, shows a retry message in the coming-soon lightbox.
 5. `_docFetching` is reset to `false` in `.finally()`.
@@ -427,9 +417,9 @@ for the browser's only destructive operation on shared data, so it is worth re-r
 
 | Operation | Requirement |
 |-----------|-------------|
-| Reads | Require access, as the Huddle does (v23.18 — open before): a bound member identity, the admin claim, or the staff-PIN viewer capability. The client refuses at source behind the PIN (v23.17, `calendar-doc-access.js`). Files open via a short-lived `getDocumentUrl` URL (v24.19) — used only when the path it signed matches the document on screen (v24.33) — falling back to the stored `storageUrl`, a tokenised bearer URL (ARCHITECTURE.md EXC-007). |
+| Reads | Require access, as the Huddle does: a bound member identity, the admin claim, or the staff-PIN viewer capability. The client refuses at source behind the PIN (`calendar-doc-access.js`). Files open via a short-lived `getDocumentUrl` URL — used only when the path it signed matches the document on screen — falling back to the stored `storageUrl`, a tokenised bearer URL (ARCHITECTURE.md EXC-007). |
 | Writes | `request.auth.token.admin == true` (admin claim only) |
-| Storage create/update | Rules enforce PDF or Word (.docx) MIME type + ≤20 MB per file (Word added v16.31) |
+| Storage create/update | Rules enforce PDF or Word (.docx) MIME type + ≤20 MB per file |
 | Storage delete | Admin-only; MIME/size checks omitted (no `request.resource` on delete) |
 
 ### Firestore / Storage paths
@@ -437,13 +427,13 @@ for the browser's only destructive operation on shared data, so it is worth re-r
 | Resource | Path |
 |----------|------|
 | Circular Firestore doc | `circulars/{YYYY-MM-DD}` |
-| Circular Storage file | `circulars/{YYYY-MM-DD}-{uploadId}.{ext}` (`ext` = pdf or docx; versioned suffix, added v13.99) |
+| Circular Storage file | `circulars/{YYYY-MM-DD}-{uploadId}.{ext}` (`ext` = pdf or docx; versioned suffix) |
 | Newsletter Firestore doc | `newsletters/{YYYY-MM-DD}` |
-| Newsletter Storage file | `newsletters/{YYYY-MM-DD}-{uploadId}.{ext}` (`ext` = pdf or docx; versioned suffix, added v13.99) |
+| Newsletter Storage file | `newsletters/{YYYY-MM-DD}-{uploadId}.{ext}` (`ext` = pdf or docx; versioned suffix) |
 
 ---
 
-## Firebase Auth — full detail (migration complete at v7.94)
+## Firebase Auth — full detail
 
 ### Email and password convention
 
@@ -453,44 +443,38 @@ for the browser's only destructive operation on shared data, so it is worth re-r
 | C. Francisco-Charles | c.franciscocharles@myb-roster.local | franciscocharles |
 | L. Atrakimaviciene | l.atrakimaviciene@myb-roster.local | atrakimaviciene |
 
-`nameToEmail(name)` / `normaliseSurname()` in `auth-identity.js` (the pure browser module — re-exported by `firebase-client.js`, so importers may pull it from either) must stay in sync with the copy in `functions/roster-parse-helpers.js`. As of v12.04, `getSurname()` in `session.js` delegates to `normaliseSurname()`; since v16.50 the browser source is `auth-identity.js` (moved out of `firebase-client.js` so it is unit-testable). The derivation is duplicated in `functions/roster-parse-helpers.js` — intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update ALL THREE copies — `auth-identity.js`, `functions/roster-parse-helpers.js`, and `memberEmailFor` in `firestore.rules` (a mismatch with the rules copy locks that member out). `surname-parity.test.mjs` pins the first two together; the rules suite's whole-roster test in `firestore.rules.test.mjs` pins the third.
+`nameToEmail(name)` / `normaliseSurname()` in `auth-identity.js` (the pure browser module — re-exported by `firebase-client.js`, so importers may pull it from either) must stay in sync with the copy in `functions/roster-parse-helpers.js`; `getSurname()` in `session.js` delegates to `normaliseSurname()`. The derivation is duplicated in `functions/roster-parse-helpers.js` — intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update ALL THREE copies — `auth-identity.js`, `functions/roster-parse-helpers.js`, and `memberEmailFor` in `firestore.rules` (a mismatch with the rules copy locks that member out). `surname-parity.test.mjs` pins the first two together; the rules suite's whole-roster test in `firestore.rules.test.mjs` pins the third.
 
-**Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it re-establishes an un-migrated member's session on page load with nothing typed. It no longer CREATES a missing account: that client-side self-heal was retired at v24.34, so an account that does not exist is provisioned only by Operations → Set up accounts. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js` (v18.63).
+**Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it re-establishes an un-migrated member's session on page load with nothing typed. The client never CREATES a missing account: one that does not exist is provisioned only by Operations → Set up accounts. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js`.
 
-**Chosen passwords (v18.63 — PASSWORD_DESIGN.md Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value first and only falls back to the surname default while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and (by default) revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. **The member is now told (v23.62):** a reset sends `🔑 Password reset — set a new one` to that member's own devices, and nobody else's. It never names the new password (a push renders on a lock screen). If they have no notifications on this app the reset still stands and Operations says so, which is your cue to tell them directly — they have been signed out of their devices and would otherwise have no idea why. **Signed out means signed out (Oct 2026 production review):** a device still holding the member's 60-day session used to sign itself straight back in with the surname the reset had just restored — a lost phone came back in. Now a silent sign-in on a session older than the reset is refused and the session ended (`sessionPredatesReset`, auth-identity.js), so every such device must type a password. Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
+**Chosen passwords (PASSWORD_DESIGN.md — Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value first and only falls back to the surname default while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and (by default) revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. **The member is told:** a reset sends `🔑 Password reset — set a new one` to that member's own devices, and nobody else's. It never names the new password (a push renders on a lock screen). If they have no notifications on this app the reset still stands and Operations says so, which is your cue to tell them directly — they have been signed out of their devices and would otherwise have no idea why. **Signed out means signed out:** a silent sign-in on a session older than the reset is refused and the session ended (`sessionPredatesReset`, auth-identity.js), so every device the member was signed in on must type a password — otherwise a device still holding the 60-day session would sign itself straight back in with the surname the reset had just restored (AUTH_AND_SESSIONS.md 23). Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
 
-### Locked-out member → reset request queue (v18.93–95)
+### Locked-out member → reset request queue
 
 The one flow that starts with **no identity at all**: a member who has forgotten a self-set password
 has no Firebase session, so they cannot write anything — which is why this runs through a public
-unauthenticated endpoint (one of two, with `unlockCalendarViewer`) rather than a client write.
+unauthenticated endpoint (one of two, with `unlockCalendarViewer`) rather than a client write. The
+design and its accepted risks are `PASSWORD_DESIGN.md` §12–§14.
 
-1. **Member** taps "Can't get in?" on the login overlay — **always available there since v20.48**,
-   under the Sign in button; before that it appeared only after two failed attempts, so a member who
-   knew they had forgotten had to fail twice first → `requestPasswordReset` in
-   `firebase-client.js` (the one caller there that sends **no** auth token) → the
-   `requestPasswordReset` Cloud Function.
+1. **Member** taps "Can't get in?" on the login overlay — **always available there**, under the Sign
+   in button → `requestPasswordReset` in `firebase-client.js` (the one caller there that sends **no**
+   auth token) → the `requestPasswordReset` Cloud Function.
 2. **Function** (Admin SDK) upserts `resetRequests/{memberName}` — `requestedAt`, `count`, and
-   `provisioned` (false ⇒ the remedy is **Set up accounts**, not Reset). The doc ID is the member
-   name *deliberately*: the collection can never exceed the roster size, so flooding it is impossible
-   by construction rather than by rate limiting. The name comes from the server-owned `activeMembers`
-   list, never the request body, and **no free text is ever stored** — an unauthenticated endpoint
-   writing caller-controlled strings into an admin UI would be an injection surface for no benefit.
+   `provisioned` (false ⇒ the remedy is **Set up accounts**, not Reset). The doc ID is the member name
+   *deliberately*, so the collection can never exceed the roster; the name comes from the server-owned
+   `activeMembers` list, never the request body, and **no free text is ever stored**.
 3. **Admin push** — a genuinely-recorded request (never a throttled repeat) sends
-   `🙋 Reset requests — N waiting` via `sendTargetedPush`, **not** `fanOutPush`: "N. Surname is locked
-   out" broadcast to ~50 staff would be a leak. Owner-uid filtered, fails closed at every step, no
-   fall-back-to-everyone branch. Deep-links to `operations.html#reset-requests`, which opens and
-   scrolls to that card (`DEEP_LINK_CARDS`). The push is a courtesy — the Firestore row is the doorbell.
+   `🙋 Reset requests — N waiting` to the **admin's devices only** (`sendTargetedPush`, never
+   `fanOutPush` — `.claude/rules/notifications.md`), deep-linking to `operations.html#reset-requests`,
+   which opens and scrolls to that card. The push is a courtesy — the Firestore row is the doorbell.
 4. **Admin** actions it in Operations → Password Reset Requests (Reset, or Set up accounts if
-   `provisioned` is false), then clears the row (`clearResetRequest`). Create/update is denied to every
-   client **including the admin**; only the function writes.
-5. **The member is told, on their own devices** (v23.62). Until then the one person the reset was
-   about was the only person not told: their password had become the surname default and their other
-   devices were signed out, and they discovered both by failing to sign in. `resetMemberPassword`
-   sends `🔑 Password reset — set a new one` via `sendTargetedPush` to the uid it has just written,
-   deep-linking to `settings.html`, where the Password card opens itself. **The new password is
-   never in the payload** — a push renders on a lock screen, and the default is derived from a
-   surname that is on the roster.
+   `provisioned` is false), then clears the row (`clearResetRequest`). **A request proves nothing about
+   who sent it** — confirm with the member before resetting (PASSWORD_DESIGN.md §13). Create/update is
+   denied to every client **including the admin**; only the function writes.
+5. **The member is told, on their own devices.** `resetMemberPassword` sends
+   `🔑 Password reset — set a new one` via `sendTargetedPush` to the uid it has just written,
+   deep-linking to `settings.html`, where the Password card opens itself. **The new password is never
+   in the payload** — a push renders on a lock screen.
 
    Operationally the figure to read is **`notified`**, reported beside `revoked` and `stamped`: the
    credential has already changed by that line, so a push failure never means the reset failed. A
@@ -501,7 +485,7 @@ unauthenticated endpoint (one of two, with `unlockCalendarViewer`) rather than a
 nothing doing: `notif.js` re-saves the record with its owner at the next load, outside its 24-hour
 throttle.
 
-### Sign-in statistics (v18.96)
+### Sign-in statistics
 
 The Operations → Usage card shows an **exact** unique-account count beside the anonymous trend. It
 comes from `getSignInStats` (admin-only), which reads Firebase Auth's own `lastSignInTime` — so
@@ -512,22 +496,20 @@ inflate it; returns four integers, no identity. It measures **sign-ins, not acti
 session), and there is no history — only
 the last sign-in is stored. `neverSignedIn` is the actionable figure.
 
-### Which address staff are on (v19.23, key added v19.29)
+### Which address staff are on
 
 While the app is served from BOTH `myb-roster.web.app` and the GitHub Pages mirror, the Usage card's
-**Which address staff are on** section is the only record of how far the move has got. Member-devices
-per address over the last 30 days — each counted on its latest active day since v25.00 — with the share
-that opened the **installed app** rather than a browser tab nested inside each bar, and stated as a
-number beneath it (v25.00: "9 of 24 on GitHub Pages" is the figure a retirement decision needs, and a
-bar's share alone did not give it). Each row names its full address underneath — the labels alone are
-too short to identify (v19.29, after the labels were shortened for column alignment and the addresses
-were left in a hover tooltip no phone can reach).
+**Which address staff are on** section is the only record of how far the move has got: member-devices
+per address over the last 30 days, each counted on its latest active day, with the share that opened
+the **installed app** rather than a browser tab nested inside each bar and stated as a number beneath
+it — "9 of 24 on GitHub Pages" is the figure a retirement decision needs. Each row names its full
+address underneath.
 
 **Read it knowing what it cannot see.** It counts OPENS, so an install nobody has opened in 30 days is
 invisible — and those are exactly the people a migration strands. Someone using both addresses counts
 on each, which is what half-migrated looks like. A signed-in admin's loads are excluded, like every
-other figure on the card; the station PC's are counted (v25.00 — KNOWN_LIMITATIONS.md → "The Usage
-counts are a trend" has what changed at that release, and why the figures step up after it).
+other figure on the card; the station PC's are counted (KNOWN_LIMITATIONS.md → "The Usage counts are a
+trend" says why the figures stepped up when that changed).
 
 **Why it matters operationally:** an installed PWA keeps launching from its own service-worker cache,
 so it will not drift onto the new address by itself. Anyone who does move loses their pay calculator
@@ -543,11 +525,10 @@ Migration history (v7.61 → v7.94) is in `ROADMAP_HISTORY.md` → Completed pha
 ## When "Deploy Firebase Functions" fails at "Audit production dependencies"
 
 The Functions deploy refuses to ship while `npm audit --omit=dev` in `functions/` reports a high or
-critical advisory (`scripts/audit-functions-deps.sh`). It fails on a day nothing in the app changed,
-because advisories are PUBLISHED against packages already installed — that is what happened to
-v24.48 (4 Oct 2026: busboy, grpc-js, brace-expansion, all transitive under the Firebase SDKs).
-Nothing is deployed, so the live functions stay on the previous release; hosting deploys separately
-and is unaffected.
+critical advisory (`scripts/audit-functions-deps.sh`). It can fail on a day nothing in the app changed,
+because advisories are PUBLISHED against packages already installed — typically transitive under the
+Firebase SDKs. Nothing is deployed, so the live functions stay on the previous release; hosting deploys
+separately and is unaffected.
 
 The fix: in `functions/`, `npm audit fix --omit=dev` (never `--force`, which can downgrade a major),
 check the lockfile diff is patch/minor releases only, run `npm run test:functions`, bump the version
@@ -560,7 +541,7 @@ check the lockfile diff is patch/minor releases only, run `npm run test:function
 mirror shipped it, so for about three hours most staff ran a release the gate had refused. `main`
 also requires no checks before a merge. That is `ARCHITECTURE.md` → EXC-008.
 
-**What is already in the repository** (whole-app review, Oct 2026). `deploy-mirror.yml` publishes the
+**What is already in the repository.** `deploy-mirror.yml` publishes the
 mirror from the commit a SUCCESSFUL "Deploy Firebase Hosting" run released, and from nothing else:
 it checks every precached file is in the site, deploys, then proves the live mirror serves that
 version, and a failure lands on the same `deploy-failure` issue as the other deploys. **It does
@@ -574,7 +555,7 @@ trails Hosting rather than leading it, so "both origins behind" during a release
    ruleset. Target the default branch. Turn on **Require status checks to pass** and **Require
    branches to be up to date before merging**, and add the checks from a recent pull request run:
    `version`, `unit`, `nodeps`, `functions`, `rules`, `csp` and every `smoke` entry (one per screen
-   size since 3 Nov 2026: `smoke (chromium)` and `smoke (mobile-chrome)`). Leave out
+   size: `smoke (chromium)` and `smoke (mobile-chrome)`). Leave out
    `guard` (it decides whether the others run), and `visual` / `visual-webkit`, which are report-only
    by design. Whether the `webkit` entries gate merging is your call: the deploy gate deliberately
    runs Chromium only (DECISIONS.md, 8 Sep 2026).
@@ -598,14 +579,12 @@ branch build needs, so it stays either way.
 Five steps, and **the order matters** — step 2 changes what the roster parser can read. Referred to
 from CLAUDE.md, the `/leaver` and `/new-starter` skills and the Overtime section below, all of which
 carry the tick-list; **this is the long form and the only home of the reasoning** — `/leaver` is the
-executable checklist and routes here rather than restating any of it. Written after a leaver on
-15 Sep 2026 made the ordering question concrete, and given a verification step at v22.53 once the
-provisioning audit existed to provide one.
+executable checklist and routes here rather than restating any of it.
 
 **1. Upload the final roster PDF that still contains them.**
 
 `hidden: true` does not only hide somebody from the member dropdown. `generate-roster-members.mjs`
-builds the AI-parsing name lists as `role === 'CES' && !m.hidden && !m.managerOnly`, so hiding them
+builds each AI-parsing name list as `role === <grade> && !m.hidden && !m.managerOnly`, so hiding them
 **removes them from the `cea`/`ces`/`dispatcher` list the parser matches rows against**. A roster PDF
 covering their last days, uploaded after that, has a row for somebody the parser no longer knows.
 
@@ -648,27 +627,28 @@ Hiding them removes them from `activeMembers`, which is the server-owned list `s
 trusts — but that governs PROVISIONING, not revocation. The Firebase Auth account keeps working until
 this is run, and the surname default is still a valid password for it (`ARCHITECTURE.md` → EXC-005).
 
-**It also stops their notifications** (whole-app review, Oct 2026). A leaver who never pressed Sign
+**It also stops their notifications.** A leaver who never pressed Sign
 out — the normal case: they simply stop opening the app — keeps a push record stamped with their
 account, and the staff broadcasts (the Huddle, the documents, pay reminders) go to every record, so
 their phone went on receiving them indefinitely. The confirmed sweep now deletes the records the
 disabled account owns (`releasePushForOwner`, `functions/push.js`). A record older than v17.76 has no
 owner and cannot be attributed; it goes when the push service retires it.
 
-**4. Check it actually took** (v22.53).
+**4. Check it actually took.**
 
-The Staff Login Accounts card now states its own condition, above the button: a read-only audit
+The Staff Login Accounts card states its own condition, above the button: a read-only audit
 (`getAccountSetupGaps`) comparing the server-owned roster against Firebase Auth. Done properly it
 reads *"Everyone on the roster has a login, and no leaver still has one."* A leaver who is still
-enabled is named there in red, and the **Needs attention** strip at the top of the page carries a
-*"1 leaver can still sign in"* item until it is fixed.
+enabled is named there ("1 leaver can still sign in"), and the **Needs attention** strip at the top of
+the page carries a *Leavers still active* item until it is fixed.
 
 This step exists because **every failure in steps 1–3 is silent**. A skipped step 3 leaves a working
-login and, before this, nothing in the app mentioned it — the dry-run preview inside Set up accounts
-was the only place it showed, which is a check you have to already suspect you need.
+login, and the dry-run preview inside Set up accounts is otherwise the only place it shows — a check
+you have to already suspect you need.
 
-If the block says it **couldn't check**, that is a third answer and not a pass: the server could not
-see the roster's accounts and declined to name the whole roster as missing rather than guess. Retry it.
+If the block says it **couldn't check** — the connection, an account list the server could not see
+(it declines to name the whole roster as missing rather than guess), or an answer it could not read —
+that is a third answer and not a pass. Retry it.
 
 **"Taken back and reset to the default password"** (v24.24) is a line Set up accounts prints when it
 finds an account at a roster email carrying no custom claim at all — somebody registered that email
@@ -685,7 +665,7 @@ stamped on that account — run Set up accounts again.
 affects weeks created afterwards. They stay outstanding in every already-open week until the horizon
 rolls past. Use **Stop asking** on their row in *Who is being asked*, once per open week — see
 "Somebody who has left, and is being chased every week" below. A closed week refuses it by design.
-Nothing to do here while Overtime is paused (Nov 2026): no week asks anyone.
+Nothing to do here while Overtime is paused (`OVERTIME_AVAILABILITY.md` → Paused): no week asks anyone.
 
 **Their data stays, and that is deliberate.** Overrides are keyed by name, so their past shifts, AL
 and absences remain an accurate record of what happened. Their `staffContact` work email also
@@ -693,7 +673,7 @@ survives; removing it is a separate decision nobody is forced into by this proce
 
 ---
 
-## Which year's allowance a January leave day comes out of (v25.18)
+## Which year's allowance a January leave day comes out of
 
 Some staff are allowed to take a few of one year's days in early January of the next (owner, 3 Nov
 2026). By default a January leave day counts against its own year; the **"Which year's allowance"**
@@ -702,13 +682,13 @@ their own days, a manager or the admin anyone's, and a day can never move to a y
 left. The design and the owner's decisions are in `leave-year.js`; the field is `leaveYear` in
 docs/DATA_MODEL.md.
 
-**ON since v25.19 (3 Nov 2026).** It shipped switched OFF at v25.18, because the database rules that
-accept `leaveYear` and the app that writes it deploy in parallel from one push; v25.19 turned it on
-once **Deploy Firestore and Storage Rules** had finished green (13:19 UTC). The switch is `LEAVE_YEAR_CHOICE` in
-`leave-year.js`, and the assertion in `leave-year.test.mjs` changes with it, deliberately.
+**It is ON.** The switch is `LEAVE_YEAR_CHOICE` in `leave-year.js`, and the assertion in
+`leave-year.test.mjs` changes with it, deliberately. It shipped switched off first and was turned on
+only once **Deploy Firestore and Storage Rules** had finished green, because the rules that accept
+`leaveYear` and the app that writes it deploy in parallel from one push (the backend-first rule, CLAUDE.md → Workflows).
 
-Check it: Admin → Record Annual Leave, for somebody with leave booked in January 2027 — the panel
-appears beneath the Record button, listing those days with 2026 and 2027 to choose between.
+Check it: Admin → Record Annual Leave, for somebody with leave booked in January — the panel appears
+beneath the Record button, listing those days with the two years to choose between.
 
 **Switching it off again** hides the panel. Days already moved keep counting against the year they
 were moved to — counting reads the stored year whatever the switch says, so no figure changes.
@@ -721,84 +701,79 @@ not checked. That is the same footing as the leave booking's own over-allowance 
 workbook carries them forward as c/f into the later one. Next year's remaining agrees; last year's
 differs by exactly the moved days (AL_WORKBOOK.md §9).
 
-## Staff PIN access for the Calendar (v20.12)
+## Staff PIN access for the Calendar
 
-The Calendar opens for **either** a signed-in member **or** the shared staff PIN. Everything
-privileged — Admin, Settings, Operations, Links — still needs a real member sign-in; the PIN grants
-reads, not identity: *the Calendar's override data* and the three documents (the Huddle, Circular and
-Newsletter); its only writes are the error log and the usage counters (`isKnownIdentity`). The one
-other page it opens is **Trains** (v24.84, owner, 22 Oct 2026), which reads nothing at all — the timetable is public — and
-was admitted because the staff customers ask are the station's (AUTH_AND_SESSIONS.md invariant 24).
+The Calendar opens for **either** a signed-in member **or** the shared staff PIN. Every other
+protected page but Trains — Admin, Settings, Operations, Links, the Pay Calculator and the rest — still
+needs a real member sign-in; the PIN grants reads, not identity: *the Calendar's override data* and the three documents (the Huddle,
+Circular and Newsletter); its only writes are the error log and the usage counters
+(`isKnownIdentity`). The one other page it opens is **Trains** (owner, 22 Oct 2026), which reads
+nothing at all — the timetable is public — and was admitted because the staff customers ask are the
+station's (AUTH_AND_SESSIONS.md invariant 24). **The PIN is a barrier, not authentication** — no
+surface may describe it as signing somebody in (AUTH_AND_SESSIONS.md invariant 18).
 
 ### Why it exists
 
 Staff open the roster on shared office PCs for a quick look. Signing into a corporate Windows
 account gives them a fresh browser every time, so a full member sign-in for a thirty-second glance
-is friction nobody would accept. Until v20.12 the alternative was that override data — annual leave,
-absence and shift changes for every member — was readable by anyone with the URL. The PIN is what
-lets both be fixed at once.
+is friction nobody would accept. Without the PIN, override data — annual leave, absence and shift
+changes for every member — would be readable by anyone with the URL, which is how it was before. The
+PIN is what lets both be fixed at once.
 
 ### What a member experiences
 
 | Situation | What happens |
 |---|---|
 | Signed-in member, live session | Nothing changes. No PIN, no interruption; the session rule (60 days) is untouched. |
-| Any browser holding nothing — a new phone, a shared PC's fresh browser (v23.19) | The Calendar area shows the **member sign-in card** first (grade · name · password — the same card as the other pages), with **"Use the staff PIN instead"** beneath it and a line saying who the PIN is for: visiting or agency staff, or anyone without a password yet. One tap → the "Enter the staff PIN" card. Four digits → the roster, including whichever member was last selected on that machine. A station PC can bookmark `./#staff-pin` to land on the PIN card directly. |
+| Any browser holding nothing — a new phone, a shared PC's fresh browser | The Calendar area shows the **member sign-in card** first (grade · name · password — the same card as the other pages), with **"Use the staff PIN instead"** beneath it and a line saying who the PIN is for: visiting or agency staff, or anyone without a password yet. One tap → the "Enter the staff PIN" card. Four digits → the roster, including whichever member was last selected on that machine. A station PC can bookmark `./#staff-pin` to land on the PIN card directly. |
 | Same browser, reload or navigation | Stays unlocked. The viewer session lives as long as the browser session. |
 | Browser closed and reopened | The PIN is asked for again. That is the point — a PC left on a Windows account does not carry the roster into the next person's day. |
 | Guides | Reachable **without** the PIN. The nav drawer is never locked. |
-| Huddle, Circular, Newsletter | Need the PIN or a sign-in (v23.17). A locked tap says what to do rather than opening; a notification tap is held on the PIN card and finishes once access is given. |
-| Trains page (v24.84) | Opens with the PIN, from the drawer's 🚆 Trains pill, and the PIN is still held on the way back. Its drawer shows **Staff PIN access** and **Lock Calendar**, which locks the station and lands on the PIN card. Admin, Pay and Settings still ask for a member sign-in, and signing in there ends the PIN. A fresh browser that opens Trains directly is asked to sign in — the PIN is entered on the Calendar. |
-| A member whose sign-in has been lost from the device (v20.79) | They get **their own sign-in card**, never the PIN — see below. |
-| A slow start on a poor connection (v20.80) | A greyed-out calendar shape while the app works out what to show, rather than a blank screen. |
+| Huddle, Circular, Newsletter | Need the PIN or a sign-in. A locked tap says what to do rather than opening; a notification tap is held on the PIN card and finishes once access is given. |
+| Trains page | Opens with the PIN, from the drawer's 🚆 Trains pill, and the PIN is still held on the way back. Its drawer shows **Staff PIN access** and **Lock Calendar**, which locks the station and lands on the PIN card. Admin, Pay and Settings still ask for a member sign-in, and signing in there ends the PIN. A fresh browser that opens Trains directly is asked to sign in — the PIN is entered on the Calendar. |
+| A member whose sign-in has been lost from the device | They get **their own sign-in card**, never the PIN — see below. |
+| A slow start on a poor connection | A greyed-out calendar shape while the app works out what to show, rather than a blank screen. |
 
 The PIN card's **"Sign in instead"** goes back to the sign-in card, and a viewer can press **Lock
 Calendar** in the nav drawer before walking away — that lands on the PIN card, because whoever
-pressed it got in with the PIN. (From v20.12 to v23.18 the PIN card came first and sign-in was the
-link; the order was reversed on 7 Sep 2026 because most people opening the app are staff with a
-password of their own, and signing in is what ends the code for them for 60 days.)
+pressed it got in with the PIN. **The sign-in card comes first** (owner decision, 7 Sep 2026) because
+most people opening the app are staff with a password of their own, and signing in is what ends the
+code for them for 60 days.
 
-### "It asked me for a PIN and I'm signed in" — what that used to mean (v20.79)
+### "It asked me for a PIN and I'm signed in"
 
-A support question worth recognising, because it had two quite different causes and only one of them
-looked like a fluke:
+A support question worth recognising, because it can have two quite different causes:
 
 - **The device forgot the member's sign-in.** iPhones clear a web app's stored login after about a
   week of not opening it, while the app's own session lasts 60 days. So a member who uses the roster
-  every few weeks could be, as far as they and the app were concerned, signed in — with nothing
-  behind it. That failed on *every* open, not occasionally.
-- **The sign-in was simply slow to come back** and arrived after the app had already decided.
+  every few weeks can be, as far as they and the app are concerned, signed in — with nothing behind
+  it.
+- **The sign-in was simply slow to come back.**
 
-Both used to land on the staff PIN, which is the wrong answer twice over: it asks a signed-in member
-for a shared code, and using it would have left them browsing as the shared PIN viewer with
-their own name still in the drawer. Since v20.79 that member gets a card addressed to them whose
-button is the normal sign-in — and for anyone still on their surname default the app quietly signs
-them back in with nothing typed, so they see nothing at all. A late sign-in is now honoured whenever
-it turns up rather than ignored for the rest of the page load.
+Neither lands on the staff PIN: a signed-in member is never sent to the shared code (CALENDAR_DATA.md
+invariant 11). That member gets a card addressed to them whose button is the normal sign-in — and for
+anyone still on their surname default the app quietly signs them back in with nothing typed, so they
+see nothing at all. A late sign-in is honoured whenever it turns up.
 
 **If a member still reports it:** ask whether the card said "Calendar · <their name>". If it did,
 that is the sign-in card working as intended and the remedy is their password. If they genuinely saw
 the four-digit PIN card, they have no session on that device — which is expected on a shared PC and
 on any browser they have not signed into.
 
-### There is no on/off switch any more (retired v24.34)
+### There is no on/off switch
 
-`CONFIG.CALENDAR_PIN_ACCESS` in `roster-data.js` used to be the on/off switch: `false` put the
-Calendar back on its pre-v20.12 model (anonymous session, no gate, no card), which was how the
-feature shipped DARK and the fast rollback while the `overrides` rule was still permissive. **It was
-retired at v24.34** because the server rules no longer allow the anonymous session it restored —
-override and document reads need a member claim, `admin`, or the PIN's `calendarViewer` — so
-flipping it would have shown every visitor a base roster under a "couldn't update" chip, a roster
-that is WRONG rather than obviously broken. Rollback is reverting the release (and, for the read
-rule, RECOVERY_RUNBOOK.md → "The Calendar PIN").
+Rollback is reverting the release (and, for the read rule, RECOVERY_RUNBOOK.md → "The Calendar PIN").
+The client switch the PIN shipped behind, `CONFIG.CALENDAR_PIN_ACCESS`, was retired because the rules
+no longer allow the anonymous session its `false` mode restored — flipping it would have shown every
+visitor a base roster under a "couldn't update" chip, a roster that is WRONG rather than obviously
+broken.
 
-**BOTH BRAKES ARE NOW OFF (26 Aug 2026).** The flag was `true` from v20.51 and the
-`allow read;` hold line was deleted at v21.78, so `overrides` reads require a bound member identity
-(`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the `calendarViewer` capability and the server refuses anything else. They were released one push
-each, client first and rules second — steps 3 and 4 of RECOVERY_RUNBOOK.md → "The Calendar PIN".
-That ordering is the part worth remembering if a comparable rollout ever comes up: the deploy
+`overrides` reads require a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19),
+`admin`, or the `calendarViewer` capability, and the server refuses anything else. The rollout's
+lesson, for any comparable change: **client first, rules second, as separate pushes** — the deploy
 workflows run in parallel, so which lands first is a coin toss, and rules-before-client is the state
-that shows every staff phone a roster that is wrong rather than obviously broken.
+that shows every staff phone a roster that is wrong rather than obviously broken (RECOVERY_RUNBOOK.md →
+"The Calendar PIN" has the steps).
 
 ### Setting the PIN (do this FIRST — the function will not work without it)
 
@@ -852,38 +827,28 @@ the new PIN. Member sessions are untouched.
 ### Abuse protection
 
 A four-digit PIN is 10,000 combinations, so the endpoint is throttled server-side **two ways**, both
-recorded in the server-only `viewerAttempts` collection. Only *failures* stay recorded: every attempt
-is charged BEFORE its PIN is compared (so concurrent guesses cannot all be compared before any is
-counted), and a correct PIN is then refunded — a refund that brings a bucket to zero deletes the row.
-The cost of that is contention: every unlock, right or wrong, now writes the one all-sources document
-twice (charge and refund), and those writes serialise. At a handful of unlocks a day that is nothing;
-it is the trade that bought a limit on guesses COMPARED rather than on the rate of charging.
+recorded in the server-only `viewerAttempts` collection. Only *failures* stay counted: every attempt is
+charged BEFORE its PIN is compared and a correct PIN is refunded afterwards. The reasoning — why the
+charge comes first, what the contention costs, and why the per-source key is read from the END of
+`x-forwarded-for` (a caller can only prepend to it) — is `functions/calendar-viewer-auth.js`'s header.
 
 1. **Per source — 30 failed attempts per 15 minutes, then a 15-minute block.** Sized for a station
    behind one corporate NAT address: thirty *wrong* entries in fifteen minutes from the whole
    building is not fumbling, and a correct PIN never stays counted.
-2. **All sources — 200 failed attempts per 15 minutes** (v20.35), under a fixed key. This caps the
-   whole endpoint at 800 guesses an hour, so the full PIN space takes upwards of twelve hours of
-   obviously abnormal traffic.
-
-**Why the second one exists.** Every per-source limit depends on identifying the caller, and that
-identification comes from the `x-forwarded-for` header — which a caller can *prepend to*. Until
-v20.35 the code read the **first** entry, so sending a different fake address per request minted a
-fresh bucket each time and there was no effective limit at all. The key is now taken from the **end**
-of the chain (the platform appends; a caller cannot), and the all-sources ceiling holds regardless,
-because it is keyed on a constant no header can touch.
+2. **All sources — 200 failed attempts per 15 minutes**, under a fixed key no header can touch. This
+   caps the whole endpoint at 800 guesses an hour, so the full PIN space takes upwards of twelve hours
+   of obviously abnormal traffic.
 
 Blocks expire on their own; there is no permanent lock, deliberately, because a shared-source
 control that anyone can drive into a permanent state is a denial-of-service handle pointed at staff.
-If the all-sources ceiling ever *does* trip during normal use, that means the code in circulation is
-wrong — reissue it rather than raising the number.
+**If the all-sources ceiling ever trips during normal use, the code in circulation is wrong — reissue
+it rather than raising the number.**
 
 **If the throttle store itself is unreachable, the endpoint refuses (503) rather than guessing
-unthrottled** (v20.45 — it failed open until an external review argued the point and won). The
-refusal costs nothing real: the overrides live in the same Firestore the throttle read just failed
-against, so a token minted during that outage could not have loaded a single shift anyway. Staff see
-the card's ordinary "try again shortly" message, and the moment Firestore recovers both the unlock
-and the roster come back together.
+unthrottled.** The refusal costs nothing real: the overrides live in the same Firestore the throttle
+read just failed against, so a token minted during that outage could not have loaded a single shift
+anyway. Staff see the card's ordinary "try again shortly" message, and the moment Firestore recovers
+both the unlock and the roster come back together.
 
 ### Diagnosing a problem
 
@@ -894,7 +859,7 @@ and the roster come back together.
   not refusing. A 503 whose body and log say "Calendar access is not configured" is an unset or
   malformed secret; a 500 on every CORRECT PIN is the missing IAM grant (`roles/iam.serviceAccountTokenCreator`
   on the runtime service account — RECOVERY_RUNBOOK.md project facts), which is what broke the
-  10 Aug 2026 rollout. Neither message names the cause on screen; the Cloud Function log does.
+  first rollout. Neither message names the cause on screen; the Cloud Function log does.
 - **Unlock succeeds, Calendar shows no shifts** → the token minted without its claim, or the rules
   and the client disagree about the claim name. `calendar-viewer-parity.test.mjs` is the guard for
   the second; the Cloud Function log line `[unlockCalendarViewer] unlocked <hash>` confirms the first.
@@ -903,10 +868,12 @@ and the roster come back together.
 
 ---
 
-## Overtime Availability (v20.56, restricted beta)
+## Overtime Availability — PAUSED
 
-**PAUSED since v25.05 (owner, Nov 2026)** — closed to everyone, and nothing runs but the retention purge, so nothing
-in this section applies until it returns. `OVERTIME_AVAILABILITY.md` → Paused has the switch and the way back.
+**PAUSED (owner, Nov 2026)** — closed to everyone, the admin included, and nothing runs but the
+retention purge, so nothing in this section applies until it returns. `CONFIG.OVERTIME_ENABLED` in
+`roster-data.js` is the switch; `OVERTIME_AVAILABILITY.md` → Paused has what it does and the way back.
+The rest of this section is kept as the operating guide for its return.
 
 Staff declare, per day, when they are available for overtime in a future roster week; a Manager or
 Master Admin reads the answers by day and plans cover from them. Full design — the milestone
@@ -915,7 +882,8 @@ timetable, the frozen participant snapshot, the audience ladder, retention, conc
 
 ### The weekly rhythm
 
-Windows are named by their **week-ending Saturday**. Counting back from it:
+Windows are named by their **week-ending Saturday**. Counting back from it (`MILESTONE_OFFSETS` in
+`functions/overtime-core.js` is the authority):
 
 | When | What happens |
 |---|---|
@@ -927,13 +895,12 @@ Windows are named by their **week-ending Saturday**. Counting back from it:
 
 ### Weeks open by themselves — there is nothing to remember
 
-**Since v20.61 a scheduled job creates every missing horizon week at 05:00 London, daily.** Overtime
+**A scheduled job creates every missing horizon week at 05:00 London, daily.** Overtime
 is needed every week, so a window is needed every week, and pressing a button fifty-two times a year
 to approve a computation you cannot influence is not a control — it is a way to forget. Daily rather
 than weekly, so a missed run self-heals within a day instead of losing a whole week.
 
-*Upcoming weeks* therefore changed job: it was the safety net under a person, and it is now the
-**monitor over that job**. It still shows every horizon week whether or not any exist — because it is
+*Upcoming weeks* is therefore not a safety net under a person but the **monitor over that job**. It still shows every horizon week whether or not any exist — because it is
 computed from the calendar, not from Firestore — so a week the scheduler failed to create still
 appears, still says it has no form, and still offers the button. Its collapsed chip counts the weeks
 **without** a form; that chip is the thing to glance at.
@@ -949,7 +916,7 @@ Row states, and what each means:
 | **No form yet · first deadline has passed** | Still opens automatically, but late enough to be worth a look: anyone answering now misses the draft roster. |
 | **Missed · no form was opened, so nobody was asked** | The final deadline went by with no window. It cannot be recovered, and the row stays until its Saturday passes. |
 
-### Nobody is asked silently any more (v21.47)
+### Nobody is asked silently any more
 
 Two push notices go out on their own, both **only to the people they concern** — never a broadcast:
 
@@ -961,10 +928,9 @@ Two push notices go out on their own, both **only to the people they concern** �
 A member added to several weeks in one run gets **one** notice, not one per week. Somebody who has
 already answered is not reminded, and a withdrawn participant is not asked at all.
 
-What this changes operationally is what a "No response" now means: before v21.47 it could simply be
-somebody who never opened the app that week, which the system itself had done nothing about. Now a
-member with an account and a subscribed device has been told twice. A remaining blank is much more
-likely to be a real answer — they cannot do it — and worth a call rather than a nudge.
+What this means operationally: a member with an account and a subscribed device has been told
+twice, so a remaining "No response" is much more likely to be a real answer — they cannot do it — and
+worth a call rather than a nudge.
 
 **It can fail quietly, by design.** A member with no Firebase account, or who has never turned
 notifications on, is skipped rather than guessed at; the send can never fail the window it announces.
@@ -993,11 +959,11 @@ It shows that week by day, in three sections that never merge: Available, Not av
 response**. The third is not a soft "no" — nobody has answered — and it is the list a phone call
 works from, alongside *Awaiting a form*. Above the days, a strip of seven chips gives the count who
 offered **some** availability on each. Only **zero** is marked, in red: a count above zero is left
-plain on purpose (v20.87), because the app does not know which shift you are short of — four people
+plain on purpose, because the app does not know which shift you are short of — four people
 free before 07:00 do not fill a late turn, and a "1–2 is low" amber band was the app putting a
 verdict on a number it cannot judge. Tap a chip to show only that day, *All week* to bring them back.
 
-**Each person's row states their current roster** (v20.87). Beside the name and grade sits the same
+**Each person's row states their current roster.** Beside the name and grade sits the same
 shift chip the calendar draws — 🏠 Rest, ☀️ Early 07:15–15:45 — for that date. An answer is only
 actionable next to the duty it was built from, and the case this exists for is somebody who declared
 "rest day, available all day" and has since BEEN given overtime: no use for cover, and nothing said
@@ -1006,21 +972,20 @@ changed since this answer** — their declaration stands, the ground under it mo
 
 Two other markers, and they mean different things. **Submitted after initial deadline** — nothing
 was received from that person until planning had started. **Changed after initial deadline · was …**
-names what that day previously said, and appears only on the days that actually moved (v20.87), so
-wherever you see it something changed there.
+names what that day previously said, and appears only on the days that actually moved, so wherever
+you see it something changed there.
 
 **Viewing by grade.** Above the day chips, one chip per grade in the week — *All grades · CEA · CES ·
 Dispatcher*, whichever are actually in it. Picking one narrows **everything**: the day counts, the
 forms-received line and the name rows all recompute for that grade alone. That is the point rather
 than a nicety — a CEA gap is not filled by an available CES, so "Tuesday has four" is only an answer
-once you know what those four are. A week with only one grade in it shows no chips — which is why
-a one-grade beta showed none at all (the beta list has been empty since 7 Oct 2026, and the page is paused); they appear by themselves once a second
-grade is in the week.
+once you know what those four are. A week with only one grade in it shows no chips; they appear by
+themselves once a second grade is in the week.
 
-Your grade choice **follows you between weeks** (v20.89). The day filter does not, because its
-dates belong to the week you were looking at.
+Your grade choice **follows you between weeks**. The day filter does not, because its dates belong to
+the week you were looking at.
 
-### "Asked to come off this Sunday" (v23.81)
+### "Asked to come off this Sunday"
 
 A member ROSTERED to work a Sunday can tick **Ask to be taken off this Sunday** on that week's form,
 and their row on your list carries the request. It is the operating half of a gap the app could not
@@ -1034,7 +999,7 @@ Three things to know before you act on one:
   is consumed. You decide, outside the app, exactly as you did before — and the app records nothing
   about your decision, so the calendar keeps showing that Sunday duty until the week's roster PDF is
   imported or the shift is changed in Admin.
-- **It is NOT an answer about overtime**, and the two are deliberately separate questions (v23.87). A
+- **It is NOT an answer about overtime**, and the two are deliberately separate questions. A
   member can be unavailable for overtime all week and still need taking off their Sunday; a member
   can ask to come off it and still not have answered the availability question at all, in which case
   that day stays in **No response** and their form still says a day is outstanding. Do not read a
@@ -1056,11 +1021,10 @@ form and anything they already said are kept — this changes what the week expe
 happened. **Ask again** on that footnote puts them back.
 
 *Who is being asked* lists everybody the week still expects, each marked **Answered** or **No form
-yet**. Until v21.20 the control sat on the *Awaiting a form* rows instead, which covered only people
-who had never answered — so somebody who submitted one week and left the next could not be withdrawn
-at all, which is a common way to leave. From that release it also reaches the **member**: a withdrawn
-person's own Overtime page stops showing the week and their form stops accepting answers, so they are
-not still filing declarations into a week that has stopped counting them.
+yet** — so somebody who submitted one week and left the next can be withdrawn too, which is a common
+way to leave. Withdrawing also reaches the **member**: a withdrawn person's own Overtime page stops
+showing the week and their form stops accepting answers, so they are not still filing declarations
+into a week that has stopped counting them.
 
 Do it per week, on each open week they appear in. A **closed** week refuses it, and that is the
 design rather than a limitation: a closed week is the record the roster was planned from, and
@@ -1071,7 +1035,7 @@ way (see **Removing a staff member**), which is what stops them appearing in wee
 that point.
 
 **On the member's side**, the page opens on the soonest form they have **not yet answered** rather
-than simply the soonest (v20.86) — a completed form is not an answer to "what do I need to do?".
+than simply the soonest — a completed form is not an answer to "what do I need to do?".
 The form names both deadlines, emphasising whichever is still ahead, and a submitted one carries a
 standing "Submitted · updated …" line so a member returning to it can see it landed.
 
@@ -1103,8 +1067,9 @@ Printing from **My availability** gives a short notice instead. It is a form, no
 - **Reviewers** (Manager or Master Admin claim) get the nav pill, the planning horizon and the
   by-day workspace. A reviewer who is not also a participant correctly has no form of their own.
 - **Participants** get their own form and nothing else. During the restricted beta the audience is
-  server-owned and deliberately narrow — a Manager can see which audience a window will have and
-  cannot change it. Widening it is a code change plus a deploy.
+  server-owned and deliberately narrow (`CONFIG.OVERTIME_BETA`, regenerated into the server copy) — a
+  Manager can see which audience a window will have and cannot change it. Widening it is a code change
+  plus a deploy.
 - **When somebody is invited, which weeks do they get?** Every week whose **first deadline is still
   ahead of them** — the nightly run adds them to those, so an invitation takes effect overnight with
   nobody pressing anything. Weeks already past their first deadline are deliberately skipped: they
@@ -1139,15 +1104,16 @@ Printing from **My availability** gives a short notice instead. It is a form, no
 
 ---
 
-## The Trains page's timetables (v24.71; every member's since v24.81)
+## The Trains page's timetables
 
 `trains.html` compares two Chiltern timetables held in one generated file, `trains-data.js`. Nothing
 about it is live: it reads no network, and its times change only when somebody regenerates that file.
+Every signed-in member can open it, and so can the staff PIN.
 
-- **What it holds** (v24.80): today's books, valid until Saturday 12 December 2026, and December's,
-  valid from 13 December 2026 to Saturday 15 May 2027 — both Chiltern's public timetables, every
-  stop included. Until v24.80 December came from the roster office's simplifier, which has no stops;
-  the generator still accepts one as a fallback.
+- **What it holds:** today's books, valid until Saturday 12 December 2026, and December's, valid from
+  13 December 2026 to Saturday 15 May 2027 — both Chiltern's public timetables, every stop included.
+  The generator still accepts the roster office's simplifier as a fallback for a side whose books are
+  not out yet (it carries no stops).
 - **When to regenerate:** whenever Chiltern issues new books — a correction, or the May 2027
   timetable, whose deadline is in `MAINTENANCE_CALENDAR.md`. The steps, and the figures the tests
   hold to the printed books, are in `docs/timetable-dec26/tooling/README.md`. If a hand-checked
@@ -1157,15 +1123,14 @@ about it is live: it reads no network, and its times change only when somebody r
   change times between 13 December and 10 January, "including significant changes over the Christmas
   and New Year period", so the overview says Christmas and New Year are not on the page until
   `FURTHER_CHANGES_UNTIL` (10 January 2027), then drops the note by itself. The note sits above the
-  overview's fold, so it shows on every visit, not only the first (v25.20 — inside the fold, a
-  returning member never saw it).
+  overview's fold, so it shows on every visit, not only the first.
 - **Never commit the inputs.** The PDFs and the simplifier spreadsheets stay out of the repository
   (the tooling's `.gitignore` refuses them); the spreadsheets hold platforms, lengths and diagrams
   that are not passenger facts.
-- **It turns over by itself on 13 December** (v24.83). From the change the first column reads
-  "Until 12 Dec", a typed time is looked up in the timetable that is running, and a new end reads
-  "Now goes on to …"; after `DEC_VALID_UNTIL` (15 May 2027) the page says both timetables have ended.
-  Nothing to switch on the day — but check it live that morning (MAINTENANCE_CALENDAR).
+- **It turns over by itself on 13 December.** From the change the first column reads "Until 12 Dec",
+  a typed time is looked up in the timetable that is running, and a new end reads "Now goes on to …";
+  after `DEC_VALID_UNTIL` (15 May 2027) the page says both timetables have ended. Nothing to switch on
+  the day — but check it live that morning (MAINTENANCE_CALENDAR).
 - **A weekday's figures are a Tuesday to Thursday's.** A few of today's weekday trains run only on
   Mondays and Fridays, or only Tuesday to Thursday; counting every row counted one train twice. The
   train lists still show both, each with its days.
@@ -1179,64 +1144,59 @@ about it is live: it reads no network, and its times change only when somebody r
   pick-up-only and set-down-only stops, "arrives 8 minutes earlier", buses, weekday versions that
   stop differently: the tooling README → "What each step knows".
 
-### The one-off timetable push, and the final week's notice (v24.94)
+### The one-off timetable push, and the final week's notice
 
 Two reminders run themselves in the week before the change, and nobody presses anything:
 
 - **Saturday 12 December 2026, 18:00 London** — `sendTimetableReminder` (functions/documents.js) sends
   ONE broadcast push to every subscribed device: "🚆 New timetable from Sunday", landing on the Trains
   page. It is a DAILY schedule with a one-date guard, so on every other evening it logs "Not the
-  evening before the change — skipping" and does nothing. To confirm it went: the function's log on
-  the 13th says "Timetable reminder sent". To stop it beforehand, the reversible way: in the GCP console, Cloud Scheduler → the job
-  Firebase created for it (named after the function) → Pause; the next Functions deploy re-creates the
-  schedule enabled, so pause it again after any deploy before the 12th. The permanent way: delete
-  `sendTimetableReminder` from the builder's return in documents.js and from `functions-surface.test.mjs`,
-  and deploy. The next timetable change moves `TIMETABLE_CHANGE` there — the body's date follows it
-  (v24.96), the headline's "from Sunday" is held to a Sunday by the test; until then the function is harmless.
+  evening before the change — skipping" and does nothing. To confirm it went: the function's log says
+  "Timetable reminder sent". To stop it beforehand, the reversible way: in the GCP console, Cloud
+  Scheduler → the job Firebase created for it (named after the function) → Pause; the next Functions
+  deploy re-creates the schedule enabled, so pause it again after any deploy before the 12th. The
+  permanent way: delete `sendTimetableReminder` from the builder's return in documents.js and from
+  `functions-surface.test.mjs`, and deploy. The next timetable change moves `TIMETABLE_CHANGE` there —
+  the body's date follows it, and the headline's "from Sunday" is held to a Sunday by the test; until
+  then the function is harmless.
 - **6 to 12 December** — the Calendar notice `timetable-soon-2026` (calendar-notices.js) is offered to
   signed-in members, once each, and retires itself on the 13th. A member who sees the push and the
   notice sees the same message twice, which is the intent: the push reaches the phones with
   notifications on, the notice reaches everyone who opens the Calendar.
 
-## The new link page (v25.06; "December link" until v25.10)
+## The new link page
 
-`newlink.html` shows colleagues the three shortlisted proposals for the new CEA link — **which starts on 1 January
-2027, not with the timetable** (owner, 2 Nov 2026: the timetable changes in December, the link follows on 1 January,
-and today's link carries on until then). It is a **preview**: only the admin and the names in `CONFIG.NEWLINK_PREVIEW` (`roster-data.js`) can open it — S. Silva,
-since 4 Nov 2026 — and a banner says who else can see it.
+`newlink.html` shows colleagues the three shortlisted proposals for the new CEA link — **which starts
+on 1 January 2027, not with the timetable** (owner, 2 Nov 2026). It is a **preview**: only the admin and
+the names in `CONFIG.NEWLINK_PREVIEW` (`roster-data.js`) can open it, and a banner says who else can see
+it.
 
-**S. Silva leads the change, as the RMT rep** (owner, 4 Nov 2026). The admin built the page and the tooling, and is in
-charge of neither the change nor the choice, so nothing the page says may suggest otherwise: "Have your say" says who
-leads it, and no line names the admin as deciding, recommending or collecting views. How the choice is made is left
-deliberately vague, on the page as in the pack — the process is in LINKS_DEC2026_PLAN.md's dashboard, not in anything
-colleagues read (`newlink-config.test.mjs` and `e2e/newlink.spec.js` hold the wording to both).
+**Every setting is one line in `newlink-config.js`** — `STARTS`, `TIMETABLE_STARTS`, `CONTACT`,
+`CONTACT_ROLE`, `CLOSES`, `AUDIENCE`, `PHASE`, `PACK_BASE` and the "Have your say" lines — so changing
+one never means touching the page. Each is an owner decision, recorded beside its line.
 
-**Every setting is one line in `newlink-config.js`**, so changing one never means touching the page:
+**Who is in charge is part of the wording.** The contact leads the change (`CONTACT_ROLE`, owner,
+4 Nov 2026); the admin built the page and the tooling and is in charge of neither the change nor the
+choice, so **no line may name the admin as deciding, recommending or collecting views**, and how the
+choice is made is left deliberately vague. `newlink-config.test.mjs` and `e2e/newlink.spec.js` hold the
+wording to both; the process is in LINKS_DEC2026_PLAN.md's dashboard, not in anything colleagues read.
 
-| Setting | What it is | Today |
-|---|---|---|
-| `STARTS` | when the new link starts | `2027-01-01` |
-| `CONTACT` | who colleagues go to about it, spelt as the roster spells it | `S. Silva` (owner, 2 Nov 2026) |
-| `CONTACT_ROLE` | what the contact is, worded beside the name: who leads the change | `the RMT rep` (owner, 4 Nov 2026) |
-| `CLOSES` | the last day for views | not set — the page says "a date to be agreed" |
-| `AUDIENCE` | who the page is for once it opens | not set — every CEA on the roster |
-| `PHASE` | where the page is in its life | `'preview'` — the admin and `CONFIG.NEWLINK_PREVIEW` |
-
-**Opening it to colleagues is not a switch yet.** It needs a role for `AUDIENCE` in `auth-policy.js` and a matching
-pill flag in `nav-panel.js` first; `newlink-config.test.mjs` refuses any other `PHASE` until those exist, so the page
-cannot be flipped open to people who cannot reach it.
+**Opening it to colleagues is not a switch yet.** It needs a role for `AUDIENCE` in `auth-policy.js` and
+a matching pill flag in `nav-panel.js` first; `newlink-config.test.mjs` refuses any other `PHASE` until
+those exist, so the page cannot be flipped open to people who cannot reach it.
 
 **Letting one more person preview it is one line**: add their name, spelt as the roster spells it, to
-`CONFIG.NEWLINK_PREVIEW` in `roster-data.js`, then bump and release. It is page access only — the page reads nothing
-from the server and shows only public files — so there is no claim to set, no `npm run generate:roster-members` and
-no Set up accounts. `newlink-config.test.mjs` refuses a name that is not an active member of the roster.
+`CONFIG.NEWLINK_PREVIEW` in `roster-data.js`, then bump and release. It is page access only — the page
+reads nothing from the server and shows only public files — so there is no claim to set, no
+`npm run generate:roster-members` and no Set up accounts. `newlink-config.test.mjs` refuses a name that
+is not an active member of the roster.
 
-**Its PDFs come from the GitHub Pages mirror** (`PACK_BASE`), because Firebase Hosting serves nothing under `docs/`.
-Retiring the mirror breaks those links — move the files into a served folder first. And once the
-mirror follows the Hosting gate, a `docs/`-only push republishes nothing (`docs/**` is in the Hosting
-deploy's `paths-ignore`), so a changed PDF reaches the page only with the next app release.
+**Its PDFs come from the GitHub Pages mirror** (`PACK_BASE`), because Firebase Hosting serves nothing
+under `docs/`. Retiring the mirror breaks those links — move the files into a served folder first. And
+once the mirror follows the Hosting gate, a `docs/`-only push republishes nothing (`docs/**` is in the
+Hosting deploy's `paths-ignore`), so a changed PDF reaches the page only with the next app release.
 
-### Keep only the shortlist (Links, v25.09)
+### Keep only the shortlist (Links)
 
 A one-off for the admin, in the Links workspace's ··· menu: **Keep only the shortlist** moves every design last saved
 before 2 Nov 2026 to Recently deleted, so the picker offers the three built-in, read-only proposals. The dialog lists
