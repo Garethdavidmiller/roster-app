@@ -70,6 +70,11 @@ the same day, was deleted in its place (*Set Fair*). **Crossover was drawn as Sa
 same day (owner: "Needs a better name", then "Use railway names in future"): `CO-26-T10`, fingerprint unchanged. **The
 pack's names are railway names from here on.**
 
+**League places dated before the evening of 7 Nov 2026 count Both Ways and Fine Tune**, deleted then (owner: "Please cut
+both ways and fine tune from the links 26 pack"). Both sat inside every range the league reads, so no score moved on any
+of its ten readings; on the main league In Step, Open Return and Second Look are one place higher and Balanced V5, V6 and
+V7 two. *Both Ways and Fine Tune deleted*, near the end, has the table.
+
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
 So a rebuild adds nothing about who decides, votes or recommends — the process is recorded in
@@ -690,7 +695,13 @@ env $F HEAVY_MAX=42 node space-polish.mjs /tmp/se2.json /tmp/se3.json 1 500000
 env $F HEAVY_MAX=42 LEAVE_BEST_MIN=28 LEAVE_FOUR_MAX=15 node space-polish.mjs /tmp/se3.json second-edition.json 2 500000
 ```
 
-## Fine Tune — Second Gear refined by an outside reviewer (3 Oct 2026)
+## Fine Tune — Second Gear refined by an outside reviewer (3 Oct 2026; deleted 7 Nov 2026)
+
+**Deleted on 7 Nov 2026** (owner: *"Please cut both ways and fine tune from the links 26 pack"*; *Both Ways and Fine Tune
+deleted*, below). Its sheet, import file, grid and meta are no longer in the repository, and nor is the outside reviewer's
+folder `tooling/external/second-gear-refined/` named below. Table H1 (`results/second-gear-table.json`) stays, because Even
+Keel uses it. So the file names below are the record of how it was made; git history has the files (the last commit on
+main holding them is `6da8e8ac`).
 
 An outside reviewer supplied a reordering of Second Gear's weeks (their candidate `SGR-26-C1`), with their search
 source, an independent recount and its result; all four are kept, unchanged, in `tooling/external/second-gear-refined/`.
@@ -918,6 +929,11 @@ pushed onto a third page, and this change first hid the shortlist's last choice-
 measures at the print width under print media; measured at screen width it passed the broken page.
 
 ## Today's link on 26 lines — every way to keep a 13:35 or 13:45 every weekday (26 Oct 2026)
+
+**Both Ways, one of the three drawn here, was deleted on 7 Nov 2026** (*Both Ways and Fine Tune deleted*, near the end);
+Home Grown and Closing Time stay. Its sheet, import file, grid, meta and duty table (`results/both-ways-table.json`) are no
+longer in the repository, so the file names and commands for it below are the record of how it was made, not something to
+run; git history has them (the last commit on main holding them is `6da8e8ac`).
 
 **The brief** (owner, 26 Oct 2026): "Can you take the original 20 link roster. Keep either the 13.35 or 13.45 finish
 or both. Expand it to 26 lines, 5 cover weeks, 1600 closing shift start, meet all the rules and match or improve on the
@@ -5785,7 +5801,7 @@ the 24-line `folderStats`) and, in the two modules, their import depths:
 | `tooling/report-data.mjs`, `tooling/cover-placement.mjs` (the 24-line ones, not this folder's) | `tooling/reference-24/` | `league.mjs`, for its Familiar Nine (24) row |
 | `proposals/Familiar-Nine-F9-24-K31s.json` | `tooling/reference-24/` | that row, and `leave.mjs --check`'s second case |
 | `presentations/Familiar-Nine-for-colleagues.pptx`, `…-for-managers.pptx` | `tooling/reference-24/` | `second-nature-decks.py`, which builds the template every deck in the pack starts from |
-| `tooling/default-baseline.mjs` | `tooling/default-baseline.mjs` | `.claude/rules/links-design.md` and `docs/LINKS_DEC2026_PLAN.md`, which quote what it prints |
+| `tooling/default-baseline.mjs` | `tooling/default-baseline.mjs` | `.claude/rules/links-design.md`, which sends a reader to it to measure the default, and `docs/LINKS_DEC2026_PLAN.md`, which quotes what it printed at 24 lines |
 | `proposals/Fifteen-Turns-FT-24-EXT.json`, `proposals/Weekday-Lates-WL-24-EXT.json` | `test-fixtures/links-designs/`, lower-cased as the fixtures there are | `links-compare.test.mjs` and `links-compare-analysis.test.mjs` |
 
 The Familiar Nine row could not simply go: it sits inside the main league's range (`REF_IN_RANGE=1`), so every score
@@ -5808,7 +5824,9 @@ folder gone from the disk:
 on 3 Nov (typically 2h 13m, largest 8h 51m, 4 of 26 over 2h; the script reproduces those on that day's tree). Three changes
 to `links-default-targets.js` on 5–6 Nov moved it, and the line was not re-measured: it is now typically 2h 37m, largest 8h 36m, 5 of
 26 over, still 10 unmeasurable across the cover weeks. Not caused by the removal; found because that line named the script
-being moved.
+being moved. **Since #1707, merged the same day, the rule file quotes no step figure for the default:** a pass over the
+rule files took dated measurements out of them, since they go stale as this one had. It quotes today's link's step only
+and sends a reader to `default-baseline.mjs` for the default, so the figures above are kept here and nowhere else.
 
 **Elsewhere.** The pack's read-me no longer offers `links-24-proposals.zip`, and `RULES.md` no longer points into the folder
 for the 24-line rules. ESLint, `payroll-anonymity.test.mjs` and `doc-parity.test.mjs` lost the folder from their patterns;
@@ -5846,6 +5864,77 @@ An independent review of the commit found nothing broken and six points of wordi
 not the 33.1 MiB first written; `folderStats`'s one caller, `folderRank`, is itself called by nothing; the three scripts are
 not unchanged; and `test-fixtures/links-designs/` now has its `FILE_INDEX.md` entry). It also found `regenerate.mjs` running
 a `final.mjs` that has never been in this folder: inert, since `SEARCHED` is empty, and now commented with where it is.
+
+## Both Ways and Fine Tune deleted (7 Nov 2026)
+
+**The ask** (owner, 7 Nov 2026), after asking which designs other than Balanced V5, V6 and V7 were weak on the league
+tables (those three stay whatever they score: their author's roster and two variations of it): *"Please cut both ways and
+fine tune from the links 26 pack. Do all the necessary work regarding that, then give me the links 26 zip"*.
+
+**Why these two.** Of the 21 designs outside Balanced V5–V7, over the league's ten readings Both Ways had the lowest average
+place (18.7 of 21) and Fine Tune the fourth lowest (17.6, after Open Return's 17.9 and Second Look's 17.7). Neither was alone
+best at any of the league's twenty measures; each tied for best only where many designs do (every December rule met, the
+weekends, the contracted days, and a few more). Both Ways was last on two readings and Fine Tune on two.
+
+| Design | Code · fingerprint | What it was | Main league before | Files deleted |
+|---|---|---|---|---|
+| Both Ways | `BW-26-T3` · `2cb2d145` | one of the three drawn on 26 Oct (*Today's link on 26 lines*): a 13:35 or 13:45 every weekday and a 16:00 closer; never shortlisted | 21st of 24, 81.9 | its sheet, import file and JSON in `proposals/`; `tooling/both-ways.json` + meta; `results/both-ways-table.json`, its duty table |
+| Fine Tune | `FT-26-H1` · `702d7a15` | Second Gear's weeks reordered by an outside reviewer (their `SGR-26-C1`), 3 Oct | 17th of 24, 82.7 | its sheet, import file and JSON in `proposals/`; `tooling/fine-tune.json` + meta; `tooling/external/second-gear-refined/`, the reviewer's read-me, candidate, search source, recount and its result |
+
+Their local renders in `tooling/` (ignored by git) went too. Sixteen tracked files in all.
+
+**What stays, and why.**
+- **Table H1** (`results/second-gear-table.json`): the duties Even Keel was drawn from, as Fine Tune's were.
+- **The reviewer's second folder** (`tooling/external/roster-search-results-2/`): Even Keel's own record (`SGR-26-C2`, with
+  its own verifier) and Five-Day Flow's, which was never shipped. It reads nothing from the deleted folder.
+- **Even Keel's meta** still says it came from "the outside reviewer who supplied Fine Tune": true, and its sheet does not
+  print it.
+- **`links-fatigue.js`** in the app names Both Ways as the example of a single rest day leaving 48 hours, dated 6 Nov 2026.
+  It is a comment in a served file and true of that day; changing it would start a Hosting deploy for nothing anyone sees.
+- **This README's sections** about them, each marked deleted with a note under its heading, and the comments in the
+  tooling that mention them as history.
+
+**The league.** Both sat inside every range the league reads: on all ten readings no other design's score moved, at full
+precision, and the order of the rest is unchanged. The places below theirs close up. The main league now:
+
+| Place | Design | Score | Place before |
+|---|---|---|---|
+| 1st–16th | Crossover 87.3, Level Crossing 86.8, Common Ground 86.6, Next Step 86.1, Even Step 86.0, Fair Share 85.9, Grand Tour 85.9, Closing Time 85.8, Middle Ground 85.8, Clean Slate 84.6, Short Openers 84.5, Home Grown 83.9, Second Edition 83.6, Even Keel 83.3, Long Break 83.0, Short Run 82.9 | | the same |
+| 17th | In Step | 82.6 | 18th |
+| 18th | Open Return | 82.4 | 19th |
+| 19th | Second Look | 82.2 | 20th |
+| 20th | Balanced V7 | 77.2 | 22nd |
+| 21st | Balanced V6 | 56.3 | 23rd |
+| 22nd | Balanced V5 | 53.7 | 24th |
+
+**The pack.**
+- **The summary sheet** has 22 rows, and fits its page at 85%, where 24 needed 80%.
+- **The shortlist sheet**: page 2 loses Both Ways' row and Fine Tune's name beside Even Keel's, and "the other 21" became
+  "the other nineteen". The guide's rows outside the shortlist each name one design now — Closing Time for a 16:00 closer
+  Monday to Saturday, Even Keel for a fourth person at the Saturday close — where each named the deleted one as well
+  ("· Both Ways too", "· Fine Tune too"); the claims behind them pin who has each edge, so a design that joins either is a
+  decision, and a second name prints only if one does.
+- **No proposal sheet, presentation, rules sheet or "What it means" sheet named either.** Each was re-rendered and differed
+  from the shipped one only in its "Prepared" date, so the shipped copies were kept.
+- **`RULES.md`**, in the technical notes, named Both Ways as the one single rest day in the pack that leaves 48 hours. None
+  does now, and it says so: a design's sheet names any that does.
+- **The read-me** says twenty-two, lists the 22, and its 26 Oct paragraph is Home Grown's and Closing Time's. Its 22:30
+  paragraph said "the nineteen already in the pack", true on 6 Nov; it now reads the count from the pack, "the other
+  seventeen", beside the five it names as drawn with the 22:30 office. `pack.py` refuses either name in `SUPPLIED` or the
+  read-me (`DELETED`).
+- **The zip** has 66 files, four fewer.
+
+**The app does not change.** Neither design was built into the Links designer, and the New link page carries the
+shortlist only (`newlink-data.mjs --check`: current), so there is no version bump.
+
+**Checks**, after the cut: `regenerate.mjs --check`, 22 proposals, every fingerprint as pinned; `check.mjs`, everything
+agrees; `deck-check.mjs`, 216 rows agree; `leave.mjs --check`, both cases ok; the ten league readings, against a recording
+made from the tree before the cut; `pack.py`, 66 files, the read-me ASCII; and `npm run check`.
+
+**Getting one back.** Git keeps every deleted file: `git show 6da8e8ac:docs/links-26/tooling/both-ways.json`, and so on.
+
+**Outside the repository.** If either was imported into the app's Links designer, that copy is saved there separately and
+is not touched by this; the Links designer's bin is the place to remove it.
 
 ## Notes for the whole set
 

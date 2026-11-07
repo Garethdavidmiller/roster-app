@@ -51,8 +51,9 @@ export function tightestRest(p, lines) {
 /** Single rest days whose shifts either side still leave 48 hours or more off — the one case FF11's break (two rest
  *  days together) does not count, so FF11 can only overstate a run. The external review of 6 Nov 2026 found the sheets
  *  saying flatly that one rest day "does not count as a 48-hour break", with Both Ways' line 2 Saturday 06:20–14:50 into
- *  line 3 Monday 16:00–23:55 (49h 10m) as the counterexample; it is the only one in the pack that day. Fixed duties
- *  only: a cover week's days have no times. Line 26 wraps to line 1, as everywhere. */
+ *  line 3 Monday 16:00–23:55 (49h 10m) as the counterexample; it was the only one in the pack that day, and since Both Ways
+ *  was deleted on 7 Nov 2026 the pack has none, so no sheet prints the clause. Fixed duties only: a cover week's days have
+ *  no times. Line 26 wraps to line 1, as everywhere. */
 export function singleRestsOver48(p, lines) {
   const seq = []; for (let k = 1; k <= lines; k++) for (const d of DAYS) seq.push({ line: k, day: d, shift: p[String(k)][d] });
   const n = seq.length, out = [];

@@ -38,8 +38,13 @@ export const SUPPLIED = [
     // well kept, quarter past, the four second designs, quiet friday, little and often and same again"): their grids, metas
     // and search starts are gone, and pack.py refuses their names (README.md → "Nine designs deleted"). Their duty tables stay,
     // because the designs that grew from them were drawn from them: table F (results/second-nature-*.json) Second Edition,
-    // Short Run and Long Break, and table H1 (results/second-gear-table.json) Fine Tune and Even Keel. Those designs —
-    // with Second Look — keep their comments below.
+    // Short Run and Long Break, and table H1 (results/second-gear-table.json) Even Keel (and Fine Tune, until it too was
+    // deleted on 7 Nov 2026, below). Those designs — with Second Look — keep their comments below.
+    // BOTH WAYS AND FINE TUNE, DELETED ON 7 NOV 2026 (owner: "Please cut both ways and fine tune from the links 26 pack"):
+    // of the 21 designs outside Balanced V5-V7, Both Ways had the lowest average place over the league's ten readings and
+    // Fine Tune the fourth lowest, and neither was alone best at any of the league's twenty measures. Their sheets, grids,
+    // import files, metas, Both Ways' duty table and Fine Tune's outside review folder are gone, and pack.py refuses their
+    // names (README.md → "Both Ways and Fine Tune deleted").
     // Second Look (2 Oct 2026): from the same restart as Second Sight, on a variation of Second Nature's duty table (table
     // G3: the Saturday 08:00-16:30 pair moved to 07:15-15:45), one of the only two rotas in it that met every floor (the
     // other, Second Gear, is withdrawn). README.md → "Second Look and Second Gear".
@@ -50,11 +55,7 @@ export const SUPPLIED = [
     // weeks on one shift time, heaviest week 42h 00m, step 1h 01m — better than or equal to every design on every line.
     // README.md → "Second Edition".
     { file: 'second-edition.json',         name: 'Second Edition', code: 'SE-26-F1',   fp: '40715a41', strap: 'Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time' },
-    // Fine Tune (3 Oct 2026): Second Gear with its weeks reordered by an outside reviewer (their candidate SGR-26-C1, with
-    // its own search and recount in external/second-gear-refined/). The same duties every day, so the same table figures;
-    // one mixed week instead of two and a smaller week-to-week step. Checked here by the app's own code before shipping.
-    { file: 'fine-tune.json',              name: 'Fine Tune',      code: 'FT-26-H1',   fp: '702d7a15', strap: 'No Mon–Sat week over 42h, one week mixing earlies and lates, and a week-to-week change of 1h 10m' },
-    // Even Keel (3 Oct 2026): a second reordering of Second Gear by the same outside reviewer (their SGR-26-C2, with its
+    // Even Keel (3 Oct 2026): a second reordering of Second Gear by the outside reviewer of Fine Tune (their SGR-26-C2, with its
     // recount in external/roster-search-results-2/). Same duties every day; 18 of 21 weeks on one shift time. Checked
     // here by the app's own code. Their other candidate, Five-Day Flow, was NOT shipped: README.md → "Even Keel".
     { file: 'even-keel.json',              name: 'Even Keel',      code: 'EK-26-H1',   fp: '250f90d5', strap: '18 of 21 weeks on one shift time, no Mon–Sat week over 42h, and never less than 14h 35m between fixed duties' },
@@ -69,7 +70,7 @@ export const SUPPLIED = [
     // 26-line design needs 15; its best leave stretch is 29 days. The price: five single rest days (not four), 16 of 21
     // weeks on one shift time (not 18) and a week-to-week step of 1h 44m. README.md → "Long Break".
     { file: 'long-break.json',             name: 'Long Break',     code: 'LB-26-F1',   fp: 'a57bfbcf', strap: 'Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week' },
-    // Home Grown, Closing Time and Both Ways (26 Oct 2026): the owner's brief — today's 20-line link on 26 lines, five cover
+    // Home Grown, Closing Time and Both Ways (26 Oct 2026; Both Ways deleted 7 Nov 2026, above): the owner's brief — today's 20-line link on 26 lines, five cover
     // weeks, a 16:00 closing shift, a 13:35 or 13:45 finish every weekday, every rule met and Short Run's fatigue factors
     // matched or improved. Today's week order carries four fatigue factors, so its shift TIMES were kept and the weeks
     // rebuilt: Home Grown on Short Run's skeleton, the other two on Home Grown's weeks (skeleton-from.mjs), so all three
@@ -79,7 +80,6 @@ export const SUPPLIED = [
     // (factors-like.mjs). README.md → "Today's link on 26 lines".
     { file: 'home-grown.json',             name: 'Home Grown',     code: 'HG-26-T1',   fp: '021e6f03', strap: 'Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, and the ticket office’s new Saturday late, with a 13:35 finish every weekday and Saturday closing as today' },
     { file: 'closing-time.json',           name: 'Closing Time',   code: 'CT-26-T2',   fp: 'd6c56b87', strap: 'A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties' },
-    { file: 'both-ways.json',              name: 'Both Ways',      code: 'BW-26-T3',   fp: '2cb2d145', strap: 'A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today' },
     // In Step (30 Oct 2026): the owner asked whether Closing Time could be improved to fix the Saturday open or fit the trains
     // better on a weekday, and to give the answer a new name. Closing Time's rest days and early and late weeks, held while
     // exact-rota.py chose every time from a table with 15:45 closers, five at every opening Monday to Saturday and two new

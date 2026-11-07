@@ -27,15 +27,17 @@ the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name
 | Weeks on one shift time, all earlies or all lates | 19 of 21 | 18 of 21 | 19 of 21 | 16 of 21 | 18 of 21 | 18 of 21 | 18 of 21 | 13 of 21 | 7 of 21 | 7 of 21 | 7 of 16 |
 | Shift times (new to learn) | 13 (6) | 13 (6) | 13 (6) | 16 (8) | 13 (6) | 14 (6) | 16 (8) | 17 (8) | 17 (8) | 16 (7) | 18 (—) |
 | Heaviest week, Monday to Saturday | 42h 30m | 42h 30m | 42h 30m | 42h 00m | 42h 30m | 42h 00m | 43h 00m | 42h 55m | 42h 55m | 42h 55m | 43h 50m |
-| Weighted league, of 24 | 1st, 87.3 | 2nd, 86.8 | 3rd, 86.6 | 7th, 85.9 | 9th, 85.8 | 11th, 84.5 | 19th, 82.4 | 22nd, 77.2 | 23rd, 56.3 | 24th, 53.7 | 20.7, for reference |
+| Weighted league, of 22 | 1st, 87.3 | 2nd, 86.8 | 3rd, 86.6 | 7th, 85.9 | 9th, 85.8 | 11th, 84.5 | 18th, 82.4 | 20th, 77.2 | 21st, 56.3 | 22nd, 53.7 | 20.7, for reference |
 
-The columns are in league order, and the places are as of 7 November 2026, when Crossover and Level Crossing joined. Every other figure in
+The columns are in league order, and the places are as of the evening of 7 November 2026 (below). Every other figure in
 the table is as of 6 November 2026, after the Saturday ticket office's
 lates moved to 22:30, one Saturday floor late with them, and Balanced V5 and V6 joined (below); their two low scores
 widened the league's ranges, so every other score rose and the places moved. Balanced V7 joined later the same day inside
 every range the league reads, so no other score moved: it was 20th, and Balanced V6 and V5 21st and 22nd. Crossover
 joined on 7 November 2026 the same way, first: no score moved, and every place below it is one lower. Level Crossing
-joined later that day the same way, second: again no score moved, and every place below it is one lower again.
+joined later that day the same way, second: again no score moved, and every place below it is one lower again. Both Ways
+and Fine Tune, neither in this folder, were deleted that evening, both inside every range: no score moved, and Open
+Return is one place higher, the three Balanced designs two (`../README.md` → "Both Ways and Fine Tune deleted").
 
 **What the 30 days cost.** Every layout found that buys 30 days for 14 has more single rest days than Even Step and
 Short Run, the other two shortlisted links: 10, 12 or 22 a year each here, against their 8 (today about 10). Open Return and

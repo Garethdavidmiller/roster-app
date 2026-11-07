@@ -117,7 +117,7 @@ has more duties than any of them, and longer ones on average than all but Famili
     either reading, nor with the Sunday at 8h 45m too;
   - FF11's "48-hour break" counted as two rest days together, which always give more than 48 hours off. A single rest
     day is not counted as a break even when the shifts either side leave 48 hours, so FF11 can only overstate a run.
-    One rest day in the pack does give 48 hours: Both Ways, line 2's Saturday into line 3's Monday, 49h 10m (6 November 2026);
+    No single rest day in the pack gives 48 hours (7 November 2026); a design's sheet names any that does;
   - the match to the trains scored hour by hour against the December service, weighted by train length.
 - **Waivers are per design,** decided design by design. None is carried into 26 lines yet.
 - **Still open:** where the 13-day limit is written down; and how FF19 treats a rest day.
