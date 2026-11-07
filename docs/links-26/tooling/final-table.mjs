@@ -150,9 +150,14 @@ const POOL = []; const seenT = new Set();
 const EARLY_HI = Number(process.env.EARLY_HI ?? Infinity), OPENER_HI = Number(process.env.OPENER_HI ?? Infinity);
 const EARLY_START_MAX = process.env.EARLY_START_MAX ? mm(process.env.EARLY_START_MAX) : Infinity, LATE_START_MIN = process.env.LATE_START_MIN ? mm(process.env.LATE_START_MIN) : 0;
 const onlyRequiredEarly = process.env.ONLY_REQUIRED_EARLY_FINISH === '1';
+// EARLY_HANDOVER=1 (7 Nov 2026, Safe Hands; owner, of Set Fair's three 07:15-15:45s: "getting ready to leave for 1545. Before
+// their 1545 start replacements are fully ready"): no early may finish between 15:00 and 16:00, so none leaves as the weekday's
+// 15:45 closers come on. An early finishes by 15:00, or stays until 16:00 or later, the closers' first 15 minutes. Off by default
+const EARLY_HANDOVER = process.env.EARLY_HANDOVER === '1';
 const addTurn = (s, e) => { const L = e - s, t = `${hm(s)}-${hm(e)}`; if (seenT.has(t) || L < LO || L > HI || !legalStartMin(s) || e > CLOSE) return;
   if ((s < 660 && L > EARLY_HI) || (s === OPEN && L > OPENER_HI) || (s < 660 && s > EARLY_START_MAX) || (s >= 660 && s < LATE_START_MIN)) return;
   if (onlyRequiredEarly && s === OPEN && e < 840 && !(REQUIRE && REQUIRE.times.has(t))) return;
+  if (EARLY_HANDOVER && s < 660 && e > 900 && e < 960) return;   // EARLY_HANDOVER, below
   const isC = e === CLOSE, isO = s === OPEN; 
   seenT.add(t); POOL.push({ s, e, L, t }); };
 for (let s = OPEN; s < CLOSE; s++) { if (s !== OPEN && !onGrid(s)) continue; for (let e = s + LO; e <= CLOSE; e++) { if (e !== CLOSE && !onGrid(e)) continue; addTurn(s, e); } }

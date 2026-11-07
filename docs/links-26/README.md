@@ -60,9 +60,9 @@ office to 22:30* has the old and new fingerprints and what moved. **Later that d
 sheets' model: sixteen fingerprints changed again, and the league with them. *The Saturday floor late back to 22:30* has
 those.
 
-**League places dated before 7 Nov 2026 have one design fewer.** Set Fair joined that day, first, inside every range the
-league reads: no score moved, and every place below it is one lower. *Set Fair* has the table, and every way to fewer
-shift times than its twelve.
+**League places dated before 7 Nov 2026 have one design fewer.** Safe Hands joined that day, first, inside every range the
+league reads: no score moved, and every place below it is one lower. *Safe Hands* has the table. Set Fair, drawn earlier
+the same day, was deleted in its place (*Set Fair*).
 
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
@@ -138,7 +138,7 @@ still be rebuilt.
 
 | Stage | Script | What it does |
 |---|---|---|
-| 1 · duty table | `final-table.mjs` | the best table for one day, by fit to the trains, under every rule; a proof unless `ANNEAL=1`; `OPENERS_MIN=` and `FIXED_FREE=1` (a third duty on a ticket-office time) since "In Step"; `KNOWN=` (with `NEWPEN=`, a cost for every time not in a given list, so a Saturday or a Sunday can be built on the weekday's times) and `EARLIES=` (exactly that many duties starting before 11:00, the split a layout's early and late weeks need) since "Set Fair" |
+| 1 · duty table | `final-table.mjs` | the best table for one day, by fit to the trains, under every rule; a proof unless `ANNEAL=1`; `OPENERS_MIN=` and `FIXED_FREE=1` (a third duty on a ticket-office time) since "In Step"; `KNOWN=` (with `NEWPEN=`, a cost for every time not in a given list, so a Saturday or a Sunday can be built on the weekday's times) and `EARLIES=` (exactly that many duties starting before 11:00, the split a layout's early and late weeks need) since "Set Fair"; `EARLY_HANDOVER=1` (no early finishing between 15:00 and 16:00, so none leaves as the weekday closers come on) since "Safe Hands" |
 | | `assemble-table.mjs` | three days' tables into one duty table (weekday · Saturday · Sunday) |
 | 2 · rota | `anneal.mjs` | arranges a table on the 26 lines; `TABLE=<table.json>`, `MODE=rules` for fatigue first |
 | | `carry-order.mjs` | lays a table onto an existing rota's week structure (how Familiar Nine borrowed Right Away's) |
@@ -5282,6 +5282,13 @@ dashes and quotes.
 
 ## Set Fair — two 13:45s every weekday, on the fewest shift times (7 Nov 2026)
 
+**Deleted later the same day** (owner: *"Okay, give hb a new name and put that into the pack. Delete set fair as it would
+not work"*). Its three weekday 07:15–15:45s left as the three 15:45 closers came on. *Safe Hands*, below, replaced it,
+keeping its Saturday, Sunday and rest days. This section is kept as the record of the search, most of which Safe Hands
+stands on. Where it says Set Fair is in the pack, first in the league, or what the sheets say of it, it describes the
+hours before it was deleted. The eleven- and ten-time options below keep weekday 07:15–15:45s too (three or four), so
+they have the same changeover.
+
 **The brief** (owner, 7 Nov 2026): *"Can you create a proposal that keeps the 1345 finishes and converts all the 1335
 finishes to 1345 too. That has all closers on a 1545 start on a weekday. It needs to have 30 days off for 14 days AL. And
 it needs to meet all the rules, fatigue rules, minimise numbers of shift times and be competitive with the best proposals
@@ -5487,6 +5494,155 @@ each below it moved down one place. The tables in the sections above keep the sc
 - `check.mjs`: everything agrees;
 - `newlink-data.mjs --check`: current;
 - the shortlist sheet's claims all hold.
+
+## Safe Hands — two 13:45s every weekday, and a handover to the closers (7 Nov 2026)
+
+**The ask** (owner, 7 Nov 2026, of Set Fair): *"I'm only slightly concerned that the 7.15 shift people will be getting
+ready to leave for 1545. Before their 1545 start replacements are fully ready. How does changing that affect the league
+table"*. Then, shown the options: *"Okay, give hb a new name and put that into the pack. Delete set fair as it would not
+work."*
+
+It is **Safe Hands** (`SH-26-T10` · **`6596c0d9`**), in the 30-day folder. It keeps Set Fair's Saturday, Sunday and rest
+days, with a new weekday in which **no early finishes between 15:00 and 16:00**: two 07:30–16:00s stay for the 15:45
+closers' first 15 minutes, and a fifth 06:20 opener finishes at 14:50. Everything else the brief asked for stays:
+- two 06:20–13:45s every weekday, and every weekday closer at 15:45–23:55;
+- 14 days' leave buying 30 days off, and four weeks off taking 14;
+- 9/9 December rules, the hard limits and 3/3 flexible rules;
+- no fatigue factor present, on the fixed duties or if a cover week falls badly;
+- nothing over 8h 30m from Monday to Friday.
+
+It is **first in the main league, 87.3, 0.6 points ahead of Common Ground**. It sits inside every range the league reads,
+so no other design's score moved. It is not on the shortlist. The decks, "What it means if you…", the New link page and
+the app are unchanged. Set Fair is deleted (below).
+
+**How it was found.** Each option was laid on Set Fair's rest days with every requirement held, and scored alone beside
+the pack:
+
+| Option | Shift times | League |
+|---|---|---|
+| Set Fair as it was: three 07:15–15:45s leaving as the closers come on | 12 | 88.3, 1st |
+| The three moved to 07:30–16:00 | 13 | 86.2, 3rd |
+| The three moved to 07:45–16:15 | 13 | 84.9, 9th |
+| The three moved to 08:00–16:30, today's time | 13 | 84.0, 11th |
+| The weekday searched again with no early finishing 15:00–16:00 (`EARLY_HANDOVER=1`), six times: three 07:30–16:00s, a fifth 06:20 opener, no 11:00–19:30 | 12 | 85.5, 9th |
+| … seven times: two 07:30–16:00s, a fifth 06:20 opener and 11:30–20:00 (the best weekday fit, 30.8) | 13 | 86.6, 3rd |
+| **… seven times: two 07:30–16:00s, a fifth 06:20 opener and today's 11:00–19:30 — Safe Hands** | **13** | **87.3, 1st** |
+
+- **The morning.** Moving all three earlies to 07:30 leaves three fewer people on the floor from 07:15 to 07:30: weekday
+  fit 37.3, against Set Fair's 32.9. Safe Hands covers the early morning with the fifth 06:20 opener instead, and its
+  weekday fit is 31.4, better than Set Fair's.
+- **The shortest rest is 14h 20m, and cannot be 14h 35m on these rest days.** A 16:00 finish before a 06:20 start the
+  next day is 14h 20m, and the solver proves that no layout avoids one (`REST=875` is infeasible). Its default floor is
+  14h 35m, so the runs below set `REST=860`.
+- **Its weeks.** Of the layouts with 19 weeks of 21 on one shift time, it has the gentlest change of start, 1h 31m, proved
+  the gentlest there. 20 weeks on one time is not possible. 18 is, with a change of start of 1h 03m, and scores the same to
+  a tenth (87.28 against 87.25).
+
+**Its duties** (`results/safe-hands-table.json`):
+
+| | Shift times | Longest |
+|---|---|---|
+| Monday to Friday, each (7,400 minutes) | 06:20–13:45 ×2 · 06:20–14:20 ×2 · 06:20–14:50 · 07:30–16:00 ×2 · 11:00–19:30 · 14:00–22:30 ×4 · 15:45–23:55 ×3 | 8h 30m |
+| Saturday (7,100) | 06:20–14:45 ×2 · 06:20–14:50 ×2 · 07:15–15:45 ×3 · 14:00–22:30 ×2 · 14:30–22:30 ×2 · 15:15–23:55 ×3 | 8h 40m |
+| Sunday (5,010) | 07:15–15:45 ×4 · 09:00–18:00 · 14:30–22:30 ×2 · 15:15–23:25 ×3 | 9h |
+
+Thirteen shift times. Seven are today's: 06:20–13:45, 06:20–14:20, 06:20–14:50, 07:15–15:45, 11:00–19:30, 14:00–22:30
+and 15:15–23:55. Six are new: 06:20–14:45, 07:30–16:00, 09:00–18:00, 14:30–22:30, 15:15–23:25 and 15:45–23:55.
+
+**Against the shortlist:**
+
+| | Safe Hands | Common Ground | Even Step | Short Run |
+|---|---|---|---|---|
+| December rules · flexible rules | 9 · 3 | 9 · 3 | 9 · 3 | 9 · 3 |
+| Fatigue factors present, fixed duties · at worst | **0 · 0** | 0 · 1 | 0 · 1 | 0 · 1 |
+| Most days in a row, at worst | **6** | 7 | 7 | 7 |
+| Weekday earlies leaving between 15:00 and 16:00 · still on at 16:00 | **0 · 2** | 3 · 0 | 2 · 0 | **0 · 2** |
+| Shift times (new) | 13 (6) | 13 (6) | **13 (5)** | 15 (6) |
+| 13:45 finishes a weekday | **2** | 1 | 1 | 0 |
+| Change of start, week to week | 1h 31m | **1h 12m** | 1h 30m | 1h 14m |
+| Weeks on one shift time | **19 of 21** | **19** | 18 | 18 |
+| 14 days' leave: best · worst · four weeks | **30** · 19 · **14** | **30 · 20 · 14** | 28 · 20 · 15 | 28 · 20 · 15 |
+| Single rest days, in 26 | 5 | 6 | **4** | **4** |
+| Fit to the trains, by days (0 = exact) | 29.1 | 28.8 | 28.9 | **26.9** |
+| Saturday fit | 17.6 | **9.8** | 10.4 | 13.6 |
+| Closing shift, Monday to Saturday average | 8h 15m | **8h 10m** | **8h 10m** | 8h 15m |
+| Heaviest · lightest week, Monday to Saturday | 42h 30m · 25h 30m | 42h 30m · 25h 30m | **42h 00m** · 25h 30m | 42h 30m · 24h 30m |
+| Shortest rest | 14h 20m | **14h 35m** | **14h 35m** | 14h 20m |
+
+**The leagues** (23 designs; score · place):
+
+| Version | Safe Hands | Common Ground | First, if another |
+|---|---|---|---|
+| Main | **87.3 · 1st** | 86.6 · 2nd | |
+| Main, the proposals setting the scale | **88.9 · 1st** | 88.4 · 3rd | |
+| Main, without familiar times | **90.5 · 1st** | 89.1 · 3rd | |
+| Main, the run on the fixed rota | 87.3 · 2nd | **87.3 · 1st** | Common Ground, by 0.07 |
+| Main, Sunday duties in familiar times | **86.9 · 1st** | 85.6 · 3rd | |
+| Six-factor (the 24-line work's weights, the proposals setting the scale) | 91.6 · 3rd | 87.4 · 12th | Second Look, 94.8 |
+| Weighted as before | 87.4 · 10th | 88.5 · 2nd | In Step, 89.7 |
+| — the proposals setting the scale | 88.1 · 14th | 90.9 · 4th | In Step, 93.3 |
+| — without familiar times | 91.3 · 10th | 92.5 · 3rd | In Step, 93.1 |
+| — the run on the fixed rota | 87.4 · 13th | 89.3 · 2nd | In Step, 90.4 |
+
+**Where the 0.6 points come from.** Against Common Ground in the main league, Safe Hands:
+- gains 2.04 on fatigue, with no warning at worst;
+- gains 0.69 on the run at worst and 0.42 on single rest days;
+- gives back 0.93 on the worst leave stretch, 0.66 on familiar times, 0.33 on the shortest rest, 0.28 on the change of
+  start, 0.23 on the closing shift and 0.09 on fit.
+
+Weighted as before it is 10th. That weighting does not count the 55-hour week, so the fatigue lead goes, and it averages
+the three days' fits, so the weaker Saturday counts as much as all five weekdays together.
+
+**The rest of the pack at 15:45** (measured; nothing changed). Twelve of the 23 designs have weekday earlies finishing
+between 15:00 and 16:00:
+- In Step: four a weekday;
+- Common Ground and Middle Ground: three, 07:00–15:30s that leave before the closers arrive;
+- Closing Time, Even Keel, Even Step, Fine Tune and Home Grown: two 07:15–15:45s;
+- Clean Slate, Fair Share, Grand Tour and Next Step: one.
+
+The other eleven, Safe Hands among them, have none, and two or three earlies on until 16:00 or later. The rules do not
+ask for it: S7's handover is from somebody already on the floor, which the lates give every design. Whether it should
+become a rule is the owner's.
+
+**Set Fair deleted.** Its six files are gone:
+- from `30-days-off/`: the sheet, the grid and the import file;
+- from `tooling/`: `set-fair.json`, `set-fair.meta.json` and `results/set-fair-table.json`.
+
+`pack.py` lists it in `DELETED`, so the build refuses it if it comes back and the read-me cannot name it. Its section above
+is kept as the record of the search, most of which Safe Hands stands on.
+
+**The pack.**
+- **Its files.** `regenerate.mjs` lists Safe Hands in `SUPPLIED`, in Set Fair's place. `fresh.mjs` has its one-line
+  description, which names no other design; Home Grown's family; and 7 Nov 2026.
+- **The summary** still lists 23 on one page.
+- **The shortlist sheet** keeps its three.
+  - Page 2's lead says Safe Hands is first, 0.6 points ahead of Common Ground.
+  - Its row says what it has and pays. The claims assert both: two 13:45s a weekday; no weekday early finishing between
+    15:00 and 16:00, with two still on at 16:00; more early finishes and a shorter worst run than all three; and a weaker
+    Saturday fit, worst leave stretch and change of start.
+  - The row's wording was cut by two characters to keep it on one line.
+- **The read-me** names Safe Hands among the designs drawn after the shortlist, says what it has, and says it now leads
+  the league by 0.6 points.
+- **Tooling:** `final-table.mjs` `EARLY_HANDOVER=1`. It is off by default, so no earlier table changes.
+
+**Commands.** In the weekday search, the table that keeps today's 11:00–19:30 is sixth of the 40 (fit 31.7). The grid is
+committed and `FIX=` checks it:
+
+```
+cd docs/links-26/tooling
+EARLY_HANDOVER=1 CLS=weekday TOTAL=7400 FIXED_FREE=1 REQUIRE=06:20-13:45 REQUIRE_N=2 REQUIRE_MAX=2 ONLY_REQUIRED_EARLY_FINISH=1 EARLY_HI=510 HI=510 LATE_MAX=0 AT22_STRICT=1 EARLY_START_MAX=09:00 LATE_START_MIN=11:00 TODAY=1 CLOSERS_MAX=3 MAX_TURNS=7 TOPN=40 TOPN_OUT=/tmp/wk.json node final-table.mjs
+SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 REST=860 OBJ=both python3 exact-rota.py results/safe-hands-table.json /tmp/sh0.json 240
+HINT=/tmp/sh0.json SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 REST=860 OBJ=step ONE_MIN=19 python3 exact-rota.py results/safe-hands-table.json /tmp/sh.json 200
+FIX=safe-hands.json SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300 LV_BEST=30 BEST_LEN=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2550 LIGHT=1530 REST=860 ONE_MIN=19 OBJ=step python3 exact-rota.py results/safe-hands-table.json /tmp/fix.json 60
+```
+
+**Checks:**
+- `regenerate.mjs --check`: 23 proposals, every fingerprint as pinned;
+- `check.mjs`: everything agrees;
+- `deck-check.mjs`: 216 rows agree;
+- `newlink-data.mjs --check`: current;
+- the shortlist sheet's claims all hold, and its pages fit;
+- in the league, no other design's score moved.
 
 ## Notes for the whole set
 

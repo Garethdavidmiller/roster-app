@@ -138,10 +138,12 @@ export const SUPPLIED = [
     { file: 'results/balanced-v7.json',        name: 'Balanced V7',          code: 'MB-26-V7',  fp: '75e9e7f3', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, no six-day weeks, and 14 days’ leave buys 30 days off, as today' },
     // 7 Nov 2026 (owner: "create a proposal that keeps the 1345 finishes and converts all the 1335 finishes to 1345 too … all
     // closers on a 1545 start on a weekday … 30 days off for 14 days AL … all the rules, fatigue rules, minimise numbers of shift
-    // times and be competitive with the best proposals in the league table"): Set Fair, two 13:45s every weekday on twelve shift
-    // times, laid on Short Openers' rest days with the 55-hour worst case held (README.md → "Set Fair"). It buys 30 days off for
-    // 14 days' leave, so it ships into 30-days-off/
-    { file: 'set-fair.json',               name: 'Set Fair',             code: 'SF-26-T9',  fp: '387ad295', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, every weekday closer at 15:45, twelve shift times, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today' },
+    // times and be competitive with the best proposals in the league table"; then "give hb a new name and put that into the
+    // pack. Delete set fair as it would not work"): Safe Hands, two 13:45s every weekday, and no weekday early finishing between
+    // 15:00 and 16:00, so two are still on for the 15:45 closers' first 15 minutes. Set Fair, drawn first the same day, had three
+    // 07:15-15:45s leaving as the closers came on, and was deleted. Laid on Short Openers' rest days with the 55-hour worst case
+    // held (README.md → "Safe Hands"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
+    { file: 'safe-hands.json',             name: 'Safe Hands',           code: 'SH-26-T10', fp: '6596c0d9', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
