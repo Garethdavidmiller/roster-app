@@ -855,6 +855,30 @@ test('every page asks iOS for a SOLID status bar, never black-translucent', () =
     }
 });
 
+// ── A PAGE iOS MAY RUN FROM THE HOME SCREEN INSTALLS THE APP, NOT ITSELF (iPhone audit, 7 Nov 2026) ──
+// `apple-mobile-web-app-capable` lets an iPhone open a page added to the Home Screen as an app of its
+// own. The five guides carried it with their own titles ("Quick Guide", "Pay Guide", …) and no
+// manifest, and the Staff Guide's install box told iPhone readers to Add to Home Screen from that very
+// page — which installed the GUIDE: its own icon and its own storage, signed out, with no roster in
+// it. The app's manifest (start_url and scope are the app root) and the app pages' own label make the
+// install the app wherever it is made from. Read from every served page, so a new one joins on arrival.
+test('every page iOS may run from the Home Screen links the app manifest, under the app\'s label', () => {
+    const manifest = JSON.parse(read('./manifest.json'));
+    assert.equal(manifest.start_url, './', 'the manifest no longer starts at the app root — an install from a sub-page would open that page');
+    assert.equal(manifest.scope, './', 'the manifest no longer covers the whole app');
+    const titleOf = (/** @type {string} */ html) => /<meta name="apple-mobile-web-app-title" content="([^"]+)">/.exec(html)?.[1];
+    const label = titleOf(read('./index.html'));
+    assert.ok(label, 'the Calendar has no home-screen label to compare against');
+    const pages = servedFiles().filter(f => /<meta name="apple-mobile-web-app-capable" content="yes">/.test(read(`./${f}`)));
+    assert.ok(pages.length >= 14, `only ${pages.length} pages ask to run from the Home Screen — the app pages and the five guides do`);
+    for (const f of pages) {
+        const html = read(`./${f}`).replace(/<!--[\s\S]*?-->/g, ' ');
+        assert.match(html, /<link rel="manifest" href="(\.\/)?manifest\.json">/,
+            `${f} may run from the Home Screen but links no manifest — added there, it installs itself as an app of its own`);
+        assert.equal(titleOf(html), label, `${f}: its home-screen label is not the app's, so its icon would name a different app`);
+    }
+});
+
 // ── THE SUB-PAGE HEADER LOGO HAS ONE WIRING (48-hour review, Nov 2026) ───────────────────────────
 // `wireHeaderLogo` (about-lightbox.js, v25.06) replaced five hand-written copies, and the copies were
 // the defect: Trains and Overtime shipped a "Back to calendar" logo that nothing wired. The December

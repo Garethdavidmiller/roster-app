@@ -300,6 +300,30 @@ test('guides: the footer back link is one control with one wording on every guid
     expect(new Set(seen).size, `one recipe, got: ${seen.join(' | ')}`).toBe(1);
 });
 
+// ADDED TO THE HOME SCREEN, A GUIDE IS THE APP (iPhone audit, 7 Nov 2026). Each guide asked iOS to run
+// it as an app with its own title and no manifest, so "Add to Home Screen" from a guide made a guide
+// app: its own icon, its own storage, signed out. page-contract-parity reads the markup; this follows
+// the link the browser follows, to the manifest it would install, and checks where that app starts.
+test('guides: added to the Home Screen, every guide installs the app, under the app\'s name', async ({ page }) => {
+    for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide']) {
+        await page.goto(`/${guide}.html`);
+        const seen = await page.evaluate(async () => {
+            const link = /** @type {HTMLLinkElement|null} */ (document.querySelector('link[rel="manifest"]'));
+            if (!link) return null;
+            const m = await (await fetch(link.href)).json();
+            return {
+                start: new URL(m.start_url, link.href).pathname,
+                scope: new URL(m.scope, link.href).pathname,
+                label: document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute('content'),
+            };
+        });
+        expect(seen, `${guide}: no manifest link — an iPhone would install the guide as an app of its own`).not.toBeNull();
+        expect(seen?.start, `${guide}: the install would open somewhere other than the Calendar`).toBe('/');
+        expect(seen?.scope, `${guide}: the install would not cover the whole app`).toBe('/');
+        expect(seen?.label, `${guide}: the home-screen icon would carry the guide's own name`).toBe('MYB Roster');
+    }
+});
+
 // Every country and ferry card states when it was checked. guide-sources.test.mjs proves the line is
 // PRESENT in the markup and that its date matches the register; this proves it is actually VISIBLE
 // once the card is open — a static check cannot tell an evidence line from one a stylesheet hides.
