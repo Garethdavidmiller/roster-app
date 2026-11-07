@@ -100,7 +100,7 @@
 
         .title-icon:active { transform: scale(var(--press-scale)); }
         /* A Tab stop (it opens About) on the navy header: the burger's light ring, not the navy fallback. */
-        .title-icon:focus-visible { outline: var(--focus-outline-light); outline-offset: 3px; }
+        .title-icon:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
 
         /* @property lets the browser interpolate --today-glow-alpha as a number,
            producing a smooth glow ramp during the pulse. Falls back gracefully
@@ -505,9 +505,9 @@
             min-height: 44px; transition: transform var(--dur-fast) var(--ease-standard);
         }
         .top-prompt-action:active { transform: scale(var(--press-scale)); }
-        /* Light: at its offset the ring is drawn on the navy strip, where navy was invisible. */
+        /* Gold, like the strip's ✕ and the drawer: at its offset the ring is on the navy strip. */
         .top-prompt-action:focus-visible {
-            outline: var(--focus-outline-light);
+            outline: var(--focus-outline-gold);
             outline-offset: 2px;
         }
         .top-prompt-dismiss {
@@ -2812,13 +2812,13 @@
         @media (hover: hover) and (pointer: fine) {
             #dayDetailClose:hover { color: white; }
         }
-        /* Every ✕ on this page's navy (the glass panels, the Huddle viewer's header) takes the light
-           ring: the shared navy fallback was invisible there. Inset, inside the 44px target. */
-        #dayDetailClose:focus-visible,
-        #alLightboxClose:focus-visible,
+        /* Every ✕ on this page's navy (the glass panels, the Huddle viewer's header) takes the gold
+           ring of every control inside a navy panel — the drawer, About, the day panel's own buttons;
+           the header's light ring is for the header. The navy fallback was invisible. Inset, in 44px. */
+        #dayDetailClose:focus-visible, #alLightboxClose:focus-visible,
         #teamInfoClose:focus-visible,
         #huddleViewerClose:focus-visible {
-            outline: var(--focus-outline-light);
+            outline: var(--focus-outline-gold);
             outline-offset: -4px;
             border-radius: var(--radius-sm);
         }
@@ -2990,8 +2990,8 @@
             line-height: 1; cursor: pointer; transition: color var(--dur-med), background var(--dur-med);
         }
         .al-lb-yearbtn:disabled { visibility: hidden; }
-        /* Light, not `--focus-outline`: that is navy, and these sit on the navy glass. */
-        .al-lb-yearbtn:focus-visible { outline: var(--focus-outline-light); outline-offset: -2px; }
+        /* Gold, not `--focus-outline`: that is navy, and these sit on the navy glass (as the ✕). */
+        .al-lb-yearbtn:focus-visible { outline: var(--focus-outline-gold); outline-offset: -2px; }
         @media (hover: hover) and (pointer: fine) {
             .al-lb-yearbtn:hover:not(:disabled) { color: white; background: rgba(255,255,255,0.1); }
         }

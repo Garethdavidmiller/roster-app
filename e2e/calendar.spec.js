@@ -3890,7 +3890,7 @@ test('desktop: the cells and the Team week read at desktop sizes, and nothing is
 
 // CAL7 — the header logo is a Tab stop, and so is the ✕ on each glass panel; none had a ring of its
 // own, so each fell back to the shared navy one — on navy. They wear the light ring now.
-test('desktop: the header logo and the glass panels\' ✕ wear the light focus ring', async ({ page }, info) => {
+test('desktop: the header logo wears the light focus ring, and the glass panels\' ✕ the gold one', async ({ page }, info) => {
     test.skip(isTouchProject(info), 'a keyboard');
     await page.setViewportSize({ width: 1366, height: 768 });
     await installColourProbe(page);
@@ -3902,12 +3902,15 @@ test('desktop: the header logo and the glass panels\' ✕ wear the light focus r
         const el = /** @type {Element} */ (document.activeElement);
         const cs = getComputedStyle(el);
         return { at: el.id || el.className, keyboard: el.matches(':focus-visible'), style: cs.outlineStyle,
-            light: w.__sameColour(cs.outlineColor, w.__resolve('outline', 'var(--focus-outline-light)', 'outline-color')) };
+            light: w.__sameColour(cs.outlineColor, w.__resolve('outline', 'var(--focus-outline-light)', 'outline-color')),
+            gold: w.__sameColour(cs.outlineColor, w.__resolve('outline', 'var(--focus-outline-gold)', 'outline-color')) };
     });
 
     await page.locator('#navMenuBtn').focus();
     await page.keyboard.press('Tab');
-    expect(await ring(), 'the header logo').toEqual({ at: 'title-icon', keyboard: true, style: 'solid', light: true });
+    // The header's controls take the light ring (the burger's); a control INSIDE a navy panel takes
+    // gold, as the drawer, About and the day panel's own buttons do.
+    expect(await ring(), 'the header logo').toEqual({ at: 'title-icon', keyboard: true, style: 'solid', light: true, gold: false });
 
     /** @type {Array<[string, () => Promise<void>, string]>} */
     const panels = [
@@ -3919,7 +3922,7 @@ test('desktop: the header logo and the glass panels\' ✕ wear the light focus r
         await open();
         await expect(page.locator(panel)).toHaveClass(/\bopen\b/);
         await page.keyboard.press('Tab');                       // the panel's first stop is its ✕
-        expect(await ring(), `the ✕ on ${panel}`).toEqual({ at: close, keyboard: true, style: 'solid', light: true });
+        expect(await ring(), `the ✕ on ${panel}`).toEqual({ at: close, keyboard: true, style: 'solid', light: false, gold: true });
         await page.keyboard.press('Escape');
         await expect(page.locator(panel)).not.toHaveClass(/\bopen\b/);
     }
