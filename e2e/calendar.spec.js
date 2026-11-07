@@ -3317,3 +3317,42 @@ test('calendar: a printed Team View is not cut to the phone\'s scroll box', asyn
         .toBeGreaterThanOrEqual(h.table - 1);
     await page.emulateMedia({ media: 'screen' });
 });
+
+// …and a scroll DOWN the names is not the swipe the hint asks for (7 Nov 2026). With the box capped,
+// the names scroll inside it, and the hint ("← Swipe table to see all 7 days →") was retired by the
+// first scroll of any kind — so somebody reading down the list lost it, for good, before the week had
+// ever moved. So was the APP's own move: it brings today into view (a pixel or two even on a Sunday)
+// and puts the week back after a grade switch, and either retired the hint within a frame, unread.
+test('calendar: scrolling down the Team View names keeps the swipe hint; scrolling across the week retires it', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.clock.setFixedTime(new Date('2026-11-12T09:00:00Z'));      // a Thursday: the open scrolls to today
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-table tbody tr').nth(15)).toBeAttached();
+    const frames = () => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const state = () => page.evaluate(() => ({
+        seen: localStorage.getItem('myb_team_scroll_seen'),
+        hidden: /** @type {HTMLElement} */ (document.querySelector('.tv-scroll-hint')).style.display === 'none',
+        top: /** @type {HTMLElement} */ (document.querySelector('.team-table-wrap')).scrollTop,
+    }));
+    await frames();
+    expect(await state(), 'premise: nothing has retired the hint yet').toMatchObject({ seen: null, hidden: false });
+
+    await page.evaluate(() => { /** @type {HTMLElement} */ (document.querySelector('.team-table-wrap')).scrollTop = 200; });
+    await frames();
+    const down = await state();
+    expect(down.top, 'premise: the names scrolled inside the box').toBeGreaterThan(0);
+    expect(down, 'a scroll down the names retired the swipe hint').toMatchObject({ seen: null, hidden: false });
+
+    // A grade tab re-draws the grid, and the app puts the week back where it was — its own move again.
+    await page.locator('.grade-tab.active').click();
+    await expect(page.locator('.team-table tbody tr').nth(15)).toBeAttached();
+    await frames();
+    expect(await state(), 'the app putting the week back after a grade switch retired the hint').toMatchObject({ seen: null, hidden: false });
+
+    await page.evaluate(() => { /** @type {HTMLElement} */ (document.querySelector('.team-table-wrap')).scrollLeft = 120; });
+    await frames();
+    expect(await state(), 'a scroll across the week did not retire the hint').toMatchObject({ seen: '1', hidden: true });
+});
