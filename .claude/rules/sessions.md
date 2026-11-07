@@ -1,0 +1,79 @@
+---
+paths:
+  - "session.js"
+  - "session.test.mjs"
+  - "page-session.js"
+  - "page-session.test.mjs"
+  - "login-overlay.js"
+  - "login-overlay.test.mjs"
+  - "auth-*.js"
+  - "auth-*.test.mjs"
+  - "claim-retry.js"
+  - "claim-retry.test.mjs"
+  - "password-force.js"
+  - "firebase-client.js"
+  - "firestore.rules"
+  - "surname-parity.test.mjs"
+  - "functions/auth-endpoints.js"
+  - "functions/member-identity.js"
+  - "functions/roster-parse-helpers.js"
+---
+
+# Sign-in and sessions — area decisions
+
+**The contract is `docs/AUTH_AND_SESSIONS.md`**: numbered invariants for session ↔ identity ↔ claim,
+the three ways they disagree, and a write whose account has gone. Link its numbers; never restate
+them. This file holds the area's working notes, moved here from `CLAUDE.md` → "Firebase Auth" and
+its architecture table. The rules every session needs stayed there: writes need a CLAIM, every write
+page re-establishes the Firebase session on load, the three claim tiers, and never granting a manager
+`admin: true`. The history of the strict cutover is `SECURITY_RELEASE_PLAN.md` → B2/B3 and
+`KNOWN_LIMITATIONS.md` task #2.
+
+## One local session, every page
+
+`AUTH_KEY` in `session.js` is the one local session record, so a member signed in on any page arrives
+on every other without seeing the login overlay. It lasts 60 days from sign-in (AUTH_AND_SESSIONS.md
+2), and it is not an identity on its own (17).
+
+## Session re-establishment on page load
+
+Every write page signs in to Firebase Auth both on fresh login AND on every page load when a
+localStorage session already exists. This is critical — a returning user with a valid 60-day
+localStorage session skips the login screen, so without the page-load sign-in, `auth.currentUser`
+stays null and all Firestore writes fail. `ensureFirebaseSession(name)` in `session.js` handles this:
+waits for `onAuthStateChanged` (to detect any IndexedDB-persisted session; at most
+`AUTH_READY_TIMEOUT_MS`), then signs in if none exists. No account self-heal and no anonymous
+fallback: a refused sign-in leaves no named identity (`'none'`) and a sign-in prompt, while one that
+never reached an answer is `TRANSIENT` and keeps the 60-day session (AUTH_AND_SESSIONS.md 23).
+**Do not remove this call.**
+
+## Per-member write isolation (STRICT)
+
+`overrides` create/update/delete require the member's own bound name (`memberName()`,
+AUTH_AND_SESSIONS 19), OR an `admin`/`manager` claim (both write on behalf). The rule is **STRICT**:
+the old permissive `!('name' in token)` escape — which let a token with no `name` claim through so
+legacy and anonymous sessions could never be locked out — is gone and must not come back
+(AUTH_AND_SESSIONS 4). The strict rule was preceded by a token sweep that force-refreshed every
+active device onto its correct-tier claim, and a stale token now self-heals through
+`writeWithClaimRetry` (invariant 5), so no mass sign-out is needed.
+
+**Three claim tiers**, all set by `setupRosterAuth` from the server-owned `roster-members.json`:
+`{ admin: true, name, member }` for `ADMIN_NAMES`, `{ manager: true, name, member }` for
+`MANAGER_NAMES`, `{ name, member }` for everyone else (admin outranks manager; `linksDesigner` on top).
+The `manager` tier is load-bearing: managers edit staff AL/sick/shifts on behalf daily — without the
+`manager` bypass the isolation rule silently locks them out. Master-admin collections
+(huddles/circulars/newsletters/roster/auth) stay `admin`-only — do NOT grant managers `admin: true`.
+**Deploy prerequisite:** a manager must be provisioned (Operations → Set up accounts, which sets the
+`manager` claim) AND token-refreshed before the isolation rule is relied upon — a stale manager token
+has `name` but not `manager`.
+
+## `normaliseSurname()` in `auth-identity.js`
+
+Shared surname derivation for Firebase Auth: lowercases and strips non-alpha (the ≥6-char padding for
+the Firebase *password* is applied separately by the password builders in `session.js` / `functions`,
+**not** inside `normaliseSurname`). Lives in the pure `auth-identity.js` (so it's unit-testable) and is
+**re-exported by `firebase-client.js`**; `getSurname()` in `session.js` delegates to it. A deliberate
+duplicate lives in `functions/roster-parse-helpers.js`, inside `nameToPassword()` and `nameToEmail` —
+Cloud Functions are CommonJS and cannot import browser ES modules, so unification requires a build
+step. If the rule ever changes, update both locations (`surname-parity.test.mjs` enforces it), and
+read AUTH_AND_SESSIONS.md 12 first: `firestore.rules` carries a third copy of the email derivation.

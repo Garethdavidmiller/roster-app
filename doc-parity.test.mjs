@@ -405,7 +405,12 @@ const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './do
     './docs/FILE_INDEX.md',
     './.claude/rules/paycalc.md', './.claude/rules/roster-import.md',
     './.claude/rules/notifications.md', './.claude/rules/guide-pages.md',
-    './.claude/rules/roster-data.md'];
+    './.claude/rules/roster-data.md',
+    // THE FIVE AREA FILES SPLIT OUT OF CLAUDE.md's ARCHITECTURE TABLE (7 Nov 2026), on the day they
+    // were made, by the argument above: every row in them was under this guard yesterday as part of
+    // CLAUDE.md, and a split that silently drops a guard is how the estate loses coverage.
+    './.claude/rules/calendar.md', './.claude/rules/admin.md', './.claude/rules/nav-drawer.md',
+    './.claude/rules/pwa.md', './.claude/rules/sessions.md'];
 
 // ── CONTRACT 1c: AI_MAP KNOWS every export — the other direction of 1b ─────────────────────────
 //
@@ -1076,7 +1081,9 @@ test('the CLAUDE.md architecture table states decisions, not retrospectives', ()
     assert.ok(start > 0, 'the architecture table was not found — this test is checking nothing');
     const end = lines.findIndex((l, i) => i > start + 3 && l.startsWith('## '));
     const rows = lines.slice(start, end).filter(l => l.startsWith('|'));
-    assert.ok(rows.length > 40, `expected the full table, found ${rows.length} rows`);
+    // 40 -> 25 (7 Nov 2026): the rows that bind one area left for their `.claude/rules/` files, and
+    // 28 stayed. This floor proves the table was READ; it is not a quota for rows to stay.
+    assert.ok(rows.length > 25, `expected the full table, found ${rows.length} rows`);
 
     const tooLong = rows
         .filter(l => l.length > ARCH_ROW_CAP)
@@ -1137,10 +1144,14 @@ test('the CLAUDE.md architecture table states decisions, not retrospectives', ()
 // left for `.claude/rules/roster-import.md`, which `paths:`-globs the parser and so costs nothing to a
 // session doing anything else. Leaving the cap at 140,000 afterwards would have banked the saving as
 // permission to spend it again, which is the deterioration this ratchet exists to prevent.
-const CLAUDE_MD_CAP = 125_000;
+// **RATCHETED DOWN 125,000 -> 72,000 on 7 Nov 2026**, the same move again: the rows that bind one area
+// left the architecture table for path-scoped `.claude/rules/` files, the test lanes' history for
+// README.md and the version-bump incidents for DECISIONS.md — moved, never cut — taking the file from
+// 122,788 characters to ~70,500. The floor below came down with it: it proves the file was READ.
+const CLAUDE_MD_CAP = 72_000;
 test('CLAUDE.md stays affordable — it is loaded into every session', () => {
     const chars = CLAUDE.length;
-    assert.ok(chars > 100_000, 'CLAUDE.md was not read — this test is checking nothing');
+    assert.ok(chars > 50_000, 'CLAUDE.md was not read — this test is checking nothing');
     assert.ok(chars <= CLAUDE_MD_CAP,
         `CLAUDE.md is ${chars.toLocaleString()} characters, over the ${CLAUDE_MD_CAP.toLocaleString()} ratchet.\n` +
         'This file is loaded into EVERY session, so this is a cost paid on every task regardless of\n' +
