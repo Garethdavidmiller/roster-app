@@ -239,7 +239,11 @@ WCAG 2.1.1). Below desktop width the seven days do not fit, so `#gradeTabPanel` 
 it held nothing focusable, so a keyboard user could not reach the days off-screen. Desktop Chrome
 never saw it, because there the table fits; the phone projects failed in CI. The panel is now a tab
 stop (`tabindex="0"`, as the ARIA tabs pattern advises for a panel with no focusable content), with an
-inset focus ring because the panel is the box that clips.
+inset focus ring because the panel is the box that clips. **Being focusable was half of it** (7 Nov 2026
+review): ← → are how a focused box scrolls, and the page's own shortcut turned them into a week
+change first, so axe passed and the days stayed out of reach. The shortcut now leaves the panel's
+arrows alone; `e2e/calendar.spec.js` → "→ on the focused team week table scrolls it" holds the
+behaviour, which a scan cannot see.
 
 **The gate sees four kinds of calendar day; a unit test walks all of them.**
 `calendar-renderer.test.mjs` → "a day cell's name contains what it shows" drives every badge, the

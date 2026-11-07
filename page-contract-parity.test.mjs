@@ -502,8 +502,11 @@ test('a role-gated pill is gated from EVERY coordinator, not just its own page',
         .filter(f => f.endsWith('-app.js'))
         .map(f => ({ file: f, src: read(`./${f}`) }))
         .filter(c => c.src.includes('initNavPanel({'))
-        .map(c => ({ file: c.file, opts: optionsObjectAfter(c.src, 'initNavPanel({') }));
-    assert.ok(callers.length >= 7, `expected every page coordinator, found ${callers.length}`);
+        // EVERY call in the file, not the first (7 Nov 2026 review). The Pay Calculator draws its
+        // drawer twice — a rare unsupported-role path first, then the one every member gets — and
+        // reading only the first left the second unguarded: removing a gate from it stayed green.
+        .flatMap(c => optionsObjectsAfter(c.src, 'initNavPanel({').map((opts, i) => ({ file: i ? `${c.file} (call ${i + 1})` : c.file, opts })));
+    assert.ok(new Set(callers.map(c => c.file.split(' ')[0])).size >= 7, `expected every page coordinator, found ${callers.length}`);
 
     /** @type {string[]} */
     const holes = [];
@@ -566,10 +569,10 @@ test('every app page has a name and an emoji on the Operations reporting cards',
  * Deliberately not a regex: these option objects contain nested arrow functions with their own
  * braces (`onSignOut: () => { … }`), so a lazy `\{[\s\S]*?\}` stops at the first inner close and a
  * greedy one runs to the end of the file. Both give a wrong answer that still LOOKS like an answer.
- * @param {string} src @param {string} marker
+ * @param {string} src @param {string} marker @param {number} [searchFrom] where to start looking
  */
-function optionsObjectAfter(src, marker) {
-    const at = src.indexOf(marker);
+function optionsObjectAfter(src, marker, searchFrom = 0) {
+    const at = src.indexOf(marker, searchFrom);
     if (at === -1) return '';
     let depth = 0;
     const from = at + marker.length - 1;          // the '{' itself
@@ -578,6 +581,20 @@ function optionsObjectAfter(src, marker) {
         else if (src[i] === '}' && --depth === 0) return src.slice(from, i + 1);
     }
     return src.slice(from);
+}
+
+/**
+ * Every options object in the file, one per occurrence of `marker` — a coordinator may call
+ * `initNavPanel` more than once, and each call draws a drawer somebody sees.
+ * @param {string} src @param {string} marker @returns {string[]}
+ */
+function optionsObjectsAfter(src, marker) {
+    /** @type {string[]} */
+    const all = [];
+    for (let at = src.indexOf(marker); at !== -1; at = src.indexOf(marker, at + marker.length)) {
+        all.push(optionsObjectAfter(src, marker, at));
+    }
+    return all;
 }
 
 

@@ -83,13 +83,24 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
     // gives or takes its day in lieu, so the batch is costed against what the allowance will be.
     const afterOf = (/** @type {any[]} */ batch) => overridesAfterSave(overrides, { memberName,
         writes: batch.map(e => ({ date: e.date, type: e.type, value: e.value })), deleteIds: toDelete });
+    // Existing leave for the year, less the dates this batch OVERWRITES or DELETES — they are
+    // re-accounted through `consuming`, or removed outright. ONE set for both paths below: the
+    // no-leave path once built its own and left out leave another type overwrites, so turning a day
+    // of leave into a shift in the save that removed a worked Boxing Day read "1 day over" at the
+    // limit (7 Nov 2026 review).
+    const replaced = (/** @type {any[]} */ leaveRows) => new Set([
+        ...leaveRows.filter(e => e.existingId).map(e => e.date),
+        // …and leave another TYPE overwrites: it is being replaced, not kept (review A16). Non-leave
+        // rows are never dropped below, so reading them off `toSave` keeps ordering 1 intact.
+        ...toSave.filter(e => e.existingId && e.type !== 'annual_leave').map(e => e.date),
+        ...overrides.filter(o => toDelete.includes(o.id) && o.type === 'annual_leave').map(o => o.date),
+    ]);
     // No leave in the batch: it spends nothing, and can still leave the member over — deleting a
-    // worked Boxing Day at their limit takes back the day in lieu. Only a year whose allowance moves
-    // is checked, so an unrelated save never raises the bar.
+    // worked Boxing Day at their limit takes back the day in lieu. Only a year whose allowance FALLS
+    // is checked (`projectAlOverage`), so an unrelated save never raises the bar.
     if (!alInBatch.length) {
-        const freed = new Set(overrides.filter(o => toDelete.includes(o.id) && o.type === 'annual_leave').map(o => o.date));
         return { toSave, skipped: [], keptLeave: [], unanswered: [],
-            overage: projectAlOverage({ member, memberName, overrides, consuming: [], exclude: freed, after: afterOf(toSave) }) };
+            overage: projectAlOverage({ member, memberName, overrides, consuming: [], exclude: replaced([]), after: afterOf(toSave) }) };
     }
 
     const proj = projectAlBooking({ member, dates: alInBatch.map(e => e.date), ovByDate, swapAnswers });
@@ -139,16 +150,9 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
         batch = batch.filter(e => !(e.type === 'annual_leave' && open.has(e.date)));
     }
 
-    // Existing leave for the year, less the dates this batch OVERWRITES or DELETES — they are
-    // re-accounted through `consuming`, or removed outright. Ordering 1 above: computed from the
-    // SURVIVING entries, so a day left alone is not counted as one this batch replaces.
-    const exclude = new Set([
-        ...alInBatch.filter(e => e.existingId).map(e => e.date),
-        // …and leave another TYPE overwrites: it is being replaced, not kept (review A16). Non-leave
-        // rows are never dropped above, so reading them off `toSave` keeps ordering 1 intact.
-        ...toSave.filter(e => e.existingId && e.type !== 'annual_leave').map(e => e.date),
-        ...overrides.filter(o => toDelete.includes(o.id) && o.type === 'annual_leave').map(o => o.date),
-    ]);
+    // Ordering 1 above: built from the SURVIVING leave rows, so a day left alone is not counted as
+    // one this batch replaces.
+    const exclude = replaced(alInBatch);
 
     return {
         toSave: batch,

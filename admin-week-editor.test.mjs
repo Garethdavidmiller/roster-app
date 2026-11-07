@@ -349,6 +349,7 @@ describe('the "Base roster" column says what the day WAS', () => {
         assert.doesNotMatch(row.innerHTML, /rostered TRG/);
         assert.equal(rosteredWords('MEET 10:00-14:00'), 'Meeting 10:00-14:00');
         assert.equal(rosteredWords('06:20-13:45'), '06:20-13:45', 'a time is already words');
+        assert.equal(rosteredWords('SPARE'), 'Spare', 'a spare week reads as the grid\'s badge says it (7 Nov 2026)');
     });
 
     test('the header, then seven rows in date order, each carrying its own ISO date', () => {

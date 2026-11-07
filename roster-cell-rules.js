@@ -59,7 +59,7 @@ const stripRdw     = /** @param {any} v */ v => v.slice(RDW_PREFIX.length);
  * @param {string} rawShift  parsed value, possibly "RDW|HH:MM-HH:MM"
  * @param {string} baseShift the member's base roster value for that date
  * @param {string} date      "YYYY-MM-DD"
- * @returns {{ value: string, display: string, guarded: 'sunday'|'rest-day'|null }}
+ * @returns {{ value: string, display: string, guarded: 'sunday'|'sunday-other'|'rest-day'|null }}
  *
  * `guarded` NAMES THE GUARD THAT CHANGED THE VALUE, and exists so the review can say so (v23.97).
  * Both guards silently rewrite a real thing the PDF said into `RD`, and until now the only record
@@ -82,10 +82,15 @@ export function normaliseCellValue(rawShift, baseShift, date) {
     // turns into Sunday work at those times is recorded, not refused (`sundaySafeValue`), so it is
     // not reported as guarded — a review row saying nothing is recorded would then be untrue.
     const sundayGuarded = sundaySafe !== parsedValue && sundaySafe === 'RD';
+    // A TRAINING OR MEETING DAY ON A SUNDAY IS ITS OWN REASON (owner, 7 Nov 2026: "You can't have
+    // training or a meeting on a Sunday"). Leave or an absence there means the member is not at work,
+    // so `RD` is the answer; an Other day there is a roster that cannot be right, so nothing is
+    // recorded at all — `computeCellStates` holds the row, whatever the base or a saved record says.
     return {
         value:   normRest(restSafe),
         display: (isRdwEncoded(rawShift) && restSafe !== 'RD') ? `${RDW_PREFIX}${restSafe}` : restSafe,
-        guarded: sundayGuarded ? 'sunday' : (restSafe !== sundaySafe ? 'rest-day' : null),
+        guarded: sundayGuarded ? (isOtherValue(parsedValue) ? 'sunday-other' : 'sunday')
+               : (restSafe !== sundaySafe ? 'rest-day' : null),
     };
 }
 

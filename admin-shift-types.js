@@ -50,15 +50,10 @@ export const PILL_TYPES = ['annual_leave', 'shift', 'rdw', 'sick', 'correction',
 
 // Override types that represent genuinely WORKED days — a Sunday RD-correction during an AL/absence
 // booking must never overwrite one of these (real overtime). (v16.19)
-//
-// THE THREE RETIRED TYPES ARE BACK IN IT, AS A DEFENCE (6 Nov 2026 review). v25.32 dropped them on
-// the strength of the 4 Nov conversion — but the converter skipped some records by design (ties and
-// unreadable values), and nothing records that none was left. A survivor on a worked Sunday was then
-// DELETED by any AL or absence range booking. Here they cost nothing if there are none and keep
-// worked time if there are; they are still not TYPES, so nothing can create one. The names are
-// LEGACY_OVERRIDE_TYPES' (override-utils.js), spelt out because this module imports nothing;
-// override-utils.test.mjs holds the two together.
-export const WORKED_OVERRIDE_TYPES = new Set(['rdw', 'shift', 'spare_shift', 'allocated', 'overtime', 'swap']);
+// The three retired types are not in it: no record is of them (owner, 7 Nov 2026 — Operations' count
+// after the 4 Nov conversion read none left). A 6 Nov review put them back as a defence against a
+// survivor nobody had ruled out; that question is answered, so the v25.32 set stands.
+export const WORKED_OVERRIDE_TYPES = new Set(['rdw', 'shift', 'spare_shift']);
 
 
 /**

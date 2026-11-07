@@ -921,6 +921,10 @@ try {
             if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
             if (isFirstRun()) return;      // don't drift the hidden month behind the first-run prompt (v16.21)
             if (teamView.isTeamViewMode()) {
+                // The week table is a tab stop on a narrow screen so that a keyboard can SCROLL it
+                // (axe scrollable-region-focusable, v25.43) — and ← → are how it scrolls. Turned into
+                // week changes, they re-rendered the grid and the off-screen days stayed out of reach.
+                if (/** @type {Element} */ (e.target).closest?.('#gradeTabPanel')) return;
                 if (e.key === 'ArrowLeft')  document.getElementById('tvPrevWeek')?.click();
                 if (e.key === 'ArrowRight') document.getElementById('tvNextWeek')?.click();
                 if (e.key === 't' || e.key === 'T') teamView.jumpToCurrentWeek();

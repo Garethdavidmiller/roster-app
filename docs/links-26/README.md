@@ -5051,7 +5051,7 @@ decision. Their answer was "Leave this one for now", so the pack and the New lin
 **5. The read-me still said "the chosen link".** It said it twice: what worries you "about the chosen link", and "the chosen
 link's presentation for colleagues", left over from the managers' ask taken out above. It now says "any of the shortlisted
 links" and "the presentations for colleagues, one for each shortlisted link". It does not add the reviewer's "ask which
-they prefer and why": how the choice is made is the owner's and S. Silva's to say.
+they prefer and why": how the choice is made is for S. Silva, who leads the change, to say.
 
 **6. Middle Ground's row on the shortlist sheet.** It ended "— but a larger change of start". The reviewer reads the
 difference from Common Ground as a preference: spreading out the closing and 06:20 weeks against keeping each week's start
@@ -5075,12 +5075,15 @@ and Sunday, its staffing and its contract. Only which week works which duty, and
 again.
 
 **How it was laid.** By the exact solver, `exact-rota.py`, on Grand Tour's rest days, which buy 30 days off for 14 days'
-leave and four weeks off for 14. Every floor is Balanced V6's own figure or a stricter one. V6's own: a 14h 20m shortest
-rest, at most 50.9 hours in any seven days, no more backward rotation against forward, no week over 42h 55m, and 30 days
-off and four weeks off for 14 days' leave. Three are stricter than V6 has them: a worst stretch of 20 days for 14 days'
-leave (V6 19), at most 6 single rest days in 26 weeks (V6 11), and at most 12 shifts without a two-day break if a cover
-week falls badly (V6 19). Then the smallest week-to-week change of start. (This said "every floor is a figure of Balanced
-V6's own" until the 72-hour review of 6 Nov 2026, which read the floors back against V6's sheet.)
+leave and four weeks off for 14. Every floor but one is Balanced V6's own figure or a stricter one. V6's own: a 14h 20m
+shortest rest, at most 50.9 hours in any seven days, no more backward rotation against forward, no week over 42h 55m, and
+30 days off and four weeks off for 14 days' leave. Four are stricter than V6 has them: at least 7 full weekends off in 26
+weeks (V6 6), a worst stretch of 20 days for 14 days' leave (V6 19), at most 6 single rest days in 26 weeks (V6 11), and
+at most 12 shifts without a two-day break if a cover week falls badly (V6 19). The one looser floor is the gap between
+full weekends: at most 7 weeks (`GAP=7`), where V6's longest is 6. It cost nothing, because V7's longest gap is 5 weeks.
+Then the smallest week-to-week change of start. (This said "every floor is a figure of Balanced V6's own" until the
+72-hour review of 6 Nov 2026, which read the floors back against V6's sheet, and "every floor is V6's own figure or a
+stricter one" until the second review of 7 Nov 2026, which counted the two weekend floors from the grids.)
 
 **Why it has V6's three mixed weeks.** Every rota the solver had laid until now had each working week all earlies or all
 lates. Laid that way on these rest days, the runs of early or late weeks could not be kept: the best found had 17 weeks of
@@ -5111,7 +5114,7 @@ command in the header). `FIX=tooling/results/balanced-v7.json` checks the commit
 | Week-to-week change of start | 4h 08m | **2h 33m** |
 | Shortest rest; most hours in seven days; heaviest week | 14h 20m; 50.9; 42h 55m | 14h 20m; **50.5**; 42h 55m |
 | Individual weeks, Monday to Saturday (with the Sunday) | 24h 30m–42h 55m (24h 30m–50h 55m) | 24h 00m–42h 55m (**30h 15m–42h 55m**) |
-| Main league, of 22 | 21st, 56.4 | **20th, 77.2** |
+| Main league, of 22 | 21st, 56.3 | **20th, 77.2** |
 
 No fatigue factor is worse (`factors-like.mjs` against V6's grid), and two figures are lower. The average stretch 14
 days' leave buys is 23.4 days against 23.5, a tenth of a day, because these are Grand Tour's rest days and not V6's; the

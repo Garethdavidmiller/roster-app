@@ -120,12 +120,21 @@ describe('every code the PROMPT names is either accepted by the parser or waived
         const section = promptSection();
         /** Codes named in a "- CODE or CODE = meaning" row. */
         const named = new Set();
+        // A code is up to twelve characters and may be TWO words ("TEAM DAY", "UNION COURSE"). The
+        // row shape read up to six, one word, until 7 Nov 2026 — so every training and meeting row
+        // was skipped WHOLE and this test never checked TRG, MTG or any of their spellings. A wider
+        // read checks more codes, never fewer; the warning in the assertion below is about the
+        // opposite, a code dropped to make a failure go away.
+        const CODE = '[A-Z][A-Z/.]{0,11}(?: [A-Z]{2,})?';
         for (const line of section.split('\n')) {
-            const m = /^-\s+([A-Z][A-Z/.]{0,5}(?:\s+or\s+[A-Z][A-Z/.]{0,5})*)\s*=/.exec(line.trim());
+            const m = new RegExp(`^-\\s+(${CODE}(?:\\s+or\\s+${CODE})*)\\s*=`).exec(line.trim());
             if (!m) continue;
             m[1].split(/\s+or\s+/).forEach(c => named.add(c.trim()));
         }
         assert.ok(named.size >= 8, `only ${named.size} codes parsed out of the prompt — the row shape changed`);
+        for (const code of ['TRG', 'TRAINING', 'INDUCTION', 'ASSESSMENTS', 'TEAM DAY', 'UNION COURSE', 'MTG', 'MEETING']) {
+            assert.ok(named.has(code), `the prompt's "${code}" row was not read — the row shape changed`);
+        }
         const orphaned = [...named].filter((c) => {
             if (TRANSLATED_BY_THE_MODEL.has(c)) return false;
             const warn = console.warn; console.warn = () => {};
