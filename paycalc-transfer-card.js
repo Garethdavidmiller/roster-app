@@ -339,4 +339,20 @@ export function initTransferCard() {
     // fragment jump would land the member on a closed header; the shared helper opens it and keeps
     // it in view while the page finishes growing (overlay.js, which says why that is the hard part).
     openCardNamedByHash('payTransferCard', 'payTransferBody', 'payTransferToggle');
+
+    // AN IN-PAGE LINK HERE OPENS THE CARD TOO (the iPhone audit, 7 Nov 2026). The setup banner's
+    // "Used the Pay Calculator before?" line sends an empty calculator here, and the same bare jump
+    // would land on the closed header. The page has settled by the time anybody taps it, so one
+    // scroll is enough — the correction loop above is for a page still laying out. Any such link,
+    // wherever it sits, so a second one needs no wiring of its own.
+    document.addEventListener('click', (e) => {
+        const link = /** @type {Element|null} */ (e.target instanceof Element ? e.target : null)?.closest('a[href="#payTransferCard"]');
+        if (!link) return;
+        e.preventDefault();
+        if (!document.getElementById('payTransferBody')?.classList.contains('open')) {
+            document.getElementById('payTransferToggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        }
+        const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        card.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+    });
 }

@@ -61,9 +61,18 @@ for (const { name, seed, topVisible } of [
         const top = page.locator('#privacyNoteTop');
         if (topVisible) await expect(top).toBeVisible();
         else await expect(top).toBeHidden();
-        // The foot of the page says it on EVERY visit, whatever the top does.
+        // THE SETUP BANNER'S RESTORE LINE KEEPS THE SAME RULE (the iPhone audit, 7 Nov 2026): it
+        // points an EMPTY calculator at Restore, so it shows exactly when the top note does. Its own
+        // `hidden` is the rule's answer — read directly, because saved settings also confirm the
+        // year and hide the whole banner, and a line inside a hidden banner is hidden whatever the
+        // rule said. Where the rule says show, it must really be on screen.
+        const restore = page.locator('#setupRestore');
+        await expect(restore).toHaveJSProperty('hidden', !topVisible);
+        if (topVisible) await expect(restore).toBeVisible();
+        // The foot of the page says it on EVERY visit, whatever the top does — and says WHERE: in
+        // this browser, because on an iPhone Safari and the Home Screen app keep separate copies.
         await expect(page.locator('.disclaimer .disclaimer-privacy')).toBeVisible();
-        await expect(page.locator('.disclaimer .disclaimer-privacy')).toContainText('saved on this device only');
+        await expect(page.locator('.disclaimer .disclaimer-privacy')).toContainText('saved in this browser on this device');
         expect(errors).toHaveLength(0);
     });
 }
@@ -2222,4 +2231,81 @@ test('paycalc: away from an iPhone, Download backup stays a download and says wh
     await expect(status, 'the page cannot see a download finish, so it must not claim one').not.toContainText('Saved as');
     await expect(status, 'and it is not dressed as a confirmation either').not.toHaveClass(/pt-status--ok/);
     expect(errors).toHaveLength(0);
+});
+
+// Pay figures live in the browser that saved them, and on an iPhone that is two places: Safari and
+// the Home Screen app keep separate copies, and Safari clears its own after about a week unvisited.
+// So the commonest way to find the calculator EMPTY is to have had figures somewhere else — and the
+// setup banner now says where to get them back. Its link must OPEN the card: a bare jump to
+// #payTransferCard lands on a closed header, which reads as a dead link.
+test('paycalc: an empty calculator points at Restore, and the link opens the backup card', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html');
+    const line = page.locator('#setupRestore');
+    await expect(line).toBeVisible();
+    await expect(line).toContainText('Used the Pay Calculator before on this phone?');
+    await expect(page.locator('#payTransferBody')).not.toHaveClass(/open/);
+    await line.getByRole('link', { name: 'Move Your Pay Data' }).click();
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await expect(page.locator('#payTransferCard')).toBeInViewport();
+    // The card it lands on says why the figures were not here: the iPhone's two copies.
+    await expect(page.locator('#payTransferBody')).toContainText('Safari and the Home Screen app keep separate copies');
+    expect(errors).toHaveLength(0);
+});
+
+// "Saved automatically as you type" was promised whatever the browser did with the figures. Storage
+// refuses in two shapes, and only one of them reaches this page:
+//   · READS WORK, WRITES THROW — a full quota. The session still reads, the calculator renders, and
+//     every figure typed in is gone when the page closes. That is where the promise was false.
+//   · THE GETTER THROWS — Safari's "Block All Cookies". The session cannot be read either, so the
+//     member meets the sign-in card, never the calculator (the second test pins that, so the
+//     warning is never needed there and nobody adds a promise where it would be).
+test('paycalc: a browser that will not save says so where it used to promise "Saved automatically"', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    // AFTER the seeders, so the session they wrote is there to read — then every later write throws.
+    await page.addInitScript(() => {
+        Object.getPrototypeOf(localStorage).setItem = function () {
+            throw new DOMException('quota', 'QuotaExceededError');   // as a full device does
+        };
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    const header = page.locator('#hoursCard .card-header');
+    await expect(header.locator('.hours-save-blocked')).toBeVisible();
+    await expect(header).toContainText("This browser isn't letting the app save, so figures you enter here will be lost when you close the page.");
+    await expect(header.locator('.hours-save-ok'), 'the promise it cannot keep is gone').toBeHidden();
+    // Nothing is saved here, so this is an "empty calculator" — but a restore needs the same
+    // writes, so it is not pointed at one.
+    await expect(page.locator('#setupBanner')).toBeVisible();
+    await expect(page.locator('#setupRestore')).toBeHidden();
+    expect(errors).toHaveLength(0);
+});
+
+test('paycalc: with storage blocked outright, the member meets sign-in, never a calculator that cannot keep figures', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => {
+        Object.defineProperty(window, 'localStorage', {
+            configurable: true,
+            get() { throw new DOMException('The operation is insecure.', 'SecurityError'); },
+        });
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    // The calculator never initialised: no session could be read, so nothing below the sign-in card
+    // was built (its static markup sits under the overlay, unpopulated).
+    await expect(page.locator('#periodSelect option')).toHaveCount(0);
+});
+
+test('paycalc: a browser that saves keeps its "Saved automatically" line', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    await expect(page.locator('#hoursCard .hours-save-ok')).toBeVisible();
+    await expect(page.locator('#hoursCard .hours-save-blocked')).toBeHidden();
 });

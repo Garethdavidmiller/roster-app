@@ -22,7 +22,7 @@ import {
   isPreAwardPeriod, getRateForPeriod,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
-import { lsGet, lsSet, lsDel, lsKeys, requestPersistentStorage } from './ls.js';
+import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, requestPersistentStorage } from './ls.js';
 import { getSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -1309,18 +1309,18 @@ export function init() {
     // ── INIT ──────────────────────────────────────────────────────────────────────
     runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
 
-    // THE TOP PRIVACY NOTE IS FOR A FIRST VISIT (v24.32, owner). The same sentence leads the note at
-    // the foot of the page on every visit; up here it earns its place only for somebody who has not
-    // yet typed anything in. "Anything" = saved settings (SK.setup) or any saved pay period for THIS
-    // member — read after runMigrations(), because that is what selects the member's namespace, so
-    // another member's data on a shared phone can never hide it. Decided once per load: hiding it
-    // mid-session would move the page under the member's finger. Starts hidden in the markup.
+    // A FIRST VISIT (v24.32, owner) gets the top privacy note and the setup banner's "Used the Pay Calculator before?"
+    // line (the iPhone audit, 7 Nov 2026: an empty calculator may be a MOVED one — Safari and the Home Screen app keep
+    // separate copies). Nothing saved HERE = no settings (SK.setup) and no payslip for THIS member, read after
+    // runMigrations() selects the namespace, so another member's data never counts. Once per load, so nothing moves
+    // under a finger. A browser that will not SAVE (`lsAvailable`, ls.js) swaps "Saved automatically" for a warning.
     {
-      const pre = pcPrefix();
-      const hasPayData = !!lsGet(SK.setup)
+      const pre = pcPrefix(), hasPayData = !!lsGet(SK.setup)
         || lsKeys().some(k => k.startsWith(pre) && /^p\d+$/.test(k.slice(pre.length)));
       document.getElementById('privacyNoteTop')?.classList.toggle('hidden', hasPayData);
+      document.getElementById('setupRestore')?.toggleAttribute('hidden', hasPayData);
     }
+    document.body.classList.toggle('storage-blocked', !lsAvailable());
 
     // Clamp the visible period range for a member who only started this tax year — they should
     // not see earlier tax years ("from this year onwards"). Must run BEFORE the tabs + period

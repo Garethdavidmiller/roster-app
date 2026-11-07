@@ -814,8 +814,22 @@
     .setup-banner h2 { font-size: var(--type-button); font-weight: 800; color: var(--primary-blue); margin-bottom: 4px; }
     .setup-banner p  { font-size: var(--type-label); color: var(--text-mid); line-height: 1.5; }
     /* The refusal card (#unsupportedGradeBanner) is the one banner with TWO paragraphs — what is
-       missing, then the way out — and they ran together with no gap, reading as one block. */
+       missing, then the way out — and they ran together with no gap, reading as one block. The
+       setup banner's Restore line (#setupRestore) takes the same gap. */
     .setup-banner p + p { margin-top: 8px; }
+    .setup-restore-link {
+      color: var(--primary-blue); font-weight: 700;
+      text-decoration: underline; text-underline-offset: 2px;
+    }
+    .setup-restore-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+    /* A BROWSER THAT WILL NOT SAVE (the iPhone audit, 7 Nov 2026). paycalc-app.js sets
+       `body.storage-blocked` from ls.js's `lsAvailable()` — a write that reads back — and the Hours
+       card's "Saved automatically as you type" gives way to the truth, in the calm amber of
+       `.check-actual-line.check-near`. The Restore line goes too: a restore needs the same writes. */
+    .hours-save-blocked { display: none; color: var(--warning-amber); font-weight: 600; }
+    body.storage-blocked .hours-save-ok { display: none; }
+    body.storage-blocked .hours-save-blocked { display: inline; }
+    body.storage-blocked #setupRestore { display: none; }
     /* Standalone privacy note — FIRST VISIT ONLY since v24.32 (paycalc.html says why); the same
        line leads the note at the foot of the page for everyone else. */
     .privacy-note-standalone {

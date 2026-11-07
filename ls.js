@@ -104,6 +104,35 @@ export function lsSetBothVerified(keyA, valueA, keyB, valueB) {
     return false;
 }
 
+/** The key `lsAvailable` writes, reads back and removes at once. Device-level and never a pay key
+ *  (no `myb_pc_` prefix), so no backup, inventory or ownership scan can ever count it. */
+const PROBE_KEY = 'myb_ls_probe';
+
+/**
+ * Will this browser let the app SAVE? True only when a probe write reads back; the probe is then
+ * removed.
+ *
+ * WHY A WRITE, NOT A READ. Everything else here forgives a refused write on purpose, which is right
+ * for a preference and wrong for a page that PROMISES to keep what is typed into it: the Pay
+ * Calculator said "Saved automatically as you type" over storage that kept nothing (the iPhone
+ * audit, 7 Nov 2026). Storage refuses in two shapes and a read catches only one. The getter can
+ * throw (Safari's "Block All Cookies") — but then a page cannot read its own session either, and
+ * the member meets the sign-in card, never the promise. Or reads succeed while writes throw (a full
+ * quota): the shape in which a page renders, reads its session, and loses every figure typed in.
+ *
+ * Not cached: storage that fills up mid-session is exactly the case a remembered "yes" would hide.
+ * It costs one tiny write, so ask it when the answer is wanted, not in a loop.
+ * @returns {boolean}
+ */
+export function lsAvailable() {
+    try {
+        localStorage.setItem(PROBE_KEY, '1');
+        const ok = localStorage.getItem(PROBE_KEY) === '1';
+        localStorage.removeItem(PROBE_KEY);
+        return ok;
+    } catch (e) { _warnOnce(e); return false; }
+}
+
 /** Snapshot of all localStorage key names (empty array if storage is unavailable).
  *  Uses the standard length/key(i) enumeration so it never clashes with object
  *  methods, and returns a snapshot so callers can safely delete keys while iterating. */
