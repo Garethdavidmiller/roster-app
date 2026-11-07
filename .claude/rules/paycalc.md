@@ -680,6 +680,25 @@ to the latest PAID payslip on first entry, correctable).
   payslip). Written by `_updateYtdNote` alongside the note, so every path that refreshes one refreshes
   both.
 
+**The take-home asks for the latest figures, because they change on every payslip (owner, 7 Nov
+2026).** A one-off notice cannot keep a monthly figure current, so `#netYtdNudge` under the take-home
+£ says *"For a closer tax figure, copy the Year to Date figures from your ⟨date⟩ payslip. Add them"*
+wherever copying them would change the estimate on screen. The rule is `ytdUpdateFrom`
+(paycalc-periods.js); `renderYtdLine` writes it on every `calculate()` run, and `wireYtdLine`'s button
+opens the card at `#ytdPay`. It is quiet:
+- on a payslip already paid — the year keeps ONE pair of figures, so asking for an older payslip's
+  would undo the estimate the member is waiting on;
+- on the tax year's first payslip, where Year to Date starts again;
+- for a W1/M1/X or NT code, which the figures cannot change — read exactly as `computeTax` reads the
+  code, and cross-checked against `computeTax` over twenty codes in `paycalc-periods.test.mjs`;
+- while the figures are in use (`inUse` is `computeTax`'s `usingCumulative`, so one figure, or an
+  unreadable one, is not in use) or come from this payslip or a later one;
+- until the payslip to copy from can be in hand (`payslipMayBeInHand`, from its cut-off);
+- beside a confirmed payslip on the developer's device, which is no estimate.
+
+The card's hint asks for the tax code to be checked against the same payslip, for the reason in the
+"Check against your payslip" paragraph below: with the wrong code the figures make the estimate worse.
+
 **"This tax year so far":** `#ytdYearSoFar` (a standalone `.pc-side` child) sums the year's ENTERED
 payslips — `computeYearSoFar(ty, opts)` in **`paycalc-year-summary.js`** re-runs the same engine
 headlessly per paid payslip with saved hours (decode → `computeGross` with period-aware
