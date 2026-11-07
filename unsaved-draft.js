@@ -42,8 +42,8 @@
  * overtime-app.js) — a declaration about somebody's own availability, kept where the server cannot
  * see it, is a different trade from a staged roster edit or a shared link design.
  *
- * Storage goes through ls.js, so iOS private mode, which throws on any access, loses only this
- * safety net and never the page. Pure apart from that one dependency (and date-format.js, which
+ * Storage goes through ls.js, so a browser whose storage throws (Safari's Block All Cookies) loses
+ * only this safety net and never the page. Pure apart from that one dependency (and date-format.js, which
  * imports nothing); unit-tested in page-session.test.mjs, beside the trigger that writes it.
  */
 

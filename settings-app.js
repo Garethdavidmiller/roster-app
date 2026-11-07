@@ -679,10 +679,8 @@ export function init() {
         /** The write completed. Shared by the in-time and the LATE success paths.
          *  @param {any} res the setOwnPassword result ({ statusRecorded }) */
         const onWriteConfirmed = (res) => {
-            // Now, and only now, tell the password manager — through the form it watches, before the
-            // fields are cleared below. Earlier, a wrong CURRENT password (refused by the server, after
-            // every check here had passed) left Keychain offering to save a new password that was never
-            // set, under the member's name. The submit itself is cancelled; it carries the values only.
+            // Only now tell the password manager, before the fields clear: earlier, a wrong CURRENT password
+            // left Keychain offering a new password that was never set (the submit itself is cancelled).
             form?.requestSubmit();
             setFeedback(res && res.statusRecorded === false
                 ? '✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)'

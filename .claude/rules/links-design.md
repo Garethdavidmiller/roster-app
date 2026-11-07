@@ -177,6 +177,15 @@ Operations link (`beforeunload` covers the rest, where the browser shows it); si
 update. **A new path that replaces or discards the working copy joins this list, with its question.**
 Anything that ends in `_activateDesign` is such a path.
 
+**And the exits nothing can ask about keep a copy** (iPhone audit, Nov 2026): iOS discarding a hidden
+page, a swipe back or away. While `dirty`, hiding the page keeps the working copy, its window and the
+concurrency baseline it was edited against (`keepDraftWhenHidden`, page-session.js); the next load by
+the SAME designer asks "Restore your unsaved changes from 14:20?" (`unsaved-draft.js`). Restore puts it
+back UNSAVED on its own design, so a colleague's save since still meets "Someone else saved"; a design
+gone from the list comes back as a new one; nothing is offered over a failed load. An answered leave or
+sign-out keeps nothing — it was a discard. This is why the app-update question no longer says the work
+"will be lost".
+
 **Save a copy as… is worded differently, on purpose.** The copy is taken from the LIVE patterns, so
 unsaved work goes INTO it and the original reverts to its last save; "changes will be lost" would warn
 about the wrong outcome. The surprise to head off is the opposite one — duplicating to snapshot the
@@ -324,7 +333,8 @@ the drawer's links — mobile browsers suppress `beforeunload` dialogs. The dial
 calls `preventDefault()` first and navigates itself on confirm.
 
 **An app update waits** (`beforeReload` in `links-app.js`): while a write's outcome is unknown it is
-held outright, and with unsaved changes it asks first (AUTH_AND_SESSIONS 22).
+held outright, and with unsaved changes it asks first (AUTH_AND_SESSIONS 22) — saying the work is
+kept, because the reload's hide keeps the copy above.
 
 ### Aesthetic conventions
 
@@ -1123,8 +1133,9 @@ The workspace's own rules, in `saveChanges`:
 - **"Saving" is PER DESIGN** (`savingKeys` — by id, or `'unsaved'` for any first save, never the design
   object). A write that cannot finish must not lock every other design's Save, and a window edit or a
   generator apply that replaces the object mid-save must not let a second press create a second design.
-- **A queued save does not say "✓ Saved".** It says *Saved on this device — it will upload when you're
-  back online*, without the success colour. It still clears `dirty`: the write is in the device's
+- **A queued save does not say "✓ Saved".** It says *Saved in this browser — it uploads the next time
+  Links is open here with a connection*, without the success colour (iPhone audit, Nov 2026: "when
+  you're back online" promised an upload a closed page cannot make). It still clears `dirty`: the write is in the device's
   persistent queue, a re-save would only queue a duplicate, and a leave-page warning would claim work is
   at risk that is not.
 - **`dirty` clears only if nothing was edited while the save was in flight**, and the payload recorded is

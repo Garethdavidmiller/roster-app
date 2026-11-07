@@ -94,7 +94,7 @@ export function init() {
             if (hasUnconfirmedWrite()) return;
             if (!_isDirty() || await confirmDialog({
                 title: 'Update available',
-                message: 'Reload to apply the update? Unsaved changes will be lost.',
+                message: 'Reload to apply the update? Your unsaved changes are kept in this browser, and you’ll be asked whether to restore them.',
                 confirmLabel: 'Reload',
             })) {
                 reloadForUpdate();   // not a bare reload: it notes a release caused the next load
