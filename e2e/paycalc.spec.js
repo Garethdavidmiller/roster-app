@@ -2125,3 +2125,24 @@ test('paycalc: the "Includes an 8h estimate" chip wraps inside its row instead o
     await row.screenshot({ path: testInfo.outputPath('rdw-row.png') });
     expect(errors, 'Uncaught JS exceptions on the estimate chip').toHaveLength(0);
 });
+
+// ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
+// Each block below is one finding, proved where a member meets it: the page, not the helper.
+
+// The converter was the one figure box still read with a bare parseFloat, so "7,5" from a
+// decimal-comma keypad answered "7 hrs". The rule is unit-tested (`decimalHoursText`,
+// paycalc-inputs.test.mjs); this proves the card asks it.
+test('paycalc: the Decimal Hours Converter reads a decimal comma as the point', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html');
+    await page.locator('#decimalConverterToggle').click();
+    const box = page.locator('#decimalHrsInput');
+    const answer = page.locator('#decimalHrsResult');
+    await box.fill('7,5');
+    await expect(answer).toHaveText('7 hrs 30 mins');
+    await box.fill('');
+    await expect(answer, 'a cleared box asks nothing, so answers nothing').toHaveText('–');
+    expect(errors).toHaveLength(0);
+});

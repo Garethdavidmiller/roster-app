@@ -3,7 +3,7 @@
 // `document`, so we install a minimal fake DOM. Part of test:hygiene.
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { numVal, numValOr, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap } from './paycalc-inputs.js';
+import { numVal, numValOr, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap, decimalHoursText } from './paycalc-inputs.js';
 
 // ── Minimal fake DOM ───────────────────────────────────────────────────────────
 class FakeEl {
@@ -146,6 +146,33 @@ test('a decimal COMMA in an hours box is read as the point, by the read and by t
   installDom({ h });
   decPreview('h');
   assert.equal(col.querySelector('.hhmm-dec-hint')?.textContent, '= 7h 30m');
+});
+
+// ── decimalHoursText (the Decimal Hours Converter card) ──────────────────────────
+// The iPhone audit (7 Nov 2026): the converter was the one figure box still reading with a bare
+// parseFloat, so "7,5" from a decimal-comma keypad answered "7 hrs" — half an hour short, on the card
+// whose whole job is the conversion. Its blank and unreadable answers are pinned too, because the
+// comma-aware parser that floors to 0 would have turned both into "0 mins".
+describe('decimalHoursText — the converter card reads what the member typed', () => {
+  test('a decimal COMMA is the decimal point, as it is in every other box', () => {
+    assert.equal(decimalHoursText('7,5'), '7 hrs 30 mins');
+    assert.equal(decimalHoursText('0,25'), '15 mins');
+    assert.equal(decimalHoursText('7.5'), '7 hrs 30 mins', 'the point, as before');
+  });
+  test('the three shapes of the answer, singular and plural', () => {
+    assert.equal(decimalHoursText('8'), '8 hrs');
+    assert.equal(decimalHoursText('1'), '1 hr');
+    assert.equal(decimalHoursText('0.5'), '30 mins');
+    assert.equal(decimalHoursText('1.0167'), '1 hr 1 min');
+    assert.equal(decimalHoursText('7.999'), '8 hrs', 'a fraction that rounds to 60 minutes carries');
+  });
+  test('nothing usable answers "–", never a made-up "0 mins"', () => {
+    assert.equal(decimalHoursText(''), '–');
+    assert.equal(decimalHoursText('   '), '–');
+    assert.equal(decimalHoursText('abc'), '–');
+    assert.equal(decimalHoursText('-2'), '–', 'hours are never negative');
+    assert.equal(decimalHoursText('0'), '0 mins', 'a typed zero is still an answer');
+  });
 });
 
 // ── wireIosTap (v21.66) ──────────────────────────────────────────────────────────────────────────

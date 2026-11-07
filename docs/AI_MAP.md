@@ -1581,6 +1581,7 @@ The field readers for `paycalc.html`'s hours and figures, and the live "= 7h 30m
 - `numVal(id)` — `parseSmartFloat`, which strips iOS smart hyphens and quotes; missing or empty → 0. `numValOr(id, fallback)` — `fallback` for an unparseable value (through `parseSmartFloatOrNull`, which does not floor garbage to 0), so a stray "." cannot cascade £NaN. `intVal(id)` — a non-negative integer.
 - `hmPair(hId, mId)` → `{ h, m }` — reads a DECIMAL still in the hours box exactly as the blur split will write it, so the live £, the autosave and the post-blur fields agree. `hhmmDec(hId, mId)` — decimal hours, through `hmPair`. `clampMins(mId)` — rewrites only an out-of-range minutes value, so a typed "05" survives.
 - `_decHintEl(hId, make)` / `decPreview(hId)` — the decimal hint under an hours field.
+- `decimalHoursText(raw)` — PURE: the Decimal Hours Converter card's answer ("7 hrs 30 mins", or "–" for a blank or unreadable box), reading a decimal comma as the point like every other box.
 - `wireIosTap(el, action)` — touch-and-click wiring for a control tapped while the soft keyboard is up, where iOS cancels the click: it fires from `touchend`, suppresses a duplicate click within a time window, and treats a moved touch as a scroll (the destructive "Replace with calendar values" row). Its JSDoc gives each rule's reason.
 
 ### `paycalc-backpay-state.js`

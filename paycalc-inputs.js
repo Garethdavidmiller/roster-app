@@ -100,6 +100,29 @@ export function _decHintEl(hId, make) {
   return hint;
 }
 
+/**
+ * The Decimal Hours Converter's answer for what the member typed: "7 hrs 30 mins", "15 mins",
+ * "7 hrs", or "–" when there is nothing usable to convert. PURE.
+ *
+ * A decimal COMMA is a decimal point here too, as it is in every other figure box on the page
+ * (`hmPair` above): a phone set to a decimal-comma region offers "," on the decimal keypad, and the
+ * converter's bare `parseFloat("7,5")` read 7 — the iPhone audit, 7 Nov 2026. `parseSmartFloatOrNull`,
+ * not `parseSmartFloat`: that one floors a blank or unreadable box to 0, and the card would then
+ * answer "0 mins" to a question nobody had asked yet.
+ * @param {string} raw the box's text
+ * @returns {string}
+ */
+export function decimalHoursText(raw) {
+  const v = parseSmartFloatOrNull(raw);
+  const hm = v === null ? null : decimalToHM(v);   // single source: paycalc-format.js (60→next-hour guard)
+  if (!hm) return '–';
+  const hrs = `${hm.h} hr${hm.h !== 1 ? 's' : ''}`;
+  const mins = `${hm.m} min${hm.m !== 1 ? 's' : ''}`;
+  if (hm.h === 0) return mins;
+  if (hm.m === 0) return hrs;
+  return `${hrs} ${mins}`;
+}
+
 // Live "= 7h 30m" preview shown WHILE a decimal is being typed, so the on-blur
 // split is a visible transformation rather than a silent one (trust on a pay form).
 /** @param {string} hId */
