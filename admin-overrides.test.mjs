@@ -47,6 +47,10 @@ let _getDocsGate = null;
 /** Every payload handed to `batch.set()`, in order — what production would actually write. */
 const _batchWrites = [];
 
+/** How many writes each committed batch carried. Firestore refuses a batch of more than 500 WHOLE,
+ *  and the mock now does too, so a save that sizes its batches wrongly fails here as it would live. */
+const _commitSizes = [];
+
 // A minimal SERVER: committed batches apply their sets and deletes here, by document id (v24.48).
 // The concurrency defect was a property of the COLLECTION — two documents for one member and date —
 // and a mock that only recorded payloads could not see it, because both payloads were correct.
@@ -123,6 +127,12 @@ mock.module('./firebase-client.js', {
                 commit: async () => {
                     if (committed) throw new Error('WriteBatch reused after commit()');
                     committed = true;
+                    if (ops.length > 500) {
+                        const e = /** @type {any} */ (new Error('Maximum 500 writes allowed per request'));
+                        e.code = 'invalid-argument';
+                        throw e;
+                    }
+                    _commitSizes.push(ops.length);
                     if (_failNextCommits > 0) {
                         _failNextCommits--;
                         const e = /** @type {any} */ (new Error('Missing or insufficient permissions'));
@@ -1087,6 +1097,33 @@ describe('two editors saving the same day', () => {
 });
 
 // ── R-A2: a range write stamps its Sunday corrections with the booking's own instant ────────────
+describe('recordRangeOverrides — batches sized by WRITES (Firestore refuses more than 500)', () => {
+    test('a long absence over days carrying older manual duplicates saves every day', async () => {
+        // C. Reen works every weekday (fixed pattern). Each weekday here carries TWO older manual
+        // records with auto ids — the pre-v24.48 duplicates — so replacing it is two deletes plus the
+        // new record: three writes. Batched by DATES (200 a batch, two writes assumed) that is 600
+        // writes in the first batch, which Firestore rejects whole and the booking is lost.
+        const days = [];
+        for (let d = new Date(Date.UTC(2026, 1, 2)); days.length < 230; d.setUTCDate(d.getUTCDate() + 1)) {
+            const dow = d.getUTCDay();
+            if (dow !== 0 && dow !== 6) days.push(d.toISOString().slice(0, 10));
+        }
+        const dup = (/** @type {string} */ date, /** @type {string} */ tag, /** @type {number} */ secs) =>
+            ({ id: `${tag}-${date}`, memberName: 'C. Reen', date, type: 'shift', value: '12:00-19:00', source: 'manual', createdAt: { seconds: secs } });
+        setAllOverrides(days.flatMap(date => [dup(date, 'dupA', 100), dup(date, 'dupB', 200)]));
+        _commitSizes.length = 0; _batchWrites.length = 0; _failNextCommits = 0;
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        try {
+            const res = await recordRangeOverrides({ type: 'sick', value: 'SICK', memberName: 'C. Reen', dates: days, changedBy: 'G. Miller' });
+            assert.equal(res.workingCount, days.length, 'premise: every weekday is a working day for C. Reen');
+        } finally { auth.currentUser = null; }
+        assert.ok(_commitSizes.length >= 2, 'a range this long needs more than one batch');
+        assert.ok(_commitSizes.every(n => n <= 500), `a batch carried ${Math.max(..._commitSizes)} writes`);
+        assert.equal(_commitSizes.reduce((a, b) => a + b, 0), days.length * 3, 'every day: two deletes and its new record');
+        assert.equal(new Set(_batchWrites.filter(w => w.type === 'sick').map(w => w.date)).size, days.length, 'every day was written');
+    });
+});
+
 describe('recordRangeOverrides — the Sunday correction is provably the booking\'s', () => {
     beforeEach(() => {
         setAllOverrides([]);
