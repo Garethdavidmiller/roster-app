@@ -14,15 +14,9 @@ is roadmap, "we decided X" is not.
 Dated obligations — the work that has a deadline whether or not anyone plans it — live in
 **`MAINTENANCE_CALENDAR.md`**. Implementation specs live in CLAUDE.md and `.claude/rules/*`.
 
-> **Split at v19.97** (external review). This file was 924 lines, about two-thirds of it the past.
-> The history moved out verbatim. If something below has become history, **move it — do not copy
-> it**; two live copies of a plan is the drift that made the split necessary.
->
-> **Split again on 8 Sep 2026**, on the same rule and for the same reason. It had grown back to 994
-> lines and about a sixth of that was closed decisions — a "Decisions taken" section and two
-> DECLINED features. Those answer *what did we already decide*, which is a different question with a
-> different reader, and they moved to `DECISIONS.md` verbatim. What stayed is everything still OPEN,
-> including the governance gate and the owner decisions in `NOW`.
+If something below has become history, **move it — do not copy it**; two live copies of a plan is
+the drift that split this file twice. What moved is in `ROADMAP_HISTORY.md` (the past) and
+`DECISIONS.md` (what was decided).
 
 ---
 
@@ -74,8 +68,8 @@ built. Until it is answered, the answer is assumed to be "informal staff utility
 **If MYB Roster remains an informal staff utility** — the position today — then it must not become
 the authoritative system for annual-leave approval, payroll, mandatory safety decisions, or official
 staffing approval. It may *assist* all of those. That is the current boundary, and it is why the
-Links panel says "must be met" about a limit rather than approving a design, and why the pay
-calculator is an estimator.
+Links panel reports a design against a limit rather than approving it, and why the pay calculator
+is an estimator.
 
 **If Chiltern adopts it formally**, then a body of work starts that is currently in nobody's plan: a
 named system owner, business continuity if the owner is unavailable, the data controller/processor
@@ -107,7 +101,7 @@ builds toward it, and so that nobody is surprised later that the custom work was
 the link follows on 1 January, and today's link carries on until then). It is 26 weeks with five cover weeks
 (`docs/links-26/RULES.md`), and the shortlist is three — **Common Ground**, **Even Step** and **Short Run**, A to Z,
 with no recommendation (owner, 5 Nov 2026) — built into the Links designer read-only (`links-proposals.js`) and drawn
-in the pack (`docs/links-26/`). The new link page (`newlink.html`, v25.06) presents them evenly to colleagues, as a
+in the pack (`docs/links-26/`). The new link page (`newlink.html`) presents them evenly to colleagues, as a
 **preview** for the admin and S. Silva for now.
 
 What remains is a decision, not code — S. Silva's, as the one leading the change, and then the area manager's review (the plan's dashboard) — a controlled source for the company hard
@@ -115,116 +109,53 @@ limits, and then — if colleagues are to see the page — its audience gate (OP
 page"). The readiness dashboard at the top of the plan is authoritative.
 
 ### Roster import — let the PDF's own grid decide the day
-**Status:** Phase 1 SHIPPED (v22.31) · **Phase 2 SHIPPED (v24.04; working since v24.12)** · phase 3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`, `functions/roster-prompt.js`
+**Status:** Phases 1 and 2 shipped · phase 3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`, `functions/roster-prompt.js` · **Contract:** `.claude/rules/roster-import.md`
 
-The import's day-drift defence has a structural weakness the shipped fixes reduce but cannot close:
-the row read, `sundayScan` and `columnScan` all come from ONE model call looking at ONE PDF, so when
-the model collapses a blank Sunday cell, every cross-check agrees with the wrong answer. The
-circuit breaker added alongside compares against the member's own base roster instead — the one
-witness the PDF cannot influence — but that witness is deliberately WEAK, because a published roster
-legitimately carries leave, absence, overtime and swaps on top of the rotation.
+The import's model-side day-drift defences share one weakness: the row read, `sundayScan` and
+`columnScan` all come from ONE model call looking at ONE PDF, so when the model collapses a blank
+Sunday cell, every cross-check agrees with the wrong answer. The circuit breaker beside them
+compares against the member's own base roster — the one witness the PDF cannot influence — but that
+witness is deliberately WEAK, because a published roster legitimately carries leave, absence,
+overtime and swaps on top of the rotation. **The strong witness is in the file**: the table's
+vertical rules are DRAWN, at nine fixed x positions repeated on every content page, so assigning
+each text run by coordinate places every cell. Three phases, in this order:
 
-**A strong witness turns out to be in the file already.** Measured on a real roster: the table's
-vertical rules are DRAWN, at nine fixed x positions repeated on every content page, and assigning
-each text run by coordinate placed all 28 member rows × 7 days correctly — 13 physically empty
-Sunday cells and 12 holding a timed duty. On the row that drifts, not one text object falls in the Sunday
-column. The app is currently spending model intelligence rediscovering a grid the file encodes.
+1. **A geometry WITNESS beside the AI result — shipped.** An AI day the physical cell cannot support
+   is **refused, not weighed**: deterministic, with no probabilistic reasoning, no second opinion and
+   no base-roster comparison. It runs in `parseRosterPDF` as the final gate, fails open everywhere,
+   and the review states when it could not run (`geometryCopy` in `roster-alignment.js`). A full
+   row offers nothing for a shifted claim to contradict, which is why phase 2 exists.
+2. **Geometry assigns the days — shipped.** When the grid can place every member the roster type
+   covers, the cells are extracted by coordinate and the model is handed them already separated, so
+   Monday can no longer become Sunday: nothing is left for it to decide. One miss falls the whole
+   document back to the PDF path, so a member legitimately absent from a week's sheet turns phase 2
+   off for that upload; the coordinator logs which path it took and why.
+3. **Deterministic parsing first, model as fallback** for the genuinely unusual cell — **not
+   started.** Measured over three real rosters (week ending 26 Sep 2026), **291 of 297 non-empty
+   cells are read by `normaliseShift` alone** once the duty-code line is dropped. What is left is
+   `PIDD TRG` ×4 (not in the prompt's vocabulary; it reads as UNKNOWN), and `Until 10:30` and
+   `Medical`, which genuinely want a person. `NA` and `NS` read as rest days on every day (owner,
+   6 Nov 2026), so neither needs the model. Phase 3 would make that share PROVABLE rather than
+   probable — a deterministic parser is testable in a way a model call is not, which is what would
+   finally close the "we cannot show the model normalises well" caveat phase 2 ships with.
 
-Three phases, in this order, and the first is the one that closes today's bug:
-
-1. **A geometry WITNESS beside the AI result.** For each member, whether each physical cell holds
-   any text. An AI day the physical cell cannot support is **refused, not weighed** — no
-   probabilistic reasoning, no second opinion, no base-roster comparison. Deterministic, and it
-   leaves the parser exactly as it is. **Measured on the sample: zero false refusals, and it
-   refuses 13 of 28 simulated one-day shifts** — every member with a blank cell, and none of the 15
-   whose week is fully worked, because a full row offers nothing for a shifted claim to contradict.
-   That is enough to close the REPORTED bug (which is defined by a claim landing in an empty cell)
-   and it is not a general day-drift detector; `assessRosterAlignment` stays alongside it.
-2. **Geometry assigns the days**, and the model is handed already-separated cells. Monday can no
-   longer become Sunday because nothing is left for it to decide — and this is where the fully-worked
-   rows phase 1 cannot speak for are covered, by construction rather than by a check. **That is the
-   argument for treating phase 1 as a step and not a destination.**
-3. **Deterministic parsing first, model as fallback** for the genuinely unusual cell. Most cells in
-   the sample are already mechanically readable (`RD`, `AL`, `SC`, `SP`, `06:20-14:20 CEA 1`,
-   `06:20-18:20 RDW CEA 5`).
-
-**Phase 1 is live (v22.31).** `functions/roster-geometry.js` runs in `parseRosterPDF` as the FINAL gate,
-after every model-side repair: it reads the drawn rules and the text positions from the same bytes the
-model was sent, and any AI day landing in a physically empty cell is refused — the cell becomes
-UNREADABLE and the row is returned as `geometryRefused`, which `roster-alignment.js` folds into the
-same verdict as a base-roster drift (row unticked; three refusals trip the breaker). It fails open at
-every step and reports that it did (`geometry.status`) — **and until v22.40 nothing on the client read
-that field**, so for nine versions the claim in this paragraph was true of the response and false of
-the screen: a witness that did not run produced a review identical to one where the grid agreed with
-every cell (found by external review). `geometryCopy` in `roster-alignment.js` now states `partial`
-and `unavailable`, treating an absent field as did-not-run. It is worth remembering as the shape of
-the mistake rather than the mistake itself: the rule was built, tested and documented, and the wire
-from it to the person who needed it was never run.
-
-v22.40 also **bounded the wait**: the extraction has the whole model call for free, but an optional
-witness that never settled could hold a finished parse until the function's own 120s timeout, so
-`awaitGeometryWithin` gives up and reports `unavailable` — which the review now shows. Tested through the real pdfjs on a hand-built PDF (`roster-geometry.test.mjs`), because
-the repository holds no roster PDFs.
-
-**Both gates were cleared before it shipped.** Roster TYPE at v22.19 (Supervisor and Dispatch carry the
-identical grid); TIME on 1 Sep 2026 — 12 documents, three roster types × three week-endings, draft and
-final, zero pages without the nine-column grid (the README). What that still does not establish is an
-archive from before a system change, or a scanned sheet with no text layer: both read as "no grid" and
-the witness stands aside, which is the right failure. The README also records what nobody predicted,
-including a print footer that parses as a member row with `Page 1 of 3` in the Tuesday column — the
-hazard geometry introduces in exchange for the one it removes, and the shipped module filters it two
-ways because one was not enough.
-
-**The dependency decision was taken with the release, and it is the owner's to reverse.** `pdfjs-dist`
-(pinned `4.10.38`, the v4 line the experiment established; zero advisories on the deploy's own audit
-gate) is now a dependency of `functions/` — server-side, so the no-bundler rule does not bear on it, but
-"a few vetted libraries" is a discuss-first rule and this is the fourth. It was shipped rather than
-held because the witness is the roadmap's own sequenced next step, and because declining it costs one
-line: with the package absent the adapter returns `pdfjs-unavailable` and the import behaves exactly as
-it did at v22.30.
-
-**What phase 1 does not do, so phase 2 still has a job:** a member whose week is fully occupied has no
-empty cell for a shifted claim to contradict, and an `RD` written into an occupied cell is not checked
-(telling a printed RD from a printed duty means reading the text — phase 3).
-
-**PHASE 2 SHIPPED at v24.04 AND COULD NOT SUCCEED UNTIL v24.12** — the coordinator still required the model to return `columnHeaders`, which `buildCellPrompt` deliberately never asks for, so every upload the grid COULD place was answered with *"The AI returned an unexpected format"*. The better the geometry read, the more certain the failure; a sheet the grid could not place fell back to the legacy path and worked, which is the wrong way round. It was invisible because the only end-to-end test hands the handler an unopenable PDF — so the geometry path had no execution anywhere, and the whole estate stayed green. **The three real rosters re-measured the case for phase 2:** Simulating a
-one-day-left misread on every matched row of the CEA, Dispatch and Supervisor sheets for week ending
-26/09/2026, the phase-1 witness refuses **19 of 47** — **23 of those 47 rows work all seven days**, so
-60% of drifts pass it silently. Under phase 2 the grid ASSIGNS the day and the model is handed
-already-separated cells, so those rows are covered by construction rather than by a check.
-`.claude/rules/roster-import.md` holds the contract; `functions/roster-prompt.js` holds the reasoning,
-including the two wiring defects the v24.05 bug check found in it and the one design cost that is
-deliberate (a member legitimately absent from a week's sheet turns the geometry path off for that
-upload, and the coordinator logs which path it took).
-
-**PHASE 3 IS CLOSER THAN THIS ENTRY ASSUMED.** Measured over the same three rosters: **288 of 297
-non-empty cells — 97% — are read by `normaliseShift` alone** once the duty-code line is dropped. The
-nine that are not: `PIDD TRG` ×4 (not in the prompt's vocabulary; it reads as UNKNOWN) and `NA` ×3 (decided by
-the day from v24.22, and read by `normaliseShift` itself as a rest day since v25.38), plus `Until 10:30` and `Medical`, which genuinely want a person. Phase 3 would make the
-97% PROVABLE rather than probable — a deterministic parser is testable in a way a model call is not,
-which is what would finally close the "we cannot show the model normalises well" caveat phase 2 ships
-with. **`NA` IS ANSWERED, and it is no longer one of the nine** — twice, because the first answer was the
-wrong fact. v24.20 heard "usually only falls on a Sunday as it is uncontracted" and made `NA` a
-Sunday rest day and a Mon–Sat question. The owner corrected it on 24 Sep 2026 (v24.22): **`NA` means
-not available and always means absent**, written Monday to Saturday and a clerical error on a Sunday;
-**`NS` is the Sunday code**, not available on a Sunday. So `NA`/`N/A` is the app's Absent day
-Mon–Sat and `RD` on a Sunday (a Sunday cannot hold an absence), `NS` is `RD` on Sunday and `SICK` on a
-weekday (the owner's second answer that day: a weekday `NS` is also absent), and the prompt still
-reports the code rather than deciding — every answer depends on the column. **And a third time (v25.38):** on 6 Nov 2026
-the owner ruled that `NA` and `NS` "should be treated as rest days on the roster uploader", Sundays
-included, so both are `RD` on every day and the day no longer matters. The deterministic read is 291 of 297 rather than 288 — `NA` never needed the
-model. `PIDD TRG` ×4, `Until 10:30` and `Medical` are what remain, and the last two genuinely want a
-person.
+**The dependency decision is the owner's to reverse.** `pdfjs-dist` (pinned `4.10.38`, the v4 line
+the experiment established) is a dependency of `functions/` — server-side, so the no-bundler rule
+does not bear on it, but "a few vetted libraries" is a discuss-first rule and this is the fourth.
+Declining it costs one line: with the package absent the adapter returns `pdfjs-unavailable` and the
+import behaves as it did before the witness. An archive from before a system change, or a scanned
+sheet with no text layer, reads as "no grid" and the witness stands aside, which is the right
+failure. What the PDF path still cannot see: `KNOWN_LIMITATIONS.md` → Roster data. How each phase
+shipped, including the wiring defects found on the way: `ROADMAP_HISTORY.md`.
 
 ### Track E — the authentication decision
 **Status:** Blocked on an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md`
 
-E0 and E1 have shipped. **E2 was SUPERSEDED, not built** — the staff PIN did its job at v20.12, and
-the canonical table says "do not build it"; this line named E2 as the next boundary until v21.63,
-two lines below its own "status of record" pointer. The
-decision is the security/privacy bar, and it should be taken with the E3 measurement criteria
-**pre-registered** — AUTH_PLAN §6 now requires the thresholds to be written down before telemetry
-starts, precisely so they cannot be chosen after seeing the numbers.
+E0 and E1 have shipped. **E2 was SUPERSEDED, not built** — the staff PIN did its job, and the
+canonical table says "do not build it". The decision is the security/privacy bar, and it should be
+taken with the E3 measurement criteria **pre-registered** — AUTH_PLAN §6 requires the thresholds to
+be written down before telemetry starts, precisely so they cannot be chosen after seeing the
+numbers.
 
 This gates more than itself: **C5 cannot complete without it**, because a member who only ever reads
 the roster never signs in and is therefore never compelled to set a password.
@@ -242,9 +173,9 @@ know they crossed a deployment.
 `registration.update()` runs hourly AND on every `visibilitychange` back to visible, so foregrounding
 the app is itself an update check. At that rate a reload is a regular event rather than a rare one.
 
-**What has already been done about the IMPACT rather than the cadence.** v22.90 holds the reload
-until the page is hidden, so a release no longer takes the Calendar away mid-read, and v22.92 added
-`readyUpdate` so the share of opens that follow a release is now measurable rather than argued.
+**What has already been done about the IMPACT rather than the cadence.** The reload is held until
+the page is hidden, so a release no longer takes the Calendar away mid-read, and `readyUpdate` makes
+the share of opens that follow a release measurable rather than argued.
 
 **What has NOT been decided, which is the review's actual point:** whether to batch releases so
 installed devices spend most opens in the warm steady state — develop freely, ship one stable
@@ -253,56 +184,14 @@ recorded here rather than built. **Read `readyUpdate` on the App Speed card firs
 fraction of Calendar opens actually follow a release, which turns this from a plausible argument
 into a sized one.
 
-### Calendar start — the identity round trip
-**Status:** SHIPPED (v22.97), RETIRED 26 Sep 2026, REPLACED at v24.59 · **Decided by:** Gareth, 5 Sep 2026 · **Where it lives now:** `CALENDAR_DATA.md` invariant 17 (13, the paint's own, is retired)
-
-The owner's answer was **option 2 — yes, for a named member with a live local session only**: a
-returning member is shown their own already authorised cached roster while Firebase revalidates the
-stored identity, instead of waiting for it. Never the shared PIN viewer, whose whole security model
-is that it holds no identity.
-
-**What it is WORTH is still not established (12 Sep 2026).** The field signature that justified the
-decision is now confirmed on live devices and `VAL-AUTH-006` is closed — `Recognised` runs 48% / 68%
-/ 91% over a second across the connection groups while `Getting ready` is 0% in every one of them.
-But the fix's own prediction — that cache-served starts would stop waiting — **has not shown up**:
-78% over a second before, 77% after, on 1,285 opens. That is not yet a falsification, because it
-fits "the path rarely fires" exactly as well as "it fires and does not help", and those have
-opposite consequences. `readyProvisional` (v23.70) separated them, and **the answer came on 19 Sep
-2026: the path RARELY FIRES** — one open in roughly 800 eligible (`LATENCY.md` → THE CLOSING READ).
-That is row one of the pre-registered table, so the identity diagnosis stands and `VAL-AUTH-006` stays
-closed. The path was kept by owner decision the same day, then **RETIRED on 26 Sep 2026** once it
-was shown to be wrong as well as rare — its cache read queues behind the very lookup it was meant to
-overtake (`DECISIONS.md` → "The provisional paint"). **Its replacement SHIPPED at v24.59 (5 Oct 2026,
-owner decision):** an app-owned copy of the member's own months in plain storage, painted labelled
-before the lookup answers — the one shape that entry said could beat it (`CALENDAR_DATA.md` 17,
-`calendar-snapshot.js`). **What to read next:** whether a returning member's open now SHOWS a roster
-well inside a second. The App Speed card's milestones were built around the grant, so it measured the
-copy only indirectly until v24.85 added a direct milestone (`rosterSnapshot` — "Own roster" on the card).
-
-The whole entry as it stood when the decision was taken — the field confirmation, the offline
-measurement, the two couplings and all three candidate answers — is in `ROADMAP_HISTORY.md`, moved
-verbatim. It is worth keeping whole: the reasoning is what a future reader will need if the boundary
-is ever widened, and none of it can be reconstructed from the code.
-
-**What shipped is narrower than option 2 as written**, and the two extra refusals are the part to
-know before touching it. The scope is ONE member, so a boot that was about to draw somebody else is
-refused outright rather than narrowed: **Team View**, and a **stored selection naming a colleague**.
-Both would otherwise paint a colleague's base roster with their leave and absence silently missing —
-invariant 1's failure reached from a new direction. Those members boot exactly as they did before.
-
-**What remains open, and it is small.** Option 3's *visible tell* was not adopted as such, and may
-not be needed: phase 1 already notes the months `cached`, so the grid is drawn as a cached grid by
-machinery staff have read for months, and phase 2 confirms it. Whether that is enough, or whether
-the paint deserves to say so in its own words, is a question to answer from use rather than from
-first principles. (The replacement answers it for itself: the own-roster copy is drawn `stale`, with
-"Checking for changes…" — `CALENDAR_DATA.md` 17.) **Read `LATENCY.md` for what the change is worth before revisiting it** — the
-closing read there is the evidence, and it found the path rarely fires.
-
 ### Track C5 — retire the surname default
 **Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Gate:** ≥90% migrated
 
 Irreversible. Blocked on the migration percentage, which is in turn blocked on Track E (above).
-Read both before assuming it is close.
+Read both before assuming it is close. **A second route is on the table and not adopted:** C6's
+one-time codes would let the remaining surname credentials be replaced server-side with unknown
+random ones, answering the credential question without touching the read one
+(`CREDENTIAL_LIFECYCLE.md` §7; `SECURITY_RELEASE_PLAN.md` → Track C).
 
 ### 2027/28 Pay Calculator rollover
 **Status:** Planned · **Deadline:** 6 April 2027 · **Start:** February 2027 · See `MAINTENANCE_CALENDAR.md`
@@ -310,121 +199,12 @@ Read both before assuming it is close.
 A hard external deadline, not a feature. It is in the maintenance calendar with a deliberate
 two-month warning, because "must be done by April" reliably becomes "started in April".
 
----
+### `ytd_2627` lapses about 26 Nov 2026 — decide rather than re-date
+**Status:** Owner decision, due when the notice lapses · **Where:** the notice table in `CLAUDE.md`,
+and the `new-notice` skill → Lessons
 
-### The v23.01 external review — the decisions it leaves with the owner (6 Sep 2026)
-**Status:** An INDEX, not a work item · **Why:** a broad review arrived with eleven follow-ups, nine
-of which are decisions rather than code, and a list held only in a conversation is a list that gets
-re-raised · **Owner:** Gareth · **Trigger:** none for most; three cannot be taken before a date ·
-**Review:** ~~28 Sep 2026, when the two measurements become readable~~ **both are read** — the service-worker question on 12 Sep and the fast path on 19 Sep. What is left in the table below is owner decisions only
-
-**Two of its findings were CODE, and both are closed.** The no-install test lane had stopped being
-no-install — `touch-gate-parity.test.mjs` reached its list through `e2e/helpers.js`, which imports
-`@playwright/test` — and nothing ran that lane, so only somebody working from a ZIP could ever have
-found it, which is who did. Fixed, with the lane now gated in CI. The other was this file
-contradicting itself about the service-worker metrics, fixed the same day.
-
-**One was REFUSED, on evidence** (moot since 26 Sep 2026, when the paint was retired). The review flagged the provisional cached-roster paint as a
-security compromise: its scope is a localStorage session name, which is editable. True, and the
-consequence does not follow — `firestore.rules` grants `overrides` read to any `name` claim, not per
-member, because Team Week View shows every colleague's shifts to any signed-in member by design. A
-forged session name shows an attacker a SUBSET of what that device can already read legitimately, so
-the incremental disclosure is zero. Invariant 13's *"nothing of anybody else's"* is a scope-of-paint
-property, not a confidentiality boundary. **Recording it as an accepted compromise would put a false
-threat model into a contract**, which is worse than leaving it alone.
-
-**Three items were re-raised without knowing they had been decided or measured**, which is the main
-reason this section exists — so the next review's re-raises cost a link rather than a rebuild.
-
-| The decision | Where it lives |
-|---|---|
-| Did the cached-roster fast path actually work? | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: one open in roughly 800 eligible, row one of the pre-registered table, so the identity diagnosis stands. Kept by owner decision the same day, then **RETIRED 26 Sep 2026** (it could not beat Auth start-up, and shipped two defects); replaced at v24.59 by the own-roster copy, which does not wait on Auth. `LATENCY.md` → THE CLOSING READ · `DECISIONS.md` → "The provisional paint" |
-| Is the service-worker revalidation storm costing staff anything? | **ANSWERED — no**, 12 Sep 2026. A full sweep (31+ files) was running on 78% of Calendar opens, and the card's own test is whether those boots are slower: **Worker busy 78% over a second against Shifts shown 78%.** Identical. The storm is real and costs the member nothing measurable. `LATENCY.md` → THE FULL-MONTH READ → item 4 |
-| Move staff off the Pages mirror onto `myb-roster.web.app` | **NEW — no home before this row.** `web.app` is already canonical and the notification target (v14.29); what is undecided is moving the staff who still open the mirror. A first step has shipped: the `install-app-2026` notice (v24.91) sends phone users on the mirror to install from `myb-roster.web.app`, moving their Pay data first. KNOWN_LIMITATIONS measures the mirror's 21% byte penalty; nothing recorded the decision that measurement prices. It is the one change with two payoffs — fewer bytes on every cold load, and headers and redirects reaching the half of the staff that has neither. The cost is operational, not technical: telling colleagues and reinstalling from the canonical URL (see Address migration campaign) |
-| Pay Calculator progressive disclosure on phones | **ALREADY DECLINED**, 3 Sep 2026 — see DECISIONS.md → "Pay Calculator — "More pay tools" grouping on phones — DECLINED", which took the same proposal through four drafts and a measured prototype. The review restates the observation the prototype answered (the page is long on a phone) and brings no new evidence, so the recorded trigger stands: **a staff report about the tail of the page**, which does not exist. Do not add instrumentation to test it |
-| Links generator — Recommended first, Advanced second | Already an entry below, unchanged by this review |
-| A small WebKit visual smoke set | **DONE — v23.71, 12 Sep 2026.** Six baselines on mobile-safari, report-only in branch CI (`e2e/visual-webkit.spec.js`, `npm run test:visual:webkit`), under `e2e/visual-baselines/webkit/`. **Calendar mobile is the one this row named that was NOT taken**: its fractional 390/7 columns are exactly why the Chromium lane excludes the month grid, a second engine does not repair that, and a flaky baseline is worse than none — the Calendar is represented by the day panel instead, which is a fixed-width overlay. Measured rather than assumed: six consecutive runs green and a full `=all` regeneration byte-identical, so the tolerance is Chromium's 0.001 and not the looser one the config first claimed was needed. ~15s per run |
-| Print visual baselines | **DONE — v23.71, 12 Sep 2026.** Owner answered the fact only they had: **Calendar and Team View, first page only.** `e2e/print-visual.spec.js` renders the REAL PDF and rasterises page 1 with poppler, so what is compared is a picture of paper — margins applied, content clipped at the sheet boundary. `emulateMedia` was refused: it applies the print stylesheet but does not PAGINATE, so it cannot see the page break this row is about. Admin was dropped from the candidate list on the app's own evidence — it has no print control at all. It earned its place immediately by disproving this section's own correction above. Page COUNT is asserted separately, which catches the 24-pages-printed-8 class without pixel-locking 24 sheets |
-| A real-iPhone release checklist | **WRITTEN — v24.07, `docs/IPHONE_RELEASE_CHECKLIST.md`.** Four devices as this row decided, each carrying only the checks it alone can do. Its entry condition is the row's own argument turned into a rule: a line belongs there ONLY if no test here can run it, so anything Playwright, axe or a baseline could answer goes to CI instead. Running it is the owner's, and nobody else can do that either |
-| Freeze Calendar and Team View aesthetics | **DECLINED for now (owner, 19 Sep 2026).** The review's argument was that the v22.83–v22.99 sequence shows one narrow-width fix cascading into the next, and it is a fair reading of this file's own record. What it does not survive is the evidence since: v23.95 found the Calendar's last week UNREACHABLE below ~825px of viewport height at every desktop width, and the layout fix then exposed two contrast failures the viewport lock had been hiding. A freeze whose exceptions are "a reproduced defect or an accessibility finding" would have permitted all of that anyway — so the policy would have bought nothing on the one sequence that mattered, while discouraging the look at the surface that found it. **Revisit if a change lands here that is polish and nothing else**; the ROADMAP is the wrong instrument for a rule the evidence keeps overruling |
-| Remove the real payslip fixture from the public mirror | **DONE — v23.71, 12 Sep 2026 (owner decision).** The review called it the largest remaining privacy problem and a second review kept Privacy at 7.5 while every other dimension moved. Closed by a route AUTH_ARCHITECTURE's own options list did not contain: the file left the REPOSITORY (gitignored `payslip-actuals.local.js`), rather than being synthesised or waiting on the mirror's retirement — `firebase.json` could only ever speak for one origin, and a gitignore is the rule both obey. The cost is real and stated rather than glossed: on any checkout but the owner's the payslip regression does not run, and `paycalc.test.mjs` announces exactly which assertions those are instead of letting a loop over an absent fixture quietly register nothing. **History was deliberately not rewritten** — KNOWN_LIMITATIONS carries that as an open item with the only thing that would close it |
-| `ytd_2627` when it lapses (~26 Nov) | The notice table in `CLAUDE.md`, which already says decide rather than re-date |
-| Is a Daily Huddle's TEXT confidential? | **DECIDED 7 Sep 2026 — yes: the Huddle, the Circular and the Newsletter are not visible without the PIN or a password.** Built in two releases: the client stops reading without access first (v23.17, `calendar-doc-access.js` — the local cache is why a rule alone could not do it), the rules closed the three collections' reads at v23.18. What this does NOT do is revoke bearer URLs already in circulation (ARCHITECTURE EXC-007; AUTH_PLAN §5 E6). Was: recorded only in a `storage.rules` comment until this row (v23.05, measured 6 Sep 2026). Until v23.18 `firestore.rules` granted `huddles` a bare `allow read;`, so the converted `htmlContent` DOCX ingest writes to the document was readable unauthenticated; that is what this decision closed |
-
-**What the review did NOT find is worth as much as what it did.** It read the code, the startup
-architecture, the responsive CSS, the committed baselines, the print rules, both engines' test
-configuration and the accessibility protections, and produced one code defect — in the test estate,
-not the app.
-
-### The print review — what shipped, and the four it leaves open (7 Sep 2026)
-
-An external review treated print as a separate product surface and went deep. Everything below was
-then re-checked by RENDERING PDFs and reading the page box and the text back, which changed three of
-its conclusions. **Shipped at v23.20:** the pay estimate keeps its settings on paper (a collapsed
-card printed a heading over nothing); five surfaces stop composing for US Letter; the railcard guide
-stops printing a website link; FIP and Links no longer depend on `beforeprint` firing (measured: 8
-printed pages instead of 24 when it does not); Team View's landscape follows the VIEW rather than
-which button reached the printer; and the Daily Huddle is not printed at all (owner, 7 Sep — it had
-been silently clipping a 40-row day plan to 30). `e2e/print.spec.js` holds all of it.
-
-**Corrections worth keeping, because the review is otherwise reliable and these are the rows not to
-act on twice.** An auto-layout table treats a cell `max-width` as a hint, so the name column grows
-past its 88px and most names fit — which is what that measurement showed.
-
-**BUT THE CORRECTION ITSELF WAS WRONG, and v23.71 disproved it on sight.** It read "no cell over its
-box, no ellipsis in either orientation", and the second half does not follow from the first. The
-column grows to ~157px, which fits twenty characters and not twenty-three: `R. Forrester-Blackstock`
-printed as `R. Forrester-Black…`. **The measurement could not see it** — with `overflow: hidden` and
-`text-overflow: ellipsis` a cell reports `scrollWidth === clientWidth` while the compositor draws
-the ellipsis, so the box test returns true on a truncated cell (measured: 157 === 157 on that exact
-cell). It was found by rasterising the first sheet, which is the whole argument for the print
-baselines below. On screen the ellipsis is right; on paper it is unrecoverable, so the print rules
-now let the name wrap, guarded in the BLOCKING lane by `e2e/print.spec.js` rather than only by the
-report-only visual job. And its `beforeprint` prescription, taken literally, introduces a bug:
-prepare then runs twice on every desktop browser, and the second snapshot leaves the page
-permanently expanded. Both fixes are idempotent for that reason.
-
-**Four items were owner decisions. All four are now closed — three done, one refused on evidence.**
-
-| Item | The decision |
-|---|---|
-| FIP's 27-page print | **CLOSED — done at v24.06.** Every country card carries its own `⤓ Print <country>` at the bottom of what you just read. Measured on the real PDF: 25 sheets → 1, the banner kept so the sheet says which guide it is from, the country NAMED (the full print hides every `summary`, which is right there and exactly wrong on a one-country sheet), and the whole guide back afterwards. A CSS state, never a DOM edit, so a cancelled print cannot leave the guide short of a country. The row's own "27 pages" was stale: 25 since v23.27 |
-| FIP's page count | **CLOSED — already done at v23.27, before this table was written.** `details { break-inside: auto }` with `.card, .box, tr` still protected, and `details > summary { break-after: avoid }` so a country heading is never the last thing on a sheet. Measured at the time: 27 → 25 pages. Nothing further to decide |
-| Print provenance | **CLOSED — done at v24.06**, and it was not the tidiness the row took it for. There was a defect underneath: `Intl` spells September "Sept" in en-GB and three letters everywhere else, measured on Node, Chromium and WebKit, so Links, the Pay Calculator, Settings and the Operations error log disagreed with the calendar beside them, on screen as well as on paper. One vocabulary in `date-format.js`, one `printedStamp` for all the printable surfaces — and there were FIVE, not four: this row missed the Pay Calculator |
-| Continuation identity | **CLOSED — WON'T DO, on evidence. It cannot be built in Chromium without destroying content.** See below |
-
-**Why the running footer is refused (v24.06).** It was built, and then rendered to real PDFs — all five
-guides, 48 sheets — which is the only way to see any of this, because `emulateMedia` applies the
-print stylesheet without paginating. `@page` margin boxes (`@bottom-center`) are the CSS written for
-a running footer and Chromium implements none of them, so the only element that repeats per sheet is
-`position: fixed`. Three measurements, each the opposite of what the design assumed:
-
-- **It is clipped at the page-area boundary, so it cannot live in the margin.** At `bottom: -2mm` the
-  text printed cut in half; at −3mm and beyond it vanished from four sheets outright.
-- **Widening `@page`'s bottom margin to make a lane for it does nothing** — the element is positioned
-  against the page area and moves up with it. Tried at 20mm across all five guides: identical page
-  counts, and the clearance above it got *narrower*. `padding-top` does not move it either.
-- **So it must sit inside the page area, where it competes with the text.** On FIP page 22 it printed
-  directly across a sentence, leaving both it and "…NS withdrawing from Hoek van Holland in 2017"
-  unreadable. In a reference guide that is worse than the problem it solves.
-
-It also costs ZERO sheets, which this table expected to be the trade-off — it cannot claim vertical
-space, which is precisely why it overlaps.
-
-**A methodological note worth more than the feature.** A positional check over the PDF's text boxes
-reported that same page as *1.7pt clear*. It was wrong, and wrong in the direction that would have
-shipped the defect: the filter selecting "words above the footer" excluded exactly the words the
-footer was sitting on top of. **The rendered image was the check that worked**, and the numbers
-agreed with it only once it had disagreed with them first.
-
-**If it is wanted anyway, the shape that would work** is an IN-FLOW marker on each country card
-rather than a fixed page footer — in the flow, so it can never overlap. Measured coverage on FIP:
-23 of 25 sheets. Not every sheet, and it changes how every card looks on paper, so it is an owner
-decision rather than a follow-up.
-
-**Not done and not recommended:** printing the whole Operations or Admin page, and a print-provenance
-version stamp on the Calendar — its header already carries the app name, the member and the date,
-which is the part that matters on a detached sheet.
+The Pay Calculator's Year to Date notice is on its second run, on a new key. When it lapses, decide
+what it is for now rather than giving it another date.
 
 ---
 
@@ -432,17 +212,15 @@ which is the part that matters on a detached sheet.
 **Status:** Idea (each part) · **Owner:** Gareth · **Trigger:** each part names its own, below ·
 **Blocker:** the open questions at the end · **Review:** before 13 Dec 2026, and again in January
 
-`trains.html` shipped at v24.71 as an **admin-only preview** of "what's changing": a countdown, the
-daily totals, every route's trains before and after with the change in words, the basic hour side
-by side, and a time lookup. By v24.80 it was station-first — ranked changes in a colleague's words,
-a card per station, the basic hour as a stopping-pattern grid — and both timetables came from
-Chiltern's published books, every stop included. **At v24.81 it opened to every member** (owner,
-20 Oct 2026; DECISIONS.md). The ideas below were proposed with it (7 Oct 2026)
-and deliberately not built yet; the ones since built are in ROADMAP_HISTORY.md → "Trains page —
-preview items shipped". They are recorded so the page grows toward a plan rather than by accretion.
+`trains.html` is every member's (owner, 20 Oct 2026; DECISIONS.md), and the station PIN reads it
+too: station-first, with ranked changes in a colleague's words, a card per station, the basic hour
+as a stopping-pattern grid, and both timetables from Chiltern's published books, every stop
+included. The ideas below were proposed with the preview (7 Oct 2026) and deliberately not built
+yet; those since built are in ROADMAP_HISTORY.md → "Trains page — preview items shipped". They are
+recorded so the page grows toward a plan rather than by accretion.
 
-**A. Before 13 December — teaching the change.** **Trigger:** ~~the owner opens the preview to staff~~
-**met 20 Oct 2026 (v24.81)** — these are ready to pick up, in whatever order the owner chooses.
+**A. Before 13 December — teaching the change.** Ready to pick up, in whatever order the owner
+chooses (the trigger, the page opening to staff, was met on 20 Oct 2026).
 - **What to say to customers** — one ready line per change, in the app's calm voice.
 - **A change of the week** through App Notices, easy to paste into the Daily Huddle. Nine weeks
   from the preview to the launch fits nine changes.
@@ -453,42 +231,41 @@ preview items shipped". They are recorded so the page grows toward a plan rather
   from. Needs train lengths, which are not published to passengers: see the open questions.
 
 **B. On and after 13 December — the at-a-glance page.** **Trigger:** the timetable starts.
-- **The page changes over by itself.** *Its words already do (v24.83): from 13 December the first
-  column is "Until 12 Dec", the lookup answers from the running timetable, and it says when both
-  timetables have ended.* Still an idea: "What's changing" becoming "What changed" for the first few
-  weeks, then **Next out** becoming the front of the page with the change material retired to a tab.
-  `timetablePhase` (trains-change.js) is where that switch goes.
-- **Next out** — today's day type and the next six departures with a countdown ("in 4 min"), full
-  destination name, and (if the owner agrees to publish them) train length and planned platform.
-  Works offline, so it is useful on the gateline away from the boards.
+- **Next out, at the front of the page** — today's day type and the next six departures with a
+  countdown ("in 4 min"), full destination name, and (if the owner agrees to publish them) train
+  length and planned platform, with the change material retired to a tab. Works offline, so it is
+  useful on the gateline away from the boards. The page already changes over by itself: from 13
+  December it says "What changed" and "Until 12 Dec", and the lookup answers from the running
+  timetable (`timetablePhase` in `trains-change.js`); once the festive changes end it opens on
+  Stations, on the station the device looked at last.
 - **The basic-hour clock** — a clock face with a dot at each repeating minute (:02 Birmingham, :06
   Oxford…) and a hand at the current minute. Tap a dot for that train.
 - **Where to?** — one button per destination: the next three trains, the minutes it usually leaves
-  at, and first and last today. With calling points (December's are in since v24.80), "also stops at…".
-- **Last trains tonight** — a Last trains card shipped at v24.94; what remains is the evening move
+  at, and first and last today. With calling points (December's are in), "also stops at…".
+- **Last trains tonight** — the page has a Last trains card; what remains is the evening move
   to the top (from about 20:00) with a countdown to each last train, the after-midnight ones labelled "tonight, just after midnight".
 - **Your shift** — for a signed-in member the Calendar already knows today's shift, so: "You're on
   15:45–23:55. Busiest spell 17:00–18:59. Last trains you'll see: …". No other tool can say this.
+  It needs a sign-in: it is a member's own roster, and the station PIN is nobody (DECISIONS.md;
+  AUTH_AND_SESSIONS.md invariant 24).
 - **Busy times strip** — a 24-hour bar shaded by trains per hour with a "now" marker, reusing the
   departure curve the Links work already holds (`links-demand.js`).
 - **Platform view for the next hour** — which train sits where, and which are joined. Needs the
   internal platform and join data, so it is the furthest out.
 
 **What the page must get right whatever is built.**
-- **It knows its dates** — a preview before 13 December, and it must say it has ended at the May
-  2027 change rather than quietly show old times. **Done at v24.83** (`timetablePhase`,
-  `DEC_VALID_UNTIL`), found by the 21 Oct 2026 deep review, which also found the page counting one
-  weekday train twice, timing "Coming back" at Marylebone instead of where the passenger gets on,
-  and its grid showing one hour's stops as every hour's.
+- **It knows its dates** — a preview before 13 December, and it says it has ended at the May 2027
+  change rather than quietly show old times (`timetablePhase`, `DEC_VALID_UNTIL`; the dates are
+  in `MAINTENANCE_CALENDAR.md`).
 - **Christmas and bank holidays differ** — special timetables over Christmas and New Year and on
-  bank holidays. The page should say so, not show the normal pattern. Chiltern's December books do
-  not help: they say nothing about Christmas or bank holidays (checked 20 Oct 2026). **Since v24.80
-  the page says so for Christmas:** Chiltern's timetable page states more changes between 13
-  December and 10 January, "including significant changes over the Christmas and New Year period",
-  and the overview names that window until it ends (`FURTHER_CHANGES_UNTIL`). **Still open:** the
-  actual festive times, which will have to come from Chiltern's Christmas publicity — no 2026 detail
-  was published when checked, and last year's pattern is not evidence for this one — and the bank
-  holidays inside the books' validity (Good Friday, Easter Monday, the early-May holiday).
+  bank holidays. The page should say so, not show the normal pattern. Chiltern's December books say
+  nothing about Christmas or bank holidays (checked 20 Oct 2026). For Christmas the page does say so:
+  Chiltern's timetable page states more changes between 13 December and 10 January, "including
+  significant changes over the Christmas and New Year period", and the overview names that window
+  until it ends (`FURTHER_CHANGES_UNTIL`). **Still open:** the actual festive times, which will have
+  to come from Chiltern's Christmas publicity — no 2026 detail was published when checked, and last
+  year's pattern is not evidence for this one — and the bank holidays inside the books' validity
+  (Good Friday, Easter Monday, the early-May holiday).
 - **Publish only what a passenger timetable prints.** The repository and the Pages mirror are
   public. Lengths, platforms, joins, diagrams and empty-stock moves stay out unless the owner
   decides otherwise (below). `docs/timetable-dec26/tooling/build.py` enforces this today.
@@ -496,11 +273,8 @@ preview items shipped". They are recorded so the page grows toward a plan rather
   hand edit (README beside the tooling).
 
 **Open questions for the owner.**
-- ~~Staff on the PIN.~~ **DECIDED 22 Oct 2026 — the station PIN reads the page (v24.84; DECISIONS.md,
-  AUTH_AND_SESSIONS.md invariant 24).** "Your shift", if it is built, still needs a sign-in: it is a
-  member's own roster, and the PIN is nobody.
-- Its place in the drawer — second after Calendar was the suggestion. Today a member sees it after
-  Pay (and Overtime, where they have it), before Settings.
+- Its place in the drawer — second after Calendar was the suggestion. Today it sits after Pay and
+  before Settings.
 - Are train lengths and planned platforms fine to publish? They make Next out and the crowding
   list useful, and they are internal planning detail rather than a passenger fact.
 - What "5 (3)" means in the simplifier's coaches column.
@@ -508,15 +282,15 @@ preview items shipped". They are recorded so the page grows toward a plan rather
 ## NEXT — likely, but a trigger is required
 
 ### Overtime full launch — the three things the beta must answer first
-**Status:** PAUSED since v25.05 — closed to everyone, the admin included (`OVERTIME_AVAILABILITY.md` → Paused) · **Owner:** Gareth (the launch decision) · **Trigger:** each item names its own, below
+**Status:** PAUSED — closed to everyone, the admin included (`OVERTIME_AVAILABILITY.md` → Paused) · **Owner:** Gareth (the launch decision) · **Trigger:** each item names its own, below
 
 The feature ran as a restricted beta (`CONFIG.OVERTIME_BETA` + the reviewers; the beta list has been
 empty since 7 Oct 2026) until it was paused, and the design record is `OVERTIME_AVAILABILITY.md`. Three items were flagged in the Aug 2026 external review of
 v21.53 as *pre-full-launch* considerations rather than defects — recorded here so the launch
 decision is made against them rather than rediscovering them:
 
-- **Revision-2+ history reads off the Manager's first render.** v21.53 already removed the
-  revision read for anyone at revision 1 (most people, most weeks), but every reviser still costs a
+- **Revision-2+ history reads off the Manager's first render.** The revision read is already
+  skipped for anyone at revision 1 (most people, most weeks), but every reviser still costs a
   subcollection read that is awaited before the workspace paints. **Trigger:** a measured slow
   Manager load with real full-team data — not the theory. The shape if it fires: render current
   availability from the heads first, enrich the change/freshness markers afterwards.
@@ -541,12 +315,17 @@ decision is made against them rather than rediscovering them:
 
 Staff do not generally know the app has two addresses (`myb-roster.web.app` and the
 `garethdavidmiller.github.io/roster-app/` mirror), so moving them across needs a real campaign, not a
-notice. (One notice has gone out all the same: `install-app-2026`, v24.91, asks phone users on the
-mirror to install from `myb-roster.web.app` and to move their Pay data first. The campaign is still
-the rest.)
+notice. (One notice has gone out all the same: `install-app-2026` asks phone users on the mirror to
+install from `myb-roster.web.app` and to move their Pay data first. The campaign is still the
+rest.)
+
+**Why it is worth doing.** It is the one change with two payoffs: fewer bytes on every cold load
+(`KNOWN_LIMITATIONS.md` → the Pages mirror's 21%), and headers and redirects reaching the staff who
+today get neither — most of them, since the mirror is where most staff open the app. The cost is
+operational, not technical: telling colleagues, and reinstalling from the canonical URL.
 
 **Why AFTER the password plan, concretely.** The forced set-password overlay fires at next sign-in and
-completes itself within 60 days (sessions cap at 60 days since v20.47). A new address is a NEW ORIGIN,
+completes itself within 60 days (sessions last 60 days). A new address is a NEW ORIGIN,
 so `localStorage` — and therefore the session — does not come with it: everyone who moves is signed out and
 must sign in again there. Migrate first and a member meets an unfamiliar URL, a forced sign-in, and a
 mandatory password overlay in one go; that is the moment someone concludes the app is broken. Doing the
@@ -576,13 +355,13 @@ new address the moment they visit, but have only *moved* when they stop appearin
 
 ### Links generator — Recommended settings, with the five objectives behind Advanced
 
-**Raised twice by external review (v22.63 and v22.71), and it is the stated reason Links scores 9.6
-rather than 9.7–9.8.** Nothing here is a defect: the card works, and the objectives are correctly
-implemented and tested (`links-adjacency.js`). The problem is the order it asks things in.
+**Raised twice by external review.** Nothing here is a defect: the card works, and the objectives
+are correctly implemented and tested (`links-adjacency.js`). The problem is the order it asks
+things in.
 
 The generator card opens with all five optimisation switches — *Vary the shift type · Most shifts in
 a row · Gentle week-to-week change · Full weekends off · Long weekends* (a sixth, *Rest across the
-week boundary*, became a fixed rule at v25.06: minimum rest is a gate, not a preference). A designer therefore has to understand the optimisation engine before they have built
+week boundary*, became a fixed rule: minimum rest is a gate, not a preference). A designer therefore has to understand the optimisation engine before they have built
 anything, which is the wrong way round: the first design is the one that teaches them what the
 objectives are for.
 
@@ -597,17 +376,18 @@ applied to a card that predates it: progressive disclosure may hide the fourth t
 a member (deep dive) and may never hide the first (that the thing exists). "Recommended settings"
 names what is happening; the five switches are depth.
 
-**The trigger is the owner.** It is a visible change to the card a designer uses most, the December
-2026 proposals are being settled against its checks right now (drawn by the `docs/links-26/tooling`
-scripts running the Links modules under Node — `docs/links-24/` has been frozen since 1 Oct 2026 — or supplied as grids and imported — not in this card), and two of this app's collapse decisions have been
-reverted after shipping (the admin task navigator, the drawer's notification row). It wants a
+**The trigger is the owner.** It is a visible change to the card a designer uses most, the new
+link's proposals are judged against its checks (drawn by the `docs/links-26/tooling` scripts
+running the Links modules under Node, or supplied as grids and imported — not in this card), and two
+of this app's collapse decisions have been reverted after shipping (the admin task navigator, the
+drawer's notification row). It wants a
 decision, not a sweep. If it goes ahead, `links-tips.js`'s "The default table" section and the
 generator card's one `.links-desc` sentence move with it — the desktop left-edge e2e check counts
 that sentence.
 
 **A second, smaller item travels with it:** the generator's target table loses its day context on a
 narrow screen — Mon–Fri / Sat / Sun are column headers, and a long table scrolls them out of sight.
-This is NOT the compare-grid case declined at v22.77: that grid is two designs side by side and its
+This is NOT the compare-grid case already declined (DECISIONS.md): that grid is two designs side by side and its
 cells are self-describing once the columns are in step, whereas here a designer is typing numbers
 into a cell whose meaning is off-screen. Worth solving with a sticky header row rather than
 per-cell labels — **but note what that costs, because the obvious version cannot work**: below
@@ -633,14 +413,9 @@ return a grade for a Dispatcher — it refuses one today — so Dispatcher staff
 **Blocked on** confirmed Dispatcher hourly rate, contracted hours and pension contribution. **Do not
 add placeholder rates** — the calculator must be accurate or it misleads staff about their pay.
 
-> **Validating the back-pay accrual against the real 24 Oct 2025 payslip has MOVED** to
-> `VALIDATION_REGISTER.md` (August 2026). It was never a feature: nothing gets built, a payslip gets read.
-> Sitting here between a pre-fill feature and Dispatcher rate support, it read like work to schedule
-> rather than a figure to confirm — which is exactly how validation debt goes unpaid.
-
 ### Plain-English education pass — HPP, back pay, FIP cards and coupons
-**Status:** Committed direction, no design yet · **Owner:** Gareth · **Trigger:** the owner picks the
-first subject · **Success:** a colleague who does not know the term can find, understand and use the
+**Status:** Committed direction, the first subject shipped · **Owner:** Gareth · **Trigger:** the owner picks the
+next subject · **Success:** a colleague who does not know the term can find, understand and use the
 feature from the app alone, without asking anyone
 
 **Why.** Colleagues report not understanding what HPP is, how back pay works, or how to use FIP cards
@@ -656,20 +431,13 @@ prompts gated on stored data never reach them (the HPP banner is the worked exam
 asking two colleagues to do the task from the app alone, never by page height or word count. Cut
 decisions, not explanations.
 
-**Subject 1 — SHIPPED v22.57: Sunday vs Rest Day Working.** Chosen because it produced a real
-wrong estimate rather than a hypothetical one: a member put worked Sundays in Rest Day Working
-(1.25×) instead of Sunday Working (1.5×), about £43 light on an eight-hour day. **The app already
-had the fact, stated perfectly** — the Pay Calculator Guide's "Sunday vs RDW" tip says exactly the
-right thing — and it did not help, because a guide has to be OPENED and she was reading the form.
-That is this whole entry's premise demonstrated instead of argued, and it settles what the pass
-actually does: **carry the fact to the point of use; do not write it again somewhere new.** The
-mechanism was the payslip itself — a worked Sunday prints as "RDW Sun 1.5", so somebody matching
-payslip lines to boxes lands on Rest Day Working, whose own subtitle described what they did. Fixed
-in both directions (the redirect the Saturday row always had, plus "rostered or not" on the Sunday
-row), the payslip's misleading word named where the mistake is made, and the `?` panel given the
-same sentence. Held by `paycalc-copy-parity.test.mjs`, which pins the distinction rather than the
-wording. **Next subjects, in order of evidence: HPP and back pay** (both already carry the "nobody
-told me this exists" shape) — but wait for a real report rather than picking one.
+**Subject 1 — Sunday vs Rest Day Working — has shipped** (`paycalc-copy-parity.test.mjs` pins the
+distinction; the story is in `ROADMAP_HISTORY.md`), and it settled what the pass actually does:
+**carry the fact to the point of use; do not write it again somewhere new.** The Pay Calculator
+Guide already had the fact, stated perfectly, and it did not help, because a guide has to be OPENED
+and the member was reading the form. **Next subjects, in order of evidence: HPP and back pay** (both
+already carry the "nobody told me this exists" shape) — but wait for a real report rather than
+picking one.
 
 **Method, per surface.** Read it as a first-time colleague and answer: what terminology does this
 screen assume · what important thing can only be found by somebody who already knows its name · what
@@ -677,14 +445,14 @@ is the collapsed/header copy teaching · is every acronym expanded on first mean
 screen say what / why / what next · can the task be finished without opening a guide, and if a guide
 is opened, can somebody with zero prior knowledge build the mental model there. Score **usability**
 and **learnability** separately (CLAUDE.md → *"Plain English that TEACHES"*); they are different
-numbers and this app needs both. Beyond the first subjects below, the surfaces worth that read are
+numbers and this app needs both. Beyond the candidate subjects below, the surfaces worth that read are
 Pay (HPP · back pay · Year to Date · pension · payslip line names), FIP (Card vs coupons vs operator
 vs reservations), Railcards (the railcard's discount vs the ticket's validity vs what staff actually
 do), Rangers & Rovers (valid at Marylebone vs valid elsewhere), Overtime (what submitting
 availability does and does not commit you to), Admin (base roster vs recorded change) and Settings
 (password, work email, install, notifications).
 
-**Candidate first subjects**, for the owner to order: a FIP coupon (what one is, how you get one,
+**Candidate next subjects**, for the owner to order: a FIP coupon (what one is, how you get one,
 where it works and where it does not — the guide has the depth; the missing thing may be the
 "start here" ladder above it); HPP (one sentence at the point where hours are entered, since the
 premium is built from them); back pay (what "backdated to 1 April" means on the payslip it lands on).
@@ -708,8 +476,8 @@ rejected.
 overrides for one member on every request. New override types appear without any change to the
 subscription.
 
-> **⚠️ SECURITY DESIGN — settle this before writing any code (revised v19.97, external review).**
-> The earlier note said "a short-lived or HMAC-signed token". **A short-lived token is the wrong
+> **⚠️ SECURITY DESIGN — settle this before writing any code.**
+> **A short-lived token is the wrong
 > shape for WebCal.** Calendar clients poll the same URL unattended for months; when the token
 > expires the calendar does not prompt anyone — it silently stops updating, which is worse than not
 > having the feature, because the member keeps trusting a stale roster.
@@ -728,7 +496,7 @@ subscription.
 **Status:** Conditional · **Trigger:** supervisors say the week view is insufficient
 
 A single-day column showing who is working, spare or on AL, with a cover-status summary. **Partially
-addressed already:** Team Week View (v8.22) shows the whole team by week, and in practice that may be
+addressed already:** Team Week View shows the whole team by week, and in practice that may be
 enough — supervisors can see the full week at a glance and identify gaps. No new data needed.
 
 ### Dark mode (toggleable)
@@ -754,7 +522,7 @@ re-verified in both themes), low risk (additive, behind the toggle).
 ### Approval workflows (shift swaps)
 **Status:** Conditional · **Trigger:** demonstrated request volume · **Also gated by:** the governance gate
 
-**Overtime availability came out of this entry and shipped at v20.56** — as a DECLARATION rather than
+**Overtime availability came out of this entry** — as a DECLARATION rather than
 a request, which is why it cleared the governance gate this entry is still waiting on. Nobody
 approves or declines anything: staff state when they are free, a reviewer reads it, and the roster is
 planned from it. No outcome is recorded against a person, so there is nothing for the company to
@@ -784,9 +552,9 @@ events to send. Any new type must follow `.claude/rules/notifications.md` — an
 - Chiltern IT require app store distribution via MDM
 - PWA limitations are genuinely felt by users
 
-**Technology choice is deliberately deferred** (revised v19.97, external review). This entry used to
-say "React Native — only the UI layer needs rewriting", which is too confident for a decision that
-may not be revisited for years, and understates the work: a native version also touches the
+**Technology choice is deliberately deferred.** "Only the UI layer needs rewriting" is too confident
+for a decision that may not be revisited for years, and understates the work: a native version also
+touches the
 authentication lifecycle, notifications, deep links, offline state, local persistence, app updates,
 distribution, MDM, platform permissions and possibly Firestore behaviour. **Re-evaluate React
 Native, native platform development and the then-current alternatives if the trigger is ever
@@ -796,8 +564,8 @@ Distribution costs an Apple Developer account ($99/year) and Google Play ($25) w
 ### Build tooling — trigger-based; no action currently
 **Status:** Conditional · **Do nothing until a trigger occurs**
 
-Renamed from "Vite (not yet, but likely eventually)" at v19.97: "likely eventually" psychologically
-turns a conditional into inevitable work, and the evidence below says the opposite.
+Not "likely eventually": that wording turns a conditional into inevitable work, and the evidence
+below says the opposite.
 
 **Current state:** no bundler or build step. Source files are served directly — what you write is
 what loads. GitHub Actions deploys the source tree as-is.
@@ -856,10 +624,10 @@ both would need the governance gate answered before that changed.
 | Watch | Because | Where |
 |---|---|---|
 | Override document count | An archive strategy must land before ~5,000 docs | `MAINTENANCE_CALENDAR.md` |
-| ~~`firebase-admin` v14~~ | **DONE v22.01** — `14.3.0` + `firebase-functions` `7.3.2`. v14 removes the namespaced `admin.*` API, so 59 call sites moved to the modular entry points first (on v13, green) and the version bump changed no code. The `uuid` override now matches nothing: since v25.25 (`firebase-admin` 14.5) `@google-cloud/storage` is 8.4.0 and `functions/package-lock.json` holds no `uuid`; it was removed at v25.35 | `KNOWN_LIMITATIONS.md`, `SECURITY_RELEASE_PLAN.md` → A1 |
-| `npm audit --omit=dev` in `functions/` | The weekly workflow runs `--audit-level=high`, so low/moderate drift does **not** fail CI — it is caught only by looking | `SECURITY_RELEASE_PLAN.md` → A1 |
-| App Speed card — the **Usable** milestone | Added v20.80, and the first figure that describes what a member actually waits for. The two older milestones cannot: "First appears" is the splash painting, and "Code loaded" fires while the Calendar can still be blank. Watch this one, not those | Operations → App Speed |
+| `npm audit --omit=dev` in `functions/` | The weekly `functions-audit.yml` fails only on a high or critical finding (`scripts/audit-functions-deps.sh`), and its root-tree job is report-only, so moderate drift does **not** fail CI — it is caught only by looking | `KNOWN_LIMITATIONS.md` → Development-tool advisories · `SECURITY_RELEASE_PLAN.md` → A1 |
+| App Speed card — the **Usable** milestone | The first figure that describes what a member actually waits for. The two older milestones cannot: "First appears" is the splash painting, and "Code loaded" fires while the Calendar can still be blank. Watch this one, not those | Operations → App Speed |
 | App Speed card, calendar tail | The measured half of ONE of the four Build-tooling triggers (load time on staff phones) | This file → Build tooling |
+| App Speed card — **Own roster** (`rosterSnapshot`) | Whether a returning member's open now SHOWS a roster well inside a second. The own-roster copy (`CALENDAR_DATA.md` 17) is the identity round trip's answer, and this milestone measures it directly; the decision record is `ROADMAP_HISTORY.md` and `DECISIONS.md` → "The own-roster copy" | Operations → App Speed |
 | Per-address counters | The signal for the migration campaign — read the mirror going down | Operations → Usage |
 
 ---
@@ -869,6 +637,7 @@ both would need the governance gate answered before that changed.
 | Looking for | File |
 |---|---|
 | What shipped, what was removed, what was tried and reverted | `ROADMAP_HISTORY.md` |
+| The v23.01 external review's index, and the print review (Sep 2026) — both closed | `ROADMAP_HISTORY.md` |
 | Decisions already taken, and features declined | `DECISIONS.md` — **do not re-argue one without reading it** |
 | Dated obligations and their warning points | `MAINTENANCE_CALENDAR.md` |
 | Current status of every security/auth track | `SECURITY_RELEASE_PLAN.md` — **the single source** |
