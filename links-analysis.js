@@ -295,7 +295,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
     }
 
     /**
-     * The live summary in the grid card's sticky bar (v19.57) — three figures and a way down.
+     * The live summary in the grid card's sticky bar (v19.57) — four figures and a way down. The
+     * fourth, hours a week, came later and is argued beside its chip.
      *
      * WHY IT EXISTS. The grid card is ~1,400px tall and the Coverage and Design-checks cards start
      * ~1,600px and ~2,300px below the fold (measured at 1440x900). Editing therefore meant: paint a

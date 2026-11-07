@@ -4,7 +4,8 @@
  *
  * Two designers can have links.html open at once. Everything that decides whether one of them is
  * about to overwrite the other lives here: no DOM, no Firebase, no timers — just the rules, so they
- * can be tested. `links-app.js` keeps the Firestore calls, the dialogs and the state.
+ * can be tested. `links-design-store.js` makes the Firestore calls; `links-app.js` keeps the
+ * dialogs and the state.
  *
  * WHY THIS IS ITS OWN MODULE (v19.38). This logic has produced three separate bugs, every one of
  * them a silent overwrite of a colleague's work:

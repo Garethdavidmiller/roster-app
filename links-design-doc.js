@@ -48,9 +48,9 @@ import { normaliseWindow } from './links-window.js';
  * the collection this is the one guaranteed to be legacy: it predates multi-design, so it is the
  * likeliest to hold the unpadded times `canonicaliseShift` exists for. It also wrote no `window`.
  *
- * Neither was reachable for a workspace that already has named designs (the migration is gated on
- * `named.length === 0`), which is exactly why it survived — it runs once, for one document, on a
- * visit nobody is watching.
+ * Neither was reachable for a workspace that already has designs (the migration runs only when the
+ * collection holds none, live or binned), which is exactly why it survived — it runs once, for one
+ * document, on a visit nobody is watching.
  */
 export const LEGACY_DOC_ID = 'combined-28';
 
@@ -173,8 +173,8 @@ export function binEntryFromDoc(id, data) {
  * stop it loading in Node, which is the whole point of extracting it.
  *
  * `firestore.rules` allows exactly `['name','patterns','updatedAt','updatedBy']` plus the optional
- * deleted pair, and `window` — so nothing else may be added here without the rules moving first, or
- * every save permission-denies.
+ * deleted pair, `window`, and the `revision` the store adds — so nothing else may be added here
+ * without the rules moving first, or every save permission-denies.
  * @param {{name?: string, patterns?: Record<string, any>, window?: any}} design
  * @param {{updatedBy: string, updatedAt: any}} meta
  */

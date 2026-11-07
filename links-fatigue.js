@@ -113,8 +113,9 @@ export function isWorked(s) { return !isRest(s); }
  * A duty whose end is at or before its start has run past midnight, so it gains 24h — handled by
  * `endMinutesAbs` in links-design.js, which is the ONE place that rule lives (v19.47; this module
  * carried its own copy of the expression for one version). Nothing in the current CEA link runs past
- * midnight — duties finish 23:55 — but a designer can type one, and the version of this rule that
- * ignores the case reports a NEGATIVE duty length rather than failing.
+ * midnight — duties finish 23:55, and `normaliseCustomShift` refuses one at input — but legacy or
+ * imported data can carry one, and the version of this rule that ignores the case reports a
+ * NEGATIVE duty length rather than failing.
  * @param {any} shift
  */
 // MOVED to links-design.js at v20.04 and re-exported here, so every existing importer and test is

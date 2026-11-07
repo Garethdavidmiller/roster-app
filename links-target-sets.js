@@ -38,10 +38,10 @@
  * seam `links-design-doc.js` uses, so this stays loadable in Node and testable without mocks.
  */
 
-/** The longest a set name may be — matches the design-name bound in `firestore.rules`. */
+/** The longest a set name may be — the bound `firestore.rules` puts on a set's name (a design's is 100). */
 export const MAX_SET_NAME = 60;
 
-/** The most rows a set may carry — far above any real table (the default runs ~31). */
+/** The most rows a set may carry — far above any real table, the default included. */
 export const MAX_SET_SLOTS = 60;
 
 /** The most spare lines a set may carry — the rules refuse `spareLines >= 30` (v24.38). */

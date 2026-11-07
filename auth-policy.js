@@ -23,8 +23,8 @@
  *
  * Pure: `requirePageAuth(snapshot, policy, roles)` has no I/O. The thin `rolesFor(member)` glue
  * (which reads CONFIG) and the `requirePage(snapshot, page)` convenience are the only impure bits.
- * WIRED IN (Phase 4–7): operations/links/admin/settings/paycalc coordinators call `requirePage(...)`
- * for their access gate and B1 enforcement decision — behaviour-preserving (CLIENT UX only; Firestore
+ * WIRED IN (Phase 4–7): every protected coordinator calls `requirePage(...)` for its access gate, and
+ * `guardNamedSession` (page-session.js) for the B1 enforcement decision — behaviour-preserving (CLIENT UX only; Firestore
  * Rules + Functions claim checks remain the real boundary).
  */
 import { CONFIG } from './roster-data.js';

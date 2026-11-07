@@ -2,10 +2,11 @@
 /**
  * operations-app.js — Coordinator for operations.html.
  *
- * Owns: session guard (redirect to admin.html if not admin), Firebase Auth
- *   re-establishment, page init wiring for the three operations cards.
+ * Owns: the access gate (signed out → the in-place sign-in; a non-admin → admin.html), Firebase
+ *   Auth re-establishment, the Account status and reset-request cards, and the page's wiring.
  * Does NOT own: Huddle upload logic (huddle.js), roster PDF pipeline
- *   (admin-roster-upload.js), staff auth setup (admin-auth.js).
+ *   (admin-roster-upload.js), staff auth setup (admin-auth.js), the three reporting cards
+ *   (operations-errors.js, -usage.js, -speed.js) or the Needs-attention strip (operations-attention.js).
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 

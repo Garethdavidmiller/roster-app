@@ -11,7 +11,8 @@
 //   via isWorkingDate, the change-listener wiring, and the whole save→feedback→refresh flow
 //   incl. the session-expired vs generic error split.
 // Does NOT own: the AL entitlement maths, the AL confirm-bar flag, or the spare-shift warning —
-//   those live in admin-al.js and are injected via the preSave / renderReady hooks.
+//   admin-al.js injects them via the preSave / renderReady / project / swapQuestion hooks (the
+//   maths itself is admin-al-projection.js and admin-al-spare-note.js).
 
 import { teamMembers } from './roster-data.js';
 import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate, isSaveInFlight, setSaveInFlight } from './admin-overrides.js';

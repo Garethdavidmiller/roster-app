@@ -14,7 +14,7 @@
  *
  * `session.js` feeds the store purely as a side-effect (wrapped so a store error can never break
  * auth), so `sessionReady` and every page behave exactly as before. The store is now CONSUMED via
- * the policy layer: the migrated coordinators (operations/links/admin/settings/paycalc, Phase 4–7)
+ * the policy layer: `guardNamedSession` (page-session.js), which every named page runs, and paycalc
  * call `requirePage(getAuthSnapshot(), …)` (auth-policy.js) for their B1 enforcement decision. ONLY the
  * session.js bridge dispatches — everything else reads via `getAuthSnapshot`/`subscribeAuth`.
  */
