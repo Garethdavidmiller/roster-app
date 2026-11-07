@@ -374,12 +374,23 @@ describe('releaseDevicePush', () => {
         await releaseDevicePush();
         assert.equal(_deleteCalls, 0);
     });
-    test('it never holds sign-out hostage — a hung service worker is abandoned at the time box', async () => {
+    test('it never holds sign-out hostage — a hung service worker is abandoned at the time box', async (t) => {
+        // On mock timers, with the time box ticked by hand (test audit, 7 Nov 2026). The hung worker
+        // leaves `swReady`'s own 8s bound waiting — correctly, since it is still the worker's answer
+        // being awaited — and on the real clock that held this file open for eight seconds after its
+        // last test. It is also a sharper check: an unbounded wait used to hang the suite rather than
+        // fail it.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
         setupEnv({ permission: 'granted', hasSub: true });
         Object.defineProperty(/** @type {any} */ (globalThis.navigator).serviceWorker, 'ready', { get: () => new Promise(() => {}) });
-        const t0 = Date.now();
-        await releaseDevicePush(50);
-        assert.ok(Date.now() - t0 < 1000, 'sign-out waited on a service worker that will never answer');
+        let settled = false;
+        const p = releaseDevicePush(50).then(() => { settled = true; });
+        for (let i = 0; i < 6; i++) await Promise.resolve();
+        assert.equal(settled, false, 'guard: still inside the time box');
+        t.mock.timers.tick(50);
+        for (let i = 0; i < 6; i++) await Promise.resolve();
+        assert.equal(settled, true, 'sign-out waited past its time box on a service worker that will never answer');
+        await p;
     });
 });
 

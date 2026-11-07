@@ -114,8 +114,26 @@ describe('reading the copy — each refusal', () => {
         assert.equal(snap.MAX_AGE_MS, 14 * DAY);
     });
 
-    test('a month that has left the window is not shown', () => {
-        assert.equal(snap.snapshotMonth('G. Miller', 2026, 9, new Date(2027, 1, 20).getTime()), null);
+    test('a month that has left the window is not shown, however fresh it is', () => {
+        // Saved on its last day in the window and read the next morning: a few hours old, so only the
+        // WINDOW can refuse it (test audit, 7 Nov 2026). This used to read in February 2027, when the
+        // 14-day limit refused the copy as well, and deleting the window check left the file green.
+        const lastDay     = new Date(2026, 10, 30, 22).getTime();   // 30 Nov — October is last month
+        const nextMorning = new Date(2026, 11, 1, 7).getTime();     // 1 Dec — October is two months back
+        snap.saveSnapshotMonths('G. Miller', { '2026-10': [rec('G. Miller', '2026-10-06')] }, lastDay);
+        assert.equal(snap.snapshotMonth('G. Miller', 2026, 9, lastDay)?.get('2026-10-06')?.value, 'AL',
+            'guard: on its last day in the window the month is shown');
+        assert.ok(nextMorning - lastDay < snap.MAX_AGE_MS, 'guard: the age limit cannot be what refuses it');
+        assert.equal(snap.snapshotMonth('G. Miller', 2026, 9, nextMorning), null);
+    });
+
+    test('a copy stamped in the FUTURE is refused — a clock set back cannot stretch its 14 days', () => {
+        // Untested until the test audit (7 Nov 2026). The age limit is measured FROM `savedAt`, so a
+        // copy written while the device clock ran ahead would outlive 14 days by however far the clock
+        // was wrong. A minute's difference is allowed, because phones correct their clocks.
+        assert.ok(snap.snapshotMonth('G. Miller', 2026, 9, NOW - 30_000), 'half a minute behind is ordinary clock drift');
+        assert.equal(snap.readSnapshot('G. Miller', NOW - 2 * 60_000), null, 'read two minutes before it was written');
+        assert.equal(store.has(CALENDAR_SNAPSHOT), false, 'and a copy that cannot be shown is deleted');
     });
 
     test('an unreadable or old-shape copy is deleted, never trusted', () => {

@@ -24,6 +24,15 @@ const C = require('./functions/doc-url-core.js');
 
 const RULES = readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8');
 
+/** The rules text of ONE top-level collection's block: from its `match` to the next one at the same
+ *  depth (the collections sit at four spaces; anything nested inside one is indented further). */
+function ruleBlock(/** @type {string} */ collection) {
+    const start = RULES.indexOf(`\n    match /${collection}/{`);
+    assert.ok(start !== -1, `firestore.rules has no top-level match block for ${collection}`);
+    const next = RULES.indexOf('\n    match /', start + 1);
+    return RULES.slice(start, next === -1 ? undefined : next);
+}
+
 /** The token a real PIN unlock produces: the claim, on a custom-token sign-in. */
 const PIN = { calendarViewer: true, firebase: { sign_in_provider: 'custom' } };
 
@@ -250,8 +259,13 @@ describe('the path is checked even though the server supplies it — and bound t
                 `expected three storagePath.matches() rules, found ${m ? m.length : 0} — a document `
                 + 'collection has lost its prefix binding, so a path for another collection could be '
                 + `written into it (${kind})`);
-            assert.match(RULES, new RegExp(`storagePath\\.matches\\('${collection}/`),
-                `${collection} does not bind storagePath to its own prefix in firestore.rules`);
+            // Read INSIDE the collection's own match block (test audit, 7 Nov 2026). This checked only
+            // that each prefix appeared SOMEWHERE in the file, so swapping the huddles and circulars
+            // prefixes between their blocks passed here and in firestore-contract-parity.test.mjs, and
+            // only the emulator suite could see that a circular's path was now accepted as a Huddle's.
+            const bound = [...ruleBlock(collection).matchAll(/storagePath\.matches\('([^'/]+)\//g)].map(x => x[1]);
+            assert.deepEqual(bound, [collection],
+                `${collection} must bind storagePath to its OWN prefix inside its own rule — found ${JSON.stringify(bound)}`);
         }
     });
 

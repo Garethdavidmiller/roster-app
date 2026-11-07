@@ -105,7 +105,7 @@ const {
     rosterOverridesCache, _initialFetchInProgress,
     setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth,
     monthKey, _monthSlices, fetchOverridesForRange, fetchOverridesForRangeFromCache,
-    ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess, releaseStaleMonths,
+    ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess, releaseStaleMonths, SERVED_FROM_CACHE,
 } = await import('./calendar-overrides.js');
 
 // Open the Calendar access gate for this whole file (v20.12). Every read here refuses to run
@@ -539,6 +539,26 @@ describe('a late, superseded read must not write', () => {
         assert.equal(rosterOverridesCache.get('A. Smith|2035-09-10')?.value, 'AL',
             'a cache snapshot overwrote an authoritative answer');
     });
+
+    test('a month read the CACHE answered never writes a month a server read already owns', async () => {
+        // The same rule where the other non-authoritative answer arrives (test audit, 7 Nov 2026).
+        // On a dead signal `getDocs` resolves from this device's cache, and that branch merges what it
+        // is handed; removing its ownership check left every suite green, and the older record the
+        // cache held overwrote the server's newer answer.
+        _mockDocs = [AL('2035-11-10')];
+        await fetchOverridesForRange('2035-11-01', '2035-11-30');
+        assert.equal(rosterOverridesCache.get('A. Smith|2035-11-10')?.value, 'AL');
+
+        _getDocsFromCacheFlag = true;
+        _mockDocs = [makeDoc('old', { memberName: 'A. Smith', date: '2035-11-10', value: 'RD',
+            type: 'correction', note: '', source: 'manual', createdAt: { seconds: 1 } })];
+        try {
+            await assert.rejects(() => fetchOverridesForRange('2035-11-01', '2035-11-30'),
+                (/** @type {any} */ e) => e.code === SERVED_FROM_CACHE, 'guard: this read must take the cache-served branch');
+        } finally { _getDocsFromCacheFlag = false; _mockDocs = []; }
+        assert.equal(rosterOverridesCache.get('A. Smith|2035-11-10')?.value, 'AL',
+            'a cache-served answer overwrote what the server had already said for the month');
+    });
 });
 
 describe('a settled month is re-read once it is old (Oct 2026 review)', () => {
@@ -638,7 +658,12 @@ describe('ensureOverridesCached — a read answered by the offline cache', () =>
         rosterOverridesCache.set('A. Smith|2097-03-10', { value: 'AL', type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 5 } });
         await ensureOverridesCached(2097, 2, () => {});
         assert.equal(rosterOverridesCache.get('A. Smith|2097-03-10')?.value, 'AL', 'absence from a cached subset is not a delete');
-        assert.notEqual(knowledgeOf(monthKey(2097, 2)), 'authoritative');
+        // `error`, exactly — invariant 16's "or `error` if it held nothing" (test audit, 7 Nov 2026).
+        // This asserted only "not authoritative", so recording every cache answer as `cached` left
+        // it green — and a month the cache knew nothing about would be drawn from the base roster
+        // under the "saved copy" label instead of earning the failure panel and its Try again.
+        assert.equal(knowledgeOf(monthKey(2097, 2)), 'error',
+            'a cache answer holding nothing for the month is a failure, not a saved copy');
     });
 
     test('a cache answer HOLDING records paints them as the labelled last-known grid, and asks again next time', async () => {

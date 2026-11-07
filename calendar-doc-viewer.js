@@ -41,8 +41,20 @@ const DOC_AUTH_WAIT_MS = 2000;
 /** Total deadline for the whole open, mirroring the nav-drawer document path's 8s race. */
 const DOC_FETCH_TIMEOUT_MS = 8000;
 
-/** @param {number} ms */
-const _delay = (ms) => new Promise(r => setTimeout(r, ms));
+/**
+ * `p`, or `ms` from now, whichever comes first. The losing timer is CLEARED once `p` settles (test
+ * audit, 7 Nov 2026): left armed, every open kept a 2s timer, and every page load an 8s one, alive for
+ * nothing — and held the test runner open as long. The clear is a side branch attached AFTER the race,
+ * so the race's own reaction to `p` still runs first and settles on exactly the tick it always did.
+ * @param {Promise<any>} p
+ * @param {number} ms
+ */
+function _orAfter(p, ms) {
+    /** @type {ReturnType<typeof setTimeout>|undefined} */ let timer;
+    const raced = Promise.race([p, new Promise(r => { timer = setTimeout(r, ms); })]);
+    Promise.resolve(p).then(() => clearTimeout(timer), () => clearTimeout(timer));
+    return raced;
+}
 
 /**
  * Wire up the document viewer and open it if the page loaded on a #circular/#newsletter deep link.
@@ -158,7 +170,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             // for a session, then read anyway. Reads DO require access (firestore.rules, since v23.18
             // — a member's claim, `admin`, or the PIN's `calendarViewer`), so a read without a
             // session fails into the catch below, which offers a retry, rather than stalling first.
-            const authOrSoon = Promise.race([authReady, _delay(DOC_AUTH_WAIT_MS)]);
+            const authOrSoon = _orAfter(authReady, DOC_AUTH_WAIT_MS);
             // The short-lived url is requested ALONGSIDE the document read (v24.23), not after it:
             // the server picks the latest document itself, so the request needs nothing the read
             // returns, and in series every open paid for two round trips one after the other.
@@ -253,7 +265,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     }
     // The decision settles: a tap still held on "Loading…" (same open, not closed or superseded)
     // now says what unlocks it. A grant got there first through `onChange` and cleared the key.
-    Promise.race([accessDecided, _delay(DOC_FETCH_TIMEOUT_MS)]).catch(() => {}).then(() => {
+    _orAfter(accessDecided, DOC_FETCH_TIMEOUT_MS).catch(() => {}).then(() => {
         _decided = true;
         const d = _pendingKey ? DOCS[_pendingKey] : null;
         if (d && !docAccess.has() && _waitingSeq === _openSeq) showMessage(lockedText(d), 'doc-viewer-empty');
