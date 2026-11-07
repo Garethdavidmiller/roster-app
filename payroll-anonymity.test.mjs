@@ -108,10 +108,10 @@ function namesOn(line) {
 
 /** Binary shapes nothing can leak a name through, and the one directory scanned on purpose. */
 const SKIP_EXT = /\.(png|pdf|woff2|ico|jpg|jpeg|webp|zip)$/i;
-/** `docs/links-24/**` and `docs/links-26/**` are excluded on purpose: the December 2026 link proposals carry rota names
- *  throughout and no pay at all, so scanning them yields a long list of matches on the word
- *  "pension" in a fatigue-rule paragraph and nothing else. */
-const SKIP_DIR = /^docs\/links-2[46]\//;
+/** `docs/links-26/**` is excluded on purpose (and `docs/links-24/**` was, until that folder was removed on 7 Nov 2026):
+ *  the December 2026 link proposals carry rota names throughout and no pay at all, so scanning them yields a long list
+ *  of matches on the word "pension" in a fatigue-rule paragraph and nothing else. */
+const SKIP_DIR = /^docs\/links-26\//;
 
 /**
  * Directories a WALK must not descend into. `git ls-files` excludes these for free; a filesystem

@@ -1,6 +1,6 @@
 // WHAT 14 DAYS OF LEAVE BUYS (2 Oct 2026). The colleague decks quote four leave figures that no sheet computes; the
-// 24-line decks' were worked outside this repository, by the method ../../links-24/README.md records ("The leave
-// figures"). This is that method as code, so the 26-line decks' figures can be rebuilt and checked:
+// 24-line decks' were worked outside this repository, by the method the links-24 README recorded ("The leave
+// figures"; that folder was removed on 7 Nov 2026, `git checkout 924b9dbc -- docs/links-24`). This is that method as code, so the 26-line decks' figures can be rebuilt and checked:
 // - walk the rotation day by day from every possible first day of leave, and count the days off in a row before a
 //   15th day of leave would be needed;
 // - a Monday-to-Saturday working day costs one day of leave; a rest day and a Sunday (overtime) cost none; a cover
@@ -30,7 +30,7 @@ if (process.argv[1]?.endsWith('leave.mjs')) {
   const load = f => { const j = JSON.parse(readFileSync(f, 'utf8')); return j.patterns ?? j; };
   if (process.argv.includes('--check')) {
     const want = [['today', today().patterns, { best: 30, avg: 23.4, worst: 19, fourWeeks: 14 }],
-      ['Familiar Nine', load(new URL('../../links-24/proposals/Familiar-Nine-F9-24-K31s.json', import.meta.url)), { best: 28, avg: 23.6, worst: 20, fourWeeks: 15 }]];
+      ['Familiar Nine', load(new URL('./reference-24/Familiar-Nine-F9-24-K31s.json', import.meta.url)), { best: 28, avg: 23.6, worst: 20, fourWeeks: 15 }]];
     let bad = 0; for (const [name, p, w] of want) { const g = leave(p); const ok = JSON.stringify(g) === JSON.stringify(w); if (!ok) bad++;
       console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}: ${JSON.stringify(g)}${ok ? '' : ` — the decks say ${JSON.stringify(w)}`}`); }
     process.exit(bad ? 1 : 0);

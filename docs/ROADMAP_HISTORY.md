@@ -1380,7 +1380,8 @@ left, each for a decision rather than a default:
   file. The copies already committed stay in history; rewriting it was ruled out. `docs/links-24` is
   read by more than this line used to say: its proposal files are fixtures for
   `links-compare-analysis.test.mjs` AND `links-compare.test.mjs`, and the Links 26 tooling reuses its
-  scripts. Its own 13 MB zip no longer changes, so it costs checkout size and nothing more.
+  scripts. Its own 13 MB zip no longer changes, so it costs checkout size and nothing more. (The folder
+  was removed on 7 Nov 2026; Known Limitations → Weight has where its files went.)
 - **Size**: nine of the 28 modules in `coordinator-ratchet.test.mjs` sit exactly at their cap. The
   seven stylesheets over 900 lines are capped since v25.23 (`stylesheet-ratchet.test.mjs`, the same
   ratchet: `index.css` 3,861 lines and `shared.css` 3,852 on 3 Nov 2026). `e2e/pages.spec.js`

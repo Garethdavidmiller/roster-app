@@ -1,5 +1,5 @@
 // THE 26-LINE LINK, STATED ONCE (1 Oct 2026). The sheets, the decks and the checks read the line count, the cover weeks
-// and the contract from here. The 24-line tooling this was copied from (`../../links-24/tooling/`) wrote "24" and "four
+// and the contract from here. The 24-line tooling this was copied from (`docs/links-24/tooling/`, removed 7 Nov 2026; `git checkout 924b9dbc -- docs/links-24` restores it) wrote "24" and "four
 // cover weeks" into a dozen files; that is what this file replaces. The search and solver scripts (skeleton.mjs,
 // skeleton-start.mjs, exact-*.py, short-earlies.mjs) still carry their own copy of the link's shape, so a change of length
 // is this edit and those (the accuracy check, 30 Oct 2026). The rules themselves are `../RULES.md` (owner, 1 Oct 2026).

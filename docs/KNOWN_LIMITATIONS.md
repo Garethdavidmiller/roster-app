@@ -19,10 +19,12 @@ is in `ROADMAP_HISTORY.md`). These it left, each for a decision rather than a de
 - **Weight.** `.git` was about 1.4 GB on 3 Nov 2026, and each committed copy of the Links 26 pack zip
   had added ~15 MB to it, sixteen times. The zip is built on demand now (owner, 3 Nov 2026: it is
   untracked, and `docs/links-26/tooling/pack.py` says to run the script and send the file), but the
-  copies already committed stay in history — rewriting it was ruled out. `docs/links-24` stays in
-  the tree: its proposal files are fixtures for `links-compare-analysis.test.mjs` and
-  `links-compare.test.mjs`, and the Links 26 tooling reuses its scripts. Its own 13 MB zip no longer
-  changes, so it costs checkout size and nothing more.
+  copies already committed stay in history — rewriting it was ruled out. `docs/links-24`, with its
+  own 13 MB zip, was removed on 7 Nov 2026 (owner: no longer of use); it too stays in history, and
+  `git checkout 924b9dbc -- docs/links-24` restores it. The files still read moved out first: the two
+  proposal grids the Links compare tests use to `test-fixtures/links-designs/`, what the Links 26
+  tooling reads to `docs/links-26/tooling/reference-24/`, and `default-baseline.mjs` to
+  `docs/links-26/tooling/`.
 - **Size.** Several modules sit exactly at their cap in `coordinator-ratchet.test.mjs`, and the
   largest stylesheets are capped the same way by `stylesheet-ratchet.test.mjs`. A file at its cap
   takes the next feature only by extracting something first; the ratchet's header says what a good

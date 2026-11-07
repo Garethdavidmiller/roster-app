@@ -584,7 +584,7 @@ of every rule — read it before changing one. What governs it:
   happens to carry. **Do not turn it `present` above some figure**: the ORR gives no FF18 threshold, and
   inventing one is the pass/fail rendering this panel forbids. The live main roster's step — typically
   4h 0m, largest 8h 46m, 9 of 20 boundaries over two hours — is the baseline to quote. Measure the
-  default with `docs/links-24/tooling/default-baseline.mjs`, and quote any step figure with the
+  default with `docs/links-26/tooling/default-baseline.mjs`, and quote any step figure with the
   switches and target set it was measured on.
 - **Every rule laps the rotation** (invariant 3): a block straddling the last line → line 1 must be
   measured whole (`earlyBlocksWithShortRecovery` once cut it in half and reported nothing).

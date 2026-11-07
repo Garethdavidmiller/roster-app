@@ -22,7 +22,7 @@ import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.
  *  rule, the minimum proven by an exact solver (tooling/exact/). `exact-waived`: the same, with rules the owner
  *  waived for that design (WAIVERS, below). */
 // 26 LINES (1 Oct 2026; nine designs by 3 Oct): a design's one-line description and how it was made go here, by code,
-// exactly as the 24-line sheets' did (../../links-24/tooling/fresh.mjs keeps theirs).
+// exactly as the 24-line sheets' did (docs/links-24/tooling/fresh.mjs kept theirs — removed 7 Nov 2026; `git checkout 924b9dbc -- docs/links-24` restores it).
 // 6 NOV 2026 — THE SATURDAY TICKET OFFICE TO 22:30 (RULES.md S5; README.md → "The Saturday ticket office to 22:30"). Every
 // design's two Saturday office lates moved from 22:00 to 22:30 and its Saturday floor lates gave the half hour back, so
 // three headlines were reworded to stay true: Fine Tune's and Even Keel's heaviest week is now 42h 00m (it was 41h 30m),
@@ -75,6 +75,16 @@ export const STRAPS = {
   // 6 NOV 2026 (owner, asking for Balanced V6 made again "without losing anything", then "Add v7 please"): Balanced V6's duties
   // laid again on Grand Tour's rest days (README.md → "Balanced V7"). Its headline says what it is and names no other design
   'MB-26-V7': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, no six-day weeks, and 14 days’ leave buys 30 days off, as today', 'search'],
+  // 7 NOV 2026 (owner: keep the 13:45s and make the 13:35s 13:45 too, closers from 15:45 on a weekday, 30 days off for 14 days'
+  // leave, every rule and fatigue factor, the fewest shift times, competitive in the league; then "give hb a new name and put that
+  // into the pack. Delete set fair as it would not work": Set Fair's three weekday 07:15-15:45s left as the 15:45 closers came
+  // on). Two weekday earlies stay until 16:00, the closers' first 15 minutes. Drawn as Safe Hands (SH-26-T10), renamed the same
+  // day for a railway name (owner: "Needs a better name", "Use railway names in future"): README.md → "Crossover"
+  'CO-26-T10': ['Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today', 'search'],
+  // 7 NOV 2026, LATER (owner, of Crossover: "people don't want to do several weeks of closes", then "Do it"): Crossover's duties
+  // and rest days with its weeks chosen again, so that no two closing weeks fall side by side. NO STRAP NAMES ANOTHER DESIGN, so
+  // this one says what it has, not whose weeks it re-lays: README.md → "Level Crossing"
+  'LC-26-T10': ['Two 13:45 finishes every weekday, a 15-minute handover to the three 15:45 closers, never two closing weeks in a row, no fatigue warning even if a cover week falls badly, and 14 days’ leave buys 30 days off, as today', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
@@ -103,8 +113,8 @@ if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is bo
 // In Step from 30 Oct, Even Step from 31 Oct (README.md has each) — and was retired with the marks; it is gone rather than
 // left null, so any script still reading it fails loudly instead of quietly recommending nothing.
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
-export const FAMILY = { SL: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', OR: 'Quarter Past', SO: 'Quarter Past', GT: 'Home Grown', CG: 'Home Grown', MG: 'Home Grown', MB: 'Marylebone Balanced' };
-export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'OR-26-EXT': '4 Nov 2026', 'SO-26-EXT': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026', 'MB-26-V5': '5 Nov 2026', 'MB-26-V6': '5 Nov 2026', 'MB-26-V7': '6 Nov 2026' };
+export const FAMILY = { SL: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', OR: 'Quarter Past', SO: 'Quarter Past', GT: 'Home Grown', CG: 'Home Grown', MG: 'Home Grown', MB: 'Marylebone Balanced', CO: 'Home Grown', LC: 'Home Grown' };
+export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'OR-26-EXT': '4 Nov 2026', 'SO-26-EXT': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026', 'MB-26-V5': '5 Nov 2026', 'MB-26-V6': '5 Nov 2026', 'MB-26-V7': '6 Nov 2026', 'CO-26-T10': '7 Nov 2026', 'LC-26-T10': '7 Nov 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a
