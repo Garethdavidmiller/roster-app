@@ -6,6 +6,13 @@
  * Does NOT own: override cache (calendar-overrides.js), member selection (calendar-member.js),
  *   period arithmetic (paycalc-periods.js).
  * Edit here for: AL entitlement display, Dispatcher lieu-day breakdown, day-detail content.
+ *
+ * The day panel is the only place a touch user reads what a day IS. Every badge, glyph and
+ * marker on it comes from an authority elsewhere — `shiftBadgeParts` (roster-data.js),
+ * `dayMarkers` and `weekContext` (calendar-renderer.js) — so it can never colour or name a day
+ * differently from the grid it was opened from. The layout reasoning sits beside each zone in
+ * index.html and index.css, and the geometry is pinned by the `day detail:` block of
+ * e2e/calendar.spec.js, because no behavioural assertion can see one box overlapping another.
  */
 
 import { createLightbox } from './overlay.js';

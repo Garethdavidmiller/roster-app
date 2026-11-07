@@ -1046,10 +1046,22 @@ test('the guide-count guard still matches the form that shipped — guard the gu
 //
 // 900 is deliberately just above the largest survivor, not a round number: a cap with slack is a
 // cap nobody meets. Shrinking an entry is free. RAISING this number is a decision somebody makes
-// and defends, exactly like `coordinator-ratchet.test.mjs`. The next pass should bring it to ~600.
-const TREE_ENTRY_CAP = 900;
-//   · the tree may not accumulate release history. A handful of version stamps is fine (they date
-//     a decision); dozens means the changelog has moved back in.
+// and defends, exactly like `coordinator-ratchet.test.mjs`.
+//
+// RATCHETED 900 -> 710 on 7 Nov 2026. A second pass rewrote 423 rows as routing lines (what the
+// file is, what it owns, where its reasoning lives), taking the catalogue from 249,137 characters
+// to 152,855, the median row from 431 to 276 and the version stamps from 89 to 1. Each cut was
+// checked against the file's own comments first; the two arguments that lived only here moved into
+// `calendar-al-lightbox.js` and `overtime.html` before their rows lost them. The two rows written
+// by a parallel branch while the pass ran (`links-26/` at 838, `DECISIONS.md` at 620) were cut the
+// same way once it had merged: the folder's own README routes its contents, and DECISIONS.md's
+// header already carries why it exists. Every row is now 453 characters or less, and 455 sits just
+// above the longest. Raising it is still a decision somebody makes and defends.
+const TREE_ENTRY_CAP = 455;
+//   · the tree may not accumulate release history. The one version reference left is a library
+//     pin (DOMPurify's), not a release stamp; the date a decision was made belongs in git and the
+//     plan docs. RATCHETED 90 -> 2 with the pass above, and raising it is likewise a defended decision.
+const TREE_STAMP_CEILING = 2;
 test('the CLAUDE.md file tree stays a routing table', () => {
     const tree = (FILE_INDEX.match(/```[\s\S]*?```/) || [''])[0];
     assert.ok(tree.length > 10_000, 'the file tree was not found — this test is checking nothing');
@@ -1083,10 +1095,10 @@ test('the CLAUDE.md file tree stays a routing table', () => {
         'file is two descriptions that will drift:\n  ' + doubled.join('\n  '));
 
     const stamps = (tree.match(/v\d+\.\d+/g) || []).length;
-    assert.ok(stamps < 90,
-        `the tree carries ${stamps} version references — it was 208 before v20.11, which is a ` +
-        'changelog living in a routing table, loaded into every session. Release history belongs ' +
-        'in git and the plan docs.');
+    assert.ok(stamps < TREE_STAMP_CEILING,
+        `the tree carries ${stamps} version references against a ceiling of ${TREE_STAMP_CEILING - 1} ` +
+        '(the DOMPurify pin) — it was 208 before v20.11 and 89 before 7 Nov 2026, which is a ' +
+        'changelog living in a routing table. Release history belongs in git and the plan docs.');
 });
 
 // ── CONTRACT 3b: the ARCHITECTURE TABLE is held to the tree's own limits ───────────────────────
