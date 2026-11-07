@@ -2334,7 +2334,10 @@ body.auth-ready .container { display: grid; }
     background-color: var(--field-bg);
     color: var(--text-dark);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    /* 16px floor — this is a focusable field and iOS zooms anything smaller (css-tokens.md). */
+    /* 14px on a mouse, for the density; 16px on touch, below — iOS force-zooms the page when a
+       focused field is smaller (css-tokens.md). This comment said "16px floor" over a 14px value
+       until the test audit (7 Nov 2026); the parity test could not see it, because it recognised a
+       text field only by a selector saying `input` or `textarea`. */
     font-size: var(--type-body);
     line-height: 1.4;
     white-space: pre;
@@ -2348,6 +2351,11 @@ body.auth-ready .container { display: grid; }
     max-height: 40vh;
 }
 .li-paste:focus { background-color: white; outline: var(--focus-outline); outline-offset: 1px; }
+/* Directly after the base rule, as .pt-paste's is (paycalc.css): at equal specificity the later rule
+   wins, and an override placed above its base has silently lost in this repo three times. */
+@media (pointer: coarse) {
+    .li-paste { font-size: var(--type-medium); }
+}
 
 .li-name {
     width: 100%;
@@ -2361,6 +2369,11 @@ body.auth-ready .container { display: grid; }
     font-size: var(--type-body);
 }
 .li-name:focus { background-color: white; outline: var(--focus-outline); outline-offset: 1px; }
+/* The design-name box beside it is a text field too, and had the same 14px with nothing to raise it
+   on touch — found by the markup-aware 16px check the moment it could see the class (7 Nov 2026). */
+@media (pointer: coarse) {
+    .li-name { font-size: var(--type-medium); }
+}
 
 /* The status line carries three states and they must not look alike — a refusal and a summary of
    what is about to be written are opposite messages, and this is the one screen where the reader

@@ -220,3 +220,18 @@ test('the status says when the new link starts, apart from the timetable, and wh
     // An unreadable date says nothing rather than something untrue.
     assert.doesNotMatch(renderStatus({ proposals: PROPOSALS, closes: null, starts: 'soon' }), /starts on/);
 });
+
+// THE LINE FOLLOWS THE DATE (test audit, 7 Nov 2026). It had no date logic, so from 1 January it would still have said the
+// link "starts on 1 January 2027" and that the timetable "comes first, in December".
+test('the status line keeps its tense as the dates pass, and says nothing once the link has started', () => {
+    const at = (/** @type {string} */ today) => renderStatus({ proposals: PROPOSALS, closes: null, starts: '2027-01-01', timetable: '2026-12-13', today });
+    assert.match(at('2026-11-07'), /The new timetable comes first, in December, and today’s link carries on until then\./);
+    assert.match(at('2026-12-12'), /comes first, in December/, 'the day before the timetable change');
+    assert.match(at('2026-12-13'), /The new link starts on 1\u00a0January 2027\. The new timetable started in December, and today’s link carries on until then\./);
+    assert.match(at('2026-12-31'), /started in December/);
+    for (const today of ['2027-01-01', '2027-03-15']) {
+        assert.doesNotMatch(at(today), /starts on|carries on until then|comes first|started in December/,
+            `on ${today} the line still speaks of a start that has come`);
+        assert.match(at(today), /Nothing is decided\./, 'and the rest of the status is unchanged');
+    }
+});

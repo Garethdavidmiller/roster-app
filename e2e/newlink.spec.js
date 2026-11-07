@@ -33,6 +33,24 @@ test.describe('new link', () => {
         expect(errors).toEqual([]);
     });
 
+    // The page passes TODAY to the status line (test audit, 7 Nov 2026). The tenses are renderStatus's unit tests; what only
+    // a browser can show is that the page hands it the real date — before this it had no date logic at all, and on
+    // 1 January it would still have said the link "starts on 1 January 2027".
+    for (const [day, says, never] of /** @type {[string, RegExp|null, RegExp][]} */ ([
+        ['2026-12-20T09:00:00Z', /The new timetable started in December, and today’s link carries on until then\./, /comes first/],
+        ['2027-01-04T09:00:00Z', null, /starts on|carries on until then/],
+    ])) {
+        test(`the status line on ${day.slice(0, 10)} speaks of the dates as they then are`, async ({ page }) => {
+            await page.clock.setFixedTime(new Date(day));
+            await seedSession(page, 'G. Miller');
+            await page.goto('/newlink.html');
+            const status = page.locator('#nlStatus');
+            await expect(status).toContainText('Nothing is decided.');
+            if (says) await expect(status).toContainText(says);
+            await expect(status).not.toContainText(never);
+        });
+    }
+
     test('choosing a way of working shows its sentence and figures; Everything shows all six; pressing again goes back', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');

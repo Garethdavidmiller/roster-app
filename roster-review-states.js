@@ -453,6 +453,55 @@ export function guardedWrites(s, memberName, date) {
 }
 
 /**
+ * Everything one Save of the roster review writes (test audit, 7 Nov 2026 — it was inline in the
+ * coordinator's click handler, which imports Firebase from a CDN, so the only way to pin it was to
+ * read its source). The coordinator hands it the cell-state map and saves what comes back.
+ *
+ * Per state, and nothing else is written: a ticked DIFF, or a CONFLICT answered "Use new roster",
+ * writes the value the row DISPLAYED (`displayShift`, Sunday/rest-day-normalised) — what the admin
+ * approved is what lands, and a raw SICK on a base rest day cannot slip past the rest-day guard as
+ * the absence the review had shown as "RD". A ticked REMOVE_IMPORT deletes the stale import and
+ * writes nothing. An UNREADABLE row writes only once answered in place or one of its two readings
+ * is picked; untouched, `chosen` stays null. A GUARDED row writes what `guardedWrites` says.
+ *
+ * THE HARD GATE (v22.16) comes first: a cell from a read the circuit breaker refused writes
+ * nothing, whatever `chosen` says. The tick handler already refuses to set `chosen` there, so from
+ * today's UI this line is unreachable, and deleting it leaves the browser suite green; it is the one
+ * that survives a future renderer, a "select all", or a Skip-all path that bypasses the tick.
+ *
+ * Every write also takes the day's OTHER manual records with it (`alsoDelete`, from
+ * `manualDupIds`) — a pre-v24.48 duplicate outranks an import, so leaving one hides the write.
+ * @param {Map<string, any>} cellStates `computeCellStates` output, keyed "memberName|date"
+ * @returns {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, alsoDelete: string[], deleteOnly?: boolean, swapped?: boolean, replacedFrom?: any}>}
+ */
+export function collectRosterWrites(cellStates) {
+    /** @type {any[]} */ const toWrite = [];
+    for (const [key, state] of cellStates) {
+        const [memberName, date] = key.split('|');
+        if (state.rosterBlocked) continue;
+        if (state.state === 'DIFF' && state.chosen !== false) {
+            toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: replacedFromState(state) });
+        }
+        if (state.state === 'REMOVE_IMPORT' && state.chosen !== false) {
+            toWrite.push({ memberName, date, value: null, baseShift: state.baseShift, replaceId: state.manualId, deleteOnly: true });
+        }
+        if (state.state === 'UNREADABLE' && state.chosen === 'entered' && state.entered) {
+            // `swapped`: leave or an absence on a base rest day, answered "Swapped" in the entry control.
+            toWrite.push({ memberName, date, value: state.entered.display, baseShift: state.baseShift, replaceId: state.manualId, swapped: !!state.entered.swapped, replacedFrom: replacedFromState(state) });
+        }
+        if (state.state === 'UNREADABLE' && typeof state.chosen === 'number' && state.options?.[state.chosen]) {
+            toWrite.push({ memberName, date, value: state.options[state.chosen].display, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: replacedFromState(state) });
+        }
+        toWrite.push(...guardedWrites(state, memberName, date));
+        if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
+            toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: replacedFromState(state) });
+        }
+    }
+    for (const w of toWrite) w.alsoDelete = cellStates.get(`${w.memberName}|${w.date}`)?.manualDupIds ?? [];
+    return toWrite;
+}
+
+/**
  * The inner HTML of a GUARDED review row (v24.41 layout; v24.42 question). Pure, so the markup the
  * admin answers is tested beside the rule it asks about.
  *

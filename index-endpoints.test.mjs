@@ -1196,6 +1196,24 @@ describe('parseRosterPDF — the geometry path', () => {
         }
     });
 
+    // Test audit, 7 Nov 2026: the reverse of the case above, through the real handler, so the CALL
+    // is guarded as well as the rule. The reply reads Tuesday as a rest day; the grid shows Tuesday
+    // EMPTY. Monday to Saturday a blank is a question — the import must ask, not write the rest day.
+    test('a rest day read for an EMPTY weekday cell reaches the review as a question, not as a rest day', async () => {
+        GEO.row = { memberName: 'L. Springer', cells: ['', '05:30-11:30', '', 'RD', '05:30-11:30', 'RD', 'RD'] };
+        try {
+            const out = await onGeometryPath();
+            assert.equal(out.code, 200);
+            const s = out.body.parsed[0].shifts;
+            assert.match(String(s['2026-09-01']), /^UNKNOWN\|this Tuesday cell is empty on the PDF/,
+                `the empty Tuesday came back as ${s['2026-09-01']}`);
+            assert.equal(s['2026-09-02'], 'RD', 'Wednesday prints RD, and is a rest day');
+            assert.equal(s['2026-08-30'], 'RD', 'a blank Sunday is still a rest day');
+        } finally {
+            GEO.row = null;
+        }
+    });
+
     test('the LEGACY path still requires columnHeaders — the guard was narrowed, not removed', async () => {
         build({ aiReply: JSON.stringify({ parsed: [PARSED_ROW] }) });   // GEO.usable stays false
         const out = await call(index.parseRosterPDF, rosterRequest());

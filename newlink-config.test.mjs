@@ -13,7 +13,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as config from './newlink-config.js';
-import { PHASE, CLOSES, STARTS, CONTACT, CONTACT_ROLE, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
+import { PHASE, CLOSES, STARTS, TIMETABLE_STARTS, CONTACT, CONTACT_ROLE, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
+import { CHANGE_DATE } from './trains-data.js';
 import { PAGE_POLICIES, requirePage, admitsStaffPin, canOpenNewlink } from './auth-policy.js';
 import { teamMembers, CONFIG } from './roster-data.js';
 
@@ -115,3 +116,10 @@ test('nothing is written on the canvas under the last card — the footer line w
     const css = readFileSync(new URL('./newlink.css', import.meta.url), 'utf8');
     assert.doesNotMatch(css, /\.nl-prepared\b/, 'and no style is left for it');
 });
+
+test('the timetable date here is the Trains page\'s own — one date, two copies, pinned together', () => {
+    // A copy, so this page does not load the whole timetable to know one day of it (test audit, 7 Nov 2026).
+    assert.equal(TIMETABLE_STARTS, CHANGE_DATE,
+        'the New link page and the Trains page disagree about when the new timetable starts — change both, together');
+});
+

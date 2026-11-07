@@ -41,7 +41,7 @@ const {
 } = require('./roster-parse-helpers');
 const { applySundayScanCorrections, settleDisputedSundays } = require('./roster-sunday-repair');
 const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin, settledGeometry } = require('./roster-geometry');
-const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, reviewBlankReadsOfFilledCells, DAY_LABELS: CELL_DAY_LABELS,
+const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, reviewBlankReadsOfFilledCells, reviewRestReadsOfEmptyCells, DAY_LABELS: CELL_DAY_LABELS,
     MODEL_REQUEST, DECLINED_ERROR } = require('./roster-prompt');
 const {
     CALENDAR_VIEWER_UID,
@@ -621,6 +621,9 @@ columnScan: one key per column header; every staff member appears in every colum
         // filled cell is a question, not the day's default — a worked Sunday read as BLANK became a
         // rest day here and was never shown (whole-app review, H3; the rule is in roster-prompt.js).
         if (geometryPath) reviewBlankReadsOfFilledCells(safeEntries, parsed.parsed, cellTable.rows, dates);
+        // …and a REST DAY read for a weekday cell the grid shows EMPTY is a question too — a blank
+        // weekday is never a rest day, and the witness cannot refuse one (test audit, 7 Nov 2026).
+        if (geometryPath) reviewRestReadsOfEmptyCells(safeEntries, cellTable.rows, dates);
 
         if (safeEntries.length === 0) {
             res.status(502).json({ error: 'The AI found no recognisable staff members — check the roster type is correct and try again' });

@@ -289,6 +289,10 @@ const CAPS = {
     // 1150 → 1200 at v24.61 — a RAISE, said so. The keypad shaping (one line and its comment) landed
     // on a file two lines under its cap, which is the zero-headroom state the header warns about and
     // the one this file has now reached twice. The seam named above is still the way down.
+    // Stays at 1200 at v25.46. The import's abort timer became a named constant (+10, which took
+    // the file OVER its cap), and the Save collector then left for roster-review-states.js
+    // (`collectRosterWrites`, -47): pure, Firebase-free, and the only form of it a test can run.
+    // 37 lines of room again. The setting rule would put a fresh cap at 1250, so it does not move.
     'admin-roster-upload.js':  1200,
     // 1300 → 1150 at v23.52 — a cap coming DOWN, which is the direction this mechanism is for and
     // the one it had not yet demonstrated. `computeCellStates` left for roster-review-states.js:

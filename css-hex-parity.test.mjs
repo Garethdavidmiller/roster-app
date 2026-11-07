@@ -84,6 +84,16 @@ const JS_EXEMPT = new Map([
 ]);
 
 const HEX = /#[0-9a-fA-F]{3,8}\b/g;
+/** The same colour URL-encoded, as it is written inside an SVG data URI: `stroke='%23001e3c'`. */
+const URL_HEX = /%23[0-9a-fA-F]{3,8}(?![0-9a-fA-F])/g;
+
+/** A colour written as oklch() — the form the palette itself uses, so a literal one is a token typed out. */
+const OKLCH = /oklch\(/g;
+/** The one rule allowed to type an oklch() colour, and why a token cannot carry it. */
+const OKLCH_EXEMPT = /** @type {Array<[string, RegExp, string]>} */ ([
+    ['index.css', /var\(--today-glow-alpha\)/,
+        'the Today cell\'s glow animates its ALPHA through @property, and a static token has no alpha to animate'],
+]);
 
 /** A colour written as rgb()/rgba(); group 1 is what is inside the brackets. */
 const RGB = /rgba?\(\s*([^)]*)\)/g;
@@ -134,6 +144,16 @@ function declarationAt(/** @type {string} */ css, /** @type {number} */ index) {
 }
 
 /**
+ * Where to read a literal's declaration from. A match inside `url(…)` is read from the `url(` itself:
+ * a data URI carries its own `;` (`svg+xml;charset=UTF-8`), which `declarationAt` would stop at, and
+ * the property — `--caret-chevron:` for the token definitions — would never be seen.
+ */
+function declAnchor(/** @type {string} */ css, /** @type {number} */ at) {
+    const u = css.lastIndexOf('url(', at);
+    return u > -1 && !css.slice(u, at).includes(')') ? u : at;
+}
+
+/**
  * Is the hex at `offsetInDecl` inside a `var(…)` group? Paren-depth scan rather than a regex, so a
  * nested `var(--a, var(--b, #fff))` is answered correctly.
  */
@@ -159,8 +179,10 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
         for (const file of SHEETS) {
             const css = blankComments(readFileSync(file, 'utf8'));
             const prints = printRegions(css);
-            for (const m of css.matchAll(HEX)) {
-                const at = m.index;
+            // Both spellings (test audit, 7 Nov 2026): the URL-encoded one passed this test for ever,
+            // and eight navy chevrons sat in data URIs beside the token made to end that copying.
+            for (const m of [...css.matchAll(HEX), ...css.matchAll(URL_HEX)]) {
+                const at = declAnchor(css, m.index);
                 if (prints.some(([s, e]) => at >= s && at < e)) continue;      // 4. paper
                 const decl = declarationAt(css, at);
                 const prop = decl.split(':')[0].trim();
@@ -244,6 +266,35 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
         assert.deepEqual(loose, [], 'lower these baselines — a ratchet left loose banks the saving:\n  ' + loose.join('\n  '));
     });
 
+    // ── oklch() — the palette's own spelling (test audit, 7 Nov 2026) ───────────────────────────
+    // Every token in shared.css is written in oklch(), so a literal one in a rule is a token typed out
+    // by hand, and this file could not see it: four sat in the App Notices archive. No ratchet here,
+    // because there was nothing to ratchet from — outside a token definition there is one, named below.
+    test('no app stylesheet types an oklch() colour into a rule', () => {
+        const offenders = [];
+        const used = new Set();
+        for (const file of SHEETS) {
+            const css = blankComments(readFileSync(file, 'utf8'));
+            const prints = printRegions(css);
+            for (const m of css.matchAll(OKLCH)) {
+                const at = m.index;
+                if (prints.some(([s, e]) => at >= s && at < e)) continue;      // 4. paper
+                const decl = declarationAt(css, at);
+                if (decl.split(':')[0].trim().startsWith('--')) continue;        // 1. the definition
+                const declStart = css.lastIndexOf(decl, at);
+                if (insideVar(decl, at - declStart)) continue;                  // 2. a fallback
+                const exempt = OKLCH_EXEMPT.find(([f, re]) => f === file && re.test(decl));
+                if (exempt) { used.add(exempt[0]); continue; }
+                offenders.push(`${file}:${lineOf(css, at)}  ${decl.trim().slice(0, 90)}`);
+            }
+        }
+        assert.deepEqual(offenders, [],
+            'oklch() typed into a rule — define a token in :root and read it with var():\n  ' + offenders.join('\n  '));
+        for (const [file, , reason] of OKLCH_EXEMPT) {
+            assert.ok(used.has(file), `${file}'s oklch() exemption is no longer used — drop it (${reason})`);
+        }
+    });
+
     // ── Guard the guard ────────────────────────────────────────────────────────────────────────
     // Every assertion above passes if the extractor finds NOTHING, which is indistinguishable from
     // a stylesheet with no literals. These pin the machinery to literals that ARE there, so a
@@ -254,6 +305,12 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
 
         const shared = blankComments(readFileSync('shared.css', 'utf8'));
         assert.match(shared, HEX, 'shared.css has literals (in token definitions) — the regex sees none');
+        // The URL-encoded spelling is seen, and it is the chevron tokens' definitions that hold it.
+        const urlDefs = [...shared.matchAll(URL_HEX)].filter(m => declarationAt(shared, declAnchor(shared, m.index)).trim().startsWith('--'));
+        assert.ok(urlDefs.length >= 2, 'the URL-encoded extractor sees neither chevron token — data URIs would pass unread');
+        assert.equal([...".a { background: url(\"data:image/svg+xml,%3Csvg stroke='%23ff0000'/%3E\") }".matchAll(URL_HEX)].length, 1,
+            'the URL-encoded extractor misses a colour in a data URI');
+        assert.equal([...'.a { color: oklch(50% 0.1 20deg) }'.matchAll(OKLCH)].length, 1, 'the oklch() extractor sees nothing');
 
         // 1 · a token definition is exempt, and is the reason shared.css passes at all.
         const defs = [...shared.matchAll(HEX)]
