@@ -782,7 +782,7 @@ describe('the UX pass (v24.92): leads and chips, the two lines, one train at a t
         assert.equal((all.match(/class="tr-grid-colbtn"/g) ?? []).length, decG.columns.length);
         assert.match(all, /<tr class="tr-grid-band"><td colspan="\d+">Main line<\/td><\/tr>/);
         assert.match(all, /Aylesbury via Amersham<\/td>/);
-        assert.match(all, /Tap a time at the top to show only where that train stops/);
+        assert.match(all, /Choose a time at the top to show only where that train stops/);
         assert.doesNotMatch(all, /tr-grid-focus|tr-col-on|aria-pressed="true"/);
         const i = decG.columns.findIndex(c => c.end === 'OXF');
         const one = renderGrid(nowG, decG, 'dec', STATIONS, { focus: i, bands });

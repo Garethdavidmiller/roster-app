@@ -367,7 +367,10 @@ const CAPS = {
     // The page still holds BOTH surfaces deliberately (overtime.html). What is left here is the
     // member's side plus the page's own chrome, and if it grows again the next seam is the member
     // controller — but only once the member path warrants one, not to make a number smaller.
-    'overtime-app.js':          750,   // the young one — this is the cap that matters most
+    // 750 → 762 on 7 Nov 2026 (desktop audit), a deliberate RAISE: the tab strip is this file's own declared subject, and the
+    // growth is its WIRING — the panels are tabpanels and Tab stops only while the strip shows — which no Node test could hold
+    // (e2e/overtime.spec.js does), plus the paused card's own title.
+    'overtime-app.js':          762,   // the young one — this is the cap that matters most
     // NEW at v24.71 with the page, at its measured size plus the standard fix-sized headroom. Every
     // judgement about the timetables is trains-change.js; growth here should be rendering only.
     // 330 → 400 at v24.84, a deliberate RAISE: the station PIN reads the page now, and what that

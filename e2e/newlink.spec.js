@@ -163,6 +163,22 @@ test.describe('new link', () => {
         expect(tabs && tabs.y >= -1 && tabs.y < 4).toBe(true);
     });
 
+    test('a label that wraps does not knock its tile out of line: the names share a foot, the seven icons a line', async ({ page }) => {
+        // Desktop audit, Nov 2026: "Common Ground" wraps at every desktop width, so its "See its weeks" sat 18px lower than
+        // its neighbours'; at 1024 "Swap for overtime" wraps, and its emoji rose above the other six.
+        await seedSession(page, 'G. Miller');
+        for (const width of [1024, 1366]) {
+            await page.setViewportSize({ width, height: 900 });
+            await page.goto('/newlink.html');
+            await expect(page.locator('.nl-name-title')).toHaveCount(3);
+            const feet = await page.locator('.nl-name-go').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().bottom)));
+            expect(new Set(feet).size, `at ${width}px the three "See its weeks" sit on one line: ${feet}`).toBe(1);
+            const icons = await page.locator('.nl-tile-icon').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().top)));
+            expect(icons.length, 'the seven ways of working').toBe(7);
+            expect(new Set(icons).size, `at ${width}px the seven icons share one line: ${icons}`).toBe(1);
+        }
+    });
+
     test('the pack opens each PDF in a new tab from where docs/ is served', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');

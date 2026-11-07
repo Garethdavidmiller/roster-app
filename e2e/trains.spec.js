@@ -9,7 +9,7 @@
  * summarising the wrong direction for Coming back, leaves every unit test green.
  */
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject } from './helpers.js';
 
 /**
  * Type into the station box. Under a chosen station the box and the chips have folded away (v24.92),
@@ -393,7 +393,7 @@ test.describe('trains', () => {
         await expect(page.locator('#trPattern .tr-grid-band')).toHaveText(['Main line', 'Aylesbury via Amersham']);
         const rows = page.locator('#trPattern tbody tr:not(.tr-grid-band)');
         const all = await rows.count();
-        await expect(page.locator('#trPattern .tr-grid-tip')).toContainText('Tap a time at the top');
+        await expect(page.locator('#trPattern .tr-grid-tip')).toContainText('Choose a time at the top');
         // The mirror: hidden while the real heads are on screen, shown once they have scrolled off —
         // drawn by its own module, served to the page with the one export the coordinator calls.
         // (Not the resource-timing buffer: the page loads more modules than its 250 entries hold.)
@@ -829,4 +829,53 @@ test('the station and time boxes keep what is typed into them', async ({ page })
     await expect(station).toHaveAttribute('autocapitalize', 'none');
     await expect(station).toHaveAttribute('enterkeyhint', 'go');
     await expect(page.locator('#trLookupInput')).toHaveAttribute('autocorrect', 'off');
+});
+
+// ── ON A DESKTOP (desktop audit, Nov 2026) ───────────────────────────────────────────────────────────
+
+test('a changes row and a column head say they can be pressed under a mouse, and the chosen column keeps its look', async ({ page }, info) => {
+    // Both are buttons, and both looked the same pointed at as not. Hover is a fine-pointer surface.
+    test.skip(isTouchProject(info), 'hover is a fine-pointer surface');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/trains.html');
+    const row = page.locator('.tr-head').first();
+    await expect(row).toBeVisible();
+    const look = () => row.evaluate(b => [getComputedStyle(b).borderTopColor,
+        getComputedStyle(/** @type {Element} */ (b.querySelector('.tr-head-go'))).color].join(' | '));
+    await page.mouse.move(1, 1);
+    const idle = await look();
+    await row.hover();
+    expect(await look(), 'a changes row looks the same pointed at').not.toBe(idle);
+
+    await page.locator('[data-view="grid"]').click();
+    const heads = page.locator('#trPattern thead th.tr-grid-colhead');
+    await expect(heads.first()).toBeVisible();
+    const fill = (/** @type {import('@playwright/test').Locator} */ th) => th.evaluate(el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).boxShadow].join(' | '));
+    await page.mouse.move(1, 1);
+    const idleHead = await fill(heads.nth(1));
+    await heads.nth(1).hover();
+    expect(await fill(heads.nth(1)), 'a column head looks the same pointed at').not.toBe(idleHead);
+    // Chosen, a column keeps the look its choice gave it, pointer or no pointer.
+    await heads.nth(1).locator('.tr-grid-colbtn').click();
+    await expect(heads.nth(1)).toHaveClass(/tr-col-on/);
+    await page.mouse.move(1, 1);
+    const chosen = await fill(heads.nth(1));
+    await heads.nth(1).hover();
+    expect(await fill(heads.nth(1)), 'hover repainted the chosen column').toBe(chosen);
+});
+
+test('the trains-a-day box reaches the right-hand edge the blocks around it share on a desktop', async ({ page }) => {
+    // Held to a phone's 340px, it stopped 64px short of its 404px column.
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/trains.html');
+    await expect(page.locator('#trTotals .tr-totals-days')).toBeVisible();
+    const edge = await page.evaluate(() => ({
+        box: /** @type {Element} */ (document.querySelector('#trTotals .tr-totals-days')).getBoundingClientRect().right,
+        column: /** @type {Element} */ (document.querySelector('.tr-ov-side')).getBoundingClientRect().right,
+    }));
+    expect(Math.abs(edge.box - edge.column), `box ends at ${edge.box}, its column at ${edge.column}`).toBeLessThanOrEqual(1);
 });
