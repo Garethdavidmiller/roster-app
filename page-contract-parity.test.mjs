@@ -879,6 +879,36 @@ test('every page iOS may run from the Home Screen links the app manifest, under 
     }
 });
 
+// ── A NEW PASSWORD IS FILED UNDER SOMEBODY'S NAME (iPhone audit, 7 Nov 2026) ─────────────────────
+// A password manager files a password under the username field in the SAME <form>. The sign-in card
+// got a real form and a hidden username in Oct 2026 (login-overlay.js); the two places a member
+// CHANGES their password — the Settings card and the forced set-password overlay — had neither, so
+// iCloud Keychain saved a new password on nobody's name, or offered nothing at all. So: every
+// `autocomplete="new-password"` field, in any served page or in markup a module writes, sits inside a
+// <form> that also holds an `autocomplete="username"` input. Read from the files, so the next one joins.
+// (Whether Keychain then offers to save it is a device check — no browser here has a Keychain.)
+test('every new-password field shares a form with a username field', () => {
+    const sources = [...servedFiles(), ...readdirSync(new URL('.', import.meta.url))
+        .filter(f => f.endsWith('.js') && !f.includes('.test.'))];
+    let fields = 0;
+    for (const f of sources) {
+        const src = (f.endsWith('.js') ? codeOf(f) : read(`./${f}`)).replace(/<!--[\s\S]*?-->/g, ' ');
+        // Only the attribute spelling can be checked against its form, so it must be the only one.
+        assert.equal((src.match(/new-password/g) || []).length, (src.match(/autocomplete="new-password"/g) || []).length,
+            `${f} names new-password some other way (a property, setAttribute) — write it in the markup, where its form can be seen`);
+        for (const m of src.matchAll(/autocomplete="new-password"/g)) {
+            fields += 1;
+            const at = /** @type {number} */ (m.index);
+            const open = src.lastIndexOf('<form', at), shut = src.indexOf('</form>', at);
+            assert.ok(open > src.lastIndexOf('</form>', at) && shut > at,
+                `${f}: a new-password field outside any <form> — a password manager has nothing to file it under`);
+            assert.match(src.slice(open, shut), /<input[^>]*autocomplete="username"/,
+                `${f}: a new-password field whose form has no username field — saved, it belongs to nobody`);
+        }
+    }
+    assert.ok(fields >= 4, `found ${fields} new-password fields — Settings and the forced overlay have two each`);
+});
+
 // ── THE SUB-PAGE HEADER LOGO HAS ONE WIRING (48-hour review, Nov 2026) ───────────────────────────
 // `wireHeaderLogo` (about-lightbox.js, v25.06) replaced five hand-written copies, and the copies were
 // the defect: Trains and Overtime shipped a "Back to calendar" logo that nothing wired. The December

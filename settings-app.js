@@ -577,7 +577,7 @@ export function init() {
 
         // The two halves of the card body, and the latch that keeps the form open once opened.
         const settled   = document.getElementById('pwSettled');
-        const form      = document.getElementById('pwForm');
+        const form      = /** @type {HTMLFormElement|null} */ (document.getElementById('pwForm'));
         const changeBtn = document.getElementById('pwChangeBtn');
         let _pwFormOpened = false;
         changeBtn?.addEventListener('click', () => {
@@ -588,6 +588,19 @@ export function init() {
         });
 
         const member = currentUser;
+        // THE FORM IS FOR THE PASSWORD MANAGER (iPhone audit, Nov 2026; the sign-in card's shape): it
+        // files a new password under the username in the SAME form — this member's roster name. It never
+        // goes anywhere: every submit is cancelled, and Save submits through it only once the checks pass.
+        const userEl = /** @type {HTMLInputElement|null} */ (document.getElementById('pwUsername'));
+        if (userEl) userEl.value = member ?? '';
+        form?.addEventListener('submit', e => e.preventDefault());
+        // The return key does what the keyboard labels it: Next moves on, Done (Confirm's) saves.
+        form?.addEventListener('keydown', e => {
+            const next = e.target === curEl ? newEl : e.target === newEl ? confEl : null;
+            if (e.key !== 'Enter' || saveBtn.disabled || (!next && e.target !== confEl)) return;
+            e.preventDefault();
+            if (next) next.focus(); else saveBtn.click();
+        });
         const setFeedback = (/** @type {string} */ msg, /** @type {string} */ state = '') => {
             feedback.textContent = msg;
             feedback.className   = `contact-feedback${state ? ' ' + state : ''}`;
@@ -722,6 +735,9 @@ export function init() {
                 (next && next !== confirm ? confEl : newEl).focus();
                 return;
             }
+            // Through the form — what a password manager watches — and only now, so it is never offered
+            // a password the checks refused. The submit is cancelled above; the save is this handler's.
+            form?.requestSubmit();
             saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
             _passwordSaving = true;
             // Track WHICH stage failed: a failure AFTER reauth succeeded is NOT "current password wrong"

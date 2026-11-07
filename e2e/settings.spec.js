@@ -4,8 +4,8 @@
  * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
-import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMemberSession } from './helpers.js';
+import { test, expect, forcePasswordSet } from './fixtures.js';
+import { collectFatalErrors, seedSession, seedMemberSession, signInThroughOverlay } from './helpers.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -316,6 +316,92 @@ test('settings: the password form is behind a door once there is nothing to fix'
     await expect(page.locator('#pwSettled')).toBeHidden();
     // Where forgetting it actually stops you — it used to be in the `?` panel only.
     await expect(page.locator('.pw-forgot')).toContainText('Ask the admin');
+});
+
+// ── A CHANGED PASSWORD IS FILED UNDER THE MEMBER (iPhone audit, 7 Nov 2026) ─────────────────────
+// A password manager files a password under the username field in the SAME <form>. The sign-in card
+// has had one since Oct 2026; the two places a member CHANGES their password had no form at all, so
+// iCloud Keychain saved a new one on nobody's name. Both now follow the sign-in card: a real form, a
+// hidden username holding the roster name, and a submit that is always cancelled. Whether Keychain
+// then offers to save is a device check; what a browser can prove is the shape, and that the keyboard
+// reaches the save THROUGH the form — and that only a password the checks accept is ever submitted.
+/** Count every submit that reaches the document, and whether it had been cancelled by then. */
+const recordSubmits = (page) => page.evaluate(() => {
+    /** @type {any} */ (window).__submits = [];
+    document.addEventListener('submit', e => /** @type {any} */ (window).__submits.push(e.defaultPrevented));
+});
+const submits = (page) => page.evaluate(() => /** @type {any} */ (window).__submits);
+
+test('settings: the password card is a real form under the member\'s name — Next moves on, Done saves through it', async ({ page }) => {
+    await openSettings(page, { configured: false, noPush: true });     // un-migrated: the form is open
+    await expect(page.locator('#pwCurrent')).toBeVisible();
+    const shape = await page.evaluate(() => {
+        const user = /** @type {HTMLInputElement} */ (document.getElementById('pwUsername'));
+        const same = ['pwCurrent', 'pwNew', 'pwConfirm'].every(id => /** @type {HTMLInputElement} */ (document.getElementById(id)).form === user.form);
+        return { tag: user.form?.id, value: user.value, same, autocomplete: user.autocomplete };
+    });
+    expect(shape, 'one form, holding the member\'s roster name as its username').toEqual(
+        { tag: 'pwForm', value: 'G. Miller', same: true, autocomplete: 'username' });
+
+    await recordSubmits(page);
+    // A password the checks refuse is never submitted — a password manager is never offered it.
+    await page.locator('#pwCurrent').fill('miller');
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-different-one-9');
+    await page.locator('#pwConfirm').press('Enter');
+    await expect(page.locator('#pwFeedback')).toContainText(/match/i);
+    expect(await submits(page)).toEqual([]);
+
+    // The return key does what the keyboard labels it: Next, Next, then Done saves.
+    await page.locator('#pwCurrent').press('Enter');
+    await expect(page.locator('#pwNew')).toBeFocused();
+    await page.locator('#pwNew').press('Enter');
+    await expect(page.locator('#pwConfirm')).toBeFocused();
+    expect(await submits(page), 'Next only moves on').toEqual([]);
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    await page.locator('#pwConfirm').press('Enter');
+    // The save ran (the hermetic stub has no signed-in user, so it reports a failure — any result will do).
+    await expect(page.locator('#pwFeedback')).not.toBeEmpty();
+    await expect(page.locator('#pwFeedback')).not.toContainText(/match/i);
+    expect(await submits(page), 'exactly one submit, and it was cancelled').toEqual([true]);
+    expect(new URL(page.url()).pathname, 'the form never goes anywhere').toBe('/settings.html');
+});
+
+test('forced password overlay: a real form under the member\'s name — a submit never closes it, and Tab stays inside', async ({ page }) => {
+    await forcePasswordSet(page);
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    const overlay = page.locator('#pwForceOverlay');
+    await expect(overlay).toBeVisible();
+    const shape = await page.evaluate(() => {
+        const user = /** @type {HTMLInputElement} */ (document.getElementById('pwfUsername'));
+        const same = ['pwfNew', 'pwfConfirm', 'pwfCurrent'].every(id => /** @type {HTMLInputElement} */ (document.getElementById(id)).form === user.form);
+        const escape = /** @type {HTMLButtonElement} */ (document.getElementById('pwfEscape'));
+        return { form: user.form?.id, value: user.value, same, escapeOutside: escape.form === null };
+    });
+    expect(shape).toEqual({ form: 'pwfForm', value: 'G. Miller', same: true, escapeOutside: true });
+
+    // A submit from ANY source is cancelled, and the mandatory overlay stays up.
+    await recordSubmits(page);
+    await page.evaluate(() => /** @type {HTMLFormElement} */ (document.getElementById('pwfForm')).requestSubmit());
+    expect(await submits(page)).toEqual([true]);
+    await expect(overlay).toBeVisible();
+
+    // The keyboard's Go saves through the form — once the checks pass.
+    await page.locator('#pwfNew').fill('a-real-password-9');
+    await page.locator('#pwfConfirm').fill('a-real-password-9');
+    await page.locator('#pwfConfirm').press('Enter');
+    await expect(page.locator('#pwfError')).toBeVisible();          // the stub refuses the write — the save ran
+    expect(await submits(page), 'the save was submitted through the form, and cancelled').toEqual([true, true]);
+    await expect(overlay).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/settings.html');
+
+    // The hidden username field is not a Tab stop: Shift+Tab from the first field wraps inside the
+    // overlay instead of leaving it for the page behind a mandatory dialog.
+    await page.locator('#pwfNew').focus();
+    await page.keyboard.press('Shift+Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('#pwForceOverlay')), 'focus left the overlay').toBe(true);
+    await expect(page.locator('#pwfUsername')).not.toBeFocused();
 });
 
 test('settings: Show passwords reveals all THREE fields, not two', async ({ page }) => {

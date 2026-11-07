@@ -179,6 +179,13 @@ function _mount() {
             <img src="icon-192.png" alt="" aria-hidden="true">
             <div class="login-app-name">Set your own password</div>
             <div class="login-subtitle">Your password is still your surname, which anyone who knows your name could guess. Choose one only you know — you’ll need it the next time you sign in on any device.</div>
+            <!-- A REAL FORM, FOR THE PASSWORD MANAGER (iPhone audit, Nov 2026) — the sign-in card's shape
+                 and its display:contents class (login-overlay.js). With no form and no username,
+                 iCloud Keychain filed the new password under nobody. The username is the member's
+                 roster name, set as the overlay opens. It is never submitted anywhere: every submit
+                 is cancelled, it has no submit button, and the escape sits outside it. -->
+            <form id="pwfForm" class="login-form" action="#" method="post" novalidate>
+            <input type="text" id="pwfUsername" name="username" class="visually-hidden" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
             <div class="login-field">
                 <label for="pwfNew">New password</label>
                 <div class="login-pw-wrap">
@@ -198,6 +205,7 @@ function _mount() {
             </div>
             <div id="pwfError" class="login-error" aria-live="polite"></div>
             <button type="button" id="pwfSave">Set password →</button>
+            </form>
             <button type="button" id="pwfEscape" class="pwf-escape" hidden>Continue for now</button>
         </div>`;
     document.body.appendChild(el);
@@ -219,6 +227,10 @@ function _show(member) {
     const errorEl  = /** @type {HTMLElement} */ (document.getElementById('pwfError'));
     const saveBtn  = /** @type {HTMLButtonElement} */ (document.getElementById('pwfSave'));
     const escBtn   = /** @type {HTMLButtonElement} */ (document.getElementById('pwfEscape'));
+    const form     = /** @type {HTMLFormElement|null} */ (document.getElementById('pwfForm'));
+    const userEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('pwfUsername'));
+    // Whose password this is, for the password manager — the roster name the sign-in card files it under.
+    if (userEl) userEl.value = member;
 
     // Hide whatever is behind from assistive tech while a modal is up (the login overlay can still be
     // mounted on the in-place sign-in path).
@@ -254,9 +266,15 @@ function _show(member) {
             errorEl.classList.toggle('visible', !!msg);
         };
 
+        // NEVER SUBMITTED ANYWHERE, AND A SUBMIT NEVER CLOSES IT (iPhone audit, Nov 2026). The form is
+        // for the password manager; every submit is cancelled here, and nothing below listens for one,
+        // so a mandatory overlay cannot be dismissed by a submit from any source.
+        form?.addEventListener('submit', e => e.preventDefault());
+
         // The fields carry enterkeyhint="next"/"go", so the Android keyboard shows a Go key — which
-        // did nothing (FIX, v18.94). There is no <form> here (a mandatory overlay must not be
-        // submittable by stray means), so wire the key explicitly, as login-overlay.js does.
+        // did nothing (FIX, v18.94). The form deliberately has no submit button, so the browser submits
+        // nothing on Enter by itself (a mandatory overlay must not be submittable by stray means) — the
+        // key is wired explicitly, and Save submits through the form once the checks pass.
         // FROM THE FIELDS ONLY (v25.06, whole-app review): on the whole overlay it also caught Enter
         // on "Continue for now" — after a failure re-enabled Save, the escape re-submitted the password
         // write instead of letting the member out (property 3). A focused button activates itself.
@@ -293,6 +311,9 @@ function _show(member) {
                 (isMismatch ? confEl : newEl).focus();
                 return;
             }
+            // Through the form — what a password manager watches — and only once the checks pass, so it
+            // is never offered a password this overlay refused. The submit itself is cancelled above.
+            form?.requestSubmit();
             saveBtn.disabled = true;
             saveBtn.textContent = 'Saving…';
             try {
@@ -402,8 +423,11 @@ function _show(member) {
         // both appear conditionally), so it must be recomputed on each Tab.
         overlay.addEventListener('keydown', e => {
             if (e.key !== 'Tab') return;
+            // `tabindex="-1"` is out: the hidden username field is laid out (it is clipped, not
+            // display:none), so without that it would be the trap's FIRST stop — one Tab can never
+            // land on, and Shift+Tab from New password would leave the overlay instead of wrapping.
             const focusable = /** @type {HTMLElement[]} */ (Array.from(overlay.querySelectorAll(
-                'button:not([disabled]), input',
+                'button:not([disabled]), input:not([tabindex="-1"])',
             ))).filter(el => !el.closest('[hidden]') && !el.hasAttribute('hidden') && el.offsetParent !== null);
             if (!focusable.length) return;
             const first = focusable[0], last = focusable[focusable.length - 1];
