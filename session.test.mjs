@@ -48,6 +48,22 @@ const mockAuth = { currentUser: /** @type {any} */ (null) };
  *  Reset via `_resetBootRestore()` between tests that count subscriptions. @type {Promise<void>|null} */
 let _bootRestore = null;
 const _resetBootRestore = () => { _bootRestore = null; };
+/** The resolver of a boot restore modelled as HUNG (`_authNeverEmits`), kept so a test's teardown can
+ *  end it (test audit, 7 Nov 2026). Unreleased, the hung restore held every caller's bound timer to
+ *  its full length after the test had finished — 8 s for the reconcile that `holdsStaffPin(60)`
+ *  races, which waits on `restoreFirstAuthUser()` at its default bound — and the file ran 8.7 s for
+ *  0.7 s of tests. @type {null | (() => void)} */
+let _releaseHungRestore = null;
+/** Teardown for a test that hung the restore: end it with nobody signed in, and let whatever was
+ *  waiting on it finish NOW, so it cannot run on into the next test's state. */
+async function _settleHungRestore() {
+    const release = _releaseHungRestore;
+    _releaseHungRestore = null;
+    if (!release) return;
+    mockAuth.currentUser = null;
+    release();
+    await new Promise(r => setImmediate(r));
+}
 /** Subscribe once, on the first caller; every later caller awaits the same promise. Emission sets
  *  `currentUser` BEFORE resolving, which is what the real SDK does and what makes reading ground
  *  truth afterwards correct rather than lossy. */
@@ -55,7 +71,7 @@ function _bootOnce() {
     if (!_bootRestore) {
         _bootRestore = new Promise(resolve => {
             _onAuthSubs++;
-            if (_authNeverEmits) return;             // never settles — each caller's own bound decides
+            if (_authNeverEmits) { _releaseHungRestore = resolve; return; }   // never settles within the test — each caller's own bound decides; teardown ends it
             const emit = () => { mockAuth.currentUser = _existingUser; _authUnsubs++; resolve(); };
             if (_authEmitDelayMs) setTimeout(emit, _authEmitDelayMs);
             else Promise.resolve().then(emit);
@@ -216,7 +232,7 @@ describe('restoreFirstAuthUser', () => {
         _authNeverEmits = false; _authEmitDelayMs = 0; _authUnsubs = 0; _onAuthSubs = 0;
         _existingUser = null; mockAuth.currentUser = null; _resetBootRestore();
     });
-    afterEach(()  => { _authNeverEmits = false; _authEmitDelayMs = 0; mockAuth.currentUser = null; });
+    afterEach(async () => { _authNeverEmits = false; _authEmitDelayMs = 0; mockAuth.currentUser = null; await _settleHungRestore(); });
 
     test('resolves with the restored user', async () => {
         _existingUser = { isAnonymous: false, email: 'g.miller@myb.test' };
@@ -900,9 +916,12 @@ describe('auth-store bridge (Phase 2)', () => {
         assert.equal(_anonCalled, false, 'no anonymous fallback');
     });
 
-    test('clearSession drives the store to signedOut', () => {
-        // Seed a non-signedOut state first, then clear.
-        // (ensureNamedSession would set it; here we just confirm clearSession's feed.)
+    test('clearSession drives the store to signedOut', async () => {
+        // Seed a non-signedOut state first, then clear. This comment promised the seed for a long
+        // time without doing it, so the store went from `initialising` — never the state a real
+        // sign-out leaves (test audit, 7 Nov 2026).
+        await ensureNamedSession('G. Miller', { delayMs: 0 });
+        assert.equal(getAuthSnapshot().status, 'named', 'the seed');
         clearSession();
         assert.equal(getAuthSnapshot().status, 'signedOut');
     });
@@ -1101,15 +1120,21 @@ describe('primeAuth + currentUser fast path', () => {
         // time somebody signs in — and on a shared device the person who signs in may not be the
         // person whose session was restored. Reading the identity out of that promise would hand
         // the second member the first member's user object.
+        // A FRESH module instance, because priming is one-shot per module life (`_authPrimed` is
+        // never reset). In file order the test above had already spent the shared instance's prime,
+        // so `primeAuth()` here did nothing, there was no primed promise to misread, and reading the
+        // identity out of it survived the whole file while failing this test run alone
+        // (test audit, 7 Nov 2026).
+        const s = await import('./session.js?primed-timing');
         _existingUser = { isAnonymous: false, email: nameToEmail('A. Panchal') };
-        primeAuth();                                    // no-op after the test above, but explicit
+        s.primeAuth();
         await new Promise(r => setTimeout(r, 5));
         mockAuth.currentUser = null;                    // A. Panchal has since been signed out
         _existingUser        = null;
 
-        const ok = await ensureFirebaseSession('G. Miller');
+        const ok = await s.ensureFirebaseSession('G. Miller');
         assert.equal(ok, true);
-        assert.equal(getFirebaseIdentity(), 'named');
+        assert.equal(s.getFirebaseIdentity(), 'named');
         assert.equal(_signOutCalled, false, 'nobody was signed in, so nothing needed signing out');
     });
 
@@ -1452,7 +1477,7 @@ describe('holdsStaffPin / signOutStaffPin — the station PIN on a page that adm
         _resetBootRestore();
         mockAuth.currentUser = null;
     });
-    afterEach(() => { _signOutBehavior = 'ok'; _authNeverEmits = false; mockAuth.currentUser = null; });
+    afterEach(async () => { _signOutBehavior = 'ok'; _authNeverEmits = false; mockAuth.currentUser = null; await _settleHungRestore(); });
 
     test('the PIN, with no member: held, and NOT signed out', async () => {
         mockAuth.currentUser = viewer;
@@ -1616,6 +1641,12 @@ describe('a silent re-sign-in after an admin reset', () => {
         store.set(AUTH_KEY, JSON.stringify({ name: 'G. Miller', ver: SESSION_VER, expiry: NOW - 3 * 86_400_000 + SESSION_MS }));
         _resetAtMs = NOW - 86_400_000;
         assert.equal(await ensureFirebaseSession('G. Miller'), false);
+        // …and the LET-THROUGH half, which is the one that proves the expiry is read at all. A missing
+        // creation time fails closed (`sessionPredatesReset`), so the refusal above held with the
+        // expiry ignored entirely (test audit, 7 Nov 2026).
+        store.set(AUTH_KEY, JSON.stringify({ name: 'G. Miller', ver: SESSION_VER, expiry: NOW - 86_400_000 + SESSION_MS }));
+        _resetAtMs = NOW - 3 * 86_400_000;
+        assert.equal(await ensureFirebaseSession('G. Miller'), true, 'dated from its expiry, it began AFTER the reset');
     });
 
     test('a TYPED password is never refused by it — that is how the member gets back in', async () => {

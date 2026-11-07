@@ -12,7 +12,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'module';
-import { isCutoffDate, teamMembers } from './roster-data.js';
+import { isCutoffDate, teamMembers, getBaseShift } from './roster-data.js';
+// Pure, like roster-data.js: the breaker the "consistently shifted read" block hands its rows to.
+import { assessRosterAlignment } from './roster-alignment.js';
 
 const require = createRequire(import.meta.url);
 const {
@@ -699,13 +701,16 @@ describe('buildSafeEntries', () => {
         assert.equal(entries[0].shifts['2026-03-29'], 'AL');            // sunday → Sun
         assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30');  // monday → Mon
     });
-    test('missing key defaults to RD', () => {
+    // Named "missing key defaults to RD" until the test audit (7 Nov 2026) — the rule before v22.19.
+    // Only a SUNDAY does now; the full rule is pinned in the "MISSING CELLS" block further down.
+    test('a missing SUNDAY key defaults to RD — a missing weekday does not', () => {
         const entries = buildSafeEntries(
             [{ memberName: 'N. Tuck', Mon: 'AL' }], // all other days omitted
             HEADERS, DATES,
         );
         assert.equal(entries[0].shifts['2026-03-29'], 'RD'); // Sun missing → RD
         assert.equal(entries[0].shifts['2026-03-30'], 'AL'); // Mon present
+        assert.match(entries[0].shifts['2026-03-31'], /^UNKNOWN\|/, 'Tue missing → a question, never a rest day');
     });
     test('empty memberName is skipped', () => {
         const entries = buildSafeEntries(
@@ -1194,12 +1199,23 @@ describe('a consistently shifted read — all three channels agreeing on the sam
         // Three members, all left-shifted — the batch signature `assessRosterAlignment` refuses on.
         // What matters is that each row still carries SEVEN readable cells, because
         // `detectShiftedRow` scores only cells that are not UNKNOWN and needs >= 5 of 7 at +/-1.
+        // Each week is the member's OWN base week read one day left, and the breaker is RUN on what
+        // the server hands over (test audit, 7 Nov 2026). The breaker scores a read against the base
+        // roster, so the made-up week this used before could never trip it: the test claimed the
+        // breaker and never called it, and a breaker that refused nothing left it green.
         const members = ['G. Miller', 'S. Silva', 'M. Robson'];
-        const cs = colScanOf(...members.map(m => [m, SHIFTED]));
-        const entries = buildSafeEntries(members.map(memberName => ({ memberName, ...SHIFTED })),
+        const leftRead = Object.fromEntries(members.map(name => {
+            const member = teamMembers.find(m => m.name === name);
+            return [name, Object.fromEntries(HEADERS.map((h, i) => {
+                const next = new Date(DATES[i] + 'T12:00:00'); next.setDate(next.getDate() + 1);
+                return [h, getBaseShift(member, next)];
+            }))];
+        }));
+        const cs = colScanOf(...members.map(m => [m, leftRead[m]]));
+        const entries = buildSafeEntries(members.map(memberName => ({ memberName, ...leftRead[memberName] })),
             HEADERS, DATES);
         applyColumnScanCrossCheck(entries, cs, HEADERS, DATES);
-        applySundayScanCorrections(entries, Object.fromEntries(members.map(m => [m, '06:00-14:00'])),
+        applySundayScanCorrections(entries, Object.fromEntries(members.map(m => [m, leftRead[m].Sun])),
             true, DATES);
         for (const e of entries) {
             const unknowns = DATES.filter(d => String(e.shifts[d]).startsWith('UNKNOWN|'));
@@ -1207,8 +1223,12 @@ describe('a consistently shifted read — all three channels agreeing on the sam
                 `${e.memberName}: every cell must reach the client readable — an UNKNOWN here is a `
                 + 'cell the alignment detector scores as no-signal, and on a shifted row the Sunday '
                 + 'is the strongest signal there is');
-            assert.equal(e.shifts[SUN], '06:00-14:00', 'Monday\'s value, sitting in Sunday');
+            assert.equal(e.shifts[SUN], leftRead[e.memberName].Sun, 'Monday\'s value, sitting in Sunday');
         }
+        const verdict = assessRosterAlignment({ parsed: entries, dates: DATES });
+        assert.deepEqual(verdict.suspects.sort(), [...members].sort(), 'each shifted row is seen');
+        assert.equal(verdict.blocked, true, 'three members a day out the same way must stop the save');
+        assert.equal(verdict.direction, 'left');
     });
 });
 

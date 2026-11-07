@@ -1377,6 +1377,19 @@ describe('the live check looks twice before it reports', () => {
             `the job limit (${jobLimit}) must cover every other step (${rest} minutes between them), the site step's ${stepLimit} and five minutes for the alert. Otherwise the job runs out first, and a hung site is never reported.`);
     });
 
+    test('the scheduled looks demand a DIRECT connection — the value live.spec.js reads', () => {
+        // Test audit, 7 Nov 2026: setting it to '0' passed every workflow test, and the scheduled
+        // check would then accept RELAYED passes — real bytes fetched by curl, but no API-key referrer
+        // check and no live Firebase round trip, reported green at 03:00 with nobody reading the mode
+        // line. The value is read from the spec rather than typed here, so the two cannot drift.
+        const spec = readFileSync('e2e/live.spec.js', 'utf8');
+        const wanted = (/process\.env\.LIVE_REQUIRE_DIRECT\s*===\s*'([^']*)'/.exec(spec) || [])[1];
+        assert.ok(wanted, 'e2e/live.spec.js no longer compares LIVE_REQUIRE_DIRECT with a literal — this test reads that literal');
+        const set = (/^\s*LIVE_REQUIRE_DIRECT:\s*'([^']*)'\s*$/m.exec(body) || [])[1];
+        assert.equal(set, wanted,
+            `the site step must set LIVE_REQUIRE_DIRECT: '${wanted}' in its own env (found ${set === undefined ? 'nothing' : `'${set}'`}); anything else lets a relayed pass through on a schedule`);
+    });
+
     test('only a failure of the site check itself reaches the issue', () => {
         // The whole-app review's fix (Oct 2026): a runner that could not install used to post "the
         // live site failed" about a site nobody had opened.

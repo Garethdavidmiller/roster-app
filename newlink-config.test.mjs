@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import * as config from './newlink-config.js';
 import { PHASE, CLOSES, STARTS, TIMETABLE_STARTS, CONTACT, CONTACT_ROLE, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
 import { CHANGE_DATE } from './trains-data.js';
+import { closesWords } from './newlink-render.js';
 import { PAGE_POLICIES, requirePage, admitsStaffPin, canOpenNewlink } from './auth-policy.js';
 import { teamMembers, CONFIG } from './roster-data.js';
 
@@ -52,11 +53,17 @@ test('the pill is offered to exactly the people the page admits — every name o
 });
 
 test('the closing date is a real day, or null — "a date to be agreed"', () => {
-    if (CLOSES === null) return;
+    // Both branches check something (test audit, 7 Nov 2026). This returned early while CLOSES is null — the setting as
+    // it ships today — so it passed having checked nothing, not even that the page then says "a date to be agreed".
+    if (CLOSES === null) {
+        assert.equal(closesWords(CLOSES), 'a date to be agreed');
+        return;
+    }
     assert.match(CLOSES, /^\d{4}-\d{2}-\d{2}$/);
     const [y, mo, d] = CLOSES.split('-').map(Number);
     const day = new Date(y, mo - 1, d);
     assert.ok(day.getFullYear() === y && day.getMonth() === mo - 1 && day.getDate() === d, `${CLOSES} is not a day`);
+    assert.notEqual(closesWords(CLOSES), 'a date to be agreed', 'a set date is said as a date');
 });
 
 test('the audience: null stands for every CEA on the roster; a list must name real people', () => {
@@ -86,6 +93,7 @@ test('the drafted words promise nothing the page does not do, and name no recomm
     assert.doesNotMatch(words, /\badmin\b|G\. Miller|managers decide/i, 'nothing gives the impression that the admin, or the managers, choose among the three');
     assert.doesNotMatch(words, /final call|\bdecides?\b|decided by|goes to the managers/i, 'and no more: how the choice is made is left deliberately vague');
     assert.match(words, /does not collect/, 'and that the page itself collects nothing');
+    // Every other state of the page is held to the same two patterns in newlink-render.test.mjs ("S. SILVA LEADS").
 });
 
 test('the new link starts on 1 January 2027 — not with the timetable, which changes in December', () => {

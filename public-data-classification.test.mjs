@@ -36,7 +36,11 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { teamMembers } from './roster-data.js';
+import * as rosterData from './roster-data.js';
+import * as rosterMemberData from './roster-member-data.js';
+import * as rosterCycleData from './roster-cycle-data.js';
+
+const { teamMembers, CONFIG } = rosterData;
 
 /**
  * Every field a `teamMembers` entry may carry, each classified as safe to publish.
@@ -150,5 +154,144 @@ describe('roster-data.js is world-readable, so what it carries is a decision', (
                 + 'lives in the `staffContact` collection, readable only by its owner and the admin '
                 + '— that is the pattern to follow.');
         }
+    });
+});
+
+// ── CONFIG, AND EVERY OTHER DATA EXPORT (test audit, 7 Nov 2026) ─────────────────────────────────
+//
+// The checks above stop at `teamMembers`, and the same world-readable file ships everything else
+// it exports. Seven `CONFIG` keys carry people — who holds the admin and manager claims, who may
+// open the Links and New link workspaces, who is in the Overtime beta, the Calendar's default
+// member, and the bug-report mailbox — and none of it was classified anywhere. Measured: a NAMED
+// list added to CONFIG passed all 4,231 hygiene tests. These close that the same way the member
+// fields are closed: a key or an export nobody has classified fails, and the way past is to decide.
+
+/**
+ * Every key of `CONFIG`, classified as safe to publish. Every one of these reaches anyone who asks.
+ * A key that NAMES people (or carries an address) must also be in `CONFIG_KEYS_NAMING_PEOPLE`.
+ */
+const PUBLIC_CONFIG_KEYS = /** @type {const} */ ({
+    MAIN_ROSTER_WEEKS:                'The length of a rota cycle. On the printed roster.',
+    BILINGUAL_ROSTER_WEEKS:           'The length of a rota cycle. On the printed roster.',
+    CES_ROSTER_WEEKS:                 'The length of a rota cycle. On the printed roster.',
+    DISPATCHER_ROSTER_WEEKS:          'The length of a rota cycle. On the printed roster.',
+    PAYDAY_INTERVAL_DAYS:             'Paydays fall every four weeks: the company calendar, nobody’s pay.',
+    FIRST_PAYDAY:                     'A company payday date. Carries no figure.',
+    MAIN_ROSTER_REFERENCE_DATE:       'The date a rota cycle is counted from.',
+    BILINGUAL_ROSTER_REFERENCE_DATE:  'The date a rota cycle is counted from.',
+    CES_ROSTER_REFERENCE_DATE:        'The date a rota cycle is counted from.',
+    DISPATCHER_ROSTER_REFERENCE_DATE: 'The date a rota cycle is counted from.',
+    MIN_YEAR:                         'The earliest year the Calendar navigates to.',
+    MAX_YEAR:                         'The latest year the Calendar navigates to.',
+    EARLY_START_THRESHOLD:            'Where an Early begins. A display rule.',
+    EARLY_SHIFT_THRESHOLD:            'Where a Late begins. A display rule.',
+    NIGHT_START_THRESHOLD:            'Where a Night begins. A display rule.',
+    DEFAULT_MEMBER_NAME:              'The member the Calendar opens on when nobody is chosen: a name '
+        + 'teamMembers publishes already.',
+    ADMIN_NAMES:                      'Who holds the admin claim. Published because the client draws its '
+        + 'buttons from it; the claim itself is set server-side and is what the rules check, so '
+        + 'reading the name grants nothing.',
+    LINKS_DESIGNERS:                  'Who may open the Links workspace. Same standing: the '
+        + '`linksDesigner` claim is set server-side and is the control.',
+    OVERTIME_ENABLED:                 'Whether the Overtime page is open. A switch.',
+    NEWLINK_PREVIEW:                  'Who may open the New link preview. Page access only, over files '
+        + 'that are public anyway.',
+    OVERTIME_BETA:                    'Who answers the Overtime beta. The server keeps its own copy and '
+        + 'decides from that.',
+    MANAGER_NAMES:                    'Who holds the manager claim. Same standing as ADMIN_NAMES.',
+    GRADE_ORDER:                      'The order grades are grouped in a picker.',
+    WORK_EMAIL_DOMAIN:                'The company’s email domain, on every email it sends.',
+    FORCE_PASSWORD_SET:               'A feature switch.',
+    PASSWORD_RESET_REQUESTS:          'A feature switch.',
+    CLAIM_EPOCH:                      'A counter that asks each device to refresh its sign-in token.',
+    SUPPORT_EMAIL:                    'Where bug reports go: a work mailbox the app hands to every user '
+        + 'by design.',
+});
+
+/** The CONFIG keys whose values name people or carry an address. Publishing a name is the decision
+ *  most worth seeing, so it is recorded here rather than left implicit in a reason. */
+const CONFIG_KEYS_NAMING_PEOPLE = new Set([
+    'DEFAULT_MEMBER_NAME', 'ADMIN_NAMES', 'LINKS_DESIGNERS', 'NEWLINK_PREVIEW',
+    'OVERTIME_BETA', 'MANAGER_NAMES', 'SUPPORT_EMAIL',
+]);
+
+/**
+ * Every DATA export (anything that is not a function) of the three world-readable roster modules.
+ * Functions are code, and the code is public by nature; data is what this file is about. The two
+ * sub-modules are read too, so an export added there and not re-exported is not missed.
+ */
+const PUBLIC_DATA_EXPORTS = /** @type {const} */ ({
+    APP_VERSION:      'The release number, shown in About.',
+    CONFIG:           'Classified key by key in PUBLIC_CONFIG_KEYS.',
+    teamMembers:      'Classified field by field in PUBLIC_MEMBER_FIELDS.',
+    weeklyRoster:     'A shift pattern. Public by the owner’s decision (AUTH_PLAN.md §2).',
+    bilingualRoster:  'A shift pattern. Public by the owner’s decision (AUTH_PLAN.md §2).',
+    cesRoster:        'A shift pattern. Public by the owner’s decision (AUTH_PLAN.md §2).',
+    dispatcherRoster: 'A shift pattern. Public by the owner’s decision (AUTH_PLAN.md §2).',
+    fixedRoster:      'The fixed patterns. Public by the owner’s decision (AUTH_PLAN.md §2).',
+    TEAM_GRADES:      'The grade groups Team Week offers.',
+    DAY_NAMES:        'Calendar words.',
+    MONTH_ABB:        'Calendar words.',
+    MONTH_NAMES:      'Calendar words.',
+    SHIFT_TIME_REGEX: 'A pattern for reading a shift time.',
+    TIME_RE:          'A pattern for reading a clock time.',
+    SWIPE_THRESHOLD:  'Gesture tuning.',
+    SWIPE_VELOCITY:   'Gesture tuning.',
+});
+
+/** Every non-function export of the three modules, by name. */
+function dataExports() {
+    const names = new Set();
+    for (const mod of [rosterData, rosterMemberData, rosterCycleData]) {
+        for (const [k, v] of Object.entries(mod)) if (typeof v !== 'function') names.add(k);
+    }
+    return names;
+}
+
+describe('…and so is everything else roster-data.js exports', () => {
+    test('every CONFIG key has been classified as public', () => {
+        const unclassified = Object.keys(CONFIG).filter(k => !(k in PUBLIC_CONFIG_KEYS)).sort();
+        assert.deepEqual(unclassified, [],
+            `CONFIG ships to anyone who asks, and these keys are not classified:\n    ${unclassified.join(', ')}\n`
+            + 'Decide whether a stranger may read each. If yes, add it to PUBLIC_CONFIG_KEYS with a '
+            + 'one-line reason (and to CONFIG_KEYS_NAMING_PEOPLE if it names anybody). If no, it '
+            + 'belongs in Firestore behind a claim.');
+    });
+
+    test('and the CONFIG list has not drifted into naming keys nobody ships', () => {
+        const stale = Object.keys(PUBLIC_CONFIG_KEYS).filter(k => !(k in CONFIG));
+        assert.deepEqual(stale, [], `PUBLIC_CONFIG_KEYS permits keys CONFIG no longer has: ${stale.join(', ')}. Remove them.`);
+        const staleNaming = [...CONFIG_KEYS_NAMING_PEOPLE].filter(k => !(k in CONFIG));
+        assert.deepEqual(staleNaming, [], `CONFIG_KEYS_NAMING_PEOPLE lists keys CONFIG no longer has: ${staleNaming.join(', ')}.`);
+    });
+
+    test('a CONFIG key that names a member, or carries an address, says so', () => {
+        // Read from the VALUES, so a key that starts carrying names — a new one, or an old one put to
+        // a new use — is caught even when its reason was written for something else.
+        const names = new Set(teamMembers.map(m => m.name));
+        const naming = (/** @type {unknown} */ v) => {
+            const strings = typeof v === 'string' ? [v]
+                : Array.isArray(v) ? v.filter(x => typeof x === 'string') : [];
+            return strings.some(s => names.has(s) || /@/.test(s));
+        };
+        const undeclared = Object.entries(CONFIG)
+            .filter(([k, v]) => naming(v) && !CONFIG_KEYS_NAMING_PEOPLE.has(k))
+            .map(([k]) => k).sort();
+        assert.deepEqual(undeclared, [],
+            `These CONFIG keys name a member or carry an address, and are not declared as doing so: `
+            + `${undeclared.join(', ')}. Publishing a name is a decision; record it in `
+            + 'CONFIG_KEYS_NAMING_PEOPLE, or move the names behind a claim.');
+        assert.ok(naming(CONFIG.ADMIN_NAMES) && naming(CONFIG.SUPPORT_EMAIL),
+            'the detector must recognise the two kinds it exists for, or the check above proves nothing');
+    });
+
+    test('every data export of the roster modules has been classified, and no entry is stale', () => {
+        const shipped = dataExports();
+        const unclassified = [...shipped].filter(k => !(k in PUBLIC_DATA_EXPORTS)).sort();
+        assert.deepEqual(unclassified, [],
+            `These exports ship to anyone who asks and are not classified:\n    ${unclassified.join(', ')}\n`
+            + 'Add each to PUBLIC_DATA_EXPORTS with a reason, or keep the data out of a public file.');
+        const stale = Object.keys(PUBLIC_DATA_EXPORTS).filter(k => !shipped.has(k));
+        assert.deepEqual(stale, [], `PUBLIC_DATA_EXPORTS permits exports nothing ships: ${stale.join(', ')}. Remove them.`);
     });
 });

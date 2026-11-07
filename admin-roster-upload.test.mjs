@@ -450,6 +450,23 @@ describe('computeCellStates — review state machine', () => {
         assert.equal(c.state, 'REMOVE_IMPORT');
     });
 
+    // A LEAVER IS NEVER REVIEWED (test audit, 7 Nov 2026). `hidden` is how a leaver is recorded, and
+    // the server reads names from its own generated copy, which lags until somebody regenerates it —
+    // so a leaver still printed on the sheet can come back. Without the filter their week became
+    // pre-ticked rows, saved with everybody else's. Nothing tested it.
+    test('a leaver on the sheet gets no review row, and Save writes nothing for them', () => {
+        const leaver = teamMembers.find(/** @param {any} m */ m => m.hidden && !m.managerOnly);
+        assert.ok(leaver, 'needs a leaver on the roster');
+        const lBase = getBaseShift(leaver, new Date(WD + 'T12:00:00'));
+        const lDiffer = (lBase === 'RD' || lBase === 'OFF') ? '07:00-15:00' : 'RD';   // a change, were they current
+        const states = computeCellStates({ parsed: [
+            { memberName: leaver.name, shifts: { [WD]: lDiffer } },
+            { memberName: mname,       shifts: { [WD]: differ } },
+        ], dates: [WD] }, []);
+        assert.deepEqual([...states.keys()], [`${mname}|${WD}`], 'only the member still here is reviewed');
+        assert.deepEqual(collectRosterWrites(states).map(w => w.memberName), [mname], 'and only they are saved');
+    });
+
     // ── THE APP DECIDED SOMETHING; IT MAY NOT REPORT THAT AS A MATCH (v23.97) ────────────────
     //
     // Leave or an absence on a base rest day is normalised to RD before the state is chosen, so
@@ -970,12 +987,20 @@ describe('computeCellStates — a bare training or meeting day on a Sunday is ne
         const st = stateFor(m, 'MEET', manual);
         assert.equal(st.state, 'GUARDED');
         assert.deepEqual(guardedWrites(st, m.name, SUNDAY), []);
+        // NOR BY A "REST DAY" ANSWER (test audit, 7 Nov 2026). That answer deletes the saved record on
+        // a rest-day row; a Sunday row never offers it, but the delete must not rest on the renderer
+        // alone — without `swapQuestionApplies` in guardedWrites, a 'free' carried onto this row
+        // deleted the very record it exists to keep, and every suite stayed green.
+        assert.deepEqual(guardedWrites({ ...st, chosen: 'free' }, m.name, SUNDAY), []);
+        assert.deepEqual(collectRosterWrites(new Map([[`${m.name}|${SUNDAY}`, { ...st, chosen: 'free' }]])), []);
     });
 
     test('an earlier import on that Sunday is kept: no REMOVE_IMPORT', () => {
         const m = sundayOf(false);
         const earlier = [{ id: 'old', memberName: m.name, date: SUNDAY, type: 'rdw', value: '10:00-14:00', source: 'roster_import' }];
-        assert.equal(stateFor(m, 'MEET', earlier).state, 'GUARDED');
+        const st = stateFor(m, 'MEET', earlier);
+        assert.equal(st.state, 'GUARDED');
+        assert.deepEqual(guardedWrites({ ...st, chosen: 'free' }, m.name, SUNDAY), [], 'not deleted by a "rest day" answer either');
     });
 
     test('leave on a rostered Sunday is unchanged: layer 4 still records the rest day', () => {
@@ -1593,8 +1618,9 @@ describe('a row the PDF\'s own grid refused fails closed the same way', () => {
     const honest = (/** @type {any} */ m) => Object.fromEntries(DATES.map(d => [d, getBaseShift(m, new Date(d + 'T12:00:00'))]));
     const others = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main' && m.name !== 'G. Miller');
     const states = (/** @type {any} */ parsedResult) => computeCellStates(parsedResult, []);
+    // ('REMOVE_INPUT' stood here beside REMOVE_IMPORT — no such state exists; test audit, 7 Nov 2026.)
     const writable = (/** @type {Map<string,any>} */ st) =>
-        [...st.values()].filter(c => (c.state === 'DIFF' || c.state === 'REMOVE_INPUT' || c.state === 'REMOVE_IMPORT') && c.chosen !== false);
+        [...st.values()].filter(c => (c.state === 'DIFF' || c.state === 'REMOVE_IMPORT') && c.chosen !== false);
 
     test('a geometry-refused member\'s rows start UNTICKED even though the base roster sees no drift', () => {
         const parsed = [{ memberName: 'G. Miller', shifts: { ...honest(MEMBER), [DATES[1]]: '22:00-06:00' } }];
@@ -1885,7 +1911,8 @@ describe('a shifted read fails closed', () => {
         // Save button still USES it: a handler that built its own list again would bypass the gate
         // with every browser test green. Comments stripped first, so a commented-out line on screen
         // cannot satisfy it (test audit, 7 Nov 2026 — the earlier form could be fooled that way).
-        const src = readFileSync('./admin-roster-upload.js', 'utf8')
+        // Read beside this file, not from the working directory (test audit, 7 Nov 2026).
+        const src = readFileSync(new URL('./admin-roster-upload.js', import.meta.url), 'utf8')
             .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
         const handler = src.slice(src.indexOf("applyBtn.addEventListener('click'"));
         assert.match(handler.slice(0, 400), /const toWrite = collectRosterWrites\(_cellStates\);/,

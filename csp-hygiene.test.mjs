@@ -41,6 +41,14 @@ test('the Google sign-in helper hosts stay out of the policy', () => {
 const APP_SOURCES = ['firebase-client.js', 'service-worker.js', 'huddle.js', 'notif.js', ...APP_PAGES.map(p => p.file)]
     .map(f => readFileSync(join(ROOT, f), 'utf8')).join('\n');
 
+/** The same sources WITHOUT each page's mirrored `<meta>` CSP (test audit, 7 Nov 2026). That meta
+ *  restates every origin the header names (csp-meta-parity.test.mjs keeps it so), so searching the
+ *  pages with it left in found every CSP origin in the CSP itself and the stale check could never
+ *  fail: removing huddle.js's only Mammoth URL left `cdn.jsdelivr.net` in both policies with both
+ *  CSP suites green. The self-cancelling shape the must-cover test below fixed in itself at v18.31. */
+const APP_SOURCES_WITHOUT_CSP = APP_SOURCES
+    .replace(/<meta\s[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/gi, '');
+
 /** Extract the CSP header value from firebase.json. */
 function cspValue() {
     const fb = JSON.parse(readFileSync(join(ROOT, 'firebase.json'), 'utf8'));
@@ -57,9 +65,14 @@ test('every remote origin in the CSP is actually referenced by app code (no stal
     // A CSP host may be a wildcard (https://*.googleapis.com); reduce to the registrable suffix so
     // we can look for it in code that names a concrete sub-host (firestore.googleapis.com, etc.).
     const suffixOf = (o) => o.replace(/^(?:https|wss):\/\//, '').replace(/^\*\./, '');
+    // The strip must have found the policy on every page, or the search below is back to reading it.
+    const metas = (APP_SOURCES.match(/<meta\s[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/gi) ?? []).length;
+    assert.equal(metas, APP_PAGES.length,
+        'expected one <meta> CSP per app page to strip before searching — one is written differently, '
+        + 'and the stale check would find its origins in the policy itself');
     const stale = origins.filter(o => {
         const h = suffixOf(o);
-        return !APP_SOURCES.includes(h) && !DYNAMIC_HOSTS.includes(h);
+        return !APP_SOURCES_WITHOUT_CSP.includes(h) && !DYNAMIC_HOSTS.includes(h);
     });
     assert.deepEqual(
         stale, [],

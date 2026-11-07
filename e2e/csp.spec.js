@@ -11,13 +11,13 @@
 // app actually requests (the historical `connect-src` gstatic outage), or a policy typo — invisible
 // to the http-server smoke suite (no headers) and to the static check (config-only).
 //
-// ONE class of violation is EXPECTED and ignored (see IGNORED_BLOCKS + BEACON_DIRECTIVES): telemetry
-// beacons fired by Firebase Auth's own `apis.google.com` iframe. Blocking those is the policy working as intended —
-// they are Google's analytics pings, not something the app needs — so counting them as failures
-// asserted the wrong thing. And because they only fire if the auth iframe reaches that state before
-// the test ends, they made this suite fail intermittently on CI while passing locally every time
-// (three re-runs in one day, Jul 2026, on commits that touched no CSP-relevant code). The gate stays
-// sharp for everything the app actually loads.
+// ONE class of violation USED TO BE expected and ignored (IGNORED_BLOCKS + BEACON_DIRECTIVES): telemetry
+// beacons fired by Firebase Auth's own `apis.google.com` iframe. Blocking those was the policy working as
+// intended — Google's analytics pings, not something the app needs — and because they fired only if
+// the auth iframe got that far before the test ended, they made this suite fail intermittently on CI
+// (three re-runs in one day, Jul 2026). Since Oct 2026 that iframe is never loaded, the policy no
+// longer names `apis.google.com` at all, and IGNORED_BLOCKS is empty: every refusal fails. (Past tense
+// since the test audit, 7 Nov 2026 — this said the beacons were still expected.)
 //
 // NOTE: this spec is intentionally NOT part of `npm run test:e2e` (playwright.config.mjs excludes it
 // via `testIgnore`); it needs the hosting emulator, which `npm run test:csp` wires up.
@@ -31,14 +31,14 @@ import { APP_PAGES, GUIDE_PAGES } from '../scripts/app-pages.mjs';
  * Blocked URIs that are EXPECTED and must not fail the run. Keep this list minimal and specific —
  * each entry is a promise that the app does not need that request.
  *
- * Both are fire-and-forget telemetry from the `apis.google.com` iframe Firebase Auth loads:
+ * The two it held were fire-and-forget telemetry from the `apis.google.com` iframe Firebase Auth
+ * used to load:
  *   · `www.google.com/images/cleardot.gif` — a 1×1 tracking pixel
  *   · `apis.google.com/js/gen_204`         — Google's logging beacon
- * Neither carries auth data nor affects sign-in, so refusing them is the intended outcome rather
- * than a policy that is too tight. Note the two are refused by DIFFERENT directives: `www.google.com`
- * appears in no directive at all, while `apis.google.com` IS in `connect-src` (added v17.96) — so the
- * gen_204 refusal must come from a directive that does not list it, `img-src` being the one that fits
- * a pixel-style beacon. That inference is from the policy, not from a recorded violation.
+ * Neither carried auth data nor affected sign-in, so refusing them was the intended outcome rather
+ * than a policy that was too tight. At the time `apis.google.com` was in `connect-src` (added v17.96,
+ * removed Oct 2026), so the gen_204 refusal had to come from another directive, `img-src` being the
+ * one that fits a pixel-style beacon — an inference from the policy, not from a recorded violation.
  */
 // EMPTY SINCE OCT 2026. Both beacons came from the auth-helper iframe, and `initializeAuth` without a
 // popup resolver (firebase-client.js) never loads it — so the policy dropped apis.google.com, and any
@@ -47,10 +47,10 @@ import { APP_PAGES, GUIDE_PAGES } from '../scripts/app-pages.mjs';
 const IGNORED_BLOCKS = [];
 
 /**
- * Directives a telemetry beacon may legitimately be refused by. Waiving a URL is NOT waiving the
- * host: if `apis.google.com` is ever refused for a `script-src` or `frame-src` load, that breaks
- * Firebase Auth for real (it is the v17.82 outage) and must still fail the suite. Only beacon-class
- * refusals are expected, so only those are ignorable.
+ * Directives a telemetry beacon may legitimately be refused by, should IGNORED_BLOCKS ever hold an
+ * entry again. Waiving a URL is NOT waiving the host: a waived host refused for a `script-src` or
+ * `frame-src` load is a real breakage (the v17.82 outage was `apis.google.com`'s script, when Auth
+ * still loaded it) and must still fail the suite. Only beacon-class refusals are ignorable.
  */
 const BEACON_DIRECTIVES = ['img-src', 'connect-src'];
 

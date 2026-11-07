@@ -17,6 +17,7 @@ import {
 } from './newlink-render.js';
 import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
+import { HAVE_YOUR_SAY } from './newlink-config.js';
 
 const count = (/** @type {string} */ s, /** @type {RegExp} */ re) => (s.match(re) || []).length;
 
@@ -58,15 +59,36 @@ test('EVENLY: the status names the three A to Z, each once, in the same tile', (
     assert.match(html, /a date to be agreed/);
 });
 
-test('EVENLY: no state of the page names a recommendation', () => {
-    const states = [
+/** Every state a COLLEAGUE can be shown, from the real builders and the real data — and the page's own static markup,
+ *  comments stripped. The preview banner is the one surface left out: it is the previewers' own, and names the admin to
+ *  S. Silva by design. */
+const colleagueStates = () => {
+    const html = readFileSync(new URL('./newlink.html', import.meta.url), 'utf8');
+    return [
         renderStatus({ proposals: PROPOSALS, closes: null }),
-        renderList(CHANGES), renderCommon({ gains: GAINS, costs: COSTS }), renderList(NOTES),
+        renderStatus({ proposals: PROPOSALS, closes: '2026-11-27', starts: '2027-01-01', timetable: '2026-12-13', today: '2026-12-20' }),
+        renderList(CHANGES), renderCommon({ gains: GAINS, costs: COSTS }), renderList(NOTES), renderList(HAVE_YOUR_SAY),
         renderPersonas(PERSONAS, COLUMNS, null), renderPersonas(PERSONAS, COLUMNS, 'all'),
+        ...PERSONAS.map(p => renderPersonas(PERSONAS, COLUMNS, p.id)),
         renderPersonaChips(PERSONAS, null), renderWeeksTabs(PROPOSALS, PROPOSALS[0].id), renderPack(PACK, 'https://x/'),
         ...PROPOSALS.map(renderWeeks), ...PROPOSALS.map(p => renderAllWeeks(PROPOSALS, p.id)), renderWeeksKey(),
+        html.slice(html.indexOf('<main'), html.indexOf('</main>')).replace(/<!--[\s\S]*?-->/g, ''),
     ].join('\n');
-    assert.doesNotMatch(states, /recommend/i);
+};
+
+test('EVENLY: no state of the page names a recommendation', () => {
+    assert.doesNotMatch(colleagueStates(), /recommend/i);
+});
+
+test('S. SILVA LEADS: no state a colleague sees says the admin, or the managers, choose (test audit, 7 Nov 2026)', () => {
+    // Owner, 4 Nov 2026: S. Silva, as the RMT rep, leads the change, and the admin is in charge of neither the change nor
+    // the choice (newlink-config.js header). newlink-config.test.mjs holds the Have-your-say words to that, and only those:
+    // "The admin will choose one of the three." added to the status card passed every unit suite. The same two
+    // patterns, over everything else.
+    const words = colleagueStates();
+    assert.ok(words.includes('Nothing is decided.'), 'the status card was not rendered — this would check nothing');
+    assert.doesNotMatch(words, /\badmin\b|G\. Miller|managers decide/i);
+    assert.doesNotMatch(words, /final call|\bdecides?\b|decided by|goes to the managers/i);
 });
 
 test('NOT YOUR ROSTER: each proposal\'s weeks are flagged, numbered 1 to 26, and never dated', () => {

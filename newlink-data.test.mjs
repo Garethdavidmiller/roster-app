@@ -9,7 +9,8 @@
  * in the tooling — and staff read the old one in the app while the PDF in their hand says the new one.
  *
  * So the first test runs the generator in `--check` mode, which recomputes everything — every figure, every asserted
- * sentence — and fails unless the committed file is byte-for-byte what it would write now. It takes ~10s, because it is
+ * sentence — and fails unless the committed file is byte-for-byte what it would write now. It takes ~20s (this said ~10s;
+ * measured 22s on 7 Nov 2026 — about half of it `deck-check.mjs --print`, which the generator runs first), because it is
  * the whole computation; that is the price of a check that cannot be fooled by a figure that merely LOOKS plausible.
  * The rest pin the shape the page relies on.
  */

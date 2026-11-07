@@ -388,7 +388,34 @@ describe('assessFatigue — the report as a whole', () => {
         const by = (c) => a.results.filter(r => r.code === c);
         assert.equal(by('FF15')[0].status, 'present', '13 consecutive earlies');
         assert.ok(a.results.some(r => r.title.includes('55 hours') && r.status === 'present'));
+        // …and the same thirteen days are more than 12 in a row (test audit, 7 Nov 2026: this row
+        // could be hardcoded `clear` with every suite green — "never hardcode a status").
+        const twelve = a.results.find(r => r.title === 'More than 12 consecutive day shifts');
+        assert.equal(twelve.value, 13);
+        assert.equal(twelve.status, 'present');
         assert.ok(a.present > 0);
+    });
+
+    // NEVER HARDCODE A STATUS (test audit, 7 Nov 2026). FF5, FF7 and FF17 each had no case that makes
+    // them PRESENT, so each could be hardcoded `clear` with every suite green — a 13-hour duty would
+    // have worn a green tick on FF5. One duty per row, and each leaves the other duty-length row clear,
+    // so a row is seen answering its own question rather than "a long duty" in general.
+    test('FF5 reports a day shift over 12h as present', () => {
+        const r = assessFatigue(design([RD, '08:00-21:00', RD, RD, RD, RD, RD]), 1).results;
+        assert.deepEqual([r.find(x => x.code === 'FF5').status, r.find(x => x.code === 'FF5').value], ['present', 1]);
+        assert.equal(r.find(x => x.code === 'FF7').status, 'clear', 'an 08:00 start is not an early start');
+    });
+
+    test('FF7 reports an early shift over 10h as present', () => {
+        const r = assessFatigue(design([RD, '06:00-16:30', RD, RD, RD, RD, RD]), 1).results;
+        assert.deepEqual([r.find(x => x.code === 'FF7').status, r.find(x => x.code === 'FF7').value], ['present', 1]);
+        assert.equal(r.find(x => x.code === 'FF5').status, 'clear', '10h 30m is not over 12h');
+    });
+
+    test('FF17 is present when backward steps outnumber forward ones', () => {
+        const ff17 = assessFatigue(design([LATE, MID, EARLY, RD, RD, RD, RD]), 1).results.find(x => x.code === 'FF17');
+        assert.equal(ff17.status, 'present');
+        assert.equal(ff17.value, '2 backward / 0 forward');
     });
 
     // Whole-app review, Oct 2026 — two thresholds that read their boundary the wrong way.
@@ -494,6 +521,52 @@ describe('earlyBlocksWithShortRecovery laps the rotation', () => {
         assert.equal(blocks.length, 1);
         assert.equal(blocks[0].blockLength, 7);
         assert.equal(blocks[0].restDays, 0);
+    });
+});
+
+// ── INVARIANT 3, ONE WRAP FIXTURE PER RULE (test audit, 7 Nov 2026) ────────────────────────────
+// FF8b's block above was the only lapping test in this file: the audit removed each of the other
+// rules' laps in turn and every suite stayed green (the FF11 "wrap point" test further up measures
+// `longestWorkedRun`, not FF11). Each fixture here puts its finding exactly on the last line → line 1
+// boundary, so a scan that stops at the end of the rotation finds less, or nothing.
+describe('every other rule laps the rotation too — the finding sits on the last line → line 1 boundary', () => {
+    const W = '06:20-14:20';
+
+    test('FF11: a run that wraps is measured whole — and can be what makes the factor present', () => {
+        // Line 2 Tue–Sat into line 1 Sun–Thu: ten shifts between two-day breaks, five without the lap.
+        assert.equal(longestRunBetween48hBreaks(toSequence(design([W, W, W, W, W, RD, RD], [RD, RD, W, W, W, W, W]), 2)), 10);
+        // Line 3 Tue–Sat (5), line 1 (7), line 2 Sun–Mon (2): fourteen, over the 13 the row reads against.
+        const ff11 = assessFatigue(design([W, W, W, W, W, W, W], [W, W, RD, RD, RD, RD, RD], [RD, RD, W, W, W, W, W]), 3)
+            .results.find(x => x.code === 'FF11');
+        assert.deepEqual([ff11.status, ff11.value], ['present', 14]);
+    });
+
+    test('FF11: the second lap meets a FRESH cover week, because next time round the wheel it is one', () => {
+        // Line 3 ends on five duties and wraps into line 1's cover week: its Sunday as overtime and four
+        // more, 5 + 1 + 4 = 10. A budget shared with the first lap is already spent, and stops it at 6.
+        const p = design([SPARE, SPARE, SPARE, SPARE, SPARE, SPARE, SPARE], [RD, RD, W, W, RD, RD, RD], [RD, RD, W, W, W, W, W]);
+        assert.equal(longestRunBetween48hBreaks(toSequence(p, 3)), 10);
+    });
+
+    // A late on the last Saturday, then an early on line 1's Sunday — two consecutive duties.
+    const WRAP_STEP = design([W, RD, RD, RD, RD, RD, RD], [RD, RD, RD, RD, RD, RD, LATE]);
+
+    test('FF19: a start-time jump across the wrap is counted', () => {
+        assert.equal(startTimeJumps(toSequence(WRAP_STEP, 2)).length, 1);
+        assert.equal(assessFatigue(WRAP_STEP, 2).results.find(x => x.code === 'FF19').status, 'present');
+    });
+
+    test('FF17: a backward step across the wrap is counted', () => {
+        assert.equal(rotationDirection(toSequence(WRAP_STEP, 2)).backward, 1);
+        assert.equal(assessFatigue(WRAP_STEP, 2).results.find(x => x.code === 'FF17').status, 'present');
+    });
+
+    test('MRSF 55 hours: a rolling week that spans the wrap is summed whole', () => {
+        // Three 10h duties end line 2 and four begin line 1: 70h in seven days, 40h without the lap.
+        const TEN = '06:00-16:00';
+        const p = design([TEN, TEN, TEN, TEN, RD, RD, RD], [RD, RD, RD, RD, TEN, TEN, TEN]);
+        assert.equal(maxHoursInAny7Days(toSequence(p, 2)), 70);
+        assert.equal(assessFatigue(p, 2).results.find(x => x.title.includes('55 hours')).status, 'present');
     });
 });
 
