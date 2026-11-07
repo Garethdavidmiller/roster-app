@@ -6,7 +6,8 @@
  * Pure helper functions extracted from functions/index.js.
  * No Firebase, no secrets, no HTTP — fully testable with Node's built-in test runner.
  *
- * Imported by functions/index.js via require('./roster-parse-helpers').
+ * Required across functions/ — index.js and the domain modules compose its parse, push and account
+ * decisions; module.exports is the list.
  *
  * ** `.claude/rules/roster-import.md` IS THE CONTRACT FOR THIS PIPELINE — read it before changing
  * anything here.** It holds the day-drift defence and why its three "layers" are not three

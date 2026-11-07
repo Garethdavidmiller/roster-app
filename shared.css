@@ -2079,7 +2079,7 @@ button.lightbox-bug-link {
 
 /* ============================================================
    APP HEADER
-   Used by admin.html and paycalc.html. Index.html has its own
+   Used by every app page except index.html, which has its own
    full-bleed header and does not use these rules.
    ============================================================ */
 .app-header {
@@ -2297,7 +2297,7 @@ button.lightbox-bug-link {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   NAV PANEL — slide-out drawer. Shared by all 3 main pages.
+   NAV PANEL — slide-out drawer. Shared by every app page.
    Opened by .btn-burger (#navMenuBtn); driven by nav-panel.js.
    ═══════════════════════════════════════════════════════════════ */
 

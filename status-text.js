@@ -41,7 +41,8 @@
  *
  * Rendering is byte-identical: an inline span with no styling occupies the same space as the text
  * node it replaced. The visual baselines are unchanged by design, which also means they cannot
- * confirm this module is wired in — `status-text.test.mjs` is the only thing that can.
+ * confirm this module works or is wired in: `status-text.test.mjs` tests the helper, and
+ * `status-glyph-parity.test.mjs` holds the call sites to it.
  *
  * BUTTONS ARE OUT OF SCOPE. `✓ Resolve` on a button is a stable LABEL, not a transient status: the
  * glyph is part of the control's accessible name, changing it changes what `getByRole(name:)`

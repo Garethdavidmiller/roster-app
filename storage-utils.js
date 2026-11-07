@@ -7,9 +7,10 @@
  * so anything that lives there is only testable behind a mock. These functions have NO imports
  * (no Firebase, no DOM state) — import them here and re-export from firebase-client.js.
  *
- * Owns: `isSafeStorageUrl` (the download-URL allowlist — a security control), `isDocxUpload`
- * (upload file-type detection), and `officeViewerUrl` (the Word-open wrapper). Does NOT own the
- * actual upload/download (firebase-client.js).
+ * Owns: `isSafeStorageUrl` (the download-URL allowlist — a security control), `resolveDocumentOpenUrl`
+ * (which url a document opens with), `isDocxUpload`, `officeViewerUrl` (the Word-open wrapper), the
+ * retention cutoff and the Storage path/type helpers. Does NOT own the upload sequence
+ * (documents-client.js).
  */
 
 /** This project's Storage buckets. A download URL must live under one of these. */

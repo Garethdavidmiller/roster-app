@@ -104,9 +104,9 @@ const SDK_URL_PREFIX = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSIO
 const SDK_ASSETS = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js', 'firebase-storage.js']
     .map(f => SDK_URL_PREFIX + f);
 
-// The "managed" same-origin app files: HTML pages, JS modules, and CSS — all served
-// stale-while-revalidate (v16.10; HTML falls back to network-first on a cache miss).
-// Everything here is precached so SWR can serve it instantly from cache.
+// The "managed" same-origin app files: HTML pages, JS modules, and CSS — all served from this
+// version's cache, never re-fetched once cached (HTML falls back to network-first on a miss). Each
+// must ALSO be in a precache list (CORE_ASSETS / SUPPLEMENTARY_ASSETS), or it is never precached.
 // Matching is SCOPE-RELATIVE (the fetch handler strips SCOPE_PATH before lookup), so
 // these names match under both '/' (Firebase) and '/roster-app/' (GitHub Pages). (Name
 // kept for the sw-asset-check test that parses this array; not "network-first only".)

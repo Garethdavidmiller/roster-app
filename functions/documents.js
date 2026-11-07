@@ -2,10 +2,11 @@
  * functions/documents.js — the DOCUMENT-AND-NOTIFICATION domain of the Cloud Functions
  * (second cut of the index.js domain split; the first was push.js at v20.52).
  *
- * Owns: ingestHuddle (the Power Automate upload), the three onDocumentCreated notification
- * triggers, the scheduled pay reminder, the one-off timetable reminder (sendTimetableReminder,
- * v24.94), and their private helpers (the huddle prune, the fan-out wrappers). Everything DOCUMENT-shaped: a file arrives or a doc is created, staff
- * are told, old copies are reclaimed.
+ * Owns: ingestHuddle (the Power Automate upload), getDocumentUrl (the short-lived document url),
+ * the three onDocumentCreated notification triggers, the scheduled pay reminder, the one-off
+ * timetable reminder (sendTimetableReminder), and their private helpers (the huddle prune, the
+ * fan-out wrappers). Everything DOCUMENT-shaped: a file arrives or a doc is created, staff are
+ * told, old copies are reclaimed, and a member is handed a link to open one.
  *
  * ── WHY A FACTORY, NOT A PLAIN MODULE ──────────────────────────────────────────────────────────
  * `buildDocumentEndpoints(deps)` takes its shared infrastructure as ARGUMENTS — the secret
