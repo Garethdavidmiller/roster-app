@@ -5999,6 +5999,9 @@ duty for duty.
 
 ## Balanced V8 and Balanced V9 — Balanced V7's weeks laid out again (7 Nov 2026)
 
+*Balanced V9 below is as first drawn (`8c679ae2`). Later that night two of its Saturday lates were swapped: heaviest week
+42h 30m, league 83.3, fingerprint `e2b7d945` ("Balanced V8 and V9 searched again", below).*
+
 **The ask.** The owner asked what would bring Balanced V6 or V7 up to the leaders (*The outside review of the 22-design
 pack*, above: about 7 of V7's 10.1 points behind Crossover were the layout, about 3 the duties), then *"Do the v7 week lay
 out again"*. Two layouts came back, and the owner: *"Do A as Balanced V8 and B as Balanced V9"*.
@@ -6162,6 +6165,102 @@ same blob as before, so `git log --follow` keeps their history. No grid, fingerp
 - **`pack.py`**: 71 files, as before.
 
 The app needs nothing: it reads only the shortlisted designs, and Common Ground's sheet stays in `30-days-off/`.
+
+## Balanced V8 and V9 searched again (7 Nov 2026)
+
+**The ask** (owner, 7 Nov 2026): *"Did you say you think you can add 1 more in the score by searching further? If so, do
+it. Exhaust the possibilities"*. The thought had been that fewer single rest days and a smaller change of start might
+be worth a point at most.
+
+**The answer.**
+- **Balanced V9 gained 0.2.** Its weeks 13 and 15 swap their Saturday lates, which brings its heaviest week from 42h 40m
+  to 42h 30m: 83.1 to 83.3, still 16th.
+- **Balanced V8 gained nothing.** No search found a better layout.
+- **Not proven best.** The solver's bounds on these models stay far from its answers, so none of the runs proves that
+  nothing better exists.
+
+**What a layout can still move.** With the duties fixed, most of the league's factors are already at the top of their
+range for both designs, or are set by the duties:
+- **At the top already:** fatigue warnings, the longest run, full weekends, the wait between weekends, one-turn weeks (V8),
+  mixed weeks (V8) and the three leave figures.
+- **Set by the duties:** the December rules, the train fit, late finishes, long earlies, the closing shift, familiar times
+  and contracted days.
+- **What is left, at the league's own slopes:**
+  - a single rest day, 0.42 each (both have 6; the pack's fewest is 4);
+  - a week mixing earlies and lates, 0.40 each (V9 has 2);
+  - every rest at 14h 35m or more, 0.33 (both have 14h 20m, and in this table nothing falls between the two);
+  - ten minutes off the heaviest week, 0.17;
+  - ten minutes off the week-to-week change of start, 0.15 (V8 1h 39m, V9 1h 51m).
+
+**How it was searched.** `exact-rota.py` gained two objectives:
+- **`OBJ=league`** weighs those measures at those slopes in one run, so the solver trades them as the league does.
+- **`OBJ=iso`** climbs the single rest days from a valid rota, as `OBJ=heavy` and `OBJ=rest` climb theirs.
+
+Every run held each design's floors:
+- its duties;
+- no 55-hour week in any cover-week placement (`H55=3300`);
+- 30 days off and at worst 20 for 14 days' leave;
+- four weeks off for 13;
+- at most 6 single rest days;
+- a 14h 20m shortest rest;
+- no week over 42h 55m;
+- V9 also its runs of early or late weeks, 3 and 4 with the cover weeks (`BF=3 BW=4`), and at most 3 mixed weeks.
+
+| Search, from the design | V8 | V9 |
+|---|---|---|
+| The league objective: 20 min (V8), then 20 + 40 min (V9) | no change | heaviest week 42h 30m (42h 40m), then no change |
+| Fewest single rest days, 15 min; again letting one-turn weeks fall to 18 (V8) | 6 | 6 |
+| Lightest heaviest week, 15 min; again with 18 one-turn weeks (V8) | 42h 30m | 42h 30m |
+| No rest under 14h 35m, 10 min | 4 remain | 4 remain |
+| Two neighbouring stretches between cover weeks laid again, the other three held: all five pairs, 10 min each | no change | no change |
+| Asked outright for 5 single rest days, 15 min | undecided | — |
+| Asked outright for no mixed week, or one, V9's runs held, 10 and 15 min | — | undecided |
+
+**The rest days alone.** `tooling/rest-days.py` is new. It is `exact-rota.py`'s rules for which days are worked, with the
+times dropped, so what it rules out is ruled out in the full model too.
+- **Single rest days.** It found 6 at fewest, and its lower bound never left 0: five is neither found nor ruled out.
+  Without the leave rules it finds 4, so the leave rules (four weeks off for 13 above all) are what hold both designs at
+  six.
+- **V9's mixed weeks.** It found rest days with V9's runs, at most 6 single rest days and no mixed week, and others with
+  one. On the no-mixed ones the duties fit only without the 55-hour rule. The result scores 79.9:
+  - a 56h 30m week if a cover week falls badly, with 7 days in a row;
+  - 14 weeks of 21 on one shift time;
+  - a change of start of 3h 19m.
+- **The repair.** Started from that rota, the full model could not repair it in 15 min. On the one-mixed rest days the
+  duties do not fit even without the 55-hour rule.
+
+So V9's two mixed weeks are what buy its short runs and its other figures together. That is found, not proven.
+
+**What changed in Balanced V9:**
+- **Week 13.** Tuesday to Friday 13:30–22:00, its Saturday now the office 14:30–22:30 (was 15:15–23:55): 42h 40m to
+  42h 00m.
+- **Week 15.** Monday to Thursday 15:45–23:55, its Saturday now 15:15–23:55 (was the office): 40h 40m to 41h 20m.
+- **The heaviest week** is now 42h 30m, and the week range 22h 15m–42h 30m.
+- **The one cost.** 15:15–23:55 is one of V9's 8 shift times new to learn, so those times now fall in 15 of its 21 working
+  weeks, where they fell in 14 (page 2 of its sheet). The league does not count it, since familiar times are counted by
+  duty.
+- **Unchanged:** the leave, fatigue, runs of 3 and 4, its 2 mixed weeks, 18 of 21 weeks on one shift time, the 1h 51m
+  change of start, the 14h 20m shortest rest and every other figure. Its headline still holds.
+
+**The league.** V9 rose from 83.1 to 83.3, still 16th; on the weighting before 31 Oct 2026, from 85.35 to 85.53, still
+19th. The heaviest week came down inside every range, so no other score moved.
+
+**Into the pack:**
+- **The grid and its sheet.** `results/balanced-v9.json`, and its meta file's seed and lineage. In `regenerate.mjs` the
+  fingerprint is `8c679ae2` → `e2b7d945`. The sheet, grid and Import text are re-rendered in `30-days-off/balanced/`;
+  the old sheet stays in the history.
+- **The summary and the other designs' sheet.** The summary carries V9's heaviest week. The other designs' sheet carries
+  its fingerprint, and it also takes up a fix: it had been committed one render behind its own code. Its Balanced
+  heading's note read "its subfolder Balanced" where the code says "the folder 4 Proposal sheets/30 days off/Balanced",
+  as the other two groups say it. Still one page.
+- **Unchanged:** the shortlist sheet, which rebuilt the same pixel for pixel, the read-me and V8.
+- **The records.** `30-days-off/README.md`: V9's column and paragraph. `exact-rota.py`'s header: step 10, V9 as now.
+
+**Checked:**
+- `FIX=` passes both grids with their own floors.
+- `regenerate.mjs --check`: 24 proposals.
+- `check.mjs`, `deck-check.mjs`, `leave.mjs --check`, `newlink-data.mjs --check`.
+- `pack.py`: 71 files.
 
 ## Notes for the whole set
 

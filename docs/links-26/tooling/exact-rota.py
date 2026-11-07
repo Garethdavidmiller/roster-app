@@ -73,10 +73,15 @@ step before's output; F is the floors every step holds unless it says otherwise:
   6. F LV_WORST=20 ONE_MIN=18 OBJ=step                                                                         600 s
   7. F LV_WORST=20 OBJ=both: Balanced V8 (results/balanced-v8.json)                                            600 s
   8. F LV_WORST=20 MIXED=3 BF=3 BW=5 BLOCK=20 OBJ=one, from V8                                                  600 s
-  9. the same, ONE_MIN=19 OBJ=step: Balanced V9 (results/balanced-v9.json; ONE_MIN's 19 is the sheets' 18)      600 s
+  9. the same, ONE_MIN=19 OBJ=step: Balanced V9 as first drawn (8c679ae2; ONE_MIN's 19 is the sheets' 18)        600 s
+ 10. H55=3300 LV_BEST=30 LV_FOUR=13 LV_WORST=20 ISO=6 HEAVY=2575 REST=860 REST_TO=875 MIXED=3 BF=3 BW=4 BLOCK=20
+     ONE_MIN=19 OBJ=league WORKERS=2, from step 9: Balanced V9 (results/balanced-v9.json, e2b7d945), its weeks 13 and 15
+     swapping their Saturday lates                                                                        1,200 s
 Step 6's worst stretch of 20 with the 55-hour rule held is the one README.md said no search had found ("The worst leave
-stretch is 19, not 20"). FIX= checks both grids, V8 with step 7's floors and V9 with step 9's: feasible. README.md ->
-"Balanced V8 and Balanced V9"."""
+stretch is 19, not 20"). FIX= checks both grids, V8 with step 7's floors and V9 with step 10's: feasible. README.md ->
+"Balanced V8 and Balanced V9", and "Balanced V8 and V9 searched again" for every run since step 9 (OBJ=league and
+OBJ=iso were added for them), all from V8 or V9 with these floors: none found more for V8, and none more for V9 than
+step 10."""
 import sys, json, os
 from ortools.sat.python import cp_model
 TABLE, OUT = sys.argv[1], sys.argv[2]; LIMIT = float(sys.argv[3]) if len(sys.argv) > 3 else 600

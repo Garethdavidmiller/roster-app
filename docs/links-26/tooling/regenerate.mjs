@@ -159,7 +159,7 @@ export const SUPPLIED = [
     // weeks of 21 on one shift time; Balanced V9 keeps V7's short runs of early or late weeks, with two mixed weeks (README.md →
     // "Balanced V8 and Balanced V9"). Both buy 30 days off for 14 days' leave, so both ship into 30-days-off/
     { file: 'results/balanced-v8.json',        name: 'Balanced V8',          code: 'MB-26-V8',  fp: '9ac65459', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, 19 of 21 weeks on one shift time, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
-    { file: 'results/balanced-v9.json',        name: 'Balanced V9',          code: 'MB-26-V9',  fp: '8c679ae2', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never more than three early or three late weeks in a row outside the cover weeks, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'results/balanced-v9.json',        name: 'Balanced V9',          code: 'MB-26-V9',  fp: 'e2b7d945', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never more than three early or three late weeks in a row outside the cover weeks, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
