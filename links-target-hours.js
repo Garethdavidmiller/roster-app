@@ -158,6 +158,11 @@ export function targetHoursLines(a) {
  * which. Returns null when there is nothing worth saying, so the caller hides the row rather than
  * rendering an empty one.
  *
+ * It points at "+ Save as new…" for a table that has to LAST (iPhone audit, Nov 2026). It used to end
+ * "anything you change here is kept", and that table is only this browser's localStorage, which iOS
+ * can clear from a site left unopened for a while; a saved staffing setup is in Firestore, for every
+ * designer. The promise the setups exist for is that one, so the note names the control that keeps it.
+ *
  * @param {{ fromMemory: boolean, differsFromDefault: boolean, setName?: string }} state
  * @returns {string|null}
  */
@@ -166,5 +171,5 @@ export function targetProvenanceNote({ fromMemory, differsFromDefault, setName =
     return (setName
         ? `These hours came from the saved set “${setName}”, not the Dec 2026 staffing. `
         : 'These hours are from the table your device remembers, not the Dec 2026 staffing. ')
-        + 'Press “Use the Dec 2026 staffing” to load it; anything you change here is kept.';
+        + 'Press “Use the Dec 2026 staffing” to load it. To keep a staffing setup for good, use “+ Save as new…”.';
 }

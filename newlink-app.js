@@ -29,7 +29,7 @@ import { CONFIG, formatISO } from './roster-data.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, onReturnToPage } from './page-session.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
@@ -103,6 +103,9 @@ function start(member) {
     renderStatic(member);
     wireChoices(cards);
     markPageReady();
+    // The status speaks of TODAY — which dates have come — and an installed app is not reloaded when it is reopened:
+    // iOS keeps it resident for days (iPhone audit, Nov 2026). So it is drawn again whenever the page comes back.
+    onReturnToPage(0, drawStatus);
 
     sessionReady.then(() => {
         initErrorReporter();
@@ -130,7 +133,7 @@ function previewOthers(member) {
  * @param {string} member  who is reading: the banner names everyone else who can see the preview
  */
 function renderStatic(member) {
-    setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES, starts: STARTS, timetable: TIMETABLE_STARTS, today: formatISO(new Date()) }));
+    drawStatus();
     const banner = el('nlPreview');
     if (banner) {
         banner.hidden = PHASE !== 'preview';
@@ -142,6 +145,21 @@ function renderStatic(member) {
     setHTML('nlSayList', renderList(HAVE_YOUR_SAY));
     setHTML('nlPackList', renderPack(PACK, PACK_BASE));
     setHTML('nlHowList', renderList(NOTES));
+}
+
+/** The day the status card was last drawn for. @type {string} */
+let statusDay = '';
+
+/**
+ * The status card, for today. Drawn again only when the day has moved, so a return on the same day leaves it — and a
+ * name tile holding focus — exactly as it was. Its taps are delegated to the card itself (`wireChoices`), so a redraw
+ * keeps them.
+ */
+function drawStatus() {
+    const today = formatISO(new Date());
+    if (today === statusDay) return;
+    statusDay = today;
+    setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES, starts: STARTS, timetable: TIMETABLE_STARTS, today }));
 }
 
 /**

@@ -28,6 +28,13 @@
  * `askBeforeLeavingByDrawer(isDirty)` — the same question asked IN the page, before a link in the
  * drawer or the About panel leaves it, because a phone never shows the browser's.
  *
+ * `keepDraftWhenHidden(isDirty, slot)` — for the exits nothing can ask about (iOS discarding a hidden
+ * page, a swipe back): a copy of the unsaved work, kept when the page is hidden and offered on the
+ * next load (unsaved-draft.js). An answered leave or sign-out is a discard, so it keeps nothing.
+ *
+ * `onReturnToPage(afterMs, fn)` — a page that comes back into view after `afterMs` away, which an
+ * installed app does instead of reloading: iOS keeps it resident for days.
+ *
  * `askBeforeSignOut(isDirty)` — the drawer's `beforeSignOut`. It runs BEFORE anything is released,
  * so a Cancel leaves the session, the push record and the work exactly as they were.
  *
@@ -71,7 +78,8 @@ import { resetNavPanel } from './nav-panel.js';
 import { confirmDialog, whenHistorySettled } from './overlay.js';
 import { writesInFlight } from './slow-save.js';
 
-/** Set once a sign-out has been answered, so `warnOnUnload` does not ask a second time. */
+/** Set once a sign-out or a leave has been answered, so `warnOnUnload` does not ask a second time and
+ *  `keepDraftWhenHidden` keeps nothing of the work the member chose to leave. */
 let _leaving = false;
 
 /**
@@ -126,6 +134,49 @@ export function askBeforeLeavingByDrawer(isDirty) {
                 try { link.click(); } finally { passing = false; }
             });
     }, true);
+}
+
+/**
+ * Keep a copy of unsaved work whenever the page is HIDDEN, for the exits nothing can ask about
+ * (iPhone audit, Nov 2026): iOS discards a page it has put in the background, and a swipe back or
+ * away asks nothing. `visibilitychange` is the event iOS sends before it can discard the page;
+ * `pagehide` is the one a navigation sends. Hidden while dirty keeps the work; hidden while clean
+ * forgets it — and so does a leave or sign-out the member has ANSWERED, because "Leave" and "Sign out
+ * anyway" were both a discard. What a draft is and how it is offered: unsaved-draft.js.
+ * @param {() => boolean} isDirty
+ * @param {{ keep: () => void, forget: () => void }} slot  writes, or deletes, this page's draft
+ */
+export function keepDraftWhenHidden(isDirty, slot) {
+    const onHide = () => {
+        try { if (!_leaving && isDirty()) slot.keep(); else slot.forget(); }
+        catch (err) { console.error('[page-session] the unsaved-work draft could not be kept:', err); }
+    };
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') onHide(); });
+    window.addEventListener('pagehide', onHide);
+}
+
+/**
+ * Run `fn` when the page comes back into view after at least `afterMs` out of it (iPhone audit, Nov
+ * 2026). An installed app is not reloaded when it is reopened — iOS keeps it resident for days — so a
+ * page that read its data once, or stamped "today" when it drew, goes on showing that. The time away
+ * is measured on the wall clock from the moment the page was hidden, because that is the clock that
+ * keeps running while the phone sleeps. A return through the back/forward cache counts too.
+ * @param {number} afterMs
+ * @param {(awayMs: number) => void} fn
+ */
+export function onReturnToPage(afterMs, fn) {
+    /** @type {number|null} */ let hiddenAt = document.visibilityState === 'hidden' ? Date.now() : null;
+    const back = () => {
+        if (hiddenAt === null) return;
+        const away = Date.now() - hiddenAt;
+        hiddenAt = null;
+        if (away >= afterMs) fn(away);
+    };
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') hiddenAt ??= Date.now(); else back();
+    });
+    window.addEventListener('pagehide', () => { hiddenAt ??= Date.now(); });
+    window.addEventListener('pageshow', (e) => { if (/** @type {PageTransitionEvent} */ (e).persisted) back(); });
 }
 
 /**
