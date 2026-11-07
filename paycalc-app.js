@@ -27,6 +27,7 @@ import { getSession, ensureNamedSession, reconcileExpiredIdentity } from './sess
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
+import { paintRoleCard, PAYCALC_SIGN_IN_ABOUT } from './paycalc-role-card.js';
 import { signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import {
   CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum,
@@ -91,11 +92,7 @@ function _showUnsupportedRole(member) {
     // calculator would render in full while this code believed it was gone. See paycalc.css.
     document.body.classList.add('role-unsupported');
     document.getElementById('unsupportedGradeBanner')?.classList.remove('hidden');
-    // A session name the roster no longer holds (a leaver, a rename) is not a ROLE gap — say what it is.
-    if (!member?.role) {
-        const t = document.getElementById('unsupportedGradeTitle'); if (t) t.textContent = "Your name isn't on the current roster";
-        const b = document.querySelector('#unsupportedGradeBanner p'); if (b) b.textContent = "The Pay Calculator needs your roster entry to know your grade and to keep your pay data apart from anyone else's on this device. Ask the admin to check your name.";
-    }
+    paintRoleCard(member);   // the words differ by who is reading — paycalc-role-card.js
     initNavPanel({
         currentPage: 'paycalc',
         memberName:  member?.name || null,
@@ -148,7 +145,7 @@ export function init() {
       // Reload (fresh overlay) rather than re-invoke init() into a soft-lock if saveSession
       // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
       const onSuccess = () => { try { if (!getSession()?.name) { window.location.reload(); return; } init(); } catch { window.location.reload(); } };
-      initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess });
+      initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess, about: PAYCALC_SIGN_IN_ABOUT });
       return;
     }
     // In-place sign-in: remove the still-mounted overlay if we re-entered via onSuccess. No-op on a

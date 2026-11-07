@@ -444,7 +444,11 @@ const CAPS = {
     // 1100 → 1095 in Oct 2026, a LOWER, as asked: the App Speed review retired the revalidation
     // count and its message reply (the count was the worker process's, not one page's), and 13 lines
     // left. The cap follows them down rather than keeping their room for the next addition.
-    'service-worker.js':       1095,
+    // 1095 → 1096 at v25.50, a RAISE of exactly one line: the precache entry for
+    // `paycalc-role-card.js`. Every module the app serves must be in CORE_ASSETS or it is missing
+    // offline, the list is one entry per line, and nothing else in the worker grew — so there is no
+    // logic to extract and no room kept for the next addition.
+    'service-worker.js':       1096,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

@@ -47,6 +47,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const remEl       = /** @type {HTMLElement} */ (document.getElementById('alLbRemaining'));
   const entEl       = /** @type {HTMLElement} */ (document.getElementById('alLbEntitlement'));
   const yearEl      = /** @type {HTMLElement} */ (document.getElementById('alLbYear'));
+  const whoEl       = document.getElementById('alLbWho');
   const breakdownEl = document.getElementById('alLbBreakdown');
   const carryEl     = document.getElementById('alLbCarry');
   const xmasLineEl  = document.getElementById('alLbChristmas');
@@ -142,6 +143,16 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     const member  = getCurrentMember();
     const year    = alYear;
     const yearStr = String(year);
+
+    // WHOSE LEAVE THIS IS (v25.50, owner: "the AL screen doesn't tell me whose AL I'm looking at").
+    // The panel shows the member the Calendar has chosen — a colleague's as readily as the reader's
+    // own, and on the staff PIN nobody's in particular — and four bare figures read as the reader's.
+    // So it names them on every open, from the same `member` the figures below are counted for, and
+    // the dialog's name carries it too: onOpen runs this before the panel is shown or focused, so a
+    // screen reader announces whose balance it is on arrival.
+    const whoName = member?.name ?? '';
+    if (whoEl) { whoEl.textContent = whoName; whoEl.hidden = !whoName; }
+    lb?.setAttribute('aria-label', whoName ? `Annual Leave balance, ${whoName}` : 'Annual Leave balance');
 
     yearEl.textContent = yearStr;
     if (prevYearBtn) prevYearBtn.disabled = year <= CONFIG.MIN_YEAR;

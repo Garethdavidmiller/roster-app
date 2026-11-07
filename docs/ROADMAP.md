@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: November 2026 — v25.40 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.50 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -412,6 +412,9 @@ Add Dispatcher pay rates to `GRADES` in `paycalc-calc.js`, and let `gradeForRole
 return a grade for a Dispatcher — it refuses one today — so Dispatcher staff can use the calculator.
 **Blocked on** confirmed Dispatcher hourly rate, contracted hours and pension contribution. **Do not
 add placeholder rates** — the calculator must be accurate or it misleads staff about their pay.
+Until then a Dispatcher who opens the calculator is told exactly that — not covered yet, and added once
+Dispatcher rates are confirmed (`paycalc-role-card.js`, v25.50) — so the change that adds the rates
+retires that card's Dispatcher wording in the same commit.
 
 ### Plain-English education pass — HPP, back pay, FIP cards and coupons
 **Status:** Committed direction, the first subject shipped · **Owner:** Gareth · **Trigger:** the owner picks the
