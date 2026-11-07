@@ -1,39 +1,33 @@
 # LATENCY.md — sign-in and Calendar start
 
-*Renamed from `LATENCY_PLAN.md` (8 Sep 2026). **CLOSED 19 Sep 2026** — every item in the table below
-is answered and nothing is open; see THE CLOSING READ. Phase 1 shipped, Phase 2 closed on its own rule,
-Phase 3 was priced and declined, Phase 4's trigger never fired. It holds the measurements and the
-decision rules, kept for whoever reopens the question.*
+*Not version-stamped; not a runtime asset. Renamed from `LATENCY_PLAN.md`. It holds the
+measurements and the decision rules, kept for whoever reopens the question.*
 
-
-*Created August 2026 (at v21.30), external review. Not version-stamped; not a runtime asset.*
-
-**This is no longer a programme of engineering.** On 30 Aug 2026 it was two open items and a
-close-out rule (deep review); by 19 Sep 2026 both items were answered, as the table shows. It began as four phases to do in measured order; the measuring is what ended
-that. Phase 1 shipped. Phase 3 was priced at 4.6–52 ms against a wall of over a second and
-**declined**. Phase 4's trigger did not fire. What remains is not work:
+**CLOSED 19 Sep 2026 — nothing open.** It began as four phases to do in measured order, and the
+measuring ended it: Phase 1 shipped; Phase 2 closed on its own decision rule; Phase 3 was priced at
+4.6–52 ms against a wall of over a second and **declined**; Phase 4's trigger never fired. The wall is
+the one `accounts:lookup` round trip every boot makes, and what is left to `Recognised` is recorded as
+the **price of the security model** — a cost that was chosen, not a problem nobody solved. **No
+engineering left in this file plausibly moves the number. Do not go looking for a Phase 5 to make the
+plan feel finished**: twice, measuring first stopped confident work worth five milliseconds. And **a
+shipped change is not a measured one** — this file's whole method has been to refuse that substitution.
 
 | Open item | What it is | Who / when |
 |---|---|---|
-| ~~**The identity round trip**~~ | **ANSWERED 5 Sep 2026 and SHIPPED (v22.97)** — see the section below | Gareth · done |
+| ~~**The identity round trip**~~ | **ANSWERED 5 Sep 2026 and SHIPPED (v22.97)** — see "THE ANSWER" below | Gareth · done |
 | ~~**The Phase 2 reading**~~ | **CLOSED 5 Sep, reconfirmed 12 Sep on 2.8× the sample** — 98.4% of attributed starts are cache-served | done |
-| ~~**Did the fast path work?**~~ | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: 1 open of ~800 eligible. Row one of the pre-registered table, so the identity finding stands and `VAL-AUTH-006` is not reopened. **THE FILE IS CLOSED** — see *THE CLOSING READ* below | done |
+| ~~**Did the fast path work?**~~ | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: 1 open of ~800 eligible. Row one of the pre-registered table, so the identity finding stands and `VAL-AUTH-006` is not reopened — see *THE CLOSING READ* | done |
 
-**The close-out changed shape when the identity question was answered YES** (see below). The path
-this section anticipated — "no, the gate holds", and the plan closes recording the second as the
-price of the security model — is not the one taken. What closes it now is a READING: the next App
-Speed month has to show the `Recognised` → `Shifts shown` gap actually moving for the population the
-fast path serves. **A shipped change is not a measured one**, and this plan's whole method has been
-to refuse that substitution.
+**Three things happened after the close, and none reopens it:**
 
-**The paragraph below is kept because its reasoning still holds for anything that comes after this.**
-There is a likely path where the remaining answers come back small. In that world this plan
-**CLOSES**, recording what is left to `Recognised` as the PRICE OF THE SECURITY MODEL — a cost that was chosen, not a problem nobody
-solved. That is a success ending, not a failure: the alternative is a plan that can only end by
-fading, which is the quiet stop the section at the bottom warns against. Do not go looking for a
-Phase 5 to make the plan feel finished — twice this week, measuring first stopped confident work
-worth five milliseconds, and a review that ended by inventing new work would be undoing its own
-lesson. **No engineering left in this file plausibly moves the number.**
+- **26 Sep 2026** — the fast path was shown unable to beat Auth start-up as well as rare, and the owner
+  RETIRED it (THE CLOSING READ → the correction; `DECISIONS.md` → "The provisional paint").
+- **5 Oct 2026** — the option that could beat it, the member's own stored roster painted before the
+  grant, shipped (`CALENDAR_DATA.md` 17).
+- **25 Oct 2026** — the App Speed card was trimmed and its timings changed (v24.98). The start ladder,
+  the boot stages, the saved-copy/server split, the fast-path row and the connection comparisons left
+  the card, so every App Speed reading in this file was taken on an instrument that no longer exists — see *THE
+  CARD WAS TRIMMED*. One check from it, due at the 1 November read, is not recorded here yet.
 
 ## A SECOND cost, and this plan was structurally blind to it (v22.90)
 
@@ -66,12 +60,10 @@ the only caller: the pages that ask before reloading do so because a member may 
 deferring that question would greet them with a confirm on return.
 
 **What is claimed, and what is not.** The mechanism and the cadence are measured — the reload is
-asserted by `sw-register.test.mjs`, and the release counts come from the git log. The FIELD
-contribution is not: the analytics are admin-only, so nobody has yet counted how many Calendar opens
-were followed by a reload seconds later. **That number would settle how much of the complaint this
-owns, and it is the natural next reading** — two `ready` samples from one device inside a few seconds
-is the signature. Until it exists, treat this as a removed cost of unknown size rather than as the
-explanation.
+asserted by `sw-register.test.mjs`, and the release counts come from the commit log. The FIELD
+contribution was not, when this was written; the instrument below was built to count it, and the
+readings put it at about one open in seven (THE FULL-MONTH READ, item 5 — an undercount, per THE
+CARD WAS TRIMMED).
 
 **It does not touch the identity decision.** The round trip is still the wall on a single load, and
 `ROADMAP.md` still owns that call. What changed is that some members were paying it twice.
@@ -94,8 +86,9 @@ written from the same bucket on the same code path, so the counts divide: the sh
 that followed a release, and what those opens cost against every other open. Rendered on the App
 Speed card as "Opens that followed a release".
 
-**And the caveat that has to travel with it, because it inverts the obvious reading.** Since v22.90
-the Calendar's update reload runs while the page is HIDDEN. So on the Calendar this measures a
+**And the caveat that has to travel with it, because it inverts the obvious reading** (true until
+v24.98, which re-timed `readyUpdate` as the wait from the member coming back — THE CARD WAS TRIMMED).
+Since v22.90 the Calendar's update reload runs while the page is HIDDEN. So on the Calendar this measures a
 BACKGROUNDED load — which is the right question now (did the deferred reload finish before the
 member came back?) and is emphatically *not* the cost of the behaviour v22.90 removed. That cost is
 now unmeasurable in the field, and honestly so: the only way to measure it would be to reinstate it.
@@ -133,7 +126,7 @@ Two things were considered and refused outright:
 | One shared Firebase auth bootstrap | Three `onAuthStateChanged` subscriptions with three bounds became one. The Calendar's worst-case access decision went from **two stacked ceilings (6.5s + 6s) to a single 6.5s budget** |
 | `markPageReady` means a real roster grid | It was timing the withheld "Checking this month…" state — and doing so most often on the SLOWEST loads, so the figure was biased in the flattering direction and unreadable in either |
 | The local cache wins the first paint | A bounded 90ms for phase 1's IndexedDB read, so a returning device stops painting a spinner over data milliseconds away |
-| The start ladder | Four cumulative milestones — Recognised · Unlocked · Shifts shown · Confirmed — rendered as "How far the start gets" |
+| The start ladder | Four cumulative milestones — Recognised · Unlocked · Shifts shown · Confirmed — rendered as "How far the start gets" (removed from the card 25 Oct 2026) |
 
 **The ladder is the deliverable that matters here**, because it is what makes the rest of this plan
 decidable rather than arguable.
@@ -141,6 +134,9 @@ decidable rather than arguable.
 ---
 
 ## The decision rule — read this before starting phase 2 or 3
+
+*The ladder this rule reads left the card on 25 Oct 2026; a reopened question would rebuild it first
+(THE CARD WAS TRIMMED).*
 
 The four milestones nest, so the biggest gap between adjacent rows names the phase to do next.
 Compare rows; do not do arithmetic.
@@ -350,7 +346,7 @@ closed. Nothing has moved; the rule fires the same way and for the same reason.
 
 ### 4. The service worker is NOT what staff are waiting for
 
-**Since the Oct 2026 production review the worker no longer re-fetches a file it already holds** (that background rewrite could store the wrong release — see service-worker.js), so from that release `swrCount` counts cache MISSES, and the figures below describe the behaviour before it.
+**Since the Oct 2026 production review the worker no longer re-fetches a file it already holds** (that background rewrite could store the wrong release — see service-worker.js), so the figures below describe the behaviour before it; `swrCount` itself left with the card trim of 25 Oct 2026.
 
 New this month, and a clean negative. A full sweep (31+ files) was running on **78% of opens (604)**,
 and the card's own rule is that this only matters if those boots are slower: **Worker busy 78% over
@@ -488,7 +484,8 @@ and what would reopen it (the first option, with its shared-device privacy cost 
 | **Retire the provisional machinery** | Delete `decideProvisionalAccess`, the scope plumbing and the cross-member locking; boot waits for the lookup as it did before v22.97 | removes a security-adjacent path that measurably buys ~nothing, and the bugs it has produced (the per-month knowledge leak fixed in the same review) | gives up the ruling's intent for good unless the first option is later built; a member with a disabled account stops seeing their cached roster for the validation window (a small privacy gain, not a cost) |
 
 Recommendation from the review: **retire it** unless the owner wants the first option built — the
-current machinery carries the risk of both and the benefit of neither. **Taken, 26 Sep 2026.**
+current machinery carries the risk of both and the benefit of neither. **Taken, 26 Sep 2026** — and
+the first option was then built as well, on 5 Oct 2026 (`CALENDAR_DATA.md` 17, `calendar-snapshot.js`).
 
 ## THE SEPTEMBER MONTH-END READ — 3 October 2026. Nothing reopens; one thing to watch
 
@@ -512,7 +509,7 @@ file stays closed.**
 note said a returning member "is now shown their saved roster before the Calendar finishes checking who
 they are", and the fast-path block explained how to judge a feature that no longer existed. Both now say
 what is true since v24.29: shifts wait for the sign-in check, and the fast-path row is historic and will
-empty out. When a month reads empty there, delete the block and `summariseProvisionalOpens`.
+empty out. The block and its summary function went with the card trim of 25 Oct 2026.
 
 ### One thing to watch: the newest versions read slower — probably the release pace, not a regression
 
@@ -581,8 +578,9 @@ The section above asked the October read to compare long-lived versions against 
 whole load — the card's label said so for the connection split only — and the fresh download after
 every update slows code loading directly, which is the release-pace explanation in its plainest form.
 
-The card's version split now runs on **Usable**, so the check changes shape. In the 1 November read
-("Last month" = October), on **A closer look → By app version — Usable**:
+The card's version split now runs on **Usable**, so the check changes shape. It was due at the
+1 November read ("Last month" = October), on **A closer look → By app version — Usable**, and **its
+result is not recorded here yet**:
 
 - Versions before v24.98 were timed the older way, which counted the hidden release reload (67% over
   1s in September). A short-lived version carries more of those, so it reads slower for that reason
@@ -607,8 +605,9 @@ thin server arm — and that is not what is being read. The server arm is thin *
 is in it*, and the quantity the rule keys on is its SHARE of the whole, over 462 attributed opens.
 A month more data would have to change that share by a factor of twenty to flip the decision.
 
-**It reopens if that share moves.** The reading is on the card permanently; if the cache-miss
-population grows — a storage-eviction change, a large intake of new devices — this comes back.
+**It reopens if that share moves** — a storage-eviction change, a large intake of new devices. The
+reading is no longer on the card (it left on 25 Oct 2026), so reopening means rebuilding it first:
+THE CARD WAS TRIMMED, and DECISIONS.md for the trigger.
 
 **The other half of the same reading:** 78% of those cache-served starts still take over a second to
 put shifts on screen. The roster is already on the phone. It is waiting for permission to be shown,
@@ -648,9 +647,10 @@ says has never once finished inside a second. So Phase 2's entire value is the s
 cache-miss population, and nothing measured it: the ladder carried connection, install mode and
 version, but not what served the grid.
 
-It does now. `markPageReady` takes a source, derived from the display state the Calendar already
-computes (`render` means the read landed, `stale` means the cache did), and the App Speed card
-renders **"What put the shifts on screen"** directly beneath the ladder rung it splits.
+It did from v21.99 to v24.98. `markPageReady` took a source, derived from the display state the
+Calendar already computes (`render` means the read landed, `stale` means the cache did), and the App
+Speed card rendered **"What put the shifts on screen"** directly beneath the ladder rung it split.
+Both went with the card trim of 25 Oct 2026.
 
 **The reading rule:**
 
@@ -743,8 +743,9 @@ narrowed: Team View, and a stored selection naming a colleague. Both would have 
 base roster with their leave and absence silently missing — invariant 1's failure arriving from a
 direction the readiness model cannot see. Those members boot exactly as before.
 
-**What it is worth is NOT YET MEASURED, and must not be assumed.** The prediction is specific and
-therefore falsifiable: `Recognised` should stop gating `Shifts shown` for cache-served starts, so the
+**What it was worth was measured on 19 Sep 2026: almost nothing, because it rarely fired** (THE
+CLOSING READ). The prediction, as registered before the reading, was specific and therefore
+falsifiable: `Recognised` should stop gating `Shifts shown` for cache-served starts, so the
 78%-over-a-second figure for those starts should fall while `Getting ready` is unchanged. Read it in
 Operations → App Speed at the end of the first full month. **If it does not move, the diagnosis was
 wrong and this is the evidence** — the fast path removes the wait from the critical path by
@@ -759,8 +760,9 @@ so an account disabled since the last load would be trusted for the length of on
 question belongs to `CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, and it should be answered before
 anything is built. **It WAS written up as a decision with the cost priced and three defensible
 answers, and it was answered on 5 Sep 2026** — option 2, shipped v22.97; see "THE ANSWER" above. The
-write-up is preserved in `ROADMAP_HISTORY.md`, and both contracts now carry the rule rather than the
-question (`CALENDAR_DATA.md` 13, `AUTH_AND_SESSIONS.md` 17).
+write-up is preserved in `ROADMAP_HISTORY.md`, and both contracts carry the outcome rather than the
+question: `CALENDAR_DATA.md` 13 (retired 26 Sep 2026) and 17 (its replacement), and
+`AUTH_AND_SESSIONS.md` 17.
 
 What can be said without that decision: the app already knows how to do this shape safely for DATA
 — the Calendar's two-phase load paints from the local cache and then reconciles authoritatively
@@ -796,8 +798,8 @@ rung the wall lives in could not be split at all.
 
 Nothing new is measured. `mode` and `conn` have been written onto every ladder sample since v21.30,
 so this is a **read of data already collected** — the check can be made against August and September
-rather than starting a fresh month's wait. The card now carries **"Does the connection slow the
-start?"**: *Recognised* by connection and *Getting ready* by connection, one under the other, on the
+rather than starting a fresh month's wait. The card carried **"Does the connection slow the
+start?"** (until 25 Oct 2026): *Recognised* by connection and *Getting ready* by connection, one under the other, on the
 same bands, with the reading rule stated between them. It renders both groups or neither — one alone
 is a column of percentages with nothing to read it against.
 
@@ -838,9 +840,10 @@ and the identity decision is a security trade that a median does not move. A bef
 identity change compares like with like on the same statistic. A percentile would be interesting and
 would change nothing.
 
-**Cold/warm start classification — NO, mostly present and it thins every row.** `swBoot` already
-measures the service worker waking, `mode` splits installed from browser, and "What put the shifts on
-screen" is the cache/server split for the data. A further dimension multiplies the key space, and the
+**Cold/warm start classification — NO, it was mostly present and it thins every row.** `swBoot`
+measured the service worker waking, `mode` splits installed from browser, and "What put the shifts on
+screen" was the cache/server split for the data (`swBoot` and that split were both retired on
+25 Oct 2026; `mode` is still on every sample). A further dimension multiplies the key space, and the
 by-version rows are already at 24–46 opens against a `THIN_SAMPLE` of 20.
 
 ---
@@ -856,17 +859,14 @@ the fetch/parse phase after phases 2 and 3 have landed.
 
 ---
 
-## What would make this file wrong — and how it CLOSES
+## How it closed
 
-This section predates the readings and asked a question they have now half-answered: the rows did
-not come back uniformly quick, but the slow one led to a decision rather than a build. So the live
-version of the question is the close-out in the header, restated here so the two ends of the file
-agree: **the plan closes when the identity decision is taken AND the Phase 2 reading is acted on**,
-whichever way both go. If both answers are "no build", close it as a success — the second to
-`Recognised` becomes the recorded price of the security model, the `Recognised` row is re-labelled a
-floor, and this file stops being a plan and becomes the record of why. A plan that was measured and
-settled is more useful to the next reader than one that quietly stopped — and also more useful than
-one kept alive by inventing a Phase 5.
+The close-out rule, written before the readings: **the plan closes when the identity decision is
+taken AND the Phase 2 reading is acted on**, whichever way both go — and if both answers are "no
+build", it closes as a success, with the second to `Recognised` recorded as the price of the security
+model. Both happened by 19 Sep 2026, and that is how it closed. A plan that was measured and settled
+is more useful to the next reader than one that quietly stopped — and also more useful than one kept
+alive by inventing a Phase 5.
 
 ## Links workspace — measured 24 Aug 2026
 
@@ -943,9 +943,9 @@ Two results, and the second is why v21.76 is three tags and not forty-four:
 **Also checked and already right:** every page preloads `inter-latin.woff2` with `font-display:
 swap`, and every page preconnects to gstatic, Firestore, identitytoolkit and securetoken.
 
-**Noted, not acted on:** `firebase-client.js` statically imports `summarisePerf` from
-`perf-stats.js`, so all seven pages carry that module (~32 KB raw) for read-side code only the
-Operations App Speed card runs. Splitting the write side out would save ~24 KB on six pages — real,
+**Noted, not acted on:** `firebase-client.js` pulls in `perf-stats.js` (through
+`analytics-client.js` since v24.64), so every page carries that module (~32 KB raw at the time) for
+read-side code only the Operations App Speed card runs. Splitting the write side out would save ~24 KB on six pages — real,
 but SW-cached after the first visit, and small beside the 1.7 s above.
 
 **Same caveat as the links section:** Playwright blocks the service worker, so these are first-visit

@@ -625,8 +625,9 @@ that should never be guessed at in front of a member.
 **Neither system can hold it today:**
 
 - The workbook's **AL allowance** column is a flat 32 for every CEA row measured.
-- The app's `getALEntitlement` returns a flat 32 for a CEA, with `proRatedAL[year]` the only
-  adjustment it accepts, and that is for a joining year rather than an award.
+- The app's `getALEntitlement` returns a flat 32 for a CEA (34 on a bilingual contract), with
+  `proRatedAL[year]` the only adjustment it accepts, and that is for a joining year rather than an
+  award; `entitlementFor` adds only the Boxing Day lieu day on top, which is earned, not awarded.
 
 **It is the same SHAPE as carry-forward** (the row above), and the two should be thought about
 together when this is picked up: both are real, owner-known adjustments to an individual's
@@ -700,8 +701,9 @@ difference as an error.
 
 1. Read `New Marylebone Totals` rows; flag duplicate names before anything else.
 2. Map names to the app roster (§7); report anybody unmatched in either direction.
-3. For each person: workbook allowance vs `getALEntitlement`/`proRatedAL` — allowance disagreements
-   are the ones worth chasing, because they are wrong all year.
+3. For each person: workbook allowance vs the app's allowance — `entitlementFor`, which is
+   `getALEntitlement`/`proRatedAL` plus any Boxing Day lieu day (§9, and §10 question 13) — allowance
+   disagreements are the ones worth chasing, because they are wrong all year.
 4. For each person: workbook grid days + column E vs the app's recorded AL days.
 5. Report the **dates** that differ, never a count. A count cannot be acted on; a date can.
 

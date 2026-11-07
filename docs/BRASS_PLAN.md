@@ -118,11 +118,11 @@ every period's result and breakdown line simply agrees with the payslip.**
   would be fifty-two chances to mistype a number that changes once a year, and a new row of UI
   noise for the majority who pay nothing. The pension field is per-period because its DEFAULT
   moves per era (PENSION_STEPS), which does not apply to BRASS. Opting out is not per-period
-  either: since v21.78 it is a member-level dated timeline (`SK.pensionTimeline`,
-  `paycalc-pension.js`) — the shape a changing standing instruction wants.
+  either: it is a member-level dated timeline (`SK.pensionTimeline`, `paycalc-pension.js`) — the
+  shape a changing standing instruction wants.
 - **Not folded into the existing pension field.** That field carries two load-bearing semantics a
   combined figure would destroy: typed-0 means "salary-sacrifice opt-out", and
-  saved-value-equal-to-default self-heals to null (v18.43) so era changes propagate. A member
+  saved-value-equal-to-default self-heals to null so era changes propagate. A member
   entering pension+BRASS combined would fight the self-heal on every era step and lose the
   opt-out signal. The four historic money defects in paycalc-form-data.js's header all came from
   overloading that field's meaning — this would be a fifth.
@@ -158,8 +158,7 @@ April 2029 £2,000 NI cap will revisit it. Do not scatter the assumption.
    periods re-priced at the new figure. Accepted for phase 1 (changes are annual-window rare) and
    stated in the help copy; **the upgrade trigger is a member reporting a wrong historic period
    after a window change** — then, and only then, give `SK.brass` the pension opt-out's
-   dated-timeline shape (changes keyed by the payslip they start from, as `SK.pensionTimeline`,
-   v21.78).
+   dated-timeline shape (changes keyed by the payslip they start from, as `SK.pensionTimeline`).
 4. **Everything else unchanged**: HPP (BRASS is not variable pay), back-pay (arrears are gross;
    BRASS doesn't touch them), roster pre-fill, sticky total (net already reflects it).
 
@@ -178,7 +177,7 @@ April 2029 £2,000 NI cap will revisit it. Do not scatter the assumption.
 | Tests | `paycalc.test.mjs` (both wirings' arithmetic, the chosen one against the Q1 payslip's real figures); `paycalc-breakdown.test.mjs` (row present iff brass > 0); key-parity + help-shape guards pick the rest up |
 | Docs | `.claude/rules/paycalc.md` one row; a `VALIDATION_REGISTER.md` entry **only if** shipped before Q1 is fully settled (it should not be) |
 
-No new modules, so no CLAUDE.md/AI_MAP module obligations; ~1 version bump; no Firestore, rules,
+No new modules, so no FILE_INDEX/AI_MAP module obligations; ~1 version bump; no Firestore, rules,
 SW or notification surface at all — this is the rare feature that is purely local maths.
 
 ### Out of scope, recorded so nobody wonders

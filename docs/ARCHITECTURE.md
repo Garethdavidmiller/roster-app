@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — the index
 
-*Created August 2026 (at v21.38), external review. Not version-stamped; not a runtime asset.*
+*Not version-stamped; not a runtime asset.*
 
 **Read this first, and read nothing else until you know which document you need.** This file holds no
 design and no history. It answers three questions and stops:
@@ -26,19 +26,19 @@ changed once.
 | **Arriving from outside** | `README.md` | What the app is, and which checks run with nothing installed — the front door, not a summary of this table |
 | **Repository conventions** | `CLAUDE.md` | Version bumping, architecture decisions, wording conventions, change impact |
 | **Module routing** | `AI_MAP.md` | What every module is and what it exports |
-| **File routing** | `FILE_INDEX.md` | What every FILE is, one line each — the catalogue, moved out of `CLAUDE.md` on 11 Sep 2026 because a lookup table for every file was 64% of a document loaded into every session |
+| **File routing** | `FILE_INDEX.md` | What every FILE is, one line each — the catalogue `CLAUDE.md` points to rather than carries |
 | **Authentication & sessions** | `AUTH_AND_SESSIONS.md` | Session ↔ identity ↔ claim, and the invariants across them |
 | **Credential lifecycle** | `CREDENTIAL_LIFECYCLE.md` | How a credential is issued, recovered and retired — and the ORDER those changes go in. Holds the one open decision about what retiring the surname should MEAN |
 | **Calendar truth** | `CALENDAR_DATA.md` | What may be shown, and when — knowledge states, the access gate |
 | **Overtime availability** | `OVERTIME_AVAILABILITY.md` | Participants, deadlines, revisions, retention, audience |
 | **Pay calculator** | `.claude/rules/paycalc.md` | Rates, payroll rules, state, layout |
 | **Links designer** | `.claude/rules/links-design.md` | Grid, generator, coverage, fatigue, concurrency |
-| **Guide pages** | `.claude/rules/guide-pages.md` | The five guides' shell, design principles, factual standards |
+| **Guide pages** | `.claude/rules/guide-pages.md` | The guides' shell, design principles, factual standards |
 | **Firestore collections** | `docs/DATA_MODEL.md` | What every collection holds and what its fields mean. Access is summarised there and OWNED by `firestore.rules` |
 | **CSS tokens & surfaces** | `.claude/rules/css-tokens.md` | Colour, type, spacing, focus, overlays |
 | **Notifications** | `.claude/rules/notifications.md` | Push payload grammar and the single builder |
 | **Roster data shape** | `.claude/rules/roster-data.md` | Member fields, cycles, entitlement |
-| **Roster PDF import** | `.claude/rules/roster-import.md` | The parse, the review states, and every defence against a week written onto the wrong days — the day-drift layers and why they are not three witnesses, the geometry gate, what a blank cell means. Split out of `CLAUDE.md` 15 Sep 2026 |
+| **Roster PDF import** | `.claude/rules/roster-import.md` | The parse, the review states, and every defence against a week written onto the wrong days — the day-drift layers and why they are not three witnesses, the geometry gate, what a blank cell means |
 | **Operations & ingest** | `OPERATIONS_REFERENCE.md` | Huddle ingest, roster upload, account conventions, PIN rotation |
 | **Disaster recovery** | `RECOVERY_RUNBOOK.md` | Backups, rollback, incident playbooks, standing GCP prerequisites |
 | **The depot AL workbook** | `AL_WORKBOOK.md` | The roster clerks' annual-leave quota spreadsheet — what its sheets are, how a person's figure is built, and where it and the app legitimately disagree. Not an app subject: an EXTERNAL source the owner reconciles against |
@@ -74,7 +74,7 @@ live anchors:
 | `AUTH_ARCHITECTURE.md` | Track 1 complete | Code comments cite it by phase number |
 | `OTHER_DAYS.md` | Shipped | Code comments cite "OTHER_DAYS.md decision N" |
 | `LOGIN_INCIDENT.md` | Resolved | `PASSWORD_DESIGN.md` and `AUTH_AND_SESSIONS.md` send you here before touching login |
-| `LATENCY.md` | **CLOSED 19 Sep 2026 — nothing open.** The identity question was answered by the fast path (v22.97), which the closing read found rarely fires and which stays by owner decision; Phase 2 closed on its own rule; Phase 3 measured and declined; Phase 4's trigger unfired | Holds the readings, the decision rules, and THE CLOSING READ of 19 Sep 2026 |
+| `LATENCY.md` | **CLOSED 19 Sep 2026 — nothing open.** The wall is the `accounts:lookup` round trip. The fast path built against it rarely fired, and was retired on 26 Sep 2026 and replaced by the own-roster copy (`CALENDAR_DATA.md` 17); Phase 2 closed on its own rule; Phase 3 measured and declined; Phase 4's trigger unfired. The App Speed card that carried its instruments was trimmed on 25 Oct 2026 | Holds the readings, the decision rules, and THE CLOSING READ of 19 Sep 2026 |
 | `LINKS_DEC2026_PLAN.md` | Live | Holds the Dec 2026 project context |
 | `BRASS_PLAN.md` | **Gated on owner answers** | The Part 2 payslip questions decide the design; nothing ships before them |
 | `ROADMAP_HISTORY.md` | Historical | **The archive.** Everything `ROADMAP.md` used to say about the past |
@@ -126,22 +126,17 @@ closure is not an exception, it is the design, and belongs in a contract instead
 converged.** That is the only thing it is for.
 
 **A closed row is DELETED, not struck through** — and its ID goes with it, since every citation
-elsewhere must resolve to a live row (`doc-parity.test.mjs`). The first exception to close was the
-publicly-readable `overrides` collection, on **26 Aug 2026**; its history lives in git and in
-`RECOVERY_RUNBOOK.md` → "The Calendar PIN". Two more closed on **19 Sep 2026**: the
-Overtime purge now arms itself on a date (`OVERTIME_AVAILABILITY.md` → Retention), and the Links bin
-was accepted as permanent — the second half of that row's own closure condition, and the half
-nobody expected to take. Their IDs went with them, which is why neither is named here: a citation
-that resolves to nothing is the failure this register is shaped to avoid. A table that keeps its dead rows stops answering the one
-question it exists for, which is what is true right now.
+elsewhere must resolve to a live row (`doc-parity.test.mjs`). A closed row's history is in the commit
+log. A table that keeps its dead rows stops answering the one question it exists for, which is what
+is true right now.
 
 | ID | Exception | Where | Closes when |
 |---|---|---|---|
-| **EXC-003** | **Overtime is paused** (owner, Nov 2026). Built, proven and switched off: no pill for anyone, the admin included; the page says it is paused; only the retention purge is deployed, so no week is made and nobody is asked. It returns as the restricted beta it was — reviewing for admin/manager, participating for the admin plus `CONFIG.OVERTIME_BETA` (empty since 7 Oct 2026). | `CONFIG.OVERTIME_ENABLED` · `functions/roster-members.json` (`overtimeEnabled`) · `functions/index.js` | The owner switches it back on (`OVERTIME_AVAILABILITY.md` → Paused) — then the beta's own closure, full launch, applies |
+| **EXC-003** | **Overtime is paused** (owner, Nov 2026). Built, proven and switched off: no pill for anyone, the admin included; the page says it is paused; only the retention purge is deployed, so no week is made and nobody is asked. It returns as the restricted beta it was — reviewing for admin/manager, participating for the admin plus `CONFIG.OVERTIME_BETA` (currently empty). | `CONFIG.OVERTIME_ENABLED` · `functions/roster-members.json` (`overtimeEnabled`) · `functions/index.js` | The owner switches it back on (`OVERTIME_AVAILABILITY.md` → Paused) — then the beta's own closure, full launch, applies |
 | **EXC-005** | **The surname default is still a valid password.** Members who have set their own have a real secret; everyone else can still sign in with their surname, and an admin reset returns an account to it. | `auth-identity.js` (`credentialCandidatesFor`) | Track C5 — gated on ≥90% migrated **and** on Track E. Irreversible |
-| **EXC-007** | **Document bearer URLs already in circulation stay live.** Since v23.17 the Huddle, Circular and Newsletter are behind the PIN or a password in the app, and their Firestore reads were closed at v23.18; but each file is fetched by a permanent tokenised Storage URL that bypasses rules, so anyone who obtained one before (browser history, a forwarded link, Microsoft's Office viewer cache) can still open that file. New readers cannot discover a URL; old holders keep theirs. | `storage.rules` header · AUTH_PLAN.md §5 (E6) | **The existing objects are rotated** (the client has called `getDocumentUrl` since v24.19). The Office viewer STAYS — the owner refused both routes that would have removed it (AUTH_PLAN §5, DECIDED 19 Sep 2026), so the closure condition is no longer "replace the delivery for `.docx`"; it is that the URL handed to that viewer becomes short-lived. The SERVER half is built and deployed (v24.16–18) and the CLIENT half shipped at v24.19 — the nav drawer, `calendar-doc-viewer.js` and `calendar-huddle-viewer.js` all fetch the short-lived URL, falling back to the stored one only if the server refuses. **Two things keep this row open.** Rotation — the only step that reaches an object already orphaned by a partial prune — has not been taken; and the stored permanent link stays as the FALLBACK when a short-lived one cannot be fetched (owner, 7 Oct 2026 — DECISIONS.md), so a reader offline or meeting a 503 is still handed a link that does not expire |
+| **EXC-007** | **Document bearer URLs already in circulation stay live.** The Huddle, Circular and Newsletter are behind the PIN or a password in the app, and their Firestore reads are closed; but each file is stored with a permanent tokenised Storage URL that bypasses rules, so anyone who obtained one before (browser history, a forwarded link, Microsoft's Office viewer cache) can still open that file. New readers cannot discover a URL; old holders keep theirs. | `storage.rules` header · AUTH_PLAN.md §5 (E6) | **The existing objects are rotated.** The Office viewer STAYS — the owner refused both routes that would have removed it (AUTH_PLAN §5, DECIDED 19 Sep 2026), so the closure condition is that the URL handed to that viewer is short-lived, not that `.docx` delivery is replaced. The short-lived URL is built on both sides: `getDocumentUrl`, which the nav drawer, `calendar-doc-viewer.js` and `calendar-huddle-viewer.js` all call, falling back to the stored URL only if the server refuses. **Two things keep this row open.** Rotation — the only step that reaches an object already orphaned by a partial prune — has not been taken; and the stored permanent link stays as the FALLBACK when a short-lived one cannot be fetched (owner, 7 Oct 2026 — DECISIONS.md), so a reader offline or meeting a 503 is still handed a link that does not expire |
 | **EXC-006** | **Two origins serve the app.** `myb-roster.web.app` is canonical and is the notification target; the GitHub Pages mirror is still where the MAJORITY of staff open it (owner, Sep 2026 — a gradual changeover, not a rump). It serves **no redirects and no HTTP headers**, so anything relying on either reaches the smaller half: the `<meta>` CSP and the `guide.html`/`fip.html` redirect stubs both exist for that reason. The per-address counters measure the changeover. | `firebase.json` · Pages settings | The mirror is retired — watch `analytics/origins` |
-| **EXC-008** | **The Pages mirror is published without a test.** GitHub builds it straight from `main`, so a release the Firebase Hosting gate refuses still reaches the origin most staff open — v24.94 did exactly that for about three hours on 24 Oct 2026. `main` also requires no checks before a merge. `deploy-mirror.yml` (whole-app review, Oct 2026) publishes the mirror only from a commit a passing Hosting run released, and stands down until Pages is switched to it. | GitHub → Settings → Pages · Settings → Rules · `deploy-mirror.yml` | The owner sets **Pages → Source to GitHub Actions** and requires the core CI checks on `main` (OPERATIONS_REFERENCE.md → "The Pages mirror") |
+| **EXC-008** | **The Pages mirror is published without a test.** GitHub builds it straight from `main`, so a release the Firebase Hosting gate refuses still reaches the origin most staff open — it happened for about three hours on 24 Oct 2026. `main` also requires no checks before a merge. `deploy-mirror.yml` publishes the mirror only from a commit a passing Hosting run released, and stands down until Pages is switched to it. | GitHub → Settings → Pages · Settings → Rules · `deploy-mirror.yml` | The owner sets **Pages → Source to GitHub Actions** and requires the core CI checks on `main` (OPERATIONS_REFERENCE.md → "The Pages mirror") |
 
 ---
 
