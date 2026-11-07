@@ -547,11 +547,11 @@ describe('unsaved-draft.js', () => {
     });
 
     test('what Admin says after a restore names the days it left as saved', () => {
-        assert.equal(ud.weekRestoredLine(2, []), 'Your unsaved changes are back — check them, then tap Save changes.');
+        assert.equal(ud.weekRestoredLine(2, []), 'Your unsaved changes are back — check them, then select Save changes.');
         assert.equal(ud.weekRestoredLine(1, ['8 Dec 2026']),
-            'Your unsaved changes are back — check them, then tap Save changes. 8 Dec 2026 was left as saved, because it has changed since.');
+            'Your unsaved changes are back — check them, then select Save changes. 8 Dec 2026 was left as saved, because it has changed since.');
         assert.equal(ud.weekRestoredLine(1, ['8 Dec 2026', '9 Dec 2026']),
-            'Your unsaved changes are back — check them, then tap Save changes. 8 Dec 2026, 9 Dec 2026 were left as saved, because they have changed since.');
+            'Your unsaved changes are back — check them, then select Save changes. 8 Dec 2026, 9 Dec 2026 were left as saved, because they have changed since.');
         assert.equal(ud.weekRestoredLine(0, ['8 Dec 2026']), 'Your unsaved changes were not put back: 8 Dec 2026 has changed since.');
         assert.equal(ud.weekRestoredLine(0, []), 'There were no unsaved changes to put back.');
     });

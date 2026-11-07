@@ -516,7 +516,7 @@ test('admin: staged rows kept when the page was hidden are offered on the next l
     await expect(page.locator('#weekNavLabel')).toContainText('Dec 2026');
     await expect(page.locator(`.day-row[data-date="${date}"] .type-pill-btn[data-type="sick"]`)).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#saveBtn'), 'back as UNSAVED work, for the member to check and save').toBeEnabled();
-    await expect(page.locator('#formFeedback')).toContainText('Your unsaved changes are back — check them, then tap Save changes.');
+    await expect(page.locator('#formFeedback')).toContainText('Your unsaved changes are back — check them, then select Save changes.');
     expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'cleared once it is the page\'s work again').toBeNull();
     // And a save clears it for good: the next hide, with nothing unsaved, keeps nothing.
     await page.locator('#saveBtn').click();

@@ -324,7 +324,7 @@ test('calendar: the retry re-reads, and a grid appears when it succeeds', async 
 // A retry that WORKED must not leave the header saying it failed (48-hour review). The initial sync's
 // failure is recorded as a chip state that re-attaches whenever the header is rebuilt; the panel's own
 // Try again re-reads the month without passing through the chip, so the grid came back with
-// "Couldn't update — tap to retry" above it, contradicting the shifts it was showing.
+// "Couldn't update — try again" above it, contradicting the shifts it was showing.
 test('calendar: after the panel retry succeeds, no "couldn\'t update" chip is left behind', async ({ page }) => {
     await seedMember(page);
     await page.addInitScript(() => { (window.__E2E = window.__E2E || {}).failGetDocs = true; });
@@ -341,7 +341,7 @@ test('calendar: after the panel retry succeeds, no "couldn\'t update" chip is le
 
 // ONE MESSAGE AT A TIME (polish round 2). The withheld-grid panel and the header sync chip used to say
 // the same thing together — "Checking this month" beside "Updating your shifts…", "Couldn't check
-// this month" + Try again beside "Couldn't update — tap to retry". The chip now steps back while a
+// this month" + Try again beside "Couldn't update — try again". The chip now steps back while a
 // panel speaks, and ONLY then: over a painted grid it is the only thing saying a sync is running.
 //
 // Each case asserts the chip EXISTS before asserting it is hidden — `toBeHidden` alone also passes

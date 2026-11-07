@@ -156,7 +156,7 @@ export function weekRestoredLine(put, left) {
     const one = left.length === 1, days = left.join(', ');
     if (!put) return left.length ? `Your unsaved changes were not put back: ${days} ${one ? 'has' : 'have'} changed since.`
         : 'There were no unsaved changes to put back.';
-    return 'Your unsaved changes are back — check them, then tap Save changes.' + (left.length
+    return 'Your unsaved changes are back — check them, then select Save changes.' + (left.length
         ? ` ${days} ${one ? 'was' : 'were'} left as saved, because ${one ? 'it has' : 'they have'} changed since.` : '');
 }
 

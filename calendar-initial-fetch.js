@@ -220,7 +220,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   const timeoutTimer = setTimeout(() => {
     if (syncResolved) return;
     setChipState({
-      text: '⚠ Couldn\'t update — tap to retry',
+      text: '⚠ Couldn\'t update — try again',
       className: 'sync-chip sync-chip-error',
       announce: 'Couldn\'t update your shifts. Activate to retry.',
     });
@@ -300,7 +300,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // for the session (the chip is a recovery path only while the calendar header exists).
       _initialMonthKeys.forEach(clearFetchedMonth);
       // Access gone, not network. Hand it to the access layer and take the chip away: leaving a
-      // "tap to retry" beside the unlock card would offer two competing recoveries, only one of
+      // "try again" beside the unlock card would offer two competing recoveries, only one of
       // which can work.
       if (onAccessLost && isAccessFailure(err)) {
         setChipState(null);
@@ -310,7 +310,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       }
       noteKnowledge(_initialMonthKeys, 'error');
       setChipState({
-        text: '⚠ Couldn\'t update — tap to retry',
+        text: '⚠ Couldn\'t update — try again',
         className: 'sync-chip sync-chip-error',
         announce: 'Still couldn\'t update your shifts. Activate to retry.',
       });
@@ -426,7 +426,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // is NO header at all (first run, Team View) the state is still recorded and rendered the
       // moment one appears, instead of the failure being silently dropped.
       setChipState({
-        text: '⚠ Couldn\'t update — tap to retry',
+        text: '⚠ Couldn\'t update — try again',
         className: 'sync-chip sync-chip-error',
         announce: 'Couldn\'t update your shifts. Activate to retry.',
       });

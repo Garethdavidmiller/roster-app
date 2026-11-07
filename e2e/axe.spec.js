@@ -301,7 +301,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // the scan kept passing on its copy. Each state is now reached the way a member reaches it, over a
     // grid painted from the device's cache (the one place the chip is shown at all — index.css hides
     // it while the grid's own panel speaks): a server read that has not answered yet puts up
-    // "Updating your shifts…" at 800ms, and one that fails puts up "Couldn't update — tap to retry".
+    // "Updating your shifts…" at 800ms, and one that fails puts up "Couldn't update — try again".
     // Know what each one measures: the "updating" chip is a DISABLED button, and WCAG exempts an
     // inactive control, so axe skips its colours — that case scans the page around a live sync. The
     // failure chip is the one whose own contrast is checked (mutation-checked: an unreadable chip

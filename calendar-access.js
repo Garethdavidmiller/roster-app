@@ -487,7 +487,7 @@ async function trySilentReauth(name) {
  *
  * Called by the sync chip when a read fails with `permission-denied` — which means the session
  * expired or was revoked, NOT that the network is poor. Those two need different words: an endless
- * "couldn't update, tap to retry" against an expired session is a loop the member cannot win, and
+ * "couldn't update, try again" against an expired session is a loop the member cannot win, and
  * they would reasonably conclude the app is broken.
  */
 export function handleAccessLost() {
