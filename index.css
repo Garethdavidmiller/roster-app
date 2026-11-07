@@ -63,7 +63,6 @@
             display: flex;
             align-items: center;
         }
-        .header-left  { /* kept for HTML compatibility — zero-size flex item */ }
         .header-right { display: flex; justify-content: flex-end; align-items: center; margin-left: auto; }
 
         .header h1 {
@@ -100,6 +99,8 @@
         }
 
         .title-icon:active { transform: scale(var(--press-scale)); }
+        /* A Tab stop (it opens About) on the navy header: the burger's light ring, not the navy fallback. */
+        .title-icon:focus-visible { outline: var(--focus-outline-light); outline-offset: 3px; }
 
         /* @property lets the browser interpolate --today-glow-alpha as a number,
            producing a smooth glow ramp during the pulse. Falls back gracefully
@@ -345,20 +346,6 @@
             flex-shrink: 0;
         }
 
-        /* Visually hidden — removes element from visual layout but keeps it
-           readable by screen readers. More reliable than display:none for assistive tech. */
-        .visually-hidden {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            border: 0;
-        }
-
         .controls select, .controls .fieldpick, .controls button {
             padding: 9px 14px;
             border: 2px solid var(--border-light);
@@ -410,9 +397,10 @@
                 border-color: var(--accent-gold-dark);
             }
 
+            /* Pay's own darker green, as the day panel's; the pale print gold here hid the white label (1.03:1). */
             .controls button.pay-btn:hover {
-                background: var(--today-print);
-                border-color: var(--accent-gold-dark);
+                background: var(--green-hover);
+                border-color: var(--green-hover);
             }
 
             .controls button.al-btn:hover {
@@ -442,6 +430,7 @@
             align-items: center;
             justify-content: center;
         }
+        .today-word { display: none; }   /* from 1024px only: a phone's row has no room for it */
 
         .controls button.pay-btn {
             background: var(--green);
@@ -516,8 +505,9 @@
             min-height: 44px; transition: transform var(--dur-fast) var(--ease-standard);
         }
         .top-prompt-action:active { transform: scale(var(--press-scale)); }
+        /* Light: at its offset the ring is drawn on the navy strip, where navy was invisible. */
         .top-prompt-action:focus-visible {
-            outline: var(--focus-outline);
+            outline: var(--focus-outline-light);
             outline-offset: 2px;
         }
         .top-prompt-dismiss {
@@ -696,9 +686,11 @@
                from a surface offering a drag. */
             .calendar-day:not(.other-month) { cursor: pointer; }
         }
+        /* Navy, outside the cell, against the light card: a gold ring inside it was 1.0:1 on today's
+           gold and 1.3–1.5:1 on the pale days. */
         .calendar-day:focus-visible {
-            outline: var(--focus-outline-gold);
-            outline-offset: -2px;
+            outline: var(--focus-outline);
+            outline-offset: 2px;
             z-index: 3;
         }
 
@@ -792,11 +784,22 @@
             border-width: 3px;
             background: var(--accent-gold);
             box-shadow: 0 3px 10px var(--gold-glow), 0 0 0 1px var(--primary-blue);
-            transform: scale(1.02);
+            --today-scale: 1.02;   /* 1.01 on a desktop — the ≥1024px block */
+            transform: scale(var(--today-scale));
         }
 
         .calendar-day.today .day-number {
             color: var(--primary-blue);
+        }
+
+        /* Today lifts like every other day: the rule above, later at equal specificity, had replaced
+           the hover's lift with its scale. */
+        @media (hover: hover) and (pointer: fine) {
+            .calendar-day.today:hover {
+                transform: translateY(-2px) scale(var(--today-scale));
+                box-shadow: 0 6px 16px var(--gold-glow), 0 0 0 1px var(--primary-blue);
+                z-index: 2;
+            }
         }
 
         .calendar-day.bank-holiday::before {
@@ -996,20 +999,7 @@
                 display: flex;
                 flex-direction: column;
                 overflow-x: hidden;
-                background: linear-gradient(160deg, var(--header-grad-from) 0%, var(--header-grad-to) 100%);
-                /* SIZE THE GRADIENT TO THE SCREEN, NOT TO THE DOCUMENT (v23.95). It goes with the
-                   `min-height` above and is not optional: a body that can grow stretches its own
-                   background over the whole scroll height, so every colour in the ramp slides up
-                   the page and the canvas is a different shade at the same spot depending on how
-                   tall the month is. Measured at 1280×720: the body went 720 → 812px and the About
-                   lightbox's "Up to date" line — green over three TRANSLUCENT layers whose only
-                   opaque backing is this gradient — dropped below the WCAG AA contrast floor. The
-                   axe gate caught it; nothing else would have.
-
-                   `fixed` paints it against the viewport instead, which is what the locked layout
-                   drew before and is stable while scrolling. Desktop-only, so the iOS
-                   `background-attachment: fixed` repaint bugs are out of scope by construction. */
-                background-attachment: fixed;
+                /* No gradient: the flat navy of every other page (a ramp here alone changed colour on a hop). */
                 padding: 16px;
             }
 
@@ -1024,9 +1014,6 @@
             .header, .controls, .calendar-container { margin-bottom: 0; }
             .header, .controls, .legend { flex-shrink: 0; }
 
-            /* Header */
-            .header h1 { font-size: var(--type-xl); }
-
             /* Controls: one compact row */
             .controls {
                 flex-direction: row;
@@ -1036,6 +1023,7 @@
                 justify-content: center;
             }
             .controls-row { width: auto; }
+            .controls button.today-btn .today-word { display: inline; margin-left: 5px; }
 
             /* Select: no longer needs iOS font-size workaround on desktop */
             .controls select, .controls .fieldpick {
@@ -1095,7 +1083,7 @@
             /* Today cell: keep highlight but tone down the scale on desktop
                to avoid overflowing into neighbours; z-index ensures it sits above them */
             .calendar-day.today {
-                transform: scale(1.01);
+                --today-scale: 1.01;
                 z-index: 1;
             }
 
@@ -1104,14 +1092,16 @@
                 margin-bottom: 4px;
             }
 
+            /* Desktop type, not a phone's 10px/11px in a 186px cell. The date number is decided, and
+               untouched (ROADMAP_HISTORY → "Calendar cell type hierarchy"). */
             .shift-badge {
-                font-size: var(--type-micro);
+                font-size: var(--type-badge);
                 padding: 4px 12px;
                 margin-bottom: 5px;
             }
 
             .shift-time {
-                font-size: var(--type-badge);
+                font-size: var(--type-body);
                 line-height: 1.4;
             }
 
@@ -1173,17 +1163,45 @@
             .swipe-hint   { display: none !important; }
         }
 
-        /* ── Short desktop viewports (≥1024px wide but ≤760px tall) ──────────
-           REACHABILITY IS NO LONGER THIS RULE'S JOB — the desktop block above now grows the body
-           and lets the document scroll at any height, so nothing here is load-bearing for getting
-           to the last week. What is left is COMFORT: a shorter row floor so a genuinely short
-           window fits more of the month before it has to scroll at all.
+        /* ON A DESKTOP THE HEADER IS THE SUB-PAGES' HEADER: shared.css's `.app-header` numbers, so a hop
+           does not rearrange it (an e2e compares the two). Only the width differs, by decision. The
+           height is stated: the title is absolutely centred. `screen`: A4 landscape is over 1024px. */
+        @media screen and (min-width: 1024px) {
+            body { padding-top: 20px; }
+            .header { min-height: 72px; }
+            .header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; gap: 14px; }
+            .title-icon { width: 40px; height: 40px; border-radius: var(--radius-sm); }
+        }
 
-           It was `minmax(72px, auto)`. `auto` sizes a row to its content and then STOPS, so on a
-           short-but-not-tiny window the grid left a void below itself rather than filling the card;
-           `1fr` distributes whatever room there is, which is what the desktop rule above does. */
-        @media (min-width: 1024px) and (max-height: 760px) {
-            .calendar-grid { grid-auto-rows: minmax(72px, 1fr); }
+        /* SHORT DESKTOP WINDOWS: THE MONTH ON ONE SCREEN. A row is as tall as its tallest cell's
+           CONTENT, so the row floor that was here never applied. The badge and the time share a line
+           where they fit (from ~1260px wide) and wrap back to the stacked cell where not; the card's
+           spacing tightens; the type and the page chrome do not change. 820px: laptop windows run
+           ~650–790px tall, a 1920×1080 one ~950. Measured: e2e "the whole month fits a laptop window". */
+        @media screen and (min-width: 1024px) and (max-height: 820px) {
+            .calendar-container { padding-top: 10px; padding-bottom: 12px; }
+            .calendar-header { margin-bottom: 8px; padding-bottom: 6px; }
+            .day-header { padding-top: 6px; padding-bottom: 6px; }
+            .calendar-grid { gap: 6px; grid-auto-rows: minmax(48px, 1fr); }
+            .calendar-day {
+                flex-flow: row wrap;
+                justify-content: center;   /* the horizontal axis now */
+                align-content: flex-start;
+                column-gap: 4px;
+                row-gap: 2px;
+                padding: 4px 3px;
+            }
+            .day-number { flex: 0 0 100%; margin-bottom: 0; }
+            /* Tighter sides buy the shared line: with the desktop padding it had 0.5px to spare at 1366px. */
+            .shift-badge { min-width: 0; margin-bottom: 0; padding: 3px 5px; gap: 3px; letter-spacing: 0.3px; }
+            .shift-time { width: auto; line-height: 1.3; letter-spacing: 0; }
+            /* A compact cell's foot is its badge line, so the tree moves up beside the date. */
+            .calendar-day.christmas-day::after {
+                top: 5px !important;
+                bottom: auto !important;
+                transform: translateX(13px) !important;
+                font-size: var(--type-body) !important;
+            }
         }
 
         @media (max-width: 1023px) {
@@ -1408,29 +1426,19 @@
             .legend-color { width: 12px; height: 12px; }
         }
 
-        /* ---- Team view button — navy inactive (a button that does something), the page's colour when
-           active (chosen — shared.css → "CHOSEN = THE PAGE'S COLOUR"; the Calendar's colour is gold) ---- */
+        /* ---- Team view button — navy in BOTH views: an action that names where it goes, never a
+           chosen state (it wore the chosen gold while saying "📅 Month"). ---- */
         .controls button.team-btn {
             background: var(--primary-blue);
             color: white;
             border-color: var(--primary-blue);
             font-weight: 700;
         }
-        .controls button.team-btn.active {
-            background: var(--page-accent);
-            color: var(--page-accent-ink);
-            border-color: var(--page-accent);
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .controls button.team-btn:not(.active):hover {
-                background: var(--primary-blue-dark);
-                border-color: var(--primary-blue-dark);
-            }
-            .controls button.team-btn.active:hover {
-                background: color-mix(in oklch, var(--page-accent) 95%, black);
-                border-color: color-mix(in oklch, var(--page-accent) 95%, black);
-            }
-        }
+        /* Team view hides the month's Prev · name · Next. On a desktop the controls are ONE centred
+           row, so removing it slid the toggle ~200px and a double-click on Team opened Admin: there
+           the slot is kept, empty. (`visibility` also leaves the Tab order and the a11y tree.) */
+        @media (max-width: 1023px) { body.team-view-active #navRow { display: none; } }
+        @media (min-width: 1024px) { body.team-view-active #navRow { visibility: hidden; } }
 
         /* ---- Team week view — all styles here; not in shared.css because this is index.html-only ---- */
         /* body gets this class via JS (applyTeamViewChrome) so the flex-fill chain
@@ -1456,25 +1464,16 @@
             .team-view-container { width: 100%; max-width: 1040px; margin: 0 auto; }
         }
         @media (min-width: 1024px) {
-            /* Desktop: the team table owns its own scroll path so a long roster scrolls INSIDE
-               the card, under its sticky headers, rather than moving the whole page. This used to
-               say it was because `body` had `overflow: hidden`; that lock went at v23.95 and this
-               is now a deliberate choice rather than a workaround — the sticky headers are the
-               reason to keep it. */
+            /* As tall as its table: `flex: 1` left a 146px empty band at 1920×1080. The scroll box is
+               `.team-table-wrap`, capped below. */
             .team-view-container {
                 width: 100%; /* margin:0 auto suppresses align-self:stretch — restore full width explicitly */
                 max-width: var(--page-max-width);
                 margin: 0 auto;
-                flex: 1;
-                min-height: 0;
+                flex: none;
                 display: flex;
                 flex-direction: column;
                 overflow: visible;
-            }
-            .team-table-wrap {
-                flex: 1;
-                min-height: 0;
-                overflow: auto;
             }
         }
         /* Grade tab row: CSS grid keeps tabs truly centred regardless of right-side button count */
@@ -1626,8 +1625,8 @@
             position: absolute;
             inset: -8px 0;
         }
-        /* The chosen grade wears the page's colour, the same gold as the active Team button above it
-           (v25.16 — it was navy, so one screen showed two colours for "chosen"). */
+        /* The chosen grade wears the page's colour (v25.16 — it was navy, so one screen showed two
+           colours for "chosen"); the one chosen thing in the Team view. */
         .grade-tab.active {
             background: var(--page-accent);
             color: var(--page-accent-ink);
@@ -1786,24 +1785,25 @@
             overscroll-behavior-x: contain;
             flex: 1;
         }
-        /* THE DATE ROW STAYS UP ON A PHONE TOO (7 Nov 2026, iPhone audit). `overflow-x: auto` makes
-           this box the header's scroll container, and per spec the other axis then computes to
-           `auto` as well — so below 1024px, where nothing limited its height, it was exactly as tall
-           as the table, never scrolled, and the sticky `thead` went off the top with the page,
-           leaving a member 20 names down with no day or date above the column they were reading.
-
-           So it is capped, and the names scroll INSIDE it under the header, as on the desktop
-           (above). 250px is what stands around it on a phone, measured at 360–412px wide: about
-           220px above (header, controls, grade tabs, week row) and the swipe hint and the page's
-           foot below — so with nothing else showing, the whole view is one screen and the week
-           controls stay in sight while the names scroll. A strip above (install, notifications) or
-           larger text just lets the page scroll by that much; vertical scroll still chains to the
-           page at either end, so every row stays reachable. The 50% floor keeps a phone held
-           sideways (375–402px tall) to a box of several rows rather than two. */
+        /* THE DATE ROW STAYS UP WHILE THE NAMES SCROLL (iPhone and desktop audits, Nov 2026). `overflow-x:
+           auto` makes this box the header's scroll container and its other axis `auto` too, so uncapped it
+           was as tall as the table and the sticky `thead` left with the page. Capped by what stands round
+           it, measured (header, controls, the card's rows; the hint on a phone; the page foot). A strip or
+           larger text scrolls the page that much, scroll chains to the page at either end, and the 50%
+           floor keeps a short screen to several rows. */
         @media (max-width: 1023px) {
             .team-table-wrap {
                 max-height: max(calc(100vh - 250px), 50vh);
                 max-height: max(calc(100dvh - 250px), 50dvh);
+            }
+        }
+        @media (min-width: 1024px) {
+            .team-table-wrap {
+                max-height: max(calc(100vh - 280px), 50vh);
+                max-height: max(calc(100dvh - 280px), 50dvh);
+                /* The card's foot, and it clips its rows: the card's corners, or theirs stand out. */
+                border-bottom-left-radius: var(--radius-lg);
+                border-bottom-right-radius: var(--radius-lg);
             }
         }
         .team-table {
@@ -1887,6 +1887,17 @@
             border-left: 3px solid var(--primary-blue);
             color: var(--primary-blue);
             font-weight: 700;
+        }
+        /* Desktop: a step up from the phone's 11px, and no phone cap on the names (two were cut short
+           at 1024px). After the base rules, which it overrides at equal specificity; `screen`, as the
+           landscape sheet is over 1024px and keeps its print sizes. */
+        @media screen and (min-width: 1024px) {
+            .team-table thead th,
+            .team-table tbody th.tv-name-col,
+            .tv-cell { font-size: var(--type-small); }
+            .tv-day-num { font-size: var(--type-body); }
+            .team-table th.tv-name-col,
+            .team-table td.tv-name-col { max-width: none; }
         }
         /* ---- Team info (?) lightbox — help/guide panel, matches helpLightbox pattern ---- */
         /* #teamInfoLightbox uses .lb-overlay — no unique properties */
@@ -1988,8 +1999,6 @@
             border-top: 1px solid rgba(255, 255, 255, 0.12);
             line-height: 1.5;
         }
-
-        /* ---- Pay lightbox — coming-soon panel ---- */
 
         /* Print styles
          * Checklist — update when adding new shift types, cell classes, or badges:
@@ -2803,6 +2812,16 @@
         @media (hover: hover) and (pointer: fine) {
             #dayDetailClose:hover { color: white; }
         }
+        /* Every ✕ on this page's navy (the glass panels, the Huddle viewer's header) takes the light
+           ring: the shared navy fallback was invisible there. Inset, inside the 44px target. */
+        #dayDetailClose:focus-visible,
+        #alLightboxClose:focus-visible,
+        #teamInfoClose:focus-visible,
+        #huddleViewerClose:focus-visible {
+            outline: var(--focus-outline-light);
+            outline-offset: -4px;
+            border-radius: var(--radius-sm);
+        }
         /* "View pay estimate" — green to match the app's Pay identity (the nav Pay pill),
            standing out on the navy day-detail lightbox. Shown only on payday/cut-off days.
 
@@ -2890,13 +2909,12 @@
            when the hover rung was added.) */
         .day-detail-pay-btn   { --ddb: var(--green); --ddb-hover: var(--green-hover); }
         .day-detail-leave-btn { --ddb: var(--al);    --ddb-hover: var(--al-hover); }
-        /* THE PANEL'S ONLY TAB STOPS BESIDES THE ✕, AND THEY HAD NO RING OF THEIR OWN (v22.93).
-           Every other control in this stylesheet declares one, so these two were falling back to
-           the browser's default on a surface the app deliberately replaced it on everywhere else.
-           GOLD, not `--focus-outline`: that token is navy, which is this panel's own background —
-           the same reason `.calendar-day` and the prompt strip already use gold. The 2px offset
-           puts the ring on the navy behind the button rather than on its teal or green fill, so one
-           token serves both colours. */
+        /* THE PANEL'S TWO ACTIONS HAD NO RING OF THEIR OWN (v22.93), so they fell back to the
+           browser's default on a surface the app replaced it on everywhere else.
+           GOLD, not `--focus-outline`: that token is navy, and this panel's ground is navy glass —
+           the prompt strip's dismiss is the same case. (The calendar CELLS are not: they sit on the
+           light card and take the navy ring.) The 2px offset puts the ring on the navy behind the
+           button rather than on its teal or green fill, so one token serves both colours. */
         .day-detail-pay-btn:focus-visible,
         .day-detail-leave-btn:focus-visible {
             outline: var(--focus-outline-gold);
@@ -2972,7 +2990,8 @@
             line-height: 1; cursor: pointer; transition: color var(--dur-med), background var(--dur-med);
         }
         .al-lb-yearbtn:disabled { visibility: hidden; }
-        .al-lb-yearbtn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
+        /* Light, not `--focus-outline`: that is navy, and these sit on the navy glass. */
+        .al-lb-yearbtn:focus-visible { outline: var(--focus-outline-light); outline-offset: -2px; }
         @media (hover: hover) and (pointer: fine) {
             .al-lb-yearbtn:hover:not(:disabled) { color: white; background: rgba(255,255,255,0.1); }
         }
@@ -3823,6 +3842,11 @@
         @media (min-width: 1024px) {
             .cal-boot-days, .cal-boot-grid { gap: 10px; }
             .cal-boot-grid { grid-auto-rows: minmax(90px, 1fr); }
+        }
+        /* …and the short-window grid's (the compact block beside `.calendar-grid`). */
+        @media screen and (min-width: 1024px) and (max-height: 820px) {
+            .cal-boot-days, .cal-boot-grid { gap: 6px; }
+            .cal-boot-grid { grid-auto-rows: minmax(48px, 1fr); }
         }
         /* A pulse is decoration; a resting shape still says "working" beside the live region. */
         @media (prefers-reduced-motion: reduce) {

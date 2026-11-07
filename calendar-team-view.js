@@ -642,10 +642,11 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
     function applyTeamViewChrome() {
         applyTeamPrintPage(teamViewMode);
         const teamBtn = document.getElementById('teamViewBtn');
-        const navRow  = document.getElementById('navRow');
         const legend  = document.querySelector('.legend');
         if (teamBtn) {
-            teamBtn.classList.toggle('active', teamViewMode);
+            // AN ACTION IN BOTH VIEWS, NOT A TOGGLE (desktop audit, Nov 2026). In Team view it names
+            // the view it goes BACK to, so it is neither chosen nor pressed: it wore the chosen gold
+            // and announced "pressed" while saying "Month". No `.active`, no `aria-pressed`.
             // innerHTML, not textContent (v22.87): the icon is a span the compact form hides, and a
             // plain string here would put the raw emoji back the moment the view toggled. Static
             // markup, no data — nothing here comes from a user or a document.
@@ -657,9 +658,10 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             teamBtn.setAttribute('aria-label', teamViewMode
                 ? 'Switch back to the month view'
                 : 'Switch to team week view');
-            teamBtn.setAttribute('aria-pressed', teamViewMode ? 'true' : 'false');
         }
-        if (navRow)  /** @type {HTMLElement} */ (navRow).style.display = teamViewMode ? 'none' : '';
+        // The month's Prev · name · Next row is hidden by `body.team-view-active` in index.css, and
+        // only there: below 1024px it goes, on a desktop its slot is kept so the toggle does not move
+        // under the pointer. One rule per width, which an inline style here could not express.
         if (legend)  /** @type {HTMLElement} */ (legend).style.display = teamViewMode ? 'none' : '';
         // The same #calendarDisplay region holds a 7-day team table in team view — keep its
         // accessible name honest for screen-reader users instead of always saying "calendar".

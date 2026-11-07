@@ -281,10 +281,6 @@
     /* Roster pre-fill suggestion highlight (pay calculator) */
     --roster-suggested-bg: color-mix(in oklch, var(--accent-gold) 10%, white);
 
-    /* Page header gradient */
-    --header-grad-from: oklch(25.2% 0.0642 255.6deg);
-    --header-grad-to:   oklch(20.0% 0.0603 252.3deg);
-
     /* Admin override list */
     --correction-text: oklch(45.0% 0.1970 40.3deg); /* darkened v13.50: 63.1% L → 45% L for WCAG AA 4.5:1 on orange-light */
 
@@ -937,8 +933,8 @@ body {
     padding-right:  max(clamp(16px, 2.5vw, 40px), env(safe-area-inset-right));
 }
 
-/* Screen-reader-only text — shared utility (v16.73; index.css carries its own copy
-   predating this). Standard clip pattern: rendered for AT, invisible on screen. */
+/* Screen-reader-only text — shared utility (v16.73; the Calendar's older copy in index.css is
+   gone). Standard clip pattern: rendered for AT, invisible on screen. */
 .visually-hidden {
     position: absolute;
     width: 1px;

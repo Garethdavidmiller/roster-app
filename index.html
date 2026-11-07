@@ -465,9 +465,9 @@
             <ul class="team-help-list">
                 <li class="touch-only">Swipe the table left and right to see all 7 days</li>
                 <li>Use ← → to move between weeks</li>
-                <li>Tap <strong>CEA</strong>, <strong>CES</strong> or <strong>Dispatcher</strong> to switch grade</li>
-                <li>Tap ☰ and open <strong>Daily Huddle</strong> to read the latest day plan</li>
-                <li>Tap <strong>📍</strong>, or <strong>Back to this week</strong> under the dates, to return to the current week</li>
+                <li>Select <strong>CEA</strong>, <strong>CES</strong> or <strong>Dispatcher</strong> to switch grade</li>
+                <li>Open ☰ and choose <strong>Daily Huddle</strong> to read the latest day plan</li>
+                <li>Use <strong>📍</strong>, or <strong>Back to this week</strong> under the dates, to return to the current week</li>
             </ul>
             <div class="team-info-section">Colour key</div>
             <div class="team-info-key">
@@ -536,7 +536,10 @@
             </div>
             <div class="controls-row">
                 <div class="control-group control-group--actions">
-                    <button type="button" id="todayBtn"   class="today-btn"  aria-label="Go to today">📍</button>
+                    <!-- The word shows from 1024px (index.css → `.today-word`): a phone's row has no room
+                         for it, and a desktop's was the one control without one. The name already
+                         contains it ("Go to today"), so what a voice user says still matches. -->
+                    <button type="button" id="todayBtn"   class="today-btn"  aria-label="Go to today"><span aria-hidden="true">📍</span><span class="today-word">Today</span></button>
                     <button type="button" id="teamViewBtn" class="team-btn"  aria-label="Switch to team week view"><span class="btn-ico" aria-hidden="true">👥</span> Team</button>
                     <button type="button" id="alBtn"       class="al-btn"    aria-label="AL — view annual leave balance"><span class="btn-ico" aria-hidden="true">🏖️</span> AL</button>
                     <!-- THE ICON IS A SPAN (v22.87) so the compact form can drop it: under large text the
