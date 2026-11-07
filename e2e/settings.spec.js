@@ -4,8 +4,8 @@
  * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
-import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMemberSession } from './helpers.js';
+import { test, expect, forcePasswordSet } from './fixtures.js';
+import { collectFatalErrors, seedSession, seedMemberSession, signInThroughOverlay } from './helpers.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -123,6 +123,36 @@ test('settings: an iPhone in a browser is told to install, not that it is all se
     const size = (sel) => page.locator(sel).first().evaluate(el => getComputedStyle(el).fontSize);
     expect(await size('#installNote')).toBe(await size('#payDataCard .card-explainer'));
 });
+
+// ── WHAT AN iPHONE INSTALL DOES NOT CARRY (iPhone audit, 7 Nov 2026) ─────────────────────────────
+// A Home Screen app on an iPhone keeps storage of its own: the member is signed out there, and Pay
+// Calculator figures saved in the browser stay in the browser. The card promised the opposite —
+// installing "keeps this device's saved pay data safe from being cleared" — and its last step sent
+// the member to an app that held none of it. The first step now carries the figures across, shown
+// from the Pay Calculator Data card's own count, so the two cards cannot disagree about what is here.
+for (const [label, payKeys, payStep] of [['with pay figures, the first step carries them across', 2, true],
+                                         ['with none, there is nothing to carry and no such step', 0, false]]) {
+    test(`settings: an iPhone install — ${label}`, async ({ page }) => {
+        await openSettings(page, { configured: true, iphone: true, payKeys });
+        const steps = page.locator('#installSteps');
+        await expect(steps).toBeVisible();
+        await expect(page.locator('#payDataStatusChip'), 'premise: the Pay Calculator Data card\'s count').toHaveText(payKeys ? `${payKeys} payslips` : 'None saved');
+        const shown = steps.locator('li:visible');
+        if (payStep) {
+            await expect(page.locator('#installStepPay')).toBeVisible();
+            await expect(shown.first(), 'copying the figures is the FIRST thing to do').toHaveAttribute('id', 'installStepPay');
+            await expect(shown.first()).toContainText('Move Your Pay Data');
+        } else {
+            await expect(page.locator('#installStepPay')).toBeHidden();
+        }
+        await expect(steps).toContainText('Open it in Safari first');                  // an email or chat app cannot add it
+        await expect(steps).toContainText('on iOS 26 or later it is under •••');        // where Share is now
+        await expect(shown.last()).toContainText('sign in there once');                 // the Home Screen app is signed out
+        // The promise covers what is saved in the installed app — never what is already saved here.
+        await expect(page.locator('#installNote')).toContainText('Pay figures you save in the installed app');
+        await expect(page.locator('#deviceCard')).not.toContainText('saved pay data safe');
+    });
+}
 
 test('settings: a saved work email says so before it offers to remove it', async ({ page }) => {
     // Polish round 2 (owner-approved): "Remove saved email" sat ABOVE "✓ Saved — last updated", so
@@ -288,6 +318,128 @@ test('settings: the password form is behind a door once there is nothing to fix'
     await expect(page.locator('.pw-forgot')).toContainText('Ask the admin');
 });
 
+// ── A CHANGED PASSWORD IS FILED UNDER THE MEMBER (iPhone audit, 7 Nov 2026) ─────────────────────
+// A password manager files a password under the username field in the SAME <form>. The sign-in card
+// has had one since Oct 2026; the two places a member CHANGES their password had no form at all, so
+// iCloud Keychain saved a new one on nobody's name. Both now follow the sign-in card: a real form, a
+// hidden username holding the roster name, and a submit that is always cancelled. Whether Keychain
+// then offers to save is a device check; what a browser can prove is the shape, that the keyboard
+// reaches the save, and that the form is submitted ONLY once the write is confirmed — never for a
+// password the checks refuse, and never for one the server refuses (a wrong current password used to
+// leave Keychain offering to save a new password that was never set).
+/** Count every submit that reaches the document, and whether it had been cancelled by then. */
+const recordSubmits = (page) => page.evaluate(() => {
+    /** @type {any} */ (window).__submits = [];
+    document.addEventListener('submit', e => /** @type {any} */ (window).__submits.push(e.defaultPrevented));
+});
+const submits = (page) => page.evaluate(() => /** @type {any} */ (window).__submits);
+
+test('settings: the password card is a real form under the member\'s name — Next moves on, Done saves, and only then is it submitted', async ({ page }) => {
+    // A signed-in Firebase user with the member's own address, so re-authentication and the write can
+    // SUCCEED under the stub (window.__E2E.authUser / authUserEmail).
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local' }; });
+    await openSettings(page, { configured: false, noPush: true });     // un-migrated: the form is open
+    await expect(page.locator('#pwCurrent')).toBeVisible();
+    const shape = await page.evaluate(() => {
+        const user = /** @type {HTMLInputElement} */ (document.getElementById('pwUsername'));
+        const same = ['pwCurrent', 'pwNew', 'pwConfirm'].every(id => /** @type {HTMLInputElement} */ (document.getElementById(id)).form === user.form);
+        return { tag: user.form?.id, value: user.value, same, autocomplete: user.autocomplete };
+    });
+    expect(shape, 'one form, holding the member\'s roster name as its username').toEqual(
+        { tag: 'pwForm', value: 'G. Miller', same: true, autocomplete: 'username' });
+
+    await recordSubmits(page);
+    // A password the checks refuse is never submitted — a password manager is never offered it.
+    await page.locator('#pwCurrent').fill('miller');
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-different-one-9');
+    await page.locator('#pwConfirm').press('Enter');
+    await expect(page.locator('#pwFeedback')).toContainText(/match/i);
+    expect(await submits(page)).toEqual([]);
+
+    // The return key does what the keyboard labels it: Next, Next, then Done saves.
+    await page.locator('#pwCurrent').press('Enter');
+    await expect(page.locator('#pwNew')).toBeFocused();
+    await page.locator('#pwNew').press('Enter');
+    await expect(page.locator('#pwConfirm')).toBeFocused();
+    expect(await submits(page), 'Next only moves on').toEqual([]);
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    await page.locator('#pwConfirm').press('Enter');
+    await expect(page.locator('#pwFeedback')).toContainText('Password updated');
+    expect(await submits(page), 'exactly one submit, once the write was confirmed, and it was cancelled').toEqual([true]);
+    expect(new URL(page.url()).pathname, 'the form never goes anywhere').toBe('/settings.html');
+});
+
+test('settings: a password change the SERVER refuses is never submitted to the password manager', async ({ page }) => {
+    // No Firebase user: the stub refuses the re-authentication, as a wrong current password would.
+    await openSettings(page, { configured: false, noPush: true });
+    await expect(page.locator('#pwCurrent')).toBeVisible();
+    await recordSubmits(page);
+    await page.locator('#pwCurrent').fill('not-my-password');
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwFeedback')).not.toBeEmpty();
+    await expect(page.locator('#pwFeedback')).not.toContainText('Password updated');
+    await expect(page.locator('#pwSaveBtn')).toBeEnabled();                   // the attempt is over
+    expect(await submits(page), 'a refused password reached the password manager').toEqual([]);
+});
+
+test('forced password overlay: a real form under the member\'s name — a submit never closes it, and Tab stays inside', async ({ page }) => {
+    await forcePasswordSet(page);
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    const overlay = page.locator('#pwForceOverlay');
+    await expect(overlay).toBeVisible();
+    const shape = await page.evaluate(() => {
+        const user = /** @type {HTMLInputElement} */ (document.getElementById('pwfUsername'));
+        const same = ['pwfNew', 'pwfConfirm', 'pwfCurrent'].every(id => /** @type {HTMLInputElement} */ (document.getElementById(id)).form === user.form);
+        const escape = /** @type {HTMLButtonElement} */ (document.getElementById('pwfEscape'));
+        return { form: user.form?.id, value: user.value, same, escapeOutside: escape.form === null };
+    });
+    expect(shape).toEqual({ form: 'pwfForm', value: 'G. Miller', same: true, escapeOutside: true });
+
+    // A submit from ANY source is cancelled, and the mandatory overlay stays up.
+    await recordSubmits(page);
+    await page.evaluate(() => /** @type {HTMLFormElement} */ (document.getElementById('pwfForm')).requestSubmit());
+    expect(await submits(page)).toEqual([true]);
+    await expect(overlay).toBeVisible();
+
+    // The keyboard's Go runs the save; a write the server refuses is never handed to the password manager.
+    await page.locator('#pwfNew').fill('a-real-password-9');
+    await page.locator('#pwfConfirm').fill('a-real-password-9');
+    await page.locator('#pwfConfirm').press('Enter');
+    await expect(page.locator('#pwfError')).toBeVisible();          // the stub refuses the write — the save ran
+    expect(await submits(page), 'a refused write was submitted to the password manager').toEqual([true]);
+    await expect(overlay).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/settings.html');
+
+    // The hidden username field is not a Tab stop: Shift+Tab from the first field wraps inside the
+    // overlay instead of leaving it for the page behind a mandatory dialog.
+    await page.locator('#pwfNew').focus();
+    await page.keyboard.press('Shift+Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('#pwForceOverlay')), 'focus left the overlay').toBe(true);
+    await expect(page.locator('#pwfUsername')).not.toBeFocused();
+});
+
+test('forced password overlay: a CONFIRMED save is submitted once, and only then does the overlay close', async ({ page }) => {
+    await forcePasswordSet(page);
+    // A signed-in Firebase user, so the write can SUCCEED under the stub (window.__E2E.authUser).
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, authUser: true }; });
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    const overlay = page.locator('#pwForceOverlay');
+    await expect(overlay).toBeVisible();
+    await recordSubmits(page);
+    await page.locator('#pwfNew').fill('a-real-password-9');
+    await page.locator('#pwfConfirm').fill('a-real-password-9');
+    await page.locator('#pwfConfirm').press('Enter');
+    await expect(overlay).toBeHidden();
+    expect(await submits(page), 'one submit, once the write was confirmed, and it was cancelled').toEqual([true]);
+    expect(new URL(page.url()).pathname, 'the form never goes anywhere').toBe('/settings.html');
+});
+
 test('settings: Show passwords reveals all THREE fields, not two', async ({ page }) => {
     // The old control sat beside New and silently also governed Confirm. Current — where a
     // mistyped password most often comes from — was never covered.
@@ -364,7 +516,7 @@ test('settings: a saved email does not push the card\'s own chevron off it (v23.
 });
 
 test('settings: the pay data card counts what is actually on the device', async ({ page }) => {
-    // "Saved on this device only" is a warning about nothing until it says how much.
+    // "Saved in this browser only" is a warning about nothing until it says how much.
     await openSettings(page, { configured: true, payKeys: 3, noPush: true });
     await expect(page.locator('#payDataStatusChip')).toHaveText('3 payslips');
     await expect(page.locator('#payDataInventory')).toContainText('3 payslips');

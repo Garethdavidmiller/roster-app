@@ -950,6 +950,12 @@ body {
     white-space: nowrap;
     border: 0;
 }
+/* A HIDDEN USERNAME IS STILL A FIELD (iPhone audit, 7 Nov 2026). The sign-in card, the forced
+   password overlay and the Settings password card each carry one for the password manager
+   (`autocomplete="username"`, out of the Tab order). The iPhone keyboard's ‹ › arrows step through a
+   page's text fields whatever their tabindex, and a field under 16px zooms the page when it takes
+   focus — so it wears the field size, as every visible one does (e2e/pages.spec.js measures it). */
+input.visually-hidden[autocomplete="username"] { font-size: var(--type-medium); }
 
 /* ============================================================
    LIGHTBOX / MODAL BASE CLASSES
@@ -1510,6 +1516,14 @@ button.lightbox-bug-link {
    surface. Caught by the e2e that clicks a real row rather than by the three tests that only read
    the trigger's label — the label was right the whole time. */
 .picker-sheet-overlay { z-index: var(--z-picker); }
+/* A SHEET WITH A SEARCH BOX SITS AT THE TOP OF THE SCREEN (iPhone audit, 7 Nov 2026). Centred, the
+   panel re-centred on every keystroke that shortened the list, so the box and its matches slid DOWN
+   the screen — towards the iPhone keyboard, which does not resize the page and so covers whatever is
+   under it. Anchored, nothing moves while the member types. `select-sheet.js` adds the class only
+   while the box is shown; a short sheet stays centred. The margin clears the notch in an installed
+   app, where the page runs up under the status bar. */
+.picker-sheet-overlay--search { align-items: flex-start; }
+.picker-sheet-overlay--search .picker-sheet { margin-top: max(12px, env(safe-area-inset-top)); }
 
 .picker-sheet {
     background: white;
@@ -2112,6 +2126,13 @@ button.lightbox-bug-link {
     /* Subtle ring (v16.73): the icon's own dark tile nearly vanished against the navy
        header — a faint white ring anchors it without competing with the title. */
     box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.22);
+    /* IT IS A CONTROL, NOT A PICTURE (iPhone audit, 7 Nov 2026). On a sub-page this logo is the
+       installed app's way back to the calendar — iOS gives a home-screen app no Back — and holding it
+       opened iOS's image menu (Save to Photos, Copy, Share) over the page instead. No callout, and no
+       text selection starting on it. `-webkit-touch-callout` is iOS's own property; nothing else reads it. */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .app-header h1 {
@@ -2793,6 +2814,12 @@ button.lightbox-bug-link {
    handler, same hover states); everything below only adds the two-line text layout and the
    evidence chips. Colours are the drawer's scoped tokens — nothing hardcoded. */
 #navGuideSearchZone { padding: 2px 0 4px; }
+/* SEARCH MODE (iPhone audit, 7 Nov 2026): while a query is active, everything in the drawer body but
+   the section holding the search steps aside — today the page pills and Latest — so the results sit
+   just under the box instead of ~500px down the drawer, under the iPhone keyboard. Named by what it
+   KEEPS rather than by what it hides, so a section added to the drawer later steps aside too rather
+   than wedging itself between the box and its results. `nav-guide-search.js` → `syncSearchMode`. */
+.nav-panel--searching .nav-panel-body > :not(:has(#navGuideSearchZone)) { display: none; }
 .nav-gs-input {
     width: 100%;
     box-sizing: border-box;

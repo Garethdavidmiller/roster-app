@@ -447,6 +447,19 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
                 const rd = await import('./roster-data.js');
                 names = new Set((rd.teamMembers || []).map(/** @param {any} m */ m => m.name));
             } catch { /* page without the module graph — check every option */ }
+            // AND THE DISCLOSURES THAT ARE NOT CARDS (the iPhone audit, 7 Nov 2026). The Pay
+            // Calculator's "Unusual deductions or corrections" (`.hours-extra`, `display: none` until
+            // `.open`) and its payslip check (`#checkActualWrap`, `#actualMoreWrap`, `[hidden]` until
+            // the payslip is in hand and the disclosure is pressed) hold fields this sweep never
+            // measured, because a field with no box is skipped — and `#otherAdj` sat in one at
+            // 13.33px, zooming the page on every iPhone that focused it. Revealed HERE, in the same
+            // task as the measuring: calculate() re-hides the payslip check on every run, and an await
+            // between the two would give it the chance.
+            document.querySelectorAll('.hours-extra').forEach(el => el.classList.add('open'));
+            for (const id of ['checkActualWrap', 'actualMoreWrap']) {
+                const wrap = document.getElementById(id);
+                if (wrap) wrap.hidden = false;
+            }
             const out = [];
             document.querySelectorAll('input, select, textarea').forEach(el => {
                 const t = /** @type {any} */ (el).type;

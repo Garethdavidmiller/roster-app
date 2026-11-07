@@ -13,7 +13,12 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="apple-mobile-web-app-title" content="Rangers &amp; Rovers">
+    <!-- ADDING A GUIDE TO THE HOME SCREEN INSTALLS THE APP, NOT THE GUIDE (iPhone audit, Nov 2026).
+         With its own title and no manifest, an iPhone made this page an app of its own: a guide
+         icon with its own storage, signed out, and no roster. The manifest's start_url and scope
+         are the app root, and the label is the app pages' own (page-contract-parity.test.mjs). -->
+    <meta name="apple-mobile-web-app-title" content="MYB Roster">
+    <link rel="manifest" href="./manifest.json">
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
     <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
     <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">

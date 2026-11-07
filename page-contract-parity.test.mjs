@@ -825,6 +825,31 @@ test('a page with unsaved work warns through warnOnUnload AND asks before a sign
     }
 });
 
+// …AND ASKS BEFORE THE DRAWER OR THE ABOUT PANEL LEAVES (iPhone audit, Nov 2026). `warnOnUnload` is the
+// browser's own prompt, and a phone never shows it, so on an iPhone it protects nothing. Overtime called
+// it alone, and a half-filled availability form was dropped by any drawer pill or About-panel link
+// without a word. A page that tracks unsaved work for the unload prompt asks in the page as well.
+//
+// ONE EXEMPTION, BY NAME: links-app.js has a capture-phase guard of its own on the drawer's links, older
+// than page-session.js's, and asks about the About panel's one leaving link (Operations) on that link.
+// The exemption is CHECKED rather than trusted — if that guard goes, the page stops being exempt.
+const OWN_LEAVE_GUARD = new Map([
+    ['links-app.js', /document\.addEventListener\('click',[\s\S]*?closest\('\.nav-panel a\[href\]'\)[\s\S]*?\},\s*true\)/],
+]);
+test('a page that warns on unload also asks before a drawer or About-panel link leaves', () => {
+    for (const p of APP_PAGE_ENTRIES) {
+        const code = codeOf(p.coordinator);
+        if (!/\bwarnOnUnload\(/.test(code)) continue;
+        const own = OWN_LEAVE_GUARD.get(p.coordinator);
+        if (own) {
+            assert.match(code, own, `${p.coordinator} is exempt for its own capture-phase drawer guard, and that guard has gone — call askBeforeLeavingByDrawer`);
+            continue;
+        }
+        assert.match(code, /\baskBeforeLeavingByDrawer\(/,
+            `${p.coordinator} warns on unload but lets the drawer's and the About panel's links leave without asking — call askBeforeLeavingByDrawer with the same isDirty`);
+    }
+});
+
 test('every page with a named sign-in follows it with guardNamedSession', () => {
     // The Calendar (the staff PIN) and the Pay Calculator (a SOFT policy that never asks for a login)
     // are the two deliberate exceptions — their own headers say why. Everybody else re-asks for a
@@ -853,6 +878,60 @@ test('every page asks iOS for a SOLID status bar, never black-translucent', () =
         const m = read(f).match(/apple-mobile-web-app-status-bar-style"\s+content="([^"]+)"/);
         assert.equal(m?.[1], 'black', `${f}: status bar style is "${m?.[1]}" — black-translucent puts the header under iOS's top-edge blur`);
     }
+});
+
+// ── A PAGE iOS MAY RUN FROM THE HOME SCREEN INSTALLS THE APP, NOT ITSELF (iPhone audit, 7 Nov 2026) ──
+// `apple-mobile-web-app-capable` lets an iPhone open a page added to the Home Screen as an app of its
+// own. The five guides carried it with their own titles ("Quick Guide", "Pay Guide", …) and no
+// manifest, and the Staff Guide's install box told iPhone readers to Add to Home Screen from that very
+// page — which installed the GUIDE: its own icon and its own storage, signed out, with no roster in
+// it. The app's manifest (start_url and scope are the app root) and the app pages' own label make the
+// install the app wherever it is made from. Read from every served page, so a new one joins on arrival.
+test('every page iOS may run from the Home Screen links the app manifest, under the app\'s label', () => {
+    const manifest = JSON.parse(read('./manifest.json'));
+    assert.equal(manifest.start_url, './', 'the manifest no longer starts at the app root — an install from a sub-page would open that page');
+    assert.equal(manifest.scope, './', 'the manifest no longer covers the whole app');
+    const titleOf = (/** @type {string} */ html) => /<meta name="apple-mobile-web-app-title" content="([^"]+)">/.exec(html)?.[1];
+    const label = titleOf(read('./index.html'));
+    assert.ok(label, 'the Calendar has no home-screen label to compare against');
+    const pages = servedFiles().filter(f => /<meta name="apple-mobile-web-app-capable" content="yes">/.test(read(`./${f}`)));
+    assert.ok(pages.length >= 14, `only ${pages.length} pages ask to run from the Home Screen — the app pages and the five guides do`);
+    for (const f of pages) {
+        const html = read(`./${f}`).replace(/<!--[\s\S]*?-->/g, ' ');
+        assert.match(html, /<link rel="manifest" href="(\.\/)?manifest\.json">/,
+            `${f} may run from the Home Screen but links no manifest — added there, it installs itself as an app of its own`);
+        assert.equal(titleOf(html), label, `${f}: its home-screen label is not the app's, so its icon would name a different app`);
+    }
+});
+
+// ── A NEW PASSWORD IS FILED UNDER SOMEBODY'S NAME (iPhone audit, 7 Nov 2026) ─────────────────────
+// A password manager files a password under the username field in the SAME <form>. The sign-in card
+// got a real form and a hidden username in Oct 2026 (login-overlay.js); the two places a member
+// CHANGES their password — the Settings card and the forced set-password overlay — had neither, so
+// iCloud Keychain saved a new password on nobody's name, or offered nothing at all. So: every
+// `autocomplete="new-password"` field, in any served page or in markup a module writes, sits inside a
+// <form> that also holds an `autocomplete="username"` input. Read from the files, so the next one joins.
+// (Whether Keychain then offers to save it is a device check — no browser here has a Keychain.)
+test('every new-password field shares a form with a username field', () => {
+    const sources = [...servedFiles(), ...readdirSync(new URL('.', import.meta.url))
+        .filter(f => f.endsWith('.js') && !f.includes('.test.'))];
+    let fields = 0;
+    for (const f of sources) {
+        const src = (f.endsWith('.js') ? codeOf(f) : read(`./${f}`)).replace(/<!--[\s\S]*?-->/g, ' ');
+        // Only the attribute spelling can be checked against its form, so it must be the only one.
+        assert.equal((src.match(/new-password/g) || []).length, (src.match(/autocomplete="new-password"/g) || []).length,
+            `${f} names new-password some other way (a property, setAttribute) — write it in the markup, where its form can be seen`);
+        for (const m of src.matchAll(/autocomplete="new-password"/g)) {
+            fields += 1;
+            const at = /** @type {number} */ (m.index);
+            const open = src.lastIndexOf('<form', at), shut = src.indexOf('</form>', at);
+            assert.ok(open > src.lastIndexOf('</form>', at) && shut > at,
+                `${f}: a new-password field outside any <form> — a password manager has nothing to file it under`);
+            assert.match(src.slice(open, shut), /<input[^>]*autocomplete="username"/,
+                `${f}: a new-password field whose form has no username field — saved, it belongs to nobody`);
+        }
+    }
+    assert.ok(fields >= 4, `found ${fields} new-password fields — Settings and the forced overlay have two each`);
 });
 
 // ── THE SUB-PAGE HEADER LOGO HAS ONE WIRING (48-hour review, Nov 2026) ───────────────────────────

@@ -132,7 +132,10 @@ export function recordUsage(page, signedIn = null, selected = null) {
  * happened to use first, so anyone who opened a browser tab before opening the installed app would
  * never be counted as installed — and "how many have actually installed it on the new address" is
  * the whole question. localStorage is per-ORIGIN, so the per-address split needs no work at all:
- * each address keeps its own flags, and a moved count never changes address.
+ * each address keeps its own flags, and a moved count never changes address. One exception it cannot
+ * see: on an iPhone the Home Screen app keeps storage SEPARATE from Safari on the same address, so a
+ * member who uses both is counted as two devices (KNOWN_LIMITATIONS → "iPhones keep two separate
+ * copies…") — the counts are an upper bound there, not an exact figure.
  *
  * @param {string} identity the acting member's name (dedup only — never sent)
  */

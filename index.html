@@ -245,11 +245,19 @@
                 <div class="notice-date">Posted 22 Oct 2026</div>
             </div>
             <div class="notice-main">
-                <p class="notice-body">The roster works better from your phone’s home screen than from its web address. It opens in one tap, fills the screen, and your saved pay figures are far less likely to be cleared.</p>
+                <!-- THE DURABILITY CLAIM IS ABOUT WHAT IS SAVED IN THE INSTALLED APP (iPhone audit, Nov
+                     2026). It said "your saved pay figures are far less likely to be cleared", and on an
+                     iPhone the opposite happens to the figures already saved: a Home Screen app keeps
+                     its own storage, so they stay in the browser, which deletes a site's storage after
+                     about seven days of use without a visit. Android shares one storage, so the iPhone
+                     lines below say the rest, on that route only. -->
+                <p class="notice-body">The roster works better from your phone’s home screen than from its web address. It opens in one tap, fills the screen, and the pay figures you save in the home screen app are far less likely to be cleared.</p>
                 <p class="notice-body" id="installNoticeMirror" hidden>Add it from the app’s main address, <strong class="nav-path">myb-roster.web.app</strong>: open it with the button below, sign in, and it will show you how.</p>
-                <p class="notice-body" id="installNoticeIos" hidden>Tap your browser’s <strong>Share</strong> button, then <strong>Add to Home Screen</strong> — on an iPhone or iPad, notifications only work once the roster is there.</p>
+                <p class="notice-body" id="installNoticeIos" hidden>Tap your browser’s <strong>Share</strong> button, then <strong>Add to Home Screen</strong> — on iOS 26 or later, Share is under <strong>•••</strong>. On an iPhone or iPad, notifications only work once the roster is there.</p>
+                <p class="notice-body" id="installNoticeSafari" hidden>Opened the roster from an email or a chat? Open it in <strong>Safari</strong> first — apps such as WhatsApp, Outlook and Teams cannot add it to your home screen.</p>
                 <p class="notice-body" id="installNoticeMenu" hidden>Open your browser’s menu and look for <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
                 <p class="notice-body" id="installNoticePay" hidden>Your saved Pay Calculator figures stay at this address. If you have any, move them first with 💾&nbsp;<strong>Move Your Pay Data</strong> on the Pay page.</p>
+                <p class="notice-body" id="installNoticePayIos" hidden>The home screen app keeps its own storage, separate from this browser: you sign in there once, and Pay Calculator figures saved here do not move across by themselves. If you have any, copy them first with 💾&nbsp;<strong>Move Your Pay Data</strong> on the Pay page.</p>
                 <p class="notice-body" id="installNoticeHave" hidden>Already on your home screen? Open it from there instead.</p>
             </div>
             <div class="notice-actions" id="installNoticeActions" hidden>
@@ -554,7 +562,7 @@
              a member reads should be reviewable in the markup beside every other line they read. -->
         <div id="installPrompt" class="top-prompt" role="region" aria-label="Add to home screen" style="display:none">
             <span class="top-prompt-text"><span aria-hidden="true">📲</span> Add the roster to your home screen<span
-                id="installPromptSteps" class="top-prompt-steps" hidden>Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong></span></span>
+                id="installPromptSteps" class="top-prompt-steps" hidden>Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong> (iOS 26 or later: Share is under <strong>•••</strong>)</span></span>
             <button type="button" class="top-prompt-action" id="installPromptAction" hidden>Install</button>
             <button type="button" class="top-prompt-dismiss" id="installPromptDismiss" aria-label="Dismiss">×</button>
         </div>

@@ -56,18 +56,73 @@
         return !!(display && display.firstElementChild);
     }
 
-    setTimeout(function () {
+    // ── 20 SECONDS OF THE PAGE BEING SEEN, NOT 20 SECONDS FROM LOAD (7 Nov 2026, iPhone audit) ──────
+    //
+    // One timer used to run from load whatever the page was doing, and a page that is not on screen
+    // cannot finish loading here: the Calendar takes its splash down inside a requestAnimationFrame
+    // (calendar-app.js), and a hidden page runs no frames. That is an ordinary state, not a rare one.
+    // An update reloads the Calendar WHILE it is hidden, on purpose (`reloadWhileHidden`,
+    // sw-register.js), and a member can switch away during a cold launch — so somebody coming back
+    // more than 20s later met a reload they had not asked for or, once the session's one reload was
+    // spent, a flash of the recovery panel over a page that was fine.
+    //
+    // So a page hidden when its window ends, or hidden at any time since the window began, is not
+    // judged: the next time it is looked at, a fresh 20s window starts from that moment. A HEALTHY
+    // verdict is taken whenever it is true — it reloads nothing and covers nothing — so only the
+    // stuck verdict waits for a page that has been on screen for the whole of its window.
+    //
+    // A HEALTHY CHECK GIVES THE RELOAD BACK, so "one reload" means one per STUCK LAUNCH. It meant one
+    // per tab: the flag was set by the first stuck launch and never cleared, so every later stuck
+    // launch in that tab skipped the reload that would have fixed it and went straight to the panel.
+    // The loop guard is unchanged — a launch that is still stuck after its reload finds the flag.
+    var timer = 0;
+    var hiddenInWindow = false;   // hidden at any time since the current window began
+    var waiting = false;          // a window ended while hidden; the next look starts a fresh one
+    var done = false;             // healthy, reloaded or showing the panel — nothing left to judge
+
+    /** Start a fresh window from now. */
+    function arm() {
+        waiting = false;
+        hiddenInWindow = document.visibilityState === 'hidden';
+        clearTimeout(timer);
+        timer = setTimeout(check, TIMEOUT_MS);
+    }
+
+    /** A page looked away from is marked; a page looked at again after that gets a fresh window. */
+    function onVisibility() {
+        if (done) return;
+        if (document.visibilityState === 'hidden') { hiddenInWindow = true; return; }
+        if (waiting || hiddenInWindow) arm();
+    }
+
+    /** Healthy: stop watching, and give the session its one reload back. */
+    function standDown() {
+        done = true;
+        clearTimeout(timer);
+        document.removeEventListener('visibilitychange', onVisibility);
+        try { sessionStorage.removeItem(RELOAD_KEY); } catch (_e) { /* unavailable — nothing was stored */ }
+    }
+
+    /** The end of a window. */
+    function check() {
+        if (done) return;
         var splash = document.getElementById('splash');
         var splashUp = !!(splash && document.body.contains(splash) && !splash.classList.contains('hidden'));
         // Healthy: the splash has gone AND something usable replaced it. Either half alone is not
         // enough — a splash still up is the original stuck launch, and a splash gone with an empty
         // page is the one this check was blind to until v20.80.
-        if (!splashUp && pageIsUsable()) return;
+        if (!splashUp && pageIsUsable()) { standDown(); return; }
 
-        // First stuck detection this session: try ONE reload — it picks up a freshly-deployed SW
+        // Not seen for the whole window, so not judged (the note above).
+        if (document.visibilityState === 'hidden') { waiting = true; return; }
+        if (hiddenInWindow) { arm(); return; }   // looked away and back again: the window runs from now
+
+        // First stuck detection this launch: try ONE reload — it picks up a freshly-deployed SW
         // and re-runs the module load (fixes the common mid-deploy-transition case with zero
         // friction). Guarded so it can NEVER loop: only reload if we successfully recorded the
         // flag; if sessionStorage is unavailable (iOS private mode) skip straight to the panel.
+        done = true;
+        document.removeEventListener('visibilitychange', onVisibility);
         var canReload = false;
         try {
             if (!sessionStorage.getItem(RELOAD_KEY)) {
@@ -78,7 +133,10 @@
         if (canReload) { location.reload(); return; }
 
         showRecovery(splash);
-    }, TIMEOUT_MS);
+    }
+
+    document.addEventListener('visibilitychange', onVisibility);
+    arm();
 
     /** Replace the splash with a self-contained recovery panel — or BUILD one where the splash has
      *  already gone, which is the blank-page case (v20.80). Inline styles (so it renders even if

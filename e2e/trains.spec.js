@@ -747,3 +747,86 @@ test.describe('trains — the eight improvements (v24.94)', () => {
         await expect(page.locator('#trPattern .tr-grid-colbtn[aria-pressed="true"]')).toHaveCount(0);
     });
 });
+
+// ── THE HEADINGS' COPY STAYS ON ITS COLUMNS THROUGH A RUBBER-BAND (7 Nov 2026, iPhone audit) ─────
+//
+// iOS reports a scrollLeft OUTSIDE the box's range while it bounces at either end of the grid —
+// below 0 at the start, past the last column at the end — and the fixed copy of the heads
+// (trains-grid-mirror.js) followed the raw figure off its columns. No desktop engine bounces, so
+// the out-of-range figure is supplied by hand: the box's own `scrollLeft` is made to report it,
+// and the real scroll listener and `place()` do the rest.
+test.describe('trains — the heads copy is clamped to the grid', () => {
+    test('a scroll reported past either end leaves the copy on the first or the last column', async ({ page }) => {
+        await page.setViewportSize({ width: 393, height: 727 });
+        await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="grid"]').click();
+        await expect(page.locator('#trPattern .tr-dot').first()).toBeVisible();
+        const stick = page.locator('#trPattern .tr-grid-stick');
+        await page.locator('#trPattern .tr-grid tbody tr', { hasText: 'Banbury' }).scrollIntoViewIfNeeded();
+        await page.evaluate(() => window.scrollBy(0, 120));
+        await expect(stick).toBeVisible();
+
+        const max = await page.locator('#trPattern .tr-grid-wrap').evaluate(w => w.scrollWidth - w.clientWidth);
+        expect(max, 'the grid fits its box at this width — there is nothing to scroll sideways').toBeGreaterThan(40);
+
+        /** Make the box report `left` (null: its real value) and fire its scroll, as a bounce does.
+         *  @param {number|null} left */
+        const report = (left) => page.locator('#trPattern .tr-grid-wrap').evaluate((w, l) => {
+            if (l === null) delete /** @type {any} */ (w).scrollLeft;
+            else Object.defineProperty(w, 'scrollLeft', { configurable: true, get: () => l });
+            w.dispatchEvent(new Event('scroll'));
+        }, left);
+        const slid = () => page.locator('#trPattern .tr-grid-stick-row').evaluate(r => /** @type {HTMLElement} */ (r).style.transform);
+
+        // In range it follows the grid exactly. Each step below must CHANGE the value, so a poll can
+        // never pass on a frame that has not been drawn yet.
+        await page.locator('#trPattern .tr-grid-wrap').evaluate(w => { w.scrollLeft = 30; });
+        await expect.poll(slid).toBe('translateX(-30px)');
+
+        await report(-40);                       // the bounce at the start
+        await expect.poll(slid, { message: 'the copy slid right, off the first column' }).toBe('translateX(0px)');
+
+        await report(max + 40);                  // and at the end
+        await expect.poll(slid, { message: 'the copy slid left, past the last column' }).toBe(`translateX(-${max}px)`);
+
+        await report(null);                      // the bounce settles: back to following the grid
+        await expect.poll(slid).toBe('translateX(-30px)');
+    });
+});
+
+// ── THE iPHONE KEYBOARD AND TOUCH (iPhone audit, 7 Nov 2026) ─────────────────────────────────────────
+
+test('the header logo — the installed app\'s way back — opens no image menu when held', async ({ page }) => {
+    // On a sub-page the logo is the only Back an iPhone home-screen app has, and holding it opened
+    // iOS's image menu (Save to Photos, Copy, Share). `user-select` is read off the element in both
+    // engines. `-webkit-touch-callout` is iOS's own property — neither test engine parses it, so the
+    // computed style cannot carry it — and is read from the stylesheet the page actually loaded.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/trains.html');
+    const logo = page.locator('#appIcon');
+    await expect(logo).toBeVisible();
+    expect(await logo.evaluate(el => getComputedStyle(el).userSelect), 'holding the logo starts a text selection')
+        .toBe('none');
+    const rule = await page.evaluate(async () => {
+        const css = await (await fetch('./shared.css')).text();
+        return css.replace(/\/\*[\s\S]*?\*\//g, '').match(/\.app-header img,\s*\.app-icon\s*\{([^}]*)\}/)?.[1] ?? '';
+    });
+    expect(rule, 'the header-logo rule was not found in shared.css, so this checks nothing').not.toBe('');
+    expect(rule, 'holding the logo opens iOS\'s image menu').toMatch(/-webkit-touch-callout:\s*none/);
+});
+
+test('the station and time boxes keep what is typed into them', async ({ page }) => {
+    // iOS autocorrects the word before a space unless the field says not to: a half-typed station
+    // became a dictionary word, and its matches with it. Enter opens the first match, so the key says Go.
+    // The static scan (select-sheet-parity.test.mjs, contract 14) holds every search box; this is the
+    // markup the page actually serves.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/trains.html');
+    const station = page.locator('#trStationInput');
+    await expect(station).toHaveAttribute('autocorrect', 'off');
+    await expect(station).toHaveAttribute('autocapitalize', 'none');
+    await expect(station).toHaveAttribute('enterkeyhint', 'go');
+    await expect(page.locator('#trLookupInput')).toHaveAttribute('autocorrect', 'off');
+});

@@ -2467,3 +2467,59 @@ test('operations: confirming the leaver disable keeps the first run\'s report', 
     await expect(result.locator('text=Already existed'), 'the re-run lists the whole roster again; it is not appended').toHaveCount(1);
     await expect(page.locator('#authConfirmOrphans')).toHaveCount(0);
 });
+
+// ── A ROSTER READ CUT OFF IN TRANSIT SAYS SO (7 Nov 2026, iPhone audit) ─────────────────────────
+// Safari reports every network failure as "Load failed", and the import read that as a slow parse —
+// "The PDF may be large" — so an admin whose phone lost its signal, or who left the screen while the
+// read ran, was sent to shrink a PDF that was fine. The words are pinned in
+// admin-roster-upload.test.mjs; these drive the real button, so what the handler hands the rule —
+// the time the read started, `navigator.onLine` — is what is tested.
+test.describe('operations: the roster read, cut off', () => {
+    /** Open the upload card and choose a PDF. @param {import('@playwright/test').Page} page */
+    async function choosePdf(page) {
+        await page.evaluate(() => {
+            const b = document.getElementById('rosterUploadBody');
+            if (b && !b.classList.contains('open')) document.getElementById('rosterUploadToggleHeader')?.click();
+        });
+        await page.setInputFiles('#rosterFileInput',
+            { name: 'roster.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
+    }
+
+    test('while it reads, the admin is told to keep the screen open', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.route('**/parseRosterPDF*', () => { /* never answered: the read is still running */ });
+        await page.goto('/operations.html');
+        await choosePdf(page);
+        await page.locator('#rosterParseBtn').click();
+        await expect(page.locator('#rosterParseFeedback')).toHaveText(
+            'Reading the PDF — this takes about 15 seconds. Keep this screen open until it finishes.');
+    });
+
+    test('Safari\'s "Load failed" seconds in is a dropped connection, not a large PDF', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        // Safari's own words for a network failure, at once — no read can have been slow by then.
+        await page.addInitScript(() => {
+            const real = window.fetch;
+            window.fetch = (input, init) => (String(input instanceof Request ? input.url : input).includes('parseRosterPDF')
+                ? Promise.reject(new TypeError('Load failed')) : real(input, init));
+        });
+        await page.goto('/operations.html');
+        await choosePdf(page);
+        await page.locator('#rosterParseBtn').click();
+        const feedback = page.locator('#rosterParseFeedback');
+        await expect(feedback).toContainText("Couldn't read the roster: The connection dropped before it finished.");
+        await expect(feedback).toContainText('keep this screen open');
+        await expect(feedback).not.toContainText('may be large');
+        await expect(page.locator('#rosterParseBtn'), 'the admin can try again at once').toBeEnabled();
+    });
+
+    test('offline, any failure is the connection — whatever the browser calls it', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        await choosePdf(page);
+        await page.context().setOffline(true);
+        await page.locator('#rosterParseBtn').click();
+        await expect(page.locator('#rosterParseFeedback')).toContainText('The connection dropped before it finished.');
+        await page.context().setOffline(false);
+    });
+});

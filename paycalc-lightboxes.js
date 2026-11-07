@@ -7,7 +7,8 @@
  *   (The Welcome first-visit lightbox was RETIRED at v19.36 and is not here.)
  * Does NOT own: pay calculation (paycalc-app.js), period arithmetic (paycalc-periods.js),
  *   settings persistence (paycalc-settings.js).
- * Edit here for: lightbox content, first-visit notice, decimal converter logic.
+ * Edit here for: lightbox content, first-visit notice, the decimal converter's wiring (its reading
+ *   and its words are `decimalHoursText`, paycalc-inputs.js, which is pure and unit-tested).
  */
 
 import { createLightbox, initCardCollapse, openNoticeIfClear } from './overlay.js';
@@ -15,7 +16,7 @@ import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { lsGet, lsSet } from './ls.js';
-import { decimalToHM } from './paycalc-format.js';
+import { decimalHoursText } from './paycalc-inputs.js';
 import { NOTICE_YTD_KEY, hasPendingLegacyMigration, resolveLegacyMigration,
          readPayslipActuals, writePayslipActuals, clearPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { getLoggedMember } from './paycalc-settings.js';
@@ -154,19 +155,10 @@ export function initPaycalcLightboxes() {
     initCardCollapse('decimalConverterToggle', 'decimalConverterBody',
       'decimalConverterToggle', (/** @type {any} */ open) => { if (open) input.focus(); });
 
+    // The reading and the words are `decimalHoursText` (paycalc-inputs.js), pure and unit-tested —
+    // it reads "7,5" from a decimal-comma keypad as 7.5, which a bare parseFloat read as 7.
     function convert() {
-      const _input  = /** @type {HTMLInputElement} */ (input);
-      const _result = /** @type {HTMLElement} */ (result);
-      const hm = decimalToHM(parseFloat(_input.value)); // single source: paycalc-format.js (60→next-hour guard)
-      if (!hm) { _result.textContent = '–'; return; }
-      const { h: hrs, m: mins } = hm;
-      if (hrs === 0) {
-        _result.textContent = `${mins} min${mins !== 1 ? 's' : ''}`;
-      } else if (mins === 0) {
-        _result.textContent = `${hrs} hr${hrs !== 1 ? 's' : ''}`;
-      } else {
-        _result.textContent = `${hrs} hr${hrs !== 1 ? 's' : ''} ${mins} min${mins !== 1 ? 's' : ''}`;
-      }
+      /** @type {HTMLElement} */ (result).textContent = decimalHoursText(/** @type {HTMLInputElement} */ (input).value);
     }
 
     input.addEventListener('input', convert);

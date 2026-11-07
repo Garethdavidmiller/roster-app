@@ -142,6 +142,13 @@
   <div class="setup-banner hidden" id="setupBanner">
     <h2 id="setupBannerTitle">👋 Estimate your take-home</h2>
     <p id="setupBannerBody">We've filled in the usual defaults — <strong>check your grade and tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>.</p>
+    <!-- AN EMPTY CALCULATOR MAY BE A MOVED ONE (the iPhone audit, 7 Nov 2026). Figures live in the
+         browser that saved them: on an iPhone, Safari and the Home Screen app keep separate copies,
+         and Safari clears its own after about a week without a visit. So this line shows only while
+         THIS member has nothing saved here — the top privacy note's rule, in paycalc-app.js — and
+         never where the browser will not save (paycalc.css), since a restore could not land. The
+         link opens the card rather than jumping to its closed header (paycalc-transfer-card.js). -->
+    <p id="setupRestore" hidden>Used the Pay Calculator before? Restore your figures from <a href="#payTransferCard" class="setup-restore-link">💾 Move Your Pay Data</a>.</p>
   </div>
 
   <!-- ── A ROLE THIS CALCULATOR HAS NO CONFIRMED RATES FOR (v21.78) ────────────────────────────
@@ -162,7 +169,7 @@
        matters most to — somebody about to type in figures from a payslip for the first time. It is
        hidden at load once this member has saved settings or any hours (paycalc-app.js, beside
        runMigrations), and starts hidden so a returning member never sees it flash. -->
-  <div class="privacy-note-standalone hidden" id="privacyNoteTop">🔒 Your pay data is saved on this device only — never sent to any server or seen by anyone.</div>
+  <div class="privacy-note-standalone hidden" id="privacyNoteTop">🔒 Your pay data is saved in this browser on this device — never sent to any server or seen by anyone.</div>
 
   <!-- DESKTOP WORK COLUMN (columns 1–2): Settings + period band + Hours. `.pc-work` is
        display:contents on mobile (DOM order unchanged there) and a flex column on desktop
@@ -326,7 +333,10 @@
     <div class="card-header card-header--row">
       <div>
         <h2><span aria-hidden="true">⏱️</span> Your Hours This Period</h2>
-        <span class="hint">Saved automatically as you type · type 7.5 to auto-convert to 7h 30m</span>
+        <!-- The promise is only made where it is kept (the iPhone audit, 7 Nov 2026): a browser that
+             will not save gets the warning instead — `body.storage-blocked`, set from ls.js's
+             `lsAvailable()` by paycalc-app.js, and swapped in paycalc.css. -->
+        <span class="hint"><span class="hours-save-ok">Saved automatically as you type · type 7.5 to auto-convert to 7h 30m</span><span class="hours-save-blocked"><span aria-hidden="true">⚠️</span> This browser isn't letting the app save, so figures you enter here will be lost when you close the page.</span></span>
         <!-- The "↓ Estimated take-home" peek button that lived here was removed at v16.78:
              the take-home figure appeared THREE times on mobile (this line, the result card
              directly below, and the #stickyTotal bar). The sticky bar shows the same live
@@ -998,7 +1008,13 @@
            Same rule as the v18.48 back-pay pass: say each fact once. What was missing is WHY the
            app makes you do this by hand at all, which is a deliberate privacy decision and worth
            stating rather than reading as an oversight. -->
-      <p class="card-explainer">Your pay figures are kept on <strong>this device only</strong>, never on the server — so unlike the rest of the app, they don't follow your account. Save a copy before you switch phone or web address.</p>
+      <p class="card-explainer">Your pay figures are kept <strong>in this browser on this device</strong>, never on the server — so unlike the rest of the app, they don't follow your account. Save a copy before you switch phone or web address.</p>
+      <!-- THE IPHONE'S TWO COPIES (the iPhone audit, 7 Nov 2026). On an iPhone a Home Screen app
+           keeps its storage apart from Safari's, so figures saved in one are not in the other, and
+           Safari deletes a site's storage after about a week of use without a visit; Android shares
+           one store between its browser and the installed app. Said here, on the card that fixes
+           it, and nowhere as a one-off notice (DECISIONS.md, "Pay-data transfer notice"). -->
+      <p class="card-explainer">On an iPhone, Safari and the Home Screen app keep separate copies, and Safari can clear its copy after about a week without a visit — so save a copy here, or keep using the roster from the Home Screen.</p>
 
       <div class="sec-hd first">Save a copy</div>
       <p class="pt-summary" id="ptSummary"></p>
@@ -1041,9 +1057,11 @@
   </div>
 
   <!-- ABOUT THESE FIGURES — where they are kept, then how far to trust them (merged v24.32, owner:
-       the privacy line used to be a card of its own at the top of every visit). -->
+       the privacy line used to be a card of its own at the top of every visit). "In this browser on
+       this device", not "on this device only" (the iPhone audit, 7 Nov 2026): on an iPhone, Safari
+       and the Home Screen app are two browsers to the figures, each with its own copy. -->
   <div class="disclaimer">
-    <p class="disclaimer-privacy">🔒 Your pay data is saved on this device only — never sent to any server or seen by anyone.</p>
+    <p class="disclaimer-privacy">🔒 Your pay data is saved in this browser on this device — never sent to any server or seen by anyone.</p>
     <p class="disclaimer-text">⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app works out tax the way payroll does — adding up the whole year so far — usually closer to your real payslip, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button type="button" class="disclaimer-toggle" id="disclaimerToggle" aria-expanded="false" aria-controls="disclaimerExtra">More ▼</button></p>
   </div>
 
@@ -1076,7 +1094,7 @@
     <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
     <div id="lightboxUpdateStatus" class="lightbox-status"></div>
     <div class="lightbox-badge">Pay Calculator</div>
-    <div class="lightbox-privacy">Pay data stays on this device only — never shared.</div>
+    <div class="lightbox-privacy">Pay data stays in this browser — never shared.</div>
     <a href="./paycalc-guide.html" class="lightbox-bug-link"><span aria-hidden="true">📖</span> View pay guide</a>
     <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
     <div class="lightbox-print-wrap">

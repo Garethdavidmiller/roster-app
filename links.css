@@ -1217,9 +1217,11 @@ body.auth-ready .container { display: grid; }
    four targets — and at 58px with centred text the UA's stepper takes about a third of the box and
    pushes the digit off centre, in the one table on this page where the SHAPE of the numbers is the
    thing being read (see the zero-dimming note above, which the arrows compete with directly).
-   `type="number"` is kept, not swapped for text: it is what gives the numeric keypad on a phone,
-   which is the platform these are actually filled in on, and it carries the min/max. What goes is
-   only the chrome the app cannot style. */
+   `type="number"` is kept, not swapped for text: it carries the min/max, and on ANDROID it opens
+   the numeric keypad. On an iPhone it does not — it opens the numbers-and-punctuation keyboard — so
+   a box here also needs `inputmode="numeric"`, which is the digit pad on both (iPhone audit,
+   7 Nov 2026; the slot counts carry it in links-generator-targets.js). What goes is only the
+   chrome the app cannot style. */
 .gen-input::-webkit-outer-spin-button,
 .gen-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .gen-input[type="number"] { appearance: textfield; -moz-appearance: textfield; }

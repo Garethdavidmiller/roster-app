@@ -25,6 +25,16 @@
  * `warnOnUnload(isDirty)` — the browser's own "Leave site?" for unsaved work, which stands down once
  * a sign-out has been ANSWERED, so the member is not asked twice.
  *
+ * `askBeforeLeavingByDrawer(isDirty)` — the same question asked IN the page, before a link in the
+ * drawer or the About panel leaves it, because a phone never shows the browser's.
+ *
+ * `keepDraftWhenHidden(isDirty, slot)` — for the exits nothing can ask about (iOS discarding a hidden
+ * page, a swipe back): a copy of the unsaved work, kept when the page is hidden and offered on the
+ * next load (unsaved-draft.js). An answered leave or sign-out is a discard, so it keeps nothing.
+ *
+ * `onReturnToPage(afterMs, fn)` — a page that comes back into view after `afterMs` away, which an
+ * installed app does instead of reloading: iOS keeps it resident for days.
+ *
  * `askBeforeSignOut(isDirty)` — the drawer's `beforeSignOut`. It runs BEFORE anything is released,
  * so a Cancel leaves the session, the push record and the work exactly as they were.
  *
@@ -68,7 +78,8 @@ import { resetNavPanel } from './nav-panel.js';
 import { confirmDialog, whenHistorySettled } from './overlay.js';
 import { writesInFlight } from './slow-save.js';
 
-/** Set once a sign-out has been answered, so `warnOnUnload` does not ask a second time. */
+/** Set once a sign-out or a leave has been answered, so `warnOnUnload` does not ask a second time and
+ *  `keepDraftWhenHidden` keeps nothing of the work the member chose to leave. */
 let _leaving = false;
 
 /**
@@ -81,21 +92,38 @@ export function warnOnUnload(isDirty) {
     });
 }
 
+/** Where the app draws links that leave the page: the drawer, and every page's About panel
+ *  (`#iconLightbox`, about-lightbox.js) — Admin's "View staff roster" and "View quick guide" went
+ *  straight past the question for as long as it asked about the drawer alone (iPhone audit, Nov 2026). */
+const LEAVING_ZONES = ['.nav-panel', '#iconLightbox'];
+
 /**
- * Ask before a DRAWER LINK leaves the page with unsaved work (whole-app review, Oct 2026). The
- * browser's own unload prompt was the only guard on those exits, and a phone never shows it, so a
- * drawer pill discarded staged edits without a word. Capture phase on `document`, so it runs before
- * the link's own listeners and before the drawer navigates; on "Leave" it clicks the link again with
- * itself stood aside, so whatever the page hangs on that link still runs (Admin's Calendar pill
- * writes the month being edited first). A `_blank` link leaves the page where it is, so it passes.
+ * Does following this link take the member off the page? Not a fragment of it (Report a bug is
+ * `href="#"` until About opens), not mail (it is `mailto:` after), and not a `_blank` link, which
+ * leaves this page where it is.
+ * @param {HTMLAnchorElement} link
+ * @returns {boolean}
+ */
+function leavesPage(link) {
+    const href = link.getAttribute('href') ?? '';
+    return !!href && !href.startsWith('#') && !/^mailto:/i.test(href) && link.target !== '_blank';
+}
+
+/**
+ * Ask before a DRAWER or ABOUT-PANEL LINK leaves the page with unsaved work (whole-app review, Oct
+ * 2026; the About panel joined in the iPhone audit, Nov 2026). The browser's own unload prompt was the
+ * only guard on those exits, and a phone never shows it, so a drawer pill discarded staged edits
+ * without a word. Capture phase on `document`, so it runs before the link's own listeners and before
+ * the drawer navigates; on "Leave" it clicks the link again with itself stood aside, so whatever the
+ * page hangs on that link still runs (Admin's Calendar pill writes the month being edited first).
  * @param {() => boolean} isDirty
  */
 export function askBeforeLeavingByDrawer(isDirty) {
     let passing = false;
     document.addEventListener('click', (e) => {
         if (passing || !isDirty()) return;
-        const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target)?.closest?.('.nav-panel a[href]'));
-        if (!link || link.target === '_blank') return;
+        const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target)?.closest?.('a[href]'));
+        if (!link || !LEAVING_ZONES.some(zone => link.closest(zone)) || !leavesPage(link)) return;
         e.preventDefault();
         e.stopPropagation();
         confirmDialog({ message: 'You have unsaved changes. Leave this page anyway?', confirmLabel: 'Leave' })
@@ -106,6 +134,49 @@ export function askBeforeLeavingByDrawer(isDirty) {
                 try { link.click(); } finally { passing = false; }
             });
     }, true);
+}
+
+/**
+ * Keep a copy of unsaved work whenever the page is HIDDEN, for the exits nothing can ask about
+ * (iPhone audit, Nov 2026): iOS discards a page it has put in the background, and a swipe back or
+ * away asks nothing. `visibilitychange` is the event iOS sends before it can discard the page;
+ * `pagehide` is the one a navigation sends. Hidden while dirty keeps the work; hidden while clean
+ * forgets it — and so does a leave or sign-out the member has ANSWERED, because "Leave" and "Sign out
+ * anyway" were both a discard. What a draft is and how it is offered: unsaved-draft.js.
+ * @param {() => boolean} isDirty
+ * @param {{ keep: () => void, forget: () => void }} slot  writes, or deletes, this page's draft
+ */
+export function keepDraftWhenHidden(isDirty, slot) {
+    const onHide = () => {
+        try { if (!_leaving && isDirty()) slot.keep(); else slot.forget(); }
+        catch (err) { console.error('[page-session] the unsaved-work draft could not be kept:', err); }
+    };
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') onHide(); });
+    window.addEventListener('pagehide', onHide);
+}
+
+/**
+ * Run `fn` when the page comes back into view after at least `afterMs` out of it (iPhone audit, Nov
+ * 2026). An installed app is not reloaded when it is reopened — iOS keeps it resident for days — so a
+ * page that read its data once, or stamped "today" when it drew, goes on showing that. The time away
+ * is measured on the wall clock from the moment the page was hidden, because that is the clock that
+ * keeps running while the phone sleeps. A return through the back/forward cache counts too.
+ * @param {number} afterMs
+ * @param {(awayMs: number) => void} fn
+ */
+export function onReturnToPage(afterMs, fn) {
+    /** @type {number|null} */ let hiddenAt = document.visibilityState === 'hidden' ? Date.now() : null;
+    const back = () => {
+        if (hiddenAt === null) return;
+        const away = Date.now() - hiddenAt;
+        hiddenAt = null;
+        if (away >= afterMs) fn(away);
+    };
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') hiddenAt ??= Date.now(); else back();
+    });
+    window.addEventListener('pagehide', () => { hiddenAt ??= Date.now(); });
+    window.addEventListener('pageshow', (e) => { if (/** @type {PageTransitionEvent} */ (e).persisted) back(); });
 }
 
 /**

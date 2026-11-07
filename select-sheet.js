@@ -180,6 +180,11 @@ let _sheet = null;
    sometimes grabs focus is harder to trust than one that never does. The list is browsable the
    instant it opens, which is what it was before; the box is one tap away for anyone who wants it.
 
+   Once it IS tapped, the keyboard is the problem (iPhone audit, 7 Nov 2026): a sheet with a box
+   opens at the top of the screen rather than centred, so a shrinking list cannot slide the box and
+   its matches down under the keyboard, and the keyboard's Search key puts the keyboard away. Both
+   are beside the code, in `openOptionSheet` and `ensureSheet`.
+
    NOT `guide-search.js`. That module is a real search engine — tokenised, AND across terms, title
    weighted over body, results ranked — because it answers a question across five documents. This
    is a FILTER over a list already on screen: a substring, in order, with nothing ranked and
@@ -256,6 +261,9 @@ function ensureSheet() {
     overlay.setAttribute('aria-label', 'Choose an option');
     const content = document.createElement('div');
     content.className = 'lb-content picker-sheet';
+    // The panel can hold focus (the Search key below sends it here). `createLightbox` would add this
+    // on the first open anyway; stated here so the key never depends on which open came first.
+    content.setAttribute('tabindex', '-1');
     const close = document.createElement('button');
     close.className = 'lb-close';
     close.type = 'button';
@@ -278,6 +286,17 @@ function ensureSheet() {
     input.spellcheck = false;
     input.setAttribute('autocapitalize', 'none');
     input.setAttribute('autocorrect', 'off');
+    // THE KEYBOARD'S SEARCH KEY PUTS THE KEYBOARD AWAY (iPhone audit, 7 Nov 2026). The list filters
+    // as you type, so there is nothing to submit — the key's only useful meaning is "done typing,
+    // let me see the matches", and on an iPhone the keyboard is what is covering them. Focus goes to
+    // the PANEL, not to nothing: the member stays inside the dialog, and Tab carries on from its top.
+    // Not during IME composition, where Enter commits the characters rather than the search.
+    input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || e.isComposing) return;
+        e.preventDefault();
+        input.blur();
+        content.focus({ preventScroll: true });
+    });
     search.appendChild(input);
     const list = document.createElement('div');
     list.className = 'picker-list';
@@ -293,8 +312,12 @@ function ensureSheet() {
  * Enhance one `<select>`. Returns a `refresh()` the caller can use when it has rebuilt
  * the options itself and wants the trigger's face brought back into step immediately
  * (the `change` listener already covers the ordinary case).
+ * `focusOnPick` (iPhone audit, 7 Nov 2026) names the field the member types into NEXT, for a
+ * caller whose `change` handler would otherwise focus it — see `openOptionSheet`, which is where
+ * the timing that makes it necessary lives.
  * @param {HTMLSelectElement|null} select
  * @param {{ title?: string, placeholder?: string, triggerClass?: string,
+ *           focusOnPick?: (value: string) => (HTMLElement|null|undefined),
  *           createLightbox?: (opts: any) => { open: () => void, close: () => (Promise<void>|void) } }} [opts]
  */
 export function enhanceSelect(select, opts = {}) {
@@ -423,6 +446,7 @@ export function enhanceSelect(select, opts = {}) {
                 const chosen = /** @type {any} */ (Array.from(select.options).find(o => /** @type {any} */ (o).value === value));
                 if (chosen) face.textContent = String(chosen.textContent ?? '').trim();
             },
+            focusOnPick: opts.focusOnPick,
             onPick: value => {
                 if (select.value === value) return;   // re-picking the open one changes nothing
                 select.value = value;
@@ -454,9 +478,18 @@ export function enhanceSelect(select, opts = {}) {
  * third of a second. `onPreview` fires SYNCHRONOUSLY on the tap for the caller that wants to
  * repaint its control while the sheet fades. Neither is called when the sheet is dismissed — a
  * cancel is not a pick.
+ *
+ * `focusOnPick` returns the field to type into next, and it is focused INSIDE THE TAP (iPhone
+ * audit, 7 Nov 2026). iOS raises its keyboard only for a focus made synchronously inside the user's
+ * gesture, and `onPick` — where a caller's `change` handler would focus that field — runs after the
+ * close has landed, long after the gesture: the sign-in card focused its password box there, and
+ * an iPhone got a caret and no keyboard. It runs AFTER `close()` has begun, because the close hands
+ * focus back to the control that opened the sheet, synchronously, and a focus made before it would
+ * be undone. A callback that throws costs the focus, never the pick.
  * @param {{ title: string, groups: SheetGroup[], current?: string, subtitle?: string,
  *           searchPlaceholder?: string,
  *           onPick: (value: string) => void, onPreview?: (value: string) => void,
+ *           focusOnPick?: (value: string) => (HTMLElement|null|undefined),
  *           createLightbox?: (opts: any) => { open: () => void, close: () => (Promise<void>|void) } }} opts
  */
 export function openOptionSheet(opts) {
@@ -507,6 +540,11 @@ export function openOptionSheet(opts) {
     };
 
     sheet.search.hidden = !searchable;
+    // A SHEET WITH A SEARCH BOX OPENS AT THE TOP, AND STAYS THERE (iPhone audit, 7 Nov 2026). Centred,
+    // every keystroke that shortened the list re-centred the panel, so the box and the matches slid
+    // DOWN the screen — towards the keyboard, which on an iPhone does not resize the page and so
+    // covers whatever is beneath it. shared.css → `.picker-sheet-overlay--search`.
+    sheet.overlay.classList[searchable ? 'add' : 'remove']('picker-sheet-overlay--search');
     sheet.input.value = '';
     sheet.input.placeholder = opts.searchPlaceholder || 'Search\u2026';
     // A placeholder is not a label — it is the field's own content, and it disappears the moment
@@ -528,7 +566,11 @@ export function openOptionSheet(opts) {
         opts.onPreview?.(value);
         // A factory whose close() returns nothing (the unit tests' fakes) resolves at once; the
         // real one resolves when the close has landed — see the JSDoc above.
-        Promise.resolve(sheet.lb.close()).then(() => opts.onPick(value));
+        const landed = Promise.resolve(sheet.lb.close());
+        // Still inside the tap, and after the close's own focus hand-back — the JSDoc says why both.
+        try { opts.focusOnPick?.(value)?.focus(); }
+        catch (e) { console.error('[select-sheet] focusOnPick threw:', e); }
+        landed.then(() => opts.onPick(value));
     };
     sheet.lb.open();
 }

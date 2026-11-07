@@ -440,8 +440,10 @@ test('a member does not even FLASH the PIN card', async ({ page }) => {
 //
 //   · the restore is merely SLOW and lands after `resolveAccess`'s bound (rare, and it was a cliff —
 //     the decision was made once and never revisited, so a reload was the only way out); or
-//   · the identity is GONE — iOS evicts IndexedDB after ~7 days of not opening the PWA, while the
-//     local session runs for 60 days. That one is not a race at all: it fails every single load.
+//   · the identity is GONE while the local session (60 days) is not — an IndexedDB read that fails
+//     on iOS is the likelier route (KNOWN_LIMITATIONS → "One interaction to expect on iOS"; it is
+//     not Safari's seven-day rule, which deletes both together). That one is not a race at all: it
+//     fails every single load.
 //
 // Neither was reachable by a test until `authRestoreDelayMs` existed, because the Firebase stub
 // handed every caller a user synchronously — no restore budget in the app had ever been exercised.

@@ -138,7 +138,8 @@ const CAPS = {
     // beside import and the bin. What is left is the one hook the press needs from the coordinator,
     // because only the coordinator owns the live list and the open design. The cap is the measured
     // size, so the next addition is a raise too.
-    'links-app.js':            2371,   // ← v25.27 (2372 at v24.51: import + bin to links-design-library.js, was 2650). The next Links rule goes in a domain module
+    // 2371 → 2399 on 7 Nov 2026 (iPhone audit), a RAISE: the unsaved-work draft's wiring — keep the open design and its baseline on a hide, offer and restore them; the rules went to unsaved-draft.js.
+    'links-app.js':            2399,   // ← v25.27 (2372 at v24.51: import + bin to links-design-library.js, was 2650). The next Links rule goes in a domain module
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
     // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap
@@ -215,7 +216,8 @@ const CAPS = {
     // The next-50 formula would give 1750 here, which is a RAISE, and a cap may only fall — so it
     // is clamped to the round number below the old one. 26 lines of room rather than the usual
     // 50–99, which is the honest cost of shrinking a file by less than the band is wide.
-    'admin-app.js':            1700,
+    // 1700 → 1731 on 7 Nov 2026 (iPhone audit), a RAISE: the week draft's wiring and the re-read on return; the rules went to unsaved-draft.js, admin-week-row-state.js and page-session.js.
+    'admin-app.js':            1731,
     'links-design.js':         1500,   // a DOMAIN module: large is less alarming here, but still capped
     // NEW at v25.48, a decision rather than a discovery: `chunkByWrites` (the range booking's batches,
     // counted in writes so none crosses Firestore's 500) took it from 900 to 928. It joined the other

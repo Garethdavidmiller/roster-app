@@ -1385,7 +1385,8 @@ test.describe('install notice — in an Android browser', () => {
         const notice = page.locator('#installNoticeLb');
         await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
         await expect(page.locator('#installNoticeInstall')).toBeVisible();
-        for (const id of ['#installNoticeMenu', '#installNoticeIos', '#installNoticeMirror', '#installNoticeGo', '#installNoticeHave']) {
+        for (const id of ['#installNoticeMenu', '#installNoticeIos', '#installNoticeMirror', '#installNoticeGo', '#installNoticeHave',
+                          '#installNoticeSafari', '#installNoticePayIos']) {
             await expect(page.locator(id), `${id} is another browser's answer`).toBeHidden();
         }
         // The browser's offer would have put the strip up too. One ask at a time: it has stood down.
@@ -1410,6 +1411,10 @@ test.describe('install notice — in an Android browser', () => {
         await expect(page.locator('#installNoticeMenu')).toBeVisible();
         await expect(page.locator('#installNoticeHave'), 'it may already be installed: Chrome offers only where it is not').toBeVisible();
         await expect(page.locator('#installNoticeActions'), 'nothing to press — the browser\'s menu does it').toBeHidden();
+        // Android keeps ONE storage for the browser and the installed app, so the iPhone's storage
+        // lines (sign in again, the figures stay behind) would tell an Android member something false.
+        await expect(page.locator('#installNoticeSafari')).toBeHidden();
+        await expect(page.locator('#installNoticePayIos')).toBeHidden();
         await page.locator('#installNoticeClose').click();
         await expect(notice).not.toHaveClass(/\bopen\b/);
         expect(await page.evaluate(() => [localStorage.getItem('myb_notice_install_app_2026_done'),
@@ -1438,6 +1443,66 @@ test.describe('install notice — on an iPhone', () => {
         // On an iPhone the strip shows its own steps the moment access is decided — the same moment
         // the notice is decided — so this is the strip coming up and going straight back down.
         await expect(page.locator('#installPrompt')).toBeHidden();
+        expect(errors).toHaveLength(0);
+    });
+
+    // THE iPHONE IS TOLD WHAT THE INSTALL COSTS (iPhone audit, 7 Nov 2026). Its Home Screen app keeps its
+    // own storage, so the member is signed out there and the Pay Calculator's figures stay behind in the
+    // browser — the notice promised the opposite. And Share is under ••• on iOS 26, and absent from an
+    // email or chat app altogether. Driven through the real detection, at the smallest iPhone that runs
+    // iOS 16.4 (the SE, 375×667), because these lines made the card longer than its screen.
+    test('it says where Share is, to open in Safari first, and what stays behind — and all of it can be read', async ({ page }, info) => {
+        test.skip(!isTouchProject(info), 'it is offered only on a touch screen');
+        const errors = collectFatalErrors(page);
+        await page.setViewportSize({ width: 375, height: 667 });
+        await memberDueTheInstallNotice(page);
+        await page.goto('/');
+        const notice = page.locator('#installNoticeLb');
+        await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await expect(page.locator('#installNoticeIos')).toContainText('on iOS 26 or later, Share is under •••');
+        await expect(page.locator('#installNoticeSafari')).toBeVisible();
+        await expect(page.locator('#installNoticeSafari')).toContainText('Open it in Safari first');
+        const pay = page.locator('#installNoticePayIos');
+        await expect(pay).toBeVisible();
+        await expect(pay).toContainText('sign in there once');
+        await expect(pay).toContainText('Move Your Pay Data');
+        await expect(page.locator('#installNoticePay'), 'the mirror\'s line, which says the figures stay at an ADDRESS').toBeHidden();
+        await expect(notice).not.toContainText('your saved pay figures are far less likely');
+        // The card runs past this screen, so it must scroll to its last line, with the ✕ never lost.
+        const close = page.locator('#installNoticeClose');
+        await expect(close).toBeInViewport();
+        const last = page.locator('#installNoticeHave');
+        await last.scrollIntoViewIfNeeded();
+        await expect(last).toBeInViewport();
+        await close.click();
+        await expect(notice).not.toHaveClass(/\bopen\b/);
+        const archived = await page.evaluate(() =>
+            JSON.parse(localStorage.getItem('myb_app_notices') || '[]').find((/** @type {{ id: string }} */ n) => n.id === 'install-app-2026')?.body);
+        expect(archived, 'the App Notices record keeps the same three points').toMatch(/under •••[\s\S]*Safari first[\s\S]*Move Your Pay Data/);
+        expect(errors).toHaveLength(0);
+    });
+
+    test('the strip names the ••• too, and still fits the smallest iPhone', async ({ page }, info) => {
+        // The strip asks on any later visit the notice did not take — once the notice is answered or
+        // past its 90 days. Its iOS line is the two taps plus where Share is on iOS 26.
+        test.skip(!isTouchProject(info), 'the strip is mobile-only');
+        const errors = collectFatalErrors(page);
+        await page.setViewportSize({ width: 375, height: 667 });
+        await seedMemberSession(page, 'G. Miller');      // the notice is flagged done, so the strip is not stood down
+        await page.goto('/');
+        const strip = page.locator('#installPrompt');
+        await expect(strip).toBeVisible({ timeout: 15_000 });
+        const steps = page.locator('#installPromptSteps');
+        await expect(steps).toBeVisible();
+        await expect(steps).toHaveText('Tap Share, then Add to Home Screen (iOS 26 or later: Share is under •••)');
+        await expect(page.locator('#installPromptAction'), 'WebKit has no install event, so there is nothing to press').toBeHidden();
+        const fit = await page.evaluate(() => {
+            const s = /** @type {HTMLElement} */ (document.getElementById('installPrompt')).getBoundingClientRect();
+            const x = /** @type {HTMLElement} */ (document.getElementById('installPromptDismiss')).getBoundingClientRect();
+            return { right: s.right, dismissRight: x.right, width: document.documentElement.clientWidth };
+        });
+        expect(fit.right, 'the strip stays inside the page').toBeLessThanOrEqual(fit.width);
+        expect(fit.dismissRight, 'and its × stays on screen').toBeLessThanOrEqual(fit.width);
         expect(errors).toHaveLength(0);
     });
 });
@@ -3077,4 +3142,505 @@ test('calendar: the leave panel steps to next year and links to that year\'s rec
     await expect(page.locator('#alLightbox')).not.toHaveClass(/open/);
     await page.locator('#alBtn').click();
     await expect(year).toHaveText('2026');
+});
+
+// ── A TALL PANEL ON A PHONE ON ITS SIDE (7 Nov 2026, iPhone audit) ──────────────────────────────
+//
+// The day panel and the leave panel had no height cap, and `.lb-content` scrolls only once
+// something caps it. The overlay centres its panel, so on a phone in landscape — 375 to 402px of
+// height — a tall panel ran off the top and the bottom together, the ✕ that closes it with it.
+// MEASURED, because every element is present and readable either way: nothing behavioural fails,
+// and the visual baselines are portrait.
+//
+// Each case is one that CAN fail. The leave panel with a Christmas line (measured 426px of content)
+// is taller than either screen at the default text size. The tallest day panel at the default size
+// is Christmas Day's, and at 318px it FITS a 375px screen — so it is also read under 1.3× text, the
+// way an Android phone set to large text draws it, where it does not. And the cap brought its own
+// failure, which is why "nothing squashed" is asserted beside "on screen": a capped flex column
+// shrinks a child whose flex minimum is zero before it scrolls, and the leave panel's figures were
+// cut to a 13px strip with the panel still not scrolling.
+for (const [width, height] of [[667, 375], [874, 402]]) {
+    test(`day detail and the leave panel fit a phone held sideways, ✕ and all, at ${width}×${height}`, async ({ page }) => {
+        await page.setViewportSize({ width, height });
+        await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+        await seedMemberSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+            // A worked Boxing Day, so the leave panel carries its lieu-day breakdown as well.
+            w.__E2E.docs = [{ id: 'bx', memberName: 'G. Miller', date: '2026-12-26', type: 'rdw',
+                value: '13:30-21:00', note: '', source: 'manual' }];
+        });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+        /** Every used font size in a panel × k, read before any is written so none compounds.
+         *  @param {string} sel @param {number} k */
+        const scaleTextIn = (sel, k) => page.evaluate(([s, mult]) => {
+            const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll(`${s}, ${s} *`)]);
+            const px = els.map(e => parseFloat(getComputedStyle(e).fontSize));
+            els.forEach((e, i) => { if (px[i]) e.style.fontSize = `${px[i] * Number(mult)}px`; });
+        }, [sel, String(k)]);
+
+        /** The panel and its ✕ are on screen, no zone is squashed, and its last row scrolls into view.
+         *  @param {string} panel @param {string} close @param {string} what */
+        const fitsTheScreen = async (panel, close, what) => {
+            const g = await page.evaluate(([p, c]) => {
+                const el = /** @type {HTMLElement} */ (document.querySelector(p));
+                const zones = [...el.children].filter(k => {
+                    const cs = getComputedStyle(k);
+                    return cs.display !== 'none' && cs.position !== 'absolute';   // the ✕ is out of flow
+                });
+                const box = (/** @type {Element} */ e) => e.getBoundingClientRect();
+                // SQUASHED = shorter under the cap than without it. Not scrollHeight against
+                // clientHeight: a glyph that hangs below its line overflows its zone by a pixel or two
+                // at any height, and that is not the cap's doing.
+                const capped = zones.map(z => box(z).height);
+                el.style.maxHeight = 'none';
+                const free = zones.map(z => box(z).height);
+                el.style.maxHeight = '';
+                const out = { panel: box(el), close: box(/** @type {Element} */ (document.querySelector(c))), vh: innerHeight,
+                    squashed: zones.filter((z, i) => capped[i] < free[i] - 0.5).map(z => `${z.id || z.className} ${capped[zones.indexOf(z)]}/${free[zones.indexOf(z)]}px`),
+                    lastBottom: 0, panelBottom: 0 };
+                el.scrollTop = el.scrollHeight;               // as far down as the member can scroll it
+                out.lastBottom = box(zones[zones.length - 1]).bottom;
+                out.panelBottom = box(el).bottom;
+                el.scrollTop = 0;
+                return out;
+            }, [panel, close]);
+            expect(g.panel.top, `${what}: the top of the panel is above the screen`).toBeGreaterThanOrEqual(0);
+            expect(g.panel.bottom, `${what}: the bottom of the panel is below the screen`).toBeLessThanOrEqual(g.vh);
+            expect(g.close.top, `${what}: the ✕ is off the top of the screen`).toBeGreaterThanOrEqual(0);
+            expect(g.close.bottom, `${what}: the ✕ is off the screen`).toBeLessThanOrEqual(g.vh);
+            expect(g.squashed, `${what}: squashed to fit instead of scrolling`).toEqual([]);
+            expect(g.lastBottom, `${what}: the last row cannot be scrolled into view`).toBeLessThanOrEqual(g.panelBottom + 1);
+        };
+
+        // ── The day panel: Christmas Day, due at work, so leave never counted ──
+        const christmas = page.locator('.calendar-day:not(.other-month)[data-detail-day="Friday 25 December 2026"]');
+        const dayPanel = page.locator('#dayDetailContent');
+        await christmas.click();
+        await expect(page.locator('#dayDetailChristmas')).toBeVisible();
+        await expect(dayPanel).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+        await fitsTheScreen('#dayDetailContent', '#dayDetailClose', 'the day panel');
+        await scaleTextIn('#dayDetailContent', 1.3);
+        await fitsTheScreen('#dayDetailContent', '#dayDetailClose', 'the day panel under 1.3× text');
+        await page.locator('#dayDetailClose').click();
+        await expect(page.locator('#dayDetailLightbox')).not.toHaveClass(/open/);
+
+        // ── The leave panel, carrying the Christmas line ──
+        await page.locator('#alBtn').click();
+        await expect(page.locator('#alLbChristmas')).toBeVisible();
+        await expect(page.locator('#alLightboxContent')).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+        await fitsTheScreen('#alLightboxContent', '#alLightboxClose', 'the leave panel');
+        // And the ✕ closes it — reachable is the point.
+        await page.locator('#alLightboxClose').click();
+        await expect(page.locator('#alLightbox')).not.toHaveClass(/open/);
+    });
+}
+
+// ── THE TEAM WEEK'S DATE ROW STAYS ABOVE THE NAMES ON A PHONE (7 Nov 2026, iPhone audit) ─────────
+//
+// `.team-table-wrap { overflow-x: auto }` makes the wrapper the header's scroll container, and the
+// other axis then computes to `auto` too — so below 1024px, where nothing limited its height, the
+// wrapper was as tall as the table, never scrolled, and the sticky date row went off the top with
+// the page. A member reading the twentieth name had no day or date above the column. Now the
+// wrapper is capped there and the names scroll under the date row inside it.
+//
+// The assertion that bites is "a name other than the first is directly under the date row": with
+// the header gone off the screen, or moving WITH the names, the row beneath it is the first one at
+// every size. Landscape is in the list because there the page must scroll as well, and every row
+// still has to be reachable.
+for (const [width, height] of [[375, 667], [390, 844], [667, 375]]) {
+    test(`calendar: the Team View date row stays above the names as they scroll, at ${width}×${height}`, async ({ page }) => {
+        await page.setViewportSize({ width, height });
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('#teamViewBtn').click();
+        await expect(page.locator('.team-table tbody tr').nth(15), 'a grade long enough to need scrolling').toBeAttached();
+
+        // The page as far down as it goes, and the names as far down as THEY go — together, the
+        // furthest a member can scroll towards the last name.
+        const g = await page.evaluate(() => {
+            window.scrollTo(0, document.documentElement.scrollHeight);
+            const wrap = /** @type {HTMLElement} */ (document.querySelector('.team-table-wrap'));
+            wrap.scrollTop = wrap.scrollHeight;
+            const box = (/** @type {Element} */ e) => e.getBoundingClientRect();
+            // A header CELL, not the thead: `position: sticky` moves the cells, and the thead's own
+            // box stays where it was laid out.
+            const head = box(/** @type {Element} */ (document.querySelector('.team-table thead th:nth-child(2)')));
+            const w = box(wrap);
+            const rows = [...document.querySelectorAll('.team-table tbody tr')];
+            const under = document.elementFromPoint(w.left + w.width / 2, head.bottom + 4)?.closest('tr');
+            return { vh: innerHeight, head, w, last: box(rows[rows.length - 1]), under: under ? rows.indexOf(under) : -1 };
+        });
+        expect(g.head.top, 'the date row is off the top of the screen').toBeGreaterThanOrEqual(0);
+        expect(g.head.bottom, 'the date row is off the bottom of the screen').toBeLessThanOrEqual(g.vh);
+        expect(Math.abs(g.head.top - g.w.top), 'the date row is not at the top of the box the names scroll in').toBeLessThanOrEqual(1);
+        expect(g.under, 'the first name is still under the date row — nothing scrolled beneath it').toBeGreaterThan(0);
+        expect(g.last.bottom, 'the last name cannot be brought on screen').toBeLessThanOrEqual(Math.min(g.vh, g.w.bottom) + 1);
+        expect(g.w.top, 'scrolled to the end, the box the names scroll in is still above the screen').toBeGreaterThanOrEqual(0);
+
+        // The name column holds when the week scrolls sideways — the other sticky edge of the same
+        // box. Held sideways the phone is wide enough for all seven days, so there is nothing to scroll.
+        if (width > 600) return;
+        const side = await page.evaluate(() => {
+            const wrap = /** @type {HTMLElement} */ (document.querySelector('.team-table-wrap'));
+            wrap.scrollLeft = wrap.scrollWidth;
+            const left = (/** @type {string} */ s) => /** @type {Element} */ (document.querySelector(s)).getBoundingClientRect();
+            const names = document.querySelectorAll('.team-table tbody th.tv-name-col');
+            return { scrolled: wrap.scrollLeft, wrap: left('.team-table-wrap'), name: names[names.length - 1].getBoundingClientRect(),
+                headName: left('.team-table thead th.tv-name-col') };
+        });
+        expect(side.scrolled, 'the week did not need to scroll sideways at this width').toBeGreaterThan(0);
+        expect(Math.abs(side.name.left - side.wrap.left), 'the name column scrolled away with the days').toBeLessThanOrEqual(1);
+        expect(Math.abs(side.headName.left - side.wrap.left), 'the "Name" heading scrolled away').toBeLessThanOrEqual(1);
+        expect(Math.abs(side.headName.top - side.wrap.top), 'the "Name" heading left the top edge').toBeLessThanOrEqual(1);
+    });
+}
+
+// …and on PAPER the cap is lifted. A sheet is under 1024px wide, so the phone rule matches in print
+// too, and a printed grade would stop at the first screenful of names, with nothing to say so.
+test('calendar: a printed Team View is not cut to the phone\'s scroll box', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 420 });   // a box of 210px, under the printed table
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-table tbody tr').nth(15)).toBeAttached();
+    await page.emulateMedia({ media: 'print' });
+    const h = await page.evaluate(() => ({
+        wrap: /** @type {Element} */ (document.querySelector('.team-table-wrap')).getBoundingClientRect().height,
+        table: /** @type {Element} */ (document.querySelector('.team-table')).getBoundingClientRect().height,
+    }));
+    expect(h.wrap, `the printed grade is cut to a ${Math.round(h.wrap)}px box of a ${Math.round(h.table)}px table`)
+        .toBeGreaterThanOrEqual(h.table - 1);
+    await page.emulateMedia({ media: 'screen' });
+});
+
+// …and a scroll DOWN the names is not the swipe the hint asks for (7 Nov 2026). With the box capped,
+// the names scroll inside it, and the hint ("← Swipe table to see all 7 days →") was retired by the
+// first scroll of any kind — so somebody reading down the list lost it, for good, before the week had
+// ever moved. So was the APP's own move: it brings today into view (a pixel or two even on a Sunday)
+// and puts the week back after a grade switch, and either retired the hint within a frame, unread.
+// EACH STEP WAITS UNTIL THE BOX'S SCROLL EVENT HAS BEEN DELIVERED, never for a fixed time. WebKit
+// delivers it late — measured: nothing two frames after the scroll, the event by 600ms, and one event
+// per box however many moves came before it — so on the iPhone engine a fixed wait could read the
+// hint before the app had heard the scroll: a "keeps the hint" step passed without testing anything,
+// and the swipe that should retire it failed.
+test('calendar: scrolling down the Team View names keeps the swipe hint; scrolling across the week retires it', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.clock.setFixedTime(new Date('2026-11-12T09:00:00Z'));      // a Thursday: the open scrolls to today
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    /** Arm a wait for the next scroll event on the box a step is about: the one there now, or with
+     *  `fresh` the one the app is about to draw. It is caught on its way down (capture) and answered a
+     *  task later, so the app's own listener on the box has run by the time it resolves; false if
+     *  none comes. @param {boolean} fresh */
+    const armScrollWait = (fresh) => page.evaluate((freshBox) => {
+        const before = document.querySelector('.team-table-wrap');
+        /** @type {any} */ (window).__boxScrolled = new Promise((resolve) => {
+            /** @param {Event} e */
+            const on = (e) => {
+                const box = e.target;
+                if (!(box instanceof Element) || !box.classList.contains('team-table-wrap')) return;
+                if (freshBox ? box === before : box !== before) return;
+                document.removeEventListener('scroll', on, true);
+                setTimeout(() => resolve(true), 0);
+            };
+            document.addEventListener('scroll', on, true);
+            setTimeout(() => { document.removeEventListener('scroll', on, true); resolve(false); }, 5000);
+        });
+    }, fresh);
+    const scrollHeard = () => page.evaluate(() => /** @type {any} */ (window).__boxScrolled);
+    const state = () => page.evaluate(() => ({
+        seen: localStorage.getItem('myb_team_scroll_seen'),
+        hidden: /** @type {HTMLElement} */ (document.querySelector('.tv-scroll-hint')).style.display === 'none',
+        top: /** @type {HTMLElement} */ (document.querySelector('.team-table-wrap')).scrollTop,
+    }));
+
+    await armScrollWait(true);
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-table tbody tr').nth(15)).toBeAttached();
+    expect(await scrollHeard(), 'premise: the open brought today into view, and the box reported it').toBe(true);
+    expect(await state(), 'the app bringing today into view retired the hint').toMatchObject({ seen: null, hidden: false });
+
+    await armScrollWait(false);
+    await page.evaluate(() => { /** @type {HTMLElement} */ (document.querySelector('.team-table-wrap')).scrollTop = 200; });
+    expect(await scrollHeard(), 'premise: the box reported the scroll down the names').toBe(true);
+    const down = await state();
+    expect(down.top, 'premise: the names scrolled inside the box').toBeGreaterThan(0);
+    expect(down, 'a scroll down the names retired the swipe hint').toMatchObject({ seen: null, hidden: false });
+
+    // A grade tab re-draws the grid, and the app puts the week back where it was — its own move again.
+    await armScrollWait(true);
+    await page.locator('.grade-tab.active').click();
+    await expect(page.locator('.team-table tbody tr').nth(15)).toBeAttached();
+    expect(await scrollHeard(), 'premise: the app put the week back, and the new box reported it').toBe(true);
+    expect(await state(), 'the app putting the week back after a grade switch retired the hint').toMatchObject({ seen: null, hidden: false });
+
+    await armScrollWait(false);
+    await page.evaluate(() => { /** @type {HTMLElement} */ (document.querySelector('.team-table-wrap')).scrollLeft = 120; });
+    expect(await scrollHeard(), 'premise: the box reported the scroll across the week').toBe(true);
+    expect(await state(), 'a scroll across the week did not retire the hint').toMatchObject({ seen: '1', hidden: true });
+});
+
+// ── THE iPHONE KEYBOARD, FOCUS AND TOUCH (iPhone audit, 7 Nov 2026) ─────────────────────────────────
+//
+// The ‹ › arrows above the iPhone keyboard move focus to the previous or next text field in the
+// DOCUMENT, and fire no key event, so a Tab trap never sees them. A programmatic `focus()` on an
+// element behind the dialog is that move, minus the keyboard: what has to happen next is the same.
+// The rules are unit-tested in overlay.test.mjs; this is the wiring — the real `createLightbox`, the
+// real About panel, the real dialog module and the real sign-in card, in the order a page meets them.
+
+/** Which surface holds focus now, by the overlay it sits in. @param {import('@playwright/test').Page} page */
+const focusIsIn = (page) => page.evaluate(() => {
+    const a = document.activeElement;
+    if (a?.closest('.dialog-overlay')) return 'dialog';
+    if (a?.closest('#loginOverlay')) return 'sign-in';
+    if (a?.closest('#iconLightbox')) return 'about';
+    return a?.id || a?.tagName || 'nothing';
+});
+
+test('overlay: focus that lands behind an open dialog comes back to it — and only the topmost one pulls', async ({ page }) => {
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.title-icon').first().click();   // the Calendar's header logo opens About
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+
+    await page.evaluate(() => document.getElementById('prevMonth')?.focus());
+    expect(await focusIsIn(page), 'focus stayed on the page behind About').toBe('about');
+
+    // A dialog OVER About: it owns focus now, and About — buried — must not drag it back underneath.
+    await page.evaluate(async () => {
+        const { confirmDialog } = await import('./overlay.js');
+        void confirmDialog({ message: 'A dialog over the About panel' });
+    });
+    await expect(page.locator('.dialog-overlay')).toHaveClass(/open/);
+    await page.evaluate(() => document.getElementById('iconLightboxClose')?.focus());
+    expect(await focusIsIn(page), 'focus went into the panel UNDER the dialog').toBe('dialog');
+    await page.evaluate(() => document.getElementById('prevMonth')?.focus());
+    expect(await focusIsIn(page)).toBe('dialog');
+
+    // Escape closes the dialog alone, and About is the top again — guarding its own focus once more.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+    await page.evaluate(() => document.getElementById('prevMonth')?.focus());
+    expect(await focusIsIn(page)).toBe('about');
+});
+
+test('overlay: a sign-in card mounted over an open dialog keeps the focus it takes', async ({ page }) => {
+    // The case a focus guard must NOT win. `#loginOverlay` is not on the overlay stack — a session
+    // lost mid-visit mounts it over whatever was open (page-session.js) — so the dialog underneath
+    // still believes it is the top. Pulling focus back would leave the member unable to type their
+    // password: the guard stands down for a modal surface painted above it.
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);   // or initLoginOverlay's idempotence no-ops
+    await page.evaluate(async () => {
+        const { initLoginOverlay } = await import('./login-overlay.js');
+        initLoginOverlay({ pageLabel: 'a test', onSuccess() {} });
+    });
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    expect(await focusIsIn(page), 'the dialog under the sign-in card took its focus back').toBe('sign-in');
+    await page.evaluate(() => document.getElementById('loginPassword')?.focus());
+    expect(await focusIsIn(page)).toBe('sign-in');
+});
+
+/** Wait for an element's running transitions and animations to end — the sheets open with a scale. */
+const settledBox = (/** @type {import('@playwright/test').Locator} */ loc) => loc.evaluate(async el => {
+    await Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished.catch(() => {})));
+    const r = el.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, viewport: window.innerHeight };
+});
+
+test('picker: a sheet with a search box sits at the top and stays there as the list shrinks', async ({ page }) => {
+    // Centred, every keystroke that shortened the list re-centred the panel, sliding the box and its
+    // matches DOWN — towards the iPhone keyboard, which covers the bottom of the page without resizing
+    // it. Measured on the real name sheet, before and after a filter.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('#teamMemberSelectTrigger')).toBeVisible();
+    await page.locator('#teamMemberSelectTrigger').click();
+    const box = page.locator('.picker-search-input');
+    await expect(box).toBeVisible();
+    const panel = page.locator('.picker-sheet');
+    const before = await settledBox(panel);
+    expect(before.top, 'the sheet with a search box opened centred, not at the top').toBeLessThanOrEqual(24);
+
+    const name = await page.evaluate(() => {
+        const sel = /** @type {any} */ (document.getElementById('teamMemberSelect'));
+        return Array.from(sel.options).map((/** @type {any} */ o) => o.text.trim()).find(t => t.includes('.')) || '';
+    });
+    await box.fill(name.split('.').pop().trim().slice(0, 4));
+    const after = await settledBox(panel);
+    expect(Math.abs(after.top - before.top), 'the panel moved as the list shrank').toBeLessThanOrEqual(1);
+    expect(after.bottom, 'premise: the filter shortened the panel').toBeLessThan(before.bottom);
+
+    // The keyboard's Search key puts the keyboard away: the box lets go, focus stays in the sheet.
+    await box.press('Enter');
+    await expect(box).not.toBeFocused();
+    expect(await page.evaluate(() => !!document.activeElement?.closest('.picker-sheet')),
+        'Enter dropped focus out of the sheet').toBe(true);
+    await expect(page.locator('.picker-sheet-overlay')).toHaveClass(/open/);   // still open, still filtered
+});
+
+test('guide search: while searching, the results sit under the box — and the drawer comes back', async ({ page }) => {
+    // ~500px of page pills and Latest sat above the box, so at 390×844 its results began below the
+    // fold — under the iPhone keyboard. While a query is active those step aside.
+    await page.setViewportSize({ width: 390, height: 844 });
+    const input = await openGuideSearch(page);
+    const pills = page.locator('#navPanel .nav-panel-pills');
+    const latest = page.locator('#navPanel .nav-panel-section').first();
+    await expect(pills).toBeVisible();
+    await expect(latest).toBeVisible();
+    const boxTopAtRest = await input.evaluate(el => el.getBoundingClientRect().top);
+
+    await input.fill('gold card');
+    const first = page.locator('#navGuideSearchResults a').first();
+    await expect(first).toBeVisible();
+    await expect(pills).toBeHidden();
+    await expect(latest).toBeHidden();
+    await expect(page.locator('#navGuidesToggle'), 'the box keeps its own section heading').toBeVisible();
+    const geometry = await page.evaluate(() => ({
+        box: /** @type {HTMLElement} */ (document.getElementById('navGuideSearchInput')).getBoundingClientRect().top,
+        result: /** @type {HTMLElement} */ (document.querySelector('#navGuideSearchResults a')).getBoundingClientRect().top,
+    }));
+    expect(boxTopAtRest, 'premise: at rest the box sits well down the drawer').toBeGreaterThan(300);
+    expect(geometry.box, 'the box did not come up to the top of the drawer').toBeLessThan(200);
+    expect(geometry.result, 'the first result is not just under the box').toBeLessThan(geometry.box + 100);
+
+    // The keyboard's Search key puts the keyboard away, and leaves the results where they are.
+    await input.press('Enter');
+    await expect(input).not.toBeFocused();
+    await expect(first).toBeVisible();
+
+    // Clearing the query brings the drawer's map back…
+    await input.fill('');
+    await expect(pills).toBeVisible();
+    await expect(latest).toBeVisible();
+    // …and so does closing the drawer with a query still in the box.
+    await input.fill('gold card');
+    await expect(pills).toBeHidden();
+    await page.locator('#navPanelClose').click();
+    await page.locator('#navMenuBtn').click();
+    await expect(pills).toBeVisible();
+    await expect(latest).toBeVisible();
+    await expect(input).toHaveValue('');
+});
+
+test('sign-in card: picking your name focuses the password box inside the tap', async ({ page }) => {
+    // The sheet sets the name only once its close has landed, long after the tap, and iOS raises its
+    // keyboard only for a focus made synchronously inside it — so an iPhone got a caret and no
+    // keyboard. The tap and the read are one `evaluate`. The Calendar's front door is the card inline.
+    await page.addInitScript(() => { try { sessionStorage.removeItem('__e2e_viewer'); } catch { /* noop */ } });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('#loginGradeTrigger')).toBeVisible();
+    await page.locator('#loginGradeTrigger').click();
+    const sheet = page.locator('.picker-sheet-overlay');
+    await expect(sheet).toHaveClass(/open/);
+    // A short sheet has no search box, and stays centred.
+    await expect(sheet).not.toHaveClass(/picker-sheet-overlay--search/);
+    await page.locator('.picker-sheet .picker-opt[data-value]:not([data-value=""])').first().click();
+    await expect(sheet).not.toHaveClass(/open/);
+    await expect(page.locator('#loginNameTrigger')).toBeEnabled();
+    await page.locator('#loginNameTrigger').click();
+    await expect(sheet).toHaveClass(/open/);
+
+    const tap = await page.evaluate(() => {
+        const row = /** @type {HTMLElement} */ (document.querySelector('.picker-sheet .picker-opt[data-value]:not([data-value=""])'));
+        row.click();
+        const focused = document.activeElement?.id;
+        // The member starts typing before the pick has landed (the sheet is still fading): that is
+        // THEIR password for THIS name, and the name's own `change` must not wipe it when it arrives.
+        /** @type {HTMLInputElement} */ (document.getElementById('loginPassword')).value = 'typed-in-time';
+        return { focused, name: row.dataset.value };
+    });
+    expect(tap.focused, 'the password box was not focused inside the tap').toBe('loginPassword');
+    await expect(page.locator('#loginName')).toHaveValue(/** @type {string} */ (tap.name));   // the pick landed
+    await expect(page.locator('#loginPassword')).toHaveValue('typed-in-time');
+    await expect(page.locator('#loginPassword')).toBeFocused();
+});
+
+test('member card: "Sign in →" opens the form with the password box focused inside the tap', async ({ page }) => {
+    // A member whose identity has gone is offered their own sign-in, which lands on the password box.
+    // It used to `await` the form's module first, so the focus came after the tap and no keyboard rose.
+    // The card now fetches the form while the member reads it, and a tap that finds it opens it at once.
+    await page.addInitScript(() => { try { sessionStorage.removeItem('__e2e_viewer'); } catch { /* noop */ } });
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true }); });
+    await page.goto('/');
+    await expect(page.locator('#calLockWho')).toContainText('G. Miller');
+    await expect(page.locator('#calLockSubmit')).toBeEnabled({ timeout: 20_000 });
+    // Wait for the card's own fetch of the form to land — the module, then one task for its `then`.
+    await page.evaluate(async () => { await import('./login-overlay.js'); await new Promise(r => setTimeout(r, 0)); });
+    const focused = await page.evaluate(() => {
+        document.getElementById('calLockSubmit')?.click();
+        return document.activeElement?.id;
+    });
+    expect(focused, 'the form opened a step after the tap — on an iPhone, no keyboard').toBe('loginPassword');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+});
+
+test('about: a bug report says whether it came from the installed app, and asks an iPhone for its iOS', async ({ page }) => {
+    // From iOS 26 the user agent says 18_7 whatever the phone runs, and it reads the same in the
+    // installed app and in Safari — so a report from an iPhone could say neither. Both stubbed, so
+    // the answer does not depend on which engine runs this.
+    await seedMember(page);
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'standalone', { configurable: true, get: () => true });
+        Object.defineProperty(navigator, 'userAgent', { configurable: true,
+            get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148' });
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+    const body = await page.locator('#bugReportLink').evaluate(a =>
+        new URL(/** @type {HTMLAnchorElement} */ (a).href).searchParams.get('body') || '');
+    expect(body).toContain('Installed app: yes');
+    const ask = body.indexOf('iOS version (Settings → General → About):');
+    expect(ask, 'an iPhone report does not ask for the iOS version').toBeGreaterThan(-1);
+    expect(ask, 'the line to fill in is buried in the auto-filled block').toBeLessThan(body.indexOf('— Auto-filled —'));
+});
+
+test('about: a bug report from a desktop browser says it was not the installed app, and asks nothing', async ({ page }) => {
+    await seedMember(page);
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'standalone', { configurable: true, get: () => undefined });
+        Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 0 });
+        Object.defineProperty(navigator, 'userAgent', { configurable: true,
+            get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' });
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+    const body = await page.locator('#bugReportLink').evaluate(a =>
+        new URL(/** @type {HTMLAnchorElement} */ (a).href).searchParams.get('body') || '');
+    expect(body).toContain('Installed app: no');
+    expect(body).not.toContain('iOS version');
+    expect(body).toContain('Browser: Mozilla/5.0 (Windows NT 10.0');
+});
+
+test('App Notices with nothing on this device says where notices appear, not that there were none', async ({ page }) => {
+    // The archive is this device's own storage, and Safari wipes it, and the installed app keeps a
+    // separate one — so an empty list says nothing about whether notices were posted.
+    await seedMember(page);   // marks the live notices done without archiving them: the list stays empty
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#navMenuBtn').click();                 // Reference is expanded by default (v20.09)
+    await page.locator('.nav-panel-link--notices').first().click();
+    const empty = page.locator('#navNoticesEmpty');
+    await expect(empty).toBeVisible();
+    await expect(empty).toHaveText('Notices you’ve read on this device appear here.');
+    await expect(empty).not.toContainText('No notices');
 });

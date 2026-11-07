@@ -241,7 +241,11 @@ describe('the provenance note', () => {
         assert.match(note, /your device remembers/);
         for (const n of [note, targetProvenanceNote({ fromMemory: true, differsFromDefault: true, setName: 'X' })]) {
             assert.match(n, /Use the Dec 2026 staffing/);
-            assert.match(n, /anything you change here is kept/);
+            // A table that has to LAST is a saved staffing setup (iPhone audit, Nov 2026): the remembered table is
+            // only this browser's localStorage, so the note names the control that keeps one, and promises nothing
+            // of its own. "Anything you change here is kept" was the promise iOS did not keep.
+            assert.match(n, /To keep a staffing setup for good, use “\+ Save as new…”\./);
+            assert.doesNotMatch(n, /is kept/);
         }
     });
 });

@@ -1786,6 +1786,26 @@
             overscroll-behavior-x: contain;
             flex: 1;
         }
+        /* THE DATE ROW STAYS UP ON A PHONE TOO (7 Nov 2026, iPhone audit). `overflow-x: auto` makes
+           this box the header's scroll container, and per spec the other axis then computes to
+           `auto` as well — so below 1024px, where nothing limited its height, it was exactly as tall
+           as the table, never scrolled, and the sticky `thead` went off the top with the page,
+           leaving a member 20 names down with no day or date above the column they were reading.
+
+           So it is capped, and the names scroll INSIDE it under the header, as on the desktop
+           (above). 250px is what stands around it on a phone, measured at 360–412px wide: about
+           220px above (header, controls, grade tabs, week row) and the swipe hint and the page's
+           foot below — so with nothing else showing, the whole view is one screen and the week
+           controls stay in sight while the names scroll. A strip above (install, notifications) or
+           larger text just lets the page scroll by that much; vertical scroll still chains to the
+           page at either end, so every row stays reachable. The 50% floor keeps a phone held
+           sideways (375–402px tall) to a box of several rows rather than two. */
+        @media (max-width: 1023px) {
+            .team-table-wrap {
+                max-height: max(calc(100vh - 250px), 50vh);
+                max-height: max(calc(100dvh - 250px), 50dvh);
+            }
+        }
         .team-table {
             border-collapse: collapse;
             width: 100%;
@@ -2343,7 +2363,9 @@
                 color: var(--primary-blue);
                 margin-bottom: 6px;
             }
-            .team-table-wrap { overflow: visible; }
+            /* No cap on paper: an A4 sheet is under 1024px wide, so the phone cap above would apply
+               and print the first screenful of names with the rest cut off, silently. */
+            .team-table-wrap { overflow: visible; max-height: none; }
             .team-table { min-width: 0; width: 100%; font-size: 9px; }
             .team-table thead th {
                 background: var(--primary-blue) !important;
@@ -2488,6 +2510,13 @@
             border-radius: var(--radius-panel);
             padding: 30px 24px 26px;
             width: min(320px, 90vw);
+            /* CAPPED, SO A TALL PANEL SCROLLS INSIDE ITSELF (7 Nov 2026, iPhone audit). `.lb-content`
+               scrolls only once something limits its height, and nothing did: the overlay centres
+               its panel, so on a phone turned on its side (375–402px tall) a busy day ran off the top
+               and the bottom of the screen together, its ✕ and its last row out of reach. SIZE only —
+               `transform` stays shared.css's (the note above). */
+            max-height: 86vh;
+            max-height: 86dvh;
             text-align: center;
         }
         /* THE DATE CLEARS THE CLOSE BUTTON, SYMMETRICALLY (v22.70). `.lb-close` is a 44x44 touch
@@ -2899,8 +2928,19 @@
             border-radius: var(--radius-panel);
             padding: 32px 20px 28px;
             width: min(340px, 92vw);
+            /* Capped for the same reason as the day panel's (#dayDetailContent): on a phone in
+               landscape the leave panel is taller than the screen. No `transform` here either. */
+            max-height: 86vh;
+            max-height: 86dvh;
             text-align: center;
         }
+        /* …AND IT SCROLLS, IT DOES NOT SQUASH. A capped flex column shrinks a child before it scrolls
+           whenever that child's flex minimum is zero, and `.al-lb-stats` clips its corners with
+           `overflow: hidden`, which does exactly that: under the cap at 667×375 the four figures were
+           cut to a 15px strip and the panel itself never scrolled. Measured, not reasoned. The day
+           panel has no such zone today; one given `overflow` would need this rule there too, and the
+           landscape e2e in calendar.spec.js measures every zone of both panels for it. */
+        #alLightboxContent > * { flex-shrink: 0; }
         #alLightboxClose { color: rgba(255,255,255,0.5); }
         @media (hover: hover) and (pointer: fine) {
             #alLightboxClose:hover { color: white; }

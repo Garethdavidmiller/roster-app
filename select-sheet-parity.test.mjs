@@ -824,3 +824,60 @@ test('a trigger with a display rule still honours `hidden`', () => {
         + '`btn.hidden = select.hidden` in select-sheet.js hides nothing. Add to shared.css:\n'
         + '  .fieldpick[hidden] { display: none !important; }\n  ' + setters.join('\n  '));
 });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// CONTRACT 14 — A SEARCH BOX KEEPS WHAT IS TYPED INTO IT (iPhone audit, 7 Nov 2026)
+//
+// iOS autocorrects the word before a space unless the field says not to, and capitalises the first
+// letter: "Wemb" became a dictionary word the moment a second word began, and the matches went with
+// it. The picker's own box (`ensureSheet` in select-sheet.js) was the one search box that said so;
+// the drawer's guide search, the FIP guide's country finder and the Trains station box did not.
+//
+// HOUSED HERE, not in a file of its own, for two reasons: this file already reads every served page
+// and every module, in all three shapes a control can be built in, and the reference implementation
+// is the enhancer it guards. (A new test file also has to be wired into package.json and routed in
+// docs/FILE_INDEX.md, which the batch that wrote this could not touch.)
+//
+// "A search box" is every `type="search"` input, plus the boxes that are searches in all but their
+// type — named, because nothing in the markup can say so for them.
+const SEARCH_LIKE_IDS = ['trStationInput'];   // Trains: type to find a station; Enter opens the first
+
+test('every search box turns autocorrect off and does not capitalise', () => {
+    const misses = /** @type {string[]} */ ([]);
+    let seen = 0;
+    const check = (/** @type {string} */ where, /** @type {(attr: string, value: string) => boolean} */ says) => {
+        seen++;
+        if (!says('autocorrect', 'off')) misses.push(`${where}: no autocorrect="off"`);
+        if (!says('autocapitalize', 'none')) misses.push(`${where}: no autocapitalize="none"`);
+    };
+    // Shapes 1 and 3: an <input> in served HTML, or inside a module's template literal.
+    const fromMarkup = (/** @type {string} */ src, /** @type {string} */ where) => {
+        for (const m of strip(src).matchAll(/<input\b[^>]*>/g)) {
+            const tag = m[0];
+            const id = tag.match(/\bid=["']([^"']+)["']/)?.[1] ?? '';
+            if (!/\btype=["']search["']/.test(tag) && !SEARCH_LIKE_IDS.includes(id)) continue;
+            check(`${where}${id ? '#' + id : ''}`, (a, v) => new RegExp(`\\b${a}=["']${v}["']`).test(tag));
+        }
+    };
+    for (const page of [...APP_PAGES, ...GUIDES]) fromMarkup(read(page), page);
+    // `select-sheet.js` is left out of MODULES for the select scan; its box is the one this copies.
+    for (const f of [...MODULES, 'select-sheet.js']) {
+        const src = strip(read(f));
+        fromMarkup(src, f);
+        // Shape 2: `x = document.createElement('input')` … `x.type = 'search'`, dressed in the lines after.
+        for (const m of src.matchAll(/([A-Za-z_$][\w$]*)\s*=\s*document\.createElement\(\s*['"]input['"]\s*\)/g)) {
+            const ident = m[1];
+            const after = src.slice(m.index, (m.index ?? 0) + 800);
+            if (!new RegExp(`\\b${ident}\\.type\\s*=\\s*['"]search['"]`).test(after)) continue;
+            check(`${f} (${ident})`, (a, v) =>
+                new RegExp(`\\b${ident}\\.setAttribute\\(\\s*['"]${a}['"]\\s*,\\s*['"]${v}['"]\\s*\\)`).test(after)
+                || new RegExp(`\\b${ident}\\.${a}\\s*=\\s*['"]${v}['"]`).test(after));
+        }
+    }
+    // Guard the guard: the four boxes this was written for. A scan that found fewer has gone blind.
+    assert.ok(seen >= 4, `found ${seen} search boxes — expected the picker's, the drawer's, the FIP guide's and Trains' at least`);
+    assert.deepEqual(misses.sort(), [],
+        'an iPhone autocorrects a search box\'s half-typed word at the space and capitalises its first\n'
+        + 'letter unless told not to. Add autocorrect="off" autocapitalize="none" (in JS, setAttribute):\n  '
+        + misses.join('\n  '));
+});

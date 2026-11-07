@@ -51,6 +51,38 @@ test.describe('new link', () => {
         });
     }
 
+    // AN INSTALLED APP IS NOT RELOADED WHEN IT IS REOPENED (iPhone audit, Nov 2026): iOS keeps it resident for days, and
+    // the status was worked out once, at load. It is drawn again whenever the page comes back — and only when the day
+    // has moved, so a tile holding focus on a same-day return keeps it.
+    test('the status line is drawn again when the page comes back on a later day', async ({ page }) => {
+        const setVisibility = (/** @type {'hidden'|'visible'} */ state) => page.evaluate((s) => {
+            Object.defineProperty(document, 'visibilityState', { value: s, configurable: true });
+            document.dispatchEvent(new Event('visibilitychange'));
+        }, state);
+        await page.clock.setFixedTime(new Date('2026-12-20T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        const status = page.locator('#nlStatus');
+        await expect(status).toContainText('The new timetable started in December, and today’s link carries on until then.');
+
+        // The same day: nothing is redrawn, so the tile with focus still has it.
+        await status.locator('.nl-name').first().focus();
+        await setVisibility('hidden');
+        await page.clock.setFixedTime(new Date('2026-12-20T11:00:00Z'));
+        await setVisibility('visible');
+        await expect(status.locator('.nl-name').first()).toBeFocused();
+
+        // A fortnight later, the link has started: the sentence about it goes.
+        await setVisibility('hidden');
+        await page.clock.setFixedTime(new Date('2027-01-04T09:00:00Z'));
+        await setVisibility('visible');
+        await expect(status).not.toContainText(/starts on|carries on until then/);
+        await expect(status).toContainText('Nothing is decided.');
+        await expect(status.locator('.nl-name'), 'the tiles are drawn again, and still open their weeks').toHaveCount(3);
+        await status.locator('.nl-name').first().click();
+        await expect(page.locator('#nlWeeksStatus')).toContainText('Showing Common Ground’s');
+    });
+
     test('choosing a way of working shows its sentence and figures; Everything shows all six; pressing again goes back', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');

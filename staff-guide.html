@@ -13,7 +13,12 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="apple-mobile-web-app-title" content="Quick Guide">
+    <!-- ADDING A GUIDE TO THE HOME SCREEN INSTALLS THE APP, NOT THE GUIDE (iPhone audit, Nov 2026).
+         With its own title and no manifest, an iPhone made this page an app of its own: a guide
+         icon with its own storage, signed out, and no roster. The manifest's start_url and scope
+         are the app root, and the label is the app pages' own (page-contract-parity.test.mjs). -->
+    <meta name="apple-mobile-web-app-title" content="MYB Roster">
+    <link rel="manifest" href="./manifest.json">
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
     <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
     <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -142,7 +147,13 @@
             <p>At the bottom of the drawer are your name, a 🔔 bell for a quick notifications toggle, and <strong>Sign out</strong>.</p>
 
             <h2 id="sg-install-as-an-app">Install as an App</h2>
-            <p>The app offers this itself: a strip reading <strong>&ldquo;📲 Add the roster to your home screen&rdquo;</strong> appears once at the top of the calendar. On Android it has an <strong>Install</strong> button; on iPhone it shows you the two taps. Closed it, or never saw it? Do it from the browser, at <strong>myb-roster.web.app</strong>:</p>
+            <p>The app offers this itself: a strip reading <strong>&ldquo;📲 Add the roster to your home screen&rdquo;</strong> appears once at the top of the calendar. On Android it has an <strong>Install</strong> button; on iPhone it shows you what to tap. Closed it, or never saw it? Do it from the browser, at <strong>myb-roster.web.app</strong>:</p>
+            <!-- THE iPHONE CARD SAYS WHERE TO STAND, AND WHERE SHARE IS NOW (iPhone audit, Nov 2026). Its
+                 steps, followed on THIS page, added the guide to the Home Screen rather than the roster;
+                 and on iOS 26 Safari keeps Share under •••. The where-to-stand line is screen-only: on
+                 paper there is no guide page to add. The ••• goes into the card's FIRST line because the
+                 printed sheet has no line to spare — a third one printed a third sheet, measured
+                 (e2e/print.spec.js). -->
             <div class="install-grid">
                 <div class="install-card">
                     <div class="install-os">Android · Chrome</div>
@@ -150,7 +161,7 @@
                 </div>
                 <div class="install-card">
                     <div class="install-os">iPhone · Safari</div>
-                    <div class="install-steps">Share button (□↑)<br>→ Add to Home Screen</div>
+                    <div class="install-steps"><span class="no-print">On the roster’s Calendar page, not this guide:<br></span>Share (□↑), or&nbsp;•••&nbsp;then&nbsp;Share<br>→ Add to Home Screen</div>
                 </div>
             </div>
             <!-- THE MIRROR (whole-app review, Oct 2026). On garethdavidmiller.github.io the app never offers
