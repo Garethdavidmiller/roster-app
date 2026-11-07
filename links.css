@@ -1274,15 +1274,14 @@ body.auth-ready .container { display: grid; }
    times are native by decision (select-sheet-parity → NATIVE_BY_DECISION), but with only a fill set
    Safari drew its own grey face and stepper over every one, 8px taller than the counts beside it.
    The app's closed plain-select recipe — Admin's and Operations' — with the small chevron token. Two
-   classes, so its right padding beats the coarse-pointer block below on either pointer. */
-.gen-select:not(.fieldpick) {
-    -webkit-appearance: none;
-    appearance: none;
-    background-image: var(--caret-chevron-small);
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-    padding-right: 24px;
-    cursor: pointer;
+   classes, so its right padding beats the base rule. FINE POINTER ONLY: on a phone the time column is
+   104px at 16px type, and the chevron's 24px cut "07:00-16:00" short (pages.spec, 360px), so a touch
+   screen keeps the platform's own closed face, which it had before and which leaves room for the time. */
+@media (pointer: fine) {
+    .gen-select:not(.fieldpick) {
+        -webkit-appearance: none; appearance: none; background-image: var(--caret-chevron-small);
+        background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; cursor: pointer;
+    }
 }
 .gen-input:focus-visible, .gen-select:focus-visible {
     outline: var(--focus-outline);

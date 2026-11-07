@@ -115,7 +115,8 @@ not redefine them.
   the page's own file); `railcard-guide.html`/`fip-guide.html`/`rangers-guide.html` set their own 760px
   single-column width in their page CSS.
 - **Reading measure:** from 1024px (screen only) the railcard, rangers and FIP guides hold a paragraph
-  or note to 68ch — the app's rule, `css-tokens.md` → "Reading measure". Boxes, tables, cards and rows
+  or note to 64ch — the low end of the app's 64–72ch (`css-tokens.md` → "Reading measure"); 68ch
+  measured 102 characters a line on CI's render, over the e2e's 100. Boxes, tables, cards and rows
   keep the column. The document guides need none: their two-column `.cols` already halves the line.
 - **Safe-area:** side insets `max(16px, env(safe-area-inset-*))` on the content wrapper; bottom
   `max(40px, env(safe-area-inset-bottom))`.

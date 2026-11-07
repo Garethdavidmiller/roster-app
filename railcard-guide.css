@@ -349,12 +349,12 @@ a { color: var(--navy); text-underline-offset: 2px; }
 /* ── A reading measure from 1024px (desktop audit, Nov 2026) ─────────────────────────────────────
    The 760px column held this page's 12–13px notes at 120–140 characters a line. The app's own rule
    for prose on a desktop (css-tokens.md → "Reading measure") is a ~64–72ch cap from 1024px, and the
-   guides keep it too: a paragraph or a note stops at 68ch. Boxed callouts and the card rows keep the
+   guides keep it too: a paragraph or a note stops at 64ch. Boxed callouts and the card rows keep the
    column — a box is bounded and short, a row is data. The footer is centred, so its words are held
    to the measure by its padding and its rule still spans the column. Screen only: print is as was. */
 @media screen and (min-width: 1024px) {
-    main p, .qc-note, .check-item > div, .gotcha-text { max-width: 68ch; }
-    .foot { padding-inline: max(0px, calc((100% - 68ch) / 2)); }
+    main p, .qc-note, .check-item > div, .gotcha-text { max-width: 64ch; }
+    .foot { padding-inline: max(0px, calc((100% - 64ch) / 2)); }
 }
 
 /* ── Print (shell handles .page-header + button hiding) ───────── */

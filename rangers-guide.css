@@ -404,12 +404,12 @@ h2.section:first-of-type { margin-top: 4px; }
 /* ── A reading measure from 1024px (desktop audit, Nov 2026) ─────────────────────────────────────
    The 760px column held this page's 13px notes at ~115–130 characters a line. The app's own rule for
    prose on a desktop (css-tokens.md → "Reading measure") is a ~64–72ch cap from 1024px, and the guides
-   keep it too: a paragraph or a note stops at 68ch. The amber callouts and the card rows keep the
+   keep it too: a paragraph or a note stops at 64ch. The amber callouts and the card rows keep the
    column — a box is bounded and short, a row is data. The footer's words take the measure from its
    padding, so its rule still spans the column. Screen only: print is as it was. */
 @media screen and (min-width: 1024px) {
-    main p, .check-item > div { max-width: 68ch; }
-    .foot { padding-right: max(0px, calc(100% - 68ch)); }
+    main p, .check-item > div { max-width: 64ch; }
+    .foot { padding-right: max(0px, calc(100% - 64ch)); }
 }
 
 /* ── Print ──────────────────────────────────────────────────────────────────

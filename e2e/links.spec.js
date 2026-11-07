@@ -1953,7 +1953,7 @@ test('links: small desktop polish — an armed chip keeps its colour under the p
     expect(cut, 'a compare chip name was cut short with room to spare').toEqual([]);
 });
 
-test('links generator: a slot time wears the app\'s closed face, and a disabled "Use setup" reads as disabled', async ({ page }) => {
+test('links generator: a slot time wears the app\'s closed face, and a disabled "Use setup" reads as disabled', async ({ page }, info) => {
     // Safari drew its own grey face over all fifteen slot selects (they set a fill and nothing else),
     // and a disabled "Use setup" kept its navy, 600-weight lead at 40% — stronger than the ENABLED
     // "+ Save as new…" beside it.
@@ -1963,7 +1963,10 @@ test('links generator: a slot time wears the app\'s closed face, and a disabled 
         const s = getComputedStyle(el);
         return { appearance: s.appearance, image: s.backgroundImage.startsWith('url('), right: s.paddingRight };
     });
-    expect(face).toEqual({ appearance: 'none', image: true, right: '24px' });
+    // With a mouse, the app's face; on a touch screen the platform's own, because at phone width the
+    // chevron's padding cut the time short ("no select option is cut off at 360px" holds that half).
+    if (isTouchProject(info)) expect(face.appearance, 'a touch screen keeps the platform face').not.toBe('none');
+    else expect(face).toEqual({ appearance: 'none', image: true, right: '24px' });
 
     const load = page.locator('#genSetLoadBtn');
     await expect(load).toBeDisabled();

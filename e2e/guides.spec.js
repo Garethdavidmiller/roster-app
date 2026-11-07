@@ -268,7 +268,8 @@ test('guides: from 800px the header\'s ← and ⤓ PDF sit on the content column
 
 // The 760px column held the card guides' 12–14px prose at 110–140 characters a line on a desktop
 // (desktop audit, Nov 2026). From 1024px a paragraph keeps the app's reading measure (css-tokens.md →
-// "Reading measure"; 68ch, which in Inter is ~95 characters); a phone is untouched. Counted in
+// "Reading measure"; 64ch — the low end of its 64–72ch, because 68ch measured 102 characters on CI's
+// render of one Railcard paragraph); a phone is untouched. Counted in
 // CHARACTERS, by measuring each paragraph's own text in its own font, because "too long" is a count
 // of letters, not of pixels.
 test('guides: a paragraph keeps a reading measure on a desktop, and a phone is untouched', async ({ page }) => {
