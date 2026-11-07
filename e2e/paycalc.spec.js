@@ -468,7 +468,16 @@ test('paycalc: Fill-the-year fills the empty paid periods, receipts by date, and
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 
+// The Pay page's re-posted Year to Date notice runs 90 days from 28 Aug 2026 — to 23:00 on 25 Nov
+// (`isNoticeExpired('28 Aug 2026', 90)`). The two tests below are about that notice, so they pin the
+// clock inside its life, as the Calendar's notice tests further down do. On the real clock they would
+// have turned the release gate red on 26 Nov: from then the notice never opens, so the second test
+// fails and the first ("…and alone") passes whatever the code does (test audit, 7 Nov 2026 — proved
+// with the clock pinned to 20 and 27 Nov). When the notice is retired, these two go with it.
+const PAY_YTD_NOTICE_LIVE = new Date('2026-10-22T09:00:00Z');
+
 test('paycalc: the data-ownership prompt opens for legacy data, and alone', async ({ page }) => {
+    await page.clock.setFixedTime(PAY_YTD_NOTICE_LIVE);
     await seedSession(page);   // signs in as a real member (G. Miller)
     await page.addInitScript(() => {
         // Genuine unnamespaced legacy pay data → migration pending.
@@ -499,6 +508,7 @@ test('paycalc: the data-ownership prompt opens for legacy data, and alone', asyn
 // the test above passes just as well against a notice that is broken and never opens at all — which
 // is the state it was actually in from 5 Jul, and which nothing detected.
 test('paycalc: the re-posted YTD notice appears on a clean device', async ({ page }) => {
+    await page.clock.setFixedTime(PAY_YTD_NOTICE_LIVE);
     await seedSession(page);
     await page.addInitScript(() => {
         localStorage.setItem('myb_pc_ns_migrated', '1');          // no ownership prompt

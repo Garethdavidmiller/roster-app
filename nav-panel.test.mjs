@@ -8,7 +8,7 @@
  * in Node; ls.js is backed by an in-memory store the tests seed and inspect.
  */
 
-import { test, describe, mock, beforeEach } from 'node:test';
+import { test, describe, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 // The REAL isSafeStorageUrl — it lives in the pure, import-free storage-utils.js (firebase-client.js
 // re-exports it), so the mock below uses production behaviour directly instead of a hand-copied
@@ -85,20 +85,31 @@ function readArchive() {
 // ── isNoticeExpired ───────────────────────────────────────────────────────────
 
 describe('isNoticeExpired', () => {
-    test('27-day-old notice is not expired (28-day default)', () => {
-        assert.equal(isNoticeExpired(noticeDate(27)), false);
-    });
-    test('notice older than 28 days is expired (default)', () => {
-        assert.equal(isNoticeExpired(noticeDate(29)), true);
-    });
-    test('notice exactly 28 days old is expired (boundary)', () => {
-        assert.equal(isNoticeExpired(noticeDate(28)), true);
-    });
-    test('90-day override keeps an 88-day-old notice live', () => {
-        assert.equal(isNoticeExpired(noticeDate(88), 90), false);
-    });
-    test('90-day override expires a 92-day-old notice', () => {
-        assert.equal(isNoticeExpired(noticeDate(92), 90), true);
+    // FROM A FIXED MIDDAY, NOT THE REAL CLOCK (test audit, 7 Nov 2026). `noticeDate` steps back in
+    // whole 24-hour blocks, but the parser dates a notice from LOCAL MIDNIGHT — so across a clock
+    // change a "27-day-old" notice read as more than 28 days old in the last hour of certain evenings
+    // (23:00–23:59 on Sat 28 Nov 2026 in the no-install lane's Los Angeles time, and on Sat 21 Nov on a
+    // London machine), every year. Midday on 15 June has no clock change within 92 days behind it in
+    // any zone these lanes use, and is twelve hours from either midnight.
+    describe('counted in days, from midday on 15 June', () => {
+        beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date(2026, 5, 15, 12, 0, 0) }));
+        afterEach(() => mock.timers.reset());
+
+        test('27-day-old notice is not expired (28-day default)', () => {
+            assert.equal(isNoticeExpired(noticeDate(27)), false);
+        });
+        test('notice older than 28 days is expired (default)', () => {
+            assert.equal(isNoticeExpired(noticeDate(29)), true);
+        });
+        test('notice exactly 28 days old is expired (boundary)', () => {
+            assert.equal(isNoticeExpired(noticeDate(28)), true);
+        });
+        test('90-day override keeps an 88-day-old notice live', () => {
+            assert.equal(isNoticeExpired(noticeDate(88), 90), false);
+        });
+        test('90-day override expires a 92-day-old notice', () => {
+            assert.equal(isNoticeExpired(noticeDate(92), 90), true);
+        });
     });
     test('unparseable date is treated as not expired (fail-open)', () => {
         assert.equal(isNoticeExpired('not a date'), false);

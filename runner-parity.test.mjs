@@ -91,3 +91,35 @@ describe('the opt-in lanes and the default lane agree', () => {
             + 'suite silently stops running, which is why this is asserted rather than noticed.');
     });
 });
+
+// ── A STRAY `test.only` MUST NOT QUIETLY SHRINK A LANE (test audit, 7 Nov 2026) ─────────────────────
+//
+// When any `test.only` or `describe.only` is present, Playwright runs ONLY the focused tests and
+// reports the result as an ordinary green run. Until this guard no config set `forbidOnly`, so a single
+// leftover `.only` would have made branch CI and the Hosting deploy gate run one test and pass — the
+// whole suite gone, nothing red, and nothing in the summary to say so. `forbidOnly: !!process.env.CI`
+// makes it an error on every CI runner ("item focused with '.only' is not allowed", measured) and
+// leaves it usable locally, which is what `.only` is for.
+//
+// Node's runner does not need this: it ignores `.only` unless started with `--test-only`, and no
+// script here passes that flag.
+describe('no lane can be quietly focused', () => {
+    /** True when a non-comment line of `src` sets forbidOnly from CI. A commented-out line does not count. */
+    const forbids = (src) => src.split('\n').some(l => /^\s*forbidOnly:\s*!!process\.env\.CI\s*,/.test(l));
+    const all = [{ file: BASE, src: baseSrc }, ...configs];
+
+    test('every Playwright config refuses `.only` on CI, or inherits that from the base', () => {
+        assert.ok(forbids(baseSrc), `${BASE} must set \`forbidOnly: !!process.env.CI\``);
+        const missing = all.filter(({ src }) => !forbids(src) && !/\.\.\.base\b/.test(src)).map(c => c.file);
+        assert.deepEqual(missing, [],
+            'these configs do not set `forbidOnly: !!process.env.CI`, so a stray `test.only` would make\n'
+            + 'their lane run one test and report green:\n  ' + missing.join('\n  '));
+    });
+
+    test('and a config that spreads the base does not switch it back off', () => {
+        const overrides = all.filter(({ src }) => /\.\.\.base\b/.test(src)
+            && src.split('\n').some(l => /^\s*forbidOnly\s*:/.test(l) && !/!!process\.env\.CI/.test(l)))
+            .map(c => c.file);
+        assert.deepEqual(overrides, [], `these configs override the base's forbidOnly: ${overrides.join(', ')}`);
+    });
+});

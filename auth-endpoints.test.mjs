@@ -77,6 +77,18 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
+
+// HOW MANY ACCOUNTS Set up accounts must process — DERIVED from the server's own roster, never a
+// count written down. These two tests said `>= 50`, true only while the roster held exactly 50: the
+// next leaver would have turned them red in the Functions lane, which gates every PR and the
+// Functions deploy the leaver checklist waits for, with nothing wrong (test audit, 7 Nov 2026).
+// Equality, not `>=`, so a run that skips somebody still fails.
+const expectedAccounts = () => {
+    const { resolveRosterAuthConfig } = require('./functions/roster-parse-helpers.js');
+    const n = resolveRosterAuthConfig(require('./functions/roster-members.json')).processMembers.length;
+    assert.ok(n > 0, 'the server roster names somebody');
+    return n;
+};
 // REAL time, not a pinned instant: the endpoint's throttle and coalescing windows are measured
 // against `Date.now()` inside the module, so a fixture dated to a fixed day would sit hours outside
 // every window and the throttled case would quietly test the un-throttled path instead.
@@ -736,7 +748,7 @@ describe('setupRosterAuth stamps claims from the SERVER roster, never the reques
         const { eps, authOps } = build();
         await call(eps.setupRosterAuth, asAdmin({}));
         const claims = authOps.filter((o) => o.op === 'setCustomUserClaims');
-        assert.ok(claims.length >= 50, 'the whole roster was processed');
+        assert.equal(claims.length, expectedAccounts(), 'the whole roster was processed');
         assert.ok(claims.every((c) => typeof c.claims.name === 'string' && c.claims.name),
             'no account is left without a name claim');
     });
@@ -775,7 +787,7 @@ describe('setupRosterAuth stamps `member`, and takes back an account it never st
         const { eps, authOps } = build();
         await call(eps.setupRosterAuth, asAdmin({}));
         const stamps = authOps.filter((o) => o.op === 'setCustomUserClaims');
-        assert.ok(stamps.length >= 50);
+        assert.equal(stamps.length, expectedAccounts(), 'every account the roster names was stamped');
         for (const s of stamps) assert.equal(s.claims.member, s.claims.name, `member must equal name for ${s.claims.name}`);
     });
 

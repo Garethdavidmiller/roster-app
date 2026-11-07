@@ -24,6 +24,8 @@ export default defineConfig({
     // before it reports (6 Nov 2026) — a decision about whom to email, not about this answer, so it
     // lives in live-health.yml, which says why it is a second run and not this setting.
     retries: 0,
+    // A stray `test.only` must not quietly shrink this lane to one test on CI (runner-parity.test.mjs).
+    forbidOnly: !!process.env.CI,
     reporter: 'list',
     // Serial: the relayed fallback shells out to curl per request, and parallel workers would make
     // the console output impossible to attribute to an origin.

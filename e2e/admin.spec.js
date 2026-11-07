@@ -1278,7 +1278,15 @@ test('admin: a booking that crosses the year end appears in BOTH years, cut at t
     await expect(rows.first().locator('.btn-period-delete')).toHaveAttribute('aria-label', /^Delete Fri 1 Jan$/);
 });
 
+// THE RECORDED-LEAVE LIST OPENS ON THE CURRENT YEAR, and these four tests seed 2026 leave and expect
+// to read it there (test audit, 7 Nov 2026). On the real clock, from 1 Jan 2027 the list opens on 2027 —
+// which holds G. Miller's and S. Silva's Christmas 2027 leave, so it is not empty and nothing falls back
+// — and all four failed (proved with the clock pinned to 4 Jan 2027). They are about the year chips
+// and the delete controls, not about today, so they pin a 2026 day.
+const LEAVE_LIST_DAY = new Date('2026-11-03T09:00:00Z');
+
 test('admin: each delete control is named by the dates it would remove', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
     // Fifteen buttons all announcing "Delete" told a screen-reader user nothing about which row
     // they were on, and the compact ✕ that replaced the word has no name of its own at all.
     await seedSession(page, 'G. Miller');
@@ -1305,6 +1313,7 @@ test('admin: each delete control is named by the dates it would remove', async (
 });
 
 test('admin: a refused delete leaves the ✕ as a ✕, not the word it used to be', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
     // THE REGRESSION THE FIRST CUT SHIPPED WITH. The coordinator restored the delete control to the
     // label it remembered — the word "Delete" — into a 44px square built for a glyph, with the
     // aria-label still reading "Confirm". Invisible on a SUCCESSFUL delete (the row is gone before
@@ -1405,6 +1414,7 @@ async function seedTwoMembersTwoYears(page) {
 }
 
 test('admin: a year chosen for one member is not carried over to the next', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
     await seedSession(page, 'G. Miller');
     await seedTwoMembersTwoYears(page);
     await page.goto('/admin.html');
@@ -1446,6 +1456,7 @@ test('admin: a link naming a year opens the recorded-leave list on that year', a
 // 25/26 December), and a year holding Christmas leave is not empty — the test below is about that.
 // 2025 is before the Christmas rules, so it is genuinely a year with no leave in it.
 test('admin: a linked year with no leave in it falls back, never to an empty list', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
     await seedSession(page, 'G. Miller');
     await seedMember(page, 'G. Miller');
     await seedTwoMembersTwoYears(page);
@@ -2548,11 +2559,16 @@ test('admin: AL on a rest day asks whether it was a swap, and will not save unan
     // unanswered" from "blocked because empty". Deleting the unanswered guard left an earlier
     // version of this test green; with a working day in the range, only the guard can disable Save.
     const pick = await page.evaluate(async () => {
-        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const [rd, ou, cl] = await Promise.all([import('./roster-data.js'), import('./override-utils.js'), import('./christmas-leave.js')]);
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        // NOT CHRISTMAS DAY OR BOXING DAY (test audit, 7 Nov 2026). getBaseShift makes both a rest
+        // day for everyone, but leave there never costs a day, so the swap question is never asked.
+        // From 18 to 26 December the first match was a working 24th followed by the 25th, and this
+        // test and the five week-grid ones below all failed — in the week the release gate is needed
+        // most. Proved with the clock pinned to 21 Dec; the same skip is in each search below.
         const rest = (/** @type {any} */ m, /** @type {Date} */ d) =>
-            d.getDay() !== 0 && ou.isRestShift(rd.getBaseShift(m, d));
+            d.getDay() !== 0 && !cl.isChristmasClosureDate(iso(d)) && ou.isRestShift(rd.getBaseShift(m, d));
         const work = (/** @type {any} */ m, /** @type {Date} */ d) =>
             d.getDay() !== 0 && !ou.isRestShift(rd.getBaseShift(m, d));
         for (const m of rd.teamMembers) {
@@ -2660,7 +2676,7 @@ test('admin: the week grid asks the swap question too, and refuses to save it un
     // Find a member with a rest day in the week the grid is showing, from the roster rather than a
     // written-down date.
     const target = await page.evaluate(async () => {
-        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const [rd, ou, cl] = await Promise.all([import('./roster-data.js'), import('./override-utils.js'), import('./christmas-leave.js')]);
         const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
         for (const m of rd.teamMembers) {
             if (m.hidden || m.managerOnly) continue;
@@ -2668,6 +2684,7 @@ test('admin: the week grid asks the swap question too, and refuses to save it un
                 if (!d) continue;
                 const dt = new Date(d + 'T00:00:00');
                 if (dt.getDay() === 0) continue;               // a Sunday is a different rule entirely
+                if (cl.isChristmasClosureDate(d)) continue;   // never asked about — see the first swap test
                 if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
             }
         }
@@ -2723,7 +2740,7 @@ test('admin: the save refuses an unanswered rest day even when the row never ask
     await page.waitForSelector('.day-row', { timeout: 10000 });
 
     const target = await page.evaluate(async () => {
-        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const [rd, ou, cl] = await Promise.all([import('./roster-data.js'), import('./override-utils.js'), import('./christmas-leave.js')]);
         const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
         for (const m of rd.teamMembers) {
             if (m.hidden || m.managerOnly) continue;
@@ -2731,6 +2748,7 @@ test('admin: the save refuses an unanswered rest day even when the row never ask
                 if (!d) continue;
                 const dt = new Date(d + 'T00:00:00');
                 if (dt.getDay() === 0) continue;               // Sundays are refused for a different reason
+                if (cl.isChristmasClosureDate(d)) continue;   // never asked about — see the first swap test
                 if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
             }
         }
@@ -2780,7 +2798,7 @@ test('admin: a skip-only save leaves the row showing the record that is still th
     await page.waitForSelector('.day-row', { timeout: 10000 });
 
     const target = await page.evaluate(async () => {
-        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const [rd, ou, cl] = await Promise.all([import('./roster-data.js'), import('./override-utils.js'), import('./christmas-leave.js')]);
         const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
         for (const m of rd.teamMembers) {
             if (m.hidden || m.managerOnly) continue;
@@ -2788,6 +2806,7 @@ test('admin: a skip-only save leaves the row showing the record that is still th
                 if (!d) continue;
                 const dt = new Date(d + 'T00:00:00');
                 if (dt.getDay() === 0) continue;
+                if (cl.isChristmasClosureDate(d)) continue;   // never asked about — see the first swap test
                 if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
             }
         }
@@ -2841,7 +2860,7 @@ test('admin: a rest day that ALREADY holds leave is not reported as "no leave re
     await page.waitForSelector('.day-row', { timeout: 10000 });
 
     const target = await page.evaluate(async () => {
-        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const [rd, ou, cl] = await Promise.all([import('./roster-data.js'), import('./override-utils.js'), import('./christmas-leave.js')]);
         const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
         for (const m of rd.teamMembers) {
             if (m.hidden || m.managerOnly) continue;
@@ -2849,6 +2868,7 @@ test('admin: a rest day that ALREADY holds leave is not reported as "no leave re
                 if (!d) continue;
                 const dt = new Date(d + 'T00:00:00');
                 if (dt.getDay() === 0) continue;               // Sundays are a different rule entirely
+                if (cl.isChristmasClosureDate(d)) continue;   // never asked about — see the first swap test
                 if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
             }
         }
@@ -2916,7 +2936,7 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
     await page.waitForSelector('.day-row', { timeout: 10000 });
 
     const target = await page.evaluate(async () => {
-        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const [rd, ou, cl] = await Promise.all([import('./roster-data.js'), import('./override-utils.js'), import('./christmas-leave.js')]);
         const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
         for (const m of rd.teamMembers) {
             if (m.hidden || m.managerOnly) continue;
@@ -2924,6 +2944,7 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
                 if (!d) continue;
                 const dt = new Date(d + 'T00:00:00');
                 if (dt.getDay() === 0) continue;               // a Sunday is a different rule entirely
+                if (cl.isChristmasClosureDate(d)) continue;   // never asked about — see the first swap test
                 if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
             }
         }
