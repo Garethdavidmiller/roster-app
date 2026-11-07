@@ -555,11 +555,12 @@ sits beside a short one.
 
 ## State management
 
-**`_clearState` object** — groups all state for the two-tap destructive clear action so it resets
-atomically. Includes `countdownTimer` for the live countdown in the button label.
+**`_clearState` object** (`paycalc-app.js`) — groups all state for the two-tap destructive clear
+action so it resets atomically. Includes `countdownTimer` for the live countdown in the button label.
 
-**`CONDITIONAL_ROWS`** — a data-driven array: condition → row IDs → field IDs. `updateBhRows(p)`
-iterates it. Adding a conditional row means one array entry, not new show/hide logic.
+**`CONDITIONAL_ROWS`** (`paycalc-periods.js`, beside `updateBhRows(p)`, which iterates it) — a
+data-driven array: condition → row IDs → field IDs. Adding a conditional row means one array entry,
+not new show/hide logic.
 
 **Per-member localStorage namespacing** — all per-member paycalc keys are prefixed with a member
 segment (`myb_pc_<slug>_…`) so two staff sharing a browser cannot read each other's pay data.

@@ -264,3 +264,12 @@ scope-relative URL.
 6. Confirm against the length budgets and the no-exclamation tone rule. `sw-asset-check.test.mjs`
    checks the deep link's page is allowlisted, for both `hashPath` features and `url:`-at-call-time
    ones — but only when the url is written as a `${STAFF_SITE_URL}/…` template literal.
+
+## VAPID fingerprint migration
+
+`notif.js` stores the first 12 characters of the VAPID public key in `localStorage('myb_vapid_ver')`
+(`VAPID_VER_KEY`). On a genuine key change — a NON-NULL stored fingerprint that differs — it silently
+unsubscribes and re-subscribes; an absent or unreadable fingerprint is simply re-recorded.
+`fanOutPush` deletes a subscription ONLY on 410/404 (genuinely dead); a 401 is a VAPID-auth failure
+(server misconfiguration, not a dead endpoint) and is logged, NOT deleted — deleting on 401 would wipe
+the whole collection on any VAPID key error (the `functions/push.js` header has the reasoning).

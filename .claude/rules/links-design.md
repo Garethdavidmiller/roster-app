@@ -161,9 +161,9 @@ The reasoning is the comment above its block in `links-app.js`.
   A first-visit open goes through `openNoticeIfClear`.
 - **`#linksHowBtn` reopens it, as a row in the About panel** beside 🔧 Operations and 🐛 Report a bug,
   sharing their class. It is not a control of its own: as one it read as foreign wherever it was tried,
-  because no other page has a standalone help control. The header is ruled out by measurement as well —
-  `.app-header` is `1fr auto 1fr`, so a control in one side column is charged twice, and it pushed the
-  header past a 390px viewport.
+  because no other page has a standalone help control. The header is no place for it either: its title
+  takes whatever the burger and the page badge leave and ellipses at phone width, so a control there
+  would come out of the title (`css-tokens.md` → "The sub-page header is a flex row").
 - **It closes the About panel before opening.** Two overlays open together share one Escape, and the
   buried one is archived and flagged seen by someone who never read it.
 

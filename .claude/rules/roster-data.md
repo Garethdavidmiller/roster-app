@@ -24,3 +24,51 @@ Always invoke `/new-starter` — it has the full checklist, including:
 ## APP_VERSION
 
 `APP_VERSION` here is the **primary source**. `npm run bump <version>` updates it and the service-worker.js cache const — the two runtime locations. Do not edit either by hand.
+
+## Member fields, `rosterChanges` and the cycles
+
+`CLAUDE.md` → *teamMembers fields* keeps what every area needs: the table is WORLD-READABLE, so a
+field added here is published the moment it ships (`public-data-classification.test.mjs` fails on an
+unclassified field), and the AL entitlement rules, which Admin, the Calendar and the Pay Calculator
+all read. The field reference is here, beside the data.
+
+```javascript
+{
+  name: 'N. Surname',      // MUST match Firestore memberName exactly
+  currentWeek: 3,
+  rosterType: 'main',      // 'main' | 'bilingual' | 'fixed' | 'ces' | 'dispatcher'
+  role: 'CEA',             // 'CEA' | 'CES' | 'Dispatcher' | 'Management'
+  hidden: false,           // Optional — hides from dropdown
+  managerOnly: false,      // Optional — login-only manager/clerk account (Management group); hidden from the calendar member selector, has no roster of its own
+  permanentShift: 'early', // Optional — forces early/late badge on all worked days
+  bilingualContract: true, // Optional — this CEA holds a BILINGUAL CONTRACT: 34 days' leave, not 32.
+                           // The CONTRACT, not the line. A plain CEA is routinely placed on a bilingual
+                           // line until a CEA one frees up, so `rosterType` cannot stand in for this.
+  startDate: new Date(2026, 3, 20), // Optional — midnight local time: new Date(year, month-1, day)
+  noProRate: true,                  // Optional — set for secondment returns: startDate suppresses pre-return shifts but pay and AL are full-year (no pro-rating in paycalc; joiner banner hidden)
+  proRatedAL: { 2026: 23 }, // Optional — the joining year's entitlement (a Dispatcher's lieu days are still added)
+  rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }] // Optional — scheduled roster moves
+}
+```
+
+**What a `rosterChanges` entry means.** Date-driven roster transitions for a member who changes
+rosterType/link mid-life (e.g. a new starter on a temporary `fixed` pattern who later joins a
+rotating link). Each entry is `{ from: Date, rosterType, currentWeek }`; from `from` (midnight,
+**inclusive**) onward the member follows that rosterType/currentWeek instead of the base fields, and
+the latest entry whose `from` ≤ date wins. Resolved by `resolveMemberRoster(member, date)` in
+`roster-data.js`; `getBaseShift` and `getWeekNumberForDate` apply it automatically, so **no call site
+needs special handling**. The base `rosterType`/`currentWeek` describe the member *before* the first
+change. `startDate` (join-date RD suppression) is independent and still applies.
+
+### Roster cycles
+
+| Type | Cycle |
+|------|-------|
+| main | `CONFIG.MAIN_ROSTER_WEEKS` weeks (`weeklyRoster`) |
+| bilingual | `CONFIG.BILINGUAL_ROSTER_WEEKS` weeks (`bilingualRoster`) |
+| ces | `CONFIG.CES_ROSTER_WEEKS` weeks (`cesRoster`) |
+| dispatcher | `CONFIG.DISPATCHER_ROSTER_WEEKS` weeks (`dispatcherRoster`) |
+| fixed | no rotation — `currentWeek` selects which pattern in `fixedRoster` the member sits on; the patterns are described in the comment above `fixedRoster` in `roster-cycle-data.js`, and who sits on each is `roster-member-data.js` |
+
+**A fixed pattern is SHARED, so editing one member's hours there edits everyone on that line.** Never
+write a cycle's length down: it is the constant's, and the Links seed reads the same constants.

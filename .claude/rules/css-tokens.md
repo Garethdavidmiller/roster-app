@@ -746,3 +746,12 @@ does that for both.
 the mechanism directly (`faded()`) alongside the scan, exempting only a natively `disabled` control and
 the one refused-read tick. The full account is `operations.css` → the dims note, and
 `docs/A11Y_BASELINE.md`.
+
+## The sub-page header is a flex row
+
+**`.app-header` — the sub-page header in `shared.css` — is a FLEX row**, not a grid: the burger, then
+`.app-header-brand` (`flex: 1`, content centred) holding the logo and title, then the page badge. The
+brand takes all the space between the burger and the badge, so the two can never overlap whatever the
+badge's width, and the title ellipses rather than wraps. A brand centred in that leftover space is
+centred on the page only when the burger and the badge are the same width. The Calendar's full-bleed
+`.header` (`index.css`) is separate and does not use these rules.
