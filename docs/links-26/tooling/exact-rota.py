@@ -30,7 +30,7 @@ CP-SAT runs in parallel, so two runs of one command need not return the same rot
 mode did not either (two runs with the same seed and budget differed, 27 Oct 2026) — so a design it finds is committed as
 its grid, and FIX= checks that grid against the model.
   python3 exact-rota.py <table.json> <out.json> [seconds]
-  env: OBJ=one|step|both|chg|heavy|four|best|rest|gentle  ONE_MIN= STEP= LIGHT= MAXCHG= (at most n early/late switches the step can see)
+  env: OBJ=one|step|both|chg|heavy|four|best|rest|iso|gentle|league  ONE_MIN= STEP= LIGHT= MAXCHG= (at most n early/late switches the step can see)
        HINT=<rota.json> (start from it)  FIX=<rota.json> (check a rota against the model)  WORKERS=4  LOG=1
        BEST_LEN= (the days in a row OBJ=best prices; 29 unless set)
        SKELETON=<rota.json> (hold its rest days; FAMILY=1 holds its early and late weeks too: 30 Oct 2026, for a new table
@@ -338,14 +338,37 @@ if os.environ.get('OBJ') == 'gentle':
         for g in starts:
             if g in ('06:20', '15:45'): continue
             s = M.NewBoolVar(f'oth_{a}_{g}'); M.Add(s >= wk[(a, g)] + wk[(b, g)] - 1); oth.append(s)
-OBJ = os.environ.get('OBJ', 'one')
+# OBJ=league (7 Nov 2026, owner, of Balanced V8 and V9: "Exhaust the possibilities"): the main league's own points for the
+# measures a layout moves, so one run trades them as the league does rather than one figure after another. In millionths of
+# a point per unit: a single rest day (W_ISO, each), the step (W_STEP, per minute of gentleMean), the heaviest week (W_HEAVY,
+# per minute), every rest REST_TO or more (W_REST, once: set REST_TO to the range's top, 875), a week on one shift time as
+# the sheets count it, Monday to Friday one time and every duty one kind (W_ONE, each, up to ONE_CAP) and a week mixing
+# earlies and lates (W_MIXED, each). The defaults are the main league's slopes on 7 Nov 2026 (league.mjs, REF_IN_RANGE=1,
+# with Balanced V8 and V9 in the pack); a figure past the edge of its range earns nothing more there, so the sheets and the
+# league still judge whatever this finds
+OBJ, LG = os.environ.get('OBJ', 'one'), {}
+if OBJ == 'league':
+    if os.environ.get('MIXED') is not None:   # a mixed week is never one shift time on the sheets, whatever its weekdays
+        ot = [M.NewBoolVar(f'ot_{k}') for k in WORK]
+        for j, k in enumerate(WORK):
+            M.Add(ot[j] <= sum(u[(k, t)] for t in TYPES['mon'])); M.Add(ot[j] <= 1 - mx[k])
+        oneSheets = sum(ot); mixedN = sum(mx.values())
+    else: oneSheets = one; mixedN = 0
+    oneC = M.NewIntVar(0, len(WORK), 'oneC'); M.AddMinEquality(oneC, [oneSheets, env('ONE_CAP', 19)])
+    r875 = M.NewBoolVar('restTop'); M.Add(sum(tight) == 0).OnlyEnforceIf(r875)
+    LG = dict(iso=sum(s.values()), heavy=heavyMax, restTop=r875, one=oneC, mixed=mixedN)
+    per = 20 * len(pairs)   # stepSum is 20 x the sum of the moves; gentleMean = stepSum / per
+    M.Minimize(per * (env('W_ISO', 416140) * LG['iso'] + env('W_HEAVY', 16848) * heavyMax - env('W_REST', 333560) * r875
+                      - env('W_ONE', 385800) * oneC + env('W_MIXED', 403120) * mixedN) + env('W_STEP', 14854) * stepSum)
 if OBJ == 'one': M.Maximize(one)
+elif OBJ == 'league': pass                   # set above
 elif OBJ == 'step': M.Minimize(stepSum)
 elif OBJ == 'chg': M.Minimize(sum(z))   # the fewest visible switches, so a one-switch layout can be climbed to
 elif OBJ == 'heavy': M.Minimize(heavyMax)   # the heaviest Monday-to-Saturday week
 elif OBJ == 'four': M.Minimize(four)        # the leave four full weeks from a Sunday cost
 elif OBJ == 'best': M.Minimize(best29)      # the leave the cheapest 29 days cost (14 is a best stretch of 29)
 elif OBJ == 'rest': M.Minimize(sum(tight))  # the rests under REST_TO (default 15h)
+elif OBJ == 'iso': M.Minimize(sum(s.values()))   # the single rest days (7 Nov 2026, climbing below ISO)
 elif OBJ == 'gentle': M.Minimize(sum(co) * 1000000 + sum(big) * 100000 + sum(oth) * (10000 if env('GENTLE_SHARED', 1) else 0) + stepSum)   # see GENTLE above
 else: M.Maximize(one * 100000 - stepSum)   # 'both': the most one-turn weeks, then the smallest step
 S = cp_model.CpSolver(); S.parameters.num_workers = env('WORKERS', 4)
@@ -355,6 +378,7 @@ r = S.Solve(M)
 print('heavy', S.Value(heavyMax) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'four', S.Value(four) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'best29cost', S.Value(best29) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'tight', S.Value(sum(tight)) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None)
 print('step', round(S.Value(stepSum) / 20 / len(pairs), 2) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'FF17 b-f', (S.Value(sum(bw)) - S.Value(sum(fw))) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None)
 if OBJ == 'gentle' and r in (cp_model.OPTIMAL, cp_model.FEASIBLE): print('gentle:', '/'.join(GENTLE_STARTS), 'starts side by side', sum(S.Value(v) for v in co), 'moves over GENTLE', sum(S.Value(v) for v in big), 'other shared starts', sum(S.Value(v) for v in oth) if env('GENTLE_SHARED', 1) else 'not counted (GENTLE_SHARED=0)')
+if LG and r in (cp_model.OPTIMAL, cp_model.FEASIBLE): print('league:', ' '.join(f'{k} {S.Value(v) if not isinstance(v, int) else v}' for k, v in LG.items()))
 print('status', S.StatusName(r), 'one-turn', S.ObjectiveValue() if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'bound', S.BestObjectiveBound(), 'time', round(S.WallTime(), 1), flush=True)
 if r in (cp_model.OPTIMAL, cp_model.FEASIBLE):
     P = {}
