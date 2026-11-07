@@ -37,7 +37,12 @@ changed once.
 | **Firestore collections** | `docs/DATA_MODEL.md` | What every collection holds and what its fields mean. Access is summarised there and OWNED by `firestore.rules` |
 | **CSS tokens & surfaces** | `.claude/rules/css-tokens.md` | Colour, type, spacing, focus, overlays |
 | **Notifications** | `.claude/rules/notifications.md` | Push payload grammar and the single builder |
-| **Roster data shape** | `.claude/rules/roster-data.md` | Member fields, cycles, entitlement |
+| **Roster data shape** | `.claude/rules/roster-data.md` | Member fields, `rosterChanges`, cycles (the AL entitlement rules stay in `CLAUDE.md`, because Admin, the Calendar and the Pay Calculator all read them) |
+| **Calendar page** | `.claude/rules/calendar.md` | The Calendar's own area decisions: the month grid, the day panel, Team view, the sync chip |
+| **Admin page** | `.claude/rules/admin.md` | Change a Shift, the type pills, leave on a rest day, the range picker |
+| **Drawer, page chrome & overlays** | `.claude/rules/nav-drawer.md` | The nav drawer, the page header and logo, Android Back and the topmost-overlay rule |
+| **Offline-first shell** | `.claude/rules/pwa.md` | The service worker's caching and update lifecycle, the manifest, Firestore's local cache |
+| **Sign-in mechanics** | `.claude/rules/sessions.md` | Session re-establishment, write isolation and the claim tiers — the code side of `AUTH_AND_SESSIONS.md`'s invariants |
 | **Roster PDF import** | `.claude/rules/roster-import.md` | The parse, the review states, and every defence against a week written onto the wrong days — the day-drift layers and why they are not three witnesses, the geometry gate, what a blank cell means |
 | **Operations & ingest** | `OPERATIONS_REFERENCE.md` | Huddle ingest, roster upload, account conventions, PIN rotation |
 | **Disaster recovery** | `RECOVERY_RUNBOOK.md` | Backups, rollback, incident playbooks, standing GCP prerequisites |

@@ -301,6 +301,43 @@ test('every module has its own AI_MAP entry, not just a mention', () => {
         '\nGive each one a `### ` entry, or add it to an existing grouped heading.');
 });
 
+// ── AN AI_MAP ENTRY IS A ROUTING CARD, NOT A HISTORY (7 Nov 2026) ────────────────────────────────
+//
+// One pass took the map from about 757,000 characters to 326,000, and every entry it cut had grown
+// the same way: version stamps, "until vX it said" stories, measurements, and reasoning the module's
+// own header already held. An entry is the module's purpose, its exports with a short note each, and
+// its invariants as a line or a pointer; the argument lives beside the code, where it cannot drift.
+//
+// The cap is the largest entry that survived the pass, rounded up, so it can only come DOWN. An
+// entry that needs more room is a module whose header should hold the rest. The cap bounds an
+// ENTRY, not the map, so a new module still gets a full entry of its own.
+const AIMAP_ENTRY_CAP = 5_000;
+test('no AI_MAP entry outgrows a routing card', () => {
+    const entries = [];
+    let cur = null;
+    for (const line of AI_MAP.split('\n')) {
+        if (line.startsWith('### ')) {
+            if (cur) entries.push(cur);
+            cur = { head: line.slice(4), text: line + '\n' };
+        } else if (line.startsWith('## ')) {
+            if (cur) entries.push(cur);
+            cur = null;
+        } else if (cur) {
+            cur.text += line + '\n';
+        }
+    }
+    if (cur) entries.push(cur);
+    assert.ok(entries.length > 150, `only ${entries.length} AI_MAP entries read — the splitter is broken`);
+    const over = entries
+        .map(e => ({ head: e.head, size: [...e.text].length }))
+        .filter(e => e.size > AIMAP_ENTRY_CAP)
+        .map(e => `${e.head.slice(0, 80)} — ${e.size} characters`);
+    assert.deepEqual(over, [],
+        `these AI_MAP entries are over the ${AIMAP_ENTRY_CAP}-character cap:\n  ${over.join('\n  ')}\n` +
+        'Move the reasoning into the module header and leave a pointer; drop version stamps and ' +
+        'release history (git log holds it). Do not raise the cap to fit.');
+});
+
 // ── CONTRACT 1e: FILE_INDEX gives every module its OWN ROW, not merely a mention ───────────────
 //
 // Contract 1 reads FILE_INDEX as one string, so a module whose row was deleted or renamed still
@@ -785,7 +822,7 @@ test('every command README.md tells a reviewer to run actually exists', () => {
     const pkg = JSON.parse(read('./package.json'));
     const problems = [];
 
-    const scripts = [...readme.matchAll(/`?\bnpm run ([a-z0-9:]+)/g)].map(m => m[1]);
+    const scripts = [...readme.matchAll(/`?\bnpm run ([a-z0-9:-]+)/g)].map(m => m[1]);
     for (const s of new Set(scripts)) {
         if (!(s in (pkg.scripts ?? {}))) problems.push(`npm run ${s} — no such script in package.json`);
     }
@@ -805,7 +842,7 @@ test('and the README command reader still finds them — guard the guard', () =>
     // If the extraction above silently stopped matching, the contract would pass for ever while
     // the page rotted. Pin that it sees the two commands the page is built around.
     const readme = read('./README.md');
-    const found = [...readme.matchAll(/`?\bnpm run ([a-z0-9:]+)/g)].map(m => m[1]);
+    const found = [...readme.matchAll(/`?\bnpm run ([a-z0-9:-]+)/g)].map(m => m[1]);
     assert.ok(found.length >= 3, `only ${found.length} npm scripts read out of README.md`);
     assert.match(readme, /node scripts\/test-nodeps\.mjs/,
         'the no-install lane is the point of the page — if it is gone, so is the reason for it');
@@ -1217,12 +1254,15 @@ test('no doc writes down a repo-derived count that grows with the repo', () => {
     // Matched as a COUNT PHRASE near the word, not as "a number somewhere in the sentence" — the
     // first draft of this flagged `v15.46` out of "(v15.41; hardened v15.46)". A version is a
     // number in a sentence about the precache and is not a claim about its size.
+    //
+    // The service-worker text moved from CLAUDE.md to `.claude/rules/pwa.md` (7 Nov 2026), so the
+    // rule reads both: a figure that left with the paragraph would otherwise escape the check.
     const COUNT_PHRASE = /(?<![.\d])~?\d{2,4}\s+(?:of them\b|(?:precached\s+)?assets?\b)/gi;
-    const precacheClaims = [...CLAUDE.matchAll(COUNT_PHRASE)]
-        .filter(m => /precach/i.test(CLAUDE.slice(Math.max(0, m.index - 120), m.index + 120)))
-        .map(m => m[0].trim());
+    const precacheClaims = [CLAUDE, read('./.claude/rules/pwa.md')].flatMap(doc => [...doc.matchAll(COUNT_PHRASE)]
+        .filter(m => /precach/i.test(doc.slice(Math.max(0, m.index - 120), m.index + 120)))
+        .map(m => m[0].trim()));
     assert.deepEqual(precacheClaims, [],
-        `CLAUDE.md states the precache size (${precacheClaims.join(' | ')}). It grows with every ` +
+        `CLAUDE.md or pwa.md states the precache size (${precacheClaims.join(' | ')}). It grows with every ` +
         `module and has been wrong twice. It is ${actual.precache} today; derive it, do not write it.`);
 });
 
