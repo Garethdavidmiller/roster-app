@@ -75,6 +75,7 @@ list.
 | `links-window.js` | the staffed OPERATING WINDOW — when the station is open |
 | `links-demand.js` | the SERVICE that window has to cover — the December 2026 trains |
 | `links-analysis.js` | the read-only panels — Coverage heat map, Design checks and the sticky summary strip — rendered from those pure results |
+| `links-grid-input.js` | how the grid is OPERATED — one Tab stop and the arrow keys, a mouse stroke that paints every cell it crosses, the paint bar's height for the sticky header; what a cell MEANS stays in the coordinator |
 | `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
 | `links-compare-analysis.js` | what the difference between two designs MEANS — cover, limits and fatigue for both (pure, `compareDesigns`) |
 | `links-concurrency.js` | the pure co-editing rules (three historical silent-overwrite bugs, one test each) |
@@ -386,8 +387,12 @@ kept, because the reload's hide keeps the copy above.
 A brush chip bar above the grid (`#brushBar`): clicking a chip arms that shift, and clicking cells then
 applies it directly; clicking the armed chip again, or Escape, disarms. With no brush armed, a cell
 click opens the app's own shift sheet over the cell (`openCellEdit` → `openOptionSheet`), never a
-native `<select>`. `.shift-cell-btn` and `.brush-chip` set `touch-action: manipulation`: painting is
-rapid tapping, which otherwise triggers double-tap zoom.
+native `<select>`. With a MOUSE, pressing a cell and dragging paints every cell the stroke crosses;
+touch and pen keep tap-to-paint, because a finger on a phone scrolls the grid. From the keyboard the
+grid is ONE Tab stop and the arrow keys move between cells, and an edit repaints the cell's button in
+place so focus stays on it. The rules are `links-grid-input.js`'s header. `.shift-cell-btn` and
+`.brush-chip` set `touch-action: manipulation`: painting is rapid tapping, which otherwise triggers
+double-tap zoom.
 
 **The chips are the times THIS DESIGN is made of** (`brushTimes`), never a fixed list. A fixed list
 painted shifts the design did not contain and could not paint the ones it did, and still looked as if
@@ -1191,5 +1196,8 @@ and the window editor are hidden.
   (an accepted phone constraint, KNOWN_LIMITATIONS.md → Links). From 768px the table fits, the wrapper is
   `overflow-x: visible`, and the header sticks. Do not add a `max-height` without resetting it at that
   breakpoint and in `@media print`, where a clipped sheet is silent on screen.
+- **The paint bar sticks above the day header from 768px on a fine pointer**, and the header sticks
+  beneath it at the bar's measured height (`--brush-bar-h`), so the lower lines can be painted without
+  scrolling back up. Not on a phone, where the bar is already counted as a cost to the screen.
 - **`.card` is `overflow: clip`, not `hidden`.** `clip` keeps the rounded corners without creating a
   scroll container, which both the sticky `thead` and the sticky save row need.

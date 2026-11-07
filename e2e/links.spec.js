@@ -1206,14 +1206,26 @@ test('links: paint-mode analysis keeps up with rapid tapping', async ({ page }) 
     const perTap = await page.evaluate(async () => {
         // Alternate two brushes so every tap is a REAL change — since v19.38 repainting the same
         // value short-circuits, which would measure nothing.
+        //
+        // AND EVERY TAP NOW REACHES A CELL (desktop audit, Nov 2026). An edit used to REPLACE the
+        // cell's button, so the buttons held below went dead after their first paint, and 13 of the
+        // 20 taps clicked a button no longer in the page: this read ~3ms on seven paints and thirteen
+        // nothings. A cell is repainted in place now, so all 20 paint, and the figure is the real one.
+        // Best of three rounds: one round is at the mercy of whatever else the machine is running
+        // (a second browser worker, measured at 2–3× here), which a device in a designer's hand is not.
         const chips = Array.from(document.querySelectorAll('#brushBar .brush-chip.type-early, #brushBar .brush-chip.type-late'));
         const btns  = Array.from(document.querySelectorAll('tr[data-pos="3"] .shift-cell-btn'));
-        const t0 = performance.now();
-        for (let i = 0; i < 20; i++) {
-            /** @type {HTMLElement} */ (chips[i % 2]).click();          // re-arm (alternating value)
-            /** @type {HTMLElement} */ (btns[i % btns.length]).click(); // paint
+        const rounds = [];
+        for (let round = 0; round < 3; round++) {
+            const t0 = performance.now();
+            for (let i = 0; i < 20; i++) {
+                /** @type {HTMLElement} */ (chips[i % 2]).click();          // re-arm (alternating value)
+                /** @type {HTMLElement} */ (btns[i % btns.length]).click(); // paint
+            }
+            rounds.push((performance.now() - t0) / 20);
         }
-        return (performance.now() - t0) / 20;
+        if (!btns.every(b => b.isConnected)) throw new Error('a tap reached a button no longer in the grid');
+        return Math.min(...rounds);
     });
     console.log(`[links] paint tap → full re-analysis: ${perTap.toFixed(2)} ms`);
     expect(await cells.count()).toBe(7);
@@ -1679,6 +1691,288 @@ test('links grid: a cover week with Sunday overtime counts that Sunday in its se
     await expect(cells).toHaveCount(3);
     await expect(cells.nth(0), 'Monday to Saturday: the contracted week').toHaveText('35h 00m');
     await expect(cells.nth(1), 'all seven days: the week plus its 8½-hour Sunday').toHaveText('43h 30m');
+});
+
+// ── THE GRID ON A DESKTOP, BY MOUSE AND BY KEYBOARD (desktop audit, Nov 2026) ────────────────────
+// A design with several kinds of cell on every line, so the row under test always carries more than
+// one colour. Built here, where ROTATING_LINES can be imported, and handed to the page whole.
+const MIXED_DESIGN = (() => {
+    /** @type {Record<string, Record<string, string>>} */ const patterns = {};
+    const cycle = ['06:20-14:20', '07:00-15:00', '11:00-19:30', '14:00-22:30', 'SPARE', 'RD', 'RD'];
+    for (let i = 1; i <= ROTATING_LINES; i++) {
+        /** @type {Record<string, string>} */ const row = {};
+        ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach((d, j) => {
+            row[d] = (i % 4 === 0 && (j === 0 || j === 6)) ? 'RD' : cycle[(i + j) % cycle.length];
+        });
+        patterns[String(i)] = row;
+    }
+    return patterns;
+})();
+
+/** Open Links on MIXED_DESIGN at a desktop size. @param {import('@playwright/test').Page} page */
+async function openMixedDesign(page, size = { width: 1366, height: 768 }) {
+    await page.setViewportSize(size);
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(pats => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Option A', updatedBy: 'S. Silva', updatedAt: 1_750_000_000_000, patterns: pats }];
+    }, MIXED_DESIGN);
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    await linksOpened(page);
+}
+/** Scroll line `pos` to the middle of the screen, clear of the sticky bar above and the save row below.
+ *  @param {import('@playwright/test').Page} page @param {number} pos */
+const centreLine = (page, pos) => page.evaluate(p => {
+    const r = /** @type {Element} */ (document.querySelector(`#linksGridBodyRows tr[data-pos="${p}"]`));
+    window.scrollBy(0, r.getBoundingClientRect().top - innerHeight / 2);
+}, pos);
+/** @param {import('@playwright/test').Page} page @param {number} pos @param {string} day */
+const gridCell = (page, pos, day) => page.locator(`#linksGridBodyRows .shift-cell-btn[data-pos="${pos}"][data-day="${day}"]`);
+/** Which grid cell holds focus, as "line/day" — or the tag of whatever else does. @param {import('@playwright/test').Page} page */
+const focusedCell = page => page.evaluate(() => {
+    const a = /** @type {HTMLElement|null} */ (document.activeElement);
+    return a?.classList.contains('shift-cell-btn') && a.isConnected ? `${a.dataset.pos}/${a.dataset.day}` : String(a?.tagName);
+});
+
+test('links grid: the row under the pointer keeps its shift colours, and its ends and the cell are marked', async ({ page }, info) => {
+    // Hovering a row turned every cell in it TRANSPARENT to tint the row, so the line you pointed at
+    // lost the colours it is read by — and a cell painted with the mouse showed no colour at all until
+    // the pointer left it. Only a fine pointer hovers.
+    test.skip(isTouchProject(info), 'hover is a fine-pointer surface');
+    await openMixedDesign(page);
+    const row = page.locator('#linksGridBodyRows tr[data-pos="5"]');
+    const read = () => row.evaluate(tr => ({
+        fills: [...tr.querySelectorAll('.shift-cell-btn')].map(b => getComputedStyle(b).backgroundColor),
+        rings: [...tr.querySelectorAll('.shift-cell-btn')].map(b => getComputedStyle(b).boxShadow),
+        num: getComputedStyle(/** @type {Element} */ (tr.querySelector('.pos-num'))).backgroundColor,
+        total: getComputedStyle(/** @type {Element} */ (tr.querySelector('.tot-cell'))).backgroundColor,
+    }));
+    await centreLine(page, 5);
+    await page.mouse.move(1, 1);
+    const before = await read();
+    await gridCell(page, 5, 'mon').hover();
+    const during = await read();
+    expect(during.fills, 'every cell keeps its own shift colour under the pointer').toEqual(before.fills);
+    expect(during.fills.some(f => f === 'rgba(0, 0, 0, 0)'), 'no cell goes transparent').toBe(false);
+    expect(during.rings[1], 'the cell under the pointer wears the navy ring').toMatch(/inset/);
+    expect(during.rings.filter((_, i) => i !== 1).every(r => r === 'none'), 'and only that cell').toBe(true);
+    expect(during.num, 'the line number marks the row').not.toBe(before.num);
+    expect(during.total, 'so do its totals').not.toBe(before.total);
+
+    // Painting with the mouse: the cell shows its NEW colour while the pointer is still on it — the
+    // same colour as an identical cell nobody is pointing at.
+    await page.locator('#brushBar .brush-chip[data-shift="14:00-22:30"]').click();
+    const target = gridCell(page, 5, 'mon');
+    await target.click();
+    await expect(target).toHaveText(/14:00\s+22:30/);
+    const painted = await target.evaluate(b => getComputedStyle(b).backgroundColor);
+    const elsewhere = await gridCell(page, 5, 'fri').evaluate(b => getComputedStyle(b).backgroundColor);   // 14:00–22:30 already
+    expect(painted, 'a painted cell under the pointer wears its shift colour').toBe(elsewhere);
+});
+
+test('links grid: an edit from the keyboard leaves focus on the cell, by either route', async ({ page }) => {
+    // Both routes replaced the cell's button with a new one, so focus — on the button Enter had just
+    // pressed, or the one the sheet's close had handed it back to — fell to <body>, and the keyboard
+    // user was back at the top of the page after every edit. The cell is now repainted in place.
+    await openMixedDesign(page);
+
+    // 1. The shift sheet: Enter opens it over the cell, Enter on an option picks.
+    const sheetCell = gridCell(page, 12, 'wed');
+    await sheetCell.focus();
+    await page.keyboard.press('Enter');
+    const rd = page.locator('.picker-opt[data-value="RD"]');
+    await expect(rd).toBeVisible();
+    // The sheet takes focus a frame after it opens (overlay.js); a keyboard user is inside it before
+    // they choose, so this waits for that too rather than racing it.
+    await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('.picker-sheet-overlay'))).toBe(true);
+    await rd.focus();
+    await page.keyboard.press('Enter');
+    await expect(sheetCell).toHaveText('RD');
+    await expect.poll(() => focusedCell(page), { message: 'focus fell out of the grid after a pick' }).toBe('12/wed');
+    // …and a second Enter reaches the same cell: the sheet opens again, for it.
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.picker-sheet-overlay')).toBeVisible();
+    await expect(page.locator('.picker-sheet-overlay')).toContainText('Line 12 · Wed');
+    await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('.picker-sheet-overlay'))).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.picker-sheet-overlay')).toBeHidden();
+    await expect.poll(() => focusedCell(page)).toBe('12/wed');
+
+    // 2. Paint mode: a chip armed from the keyboard, Enter on a cell paints it.
+    await page.locator('#brushBar .brush-chip[data-shift="RD"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#brushBar .brush-chip[data-shift="RD"]')).toHaveAttribute('aria-pressed', 'true');
+    const paintCell = gridCell(page, 1, 'sun');
+    await expect(paintCell).not.toHaveText('RD');
+    await paintCell.focus();
+    await page.keyboard.press('Enter');
+    await expect(paintCell).toHaveText('RD');
+    expect(await focusedCell(page), 'focus fell out of the grid after a paint').toBe('1/sun');
+    // …and Enter still works from there: with the brush put down (Escape), it opens the sheet.
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.picker-sheet-overlay')).toContainText('Line 1 · Sun');
+});
+
+test('links grid: a mouse stroke paints every cell it crosses, and a touch does not stroke', async ({ page }) => {
+    // Press and drag painted NOTHING — the grid listened for `click` alone, and a click whose press
+    // and release land on different cells goes to the row — while two comments said a drag-paint
+    // existed. A stroke is now a mouse's: a finger on a phone scrolls the grid.
+    await openMixedDesign(page);
+    const chip = page.locator('#brushBar .brush-chip[data-shift="14:00-22:30"]');
+    await chip.click();
+    const cells = ['tue', 'wed', 'thu', 'fri'].map(d => gridCell(page, 11, d));
+    await centreLine(page, 11);
+    const a = await cells[0].boundingBox(), z = await cells[3].boundingBox();
+    if (!a || !z) throw new Error('the cells have no box');
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(z.x + z.width / 2, z.y + z.height / 2, { steps: 12 });
+    await page.mouse.up();
+    for (const c of cells) await expect(c, 'every cell the stroke crossed is painted').toHaveText(/14:00\s+22:30/);
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+    await expect(chip, 'the brush stays armed for the next stroke').toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.picker-sheet-overlay'), 'the release opened nothing').toBeHidden();
+    expect(await page.evaluate(() => String(window.getSelection())), 'and selected no text').toBe('');
+
+    // A TOUCH stroke paints nothing: it is a scroll that happened to begin on a cell. (Synthetic
+    // events, because the browser's own touch would scroll; the rule they reach is the same one.)
+    const before = await gridCell(page, 13, 'mon').textContent();
+    await gridCell(page, 13, 'mon').dispatchEvent('pointerdown', { pointerType: 'touch', pointerId: 9, button: 0, buttons: 1, isPrimary: true });
+    await gridCell(page, 13, 'tue').dispatchEvent('pointerover', { pointerType: 'touch', pointerId: 9, buttons: 1, isPrimary: true });
+    await page.evaluate(() => document.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch', pointerId: 9, bubbles: true })));
+    await expect(gridCell(page, 13, 'mon')).toHaveText(String(before));
+    await expect(gridCell(page, 13, 'tue')).not.toHaveText(/14:00\s+22:30/);
+});
+
+test('links grid: the grid is ONE Tab stop, and the arrow keys move inside it', async ({ page }) => {
+    // Every cell was a Tab stop — the whole rotation times seven days — so reaching the next card
+    // from the keyboard meant crossing the grid cell by cell.
+    await openMixedDesign(page);
+    const stops = page.locator('#linksGridBodyRows .shift-cell-btn:not([tabindex="-1"])');
+    await expect(stops, 'one cell, and only one, is in the Tab order').toHaveCount(1);
+
+    await page.locator('#brushBar .brush-chip--custom').focus();
+    await page.keyboard.press('Tab');
+    expect(await focusedCell(page), 'Tab enters the grid at its first cell').toBe('1/sun');
+    await page.keyboard.press('Tab');
+    expect(await focusedCell(page), 'and the next Tab leaves it').not.toMatch(/^\d+\//);
+
+    await page.keyboard.press('Shift+Tab');
+    expect(await focusedCell(page)).toBe('1/sun');
+    for (const [key, at] of /** @type {const} */ ([
+        ['ArrowRight', '1/mon'], ['ArrowDown', '2/mon'], ['End', '2/sat'], ['ArrowRight', '2/sat'],
+        ['Home', '2/sun'], ['ArrowLeft', '2/sun'], ['ArrowUp', '1/sun'], ['ArrowUp', '1/sun'],
+        ['Control+End', `${ROTATING_LINES}/sat`], ['ArrowDown', `${ROTATING_LINES}/sat`], ['Control+Home', '1/sun'],
+        ['ArrowDown', '2/sun'], ['ArrowDown', '3/sun'], ['ArrowRight', '3/mon'],
+    ])) {
+        await page.keyboard.press(key);
+        expect(await focusedCell(page), `${key} lands on ${at}`).toBe(at);
+    }
+    // The Tab stop moved with the arrows: out and back in returns to the cell last used.
+    await expect(stops).toHaveCount(1);
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    expect(await focusedCell(page), 'Shift+Tab comes back to the cell last used').toBe('3/mon');
+    // And Enter there still opens that cell's sheet.
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.picker-sheet-overlay')).toContainText('Line 3 · Mon');
+});
+
+test('links grid: the paint bar stays in reach over the lower lines, with the day header beneath it', async ({ page }, info) => {
+    // At 1366×768 the bar had scrolled away by line 16, so every change of brush meant scrolling up.
+    // Sticky from 768px on a fine pointer; a phone keeps it in flow.
+    await openMixedDesign(page);
+    await centreLine(page, 20);
+    const m = await page.evaluate(() => {
+        const bar = /** @type {Element} */ (document.getElementById('brushBar')).getBoundingClientRect();
+        const th = /** @type {Element} */ (document.querySelector('#linksGridTable thead th')).getBoundingClientRect();
+        return { scrolled: window.scrollY, barTop: bar.top, barBottom: bar.bottom, thTop: th.top,
+            position: getComputedStyle(/** @type {Element} */ (document.getElementById('brushBar'))).position };
+    });
+    if (isTouchProject(info)) {
+        expect(m.position, 'a phone keeps the bar in flow').toBe('static');
+        return;
+    }
+    expect(m.scrolled, 'the page really is scrolled down the grid').toBeGreaterThan(500);
+    expect(m.barTop, 'the bar is pinned to the top of the screen').toBeCloseTo(0, 0);
+    // The header sits under the bar, tucked 1px beneath it — never over it, and never a gap the
+    // rows show through.
+    expect(m.thTop, 'the day header sits beneath the bar').toBeGreaterThanOrEqual(m.barBottom - 1.5);
+    expect(m.thTop, 'with no gap between them').toBeLessThanOrEqual(m.barBottom);
+    // And a chip can be pressed from there to paint line 20 without scrolling back up.
+    await page.locator('#brushBar .brush-chip[data-shift="SPARE"]').click();
+    await gridCell(page, 20, 'sun').click();
+    await expect(gridCell(page, 20, 'sun')).toHaveText('SP');
+});
+
+test('links grid: at a desktop size the times read at 12px, and a phone keeps its 10px', async ({ page }, info) => {
+    // 10px times in 94–114px cells were the smallest text on the page at 1366.
+    await openMixedDesign(page);
+    const sizes = await page.evaluate(() => ({
+        cell: getComputedStyle(/** @type {Element} */ (document.querySelector('#linksGridBodyRows .shift-cell-btn'))).fontSize,
+        chip: getComputedStyle(/** @type {Element} */ (document.querySelector('#brushBar .brush-chip'))).fontSize,
+    }));
+    const want = isTouchProject(info) ? '10px' : '12px';
+    expect(sizes).toEqual({ cell: want, chip: want });
+});
+
+test('links checks: the two fatigue caveats hold to the 72-character reading measure on a desktop', async ({ page }, info) => {
+    // Their sentences went straight into the row body, which the 72ch cap did not reach, so they ran
+    // to 110 and 159 characters a line at 1366.
+    test.skip(isTouchProject(info), 'the measure applies from 1024px');
+    await openMixedDesign(page);
+    const over = await page.evaluate(() => [...document.querySelectorAll('#checksContent .check-prose')].map(b => {
+        const probe = document.createElement('span');
+        probe.textContent = '0'.repeat(72);
+        probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap';
+        b.appendChild(probe);
+        const measure = probe.getBoundingClientRect().width;
+        probe.remove();
+        return { width: b.getBoundingClientRect().width, measure };
+    }));
+    expect(over.length, 'both caveats render').toBe(2);
+    for (const o of over) expect(o.width, 'a caveat runs past 72 characters a line').toBeLessThanOrEqual(o.measure + 1);
+});
+
+test('links: small desktop polish — an armed chip keeps its colour under the pointer, and a compare name is not cut short', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'hover and the desktop chip width are fine-pointer surfaces');
+    await openMixedDesign(page);
+    const chip = page.locator('#brushBar .brush-chip[data-shift="11:00-19:30"]');
+    await chip.click();
+    await chip.hover();
+    expect(await chip.evaluate(c => getComputedStyle(c).filter), 'hover repainted the armed chip').toBe('none');
+
+    await page.locator('#designMoreBtn').click();
+    await page.getByRole('button', { name: /Compare with/ }).click();
+    const names = page.locator('#compareChips .design-chip-name');
+    await expect(names.first()).toBeVisible();
+    const cut = await names.evaluateAll(els => els.filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent));
+    expect(cut, 'a compare chip name was cut short with room to spare').toEqual([]);
+});
+
+test('links generator: a slot time wears the app\'s closed face, and a disabled "Use setup" reads as disabled', async ({ page }) => {
+    // Safari drew its own grey face over all fifteen slot selects (they set a fill and nothing else),
+    // and a disabled "Use setup" kept its navy, 600-weight lead at 40% — stronger than the ENABLED
+    // "+ Save as new…" beside it.
+    await openMixedDesign(page);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    const face = await page.locator('.gen-slot-time').first().evaluate(el => {
+        const s = getComputedStyle(el);
+        return { appearance: s.appearance, image: s.backgroundImage.startsWith('url('), right: s.paddingRight };
+    });
+    expect(face).toEqual({ appearance: 'none', image: true, right: '24px' });
+
+    const load = page.locator('#genSetLoadBtn');
+    await expect(load).toBeDisabled();
+    const look = await page.evaluate(() => {
+        const s = (/** @type {string} */ id) => getComputedStyle(/** @type {Element} */ (document.getElementById(id)));
+        return { load: { border: s('genSetLoadBtn').borderTopColor, colour: s('genSetLoadBtn').color, weight: s('genSetLoadBtn').fontWeight },
+            saveAs: { border: s('genSetSaveAsBtn').borderTopColor, colour: s('genSetSaveAsBtn').color, weight: s('genSetSaveAsBtn').fontWeight } };
+    });
+    expect(look.load, 'disabled, it wears the neutral edge and type of the row\'s other buttons').toEqual(look.saveAs);
 });
 
 test('links: the roster seed samples the whole MAIN cycle and nothing else', async ({ page }) => {

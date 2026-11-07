@@ -44,6 +44,7 @@ import {
     MIN_REST_MINUTES,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
+import { createGridInput, trackPaintBarHeight } from './links-grid-input.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave, isPre26Design, PREVIOUS_LINK_LENGTH } from './links-design-doc.js';
 import { createDesignLibrary } from './links-design-library.js';
 import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
@@ -1084,7 +1085,7 @@ export function init() {
     function _setGridHint(hasDesign) {
         const el = document.getElementById('linksGridHint');
         if (el) el.textContent = hasDesign
-            ? 'Tap any shift cell to change it. Use the Paint bar to fill cells quickly. Save when done.'
+            ? 'Choose any shift cell to change it. Use the Paint bar to fill cells quickly. Save when done.'
             : `A link is ${TOTAL_POS} lines — everyone works line 1 one week, line 2 the next, all the way round.`;
     }
 
@@ -1199,7 +1200,7 @@ export function init() {
                 `</tr>`
             );
         }
-        if (tbody) tbody.innerHTML = rows.join('');
+        grid.render(rows.join(''));   // one Tab stop among the cells, and focus kept if a cell held it
         _renderOverLengthNotice();
 
         const cov = calcCoverage(design.patterns);
@@ -1207,25 +1208,13 @@ export function init() {
         renderCoverageCard();
     }
 
-    // Delegated grid events — one listener instead of one per cell button.
-    (function wireGridEvents() {
-        const tbody = document.getElementById('linksGridBodyRows');
-        if (!tbody) return;
-
-        tbody.addEventListener('click', e => {
-            const btn = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.shift-cell-btn'));
-            if (!btn || !design) return;
-
-            const pos = btn.dataset.pos;
-            const day = btn.dataset.day;
-
-            if (brush !== null) {
-                applyShift(pos, day, brush);
-            } else {
-                openCellEdit(btn);
-            }
-        });
-    })();
+    // The grid's input — clicks, the keyboard's one Tab stop and arrows, mouse strokes — delegated to
+    // the body once (links-grid-input.js). A cell's MEANING stays here: paint it, or open the sheet.
+    const grid = createGridInput(document.getElementById('linksGridBodyRows'), {
+        lines: TOTAL_POS, days: DAYS, ready: () => !!design, armed: () => brush !== null,
+        paint: (pos, day) => applyShift(pos, day, brush), edit: openCellEdit,
+    });
+    trackPaintBarHeight(document.getElementById('brushBar'), document.getElementById('linksGridTable'));
 
     /**
      * Apply a shift value to a cell, update state and re-render coverage.
@@ -1248,8 +1237,8 @@ export function init() {
         updateSaveBtn();
 
         const tbody = document.getElementById('linksGridBodyRows');
-        const oldBtn = tbody?.querySelector(`.shift-cell-btn[data-pos="${pos}"][data-day="${day}"]`);
-        if (oldBtn) restoreBtn(oldBtn.parentElement, pos, day, shift);
+        const btn = /** @type {HTMLElement|null} */ (tbody?.querySelector(`.shift-cell-btn[data-pos="${pos}"][data-day="${day}"]`) ?? null);
+        if (btn) repaintCellBtn(btn, pos, day, shift);
 
         const tr = tbody?.querySelector(`tr[data-pos="${pos}"]`);
         if (tr) tr.classList.toggle('row-unfilled', isUnfilledPattern(pats[pos]));
@@ -1408,23 +1397,15 @@ export function init() {
     }
 
     /**
-     * @param {any} cell
-     * @param {any} pos
-     * @param {any} day
-     * @param {any} shift
+     * Repaint a cell's button IN PLACE (desktop audit, Nov 2026). It was replaced by a new one, and
+     * focus — on the button Enter had just pressed, or the one the sheet's close had handed it back
+     * to — fell to `<body>` after every keyboard edit. Its tabindex and data stay as they are.
+     * @param {HTMLElement} btn @param {any} pos @param {any} day @param {any} shift
      */
-    function restoreBtn(cell, pos, day, shift) {
-        const type   = classifyShift(shift);
-        const label  = shiftLabel(shift);
-        const dayIdx = DAYS.indexOf(day);
-        const btn    = document.createElement('button');
-        btn.className   = `shift-cell-btn type-${type}`;
-        btn.dataset.pos = pos;
-        btn.dataset.day = day;
-        btn.setAttribute('aria-label', `Line ${pos} ${DAY_LABELS[dayIdx]}: ${cellName(shift)}`);
-        btn.textContent = label;
-        cell.innerHTML  = '';
-        cell.appendChild(btn);
+    function repaintCellBtn(btn, pos, day, shift) {
+        btn.className = `shift-cell-btn type-${classifyShift(shift)}`;
+        btn.setAttribute('aria-label', `Line ${pos} ${DAY_LABELS[DAYS.indexOf(day)]}: ${cellName(shift)}`);
+        btn.textContent = shiftLabel(shift);
     }
 
     // COVERAGE HEAT MAP + DESIGN QUALITY CHECKS were extracted to links-analysis.js (v17.70);

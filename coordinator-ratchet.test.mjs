@@ -139,7 +139,8 @@ const CAPS = {
     // because only the coordinator owns the live list and the open design. The cap is the measured
     // size, so the next addition is a raise too.
     // 2371 → 2399 on 7 Nov 2026 (iPhone audit), a RAISE: the unsaved-work draft's wiring — keep the open design and its baseline on a hide, offer and restore them; the rules went to unsaved-draft.js.
-    'links-app.js':            2399,   // ← v25.27 (2372 at v24.51: import + bin to links-design-library.js, was 2650). The next Links rule goes in a domain module
+    // 2399 → 2380 the same day (desktop audit), brought DOWN with the code that left: the grid's input — its clicks, the keyboard's one Tab stop and a mouse's paint stroke — went to links-grid-input.js.
+    'links-app.js':            2380,   // ← v25.27 (2372 at v24.51: import + bin to links-design-library.js, was 2650). The next Links rule goes in a domain module
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
     // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap

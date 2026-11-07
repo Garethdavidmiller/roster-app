@@ -987,7 +987,7 @@ The three read-only reporting cards on `operations.html`, one module each, plus 
 Coordinator for `links.html`, the link-design workspace (designers only). It owns the grid, paint mode, the dialogs, the dirty state and the wiring; the rules live in the domain modules below it. The workspace's contract is `.claude/rules/links-design.md`.
 - `init()` — the only export, run by `links-boot.js`. A non-designer goes to `admin.html`; a signed-out visitor gets the in-place sign-in; then `ensureNamedSession` → `guardNamedSession` (page-session.js).
 - Firestore writes go only through `links-design-store.js` (`createDesignStore`) and, for the staffing setups, `links-target-sets-store.js` inside the generator panel. The one direct read is `loadDesigns`, because it needs `metadata.fromCache`.
-- Wires `initLinksAnalysis`, `initLinksCompare` (compare state lives there; the coordinator only reads it or calls `resetCompare`), `createDesignHeader`, `createDesignLibrary` (import and the bin) and `createTargetPanel` (the target table). The Generate button stays here.
+- Wires `initLinksAnalysis`, `initLinksCompare` (compare state lives there; the coordinator only reads it or calls `resetCompare`), `createDesignHeader`, `createDesignLibrary` (import and the bin), `createTargetPanel` (the target table) and `createGridInput` (the grid's keyboard, clicks and mouse strokes). The Generate button stays here.
 - All design maths is imported from `links-design.js`; never copy it back. `ROTATING_LINES` is imported, never written down (`links-rotation-parity.test.mjs`).
 - Every path that would lose unsaved work asks first. Duplicate's wording is deliberately not "will be lost", because the copy carries the live patterns (comment beside `duplicateDesign`).
 - A proposal opens with `activeDesignId` null and `activeProposalId` set, so no write path can send a proposal id to Firestore (`links-proposals.js`).
@@ -1016,6 +1016,13 @@ Compare mode on `links.html`: two designs side by side, a strip of what differs,
 - "Only the lines that differ" is a view: every row renders and `.compare-diff-only` hides the `.row-same` ones (a class, not `hidden` — `links.css` says why). The strip says its figures still cover every line; the filter is offered only when it would both hide something and leave something; leaving compare mode clears it, switching the compared design does not.
 - The compare cells are `<span>`s, because they cannot be operated; the scrolling columns are reached by keyboard through their wrappers' `tabindex="0"` (`links.css`: never restore the buttons for it).
 - The two columns scroll together, and an echo that changes nothing must not arm the guard (`initScrollSync`). Tested by `links-compare.test.mjs` (fake DOM).
+
+### `links-grid-input.js`
+How the design grid on `links.html` is operated. `links-app.js` keeps what a cell MEANS — paint it with the armed brush, or open the shift sheet over it; this decides which cell an input lands on, and keeps focus where a keyboard user left it. The reasoning is in the header.
+- `cellAfterKey(key, at, { lines, days, ctrl })` → the next `{ pos, day }`, or null for a key the grid does not own. Pure: the arrows stop at the edges; Home and End go to either end of the line, and with Ctrl to either end of the grid.
+- `createGridInput(tbody, { lines, days, ready, armed, paint, edit })` → `{ render(html) }`. Delegated to the body: ONE Tab stop among the cells (a roving tabindex) that the arrows move; a click paints or edits; a MOUSE stroke paints every cell it crosses and owns the click that ends it, while touch and pen keep tap-to-paint. `render` keeps the Tab stop, and keyboard focus, across a re-render.
+- `trackPaintBarHeight(bar, table)` — publishes the paint bar's height as `--brush-bar-h`, so the day header sticks beneath the sticky bar (`links.css`).
+- Focus survives an edit only because `applyShift` repaints the cell's button in place (`repaintCellBtn`). Tested by `links-grid-input.test.mjs`; the wiring by `e2e/links.spec.js`.
 
 ### `links-tips.js`
 `CARD_TIPS` for `links.html`'s four `?` panels (grid, coverage, checks, generator). Pure data, rendered through `initTipsLightbox`; the shape is pinned by `tips-content.test.mjs`. It imports `ROTATING_LINES` and `DEFAULT_MAX_RUN`, never a literal.

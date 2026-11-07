@@ -44,11 +44,12 @@ export const CARD_TIPS = {
             { heading: 'How it works', items: [
                 { icon: '📋', html: `Each <strong>row</strong> is one of the ${ROTATING_LINES} lines. Each <strong>column</strong> is a day of the week (Sun–Sat).` },
                 { icon: '🔄', html: `All ${ROTATING_LINES} lines rotate — everyone passes through every line over the cycle, so <strong>all ${ROTATING_LINES} must be filled</strong> with a real pattern before the link can be authorised.` },
-                { icon: '🖌️', html: '<strong>Paint mode</strong> — arm a shift in the Paint bar above the grid, then click cells to fill them. Click the same chip again (or press Escape) to stop painting.' },
-                { icon: '✏️', html: '<strong>Single-cell edit</strong> — with no brush armed, tap any cell to pick a shift from the dropdown, or choose <strong>Custom…</strong> to type a new one.' },
+                { icon: '🖌️', html: '<strong>Paint mode</strong> — arm a shift in the Paint bar above the grid, then choose cells to fill them; with a mouse, press and drag across a run of cells to fill them all at once. Choose the same chip again (or press Escape) to stop painting.' },
+                { icon: '✏️', html: '<strong>Single-cell edit</strong> — with no brush armed, choose any cell to pick a shift from the list, or choose <strong>Custom…</strong> to type a new one.' },
+                { icon: '⌨️', html: '<strong>From the keyboard</strong> — Tab reaches the grid once, at the cell you last used. The arrow keys move between cells, Home and End go to either end of a line, and Enter changes the cell — or paints it, while a chip is armed.' },
                 { icon: '🧮', html: 'The three columns on the right are the <strong>totals for that line</strong> — hours Mon–Sat, hours across all seven days, and how many days are worked Mon–Sat. They update as you edit.' },
                 { icon: '📐', html: 'The bottom row averages them. Hours are averaged over every line, with a <strong>spare week counted as a full contracted week</strong>. Days are averaged over the <strong>working lines only</strong>, because a spare week does not say which days it works — each figure names its own divisor.' },
-                { icon: '💾', html: 'Tap <strong>Save</strong> when done — beside the design\'s name, or at the foot of the grid. A new design asks for a name the first time.' },
+                { icon: '💾', html: 'Press <strong>Save</strong> when done — beside the design\'s name, or at the foot of the grid. A new design asks for a name the first time.' },
             ]},
             { heading: 'Multiple designs', items: [
                 { icon: '➕', html: 'Under <strong>···</strong> beside the design\'s name: <strong>New blank design</strong> starts afresh, and <strong>Save a copy as…</strong> copies the current one so you can try a variation.' },
