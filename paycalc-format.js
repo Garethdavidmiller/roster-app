@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * paycalc-format.js — shared date/currency formatters for paycalc modules.
- * Pure: no DOM, no Firebase, no side effects. Imported by paycalc-app.js and paycalc-backpay.js.
+ * paycalc-format.js — shared date/currency formatters and field helpers for the paycalc modules.
+ * Pure: no DOM, no Firebase, no side effects; its only import is date-format.js, so it loads in Node.
  */
 
 import { formatDayMonth, formatDayMonthYear, formatDayMonthYear2 } from './date-format.js';
@@ -16,8 +16,8 @@ import { formatDayMonth, formatDayMonthYear, formatDayMonthYear2 } from './date-
 //
 // The words: these three were `toLocaleDateString('en-GB', { month: 'short' })`, which spells
 // September "Sept" on every engine the app runs on — so the Pay Calculator said "18 Sept 26" on a
-// screen the member reaches from a calendar saying "18 Sep". `roster-data.js` → "The app's own
-// date vocabulary" has the measurement and why it is the app's table rather than ICU's.
+// screen the member reaches from a calendar saying "18 Sep". `date-format.js` → THE RULE has the
+// measurement and why it is the app's table rather than ICU's.
 /** "18 Sep 26" @param {Date} d */
 export const fd = formatDayMonthYear2;
 

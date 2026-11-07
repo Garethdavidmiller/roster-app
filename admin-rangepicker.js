@@ -274,7 +274,7 @@ export function buildRangePicker(prefix, opts = {}) {
             if (Math.abs(dy) >= Math.abs(dx)) { swListening = false; return; } // vertical — let browser scroll
             // Horizontal intent confirmed — build carousel
             swWidth = Math.ceil(clip.getBoundingClientRect().width);
-            grid.setPointerCapture(e.pointerId);
+            grid.setPointerCapture(e.pointerId);   // on `grid`, never `clip`: a capture target's events don't reach its children
             grid.style.transition = 'none';
             grid.style.willChange = 'transform';
             swPanelPrev = buildAdjPanel(-1);

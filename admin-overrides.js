@@ -2,11 +2,11 @@
 /**
  * admin-overrides.js — Change a Shift section of the admin portal.
  *
- * Owns: allOverrides cache, week grid render, bulk bar, save/delete to Firestore,
- *   Saved Changes table, shift rule validation, time input auto-format.
- * Does NOT own: login, AL booking, sick days, notifications.
- * Edit here for: grid rendering, override CRUD, bulk bar, validation rules.
- * Do not edit here for: AL/sick booking flows, auth, roster upload.
+ * Owns: the two save paths (executeSave, recordRangeOverrides), the shift-rule glue and
+ *   buildMemberDateMap; re-exports the grid, list, cache and type table for one import site.
+ * Does NOT own: the grid (admin-week-editor.js), the list (admin-saved-changes.js), the cache
+ *   (admin-override-store.js), the rules (admin-shift-rules.js), login, or the AL/absence cards.
+ * Edit here for: what a save writes. Do not edit here for: grid rendering, auth, roster upload.
  *
  * Initialised by admin-app.js via initOverrides().
  */
@@ -469,11 +469,11 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // delete existing + set new = up to 2 ops per date — blows Firestore's hard 500-writes-per-
     // batch cap on a long absence range: ~250 working days each already carrying a roster_import
     // override → ~500 ops, so the WHOLE commit was rejected and the booking silently lost
-    // (admin-sick allows a ~1-year range). Mirror _saveOverrideBatches' CHUNK=200 (200 dates ×
-    // 2 ops = 400 ops < 500). Each chunk is its own re-runnable writeWithClaimRetry thunk (a
-    // just-provisioned manager's stale `manager` claim self-heals per chunk), rebuilt on each
-    // attempt because a WriteBatch can't be re-committed. Accepts the same partial-commit-on-
-    // mid-range-failure trade-off _saveOverrideBatches already carries (v16.19).
+    // (admin-sick allows a ~1-year range). CHUNK=200 dates × 2 ops = 400 < 500, counted per DATE —
+    // the import's _saveOverrideBatches counts OPS, since a pre-v24.48 duplicate adds a delete. Each
+    // chunk is its own re-runnable writeWithClaimRetry thunk (a just-provisioned manager's stale
+    // `manager` claim self-heals per chunk), rebuilt on each attempt because a WriteBatch can't be
+    // re-committed. Accepts the partial-commit-on-mid-range-failure trade-off the import carries (v16.19).
     // In DATE order, so a Sunday correction commits in the same batch as the leave beside it: one
     // batch is one server timestamp, which is how deleting the period knows the edge Sunday is its own
     // (computePeriodDeleteIds, re-review R-A2). The cache records share one stamp per batch to match.

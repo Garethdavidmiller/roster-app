@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * paycalc-breakdown.js — the two pure HTML builders for the pay-result card, extracted from
+ * paycalc-breakdown.js — the pure HTML builders for the pay-result card, first extracted from
  * `calculate()` in paycalc-app.js (review item 20). `calculate()` used to interleave DOM reads,
  * pay maths, AND result-markup string-building in one long function; the markup is now written +
  * unit-testable here, independent of the DOM/calc phases. Each builder takes a plain params object

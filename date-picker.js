@@ -1,6 +1,8 @@
 // @ts-check
 /**
- * date-picker.js — brand-styled single-date picker for Operations date fields.
+ * date-picker.js — brand-styled single-date picker for the Operations date fields, Admin's week jump
+ * and Team View's week jump. Its CSS (`.dp-*`, `.date-trigger`) is in shared.css because three pages
+ * use it: a shared component's rules on one page's stylesheet silently do not apply on the others.
  *
  * WHY: the Operations upload cards used bare `<input type="date">` controls, whose
  * internal glyph/popup are drawn by the browser and can't be themed — the one
@@ -62,13 +64,6 @@ function formatLabel(iso) {
     return `${DAY_NAMES[d.getDay()].slice(0, 3)} ${d.getDate()} ${MONTH_ABB[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-/**
- * Enhance a set of `<input type="date">` elements into brand-styled trigger buttons
- * backed by one shared modal calendar. Safe to call once, after the owning cards have
- * set their default values (so the initial trigger label is correct). Missing ids are
- * skipped silently.
- * @param {string[]} inputIds ids of the date inputs to enhance
- */
 /** The one overlay every field on a page shares. Built on first use, never at import.
  *  @type {{ open: (input: HTMLInputElement, title?: string, week?: boolean) => void }|null} */
 let _picker = null;
@@ -298,7 +293,9 @@ function _ensurePicker() {
 
 /**
  * Progressively enhance each `<input type="date">` named in `inputIds`: hide it as the value
- * holder and put a styled trigger in its place. See the module header for the contract.
+ * holder and put a styled trigger in its place. See the module header for the contract. Call once,
+ * after the owning cards have set their default values, so the first trigger label is right;
+ * missing ids are skipped silently.
  * @param {string[]} inputIds
  */
 export function initDatePickers(inputIds) {

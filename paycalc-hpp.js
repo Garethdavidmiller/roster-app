@@ -182,7 +182,7 @@ function _expectedNonPremiumYtd(ty) {
   let nonPremium = 0;
   for (const p of covered) {
     // Pro-rate EVERY non-premium component by the joining factor (v18.55), mirroring calculate()
-    // (London ×_proRateFactor at paycalc-app.js:904, pension ×getProRateFactor via _periodDefaultPension)
+    // (London ×_proRateFactor in paycalc-app.js, pension ×getProRateFactor via periodDefaultPension)
     // and the real payslip. `basic` already carries the factor via getEffectiveContr; London and
     // pension were left at FULL value — so for a mid-year joiner every pre-start period (factor 0)
     // added phantom "London − pension" non-premium pay (~£129/period) and the joining period

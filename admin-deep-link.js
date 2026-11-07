@@ -42,7 +42,8 @@
  *      range picker, the preview and the Save button, so landing at the top of the card leaves the
  *      thing the link NAMED off the bottom of the screen — folds dutifully open, around something
  *      nobody can see. Hence `settleOn`: the second scroll runs when the box actually appears,
- *      which `_renderBookedPeriods` knows exactly, so no timer or observer is needed.
+ *      which the booked-dates renderer knows exactly (its `onRendered` hook,
+ *      admin-booked-periods.js), so no timer or observer is needed.
  *
  *      It is deliberately an ID and not an element: the element resolved here is the one that was
  *      hidden, and the caller acts at a different moment.

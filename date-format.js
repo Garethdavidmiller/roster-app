@@ -10,9 +10,10 @@
  *
  * It was written INTO roster-data.js first, and that file's 1250-line ratchet refused it at once.
  * The ratchet offers EXTRACT, SPLIT or RAISE, and extracting was right on its own merits: a date
- * vocabulary is one subject, and it is not the subject roster-data.js is about. The tables stay
- * there because ~8 modules already read `MONTH_ABB` and `DAY_NAMES` directly and none of them are
- * about formatting; moving those would have been churn in the service of tidiness.
+ * vocabulary is one subject, and it is not the subject roster-data.js is about. The two name tables
+ * moved here too (the note above them); roster-data.js re-exports them for the ~8 modules that read
+ * them there. Cloud Functions are CommonJS and cannot import this file, so functions/overtime-core.js
+ * keeps its own MONTH_ABB_EN.
  *
  * ── THE RULE ───────────────────────────────────────────────────────────────────────────────────
  *

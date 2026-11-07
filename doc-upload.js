@@ -18,7 +18,8 @@
 import { formatISO } from './roster-data.js';
 import { sessionReady } from './session.js';
 
-/** 20 MB — matches functions/index.js MAX_FILE_BYTES and storage.rules request.resource.size. */
+/** 20 MB — matches functions/index.js MAX_FILE_BYTES and storage.rules request.resource.size, kept in
+ *  step by upload-cap-parity.test.mjs, whose header says why a client cap above the rules' costs most. */
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 /** Default accept predicate — PDF. @param {File} f */

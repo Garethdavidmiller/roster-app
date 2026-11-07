@@ -1,7 +1,8 @@
 // @ts-check
 /**
- * paycalc-year-card.js — the "This tax year so far" block in the Year to Date card, and the
- * fill-the-year control that lives beside its "Not entered yet" line.
+ * paycalc-year-card.js — the "This tax year so far" card (a sidebar card of its own since v22.08,
+ * no longer inside the Year to Date card), and the fill-the-year control beside its "Not entered
+ * yet" line.
  *
  * Extracted from paycalc-app.js at v22.06, when the fill-year feature needed a home the
  * coordinator's ratchet had no room for — the right response being an extraction that pays for

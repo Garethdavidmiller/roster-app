@@ -636,11 +636,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         changeList.innerHTML = '';
 
         // ---- The original roster (v22.16; DEAD from the day it shipped, fixed v22.52) ----
-        // Two silent traps, both easy to walk back into; AI_MAP has the full account. (1) The
-        // button is DELEGATED like every other control here — its own `addEventListener` did not
-        // survive the clone at the foot of this function, so it did nothing for six releases and
-        // looked perfect in a screenshot. (2) It DOWNLOADS: a `blob:` document inherits this
-        // page's `object-src 'none'` (measured), which blocks the embed Chrome renders a PDF in.
+        // Two silent traps, both easy to walk back into. (1) The button is DELEGATED like every
+        // other control here — its own `addEventListener` did not survive the clone at the foot of
+        // this function (`cloneNode` copies no listeners), so it did nothing for six releases and
+        // looked perfect in a screenshot. (2) It DOWNLOADS: a `blob:` document inherits this page's
+        // `object-src 'none'` (measured), which blocks the embed Chrome renders a PDF in, so a tab
+        // opened on it painted blank (`noopener` is not involved — measured too). Admitting `blob:`
+        // to `object-src` was declined (owner, Sep 2026): a permanent relaxation on every page, both
+        // origins, for one button. e2e/operations.spec.js takes delivery of the file, not its button.
         const pdfFile = _parsedFile;
         if (pdfFile) {
             changeList.insertAdjacentHTML('beforeend', `<button type="button" class="roster-download-pdf">`

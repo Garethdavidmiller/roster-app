@@ -6,7 +6,7 @@
  *   hasBoxingDay, CONDITIONAL_ROWS, period select DOM helpers, tax-year tab sync,
  *   period navigation (prev / next / jump).
  * Does NOT own: grade/settings persistence (paycalc-settings.js), calculation
- *   engine (paycalc-app.js), roster hints (paycalc-app.js for now).
+ *   engine (paycalc-app.js), roster hints (paycalc-roster-hint.js).
  * Edit here for: period date maths, adding a new tax year, period select UI.
  * Do not edit here for: pay maths, grade rates, settings save/load.
  */

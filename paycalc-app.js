@@ -79,7 +79,7 @@ import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
  */
 /**
  * Withhold the calculator from a role it has no confirmed rates for, and say why (v21.78).
- * Rationale: AI_MAP → `gradeForRole`. Two things an editor here needs — it WITHHOLDS rather than
+ * Rationale: `gradeForRole`'s JSDoc (roster-data.js). Two things an editor here needs — it WITHHOLDS rather than
  * captioning (the page's whole output is one confident £ figure, and a member told "this may not
  * apply" and handed one will use it), and it still wires the drawer, so it is a refusal with a way
  * out rather than a dead end.
@@ -159,7 +159,7 @@ export function init() {
     // grade lookup treats "no grade stored" as CEA at every consumer, so every Dispatcher and
     // manager account was being handed a polished estimate at somebody else's rate. (The counts
     // that used to sit here went stale the first time a dispatcher joined — v22.42.) Before every
-    // other init step, so nothing can render a figure first. Why: AI_MAP → `gradeForRole`.
+    // other init step, so nothing can render a figure first. Why: `gradeForRole`'s JSDoc (roster-data.js).
     //
     // A SESSION NAME THE ROSTER DOES NOT HOLD REFUSES TOO (72-hour review): a leaver or a renamed
     // member keeps a valid local session, `getLoggedMember()` returns null, and a null used to skip
