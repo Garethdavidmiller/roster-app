@@ -121,8 +121,8 @@ for said in ['four full weeks off, Sunday to Saturday, for 14 days, and 30 days 
 # Step left it and its decks stay; the Even Step paragraph says Even Step joined it; and item 5 says every shortlisted design
 # is built into the app. Each reads the names it was typed with, so a change to SHORTLIST would otherwise leave the read-me
 # contradicting itself.
-if {'Home Grown', 'Closing Time', 'Both Ways'} & set(SHORTLIST):
-    raise SystemExit(f'pack: the read-me says none of the 26 Oct three is shortlisted; SHORTLIST is {SHORTLIST}')
+if {'Home Grown', 'Closing Time'} & set(SHORTLIST):   # the third of 26 Oct, Both Ways, was deleted on 7 Nov 2026
+    raise SystemExit(f'pack: the read-me says neither of the 26 Oct two is shortlisted; SHORTLIST is {SHORTLIST}')
 if 'In Step' in SHORTLIST or DECKS_KEPT != ['In Step']:   # the 5 Nov paragraph below says it left the shortlist and its decks stay
     raise SystemExit(f'pack: the read-me says In Step left the shortlist and its presentations stay; SHORTLIST is {SHORTLIST}, DECKS_KEPT {DECKS_KEPT}')
 if SHORTLIST != ['Common Ground', 'Even Step', 'Short Run'] or SHORTLIST_DATE != '5 Nov 2026':   # the first section and the 5 Nov paragraph name the three
@@ -186,7 +186,10 @@ LATE_WORDS = ', '.join(LATE[:-1]) + ' and ' + LATE[-1] if len(LATE) > 1 else ''.
 # and refused if the read-me names one, so a deleted design cannot come back unnoticed
 DELETED = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear', 'Quiet Friday', 'Same Again', 'Little and Often',
            'Quarter Past', 'Well Kept',   # Same Again Tidy was Well Kept; 'Same Again' also catches its name
-           'Set Fair']   # 7 Nov 2026 (owner: "Delete set fair as it would not work"): drawn and deleted the same day, Crossover in its place
+           'Set Fair',   # 7 Nov 2026 (owner: "Delete set fair as it would not work"): drawn and deleted the same day, Crossover in its place
+           'Both Ways', 'Fine Tune']   # 7 Nov 2026 (owner: "Please cut both ways and fine tune from the links 26 pack"): of the
+           # 21 outside Balanced V5-V7, the lowest and fourth-lowest average place over the league's ten readings, and alone
+           # best at none of its twenty measures (README.md -> "Both Ways and Fine Tune deleted")
 if any(n in names.split(', ') for n in DELETED):
     raise SystemExit(f'pack: {DELETED} were deleted (6 and 7 Nov 2026); regenerate.mjs SUPPLIED lists one of them')
 # RENAMED (7 Nov 2026): a design's old name, and the name it has now. The owner saw Safe Hands on a sheet before it was renamed
@@ -253,6 +256,9 @@ decks = andl(SHORTLIST) + (f', the shortlist, and {andl(DECKS_KEPT)}, kept from 
 # recommendation), the two asks and the two routes in, then what is still open and what each folder holds; how the
 # shortlist came about follows. Every file the route names starts a line of its own, so no wrap splits a name.
 names_in = {n for n, _, _ in proposals}
+AT_2230 = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Crossover', 'Level Crossing']   # the read-me's 22:30 paragraph names
+if not set(AT_2230) <= names_in:   # these five as drawn with it, and counts the rest
+    raise SystemExit(f'pack: the read-me says {AT_2230} were drawn with the 22:30 office; the pack has {sorted(set(AT_2230) & names_in)}')
 sl30 = [n for n, c, _ in proposals if n in SHORTLIST and DIR_OF[c] == '30-days-off']   # shortlisted, in the 30-day folder
 readme = '\n'.join([
     'NEW CEA LINK PROPOSALS - 26 LINES',
@@ -346,12 +352,12 @@ readme = '\n'.join([
     'HOW THE SHORTLIST CAME ABOUT',
     *([para('The first shortlist, on 3 October 2026, was Second Edition, Short Run and Even Keel.'), '']
       if {'Second Edition', 'Short Run', 'Even Keel'} <= names_in else []),
-    *([para('Home Grown, Closing Time and Both Ways (26 October 2026) answer a later question: today\'s link on 26 lines, '
+    *([para('Home Grown and Closing Time (26 October 2026) answer a later question: today\'s link on 26 lines, '
             'keeping as many of its shift times as it can, with a 13:35 or 13:45 finish every weekday and the weekday closer at 16:00. Each pays for '
             'the short finishes a different way; the summary sheet sets them side by side. Closing Time, improved on 27 and 30 '
-            'October, was shortlisted on 30 October until the shortlist was cut to two the same day; the other two '
-            'were never on it.'), '']
-      if {'Home Grown', 'Closing Time', 'Both Ways'} <= names_in else []),
+            'October, was shortlisted on 30 October until the shortlist was cut to two the same day; Home Grown '
+            'was never on it.'), '']
+      if {'Home Grown', 'Closing Time'} <= names_in else []),
     *([para('In Step (30 October 2026) answers the next question: whether Closing Time could have five on at the Saturday '
             'open and follow the weekday trains more closely. It keeps Closing Time\'s weeks and a 13:45 finish every '
             'weekday, with the closer at 15:45 instead of 16:00. The same day the shortlist was cut to two: Short Run, on it '
@@ -398,13 +404,15 @@ readme = '\n'.join([
             'come in a row. All six buy 30 days off for 14 days\' leave too, and are in the folder 30 days off.'), '']
       if LATE else []),
     # THE 22:30 OFFICE (6 Nov 2026; README.md -> "The Saturday ticket office to 22:30"): what it changed, said once, for a reader
-    # holding a printout from before it, whose fingerprints no longer match
+    # holding a printout from before it, whose fingerprints no longer match. THE COUNT IS READ SINCE 7 NOV 2026: it said "the
+    # nineteen already in the pack", true on 6 Nov, until Both Ways and Fine Tune were deleted and a reader counting found 17
     para('On 6 November 2026 the rules were corrected: the ticket office shuts at 22:10 on a Saturday and takes 20 minutes '
-         'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. On the '
-         'nineteen already in the pack that hour comes off other Saturday lates, so the hours and the contract are as they '
-         'were; every sheet and presentation was redrawn, and their fingerprints changed. Balanced V5, Balanced V6 and '
-         'Balanced V7 already finished them at 22:30, as Crossover and Level Crossing do. Common Ground was then first in '
-         'the pack\'s league, just over half a point ahead of the next; since 7 November 2026 Crossover is, by 0.4 points.'),
+         'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. Balanced '
+         'V5, Balanced V6 and Balanced V7 already finished them at 22:30, as Crossover and Level Crossing do. On the other '
+         f'{WORDS[len(names_in - set(AT_2230))]} that hour comes off other Saturday lates, so the hours and the contract are '
+         'as they were; every sheet and presentation was redrawn, and their fingerprints changed. Common Ground was then '
+         'first in the pack\'s league, just over half a point ahead of the next; since 7 November 2026 Crossover is, by 0.4 '
+         'points.'),
     '',
     'HOW THE FIGURES ARE WORKED OUT',
     para('Every figure in the summary, the shortlist sheet, the "What it means if you..." sheet, the rules sheet and the '
@@ -419,7 +427,7 @@ readme = '\n'.join([
 ])
 assert all(len(l) <= W for l in readme.split('\n')), [l for l in readme.split('\n') if len(l) > W]
 _named = [n for n in DELETED if n in ' '.join(readme.split())]
-if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6 or 7 Nov 2026 (README.md -> "Nine designs deleted", "Crossover")')
+if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6 or 7 Nov 2026 (README.md -> "Nine designs deleted", "Crossover", "Both Ways and Fine Tune deleted")')
 _old = [n for n in RENAMED if n in ' '.join(readme.split())]
 if _old: raise SystemExit(f'pack: the read-me names {_old}, the old name of {[RENAMED[n] for n in _old]}')
 # PLAIN ASCII: it opens in Notepad, and an older one reads a file with no byte-order mark in the PC's own code page

@@ -33,14 +33,12 @@ import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.
 export const STRAPS = {
   'SL-26-G3': ['Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates', 'search'],
   'SE-26-F1': ['Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time', 'search'],
-  'FT-26-H1': ['No Mon–Sat week over 42h, one week mixing earlies and lates, and a week-to-week change of 1h 10m', 'search'],
   'EK-26-H1': ['18 of 21 weeks on one shift time, no Mon–Sat week over 42h, and never less than 14h 35m between fixed duties', 'search'],
   'SR-26-F1': ['No run over five days outside the cover weeks, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time', 'search'],
   'LB-26-F1': ['Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week', 'search'],
   // 26 Oct 2026: today's link on 26 lines (README.md → "Today's link on 26 lines")
   'HG-26-T1': ['Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, and the ticket office’s new Saturday late, with a 13:35 finish every weekday and Saturday closing as today', 'search'],
   'CT-26-T2': ['A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
-  'BW-26-T3': ['A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today', 'search'],
   // 30 Oct 2026: Closing Time's weeks with the times searched again (README.md → "In Step")
   'IS-26-T4': ['Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
   // 31 Oct 2026: In Step's weeks with no duty over 8h 30m from Monday to Saturday (README.md → "Even Step")
@@ -113,8 +111,8 @@ if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is bo
 // In Step from 30 Oct, Even Step from 31 Oct (README.md has each) — and was retired with the marks; it is gone rather than
 // left null, so any script still reading it fails loudly instead of quietly recommending nothing.
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
-export const FAMILY = { SL: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', OR: 'Quarter Past', SO: 'Quarter Past', GT: 'Home Grown', CG: 'Home Grown', MG: 'Home Grown', MB: 'Marylebone Balanced', CO: 'Home Grown', LC: 'Home Grown' };
-export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'OR-26-EXT': '4 Nov 2026', 'SO-26-EXT': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026', 'MB-26-V5': '5 Nov 2026', 'MB-26-V6': '5 Nov 2026', 'MB-26-V7': '6 Nov 2026', 'CO-26-T10': '7 Nov 2026', 'LC-26-T10': '7 Nov 2026' };
+export const FAMILY = { SL: 'Second Nature', SE: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', OR: 'Quarter Past', SO: 'Quarter Past', GT: 'Home Grown', CG: 'Home Grown', MG: 'Home Grown', MB: 'Marylebone Balanced', CO: 'Home Grown', LC: 'Home Grown' };
+export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'OR-26-EXT': '4 Nov 2026', 'SO-26-EXT': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026', 'MB-26-V5': '5 Nov 2026', 'MB-26-V6': '5 Nov 2026', 'MB-26-V7': '6 Nov 2026', 'CO-26-T10': '7 Nov 2026', 'LC-26-T10': '7 Nov 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a
