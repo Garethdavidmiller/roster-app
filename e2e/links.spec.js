@@ -3361,3 +3361,21 @@ test('links sets: the name prompt focuses its box inside the tap that opened it'
     await page.keyboard.press('Escape');
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
 });
+
+// A `type="number"` box opens the numbers-AND-PUNCTUATION keyboard on an iPhone; `inputmode="numeric"`
+// is the digit pad. Asserted on the rendered table, every count in it, with the type and its range
+// kept — the attribute is ADDED to the number box, it does not replace it.
+test('links: every target count in the generator table asks for the digit pad', async ({ page }) => {
+    await openLinksWithTargetSets(page);
+    const counts = await page.locator('#genSlotRows .gen-slot-count').evaluateAll(els => els.map(el => ({
+        mode: el.getAttribute('inputmode'), type: el.getAttribute('type'),
+        min: el.getAttribute('min'), max: el.getAttribute('max'),
+    })));
+    expect(counts.length, 'the table rendered no counts, so this proves nothing').toBeGreaterThan(0);
+    for (const c of counts) {
+        expect(c.mode, 'a count opens the numbers-and-punctuation keyboard on an iPhone').toBe('numeric');
+        expect(c.type).toBe('number');
+        expect(c.min).toBe('0');
+        expect(c.max).toMatch(/^\d+$/);
+    }
+});

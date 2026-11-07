@@ -120,8 +120,11 @@ export function createTargetPanel(deps) {
             return `<tr data-slot="${i}"${newBlock ? ' class="gen-slot-newblock"' : ''}>` +
             `<td class="gen-td-time"><select class="gen-select gen-slot-time" data-slot="${i}" ` +
             `aria-label="Shift time for row ${i + 1}">${buildShiftOptions(slot.time)}</select></td>` +
+            // `inputmode="numeric"` beside `type="number"` (iPhone audit, 7 Nov 2026): on an iPhone a
+            // number box alone opens the numbers-AND-PUNCTUATION keyboard; this is the digit pad. The
+            // type stays for its min/max and its value semantics. links.css → "NO NATIVE SPINNER".
             ['weekday', 'sat', 'sun'].map(cls =>
-                `<td><input type="number" class="gen-input gen-slot-count${
+                `<td><input type="number" inputmode="numeric" class="gen-input gen-slot-count${
                     (/** @type {Record<string, any>} */ (slot))[cls] > 0 ? '' : ' is-zero'}" min="0" max="${TOTAL_POS}" ` +
                 `value="${(/** @type {Record<string, any>} */ (slot))[cls]}" data-slot="${i}" data-class="${cls}" ` +
                 `aria-label="${cls === 'weekday' ? 'Mon–Fri' : cls === 'sat' ? 'Saturday' : 'Sunday'} target for ${escapeHtml(slot.time)}"></td>`
