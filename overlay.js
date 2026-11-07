@@ -250,6 +250,11 @@ window.addEventListener('popstate', () => {
     try { fn?.(); } finally { _handlingPop = false; }
 });
 
+/** What Tab can reach in `container` (enabled, rendered) — one list for the trap and the focus guard. @param {Element} container */
+function _tabStops(container) {
+    return /** @type {HTMLElement[]} */ ([...container.querySelectorAll('button,a[href],input,select,textarea,[contenteditable],[tabindex]:not([tabindex="-1"])')]).filter(el => !/** @type {any} */ (el).disabled && el.getAttribute('aria-disabled') !== 'true' && el.offsetParent !== null);
+}
+
 /**
  * Trap keyboard focus inside a lightbox container (accessibility).
  * Call from the container's keydown handler — no-op if key is not Tab.
@@ -258,7 +263,7 @@ window.addEventListener('popstate', () => {
  */
 export function trapFocus(container, e) {
     if (e.key !== 'Tab' || !container) return;
-    const els = /** @type {HTMLElement[]} */ ([...container.querySelectorAll('button,a[href],input,select,textarea,[contenteditable],[tabindex]:not([tabindex="-1"])')]).filter(el => !/** @type {any} */ (el).disabled && el.getAttribute('aria-disabled') !== 'true' && el.offsetParent !== null);
+    const els = _tabStops(container);
     if (!els.length) { e.preventDefault(); return; }
     const first = els[0], last = els[els.length - 1];
     const active = document.activeElement;
@@ -271,6 +276,42 @@ export function trapFocus(container, e) {
     if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
 }
+
+// ── FOCUS THAT ARRIVES WITHOUT A KEY (iPhone audit, 7 Nov 2026) ── The ‹ › arrows over the iPhone
+// keyboard step to the previous or next text field IN THE DOCUMENT and fire no key event, so the Tab
+// trap never saw them: typing walked out of a prompt into a field behind it (a screen reader's moves
+// and a late `focus()` are the same shape). So an open overlay pulls focus that lands outside it back
+// in — to the control last focused inside, else the first. TOPMOST ONLY and failing OPEN, as Escape:
+// `_isTopOverlay` orders the stack, and an open `aria-modal` surface NOT on it that paints above (by
+// z-index, then document order) stands the guard down — the sign-in card a lost session mounts over a
+// dialog, the password-force card. Fighting those would leave a member unable to type a password.
+/** Does an open modal surface off the stack paint above `overlay`? (A shut drawer is aria-hidden; a shut lightbox has no boxes.) @param {Element} overlay */
+function _unstackedSurfaceAbove(overlay) {
+    const z = (/** @type {Element} */ el) => parseInt(getComputedStyle(el).zIndex, 10) || 0;
+    return Array.from(document.querySelectorAll('[aria-modal="true"]')).some(el => {
+        if (el === overlay || el.contains(overlay) || overlay.contains(el)) return false;
+        if (el.getAttribute('aria-hidden') === 'true' || !el.getClientRects().length) return false;
+        return z(el) > z(overlay) || (z(el) === z(overlay) && !!(overlay.compareDocumentPosition(el) & 4));   // 4: FOLLOWING
+    });
+}
+/** Pull focus landing outside `overlay` back in. Returns the detach. @param {Element} overlay @param {Element} panel @param {() => boolean} isTop */
+function _guardFocus(overlay, panel, isTop) {
+    if (typeof overlay.contains !== 'function') return () => {};
+    /** @type {any} */ let last = null;
+    const onFocusIn = (/** @type {any} */ e) => {
+        const t = e.target;
+        if (t?.nodeType !== 1) return;                       // the window or the document regaining focus
+        if (overlay.contains(t)) { last = t; return; }
+        if (!isTop() || _unstackedSurfaceAbove(overlay)) return;
+        const kept = last?.isConnected && overlay.contains(last) && !last.disabled;
+        /** @type {any} */ (kept ? last : _tabStops(panel)[0] ?? (panel.hasAttribute?.('tabindex') ? panel : null))?.focus?.({ preventScroll: true });
+    };
+    document.addEventListener('focusin', onFocusIn, true);
+    return () => document.removeEventListener('focusin', onFocusIn, true);
+}
+/** Input types that raise no keyboard; any other input, and a textarea, is typed into. */
+const _NO_KEYBOARD = new Set(['button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'image', 'range', 'color', 'hidden']);
+const _isTextEntry = (/** @type {any} */ el) => el?.tagName === 'TEXTAREA' || (el?.tagName === 'INPUT' && !_NO_KEYBOARD.has(String(el.type || 'text').toLowerCase()));
 
 /**
  * Mark a lightbox panel that has more content below the fold, so the fade in shared.css appears.
@@ -328,7 +369,7 @@ function _watchScrollFade(panel) {
  * architecture table; the full lifecycle and its three exceptions are AI_MAP → `overlay.js`). One factory so every lightbox gets the
  * same behaviour and none can drift: focus save/restore, .visible → rAF →
  * .open + focus, body scroll lock, Android Back support, Escape to close,
- * and a Tab focus trap inside the content card.
+ * a Tab trap and a guard for focus moves Tab never sees, and a text field focused in the tap.
  *
  * Default wiring added here: clicking the backdrop (the overlay itself, not
  * the content card) closes, and the close button closes. Callers add any
@@ -363,6 +404,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     let _settling = null;
     /** Retires this open's scroll/resize listeners. Reassigned per open, called on close. */
     let _stopScrollFade = /** @type {() => void} */ (() => {});
+    let _stopFocusGuard = /** @type {() => void} */ (() => {});   // this open's guard; retired first thing in a close
 
     /** @param {KeyboardEvent} e */
     function onKey(e) {
@@ -391,8 +433,14 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         _pushOverlayState(close);
         overlay.classList.add('visible');
         _stopScrollFade = _watchScrollFade(/** @type {HTMLElement|null} */ (content ?? null));
+        _stopFocusGuard = _guardFocus(overlay, content ?? overlay, () => _isTopOverlay(close));   // after the push: already top
+        // A TEXT FIELD IS FOCUSED NOW, IN THE TAP (iPhone audit, 7 Nov 2026): iOS raises its keyboard only for
+        // a focus made synchronously in the gesture, and the frame below is not. The rest keep the frame.
+        const early = /** @type {any} */ (typeof initialFocus === 'function' ? initialFocus() : initialFocus);
+        const focusedEarly = _isTextEntry(early) && (early.focus(), document.activeElement === early);
         requestAnimationFrame(() => {
             overlay.classList.add('open');
+            if (focusedEarly) return;
             const explicit = typeof initialFocus === 'function' ? initialFocus() : initialFocus;
             // Default focus goes to the dialog PANEL (given a `tabindex="-1"`), NOT the ✕ close button.
             // Moving focus into the dialog on open is the WAI-ARIA pattern, but landing it on the close
@@ -434,6 +482,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         if (_pendingClose) return _settling ?? Promise.resolve();
         if (!overlay.classList.contains('visible')) return _settling ?? Promise.resolve();
         _stopScrollFade();
+        _stopFocusGuard();
         // A caller's onClose must NEVER strand the overlay: if it threw, dismissOverlay below would
         // not run, leaving the overlay .open/.visible, body scroll locked, and the pushed Back-history
         // entry orphaned (a later Android Back would then pop the wrong overlay). Isolate it.

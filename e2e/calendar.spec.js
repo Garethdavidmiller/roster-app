@@ -3356,3 +3356,70 @@ test('calendar: scrolling down the Team View names keeps the swipe hint; scrolli
     await frames();
     expect(await state(), 'a scroll across the week did not retire the hint').toMatchObject({ seen: '1', hidden: true });
 });
+
+// ── THE iPHONE KEYBOARD, FOCUS AND TOUCH (iPhone audit, 7 Nov 2026) ─────────────────────────────────
+//
+// The ‹ › arrows above the iPhone keyboard move focus to the previous or next text field in the
+// DOCUMENT, and fire no key event, so a Tab trap never sees them. A programmatic `focus()` on an
+// element behind the dialog is that move, minus the keyboard: what has to happen next is the same.
+// The rules are unit-tested in overlay.test.mjs; this is the wiring — the real `createLightbox`, the
+// real About panel, the real dialog module and the real sign-in card, in the order a page meets them.
+
+/** Which surface holds focus now, by the overlay it sits in. @param {import('@playwright/test').Page} page */
+const focusIsIn = (page) => page.evaluate(() => {
+    const a = document.activeElement;
+    if (a?.closest('.dialog-overlay')) return 'dialog';
+    if (a?.closest('#loginOverlay')) return 'sign-in';
+    if (a?.closest('#iconLightbox')) return 'about';
+    return a?.id || a?.tagName || 'nothing';
+});
+
+test('overlay: focus that lands behind an open dialog comes back to it — and only the topmost one pulls', async ({ page }) => {
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.title-icon').first().click();   // the Calendar's header logo opens About
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+
+    await page.evaluate(() => document.getElementById('prevMonth')?.focus());
+    expect(await focusIsIn(page), 'focus stayed on the page behind About').toBe('about');
+
+    // A dialog OVER About: it owns focus now, and About — buried — must not drag it back underneath.
+    await page.evaluate(async () => {
+        const { confirmDialog } = await import('./overlay.js');
+        void confirmDialog({ message: 'A dialog over the About panel' });
+    });
+    await expect(page.locator('.dialog-overlay')).toHaveClass(/open/);
+    await page.evaluate(() => document.getElementById('iconLightboxClose')?.focus());
+    expect(await focusIsIn(page), 'focus went into the panel UNDER the dialog').toBe('dialog');
+    await page.evaluate(() => document.getElementById('prevMonth')?.focus());
+    expect(await focusIsIn(page)).toBe('dialog');
+
+    // Escape closes the dialog alone, and About is the top again — guarding its own focus once more.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+    await page.evaluate(() => document.getElementById('prevMonth')?.focus());
+    expect(await focusIsIn(page)).toBe('about');
+});
+
+test('overlay: a sign-in card mounted over an open dialog keeps the focus it takes', async ({ page }) => {
+    // The case a focus guard must NOT win. `#loginOverlay` is not on the overlay stack — a session
+    // lost mid-visit mounts it over whatever was open (page-session.js) — so the dialog underneath
+    // still believes it is the top. Pulling focus back would leave the member unable to type their
+    // password: the guard stands down for a modal surface painted above it.
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);   // or initLoginOverlay's idempotence no-ops
+    await page.evaluate(async () => {
+        const { initLoginOverlay } = await import('./login-overlay.js');
+        initLoginOverlay({ pageLabel: 'a test', onSuccess() {} });
+    });
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    expect(await focusIsIn(page), 'the dialog under the sign-in card took its focus back').toBe('sign-in');
+    await page.evaluate(() => document.getElementById('loginPassword')?.focus());
+    expect(await focusIsIn(page)).toBe('sign-in');
+});

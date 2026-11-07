@@ -3343,3 +3343,21 @@ test('links window: generating the FIRST design reveals the window editor', asyn
     expect(spareDays.filter(n => n === 7).length,
         'the seeded spare weeks must survive to the rendered grid').toBe(4);
 });
+
+// ── THE iPHONE KEYBOARD (iPhone audit, 7 Nov 2026) ──────────────────────────────────────────────────
+
+// iOS raises its keyboard only for a focus made SYNCHRONOUSLY inside the tap. "+ Save as new…" opens
+// its name prompt inside the click, and `createLightbox` used to focus the box a frame later, outside
+// it — so the caret blinked in a field with no keyboard to type with. The click and the read are one
+// `evaluate`, so what is focused when the click handler returns is exactly what the keyboard got.
+test('links sets: the name prompt focuses its box inside the tap that opened it', async ({ page }) => {
+    await openLinksWithTargetSets(page);
+    const inTheTap = await page.evaluate(() => {
+        document.getElementById('genSetSaveAsBtn')?.click();
+        return document.activeElement?.classList.contains('dialog-input') ?? false;
+    });
+    expect(inTheTap, 'the prompt\'s box was focused a frame later — on an iPhone no keyboard comes up').toBe(true);
+    await expect(page.locator('.dialog-overlay .dialog-input')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+});
