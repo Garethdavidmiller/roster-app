@@ -1330,7 +1330,7 @@ export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, se
     // ── THE OPT-OUT, AND WHY IT IS NOT A BACK DOOR ──────────────────────────────────────────────
     //
     // `requireContract` defaults ON, so every real call is gated: `links-app.js` never passes it,
-    // and `links-contract-parity.test.mjs` fails if it ever does. What passes `false` is the
+    // and `links-contract.test.mjs` fails if it ever does. What passes `false` is the
     // CONSTRUCTION tests — wave containment, spare spread, turnarounds, fairness — whose fixtures
     // describe a rotation shape rather than a week's worth of work.
     //

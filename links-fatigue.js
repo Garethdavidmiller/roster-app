@@ -641,7 +641,7 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     //
     // The 2h figure is not invented either: it is the ORR's own FF19 threshold, and the week
     // boundary is precisely the "across rest days" reading FF19's own detail flags as unconfirmed.
-    // Hence `confirm: true` stays on this row.
+    // The owner checked it against ORR on 28 Sep 2026, so it no longer carries `confirm: true`.
     // Lines 1..lines, like every other rule here — NOT the keys the design happens to carry. A design
     // saved at an older, longer rotation still stores its surplus lines, and walking the keys counted
     // those hidden lines and lapped at the wrong boundary. A missing line is unmeasurable, not skipped.

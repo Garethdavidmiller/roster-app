@@ -1,6 +1,6 @@
 // guide-colour-parity.test.mjs — guards the guide palettes' contract with the app.
 //
-// The four guide pages deliberately do NOT import shared.css and run their own hardcoded hex
+// The guide pages deliberately do NOT import shared.css and run their own hardcoded hex
 // palettes (offline-print-first, no app chrome). That independence is a documented decision —
 // but two pieces of it are CONTRACTS, not free choices, and nothing enforced them until v17.58:
 //

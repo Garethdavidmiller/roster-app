@@ -2288,7 +2288,7 @@ export function init() {
     initTipsLightbox(CARD_TIPS);
 
     // ============================================
-    // ORIENTATION — first visit, and for ever after from the header button
+    // ORIENTATION — first visit, and for ever after from its row in the About panel
     // ============================================
     // IT STOPPED REACHING ANYBODY (v22.59, external review). This shipped at v19.51 as a one-time
     // NOTICE with a 14-day window, and `isNoticeExpired` marks a notice seen WITHOUT showing it — so

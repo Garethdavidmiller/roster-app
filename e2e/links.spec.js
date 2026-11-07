@@ -2593,7 +2593,7 @@ test('links: the print button prints, and a work-in-progress sheet says so', asy
         gridH: Math.round(/** @type {any} */ (document.getElementById('linksGridCard')).getBoundingClientRect().height),
     }));
     expect(printed.row).toBe('none');
-    expect(printed.gridH, 'the 28-line rotation must stay on ONE sheet').toBeLessThanOrEqual(718);
+    expect(printed.gridH, 'the rotation must stay on ONE sheet').toBeLessThanOrEqual(718);
 });
 
 test('links: the variety switch is what keeps you off one shift type for months', async ({ page }) => {

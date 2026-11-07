@@ -4,7 +4,7 @@
  *
  * Owns: compelling an un-migrated member to replace their surname-derived password with one only they
  *   know, at the moment they next sign in. Injects its own overlay markup (the `login-overlay.js` /
- *   `nav-panel.js` pattern) so the five authenticated pages need no HTML of their own.
+ *   `nav-panel.js` pattern) so the pages it runs on need no HTML of their own.
  * Does NOT own: the sign-in candidate ladder (session.js), the password rules
  *   (`validateNewPassword` in auth-identity.js — shared with the Settings card), the migration flag
  *   (`passwordStatus`, written by `setOwnPassword`), or the admin reset (a Cloud Function).
@@ -13,9 +13,9 @@
  * Blocking a member is the whole point — a dismissible prompt is the Phase-1 nudge, which produced
  * roughly one migration a day. Three properties keep a block from becoming a lockout:
  *
- *  1. **The roster is not behind this.** index.html is `anonymousOk` (auth-policy.js), so a member
- *     who cannot get past this overlay can still see their own shifts. They lose AL booking and the
- *     pay calculator until they set a password — an inconvenience, not an incident.
+ *  1. **The roster is not behind this on a sub-page**: a member stopped here can still open the
+ *     Calendar and see their own shifts, losing only AL booking and the pay calculator. On the
+ *     Calendar itself, property 3 is what keeps the overlay from being a lockout (see below).
  *  2. **It fails open BEFORE showing.** A slow/failed `getPasswordStatus`, a non-`named` identity, or
  *     a missing login marker means it simply doesn't appear and tries again at the next sign-in.
  *  3. **It fails open AFTER showing too.** This is the part a "mandatory overlay" gets wrong: once
