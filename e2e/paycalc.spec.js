@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView, isTouchProject } from './helpers.js';
 // The REAL pay tables, imported rather than restated: the unsupported-role block below asserts that
 // a CES is priced as a CES, and a literal rate there would go stale on the next award — or, worse,
 // be "corrected" to whatever the page happened to show.
@@ -2405,5 +2405,61 @@ test('paycalc: hiding the page commits the prior-year Holiday Pay Premium being 
         document.dispatchEvent(new Event('visibilitychange'));
     });
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_hpp_actual_2025_26'))).toBe('1843.01');
+    expect(errors).toHaveLength(0);
+});
+
+// THE TAKE-HOME BAR WITH THE KEYPAD UP. The keyboard covers the bottom of the layout viewport without
+// shrinking it, so typing on the Overtime or Rest Day Working rows put the £ behind the keys while the
+// IntersectionObserver still called it "in view" — and no bar came. Where the bar did come, pinned
+// above the keys, it sat on the very box being typed in. The rules are unit-tested
+// (paycalc-sticky-total.test.mjs); this runs the real module on a real page. Playwright raises no
+// soft keyboard, so a stand-in visualViewport — read by nothing else in the app — is shrunk instead.
+test('paycalc: with the keypad up, the take-home bar comes when the £ is behind the keys, and clears the box being typed in', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the keyboard rules are for a coarse pointer');
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => {
+        const vv = new EventTarget();
+        let height = window.innerHeight;
+        Object.defineProperty(vv, 'height', { get: () => height });
+        Object.defineProperty(vv, 'offsetTop', { get: () => 0 });
+        Object.defineProperty(window, 'visualViewport', { configurable: true, get: () => vv });
+        /** @type {any} */ (window).__keyboardTo = (/** @type {number} */ h) => { height = h; vv.dispatchEvent(new Event('resize')); };
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    const bar = page.locator('#stickyTotal');
+
+    // The £ low in the layout viewport: in view by the observer's lights, so no bar yet.
+    await page.evaluate(() => {
+        const net = /** @type {HTMLElement} */ (document.getElementById('netDisplay'));
+        window.scrollBy(0, net.getBoundingClientRect().top - (window.innerHeight - 60));
+    });
+    await expect(bar).toBeHidden();
+
+    // Type on the Rest Day Working row, and raise a keyboard whose top is just below the box — where
+    // iOS puts a focused box — so the £ is now behind the keys.
+    const geometry = await page.evaluate(() => {
+        const box = /** @type {HTMLInputElement} */ (document.getElementById('rdwH'));
+        box.focus({ preventScroll: true });
+        const boxBottom = box.getBoundingClientRect().bottom;
+        const keysTop = Math.round(boxBottom + 20);
+        /** @type {any} */ (window).__keyboardTo(keysTop);
+        const net = /** @type {HTMLElement} */ (document.getElementById('netDisplay')).getBoundingClientRect();
+        return { keysTop, netTop: net.top, innerHeight: window.innerHeight };
+    });
+    expect(geometry.netTop, 'the setup must put the £ behind the keys and inside the layout viewport')
+        .toBeGreaterThan(geometry.keysTop);
+    expect(geometry.netTop).toBeLessThan(geometry.innerHeight);
+    await expect(bar, 'the £ is behind the keyboard, so the bar must carry it').toBeVisible();
+    await expect(bar).toHaveClass(/keyboard-up/);
+
+    // …and the bar, pinned above the keys, does not sit on the box being typed in.
+    await expect.poll(() => page.evaluate(() => {
+        const box = /** @type {HTMLElement} */ (document.getElementById('rdwH')).getBoundingClientRect();
+        const b = /** @type {HTMLElement} */ (document.getElementById('stickyTotal')).getBoundingClientRect();
+        return Math.round(b.top - box.bottom);
+    }), { message: 'the gap between the box and the bar above the keys' }).toBeGreaterThanOrEqual(7);
     expect(errors).toHaveLength(0);
 });

@@ -1865,8 +1865,10 @@ The leading glyph on a transient status message (`✓`, `⚠`, `✗`, `↻`), ke
 
 ### `paycalc-sticky-total.js`
 The bar that keeps the take-home figure on screen. `initPaycalcStickyTotal()` — safe when the elements are absent.
-- Three inputs (whether the result figure is in view, whether a field is focused, where the visual viewport sits) and one output (whether `#stickyTotal` shows, and how far up it is translated). **No money, no period, no storage**: `calculate()` writes the figure and knows nothing of this module.
-- Every guard fixes a reported iOS behaviour that headless tests cannot reproduce, which is why each carries its reasoning in the header: no `pagehide` disconnect, pinned above the keyboard rather than hidden behind it, the deferred `focusout` rebase, and a translate that composes with the desktop centring. Tested by `paycalc-sticky-total.test.mjs`.
+- Three inputs (whether the result figure is in view, whether a field is focused, where the visual viewport sits) and two outputs (whether `#stickyTotal` shows and how far up it is translated, and a scroll that clears the box being typed in). **No money, no period, no storage**: `calculate()` writes the figure and knows nothing of this module.
+- `stickyBarShows({ inLayoutView, keyboardUp, figure, visual })` — PURE, the whole show/hide decision: the observer's answer with the keyboard down; with it up, whether the £ overlaps the VISUAL viewport (the keys cover the layout viewport without shrinking it, so the observer called a £ behind them "in view").
+- `scrollToClearBar({ field, visual, barHeight })` — PURE: how far to scroll so the focused box sits above the bar pinned over the keys, never pushing its top out of view. Applied once per focus, so a member's own scroll is not fought.
+- Every guard fixes a reported iOS behaviour that headless tests cannot reproduce, which is why each carries its reasoning in the header: no `pagehide` disconnect, pinned above the keyboard rather than hidden behind it, the deferred `focusout` rebase, and a translate that composes with the desktop centring. The bar's tap goes through `wireIosTap`. Tested by `paycalc-sticky-total.test.mjs`, and on a page (with a stand-in visualViewport) by `e2e/paycalc.spec.js`.
 
 ### `admin-week-swipe.js`
 The Admin week grid's swipe gesture and week arrows, which share one cooldown so a swipe and a press cannot both commit.
