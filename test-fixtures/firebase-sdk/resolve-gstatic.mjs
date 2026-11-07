@@ -5,7 +5,7 @@
  * Why a hook and not `mock.module`: Node refuses an `https:` specifier at resolution
  * (ERR_UNSUPPORTED_ESM_URL_SCHEME), and `mock.module` resolves before it replaces, so the CDN import
  * at the top of firebase-client.js could not be mocked at all — which is exactly why that file was
- * the one part of the client with no test (KNOWN_LIMITATIONS → "Still genuinely untested").
+ * the one part of the client with no test (KNOWN_LIMITATIONS → "Test coverage gaps").
  * Any SDK module the fakes do not provide fails LOUDLY here rather than resolving to something
  * half-built.
  */

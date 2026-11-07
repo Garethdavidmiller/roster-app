@@ -58,6 +58,98 @@ them would be the leak), so `calendar-viewer-parity.test.mjs` checks the shapes 
 client file naming the secret, a comparison in the browser, a stored verifier. Keeping the digits out of
 the repository is a rule, not a guard.
 
+## The test lanes
+
+What each lane proves, and what it cannot see. `CLAUDE.md` lists the commands; this is the detail
+behind them.
+
+- **`npm test`** — `test:hygiene` + `test:parse` + `test:unit`: every root test file, on a bare
+  checkout with nothing installed (above).
+- **`npm run test:nodeps`** (the same as `node scripts/test-nodeps.mjs`) — every suite that needs
+  nothing installed. It prints how many suites it runs and which it skips, and its exclusion list is
+  DERIVED from the `test:functions` and `test:rules` scripts, so nothing here restates either. It
+  gates every branch and pull request as the `nodeps` job in `e2e.yml`, which runs it with NO
+  `npm ci` and fails if `node_modules` exists at all — the absence is the test. Before that job
+  existed the lane's one claim could only be falsified by the stranger it was written for, and it
+  was: a parity suite had started importing through `e2e/helpers.js`, which imports
+  `@playwright/test`. A list the no-install suites need now lives in a file that imports nothing
+  (`e2e/touch-projects.js`).
+- **The `test:payslip-local` script** — the real-payslip regression, which REQUIRES the gitignored
+  fixture and FAILS without it. `npm test` skips that regression honestly when the fixture is absent,
+  which is right for a public lane and means a green run cannot tell you whether the comparison RAN;
+  this one can. Owner's checkout only, by design — run it before any pay-maths release
+  (`.claude/rules/paycalc.md` → Example payslips).
+- **`npm run test:functions`** — the Cloud Functions handler and roster-parser suites (the list is
+  `package.json` → `test:functions`; it needs `functions/node_modules`). It gates every branch and
+  pull request as the `functions` job in `e2e.yml`, on Node 24, the runtime `functions/package.json`
+  declares. It used to run only when a push to `main` deployed the functions, so a regression could
+  not fail a pull request and was caught after the merge with the deploy blocked — and on Node 20, a
+  deploy-tool constraint, so the handlers were only ever tested on a version they never run on.
+- **`npm run test:rules`** — the Firestore and Storage security rules against the emulator, which
+  starts automatically.
+- **`npm run test:e2e`** — the smoke suite in real headless Chromium (the dev environment's own
+  build only if it matches Playwright's). The axe-core accessibility gate (WCAG A/AA, several states
+  per page) runs inside it and is BLOCKING: `playwright.config.mjs` leaves out the csp, visual,
+  offline and live specs, not axe. **`npm run test:a11y`** runs that gate on its own; the baseline and triage
+  are `docs/A11Y_BASELINE.md`.
+- **`npm run test:csp`** — the deployed-CSP proof. It serves the app through the Firebase Hosting
+  emulator with the real `firebase.json` header applied and asserts that real Chromium refuses
+  nothing the app loads: the runtime counterpart to the static `csp-hygiene.test.mjs`. Not part of
+  `npm test`; gated in CI as the `csp` job.
+- **`npm run test:visual`** — clock-pinned, Firebase-stubbed, fixed-member screenshots of every key
+  surface, compared against committed PNGs in `e2e/visual-baselines/`. It locks page composition (the
+  accepted desktop voids included) against silent CSS and layout drift. It is sensitive to the
+  environment, so it gates nothing: in branch CI it is REPORT-ONLY (`visual` in `e2e.yml`,
+  `continue-on-error`) and always uploads its diffs. **That job's conclusion is `success` on a
+  drifted lane and a clean one alike**, so the lane reports in two other places: one pull-request
+  comment, updated in place and edited back when the drift clears (a workflow annotation on a push
+  with no pull request), and its own check run, **`visual baselines`**, which is `neutral` when
+  baselines drifted and `success` when they match (`neutral` does not block a merge). **Read
+  `visual baselines`, not `visual`.** A drift once went unread for eight releases behind a green job,
+  and a later release merged stale baselines that the pull-request comment had named, because the
+  session that shipped it read the job conclusions. The baselines are CI's render, and a container's
+  differs (`docs/KNOWN_LIMITATIONS.md`), so regenerate them from the pull request's `visual-diffs`
+  artifact: `npm run test:visual:refresh` redraws only the FAILED ones. Keep
+  `-- --update-snapshots=all` for a deliberate sweep of drift inside the tolerance, then run
+  `git status e2e/visual-baselines/` and revert anything you cannot explain.
+- **`npm run test:visual:webkit`** — the same idea under Safari's engine, as a deliberately small set
+  (config `playwright.visual-webkit.mjs`, baselines under `e2e/visual-baselines/webkit/` — a
+  different engine's pixels, which will never equal their Chromium twins). Every Chromium baseline is
+  Chromium's, so iOS BEHAVIOUR was far better proven than iOS APPEARANCE. **The mobile month grid is
+  deliberately left out:** its fractional 390/7 columns are no more stable here than in Chromium, and
+  a flaky baseline is worse than none, so the Calendar is represented by the day panel. Report-only
+  in branch CI, for the same reason as the Chromium lane. It measured stable on a container (repeat
+  runs green, a full regeneration byte-identical), which is why its tolerance is the Chromium lane's
+  0.001 and not looser.
+- **`npm run test:webkit`** — the smoke suite under Safari's engine: branch CI, not the deploy gate
+  (`docs/DECISIONS.md` → WebKit stays out of the deploy gate). **The browser is not in a fresh dev
+  container:** `npx playwright install webkit && npx playwright install-deps webkit`. The second step
+  is apt, so it needs root; without it the launch dies listing missing shared objects, which reads
+  like "unsupported". The standing "do not run playwright install" advice is about CHROMIUM, which IS
+  pre-installed — reading it as a blanket ban once left a CSS-adjacent release to meet this engine
+  for the first time on CI.
+- **`npm run test:live`** — the deployment health check in `CLAUDE.md`, run against the real site:
+  both origins, the root and two sub-pages, asserting served, splash down, something usable and no
+  console errors. Opt-in, and it gates nothing: the network and whatever is deployed right now are not
+  properties of the branch under test. Run it after every deploying merge, once Deploy Firebase
+  Hosting has finished, and in a review. **It prints its mode per page.** `DIRECT` is the full check;
+  `RELAYED` means the browser could not complete TLS to the open internet, so each request was fetched
+  with curl and fulfilled into the page — real bytes, real headers, real parsing, but the API-key
+  HTTP-referrer restriction and a live Firebase round trip are NOT covered. Do not read a relayed pass
+  as the whole check. It also runs on a schedule (`live-health.yml`, four-hourly on a GitHub runner)
+  with `LIVE_REQUIRE_DIRECT=1`, so a run that would have to relay FAILS instead of passing weakly; a
+  page still failing when the check looks again a minute later is reported on the `deploy-failure`
+  issue thread, and one that has cleared by then is only noted on the run. The hourly
+  `production-currency.yml` asks a different question — whether the served version matches `main` —
+  which a stuck splash answers "yes" to.
+- **`npm run test:offline`** — `e2e/offline.spec.js` under `playwright.offline.mjs`: the service
+  worker's offline-first paths with the network cut. Not in `npm test` or any gate; it runs weekly,
+  non-blocking, in `offline.yml`.
+
+**Run one Playwright lane at a time, and do not switch branches under one.** The suites share a dev
+server and `test-results/`: two concurrent runs once produced a false red, and checking out another
+branch mid-run invalidated a long e2e pass that then had to be redone.
+
 ## Where to read next
 
 | Document | What it is |

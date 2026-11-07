@@ -1,19 +1,18 @@
 /**
- * functions/index.js — MYB Roster Firebase Cloud Functions
+ * functions/index.js — the COMPOSITION ROOT of the MYB Roster Cloud Functions.
  *
- * ingestHuddle     — Called by Power Automate when the daily Huddle email arrives.
- *                    Stores the file in Firebase Storage and writes a metadata doc
- *                    to the `huddles` Firestore collection.
+ * Its exports are the deploy surface: Firebase discovers functions from them, and
+ * functions-surface.test.mjs pins every name. Two endpoints are defined here:
  *
- * parseRosterPDF   — Called from the admin page when Gareth uploads a weekly roster PDF.
- *                    Extracts the text, passes it to Claude AI, and returns a list of
- *                    each person's shifts for that week. Does NOT write to Firestore —
- *                    Gareth reviews and approves first, then the browser writes the changes.
+ * parseRosterPDF       — the admin's weekly roster PDF → each person's shifts for that week, for
+ *                        review. Does NOT write to Firestore: the admin approves, then the browser writes.
+ * unlockCalendarViewer — the staff Calendar PIN → a custom token carrying `calendarViewer` only.
  *
- * Secrets required (set once via Google Cloud Console → Secret Manager):
- *   HUDDLE_SECRET       — Bearer token for Power Automate auth
- *   ANTHROPIC_API_KEY   — API key for the Claude AI service
- *   VAPID_PRIVATE_KEY   — Web Push VAPID private key
+ * Every other endpoint (ingestHuddle and the document triggers, the account endpoints, Overtime)
+ * comes from a domain builder — documents.js, auth-endpoints.js, overtime.js — given the shared
+ * infrastructure defined here, so no domain owns a second copy of a guarded literal.
+ *
+ * Secrets (Secret Manager): HUDDLE_SECRET, ANTHROPIC_API_KEY, VAPID_PRIVATE_KEY, CALENDAR_VIEWER_PIN.
  *
  * Deploy:
  *   Push any change to functions/ on main — GitHub Actions deploys automatically.

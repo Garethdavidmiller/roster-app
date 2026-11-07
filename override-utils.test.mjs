@@ -1423,7 +1423,8 @@ describe('manualCellValue', () => {
     it('refuses `other`, because its grammar needs controls this surface does not have', () => {
         // FLAVOUR[" RDW"][" HH:MM-HH:MM"] is composed from a flavour chip, a rest-day tick and
         // optional times. A second partial implementation is where a wrong value would come from,
-        // so the review refuses and points at Change a Shift instead.
+        // so this refuses, and the review composes an Other day through composeOtherValue instead
+        // (roster-entry-control.js).
         assert.equal(manualCellValue('other'), null);
         assert.equal(manualCellValue('other', '06:00', '14:00'), null);
     });

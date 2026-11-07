@@ -229,7 +229,7 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
     /**
      * Read latency for the Operations "App speed" card (admin-only), for THIS month and LAST month (the
      * comparison window — trend across deploys, and a stable reference early in a month). Each window
-     * carries plain-language quick/ok/slow summaries for THREE journeys: `login` (sign-in to usable),
+     * carries plain-language quick/ok/slow summaries for FOUR metrics: `login` (sign-in to usable),
      * `fcp` (a page first appearing on screen), `pages` (the page's CODE finishing — the 'domReady'
      * metric) and `ready` (the page's own content on screen — v20.80). Computed by the pure perf-stats
      * module. No identity is involved.

@@ -2,8 +2,8 @@
 /**
  * sw-register.js — Service worker registration and update lifecycle.
  *
- * Shared by all six app pages: calendar-app.js, admin-app.js, paycalc-app.js,
- * operations-app.js, settings-app.js, links-app.js.
+ * Shared by every app page's coordinator — grep for the import rather than keeping a list here,
+ * because a list here goes stale whenever a page is added.
  *
  * Pattern: register → activate any waiting worker immediately → listen for
  * future updates → on controllerchange, reload (or call beforeReload).

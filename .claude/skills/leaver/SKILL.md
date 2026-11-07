@@ -47,7 +47,7 @@ cannot open their own roster on their last week.
 - [ ] **4 · Overtime: every already-open week.** A window's participants are frozen when it opens,
       so this does not happen by itself. **Stop asking** beside their name, once per open week. A
       closed week refuses by design — that is a rule, not a fault. **Skip this step while Overtime is
-      paused** (`CONFIG.OVERTIME_ENABLED` false, Nov 2026): the page is closed and no week asks anyone.
+      paused** (`OVERTIME_AVAILABILITY.md` → Paused): the page is closed and no week asks anyone.
 
 - [ ] **5 · Disable the login.** Operations → Staff Login Accounts → tick *"Disable accounts for
       anyone no longer on the roster (leavers)"* → **Set up accounts** → read the dry-run preview → **Confirm**. Until this runs
@@ -56,8 +56,8 @@ cannot open their own roster on their last week.
 
 - [ ] **6 · Verify — do not skip this.** The block above that button should read **"Everyone on the
       roster has a login, and no leaver still has one."** If the leaver is still enabled it names
-      them in red, and the **Needs attention** strip at the top of the page carries a *"1 leaver can
-      still sign in"* item until it is fixed. Every failure above this point is otherwise silent.
+      them in red (*"1 leaver can still sign in — …"*), and the **Needs attention** strip at the top
+      of the page carries a *Leavers still active* item until it is fixed. Every failure above this point is otherwise silent.
       If it says it **couldn't check**, that is neither answer — retry it, and do not read it as done.
 
 ---

@@ -2,8 +2,8 @@
 /**
  * calendar-team-view.js — Team Week View for index.html.
  *
- * Owns: team view state (mode, current week, grade), grid render, Firestore
- *   override fetch, toggle, chrome updates, ARIA week announcement.
+ * Owns: team view state (mode, current week, grade), grid render, which months the
+ *   shown week needs, toggle, chrome updates, ARIA week announcement.
  * Does NOT own: personal calendar rendering, override cache population,
  *   overlay history management (all passed as deps).
  * Edit here for: team grid layout, grade tab logic, week navigation, cell display.

@@ -11,9 +11,9 @@
 // — derived from a fallback year rather than from the year the range picker was DISPLAYING, so
 // scrolling into 2027 left next year's fresh entitlement reading as spent. This card states nothing
 // scoped to a year: the 1-year cap is measured from the picked start date, the preview is built
-// from the picked dates, and the booked-absences box lists EVERY year with the year in each month
-// heading. So the picker's `onViewYearChange` is deliberately not wired here — there is nothing on
-// this card for it to correct.
+// from the picked dates, and the booked-absences box is given no `preferredYear`, so it opens on the
+// latest year with an absence and its year chips say which year is shown. So the picker's
+// `onViewYearChange` is deliberately not wired here — there is nothing on this card for it to correct.
 
 import { escapeHtml, parseISODate } from './roster-data.js';
 import { createRangeBookingSection } from './admin-range-booking.js';

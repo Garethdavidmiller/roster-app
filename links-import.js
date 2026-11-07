@@ -3,7 +3,7 @@
  * links-import.js — turning somebody ELSE's roster proposal into a design this app can hold.
  *
  * Pure: no DOM, no Firebase, no imports beyond `links-design.js`'s own pure helpers. The UI half is
- * in `links-app.js`. Tested by links-import.test.mjs.
+ * in `links-design-library.js`. Tested by links-import.test.mjs.
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *

@@ -134,7 +134,7 @@ export function createDesignLibrary(ctx) {
         const r = parseDesignImport(text?.value ?? '', { lines: ROTATING_LINES });
         if (!r.ok) {
             _importParsed = null;
-            // Belt and braces: any edit to either field already ran `_importReset`, so the button
+            // Belt and braces: any edit to the pasted text already ran `_importReset`, so the button
             // is normally hidden before this line runs. Kept so the refusal branch does not depend
             // on a listener wired two hundred lines away — and noted here because a mutation
             // removing it survives the e2e for exactly that reason.

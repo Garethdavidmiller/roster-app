@@ -297,7 +297,7 @@ export function buildWeekGridInto(container, dateStr) {
 
         container.appendChild(row);
 
-        // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 1: disable pills in week grid)
+        // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 1: disable pills in week grid). Only e2e/admin.spec.js proves them dead.
         if (isSunday(dateISO)) {
             const alPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-annual_leave'));
             if (alPill) {

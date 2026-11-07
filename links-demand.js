@@ -97,6 +97,10 @@ export const DAY_CLASS_KEYS = /** @type {const} */ (['weekday', 'sat', 'sun']);
  * MEAN, and one outlier smooths away in a bucket of a dozen movements. Every movement is now checked
  * individually.
  *
+ * RE-MEASURING from a new simplifier meets two traps that both failed silently the first time: a
+ * `+` in a time (`05+46`) marks an ECS move, not a separator, and some times arrive as Excel serial
+ * fractions rather than text. LINKS_DEC2026_PLAN.md has the counts each one cost.
+ *
  * Totals: weekday 311 movements / 1,756 cars · Sat 215 / 1,266 · Sun 188 / 1,059.
  */
 export const DEC_2026_MOVEMENTS = Object.freeze({

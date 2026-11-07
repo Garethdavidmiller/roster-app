@@ -1,13 +1,13 @@
 // @ts-check
 /**
- * session.js — Shared auth/session helpers for the write pages (admin.html, settings.html,
- * operations.html, links.html, paycalc.html) and the calendar. Importers vary in what they pull:
- * paycalc uses getSession/clearSession + ensureNamedSession; links uses ensureNamedSession +
- * sessionReady/resolveSession; calendar uses reconcileExpiredIdentity (+ get/clearSession).
+ * session.js — Shared auth/session helpers for every protected page and the Calendar. What each
+ * importer pulls varies; grep the import rather than trusting a list here.
  *
- * Owns: session constants, localStorage session read/write/clear, Firebase Auth
- *   sign-in lifecycle (ensureFirebaseSession), and password derivation (getSurname).
- * Does NOT own: login overlay UI (each page builds its own), Firestore writes.
+ * Owns: session constants, localStorage session read/write/clear, the Firebase Auth sign-in
+ *   lifecycle (ensureNamedSession → ensureFirebaseSession), the expired-identity teardown, the
+ *   staff-PIN checks for pages that admit the PIN, and password derivation (getSurname).
+ * Does NOT own: the sign-in UI (login-overlay.js), what a page does when its session fails
+ *   (page-session.js), page access (auth-policy.js), or Firestore writes.
  * Edit here for: session expiry, password derivation rule changes, Firebase Auth strategy.
  *
  * ⚠️ WARNING: changing getSurname will lock out every staff member. Any change
@@ -155,10 +155,9 @@ export const sessionReady = /** @type {Promise<boolean>} */ (new Promise(r => (_
 export function resolveSession(result) { _sessionResolve(result); }
 
 /**
- * The Firebase Auth identity that `ensureFirebaseSession` last established on a WRITE
- * page (admin / operations / settings / links / paycalc). The calendar's anonymous read
- * bootstrap (`calendarAuthReady` in calendar-app.js) is a separate path and never touches
- * this — `ensureFirebaseSession` is only called by the write pages.
+ * The Firebase Auth identity that `ensureFirebaseSession` last established — on a protected page,
+ * or through the Calendar's member card. The Calendar's own access decision (`calendarAuthReady`,
+ * calendar-access.js) reads the restored user instead and never consults this.
  *
  *   'named'     — signed in as the member's own account (email === nameToEmail(name)).
  *   'none'      — no named session could be established. There is NO anonymous third value any

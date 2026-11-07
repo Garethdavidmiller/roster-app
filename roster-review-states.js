@@ -4,7 +4,7 @@
  * TICKED.
  *
  * Owns: `computeCellStates` — the classification (MATCH · DIFF · CONFLICT · COVERED ·
- *   REMOVE_IMPORT · UNREADABLE), the `chosen` default that decides what a Save actually writes,
+ *   REMOVE_IMPORT · UNREADABLE · GUARDED), the `chosen` default that decides what a Save writes,
  *   and the `UNKNOWN|` / `RDW|` review encodings the renderer reads back.
  * Does NOT own: the parse, the review table's DOM, the entry control, or any write.
  * Edit here for: a new cell state, or a change to what is ticked by default.
@@ -68,18 +68,21 @@ export const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFI
  * Compute the state of every (member, date) cell in the review table.
  *
  * Returns a Map keyed by "memberName|date" with values:
- *   { state: 'MATCH'|'DIFF'|'CONFLICT'|'COVERED', parsedShift, baseShift,
- *     manualValue?, manualId?, chosen }
+ *   { state: 'MATCH'|'GUARDED'|'DIFF'|'CONFLICT'|'COVERED'|'REMOVE_IMPORT'|'UNREADABLE',
+ *     parsedShift, baseShift, manualValue?, manualId?, chosen }
  *
  * State meanings:
  *   MATCH    — PDF matches base roster, no override → nothing to do
  *   GUARDED  — PDF said something the app's rules refuse to record on that day (leave or an
  *              absence on a base rest day or a rest Sunday; a training or meeting day on ANY
- *              Sunday, whatever is saved there — owner, 7 Nov 2026). Writes NOTHING, exactly like
- *              MATCH — but it is shown and explained, because the app decided rather than agreed
+ *              Sunday, whatever is saved there — owner, 7 Nov 2026). Writes nothing unless a rest-day
+ *              row is answered "swapped" (`guardedWrites`) — and it is shown and explained, because
+ *              the app decided rather than agreed
  *   DIFF     — PDF differs from base roster, no manual override → propose change
  *   CONFLICT — A manually entered override exists that differs from the PDF → flag it
  *   COVERED  — A manual override exists and already matches the PDF → nothing to do
+ *   REMOVE_IMPORT — the PDF matches the base roster again over a previous import → delete it
+ *   UNREADABLE — the `UNKNOWN|` sentinel → written only once the admin answers it
  *
  * @param {any} parsedResult  - Response from parseRosterPDF
  * @param {Array<any>}  existingOverrides - Overrides already in Firestore for this week

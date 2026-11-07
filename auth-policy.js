@@ -23,8 +23,8 @@
  *
  * Pure: `requirePageAuth(snapshot, policy, roles)` has no I/O. The thin `rolesFor(member)` glue
  * (which reads CONFIG) and the `requirePage(snapshot, page)` convenience are the only impure bits.
- * WIRED IN (Phase 4–7): operations/links/admin/settings/paycalc coordinators call `requirePage(...)`
- * for their access gate and B1 enforcement decision — behaviour-preserving (CLIENT UX only; Firestore
+ * WIRED IN (Phase 4–7): every protected coordinator calls `requirePage(...)` for its access gate, and
+ * `guardNamedSession` (page-session.js) for the B1 enforcement decision — behaviour-preserving (CLIENT UX only; Firestore
  * Rules + Functions claim checks remain the real boundary).
  */
 import { CONFIG } from './roster-data.js';
@@ -44,7 +44,8 @@ export const DECISIONS = Object.freeze(['allow', 'soft-allow', 'login', 'forbidd
  *  - admin / settings: ANY named user (staff get self-service; the admin/manager split gates
  *    ACTIONS, not page access) → role null.
  *  - paycalc: any identity, SOFT (a local-first calculator — never blocked).
- *  - calendar: public, anonymous reads allowed. guides: no auth.
+ *  - calendar: no named session required — a member's sign-in or the staff PIN opens it
+ *    (calendar-access.js); an anonymous session grants nothing. guides: no auth.
  *
  * `staffPin: true` — the shared staff PIN may read this page as well (v24.84). Not a value of
  * `named` and not a role: the PIN is a capability with no member behind it (calendar-access.js →

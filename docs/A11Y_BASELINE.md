@@ -1,35 +1,31 @@
 # A11Y_BASELINE.md — accessibility gate baseline
 
-*Renamed from `A11Y_FINDINGS.md` (8 Sep 2026): every finding recorded here is fixed, so the file is
-the gate's baseline and the archive of what it caught, not a list of open problems. Its own heading
-had said "baseline" for some time.*
+*Not version-stamped; not a runtime asset. Every finding recorded here is fixed, so the file is the
+gate's baseline and the archive of what it caught, not a list of open problems.*
 
-
-`e2e/axe.spec.js` runs the [axe-core](https://github.com/dequelabs/axe-core) engine against one
-fully-rendered state of every page (WCAG 2.0/2.1 A + AA). It is the app's first automated
-accessibility coverage — closing the gap the v17.45 audit flagged. Run it with **`npm run test:a11y`**.
+`e2e/axe.spec.js` runs the [axe-core](https://github.com/dequelabs/axe-core) engine against the
+fully-rendered states of every page (WCAG 2.0/2.1 A + AA). Run it with **`npm run test:a11y`**.
 
 It is a **floor**: axe catches the machine-checkable ~third of real issues (labels, names, contrast,
 ARIA, duplicate ids). It does not replace a manual screen-reader pass.
 
-**Open items: one, and it is not a finding.** Every finding recorded below is fixed (the last,
-Label in Name, at v25.27). What has never been done is a **manual screen-reader pass** —
+**Open items: one, and it is not a finding.** Every finding recorded below is fixed. What has
+never been done is a **manual screen-reader pass** —
 somebody driving the app with VoiceOver or TalkBack and listening to it. That is the only way to
 reach the two-thirds axe cannot: reading ORDER, whether announcements arrive at a useful moment,
 whether a live region interrupts something the user was in the middle of, and whether the app is
 usable by ear at all. It needs a person and a device, not a test run, which is why it is stated here
 as outstanding rather than tracked as a defect.
 
-## Current status — ✅ GREEN + BLOCKING (v17.52)
+## Current status — ✅ GREEN + BLOCKING
 
-Every page the spec drives passes on both projects (Desktop Chrome + Pixel 5). **Both findings are resolved**
-(`nested-interactive` v17.50, `color-contrast` v17.51–52), so the gate is now part of
-`npm run test:e2e` — a new WCAG A/AA violation fails the suite. `npm run test:a11y` runs it
+Every state the spec drives passes on both projects (Desktop Chrome + Pixel 5), and the gate is part
+of `npm run test:e2e` — a new WCAG A/AA violation fails the suite. `npm run test:a11y` runs it
 standalone (chromium). One documented per-page exclusion remains (calendar `.other-month`; see #2).
 
-## Findings (baseline, Jul 2026 — reviewed against the app at v17.49)
+## Findings (baseline, Jul 2026)
 
-### 1. `nested-interactive` (SERIOUS) — ✅ FIXED (v17.50)
+### 1. `nested-interactive` (SERIOUS) — ✅ FIXED
 
 `initCardCollapse` (overlay.js) used to set `role="button"` + `tabindex="0"` on the whole
 `.card-collapsible-header`, but a header contains a nested real `<button class="btn-card-tips">?</button>`
@@ -43,30 +39,30 @@ case falls back to the original header-as-toggle. Chevron/arrow gained `cursor` 
 ring (shared.css / paycalc.css). Verified: axe reports **0** `nested-interactive`; overlay.test.mjs
 green; e2e green. No visual change to the cards.
 
-### 2. `color-contrast` (SERIOUS) — ✅ FIXED (v17.51–52)
+### 2. `color-contrast` (SERIOUS) — ✅ FIXED
 
 *Originally flagged: muted text / badges below 4.5:1 AA — calendar `#alBtn`/`#payBtn` + other-month
 day numbers, paycalc badges (`#paycalcBadge`/`#badge-sat`/`#badge-ot`), guide `.guide-footer`,
 railcard `.rc-cost`/`.rc-lbl`, shift badges (`.sb-early`/`.sb-al`), FIP `.not-fip-name`. All resolved:*
 
 
-- **Guides (v17.51):** darkened the muted grey tokens (`--light` #888 → #6b6b6b / #666, guide footer
+- **Guides:** darkened the muted grey tokens (`--light` #888 → #6b6b6b / #666, guide footer
   #7c8794 → #5a6472), deepened the legend swatches, and removed the FIP "not-FIP" `opacity: 0.45`
   wash (opacity can't meet AA — the ✗ NO tag + a muted name colour carry "not available" instead).
-- **Calendar + paycalc + admin (v17.52):** deepened the shared shift/pay tokens just enough to clear
+- **Calendar + paycalc + admin:** deepened the shared shift/pay tokens just enough to clear
   white-text AA (`--green`, `--al`, `--ot`, `--success-green`) while keeping the hue, and switched
-  the badges that can't (orange `.badge-early`/`.badge-sat`, admin's gold "today" text) to **navy
-  text on the colour tint** — the tint + border keep each badge's identity. (v17.56 aesthetic
-  revision, owner-approved: `.badge-sat` moved from navy to the new `--orange-text` — a darkened
-  64.1°-hue orange that clears AA on `--orange-light` — restoring Saturday's category colour-coding
-  to match the OT/Peer badges, whose text kept their category colour.) Screenshotted: no brand
+  the badges that could not (orange `.badge-early`, admin's gold "today" text) to **navy text on
+  the colour tint** — the tint + border keep each badge's identity. (`.badge-early` has since moved to
+  white on its own darkened token, `--early-badge` in `shared.css`.) `.badge-sat` takes `--orange-text`
+  instead (owner-approved): a darkened 64.1°-hue orange that clears AA on `--orange-light` and keeps
+  Saturday's category colour, matching the OT/Peer badges, whose text kept their category colour. Screenshotted: no brand
   drift. Also fixed the `aria-allowed-attr` regression this surfaced (`setSettingsCardOpen` was
   setting `aria-expanded` on the now-non-interactive paycalc header — moved it to the arrow control).
 - **Documented exclusion:** the calendar's faint **other-month day numbers** are `aria-hidden`
   decorative context (darkening them defeats the "not this month" cue for zero SR benefit), so they
   are `.exclude('.other-month')`d in the calendar scan — a targeted exclusion, not a rule waiver.
 
-## Functional-emoji screen-reader treatment (H1, v17.75)
+## Functional-emoji screen-reader treatment (H1)
 
 An audit of every emoji RENDERED to users (shift badges, markers, headings, buttons, nav) checked
 each against WCAG: emoji that duplicate adjacent text should be `aria-hidden`; an emoji that is the
@@ -88,9 +84,9 @@ Fixed this pass:
 
 These are aria-tree-only changes (glyphs still render — visual baselines byte-identical).
 
-### Transient status glyphs — ✅ FIXED (v21.85)
+### Transient status glyphs — ✅ FIXED
 
-*Deferred at v17.75 as "P3, low return": the ~dozens of transient status strings that prefix
+*Deferred by the emoji pass as "P3, low return": the dozens of transient status strings that prefix
 `textContent` with ✓/⚠/✗/ℹ️ in `aria-live` regions — "the glyph arguably reinforces the status, and
 hiding it needs a span restructure at each site; best done later via one shared helper."*
 
@@ -102,10 +98,10 @@ message — counts, names, dates, i.e. most of them — to be taken apart first 
 done to half the sites, and half-done is worse here than not started, since the sites left behind
 look identical in the source.
 
-Converted: **26 call sites** across ten modules, three `innerHTML` templates that carry markup of
-their own (wrapped by hand), and **two static `role="alert"` regions in `paycalc.html`** —
-`#pensionWarn` and `#satWarn`, which had been there since before the gate existed and which every
-automated pass read straight past, because they are correct HTML with the glyph as real text.
+Converted: every call site, the `innerHTML` templates that carry markup of their own (wrapped by
+hand), and **the two static `role="alert"` regions in `paycalc.html`** — `#pensionWarn` and
+`#satWarn`, which every automated pass read straight past, because they are correct HTML with the
+glyph as real text.
 
 **Buttons are deliberately excluded.** `✓ Resolve` is a stable accessible NAME, matched by
 `getByRole('button', { name })` and announced once on focus rather than interrupting a reader
@@ -119,11 +115,11 @@ and are named for their surface.
 **Why this needed its own guard.** Nothing else in the repo can see this rule: rendering is
 byte-identical so the visual baselines pass, `textContent` reads back unchanged so every e2e
 assertion passes, and axe has no rule for "a decorative glyph that was not hidden" — that is a
-judgement about meaning, which is why it sat here as prose for eight months instead of failing a
+judgement about meaning, which is why it sat here as prose for months instead of failing a
 build. `status-glyph-parity.test.mjs` enforces it in the three shapes it can break (markup,
 `textContent`, `innerHTML`), plus that the helper is imported wherever it is called.
 
-### BH rate badges — `color-contrast` (SERIOUS) — ✅ FIXED (v21.91)
+### BH rate badges — `color-contrast` (SERIOUS) — ✅ FIXED
 
 `#badge-bh` / `#badge-bhot` on paycalc rendered `--al` on `--al-light` — teal on teal tint, measured
 **4.16:1** against the 4.5 AA floor. Fixed by using `--al-text` (`oklch(43% 0.101 182.5)`, 5.98:1),
@@ -138,7 +134,7 @@ neither is a hole in the gate:
    bank holiday, so the scan first SAW them on 28 Aug 2026, with Monday's holiday in period P28. A
    gate that scans one settled state per page can only find what that state happens to contain, and
    conditional UI is invisible to it for most of the year.
-2. **An open modal hid them even then.** Until v21.91 the YTD notice opened during this scan — the
+2. **An open modal hid them even then.** The Year to Date notice opened during this scan — the
    spec suppressed it with a key that had been renamed — and axe does not flag what sits behind an
    open dialog. So the run that first had the badges on screen ALSO had them covered. Suppressing the
    notice correctly is what made the violation appear, and the failure looked at first like the
@@ -148,12 +144,12 @@ The general lesson, and it applies to every page in `axe.spec.js`: **a green a11
 about the state that was scanned, not about the page.** If a surface only appears under a condition —
 a bank holiday, an error, a populated list — the gate is silent on it until something puts it there.
 
-## The surface the gate could not reach — the roster review table (v24.00)
+## The surface the gate could not reach — the roster review table
 
 The section above states the rule; this is the largest thing it had been hiding. The gate scans
 **one rendered state per page**, and reaching this table needs a PDF upload driven through to a
-parsed review — so from the gate's first release to v24.00 it was never scanned at all, while
-"every page the spec drives passes" stayed true and said nothing about it. Scanned by hand on
+parsed review — so for most of the gate's life it was never scanned at all, while "every page the
+spec drives passes" stayed true and said nothing about it. Scanned by hand on
 18 Sep 2026 it had 8 `color-contrast` violations in its default state, and more in the states one
 tap away.
 
@@ -172,8 +168,8 @@ default review, one row skipped, a whole member skipped, and a read refused by t
 (reached through three genuine geometry refusals, not by adding the class). Each dim was
 re-introduced with `scripts/mutate.mjs` and each turned the gate red.
 
-**But the scan is not the witness for all of them, and v24.01 is why.** The v24.00 pass fixed four
-dims and missed a fifth — `.section-skipped`, the whole-member flip — because **axe reports nothing
+**But the scan is not the witness for all of them.** The first pass fixed four dims and missed a
+fifth — `.section-skipped`, the whole-member flip — because **axe reports nothing
 for it**: measured directly, with every row at `opacity: .35` and plainly washed out in a
 screenshot, the scan returned zero violations *and* zero `incomplete`, with and without the
 `pointer-events: none` that state also sets. A state the gate cannot see is a state with no gate —
@@ -192,7 +188,7 @@ an inactive user-interface component is the one thing WCAG 1.4.3 exempts. A SKIP
 same case: its content is what the admin re-reads before changing their mind, so it got no exemption
 and was fixed.
 
-## `label-content-name-mismatch` (SERIOUS) — ✅ FIXED (v25.27)
+## `label-content-name-mismatch` (SERIOUS) — ✅ FIXED
 
 WCAG 2.5.3, *Label in Name*, Level A. axe 4.14 runs it under the gate's WCAG tags, where 4.12 did
 not, and it failed **27 of the gate's states** on one pattern: a control whose accessible name does
@@ -225,7 +221,7 @@ name can contain — while the screen showed "DESIGNS · 0 saved", separated by 
 the spans is not rendered in a flex row, and makes the text say what the screen does. Found by
 asking axe's own functions inside the page; reading the rule said it should already pass.
 
-**Three more, in states the gate had never scanned (72-hour review, 6 Nov 2026).** The Team view's
+**Three more, in states the gate had never scanned (6 Nov 2026).** The Team view's
 week bar said "Previous week" under "← Prev" and its toggle "Switch back to monthly calendar" under
 "Month" ("monthly" is not the word "Month"); the ARMED bulk delete said "Confirm delete selected
 changes" under "⚠ Delete 2?". Each now leads with or carries the visible words — "Prev week",
@@ -239,8 +235,8 @@ WCAG 2.1.1). Below desktop width the seven days do not fit, so `#gradeTabPanel` 
 it held nothing focusable, so a keyboard user could not reach the days off-screen. Desktop Chrome
 never saw it, because there the table fits; the phone projects failed in CI. The panel is now a tab
 stop (`tabindex="0"`, as the ARIA tabs pattern advises for a panel with no focusable content), with an
-inset focus ring because the panel is the box that clips. **Being focusable was half of it** (7 Nov 2026
-review): ← → are how a focused box scrolls, and the page's own shortcut turned them into a week
+inset focus ring because the panel is the box that clips. **Being focusable was half of it**:
+← → are how a focused box scrolls, and the page's own shortcut turned them into a week
 change first, so axe passed and the days stayed out of reach. The shortcut now leaves the panel's
 arrows alone; `e2e/calendar.spec.js` → "→ on the focused team week table scrolls it" holds the
 behaviour, which a scan cannot see.
@@ -251,11 +247,11 @@ six Other flavours with their three time slots, an unrecognised value and both p
 members through the real renderer, and holds each cell's name to what it prints, with axe's word
 rule restated small. Mutation-checked: the old name order fails it on every cell.
 
-## Known pre-existing (not gate-caught, low priority)
+## Guarded by convention, not by the gate
 
-- **Stale `aria-expanded` on programmatically-opened cards — ✅ RESOLVED (v18.68).** A few
-  coordinators opened a collapsible card/disclosure by adding the `.open` class directly (the
-  auto-open / deep-link paths) without updating `aria-expanded`, so an auto-opened card reported
+- **`aria-expanded` must follow a programmatically-opened card — ✅ RESOLVED.** A few coordinators
+  opened a collapsible card/disclosure by adding the `.open` class directly (the auto-open /
+  deep-link paths) without updating `aria-expanded`, so an auto-opened card reported
   `aria-expanded="false"` until the first manual toggle self-corrected. All such paths now keep the
   control's ARIA state in step: `admin-app.js` via its `openCollapsibleCard(body, chevron)` helper,
   `links-app.js`'s generator auto-expand sets `aria-expanded` alongside `.open`, `paycalc-settings.js
@@ -272,13 +268,14 @@ entry or a page `exclude` in `axe.spec.js` **with a one-line reason**, and recor
 
 ## Promotion path — ✅ COMPLETE
 
-1. ~~Fix `nested-interactive`~~ ✅ v17.50. 2. ~~Fix `color-contrast`~~ ✅ v17.51–52.
-3. ~~Green on both projects~~ ✅. 4. ~~Make it block (`test:e2e` includes `@a11y`)~~ ✅ v17.52.
+1. ~~Fix `nested-interactive`~~ ✅ 2. ~~Fix `color-contrast`~~ ✅ 3. ~~Green on both projects~~ ✅
+4. ~~Make it block (`test:e2e` includes `@a11y`)~~ ✅
 5. ~~Wire more rendered STATES per page beyond the one settled snapshot~~ ✅ — forced transient
-states (sync-chip, active pills) v17.57; **open-overlay states (H2, v17.75): the login overlay,
-the nav drawer open, and the About lightbox open** — each a full interactive surface (focus trap,
-buttons, headings) the settled scans can't reach. All axe-clean.
+states (sync-chip, active pills); **open-overlay states (H2): the login overlay, the nav drawer
+open, and the About lightbox open** — each a full interactive surface (focus trap, buttons, headings)
+the settled scans can't reach. All axe-clean.
+
 **CI gate — ✅ in place.** The axe `@a11y` spec runs as part of `npm run test:e2e`, and the `smoke`
-job in `.github/workflows/e2e.yml` runs `npm run test:e2e` on every branch/PR — so a new WCAG A/AA
-violation fails CI, not just the local run. (A dedicated standalone `test:a11y` CI job would only add
-attribution clarity — the gate itself is already blocking through `smoke`.)
+job in `.github/workflows/e2e.yml` runs it on every branch/PR, one job per Playwright project — so a
+new WCAG A/AA violation fails CI, not just the local run. (A dedicated standalone `test:a11y` CI job
+would only add attribution clarity — the gate itself is already blocking through `smoke`.)

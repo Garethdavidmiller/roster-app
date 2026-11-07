@@ -8,7 +8,7 @@
  * `firebase-client.js` was the one part of the client no test could reach. It imports the Firebase
  * SDK from the gstatic CDN, Node refuses an `https:` specifier at resolution, and `mock.module`
  * resolves before it replaces — so every page module was tested with THIS file mocked away, and the
- * file itself was not tested at all (KNOWN_LIMITATIONS → "Still genuinely untested"). The rules
+ * file itself was not tested at all (KNOWN_LIMITATIONS → "Test coverage gaps"). The rules
  * were tested in the emulator and the pure helpers in Node; the lines that decide WHAT is written,
  * UNDER WHICH DOCUMENT, WITH WHOSE TOKEN were covered by nothing.
  *

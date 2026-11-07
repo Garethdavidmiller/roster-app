@@ -26,8 +26,8 @@ authoritative for how the workspace is built.*
 implementation record, and it is worth reading — but December 2026 is now a real approaching event,
 and this document had no view that answered "are we ready, and what is stopping us?"*
 
-**The tool is essentially built. What remains is decisions and a meeting.** Every outstanding row
-below is owned by somebody other than the developer.
+**The tool is essentially built. What remains is decisions and a meeting.** Every outstanding
+decision below is owned by somebody other than the developer.
 
 **Who leads (owner, 4 Nov 2026): S. Silva, as the RMT rep.** She is in charge of the roster change. The shortlist is
 settled by her and the developer together, from colleagues' feedback, which the two of them are assessing on 4 Nov 2026
@@ -53,8 +53,8 @@ do not carry it into the page or the pack.
 > **Read every 28- and 22-line figure below, and every 5-spare-week figure, as history.** The
 > `Baseline` and `What the generator produces` sections are re-measured at **24 lines / 4 spare**
 > (v20.02); anything else quoting an older length or spare count describes a
-> superseded design and is left as the record of how the tool was built. `ROTATING_LINES` is 24 and
-> every literal derives from it — the 22 → 24 move was one constant, four static fallbacks the parity
+> superseded design and is left as the record of how the tool was built. `ROTATING_LINES` was 24
+> (26 since 1 Oct 2026 — the note at the top) and every literal derives from it — the 22 → 24 move was one constant, four static fallbacks the parity
 > test named, and a re-measure, against ~15 literals across five files for 28 → 22.
 >
 > Three things the change does NOT undo, which is most of the value in this document: the ORR factor
@@ -111,8 +111,8 @@ it to 1 January only if the room wants the real latest dates.
 | Operational sign-off | T−2 weeks | end November |
 | Tool / data freeze | T−1 week | early December |
 
-**These intervals are a starting proposal, not a commitment** — Gareth and Nathan should set the
-real ones. The point is that a backwards plan exists at all: without one, the first hard date anyone
+**These intervals are a starting proposal, not a commitment** — S. Silva, who leads the change, and
+Nathan Sobers should set the real ones. The point is that a backwards plan exists at all: without one, the first hard date anyone
 meets is the timetable change itself.
 
 **If the room is booked before everything lands**, the useful minimum is unchanged: the baseline

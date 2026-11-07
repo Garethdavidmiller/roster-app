@@ -1,12 +1,11 @@
 // @ts-check
 /**
- * paycalc-year-summary.js — "This tax year so far" for the Year to Date Figures card
- * (v18.41 — review item 11).
+ * paycalc-year-summary.js — "This tax year so far" (v18.41 — review item 11).
  *
  * Owns: computeYearSoFar — a headless re-run of the calculator over every PAID payslip of a tax
  *   year that has saved hours, summing taxable pay / tax / NI / Student Loan / take-home, plus a
- *   deliberately-rough full-year projection. The coordinator (paycalc-app.js) renders the result
- *   into the Year to Date card (#ytdYearSoFar).
+ *   deliberately-rough full-year projection. `renderYearCard` (paycalc-year-card.js) renders the
+ *   result into its own sidebar card (#ytdYearSoFar).
  * Does NOT own: any DOM (the caller passes the current loan/tax-code settings in `opts`), the
  *   per-period maths (all from paycalc-calc.js — the same functions calculate() uses, so the
  *   per-payslip figures here match what the calculator shows for that payslip), or persistence.

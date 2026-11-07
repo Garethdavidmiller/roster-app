@@ -1456,7 +1456,7 @@ export function init() {
         // collapsed for everyone. Re-adding the auto-open is a real option if self-service staff ask
         // for it; what it must not become again is a SECOND writer of a collapse state something
         // else also sets, which is how the arrow and its card ended up disagreeing before.
-        // The scroll-first self-service experience is a recorded decision — ROADMAP.md.
+        // The scroll-first self-service experience is a recorded decision — DECISIONS.md → "Admin task navigator".
     }
 
     // ============================================

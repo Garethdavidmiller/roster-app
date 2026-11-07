@@ -105,8 +105,8 @@ describe('roster-data.js is world-readable, so what it carries is a decision', (
     test('and the list has not drifted into naming fields nobody ships', () => {
         // A stale allowlist is how the guard loosens without anybody deciding to loosen it: an entry
         // left behind after a field is removed silently re-permits it years later. `permanentShift`
-        // is the one deliberate exception — it is documented in CLAUDE.md's field reference and no
-        // current member uses it, so it is allowed to sit here unused.
+        // is the one deliberate exception — it is documented in the field reference in
+        // .claude/rules/roster-data.md and no current member uses it, so it may sit here unused.
         const seen = new Set();
         for (const m of teamMembers) Object.keys(m).forEach(k => seen.add(k));
         const unused = Object.keys(PUBLIC_MEMBER_FIELDS)

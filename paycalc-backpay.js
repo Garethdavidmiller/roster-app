@@ -2,13 +2,15 @@
 /**
  * paycalc-backpay.js — Back-pay lump sum calculator for paycalc.html.
  *
- * Owns: prefillBackPay, calcBackPay, _bpAwardTaxYear.
+ * Owns: prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, and the pure accrual
+ *   helpers (_accrueBackPayPeriod, awardWindowFactor, paidInPeriodNum, bpStoryHtml).
  * Does NOT own: coordinator state (_bpAmount/_bpPNum live in paycalc-app.js),
- *   calculation engine (paycalc-app.js), settings (paycalc-settings.js).
+ *   calculation engine (paycalc-app.js), settings (paycalc-settings.js), which figure goes in
+ *   which box (paycalc-backpay-state.js).
  * Edit here for: back-pay calculation logic, lump sum breakdown rendering.
  * Do not edit here for: pay maths, period navigation, HPP formula.
  *
- * calcBackPay() returns { bpAmount, bpVarAmount, bpPNum } — coordinator
+ * calcBackPay() returns { bpAmount, bpVarAmount, bpPNum, bpIsEstimate, bpIncluded } — coordinator
  * (paycalc-app.js) compares against its own state and calls calculate() if changed.
  */
 
@@ -471,8 +473,8 @@ export function awardWindowFactor(p, backdatedFrom, periodDays = PERIOD_CONFIG.P
  * PRECONDITION: rateDiff/londonDiff are ≥ 0 (calcBackPay zeroes an invalid pair before calling).
  *
  * backPay = contracted basic diff + premium-bucket diffs + peer diff + pro-rated London diff.
- * varPay  = the HPP-accruing portion — premium buckets + London diff only (contracted basic and
- *           peer pay are excluded, mirroring _varPayForPeriod).
+ * varPay  = the HPP-accruing portion — premium buckets only (contracted basic, peer pay and the
+ *           London diff are excluded, mirroring _varPayForPeriod).
  *
  * @param {{ effContr: number, proRateFactor: number, peer?: number, rateDiff: number, londonDiff: number,
  *           windowFactor?: number,

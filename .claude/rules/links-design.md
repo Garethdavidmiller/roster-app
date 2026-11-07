@@ -10,35 +10,31 @@ paths:
 
 **This is the authoritative contract for the Links workspace.** Other documents link here rather
 than restating grid, generator, coverage, fatigue, concurrency or deletion rules.
-`LINKS_DEC2026_PLAN.md` holds the December 2026 project context and part of the modules' history
-(most is in the module headers and here); it does not restate the rules.
+`LINKS_DEC2026_PLAN.md` holds the December 2026 project context. The reasoning behind most rules is
+in the module header beside the code, and this file points there rather than copying it.
 
-> **The `paths:` list above uses GLOBS, and must stay that way** (fixed Aug 2026). It enumerated five
-> filenames from the extraction-programme era and had silently stopped covering **nine of the
-> sixteen** Links files — every module added since (`links-analysis`, `-compare`, `-concurrency`,
-> `-deletion`, `-fatigue`, `-boot`) plus their tests. Editing any of them did not surface this
-> document, which is the one place the workspace's decisions are written down. Same failure as the
-> enumerated class list fixed at v19.49 and the `selectBackupKeys` prefix scan: a hand-maintained
-> list stops covering what arrives after it, and nothing says so. `paycalc.md` already globbed.
+**The workspace builds and judges proposals. It decides nothing.** S. Silva, the RMT rep, leads the
+December 2026 roster change and makes the final call (`LINKS_DEC2026_PLAN.md` → Who leads). Nothing
+on the page, and nothing written here, may suggest that the owner or the admin decides which link
+is used.
+
+**The `paths:` list above uses GLOBS, and must stay that way.** A list of filenames stops covering
+the modules added after it, and nothing says so.
+
+**Read the module header before changing any rule.** Most rules here exist because something
+shipped wrong once, and the header says how.
 
 ## What is in this file
 
-A long file, loaded whole whenever a Links file is edited, so here is the shape of it. (This line
-carried its own line count until the v20.54 docs sweep, by which point the figure was out by nearly
-400 — a self-measurement is stale the next time anyone edits the file it measures, which is the same
-rule `doc-parity.test.mjs` applies to suite sizes. Say what is in it, not how big it is.)
-
 | Where | What |
 |---|---|
-| **The module set · Access control** | every module, and who may read/write a design |
-| **Design and save model** | the Firestore shape, the grid, paint mode, the operating window, the heat map |
-| **Design checks** | the two halves of the checks card — **hard limits** (meet or cannot run) above **fatigue factors** (advisory, never pass/fail) |
-| **The generator** | what it is, its two constructions, the line-order objectives, the removed uplift control, its layout |
-| **Page-wide review findings** | the v19.66 mobile gaps and blank-page work — about the PAGE, not the generator |
+| **Invariants** | the short list, for someone about to change something |
+| **The module set · Access control · Deletion** | every module, who may read or write a design, and the permanent bin |
+| **The page** | the orientation panel, unsaved work, and use on a phone |
+| **Design and save model** | the Firestore shape, the masthead, compare mode, the grid, paint mode, the operating window, the heat map, the summary bar, the empty states |
+| **Design checks** | the first half, **hard limits** (meet or cannot run), **fatigue factors** (advisory, never pass/fail), and hours a week |
+| **The generator** | the default table and the seed, the rest gate, saved setups, the two constructions, line order, Sunday, its copy and its layout |
 | **The rest** | line numbering, concurrency, print, sticky headers |
-
-**Read the module header before changing any rule.** Most of what follows is a record of something
-that shipped wrong once, and the reasoning is usually more load-bearing than the code it describes.
 
 ## Invariants
 
@@ -47,7 +43,7 @@ or in the module header beside the code.
 
 | # | Invariant | Where it lives |
 |---|---|---|
-| 1 | **The rotation length is declared once and written down nowhere** — not in a module, not in a comment, not in prose. A literal is a fourth copy waiting to drift. | `links-design.js` (`ROTATING_LINES`) · `links-rotation-parity.test.mjs` |
+| 1 | **The rotation length is declared once and written down nowhere** — not in a module, not in a comment, not in prose. A literal is one more copy waiting to drift. | `links-design.js` (`ROTATING_LINES`) · `links-rotation-parity.test.mjs` |
 | 2 | **A hard limit and a fatigue factor are opposite kinds of statement.** Separate modules, separate counts, separate sections. Fatigue factors report what is PRESENT; they never pass or fail a design, and nothing here may read as a certificate. | `links-limits.js` · `links-fatigue.js` |
 | 3 | **Every fatigue rule laps the rotation.** Somebody on the last line goes to the first next week. | `links-fatigue.js` |
 | 4 | **The generator REFUSES what it cannot repair.** Reporting a shortfall is not refusing it — a design that exists gets saved, compared, printed and taken into a room. | `links-design.js` (`repairShortRest`) · `links-contract.test.mjs` |
@@ -55,1455 +51,1134 @@ or in the module header beside the code.
 | 6 | **An import becomes a design or a refusal, never a half-design.** An unreadable cell is refused BY NAME, never defaulted to a rest day — an import that "succeeds" four duties light reads as a lighter week, and every panel then reports confidently about it. | `links-import.js` |
 | 7 | **The days-worked divisor is the WORKING lines, not the rotation** — unlike the hours average beside it. | `links-design.js` (`lineTotals`) |
 | 8 | **Reordering is free with respect to coverage**, so the line-order objectives compete only with each other. | `links-adjacency.js` |
-| 9 | **A saved target set is refused whole or loaded whole**, and the client's ownership check only decides what is OFFERED — the rules are the protection. | `links-target-sets.js` · `firestore.rules` |
+| 9 | **A saved target set (a staffing setup) is refused whole or loaded whole**, and the client's ownership check only decides what is OFFERED — the rules are the protection. | `links-target-sets.js` · `firestore.rules` |
 | 10 | **Every class an analysis panel emits must exist in `links.css`**, and any section claiming a limit must name whose requirement it is. | `links-analysis.js` · `links-analysis.test.mjs` |
 
 ## The module set
 
-The workspace is one coordinator over the pure/extracted modules below. Everything except `links-app.js`
-is testable without a browser, which is deliberate — the coordinator is where most of the Firestore and DOM
-state lives (the design library — import and the bin — holds its own since v24.51), and the rules that have historically produced bugs have been pulled out of it.
-
-**The table is the count.** This sentence read "twelve" while the table under it listed thirteen:
-`links-design-doc.js` was added at v19.94 and the prose was never swept, so the two disagreed for
-the whole of v20. A number written beside the list it describes is a second copy of that list — see
-`doc-parity.test.mjs`.
+The workspace is one coordinator over the pure or extracted modules below. Everything except
+`links-app.js` is testable without a browser, and that is deliberate: the rules that have produced
+bugs were pulled out of the coordinator, which keeps most of the Firestore and DOM state (the design
+library keeps its own). One-line routing is `FILE_INDEX.md`; the export lists are `AI_MAP.md`.
+**The table is the count** — do not write a number beside it, because that is a second copy of the
+list.
 
 | Module | Owns |
 |--------|------|
-| `links-app.js` | coordinator: grid, paint, dialogs, dirty state; Firestore WRITES only via the two store modules (one direct read remains: `loadDesigns`, which needs `metadata.fromCache`) — the library reaches it through the same design store (+ `links-boot.js`, the CSP bootstrap) |
+| `links-app.js` | coordinator: grid, paint, dialogs, dirty state. It makes no Firestore write of its own — designs go through `links-design-store.js` — and one direct read remains, `loadDesigns`, which needs `metadata.fromCache` (+ `links-boot.js`, the CSP bootstrap) |
 | `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design write, and the refresh's read (`createDesignStore`) |
-| `links-design-library.js` | the import panel and the Recently deleted bin, and the bin list itself (`createDesignLibrary`, v24.51). Rename, duplicate and delete stay in `links-app.js` — they change the open design's baseline |
-| `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the Save buttons' label and the ··· More sheet (v23.30) |
-| `links-design.js` | the design maths — classification, coverage, the generator, `runDesignChecks`, `endMinutesAbs` |
-| `links-fatigue.js` | the ORR p3 fatigue factors — ADVISORY, never pass/fail (v19.46) |
-| `links-limits.js` | the HARD limits — meet them or the design cannot be run (v19.80; named `links-legal.js` until v19.91) |
-| `links-window.js` | the staffed OPERATING WINDOW — when the station is open (v19.54) |
-| `links-demand.js` | the SERVICE that window has to cover — trains per hour (v19.56) |
-| `links-analysis.js` | the two read-only panels — Coverage heat map + Design checks — rendered from those pure results |
+| `links-design-library.js` | the import panel, the Recently deleted bin and its list, and Keep only the shortlist (`createDesignLibrary`). Rename, duplicate and delete stay in `links-app.js`, because they change the open design's baseline |
+| `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the picker sheet, the Save buttons' label and the ··· More sheet |
+| `links-design.js` | the design maths — classification, coverage, hours, the generator and its rest repair, `runDesignChecks`, `endMinutesAbs` |
+| `links-fatigue.js` | the ORR p3 fatigue factors — ADVISORY, never pass/fail |
+| `links-limits.js` | the HARD limits — meet them or the design cannot be run |
+| `links-window.js` | the staffed OPERATING WINDOW — when the station is open |
+| `links-demand.js` | the SERVICE that window has to cover — the December 2026 trains |
+| `links-analysis.js` | the read-only panels — Coverage heat map, Design checks and the sticky summary strip — rendered from those pure results |
 | `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
-| `links-compare-analysis.js` | what the difference between two designs MEANS — the compare-mode coverage and fatigue comparison (pure) |
-| `links-concurrency.js` | the co-editing rules (three historical silent-overwrite bugs, one test each) |
-| `links-deletion.js` | the soft-delete/restore/purge rules |
-| `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in (v19.58) |
-| `links-seed.js` | the generator's TARGET SEED — read the real roster, produce the starting targets (v19.92) |
-| `links-design-doc.js` | the SHAPE of a design in memory and in Firestore, and every conversion between (v19.94) |
+| `links-compare-analysis.js` | what the difference between two designs MEANS — cover, limits and fatigue for both (pure, `compareDesigns`) |
+| `links-concurrency.js` | the pure co-editing rules (three historical silent-overwrite bugs, one test each) |
+| `links-deletion.js` | the soft-delete rules: what counts as deleted, its label and order, and the last-live-design guard |
+| `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in |
+| `links-seed.js` | the roster SEED — read today's main cycle and produce a target table |
+| `links-design-doc.js` | the SHAPE of a design in memory and in Firestore, and every conversion between them |
 | `links-design-naming.js` | what a design or a staffing setup may be CALLED — one rule for new, import, duplicate and rename |
-| `links-target-hours.js` | does a target table pay the contract, and the words the card says so in (v21.31) |
+| `links-target-hours.js` | does a target table pay the contract, and the words the card says so in |
 | `links-import.js` | somebody ELSE's proposal → a design, or a refusal — the TRUST BOUNDARY (invariant 6) |
-| `links-target-sets.js` | named, shared SNAPSHOTS of the generator targets, and who may overwrite one (invariant 9) |
-| `links-target-sets-store.js` | the Firestore half of those saved sets — reading the collection, and the one guarded write |
-| `links-generator-targets.js` | the numbers the generator runs against, where they came from, and what may replace them |
-| `links-default-targets.js` | the table the generator STARTS from — since v24.47 the duty table of Second Edition, which the shortlisted Short Run shares exactly; not measured from today's roster |
-| `links-proposals.js` | the SHORTLISTED 26-line designs, built in as read-only proposals (v24.47; Common Ground, Even Step and Short Run since v25.36, A to Z) — a proposal id never reaches Firestore |
-| `links-shortlist.js` | "Keep only the shortlist" (v25.09) — the admin's one press that moves every design saved before 2 Nov 2026 to the bin; the built-in shortlist stays read-only |
+| `links-target-sets.js` | named, shared SNAPSHOTS of the generator targets (staffing setups), and who may overwrite one (invariant 9) |
+| `links-target-sets-store.js` | the Firestore half of those setups — reading the collection, and the one guarded write |
+| `links-generator-targets.js` | the numbers the generator runs against, where they came from, and what may replace them; it writes a new setup itself |
+| `links-default-targets.js` | the table the generator STARTS from — the duty table of Short Run, one of the built-in proposals; not measured from today's roster |
+| `links-proposals.js` | the SHORTLISTED designs, built in as read-only proposals — a proposal id never reaches Firestore |
+| `links-shortlist.js` | "Keep only the shortlist" — the admin's one press that moves every design last saved before `OLDER_BEFORE` to the bin; the built-in shortlist stays read-only |
 | `links-tips.js` | `CARD_TIPS` for the page's `?` panels (pure data) |
-
-> **Three of those rows were missing until v21.63**, and two of them own numbered invariants in the
-> table above — so the invariants list and the module list disagreed inside one document. That is
-> precisely the failure this file names two paragraphs up ("the table IS the count"), committed
-> against the table that says it.
 
 ## Access control
 
-- `NAV_PAGES` entry has `linksDesignerOnly: true`. `initNavPanel({ isLinksDesigner })` filters it out for non-designers.
-- Each page passes `isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(member)`. `links-app.js` passes `isLinksDesigner: true` (page already guards non-designers, redirecting to `admin.html`).
-- To grant access: add name to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` — every page derives `isLinksDesigner` from that list. Current designers: `'G. Miller'`, `'S. Silva'`, `'M. Robson'`.
-- **Two more steps, or the new designer can open the page and not save a thing.** The client list only decides what the nav and the page gate show; the `linksDesigner` CLAIM comes from the server-owned `functions/roster-members.json`. So (1) run `npm run generate:roster-members` in the same commit — `sw-asset-check.test.mjs` fails the build if it drifts — and (2) after deploy, run **Operations → Set up accounts**, which is what actually mints the claim. Until then every save permission-denies (`writeWithClaimRetry` refreshes the token, but a refresh can't invent a claim the server never set).
-- **Server-side (the real control):** `linkDesigns` writes require the `linksDesigner` or `admin` claim (H2, v16.29). **Reads require a bound member identity or the admin** (`isMember()`, v24.27 — a bare `name` claim from v19.39) — a session that has actually signed in as a member. The `request.auth != null` before v19.39 was intended as "any signed-in member", but the calendar then signed every visitor in anonymously, so it admitted anyone who could open the app URL. Reads are deliberately NOT gated on `linksDesigner`: a designer whose token predates that claim has to be able to LOAD the page for the write self-heal (`writeWithClaimRetry`) to get its chance to run.
-- **Delete is a soft delete (v19.41).** `✕` writes `deletedAt`/`deletedBy` (a MERGE write — a replace would push the deleting device's copy of `patterns` over the server's) and the design moves to **🗑 Recently deleted**, where it stays until somebody removes it by hand. **The bin is PERMANENT** (owner, 19 Sep 2026) and nothing expires a design. Automatic purging was suspended at v19.86 (no client-side age check survives a device clock running 30 days fast); at **v19.96** the last visible copy quoting a countdown went; and at **v24.10** the retention constant, `isPurgeable`, `purgeableIds`, `daysLeft`, the unwired load-time purge and the store's `purgeIfExpired` were all deleted rather than left dormant, because a soft-deleted design is already invisible and restorable and the only thing expiry adds is the power to destroy a designer's work unattended. The v19.96 story is why the dormant version cost something: the row label counted down to "removed for good in N days" **in the same dialog** as the panel intro reading "Nothing is deleted automatically" — one screen, two mutually exclusive explanations (external review P2). The real behaviour is SAFER than the promise was, which makes it a trust problem rather than a data-loss one; a designer who believed the countdown might reasonably have hurried, or written the work off. (This bullet said "then purged on load" until v19.94, contradicting the first-visit notice two sections below.) Restore clears both fields with `deleteField()`. All the decisions are pure and tested in `links-deletion.js`; the Firestore calls are `links-design-store.js` and the panel is `links-design-library.js` (the coordinator owned it until v24.51). Notes that matter when changing this:
-  - **`isDeleted` tests for the KEY, not a usable timestamp.** An unresolved `deletedAt` — what `serverTimestamp()` reads back as on the writing device — still counts as deleted, or the design sits in the picker on the device that just binned it. It used to be half of a deliberate disagreement with `isPurgeable`; that predicate is gone with the rest of the expiry machinery.
-  - **A save against a design someone else deleted does not resurrect it.** `saveChanges` detects the deletion in the transaction and offers "Save mine as new" instead — an overwrite there would be one designer undoing another's delete without ever seeing it.
-  - **A hard delete re-reads the server inside a TRANSACTION** (v19.84, external review P1).
-    "Remove for good" used to call `deleteDoc` on the strength of the list loaded when the bin was
-    opened — so if a colleague restored a design in the meantime, pressing that button on the now
-    stale row **permanently destroyed a live design somebody had deliberately rescued**. The
-    auto-expiry sweep two functions away already carried a comment explaining why that is unsafe;
-    the manual path, which is the likelier of the two (a human on a stale list beats a sweep landing
-    in the same window), ignored it. On `design-restored` the bin says so and reloads rather than
-    offering a retry. `firestore.rules` now also requires `deletedAt` to be present for a hard
-    delete, so a future client with the same bug can only fail — the rules test that asserted a
-    designer *could* hard-delete a live design was asserting the hole.
-  - **Do not reconnect the 30 days to visible copy until the age comes from the SERVER** (a scheduled Cloud Function). A countdown is a promise, and this one went on being displayed for ten versions after the thing that would have honoured it was switched off. See KNOWN_LIMITATIONS.md → Links.
+- The `NAV_PAGES` entry has `linksDesignerOnly: true`, and `initNavPanel({ isLinksDesigner })` drops
+  the pill for anyone else. Every coordinator derives `isLinksDesigner` from `CONFIG.LINKS_DESIGNERS`;
+  `links-app.js` passes `true`, because its page gate (`requirePage(…, 'links')`, `auth-policy.js`)
+  has already decided — signed out gets the shared in-place sign-in, and a signed-in non-designer is
+  sent to `admin.html`.
+- **Granting access takes three steps, or the new designer can open the page and save nothing.**
+  (1) Add the name to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` — that decides what the nav and the
+  page gate show, and nothing else. (2) Run `npm run generate:roster-members` in the same commit: the
+  `linksDesigner` CLAIM comes from the server-owned `functions/roster-members.json`, and
+  `sw-asset-check.test.mjs` fails if the two drift. (3) After the deploy, run **Operations → Set up
+  accounts**, which is what mints the claim. Until then every save permission-denies: `writeWithClaimRetry`
+  refreshes the token, and a refresh cannot invent a claim the server never set.
+- **Server side, the real control:** `linkDesigns` writes need the `linksDesigner` or `admin` claim.
+  Reads need a bound member identity or the admin (`isMember()`) — a session that has really signed in
+  as a member, never merely `request.auth != null`, which an anonymous session satisfies. Reads are
+  deliberately NOT gated on `linksDesigner`: a designer whose token predates the claim has to be able
+  to LOAD the page for the write self-heal to get its chance. `linkTargetSets` reads the same way.
 
-## The beta marker — REMOVED v19.50
+## Deletion — a permanent bin
 
-The header carried a gold-OUTLINE `.beta-chip` ("Beta") beside the "🔗 Links" `.badge-page` from
-v12.33, with a finite `beta-sheen` sweep (v18.31). Owner decision, Aug 2026: the workspace is the
-tool the December 2026 proposals will actually be built in, so it is no longer being announced as a
-sketch. The chip, its keyframes and the reduced-motion override are gone; `.header-end` stays, since
-it is the flex wrapper the page badge lives in.
+- **Delete is a soft delete.** *Delete this design* writes `deletedAt`/`deletedBy` as a MERGE — a
+  replace would push the deleting device's copy of `patterns` over the server's — and the design moves
+  to **🗑 Recently deleted**. Restore clears both fields with `deleteField()`, bumps the revision and
+  stamps `updatedAt`, so a restored design counts as saved now for every date rule below. The decisions
+  are pure in `links-deletion.js`; the Firestore calls are `links-design-store.js`; the panel is
+  `links-design-library.js`.
+- **The bin is PERMANENT** (owner, 19 Sep 2026). Nothing expires a design, and the expiry machinery was
+  deleted rather than left dormant; `links-deletion.js`'s header has the argument. **A countdown in copy
+  is a promise**: show none. If expiry is ever wanted, it is a scheduled Cloud Function reading SERVER
+  time, never a client clock (KNOWN_LIMITATIONS.md → Links).
+- **`isDeleted` tests for the KEY, not a usable timestamp.** An unresolved `deletedAt` — what
+  `serverTimestamp()` reads back as on the writing device — still counts as deleted, or the design
+  sits in the picker on the device that just binned it.
+- **The last live design cannot be deleted** (`canSoftDelete`), and Delete is disabled on an unsaved
+  design.
+- **A save against a design someone else deleted does not resurrect it.** The store reports
+  `deleted-elsewhere` and `saveChanges` offers "Save mine as new" — an overwrite would undo a
+  colleague's delete without either of them seeing it.
+- **"Remove for good" re-reads the server inside a TRANSACTION** (the store's `purge`), so a design a
+  colleague restored since the bin was opened is spared, and the bin says so and refreshes rather than
+  offering a retry. `firestore.rules` also requires `deletedAt` for a hard delete, so a client with that
+  bug can only fail.
 
-## Orientation panel (a first-visit notice until v22.59)
+## The page
 
-`#linksWelcomeLb` — `createLightbox`, gated on `myb_links_welcome_seen`, **and no longer expiring**
-(v22.59, external review). It replaced the v12.33 beta notice, whose lead
-paragraph — "this is an early beta… the finished version will look quite different" — described a
-page that stopped existing at v19.50. Only the paragraph that was still true survived; it now sits
-with two more, chosen for what a first-time visitor could otherwise get **wrong**:
+### No beta marker (owner decision)
 
-1. Changes affect the link-design document only, never the live roster. Desktop or tablet.
-2. The Design checks report which ORR fatigue factors a pattern **features** — they do not pass or
-   fail a design and nothing here approves one. (The panel says this too; a designer who reads only
-   the first screen should still not be able to mistake a clean panel for an approval.)
-3. Designs are shared, and a deleted one stays in the bin until someone removes it (v19.86 — it used to promise 30 days; the row labels stopped promising it at v19.96).
+Owner decision, Aug 2026: the workspace is the tool the December 2026 proposals are built and judged
+in, not a sketch, so it carries no beta marker. `.header-end` stays — it is the flex wrapper the page
+badge lives in.
 
-**It took a NEW storage key.** Reusing `myb_links_beta_seen` would have meant every current designer
-— all three of whom closed the beta notice months ago — never saw the replacement, which is the whole
-point of bringing it back. The e2e specs seed the new key; the old one is left on devices as an inert
-flag.
+### The orientation panel
 
-**Know what expiry does before setting one — and this panel is why.** `isNoticeExpired` marks the
-notice seen *without showing it*, so from 16 Aug 2026 this lightbox was dead code on any device that
-had not already opened the page: a designer given Links access in September met a complex
-professional tool with none of the three facts above. That is correct for an ANNOUNCEMENT and wrong
-for ORIENTATION, and this one was both at once.
+`#linksWelcomeLb` (`createLightbox`) holds the three things a newcomer cannot work out from the
+screen: changes affect the link-design document only, never the live roster (best on a desktop or
+tablet); the Design checks report which ORR fatigue factors a pattern features, and approve nothing;
+designs are shared, and a deleted one stays in Recently deleted until someone removes it for good.
+The reasoning is the comment above its block in `links-app.js`.
 
-**The two are now split (v22.59).** The announcement is over and is archived once, on the first
-close. The orientation does not expire until that device has actually seen it, and `#linksHowBtn`
-reopens it for ever — which also stops it being a pop-up nobody can get back to.
+- **It opens on a device's first visit and never expires.** `isNoticeExpired` marks a notice seen
+  without showing it — right for an announcement, wrong for orientation, whose audience is whoever
+  arrives next. **Do not add an expiry.** It is gated on `myb_links_welcome_seen` (the older beta key is
+  left on devices as an inert flag), and the announcement half is archived once, on the first close.
+  A first-visit open goes through `openNoticeIfClear`.
+- **`#linksHowBtn` reopens it, as a row in the About panel** beside 🔧 Operations and 🐛 Report a bug,
+  sharing their class. It is not a control of its own: as one it read as foreign wherever it was tried,
+  because no other page has a standalone help control. The header is no place for it either: its title
+  takes whatever the burger and the page badge leave and ellipses at phone width, so a control there
+  would come out of the title (`css-tokens.md` → "The sub-page header is a flex row").
+- **It closes the About panel before opening.** Two overlays open together share one Escape, and the
+  buried one is archived and flagged seen by someone who never read it.
 
-**That control is a ROW IN THE ABOUT PANEL (v22.83), not a control of its own on the page.** It was
-tried as one three times — in `.header-end`, above the header, then below it — and read as foreign
-every time, because no other page in this app has a standalone help control. The About panel already
-holds a page's own links (🔧 Operations, 🐛 Report a bug); this is a third row beside them, sharing
-their class, so it cannot look out of place. It CLOSES the About panel before opening the
-orientation lightbox — two overlays open together share one Escape, and the buried one is archived
-and flagged seen by somebody who never read it.
+### Every way of losing unsaved work asks first
 
-The header remains ruled out on measurement, not taste: `.app-header` is `1fr auto 1fr`, so its two
-side columns are equal and every pixel a control adds to one is charged twice — the `.header-end`
-version took the header's min-content past a 390px viewport, stretched the cards past their own
-container and left the grid card's collapse chevron 21px of reachable tap target.
+While `dirty`, each of these asks before it acts: New blank design; switching design, opening a
+proposal included; Import; Delete; Save a copy as…; Build the link (Generate) over a drawn design or an
+edited proposal; Keep only the shortlist; leaving by a drawer link, the logo or the About panel's
+Operations link (`beforeunload` covers the rest, where the browser shows it); signing out
+(`askBeforeSignOut`, which also warns while a write may still be on its way); and reloading for an app
+update. **A new path that replaces or discards the working copy joins this list, with its question.**
+Anything that ends in `_activateDesign` is such a path.
 
-Do not re-add an expiry here: the audience for these facts is whoever arrives next, and there is no
-date after which a newcomer stops needing them.
+**Save a copy as… is worded differently, on purpose.** The copy is taken from the LIVE patterns, so
+unsaved work goes INTO it and the original reverts to its last save; "changes will be lost" would warn
+about the wrong outcome. The surprise to head off is the opposite one — duplicating to snapshot the
+work and carrying on in the ORIGINAL. An e2e pins both halves, including that the lossy sentence is
+not used. An answered question does not get the browser's own "Leave site?" as well.
 
-## Six paths can lose the working copy, and all six now ask (v22.62; import Sep 2026)
+### The workspace is used on a PHONE as well as a desktop (owner, Sep 2026)
 
-New design, switching design, signing out, delete (v22.58), **duplicate** (v22.62) and **import**
-(Sep 2026 review). Duplicate was silent until v22.62 and import until the Sep 2026 review, for the
-same reason: each ends with `_activateDesign(d)`, which is exactly the moment the others protect —
-duplicate moved the designer to the copy while the original quietly went back to its last save, and
-import replaced the working copy outright. Import asks with the others' "will be lost" wording,
-because for import that is the truth; duplicate's wording is the exception, below. A sign-out that
-was answered clears `dirty`, so the browser's own "Leave site?" does not ask a second time.
+A grid of every line by seven days, a generator with a slot table and two designs in compare mode all
+read as desktop work. They are also done on a phone, so a change is not finished when it looks right
+at 1280.
 
-**Its wording is deliberately not the others'.** The copy is taken from the LIVE patterns, so the
-unsaved work is carried INTO it rather than lost; borrowing "changes will be lost" would frighten the
-reader about the wrong outcome. The surprise it has to head off is the opposite one — duplicating to
-snapshot the work and carry on in the ORIGINAL. Both halves are pinned by an e2e, including that the
-lossy sentence is NOT used.
+- **The paint chips are the primary control**, and on a coarse pointer they are `min-height: 30px` —
+  gated on the POINTER, not the width (`css-tokens.md`).
+- **A guard that walks every page has to reach each page's real working state.** The tap-target gate
+  (`no control has a tap target under 24px`, `e2e/pages.spec.js`) seeds a design: Links with none
+  renders the empty state, with no grid and no chips, and once passed by having nothing to measure.
+- The page does not scroll sideways at 390px in any state, and compare mode stacks its two grids,
+  each scrolling inside its own wrapper.
+- **Accepted phone constraints** (KNOWN_LIMITATIONS.md → Links): below 768px the grid and the
+  generator table lose their sticky headers (Sticky headers, below), and the sticky save row and the
+  brush bar take a large share of the screen. Two further trims were costed and refused: hiding
+  `.links-save-meta` below 1024px — who last saved a SHARED design, and when, is exactly what you want
+  while editing on a phone — and shortening "staffed hours with no cover", which this file forbids
+  softening.
+- **Do not design against the iPhone SE** (owner, Sep 2026): no designer has a device that narrow, so a
+  320px column in any measurement here is hypothetical.
 
-## The workspace is used on a PHONE as well as a desktop (owner, Sep 2026)
+## Design and save model
 
-Stated because the page does not look like it: a grid of every line by seven days, a generator with a slot table, and
-two designs side by side in compare mode all read as desktop work. They are also done on a phone,
-so a change here is not finished when it looks right at 1280.
+### Card order
 
-What that has already cost, both found by measuring rather than reading:
+Grid (the primary object) → Auto-generator (collapsed by default) → Coverage (the hourly heat map) →
+Design checks. The generator sits under the grid because it is the main way to make a new design; New
+blank design, Import and Save a copy as… are the others, and the shortlisted proposals are built in.
 
-- **The paint chips were 20-22px tall** (fixed v22.61). RD 30x22, SP 27x20, Custom 53x22 at 390px —
-  under the 24px floor, and they are the PRIMARY control on the page: you arm a chip and paint the
-  grid with it, which on a phone is the whole interaction. Now `min-height: 30px` under
-  `@media (pointer: coarse)`, gated on the POINTER and not the width, per `css-tokens.md`.
-- **The tap-target gate could not see them.** `no control has a tap target under 24px` loaded each
-  page with a session and nothing else, and links.html with no design renders the EMPTY state — no
-  grid, no brush bar, no chips. The page passed by having none of its own controls on screen. It
-  now seeds a design. **A guard that walks every page has to reach each page's real working state**,
-  or "no page has a small target" means "no page I could see".
+### Firestore model
 
-Two measurements worth keeping, both fine as they stand: the page does not scroll sideways at 390px
-in any state, and compare mode stacks its two grids vertically (each scrolling horizontally inside
-its own wrapper) rather than trying to sit them side by side.
+`linkDesigns` is a collection of named design documents `{ name, patterns, window, revision,
+updatedAt, updatedBy }`, plus `deletedAt`/`deletedBy` while binned, with auto-ids.
 
-## Design and save model (v12.09, redesigned v12.39–v12.43, multi-design v12.46–v12.47)
+- **`docPayload` emits the five content keys; the store adds `revision`, the soft delete adds
+  `deletedAt`/`deletedBy`, and every key must be in the rules' `hasOnly` list.** An extra key does not
+  warn: every save permission-denies on every device until the rules catch up, and hosting and rules
+  ship from one push through separate workflows with no ordering guarantee — so rules go first.
+- **The legacy singleton `linkDesigns/combined-28`** (`LEGACY_DOC_ID`, no `name`) migrates to a named
+  design only in a collection that has never held a design, live OR binned. It is never deleted, so
+  that gate is all that keeps the migration one-time: never write to it, and never loosen the gate to
+  "no live design", which re-migrates it every time the bin holds everything.
 
-### Card order (v12.46)
-Grid (primary object) → Auto-generator (collapsed by default) → Coverage (hourly heat map) → Design checks. The generator sits directly beneath the grid because it is the main way to create a new design (New blank design, Import and Save a copy as… are the others, and the shortlisted proposals open built in).
+**Every doc ↔ object conversion is `links-design-doc.js`**, because a field left out at one site is not
+an error — it is a design that quietly loses something. Its three rules:
 
-### Firestore model (multi-design, v12.46)
-`linkDesigns` is a **collection** of named design documents `{ name, patterns, window, revision, updatedAt, updatedBy }` — plus `deletedAt`/`deletedBy` while binned — with auto-IDs. The legacy singleton `linkDesigns/combined-28` (no `name` field) is auto-migrated to a named design ("Design 1") only in a collection that has never held a design, live OR binned (Oct 2026 — the gate used to be "no live design", which the 26-line binning made true again, re-migrating it on every open). It is never deleted, so the gate is all that keeps the migration one-time — never write to it.
+- **Every shape carries `window`.** The heat map measures gaps against it, so a design that loses it is
+  assessed against a span nobody chose.
+- **Everything arriving FROM Firestore is canonicalised (`normalisePatterns`); nothing already in memory
+  is re-normalised.** The asymmetry is deliberate.
+- **The working copy DEEP copies its patterns.** The grid writes `patterns[pos][day]`, so a shallow copy
+  would let an edit mutate the `designs[]` entry the concurrency baseline is compared against. It
+  carries no `updatedAt`/`updatedBy` either: those describe the SAVED document.
 
-**Every doc ↔ object conversion is `links-design-doc.js`** (v19.94). Eleven sites in the coordinator
-built these by hand in four shapes, two of them near-identical copies of the same write payload, and
-a field left out of one site is not an error — it is a design that quietly loses something. That has
-happened twice:
+### The masthead and the picker
 
-- **v19.55** — the bin kept `patterns` but not `window`, so a restore handed back a design wearing
-  the app default and the next save wrote that default over the moved boundary it was built to. The
-  proposal still looked fine; it was simply no longer the proposal.
-- **v19.94, found by this extraction** — the `combined-28` migration was the ONLY read path that
-  skipped `normalisePatterns`, into memory *and* into the new document, so an unpadded
-  `"6:00-14:00"` was persisted uncanonicalised: counted in the day totals while `startMinutes`
-  returned null, i.e. invisible in the heat map and exempt from every turnaround check, for good. Of
-  every document in the collection that is the one **guaranteed** to be legacy, and it was the one
-  that skipped the legacy handling. It also wrote no `window`. It survived because it is gated on
-  `named.length === 0` — it runs once, for one document, on a visit nobody watches.
+`links-design-header.js`. Its header holds the four rules an edit can break: the picker is a sheet of
+buttons, not a `<select>`; designs are grouped by LAST SAVER, your own first, newest first; an unsaved
+design has no name until its first save; and the list is rebuilt only when its content changes.
 
-Three rules the module exists to hold:
+- The heading-sized face is a button that opens the picker sheet: **Shortlisted proposals** first, then
+  **Last saved by you**, then **Last saved by …** for each colleague. The labels say "last saved by",
+  not "owned by", because a design moves group when a colleague saves it. The open design is tinted
+  and ticked.
+- **Both sheets (the picker and ··· More) are `createLightbox` dialogs of plain buttons; do not
+  hand-roll either lifecycle.**
+- Beside the face: the initials badge and "Last saved by", the status pill (`statusCopy`), ONE primary
+  Save, and **··· More** — Save a copy as…, Rename, Compare with…, New blank design, Import from a
+  spreadsheet, Keep only the shortlist (the admin's, while an older design exists), Recently deleted
+  (only when the bin holds something) and Delete this design (disabled on an unsaved design and on the
+  last live one). Rename also has its own ✎ beside the face.
+- **A design fresh from the generator has NO NAME until its first save**: the face reads "Untitled
+  design" and the button "Save as…", whose prompt pre-fills `proposeNewDesignName`. `saveButtonLabel`
+  owns the button's words; do not write them at the call sites.
+- The open design or proposal persists via `lsGet('myb_links_active_design')`.
+- Compare-with still uses chips (`#compareChips`) — a `<div>` wrapping separate `<button>`s. **Buttons
+  must not nest.**
 
-- **Every shape carries `window`.** It is what the heat map measures gaps against, so a design that
-  loses it is assessed against a span nobody chose.
-- **Everything arriving FROM Firestore is canonicalised; nothing already in memory is re-normalised.**
-  The asymmetry is deliberate and is why this was a design job rather than a sweep.
-- **The working copy DEEP copies its patterns.** The grid writes `patterns[pos][day]`, so a shallow
-  copy would let an edit mutate the `designs[]` entry the concurrency baseline is compared against.
+### Compare mode
 
-`docPayload` emits the five content keys; the store adds `revision`, the soft delete adds `deletedAt`/`deletedBy`, and every
-key must be in the rules' `hasOnly` list (eight). An extra key does not warn — every
-save permission-denies, on every device, until the rules catch up, and hosting and rules ship from
-the same push through separate workflows with no ordering guarantee.
+**The strip above the grids does the comparison; the grids evidence it.** It states how many cells
+differ and **across how many lines** — eighteen cells on one line and eighteen across six are
+different proposals — then the figures a choice turns on: hours a week excluding Sunday, full weekends
+off, rest under 12 hours, and ORR factors present. Each comes from the same pure function the
+single-design panels call, so the two views cannot report one design two ways, and **it scores
+nothing** — `A → B`, and the reader decides.
 
-**The design MASTHEAD switches designs (v23.30; the picker became a SHEET at v23.32 — `links-design-header.js`).** The heading-sized face is a button; pressing it opens a picker sheet of rows, grouped **Last saved by you · Last saved by S. Silva · …**, newest save first within a group, each row naming the design and when it was last saved, with the open one tinted and ticked. It was a native `<select>` under the face until v23.32, and the reason that changed — Android draws a select's popup itself, so the app's design vanished at the moment of choosing and long names wrapped to three lines — is rule 1 in the module header. **Both sheets are `createLightbox` dialogs of plain buttons; do not hand-roll either lifecycle.** Beside it: the initials badge and "Last saved by", a coloured status dot (green saved · amber unsaved · gold not-saved-yet), ONE primary Save, and **··· More**, which holds Save a copy as… (the old Duplicate), Rename, Compare with…, New blank design, Import, Recently deleted (only when the bin has something), Keep only the shortlist (the admin's, while an older design exists — v25.09) and Delete (disabled on the last design). The sticky save row keeps a second Save so a designer deep in the grid never scrolls to save; both buttons share one label and one state. **A design fresh from the generator has NO NAME until its first save** — the button reads "Save as…" and the save prompt pre-fills `proposeNewDesignName`; "Design 1" is gone. The four rules an edit can break are in the module header. The active design id persists via `lsGet('myb_links_active_design')`. Compare-with still uses chips (`#compareChips`) — `<div>` wrapping separate `<button>`s, **buttons must not nest**.
-
-### Compare mode (v12.46; a difference SUMMARY added v22.60)
-
-**The strip above the grids does the comparison; the grids evidence it.** Two grids with gold-outlined
-diff cells is a PICTURE of the difference — reading it means holding every cell in your head. The
-strip states how many cells differ and **across how many lines** (18 on one line and 18 across six
-are different proposals, and no amount of scanning tells you which), then the four figures a choice
-actually turns on: hours a week excluding Sunday, full weekends off, transitions under 12 hours, and
-ORR factors present. Every one comes from the same pure function the single-design panels call, so
-the two views cannot report a design differently four seconds apart, and **it scores nothing** —
-`A → B`, and the reader decides.
-
-**An UNCHANGED figure still renders, muted.** Showing only what moved would leave the reader unable
-to tell "identical" from "not measured", which is this app's most repeated defect class.
-
-**Under the strip, what the difference MEANS** (v24.25 — `links-compare-analysis.js`, rendered by
-`renderAnalysis`). Three groups for both designs: **against the service** (hours with trains and
-nobody on, each design read against its OWN window, and people on at each day's busiest hour by
-train length), **hard limits**, and **fatigue factors** (the ones whose finding changes with both
-readings; the ones that only moved a figure behind a disclosure; the ones present in BOTH named; the
-rest counted). Every figure is the single-design card's own function called the same way, and
-nothing is scored. It is the gap the plan recorded as deferred until real proposals existed.
-Three things it must not state more strongly than the Design checks card does, each found by review
-before it shipped: the **weekday** busiest-hour row is the FEWEST on duty on any of Mon–Fri, naming the
-day (reading Monday for all five showed a bare Friday as staffed); every moved factor carries its
-**threshold** and its **"definition to confirm"** flag, and a floor note when hours are a floor; and
-the limit heading is `LIMIT_CLAIM`, derived from `POLICY_SOURCE_CONFIRMED`, never typed. A window edit
-made in compare mode re-renders it.
-
-**The compare cells are `<span>`, not `<button>`** (v22.60). They cannot be operated —
-`.links-grid--compare` sets `pointer-events: none` and each carried `tabindex="-1"` — so as buttons
-they announced hundreds of controls to a screen reader that do nothing when reached. The class stays
-(it carries the shift colouring); the element does not.
-
-With ≥2 designs, shows two read-only grids side-by-side (≥1024px) or stacked, with a gold-outline diff on differing cells. Each compare column keeps `overflow-x:auto` even on desktop. The main grid stays **rendered** in compare mode — hidden on screen only (`body.links-compare-on` + `@media screen`) so print always outputs the active design. A print-only `#printDesignName` label names the printed sheet.
+- **An UNCHANGED figure still renders, muted.** Showing only what moved would leave "identical"
+  indistinguishable from "not measured", this app's most repeated defect.
+- **"Show only the lines that differ" hides rows and changes no figure.** While it is on, the strip says
+  that every figure still covers the whole design.
+- **Under the strip, what the difference MEANS** (`compareDesigns` in `links-compare-analysis.js`,
+  rendered by `renderAnalysis`): against the service (hours with trains and nobody on, each design read
+  against its OWN window, and people on at each day's busiest hour), the hard limits, and the fatigue
+  factors (the findings that change; the ones whose figure moved; the ones present in both, named; the
+  rest counted). Nothing is scored, and nothing may be stated more strongly than the Design checks card
+  states it: the **weekday** busiest-hour row is the FEWEST on duty across Mon–Fri, naming the day; a
+  moved factor carries its threshold, its "(definition to confirm)" flag and a floor note where hours
+  are a floor; and the limit heading is `LIMIT_CLAIM`, derived from `POLICY_SOURCE_CONFIRMED`, never
+  typed. A window edit made in compare mode re-renders it.
+- **The compare cells are `<span>`, not `<button>`.** They cannot be operated (`.links-grid--compare`
+  sets `pointer-events: none`), and as buttons they announced hundreds of dead controls to a screen
+  reader. The class stays; it carries the shift colouring.
+- **Both windows are always stated** — compare diffs cells, not windows (The staffed operating window,
+  below).
+- With two or more designs: two read-only grids side by side from 1024px and stacked below, gold
+  outlines on differing cells, and the two columns kept on the same day as either scrolls. Each column
+  keeps `overflow-x: auto`. The main grid stays **rendered** in compare mode, hidden on screen only
+  (`body.links-compare-on` inside `@media screen`), so print always outputs the active design;
+  `#printDesignName` names the sheet.
 
 ### patterns data shape
-`patterns` is `{ "1"–"<ROTATING_LINES>": { sun, mon, tue, wed, thu, fri, sat } }` (each value a shift string, `"SPARE"`, or `"RD"`). **Position keys:** always `String(pos)`, never `Number`.
 
-Staff names were removed at v12.39 — the design is patterns-only ("Line 1", "Line 2"…); who goes on which line is decided after patterns are agreed. Legacy `meta` in old docs is ignored on load and dropped on next save.
+`patterns` is `{ "1"…"<ROTATING_LINES>": { sun, mon, tue, wed, thu, fri, sat } }`, each value a shift
+string, `"SPARE"` or `"RD"`. **Position keys are always `String(pos)`, never `Number`.**
 
-### Pure-maths module
-All design maths live in `links-design.js` (no DOM, no Firebase; tested by `links-design.test.mjs`). `links-app.js` imports them; **do not duplicate them back into the app file.**
+Designs are patterns only ("Line 1", "Line 2"…): who works which line is decided after the patterns are
+agreed. A legacy `meta` field is ignored on load and dropped on the next save.
 
-**The export list lives in `AI_MAP.md`, not here.** This paragraph used to carry its own copy and it had gone stale — missing `worstCaseWorkedRun`, `SPARE_WORKED_DAYS`, `canonicaliseShift`, `normalisePatterns` and `ROTATING_LINES`, all of which are load-bearing and several of which have their own rules further down this file. CLAUDE.md names AI_MAP as the authoritative export list; a second copy in a second file is a list nobody updates and everybody half-trusts.
+### The design maths
+
+All design maths live in `links-design.js` — no DOM, no Firebase and **no imports at all**, not even
+`roster-data.js`, so it loads anywhere. That is why `classifyShift`'s Early/Late/Night boundaries are
+literals, tied to CONFIG by a parity test in `links-design.test.mjs`. `links-app.js` imports the maths;
+**do not duplicate any of it back into the coordinator.** The export list is `AI_MAP.md`'s, not this
+file's.
 
 ### Save and dirty flag
-Single dirty flag + `saveChanges()`, reached from TWO buttons (`#linksSaveBtnTop` in the masthead, `#linksSaveBtn` in the sticky row) whose label and state the masthead renders. Grid clicks are **delegated** on `#linksGridBodyRows` — do NOT call `renderGrid()` from inside `saveChanges()`.
 
-**Unsaved-changes guard:** `beforeunload` + the shared `confirmDialog` (async) on sign-out, logo navigation, and a capture-phase click guard on nav-drawer links (mobile browsers suppress `beforeunload` dialogs). Because the dialog is async, the click guard calls `preventDefault()` first and navigates itself on confirm.
+One `dirty` flag and one `saveChanges()`, reached from TWO buttons — `#linksSaveBtnTop` in the
+masthead and `#linksSaveBtn` in the sticky row — which share one label and one state, so a designer
+deep in the grid never scrolls to save. Grid clicks are **delegated** on `#linksGridBodyRows`; do NOT
+call `renderGrid()` from inside `saveChanges()`.
 
-### Aesthetic conventions (v19.43 polish pass)
+**Leaving with unsaved work:** `beforeunload` (`warnOnUnload`), plus the shared async `confirmDialog`
+on sign-out, the header logo and the About panel's Operations link, and a capture-phase click guard on
+the drawer's links — mobile browsers suppress `beforeunload` dialogs. The dialog is async, so the guard
+calls `preventDefault()` first and navigates itself on confirm.
 
-- **A brush chip shows BOTH times, on two lines, exactly like the grid cell it paints.** It showed the start only until v19.43, and the roster has five distinct shifts starting 06:20, three starting 08:00 and so on — so the bar rendered as seven pairs of visually identical chips that paint different shifts, with the start time in `title` and `aria-label` too. Nothing anywhere disambiguated them. Do not "tidy" this back to a single time.
-- **The masthead is always visible**, even with no designs: the empty state points at the ··· More sheet, where New blank design and Recently deleted live.
-- **`.design-chips` (now only the compare-with picker) uses `min-width: min-content`, not `0`.** `0` lets a flex item shrink below its own contents, and the chips are `nowrap`.
-- **Overlay panels take their surface from an id rule or a modifier class** — `.lb-content` alone is only transform/scroll/cursor. The Recently-deleted panel shipped at v19.41 with the bare class and rendered as a transparent box (heading and prose in navy on the dimmed backdrop). It now joins the compact-dialog family, and `e2e/visual.spec.js` has a baseline for it, because behaviour tests cannot see this.
-- **Row actions reuse `.dialog-btn` + `.dialog-btn-confirm`/`-cancel`** from shared.css rather than a page-local recipe — that brings the 44px touch target and press feedback with them.
-- **The Design checks card is a 30-row list, so it needs structure, not just rows** (v19.49). Three things carry it, and each replaced something that read as noise: `.check-section-head` gains a **hairline rule** and its **headline counts** at the far end (`3 present · 2 standing · 3 to confirm`) — a small uppercase label alone was not enough weight to break a ribbon of same-height rows, and the reader should not have to tally 24 icons to get the summary; `.check-code` is a **fixed-width tag** so the FF numbers align down the left edge (they were `.check-note`, the faintest thing in the row, running inline with the title and vanishing into wrapped prose on mobile — cross-referencing the ORR's own p3 list is the panel's whole job); and `.check-family` names the ORR's **families**, without which the code column read as shuffled. The factors are also ordered by number **within** each family. Counts keep `present` and `standing` separate — an unavoidable characteristic of the operation is not a finding about the design, and one combined total would say it was.
-- **The Design-checks card carries a three-part rhythm, and each part has been broken once**
-  (v20.00 pass). `.check-code` is a **fixed `width`, never `min-width`** — 44px aligned the tags'
-  own left edges while `MRSF` and `FF8b` overflowed it, so the TITLES after them wandered over 20px
-  (measured 221–241px at 1440) down a 30-row list. A fixed width buys alignment at the cost of a
-  ceiling that CSS does not enforce, so `links-analysis.test.mjs` asserts no rendered code exceeds
-  it *and* that the declaration is still `width`. And the "nothing to report" disclosure's body
-  carries a **left rule**: the panel groups by ORR family then splits by status, so three families —
-  Time of day, Recovery time, Cumulative — legitimately render a heading twice, and without a
-  nesting cue the second set reads as a repeat rather than a continuation. The print block resets
-  both the rule and the indent, because print flattens the disclosure entirely.
-- **The sticky summary strip names its design in compare mode, and only there** (v20.00). Every
-  figure in it comes from the ACTIVE design; with two grids on screen an unlabelled
-  "N lines designed · All service covered · N fatigue factors" reads as a verdict on the
-  comparison. `initLinksAnalysis` takes an `isComparing` thunk (the coordinator forwards
-  `compare.isCompareMode()`), and a neutral `.sum-chip--who` leads the row. It carries **no status
-  tint** deliberately — a fourth coloured chip would read as a fourth finding. Naming the design was
-  chosen over hiding the strip: a designer comparing options still wants live analysis of the one
-  they are editing.
-- **Accepted, not fixed, and now MEASURED rather than assumed (v22.75):** each compare column keeps `overflow-x: auto` with no scroll affordance, so at 1280px both grids clip mid-column with nothing indicating they scroll. That is an inconsistency on its face — `.links-grid-wrapper` and `.gen-slot-table-wrap` both carry the standard `local`/`scroll` gradient cue for exactly this — so the stated reason was tested before being inherited again. **It holds, for a reason the note did not give:** the compare cells are TRANSPARENT (`.shift-cell` computes `rgba(0,0,0,0)` and a diff cell's own button only `… / 0.16`), so a wrapper-background fade is not painted harmlessly beneath them — it shows THROUGH them and tints the last 24px of every column, gold diff outlines included. The first cut of this reasoning was that a wrapper background sits under opaque cells and therefore cannot fight anything; it was wrong, and only measuring the computed backgrounds said so. The alternative is still a narrower cell, which hurts the primary (single-design) view. Revisit only with a real complaint.
+**An app update waits** (`beforeReload` in `links-app.js`): while a write's outcome is unknown it is
+held outright, and with unsaved changes it asks first (AUTH_AND_SESSIONS 22).
 
-### Paint mode (v12.39)
-A brush chip bar above the grid (`#brushBar`) — clicking a chip arms that shift; clicking grid cells then applies it directly (no dropdown); clicking the armed chip again or pressing Escape disarms. With no brush armed, a cell click opens the dropdown as before. `.shift-cell-btn` and `.brush-chip` set `touch-action: manipulation` — paint mode is rapid tapping, which otherwise triggers double-tap zoom on iOS/Android.
+### Aesthetic conventions
 
-**The chips are the times THIS DESIGN is made of (v21.14).** They were built from the ROSTER's shift times from v12.09, which was right while a new design started from the roster seed. From v21.00 a new design starts from the DESIGNED default instead, and four retunes walked the two lists apart one release at a time. Measured on the shipped default at v21.13: **18 chips, 19 times in the design, overlap ZERO** — every chip painted a shift the design does not contain, and not one of its own times could be painted, on a bar the card header calls the way to "fill cells quickly". Nothing failed, because a bar full of plausible chips is indistinguishable from a bar that works.
+- **A brush chip shows BOTH times, on two lines, exactly like the grid cell it paints.** Several shifts
+  share a start time, so start-only chips are pairs of identical chips that paint different shifts. Do
+  not "tidy" this back to one time. A chip's accessible name is `cellName`'s — what it shows, then what
+  it stands for.
+- **The masthead is always visible**, even with no designs: the empty state points at the ··· More
+  sheet, where New blank design and Recently deleted live.
+- **`.design-chips` (now only the compare-with picker) uses `min-width: min-content`, not `0`** — `0`
+  lets a flex item shrink below its own `nowrap` contents.
+- **An overlay panel takes its surface from an id rule or a modifier class.** `.lb-content` alone is
+  only transform, scroll and cursor, and a panel with the bare class renders as a transparent box. The
+  Recently deleted panel has a visual baseline because behaviour tests cannot see this.
+- **Row actions reuse `.dialog-btn` + `.dialog-btn-confirm`/`-cancel`** from shared.css, which brings
+  the 44px target and the press feedback with them.
+- **The Design checks card is a long list, so it needs structure, not just rows.** `.check-section-head`
+  carries a hairline rule and the section's headline counts at the far end
+  (`N present · N standing · N to confirm · N clear`), so nobody has to tally icons; `.check-code` is a
+  fixed-width tag, so the FF codes align down the left edge for cross-referencing the ORR's own list;
+  and `.check-family` names the ORR's families, with the factors in number order within each. The
+  counts keep `present` and `standing` apart — an unavoidable characteristic of the operation is not a
+  finding about the design.
+- **`.check-code` is a fixed `width`, never `min-width`.** A minimum let a wider code push its title out
+  of line. CSS cannot stop a code outgrowing the width, so `links-analysis.test.mjs` asserts that none
+  does, and that the declaration is still `width`.
+- **The "nothing to report" disclosure's body carries a left rule.** The panel groups by family and then
+  splits by status, so a family can render its heading twice, and without a nesting cue the second
+  reads as a repeat. The print block resets the rule and the indent, because print flattens the
+  disclosure.
+- **The status is carried on the LEFT EDGE** — a 3px edge in the full-strength token — as well as by the
+  faint fill, which alone left rows readable only by their glyph. It changes no semantics: a fatigue
+  factor that is present wears amber, never the red edge.
+- **The sticky summary strip names its design in compare mode, and only there.** Every figure comes
+  from the ACTIVE design, and with two grids on screen an unlabelled strip reads as a verdict on the
+  comparison. `initLinksAnalysis` takes an `isComparing` thunk, and the neutral `.sum-chip--who`
+  carries **no status tint** — a coloured chip would read as one more finding. Naming the design was
+  chosen over hiding the strip: a designer comparing options still wants live analysis of the one they
+  are editing.
+- **Accepted, not fixed: compare columns scroll with no right-edge cue.** The grid wrapper and the
+  generator table carry the `local`/`scroll` gradient cue on a phone; a compare column cannot, because
+  its cells are TRANSPARENT, so a wrapper fade would show THROUGH them and tint the end of every column,
+  gold outlines included. That was measured from the computed backgrounds, not assumed. The
+  alternative is a narrower cell, which hurts the single-design view. Revisit only with a real
+  complaint.
 
-Deriving them from the design fixes it by construction and keeps fixing it: an imported proposal paints in its own times, a roster-seeded design in the roster's, an untouched one in the default's. It also answers the vertical-space objection the old code raised for keeping the list short — 19 chips against 18 is not a taller page. Two consequences worth knowing: the armed brush is unioned in so a chip cannot vanish mid-paint, and the bar re-renders after a paint only when its SIGNATURE changes, because `applyShift` fires once per cell during a drag. A design with one distinct time correctly gets a one-chip bar — `openLinks` in the e2e suite had to gain a second time for the rapid-tapping benchmark, which is the fixture telling the truth rather than a defect. Pinned by `links: every paint chip is a shift the design actually contains`, asserted in BOTH directions and teeth-verified against the v21.13 code.
+### Paint mode
+
+A brush chip bar above the grid (`#brushBar`): clicking a chip arms that shift, and clicking cells then
+applies it directly; clicking the armed chip again, or Escape, disarms. With no brush armed, a cell
+click opens the app's own shift sheet over the cell (`openCellEdit` → `openOptionSheet`), never a
+native `<select>`. `.shift-cell-btn` and `.brush-chip` set `touch-action: manipulation`: painting is
+rapid tapping, which otherwise triggers double-tap zoom.
+
+**The chips are the times THIS DESIGN is made of** (`brushTimes`), never a fixed list. A fixed list
+painted shifts the design did not contain and could not paint the ones it did, and still looked as if
+it worked. An imported proposal paints in its own times and a roster-seeded design in the roster's.
+The armed brush is unioned in, so a chip cannot vanish mid-paint, and the bar re-renders after a paint
+only when its SIGNATURE changes, because `applyShift` fires once per cell during a drag. A design with
+one distinct time correctly gets a one-chip bar. Pinned by
+`links: every paint chip is a shift the design actually contains`, in both directions.
 
 ### Night shifts
-**CEAs do not work night shifts (confirmed by Gareth June 2026)** — night times are never offered in any dropdown or brush chip. `normaliseCustomShift()` rejects starts between 21:00 and 03:59 **and any wrapping (past-midnight) end**; do not re-add a Night option and do not relax either guard. `classifyShift`'s `night` return is defensive only (legacy/imported data).
 
-**A duty that does run past midnight is read in ONE place — `endMinutesAbs`** (v19.47). Before it, `calcHourlyCoverage` and `runDesignChecks` each carried their own inline expression and both erred the same way, towards *safer than the truth*: the heat map clamped the end to 24:00 and simply lost the post-midnight hours, and the turnaround check computed `(1440 − end) + start`, so a 00:30 finish before an 06:20 start reported ~26h of rest instead of 5h50 — the most dangerous turnaround the module can express, scored as compliant. The heat map now counts such a duty on **both** days (Sat spills round to Sun) and `links-fatigue.js`'s `dutyMinutes` delegates here. This is only reachable through legacy/imported data — the same route `canonicaliseShift` exists for — which is exactly why it is worth keeping correct: nothing exercises it, so nothing would tell you.
+- **CEAs do not work night shifts (confirmed by Gareth, June 2026).** No night time is offered in any
+  picker or brush chip. `normaliseCustomShift()` rejects a start between 21:00 and 03:59 **and any
+  wrapping (past-midnight) end**; do not re-add a Night option and do not relax either guard.
+  `classifyShift` returns `night` for anything it cannot read, and the grid footer shows that as an
+  `N:` count — a visible "something here is wrong" flag. Never map it to `rd`, which hides it.
+- **A duty that runs past midnight is read in ONE place, `endMinutesAbs`**, and `dutyMinutes` sits
+  beside it (`links-fatigue.js` re-exports it). The heat map counts such a duty on both days, Saturday
+  spilling round to Sunday. Only legacy or imported data can reach this, which is why it must stay
+  correct: nothing else exercises it.
+- **Shift lists:** `EARLY_SHIFTS`/`LATE_SHIFTS` are derived at load from the MAIN roster
+  (`weeklyRoster`) only — never a static list, and never the bilingual roster, whose times no line in
+  this design can work. The cell sheet's options (`EARLY_OPTIONS`/`LATE_OPTIONS`) add
+  `DEFAULT_SHIFT_TIMES`; the brush bar uses the design's own times. **Custom…** is validated by
+  `normaliseCustomShift()`.
 
-**Shift option lists:** `EARLY_SHIFTS` / `LATE_SHIFTS` derived from `weeklyRoster` only (the main roster, since v19.98) at module load — never a static list. The cell dropdowns (`EARLY_OPTIONS` / `LATE_OPTIONS`) add `DEFAULT_SHIFT_TIMES`; the brush bar uses the design's own times (v21.14, above). **Custom…** (shortened v22.10 — it clipped at 16px in the narrow phone column) validated by `normaliseCustomShift()`.
+### The staffed operating window
 
-### The staffed operating window (v19.54)
+Stored on each design as `window` (`{monSat,sun}:{start,end}`), defaulting to `DEFAULT_WINDOW`. The rules
+are the pure `links-window.js`; the coordinator owns only the editor on the Coverage card and the
+Firestore field. An edit marks the design dirty, because the window is part of the proposal.
 
-Stored on each design as `window` (`{monSat,sun}:{start,end}`), defaulting to Mon–Sat 06:20–23:55 ·
-Sun 07:15–23:25. All the rules are the pure `links-window.js`; the coordinator owns only the editor
-on the Coverage card and the Firestore field.
+**It exists so the heat map can see missing cover at the ends of the day.** Span and gaps come from the
+window, not from the first and last worked hour, which hid an unstaffed evening entirely. An hour
+outside it renders `heat-closed` (hatched, inert): a shut station is not a hole in the cover and must
+never look like one.
 
-**It exists because the heat map could not see missing cover at the ends of the day.** The span ran
-first-worked-hour → last-worked-hour and a gap had to fall strictly between them, so a design where
-everybody finishes at 14:20 — leaving the station unstaffed to the 23:55 close — showed **no gaps at
-all**. It now shows 71. Span and gaps both come from the window; an hour outside it renders
-`heat-closed` (hatched, inert) because a shut station is not a hole in the cover and must never look
-like one.
+- **Compare mode diffs CELLS, not windows.** Both column headers state the window, `windowsDiffer`
+  flags a mismatch, and the printed masthead states it too. Never render a comparison without them, or
+  a per-design window becomes a way to make an unfair comparison look fair.
+- **`normaliseWindow` falls back per ROW, never per FIELD.** A good Sunday survives a corrupt Mon–Sat;
+  a stored start is never paired with a default end, which would invent a window nobody chose and print
+  it as deliberate.
+- **TEXT inputs, not `<input type="time">`.** Chromium renders that widget in the OS's 12-hour format
+  even at en-GB. `canonicaliseWindowTime` pads.
+- **A design carries its window through the BIN**, or a restore hands back the default and the next save
+  writes it over the boundary the design was built to.
+- **`renderCoverageCard()` renders the chart AND the editor**, in one call — one card, so no path can
+  refresh one without the other.
+- **`.win-editor[hidden] { display: none }` is mandatory.** An author `display` rule beats the `hidden`
+  attribute, and a probe that reads `el.hidden` cannot see that.
+- **The window is stated once on screen**, by the editor's own fields under a "Staffed window" eyebrow;
+  a second line repeating the times reads as a second, possibly different, fact. On paper the editor is
+  hidden and the masthead states the window. The reset control reuses `.btn-text-link`.
+- **An invalid pair is refused, not coerced**, and the refusal is written AFTER the repaint, because
+  `paint()` rewrites the status line from the stored window.
 
-Three rules that are easy to undo by accident:
+### Coverage heat map and the December service
 
-- **Compare mode diffs CELLS, not windows.** Two designs built to different spans would read as like
-  for like — the per-design override becoming a way to make an unfair comparison look fair. Both
-  column headers state the window and `windowsDiffer` flags a mismatch; the printed masthead states
-  it too. Never render a comparison without them.
-- **`normaliseWindow` falls back per ROW, never per FIELD.** A good Sunday survives a corrupt
-  Mon–Sat; a stored start is never paired with a default end, because that invents a window nobody
-  chose and then prints it as deliberate.
-- **TEXT inputs, not `<input type="time">`.** Chromium renders that widget in the OS's 12-hour
-  format *even at en-GB* (measured in both locales), which would put "11:55 PM" beside a grid, heat
-  map and window line all reading 23:55. `canonicaliseWindowTime` does the padding.
+The Coverage card is an hour-by-hour table (`calcHourlyCoverage`): rows are days, columns the hours of
+the staffed window, cells the on-duty headcount in `heat-b0`–`heat-b5` tints of `--cov-early`, scaled to
+the week's peak. A red `0` inside the window is a gap; spares have their own `SP` column; the grid's
+`tfoot` keeps per-day `E:/L:/SP:` counts. The station is staffed in **waves** (open, morning build,
+middles, afternoons, close) — do not revert to per-type stacked bars.
 
-Three things the v19.55 pass fixed, all found by driving the page rather than reading it:
+**Beneath it, the demand rows** (`links-demand.js`) — the December 2026 service, one row per day class,
+in the **same table**, so cover and service are compared column by column. Rules that are easy to undo:
 
-- **A design carries its window through the BIN.** The bin kept patterns but not the window, so a
-  restore handed back a design wearing the app default — and the next save wrote that default
-  straight over the moved boundary it was actually built to. Same class as the v19.41 restore bugs.
-- **`renderCoverageCard()` renders the chart AND the editor**, in one call. They are one card, and
-  as two calls every site had to remember both. The generator — the only way to create a design —
-  refreshed the chart through `renderGrid` but never painted the editor, so a designer's very first
-  link had no visible window control until they reloaded.
-- **`.win-editor[hidden] { display: none }` is mandatory, not tidiness.** An author `display` rule
-  beats the `hidden` attribute's UA `display:none`, so the editor rendered on a page with no design
-  at all. Missed on the first pass because the probe read `el.hidden` — the property, correctly
-  true — instead of what the browser actually painted.
+- **A different hue is load-bearing.** Demand is `--cov-late` orange against the cover's `--cov-early`
+  blue: two rows in two different units (people, cars), and in one colour the eye reads the darker as
+  more of the same.
+- **Separate scales, stated.** Each half is shaded against its own peak, and the note says to compare
+  shapes, not depth of colour.
+- **Never score the design** — no "covers N% of demand". Show, do not decide.
+- **The finding/fact split is the anti-cry-wolf rule.** `uncovered` (open, trains running, nobody on) is
+  a finding and renders red. `outside` (trains while the station is shut) is a neutral fact: the last
+  trains and the first departure fall outside the window on every design, and flagging them would teach
+  the reader to skip the row.
+- **Ask the boundary question to the MINUTE, never by the hour.** A window that closes at 23:25 makes
+  hour 23 "staffed", and an hourly test reports the movements after 23:25 as covered — the one live
+  finding the feature exists for. `summariseDemand` takes the window in minutes and the profile stores
+  times, so the hourly question cannot be asked by accident.
+- The `dem-shut` marker comes from the same summary the prose reads, so a marked cell and a named
+  movement cannot disagree. It marks the opening hour too, where trains run before the station opens.
 
-The window is stated **once** on screen: by the editor's own fields, under a "Staffed window"
-eyebrow. A prose line repeating the same two times 20px below it was removed — duplication like
-that reads as a second, possibly different, fact. On paper the editor is hidden and the print
-masthead carries it. The reset control reuses `.btn-text-link`, this stylesheet's existing small
-text button, rather than a second link-button recipe.
+### The sticky summary bar
 
-An invalid pair (finish at or before start) is **refused, not coerced** — and the refusal message is
-written AFTER the repaint, because `paint()` rewrites the status line from the stored window and
-would otherwise wipe it in the same tick, leaving the field to appear to revert for no stated reason.
+The grid card's save row is `position: sticky; bottom: 0` and carries live figures and a jump link
+(`.sum-jump`, "Full analysis ↓"), because the analysis cards sit screens below the grid, and without it
+an edit's effect was out of sight.
 
-### Coverage heat map (v12.40; demand overlay v19.56)
+- **Which figures, and why not others:** lines still undesigned (nothing else matters until it is
+  zero), staffed hours with trains and nobody on duty, fatigue factors **present**, and hours a week
+  excluding Sunday. `standing` is deliberately excluded: an edit cannot improve it, and a number the
+  designer is driving down must not ask them to chase the unchaseable. **It is not a score.**
+- **A chip may not report one of two counts.** `summariseDemand` returns `uncovered` beside `outside`,
+  and `assessFatigue` returns `present` beside `standing`. The strip never claims full cover, only that
+  no STAFFED hour is uncovered, and never says "no fatigue factors" while standing ones exist (pinned in
+  `links-analysis.test.mjs`).
+- **`renderSummary` recomputes rather than reading the other renderers' results.** That duplicates
+  WORK, not LOGIC — each figure still comes from the one function that owns it — and it buys
+  order-independence: shared state would make the strip silently wrong whenever the renderers ran in a
+  different order.
+- **`sticky` needs no scroll container**, because `.card` is `overflow: clip`, which does not create one.
+  **The bar can cover the last grid lines while it is pinned** — a sticky element keeps its flow
+  position only once it comes to rest — but only in passing: every line reaches full view at some scroll
+  position. So add no bottom padding, and do not restore the old claim that it can never cover the last
+  row (`links.css` has the measurement). The bottom inset is `env(safe-area-inset-bottom)`, for Safari's
+  tab bar and the iPhone's home indicator.
 
-The Coverage card renders an **hour-by-hour table** (`calcHourlyCoverage`) — rows = days, columns = hours spanning the staffed window, cell = on-duty headcount, intensity buckets `heat-b0`–`heat-b5` (color-mix tints of `--cov-early`, scaled to the week's peak).
+### Empty and failed states
 
-The station is staffed in **waves** (opens ~06:20, morning build 07:00–08:30, middles 11:00–12:00, afternoons 13:30–14:30, closes 15:00+) — do not revert to per-type stacked bars. A red `0` inside the staffed window marks a coverage gap; spares get their own `SP` column. The grid `tfoot` keeps compact per-day `E:/L:/SP:` counts.
+- **An empty card says what it is waiting FOR, and the one that can act carries the actions.** The grid
+  card's empty state offers "Go to Auto-generate" (a real `.btn-save`), "Open a shortlisted proposal"
+  and "Start with a blank grid"; nothing is opened for you. The two analysis cards get
+  `.links-empty-panel` (centred, with a minimum height), because there is nothing to analyse.
+- **"Go to Auto-generate" scrolls; it does not generate.** Building from an empty card produces a design
+  nobody chose. It opens the card through `_openGenerator`, which keeps the chevron and ARIA in step.
+- **The empty checks panel must not wear a green tick** (it shows `📋`): a tick in an empty checks card
+  reads as "checks passed" before a single check has run.
+- **A load FAILURE is not "you have not made one yet".** On `loadFailed`, `renderGrid` swaps the title and
+  hides the actions: inviting someone whose designs did not load to make a new one is how a connection
+  blip becomes a duplicate design.
+- **The card header hint is state-dependent** (`_setGridHint`), so it never describes a grid and a
+  paint bar that are not on screen.
+- **`links-analysis.js` must MIRROR the empty-panel markup** that `links.html` ships, because that branch
+  replaces the whole card body.
 
-**Beneath it, three DEMAND rows** (`links-demand.js`) — the December 2026 service, one row per day class, in the **same table** so a reader comparing cover against service is comparing columns rather than fighting two horizontal scrolls. Rules that are easy to undo:
+## Design checks
 
-- **A different hue is load-bearing.** Demand uses `--cov-late` orange against the cover's `--cov-early` blue. Two rows of the same colour in one table mean two different things in two different units (people · cars), and the eye reads the darker one as more of the same.
-- **Separate scales, stated.** Each half is shaded against its own peak; the note tells the reader to compare shapes, not depth of colour.
-- **Never score the design.** No "covers N% of demand". Same principle as the fatigue panel — show, do not decide.
-- **The finding/fact split is the anti-cry-wolf rule.** `uncovered` (open, trains running, nobody on) is a finding and renders red. `outside` (trains when the station is shut) is a neutral fact: the last trains and the 05:5x first departure are outside the window on **every** design there has ever been, so flagging them would fire forever and teach the reader to skip the row.
-- **Ask the boundary question to the MINUTE, never by the hour.** This shipped broken once. Sunday closes at 23:25, so `isHourStaffed('sun', 23)` is TRUE and an hour-level test reported the five post-23:25 movements as fully covered — the one live finding the feature exists for, invisible in it, with a green unit test that used a synthetic whole-hour window. `summariseDemand` takes the window in **minutes**, and the profile stores **times**, not hourly buckets, precisely so the hourly question cannot be asked by accident.
-- The `dem-shut` cell marker comes from the same summary the prose reads, so a marked cell and a named movement can never disagree. It marks hour 06 as well as hour 23 — three weekday trains run before the 06:20 opening.
+### The first half
 
-### The sticky summary bar (v19.57)
+`runDesignChecks(patterns, ROTATING_LINES)`:
 
-The grid card's save row is `position: sticky; bottom: 0` and carries four live figures plus a jump
-link (the fourth, hours a week, since v20.04). **It exists because the feedback loop was broken by distance**: the grid card is ~1,400px tall
-and the Coverage and Design-checks cards start ~1,600px and ~2,300px below the fold (measured at
-1440×900), so editing meant paint a cell → scroll two screens → read → scroll two screens back. The
-analysis already updated live; you could not see it happen.
-
-- **Which four, and why not others.** Lines still undesigned (nothing else matters until it is zero),
-  staffed hours with trains and nobody on duty, fatigue factors **present**, and hours a week excluding
-  Sunday (v20.04 — see *Hours a week* below). `standing` is
-  deliberately excluded — an unavoidable characteristic of the operation is not something an edit can
-  improve, and putting it in a number the designer is trying to drive down tells them to chase the
-  unchaseable. It is **not a score**, for the same reason the panels it summarises are not.
-- **`renderSummary` recomputes rather than reading the other renderers' results.** Duplicated WORK,
-  not duplicated LOGIC — each figure still comes from the one pure function that owns it — bought in
-  exchange for order-independence. Shared state would make the strip silently wrong whenever a caller
-  ran the three renderers in a different order, which renders fine and tells nobody.
-- `sticky` works here without a scroll container because the card uses `overflow: clip` at ≥1024px
-  (chosen for the sticky `thead` precisely because it does NOT create one). The bar keeps its place in
-  flow, so it can never cover the last grid row.
-
-### Design checks (v12.39, completeness added v12.41; fatigue factors added v19.46; quiet rows collapsed v19.57)
-
-The card has **two halves**. The first is `runDesignChecks(patterns, ROTATING_LINES)`:
-- **Unfilled lines** (any line that is entirely rest days is *not yet designed*, not a vacancy)
-- Weekends off (Sat of line w + Sun of line w+1, wrapping)
-- Short turnarounds (<12 h rest between consecutive timed shifts across the full circular rotation)
-- Longest consecutive-worked-days run
+- **Unfilled lines** — an all-rest line is *not yet designed*, never a vacancy
+- Weekends off (Saturday of line w + Sunday of line w+1, wrapping)
+- Short turnarounds (under `MIN_REST_MINUTES` between consecutive timed shifts, round the whole circular
+  rotation)
+- Longest run of consecutive worked days (`worstCaseWorkedRun`)
 - Early/late balance
 
-Renders plain-English traffic-light rows (completeness first); updates live on every cell edit / generate. Every line rotates and is checked.
+with the hours row beside them (`weeklyHours`; Hours a week, below). Plain-English traffic-light rows,
+completeness first, updated live on every edit. Every line rotates and is checked.
 
-### Hard limits vs advisory factors — and why the module is no longer called "legal" (v19.91)
+**The triage block above the rows** ("Needs fixing before review" / "Worth discussing") is the card's
+hierarchy, ADDED rather than substituted: the sections below stay grouped by SOURCE — this app's
+checks, the company limits, the ORR's factors, today's link — because invariant 10 needs every limit to
+name whose it is. Each triage line names its source, and the block computes nothing of its own, so it
+cannot disagree with the rows. **Nothing to fix is said out loud, never as a tick**: "Nothing found that
+has to be fixed — the rows below say what was checked".
 
-**The reasoning for all of this now lives in `links-limits.js`'s own header** (moved there v21.63),
-beside the code it governs, where it cannot drift from it. That header owns: why a hard limit is a
-structurally different statement from an advisory factor and therefore a separate module; the
-withdrawn-2007 Hidden report and the four attributions this limit has carried since v19.80; the
-"13 consecutive days" vs "13 shifts in 14 days" distinction; and `POLICY_SOURCE_CONFIRMED` as the
-one switch that flips every rendered claim at once.
+### Hard limits vs advisory factors
 
-What stays here, because it is what a designer needs before opening anything:
+The reasoning lives in `links-limits.js`'s header: why a hard limit is a different kind of statement
+and so a separate module; whose the run limit is (Chiltern's roster limit — its origin, the
+post-Clapham Hidden standard, was withdrawn in 2007, so it is cited as an origin and never as a current
+industry rule); "13 consecutive days" against the historic "13 shifts in 14 days"; and
+`POLICY_SOURCE_CONFIRMED` as the one switch that sets the strength of every rendered claim. What a
+designer needs before opening it:
 
-- **A hard limit either is or is not met** — own function, own count, own section, red on a breach,
-  and it renders when PASSING too. An advisory factor reports presence and never passes or fails a
-  design (invariant 2 in the table at the top of this file).
-- **The limit's evidence class is C, and the sheet says so.** Until a controlled Chiltern source is
-  cited, `POLICY_SOURCE_CONFIRMED` stays `false` and every surface that states the limit carries the
-  provisional wording with it. `ROADMAP.md` → Evidence class explains why that gate exists;
-  `VALIDATION_REGISTER.md` and `KNOWN_LIMITATIONS.md` track the outstanding citation.
-- **Never hardcode a status** — the v19.48 regression that put a green tick beneath the amber
-  finding it duplicated came from exactly that.
+- **A hard limit either is or is not met** — own function, own count, own section ("Company limits"),
+  red on a breach, and it renders when PASSING too, because "checked and met" must be visible on the
+  sheet. An advisory factor reports presence and never passes or fails a design (invariant 2). The hard
+  limits are `MAX_CONSECUTIVE_WORKED_DAYS` and the contracted-days ceiling (Line numbering, below).
+- **Their evidence is class C, and the sheet says so.** Until a controlled Chiltern source is cited,
+  `POLICY_SOURCE_CONFIRMED` stays `false`, every surface stating a limit carries the provisional wording,
+  and the rows report the measurement, never "cannot be run". `ROADMAP.md` → Evidence class explains the
+  gate; `VALIDATION_REGISTER.md` and `KNOWN_LIMITATIONS.md` track the citation.
+- **Never hardcode a status.** A hardcoded green tick once sat directly beneath the amber finding it
+  duplicated.
+- **Do not promote another limit from recall.** Maximum turn length, minimum rest between turns and a
+  weekly ceiling are already computed and rendered as advisory ORR rows; making one a hard limit is a
+  rendering change plus a confirmed figure and source. Minimum rest is already a generator gate (The
+  generator, below).
 
-> This section ran to ~140 lines and was a near paragraph-for-paragraph copy of the module header —
-> the single largest duplication in the docs at v21.62, and the mechanism CLAUDE.md names as being
-> "behind every stale doc claim this repo has had to correct".
-
-### Fatigue factors — ORR good practice, p3 (v19.46)
+### Fatigue factors — ORR good practice, p3
 
 The second half of the card, from `links-fatigue.js`. It exists because the December 2026 proposals
-will be **assessed** against that list (`LINKS_DEC2026_PLAN.md`), and `runDesignChecks` covered two
-of its 25 rows — a figure read at source in Aug 2026, after this file said 24 and the panel rendered 23 for two years. Neither was right, and the two missing rows were both MRSF ones in the Cumulative family; the module header has the account. Read the module header before changing any rule; the four things that govern it:
+will be **assessed** against the ORR's list (25 rows in six families), and its header holds the account
+of every rule — read it before changing one. What governs it:
 
 - **It reports factors PRESENT. It never passes or fails a design.** The ORR states these are not
   prescriptive limits, so red/green would misrepresent the guidance being quoted. Amber
   (`.check-warn-row`), never `.check-bad` red.
-- **The dominant risk is FALSE ASSURANCE**, not a missing rule — a design showing nothing and being
-  read as approved. So CLEAR and NOT-APPLICABLE report themselves too: silence must never be the
-  same shape as compliance. **Never hardcode a status.** FF13's was hardcoded `clear` for one
-  version and put a green tick directly beneath the amber short-turnaround row it is the same
-  finding as; it now reads from `runDesignChecks`, so the two cannot disagree.
-- **NOT-APPLICABLE ≠ CLEAR, and STANDING ≠ PRESENT.** FF4 called itself "not applicable" while FF3
-  was counting the very same duties (fixed v19.48). And FF2 fires on every 06:20 duty, so it is a
-  property of the operation — marked `standing` and counted separately, because adding it to the
-  findings total would claim the designer could have avoided it.
-- **Only FF19 still carries `confirm: true`** (28 Sep 2026), rendered as "(definition to confirm)". The
-  owner checked all four once-unsettled rows against ORR's *Managing rail staff fatigue* (Aug 2024) that
-  day: MRSF's 7×8h reads **eight hours or more**; FF17 is **ORR's own definition** (a shift starting earlier
-  than the last, 7.68); FF18 is **ORR's cadence reading** (below). FF19 keeps the flag on purpose: the
-  owner chose "a rest day resets it", which is more lenient than ORR's wording ("consecutive duties",
-  7.71) — on the strict wording every link with early and late weeks has FF19, so it would stop telling
-  designs apart. The reading is the owner's, not ORR's, and the flag is how an assessing manager sees that.
-- **FF18 is ORR's CADENCE factor; the STEP is extra information** (28 Sep 2026, owner on ORR's text,
-  7.68: rotating "about once a week" is less preferable than about two days or about 21 per shift
-  type). A weekly link changes shift type about once a week by construction, so the row is `standing`
-  on every link and its detail says so. The history below is why the step is measured at all:
-- **FF18 used to be read as the STEP, and its status is derived** (v19.69). It reported a hardcoded `standing`
-  from v19.46 to v19.68 — the "never hardcode a status" rule above, broken for the second time —
-  because the factor was originally read as being about the cadence, which is true of every link and
-  so made the row informationless. The reading moved to **how far the working day moves at each step**
-  (Aug 2026), a design choice and, since v19.58, measurable — and back to the cadence on 28 Sep 2026,
-  once ORR's text was read, with the step kept as the information a design actually controls.
-  The row now reads `scoreOrder` from `links-adjacency.js` and states the typical weekly move, the
-  largest, and how many boundaries exceed 2h. **Live main roster: 4h 0m typical / 8h 46m worst /
-  9 of 20 over** — quote that as the baseline; the December default — the 26-line one since v24.47
-  (`links-default-targets.js`, every objective on) — measures typically 2h 37m, largest 8h 36m, 5 of
-  26 over, 10 unmeasurable across the cover weeks (re-measured 7 Nov 2026; it was 2h 13m, 8h 51m and 4
-  on 3 Nov, before three changes to `links-default-targets.js` on 5–6 Nov)
-  (`docs/links-26/tooling/default-baseline.mjs`).
-  Two things not to "tidy": the status stays **`standing`** whenever the step is measurable rather
-  than turning `present` above some figure — the ORR gives no FF18 threshold, and inventing one is
-  the pass/fail rendering this panel forbids — and it derives to **`n/a`** for a design with no timed
-  lines, which is the real branch a hardcoded status could not express. The 2h figure is the ORR's
-  own FF19 threshold, single-sourced from `GENTLE_THRESHOLD_MINUTES` so the chip and the sentence
-  cannot drift from what was actually counted.
-
-**A COVER WEEK IS AN UNKNOWN, NOT A NO** (v21.98). Every rule that counts a RUN must measure it with
-`runLengthsWhere` — `workedRunLengths`'s spare-week budget with the question as a parameter — and not
-with a plain scan. A spare day has no times, so it fails any predicate and a plain scan treats it as
-a BREAK: FF15 reported a longest early-shift run of 3 with a green tick on the shipped default,
-against a worst case of 6 over a threshold of 4. Two boundaries keep the fix honest rather than
-merely louder: **four duties a week, never seven** (seven fuses the blocks either side — the v19.79
-defect), and **extend, never create** (`requireMatch`, or FF10 reports a run of four 12-hour shifts
-on a design containing none). Where the worst case and the certain figure differ, the row states
-both.
-
-Two things about the rules themselves that are easy to get wrong, both caught by their own tests:
-**FF11 is not the consecutive-worked-days check it resembles** (a single rest day is not COUNTED as a 48h break — only two together are, so it can only
-overstate — and a rotation with no two-day break at all returns every worked day, not the sequence length); and
-**every rule laps the rotation** — `earlyBlocksWithShortRecovery` was the one that did not, so a
-block straddling the last line → line 1 was cut in half and reported as nothing.
-
-Hours totals are a **floor**: SPARE carries no times, so a standby day contributes zero.
-
-**A SPARE WEEK IS FOUR DUTIES OF SEVEN, NOT SEVEN** (v19.79, owner). You are marked SPARE on all
-seven days because you are available for cover; four is what you work, unless a Sunday or another
-RDW is added on top. Both run checks — `runDesignChecks`'s longest worked stretch and FF11 — counted
-all seven, and the comment justified it as "over-reporting is the safe direction for a fatigue
-check".
-
-It is not, and the live roster is the proof. A 7/7 spare week **bridges** the blocks either side of
-it and fuses them into one phantom run, so the main cycle reported **15** consecutive worked days
-against a true ceiling of **9**, and the bilingual **14** against **8** (9 since v25.03 — below). Four
-duties on Monday to Saturday cannot fill a week, so two of those days are always rest days and a run
-can take at most the Sunday and four of its days.
-
-**13 consecutive days is Chiltern's roster limit** (derived from the post-Clapham Hidden standard,
-which was itself withdrawn in 2007 — see the hard-limits section above) — so a check reporting 15 is not
-cautious, it reports a breach that does not exist on the roster people are working today. Anyone
-who knows the real link discounts the row, and the next design that genuinely goes past 13 is
-hidden by that discount. Over-reporting is only "safe" while nothing is riding on the number.
-
-`worstCaseWorkedRun` in `links-design.js` is the ONE reading; `longestWorkedRun` here delegates to
-it. Four things that are easy to get wrong, each with a test:
-
-- **Two ADJACENT spare weeks legitimately chain to nine** — the first week's four duties at its
-  end, then the second's Sunday as overtime and its four from the Monday. That is the bilingual
-  roster, whose spare weeks are lines 1 and 8 of 8 and so wrap into each other. Do not clamp the
-  answer to four.
-- **FF11 is a different question and needs its own handling.** A spare week's rest days need not
-  be adjacent, so in the worst case — its Sunday worked as overtime — it supplies **no 48h break at
-  all** while still supplying five shifts. Counting the week as a break would deflate the figure;
-  counting seven shifts inflated it. Its four and the Sunday, and no reset, is the honest ceiling —
-  which is why the main cycle reads 13 (clear) and the bilingual 15 (over), where both read 15
-  before v19.79. The main cycle read 12 until v25.03, when the Sunday stopped being one of the four.
-- **A spare duty following a real 48h break must RESET the count.** The first version of the SPARE
-  branch incremented without honouring the reset the worked branch does, and ran straight through a
-  genuine break: bilingual reported 23 against a true 15. It was caught by walking the roster by
-  hand, because the wrong answer was entirely plausible.
-- **The FF11 budget is keyed on the UNMODDED index**, so the second lap gets its own. That lap
-  exists to measure a run wrapping the cycle end, and next time round the wheel it genuinely is a
-  fresh spare week; sharing the budget silently truncates exactly the run the lap is for.
-
-**Owner's design target is below the 13-day limit, not at it:** ideally a new base link would not
-carry even **7** consecutive worked days. The live main roster's non-spare blocks reach exactly 7;
-the generator's reach 6.
-
-**Between 7 and 13 the panel reports the SAME figure twice, amber and green — and each row must say
-which threshold it was measured against** (v20.00). `runDesignChecks`'s "Longest run" row is judged
-against the design target (`DEFAULT_MAX_RUN`, 6); the hard-limit row 60px below is judged against Chiltern's 13. That
-is two different questions and both answers are useful, but unlabelled they read as the panel
-contradicting itself — which is the FF13 defect of v19.48 (a hardcoded green tick directly beneath
-the amber row it duplicated) arriving in a new form. The amber row now carries
-`(design target: no more than DEFAULT_MAX_RUN)` — 6 since v20.02 — and says in its sub-line, whenever the row is amber, that this is an aim rather than a limit;
-the green row already stated its 13 and its source. Pinned by a test using a fixture that lands
-deliberately in that band.
-
-**The `clear` and `n/a` rows are collapsed behind a disclosure** (v19.57). The card measured 1,799px —
-24 rows of which 16 said nothing had happened, so the 8 real findings were diluted five to one in a
-card taller than the grid it describes. It is now 1,134px. **This must not be allowed to weaken the
-"silence is not compliance" rule**, and three things keep it honest: the counts stay in the
-always-visible section heading (with `clear` now among them, which it was not before); the disclosure
-is labelled with what is inside; and CLEAR and NOT-APPLICABLE keep their separate icons and wording
-inside it. What is hidden is the PROSE, never the fact of the check. `present` and `standing` always
-render inline.
-
-Two things that had to be right and were not on the first attempt: the **night-family rollup belongs
-INSIDE the disclosure** (outside it, the heading counted 17 clear while the label said 10 — both true,
-impossible to reconcile by looking), and **printing must force every `<details>` open**. CSS cannot do
-the latter: Chromium hides a closed disclosure's content through an internal slot no author rule
-reaches, so a `@media print` override still printed 13 of 24 rows. `links-app.js` opens them on
-`beforeprint` and closes them on `afterprint`. The printed sheet goes to the assessing manager, so
-silently dropping 17 completed checks from it would be the precise false-assurance failure this panel
-exists to prevent.
-
-`links-app.js` also passes a `getBaseline` thunk so the panel can show what **today's** link scores.
-It is computed over `weeklyRoster` (20 lines) and `bilingualRoster` (8) **at their own lengths** —
-splicing them into one rotation reports a longest run of 19, which is a property of the join and
-not of either roster.
-
-> **Section order (v19.94).** Everything about the auto-generator now sits together: what it is,
-> how it builds, how the lines get ordered, the control that was removed, then how the card looks.
-> The layout notes used to come **160 lines before the generator itself**, with two page-wide review
-> sections in between — so the first thing a reader met about the generator was the polish history of
-> a card they had not been introduced to. Nothing here was rewritten; the blocks were moved.
-
-### Auto-generator (v12.39, slot-based v12.40; whole spare WEEKS v19.58)
-**The main way to create a new design** (v12.43 — once the only one; New blank design, Import and the shortlist's built-in proposals have joined it). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.
-
-**SPARE IS A WHOLE WEEK, NOT A SCATTER OF DAYS** (owner, Aug 2026). A spare line is spare on all seven days: you are cover, you work four days of that week, and you can be put on any range of shifts. The real roster is built this way — main lines **1, 7, 12, 17** are `SPARE` on every day, bilingual **1 and 8**, and there is not one scattered spare day anywhere in it.
-
-The previous model took a per-day-class spare HEADCOUNT and fed it to the rotating window as one more segment. Because the window slides daily, that gave each person spare on some days and a timed duty on others. **The daily SP headcount came out right, which is why it went unnoticed** — the total was correct and the distribution was wrong. `spareLines` whole lines are now reserved and spread evenly around the wheel, and the rotation is built over the remainder; daily targets are still met exactly, and every day shows the same SP count, as the real roster does.
-
-Two consequences worth knowing. The targets are validated against the **working** lines (`lines − spareLines`), so a total that fits the rotation can still be refused. And a spare week counts as **four** worked days in the run checks, not seven — see *A spare week is four duties of seven* under Design checks.
-
-> **This paragraph said SEVEN until v19.94, and it was the pre-v19.79 rule.** The correction > was made in the Design-checks section and never carried back here, so the file argued with > itself 280 lines apart — and this copy also repeated the reasoning v19.79 specifically > overturned ("over-reporting a run is the safe direction for a fatigue check"). It is not: > a 7/7 spare week fuses the blocks either side of it, which reported the live main roster at > 15 consecutive days against a true 9. A reader arriving at the generator first would have > taken away the rule the tool no longer follows.
-
-> **From here to "The roster seed" this section describes the 24-LINE default (v21.00–v21.13), and is
-> history.** Since v24.47 the default is the duty table of the shortlisted Short Run, not a table the
-> app searched for (`links-default-targets.js` header — "the 24-line table is GONE"), judged by
-> `docs/links-26/RULES.md`. `links-default-targets.test.mjs` now pins the contract and those rules, not
-> the properties below — so the late-turn ordering, four Saturday closers and the quarter-hour ceilings
-> no longer describe the shipped table. The two buttons do: *↺ Use the recommended Dec 2026 staffing*
-> and *↺ Copy staffing from today's roster*.
-
-**The table no longer opens on the roster (v21.00).** A new design starts from `links-default-targets.js` — a table DESIGNED against the December 2026 service, which pays the contracted week exactly, so Generate works on a card nobody has touched. The roster seed became unusable as a default the moment the contract gate landed: today's duties pay 16 working lines, fewer than the design has, so `buildRosterTargets()` is refused with the gap named, and a designer opening the workspace met a refusal before typing anything. Both are one button away from each other — *↺ Back to the December 2026 default* and *↺ Load today's roster instead* — because they answer different questions and a proposal wants both: design tomorrow, measure today.
-
-Neither label says "reset targets" without saying to WHAT. With two of them, that word alone is the one thing a designer cannot act on.
-
-**Minimum rest is a GATE, not a finding (v21.11).** Owner: *"It keeps offering me a gap of 11 hours
-45 minutes between a shift. That would never be allowed by Chiltern."* It was right — the generated
-default put a Sunday 09:05–18:35 in front of a Monday 06:20 open — and the app only *reported* it,
-in Design checks, after building it. A minimum rest period is a condition of a design being legal,
-which is the same class of statement as the contract, and the contract is refused rather than
-reported. So the generator now **repairs** the breach and refuses only what it cannot repair.
-
-The repair is a **swap of two lines' duties within one day column**, and that shape is the whole
-argument for it: exchanging them leaves that day's headcount on every shift time exactly as it was,
-so the targets, the contract, the coverage heat map and the demand fit are untouched *by
-construction* rather than by re-checking. Timed↔timed swaps are tried first (both lines keep their
-days-worked); timed↔rest only if none fixes it. Whole spare weeks are never touched — swapping a
-duty into one turns a cover week into a working week with six spare days. A swap is accepted only
-when **all four** adjacencies it can affect come out legal, or the repair would walk the breach onto
-another line and read as success. `requireRest` is the opt-out, for construction fixtures that staff
-every line every day; `links-contract.test.mjs` fails if `links-app.js` ever passes it, exactly as
-it does for `requireContract`.
-
-**Late turns are deliberately shorter than early ones (v21.10).** The owner's report was about
-behaviour, not arithmetic: lates get booked around with annual leave, phoned sick, and refused as
-overtime. The lever asked for was length — *"make late shifts slightly shorter than most (not all)
-early starts"* — and it is expressed as a **strict ordering**, not an average, because an average is
-satisfied by one very short late among six long ones, which is the shape the instruction was aimed
-at. One early, and only one, is shorter than every late; every other early is longer than every
-late. The "not all" is load-bearing: the short early is the open turn that finishes in the early
-afternoon, and an unbroken block of long earlies is its own recruitment problem. Alongside it,
-**five are on duty at 22:00** (`EVENING_TURNS_FROM_22`), down from seven — a separate figure from
-the closer count, which is unchanged at three on a weekday and four on a Saturday, so five at 22:00
-means two non-closers on a weekday and one on a Saturday. Both are pinned in
-`links-default-targets.test.mjs`, including the *size* of the margin in both directions: a late that
-is two hours shorter is a different job, and one that is five minutes shorter across the whole set
-is not a lever. The cost is stated in the module header — the demand fit is about 9% worse on a
-weekday — because narrowing a search is not free and burying that would make the next retune look
-like an improvement.
-
-**The default is not a proposal.** It covers the service and pays the contract, which is the floor for being worth discussing rather than evidence of being right. Its own reasoning — why the cover is flat rather than twin-peaked, why the cover-week count is not independently adjustable, why Saturday is fixed at 14 leaning late and Sunday designed at 10 to its own window (both owner figures, v21.01) — is in the module header, and every claim it makes is pinned by `links-default-targets.test.mjs`.
-
-**Saved sets (v21.04).** The generator card carries a "Saved sets" row — named snapshots of the target table, shared between the designers in Firestore (`linkTargetSets`), because the promise they exist for ("others can mess about but not lose my set" — owner) cannot be kept per-device. Load copies a set into the working table; keeping a changed version means **Save as new set** — overwriting belongs to a set's creator or the admin, and that rule is enforced by `firestore.rules`, not by the disabled button (which only reports it). Ownership is pinned to the writer's own `name` claim on create and immutable on update. Module: `links-target-sets.js`; the e2e seat is M. Robson deliberately — the admin's override is real, so ownership must be tested from a seat without one.
-
-**The default's shift times are SEARCHED against the demand curve (v21.06)** — five-minute grid, minimising each hour's distance from its share of in-window demand, under hard rules (4 at the open, 3 to the close and 4 on a Saturday with nothing else finishing in the hour before it, 7h–9h30 turns, 15-minute spacing, day totals fixed). The Saturday events lean is a **weight on 17:00–22:00**, not a start-count rule: the old proxy starved Saturday's measured 10:00 peak. Cover stays fairly flat because the two weekday peaks are one duty length apart — a two-humped curve would leave a hole mid-afternoon.
-
-**The table is also searched to be SHORT (v21.12).** Owner: *"is there any way to reduce the number of shift start/finish times so that it is easier to understand, whilst keeping the rest of the principles we have established?"*, and then — asked whether the weekend had to match the weekday — *"weekend shift times can be different to weekday. It is just about reducing the number of times in each type."* So readability is a **second objective under the same hard gates**, not a relaxed first one: among the tables that satisfy every rule above, the search prefers the one asking a reader to hold fewer clock times. Two levers do the work — up to two people may share a turn (a count of two on one row; three or four would be the opener/closer cliff in the middle of the day), and Saturday's times are nudged onto the weekday's wherever that costs nothing. Pinned by `links-default-targets.test.mjs` as **ceilings**, so a shorter table is still an improvement and only giving readability back fails.
-
-**And the times a person has to remember are ordinary ones (v21.13).** Owner: *"ditch the odd start/finish times like 5 or 10 past the hour, unless they are opening or closing. Ideally it would be at 00, 15, 30 or 45, but I realise that may not be possible."* The firm half ships as a hard rule — **no :05 and no :10 anywhere except the window's own open and close** — and the ideal half ships as a strong preference, reaching **50 of the table's 54 start/finish instances on the quarter hour**, the other three being :20, :25 and :40.
-
-The limit on the ideal is arithmetic, not effort, and the module header works it out: a duty's length modulo fifteen is fixed by which end is pinned to a window that does not sit on a quarter, so a day's total is ≡ 10 × (openers + closers). Mon–Fri's 4 + 3 reaches 7,000; **Saturday's 4 + 4 cannot**, and no re-split of the contract fixes it. Forcing the whole table onto the quarter hour was tried and measured: 22–25 rows and a weekday worst hour of 2.74–3.24 people against 2.63 for what shipped.
-
-**A shape was lost doing it, and the reason is the interesting part.** v21.12 could say "Saturday is the weekday with one late turned into a fourth closer" — two rows, one sentence — because Saturday was DERIVED from the weekday by a single same-length swap. Under the clock-time rule that derivation forces a duty distribution whose generated design runs **15 consecutive worked days**, breaching a HARD limit; every seed tried it and every seed breached. So Saturday is searched again and now differs by two moves: its morning body arrives at 08:30 rather than 07:15 (Saturday's peak is 10:00–11:00, a weekday's is 08:00–09:00), and one late is spent on the fourth closer. **A sentence that is easy to remember is not worth a design that cannot be run** — and the table that resulted is better on every panel measure than v21.12's: no breach, longest worked run 10 → 8, three fatigue factors instead of four, six lines in 24 with a full weekend off instead of five.
-
-**Four percentages left this document's neighbourhood in the same pass, and why is worth keeping.** The module header stated Saturday's and the weekday's evening cover-vs-demand shares as measured numbers; they were measured at v21.06, the v21.10 retune moved them by more than two points, and nothing failed — because the test asserts the *comparison* (Saturday's evening takes a bigger share of cover than of demand; a weekday's takes a smaller one) and recomputes the figures in its own failure message. A number written in prose beside a rule is a second copy of that rule that nothing checks.
-
-**A remembered table the app stored on its own does not outlive a changed default (v21.05, version-stamped v21.06).** The per-design memory (below, v19.38) used to win over the default forever — right for a tuned table, and wrong for the auto-stored one: every device that opened the workspace before v21.00 remembered the old roster seed, so the designed default never appeared on it, and the owner read the stale 29h 53m as the new default being wrong. `isSupersededMemory` discards a memory equal to the roster seed or the current default (content-compared, so an edited table is never discarded); a kept memory that differs from the default carries a provenance note until it is touched.
-
-The roster seed, below, is what the second button loads. **One rule governs what it samples: the seed must sample exactly what the design represents.** That rule has now been applied twice, in opposite directions, and both failures were silent.
-
-- **v19.59 — the sample was too NARROW.** It took main's 20 weeks plus only the two bilingual weeks the two bilingual members happen to sit on, then applied that 22-line sample to a 28-line design. Bilingual weeks 1 and 8 are the SPARE ones and were never sampled, so the seeded spare count came back as **4** where the combined roster had **6** (main 1/7/12/17 + bilingual 1/8) — two whole lines of standby cover missing by default. Fixed by taking both cycles in full: which weeks two people sit on today is a fact about staffing, not about the roster's shape.
-- **v19.98 — the sample became too WIDE.** The design is the main roster widened and excludes the bilingual roster entirely, so seeding from it would target **ten shift times no line in the design can work** (all ten bilingual times are bilingual-only — zero overlap with main's 18). The seed reads the main cycle and nothing else: **18 slots**, measuring **4 spare weeks** (main 1/7/12/17).
-- **v20.01/02 — the length change is not visible in the sampling, and that is the design working.** The rotation went 22 → 24; the SLOTS are an observation about the roster and do not care how long the design is. A fifth spare week WAS added to the seed at v20.01 (`EXTRA_SPARE_WEEKS`) and removed at v20.02: the FF11 finding it was meant to relieve turned out to be the line-order optimiser clustering the cover weeks (below), so the reason went and the uplift went with it. The constant was deleted rather than set to zero — a knob that drives nothing is the `SOFT_DELETE_RETENTION_DAYS` mistake — and a designer who wants five types 5 into the box. **The seed reports what it measures, and nothing else.**
-
-**The 4 is a coincidence and the tests treat it as one.** It read 4 before v19.59 for the wrong reason — the under-sample happened to drop exactly the two bilingual spare weeks — and reads 4 now for the right one. `links-seed.test.mjs` therefore checks line IDENTITY and asserts no bilingual-only shift time is ever seeded, rather than resting on the figure.
-
-**It lives in `links-seed.js` and has unit tests** (v19.92). Until then this paragraph ended: *"Pinned by an e2e that drives the roster-reset button, because the seed lives in the coordinator and a unit test would be checking its own copy of it."* That was true and entirely self-inflicted — the function was already pure, with no DOM, no Firestore and no coordinator state; it was simply not exported, so there was nothing else for a test to check. Exported, there is. The e2e stays (it proves the BUTTON reaches the seed, which a unit test cannot), but it is no longer the only cover.
-
-Two things the extraction fixed rather than merely moved. The cycle lengths were the literals `20` and `8` while `CONFIG.MAIN_ROSTER_WEEKS`/`BILINGUAL_ROSTER_WEEKS` held the same two numbers — so a roster that changed length would have left the seed reading a **prefix** of it, under-counting slots and spare lines in exactly the v19.59 shape, silently; they are read from CONFIG now and a static assertion bans a bare numeric loop bound coming back. And `buildRosterTargets` takes its sources as an argument **defaulting to `rosterSeedLines()`**, so which-lines-get-sampled is testable separately from what-is-counted while the default remains the real roster — injecting the sources from the call site would have moved the v19.59 bug back out of reach instead of closing it.
-
-Weekday count = the **busiest** Mon–Fri day for that time (some shifts only run Tue/Thu/Fri), and the generator then staffs all five weekdays at that level. Deliberate — under-staffing a day is the worse error — but the real roster varies Mon to Fri, so the column header says `busiest day`.
-
-### The December 2026 uplift — BUILT AND REMOVED (v19.78 → v19.83)
-
-An "increase every target by N%" control on the generator, scaling the target table in place.
-Shipped at v19.78 and **removed at v19.83 on the owner's decision: "over complicates it."**
-
-Recorded rather than deleted silently, because the measurement behind it is still true and someone
-will propose it again. If it ever returns, two things must come with it:
-
-- **Round the day-class TOTAL, not each slot.** The targets are mostly 1s and 2s, so `round(1 x 1.15)`
-  is 1 — measured against the real roster seed, per-slot rounding made **every uplift from 0% to 15%
-  byte-identical** (104 duties, unchanged). A designer typing 10% would see a control that appeared
-  broken. Largest-remainder on the total gives 16 -> 17 at +5%.
-- **A slot at 0 for a day class stays 0.** Zero is not a small number: it means that shift does not
-  run that day.
-
-**The finding the control was built to surface does not go away with it**, and is the part worth
-keeping — see `LINKS_DEC2026_PLAN.md`. On the 28-line / 6-spare design of that time, 22 working
-lines x 7 days is 154 day-slots, so every extra
-duty comes out of a rest day: at +25% rest days fall to 1.14 per line, and above ~+37% the targets
-do not fit the rotation at all. A service increase cannot be absorbed by making the existing lines
-denser — the link has to get bigger, which means more staff. That is an argument to take into the
-room, not a control to put on a page.
-
-### The two constructions (v19.59)
-
-`generateLink({ slots, spareLines, lines })` tries **settled weeks** first and falls back to the original **rotating window**. Which one ran is REPORTED in the status line, never silent — they give visibly different designs. `generatePatterns` is the thin wrapper returning patterns only; it keeps the old signature because every existing caller and test is written against it.
-
-**1. Settled weeks (default).** Slots are grouped into WAVES — starts within `WAVE_SPAN_MINUTES` (2h, the same threshold FF19 uses) — each wave gets a contiguous BLOCK of lines sized by the duty it carries, and slides its own window inside that block. **A line therefore never leaves its wave**: its start can move 06:20 → 07:15, never 06:20 → 15:25.
-
-Measured against the real roster, the old construction was giving people a week nobody at Marylebone has ever worked:
-
-| | within-week start spread | lines above 4h | FF19 |
-|---|---|---|---|
-| Real main roster (20 lines) | 3h44 | 7 of 16 | 6 |
-| Generated, rotating (old) | **8h09** | **22 of 22** | **27** |
-| Generated, settled (v19.59) | **1h33** | **0 of 22** | **2** |
-
-The tool reports FF19 and its own generator was the thing inflating it ~5×. Days worked per line now matches the real roster's distribution (3–6, clustered at 5).
-
-Waves rather than exact times, deliberately: per-TIME blocks are infeasible here — the seed produces more distinct times than there are working lines, and several are weekend-only — and waves are also what the real roster does (line 3 works 06:20-14:20 midweek and 06:20-14:00 on the Saturday).
-
-Three things that were wrong on the way and are each pinned by a test:
-
-- **A wave too small to fund a line is merged into its nearer neighbour.** The two 08:30 weekend-only slots formed their own wave, so one whole line existed to work Sat and Sun and nothing else — days per line came out 2 to 6 where the old construction ran 3 to 6. A shape improvement paid for with an unfair link is not an improvement. Merging widens a wave past 2h (06:20…08:30 is 2h10) and the panel then counts that movement, which is the right way round.
-- **A lap is spread ACROSS the week, never front-loaded.** `base + (i < rem)` strides lap a 3-line block by Tuesday and then hold the window still to Saturday, so the same lines work all four of those days and one caught two a week. `floor((i+1)·n/7) − floor(i·n/7)` shares it out exactly.
-- **The fairness test is comparative, not an absolute floor.** "Nobody under 3 days" is a fact about the TARGETS, not the construction — it would pass or fail on the fixture.
-
-**2. Rotating window (fallback).** The wheel: a window of consecutive lines slides forward a few lines a day, one lap per week, slots ordered latest-start at front.
-
-Its documented promise — *"a person's week only moves later, never a late finish then an early start; asserted by tests"* — **was not true**. Positions are read mod `working`, so every line wraps front-to-back once a week and that wrap IS the step; it lands on a rest day only while the targets leave lines resting. At full staffing it produced **27** short turnarounds, `15:15-23:55` into `06:20-14:20` — **6h25** rest. The test that "asserted" it staffed 13 of 24 lines, where the wrap always fell on RD.
-
-Strides are no longer near-equal: each day's is capped at `working − (next day's total)`, exactly the condition for a wrapping line to be resting the following day, and the lap is distributed in proportion to those caps. When the caps cannot fund a lap the targets leave under one rest day per line per week — the generator **refuses** (`reason: 'no-rest'`, with its own message) rather than shipping the phantom guarantee. Settled weeks survive those same targets, because a line staying in one wave costs nothing in body-clock movement.
-
-Daily targets are met exactly by both; any day-class total > the working lines is rejected. The generator writes every line.
-
-**Do not add back** `buildDefaultDesign`, `initFromRosters`, or `resetFromRosters` — those paths were removed at v12.43 because they copied raw roster patterns verbatim, leaving the lines past the roster's own length as all-RD blanks. The generator produces a complete rotation.
-
-### Line ORDER — the objectives (v19.58; `variety` added v19.60, `maxRun` v20.02; rest left v25.06)
-
-> **Rest across the week boundary is no longer a switch (v25.06, whole-app review).** It was the
-> sixth checkbox, and unticking it let the reorder put a 23:55 Saturday in front of a 07:15 Sunday —
-> after the generator had repaired every short turnaround, because minimum rest is a GATE (v21.11)
-> and the reorder runs after it. Measured on the default design, 45 of 64 switch-and-attempt
-> combinations without it came back with one. It is now charged in every configuration (at the old
-> switch's weight, so the shipped default is byte-identical) and FILTERED on, like the spare spread,
-> and `.gen-obj-note` states it in words because it has no checkbox. Five switches remain.
-
-> **`variety` and `gentle` are opposite ends of one dial, and `variety` must stay ON by default.**
-> Minimising the week-to-week step, taken to its limit, IS a long block of the same shift — the
-> smallest possible step is no step at all. Between v19.59 and v19.60 the generator settled each week
-> and then laid the waves out contiguously, so a person got **11 straight weeks of mornings and 11 of
-> afternoons**; turning `gentle` on did not move it. The owner's verdict was "a bit
-> excessive and would be unpopular", and the live roster's longest run on much the same shift is
-> **3** (bilingual 2), which is `DEFAULT_BLOCK_TARGET`.
->
-> `variety` is weighted as a **constraint** rather than a preference (excess × 400 against gentle's
-> raw minutes), so the optimiser alternates but alternates by the smallest step available — early →
-> middles → late rather than early → late. Measured on the roster seed: block 3, week-to-week 95 min,
-> 8 weekends off, 0 short turnarounds. **With `variety` off: block 11 — the generator's own raw
-> output, unchanged.**
->
-> **THE BLOCK FIGURE HERE WAS 8, IN BOTH PLACES, AND IT WAS WRONG** (measured and corrected v19.94,
-> in a doc-vs-code audit). Every variety-off configuration gives **11**:
->
-> | Switches | Longest block |
-> |---|---|
-> | raw generator output, no reorder | 11 |
-> | everything off (leave the order alone) | 11 |
-> | `gentle` only | **11** |
-> | all on EXCEPT `variety` | **11** |
-> | `variety` only | 3 |
-> | `variety` + `gentle` | 3 |
-> | all on — the shipped default | 3 |
->
-> Two things follow. **`variety` is the only switch with any lever on block length at all** — it goes
-> straight to 3, and nothing else moves the number off the generator's own 11. And **`gentle` alone
-> does not lengthen blocks**, which is a weaker claim than "opposite ends of one dial" implies: the
-> generator's raw output is already the long-block case, so gentle has no headroom to make it worse.
-> The dial framing is still the right way to think about the two — minimising the step, taken to its
-> limit, IS a long block — but the measured evidence for it is the 3-versus-11 gap, not a gentle-only
-> figure.
->
-> Note where the 8 sat: directly beneath a callout warning **"Do not quote a step figure without
-> saying which switches were on."** That discipline was applied to the STEP figure at v19.65 and not
-> to the BLOCK figure in the same box, which is how an unattributed number survived four releases
-> next to the rule against it.
->
-> **`blockRuns` treats a SPARE line as transparent** — neither breaking a block nor counting towards
-> one. A cover week interrupts, but it does not change what you go back to; counting it as a break
-> would let four spare weeks hide a 20-week block behind a reported maximum of 4.
->
-> **Interleaving the waves inside the generator is a WON'T-DO** — tried and reverted at v19.60, with
-> the numbers in `links-design.js`'s own comment. It fixes the raw block length but introduces short
-> turnarounds and costs two long weekends. The generator owns the SHAPE; this module owns the ORDER.
-
-### The spare spread is a CONSTRAINT, not a switch (v20.02)
-
-`generateLink` reserves whole spare lines and **spreads them evenly around the wheel**. The reorder
-then ran over the top of that with no objective that cared — and clustering cover weeks *helped* the
-objectives it did care about, so it clustered them. Measured on the live seed at 24 lines / 5 spare:
-the generator placed them at 1, 6, 11, 15, 20 (gaps 5, 5, 5, 4, 5) and the reorder returned
-1, 4, 5, 12, 16 (gaps 9, 3, 1, 7, 4) with **two adjacent**.
-
-Two adjacent spare weeks chain — the first week's four duties at its end, the second's four at its
-start (and since v25.03 the second's Sunday too, as overtime on top of its four) — so this took **FF11 from 9 to 14** on the generator's own output, past the threshold the
-fatigue panel reports against, with nothing on screen to say the ORDER had done it. The v20.01 note
-that "every configuration with 5 spare weeks trips FF11" was measuring this bug, not the spare count.
-
-`spareSpread` is therefore charged **unconditionally**. Every other term here is a preference a
-designer may not want; an even spread of cover is a property the generator already guarantees, and no
-one asks for a design that clusters it. It is the only term that can make the result **worse than
-what the reorder was handed**, rather than merely less good.
-
-**It was first written at the wrong weight, and the reason is worth carrying** — caught before release, in the same version, so 500 never reached a device. It was chosen as
-"above `variety`'s 400" — true per unit, and not the question. These terms *accumulate*: two units of
-block excess bid 800, so `variety` won, and the default came back with cover-week gaps of
-7, 6, 5, 6 where 6, 6, 6, 6 was available. The unit test asserting the priority compared one unit
-against one unit and passed throughout. **Comparing rates between terms that accumulate at different
-rates is the mistake**, and writing the assertion that way is what made it look settled.
-
-The weight is now **3000**, chosen by measuring 16 design shapes (20/22/24/28 lines × 3/4/5/6 cover
-weeks), each reordered with every switch on and with `variety` alone — 32 runs, total excess against
-a perfect spread:
-
-| w=500 | w=800 | w=1200 | w=1500 | w=2000 | w=3000 | w=5000 |
-|---|---|---|---|---|---|---|
-| 10 | 7 | 8 | 7 | **0** | **0** | **0** |
-
-The dominating plateau begins at 2000 and nothing above it behaves differently; 3000 sits one step
-inside rather than on its edge. Everything below is a local outcome, not a rule — 800 and 1200 look
-almost as good in total and still leave whole shapes uneven. The cost is real and small: 273
-worked-day run-length across those 32 runs against 267 at w=500, about a fifth of a day per design.
-
-Two properties that make this safe to treat as a constraint at all:
-
-- **Excess 0 is always reachable**, because `spareSpread` targets `floor(lines / spares)` — gaps as
-  equal as the rotation allows are then always at or above it. A dominating weight over an
-  *unreachable* target would set the optimiser chasing a residual it can never clear.
-- **The chaining harm was already prevented at 500** — zero adjacencies in all 32 runs, at every
-  weight tried. What the higher weight buys is the last of the evenness, which is what was asked for.
-
-**It has no checkbox, so the objectives note has to say it** (v20.03). Every other term on that card
-is a trade the designer chooses and the status line prices; this one is applied on their behalf and
-moves rows for a reason nothing on screen explains. A card whose whole argument is "the result says
-what each cost" cannot carry an unnamed term. The sentence in `.gen-obj-note` — *"Two things are not
-optional: cover weeks stay evenly spaced around the rotation, because two side by side run into one
-long stretch; and no order is used that leaves less than 12 hours between a Saturday finish and the
-next line's Sunday start"* (the rest half since v25.06) — is load-bearing copy, not filler; do not
-trim it as redundant with this file, which designers do not read.
-
-Two tests, and neither replaces the other: one asserts 3000 outweighs every switch slipping a
-unit at once (read back through `cost` rather than restated), which catches a
-re-weighting; the other drives a **real generated design** through the real optimiser and asserts the
-spread survives, which catches the behaviour. The first is necessary and **not sufficient** — the
-switches accumulate without limit, so no fixed margin proves the spread always wins, and 1500 passes
-it while still leaving designs uneven.
-
-### Hours a week — the totals the panel did not have (v20.04)
-
-The Design-checks card reported weekends off, rest between shifts, longest run and shift balance —
-every one of which describes the SHAPE of a week, and none of which says how much of it is work. So
-the most basic question anybody asks of a roster, *does it give people their contracted hours?*, had
-no answer anywhere in the tool. `weeklyHours` in `links-design.js` answers it, and it is rendered in
-three places: the Design-checks row, the generator's totals row (where the targets are being typed,
-which is where you want to know), and the sticky summary chip.
-
-**Two exclusions, and each one "simplifies" into a plausible wrong answer:**
-
-- **Sundays come out.** Sunday is not contracted for any grade here — the rule is enforced across
-  the app at every point that writes or shows a day (`SUNDAY_FORBIDDEN_TYPES` in `override-utils.js`
-  is the declaration). A Sunday duty is therefore work sitting on top of the contract, and folding
-  it into the weekly figure reports a design as delivering contracted hours using time that is not
-  contracted. It **flatters**. Both figures are returned; only `exSunday` is comparable to 35.
-- **A COVER WEEK COUNTS AS A FULL CONTRACTED WEEK, and the divisor is the whole rotation**
-  (v20.98, owner). Until then cover weeks left BOTH halves, on the reasoning that they carry no
-  times and dividing by all the lines charges the average with weeks of zero. The premise was
-  right and the conclusion was not: the answer is to stop treating a cover week as zero, not to
-  leave it out. It is somebody's paid, contracted week.
-  The two readings agree on the REQUIREMENT and disagree on the FIGURE, which is why the difference
-  went unnoticed: `(D + 35s)/L = 35` is exactly `D = 35 x working`. They diverge on every design
-  that misses — a short one read the old way looked worse than it is, because the cover weeks being
-  paid for were not in the sum.
-  **The average is over the WEEKS.** Individual lines vary widely (22h on one, 42h on another) and
-  only the mean is the contract; an UNFILLED line is 0 hours over 1 line and now drags it down,
-  which is correct — the design is not finished, and "Lines not yet designed" says so.
-
-**The measure is validated against the roster itself**: the live main cycle's 16 working lines come
-to **exactly 35.00** hours a week. That is the check on the check, and it is a test — a design judged
-by a broken yardstick is worse than one judged by none, because it looks like an answer.
-
-**What it found immediately.** The seeded 24-line design is hours a week short of contract, because
-the same duties are spread over more working lines than the roster they were sampled from. That is
-the arithmetic consequence of widening a link without adding work, it is the central fact about the
-December 2026 proposal, and nothing on the page had ever shown it.
-
-**And since v20.98 the generator REFUSES to build it** (owner: designs must hit the contracted week
-on average, and one that misses must not be generated). The check is on the TARGETS, not the
-finished patterns: the duty a table asks for is fixed, the working lines are fixed, and every
-construction places exactly those duties on exactly those lines — so no arrangement can rescue a
-wrong table, and checking the output would be re-measuring an answer the input already determined.
-`short-hours` and `over-hours` each carry the SIZE of the gap, because that is the only actionable
-thing about either, and each names its own remedies — which are opposites, so the two messages can
-never be merged into one with a sign in it.
-
-**BOTH directions, since v20.99** (owner). v20.98 allowed a surplus, on the reasoning that those
-hours get paid as overtime or absorbed by adding lines. That reads the rule as a floor, and it is an
-equality: a link IS the contracted week, so a design carrying a permanent surplus has committed the
-rotation to overtime nobody declared or agreed. The cost is real and is deliberately not softened —
-**an equality over whole duties is sometimes unsatisfiable.** `working x 35h` is a fixed number of
-minutes and a table moves in steps of one duty, so a set of shift times whose lengths do not combine
-to that total has NO valid table, and the generator refuses everything until a duty changes length or
-the cover-week count moves. `links-contract.test.mjs` asserts that case with both its neighbours, so
-it is a documented consequence rather than a mystery. A tolerance would put the app back to producing
-a design that is quietly a few hours out, which is exactly what v20.98 was for.
-
-**`requireContract` defaults ON**; only the construction tests pass `false`, and
-`links-contract.test.mjs` fails if `links-app.js` ever does. Whether the new timetable's extra
-service fills the gap is the question to take into the room.
-
-A threshold IS defensible here, unlike the ORR factors: 35 is the contract, not guidance. The
-Design-checks ROW keeps its half-hour of slack and its never-red rule — a design being edited is a
-work in progress, and the row describes a design rather than gating one. The GENERATOR is exact,
-because it is deciding whether to create something.
-
-**Per-line totals, and the two divisors (v21.09).** The grid carries three read-only columns to the
-right of Saturday — hours Mon–Sat, hours across all seven days, and days worked Mon–Sat — with the
-rotation averages in the footer beneath them. Two things about them are load-bearing. The HOURS
-averages are read from `weeklyHours`, the same call the Design-checks row and the summary strip
-already make, so the page cannot state a design's hours two ways four seconds apart. The DAYS
-average has a **different divisor** — the working lines, not the whole rotation — because a cover
-week does not record which days it works; counting it as zero would report a 4.2-day rotation as
-3.5, and it is also how the owner's 4.2 was derived in `links-default-targets.js`, so the measured
-figure is directly comparable with the target that produced it. Both divisors are printed on screen
-for exactly that reason. A cover week's HOURS show as the contracted week (the v20.98 position) but
-muted and italic, because that is a convention rather than a reading of the row; its days are a
-dash — unknown, not none. Rules in `lineTotals`; pinned by `links-design.test.mjs`.
-
-**The generator card's own "Hours a week" row belongs on the exact side of that line, and did not
-until v21.07.** It had inherited the Design-checks tolerance, which is the right rule for the wrong
-row: this one is not describing a design, it is PREDICTING the gate, sitting directly above the
-button the gate refuses. A table twenty minutes out therefore wore a green *on target (35h)* and
-then met a red refusal on the next press — the app disagreeing with itself in two places four
-seconds apart. It now computes the tick with `targetExSundayMinutes`, the gate's own function, so
-the two cannot drift, and states the gap as a TOTAL rather than per line (the per-line average
-divides by the whole rotation, so an hour of missing duty reads *0h 02m* — a figure that makes a
-refusal look like a rounding error).
-
-### The generator intro must not restate a guarantee (v20.04)
-
-The card's opening paragraph promised *"start times only move later through each person's week —
-never a late finish followed by an early start"*. That was written for the rotating construction, was
-found FALSE at v19.59 (positions are read mod `working`, so every line wraps front-to-back once a
-week — 27 short turnarounds at full staffing), and the generator was changed to **refuse** rather than
-ship it. The default has not been that construction since v19.59 either. The copy survived all of it,
-and the page contradicted itself in two places at once: the paragraph promised start times only move
-later while the Design-checks card below reported **"Backward rotating pattern — 25 backward /
-7 forward"** on the very design it had just produced. A designer who believed the promise had no
-reason to read the row. **Describe what the generator does and point at the checks for what it
-achieved.**
-
-**The intro moved into the `?` panel (v22.32).** The card carried three paragraphs and a five-item
-list above the table — most of a 360px screen before the first input. It now opens with ONE
-`.links-desc` sentence (the desktop left-edge e2e check measures it, so keep exactly one), and the
-December 2026 facts, the "starting point to argue with" line and the Saturday differences are the
-"The default table" section of `links-tips.js`. The rule above governs both places. The same move
-retired two tips that had been untrue for years — the "start times only move later" guarantee this
-section is about, and "pre-filled from the current roster" (false since v21.00) — which is the
-argument for keeping the panel beside the module it describes rather than trusting a sweep.
-
-### The run-cap switch: most shifts in a row (v20.02 — the sixth switch then; five remain since v25.06)
-
-A box on the objectives, default **6** — `DEFAULT_MAX_RUN` in `links-design.js`, which the Design
-checks panel reads too, so the generator's aim and the panel's threshold are one number. They were 6
-and 7 in different files until v20.02.
-
-Three things that are easy to get wrong, each with a test:
-
-- **A spare week counts as FOUR worked days.** `longestRunFor` delegates to `worstCaseWorkedRun`
-  rather than re-deriving it. Counting seven is what reported the live main roster at 15 consecutive
-  days against a true 9, and it is the mistake anything measuring runs repeats first.
-- **The gradient sums excess over every START; it does not penalise the maximum.** A maximum is a
-  plateau — almost every pair swap leaves it unchanged — and measured, the optimiser stalled at 8
-  where a random search found 6. Summing makes a long run cost many times over (a 14 also shows up
-  as a 13, a 12, …), which is the same shape `blockExcess` already uses. **`runExcess` is a gradient,
-  never a statistic** — do not report it or any total derived from it.
-- **The weight was chosen by measurement and the measurement is the interesting part.** With
-  everything else on: 40 gives run 8 / FF11 11 / 7 weekends; 100, 150 and 300 all give run 7 but take
-  FF11 to **14** and weekends down to 5, then 4. Pushing the cap harder makes the design worse on the
-  factor the panel actually reports, because shortening a run of worked days and creating a 48-hour
-  break are not the same thing. So it is a firm preference, not a near-absolute like `variety`.
-
-**With the switch on alone the reorder reaches 6; with the full set on it reaches 8, and the status
-line says so.** A box that names a target the design silently misses is the phantom guarantee this
-module has already shipped once — the rotating construction's documented "a person's week only moves
-later", which was untrue for a year.
-
-`links-adjacency.js`, applied by the generator through five switches and two constraints. A whole class of the design's
-quality lives in which line follows which, because you work line w one week and line w+1 the next:
-the week-to-week movement of your working day (the FF18 question), whether Saturday off is followed
-by Sunday off, whether that extends to three or four days, and whether Saturday's finish runs into
-Sunday's start.
-
-**Reordering is FREE with respect to coverage, and that fact is what makes the feature safe.** Daily
-coverage is "how many lines work shift X on day D"; permuting the rows leaves that multiset
-identical. So these objectives cannot cost a single person's cover — they compete only with EACH
-OTHER, over the one scarce resource of line adjacency. There is a test asserting the multiset is
-unchanged; if it ever fails, the reorder has started moving cells rather than rows.
-
-**Switches, not a formula** (owner, Aug 2026). Turning one on takes freedom from the rest, so the
-tool's job is to let you turn each on and SHOW what it cost — `scoreOrder` returns all the figures
-whatever you optimised for, and the generator's status line reports before→after. A blended score
-would hide the trade. Measured on a generated design: gentle-only takes week-to-week movement from
-42 to 9 minutes but drops weekends off from 10 to 9.
-
-> **The all-on figure that used to sit here — "all four on gives 14 minutes and 12 weekends" — is
-> gone** (corrected v19.65). It was measured at v19.58, before `variety` existed, and it contradicted
-> the box above, which measured the shipped default at **95 min / 8 weekends** on the roster seed
-> *(7 Nov 2026: the 26-line December default measures typically 2h 37m, largest 8h 36m, 5 of 26 over
-> 2h — `docs/links-26/tooling/default-baseline.mjs`; on 3 Nov it was 2h 13m, 8h 51m and 4)*.
-> Both were presented as "all switches on", so this file said two different things about the one
-> configuration a designer actually gets — and named four switches when there were five (six from
-> v20.02, which added the run cap, and five again since v25.06, when rest across the week boundary
-> became a constraint — `OBJECTIVES` in `links-adjacency.js`).
->
-> **The 9-minute gentle-only figure is the one to be careful with.** It is real, and it is *not* what
-> the tool does by default: `variety` deliberately spends that step to cap the block length. Quoting
-> it as the delivered FF18 answer would overstate the tool by an order of magnitude, in exactly the
-> conversation where the number matters. If you re-measure, record **which switches were on and on
-> which target set** — a step figure without both cannot be checked or reproduced.
-
-**Everything off means leave it alone** — the order comes back untouched rather than re-sorted by
-whatever was left.
-
-Two rules that are easy to undo:
-
+- **The dominant risk is FALSE ASSURANCE**, not a missing rule — a design showing nothing and being read
+  as approved. So CLEAR and NOT-APPLICABLE report themselves too: silence must never be the same shape
+  as compliance. **Never hardcode a status**: FF13 reads `runDesignChecks`, so it cannot disagree with
+  the short-turnaround row it duplicates.
+- **NOT-APPLICABLE ≠ CLEAR, and STANDING ≠ PRESENT.** A factor true of every 06:20 duty (FF2) is a
+  property of the operation: `standing`, counted separately, because adding it to the findings would
+  claim the designer could have avoided it.
+- **Only FF19 carries `confirm: true`**, rendered "(definition to confirm)". On 28 Sep 2026 the owner
+  checked the once-unsettled rows against ORR's *Managing rail staff fatigue* (Aug 2024): MRSF's 7×8h
+  reads eight hours or more; FF17 is ORR's own definition (a shift starting earlier than the last,
+  7.68); FF18 is ORR's cadence reading. FF19 keeps the flag on purpose: "a rest day resets it" is the
+  owner's reading, more lenient than ORR's wording ("consecutive duties", 7.71) — on the strict wording
+  every link with early and late weeks has FF19, so it would stop telling designs apart — and the flag
+  is how an assessing manager sees that the reading is not ORR's.
+- **FF18 is ORR's CADENCE factor; the STEP is extra information.** A weekly link changes shift type about
+  once a week by construction, so the row is `standing` on every link with a timed line, and `n/a` only
+  when no line carries a time. Its detail states the typical weekly move, the largest, and how many
+  boundaries move by more than `GENTLE_THRESHOLD_MINUTES` (ORR's own FF19 figure, single-sourced so the
+  chip and the sentence cannot drift), from `scoreOrder` over lines 1…lines — never the keys a design
+  happens to carry. **Do not turn it `present` above some figure**: the ORR gives no FF18 threshold, and
+  inventing one is the pass/fail rendering this panel forbids. The live main roster's step — typically
+  4h 0m, largest 8h 46m, 9 of 20 boundaries over two hours — is the baseline to quote. Measure the
+  default with `docs/links-26/tooling/default-baseline.mjs`, and quote any step figure with the
+  switches and target set it was measured on.
+- **Every rule laps the rotation** (invariant 3): a block straddling the last line → line 1 must be
+  measured whole (`earlyBlocksWithShortRecovery` once cut it in half and reported nothing).
+- **FF11 is not the consecutive-worked-days check it resembles.** It counts shifts between two-day
+  breaks: a single rest day is not counted as a 48-hour break (two together always are), so FF11 can
+  only overstate, and a rotation with no two-day break at all returns every worked day.
+- **Hours totals are a FLOOR**: SPARE carries no times, so a standby day adds no hours
+  (`hoursAreFloor`), and the panel says so.
+
+**A cover week is an unknown, not a no.** Every rule that counts a RUN measures it with
+`runLengthsWhere` — `workedRunLengths`'s spare-week budget with the question as a parameter — and never
+with a plain scan: a spare day has no times, fails any predicate, and a plain scan reads it as a break.
+Two bounds keep that honest: **`SPARE_WORKED_DAYS` duties a week, never seven**, because seven fuses the
+blocks either side; and **extend, never create** (`requireMatch`) — a cover week may lengthen a run of,
+say, 12-hour duties, and never make one out of unknowns. Where the worst case and the certain figure
+differ, the row states both.
+
+**A spare week is four duties of seven, from Monday to Saturday** (owner; `SPARE_WORKED_DAYS`,
+`spareDrawsOnFour`). It is marked SPARE on all seven days because the person is cover; four is what
+they work, and its Sunday can be worked as overtime on top (owner, 31 Oct 2026: *"Although people could
+be rostered for RDW on a Sunday cover week. The 4 days can only be the contractual days which are
+Monday to Saturday"*). So a worst case takes the four placed as badly as they can be, plus the Sunday.
+**Counting all seven is not "the safe direction".** It fuses the blocks either side into one phantom
+run (it read the live main cycle at 15 against a true 9), a reader who knows the real link then
+discounts the row, and the next design that genuinely passes the company limit is hidden by that
+discount.
+
+`worstCaseWorkedRun` in `links-design.js` is the ONE reading of a run; `longestWorkedRun`
+(`links-fatigue.js`), `longestRunFor` (`links-adjacency.js`) and the hard limit all delegate to it.
+Four things that are easy to get wrong, each with a test:
+
+- **Two ADJACENT spare weeks legitimately chain** — the first week's four at its end, then the second's
+  Sunday as overtime and its four from the Monday. The bilingual roster's spare weeks (lines 1 and 8 of
+  8) wrap into each other this way. Do not clamp the answer.
+- **FF11 handles a spare week differently.** Its rest days need not be adjacent, so in the worst case —
+  its Sunday worked — it supplies NO 48-hour break while still supplying five shifts. Its four, the
+  Sunday and no reset is the honest ceiling.
+- **A spare duty after a real 48-hour break RESETS the count**, exactly as a worked one does.
+- **The FF11 budget is keyed on the UNMODDED index**, so the second lap — which exists to measure a run
+  wrapping the cycle end — gets a fresh spare week of its own.
+
+**The owner's design target is below the company limit, not at it:** ideally a new base link would not
+carry even 7 consecutive worked days. `DEFAULT_MAX_RUN` is that target, read by the run-cap switch and
+by the "Longest run" row alike. Between the target and the limit the panel reports the SAME figure
+twice, amber and green, so **each row says which threshold it was measured against**: the amber row
+carries `(design target: no more than DEFAULT_MAX_RUN)` and says in its sub-line that this is an aim,
+not a limit; the hard-limit row states its own figure and source. Pinned by a test whose fixture lands
+in that band.
+
+**The `clear` and `n/a` rows are collapsed behind a disclosure**, and that must not weaken "silence is
+not compliance": the counts stay in the always-visible heading (`clear` among them), the disclosure is
+labelled with what is inside, and CLEAR and NOT-APPLICABLE keep their own icons and wording inside it.
+What is hidden is the PROSE, never the fact of the check; `present` and `standing` always render inline.
+The night-family rollup belongs INSIDE the disclosure, or the heading and the label count different
+things.
+
+**Printing must open every `<details>`, and CSS cannot do it**: Chromium hides a closed disclosure's
+content through an internal slot no author rule reaches. `_preparePrint` opens them — from the Print
+button before `window.print()`, and on `beforeprint`, idempotently — and `_restoreAfterPrint` closes them
+on `afterprint` and again when the page becomes visible, because Safari fires neither event for
+AirPrint. The printed sheet goes to the assessing manager, and dropping completed checks from it is the
+false-assurance failure this panel exists to prevent.
+
+**Today's link, for comparison** (`currentLinkBaseline`, passed as `getBaseline`): measured over the MAIN
+cycle (`weeklyRoster`) at its own length. Never splice two cycles into one rotation — the join itself
+reports a run neither roster has. No bilingual row: the design does not replace the bilingual roster.
+
+### Hours a week
+
+`weeklyHours` in `links-design.js` answers the first question anybody asks of a roster — does it give
+people their contracted hours? — in the Design-checks row, the sticky summary chip, the grid's per-line
+totals footer and the compare strip. The generator card's own row predicts the gate instead (below).
+
+**Two rules, and each "simplifies" into a plausible wrong answer:**
+
+- **Sundays come out.** Sunday is not contracted for any grade (`SUNDAY_FORBIDDEN_TYPES` in
+  `override-utils.js` is the app-wide declaration), so a Sunday duty sits on top of the contract, and
+  folding it in reports contracted hours using time that is not contracted. It flatters. Both figures
+  are returned; only `exSunday` is comparable to `CONTRACTED_HOURS_PER_WEEK`.
+- **A cover week counts as a full contracted week, and the divisor is the whole rotation** (owner). A
+  cover week carries no stored times, but it is somebody's paid, contracted week. Only the mean is the
+  contract — individual lines vary widely — and an UNFILLED line is zero hours and rightly drags the mean
+  down.
+
+**The measure is validated against the roster itself**: the live main cycle comes to exactly the
+contracted week, and that is a test. A design judged by a broken yardstick is worse than one judged by
+none, because it looks like an answer.
+
+**The generator REFUSES a table that does not pay that mean EXACTLY** (owner): `short-hours` and
+`over-hours`, each carrying the size of the gap and naming its own remedies, which are opposites, so
+the two messages can never merge into one with a sign in it. The check is on the TARGETS: the duty a
+table asks for and the working lines are fixed, and every construction places exactly those duties on
+those lines, so no arrangement can rescue a wrong table.
+
+- **A surplus is not a lesser fault.** A link IS the contracted week, and a permanent surplus commits
+  the rotation to overtime nobody declared or agreed.
+- **An equality over whole duties is sometimes unsatisfiable.** A set of duty lengths that cannot sum to
+  the total has no valid table, and the generator refuses everything until a duty changes length or the
+  cover-week count moves. That is the rule working: `links-contract.test.mjs` asserts the case with both
+  its neighbours, and a tolerance would bring back designs that are quietly a few hours out.
+- **`requireContract` defaults ON.** Only the construction tests pass `false`, and
+  `links-contract.test.mjs` fails if `links-app.js` ever does.
+
+**A threshold IS defensible here, unlike the ORR factors**: the contract is a contract, not guidance.
+The Design-checks ROW keeps its half-hour of slack and never turns red, because it describes a design
+being edited; the GENERATOR is exact, because it decides whether to create something.
+
+**The generator card's "Hours a week" row predicts the gate, so it is exact too** (`assessTargetHours` in
+`links-target-hours.js`, on the gate's own `targetExSundayMinutes`): a tick kinder than the gate is a
+promise the next press breaks. It states the gap as a TOTAL, never per line — divided by the whole
+rotation, an hour of missing duty reads as two minutes and makes a refusal look like rounding.
+
+**Per-line totals, and the two divisors.** Three read-only columns to the right of Saturday — hours
+Mon–Sat, hours across all seven days, and days worked Mon–Sat — with the rotation averages in the footer.
+The HOURS averages are `weeklyHours`, so the page cannot state a design's hours two ways. The DAYS
+average divides by the WORKING lines (invariant 7), because a cover week does not record which days it
+works; that is also how `TARGET_DAYS_PER_WEEK` is derived, so the measured figure is comparable with the
+target. Both divisors are printed on screen. A cover week's hours show as the contracted week, muted and
+italic, because that is a convention rather than a reading; its days are a dash — unknown, not none. The
+`.tot-legend` line under the grid says what each style means. Rules in `lineTotals`; pinned by
+`links-design.test.mjs`.
+
+## The generator
+
+### What it is
+
+**The main way to create a design**; New blank design, Import and the built-in proposals are the
+others. Its targets are a LIST of shift slots — one row per shift time, each with separate
+**Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.
+
+**Spare is a whole week, not a scatter of days** (owner, Aug 2026). A spare line is spare on all seven
+days: the person is cover, works four days of it, and can be put on any range of shifts. The real roster
+is built this way — main lines 1, 7, 12 and 17, bilingual 1 and 8 — and has no scattered spare day
+anywhere. `spareLines` whole lines are reserved and spread evenly round the wheel, and the rotation is
+built over the rest; daily targets are still met exactly. A per-day spare headcount fed to the sliding
+window got the daily total right and the distribution wrong, which is why it went unnoticed. The
+targets are validated against the WORKING lines (`lines − spareLines`), so a total that fits the
+rotation can still be refused.
+
+### The default table and the roster seed
+
+Two buttons, for two questions: *↺ Use the recommended Dec 2026 staffing* and *↺ Copy staffing from
+today's roster*. A proposal wants both — design tomorrow, measure today. **Neither label may say
+"reset" without saying to WHAT**: with two of them, that word alone is the one thing a designer cannot
+act on.
+
+- **The default** (`links-default-targets.js`) is Short Run's duty table. It pays the contract exactly,
+  so Generate works on a card nobody has touched, and it meets the rules every design at this length is
+  judged against, `docs/links-26/RULES.md` (`links-default-targets.test.mjs` pins each one). Meeting
+  them is the floor for being worth discussing, not evidence of being right. **It is not a link**: the
+  generator arranges the duties its own way, not as Short Run does, so read the panels before anyone
+  takes a printout into a room. Its cover-week count, `DEFAULT_COVER_WEEKS`, is a term in its contract
+  equation: change it only together with the duty table.
+- **The roster seed** (`buildRosterTargets` in `links-seed.js`) MEASURES today's link, so the contract
+  gate refuses it with the gap named: today's duties pay fewer working lines than the design has.
+  **It must sample exactly what the design represents** — the whole MAIN cycle, through
+  `rosterSeedLines()`, and nothing else. Never only the weeks people happen to sit on today, which is a
+  fact about staffing, not about the roster's shape; and never the bilingual roster, whose times no line
+  in this design can work. The cycle length comes from `CONFIG.MAIN_ROSTER_WEEKS`, never a literal (a
+  static assertion bans one), so a cycle that changes length is still read whole. `buildRosterTargets`
+  takes its sources as an argument defaulting to `rosterSeedLines()`, so which lines are sampled is
+  testable apart from what is counted. `links-seed.test.mjs` checks line IDENTITY and that no
+  bilingual-only time is ever seeded, rather than resting on a figure; an e2e still drives the button,
+  which proves the BUTTON reaches the seed, something a unit test cannot. The weekday count is the
+  **busiest** Mon–Fri day for each time — under-staffing a day is the worse error, and the generator
+  staffs all five at that level — so the column header says `busiest day`.
+- **The seed reports what it measures, and nothing else.** It carries no uplift, and a knob that drives
+  nothing is deleted, never set to zero; a designer who wants another spare week types it into the box.
+- **A remembered table does not outlive a changed default.** Each design's working table is remembered
+  on the device (`links-generator-targets.js`; four rules in its header). `isSupersededMemory`
+  discards a memory equal to the roster seed or to the current default, compared by content, so a table
+  a designer edited is never discarded; a kept memory that differs from the default carries a
+  provenance note until it is touched, and a version stamp retires an old default without touching
+  anything a designer edited.
+
+### Minimum rest is a GATE, not a finding
+
+Owner: *"It keeps offering me a gap of 11 hours 45 minutes between a shift. That would never be allowed
+by Chiltern."* A minimum rest period is a condition of a design being runnable — the same class of
+statement as the contract — so the generator **repairs** a breach and refuses only what it cannot
+repair (`short-rest`, naming the shortest remaining gap). Invariant 4: reporting it afterwards is not
+refusing it.
+
+- **The repair (`repairShortRest`) swaps two lines' duties within one day column.** That day's headcount
+  on every shift time is unchanged, so the targets, the contract, the heat map and the demand fit are
+  untouched by construction rather than by re-checking. Timed↔timed swaps come first (both lines keep
+  their days worked), timed↔rest only if none fixes it. **Whole spare weeks are never touched**: a duty
+  swapped into one turns a cover week into a working week with six spare days. A swap is accepted only
+  when **all four** adjacencies it can affect come out legal, or the repair walks the breach onto
+  another line and reads as success.
+- **`requireRest` is the opt-out**, for construction fixtures that staff every line every day;
+  `links-contract.test.mjs` fails if `links-app.js` ever passes it, exactly as for `requireContract`.
+- **The reorder runs after the gate, so it is held to it too**: rest across the week boundary is
+  charged and filtered on in every configuration (Line order, below).
+
+### Saved staffing setups
+
+The generator card's "Saved staffing setups" row holds named snapshots of the target table, shared
+between the designers in Firestore (`linkTargetSets`), because the promise they exist for — owner:
+*"I want others to be able to mess about but not lose my shift times set"* — cannot be kept per device.
+
+- **Use setup** copies one into the working table, asking first if the table has been changed; keeping
+  a changed version means **+ Save as new…**.
+- **Overwriting or deleting a setup belongs to its creator or the admin**, and `firestore.rules`
+  enforces that, not the disabled button, which only reports it (invariant 9). `createdBy` is pinned to
+  the writer's own name on create and cannot change on update.
+- **Consent names a version**: a setup changed while a confirm sat open is not overwritten or deleted
+  (`writeIfUnchanged`, `links-target-sets-store.js`). **A failed read is not an empty list**: the row
+  never says there are no setups when it could not find out.
+- Rules: `links-target-sets.js`; the panel: `links-generator-targets.js`. The e2e seat is M. Robson,
+  deliberately — the admin's override is real, so ownership must be tested from a seat without one.
+
+### The two constructions
+
+`generateLink({ slots, spareLines, lines })` tries **settled weeks** first and falls back to the
+**rotating window**. Which one ran is REPORTED in the status line, never silent, because they give
+visibly different designs. `generatePatterns` is the thin wrapper that returns the patterns only, kept
+for the callers and tests written against it. The reasoning and the measurements are the comment above
+the two constructions in `links-design.js`.
+
+1. **Settled weeks (default).** Slots are grouped into WAVES — starts within `WAVE_SPAN_MINUTES`, the
+   FF19 threshold — and each wave gets a contiguous BLOCK of lines sized by its duty, sliding its own
+   window inside that block. **A line never leaves its wave**: its start can move 06:20 → 07:15, never
+   06:20 → 15:25. The real roster hands out WEEKS this way; the old construction gave everyone a week
+   nobody at Marylebone has worked, and inflated the very FF19 the tool reports. Waves rather than exact
+   times, because a block per time needs more lines than exist. Three things, each pinned by a test:
+   - **A wave too small to fund a line merges into its nearer neighbour**, or one whole line exists to
+     work two days a week. A shape improvement paid for with an unfair link is not an improvement.
+   - **A lap is spread ACROSS the week, never front-loaded** (`floor((i+1)·n/7) − floor(i·n/7)`).
+   - **The fairness test is comparative, not an absolute floor**: "nobody under 3 days" is a fact about
+     the targets, not the construction.
+2. **Rotating window (fallback).** A window of consecutive lines slides round the wheel, one lap a week.
+   Positions are read mod `working`, so every line wraps front-to-back once a week, and that wrap IS a
+   late-finish-to-early-start step unless it lands on a rest day. So each day's stride is capped at
+   `working − (next day's total)`, and when the caps cannot fund a lap the generator **refuses**
+   (`no-rest`) rather than ship the phantom guarantee that "a person's week only moves later".
+
+Daily targets are met exactly by both, a day-class total over the working lines is refused
+(`over-capacity`), and the generator writes every line. **Do not add back** `buildDefaultDesign`,
+`initFromRosters` or `resetFromRosters` — removed because they copied raw roster patterns verbatim and
+left the lines past the roster's own length blank. **Interleaving the waves inside the generator is a
+WON'T-DO** (tried and reverted; the numbers are in `links-design.js`): it fixes the raw block length
+but puts a late wave's 23:55 Saturday beside a morning wave's 06:20 Sunday. The generator owns the
+SHAPE; `links-adjacency.js` owns the ORDER.
+
+### Line order — the objectives
+
+`links-adjacency.js` reorders the generated lines through **five switches and two constraints**
+(`OBJECTIVES`, `cost`, `reorderLines`); its header holds the reasoning and the measurements. You work
+line w one week and line w+1 the next, so a whole class of a design's quality lives in which line
+follows which: how far your working day moves from week to week (the FF18 question), whether Saturday
+off is followed by Sunday off, whether that stretches to three or four days, and whether Saturday's
+finish runs into Sunday's start.
+
+- **Reordering is FREE with respect to coverage** (invariant 8): permuting rows leaves "how many lines
+  work shift X on day D" identical, so the objectives compete only with EACH OTHER. A test asserts the
+  multiset is unchanged; if it ever fails, the reorder has started moving cells rather than rows.
+- **Switches, not a formula** (owner, Aug 2026). Turning one on takes freedom from the rest, so the tool
+  lets you turn each on and SHOWS what it cost: `scoreOrder` returns every figure whatever you optimised
+  for, and the status line reports before → after. A blended score would hide the trade. **Everything
+  off means leave the order alone.**
 - **A spare week must not read as a gentle transition.** A spare line carries no times, so the step
-  across it cannot be measured — and an optimiser scoring "unmeasurable" as "no change" would learn
-  to park spare weeks between the two harshest lines and report a beautiful number. Unmeasurable
-  steps are counted and reported SEPARATELY, never folded into the mean.
-- **Days off and contracted days GIVEN are two different answers.** Sunday is not contracted, so
-  Sat + Sun off is a two-day break but only one contracted day. Rolled into one number, a design
-  that simply never rosters Sundays would score as generous while giving nothing away. `breakLength`
-  returns both; `days` is right for fatigue, `given` is right for judging the design.
+  across it is UNMEASURABLE and is counted and reported separately — never as "no change", or the
+  optimiser learns to park spare weeks between the two harshest lines and report a beautiful number.
+- **Days off and contracted days GIVEN are different answers** (`breakLength` returns `days` and
+  `given`). Sunday is not contracted, so Saturday + Sunday off is a two-day break but one contracted day.
+  `days` is right for fatigue, `given` for judging the design.
+- **`variety` and `gentle` are opposite ends of one dial, and `variety` must stay ON by default.**
+  Minimising the step, taken to its limit, IS a long block of one shift; with `variety` off a person
+  gets months of mornings, which the owner called "a bit excessive and would be unpopular". `variety` is
+  the only switch with any lever on block length. It is weighted as a constraint, so the optimiser
+  alternates by the smallest step available (early → middles → late) towards `DEFAULT_BLOCK_TARGET`,
+  the live roster's own longest run on much the same shift. `blockRuns` treats a SPARE line as
+  transparent, because counting a cover week as a break would let four spare weeks hide a 20-week block.
+- **Most shifts in a row (`maxRun`)** aims at `DEFAULT_MAX_RUN`, the same number the "Longest run" row
+  reads. `longestRunFor` counts a spare week as four worked days by delegating to `worstCaseWorkedRun`;
+  counting seven is the mistake anything measuring runs repeats first.
+  **`runExcess` is a gradient, never a statistic**: it sums the excess over every start, because a
+  maximum is a plateau a 2-opt cannot climb. Do not report it, or any total derived from it. **Its
+  weight is a firm preference, not a near-absolute**: reaching the target with every switch on costs
+  three or four full weekends off across the rotation (the FF11 figures across weights are search
+  noise, not a property of the weight). Which matters more is a judgement about conditions for the
+  room, not a tuning exercise, so leave the weight alone unless that answer comes back
+  (`LINKS_DEC2026_PLAN.md` → the run cap; KNOWN_LIMITATIONS.md). With the switch on alone the reorder
+  reaches the target; with the full set it may not, **and the status line says what it reached** — a
+  box naming a target the design silently misses is the phantom guarantee again.
+- **The spare spread is a constraint, not a switch** — the next section.
+- **Rest across the week boundary is a constraint too.** The reorder must never put a Saturday finish
+  less than `MIN_REST_MINUTES` before the next line's Sunday start. As a switch, unticking it undid the
+  generator's rest gate; it is charged in every configuration, at the old switch's weight so the shipped
+  default is unchanged, and FILTERED on, because a weight can always be outbid.
 
-**Deterministic per attempt** (v20.07 — was flatly deterministic, which made Generate a dead end:
-pressing it again returned the identical design, and a designer could never ask "is there another
-arrangement?" without changing a target they did not want to change — the owner's report). The 2-opt
-is a local search, so where it STARTS decides where it lands:
+**Deterministic per attempt.** The 2-opt is a local search, so where it starts decides where it lands.
+Attempt 0 starts from the greedy order, so the first press is canonical; pressing Generate again on
+unchanged inputs moves to the next attempt, which keeps the best of three seeded shuffles (mulberry32 on
+the attempt number — **never `Math.random`, never the clock**), and any change of input goes back to
+attempt 0. So "design 3" means the same design on every device, and a variant is recovered by pressing
+Generate the same number of times. The status line names the design, tracks the best so far on the
+ticked objectives, and says how to get a superseded best back. **The even cover spread and the boundary
+rest are FILTERS on the candidates as well as weights**: a local search can only pay a price it can find
+a path away from. If all three starts fail, the attempt falls back to the canonical design and the
+status line admits the duplicate rather than renumbering it.
 
-- **Attempt 0** starts from the greedy order — byte-identical to the old behaviour, so the measured
-  figures in the docs still describe the first press, and the two e2e assertions on the first-press
-  status text stay true.
-- **Attempt N ≥ 1** starts from three seeded shuffles (mulberry32 on the attempt number — never
-  `Math.random`, never the clock) and keeps the best by cost. Different attempts land in different
-  local minima: measured on the live seed, attempts 0–7 produced seven distinct designs, several
-  better than attempt 0 on individual figures (attempt 2: week-to-week 110 min against 156 at the
-  same longest run).
+Greedy nearest-neighbour, then a bounded 2-opt; not optimal, and it does not claim to be. **Do not quote
+a step or block figure without saying which switches were on and on which target set** — a figure
+without both cannot be checked or reproduced, and a gentle-only step overstates what the default
+delivers, in exactly the conversation where the number matters.
 
-What the old rule was FOR — reproducibility — survives: same design, switches and attempt number
-give the same order on any device, so "design 3" means the same design to two designers comparing
-notes, and a variant is recoverable by reloading and pressing Generate the same number of times.
-The status line names the design, tracks the best-so-far on the ticked objectives, and says how to
-get a superseded best back.
+### The spare spread is a CONSTRAINT, not a switch
 
-**The even cover spread is a FILTER on candidates, not only a weight** — and that distinction was
-measured, not theorised: attempt 6's three starts all converged into minima with gaps 6,7,6,5. The
-w=3000 weight makes unevenness expensive, but a local search can only pay a price it can find a
-path away from. A candidate that breaks the spread is not a worse candidate — it is not a candidate;
-if all three fail, the attempt falls back to the canonical design and the status line admits the
-duplicate rather than renumbering it. Teeth-verified three ways (attempt-blind seed, dropped
-filter, `Math.random` in place of the PRNG).
+`generateLink` reserves whole spare lines and spreads them evenly round the wheel. A reorder with no
+objective that cared clustered them — clustering helped the objectives it did care about — and **two
+adjacent spare weeks chain into one long run** (the first's four at its end, the second's Sunday and
+four at its start): a fatigue finding of the tool's own making, with nothing on screen to say the ORDER
+had done it. So `spareSpread` is charged **unconditionally**. It is the only term that can make the
+result worse than what the reorder was handed, rather than merely less good.
 
-Greedy nearest-neighbour then a bounded 2-opt; not optimal and does not claim to be.
+- **Its weight must DOMINATE, not merely lead.** These terms ACCUMULATE: a weight above `variety`'s per
+  unit was still outbid by two units of block excess. **Comparing per-unit weights between terms that
+  accumulate at different rates is the mistake**, and a test comparing one unit against one unit is what
+  made it look settled. The weight sits one step inside the measured dominating plateau; `cost`'s
+  comment has the measurement.
+- **It is safe as a constraint because excess 0 is always reachable**: `spareSpread` targets
+  `floor(lines / spares)`, which gaps as equal as the rotation allows always meet. A dominating weight
+  over an unreachable target would chase a residual it can never clear.
+- **Two tests, and neither replaces the other.** One asserts the weight outweighs every switch slipping
+  a unit at once (read back through `cost`), which catches a re-weighting; the other drives a real
+  generated design through the real optimiser and asserts the spread survives, which catches the
+  behaviour. The first is necessary and not sufficient — the switches accumulate without limit.
+- **It has no checkbox, so `.gen-obj-note` says it**, with the boundary rest: *"Two things are not
+  optional: cover weeks stay evenly spaced around the rotation, because two side by side run into one
+  long stretch; and no order is used that leaves less than 12 hours between a Saturday finish and the
+  next line's Sunday start."* That is load-bearing copy: a card whose argument is "the result says what
+  each one cost" cannot carry an unnamed term. Do not trim it as redundant with this file, which
+  designers do not read.
+
+### No uplift control (owner decision)
+
+An "increase every target by N%" control was built and then removed on the owner's decision:
+*"over complicates it."* If one is ever proposed again, two things must come with it:
+
+- **Round the day-class TOTAL, not each slot** (largest remainder). The targets are mostly 1s and 2s,
+  so rounding each slot leaves small uplifts byte-identical, and the control appears broken.
+- **A slot at 0 for a day class stays 0.** Zero is not a small number: it means that shift does not run
+  that day.
+
+**The finding it was built to surface still stands** (`LINKS_DEC2026_PLAN.md`): every extra duty comes
+out of a rest day, so a service increase cannot be absorbed by making the existing lines denser — the
+link has to get bigger, which means more staff. That is an argument to take into the room, not a
+control to put on a page.
 
 ### Sunday is not contracted, and the generator does not model it
 
 Sundays appear on the roster as agreed **RDW** — overtime by agreement, not contracted hours — but
-`dayClass` returns `'sun'` and that is the entire extent of it. Nothing in the generator,
-`runDesignChecks` or `links-fatigue.js` treats a Sunday duty as voluntary. Mostly harmless (the cover
-still has to be found, and an hour worked is an hour worked for fatigue), but two readings change:
-the Sunday column is cover you HOPE to fill rather than cover you can require, and "weekends off"
-counts a Sunday you were never going to work. The generator table labels the column `RDW` for the
-first; `links-adjacency.js` splits days-off from contracted-days-given for the second.
+`dayClass` returning `'sun'` is the whole of it: nothing in the generator, `runDesignChecks` or
+`links-fatigue.js` treats a Sunday duty as voluntary. Mostly harmless (the cover still has to be found,
+and an hour worked is an hour worked for fatigue), but two readings change: the Sunday column is cover
+you HOPE to fill, which is why the table labels it `RDW`; and "weekends off" counts a Sunday nobody was
+going to work, which is why `links-adjacency.js` splits days off from contracted days given.
 
-**A cover week IS Mon–Sat SPARE — its Sunday is not asked about** (v25.06, whole-app review;
-`isCoverWeek` in `links-design.js`, read by the hours, the per-line totals, the 219-day ceiling and
-the spare spread). Each required all seven days SPARE until then, so a cover week written with its
-Sunday as a rest day counted as an empty line and a design over the ceiling read as under it.
+- **A cover week IS Mon–Sat SPARE; its Sunday is not asked about** (`isCoverWeek` in `links-design.js`,
+  read by the hours, the per-line totals, the contracted-days ceiling and the spare spread). A cover week
+  written with its Sunday as a rest day is still a cover week.
+- **A spare week's four days come from Monday to Saturday.** Its Sunday stays RDW if the roster clerk
+  gives it, on top of the four (`spareDrawsOnFour`; the owner's words are under Fatigue factors). All
+  seven days are still marked SPARE, which is what "available for cover" means.
 
-**A spare week's four days come from Mon–Sat.** The Sunday of a spare week stays RDW if the roster
-clerk gives it, on top of the four — it is not one of them. All seven days are still marked SPARE,
-which is what the real roster does and what "available for cover" means, but a reader should not take
-the four out of seven.
+### The generator intro must not restate a guarantee
 
-**The run checks follow this since v25.03** (`spareDrawsOnFour` in `links-design.js`; owner, 31 Oct
-2026: *"Although people could be rostered for RDW on a Sunday cover week. The 4 days can only be the
-contractual days which are Monday to Saturday"*). The four never include the Sunday, and a worst case
-counts the Sunday as worked, because it can be. Until then the checks let one of the four fall on the
-Sunday — disagreeing with the paragraph above, and with contracted days a year, which already counted
-the four as Monday to Saturday — and so understated every run that enters a cover week by one: on the
-26-line proposals, 6 days in a row at worst where the honest figure is 7.
+The card once promised *"start times only move later through each person's week — never a late finish
+followed by an early start"*, a promise the rotating construction never kept, so the page contradicted
+itself: the Design checks below reported a backward-rotating pattern on the design the paragraph had
+just described. **Describe what the generator does, and point at the checks for what it achieved.** The
+rule governs both places the generator is described:
 
-### Generator layout — the v19.61 polish pass
+- **The card opens with ONE `.links-desc` sentence.** The desktop left-edge e2e measures it, so keep
+  exactly one.
+- **Everything else is the `?` panel** — the "The default table" section of `links-tips.js`, whose "no
+  promise about the result" item points at the checks. Keep the panel beside the module it describes:
+  help text is prose, checked only by someone who knows the feature.
 
-Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug rather than polish:
+### Generator layout
 
-- **The iOS focus-zoom guard had never worked.** Full account in `css-tokens.md` → "The 16px
-  focusable-field rule is now MEASURED". The override now sits at the END of `links.css`, after the
-  base rule it has to beat, and an e2e measures the computed size on a real coarse pointer.
-- **Touch targets.** On a coarse pointer the fields were 28px, the row ✕ 20px and the two text
-  links 15px. All now ≥40/44px. The app's rule is that density is gated on `pointer: fine` — a wide
-  touch screen still needs the target spacing.
-- **The SHIFT TIME column is sticky on mobile.** At 390px the table is 443px inside a 306px wrapper:
-  131px hidden, which is the whole **Sunday** column and the ✕. Sunday is a required INPUT, so this
-  is not the same call as compare mode's accepted clipping of a read-only view. Sticky identifies the
-  row while you type AND makes the scroll self-evident, and a right-edge shadow (pure CSS,
-  `local`/`scroll` gradients — no scroll listener) says there is more. **Every sticky cell needs an
-  OPAQUE fill:** the spare row's own background is `color-mix(gold 10%, transparent)` — 90%
-  see-through — so the caption sat there with the scrolled column showing through it, which reads as
-  a fault, not a feature. And `white-space: nowrap` had to go: fine in a cell that sizes to content,
-  but in a sticky one it just overflows the fill.
-- **The form uses the FULL card width on desktop — the 660px cap is HISTORY** (v19.82, owner:
-  "still not using the full width"; this bullet described the cap as current until v20.54, arguing
-  the opposite of the shipped CSS). The v19.61 cap reasoned that widening "puts a 90px shift time in
-  a 477px cell" — misapplied, because the shift time is a `<select>` that stretches to fill its
-  cell, which reads as a control rather than as gap; capping the select instead looked WORSE
-  (190px of void inside a bordered cell). What SURVIVES from that era is the one-left-edge rule:
-  the intro keeps a 72ch reading measure pinned to the same left edge (`margin-inline: 0`, never
-  centred), and the left-edge e2e still measures all five parts. The full reasoning lives beside
-  the rule in `links.css` ("THE FORM USES THE FULL CARD").
-- **The generate feedback is written beside the BUTTON, and the button is held still** (v20.54).
-  The canonical status lives in the grid card's sticky save row — a full card above the Generate
-  button, and measured after a real press it sat 448px above the viewport at 1280×900 and 569px at
-  390×844, so the whole v20.07 explore-loop voice (design numbering, best-so-far, how to get a
-  variant back) was invisible from the one place it is read; `aria-live` meant screen-reader users
-  were the only ones getting it. `#genStatus` mirrors the same text under the button (aria-hidden —
-  one announcement is enough). And on the FIRST generate the grid card above grows ~1,500px, which
-  used to strand the viewport mid-grid with the button and feedback both off-screen: the handler
-  now re-anchors the scroll so the button stays where the finger is. Both pinned by an e2e.
-- **The objective labels.** Two of the five carry an inline number, and at 390px the tail wrapped
-  flush with the CHECKBOX, reading as a sixth objective. The label text is now one `<span>` (a flex
-  item) so it wraps as a block, and the numeric clause has its own line — a 40px-tall field cannot
-  sit inside a sentence in a 260px column. **Grid was tried here and is wrong**: every child of a
-  grid container becomes an item, so the number box left its sentence and dropped into the
-  checkbox's column.
-- **The objectives are OPTION ROWS, not bare checkboxes** (v19.63, owner: "the toggle switches and
-  associated writing look unstyled" — they were). They shipped at v19.58 as five native checkboxes
-  with text beside them, which is exactly what paycalc's `.bp-mode-opt`/`.hpp-mode-opt` was built to
-  replace; that rule's own comment reads *"the design system instead of two bare browser radios
-  floating in space"*. `.gen-obj` now mirrors it: a bordered row, navy border + a brighter fill
-  + a subtle lift via `:has(input:checked)`, the shared app-drawn checkbox from `shared.css` (never
-  sized or tinted locally — see `.claude/rules/css-tokens.md`), and the focus ring on the ROW rather than the box, because the row is what you are choosing. Same
-  2px border in both states so toggling one causes no reflow, and `.gen-obj + .gen-obj` spaces them —
-  two adjacent checked rows with no gap read as one tall box with a line through it. A `<legend>`
-  inside a flex container lays out unpredictably across engines, so the gap is a sibling margin, not
-  a flex `gap` on the fieldset. **Do not re-create a page-local variant of this** — if the option-row
-  treatment needs to change, change it with paycalc's.
-- **ON is the BRIGHTER row, and check that against the SUBSTRATE** (v19.65, staff report: "everything
-  doesn't quite look right"). The v19.63 row above shipped its two fills the wrong way round —
-  resting `white`, checked `--bg-faint` — copied from paycalc without noticing the substrate differs.
-  Measured: this fieldset is `--surface-sunken` (L 96.3%), so a checked row at `--bg-faint` (97.0%)
-  sat **0.7% above its own background** and dissolved into it, while an unchecked row at white sat
-  3.7% above. With all five on — the default — every row was panel-coloured inside a navy outline, so
-  the card read as five empty boxes and the one state the fill exists to show was the one you could
-  not see. Switching an option ON also made it 3% **dimmer**, inverting the app's three-surface cue
-  (css-tokens.md: a control brightens to white when it becomes active). Paycalc is deliberately left
-  alone: its options sit on a `--surface` CARD (98%) and are a two-option radio group where exactly
-  one is ever checked, so the border carries the state and the fill is only a whisper. The
-  `.gen-obj-num` field lost its `background-color: white` override in the same pass — that was
-  reasoned from the old checked fill, and it both flattened the row and killed the app-wide
-  "field brightens to white on focus" cue, since a field already at white cannot brighten.
-- **A number and the words that qualify it are ONE unbreakable group** (v19.65). "at most [3] weeks
-  the same" was three loose flex children in a ~190px column and overflowed by ~8px, so at 360px —
-  the reported device — it wrapped and left "weeks the same" alone under "at most", reading as a
-  separate statement. Neither lever that would normally fix it is available: 360px is the design
-  target, and 16px/40px is the iOS-zoom + touch-target floor for the box. So the clause was shortened
-  to "at most [3] weeks" (the noun is in the title directly above) and the box + its unit wrapped in
-  `.gen-obj-numctl`, an `inline-flex` that cannot come apart. Both are belt-and-braces; either alone
-  fixes today's render.
-- **The generator now has pixel coverage** (v19.64): `links-generator.png` (desktop, three objectives
-  on and two off) and `links-objectives-narrow.png` (390px, where the rows stack). It had none
-  before, because the card is collapsed in the workspace baseline — so four consecutive releases
-  reshaped it with only hand-read screenshots watching, on the surface where this page's layout bugs
-  actually happen. **But note the two things it CANNOT see, both established by measurement**
-  (v19.65): near-white fill changes fall under `threshold: 0.15` (that is what hid the inverted
-  state), and the visual project is FINE-pointer only, so the 56×40 coarse box that caused the clause
-  to fragment never appears in a baseline at all. Both are asserted in code instead — the fill
-  direction beside the desktop shot in `visual.spec.js`, the clause on **mobile-chrome** in
-  `links.spec.js` at 360px. Do not move the clause test into the visual suite: measured at 390, 360
-  and 300 there, it passes on the broken markup.
-  **The checked-row treatment is asserted in COMPUTED STYLE, not left to the pixels**, and that split
-  is not belt-and-braces: `--bg-faint` is `oklch(97%)` against white, a 3% step, far under the
-  suite's `threshold: 0.15` per-pixel sensitivity — deleting the fill AND the shadow left the
-  screenshot passing (teeth-verified). The baseline catches composition; the style assertion catches
-  on-versus-off. Keep both.
+Measured at 390px and 1280px, not eyeballed. The reasoning for each rule is beside it in `links.css` (the
+"Generator polish" block).
 
-## Page-wide review findings (v19.66)
+- **The iOS focus-zoom guard must come AFTER the rule it beats.** The coarse-pointer block that sets the
+  generator's fields to `--type-medium` sits after the base `.gen-input, .gen-select` rule; placed
+  above it at equal specificity, it did nothing. `e2e/pages.spec.js` measures the computed size on a
+  real coarse pointer (`css-tokens.md` → "The 16px focusable-field rule is MEASURED").
+- **Touch targets:** on a coarse pointer the fields are at least 40px tall and the row ✕ and the text
+  links 44px. Density is gated on `pointer: fine`, never on width.
+- **The SHIFT TIME column is sticky below 768px**, where the table scrolls inside its card and hides the
+  Sunday column and the ✕. Sticky identifies the row while you type and makes the scroll self-evident,
+  with a right-edge shadow (pure CSS, `local`/`scroll` gradients, no scroll listener). **Every sticky
+  cell needs an OPAQUE fill** — the spare row's own tint is mostly transparent — and a sticky cell takes
+  no `white-space: nowrap`, which just overflows the fill.
+- **The form uses the FULL card width on desktop** (owner: "still not using the full width"). Capping
+  it, or capping the shift-time select instead, looked worse. **The card has ONE left edge**: the intro
+  keeps a 72ch reading measure pinned to that edge (`margin-inline: 0`, never centred), and anything
+  added to the card joins the one column. `links: the generator card lines up on one left edge at
+  desktop width` measures every part and names the offender, which a whole-card baseline cannot.
+- **The target table's column headers stick from 768px up, and only there.** Below it, the wrapper's
+  `overflow-x: auto` makes the other axis compute to `auto` too, so the header sticks to a box that never
+  scrolls. **Do not "fix" it with `overflow-y: visible`** — that is the declaration the spec overrides,
+  so it reads as correct and changes nothing. Making it work on a phone needs a `max-height`, and so a
+  nested scrollbox round the primary creation path: a UX decision, not a tidy-up. An e2e pins both
+  widths.
+- **The generate feedback is written beside the BUTTON** (`#genStatus`, `aria-hidden`; the sticky save
+  row's copy carries the `aria-live`, and one announcement is enough), and **the button is held still**:
+  the first generate grows the grid card above by a whole grid, so the handler re-anchors the scroll to
+  keep the button under the finger. Both pinned by an e2e.
+- **The objective labels:** the label text is ONE `<span>` (a flex item), so it wraps as a block, and a
+  numeric clause has its own line. **Grid is wrong here**: every child becomes an item, and the number
+  box drops into the checkbox's column. **A number and the words that qualify it are one unbreakable
+  group** (`.gen-obj-numctl`, `inline-flex`), or at 360px — the design target, with 16px/40px the floor
+  for the box — the unit wraps away and reads as a separate statement.
+- **The objectives are OPTION ROWS** (`.gen-obj`), mirroring paycalc's `.bp-mode-opt`/`.hpp-mode-opt`: a
+  bordered row with a navy border, a brighter fill and a lift via `:has(input:checked)`, the shared
+  app-drawn checkbox (never sized or tinted locally — `css-tokens.md`), and the focus ring on the ROW,
+  because the row is what you are choosing. The same 2px border in both states, so toggling causes no
+  reflow; `.gen-obj + .gen-obj` spaces them with a sibling margin, because a `<legend>` in a flex
+  container lays out unpredictably. **Do not re-create a page-local variant**; change it with
+  paycalc's.
+- **ON is the BRIGHTER row — check that against the SUBSTRATE.** This fieldset is `--surface-sunken`, so a
+  checked row is white and an unchecked one a step below it. The other way round, copied from paycalc
+  (whose options sit on a `--surface` card), the default — every switch on — read as five empty boxes,
+  and switching an option on made it dimmer, inverting the three-surface cue. `.gen-obj-num` takes no
+  `background-color: white` override, or the field cannot brighten on focus.
+- **Pixel coverage, and its two blind spots.** `links-generator.png` and `links-objectives-narrow.png`
+  are the baselines, but a near-white fill change falls under the visual threshold, and the visual project
+  is fine-pointer only, so the coarse box never appears in one. So the checked-row treatment is asserted
+  in COMPUTED STYLE beside the desktop shot (`e2e/visual.spec.js`) — deleting the fill and the shadow
+  left the screenshot passing — and the clause is tested on **mobile-chrome** in `e2e/links.spec.js` at
+  360px. Do not move the clause test into the visual suite, where it passes on broken markup. Keep both.
 
-Both sections below are about the PAGE, not the generator — they sat between the generator's
-layout notes and the generator itself, which is why neither read as belonging to anything.
+## Line numbering — the full rotation
 
-### Known MOBILE gaps on this page — measured, not yet decided (v19.66)
+Every line rotates, and **every one must carry a real worked pattern**: everyone passes through every
+line, so a "vacancy" is a missing *person*, not a missing *pattern*. The grid flags an all-rest line with
+an amber line-number cell (`.row-unfilled`), and "Lines not yet designed" lists them until they are
+filled.
 
-The v19.66 review captured desktop and mobile but was **read** desktop-first, and the mobile
-in-use page was not examined until afterwards. Three things it found at 390×844, all measured,
-none fixed — recorded so they are not re-discovered as new:
+**`ROTATING_LINES` in `links-design.js` is the ONE declaration of the length** (invariant 1).
+**Everything derives from it — do not write the number down again**, in a module, a comment, prose or a
+`max` attribute. Static markup that cannot interpolate uses a `.js-rotating-lines` span stamped at init,
+and the numeric `max` attributes are stamped too. `links-rotation-parity.test.mjs` fails on a literal in
+the Links modules or `links.html` even when it is right today; it does not read this file, so here the
+rule is held by hand.
 
-- **The grid loses its day headers.** `.links-grid-wrapper` is `overflow-x: auto` below 1024px, so
-  by the spec rule above it is a scroll container in both axes and its sticky `thead` is inert —
-  the same trap as the generator table. Scrolling lines 9–27 there is no LINE/SUN/MON header on
-  screen at all, and the grid is **43% off-screen horizontally** (592px of table in a 338px
-  wrapper), so position cannot disambiguate the column either. On the page's primary object this
-  is the most serious of the three.
-- **The sticky save row takes 190px of a 727px viewport — 26% (v22.79).** It was 146px of 844px
-  (17%) when this was first written, over an original composition of two buttons, a provenance line
-  and the summary chips on two rows; the chips then grew, took a THIRD row, and it reached 224px
-  (31%) by v22.75. **v22.79 took the one trim that costs nothing and it is back to two rows.** The
-  third row was six pixels: at 393px the strip has 341px, and "⛔ N staffed hours with no cover"
-  measures 203px, so with the 134px chip beside it the pair needed 347px and the second chip was
-  pushed onto a row of its own, leaving most of the first row empty. Chip padding `4px 10px` →
-  `3px 8px` and gap `10px` → `8px` brings the pair to 339px. Every figure still renders, no wording
-  changed, nothing was removed. Measured on the profiles that are real devices here: 393px and 412px
-  Android 224→190, iPhone 13 190, 13 Pro Max 165, desktop 90→88. `.sum-jump` ("Full analysis ↓")
-  still holds a 44px row of its own, and should — it is the only control there.
+**The length and the cover-week count came from the owner on 1 Oct 2026** (the default's cover weeks are
+`DEFAULT_COVER_WEEKS`), and the rules every design at this length is judged against are
+`docs/links-26/RULES.md`. The new link is the CEA (main) roster **widened** to increase staffing, and
+**does not include the bilingual roster at all** — not its lines, not its shift times, not its work
+(owner). Evidence class **C**: owner-confirmed practice, with no document behind it.
 
-  **Two further trims were costed and REFUSED.** Hiding `.links-save-meta` ("Last saved by …") below
-  1024px saves another 28px, and was refused on the merits rather than on effort: `linkDesigns` is a
-  SHARED collection, three designers edit the same documents, and `links-concurrency.js` exists
-  because a silent overwrite of a colleague's work has happened three times — who last saved, and
-  when, is exactly the fact you want while editing on a phone. And **360px still wraps to three
-  rows** (215px, accepted): closing that needs ~23px more, which means shortening "staffed hours
-  with no cover", and this file forbids softening those figures.
+- **The contracted-days ceiling is a hard limit too** — `CONTRACTED_DAYS_CEILING` and
+  `contractedDaysPerYear` in `links-limits.js`: `(Mon–Sat duties + SPARE_WORKED_DAYS × cover weeks) ÷
+  lines × 365 ÷ 7`. It is assessed only once every line is drawn and only at `ROTATING_LINES`, with the
+  run limit's evidence discipline: a measurement, never "cannot be run", while no company policy
+  document backs it.
+- **The shortlist is built in, and read-only** (owner decision, 3 Oct 2026: read-only proposals, not
+  saved documents). `PROPOSALS` in `links-proposals.js` holds the current shortlist, listed A to Z with
+  no recommendation (owner, 5 Nov 2026). Copy a design cell for cell from the pack and keep its printed
+  name; `links-proposals.test.mjs` says whether the copy is faithful and meets the hard limits. A proposal
+  opens from its own group at the top of the picker as an UNSAVED working copy (`activeDesignId` null,
+  `activeProposalId` set), so save, rename and delete all treat it as new: the first save asks for a name
+  (`proposalCopyName`, "<name> — copy") and creates a design, and a proposal id never reaches Firestore.
+  Compare offers them. Generate while one is open builds a NEW unsaved design beside it, never over it.
+  A workspace with nothing saved keeps its empty state, which offers "Open a shortlisted proposal" —
+  nothing is opened for you.
+- **Keep only the shortlist** (owner, 2 Nov 2026: *"Put the new shortlist proposals as the saved options
+  in the links designer. Remove the older ones"* — and then *"The shortlist should be read only"*). The
+  ··· More sheet offers the admin one press that moves every design last saved before `OLDER_BEFORE` to
+  Recently deleted, after a dialog naming each one and who last saved it. Each move is `binIfStill`,
+  which asks the rule again inside its transaction, so a design saved since the dialog opened is spared.
+  **The shortlist is not touched**, and the row disappears once nothing older is left. **It is one
+  deliberate press, not a move on page open**: "older" is every saved design, whoever saved it, so an
+  automatic move would name the first device to open the page as having deleted everyone else's work,
+  and would act on every page load that meets an old design, the test suite included. Reasoning:
+  `links-shortlist.js`.
+- **Designs drawn for the previous length go to Recently deleted** (owner decision, 3 Oct 2026).
+  `isPre26Design` in `links-design-doc.js` needs ALL THREE: last saved before `LINK_26_FROM` — the START of
+  the release day, UTC, because the end would bin a design begun on the new page that day — so a design
+  saved or RESTORED since is never moved again; nothing drawn past `PREVIOUS_LINK_LENGTH`; and something
+  drawn within it, so a blank design is left alone. `_splitDocs` shows them in the bin at once, and the
+  empty state and the status line say so at once (on release day the list is usually empty, and the save
+  row that carries status is hidden with it). `_binPre26` then moves each one through `store.binIfStill` —
+  a TRANSACTION that re-asks the rule (a design it skips is shown live again) and fails offline rather
+  than queueing a write that lands days later. A CACHED read moves nothing and claims nothing moved. A
+  restore or purge of a design whose move is still in flight waits for it (`trackBinMove` in
+  `links-design-library.js`), or it would meet a not-yet-deleted design and report that "someone else"
+  restored it.
+- **Designs saved against the OLD length — a longer one — are left as they are.** They keep their surplus
+  lines in Firestore: trimming on load destroys work on a page visit, and trimming on save does it at the
+  worst possible moment. `#linksOverLengthNotice` says the surplus rows are neither shown nor counted but
+  are kept, and every rule reads only lines 1…`ROTATING_LINES`, never the keys a design carries. Keep only
+  the shortlist is the way to bin them.
 
-  **The iPhone SE is NOT the case to design against** (owner, Sep 2026): none of the three people
-  with Links access has a device that narrow, so a 320px column in any measurement here is
-  hypothetical. The v22.75 note led on "39% of an iPhone SE" — optimising for a phone nobody uses.
-- **The brush bar is 239px** — 26 chips over seven rows before the grid begins.
+**C. Reen is NOT a special case**: the link is designed as a full rotation so it still works if she
+ever leaves, and her adjusted fixed shifts are applied as overrides on the base roster. The fixed-position
+model (`FIXED_POS`, `fixed-link-separator`, `fixed-cell`) and the vacant-placeholder model
+(`VACANT_FROM`) were both removed; do not add them back. Every row is a normal, editable, rotating row.
 
-None is a regression; all three predate v19.66. The fixes are not free (the first needs a nested
-scrollbox; the other two need something to give), so they are a conversation rather than a sweep.
+## Concurrency and load safety
 
-### The blank page, and three fixes that came out of screenshotting it (v19.66)
+**Every design write goes through `links-design-store.js`** (`createDesignStore`, with the Firebase
+handles injected by `links-app.js`); the coordinator makes none of its own. The store's header is the
+authority on the reasoning, and owns four rules:
 
-The page had been polished repeatedly **in use** and never looked at **empty**. Measured at 1280px
-with no designs saved, the three cards came to **160px / 117px / 117px** — each a white slab holding
-one 12px grey sentence pinned to the left edge. That is what a new designer sees first, and it read
-as three empty boxes rather than a page waiting to be used.
+1. **A read that a write depends on happens INSIDE the write's transaction**, not before it, so the
+   decision is true at commit.
+2. **No weaker fallback while online.** Only a failure `isOfflineFailure` recognises may take the queued
+   path (after consulting the cached document for a deletion or conflict); an online transaction failure
+   is reported, and the unsaved state is kept.
+3. **The baseline (`revision`) advances only to a revision the store verified.** Anything else sets
+   `baselineUnknown`, so the next save asks (invariant 5).
+4. **A queued (offline) write is started, not awaited, and never stamps a revision a colleague's online
+   save could also produce** (`queueWrite`, `queuedRevision`) — a save, a rename, a create (named with an
+   auto-id `doc(col)` so that it can be queued) and a soft delete alike.
 
-- **An empty card says what it is waiting FOR, and the one that can act carries the action.** The
-  grid card gets a centred icon + title + sentence + a real `.btn-save` primary ("Go to
-  Auto-generate") and a text link ("Start with a blank grid"). Left-aligned, the old sentence sat
-  ~700px from the "+ New" button it was telling you to press. The two analysis cards get
-  `.links-empty-panel` — centred, `min-height: 132px` — because they can offer nothing: there is
-  nothing to analyse.
-- **The primary action SCROLLS; it does not generate.** Firing the generator from an empty card
-  would build against whatever the roster seed happened to hold, which is a design nobody chose.
-- **The empty checks panel must not wear a green tick.** It was `✅` (the card's own emoji) for one
-  iteration — a tick centred in an empty checks card reads as "checks passed", the exact
-  false-assurance failure that card exists to prevent, and it would be claiming it before a single
-  check had run. `📋` instead.
-- **A load FAILURE is not "you have not made one yet".** `renderGrid` swaps the title and hides the
-  actions on `loadFailed`: telling someone whose designs exist but did not load that they have none,
-  and inviting them to generate a new one, is how a connection blip becomes a duplicate design.
-- **The card header hint is state-dependent.** It said "Tap any shift cell to change it. Use the
-  Paint bar…" in a state with no grid and no paint bar on screen. Both strings live in
-  `_setGridHint` so they cannot drift.
-- **`links-analysis.js` must MIRROR the empty-panel markup** its card ships in `links.html` — that
-  branch replaces the whole card body, so the bare `<p>` it used to write silently undid the empty
-  state on the first re-render.
+A conflict comes back as `{ status: 'conflict', conflict }`, and `links-app.js` decides whether to ask,
+overwrite or fork — the store never asks. A design deleted elsewhere, binned or removed for good, comes
+back as `deleted-elsewhere`, and a save never recreates it. A rename on a stale baseline writes the name
+and the revision but not `updatedBy`, or the next conflict dialog names you as the person whose version
+you are about to replace. The pure comparison rules (`conflictOf`, the baseline helpers) are
+`links-concurrency.js`. A failed load sets `loadFailed`, and the empty state says so. The store's
+rules are pinned in `links-design-store.test.mjs`, the comparison rules in `links-concurrency.test.mjs`.
 
-Two more from the same pass, both in-use surfaces:
+The workspace's own rules, in `saveChanges`:
 
-- **The generator card has ONE left edge, whatever width the form is** — the durable rule from a
-  pass whose specific answer was later reversed. v19.66 capped the form at 660px and centred it;
-  v19.67 found centring the form ALONE left the card with two left edges (intro 122→778 against
-  everything else at 310→970 — nearly the same width 188px apart, which reads as a mistake rather
-  than as hierarchy); **v19.82 then removed the cap entirely** (owner: "still not using the full
-  width" — the current design, recorded in `links.css`). This bullet described the 660px-centred
-  era as current until v20.54. What survives every reversal: **anything added to this card must
-  join the one column**; an e2e measures all five left edges and names the offender, because a
-  whole-card baseline just re-records whatever the alignment happens to be.
-- **The target table keeps its column headers — at ≥768px ONLY** (`position: sticky` on
-  `thead th`). They scrolled away after the first six rows, leaving three unlabelled number columns
-  — and Mon–Fri, Sat and Sun are three different commitments (Sunday is not even contracted), so
-  typing into the wrong one is a real error with nothing to catch it.
-  **Below 768px the declaration is inert, and that is a CSS constraint rather than a decision.**
-  `sticky` resolves against the nearest scroll container; the narrow wrapper sets `overflow-x: auto`
-  to scroll the 443px table inside a 306px card, and per spec the other axis then computes to `auto`
-  as well (measured at 390px). The wrapper becomes a vertical scroll container as tall as its own
-  content, so the header sticks to a box that never scrolls. **Do not "fix" it with
-  `overflow-y: visible`** — that is the exact declaration the spec overrides, so it would read as
-  correct and change nothing, which is this file's most frequently repeated failure. Making it work
-  on a phone needs a `max-height` and therefore a nested scrollbox around the primary creation path:
-  a UX decision, not a tidy-up. Both facts are pinned by an e2e that runs at both widths.
-- **The Design-checks status is carried on the LEFT EDGE, not by the fill alone.** At 8–10% of a hue
-  against white the four fills land within a couple of percent of each other, so 30 rows rendered as
-  one ribbon with the status readable only from a 13px glyph. A 3px edge in the full-strength token
-  makes them scannable. **It changes no semantics and must not**: a fatigue factor that is present
-  still wears amber and never the red edge.
+- **Consent is per VERSION.** "Replace their changes" names the one version the dialog showed; if
+  somebody saves while it is open, the store refuses, and the question is asked again about the new
+  version (a bounded number of times). Declining offers "Save mine as new", worded like the conflict
+  dialog it answers — "That version" for your own name, "Their" otherwise.
+- **"Saving" is PER DESIGN** (`savingKeys` — by id, or `'unsaved'` for any first save, never the design
+  object). A write that cannot finish must not lock every other design's Save, and a window edit or a
+  generator apply that replaces the object mid-save must not let a second press create a second design.
+- **A queued save does not say "✓ Saved".** It says *Saved on this device — it will upload when you're
+  back online*, without the success colour. It still clears `dirty`: the write is in the device's
+  persistent queue, a re-save would only queue a duplicate, and a leave-page warning would claim work is
+  at risk that is not.
+- **`dirty` clears only if nothing was edited while the save was in flight**, and the payload recorded is
+  the one actually WRITTEN, window and revision included.
+- **A save that finds its design deleted drops it from the live list even when the page has moved on**
+  to another design; only the conversation is skipped.
+- **An online save that cannot confirm its outcome** (a sign-out mid-save) says to check, and the work
+  stays unsaved (`unconfirmedWriteLine`).
 
-### Line numbering — the full rotation (v12.42; length changed v19.98)
+**Residual accepted limit** (`conflictOf`'s header): with the baseline unknown, two devices under the
+SAME display name (`updatedBy` equal) do not conflict-prompt — inherent to identifying editors by name.
 
-Every line rotates and **every one must carry a real worked pattern** — in the rotation everyone
-passes through every line, so a "vacancy" is a missing *person*, not a missing *pattern*.
+## Print
 
-**`ROTATING_LINES` in `links-design.js` is the ONE declaration of the length, and it is now 26** (v24.47; 24 from v20.01).
+A4 landscape: the grid, coverage and checks. The generator, brush bar, picker, save row, tips, chevrons
+and the window editor are hidden.
 
-It was 28 = the main 20-week cycle + the bilingual 8, because the design modelled both as one
-rotation. The December 2026 plan changed (owner, Aug 2026): the new link **does not include the
-bilingual roster at all** — not its lines, not its shift times, not its work. It is the CEA/main
-roster **widened from 20** to increase staffing. The v19.98 plan kept the roster's **4 spare weeks**
-(at 22 lines); a fifth came at v20.01 and was reverted at v20.02, so the 24-line default
-was 4; the 26-line default is 5 (`DEFAULT_COVER_WEEKS`, v24.47).
+- **The whole rotation must land on ONE sheet** — a rotation split across two pages cannot be judged.
+  The constraint is A4 landscape's printable height at 1cm margins (718px), not any row size: rows are
+  21px, the cell text 8px at line-height 1.15, and the grid card's own header is dropped because the
+  masthead names the sheet. `links: the print button prints, and a work-in-progress sheet says so`
+  asserts that the grid card fits under print media. If the rotation, the cell font or the masthead
+  changes, re-measure.
+- **The coverage card and the checks card's triage block must not straddle a sheet**
+  (`break-inside: avoid`). Split, the heat map put Sunday on a different piece of paper, and the triage
+  list arrived without its heading. **The GRID card deliberately does NOT get that rule**, and the e2e
+  pins its absence: it is the sheet the masthead belongs to and starts page 1, and a rule that could push
+  it to page 2 works against the one-sheet constraint.
+- **A screen measurement cannot see any of this.** On screen the page is one continuous column; print is
+  its own render, and the only way to review it is to produce the document.
+- **The Print button** (`#linksPrintBtn`) sits in the sticky save row, outlined, because two filled buttons
+  would compete and saving is the one that matters; the save row is hidden on paper, so it costs the
+  sheet nothing. It goes through `printOrExplain` (`print-guard.js`): in a home-screen app on iOS
+  `window.print()` does nothing, so the tap explains and offers Safari. It prepares the sheet itself
+  before printing (`_preparePrint`, the function `beforeprint` also calls) rather than relying on the
+  event.
+- **The masthead carries provenance, and must say when that provenance does not describe the sheet.**
+  `#printDesignName` names the design, who last saved it and when (a proposal: its ref, "built into the
+  app"), the staffed window (marked "(moved)" when it is not the default), and the date and time printed,
+  stamped at print time so a page left open for a week cannot print a stale date. **The provenance reads
+  the SAVED document while the grid prints the LIVE patterns**, so with unsaved edits the masthead
+  appends **"· includes unsaved changes"**. Printing a work in progress is reasonable, so this states the
+  fact rather than blocking the print — but do not remove it: the sheet goes to the assessing manager,
+  and a misattributed proposal is the same false-assurance failure the fatigue panel is built around.
+  Pinned by an e2e that prints clean, then edits and prints again.
+- Coverage and Design checks keep their card headers on paper: they are separate sections a reader needs
+  named.
 
-**The length moved twice: 22 at v19.98, corrected to 24 at v20.01** (owner — the earlier figure was
-misremembered). Evidence class **C** for both (owner-confirmed practice, no document behind either).
+## Sticky headers
 
-**Everything derives from the constant — do not write the number down again.** That is not a style
-preference; it is the whole content of the v19.98 change:
-
-- `links-compare.js` held its OWN `const TOTAL_POS = 28`, missed by the v19.38 sweep that was
-  supposed to end the copies, because it was extracted from the coordinator afterwards and took the
-  literal with it. It would have rendered 28 rows beside a 22-row grid, silently.
-- Roughly **fifteen** copies lived in PROSE — the grid card's title, the empty state, four tips
-  entries, the generator's totals, its Apply confirm, `max` attributes in the markup. Every one
-  renders perfectly while describing a link that does not exist.
-
-**And v20.01 is the proof that it worked.** 28 → 22 was that sweep; 22 → 24 was this one constant,
-four static fallbacks `links-rotation-parity.test.mjs` named on the first run, and a re-measure. If a
-number can change once it can change twice, and the second time is what finds out whether it was
-really centralised. Static markup that cannot interpolate uses a `.js-rotating-lines` span stamped at
-init; the guard fails on a literal even when the literal is right today.
-
-**26 lines and five cover weeks (v24.47, owner, 1 Oct 2026).** The rules every 26-line design is
-judged against are `docs/links-26/RULES.md`. Three things came with the length:
-
-- **The 219-day ceiling is a second hard limit** — `CONTRACTED_DAYS_CEILING` / `contractedDaysPerYear`
-  in `links-limits.js`: `(Mon–Sat duties + 4 × cover weeks) ÷ lines × 365 ÷ 7`. Assessed only once
-  every line is drawn and only at `ROTATING_LINES`, with the same evidence discipline as the run limit
-  (measurement, never "cannot be run", while no company policy document backs it).
-- **The shortlist is built in** (`links-proposals.js`; owner decision 3 Oct 2026: read-only proposals,
-  not saved documents). Common Ground, Even Step and Short Run — the shortlist since 5 Nov 2026, built
-  in from v25.36 A to Z with no recommendation (owner, 5 Nov 2026); after Second Edition, Even Keel and
-  Short Run (3 Oct), Closing Time (v25.01), In Step and Short Run (v25.02) and Even Step, In Step and
-  Short Run (v25.04) — open from their own
-  group at the top of the picker as an UNSAVED working copy — `activeDesignId` null, `activeProposalId`
-  set — so save, rename and delete all treat one as new; the first save asks for a name ("Even Step — copy")
-  and creates a design. Compare offers them; a workspace with nothing saved keeps its empty state, which
-  offers "Open a shortlisted proposal" (nothing is opened for you);
-  Generate while one is open builds a NEW unsaved design rather than overwriting it.
-- **The older saved designs can be cleared away (v25.09, owner, 2 Nov 2026: "Put the new shortlist
-  proposals as the saved options in the links designer. Remove the older ones" — then, of a first
-  version that saved the three as editable designs: "The shortlist should be read only").** The ···
-  More sheet offers the admin "Keep only the shortlist": every design last saved before 2 Nov 2026
-  (`OLDER_BEFORE`) moves to Recently deleted, each through `binIfStill` with the rule asked again in
-  its transaction, after a dialog that lists each one and who last saved it. **The shortlist is not
-  touched** — it stays built in and read-only. The row goes by itself once nothing older is left.
-  **Why a press and not a move on page open, as the 24-line designs had** — "older" is every saved
-  design, whoever saved it; only the admin can see which those are; and a move on open would act on
-  every load that meets an old design, the test suite included. The reasoning is `links-shortlist.js`.
-- **Designs drawn for 24 lines go to Recently deleted** (owner decision, 3 Oct 2026 — this replaces
-  the v19.98 rule of leaving an old-length design live). `isPre26Design` in `links-design-doc.js`
-  needs ALL THREE: last saved before `LINK_26_FROM` (the START of 3 Oct 2026 UTC — the end would
-  bin a design begun on the new page that day and painted only on lines 1–24), so anything saved or
-  RESTORED since is never moved again; nothing on lines 25+; and something drawn on lines 1–24, so
-  a blank design is left alone. `_splitDocs` shows them in the bin at once, and the empty state and
-  the status line say so AT ONCE (on release day the list is usually empty, and the save row that
-  carries status is hidden with it). `_binPre26` then moves each one through
-  `store.binIfStill` — a TRANSACTION that re-asks the rule (a design it skips is shown live again), so a design a colleague restored or
-  redrew since the list was read is left alone, and which fails offline instead of queueing a write
-  that lands days later. A CACHED read moves nothing and shows nothing as moved. A restore or purge of a design
-  whose move is still in flight waits for it (`trackBinMove` in `links-design-library.js`), or it would meet a not-yet-deleted
-  design and report that "someone else" restored it. Designs LONGER than the rotation still keep
-  `#linksOverLengthNotice` and are left as they are.
-
-**C. Reen is NOT a special case:** the link is designed as a full rotation so it still works if she
-ever leaves; her adjusted fixed shifts are applied as overrides on the base roster. The old
-`FIXED_POS` / `fixed-link-separator` / `fixed-cell` model and the earlier `VACANT_FROM` placeholders
-model were both removed (v12.41 dropped vacant; v12.42 dropped fixed). Every row is a normal
-editable rotating row.
-
-The grid flags an all-rest line with an amber line-number cell (`.row-unfilled`); the Design checks "Lines not yet designed" row lists them until filled.
-
-### Concurrency & load safety (v12.37; atomic v17.02; store v21.87)
-**Every design write goes through `links-design-store.js`** (`createDesignStore`, Firebase handles injected by `links-app.js`); the coordinator makes no Firestore write of its own. The store's header owns four rules:
-
-1. **A read a write depends on happens INSIDE the write's transaction** — not before it — so the decision is true at commit.
-2. **No weaker fallback while online.** Only a failure `isOfflineFailure` recognises may take the queued `setDoc` path (after consulting the cached doc for a deletion or conflict); an online transaction failure is reported and the unsaved state is kept.
-3. **The baseline (`revision`) only advances to a revision the store verified.** Anything else leaves `baselineUnknown` set, so the next save prompts.
-4. **A queued (offline) write is started, not awaited, and never stamps a revision a colleague's online save could also produce** (`queueWrite`, `queuedRevision`). That covers a save, a rename and — since the Sep 2026 re-review — a CREATE: `addDoc` resolves only on the server's ack, so an offline first save now names its document with an auto-id `doc(col)` and queues the `setDoc`, still as revision 1 (exact: nobody else can write a document whose id only this device holds). And — since the whole-app review, Oct 2026 — a SOFT DELETE, which awaited offline appeared to do nothing and then, landing later, switched the page away from edits made in the meantime.
-
-A conflict comes back as `{ status: 'conflict', conflict }` and `links-app.js` decides whether to ask, overwrite or fork — the store never asks. A design deleted elsewhere (binned, or gone entirely) comes back as `deleted-elsewhere`; a save never recreates it. The pure comparison rules (`conflictOf`, the baseline helpers) are `links-concurrency.js`. A failed load sets `loadFailed` — empty state shows an error.
-
-Residual accepted limit (`conflictOf`'s header): with the baseline UNKNOWN, two devices under the SAME display name (`updatedBy` equal) still won't conflict-prompt — inherent to identifying editors by name.
-
-**Its header is the authority** — read it for the reasoning. Four further fixes from the Sep 2026
-review, each pinned in `links-design-store.test.mjs`: an ordinary save against a design **removed for good** is
-`deleted-elsewhere`, never a revision-1 write that brings it back; a rename on a **stale** baseline
-writes the name and the revision but not `updatedBy`, or the next conflict dialog names you as the
-person whose version you are about to replace; a **queued** (offline) write stamps a revision no
-colleague's online save can also produce, and is started rather than awaited, so the save returns at
-once instead of hanging on "Saving…" until the connection comes back; and `saveChanges` records the payload it actually WROTE,
-window and revision included, clearing `dirty` only if nothing was edited while it was in flight.
-
-Three workspace invariants on top (Sep 2026 re-review), in `saveChanges`:
-- **"Saving" is PER DESIGN** (`savingKeys` — by id, or `'unsaved'` for any first save). A write that
-  cannot finish must never lock every other design's Save with it. A first save is NOT keyed on the
-  design object (whole-app review, Oct 2026): a window edit or a generator apply replaces the object
-  mid-save, which re-enabled Save and let a second press create a second design.
-- **A queued save does not say "✓ Saved".** It says *Saved on this device — it will upload when
-  you're back online*, without the success colour. It still clears `dirty`: the write is in the
-  device's persistent Firestore queue, a re-save would only queue a duplicate, and a leave-page
-  warning would claim work is at risk that is not.
-- **A save that finds its design deleted drops it from the live list even when the page has moved
-  on** to another design — only the conversation is skipped. The decline-to-overwrite follow-up is
-  worded like the conflict dialog it answers ("That version" for your own name, "Their" otherwise).
-
-### Print (v12.37; reviewed v19.45)
-A4 landscape grid + coverage + checks; generator, brush bar, picker, save row, tips and chevrons hidden.
-
-**The whole rotation must land on ONE sheet** — you cannot judge a rotation split across
-two pages. That is a measured constraint, not a preference: A4 landscape at 1cm margins gives
-**718px** of printable height, and at the old 26px rows and 28 lines the grid card came to **903px**,
-so it always broke (the CSS comment claimed it fitted "or close to"). Rows are now 21px, the cell
-line-height 1.15, and the grid card's own header is dropped in print — the masthead names the sheet
-— which brought 28 lines to **703px**, against 718. **At 24 lines it measured 619px** (v20.01),
-~99px of headroom against the ~15px the 28-line era had. The rotation is 26 now (v24.47): at ~21px a
-line expect about 661px, and RE-MEASURE rather than trust that arithmetic.
-
-**Do not read that as slack.** The 21px row and the dropped header were both bought to fit 28, and
-the budget is ~21px per line: the sheet took 28, and fewer lines is where the room came from. If
-the rotation grows again, or the cell font or the masthead changes, RE-MEASURE — the constraint is
-the 718px, not any of these figures.
-
-**THE OTHER TWO CARDS MUST NOT STRADDLE A SHEET, AND UNTIL v22.75 BOTH DID.** The one-sheet rule
-above is about the GRID, and everything below it had simply never been looked at on paper — the
-whole print section was reasoned from card heights, which is a screen measurement. Generated as a
-real A4 landscape PDF, the coverage card (635px, comfortably inside 718px) was breaking anyway: its
-hour header and the SUNDAY row printed at the foot of the grid's sheet with MON–SAT overleaf. A
-reader comparing days then has Sunday on a different piece of paper, which is the one thing a heat
-map exists to prevent. The checks card's triage block split between its heading and its own list,
-landing "4 definitions still to confirm" alone at the top of a sheet with nothing above it saying
-what it was one of. Both now carry `break-inside: avoid`.
-
-**The GRID card deliberately does NOT get that rule**, and the e2e pins its absence: it is the sheet
-the masthead belongs to, it has always started at the top of page 1, and a rule that could push a
-619px card to page 2 works directly against the one-sheet constraint this section is built around.
-
-**A screen measurement cannot see any of this.** On screen the page is one continuous column and
-nothing is wrong; the card heights that this section quotes were all correct throughout. Print is
-its own render, and the only way to review it is to produce the document.
-
-**There is a Print button** (`#linksPrintBtn`, v19.62) in the sticky save row beside Save —
-outlined, because two filled buttons would compete and saving is the one that matters. All of the
-print machinery above had existed since v12.37 with **no way to reach it but the browser menu**,
-which an installed PWA often does not expose at all. It only calls `window.print()`, so it goes
-through the same `beforeprint` path as the menu item rather than duplicating any of it. The save row
-is already in the print hide-list, so the button costs the sheet nothing (measured: grid card 703px
-with and without, against the 718px printable height).
-
-**The masthead carries provenance — and must say when that provenance does not describe the sheet.**
-`#printDesignName` names the design, who last saved it and when, and the date it was printed (stamped
-on `beforeprint`, so a page left open for a week cannot print a stale date). **The provenance line
-reads the SAVED Firestore doc while the grid prints the LIVE in-memory patterns**, so with unsaved
-edits those are two different designs and a sheet showing your changes would carry somebody else's
-"Last saved by". It appends **"· includes unsaved changes"** when `dirty` (v19.62). Printing a work
-in progress is a reasonable thing to want, so this states the fact rather than blocking the print —
-but do not remove it: this sheet goes to the assessing manager, and a misattributed proposal is the
-same false-assurance failure the fatigue panel is built around. Pinned by an e2e that prints clean,
-then edits and prints again. Before v19.45 it printed the design name alone: the save row that carries
-"last saved by X" is hidden in print, so a circulated sheet had no way to say which version it was.
-Coverage and Design checks keep their card headers — they are separate sections a reader needs
-named.
-
-### Sticky day headers (v12.37)
-At ≥1024px `.links-grid-wrapper` drops `overflow-x` and `.card` uses `overflow: clip` (not `hidden`) — both load-bearing for the sticky `thead`.
+- **The grid's day header sticks from 768px up.** Below that the table really does overflow, so the
+  wrapper is `overflow-x: auto`, which makes it a scroll container and leaves the sticky `thead` inert
+  (an accepted phone constraint, KNOWN_LIMITATIONS.md → Links). From 768px the table fits, the wrapper is
+  `overflow-x: visible`, and the header sticks. Do not add a `max-height` without resetting it at that
+  breakpoint and in `@media print`, where a clipped sheet is silent on screen.
+- **`.card` is `overflow: clip`, not `hidden`.** `clip` keeps the rounded corners without creating a
+  scroll container, which both the sticky `thead` and the sticky save row need.

@@ -42,17 +42,15 @@ owner decides what is worth doing and when.
 | 3 | **F — step-up for sensitive admin actions** (§3) | A 60-day admin session is the right trade for ordinary work and the wrong one for account administration | Nothing. Independent, cheap, and the only item here with no prerequisite |
 | 4 | **Keep both kinds of Calendar access** (§4) | Not a change — a decision to record, because "make named sign-in mandatory" keeps suggesting itself | — |
 | 5 | **C5 — retire the surname entirely** (§7) | The milestone. Two possible routes, and which one is taken is an **open owner decision** | Removes a whole credential class from the threat model |
-| 6 | ~~**Retire the anonymous fallback**~~ (§5) | **DONE — v24.34** (owner-approved): migration machinery that had outlived its migration was debt | Fewer identity states, so fewer future auth races |
-| 7 | ~~**Calendar start latency, IF the field data confirms it**~~ (§6) | **DONE, then RETIRED** — shipped at v22.97 as the provisional paint; retired by owner decision on 26 Sep 2026 (`DECISIONS.md`) | — |
-| 8 | **C2 — verified work-email recovery** (§8) | Needs a mail relay that does not exist, and needs #1 first so it is a SECOND route rather than the only one | Admin reset becomes true break-glass |
-| 9 | **Passkeys** (§9) | Excellent fit, blocked on serving from one origin | — |
+| 6 | **C2 — verified work-email recovery** (§8) | Needs a mail relay that does not exist, and needs #1 first so it is a SECOND route rather than the only one | Admin reset becomes true break-glass |
+| 7 | **Passkeys** (§9) | Excellent fit, blocked on serving from one origin | — |
 | — | **Entra / Microsoft SSO** (§10) | Only if Chiltern formally adopts the app | Supersedes most of this file |
 
 ---
 
 ## 1 · C6 — one-time recovery and activation codes
 
-**Supersedes C4′** (admin reset as the recovery path, shipped v18.63) as the recovery mechanism.
+**Supersedes C4′** (admin reset as the recovery path) as the recovery mechanism.
 C4′ stays in the tree until C6 is live, because break-glass may not have a gap.
 
 ### The problem, stated plainly
@@ -83,8 +81,8 @@ password, and on success sets the credential and revokes existing sessions.
 
 The app has two public unauthenticated endpoints today. `requestPasswordReset` is safe because it is
 *deliberately incapable* of changing anything — it records a request. `unlockCalendarViewer` does mint
-a credential, a read-only one, behind a per-source and a global throttle. This one would set a password. It deserves the treatment `unlockCalendarViewer` got, and for the
-same reasons.
+a credential, a read-only one, behind a per-source and a global throttle. This one would set a
+password. It deserves the treatment `unlockCalendarViewer` got, and for the same reasons.
 
 ### The code itself
 
@@ -122,7 +120,7 @@ SDK, exactly as `overtimeWindows` and `resetRequests` are.
 
 ### Throttling — two ways, because one is not enough
 
-`unlockCalendarViewer` learned this at v20.35 and the lesson transfers whole:
+`unlockCalendarViewer` learned this the hard way, and the lesson transfers whole:
 
 - **Per name**, from the `recoveryCodes` doc's own `attempts` — the natural key here, and better
   than a source key because it bounds the thing that actually matters (guesses against one
@@ -176,23 +174,17 @@ working credential at all.
 ## 2 · Keep converting personal devices
 
 Not a build — everything needed shipped already: the forced overlay at named sign-in, the Account
-status table, `neverSignedIn` from `getSignInStats`, and (v22.37) a Settings page that states
+status table, `neverSignedIn` from `getSignInStats`, and a Settings page that states
 `✓ Password set` or `Using surname` without being opened.
 
-The one addition worth making is a **restrained, one-time invitation on a PIN-unlocked personal
-device**, in the shape the retired `sign-in-2026` notice had:
-
-> Using this on your phone? Sign in once and you won't need the staff PIN again for 60 days.
-
-**That notice was retired at v23.23, and the reason changes this proposal rather than merely dating
-it.** v23.19 made the Calendar's front door a sign-in card with the staff PIN one tap behind it, so
-the invitation is now the first thing a PIN user sees — a notice repeating it argues with the screen
-underneath. The audience rule (`'signed-out'`, retiring itself the moment the reader signs in) is
-still the correct mechanism for anything of this shape; what no longer needs a notice is this
-particular ask. The 60-day fact is the one part the front door does not state, and it belongs on the
-card if anywhere. **Operations does state the campaign's position as a number** — the Account
-status summary reads "N/M own password" (per grade, beside "N/M work email"), so the size of what is
-left is visible to the one person chasing it.
+**No notice is needed to invite a PIN user to sign in.** The Calendar's front door is already a
+sign-in card with the staff PIN one tap behind it, so the invitation is the first thing a PIN user
+sees, and a notice repeating it would argue with the screen underneath. The one part the front door
+does not state is the 60-day fact ("Sign in once and you won't need the staff PIN again for 60
+days"), and it belongs on the card if anywhere. For anything else of this shape the audience rule
+(`'signed-out'`, retiring itself the moment the reader signs in) is the mechanism. **Operations states
+the campaign's position as a number** — the Account status summary reads "N/M own password" (per
+grade, beside "N/M work email"), so the size of what is left is visible to the one person chasing it.
 
 ---
 
@@ -201,8 +193,8 @@ left is visible to the one person chasing it.
 **Independent of everything else here.** No prerequisites, small, and it addresses the one risk a
 60-day session genuinely carries.
 
-Shortening the session for everybody would be the wrong answer: it makes the app worse for fifty
-people to address a risk that concerns one account. The risk is not that a member's phone is
+Shortening the session for everybody would be the wrong answer: it makes the app worse for every
+member to address a risk that concerns one account. The risk is not that a member's phone is
 unattended for 58 days — it is that an **admin's** is, and that picking it up is enough to reset
 somebody else's password and take their account.
 
@@ -242,61 +234,32 @@ The PIN is not individual authentication and does not claim to be. Its job is to
 on a shared machine, and it does that. The base roster pattern itself is public by decision (AUTH_PLAN.md §2).
 
 **Do not lengthen the PIN to six digits.** The endpoint is throttled per source and globally, the
-space is 10,000 against a hard ceiling, and the cost of the change lands on fifty colleagues
+space is 10,000 against a hard ceiling, and the cost of the change lands on every colleague
 remembering a longer shared secret. If a threat model ever needs more than this, the answer is
 individual authentication (Track E, §7), not a longer shared code — a stronger shared secret is
 still a shared secret.
 
 ---
 
-## 5 · Retire the anonymous fallback
+## 5 · Retire the anonymous fallback — done
 
-**DONE — v24.34 (owner-approved).** Both switches were retired and every branch that ran only when
-one was false went with them: `calendar-access.js` no longer calls `signInAnonymously` (the
-`CALENDAR_PIN_ACCESS === false` path and its `open` access type are gone), and `session.js` no longer
-self-heals an account or falls back to an anonymous session (`ENFORCE_NAMED_SESSION`). Neither was a
-working rollback by then — the strict override writes (v16.29), the claim-gated reads (v20.12,
-v23.18) and the server-set `member` claim (v24.27) refuse every session they restored — so they were
-traps, not brakes. Rollback is reverting a release. The reasoning as it was written before, kept:
-
-The Calendar's anonymous bootstrap is gone in effect (v20.12) but not in code: `calendar-access.js`
-still calls `signInAnonymously` under the `CALENDAR_PIN_ACCESS === false` rollback path, and
-`session.js` keeps its soft fallback. `ENFORCE_NAMED_SESSION` is the same kind of object.
-
-Both were valuable rollback machinery and both are now **permanent migration machinery, which is
-the definition of debt**. Fewer identity states means fewer states that can disagree, and every
-recorded defect in this area has been two of the three disagreeing.
-
-**Not before the recovery route is settled**, deliberately: removing them changes what a rollback
-can do, and §1 is the thing that would need rolling back.
+Nothing in the app signs in anonymously and no session self-heals an account: the Calendar's
+anonymous path and `session.js`'s fallback were retired with the switches that guarded them, because
+the rules already refused every session they restored. Rollback is reverting a release. Fewer
+identity states means fewer states that can disagree. The section number is kept so the ones below
+keep theirs.
 
 ---
 
-## 6 · The Calendar start round trip
+## 6 · The Calendar start round trip — decided
 
-**DONE.** The field data confirmed the predicted signature on 5 Sep 2026 and this shipped at v22.97
-as the provisional paint, under all four conditions below. The closing read on 19 Sep found the
-path rarely fires, and on 26 Sep 2026 the owner RETIRED it: its cache read queues behind the same
-Auth start-up it was meant to overtake (`LATENCY.md` → THE CLOSING READ; `DECISIONS.md` → "The
-provisional paint"). `AUTH_AND_SESSIONS.md` invariant 17 now reads the stricter way. The design as
-it was written before it shipped follows, unchanged.
-
-**If the field data confirms the predicted signature**, the preferred answer is the repository's
-Option 3: for a named member holding an otherwise-valid 60-day local session, paint their cached
-roster immediately, **visibly marked as not yet confirmed**, while Firebase validates the stored
-account behind it.
-
-Four conditions, and they are what make it a policy rather than an optimisation:
-
-1. **Never for a staff-PIN viewer.** A shared station has no local identity to extend trust to.
-2. **Never for a server read or write.** The cached paint is a display, not an authorisation — no
-   query goes out and no write is attempted before auth resolves.
-3. **On rejection, the cached privileged state is removed immediately**, not at the next navigation.
-4. **The marking is honest.** "Updating" means the app has not yet been told this is still you.
-
-This is `AUTH_AND_SESSIONS.md`'s question, not the performance plan's: it decides how much a local
-session is allowed to MEAN before the server has agreed with it. That contract recorded it as the one
-open decision on the boundary, and it has since answered it as invariant 17.
+Whether a local session may paint the Calendar before Firebase confirms the stored account is
+`AUTH_AND_SESSIONS.md`'s question, not the performance plan's: it decides how much a local session is
+allowed to MEAN before the server has agreed with it. It was answered yes (the provisional paint), then
+retired by the owner because its cache read queued behind the same Auth start-up it was meant to
+overtake — so invariant 17 reads the stricter way. The record and what would reopen it:
+`DECISIONS.md` → "The provisional paint"; the measurement: `LATENCY.md` → THE CLOSING READ. The section
+number is kept so the ones below keep theirs.
 
 ---
 

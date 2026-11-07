@@ -235,6 +235,8 @@ export function optionMatches(option, query) {
  * as a section that failed to draw — the same rule the Overtime manager states about its empty
  * sections, arrived at from the other side: there, an empty section is MEANINGFUL and must render;
  * here it means only "nothing in this group matched what you typed" and carries nothing.
+ * No match is an EMPTY list, never the unfiltered one: falling back to everything reads as a broken
+ * search and lets a reader pick the wrong person from a list they believe is filtered.
  * @param {SheetGroup[]} groups @param {string} query @returns {SheetGroup[]}
  */
 export function filterGroups(groups, query) {
@@ -534,6 +536,8 @@ export function openOptionSheet(opts) {
 /**
  * Enhance several selects by id. Missing ids are skipped — a page that does not carry
  * one of them is not an error, which is what lets one call site serve several pages.
+ * Each id is looked up ONCE, so a select built later is skipped in silence: enhance that one
+ * where it is built (Operations' `#acctGradeFilter` does). Returns each id's `refresh()`.
  * @param {Array<{ id: string, title: string, placeholder?: string }>} specs
  * @param {{ createLightbox?: (opts: any) => { open: () => void, close: () => (Promise<void>|void) } }} [opts]
  */

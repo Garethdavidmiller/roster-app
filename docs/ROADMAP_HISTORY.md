@@ -27,6 +27,7 @@ than duplicating it — two copies of a plan is the failure mode this split exis
 | Re-propose FIP faceted filtering, a bottom nav bar, or a summary strip | *Tried and held back* |
 | Design a password stage | *The original five-stage design* — superseded by PASSWORD_DESIGN.md, but the reasoning survives |
 | Touch the override write-isolation rules | *Per-member override write isolation* — and SECURITY_RELEASE_PLAN.md → B2/B3 |
+| Re-read the v10.94 outage, or how the API-key referrer allowlist broke sign-in | *The four v11 security tasks* — moved here from KNOWN_LIMITATIONS.md, which keeps task #1 because it still binds |
 
 ---
 
@@ -74,12 +75,12 @@ part.**
 - **Pay-calc roster pre-fill** (v7.07; v8.93–v9.02) — per-category fill + confidence badges + day breakdown. **v9.02 reverted the swap/ambiguous suggestion buckets** (rest-day weekday overrides ignored again — the categorisation was wrong more often than right; now permanent — `.claude/rules/paycalc.md` "Conservatism policy").
 - **Team Week View** (v8.22–v8.40) — CLAUDE.md → "Team Week View". Durable: Sun–Sat weeks (`getSunday`, Chiltern convention); the `fetchToken` stale-result discard on rapid week nav; admin-only gate dropped at v8.40 (all staff now).
 - **Navigation overhaul** (v10.57–v10.71) — shared `nav-panel.js` slide-out drawer on all 6 pages; sign-out + 🔔/🔕 bell moved to the footer; header back buttons removed (return via the Calendar pill); headers → `1fr auto 1fr` centred branding. **Notification-tap PDF fix (v10.71):** a tap carries no user activation so `window.open` was pop-up-blocked — `_triggerAutoOpen()` renders an in-overlay "Open Huddle" button (the tap IS a gesture). OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
-- **Security hardening** (v10.72–74) — the v10.72 per-member write isolation was **reverted at v10.94 (production outage)**, later rebuilt as the permissive 3-tier rule (B2, v14.53) then made strict (B3, v16.29) — KNOWN_LIMITATIONS task #2. v10.73 back-pay-in-HPP was **superseded at v16.89** (it double-counted the award uplift — `.claude/rules/paycalc.md`). Plus `.gitignore`, an iOS scroll-lock `transitionend` fallback, and the May-2026 GCP API-key referrer restriction.
+- **Security hardening** (v10.72–74) — the v10.72 per-member write isolation was **reverted at v10.94 (production outage)**, later rebuilt as the permissive 3-tier rule (B2, v14.53) then made strict (B3, v16.29) — "The four v11 security tasks", task #2, below (moved here from KNOWN_LIMITATIONS.md on 7 Nov 2026). v10.73 back-pay-in-HPP was **superseded at v16.89** (it double-counted the award uplift — `.claude/rules/paycalc.md`). Plus `.gitignore`, an iOS scroll-lock `transitionend` fallback, and the May-2026 GCP API-key referrer restriction.
 - **Railcard guide** (v10.30–v10.48) + **FIP guide** — `.claude/rules/guide-pages.md`, GUIDE_SOURCES.md. FIP country-finder (v17.64) + sticky section chip-bar (v17.66) + scrollspy (v17.68) shipped. **Four FIP v2 ideas deliberately NOT shipped:** per-card reliability badges (a "Confirmed" tier would over-promise against GUIDE_SOURCES' explicit "sampled, not certified" carrier posture); per-section review dates (already tracked per-row in the register — clutter on a staff reference); collapsible major sections (invasive, low value now the finder + chip-bar carry navigation); **faceted "filter by property" search — see "FIP faceted filtering" below.**
 - **Cross-page / navy-chrome / typography consistency passes** (v11.64–v11.88) — CSS-only, no behaviour change; all resulting token/surface/motion/type rules live in `.claude/rules/css-tokens.md`.
 - **Huddle DOCX flow rework** (v11.66) — Power Automate flow made DOCX-first (the old noon time-of-day condition meant afternoon emails always sent PDF even with a DOCX attached); the viewer's auto-open + manual-click branches unified (`if htmlContent render inline; else "Open Huddle" button`).
 - **Pay reminder infrastructure fix** (v11.65) — the daily 08:00 reminder had **never fired**: the deploy SA lacked `roles/cloudscheduler.admin` (Firebase silently failed to create the Scheduler job every deploy) and a stale `us-central1` record blocked deploys; first live 27 Jun 2026.
-- **CSS extraction + infra hardening** (v12.01–05) — page/guide CSS extracted to external files; DOMPurify self-hosted; security headers (HSTS/COOP/Permissions-Policy); pre-commit ESLint + single-SDK check. **v12.05 reverted** the v12.04 anonymous-auth requirement on calendar `overrides` reads (more complexity than value — anyone can mint an anonymous token as easily as the app; KNOWN_LIMITATIONS → "Override data is publicly readable").
+- **CSS extraction + infra hardening** (v12.01–05) — page/guide CSS extracted to external files; DOMPurify self-hosted; security headers (HSTS/COOP/Permissions-Policy); pre-commit ESLint + single-SDK check. **v12.05 reverted** the v12.04 anonymous-auth requirement on calendar `overrides` reads (more complexity than value — anyone can mint an anonymous token as easily as the app; "Override data is publicly readable", below, is how that closed).
 - **Links design workspace** (v12.06–v12.47) — `.claude/rules/links-design.md`. Durable decisions: patterns-only documents (decouples pattern design from assignment); a slot-based generator over an early/late binary (the station is staffed in **waves**, 28 distinct start times, distinct Sat/Sun); an hourly heat map over a per-type bar chart (shows the real on-duty shape/gaps); CEAs do not work nights (`normaliseCustomShift` rejects 21:00–03:59).
 - **E2E smoke tests** (v12.65 → removed v12.75 → restored v13.95) — CLAUDE.md → `e2e/`. **The one principle to preserve — whatever E2E tool is ever chosen, keep the Firebase CDN-stub approach** (`e2e/fixtures.js`): every page's module graph statically imports the gstatic Firebase SDK, and in ES modules one failed static import aborts the whole graph — so a slow/blocked CDN on a CI runner fails every test in ways no timeout/retry can fix. Intercept `gstatic.com/firebasejs/**` and serve local no-op stubs; any tool with request interception can do it.
 
@@ -1045,7 +1046,7 @@ still remembers the `shift`. `consumesEntitlement` (`al-entitlement.js`) consult
 `isContractedWorkOverride`: a replaced **contracted** shift (`shift`) charges a day, a replaced
 voluntary **RDW deliberately does not**. Pre-v21.55 documents lack the field and fall back to the
 base roster — the old behaviour, so no migration. What genuinely remains open is narrower and lives
-in `KNOWN_LIMITATIONS.md` → "Overtime Availability — accepted gaps": *deleting* the AL doc still destroys the swap evidence it carried,
+in `KNOWN_LIMITATIONS.md` → "Deleting an AL doc destroys the swap evidence it carried" (under "Calendar / roster" since 7 Nov 2026): *deleting* the AL doc still destroys the swap evidence it carried,
 because only the TYPE was preserved, never the time (see "Deleting an AL doc destroys the swap
 evidence it carried", v21.56).
 
@@ -1078,7 +1079,7 @@ The v10.73 fix fed `calcBackPay()`'s variable-pay portion (`_bpVarAmount`) into 
 That coupling was later found to DOUBLE-COUNT the award uplift (calcHPP already prices the
 whole year at the settled post-award rate) and was deliberately removed at v16.89 — the lump
 no longer feeds HPP. Current rule: `.claude/rules/paycalc.md` → "The lump is deliberately NOT
-added into the HPP estimate (v16.89)". See `KNOWN_LIMITATIONS.md` → "The four v11 security tasks", item 3, for the original payslip confirmation.
+added into the HPP estimate (v16.89)". See "The four v11 security tasks", item 3, below (moved here from `KNOWN_LIMITATIONS.md` on 7 Nov 2026), for the original payslip confirmation.
 
 ---
 
@@ -1222,7 +1223,7 @@ Two things a future major will hit again:
   (npm's `engines` is advisory without `engine-strict`) and then exercised every handler on a Node
   the SDK does not support. That job now opens a Node 22 window around the functions install and
   tests and steps back to 20 for the deploy tool, satisfying both constraints in sequence rather
-  than choosing between them.
+  than choosing between them. (Gone since v25.30: the workflow runs Node 24 throughout.)
 
 The scoped `overrides: { "uuid": "^11.1.1" }` **is still needed** and was re-checked here, not
 assumed: `@google-cloud/storage@7.22.0` still pulls `gaxios@6.7.1`, which declares `uuid ^9.0.1`.
@@ -1339,6 +1340,1686 @@ beacon is refused by `img-src`, so the two directives named are the two that can
 telemetry is the intended behaviour.
 
 ---
+
+## Closed limitations, moved out of KNOWN_LIMITATIONS.md (7 Nov 2026)
+
+A second pass on the rule the group above was moved for: every heading in `KNOWN_LIMITATIONS.md`
+should read as still true, and the file had again filled with finished work, and with the history
+of the items that stay open. Moved here **verbatim**, by line range from the file as it stood at
+v25.46 — whole sections where an item closed or its entry was mostly history, and the closed bullets
+or dated paragraphs where an item stays open. Each live item keeps a short, present-tense entry in
+`KNOWN_LIMITATIONS.md`, which also keeps stubs where other files cite a heading (task #1, "The
+member claim", "Playwright's WebKit crashed").
+
+Nothing below was rewritten, so it says what was true when it was written. Where a section reads
+"open", or "the next reading will settle this", the live position is the `KNOWN_LIMITATIONS.md`
+entry of the same name, or the contract or module header that entry names.
+
+---
+
+### Left open by the full check of 3 November 2026 (v25.20) — each an owner decision
+
+The bug, regression and technical-debt check behind v25.20 fixed what was plainly broken. These it
+left, each for a decision rather than a default:
+
+- **Done the same day — High Contrast and the colour questions (v25.22).** Under Windows High
+  Contrast a chosen control used to look like an unchosen one; one rule in shared.css now rings every
+  chosen control in the theme's `Highlight`. Operations' hand-entry type pills wear Admin's type
+  colours, the "Swapped / Rest day" answer is leave's teal in both places it is asked, and the date
+  pickers and Trains' chosen timetable column took the page's colour — the last navy choices.
+  `.claude/rules/css-tokens.md` → "The last navy choices took the page's colour".
+- **Done the same day — CI and the deploy tool off Node 20.** `actions/cache` v6.1.0 (was v4.3.0)
+  and `google-github-actions/auth` v3.0.0 (was v2.1.13) both run on Node 24, and firebase-tools runs
+  on Node 22 in all three deploys (24 since v25.30, with the Functions runtime). Its Node 20 pin
+  dated from a "Failed to authenticate" under the retired key file; if a deploy ever fails to
+  authenticate, the comment at the top of `deploy-functions.yml` names the lines to set back to '22'.
+- **CLAUDE.md came off its 125,000-character cap the same day (v25.23):** the retired notices' histories moved into the new-notice skill (120,880 characters then; 121,745 on 4 Nov 2026).
+- **Weight**: `.git` is 1.4 GB. **The Links 26 pack zip is built on demand since 3 Nov 2026** (owner):
+  each committed copy had added ~15 MB to the history, sixteen times; it is untracked now (`*.zip` was
+  already ignored — it had been force-added) and `tooling/pack.py` says to run the script and send the
+  file. The copies already committed stay in history; rewriting it was ruled out. `docs/links-24` is
+  read by more than this line used to say: its proposal files are fixtures for
+  `links-compare-analysis.test.mjs` AND `links-compare.test.mjs`, and the Links 26 tooling reuses its
+  scripts. Its own 13 MB zip no longer changes, so it costs checkout size and nothing more. (The folder
+  was removed on 7 Nov 2026; Known Limitations → Weight has where its files went.)
+- **Size**: nine of the 28 modules in `coordinator-ratchet.test.mjs` sit exactly at their cap. The
+  seven stylesheets over 900 lines are capped since v25.23 (`stylesheet-ratchet.test.mjs`, the same
+  ratchet: `index.css` 3,861 lines and `shared.css` 3,852 on 3 Nov 2026). `e2e/pages.spec.js`
+  was split by page on 3 Nov 2026: Admin, Links, Operations, Settings and the guides each have
+  their own spec, and it keeps the tests that span pages.
+- **Twins, settled the same day.** `isRest` and the window-row conversion are one copy each now
+  (`links-design.js`; `rowMinutes` in `links-window.js`). Two stay apart on purpose: `withTimeout`
+  (`login-overlay.js`, `password-force.js`) — login's copy ignores the error and the other's callers
+  read its `myb/timeout` code, and sharing one would pull the Firebase module graph into the sign-in
+  overlay's unit tests or need a new module, for six lines; and `adjustScrollOffsets`, one idea with a
+  different target per guide (`railcard-guide.js`, `rangers-guide.js`), in classic scripts with no
+  shared module. Colours written as `rgb()`/`rgba()` are now read by `css-hex-parity` too: pure white
+  or black at any alpha is neutral (like the `white`/`black` keywords), and the 17 coloured ones the
+  app sheets held — nearly all one navy shadow tint — are a ratchet that may only go down (8 in
+  `index.css`, 6 in `links.css`, 3 in `shared.css`). The guide sheets keep their own palette guard.
+- **Overtime stays paused** (owner, 3 Nov 2026). Its page, Cloud Functions and tests — about 19,000
+  lines — are kept and keep running in CI, so it can be switched back on; removing it was offered and
+  declined.
+
+### A failed deploy is now announced — but the gate can still flake (Aug 2026)
+
+**What happened.** The hosting deploy for v19.94 failed its own `npm run check` gate on **one unit
+test out of 1254**, so the workflow exited before deploying. Staff stayed on v19.91 for about two
+hours and nothing said so. It was noticed only because the owner compared the Firebase version
+against the GitHub Pages mirror — which has no test gate at all and had gone straight to v19.94.
+
+**It was a flake, and that is provable rather than assumed.** `e2e.yml`'s `unit` job and
+`deploy-hosting.yml`'s test step run the *identical* `npm run check`. On the same commit the PR's
+job passed and the deploy's failed. A re-run of the same code then went green. Locally it would not
+reproduce in six runs of the unit suite, nor in three more of the six most timing-dependent suites
+under eight CPU spinners.
+
+**The failing test was not identified.** The job log is far too large to retrieve through the API
+and its tail contains only passing lines. If this recurs, pull the log promptly — that is the one
+chance to name it.
+
+**Frequency:** 1 in the last 30 hosting deploys (746 all-time).
+
+#### What the announcement covers, and what it does not
+
+Fixed: the SILENCE. All three deploy workflows now open (or comment on) a `deploy-failure` GitHub
+issue via `.github/actions/report-deploy-failure`. Read that action's header for why an issue rather
+than email or push.
+
+**And a second silent class, found the hard way (Aug 2026).** The reporter shipped as the deploy
+job's own last step under `if: failure()`, with a comment claiming that covered "EVERY step above".
+It did — and a step-level guard cannot run when NO step runs. On 14 Aug the rules deploy failed in
+`Prepare all required actions` (codeload would not serve a pinned action), so the job died during
+setup, every step including the reporter was skipped, and a failed production deploy sat unnoticed
+until someone listed the workflow runs by hand. That is the exact outcome the reporter was built to
+prevent, reached by a route it could not see. It is now a **separate job** — `needs: deploy` plus a
+JOB-level `if: failure()` — which fires whatever kills the deploy, setup included, and it replaces
+the in-job step rather than joining it (two reporters would comment twice on one issue). Enforced by
+`workflow-hygiene.test.mjs`, which asserts the shape, because the triggering condition is an outage
+and cannot be reproduced on demand — which is precisely why the gap survived review the first time.
+The irreducible tail: the reporter job still needs `checkout` and the action itself, so an outage
+broad enough to take those down takes the reporter with it. Nothing inside a workflow can report
+that.
+
+NOT fixed: the unit-test flake itself, and deliberately. An automatic retry would have hidden this
+one, but it also hands a genuinely intermittent product bug a second chance to reach staff. The
+`npm run check` half of the gate stays single-shot; the Playwright half has retried once in CI since
+v23.45 (`playwright.config.mjs`), which reports a pass-on-retry as `flaky`. The notification tells you
+to re-run when the failure is spurious.
+
+**Two properties of the notification worth preserving.** It never fails the job — every command is
+`|| echo "::warning::…"`, because it only runs when something has already gone wrong and must not
+bury the real error under a second one. And repeated failures COMMENT on the open issue rather than
+opening a second: a run of consecutive failures is one situation, and N issues is how a notification
+channel teaches its reader to ignore it.
+
+**A deploy failure does not fix itself.** `paths-ignore: '**/*.md'` means a documentation-only commit
+will not retry it, so production can stay stale indefinitely until an unrelated change lands.
+
+### The `webkit` job is intermittently red, and it is not a gate (measured Aug 2026, v21.40)
+
+Branch CI has shown a red `webkit` job on most recent pushes while `unit`, `smoke`, `rules` and
+`csp` were all green. **It is flake, and unlike the entry above this one is measured rather than
+inferred**: `paycalc: backup → restore round trip survives the reload` failed **1 run in 6** locally,
+same code, same machine, same command — and it failed on *desktop webkit* locally while CI failed it
+on *mobile-safari*, which is a different project each time. Across two CI runs on one commit the
+failing sets had **zero overlap**.
+
+**Do not read a red `webkit` as a broken build, and do not read it as nothing either.** The right
+check is the one that distinguishes them: compare the failing test NAMES between runs. Different
+names ⇒ flake. The same test failing repeatedly ⇒ investigate it, because the engine difference is
+exactly what this job exists to catch.
+
+`webkit` is deliberately **not** in `deploy-hosting.yml` — the reasoning is in `e2e.yml`'s own header,
+and it is the v19.94 lesson applied: a second engine in the deploy gate lets a WebKit-only flake keep
+staff on a stale version. Merging with `webkit` red and the other four green is the designed
+behaviour, not a shortcut.
+
+**Both candidate fixes were applied the same day (v21.40), because a job that is usually red teaches
+everyone to stop reading it.** The commonest offender — the paycalc backup→restore round trip — was a
+genuine race in the TEST (a fixed 1200ms sleep betting on the card's own 800ms self-reload; the log
+said so plainly: "Execution context was destroyed") and now waits for the navigation itself. The
+residual tail — click timeouts on a slow runner, different tests each run — is covered by
+`retries: process.env.CI ? 1 : 0` in `playwright.webkit.mjs` (the Chromium deploy-gate config has
+carried the same line since v23.45): an engine difference is
+deterministic and still fails both attempts, so the job stays red for exactly the thing it exists to
+catch, while a one-off race is reported "flaky" instead of failing the run. If `webkit` goes red
+NOW, take it seriously: the flake excuse has been spent.
+
+### Two editors on one day: one record now, but the second is not WARNED (v24.48)
+
+An external review (Oct 2026) reproduced two Admin defects, both fixed in v24.48:
+
+- **A read from the offline cache was treated as complete.** `admin-override-store.js` now refuses
+  one (`refuseCachedRead`): it is a failed load, with Retry, an "offline" message, and an automatic
+  retry when the connection returns — never "this member has no saved changes".
+- **Two editors saving one day left two records.** Every manual record now has one fixed id per
+  member and date (`manualOverrideId`), so the second save lands on the first one's document.
+
+**What remains, deliberately:** the second editor is not told the day changed underneath them —
+**last SAVE wins**, exactly as when two people save one after the other. **A DELETE no longer does**
+(Oct 2026 production review): with one id per day, a stale delete removed the colleague's newer
+record, which a sequential deleter would have seen. Every override delete now re-reads what it is
+about to remove and refuses, saying so, when it has changed (`assertDeletable`,
+`admin-override-store.js`); an unconfirmable check refuses too, so deletes need the network. Warning them would need
+every Admin save to run as a TRANSACTION that re-reads each day first; that would also make an
+offline save FAIL rather than queue, and it rewrites the write path most of the e2e suite observes.
+A decision, not an oversight — revisit if a lost edit is ever reported.
+
+**Duplicates already in Firestore** from before v24.48 are cleared only when that day is next saved
+or deleted from Admin — the week editor, a leave/absence range, or either Saved Changes delete (the
+row ✕ and Delete selected joined at v24.49, after an external review found they removed only the
+picked row and let the older copy resurface). Each path clears the MANUAL copies Admin has loaded
+for that member and day; an import is never treated as a duplicate. On the capped All-staff list a
+very old day may not be loaded, so selecting the member first is the complete route. None has been
+counted; nothing in the app reports them.
+
+### Development-tool advisories that only a downgrade would clear (v24.50)
+
+An external review (5 Oct 2026) counted 32 `npm audit` entries in the ROOT tree — 1 critical, 17
+high, 14 moderate. That tree is development tooling only (the Firebase CLI, the rules-test harness,
+Playwright, ESLint); nothing in it is served to staff, and the Cloud Functions' production tree
+(`functions/`, `npm audit --omit=dev`) reads zero. Two steps took it to **11 (7 high, 4 moderate)**:
+
+- `npm audit fix` without `--force` — every update inside its declared range, including `tar`
+  7.5.17 → 7.5.22 (GHSA-23hp-3jrh-7fpw, the one the review named) and the critical entry.
+- An `overrides` entry in `package.json` raising `@grpc/grpc-js` under `@firebase/firestore` to
+  `^1.14.5`. Firestore 4.17 pins `~1.9.0`, so this runs it on a version it does not declare —
+  accepted because the only code that uses it is the rules-emulator suite, and that suite passes
+  375/375 on it. **If `npm run test:rules` ever fails to CONNECT after a dependency change, remove
+  that override first.** Drop it once Firestore's own range moves past 1.9.
+
+**All 11 remaining sit under `firebase-tools`** (basic-ftp, braces/chokidar, uuid/gaxios,
+@opentelemetry/core). `npm audit fix --force` would answer them by DOWNGRADING the CLI from 15.x to
+14.x — the wrong direction, and the review said so too. They clear when the CLI updates its own
+dependencies; re-run `npm audit` after each CLI bump.
+
+**The tooling refresh, 3 Nov 2026 (v25.25): 37 → 21, none high or critical.** The root had drifted
+back to 37 (1 critical, 12 high, 24 moderate). `firebase-tools` 15.32 → 15.34 and the same
+`npm audit fix` without `--force` cleared the critical and every high. The 21 moderate left are the
+same shape as before: inside the CLI (pubsub, opentelemetry, archiver, gaxios, glob, uuid, superstatic)
+and inside ESLint's own packages, where npm's only offer is a downgrade to ESLint 4. The fix also
+moved ESLint to 10.14, four days old, so it was set to 10.13 by hand: the update bot
+(`.github/dependabot.yml`) waits two weeks after any release, and 10.14 will arrive through it.
+
+**TypeScript 7 (v25.26, 4 Nov 2026): the update bot's first major version, taken with the two fixes
+it needed.** TypeScript 7 is a rewrite of the compiler, and it refused two JSDoc spellings that 6
+accepted, seven errors from two causes: a Closure-style function type (`function(number, any):
+string` in `paycalc-app.js`, now `(r: number, mult: any) => string`) and a function named where a
+type belongs (`ReturnType<import('./trains-stations.js').lastTrains>` in `trains-render.js`, now
+`ReturnType<typeof import(…).lastTrains>`). Both are comments, so nothing runs differently; the
+package files are the bot's own, taken unchanged, so its PR closes itself once this lands. Each of
+its other major versions is still a decision of its own.
+
+**The Cloud Functions' production tree no longer reads zero: 6 moderate.** All sit in one chain
+inside Google's Firestore client (`@google-cloud/firestore-api` → `google-gax` → `gaxios` → `rimraf`
+→ `glob`/`minimatch`), whose own version ranges do not admit the fixed releases, so
+`npm audit fix` changes nothing. They are file-matching helpers that nothing staff send ever
+reaches. Not forced with `overrides`: that would run Google's client on versions it does not
+declare, for findings it cannot reach. They clear when `firebase-admin` takes a newer client;
+re-run `npm audit --omit=dev --prefix functions` after each bump of it.
+
+### The test matrix and the phones staff carry (v24.61)
+
+The iOS 27 / iPhone 18 Pro audit (6 Oct 2026) found the test matrix a generation behind the fleet:
+the two WebKit lanes ran as an iPhone 13 (390×844), and every iPhone Pro since the 15 — the 16 Pro,
+the 17 Pro and the 18 Pro, which to a web page is the same device as the 17 Pro — is 402×874 at the
+same density. Both lanes now run at that geometry (`IPHONE_PRO_VIEWPORT` in `playwright.webkit.mjs`,
+shared by `playwright.visual-webkit.mjs`, and by the four visual tests that grow the viewport for a
+tall surface — a 24-hour review found those still at 390 after the first pass); the six WebKit
+baselines were regenerated and the full WebKit smoke suite re-run at the new width before this shipped.
+
+**The Playwright upgrade: 1.56.1 → 1.63.0 (3 Nov 2026, owner: "Can you update the version of
+playwright in the repo?"),** in a pull request whose only subject it is, as this paragraph asked. It
+brings Chromium 1243 (Chromium 153), WebKit 2359 (Safari 26.6, against the 2215 that identified as
+Safari 26.0) and an iPhone 17 Pro descriptor. The paragraph used to say why it waited; both reasons
+moved:
+
+- **The baselines came from CI's own render — and that is the lesson worth keeping.** They were
+  first redrawn in the dev container, whose pre-installed Chromium is now 1243, the very build CI
+  runs, on the same Ubuntu 24.04. All 51 still failed on CI. Same build, different machine: the
+  container breaks some lines of Inter a word differently (it drew the App Speed card 17 px
+  taller), so a matching version number did not make a matching render. They were redrawn instead
+  from the actual screenshots in the pull request's own `visual-diffs` artifact, whose digest was
+  checked. On CI, Chromium 153 left 17 of the 51 pixel-for-pixel as they were on 1194 (kept
+  byte-for-byte) and moved the other 34 slightly: the blurred backdrop behind every overlay and
+  lightbox (31% of the tips overlay's pixels, each by a little), glyph edges, the Team View's
+  emoji. The largest were looked at; nothing moved but rendering. **When the lane on a pull request
+  disagrees with a baseline drawn here, believe the lane** and take the artifact's actuals.
+- **WebKit 2359 met the suite first in CI.** It is not pre-installed in the container (the session
+  hook never runs `playwright install`), but `npx playwright install webkit` fetches it in about a
+  minute, which is how the two findings below were reproduced and their fixes proven before a
+  push. Its six baselines came from CI's render, as above. Under Safari 26.6 line heights moved by
+  a pixel or two (the railcard guide's sections sit a few pixels higher, the day panel is 2 px
+  taller); nothing else.
+- **It found one real Admin defect.** With no member remembered on the device, an admin or manager
+  opening Admin got no member and no week: the list's first entry is a disabled "— Select member
+  —", and 2359 does not pass over it to the first real member, as Chromium does and 2215 did. Admin
+  now chooses that member itself (`admin-app.js`, v25.24), which changes nothing wherever the engine
+  already did. Whether an iPhone's Safari does the same is not known, since Playwright's WebKit is
+  its own build; the fix covers it either way. Four Admin tests failed on it, on both WebKit
+  projects. With the new line removed (`scripts/mutate.mjs`) two of them fail again on 2359, and
+  with it they pass.
+- **And one test race.** Under 2359 the Links first-visit panel opens late enough to cover the
+  burger in Overtime's every-page sweep, which closed it only if it was already up. `seedSession`
+  now suppresses it alongside the Calendar's notices, and the one spec about the panel re-enables it.
+- **And two measurements the tests had to learn.** On the iPhone project, 2359 hands back a STALE
+  computed style for the Pay Calculator's `body` (the browser's defaults) from load until something
+  restyles it, while the page on screen is navy and in Inter. Nothing in the app reads that value,
+  so the typeface sweep now forces a fresh computation before it reads, and still fails on a page
+  with no body font (mutation-checked). And the WebKit config's budget per TEST is now 60s, not 30:
+  its longest flows were already at 22–26s on 2215 and run 10–50% slower on 2359, which is
+  Playwright's own wait before each click on this engine, not the app (a Trains tab's handler and
+  the next paint take 30–170ms on WebKit, as on Chromium). The 15s budget per assertion is untouched
+  (`playwright.webkit.mjs` says why).
+- **And one the CI had to learn, after the merge (v25.25).** The step that installs WebKit's system
+  libraries reads its package list out of Playwright's dry run, and 1.63 changed that output from the
+  apt command to a simulated install. Unread, the script fell back to the plain command: one clock,
+  no resume. That is a fallback by design, but it became the only path every WebKit job took, and a
+  slow mirror then killed two jobs on the tooling refresh before a single test ran.
+  `install-browser-deps/install.sh` now reads both shapes and runs `apt-get update` first (the dry run
+  reads apt's lists now), and `workflow-hygiene.test.mjs` feeds the real parser each one.
+- **And one more, the same night.** The slower engine took the iPhone project's second shard,
+  where the Links flows all fall, to up to 24 minutes of tests against its 25-minute step budget. A
+  Dependabot run was stopped at that budget with every test it had run passing. The iPhone project
+  now runs in four shards and desktop WebKit stays at two. The measurement is beside the job in
+  `e2e.yml`, and `workflow-hygiene.test.mjs` fails if a shard or a project is left out of the list.
+- **1.64.1 since 4 Nov 2026, ahead of the containers.** This upgrade stopped at 1.63.0 because that
+  is what the dev container carries, so a local run there needs no browser workaround. The owner
+  asked for the remaining upgrades the next morning, and the WebKit lane is the only place Safari
+  meets the app before a release, so it moved on without waiting: 1.64.1 brings Chromium 156 and
+  WebKit 27.2. None of 1.64's breaking changes reach this suite: no app code reads `window.screen`
+  (now taken from the device descriptor), nothing uses an iframe, and no run passes
+  `--update-snapshots=missing`. **Until a container carries 1.64's browsers, a local run needs the
+  environment's remedy**, as it did in a container that carried 1.56.1's Chromium
+  (`/opt/pw-browsers/chromium-1194`, measured 3 Nov 2026): launch Chromium with
+  `executablePath: '/opt/pw-browsers/chromium'`. A scratch config that imports the project's and
+  sets it, giving `testDir` and the web server's `cwd` as absolute paths, is enough, and nothing in
+  the repo changes; 1.64.1 ran two specs that way, on both Chrome projects, on the container's 1.63 Chromium. WebKit takes
+  `npx playwright install webkit`, about a minute. The full Chrome binary also asks for
+  `/favicon.ico`, which neither origin serves; the live check's reachability probe runs in a tab of
+  its own so that request is never counted against a page (`e2e/live.spec.js`). CI and the deploy
+  gate install their own browsers and need none of this.
+- **Chromium 153 raises one new browser error under test.** It abandons the declarative page-to-page
+  view transition (`@view-transition` in `shared.css`) when a test navigates mid-transition —
+  "Transition was aborted because of invalid state" — as Android Chrome 152 already did on real
+  phones, and the Error Log already ignores it (`client-errors.js`). Four smoke tests that assert no
+  uncaught errors met it on the first run. `collectFatalErrors` (`e2e/helpers.js`) now asks the same
+  rule, `shouldReport`, so a test fails on exactly what the app would log.
+- **The 17 Pro descriptor is not used.** A descriptor is a viewport, a density and a user-agent
+  string; the WebKit lane keeps the 13's under its 402×874 override, because a swap would change only
+  the user agent's iOS number, which the app never reads (`playwright.webkit.mjs`).
+
+Landscape (874×402, 956×440) is NOT in the matrix either, on purpose: Playwright's Linux WebKit
+reports every safe-area inset as zero, so a landscape baseline would prove nothing about the Dynamic
+Island insets the audit's B11 added, and the smoke suite's layout assertions are written for
+portrait. A real iPhone in landscape is on the device checklist in the audit, not in CI.
+
+### Every browser job is pinned to Ubuntu 24.04 (30 Oct 2026, v25.01; Playwright no longer the reason since 3 Nov)
+
+GitHub's `ubuntu-latest` became **Ubuntu 26.04** in the last week of October 2026, and Playwright 1.56.1 supported
+nothing newer than 24.04. On the new image `npx playwright install-deps` prints "Cannot install dependencies for
+ubuntu26.04-x64" and **exits 0**, so the libraries step passed, and every WebKit test then failed at browser launch
+(408 of 409 in one shard) — while Chromium happened to launch, and both visual lanes, drawn on 24.04, reported drift.
+The nine jobs that start a browser now say `runs-on: ubuntu-24.04` (e2e.yml's smoke, webkit, csp, visual and
+visual-webkit; the deploy gate in deploy-hosting.yml; live-health, offline and warm-browser-cache); the reason is
+written once, on e2e.yml's smoke job.
+
+**Deferred:**
+- **Playwright 1.63.0 supports 26.04** (the repo's since 3 Nov 2026), so what holds the nine now is the baselines:
+  they are drawn on 24.04, in a dev container that is 24.04. Move all nine together, as their own change, with every
+  Chromium and WebKit baseline redrawn on the new image — from CI's own render, since nothing here draws 26.04's.
+  One job left on 24.04 would test a browser the others do not.
+- `install-browser-deps` still reports success when Playwright declines to install. Its fallback `exec`s the plain
+  command, whose exit status is 0 here; a check that the browser launches would name the failure at the step that
+  caused it, rather than four hundred tests later. `workflow-hygiene.test.mjs` pins the fallback's shape, so that is a
+  change to the test as well.
+
+### Playwright's WebKit crashed when a page left after two history entries and a Back (Oct 2026, v24.97; not in 2359)
+
+The WebKit that Playwright 1.56.1 ran (build 2215, "Safari 26.0") **crashed its web process**
+on a cross-document navigation made after two `history.pushState` calls and a `history.back()`. It
+crashed on `assign` and `replace` alike, on both WebKit projects, here and on CI. The page never
+committed. Playwright reported *"waiting for … navigation to finish"* until the assertion timed out,
+and *"Target crashed"* after that.
+
+**It is the test browser, not the app.** A standalone script reproduces it with no app code and no
+test runner, on any page served over HTTP, through `page.evaluate`:
+
+```js
+history.pushState({}, '');
+history.pushState({}, '');
+addEventListener('popstate', () => setTimeout(() => location.assign('/b'), 300), { once: true });
+history.back();
+```
+
+Chromium navigates, and so does WebKit after one push and a back, or after two pushes with no back.
+**Playwright 1.63's WebKit (build 2359, "Safari 26.6") navigates every time**, measured three runs
+out of three. Safari on a phone is not believed to share it, but nobody has checked on a device. To
+check: Admin → change a row → ☰ → Calendar → **Leave**.
+
+**Why the app meets it.** It is the shape of any exit taken from a dialog opened over the drawer:
+the drawer's history entry, the dialog's entry, then the dialog closing. v24.97's "Leave" (Admin
+asking before a drawer link drops staged edits) is the first such exit with a test.
+
+**What a test does about it.** Stop the navigation at the network with `route.fulfill({ status:
+204 })`, which every browser treats as "stay on this page", and assert the request Leave made. Prove
+the destination in a second test that gets there without the dialog. `admin: a drawer pill or the
+logo asks before leaving staged edits` and the test after it in `e2e/admin.spec.js` do exactly
+this. **Never skip such a test on WebKit**: it is the lane's only view of the dialog, the drawer and
+the guard on Safari's engine.
+
+**Re-run on 3 Nov 2026 under the repo's Playwright 1.63.0: WebKit 2359 navigates, three runs out of
+three.** The test browser no longer has the fault, so this entry stays only for the device question
+above. The Leave test keeps its stop at the network: it is correct on either build, and letting the
+
+### The Security section's introduction, as it stood
+
+> **Forward plan.** The security work in this section is sequenced, with per-phase risk and
+> rollback, in **`SECURITY_RELEASE_PLAN.md`**. The entries below remain the authoritative
+> *post-mortems and rationale*; that file is the *ordering* that keeps a fix from re-creating the
+> v10.94 outage.
+>
+> **TWO items are still deferred. FOUR have shipped, and this paragraph listed all six as pending
+> until 19 Sep 2026** (external review). That is worth naming rather than quietly correcting: the
+> entries below are detailed and current, so a stale *introduction* is the most misleading kind of
+> staleness — it tells a reader the section is a backlog when most of it is a changelog.
+>
+> | | |
+> |---|---|
+> | **Still deferred** | **App Check** (Track D — declined as immediate, retained; see its entry below) · **password retirement** (Track C5, gated on the migration reaching ≥90% — `MAINTENANCE_CALENDAR.md` → Trigger points) |
+> | **Shipped** | **Per-member write isolation** — strict since v16.29; the permissive `!('name' in token)` escape is gone from `firestore.rules` · **Named-session separation** — the Calendar closed to anonymous on 26 Aug 2026; a read needs a `name` claim (with the server-stamped `member` claim that matches it, since v24.27) or the `calendarViewer` capability · **Workload Identity Federation** — all four workflows authenticate by short-lived OIDC; no `FIREBASE_SERVICE_ACCOUNT` key exists (Appendix A2) · **The firebase-admin bump** — `functions/package.json` is on `^14.3.0` |
+>
+> The shipped four are listed by what a reader can CHECK rather than by a version alone, because
+> that is what stops this row going stale again: each claim above is one grep away from being
+> falsified.
+
+### From "The document FILES are protected by a bearer URL, not by auth" — the dated paragraphs
+
+**WHICH url, as of v24.19, depends on one IAM grant.** The three opening surfaces now ask
+`getDocumentUrl` for a **15-minute signed URL** and open that. Without
+`roles/iam.serviceAccountTokenCreator` on the runtime service account every call answers 503 and
+they fall back to the **permanent tokenised `storageUrl`** in the Firestore document — which is the
+state described throughout the rest of this entry, and the state the app is in until that grant is
+made. The fallback is deliberate: a member must be able to open the document either way.
+
+**Correction (v24.23 audit): the grant is very probably already in place.** RECOVERY_RUNBOOK.md
+records `serviceAccountTokenCreator` on the shared gen-2 runtime service account for
+`unlockCalendarViewer` — the 10 Aug 2026 outage was its absence — and `getDocumentUrl` runs as the
+same account. So signed URLs are expected to be LIVE, which is what made the lapsed-link defect
+(fixed in v24.23: the url is now checked at the tap) a live one. Since v24.33 a signed url is also
+used only when it names the same file the page is holding (`storagePath`): an upload landing between
+the page's read and the signing falls back to the document's own stored url rather than opening a
+different document. Confirm by opening a document and
+looking for `storage.googleapis.com` rather than `firebasestorage` in the opened address. What still
+remains is rotating the objects whose permanent URLs are already in circulation.
+
+Consequence, stated plainly because no other doc says it: **tightening the Firestore read rules would
+not put these documents behind authentication.** It would change who can *discover* a URL; anyone who
+has ever held one — a forwarded link, browser history, a synced bookmark — keeps access until the
+object is deleted, and revocation requires rewriting the object, not editing a rule.
+
+**BUT NOT FOREVER, AND THE DOCUMENTS SAID FOREVER UNTIL 19 SEP 2026.** Both retention sweeps
+DELETE the Storage object, which is what actually kills a bearer URL: **Huddles at 3 months**
+(`pruneOldHuddles`, server-side in `functions/documents.js`), **Circulars and Newsletters at 6
+months** (`pruneOldDocs`, browser-side in `doc-retention.js`). So a leaked URL is bounded by the
+retention window, not unbounded — which materially lowers this finding's priority and was worth
+getting right in both directions.
+
+### `docs/AL_WORKBOOK.md` publishes named colleagues' leave figures (found 16 Sep 2026, deep review)
+
+**Status: ACTED ON, 19 Sep 2026 (v24.15) — the per-person record no longer ships.** It had been
+*"recorded, owner's decision"* since 16 Sep; an external review raised it again, the exposure was
+re-measured and confirmed live (`200` on the Pages mirror, `404` on Firebase, whose ignore list
+covers `docs/`), and the split was made rather than re-recorded.
+
+**What moved and what stayed.** Section 12 — the reconciliation log, roughly fifty dated entries
+naming colleagues against days taken, days remaining and one reason for absence — is now
+`docs/AL_WORKBOOK.local.md`, gitignored. Everything else stayed: the method, the four cell states,
+the workbook's own defects, and the worked examples, which keep every figure and now read
+*"a member"*. The remaining names in the committed file are a workbook-spelling ↔ app-spelling
+map carrying no figure at all, and both spellings are already public by the deliberate
+classification in `AUTH_PLAN.md` §2.
+
+**This entry used to quote the worked example verbatim, name included** — so the record of the
+problem reproduced it, on the same mirror, for three days. That was found by the guard written in
+the same change (`payroll-anonymity.test.mjs` now scans for a roster name beside a LEAVE BALANCE as
+well as beside a payroll term), which also found two more: a leaver's final-leave arrangement in the
+world-readable `roster-member-data.js`, and a name beside the word "sickness" in an illustrative
+code comment. Both are fixed. A guard that finds three offences on its first run is the argument for
+writing it.
+
+**Two things this did NOT do.** The log is still in git HISTORY — exactly as the payslip fixture is,
+two entries up — so this stops it being SERVED, not published; rewriting history is the owner's call
+and has not been taken. And a fresh checkout no longer carries the log, so a session in a new
+container starts without the accumulated reconciliation history: a real cost to the `/al-workbook`
+workflow, accepted deliberately and reversible by un-ignoring the file.
+
+Two things make it worth recording rather than assuming it is inside an existing decision:
+
+- **The public classification was reasoned about SHIFT PATTERNS** — *"shift patterns are on the
+  station's own printed rosters"* (`AUTH_PLAN.md` §2). A leave balance is not on a printed roster,
+  and it is a different class of personal data about a third party.
+- **`public-data-classification.test.mjs` still does not inspect `docs/`.** It covers
+  `roster-data.js`, the other world-readable surface, and nothing about this change altered that.
+  What DID change is that `docs/` is no longer unguarded: `payroll-anonymity.test.mjs` scans the
+  whole tracked tree, Markdown included, for a roster name sitting beside a payroll term or a leave
+  balance. **Know what that does and does not promise.** It catches this class — a NAME next to a
+  FIGURE — which is the class that went wrong. It is not a classification guard: a new personal
+  field in a doc that never names anybody passes it, and so does a name beside something neither
+  vocabulary lists. The gap this bullet was written about is narrowed, not closed.
+
+The document's VALUE is its rules — how a quota grid is read, where the app and the spreadsheet
+legitimately disagree — not who the worked examples are about. **That anonymisation was done, in
+this same change** (v24.15): every worked example keeps its figures and now reads *"a member"*, and
+the §7 mismatch table lost its figures column. This paragraph previously said it had NOT been done
+and left it as a judgement for the owner — true when it was written, and stale from the moment the
+change landed. The judgement that remains the owner's is the one above: whether to rewrite git
+history, which is what would remove the old copies.
+
+### From "Admin/manager password is surname-derived (F-SEC-1)" — the shipped partial remediation, and the July status
+
+**Partial remediation SHIPPED (v18.63) — PASSWORD_DESIGN.md Phase 0+1.** Every account (admin/manager
+included) can now **set its own real secret** in Settings → Password; sign-in accepts the typed
+password and only falls back to the surname while the account is still on the default. So the specific
+"guessable admin/manager password" exposure is **closable today by the owner simply setting their own
+password** — the targeted admin/manager fix scoped above is effectively subsumed by the general
+capability (no special-case login branch needed). It is **not automatically closed**: the surname
+default stays valid until each account sets a password, and the surname is not *retired* (C5) until the
+≥90%-migrated gate. So treat this as "the fix is now available and one action away", not "resolved for
+all accounts". Migration progress is visible in Operations → Account status.
+
+**Status update (25 Jul 2026, owner-reported — not independently verified in-repo).** 2 accounts had
+migrated in the first 24 hours, **one of them the owner's**. So the specific exposure this entry is
+about — a guessable *master admin* password, the highest-value target in the app — **is closed in
+practice**. What remains open is the **management accounts**, which can write any member's
+AL/absence/shifts on behalf; a staff account, by contrast, can only write its own overrides (the B3
+isolation rule holds), so its blast radius is one person's roster. Chasing those six needs no code —
+it is six people opening Settings → Password, and it closes the large majority of what is left.
+Verify against Operations → Account status rather than taking this paragraph's word for it.
+
+### Huddle Firestore writes restricted to admin (v11.07)
+`firestore.rules` now requires `request.auth.token.admin == true` for all browser
+create/update/delete on the `huddles` collection. Prior to v11.07, any signed-in staff
+member could alter huddle metadata (storageUrl, fileType, htmlContent) even though
+Storage rules prevented them from uploading files. The two rules now match: both Storage
+and Firestore require admin claim for huddle writes. Cloud Function writes via Admin SDK
+bypass rules and are unaffected.
+
+### A signed-in session lasts 60 days regardless of use (v20.41 + v20.47 — accepted trade)
+
+Two owner decisions, one direction. At **v20.41** the 7-day inactivity cutoff was removed: `SESSION_MS`
+(absolute, set once at sign-in) became the only clock, and the `IDLE_MS` constant, the `lastActivity`
+timestamp and the write-back inside `getSession()` went with it rather than being left dormant. At
+**v20.47** that clock was doubled, **30 days → 60**, on the same reasoning as the removal — the
+absolute bound is not what protects an account (below), so its length is a UX dial.
+
+**Existing sessions are not migrated, and no `SESSION_VER` bump was made.** `expiry` is stamped once
+at sign-in, so a session created before v20.47 keeps its original 30-day date and picks up the longer
+term at its next sign-in. Migrating them would mean writing on read — precisely the behaviour v20.41
+removed — and bumping the version would sign every member out, which is the opposite of the intent.
+So the change arrives gradually, per member, which is also how it should be reviewed.
+
+**What it makes worse, and what reads FROM this number.** Two things downstream are derived from the
+session length rather than owning their own clock, and both get further away as it grows:
+
+- **The forced password migration** (`CONFIG.FORCE_PASSWORD_SET`, PASSWORD_DESIGN Track C) is driven by
+  sign-ins, so full coverage now takes up to 60 days instead of 30 — the C5 exit metric converges
+  half as fast.
+- **Operations → Usage, "Accounts that have signed in — last 30 days"** used to be a slight
+  *over*-count of active people, because a live session required a sign-in inside 30 days. **That
+  inference is now dead and the error runs both ways**: someone can sign in once and use the app
+  daily for two months without re-entering the window. The card's visible note already says only
+  "counts sign-ins, not opens", which stays true; the reasoning beside `_appendSignInSection` states
+  the new direction. Do not restore an active-people claim unless the window is derived from
+  `SESSION_MS`.
+
+The iOS ITP window below widens with it too — from about three weeks to about seven.
+
+**What this does not change.** Every path that genuinely REVOKES access is immediate and was never
+the idle clock's job: an explicit sign-out (`clearSession`, which signs Firebase out too), a disabled
+or deleted Firebase account, revoked credentials, and the `CLAIM_EPOCH` sweep. The **Calendar
+viewer** is untouched — it is not a member session, holds no `name` claim, and its persistence is
+session-only, so it ends when the browser session does.
+
+**What it does change, stated plainly.** A LEAVER whose device still holds a local session keeps the
+signed-in *UI* for up to 60 days instead of up to 7. That was never the control it looked like: the
+real remedy is Operations → Set up accounts → "Disable accounts for leavers", and once an account is
+disabled the ID token stops refreshing (≤1 hour) and every authenticated read and write fails. The
+Admin page independently blocks a signed-in name that is no longer a selectable roster member
+(v16.21). So the exposure is bounded by the account disable, not by our localStorage timer — which
+is why lengthening the timer is a UX change, not a security one.
+
+**One interaction to expect on iOS, found while reviewing this change.** `decideAccess` grants
+`named` only when a live local session is backed by a **restored Firebase identity** — both halves,
+because either alone is a real failure (see `calendar-access-core.js`). iOS ITP evicts IndexedDB
+after roughly **7 days** of no PWA use, which is where the Firebase identity lives. Until now the
+7-day idle cutoff aged out at about the same moment, so the two expired together and the member
+simply saw a login. With the cutoff gone, an iPhone user who does not open the app for a fortnight
+can hold a valid local session with **no restorable identity** — a state that previously lasted
+about a day, became up to three weeks at v20.41, and is up to **seven weeks** at v20.47 now the
+session runs 60 days against ITP's unchanged 7.
+
+Since v20.51 (`CONFIG.CALENDAR_PIN_ACCESS: true` — v20.46 released it, v20.50 rolled it back; the switch was retired v24.34) this is **live behaviour, not a future one**:
+that member gets the member sign-in card ("This device needs to sign you in again…") instead of their
+roster, despite being signed in — never the PIN. A silent re-sign-in is tried first, and one tap on
+"Sign in" re-establishes the identity, so it is recoverable rather than a lockout — but it will
+generate a support question, it will land on iPhone users specifically, and it is worth expecting
+rather than diagnosing.
+
+**Why removed rather than lengthened.** A policy left in place with no effect is the thing a later
+reader "restores" on the assumption it was load-bearing. `session.test.mjs` pins the replacement
+properties instead: a long-untouched session inside its window is still valid, a pre-v20.41 session
+carrying the old field is accepted and the field ignored (no `SESSION_VER` bump, so nobody is signed
+out by this change), a read leaves the stored session byte-identical, and a newly-written session
+contains exactly `name`/`ver`/`expiry`.
+
+### Firebase Auth session is re-established on page load (v10.93)
+A returning user with a valid 60-day localStorage session skips the login click handler on
+every subsequent open, which would leave `auth.currentUser` null and break all Firestore
+writes. Fixed in v10.93 by `ensureFirebaseSession()`, which runs on page load whenever a
+localStorage session exists (waits for `onAuthStateChanged` — at most 20s since v24.38 — and signs
+in if none found). The client-side account self-heal and the anonymous fallback were removed at
+v24.34: a failure now resolves to no session and a sign-in prompt. Full description and the "do not
+remove this call" rule:
+**CLAUDE.md → "Firebase Auth (complete — v7.94)"**.
+
+### ⏰ The four v11 security tasks — current status
+
+Originally pencilled in for v10.50, deferred to v11. Current status:
+**#1 done** (with a critical allowlist caveat — see below) · **#2 SHIPPED strict at v16.29**
+(was suspended after the v10.94 outage; rebuilt as B2 v14.53, hardened to strict B3 v16.29) ·
+**#3 done** · **#4 done** (verified live 27 June 2026).
+
+**1. Firebase web API key — restrict to HTTP referrers ✓ DONE (May 2026) ⚠️ SEE NOTE**
+The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
+restriction it could theoretically be used to brute-force Firebase Auth from any origin.
+**Applied manually in GCP Console:** APIs & Services → Credentials → Firebase web API key →
+HTTP referrer restrictions set to `myb-roster.firebaseapp.com/*` and `myb-roster.web.app/*`.
+Verified with curl: 403 for requests without a `Referer` header, 403 for a bad origin
+(`evil.com`), 400 (reached Firebase — key accepted, credentials invalid as expected) for the
+correct origin (`myb-roster.web.app`). Restriction is working correctly.
+
+**⚠️ CRITICAL — all served domains must be in the allowlist (v10.95):**
+In May 2026 the referrer restriction was found to be blocking **all** Firebase Auth calls
+from `garethdavidmiller.github.io` — the domain staff actually use — because only the two
+Firebase-issued domains were added to the allowlist, not the GitHub Pages / custom domain.
+Every sign-in attempt threw `auth/requests-from-referer-...-are-blocked`, making every
+Firestore write fail silently for all users.
+
+**Fix:** In GCP Console → APIs & Services → Credentials → Firebase web API key, add every
+domain the app is served from. Current allowlist must include:
+- `myb-roster.firebaseapp.com/*`
+- `myb-roster.web.app/*`
+- `garethdavidmiller.github.io/*`
+
+If you ever add a custom domain, add it here too — or ALL Firebase Auth and API calls
+will silently fail for users on that domain, with no visible error in the app UI.
+
+**2. Firestore security rules — member write isolation ✅ SHIPPED, strict (B2 v14.53 → B3 strict v16.29)**
+> **Status update:** the original suspended isolation was reintroduced the *cautious* way as
+> phase **B2** (`SECURITY_RELEASE_PLAN.md`), then hardened to the **strict B3 form at v16.29**.
+> `overrides` create/update/delete now require
+> `memberName() == memberName || admin || manager` (the bound name since v24.27 — a raw `token.name`
+> comparison was its form until then) — the `!('name' in token)` no-name/legacy
+> escape has been **removed**. The two v10.94 root causes were both fixed years ago (the `name` claim is
+> set for everyone by `setupRosterAuth`; the page-load Firebase session is reliably established via
+> `ensureFirebaseSession`, B1). B2 first avoided the original outage by (a) an interim `!('name' in token)`
+> escape so no legacy/anonymous token was hard-rejected, and (b) adding the **`manager` tier** the original
+> lacked — the managers edit staff data on behalf and would otherwise be locked out. B3 (v16.29) then
+> dropped the escape and went strict, after the CLAIM_EPOCH=2 token sweep + manager re-provision; stale
+> tokens self-heal via `writeWithClaimRetry`, so no mass sign-out was needed. Emulator-tested (tier matrix
+> + delete + date bounding, all green). The historical post-mortem below is retained for context.
+
+Originally implemented in v10.72 (`firestore.rules`). Per-member write isolation required
+every write to carry a custom JWT claim (`request.auth.token.name` = memberName,
+`request.auth.token.admin` = true for G. Miller), set server-side by `setupRosterAuth`.
+
+**Why it was reverted (v10.94):** Two cascading bugs caused a full production outage:
+
+1. **setupRosterAuth bug (v10.88 fixed):** The Cloud Function only ever set `{ admin: true }`
+   for G. Miller — it never set the `name` claim for anyone. So every staff member's
+   writes failed the isolation check, not just non-admins.
+
+2. **Page-load Firebase Auth session bug (v10.93 fixed):** The Firebase Auth sign-in only
+   ran inside the login click handler. A returning user with a valid 60-day localStorage
+   session never hit that handler, so `auth.currentUser` was persistently null — breaking
+   both the Firestore writes (no session at all) and the "Set up accounts" button needed to
+   fix the claims. A classic deadlock.
+
+With both bugs fixed, the claims path could technically work. However, it still requires
+a multi-step manual recovery (Set up accounts → sign out/in → Set up accounts again →
+all staff sign out/in). During an active outage, that fragility is unacceptable.
+
+**Current state (v10.94):** Rules reverted to `request.auth != null` — any signed-in
+staff member may write, matching the pre-v10.72 model that ran without incident for
+months. Field validation (type whitelist, size limits, required keys) is still enforced
+for data integrity.
+
+**To re-introduce (RE-INTRODUCED as B2 v14.53, then shipped STRICT as B3 v16.29):**
+- Confirm `setupRosterAuth` reliably sets `name` claims for all staff (v10.88 fixed this)
+- Confirm page-load Firebase Auth session is reliably established (v10.93 fixed this)
+- Re-add the per-member claim checks to `firestore.rules`
+- Deploy rules and run "Set up accounts" to ensure all tokens carry the claim
+- Test that every staff member can write their own overrides before deploying to prod
+
+**3. HPP variable-pay split — which pay accrues the Holiday Pay Premium**
+Only genuinely-VARIABLE pay accrues HPP: overtime, RDW, Sunday, Saturday, bank-holiday and
+Boxing Day premiums. **Basic pay and London Allowance do NOT accrue HPP** — London is a fixed
+allowance paid every period (including while on leave), so it needs no holiday premium.
+**✓ Code now matches this rule (v17.23):** London was wrongly folded into the HPP base at
+v16.90 and has been removed from `_varPayForPeriod`; the HPP estimate no longer includes it
+(owner-confirmed; the annual HPP lump appears as its own payslip line, separate from London
+Allowance). The per-category back-pay itemisation was confirmed from a period 32
+(Oct 2025) payslip (each line carries a `(Back Pay)` suffix). (History: back pay's variable
+portion was briefly added into HPP at v10.73, then removed at v16.89 as a double-count — see
+"Back pay lump sum vs HPP" below.)
+
+**4. Pay reminder push notification — ✓ DONE (verified live 27 June 2026)**
+`sendPayReminderNotification` did not fire on 30 May 2026 because the Cloud Scheduler job
+had never been created. Root causes (both fixed in May 2026):
+- The `FIREBASE_SERVICE_ACCOUNT` lacked `roles/cloudscheduler.admin` — deployment failed
+  silently trying to manage the scheduler job. (Historical: that SA JSON key + GitHub secret
+  have since been **retired** — all deploys now use Workload Identity Federation; see
+  SECURITY_RELEASE_PLAN.md → Appendix A2. The scheduler perms now attach to the WIF
+  `github-deploy@` service account.)
+- A stale `us-central1` deployment record blocked redeployment (the function had initially
+  deployed to us-central1 before the region was set to `europe-west2`). Deleted manually
+  from Firebase Console, then redeployed cleanly.
+The Cloud Scheduler job `firebase-schedule-sendPayReminderNotification-europe-west2` now
+exists. A force-run on 31 May confirmed the function executes and correctly skips on
+non-cutoff days (`[payReminder] Not a cutoff date — skipping`).
+**✓ Verified live on Saturday 27 June 2026** (cutoff for the 3 Jul payday): the reminder
+push arrived on a real device. The full scheduled path — Cloud Scheduler trigger →
+cutoff-date detection → fan-out — now works end to end. All four v11 security tasks are
+now resolved (#1 done, #2 shipped strict v16.29, #3 done, #4 done).
+
+### From "Deep-review residuals (July 2026)" — the select bullet as it stood, and the two items that closed
+
+- **A native `<select>` has no deterministic height until you give it one** (found v22.93, fixed for
+  the calendar's member select only). `line-height: normal` on a `<select>` resolves from the font
+  the control is laid out with, and the calendar's measured **17px on most loads and 20px on some**
+  — a 41px vs 44px control — on identical code, one browser, one container. Everything below it then
+  sits 3px out. It surfaced as a visual-baseline flake that cried wolf on two unrelated pull
+  requests (#1366, #1369), and the two committed baselines of the same control had been captured in
+  DIFFERENT states, so they disagreed with each other.
+  **The exact trigger is not pinned down.** A font-load race was the obvious candidate and was
+  disproved: with the font blocked entirely the height did not change, and at the moment the
+  screenshot is taken `document.fonts.check('16px Inter')` is true on the runs that fail as well as
+  the ones that pass. What is established is the DEPENDENCY, and stating a line-height removes it.
+  **This has since been DISSOLVED for almost every control it named, not fixed** (v23.33–v23.38,
+  restated at the v23.40 sweep). The paragraph used to end "every other `<select>` in the app still
+  has `line-height: normal` — admin's member pickers, paycalc's period selector, the operations
+  dropdowns", and every one of those is now enhanced by `select-sheet.js`: the `<select>` is a 1px
+  invisible value holder and the control a reader sees is a `<button>`, which has no `<select>`
+  height behaviour to be non-deterministic about. Following the old text would have sent somebody
+  to add `line-height` to controls that are not rendered.
+  **What survives is the shape, and it applies to the selects that are native BY DECISION** —
+  the month-jump pair, Overtime's disabled identity bar, Admin's two hidden member value holders
+  and the Links generator's per-slot times (`select-sheet-parity.test.mjs` holds the list with each reason). None
+  has been measured and none carries a tight visual baseline, so the same one-line fix is available
+  and is still not worth moving pixels for. The general lesson is the one to keep: a native
+  control's box is the platform's, and the app only stops depending on that by not using it.
+
+- **~~A late-resolving sign-in can briefly strand a privileged Firebase identity~~ — CLOSED at
+  v24.38.** A `signInWithEmailAndPassword` that resolves *after* an 8 s login timeout / `clearSession`
+  used to leave `auth.currentUser` signed in until the next launch — Firebase sign-in is not
+  cancellable mid-flight. `ensureFirebaseSession` (`session.js`) now signs such a request straight
+  back out when a `clearSession()` was the last thing that happened; a newer sign-in attempt that
+  superseded it is left alone. `reconcileExpiredIdentity()` stays as the page-load backstop.
+
+- **~~Concurrent Huddle ingest can leave a stale notification deep-link~~ — no longer reachable.**
+  Two Power-Automate runs for one date still send one push (the transaction closes the check-then-act
+  race), but the push carries only `/#huddle` and the viewer opens whatever Huddle is current at the
+  tap, so a deleted object cannot be what it links to. What remains is an OPEN viewer holding a link
+  that has since been superseded.
+
+### From "The App Speed card's "First appears" cannot mean the roster" — how the third milestone came about
+
+That mattered more than it looks once the v20.12 access gate landed, because the OTHER milestone was
+`domReady` and it drifted too: DOMContentLoaded is when the module scripts finish, and the access
+decision is asynchronous, so it can fire while the Calendar is still blank. Measured with the auth
+restore held at 2s — first paint 512ms, scripts done 669ms, **roster on screen 2630ms**. A card
+reading "fully ready in 669ms" was describing a load that took four times that.
+
+v20.80 added a third milestone, **Usable**, marked by the page itself when its own content is on
+screen, and relabelled `domReady` to "Code loaded" so nothing claims to be the answer that is not.
+
+### Two card-collapse systems (v18.87 aesthetic pass) — owner decision, not drift-by-accident
+
+paycalc's six collapsible cards animate open (`.collapsible-body` + `.card-toggle-arrow`, a `max-height`
+reveal) while admin/operations/settings/links use the shared `.card-collapsible-body` +
+`.collapse-chevron`, which is `display: none/block` — instant. Same interaction, different feel
+depending which page you're on. The v18.16 pass promoted paycalc's card HEADER to `shared.css` as
+the canonical one but left the BODY behaviour per-page, which is how the split survived.
+
+Left as-is because converging it is a design choice, not a bug fix, and both directions cost
+something: making the other five animate inherits the `max-height` reveal's weakness (it eases
+toward a fixed ceiling, so short cards finish early and the easing reads wrong), while making
+paycalc instant removes a nicety staff already have on the page they use most. Worth an explicit
+decision rather than a silent sweep. What WAS fixed at v18.87 is the drift inside paycalc's own
+animation: height ran 0.4s against its own padding at 0.3s, so the last 100ms of every card opening
+was height-only; all three now share `--dur-slower`.
+
+**Two more from the v18.84 sweep — real code paths, deliberately NOT changed** (the fix costs more
+risk than the defect):
+
+- ~~**A retry can run a second authoritative reconciler over a month another fetch already owns.**~~
+  **CLOSED at v20.44** — kept below as the record; an external review (Oct 2026) found this entry
+  still reading as open. Every authoritative read now takes a sequence number when ISSUED and may
+  reconcile only the months no newer read has written (`_monthOwner` in `calendar-overrides.js`;
+  `CALENDAR_DATA.md` invariant 5), so the late, staler F1 below can no longer evict what F2 loaded.
+  `calendar-overrides.test.mjs` drives exactly that interleaving.
+  `doRetry` (`calendar-initial-fetch.js`) re-claims all three initial months and reconciles the whole
+  range. Reachable only as: initial fetch fails → its catch releases the months → a render/swipe
+  calls `ensureOverridesCached` for one of them (claiming it, fetch F1) → the user taps the retry
+  chip (fetch F2). Both are authoritative for the overlapping month, so if F1 resolves later with a
+  staler snapshot it can evict an override F2 just loaded — the class of bug removed from Team View
+  at v18.76. Left as-is: the window is one Firestore round-trip inside a three-step failure sequence,
+  the next fetch heals it, and the alternative (routing the retry through `ensureOverridesCached`)
+  would rewrite a delicate chip state machine whose success/failure signalling depends on awaiting a
+  single range fetch. Revisit only if it is ever seen in the wild.
+
+### From "Firebase App Check — declined as an immediate action, RETAINED as Track D" — the reconciliation note, and "when to revisit" as it stood
+
+> **⚠️ This section and `SECURITY_RELEASE_PLAN.md` → Track D read as contradicting each other, and
+> were written in the SAME COMMIT** (`a7e8bbf`, 16 Jul 2026) — so neither superseded the other; the
+> two framings were inconsistent from birth. "Declined" reads as closed; Track D reads as queued.
+> **The reconciled position: App Check is NOT closed. It was declined as an immediate action and
+> kept in the security plan as Track D, sequenced last.**
+>
+> The two are compatible once read that way, and Track D directly answers the objection below that
+> caused the decline: **monitor-first** (D1 log-only, watch for legitimate-but-unattested traffic,
+> register every domain and debug token, then enforce one product at a time) exists precisely
+> because the silent-failure risk is real. The third objection stands unchanged in both places —
+> App Check gates *which clients* connect, not *what an authenticated client may read*, so it would
+> add nothing to the `overrides` read boundary, which has required a member or the PIN's
+> `calendarViewer` capability since 26 Aug 2026 (`firestore.rules`).
+>
+> The Aug 2026 external review recommended App Check for the telemetry and reset-request paths,
+> which is the same "defence-in-depth, sequenced last" position rather than a new argument.
+> **`SECURITY_RELEASE_PLAN.md` → Track D is authoritative for whether and when.** What follows is
+> the reasoning for the deferral, which is still the reasoning.
+
+**When to revisit:** if the app is advertised more widely or becomes official Chiltern
+infrastructure. Of the deferred security work, per-member write isolation (task #2 above) had
+the higher real value and has now **SHIPPED strict at v16.29** (B3). Its old blocker — the
+Firestore emulator test suite (ROADMAP_HISTORY.md → Maintainability roadmap, Phase 7) — was put **in place** (`firestore.rules.test.mjs`
++ `storage.rules.test.mjs`, run via `npm run test:rules`, gating `deploy-rules.yml`), letting the
+rules change be tested before shipping. The old operational-fragility barrier (the multi-step claim
+recovery that caused the v10.94 outage) was resolved by shipping after the CLAIM_EPOCH=2 sweep +
+manager re-provision, with stale tokens self-healing via `writeWithClaimRetry` — so no mass sign-out
+was needed.
+
+### From "The installed PWA masks live-site breakage" — the June 2026 root cause
+
+**Root cause of the June 2026 splash outage (fixed v12.34):** `firebase.json`'s
+hosting `ignore` list contained `**/*.mjs` — intended to skip the `*.test.mjs`
+test files, but it also dropped the **runtime** `purify.es.mjs` from every
+Firebase deploy. The import is static (`index.html → calendar-app.js → calendar-huddle-viewer.js
+→ import './purify.es.mjs'`), so the 404 broke the whole module graph and the
+splash never cleared; it also failed the SW precache (`purify.es.mjs` is in
+`CORE_ASSETS`). Fixed by narrowing the ignore to `**/*.test.mjs` + `generate-sri.mjs`.
+**Lesson:** any deploy-ignore pattern must exclude *only* dev/test files — never
+match a file the app imports at runtime. When adding a new runtime asset with a
+test-like or tooling-like extension, confirm it is not caught by an `ignore`
+glob in `firebase.json`.
+
+### A blank weekday is safe only while the AI reports it as blank (v22.25) — residual, and it is the geometry programme's case
+
+**What is fixed.** v22.19 established the domain rule from three real rosters — a blank cell is an
+ANSWER on Sunday (the uncontracted column; its blank is how the sheet says "not working") and a
+QUESTION every other day, because Mon–Sat unworked days are always stated explicitly (RD, AL, SC,
+SN, OD, HA, ML, CL, NA). `buildSafeEntries` implements exactly that, and until v22.25 it was **dead
+code**: the prompt told the model "a blank cell = RD" in three places, so an obedient model returned
+an explicit `"RD"`, the key arrived present and non-empty, and the fail-closed branch never ran.
+Reproduced through the real helpers — five physically blank weekdays became five explicit Rest Days
+with nothing warning. Found by external review, 1 Sep 2026. The prompt now asks for a `BLANK` token
+and forbids the model from interpreting it; `roster-prompt-parity.test.mjs` stops the instruction
+coming back.
+
+**What is NOT fixed.** The safety now rests on the model doing as it is told. If it writes `"RD"`
+for a physically empty weekday anyway, nothing downstream can distinguish that from a printed RD,
+and the day imports as a rest day.
+
+**A cross-check on the column scan was built to close it, and refused.** The obvious hardening is to
+ask the other pass: if the column scan saw an empty weekday where the row read printed a rest day,
+flag it. It was implemented and the existing fixtures rejected it, correctly. One real CES row scans
+as `['blank', '06:00-14:00', 'OFF', 'blank', '07:00-15:00', '-', 'blank']` against a row read of
+`OFF` for every one of those days — the scan uses `blank`, `OFF` and `-` **interchangeably for the
+same kind of cell, inside one row**. So a scan `blank` is not evidence the cell is physically empty,
+and the rule would have flagged ordinary rest days across a whole CES roster. The test that caught
+it is named for preventing exactly that flood.
+
+**So the column scan cannot be the independent witness**, and neither can the row read or the Sunday
+scan — all three are one model looking at one PDF in one call. The witness this needs is the PDF's
+own text geometry, where cell occupancy is a physical fact the model cannot influence. Until that
+lands the residual stands, bounded by the review table: every import is shown to an admin first.
+
+**The geometry corpus test is now DONE (1 Sep 2026), and it moved one of the numbers.** 12 real
+documents — 3 roster types × 3 week-endings, draft and final — extracted through
+`experiments/roster-pdf-geometry`. Zero pages failed to carry the 9-column grid, including the
+drafts, so the structural prerequisite for promoting geometry from witness to authority is met. The
+domain figures, measured from the PDF's own text positions rather than from any model:
+
+- **blank Sunday: 111 of 207 rows (54%)** — ordinary, as the rule assumes.
+- **worked Sunday with no RDW marker: 80, against 1 with** — decisive confirmation that removing the
+  v22.16 "unmarked Sunday must be RDW" rule at v22.19 was correct.
+- **blank Mon–Sat: 49 cells in 1,242 (3.9%)** — and the DISTRIBUTION is the finding. CEA 1 in 678,
+  Supervisors 0 in 240, **Dispatch 48 in 324 (15%) across four people** (S. Horsman 19, S Faure 18,
+  P. Prashanthan 6, F. Mohamed 5).
+
+The earlier single-week reading — "5 blank Mon–Sat cells, all one person" — was not wrong, it was
+unrepresentative. **The consequence is a live one**: the v22.19 rule was dead code until v22.25 made
+it reachable, so nobody has yet seen what it does at volume. On CEA and Supervisors it will send one
+cell in 918 to review. On **Dispatch it will be roughly a dozen rows per import on a 14–16 row
+roster**, because those four people appear on that sheet and work most of their week elsewhere —
+which is precisely the case the rule exists for, since writing RD across them would overwrite what
+their primary roster's import had just written. The rule is right; the friction is real and is
+mitigated by the v22.17 in-place entry control, which lets each row be answered without leaving the
+page — and by v22.50, which made that true in practice: until then, opening the control or picking a
+type re-rendered the whole review and threw the reader back to the top, so a dozen rows meant a dozen
+scrolls back down. **Worth watching on the first live Dispatch import** — if it proves tiresome, the question to
+ask is whether a member whose row is blank Mon–Sat on a SECOND sheet should be skipped wholesale
+rather than cell by cell. That is a product decision, not a bug.
+
+**Do not rebuild the cross-check on the column scan.** The reasoning is repeated in
+`applyColumnScanCrossCheck`'s own header, beside the code, so it is met by whoever tries.
+
+**The geometry witness is now live (v22.31, `functions/roster-geometry.js`), and it closes PART of
+this — say which part.** It refuses any AI day that lands in a physically EMPTY cell, which is the
+blank-Sunday collapse in full: a duty slid into an empty Sunday is refused, the cell is UNREADABLE
+and the row starts unticked. **It does not close the residual above.** An `RD` written for a
+physically empty weekday is exactly the value an empty cell is consistent with, so occupancy cannot
+refute it — distinguishing a printed RD from an empty cell from a printed duty means READING the
+text, which is phase 3 of the ROADMAP's plan. Nor can the phase-1 witness see a shifted row whose week is fully
+occupied (nothing empty to contradict); since v24.04/v24.12 the geometry path (phase 2) assigns days
+by coordinate so such a row cannot shift, and `assessRosterAlignment` covers the legacy fallback path. Both limits are
+stated in the module header and pinned by its tests rather than left to be discovered. **One case of
+the first limit is closed on the geometry path** (whole-app review, Oct 2026): a cell the model reports
+EMPTY while the grid holds text in it goes to the review naming that text
+(`reviewBlankReadsOfFilledCells`, `functions/roster-prompt.js`) — before, a worked Sunday read that way
+became a rest day and was never shown. A cell the model reads as `RD` when it prints a duty is still
+phase 3.
+
+### `firebase-tools` → `gaxios` dev-only advisory — no clean forward fix (F-DEP-1, reviewed v17.74)
+
+> **Superseded as a count by "Development-tool advisories that only a downgrade would clear"**
+> (v24.50, near the top of this file), which records what `npm audit fix` and the grpc-js override
+> cleared and what is left. Since that pass the remaining entries sit under `firebase-tools` and, since v25.25, ESLint's own packages;
+> before it, a second path ran through `@firebase/rules-unit-testing` (its Firestore's grpc-js pin),
+> which this section never named. The reasoning below about `gaxios` is still current.
+
+`npm audit` at the root reports a set of advisories that are **all dev-only**, reachable through
+**`firebase-tools`** (root `devDependency`, `^15.34.2`, resolving to 15.34.2 in the lockfile). The original and still the
+awkward one is a transitive `gaxios` in the **6.4.0 – 6.7.1** range.
+
+**Do not trust a count written down here — run it.** This paragraph said "5 moderate, all one root
+cause" from v17.74 until 28 Aug 2026, by which point the real figure was **16 (1 low, 10 moderate,
+4 high, 1 critical)** across sixteen packages — `tar`, `brace-expansion`, `fast-uri`, `ip-address`,
+`js-yaml`, `hono`, `undici` and others had joined, and "one root cause" had stopped being true. A
+transitive dev tree moves on its own, so a number recorded in prose is stale from the day after it is
+written.
+
+**Impact: none in production.** `firebase-tools` is a **dev/CI-only** tool (Firebase emulators +
+deploy) — it is **never bundled or served** to staff. The app ships no npm dependencies at all
+(vanilla JS, no bundler); this advisory cannot reach a user.
+
+**Why it is not "fixed" yet — the only npm fix is a *downgrade*.** The advisory is patched in
+`gaxios@7.x`, but the latest `firebase-tools` of the time (15.24.0) still declared `gaxios@^6.7.0`, which
+resolves *within* the vulnerable range. `npm audit fix` therefore offers only
+`firebase-tools@14.23.0` — a **semver-major downgrade** that moves the toolchain backwards and is a
+breaking change. That is a worse position than the current moderate dev-only advisory, so it is
+**declined**.
+
+**Why not force it with `overrides`.** A root `"overrides": { "gaxios": "^7.2.0" }` would clear the
+audit, but `gaxios` 6→7 is a **major** API change and the 6.x copy is required by an intermediate
+Google dependency that expects the 6.x API — forcing 7.x risks breaking the **deploy/emulator
+toolchain** (which gates every rules/hosting deploy). Not worth that risk for a moderate dev-only
+advisory. (Contrast the `uuid` override `functions/package.json` carried until v25.35, which was safe because
+that pin stayed within a compatible range, and went once nothing depended on `uuid` at all.)
+
+**When to close:** once `firebase-tools` widens its `gaxios` range to include `7.x` (or its
+intermediate Google deps do). Re-check with `npm audit` / `npm outdated` periodically; bump
+`firebase-tools` then and confirm `npm run test:rules` + a hosting-emulator run still pass.
+
+### From "Links design workspace — accepted constraints" — the 24-line period, and three items since settled
+
+- **SUPERSEDED at v24.47: the rotation is now 26 lines with 5 cover weeks** (owner, 1 Oct 2026; rules in `docs/links-26/RULES.md`). The entry below is the history of the 24-line period, kept for its evidence-class reasoning.
+- **The rotation was 24 lines with 4 spare weeks, on evidence class C (v19.98, corrected v20.01/02).**
+  The December 2026 link is the CEA/main roster widened from 20 and excludes the bilingual roster
+  entirely — not its lines, not its shift times, not its work. All of it is **owner-relayed**
+  (Aug 2026), with **no document behind it**; the length was given as 22 at v19.98 and corrected to
+  24 at v20.01, and a fifth spare week was added at v20.01 and reverted at v20.02 once the finding
+  that motivated it turned out to be a bug (below). That is class C on ROADMAP.md's
+  scale — fine for building against, and not something to put in front of an assessing manager as a
+  requirement. It is recorded here rather than left implicit because the number shapes every figure
+  the tool produces, and "why 24?" is a question a proposal will be asked.
+
+- **~~The docs say the panel covers "24 fatigue factors"; it renders 23~~ — SETTLED at v21.97, and
+  the answer was NEITHER NUMBER.** The row said the right fix was "either a 24th factor that was
+  never implemented, or a doc that has been saying 24 for no reason", and instructed a reader to
+  check the source before changing either. That instruction was correct and unfollowable — the ORR
+  site was blocked from this environment — until network egress opened in Aug 2026. The sheet
+  (`good-practice-guidelines-fatigue-factors.pdf`, Dec 2021) carries **25 rows in six families**.
+  **TWO were missing, not one**, both MRSF rows in the Cumulative family, and one of them matters:
+  *"More than 7 consecutive 8h shifts"* is the tightest consecutive-working rule on the page and the
+  one most likely to bite a link of eight-hour duties — FF11 allows 13 shifts between 48h breaks and
+  this allows 7. The panel had been silent on it since v19.46. The other, *"More than 6 consecutive
+  night or early shifts in a permanent pattern"*, is not applicable to a rotating link and now
+  renders saying so rather than being absent. Both shipped at v21.97; the reasoning is in
+  `links-fatigue.js`'s header. **The general lesson is worth more than the fix: a disagreement
+  between two numbers is not settled by picking whichever is easier to change**, and for two years
+  the easier one would have been wrong in both directions at once.
+
+- **~~The seeded default trips FF11, and the spare count is why~~ — CAUSE FOUND AND FIXED (v20.02).**
+  Recorded at v20.01 as a property of running 5 spare weeks. It was not: the **line-order optimiser
+  was clustering the cover weeks**. `generateLink` spreads them evenly (gaps 5, 5, 5, 4, 5 at 24/5)
+  and the reorder returned gaps 9, 3, 1, 7, 4 with two ADJACENT, which chain into one long run —
+  taking FF11 from **9 to 14** on the generator's own output. The v20.01 measurement across lengths
+  22–25 was measuring the bug, not the spare count. `spareSpread` is now charged unconditionally in
+  `links-adjacency.js` — at weight **3000**, not the 500 it was first written at, which `variety`
+  could still outbid (see `.claude/rules/links-design.md` → the spare spread). On the shipped default
+  (24 lines, 4 spare) the cover weeks come back evenly spaced (gaps 6, 6, 6, 6), FF11 at **11** and
+  the longest run at **8**.
+  **The lesson worth keeping: the reorder can make a design worse than the one it was handed**, and
+  before v20.02 nothing in it was watching for that. Every other term is a preference; this one
+  protects a guarantee.
+
+### From the same section — the breach that did not exist, and the 768px header fix
+
+  **This section previously described a breach that did not exist.** Until v19.79 both run checks
+  counted a spare week as SEVEN worked days, which fused the blocks either side of it: the main
+  cycle reported 15 consecutive days and the bilingual 14, against true ceilings of 9 and 8 (9 and 9
+  since v25.03, when a cover week's Sunday stopped being one of its four duties). The
+  comment justifying it said over-reporting was "the safe direction for a fatigue check". It is not,
+  once a number has a hard limit under it — a tool that cries breach on the roster people are
+  actually working teaches its readers to discount the row, and the next design that genuinely does
+  breach is hidden by that discount.
+
+- **The GRID's header is fixed from 768px up** (v19.77) — it had been broken to 1024px, and the band
+  between was costing the sticky header for nothing. Measured: the wrapper's content fits its box at
+  768/834/900/1000 (684/684, 720/720, …), so `overflow-x: auto` was making it a scroll container with
+  nothing to scroll, and `position: sticky` resolves against the nearest scroll container. That band
+  includes **iPad portrait**, the device this workspace's own first-visit notice recommends. Moving
+  the breakpoint to 768 fixed it with no nested scrolling, no desktop change, and no baseline moving.
+  **Below 768 it stays broken, deliberately** — see the next entry.
+
+### From the same section — the phone-headers entry as it stood
+
+- **The generator and the grid lose their column headers on a PHONE** (measured v19.67, recorded
+  here in the v19.70 sweep). Both tables sit in an `overflow-x: auto` wrapper below their breakpoint
+  so the table can scroll inside the card — and per spec, when one overflow axis is not `visible`
+  the other computes to `auto` too. The wrapper therefore becomes a vertical scroll container as
+  tall as its own content, and a `position: sticky` header sticks to a box that never scrolls. The
+  declaration is present and inert. **Do not "fix" it with `overflow-y: visible`** — that is the
+  exact declaration the spec overrides, so it would read as correct and change nothing.
+  Measured at 390×844: the grid is **43% off-screen horizontally** (592px of table in a 338px
+  wrapper) with no LINE/SUN/MON header on screen for most of the scroll, so neither a label nor a
+  countable column position tells you which day you are editing; the generator's SUN column and the
+  footer totals clip the same way. The sticky save row takes **190px of a 727px viewport (26%)**
+  and the brush bar **239px**. (That figure was **146px/17%** here until v22.81 and had been
+  wrong for two releases — the strip grew to 224px as chips were added, and v22.79 took it back
+  to 190px by packing them two-up. The v22.80 0.10 sweep re-stamped this file without catching
+  it, which is the recurring lesson: a stamp says a document was visited, not that its
+  measurements were re-taken.)
+  **Accepted rather than fixed**, on three grounds: the workspace's own first-visit notice says
+  *"Best used on a desktop or tablet; the grid is tight on a phone"*; a tablet at ≥768px
+  gets the working desktop layout, so this is phone-only; and the plan explicitly defers redesigning
+  the target table until package 4, so rebuilding it for mobile now means doing it twice. The real
+  fix is a `max-height` and therefore a nested scrollbox around the primary creation path — a UX
+  decision, not a tidy-up. Both facts are pinned by an e2e that runs at both widths.
+
+### From the same section — Firefox keyboard editing, gone at v23.38
+
+- ~~**Firefox keyboard editing commits early.**~~ **GONE at v23.38** (recorded at the v23.40
+  sweep rather than deleted, because the reason it went is worth more than the entry was). Firefox
+  fires `change` on every arrow-key press inside a focused `<select>`, so keyboard-only editing of
+  a shift cell used to commit on the first arrow instead of on Enter. The cell editor no longer
+  builds a focusable `<select>` at all: it creates a DETACHED one purely to parse its options and
+  hands the groups to `openOptionSheet`, so there is nothing for an arrow key to change. **A
+  platform quirk was designed out by a change made for an unrelated reason** — which is why this is
+  a record rather than a fix to claim.
+
+### From the same section — how the bin became permanent, and the superseded same-name item
+
+  Automatic expiry was suspended at v19.86 (external review P2) because no client-side age check can
+  defend against a device clock running more than 30 days FAST: every recent deletion then looks
+  expired, the purge transaction re-checks with the same wrong local time and agrees, and a
+  colleague's design is destroyed. It was then carried as a production exception for ten months, on
+  the assumption a server-side sweep would eventually replace it.
+
+  **It will not, and the reasoning is better than the plan it replaces.** A soft-deleted design is
+  already invisible and restorable, storing it costs almost nothing, and the only thing an automatic
+  purge adds is the power to destroy a designer's work unattended — the exact failure the bin exists
+  to prevent. So the machinery that existed ONLY to serve the un-built sweep was DELETED at v24.10
+  rather than left dormant: `SOFT_DELETE_RETENTION_DAYS`, `isPurgeable`, `purgeableIds`, `daysLeft`,
+  the unwired `_purgeExpiredDeletions` and the store's `purgeIfExpired`. That is this repo's own
+  rule, coined about that very constant — *a knob that drives nothing is the
+  `SOFT_DELETE_RETENTION_DAYS` mistake*. Git has all of it if a Cloud Function sweep is ever wanted,
+  and such a sweep would read SERVER time and would not have used the client store's method anyway.
+
+  **The reason the dormant version was a real cost, not just untidiness:** the UI went on promising
+  the expiry for ten more versions (fixed v19.96, external review P2). Suspending the purge left
+  `deletedLabel` still appending "· removed for good in N days" to every row, and the delete confirm
+  and the tips still saying 30 days — while the bin's own intro line, two inches above the rows,
+  correctly read "Nothing is deleted automatically". One dialog, two mutually exclusive
+  explanations. The behaviour was SAFER than the promise, so nothing was lost; what was damaged is
+  the reason to believe the next thing the panel says. There is now no constant for a countdown to
+  come back from, and `doc-parity.test.mjs` fails if one is re-added without re-pointing the guard.
+
+- ~~**Two designs may carry the SAME NAME**~~ **SUPERSEDED v22.66** — `links-design-naming.js` now
+  refuses a duplicate from the list you loaded. The residual race is the entry "Duplicate names are
+  refused from the list you LOADED" above.
+
+### From "Overtime Availability — accepted gaps" — four entries as they stood, one of them since wired
+
+- **The SUNDAY-RELEASE REQUEST is recorded, and it is only ever a request.** Since v23.81 a member
+  rostered to work a Sunday can tick "Ask to be taken off this Sunday" on that week's availability
+  form (`overtime-sunday-release.js`), the reviewer's list flags it (`releaseRequestLine`), and the
+  server stores it as `releaseRequested: true` on that day's answer (`REQUEST_DAY_FIELDS`). What it
+  still does NOT do, deliberately: it writes no override, changes no roster and consumes no annual
+  leave, and no surface words it as granted — `OVERTIME_AVAILABILITY.md` invariant 14. The roster
+  team decides, outside the app, and the app records nothing about their decision. The server also
+  checks no roster when accepting one (it has none; a request is a fact about what was asked and
+  stays true if the shift later moves) — it checks the CALENDAR instead, and refuses the field on any
+  day but a Sunday (v23.87). This bullet said "server-side only … nothing writes it, and no surface
+  shows it" from v23.80 until v23.87, a release after both halves had shipped; the sequencing it
+  described (rules first, form once the functions deploy was confirmed) is the backend-first rule,
+  CLAUDE.md → "Workflows".
+
+- **"Away for a rostered Sunday duty" is therefore a REQUEST in the app, not an absence.** Sundays
+  are uncontracted for every grade, so annual leave and absence cannot be written on one
+  (`SUNDAY_FORBIDDEN_TYPES`) — correct, and it is what stops a Sunday costing somebody a day they do
+  not owe. The consequence was that a fact the depot's workbook has always been able to state — a
+  free-text `N/A <name>` tag in the Sunday row, used on **52 of its 75 tagged Sundays**, every one a
+  day the person was otherwise contracted — had no representation in the app. An external review
+  (v23.78) proposed a new non-entitlement absence type; **the owner's answer was the request above**,
+  which puts it where it is actually decided and invents no new kind of absence. Do NOT loosen the AL
+  rule to close the remaining gap, which is that the DECISION is not recorded: once the roster team
+  has taken somebody off, the calendar still shows the Sunday duty until the roster PDF for that week
+  is imported or the shift is changed in Admin.
+
+- **~~No reminders.~~ The MEMBER half shipped at v21.47; the reviewer half has not.** Two targeted
+  push notices now go out on their own — *you have been asked* when a window starts asking somebody,
+  and *answers due today* on the morning of the initial deadline to participants who have submitted
+  nothing. Both are addressed to resolved member uids and never fan out. What has NOT changed is the
+  reviewer's side: nothing tells a clerk who is outstanding, so the *Awaiting a form* list and the
+  **No response** section are still the only answer to that question — which is still why they must
+  never merge into "not available". Operating detail: OPERATIONS_REFERENCE.md → "Nobody is asked
+  silently any more".
+
+- **~~The page does not re-read state while it sits open.~~ WIRED at v20.78.** `visibilitychange`
+  now resyncs against the server when `shouldResyncClock` says a deadline is near, one read at a
+  time. Recorded here rather than deleted because the entry said the opposite for ten releases, and
+  a limitation that has been fixed is a worse doc than one that was never written.
+
+- **An open window's population can GROW — and only before its first deadline (v20.78, corrected
+  v20.81).** Populations are still frozen against removal and against late addition, but automatic
+  creation made "existing windows never change" mean "an invitation never takes effect": by the time
+  anybody is invited, every week they could usefully answer already exists. So the nightly scheduler
+  tops up windows that are still in `INITIAL_OPEN`.
+  **Not every open window** — that was the v20.78 rule and it was half a deadline out (external
+  review, Aug 2026). Somebody added between the two deadlines is reported as **No response** for a
+  deadline that pre-dates their invitation, and the moment they submit `deriveHistory` labels them
+  **submitted after the initial deadline**. Both describe a person who was asked and did not answer.
+  The remedy is the phase, not a kinder label: they join from the next week whose first deadline is
+  still ahead of them.
+
+### Test coverage gaps
+The suite is now broad (see `docs/FILE_INDEX.md` for the
+full per-suite listing, which `doc-parity.test.mjs` keeps complete; nearly every pure module has a companion `.test.mjs`, the exceptions
+being trivial data/formatter modules like `paycalc-help.js` and
+`roster-cycle-data.js`). What matters here is what is **still not** covered:
+
+**Closed v16.32–16.33:** the push-notification state machine + subscribe/unsubscribe flow
+(`notif.test.mjs` — Push APIs stubbed on globalThis), the `setupRosterAuth` (B4) decision
+logic (extracted to `functions/roster-parse-helpers.js` and unit-tested: `parseSetupActionFlags`,
+`resolveRosterAuthConfig`, `claimsForTier`, `computeOrphanLabels`), and the `isSafeStorageUrl`
+download-URL allowlist (extracted to `storage-utils.js` + `storage-utils.test.mjs`).
+
+**Closed for Overtime v20.56, for account administration v21.83–85:** the Cloud Function HTTP
+*handlers* end-to-end. `overtime-endpoints.test.mjs` executes the five Overtime handlers, and
+`auth-endpoints.test.mjs` now executes `requestPasswordReset`, `resetMemberPassword` and
+`setupRosterAuth` — each against a fake Firestore, a fake Auth and a recording push transport. That
+is what the entry below said needed firebase-admin mocking; it turned out to need a fake, not a
+mock. The lesson that produced it is worth keeping: a surface test proves the handlers were DEFINED,
+not that any of them works, and the Calendar PIN outage was a mint path that had never once run in
+production.
+
+**Every handler is now covered.** The last two closed on 25 Sep 2026:
+- ~~**`getSignInStats`**~~ — **CLOSED.** `auth-endpoints.test.mjs` drives it for real: the population
+  is the server roster minus its admins, every page of accounts is read, the body carries four
+  integers and no identity, nothing is written, a failure is a 500 rather than a count of zero, and
+  it is admin-only. Five mutations, all caught (admins counted, every account counted, only the first
+  page read, identities in the body, an error swallowed as zeros).
+- ~~**The Documents domain**~~ — **CLOSED v22.02.** `documents-endpoints.test.mjs` executes
+  `ingestHuddle`, the three `onDocumentCreated` triggers and the scheduled pay reminder against a
+  fake Firestore, a fake Storage and a recording transport, organised by cost: a DOUBLE push (both
+  halves of the guard — the atomic create-vs-resend transaction and the trigger's power-automate
+  skip), a SILENT non-push, and a write that should not exist. Teeth-verified by six mutations.
+  This entry said the DECISION to send was what remained untested; it is now the covered part.
+
+**The coordinators have no unit tests, and that is mostly a DECISION rather than a gap** (restated
+16 Sep 2026 — this entry previously read as an open item and understated what covers them). A
+coordinator is what remains once the pure logic has been extracted out, so `calendar-app.js` and
+`admin-app.js` are DOM-bound by construction and a unit harness for either would be a mock of the
+whole page. Their decisive seams are wiring-tested instead, deliberately, in e2e — and the tests say
+so in their own headers: `e2e/calendar.spec.js` (`day detail:` block) pins `personalActionsAllowed`
+at its call site and records the mutation that justified it, and `e2e/admin.spec.js` does the same
+for `_syncMemberFor`. **Do not read "only e2e covers it" as a shortfall here. That IS the wiring
+test** the "rule tested, the wiring not" risk in CLAUDE.md asks for.
+
+**One real hole sat inside that framing, and it is now closed** (16 Sep 2026). Three fire-and-forget
+writers run once per page from its coordinator — `initErrorReporter`, `recordUsage` and
+`recordPageLatency` — and every one writes to a collection whose rules require `request.auth != null`.
+Called before an identity exists, each write is rejected in silence: **the error log looks healthy
+because it is broken**, the Usage card under-reports, and the latency samples thin out. Nothing
+raises, nothing renders differently, and nothing went red. Measured rather than argued: deleting
+`initErrorReporter();` from `calendar-app.js` left the entire unit estate green, and every chromium
+test in `e2e/calendar.spec.js` with it. e2e could never have seen it — the page renders identically either way.
+
+That mattered more than an ordinary coverage gap because of what depends on it. `recordPageLatency`
+is the wire every latency reading runs on, including `readyProvisional`, the measurement added at
+v23.70 to separate the two readings of the fast path that the aggregate cannot (no longer written:
+the fast path was retired on 26 Sep 2026, `DECISIONS.md`). That reading was
+taken on 19 Sep 2026 (`LATENCY.md` → THE CLOSING READ) and the file is closed, but the wire stays in
+use for the App Speed card. A regression there would not look like an error — it would look like a
+thinner sample that still reads as data.
+
+`page-contract-parity.test.mjs` now pins every page's coordinator (nine since the New link page): each calls all three, and each call
+sits inside that page's declared auth barrier rather than at module scope. All seven were correctly
+wired when the guard was written, so this closes no defect — it protects a rule that was obeyed
+everywhere and checked nowhere. Verified by four mutations (a deleted call; a call kept but hoisted
+out of the barrier; Overtime's chained `.finally()` site; paycalc's `afterAuth` indirection being
+severed) plus one negative control confirming it stays quiet on paycalc's legitimate second call
+site in `_showUnsupportedRole`.
+
+**The Firestore read/write layer is now reachable, and its riskiest calls are tested** (25 Sep 2026).
+`firebase-client.js` could not be loaded in Node at all — it imports the SDK from the gstatic CDN, Node
+refuses an `https:` specifier, and `mock.module` resolves before it replaces. A resolve hook
+(`test-fixtures/firebase-sdk/resolve-gstatic.mjs`) now answers those URLs with a recording fake, and
+`firebase-client.test.mjs` drives the real module: push-subscription ownership, the member's own
+documents and the one-retry claim refresh, the password change that must never be reported as failed,
+re-authentication on a transient error, the admin endpoints' forced token refresh, the public reset
+request's absent token, and the analytics writers. Twelve mutations, eleven caught; the survivor (the
+signed-out guard on the document URL) is held again one layer down and says so in the test.
+
+**The admin screens' reads followed on 26 Sep 2026** — `getClientErrors`, `getUsageStats`,
+`getPerfStats`: the `limit(101)` that lets the Error Log say more than 100 are hidden, that the
+retention sweep only ever deletes a RESOLVED record past 90 days, that the usage prune names its
+field by `FieldPath` (a dotted day key throws synchronously in the real SDK and blanked the card
+once), which month's document each window reads, and that no failed sweep or unreadable document
+takes a card down. Nine mutations, all caught. The fake SDK now APPLIES `limit()` and refuses a
+`where` operator it does not implement — it used to ignore the first and match everything on the
+second, so a range query or a cap would have passed for the wrong reason. The upload engine is
+tested through `documents-client.js`. Before adding new behaviour to `firebase-client.js`, add the
+test with it.
+
+### Error Log noise filters (v19.20)
+
+Not every uncaught error is a fault in this app. Seven classes are suppressed before the Firestore
+write, by the pure `shouldReport` in `client-errors.js`: the opaque cross-origin `Script error.`,
+browser-extension URL schemes, `ResizeObserver loop`, the declarative view transition the browser
+abandoned, a service-worker background-update failure **when accompanied by a network phrase**, and
+**WebKit's IndexedDB teardown messages when they come from the SDK origin**, and a cross-origin script that is not one of the app's CDN origins.
+
+The view-transition class carries **THREE Chromium wordings for one cause** (the second added v22.67,
+from a live Android Chrome 152 report). `Skipping view transition …` is its own worded skip;
+`Transition was aborted because of invalid state` is the DOMException it rejects the transition
+promise with when the document stops being fully active mid-navigation — a tap through to another
+page, the app switcher, a back gesture. The app never asked for the transition (`shared.css` opts
+in declaratively with `@view-transition { navigation: auto }`), so there is no promise for it to
+handle and the rejection lands here; the navigation it names completed correctly. The second is
+matched IN FULL rather than on `Transition was aborted`, because this log's recorded failure
+direction is the filter that is too broad — a rule written for the browser's navigation animation
+must not swallow an overlay of ours that genuinely fails while aborting. The third (v23.03) is Chromium's
+`Transition was skipped`, matched ANCHORED to the whole message so an app overlay's own "Transition
+was skipped by …" still reaches the log.
+
+That last one came from a staff report on an iPhone (iOS 18.7 / Safari 26.5, v19.19):
+
+    Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing.
+        getObjectStore@…/firebase-auth.js
+        _withRetries@…/firebase-auth.js
+
+Firebase Auth's `indexedDBLocalPersistence` POLLS its object store, because Safari's storage events
+are unreliable across tabs. WebKit closes IndexedDB connections whenever it suspends or reclaims a
+page — backgrounding the PWA, screen lock, the app switcher, memory pressure — so a poll landing in
+that window throws from deep inside the SDK with no app frame on the stack. Firebase wraps the call
+in `_withRetries` precisely because it expects this; when the retries are spent the rejection
+escapes to our reporter. The identity is already restored by then, Firestore uses a SEPARATE
+database (so calendar data is untouched), and the connection reopens on the next foreground. Harmless and self-healing — but it
+recurs on every iPhone, and the Error Log is only worth reading if it is mostly signal.
+
+**Scoped to the SDK origin deliberately.** The same phrases from our own origin would mean the
+Firestore persistent cache is failing, which is a real fault worth seeing, so those still log. The
+list is exact phrases, never a loose `Database` substring — a version conflict or a quota failure is
+a genuine problem that happens to involve the same API call.
+
+**Do not add a filter without a test on BOTH sides.** The failure directions are not symmetric: too
+narrow leaves noise you can see and complain about, too broad silently swallows real errors and the
+log looks healthy *because* it is broken. `error-reporter.test.mjs` pins each rule against the thing
+it must suppress AND the neighbouring real error it must not.
+
+### Whole-app audit — deferred findings (v17.54)
+
+A max-effort adversarial audit (7 parallel subsystem reviews) found **no high/critical bugs** — the
+app is well-hardened. Four low-severity defects were fixed in v17.54 (Cloud Functions header coercion;
+links new-design concurrency-baseline invariant; calendar `renderCalendarWhenIdle` team-view guard;
+`peekNotifState` keyless-subscription check). The findings below were **deliberately not fixed** —
+they are latent, owner-territory, or within a documented tolerance. Each is real; none is urgent.
+
+- **Payday/cutoff crossing a year boundary is filed under the wrong year (LATENT).**
+  `getPaydaysAndCutoffs(year)` files a payday/cutoff under the unshifted payday's year, but a paired
+  cutoff (or a bank-holiday-shifted payday) can fall in the previous December; `isPayday`/`isCutoffDate`
+  then look it up under the date's own year and miss it. **Unreachable under `MAX_YEAR = 2030`** (verified
+  zero misses 2026–2030) — first bites ~2034. **Fix when extending `MAX_YEAR`** (see Time-boxed
+  maintenance above): key each entry under `formatISO(date).slice(0,4)`, or have `_get*Set(year)` also
+  pull `year+1`'s first entry when its cutoff lands in `year`.
+- **Sync-chip retry has no timeout (LOW UX).** `calendar-initial-fetch.js doRetry()` awaits the fetch
+  with no `loadingTimer`/`timeoutTimer`, so on a connection that neither resolves-from-cache nor rejects
+  promptly the chip can strand on "↻ Retrying…" with no re-tap affordance (the initial path always
+  surfaces a tappable error after 10 s). No data impact; the sync-chip state machine is a documented
+  do-not-break invariant, so left as-is.
+- **~~"Active accounts (30 days)" boundary undercount~~ — SUPERSEDED at v25.00.** The suppression
+  rule it described (`shouldCountRolling`) was replaced by `rollingMove` (`usage-stats.js`), which
+  keeps each member-device's one count on its latest active day; the card now reads "last 30 days".
+- **~~A manually-entered Sunday worked shift is stored as `type:'shift'`, not `'rdw'`~~ — FIXED; the
+  Shift pill is DISABLED on Sunday rows** (`admin-week-editor.js`, and layer 6 of the Sunday rule in
+  CLAUDE.md). Struck through rather than deleted because this entry was wrong in a way worth naming:
+  it called the gap "display-only", and the code comment that closed it says the opposite — a Sunday
+  saved as `shift` rendered as an ordinary worked badge and **the pay calculator's Sunday-overtime
+  pre-fill missed it, under-counting pay**. An entry that under-rates its own severity is how a real
+  defect stays parked as an accepted limitation.
+- **~~Roster-import save path has no equal-start/end guard~~ — CLOSED at v20.39, and this row outlived
+  the fix by more than a hundred versions.** It said `_saveOverrideBatches` did not reject `s === e`
+  while the two manual paths did. It does: the refusal is in `admin-roster-upload.js` (the "DEFENCE IN
+  DEPTH: a zero-length worked range never reaches Firestore" block), logged and unwritten, with the parse-side reasoning in `functions/roster-parse-helpers.js` — a
+  zero-length range reads as TWENTY-FOUR HOURS through the overnight wrap, and it reaches pay.
+  Found by an external review reading the code against this file, which is the only way a stale
+  "we don't do X" is ever caught: nothing fails when a limitation is fixed, so the entry simply sits
+  here being believed.
+- **~~Applying the *estimated* 2026/27 award rate overstates pre-award (Apr–Jul 2026) periods~~ —
+  CLOSED, and it self-corrected exactly as written.** The entry said "no clean fix until the award
+  lands"; the award landed, `londonAllowFrom` is set to 28 Aug 2026 on the 2026/27 row
+  (`paycalc-calc.js`), and the `rateUnconfirmed` flag that gates the whole estimated-rate path is
+  not set on the 2026/27 row — so the mechanism cannot fire (the flag is still read, for the next
+  award year). It sat here contradicting the "2026/27 pay
+  rates — ✅ CONFIRMED AND SHIPPED" section (now ROADMAP_HISTORY.md).
+
+### The member claim — one optional console step remains
+
+**What v24.23 closed.** Every member rule and endpoint used to believe `request.auth.token.name` on
+sight. Firebase fills `name` from the account's DISPLAY NAME, which any session may set for itself,
+and anonymous sign-in is enabled — so a stranger could sign in anonymously, call itself a member, and
+read every override, read that member's work email and write their leave (proven in the emulator).
+The shared PIN account was created with a display name, so every PIN session already carried a
+`name`. v24.23 believes a `name` only on a PASSWORD sign-in whose email is the one that name derives
+to; one account per email makes that the real member. `firestore.rules` (`isMember`) and
+`functions/member-identity.js` apply it, and both are tested against every roster name.
+
+**What it did not close, until v24.27 — and it was wider than this entry first said.** The binding asks whether
+the email matches the name; it does not ask whether the name is ON THE ROSTER. So anybody can sign up
+from the client at an address that derives from a name nobody has — `z.zzz@myb-roster.local`, display
+name "Z. Zzz" — and that token passes `isMember()` in full: every member's overrides, the three
+documents, the Links designs and signed document links, all past the PIN (proven in the emulator,
+v24.24 review). This entry said the gap was "a new starter before Set up accounts runs", which
+understated it: running Set up accounts promptly does nothing about an invented name. The second case
+is the one first described — a real new starter's email registered before the server provisions it,
+which Set up accounts would then have adopted. Both exist because client sign-up is enabled.
+
+**The permanent fix, and where it stands** (backend-first, exactly as B3 was):
+
+1. **SHIPPED v24.24 — the server stamps `member`.** `claimsForTier` now gives every provisioned
+   account `member`, set to its roster name. It is a custom claim only: no display name, client call
+   or sign-in method can produce it. In the same release **Set up accounts takes back an account it
+   never stamped**: an existing account at a roster email carrying NO custom claim at all was not made
+   by the server (only the Admin SDK or the console can set a claim), so its password is reset to the
+   member's default, its display name to the roster's, every session on it revoked and `resetAt`
+   stamped, before its claims are. Operations names it on a "Taken back" line so the admin can tell
+   the member. **Any claim, not `name`**: the first cut keyed on `name` and would have reset an admin
+   whose `{ admin: true }` was set by hand in the console, including the one pressing the button.
+   **It fails closed**: a take-back whose reset or revoke fails stamps nothing and reports
+   `reclaim-failed`, because stamping after a failed take-back would hand the outsider the claims
+   and the next run would adopt the account for good.
+2. **OWNER STEP — run Set up accounts once**, after the v24.24 functions deploy. Until it runs, the
+   Staff Login Accounts audit lists every member as needing it (their claims lack `member`), which is
+   the signal working, not a fault. Then wait an hour, so every live token has refreshed onto the new
+   claim.
+3. **SHIPPED v24.27 — require it.** `isMember` in `firestore.rules` and `memberNameFromClaims` in
+   `functions/member-identity.js` believe a member only when `member == name`, on top of the v24.23
+   email binding, and `CLAIM_EPOCH` rose to 3 so every device fetches a token carrying the claim on
+   its next open that confirms a named session. (The sweep otherwise runs only inside
+   `ensureNamedSession`, which the Calendar's named boot never calls, so until the Calendar's full
+   named grant was made to run it too, a Calendar-only member waited out the hourly refresh, or met
+   "Calendar access has expired", instead.) A
+   self-registered account — at an invented name's address or a real member's —
+   now carries nothing the rules or endpoints believe. Shipped after step 2, as it had to be: a
+   token without `member` loses every member read and write.
+4. **Client sign-up in the Firebase console — hygiene now, not a control.** After step 3 it grants
+   nothing. The app no longer signs in anonymously anywhere (the last call, in `calendar-access.js`,
+   went at v24.34 with the `CALENDAR_PIN_ACCESS` switch), so switching it off no longer risks the
+   Calendar; a private-window check that the Calendar still loads afterwards remains cheap.
+
+For a new starter, running "Set up accounts" promptly is still good practice, but it is no longer the
+security control: an account registered at their email before that run is refused everywhere, and
+the run takes it back.
+
+---
+
+## Moved out of ROADMAP.md (7 Nov 2026)
+
+Finished work and closed indexes, moved **verbatim** by line range from `ROADMAP.md` as it stood at
+v25.46. The live entries keep what is still open: phase 3 of the roster import, the Trains ideas not
+yet built, the next education subjects, and a WATCH row for the own-roster copy. The v23.01 review's
+index and the print review had every row closed, or already routed to an entry of its own (the Links
+generator), except two, and those two now live in entries of their own — `ytd_2627` in NOW, and the
+move off the Pages mirror in the Address migration campaign.
+
+---
+
+### The split notes at the top of ROADMAP.md
+
+> **Split at v19.97** (external review). This file was 924 lines, about two-thirds of it the past.
+> The history moved out verbatim. If something below has become history, **move it — do not copy
+> it**; two live copies of a plan is the drift that made the split necessary.
+>
+> **Split again on 8 Sep 2026**, on the same rule and for the same reason. It had grown back to 994
+> lines and about a sixth of that was closed decisions — a "Decisions taken" section and two
+> DECLINED features. Those answer *what did we already decide*, which is a different question with a
+> different reader, and they moved to `DECISIONS.md` verbatim. What stayed is everything still OPEN,
+> including the governance gate and the owner decisions in `NOW`.
+
+### Roster import — let the PDF's own grid decide the day
+**Status:** Phase 1 SHIPPED (v22.31) · **Phase 2 SHIPPED (v24.04; working since v24.12)** · phase 3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`, `functions/roster-prompt.js`
+
+The import's day-drift defence has a structural weakness the shipped fixes reduce but cannot close:
+the row read, `sundayScan` and `columnScan` all come from ONE model call looking at ONE PDF, so when
+the model collapses a blank Sunday cell, every cross-check agrees with the wrong answer. The
+circuit breaker added alongside compares against the member's own base roster instead — the one
+witness the PDF cannot influence — but that witness is deliberately WEAK, because a published roster
+legitimately carries leave, absence, overtime and swaps on top of the rotation.
+
+**A strong witness turns out to be in the file already.** Measured on a real roster: the table's
+vertical rules are DRAWN, at nine fixed x positions repeated on every content page, and assigning
+each text run by coordinate placed all 28 member rows × 7 days correctly — 13 physically empty
+Sunday cells and 12 holding a timed duty. On the row that drifts, not one text object falls in the Sunday
+column. The app is currently spending model intelligence rediscovering a grid the file encodes.
+
+Three phases, in this order, and the first is the one that closes today's bug:
+
+1. **A geometry WITNESS beside the AI result.** For each member, whether each physical cell holds
+   any text. An AI day the physical cell cannot support is **refused, not weighed** — no
+   probabilistic reasoning, no second opinion, no base-roster comparison. Deterministic, and it
+   leaves the parser exactly as it is. **Measured on the sample: zero false refusals, and it
+   refuses 13 of 28 simulated one-day shifts** — every member with a blank cell, and none of the 15
+   whose week is fully worked, because a full row offers nothing for a shifted claim to contradict.
+   That is enough to close the REPORTED bug (which is defined by a claim landing in an empty cell)
+   and it is not a general day-drift detector; `assessRosterAlignment` stays alongside it.
+2. **Geometry assigns the days**, and the model is handed already-separated cells. Monday can no
+   longer become Sunday because nothing is left for it to decide — and this is where the fully-worked
+   rows phase 1 cannot speak for are covered, by construction rather than by a check. **That is the
+   argument for treating phase 1 as a step and not a destination.**
+3. **Deterministic parsing first, model as fallback** for the genuinely unusual cell. Most cells in
+   the sample are already mechanically readable (`RD`, `AL`, `SC`, `SP`, `06:20-14:20 CEA 1`,
+   `06:20-18:20 RDW CEA 5`).
+
+**Phase 1 is live (v22.31).** `functions/roster-geometry.js` runs in `parseRosterPDF` as the FINAL gate,
+after every model-side repair: it reads the drawn rules and the text positions from the same bytes the
+model was sent, and any AI day landing in a physically empty cell is refused — the cell becomes
+UNREADABLE and the row is returned as `geometryRefused`, which `roster-alignment.js` folds into the
+same verdict as a base-roster drift (row unticked; three refusals trip the breaker). It fails open at
+every step and reports that it did (`geometry.status`) — **and until v22.40 nothing on the client read
+that field**, so for nine versions the claim in this paragraph was true of the response and false of
+the screen: a witness that did not run produced a review identical to one where the grid agreed with
+every cell (found by external review). `geometryCopy` in `roster-alignment.js` now states `partial`
+and `unavailable`, treating an absent field as did-not-run. It is worth remembering as the shape of
+the mistake rather than the mistake itself: the rule was built, tested and documented, and the wire
+from it to the person who needed it was never run.
+
+v22.40 also **bounded the wait**: the extraction has the whole model call for free, but an optional
+witness that never settled could hold a finished parse until the function's own 120s timeout, so
+`awaitGeometryWithin` gives up and reports `unavailable` — which the review now shows. Tested through the real pdfjs on a hand-built PDF (`roster-geometry.test.mjs`), because
+the repository holds no roster PDFs.
+
+**Both gates were cleared before it shipped.** Roster TYPE at v22.19 (Supervisor and Dispatch carry the
+identical grid); TIME on 1 Sep 2026 — 12 documents, three roster types × three week-endings, draft and
+final, zero pages without the nine-column grid (the README). What that still does not establish is an
+archive from before a system change, or a scanned sheet with no text layer: both read as "no grid" and
+the witness stands aside, which is the right failure. The README also records what nobody predicted,
+including a print footer that parses as a member row with `Page 1 of 3` in the Tuesday column — the
+hazard geometry introduces in exchange for the one it removes, and the shipped module filters it two
+ways because one was not enough.
+
+**The dependency decision was taken with the release, and it is the owner's to reverse.** `pdfjs-dist`
+(pinned `4.10.38`, the v4 line the experiment established; zero advisories on the deploy's own audit
+gate) is now a dependency of `functions/` — server-side, so the no-bundler rule does not bear on it, but
+"a few vetted libraries" is a discuss-first rule and this is the fourth. It was shipped rather than
+held because the witness is the roadmap's own sequenced next step, and because declining it costs one
+line: with the package absent the adapter returns `pdfjs-unavailable` and the import behaves exactly as
+it did at v22.30.
+
+**What phase 1 does not do, so phase 2 still has a job:** a member whose week is fully occupied has no
+empty cell for a shifted claim to contradict, and an `RD` written into an occupied cell is not checked
+(telling a printed RD from a printed duty means reading the text — phase 3).
+
+**PHASE 2 SHIPPED at v24.04 AND COULD NOT SUCCEED UNTIL v24.12** — the coordinator still required the model to return `columnHeaders`, which `buildCellPrompt` deliberately never asks for, so every upload the grid COULD place was answered with *"The AI returned an unexpected format"*. The better the geometry read, the more certain the failure; a sheet the grid could not place fell back to the legacy path and worked, which is the wrong way round. It was invisible because the only end-to-end test hands the handler an unopenable PDF — so the geometry path had no execution anywhere, and the whole estate stayed green. **The three real rosters re-measured the case for phase 2:** Simulating a
+one-day-left misread on every matched row of the CEA, Dispatch and Supervisor sheets for week ending
+26/09/2026, the phase-1 witness refuses **19 of 47** — **23 of those 47 rows work all seven days**, so
+60% of drifts pass it silently. Under phase 2 the grid ASSIGNS the day and the model is handed
+already-separated cells, so those rows are covered by construction rather than by a check.
+`.claude/rules/roster-import.md` holds the contract; `functions/roster-prompt.js` holds the reasoning,
+including the two wiring defects the v24.05 bug check found in it and the one design cost that is
+deliberate (a member legitimately absent from a week's sheet turns the geometry path off for that
+upload, and the coordinator logs which path it took).
+
+**PHASE 3 IS CLOSER THAN THIS ENTRY ASSUMED.** Measured over the same three rosters: **288 of 297
+non-empty cells — 97% — are read by `normaliseShift` alone** once the duty-code line is dropped. The
+nine that are not: `PIDD TRG` ×4 (not in the prompt's vocabulary; it reads as UNKNOWN) and `NA` ×3 (decided by
+the day from v24.22, and read by `normaliseShift` itself as a rest day since v25.38), plus `Until 10:30` and `Medical`, which genuinely want a person. Phase 3 would make the
+97% PROVABLE rather than probable — a deterministic parser is testable in a way a model call is not,
+which is what would finally close the "we cannot show the model normalises well" caveat phase 2 ships
+with. **`NA` IS ANSWERED, and it is no longer one of the nine** — twice, because the first answer was the
+wrong fact. v24.20 heard "usually only falls on a Sunday as it is uncontracted" and made `NA` a
+Sunday rest day and a Mon–Sat question. The owner corrected it on 24 Sep 2026 (v24.22): **`NA` means
+not available and always means absent**, written Monday to Saturday and a clerical error on a Sunday;
+**`NS` is the Sunday code**, not available on a Sunday. So `NA`/`N/A` is the app's Absent day
+Mon–Sat and `RD` on a Sunday (a Sunday cannot hold an absence), `NS` is `RD` on Sunday and `SICK` on a
+weekday (the owner's second answer that day: a weekday `NS` is also absent), and the prompt still
+reports the code rather than deciding — every answer depends on the column. **And a third time (v25.38):** on 6 Nov 2026
+the owner ruled that `NA` and `NS` "should be treated as rest days on the roster uploader", Sundays
+included, so both are `RD` on every day and the day no longer matters. The deterministic read is 291 of 297 rather than 288 — `NA` never needed the
+model. `PIDD TRG` ×4, `Until 10:30` and `Medical` are what remain, and the last two genuinely want a
+person.
+
+### The v23.01 external review — the decisions it leaves with the owner (6 Sep 2026)
+**Status:** An INDEX, not a work item · **Why:** a broad review arrived with eleven follow-ups, nine
+of which are decisions rather than code, and a list held only in a conversation is a list that gets
+re-raised · **Owner:** Gareth · **Trigger:** none for most; three cannot be taken before a date ·
+**Review:** ~~28 Sep 2026, when the two measurements become readable~~ **both are read** — the service-worker question on 12 Sep and the fast path on 19 Sep. What is left in the table below is owner decisions only
+
+**Two of its findings were CODE, and both are closed.** The no-install test lane had stopped being
+no-install — `touch-gate-parity.test.mjs` reached its list through `e2e/helpers.js`, which imports
+`@playwright/test` — and nothing ran that lane, so only somebody working from a ZIP could ever have
+found it, which is who did. Fixed, with the lane now gated in CI. The other was this file
+contradicting itself about the service-worker metrics, fixed the same day.
+
+**One was REFUSED, on evidence** (moot since 26 Sep 2026, when the paint was retired). The review flagged the provisional cached-roster paint as a
+security compromise: its scope is a localStorage session name, which is editable. True, and the
+consequence does not follow — `firestore.rules` grants `overrides` read to any `name` claim, not per
+member, because Team Week View shows every colleague's shifts to any signed-in member by design. A
+forged session name shows an attacker a SUBSET of what that device can already read legitimately, so
+the incremental disclosure is zero. Invariant 13's *"nothing of anybody else's"* is a scope-of-paint
+property, not a confidentiality boundary. **Recording it as an accepted compromise would put a false
+threat model into a contract**, which is worse than leaving it alone.
+
+**Three items were re-raised without knowing they had been decided or measured**, which is the main
+reason this section exists — so the next review's re-raises cost a link rather than a rebuild.
+
+| The decision | Where it lives |
+|---|---|
+| Did the cached-roster fast path actually work? | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: one open in roughly 800 eligible, row one of the pre-registered table, so the identity diagnosis stands. Kept by owner decision the same day, then **RETIRED 26 Sep 2026** (it could not beat Auth start-up, and shipped two defects); replaced at v24.59 by the own-roster copy, which does not wait on Auth. `LATENCY.md` → THE CLOSING READ · `DECISIONS.md` → "The provisional paint" |
+| Is the service-worker revalidation storm costing staff anything? | **ANSWERED — no**, 12 Sep 2026. A full sweep (31+ files) was running on 78% of Calendar opens, and the card's own test is whether those boots are slower: **Worker busy 78% over a second against Shifts shown 78%.** Identical. The storm is real and costs the member nothing measurable. `LATENCY.md` → THE FULL-MONTH READ → item 4 |
+| Move staff off the Pages mirror onto `myb-roster.web.app` | **NEW — no home before this row.** `web.app` is already canonical and the notification target (v14.29); what is undecided is moving the staff who still open the mirror. A first step has shipped: the `install-app-2026` notice (v24.91) sends phone users on the mirror to install from `myb-roster.web.app`, moving their Pay data first. KNOWN_LIMITATIONS measures the mirror's 21% byte penalty; nothing recorded the decision that measurement prices. It is the one change with two payoffs — fewer bytes on every cold load, and headers and redirects reaching the half of the staff that has neither. The cost is operational, not technical: telling colleagues and reinstalling from the canonical URL (see Address migration campaign) |
+| Pay Calculator progressive disclosure on phones | **ALREADY DECLINED**, 3 Sep 2026 — see DECISIONS.md → "Pay Calculator — "More pay tools" grouping on phones — DECLINED", which took the same proposal through four drafts and a measured prototype. The review restates the observation the prototype answered (the page is long on a phone) and brings no new evidence, so the recorded trigger stands: **a staff report about the tail of the page**, which does not exist. Do not add instrumentation to test it |
+| Links generator — Recommended first, Advanced second | Already an entry below, unchanged by this review |
+| A small WebKit visual smoke set | **DONE — v23.71, 12 Sep 2026.** Six baselines on mobile-safari, report-only in branch CI (`e2e/visual-webkit.spec.js`, `npm run test:visual:webkit`), under `e2e/visual-baselines/webkit/`. **Calendar mobile is the one this row named that was NOT taken**: its fractional 390/7 columns are exactly why the Chromium lane excludes the month grid, a second engine does not repair that, and a flaky baseline is worse than none — the Calendar is represented by the day panel instead, which is a fixed-width overlay. Measured rather than assumed: six consecutive runs green and a full `=all` regeneration byte-identical, so the tolerance is Chromium's 0.001 and not the looser one the config first claimed was needed. ~15s per run |
+| Print visual baselines | **DONE — v23.71, 12 Sep 2026.** Owner answered the fact only they had: **Calendar and Team View, first page only.** `e2e/print-visual.spec.js` renders the REAL PDF and rasterises page 1 with poppler, so what is compared is a picture of paper — margins applied, content clipped at the sheet boundary. `emulateMedia` was refused: it applies the print stylesheet but does not PAGINATE, so it cannot see the page break this row is about. Admin was dropped from the candidate list on the app's own evidence — it has no print control at all. It earned its place immediately by disproving this section's own correction above. Page COUNT is asserted separately, which catches the 24-pages-printed-8 class without pixel-locking 24 sheets |
+| A real-iPhone release checklist | **WRITTEN — v24.07, `docs/IPHONE_RELEASE_CHECKLIST.md`.** Four devices as this row decided, each carrying only the checks it alone can do. Its entry condition is the row's own argument turned into a rule: a line belongs there ONLY if no test here can run it, so anything Playwright, axe or a baseline could answer goes to CI instead. Running it is the owner's, and nobody else can do that either |
+| Freeze Calendar and Team View aesthetics | **DECLINED for now (owner, 19 Sep 2026).** The review's argument was that the v22.83–v22.99 sequence shows one narrow-width fix cascading into the next, and it is a fair reading of this file's own record. What it does not survive is the evidence since: v23.95 found the Calendar's last week UNREACHABLE below ~825px of viewport height at every desktop width, and the layout fix then exposed two contrast failures the viewport lock had been hiding. A freeze whose exceptions are "a reproduced defect or an accessibility finding" would have permitted all of that anyway — so the policy would have bought nothing on the one sequence that mattered, while discouraging the look at the surface that found it. **Revisit if a change lands here that is polish and nothing else**; the ROADMAP is the wrong instrument for a rule the evidence keeps overruling |
+| Remove the real payslip fixture from the public mirror | **DONE — v23.71, 12 Sep 2026 (owner decision).** The review called it the largest remaining privacy problem and a second review kept Privacy at 7.5 while every other dimension moved. Closed by a route AUTH_ARCHITECTURE's own options list did not contain: the file left the REPOSITORY (gitignored `payslip-actuals.local.js`), rather than being synthesised or waiting on the mirror's retirement — `firebase.json` could only ever speak for one origin, and a gitignore is the rule both obey. The cost is real and stated rather than glossed: on any checkout but the owner's the payslip regression does not run, and `paycalc.test.mjs` announces exactly which assertions those are instead of letting a loop over an absent fixture quietly register nothing. **History was deliberately not rewritten** — KNOWN_LIMITATIONS carries that as an open item with the only thing that would close it |
+| `ytd_2627` when it lapses (~26 Nov) | The notice table in `CLAUDE.md`, which already says decide rather than re-date |
+| Is a Daily Huddle's TEXT confidential? | **DECIDED 7 Sep 2026 — yes: the Huddle, the Circular and the Newsletter are not visible without the PIN or a password.** Built in two releases: the client stops reading without access first (v23.17, `calendar-doc-access.js` — the local cache is why a rule alone could not do it), the rules closed the three collections' reads at v23.18. What this does NOT do is revoke bearer URLs already in circulation (ARCHITECTURE EXC-007; AUTH_PLAN §5 E6). Was: recorded only in a `storage.rules` comment until this row (v23.05, measured 6 Sep 2026). Until v23.18 `firestore.rules` granted `huddles` a bare `allow read;`, so the converted `htmlContent` DOCX ingest writes to the document was readable unauthenticated; that is what this decision closed |
+
+**What the review did NOT find is worth as much as what it did.** It read the code, the startup
+architecture, the responsive CSS, the committed baselines, the print rules, both engines' test
+configuration and the accessibility protections, and produced one code defect — in the test estate,
+not the app.
+
+### The print review — what shipped, and the four it leaves open (7 Sep 2026)
+
+An external review treated print as a separate product surface and went deep. Everything below was
+then re-checked by RENDERING PDFs and reading the page box and the text back, which changed three of
+its conclusions. **Shipped at v23.20:** the pay estimate keeps its settings on paper (a collapsed
+card printed a heading over nothing); five surfaces stop composing for US Letter; the railcard guide
+stops printing a website link; FIP and Links no longer depend on `beforeprint` firing (measured: 8
+printed pages instead of 24 when it does not); Team View's landscape follows the VIEW rather than
+which button reached the printer; and the Daily Huddle is not printed at all (owner, 7 Sep — it had
+been silently clipping a 40-row day plan to 30). `e2e/print.spec.js` holds all of it.
+
+**Corrections worth keeping, because the review is otherwise reliable and these are the rows not to
+act on twice.** An auto-layout table treats a cell `max-width` as a hint, so the name column grows
+past its 88px and most names fit — which is what that measurement showed.
+
+**BUT THE CORRECTION ITSELF WAS WRONG, and v23.71 disproved it on sight.** It read "no cell over its
+box, no ellipsis in either orientation", and the second half does not follow from the first. The
+column grows to ~157px, which fits twenty characters and not twenty-three: `R. Forrester-Blackstock`
+printed as `R. Forrester-Black…`. **The measurement could not see it** — with `overflow: hidden` and
+`text-overflow: ellipsis` a cell reports `scrollWidth === clientWidth` while the compositor draws
+the ellipsis, so the box test returns true on a truncated cell (measured: 157 === 157 on that exact
+cell). It was found by rasterising the first sheet, which is the whole argument for the print
+baselines below. On screen the ellipsis is right; on paper it is unrecoverable, so the print rules
+now let the name wrap, guarded in the BLOCKING lane by `e2e/print.spec.js` rather than only by the
+report-only visual job. And its `beforeprint` prescription, taken literally, introduces a bug:
+prepare then runs twice on every desktop browser, and the second snapshot leaves the page
+permanently expanded. Both fixes are idempotent for that reason.
+
+**Four items were owner decisions. All four are now closed — three done, one refused on evidence.**
+
+| Item | The decision |
+|---|---|
+| FIP's 27-page print | **CLOSED — done at v24.06.** Every country card carries its own `⤓ Print <country>` at the bottom of what you just read. Measured on the real PDF: 25 sheets → 1, the banner kept so the sheet says which guide it is from, the country NAMED (the full print hides every `summary`, which is right there and exactly wrong on a one-country sheet), and the whole guide back afterwards. A CSS state, never a DOM edit, so a cancelled print cannot leave the guide short of a country. The row's own "27 pages" was stale: 25 since v23.27 |
+| FIP's page count | **CLOSED — already done at v23.27, before this table was written.** `details { break-inside: auto }` with `.card, .box, tr` still protected, and `details > summary { break-after: avoid }` so a country heading is never the last thing on a sheet. Measured at the time: 27 → 25 pages. Nothing further to decide |
+| Print provenance | **CLOSED — done at v24.06**, and it was not the tidiness the row took it for. There was a defect underneath: `Intl` spells September "Sept" in en-GB and three letters everywhere else, measured on Node, Chromium and WebKit, so Links, the Pay Calculator, Settings and the Operations error log disagreed with the calendar beside them, on screen as well as on paper. One vocabulary in `date-format.js`, one `printedStamp` for all the printable surfaces — and there were FIVE, not four: this row missed the Pay Calculator |
+| Continuation identity | **CLOSED — WON'T DO, on evidence. It cannot be built in Chromium without destroying content.** See below |
+
+**Why the running footer is refused (v24.06).** It was built, and then rendered to real PDFs — all five
+guides, 48 sheets — which is the only way to see any of this, because `emulateMedia` applies the
+print stylesheet without paginating. `@page` margin boxes (`@bottom-center`) are the CSS written for
+a running footer and Chromium implements none of them, so the only element that repeats per sheet is
+`position: fixed`. Three measurements, each the opposite of what the design assumed:
+
+- **It is clipped at the page-area boundary, so it cannot live in the margin.** At `bottom: -2mm` the
+  text printed cut in half; at −3mm and beyond it vanished from four sheets outright.
+- **Widening `@page`'s bottom margin to make a lane for it does nothing** — the element is positioned
+  against the page area and moves up with it. Tried at 20mm across all five guides: identical page
+  counts, and the clearance above it got *narrower*. `padding-top` does not move it either.
+- **So it must sit inside the page area, where it competes with the text.** On FIP page 22 it printed
+  directly across a sentence, leaving both it and "…NS withdrawing from Hoek van Holland in 2017"
+  unreadable. In a reference guide that is worse than the problem it solves.
+
+It also costs ZERO sheets, which this table expected to be the trade-off — it cannot claim vertical
+space, which is precisely why it overlaps.
+
+**A methodological note worth more than the feature.** A positional check over the PDF's text boxes
+reported that same page as *1.7pt clear*. It was wrong, and wrong in the direction that would have
+shipped the defect: the filter selecting "words above the footer" excluded exactly the words the
+footer was sitting on top of. **The rendered image was the check that worked**, and the numbers
+agreed with it only once it had disagreed with them first.
+
+**If it is wanted anyway, the shape that would work** is an IN-FLOW marker on each country card
+rather than a fixed page footer — in the flow, so it can never overlap. Measured coverage on FIP:
+23 of 25 sheets. Not every sheet, and it changes how every card looks on paper, so it is an owner
+decision rather than a follow-up.
+
+**Not done and not recommended:** printing the whole Operations or Admin page, and a print-provenance
+version stamp on the Calendar — its header already carries the app name, the member and the date,
+which is the part that matters on a detached sheet.
+
+### From "Trains page — what comes after the preview" — the parts since done, decided or reworded
+
+`trains.html` shipped at v24.71 as an **admin-only preview** of "what's changing": a countdown, the
+daily totals, every route's trains before and after with the change in words, the basic hour side
+by side, and a time lookup. By v24.80 it was station-first — ranked changes in a colleague's words,
+a card per station, the basic hour as a stopping-pattern grid — and both timetables came from
+Chiltern's published books, every stop included. **At v24.81 it opened to every member** (owner,
+20 Oct 2026; DECISIONS.md). The ideas below were proposed with it (7 Oct 2026)
+and deliberately not built yet; the ones since built are in ROADMAP_HISTORY.md → "Trains page —
+preview items shipped". They are recorded so the page grows toward a plan rather than by accretion.
+
+**A. Before 13 December — teaching the change.** **Trigger:** ~~the owner opens the preview to staff~~
+**met 20 Oct 2026 (v24.81)** — these are ready to pick up, in whatever order the owner chooses.
+
+- **The page changes over by itself.** *Its words already do (v24.83): from 13 December the first
+  column is "Until 12 Dec", the lookup answers from the running timetable, and it says when both
+  timetables have ended.* Still an idea: "What's changing" becoming "What changed" for the first few
+  weeks, then **Next out** becoming the front of the page with the change material retired to a tab.
+  `timetablePhase` (trains-change.js) is where that switch goes.
+- **Next out** — today's day type and the next six departures with a countdown ("in 4 min"), full
+  destination name, and (if the owner agrees to publish them) train length and planned platform.
+  Works offline, so it is useful on the gateline away from the boards.
+
+- **It knows its dates** — a preview before 13 December, and it must say it has ended at the May
+  2027 change rather than quietly show old times. **Done at v24.83** (`timetablePhase`,
+  `DEC_VALID_UNTIL`), found by the 21 Oct 2026 deep review, which also found the page counting one
+  weekday train twice, timing "Coming back" at Marylebone instead of where the passenger gets on,
+  and its grid showing one hour's stops as every hour's.
+- **Christmas and bank holidays differ** — special timetables over Christmas and New Year and on
+  bank holidays. The page should say so, not show the normal pattern. Chiltern's December books do
+  not help: they say nothing about Christmas or bank holidays (checked 20 Oct 2026). **Since v24.80
+  the page says so for Christmas:** Chiltern's timetable page states more changes between 13
+  December and 10 January, "including significant changes over the Christmas and New Year period",
+  and the overview names that window until it ends (`FURTHER_CHANGES_UNTIL`). **Still open:** the
+  actual festive times, which will have to come from Chiltern's Christmas publicity — no 2026 detail
+  was published when checked, and last year's pattern is not evidence for this one — and the bank
+  holidays inside the books' validity (Good Friday, Easter Monday, the early-May holiday).
+
+- ~~Staff on the PIN.~~ **DECIDED 22 Oct 2026 — the station PIN reads the page (v24.84; DECISIONS.md,
+  AUTH_AND_SESSIONS.md invariant 24).** "Your shift", if it is built, still needs a sign-in: it is a
+  member's own roster, and the PIN is nobody.
+- Its place in the drawer — second after Calendar was the suggestion. Today a member sees it after
+  Pay (and Overtime, where they have it), before Settings.
+
+### From "Dispatcher pay calculator support" — the back-pay validation note
+
+> **Validating the back-pay accrual against the real 24 Oct 2025 payslip has MOVED** to
+> `VALIDATION_REGISTER.md` (August 2026). It was never a feature: nothing gets built, a payslip gets read.
+> Sitting here between a pre-fill feature and Dispatcher rate support, it read like work to schedule
+> rather than a figure to confirm — which is exactly how validation debt goes unpaid.
+
+### From "Plain-English education pass" — Subject 1, shipped v22.57
+
+**Subject 1 — SHIPPED v22.57: Sunday vs Rest Day Working.** Chosen because it produced a real
+wrong estimate rather than a hypothetical one: a member put worked Sundays in Rest Day Working
+(1.25×) instead of Sunday Working (1.5×), about £43 light on an eight-hour day. **The app already
+had the fact, stated perfectly** — the Pay Calculator Guide's "Sunday vs RDW" tip says exactly the
+right thing — and it did not help, because a guide has to be OPENED and she was reading the form.
+That is this whole entry's premise demonstrated instead of argued, and it settles what the pass
+actually does: **carry the fact to the point of use; do not write it again somewhere new.** The
+mechanism was the payslip itself — a worked Sunday prints as "RDW Sun 1.5", so somebody matching
+payslip lines to boxes lands on Rest Day Working, whose own subtitle described what they did. Fixed
+in both directions (the redirect the Saturday row always had, plus "rostered or not" on the Sunday
+row), the payslip's misleading word named where the mistake is made, and the `?` panel given the
+same sentence. Held by `paycalc-copy-parity.test.mjs`, which pins the distinction rather than the
+wording. **Next subjects, in order of evidence: HPP and back pay** (both already carry the "nobody
+told me this exists" shape) — but wait for a real report rather than picking one.
+
+### From the WATCH table — `firebase-admin` v14
+
+| Watch | Because | Where |
+|---|---|---|
+| ~~`firebase-admin` v14~~ | **DONE v22.01** — `14.3.0` + `firebase-functions` `7.3.2`. v14 removes the namespaced `admin.*` API, so 59 call sites moved to the modular entry points first (on v13, green) and the version bump changed no code. The `uuid` override now matches nothing: since v25.25 (`firebase-admin` 14.5) `@google-cloud/storage` is 8.4.0 and `functions/package-lock.json` holds no `uuid`; it was removed at v25.35 | `KNOWN_LIMITATIONS.md`, `SECURITY_RELEASE_PLAN.md` → A1 |
 
 ---
 
@@ -1700,7 +3381,7 @@ Once Stages 2–4 are live and staff have had adequate time to migrate:
 **Now SHIPPED (strict) and tracked in `SECURITY_RELEASE_PLAN.md` (phases B2/B3) — this section is a
 pointer, not the live plan.** `overrides` writes require the member's own `name` claim (with
 admin + manager bypass) so a signed-in member can only write their own overrides. Tried at v10.72,
-**suspended at v10.94 after a production outage** (post-mortem: KNOWN_LIMITATIONS.md task #2), then
+**suspended at v10.94 after a production outage** (post-mortem: "The four v11 security tasks", task #2, below), then
 rebuilt as the three-tier permissive rule **B2 (built v14.53)**, and made **strict (B3, shipped v16.29)** —
 the legacy no-name escape branch has been removed, so overrides create/update/delete now require
 `token.name == memberName || token.admin || token.manager`.
@@ -2001,7 +3682,7 @@ shipped without waiting on it — see the "C-lite" status note under the staged 
 **Note:** per-member Firestore write isolation (`request.auth.token.name == memberName`,
 suspended at v10.94, rebuilt permissive at v14.53, now **strict and LIVE as of v16.29**) is a
 **separate** security project — see "Security project — per-member override write isolation" above
-and KNOWN_LIMITATIONS.md task #2. It is *not* a stage of the password plan; earlier drafts of this
+and "The four v11 security tasks", task #2, below. It is *not* a stage of the password plan; earlier drafts of this
 section conflated the two.
 
 ### Phase 9 — TypeScript zero-diagnostic baseline ✓ (9a–9c complete, June 2026)
@@ -2160,3 +3841,58 @@ the choice between them is about honesty on screen, not about safety.
 field-confirmation check in `LATENCY.md` (does `Recognised` track connection quality the way a
 network wall must?). The measurement is done; what is left is not a performance question.
 
+---
+
+## Calendar start — the identity round trip: the entry as it closed (moved 7 Nov 2026)
+
+The short live entry the section above refers to ("`ROADMAP.md` carries the short live entry"),
+moved **verbatim** once nothing in it was open: the fast path shipped at v22.97, was retired on
+26 Sep 2026, and was replaced at v24.59 by the own-roster copy (`CALENDAR_DATA.md` 17;
+`DECISIONS.md` → "The provisional paint" and "The own-roster copy"). What it said to read next —
+whether a returning member's open now SHOWS a roster well inside a second — is a WATCH row in
+`ROADMAP.md`.
+
+### Calendar start — the identity round trip
+**Status:** SHIPPED (v22.97), RETIRED 26 Sep 2026, REPLACED at v24.59 · **Decided by:** Gareth, 5 Sep 2026 · **Where it lives now:** `CALENDAR_DATA.md` invariant 17 (13, the paint's own, is retired)
+
+The owner's answer was **option 2 — yes, for a named member with a live local session only**: a
+returning member is shown their own already authorised cached roster while Firebase revalidates the
+stored identity, instead of waiting for it. Never the shared PIN viewer, whose whole security model
+is that it holds no identity.
+
+**What it is WORTH is still not established (12 Sep 2026).** The field signature that justified the
+decision is now confirmed on live devices and `VAL-AUTH-006` is closed — `Recognised` runs 48% / 68%
+/ 91% over a second across the connection groups while `Getting ready` is 0% in every one of them.
+But the fix's own prediction — that cache-served starts would stop waiting — **has not shown up**:
+78% over a second before, 77% after, on 1,285 opens. That is not yet a falsification, because it
+fits "the path rarely fires" exactly as well as "it fires and does not help", and those have
+opposite consequences. `readyProvisional` (v23.70) separated them, and **the answer came on 19 Sep
+2026: the path RARELY FIRES** — one open in roughly 800 eligible (`LATENCY.md` → THE CLOSING READ).
+That is row one of the pre-registered table, so the identity diagnosis stands and `VAL-AUTH-006` stays
+closed. The path was kept by owner decision the same day, then **RETIRED on 26 Sep 2026** once it
+was shown to be wrong as well as rare — its cache read queues behind the very lookup it was meant to
+overtake (`DECISIONS.md` → "The provisional paint"). **Its replacement SHIPPED at v24.59 (5 Oct 2026,
+owner decision):** an app-owned copy of the member's own months in plain storage, painted labelled
+before the lookup answers — the one shape that entry said could beat it (`CALENDAR_DATA.md` 17,
+`calendar-snapshot.js`). **What to read next:** whether a returning member's open now SHOWS a roster
+well inside a second. The App Speed card's milestones were built around the grant, so it measured the
+copy only indirectly until v24.85 added a direct milestone (`rosterSnapshot` — "Own roster" on the card).
+
+The whole entry as it stood when the decision was taken — the field confirmation, the offline
+measurement, the two couplings and all three candidate answers — is in `ROADMAP_HISTORY.md`, moved
+verbatim. It is worth keeping whole: the reasoning is what a future reader will need if the boundary
+is ever widened, and none of it can be reconstructed from the code.
+
+**What shipped is narrower than option 2 as written**, and the two extra refusals are the part to
+know before touching it. The scope is ONE member, so a boot that was about to draw somebody else is
+refused outright rather than narrowed: **Team View**, and a **stored selection naming a colleague**.
+Both would otherwise paint a colleague's base roster with their leave and absence silently missing —
+invariant 1's failure reached from a new direction. Those members boot exactly as they did before.
+
+**What remains open, and it is small.** Option 3's *visible tell* was not adopted as such, and may
+not be needed: phase 1 already notes the months `cached`, so the grid is drawn as a cached grid by
+machinery staff have read for months, and phase 2 confirms it. Whether that is enough, or whether
+the paint deserves to say so in its own words, is a question to answer from use rather than from
+first principles. (The replacement answers it for itself: the own-roster copy is drawn `stale`, with
+"Checking for changes…" — `CALENDAR_DATA.md` 17.) **Read `LATENCY.md` for what the change is worth before revisiting it** — the
+closing read there is the evidence, and it found the path rarely fires.

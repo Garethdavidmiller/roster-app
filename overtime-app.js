@@ -471,8 +471,8 @@ export function init() {
      * tap-through list otherwise — reasonable when a reviewer created one week at a time, so one
      * open window was the ordinary case and a list meant a genuine choice.
      *
-     * Automatic creation (v20.61) fills the whole six-week horizon, and a window stays open until
-     * eleven days before its week, so **four or five are open simultaneously, permanently**. The
+     * Automatic creation (v20.61) fills the whole planning horizon, and a window stays open until
+     * eleven days before its week, so **several are open simultaneously, permanently**. The
      * list stopped being the exception and became the only path: every member, every visit, tapped
      * through an index before reaching anything they could fill in. That is a step that exists
      * because of how the weeks are made, which is not a fact the member should have to care about.

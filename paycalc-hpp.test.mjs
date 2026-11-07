@@ -234,7 +234,7 @@ describe('_varPayForPeriod', () => {
     const R150   = RATE * RATE_150;            // 31.110/hr
     const R300   = RATE * RATE_300;            // 62.220/hr
 
-    // London Allowance does NOT accrue HPP (removed v17.23; KNOWN_LIMITATIONS #3 + Jan-2026
+    // London Allowance does NOT accrue HPP (removed v17.23; paycalc.md invariant 6 + Jan-2026
     // payslip) — a period with no variable premiums contributes ZERO to the HPP base.
     test('returns 0 when all hours are zero (London Allowance does not accrue HPP)', () => {
         assertPounds(_varPayForPeriod(makeP50(), {}, RATE), 0, 'zero hours → zero HPP base');

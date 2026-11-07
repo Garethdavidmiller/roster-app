@@ -27,7 +27,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { headlineLabels, renderResultHeadline } from './paycalc-result-headline.js';
+import { headlineLabels, renderResultHeadline, renderYtdLine } from './paycalc-result-headline.js';
 
 const PAYDAY = new Date(2026, 8, 25);          // Fri 25 Sep 2026
 const ACTUAL = { gross: 4200, tax: 700, ni: 300, sl: 0, net: 3200 };
@@ -246,5 +246,36 @@ describe('what the estimate says it INCLUDES', () => {
         // this test is where it gets made.
         const s = headlineLabels({ hasActual: false, payday: null, bpThisPeriod: 500, hppForPeriod: 200 });
         assert.match(s.stickyLabelHtml, /Estimated take-home \(inc\. back pay & HPP\)/);
+    });
+});
+
+// ── THE YEAR TO DATE LINE (owner, 7 Nov 2026) ───────────────────────────────────────────────────
+// The same discipline as the headline: written on every run, so a payslip that should be quiet
+// never shows the previous payslip's line or date. When it shows is ytdUpdateFrom's rule
+// (paycalc-periods.test.mjs); this pins that the renderer obeys it in both directions.
+describe('the Year to Date line under the figure', () => {
+    /** A line and its date span, recording what was written. */
+    const lineDom = () => {
+        const line = { hidden: true }, when = { textContent: '' };
+        globalThis.document = /** @type {any} */ ({
+            getElementById: (/** @type {string} */ id) => ({ netYtdNudge: line, netYtdNudgeDate: when })[id] ?? null,
+        });
+        return { line, when };
+    };
+
+    test('shows the date of the payslip to copy from, then clears both when told to be quiet', () => {
+        const { line, when } = lineDom();
+        renderYtdLine({ payday: new Date(2026, 9, 23, 12) });
+        assert.equal(line.hidden, false);
+        assert.equal(when.textContent, '23 Oct');
+        renderYtdLine(null);
+        assert.equal(line.hidden, true);
+        assert.equal(when.textContent, '', 'a hidden line keeps no date for the next payslip to inherit');
+    });
+
+    test('a page without the line does not throw', () => {
+        globalThis.document = /** @type {any} */ ({ getElementById: () => null });
+        assert.doesNotThrow(() => renderYtdLine({ payday: new Date(2026, 9, 23, 12) }));
+        assert.doesNotThrow(() => renderYtdLine(null));
     });
 });

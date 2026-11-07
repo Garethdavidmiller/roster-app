@@ -3,7 +3,8 @@
  * paycalc-result-headline.js — WHICH figure is the headline, and what it is called.
  *
  * Owns: the result card's headline label and figure, the summary rows when a confirmed payslip is
- *   on screen, the breakdown button's label, and the sticky bar's amount, label and accessible name.
+ *   on screen, the breakdown button's label, the sticky bar's amount, label and accessible name, and
+ *   the Year to Date line under the figure with its button (`renderYtdLine` / `wireYtdLine`).
  * Does NOT own: any calculation (paycalc-calc.js), the breakdown rows (paycalc-breakdown.js), or
  *   the sticky bar's show/hide behaviour (paycalc-sticky-total.js).
  * Edit here for: the words beside the money. Do not edit here for: the money.
@@ -167,4 +168,35 @@ export function renderResultHeadline({ actual, net, payday, bpThisPeriod = 0, hp
         const summary = byId('summary');
         if (summary) summary.innerHTML = actualSummaryHtml(actual, net);
     }
+}
+
+/**
+ * The Year to Date line under the take-home £ (owner, 7 Nov 2026). Written on EVERY run, shown or
+ * hidden, for the reason this module exists: a run that skipped it would leave the previous
+ * payslip's date on screen. Whether it shows is not decided here — `from` is `ytdUpdateFrom`'s
+ * answer (paycalc-periods.js), and the caller passes null beside a confirmed payslip.
+ * @param {{ payday: Date } | null} from  the payslip to copy the figures from, or null
+ */
+export function renderYtdLine(from) {
+  const line = document.getElementById('netYtdNudge');
+  if (!line) return;
+  line.hidden = !from;
+  const when = document.getElementById('netYtdNudgeDate');
+  if (when) when.textContent = from ? fdShort(from.payday) : '';
+}
+
+/**
+ * The line's button opens the Year to Date card, brings it into view and puts the cursor in its
+ * first box. The card is opened through its header, as the `#payslipCard` deep link does
+ * (overlay.js → openCardNamedByHash), so the card's own open state and arrow follow.
+ */
+export function wireYtdLine() {
+  document.getElementById('netYtdNudgeBtn')?.addEventListener('click', () => {
+    const body = document.getElementById('payslipCardBody');
+    if (body && !body.classList.contains('open')) {
+      document.getElementById('payslipCardToggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }
+    document.getElementById('payslipCard')?.scrollIntoView({ block: 'start' });
+    /** @type {HTMLInputElement | null} */ (document.getElementById('ytdPay'))?.focus({ preventScroll: true });
+  });
 }

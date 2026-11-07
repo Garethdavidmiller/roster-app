@@ -88,7 +88,7 @@ export function _decodeHours(p, d) {
  *
  * London Allowance is a FIXED allowance paid EVERY period — including the periods you are on
  * leave — so it needs no holiday premium and does NOT accrue HPP. This is the documented payroll
- * rule (KNOWN_LIMITATIONS.md #3: "basic pay / London Allowance (no HPP)"), confirmed by the owner;
+ * rule (.claude/rules/paycalc.md invariant 6: London Allowance accrues no HPP), confirmed by the owner;
  * a real payslip shows the annual HPP lump as its own line, separate from London Allowance. London
  * was wrongly folded into the HPP base (v16.90, priced settled-whole-year); removed at v17.23.
  * @param {any} p - Period object.
@@ -182,7 +182,7 @@ function _expectedNonPremiumYtd(ty) {
   let nonPremium = 0;
   for (const p of covered) {
     // Pro-rate EVERY non-premium component by the joining factor (v18.55), mirroring calculate()
-    // (London ×_proRateFactor at paycalc-app.js:904, pension ×getProRateFactor via _periodDefaultPension)
+    // (London ×_proRateFactor in paycalc-app.js, pension ×getProRateFactor via periodDefaultPension)
     // and the real payslip. `basic` already carries the factor via getEffectiveContr; London and
     // pension were left at FULL value — so for a mid-year joiner every pre-start period (factor 0)
     // added phantom "London − pension" non-premium pay (~£129/period) and the joining period

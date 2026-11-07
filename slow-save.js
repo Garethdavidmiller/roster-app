@@ -23,10 +23,11 @@
  *      signed-out session, a rule change), and Firestore then quietly undoes the local copy. Saying
  *      "Saved" of a write the server has not seen is the one claim that could be false.
  *   2. It does not give the Save button back. Freeing the button while the first write is unconfirmed
- *      invites a second tap on the same days — and every save MINTS NEW document ids, so a repeat is
- *      a duplicate rather than an overwrite (the v16.23 double-tap hazard, which is why every write
- *      path disables its button before its first await). Explaining the wait is the fix; shortening
- *      it is not ours to do.
+ *      invites a second tap on the same days. A roster import mints new document ids, so a repeat
+ *      there is a duplicate; a manual record's fixed id (override-id.js) turns it into a second write
+ *      of a change still in flight (the v16.23 double-tap hazard, which is why every write path
+ *      disables its button before its first await). Explaining the wait is the fix; shortening it is
+ *      not ours to do.
  *
  * `watchSlowCommit` is pure (timers injected) and unit-tested in slow-save.test.mjs. The DOM half is
  * the smallest thing that can hold one live line, and it reference-counts, because two writes can
@@ -51,7 +52,7 @@ export const SLOW_SAVE_TEXT =
 
 /**
  * The line for a write that is one batch of SEVERAL (v24.23). Two writers — the roster upload and a
- * long leave or absence range — commit in chunks of 200, one after another, and only the chunk in
+ * long leave or absence range — commit in chunks, one after another, and only the chunk in
  * flight is held on the device: a chunk not yet started exists nowhere. Telling that admin they may
  * leave, as v24.21 did, lost every later chunk without an error. So this one asks them to stay.
  */

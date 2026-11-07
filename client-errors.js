@@ -4,8 +4,8 @@
  * is captured is ordered and retained.
  *
  * No DOM, no Firebase: this is the "humble object" core of getClientErrors() in
- * firebase-client.js, split out so the policy (which errors show, in what order,
- * which get pruned) is unit-testable without the Firestore SDK. firebase-client.js
+ * analytics-client.js, split out so the policy (which errors show, in what order,
+ * which get pruned) is unit-testable without the Firestore SDK. analytics-client.js
  * keeps only the I/O (the two queries + the deletes). Tested by client-errors.test.mjs.
  *
  * Records are plain objects shaped like a Firestore doc: { id, resolved, timestamp,

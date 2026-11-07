@@ -863,10 +863,10 @@ export function isForbiddenOnSunday(type) { return SUNDAY_FORBIDDEN_TYPES.includ
  * Returns null when the type needs times and does not have a usable pair — the caller then has
  * nothing to write, which is the right answer for a half-filled entry.
  *
- * `other` is deliberately NOT supported: its grammar is `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`, composed
- * from a flavour chip, a rest-day tick and optional times that only the week editor offers. A second
- * partial implementation of that grammar is exactly where a wrong value would come from, so the
- * review says so and points at Change a Shift instead.
+ * `other` is deliberately NOT handled here: its grammar is `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`, composed
+ * from a flavour chip, a rest-day tick and optional times. A second partial implementation of that
+ * grammar is exactly where a wrong value would come from, so the review's entry control composes an
+ * Other day through `composeOtherValue` instead (roster-entry-control.js).
  *
  * @param {string} type an override type id (`PILL_TYPES` vocabulary)
  * @param {string} [from] `HH:MM`

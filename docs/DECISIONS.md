@@ -507,3 +507,53 @@ Until one of those, the trade favours no build.
 cost under 6× CPU throttling is in `LATENCY.md` → Phase 3, beside the ladder reading that would
 justify acting on it. It is not a reason to adopt a bundler by itself: the assets are
 service-worker-cached and the cost is one-off per version.
+
+## Version bumping and merging — the incidents behind the rules (moved from CLAUDE.md, 7 Nov 2026)
+
+`CLAUDE.md` → *Version bumping* states each rule with a one-line reason. These are the incidents
+that wrote them, kept here so the rules stay short where every session reads them. Every rule below
+is still in force; nothing here reopens one.
+
+- **Bump against `main` — because v22.29 shipped twice.** Two sessions branched from the same
+  version and both bumped to the same next one: the logo change (#1311) and the Huddle table fix
+  (#1312). The second merge did not conflict, because `roster-data.js` and `service-worker.js`
+  already said the value the incoming commit wanted. `service-worker.js` was then BYTE-IDENTICAL
+  across the two releases, so a browser byte-comparing it installed no new worker — no activate, no
+  new cache, no precache — and a device that took the first 22.29 kept serving the first release's
+  assets. Nothing heals it: the worker never re-fetches a cached file, so those devices kept the first
+  release's files until the next bump. Hence the re-check of `origin/main` immediately before merging.
+- **A gap is the rule working — there is no v23.22.** Two branches held it at once on 8 Sep 2026;
+  both re-checked `main` before merging and both re-bumped, to 23.23 and 23.24. A skipped number is
+  what a caught collision looks like from afterwards, which is why it is never reused to close the gap.
+- **Exactly 0.01 per change — after the v15.70 → 15.80 → 15.90 slip**, where a batch was bumped by
+  0.10 at a time and burned the version space. The "every 0.10 version" rule only ever governed when
+  the docs are re-stamped.
+- **"Both runs green" is usually one run green and one cancelled** (measured 15 Sep 2026). The two
+  runs share a concurrency group, so the `push` run is normally cancelled within seconds of the
+  `pull_request` run starting on the same commit: on v23.82's head the pull-request run carried every
+  job green and the push run was cancelled after four seconds. That is the design (the entry on the
+  cancelled `push` run, above). What the rule guards against is reporting green off a run that did
+  not include the `version` job.
+- **The two-runs trap on the `version` job** (6 Sep 2026, twice). Merge promptly and the run fired
+  when the pull request was OPENED compares the branch against a `main` which by then CONTAINS it —
+  "main is v22.99 . this branch is v22.99", failed, and an email about a release that was correct.
+  The job now detects an already-landed branch by CONTENT and skips; ancestry cannot tell you, because
+  `main` squash-merges. The second lesson cost more: the first of those two went unnoticed because the
+  merge was reported fully green off the `push` run alone.
+- **Do not stack branches — it cost three branches and a pull request.** `main` squash-merges, so a
+  child branch cannot be rebased once its parent lands; every commit replays and conflicts, and the
+  only way out is a fresh branch from `main` and a cherry-pick. That cost three branches and one
+  pull request closed as superseded across v23.79 → v23.82.
+- **One Playwright run at a time.** Two concurrent runs produced a false red (14 Sep 2026), and
+  checking out another branch mid-run invalidated a 13-minute e2e pass that then had to be redone.
+- **The Documentation milestone row names the milestone, not the version.** It used to state the
+  current version, and it rotted on every release — it read 23.23 while the app shipped 23.24, then
+  23.25, then 23.26 — because bumping it is not part of shipping. What the stamp guard actually
+  requires is the 0.10 milestone, so that is what the row states; `APP_VERSION` is the only place to
+  read the version.
+- **Who uses which phone is an OWNER FACT** (owner, 8 Sep 2026). `CLAUDE.md`'s platform line was
+  wrong twice in one day, in opposite directions: it said "all staff use Android phones", was
+  corrected to "the installed app is mainly iPhone", and neither was right. The owner's own phone is
+  an Android (a Galaxy S26), the personal-phone population is mixed, and the work phone is Android
+  with the install not yet permitted — so both platforms are served equally, and no screenshot, bug
+  report or single device decides which one matters more.

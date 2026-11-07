@@ -3,13 +3,14 @@
  * clock-input.js — the rules of a TEXT clock box: what counts as a time, what the box shows while
  * one is being typed, and what it holds once it is left. Pure; no DOM, no Firebase, no imports.
  *
- * Three places in the app type a time into a text box rather than an `<input type="time">`: the
- * roster review's entry control (`manualCellValue`, override-utils.js), the Overtime custom-hours
- * row (overtime-form.js) and the Links window editor (links-app.js). Each refused the native control
+ * Four places in the app type a time into a text box rather than an `<input type="time">`: the
+ * roster review's entry control (`manualCellValue`, override-utils.js), the Admin week grid
+ * (admin-time-inputs.js), the Overtime custom-hours row (overtime-form.js) and the Links window
+ * editor (links-app.js). Each refused the native control
  * for the same measured reason — Chromium renders it from the OS format settings, not the page, so
  * it shows `06:00 AM` beside 24-hour shift badges — and each pays the same price: nothing in the
  * browser validates the value or helps type it any more. Both halves of that price are paid here,
- * once, so that a fourth box cannot pay only one of them.
+ * once, so that the next box cannot pay only one of them.
  *
  * Extracted from override-utils.js at v24.61 when `formatClockInput` arrived and the coordinator
  * ratchet said that file had grown past 900 lines. It was right in the way it is meant to be: both

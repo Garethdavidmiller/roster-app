@@ -5,7 +5,7 @@
  * Owns: reading the shared set collection, and the one write primitive that refuses to land on a
  *   version nobody agreed to.
  * Does NOT own: what a set IS or who may change it (`links-target-sets.js`, pure), what the picker
- *   SAYS (`describeSetList`, same file), or any of the dialogs (links-app.js).
+ *   SAYS (`describeSetList`, same file), or any of the dialogs (links-generator-targets.js).
  * Edit here for: how a set reaches or leaves Firestore.
  *
  * ── WHY IT EXISTS ──────────────────────────────────────────────────────────────────────────────

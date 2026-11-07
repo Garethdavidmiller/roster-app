@@ -17,10 +17,10 @@ date, and — critically — whether it is a **National** rule, a **Local** inte
 
 - **Before changing a high-risk guide claim:** find its row, open the Source, confirm the wording,
   update the guide, then bump `Reviewed` (and push `Next` out).
-- **Every railcard/fip row is wired to the block it certifies** via a `data-guide-source="<id>"`
-  attribute on that block in `railcard-guide.html` / `fip-guide.html` (v17.59). `guide-sources.test.mjs`
-  enforces the two-way contract: no attribute may point at a missing row, and no railcard/fip row
-  may lack a block. So when you **add a high-risk row you must anchor it** with a
+- **Every railcard/fip/rangers row is wired to the block it certifies** via a `data-guide-source="<id>"`
+  attribute on that block in `railcard-guide.html` / `fip-guide.html` / `rangers-guide.html` (v17.59).
+  `guide-sources.test.mjs` enforces the two-way contract: no attribute may point at a missing row, and
+  no railcard/fip/rangers row may lack a block. So when you **add a high-risk row you must anchor it** with a
   `data-guide-source` attribute (and vice-versa) — the build fails otherwise. A block may cite
   several rows (space-separated). `paycalc` rows are exempt (they render on a different surface).
 - **Review cadence (manual, like the monthly notice cleanup):** each row carries its own `Next`

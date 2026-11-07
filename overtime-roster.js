@@ -69,7 +69,9 @@ export async function loadRosterContext(memberName, dates) {
     try {
         // `in` caps at 30 values and a roster week is 7, so one query covers the window. Scoped to
         // this member: the page never needs anybody else's, and a wider query would return
-        // colleagues' leave to a client that has no business holding it.
+        // colleagues' leave to a client that has no business holding it. The rules let any member read
+        // every override, so dropping the clause SUCCEEDS — and `overrides` is keyed by date alone, so a
+        // colleague's duty would then anchor the options this member submits.
         const snap = await getDocs(query(
             collection(db, COLLECTIONS.overrides),
             where('memberName', '==', memberName),

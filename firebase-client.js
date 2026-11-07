@@ -315,9 +315,9 @@ export { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthState
 /**
  * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once
  * (SECURITY_RELEASE_PLAN.md → B3 "Live invariant — writeWithClaimRetry"; v15.07 review H3). The operation is
- * read/write-agnostic — `writeWithClaimRetry` is a back-compat alias for the many write call sites;
- * operations-app.js reads use `withClaimRetry` directly (it previously duplicated this as the
- * byte-identical `adminReadWithRetry`, v17.08).
+ * read/write-agnostic: writes go through `writeWithClaimRetry` below (this, behind the write gate),
+ * and reads — the Operations cards among them — call `withClaimRetry` directly (it previously
+ * duplicated this as the byte-identical `adminReadWithRetry`, v17.08).
  *
  * Why: a freshly-provisioned or claim-changed MANAGER can appear signed in yet hold a Firebase token
  * minted *before* their `manager` claim existed (Firebase only refreshes ID tokens ~hourly). The

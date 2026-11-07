@@ -3,7 +3,8 @@
  * overtime-data.js — every call the Overtime page makes to the server, and the corrected clock it
  * keeps from their answers.
  *
- * Owns: the four endpoint wrappers, the auth header, the timeout budgets, and `correctedNow()`.
+ * Owns: one wrapper per endpoint, the reviewer's week read, the auth header, the timeout budgets,
+ *   and `correctedNow()`.
  * Does NOT own: what any of it MEANS — the words live in overtime-format.js, the rules on the
  * server. No DOM.
  *

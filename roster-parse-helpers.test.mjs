@@ -2354,11 +2354,13 @@ describe('a physically blank weekday never becomes a rest day', () => {
 
     // NO CASE HERE FOR "THE MODEL IGNORES THE INSTRUCTION". It was written, and it asserted a
     // cross-check that has since been removed as unsound — see the long note in
-    // applyColumnScanCrossCheck. The residual is real: if the model writes "RD" for a physically
-    // empty weekday, nothing downstream can tell that from a printed RD, and the day is imported as
-    // a rest day. It is recorded in KNOWN_LIMITATIONS.md rather than asserted here, because a test
-    // that pins today's shortfall as the expected answer is how this repo ended up defending the
-    // ambiguous-commit defect for ten versions.
+    // applyColumnScanCrossCheck. The residual is real on the PDF path: if the model writes "RD" for
+    // a physically empty weekday, nothing downstream can tell that from a printed RD, and the day is
+    // imported as a rest day. (The geometry path knows which cells are empty and sends that read to
+    // the review — reviewRestReadsOfEmptyCells, functions/roster-prompt.js.) It is recorded in
+    // KNOWN_LIMITATIONS.md rather than asserted here, because a test that pins today's shortfall as
+    // the expected answer is how this repo ended up defending the ambiguous-commit defect for ten
+    // versions.
 
     test('a genuine printed rest-day week is left completely alone', () => {
         // The failure direction a hasty fix produces. Rest days are the commonest cell on the

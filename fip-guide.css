@@ -575,7 +575,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     .btn-text-link { display: none !important; }
 
     /* ── PRINT THIS COUNTRY (v24.06) ──────────────────────────────────────────────────────
-       ROADMAP print item 1. One country's card instead of the 25-sheet book, because that is
+       The print review, item 1 (ROADMAP_HISTORY). One country's card instead of the 25-sheet book, because that is
        what a traveller checking a coupon before a trip is after.
 
        A CSS STATE rather than a DOM edit: `fip-guide.js` marks the chosen card and stamps

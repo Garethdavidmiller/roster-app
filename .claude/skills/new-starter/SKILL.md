@@ -12,11 +12,11 @@ Run through every step in order. Do not skip steps.
 - [ ] Add entry to `teamMembers` with `name`, `currentWeek`, `rosterType`, `role` — plus any optional fields that apply (`hidden`, `managerOnly`, `permanentShift`, `bilingualContract`, `noProRate`, `rosterChanges`; see CLAUDE.md → teamMembers fields)
 - [ ] If joining mid-year: add `startDate: new Date(year, month-1, day)` — **midnight only, no time component**
 - [ ] If joining mid-year: add `proRatedAL: { year: N }` — **ASK THE ROSTER CLERK AND TRANSCRIBE. Do not calculate it.**
-  - The clerk's annual leave workbook (`Customer Service Annual Leave <year>.xlsx` → the Marylebone Totals sheet, `AL allowance` column) is the AUTHORITY for this figure (owner, 6 Sep 2026). It is a contractual number the roster office agrees and payroll works to; this app transcribes it.
-  - **This step used to carry a formula, `⌈(daysRemainingInYear / 365) × entitlement⌉`, and it produced the wrong answer for every mid-year starter in the roster.** Measured 6 Sep 2026 against the clerk's book: Toth 12 vs 11, Jedlinski 19 vs 18, Davies 22 vs 20, Okeke 23 vs 24. Its own worked example was Davies. Two of those are a rounding difference the formula could in principle be fixed for; the others are not reachable by ANY formula from the fields in `roster-data.js` — Okeke had prior AGENCY service, so his `startDate` is when he joined the payroll and not when his entitlement began accruing. A figure that depends on facts this app does not hold cannot be derived here, and a plausible derivation is worse than no derivation because nothing fails when it is wrong.
+  - The clerk's annual leave workbook (`Customer Service Annual Leave <year>.xlsx` → the **`New Marylebone Totals`** sheet, `AL allowance` column — not `Marylebone Totals`, the 2021 decoy: `docs/AL_WORKBOOK.md` §2) is the AUTHORITY for this figure (owner, 6 Sep 2026). It is a contractual number the roster office agrees and payroll works to; this app transcribes it.
+  - **This step used to carry a formula, `⌈(daysRemainingInYear / 365) × entitlement⌉`, and it produced the wrong answer for every mid-year starter in the roster** (measured 6 Sep 2026 against the clerk's book; the figures are in the comment above the starters in `roster-member-data.js`). Two of the misses are a rounding difference a formula could in principle be fixed for; the others are not reachable by ANY formula from the fields in the roster data — prior AGENCY service, for one, means `startDate` is when somebody joined the payroll and not when their entitlement began accruing. A figure that depends on facts this app does not hold cannot be derived here, and a plausible derivation is worse than no derivation because nothing fails when it is wrong.
   - A rough day-count is fine as a SANITY CHECK — if the clerk's figure is wildly off what you expect, ask — but the clerk's number is what goes in the file.
-  - **Do not add lieu days into `proRatedAL`.** A Dispatcher earns one per bank holiday worked, and since v22.50 `getALEntitlement` adds them on top of the pro-rated base automatically. Baking them in would count them twice. (Check the clerk has not already included them either.)
-  - Record WHY beside the entry whenever the figure is not what a day-count would suggest — Okeke's line is the model. The next reader's instinct is to "correct" it back to the formula, and that silently takes days off somebody.
+  - **Do not add lieu days into `proRatedAL`.** A Dispatcher's bank-holiday lieu days are added on top of the pro-rated base by `getALEntitlement`, and the Boxing Day lieu day (for working a Boxing Day one was due to work) by `entitlementFor` (`al-entitlement.js`). Baking either in would count it twice. (Check the clerk has not already included them either.)
+  - Record WHY beside the entry whenever the figure is not what a day-count would suggest — the agency-service starter's comment in `roster-member-data.js` is the model. The next reader's instinct is to "correct" it back to the formula, and that silently takes days off somebody.
 
 ## Step 2 — Firebase Auth (always required — and only AFTER step 2b has been committed and DEPLOYED)
 
@@ -25,13 +25,13 @@ Run through every step in order. Do not skip steps.
       so run before that deploy it creates nothing for the new starter and still reports success.
 - [ ] Admin → Operations → Staff Login Accounts → **Set up accounts** (creates the login)
 - [ ] Confirm password convention in `OPERATIONS_REFERENCE.md`
-- [ ] **Record their work email** — Operations → Account status → Set email. Nothing prompts for this any more: the login overlay that used to ask was retired at v19.30 once every existing member was registered, so a new starter's email is now only ever added here (or by them in Settings → Work Email). Miss it and the account simply has no email on file, silently — the Account status card's "No work email" line is where you'd notice.
+- [ ] **Record their work email** — Operations → Account status → Set email. Nothing prompts for this: a new starter's email is only ever added here (or by them in Settings → Work Email). Miss it and the account simply has no email on file, silently — the Account status card's "No work email" line is where you'd notice.
 
 ## Step 2b — Regenerate `functions/roster-members.json` (ALWAYS — including Management)
 
 - [ ] Run `npm run generate:roster-members` — regenerates `functions/roster-members.json` from `roster-data.js`. **In the same commit as the `roster-member-data.js` change**; the sync is verified by `sw-asset-check.test.mjs`.
 
-That file carries **two** unrelated things, which is why this step is unconditional (it said "CEA / CES / Dispatcher only — not Management" until v21.45, and that was wrong in the one direction that costs an outage):
+That file carries **two** unrelated things, which is why this step is unconditional — Management included, because skipping it for them is the direction that costs an outage:
 
 | What | Who it affects | What breaks if you skip it |
 |---|---|---|
@@ -48,7 +48,7 @@ That file carries **two** unrelated things, which is why this step is unconditio
 
 - [ ] Log in as the new member, open pay calculator, check the joining period shows the info banner and correct pro-rated contracted hours
 - [ ] Joining period = the pay period whose cutoff is on or after the start date
-- [ ] Expected pro-rated hours = `Math.round(140 × daysEmployed / totalDays)` where totalDays = cutoff − prevCutoff and daysEmployed = `Math.round((cutoff − startDate) / msPerDay) + 1`
+- [ ] Expected pro-rated hours = `Math.round(140 × daysEmployed / totalDays)`, the two counts as `proRateDays` (`paycalc-calc.js`) computes them — the period's days, and the days from the start date to the cut-off, both inclusive
 
 ## Step 3b — tell them it exists (optional, but nothing else does)
 
@@ -68,14 +68,15 @@ Two things to get right before sending:
 - **Send it AFTER step 2**, not before. An email that arrives ahead of the account tells somebody to
   try a password that does not exist yet.
 - **Ask what they are called**, and put the roster name in as well. The sign-in list shows the
-  published-roster form (`I. Melikian`), so somebody looking for "Alex" does not find themselves.
+  published-roster form (an initial and a surname), so somebody looking for their first name does not
+  find themselves.
 
 ⚠️ **The real PIN is never written into that file.** It lives only in the `CALENDAR_VIEWER_PIN`
 secret. **Nothing automated would catch it here**: `calendar-viewer-parity.test.mjs` cannot look for
 the digits (a test that knew them would be the leak) and does not read this folder. Fill
 `{{STAFF_PIN}}` in the mail client.
 
-## Step 4 — verify it actually took (v22.53)
+## Step 4 — verify it actually took
 
 - [ ] Operations → Staff Login Accounts → read the block above the button
 
@@ -96,18 +97,16 @@ If the block says it *couldn’t check*, that is neither answer. Retry it; do no
 
 | Field | Example | Purpose |
 |-------|---------|---------|
-| `startDate` | `new Date(2026, 3, 20)` | Midnight local time — no hours argument. `getBaseShift` returns `'RD'` before this. Scales hours, London Allowance, pension, HPP for the joining period. |
-| `proRatedAL` | `{ 2026: 23 }` | Override AL entitlement for joining year only. Standard entitlement resumes next year. |
+| `startDate` | `new Date(2026, 3, 20)` | Midnight local time — no hours argument. `getBaseShift` returns `'RD'` before this. Scales contracted hours, London Allowance and the pension default for the joining period — never HPP, which accrues on the extras actually done (`.claude/rules/paycalc.md` invariant 7). |
+| `proRatedAL` | `{ 2026: 23 }` | Override AL entitlement for joining year only (for a Dispatcher, the base only — lieu days go on top). Standard entitlement resumes next year. |
 
 ## Formula invariant — do not break
 
-`calcProRateFactor` in `paycalc-calc.js`:
-```
-raw          = (periodCutoff_noon − startDate_midnight) / msPerDay   // always X.5
-daysEmployed = Math.round(raw) + 1                                    // rounds .5 up
-factor       = daysEmployed / totalDays
-```
-`startDate` must be midnight local. A time component breaks the formula. Verified against a May 2026 joiner's payslip (50% factor, London Allowance £138.08 ✓).
+`calcProRateFactor` in `paycalc-calc.js` — its header holds the invariant and a worked example
+verified against a real joiner's payslip. In short: the period cut-off is at local noon and
+`startDate` at local midnight, so the day count is always X.5 and `Math.round` resolves it up; the
+difference is taken between wall-clock readings so a clock change cannot cost a day (`proRateDays`).
+**`startDate` must be midnight local — a time component breaks the formula.**
 
 ## Removing a staff member
 

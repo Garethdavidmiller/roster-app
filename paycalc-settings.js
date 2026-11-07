@@ -6,7 +6,7 @@
  *   getPensionDefault, updateRateForPeriod, updateYtdForTaxYear, settingsKey,
  *   saveSettings, confirmSettings, setSettingsCardOpen, loadSettings.
  * Does NOT own: period arithmetic (paycalc-periods.js), pay maths (paycalc-calc.js),
- *   roster hints (paycalc-app.js).
+ *   roster hints (paycalc-roster-hint.js).
  * Edit here for: grade helpers, settings persistence, rate/YTD field updates.
  * Do not edit here for: pay maths, period date maths, roster pre-fill.
  */
@@ -251,7 +251,7 @@ export function wirePensionControls({ autosave }) {
  *
  *  THE OPT-OUT IS APPLIED HERE, and here only (v21.64). Four sites ask what a payslip's pension
  *  should be when the member has not typed one — the field default and calculate()'s fallback (via
- *  `_periodDefaultPension`, paycalc-app.js), the HPP non-premium estimate (paycalc-hpp.js) and the
+ *  `periodDefaultPension`, above), the HPP non-premium estimate (paycalc-hpp.js) and the
  *  year summary (paycalc-year-summary.js) — and before this they all answered "the scheme rate",
  *  because being in the scheme was assumed rather than asked. A member who has withdrawn had no way
  *  to say so: her £0 held on the payslip she typed it into and reverted to £147.36 on every other,

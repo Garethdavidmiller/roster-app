@@ -428,7 +428,7 @@ jobs:
 
       # CI runners have no pre-installed browser, so fetch Chromium here. (The
       # Claude Code dev environment ships Chromium at /opt/pw-browsers, which is
-      # why the suite is now locally runnable — see ROADMAP "E2E smoke tests".)
+      # why the suite is now locally runnable — see ROADMAP_HISTORY "E2E smoke tests".)
       # THE DOWNLOAD IS CACHED; THE SYSTEM LIBRARIES ARE NOT. On 7 Oct 2026 this step ran for 9, 15 and
       # 25 minutes on three runs (about 1 on a normal day), each time inside the browser DOWNLOAD, and
       # cancelled or timed out jobs in which every test had passed. The browser now lives in the Actions

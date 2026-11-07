@@ -20,18 +20,15 @@ paths:
 
 # Weekly roster import — the parse, and every defence against a wrong week
 
-**This is the authoritative contract for the roster PDF import.** It was `CLAUDE.md`'s "Weekly
-Roster Upload" section until 15 Sep 2026, and it was moved for the reason the file tree was moved
-before it: it is 8,000 characters of parser reasoning that only a session touching the import needs,
-and `CLAUDE.md` is loaded into EVERY session. The `paths:` list above brings it back the moment
-anybody opens one of these files. `CLAUDE.md` keeps the pipeline in four lines and points here.
+**This is the authoritative contract for the roster PDF import.** `CLAUDE.md` keeps the pipeline in
+four lines and points here; the `paths:` list above loads this file whenever one of the import's
+modules is opened.
 
 > **The `paths:` list is deliberately BELT AND BRACES, and the duplicates are not an oversight.**
-> Several of these files live under `functions/`, and no other rules file in this repo globs into a
-> subdirectory — so whether the matcher reads a path or a basename has never been exercised here.
-> Getting it wrong is SILENT: nothing errors, the contract simply never loads, and somebody edits
-> the parser without it. Both spellings are listed so one of them matches either way. **The real
-> safety net is not the glob**: each of these modules names this file in its own header, so a
+> Several of these files live under `functions/`, and whether the matcher reads a path or a basename
+> has never been exercised for a subdirectory here. Getting it wrong is SILENT: nothing errors, the
+> contract simply never loads. Both spellings are listed so one of them matches either way. **The
+> real safety net is not the glob**: each of these modules names this file in its own header, so a
 > reader who opens the code is told the contract exists even if nothing auto-loaded it.
 
 Request/response format and the review pipeline: **`docs/OPERATIONS_REFERENCE.md`**. What the
@@ -43,48 +40,165 @@ Admin uploads PDF → `parseRosterPDF` (model and its settings: `MODEL_REQUEST` 
 UI → Firestore. Works for CEA/Bilingual, CES, and Dispatcher rosters.
 
 **Critical:** `RDW|HH:MM-HH:MM` pipe encoding — the AI returns `"RDW HH:MM-HH:MM"`, normalised to a
-pipe on the server (`normaliseShift`, `functions/roster-parse-helpers.js`) and stripped to a plain time on save. **Do not strip `RDW` from the AI return value.**
+pipe on the server (`normaliseShift`, `functions/roster-parse-helpers.js`) and stripped to a plain
+time on save. **Do not strip `RDW` from the AI return value.**
 
 **`source: 'roster_import'`** on all roster-upload overrides — used by `computeCellStates()` for
 COVERED / DIFF / CONFLICT classification.
 
 ## The review
 
-**An unreadable cell can be ANSWERED IN THE REVIEW (v22.17).** It used to be a dead end: the row said "check the paper roster" and the only way to act was to finish the review, leave for the Admin page, and remember the person and the day. v22.16 briefly made it worse by routing every unmarked Sunday time into the same state; that rule went at v22.19 (false premise), but the control it prompted is a keeper — the real Supervisor roster contains `SEE NATHAN` and `See CEM`, which no parser will ever read as a shift. The row now offers type pills — generated from `PILL_TYPES`, so this control and Change a Shift cannot drift — plus 24-hour `HH:MM` boxes for Shift/RDW. The composed value goes through `manualCellValue` (override-utils.js) and then the SAME `normaliseCellValue` guards as any parsed value, so entering a value is never a route to write something the parsed path would have refused. Sunday exclusions are read from `isForbiddenOnSunday`, not restated. **`other` is supported since v22.50**, with the week editor's own flavour chips and optional times (generated from `OTHER_FLAVOURS`, composed by `composeOtherValue`); Spare is the one flavour not offered here.
+**An unreadable cell can be ANSWERED IN THE REVIEW.** Real rosters carry cells no parser will ever
+read as a shift (the Supervisor sheet has `SEE NATHAN` and `See CEM`), so the row offers type pills —
+generated from `PILL_TYPES`, so this control and Change a Shift cannot drift — plus 24-hour `HH:MM`
+boxes for Shift/RDW. The composed value goes through `manualCellValue` (override-utils.js) and then
+the SAME `normaliseCellValue` guards as any parsed value, so entering a value is never a route to
+write something the parsed path would have refused. Sunday exclusions are read from
+`isForbiddenOnSunday`, not restated. `other` is offered with the week editor's own flavour chips and
+optional times (generated from `OTHER_FLAVOURS`, composed by `composeOtherValue`); Spare is the one
+flavour not offered here. The control's own rules are in `roster-entry-control.js`'s header.
+
+### A day the guards REFUSE to record is SHOWN — the `GUARDED` row
+
+Leave or an absence on a base REST day, and anything on a Sunday, is normalised to `RD` by
+`normaliseCellValue` BEFORE `computeCellStates` picks a state, so without this row the cell compares
+equal to base, comes out `MATCH` ("nothing to do") and is never rendered — the PDF said leave and the
+admin would see nothing. **The write behaviour is right**: the overpay guard means full-pay absence
+applies only to days the member was rostered to WORK. What the row prevents is the app silently
+ANSWERING a question it asks a manager out loud everywhere else (`AL on a rest day is ASKED about,
+never defaulted`) just because the fact arrived by PDF.
+
+- A `GUARDED` row carries no tick, writes nothing, is excluded from the person's pending badge, and
+  says which guard fired (`normaliseCellValue` returns `guarded`, so the reason is derived once rather
+  than re-inferred at the call site).
+- **A rest-day row ASKS** (owner: "why can't I enter the correct shift there?") — "Was it a swapped
+  working day?" with *Swapped — record it* / *Rest day — leave it*. Only "swapped" writes, and it
+  writes the roster's own `SICK`/`AL` stamped `replacedType` via `replacedTypeForSwap`, because
+  without that stamp `isOverrideDisplaySuppressed` hides an absence on a rest-day base.
+- **"Rest day — leave it" writes nothing new, but removes an earlier record on that day**, because the
+  PDF now says it is not a working day (`guardedWrites`, `deleteOnly`).
+- **Unanswered writes nothing** — asked, never defaulted — and **Skip all takes an answer back** (an
+  answered swap is a write, so a skipped section must not still write it).
+- Sundays and breaker-refused reads ask nothing.
+- **Do not point this row at Change a Shift**: there a bare absence on a base rest day is hidden
+  unless a swapped-in shift is saved first.
 
 ### The `UNKNOWN|<raw>` sentinel
 
-**A day the guards REFUSE to record is SHOWN, not hidden — the `GUARDED` row (v23.97).** Leave or an absence on a base REST day, and anything on a Sunday, is normalised to `RD` by `normaliseCellValue` BEFORE `computeCellStates` picks a state — so the cell compared equal to base and came out `MATCH`, whose own definition is "PDF matches base roster, nothing to do", and whose rows are never rendered. The PDF said leave; the admin saw nothing at all for that day. **The write behaviour was right and is unchanged** (the v16.19 overpay guard: full-pay absence applies only to days the member was rostered to WORK). What was wrong is that the app ANSWERED a question it asks a manager out loud everywhere else — `AL on a rest day is ASKED about, never defaulted` (v23.75) — purely because the fact arrived by PDF. A `GUARDED` row carries no tick, writes nothing, is excluded from the person's pending badge, and says which guard fired (`normaliseCellValue` returns `guarded`, so the reason is derived once rather than re-inferred at the call site). **Since v24.42 a rest-day row ASKS** (owner: "why can't I enter the correct shift there?") — "Was it a swapped working day?" with *Swapped — record it* / *Rest day — leave it*. Only "swapped" writes a value, and it writes the roster's own `SICK`/`AL` stamped `replacedType` via `replacedTypeForSwap`, because without that stamp `isOverrideDisplaySuppressed` hides an absence on a rest-day base. "Rest day — leave it" writes nothing new, but removes an earlier record on that day, because the PDF now says it is not a working day (`guardedWrites`, `deleteOnly`). Unanswered writes nothing — asked, never defaulted, and **Skip all takes an answer back** (v24.90: an answered swap is a write, and Skip all had left it standing, so a skipped section was still written — the v21.94 shape). Sundays and breaker-refused reads still ask nothing. Do not point this row at Change a Shift again: there a bare absence on a base rest day is hidden unless a swapped-in shift is saved first.
+A non-empty cell `normaliseShift` cannot parse is NOT defaulted to `RD` — when the base is also RD,
+that silently dropped a real shift as a MATCH. It returns `UNKNOWN|<raw>`, and `computeCellStates`
+maps it to an **UNREADABLE** review row.
 
-**`UNKNOWN|<raw>` sentinel (v15.30):** a non-empty cell `normaliseShift` can't parse is NOT defaulted to `RD` (which, when the base is also RD, silently dropped a real shift as a MATCH). It returns `UNKNOWN|<raw>`; `computeCellStates` maps it to an **UNREADABLE** review row. Since **v19.32** that row is no longer skip-ONLY: where the server sent two candidate readings (`choices`) and they survive normalisation as genuinely different values, the row offers them as a CONFLICT-style pick plus a **Skip** button, and a picked value IS written. Two readings that write the SAME hours worked are one answer and are offered as a single pick (7 Nov 2026 — a Sunday's `MEET 10:00-14:00` beside `10:00-14:00` had left nothing to pick); a lone rest day is not, because written on a rostered Sunday it takes the shift away, and a Sunday training or meeting reading is never offered. Unpicked is still the default and still writes nothing, so a row left alone behaves exactly as it did before. An empty cell is decided by the DAY (`blankCellMeaning`): `RD` on a Sunday, an UNREADABLE review row Mon–Sat (v22.19).
+- Where the server sent two candidate readings (`choices`) that survive normalisation as genuinely
+  different values, the row offers them as a CONFLICT-style pick plus a **Skip** button, and a picked
+  value IS written.
+- **Two readings that write the SAME hours worked are one answer**, offered as a single pick (a
+  Sunday's `MEET 10:00-14:00` beside `10:00-14:00`). A lone rest day is not offered — written on a
+  rostered Sunday it takes the shift away — and a Sunday training or meeting reading is never offered.
+- Unpicked is the default and writes nothing.
+- An EMPTY cell is decided by the DAY (`blankCellMeaning`): `RD` on a Sunday, an UNREADABLE review row
+  Monday to Saturday (below).
 
 ## Day drift — a week written onto the wrong days
 
-**Day-drift defence (v16.68) — three layers; a one-day shift can no longer be silently written.** The only entry point for a shifted row is the AI's visual ROW read (date assignment is deterministic: day-name keys → server dates). Layers: (1) `applySundayScanCorrections` (`functions/roster-sunday-repair.js`) — the original Sunday-anchored Case A/B repair. Its clean right-shift needs an EMPTY Saturday slot, which since v22.25 arrives as the blank-Saturday question and not `RD` — it matched neither until the v24.28 review, so every real left-shift took the partial branch. **Only that question counts as empty** (6 Nov 2026 review): a Saturday reading `RD` is a rest code somebody printed — and from v25.38 `NA` and `NS` read as `RD` — so counting it let a correctly read week, whose Sunday the scan mistook for blank, be right-shifted a day with nothing flagged. It is disputed instead. That branch no longer overwrites the Sunday claim: it leaves it for the geometry witness, and `settleDisputedSundays` sends it to review afterwards if the witness could not look; (2) **`applyColumnScanCrossCheck`** (`functions/roster-parse-helpers.js`) — the prompt now demands a second, column-by-column read (`columnScan`, generalising `sundayScan` to all 7 columns) and every cell is cross-checked row-vs-column: agreement → keep; a disagreement that realigns exactly under a one-day SUFFIX shift anchored at the first disagreeing day (a dropped blank shifts only the tail after it) with ≥2 disagreements and ≥5 signalled days → deterministic repair (two-source consensus); a **Rest ↔ Absence** disagreement (one read is `SICK` — a positive OD/HA/SC/ML/CL absence code; **SN is not one**, it is sickness on a day not booked to work and reads as RD — the other a rest day, and not a Sunday) → **records the absence** (`SICK`), because dropping a real absence is the dangerous SILENT failure (the person appears to be working) whereas a false absence is visible + correctable, and an absence code isn't hallucinated on a blank cell; any OTHER disagreement → the cell becomes `UNKNOWN|<app-language readings>? (PDF unclear)` — the UNREADABLE review state carrying BOTH readings (offered as a pick since v19.32 — above) (the readings use staff-facing terms — "Absent", never "sick"). Fails open when `columnScan` is absent. (3) **`detectShiftedRow`** (`roster-alignment.js`, client) — the AI-independent signal: the parsed week is correlated against the member's OWN base roster at offsets −1/0/+1; if a ±1 alignment beats offset 0 by ≥3 matches (and scores ≥5/7), the row is suspect.
+**Day-drift defence — three layers; a one-day shift must never be silently written.** The only entry
+point for a shifted row is the AI's visual ROW read (date assignment is deterministic: day-name keys
+→ server dates).
 
-**THE THREE "LAYERS" ARE NOT THREE WITNESSES, AND v22.16 STOPPED PRETENDING THEY WERE.** Layers 1 and 2 both come from ONE model call looking at ONE PDF — so when it visually collapses the blank Sunday cell and repeats that positional mistake across the row read, `sundayScan` AND `columnScan`, every server-side check agrees with the wrong answer and a whole week is written onto the wrong days. Nothing errors. Reproduced, and pinned by the "consistently shifted read" block in `roster-parse-helpers.test.mjs`. Layer 3 is the only genuinely independent evidence, and it was **warn-only above a fully-ticked list** — so the default action on a misread week was to save it. Now:
+1. **`applySundayScanCorrections`** (`functions/roster-sunday-repair.js`) — the Sunday-anchored Case
+   A/B repair. Its clean right-shift needs an EMPTY Saturday slot, and **only the blank-Saturday
+   question counts as empty** (`BLANK_SATURDAY`): a Saturday reading `RD` is a rest code somebody
+   printed (and `NA`/`NS` read as `RD`), so counting it would right-shift a correctly read week whose
+   Sunday the scan mistook for blank, with nothing flagged. That case is disputed instead. The
+   partial branch never overwrites the Sunday claim: it leaves it for the geometry witness, and
+   `settleDisputedSundays` sends it to review afterwards if the witness could not look.
+2. **`applyColumnScanCrossCheck`** (`functions/roster-parse-helpers.js`) — the prompt demands a
+   second, column-by-column read (`columnScan`, generalising `sundayScan` to all 7 columns) and every
+   cell is cross-checked row-vs-column:
+   - agreement → keep;
+   - a disagreement that realigns exactly under a one-day SUFFIX shift anchored at the first
+     disagreeing day (a dropped blank shifts only the tail after it), with ≥2 disagreements and ≥5
+     signalled days → deterministic repair (two-source consensus);
+   - a **Rest ↔ Absence** disagreement (one read is `SICK` — a positive OD/HA/SC/ML/CL absence code;
+     **SN is not one**: it is sickness on a day not booked to work and reads as RD — the other a rest
+     day, and not a Sunday) → **records the absence** (`SICK`), because dropping a real absence is the
+     dangerous SILENT failure (the person appears to be working) whereas a false absence is visible
+     and correctable, and an absence code is not hallucinated on a blank cell;
+   - any OTHER disagreement → `UNKNOWN|<app-language readings>? (PDF unclear)` — the UNREADABLE state
+     carrying BOTH readings, offered as a pick (above). The readings use staff-facing terms —
+     "Absent", never "sick".
 
-- **A suspect member's rows start UNTICKED** (`computeCellStates` owns the decision, so the save path inherits it).
-- **`assessRosterAlignment` refuses the WHOLE read** when `ALIGNMENT_BLOCK_THRESHOLD` (3) members drift the same DIRECTION — a batch signature is a parser failure, not several people changing their week at once. No per-row override and no "save anyway": ticks are inert, conflict choices are inert, the Save button is removed, and the save collector (`collectRosterWrites`) skips every blocked cell.
-- ~~An unmarked plain-time Sunday is never promoted to RDW~~ — **REMOVED at v22.19, premise disproved.** It assumed a genuinely worked Sunday carries an RDW marker on the paper roster. Three real rosters say otherwise: **21 worked Sundays across the CEA, Supervisor and Dispatch sheets, not one marked, while all 10 RDW markers sit on Mon–Sat.** RDW means *a rest day being worked*; Sunday is uncontracted, so its work is inherently overtime and the sheet never labels it. The rule would have sent all 21 to review — and, worse, it **fed the client's own circuit breaker an UNKNOWN exactly where the strongest drift evidence was**: on a left-shifted row the Sunday cell holds Monday's real value, which matches the base roster at +1. Measured over the whole roster, blinding it loses 2 of 14 detections, and the batch threshold is 3.
-- **A blank cell is an answer on SUNDAY and a question everywhere else** (v22.19, replacing the flat "missing key → RD"). Mon–Sat unworked days are stated explicitly on every roster type — `RD`, `AL`, `SC`, `SN`, `OD`, `HA`, `ML`, `CL`, `NA` — so a blank there is not a rest day, it is a cell nobody read. Measured over 50 member rows: 24 blank Sundays, and 5 blank Mon–Sat cells, all five belonging to ONE person who appears on a second roster and works only its Saturday — a case that wants an admin rather than a default, since writing RD across their Mon–Fri would overwrite what their primary roster's import had just written. The rule is applied at BOTH sites in `buildSafeEntries` (a day whose header the model never listed, and a header listed with nothing in it); it was `'RD'` at both, so fixing one would have fixed nothing.
-- **`NA` and `NS` are REST DAYS, on every day** (v25.38, owner 6 Nov 2026: "NA and NS should be treated as rest days on the roster uploader", Sundays included). This is the third answer the code has had, and each earlier one differed BY DAY, which is why the tests pin all seven: v24.20 made a weekday `NA` a question, on a misheard remark that it "usually only falls on a Sunday"; v24.22 made it an ABSENCE (`SICK`) Monday to Saturday and a rest day on Sunday, with `NS` — the Sunday code — absent on a weekday, decided in `functions/cell-day-rules.js` because the answer depended on the column. Now it does not, so `normaliseShift` records both as `RD` beside `SN`, and `buildSafeEntries`, the column cross-check and the grid read's rest test all get the same answer from it. The recognisers (`N/A`, `N.A.`) stay in `cell-day-rules.js`, which the Sunday scan repair also asks. **Weeks imported between 24 Sep and 6 Nov 2026 hold their NA days as Absent**, and nothing stored says which absences those were (the reason is never stored), so they change only when that week's roster is uploaded again.
-- **A MEETING IS ALWAYS A MEETING** (v25.38, owner 6 Nov 2026: "MTG should always be other (with the meeting flavour)"). Two defects, both silent. The prompt asks the model to return `MEET` for `MTG`, and `normaliseShift` knew `MTG` and `MEETING` but not `MEET` — so every meeting an obedient model returned reached the review as an UNREADABLE cell for the admin to answer by hand. And a meeting printed with its times (`10:00-14:00` above `MTG`) took the trailing-content path and saved a plain SHIFT, the meeting gone. Now `MEET` is its own alias, a meeting keeps its times in either order (`MEET 10:00-14:00`, `MEET RDW 10:00-14:00` — the client grammar's optional range, which a meeting's `hideBaseTime` was built to show), and a cell naming a meeting that it cannot read cleanly goes to review, never to a plain shift. **A Sunday still refuses it AS AN OTHER DAY** (the owner's July rule, restated 7 Nov 2026: "You can't have training or a meeting on a Sunday"), so a bare Sunday training or meeting day is a GUARDED row on EVERY Sunday, under its own reason (`sunday-other`): nothing is written, whatever the base, a saved record or an earlier import says, and the day stays as it is. Until 7 Nov 2026 that held only on a REST Sunday — on a rostered one the rewritten `RD` was compared with the base and became a ticked DIFF that turned the worked day into rest, and over a saved record a CONFLICT whose "use new roster" did the same. But one printed WITH TIMES is somebody working those hours on a Sunday, and is recorded as it was before v25.38 — rest-day working at its times (`sundaySafeValue`). Made a rest day, it was dropped on a rest Sunday, deleted on a re-upload of an earlier import, and on a ROSTERED Sunday it pre-ticked a correction that turned a worked day into rest (6 Nov 2026 review); this sentence said "as it always was" of the timed form too. The other Other flavours keep the no-times rule; written time-first they still import as a plain shift, a known gap nobody has asked to close.
-- **The review offers the original PDF**, because every message above ends in "check it against the PDF" and the file had left the workflow at parse time.
+   Fails open when `columnScan` is absent.
+3. **`detectShiftedRow`** (`roster-alignment.js`, client) — the AI-independent signal: the parsed
+   week is correlated against the member's OWN base roster at offsets −1/0/+1; if a ±1 alignment beats
+   offset 0 by ≥3 matches (and scores ≥5/7), the row is suspect.
 
-## Phase 2 — the grid ASSIGNS the day, so nothing can shift it (v24.04)
+**THE THREE "LAYERS" ARE NOT THREE WITNESSES.** Layers 1 and 2 both come from ONE model call looking
+at ONE PDF — so when it visually collapses the blank Sunday cell and repeats that positional mistake
+across the row read, `sundayScan` AND `columnScan`, every server-side check agrees with the wrong
+answer and a whole week is written onto the wrong days. Nothing errors. Pinned by the "consistently
+shifted read" block in `roster-parse-helpers.test.mjs`. Layer 3 is the only genuinely independent
+evidence, so it must never be warn-only above a fully-ticked list:
 
-**The witness below is a check on an answer the model is still free to get wrong. This removes the
-freedom.** When the PDF's drawn grid can place every member the roster type covers, the cells are
+- **A suspect member's rows start UNTICKED** (`computeCellStates` owns the decision, so the save path
+  inherits it).
+- **`assessRosterAlignment` refuses the WHOLE read** when `ALIGNMENT_BLOCK_THRESHOLD` members drift
+  the same DIRECTION (a geometry refusal counts whichever way the others lean) — a batch signature is a
+  parser failure, not several people changing their week at once. No per-row override and no "save
+  anyway": ticks are inert, conflict choices are inert, the Save button is removed, and the save
+  collector (`collectRosterWrites`) skips every blocked cell.
+- **Do not send an unmarked plain-time Sunday to review, or require an RDW marker on one.** Real
+  rosters never mark a worked Sunday (measured: 21 worked Sundays across the CEA, Supervisor and
+  Dispatch sheets, none marked, while all 10 RDW markers sat on Mon–Sat) — RDW means *a rest day being
+  worked*, and Sunday work is inherently overtime. Such a rule also blinds the drift breaker exactly
+  where its strongest evidence is: on a left-shifted row the Sunday cell holds Monday's real value,
+  which matches the base roster at +1.
+- **A blank cell is an answer on SUNDAY and a question everywhere else.** Mon–Sat unworked days are
+  stated explicitly on every roster type — `RD`, `AL`, `SC`, `SN`, `OD`, `HA`, `ML`, `CL`, `NA` — so a
+  blank there is a cell nobody read, not a rest day. The measured case is a person who appears on a
+  second roster and works only its Saturday: writing RD across their Mon–Fri would overwrite what
+  their primary roster's import had just written. The rule is applied at BOTH sites in
+  `buildSafeEntries` (a day whose header the model never listed, and a header listed with nothing in
+  it); fixing one alone fixes nothing.
+- **`NA` and `NS` are REST DAYS, on every day** (owner, 6 Nov 2026: "NA and NS should be treated as
+  rest days on the roster uploader", Sundays included). `normaliseShift` records both as `RD` beside
+  `SN`, so `buildSafeEntries`, the column cross-check and the grid read's rest test all get the same
+  answer; the tests pin all seven days, because earlier answers differed by day (history in
+  `functions/cell-day-rules.js`, whose recognisers — `N/A`, `N.A.` — the Sunday scan repair also asks).
+  **Weeks imported between 24 Sep and 6 Nov 2026 hold their NA days as Absent**, and nothing stored
+  says which absences those were (the reason is never stored), so they change only when that week's
+  roster is uploaded again.
+- **A MEETING IS ALWAYS A MEETING** (owner, 6 Nov 2026: "MTG should always be other (with the meeting
+  flavour)"). `MEET` is its own alias beside `MTG` and `MEETING` (the prompt asks the model to return
+  `MEET`); a meeting keeps its times in either order (`MEET 10:00-14:00`, `MEET RDW 10:00-14:00` — the
+  client grammar's optional range, which a meeting's `hideBaseTime` was built to show); and a cell
+  naming a meeting that cannot be read cleanly goes to review, never to a plain shift. The reasoning
+  is in `functions/roster-other-days.js`.
+- **A Sunday refuses a training or meeting day AS AN OTHER DAY** (owner: "You can't have training or a
+  meeting on a Sunday"). A bare Sunday training or meeting day is a GUARDED row on EVERY Sunday, under
+  its own reason (`sunday-other`): nothing is written, whatever the base, a saved record or an earlier
+  import says, and the day stays as it is — never a ticked DIFF or a CONFLICT whose "use new roster"
+  turns a worked day into rest. **One printed WITH TIMES is somebody working those hours on a Sunday**
+  and is recorded as rest-day working at its times (`sundaySafeValue`); never turn it into `RD`, which
+  dropped it on a rest Sunday, deleted it on a re-upload, and pre-ticked a correction that turned a
+  worked rostered Sunday into rest. The other Other flavours keep the no-times rule; written
+  time-first they still import as a plain shift — a known gap nobody has asked to close.
+- **The review offers the original PDF**, because every message above ends in "check it against the
+  PDF".
+
+## Phase 2 — the grid ASSIGNS the day, so nothing can shift it
+
+**The geometry witness (below) checks an answer the model is still free to get wrong. Phase 2 removes
+the freedom.** When the PDF's drawn grid can place every member the roster type covers, the cells are
 extracted by coordinate and the model is handed them already separated (`functions/roster-prompt.js`
-→ `buildCellTable` / `buildCellPrompt`). It never assigns a day, so a row cannot shift — there is no
-step at which anything could shift it. `sundayScan` and `columnScan` are not asked for, because they
-exist to cross-check a day assignment nobody is making.
+→ `buildCellTable` / `buildCellPrompt`). It never assigns a day, so a row cannot shift. `sundayScan`
+and `columnScan` are not asked for, because they exist to cross-check a day assignment nobody is
+making.
 
-**Why phase 1 was not enough, measured on three REAL rosters (WE 26/09/2026, all three types):** the
-witness refuses only **19 of 47** simulated one-day-left misreads. **23 of those 47 rows work all
-seven days**, so a shifted claim never lands in an empty cell and there is nothing to contradict. The
-other 60% pass silently, and no tuning changes that — it is what a witness can see.
+**Why the witness alone is not enough** (measured on three real rosters, WE 26/09/2026, all three
+types): it refuses only 19 of 47 simulated one-day-left misreads. 23 of those 47 rows work all seven
+days, so a shifted claim never lands in an empty cell and there is nothing to contradict. No tuning
+changes that — it is what a witness can see.
 
 **ALL OR NOTHING, PER DOCUMENT.** `buildCellTable` returns `usable: false` unless the grid places
 every name in `relevantNames` (already scoped by roster type). A member the grid missed would arrive
@@ -92,44 +206,39 @@ with no cells, and "no cells" is indistinguishable from "a week of blanks" by th
 `buildSafeEntries` — so one miss falls the WHOLE document back to the PDF path, which still has the
 witness, the cross-checks and the breaker. Mixing two reads of one document, half by coordinate and
 half by the model's eye, with nothing on the review saying which row came from which, is the one
-shape that must not ship. **An earlier draft gated on `activeMembers` and could never have been
-satisfied** — that list spans all three roster types plus six `hidden` Management accounts.
+shape that must not ship. **Gate on `relevantNames`, never on `activeMembers`**: that list spans all
+three roster types plus the hidden Management accounts, so it could never be satisfied.
 
-**The geometry read moved onto the critical path**, and that is the cost: it used to run free inside
-the model's latency. Measured under a second per document against a ~15s model call.
+**The geometry read is on the critical path** — measured under a second per document against a ~15s
+model call; that is the cost of the guarantee.
 
-**And moving it nearly cost the phase-1 witness, which is the bug worth remembering** (v24.05). The
-first cut reused the pre-model result for the witness further down, on the reasoning that the promise
-had settled. It has not settled when the early wait TIMED OUT — `awaitGeometryWithin` is a
-`Promise.race`, so the extraction is still running and the caller holds a fail-open object. Before
-phase 2 the only await came after the model call, so a slow extraction had the model's whole latency
-plus the budget; after, it had the budget alone, and a PDF that overran it lost BOTH the geometry
-path and the witness. `settledGeometry` re-asks on `wait-timeout` and ONLY on that — every other
-fail-open reason (`no-grid`, `pdfjs-unavailable`, `unreadable-pdf`, `no-text`, `work-budget`, `threw`) is a settled
-answer, and re-asking those would spend the whole budget again on every ordinary fallback.
+**`settledGeometry` re-asks on `wait-timeout` and ONLY on that.** `awaitGeometryWithin` is a
+`Promise.race`: when the early wait times out, the extraction is still running and the caller holds a
+fail-open object, so reusing it for the witness would lose BOTH the geometry path and the witness on a
+slow PDF. Every other fail-open reason (`no-grid`, `pdfjs-unavailable`, `unreadable-pdf`, `no-text`,
+`work-budget`, `threw`) is a settled answer, and re-asking those would spend the whole budget again on
+every ordinary fallback. The full reasoning is beside `settledGeometry` in `functions/roster-geometry.js`.
 
 **A member legitimately absent from one week's sheet turns the geometry path OFF for that upload.**
-`parseRosterPDF` already treats an absent member as advisory (`missingMembers`) — a leaver, a starter
-not yet on the rota, somebody printed elsewhere — but the gate cannot tell that apart from "the grid
-missed a row that IS on the page". It takes the safe reading. So phase 2 can go quiet for a roster
-type and nothing will look broken; the coordinator logs which path it took, with the reason and the
-unmatched count, on every parse. Read that line first.
+`parseRosterPDF` treats an absent member as advisory (`missingMembers`) — a leaver, a starter not yet
+on the rota, somebody printed elsewhere — but the gate cannot tell that apart from "the grid missed a
+row that IS on the page", and takes the safe reading. So phase 2 can go quiet for a roster type with
+nothing looking broken; the coordinator logs which path it took, with the reason and the unmatched
+count, on every parse. Read that line first.
 
-**An EMPTY read of a FILLED cell is a question, not the day's default** (whole-app review, Oct
-2026). `buildSafeEntries` resolves a blank by the day — a rest day on Sunday — which is right when
-nobody knows what the cell held. On this path the server does, so `reviewBlankReadsOfFilledCells`
-(`roster-prompt.js`) sends such a cell to the review naming its printed text. Before it, a worked
-Sunday the model reported as BLANK became `RD`, matched the base Sunday and was never shown; the
-witness cannot see that case, because `RD` is not a claim. A cell that SAYS rest is left alone, and
-the rule feeds nothing to the drift breaker.
+**An EMPTY read of a FILLED cell is a question, not the day's default.** `buildSafeEntries` resolves a
+blank by the day — a rest day on Sunday — which is right when nobody knows what the cell held. On this
+path the server does, so `reviewBlankReadsOfFilledCells` (`roster-prompt.js`) sends such a cell to the
+review naming its printed text; otherwise a worked Sunday the model reported as BLANK becomes `RD`,
+matches the base Sunday and is never shown, and the witness cannot see it because `RD` is not a claim.
+A cell that SAYS rest is left alone, and the rule feeds nothing to the drift breaker.
 
-**And a REST DAY read for an EMPTY weekday cell is a question too** (test audit, 7 Nov 2026 —
-`reviewRestReadsOfEmptyCells`, beside it). Monday to Saturday a blank is never a rest day (v22.19),
-and `buildSafeEntries` asks that question when the model reports the cell BLANK — but a model that
-answered `RD` for it was believed, because the witness refuses only claims and a rest day is not one.
-That is the second-roster member the v22.19 measurement found: `RD` across their Monday to Friday,
-written over their primary roster's import, with nothing on the review. Sunday is left alone — a blank
-Sunday IS a rest day — and, like its twin, the rule feeds nothing to the drift breaker.
+**And a REST DAY read for an EMPTY weekday cell is a question too** (`reviewRestReadsOfEmptyCells`,
+beside it). Monday to Saturday a blank is never a rest day, and a model that answered `RD` for it
+would otherwise be believed, because the witness refuses only claims — the second-roster case above:
+`RD` across a Monday to Friday, written over the primary roster's import, with nothing on the review.
+Sunday is left alone (a blank Sunday IS a rest day), and like its twin the rule feeds nothing to the
+drift breaker.
 
 **The cell table is JSON, one object per member, and that is a safety property.** A roster cell
 legitimately contains a pipe (`06:00-14:00 | CEA 1` is one cell's two printed lines), so a delimited
@@ -137,28 +246,31 @@ table would draw its structure and its data from the same alphabet. As JSON the 
 escaping are one mechanism, and a cell carrying newlines or quotes cannot forge a row or a day —
 pinned by the injection block in `roster-cell-read.test.mjs`.
 
-**What the real files settled about LINES.** Every one of the **55 distinct values appearing on a
-non-first line of a cell is a DUTY code** (`CEA 10`, `SUP 1`, `Dispatch`, `Shadow Nights`). No status
-code sits on a second line — because a non-worked day has no time line above its code, so under the
-grid a leave cell is a ONE-LINE cell. The line-position defect that `roster-prompt-parity` exists for
-does not get caught here; it stops existing. The rule that follows is by CONTENT — drop what looks
-like a duty code, normalise what remains — never "take the first line", which is the same positional
-reasoning that failed before.
+**LINES are read by CONTENT, never by position.** On the real files every value on a non-first line
+of a cell is a DUTY code (`CEA 10`, `SUP 1`, `Dispatch`, `Shadow Nights`); no status code sits on a
+second line, because a non-worked day has no time line above its code. So the rule is: drop what
+looks like a duty code, normalise what remains — never "take the first line", which is the same
+positional reasoning that failed before.
 
-**ONE code table, and both prompts interpolate it.** `SHIFT_VOCABULARY` moved out of
-`functions/index.js` into `roster-prompt.js`; two prompts with two copies would leave one unguarded,
-which is exactly the rot `roster-prompt-parity.test.mjs` was written for. That test now reads the
-table there, asserts both prompts use it, and checks the direction nobody was checking: **every code
-the PROMPT names must be accepted by `normaliseShift` or waived by name.** One is waived, with its
-reason — `GER` (Gerrards Cross, a LOCATION marker, where the model's reordering does real work: the
-parser reads `06:00-12:00 GER` but not `GER 06:00-12:00`). `NA`/`N/A`/`NS` were waived as "decided by
-the day" until v25.38, when they became rest days the parser reads itself. **And since v25.38 it reads
-the RIGHT of each row too: every value the prompt tells the model to RETURN must be one
-`normaliseShift` accepts** — the check that would have caught `MEET`. The left-hand check could not
-have: it never read that row at all. Its pattern took codes of six letters or fewer, one word, so every
-training and meeting row (`TRAINING`, `TEAM DAY`, `UNION COURSE`, `MTG`…) was skipped whole until
-7 Nov 2026, when it learnt to read them.
+**ONE code table, and both prompts interpolate it.** `SHIFT_VOCABULARY` lives in `roster-prompt.js`;
+two prompts with two copies would leave one unguarded. `roster-prompt-parity.test.mjs` reads the
+table there, asserts both prompts use it, and checks both directions of every prompt row, multi-word
+rows included: **every code the PROMPT names must be accepted by `normaliseShift` or waived by name**,
+and **every value the prompt tells the model to RETURN must be one `normaliseShift` accepts**. One code
+is waived, with its reason — `GER` (Gerrards Cross, a LOCATION marker, where the model's reordering
+does real work: the parser reads `06:00-12:00 GER` but not `GER 06:00-12:00`).
 
 ## The geometry gate — the one independent witness
 
-**The strong witness is now IN the pipeline (v22.31, `functions/roster-geometry.js` — ROADMAP "Roster import" phase 1).** The roster's table rules are DRAWN in the PDF, at nine fixed x positions on every content page of every roster type measured, and assigning each text run by coordinate places every cell — on the row that drifts, not one text object sits in the Sunday column. `parseRosterPDF` reads that grid in parallel with the model call and applies it as the FINAL gate, after the column cross-check and the Sunday corrections: **an AI day landing in a physically EMPTY cell is refused, not weighed** — the cell becomes UNREADABLE and the row comes back as `geometryRefused`, which `roster-alignment.js` treats exactly like a base-roster drift (unticked; three trip the breaker). Zero false refusals on the corpus. It fails open everywhere and says so (`geometry.status`), and it cannot see a fully occupied week or an `RD` in an occupied cell — those are phases 2 and 3, and KNOWN_LIMITATIONS says so. `pdfjs-dist@4.10.38` is now a dependency of `functions/` (server-side; the fourth vetted library — the owner's call to keep, and one line to remove).
+`functions/roster-geometry.js` (ROADMAP "Roster import" phase 1). The roster's table rules are DRAWN
+in the PDF, at nine fixed x positions on every content page of every roster type measured, and
+assigning each text run by coordinate places every cell — on the row that drifts, not one text object
+sits in the Sunday column. `parseRosterPDF` reads that grid in parallel with the model call and
+applies it as the FINAL gate, after the column cross-check and the Sunday corrections: **an AI day
+landing in a physically EMPTY cell is refused, not weighed** — the cell becomes UNREADABLE and the row
+comes back as `geometryRefused`, which `roster-alignment.js` treats exactly like a base-roster drift
+(unticked, and counted toward the breaker). Zero false refusals on the corpus. It fails open
+everywhere and says so (`geometry.status`), and it cannot see a fully occupied week or an `RD` in an
+occupied cell — those are phases 2 and 3, and KNOWN_LIMITATIONS says so. `pdfjs-dist@4.10.38` is a
+dependency of `functions/` (server-side; the fourth vetted library — the owner's call to keep, and one
+line to remove).

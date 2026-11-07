@@ -1,8 +1,8 @@
 # Overtime Availability — feature design
 
-*Not version-stamped; not a runtime asset. Shipped v20.56–v20.61.*
+*Not version-stamped; not a runtime asset.*
 
-**PAUSED since v25.05 (owner, Nov 2026).** Nobody can open it, the admin included, and nothing runs but the
+**PAUSED (owner, 1 Nov 2026).** Nobody can open it, the admin included, and nothing runs but the
 retention purge. Everything below is the design it returns with; [Paused](#paused-owner-nov-2026) says what is off and how to switch it back on.
 
 Staff declare, per day, when they are available for overtime in a future roster week. A reviewer
@@ -19,10 +19,12 @@ release. Everything else is routed the usual way:
 |---|---|
 | Every RULE — clock, milestones, phases, participant selection, schema, concurrency | `functions/overtime-core.js` (header + `overtime-core.test.mjs`) |
 | The seven endpoints (five HTTP + two daily schedules), auth, transactions, batches | `functions/overtime.js` |
-| Words, London time formatting, derived history | `overtime-format.js` |
+| The Europe/London offset every deadline rests on | `functions/london-clock.js` |
+| Words, London time formatting, derived history | `overtime-format.js` · where the week stands, in the member's terms: `overtime-phase.js` |
 | Submit disposition and the other client deadline decisions | `overtime-clock.js` |
-| The page: access gate, tabs, planning horizon | `overtime-app.js` |
-| The member's seven-day form | `overtime-form.js` · roster context: `overtime-roster.js` |
+| The page: access gate, tabs, the paused note | `overtime-app.js` |
+| The member's seven-day form | `overtime-form.js` · one day's answer: `overtime-answer.js` · the Sunday-release request: `overtime-sunday-release.js` · roster context: `overtime-roster.js` |
+| The reviewer's side: planning horizon, week selection, creation preview and confirm bar | `overtime-review-controller.js` |
 | The reviewer's by-day workspace | `overtime-manager.js` |
 | Server calls, timeout budgets, corrected clock | `overtime-data.js` |
 | Storage shape and read permissions | `firestore.rules` → `overtimeWindows` |
@@ -43,7 +45,7 @@ change to the code it shares (the menu, sign-in, the rules, the service worker) 
 |---|---|
 | Every menu | No ⏱️ Overtime pill, for anyone: `canOpenOvertime` (`auth-policy.js`) is false while `overtimeEnabled()` is |
 | `overtime.html` | A calm "paused" note, to everyone, signed in or out. No sign-in is offered and nothing is queried |
-| Cloud Functions | `functions/index.js` exports only `purgeExpiredOvertimeWindows`, read from the generated `overtimeEnabled` in `functions/roster-members.json`. The release that ships the pause REMOVES the five endpoints and the daily creator from production (the deploy runs `--force`); no week is made, nobody is asked, nothing is sent |
+| Cloud Functions | `functions/index.js` exports only `purgeExpiredOvertimeWindows`, read from the generated `overtimeEnabled` in `functions/roster-members.json`. The five endpoints and the daily creator are therefore not deployed — the deploy runs `--force`, so the pause release removed them from production — and no week is made, nobody is asked, nothing is sent |
 | Data | The purge keeps running, armed from 1 Dec 2026 (Retention, below), so the weeks already made, and anything entered in them, delete themselves 91 days after their Saturday. The last goes by about mid-March 2027 |
 | Tests | All of them still run. The browser suites switch it back on through the `__E2E.overtimeEnabled` seam, so they keep driving the real page; the paused page has tests of its own. `functions-surface.test.mjs` pins both deploy surfaces |
 
@@ -69,7 +71,7 @@ module beside the code.
 | # | Invariant | Where it lives |
 |---|---|---|
 | 1 | **No response and not available are different answers.** No view may merge them, and an empty section still renders its heading — a hidden "No response" makes *nobody outstanding* look exactly like a section that failed to draw. | `overtime-manager.js` |
-| 2 | **An unanswered day stays unanswered.** No default, no copy-last-week, no inferring from the roster. | `overtime-form.js` · `overtime-answer.js` (v23.87 — a Sunday-release request on an unanswered day leaves it unanswered: `{ releaseRequested: true }` with no mode, which `dayUnfinished` still counts. Until then the tick wrote `unavailable` underneath) |
+| 2 | **An unanswered day stays unanswered.** No default, no copy-last-week, no inferring from the roster. | `overtime-form.js` · `overtime-answer.js` (a Sunday-release request on an unanswered day leaves it unanswered: `{ releaseRequested: true }` with no mode, which `dayUnfinished` still counts) |
 | 3 | **The client never refuses a submission near a deadline.** Inside the grace band it sends and lets the server decide — a client that refuses has denied somebody who was in time. | `overtime-clock.js` (`submitDisposition`) |
 | 4 | **A timed-out write goes into RECONCILIATION, never reported as failed.** Aborting stops us waiting; it does not stop the server writing. `clientMutationId` is generated in one place so no call site can forget it. | `overtime-form.js` · `overtime-data.js` |
 | 5 | **The participant snapshot is frozen at creation.** Its one exception is a leaver: a flag, never a delete, refused on a closed week, idempotent both ways (a second withdrawal must not re-stamp `withdrawnAt`, which restore is decided from), and removing the flag rather than writing `withdrawn: false` — because `where('withdrawn','==',true)` never matches a missing field. Creation uses `create`, not `set`, so a second concurrent creator cannot overwrite a frozen population. | `functions/overtime.js` (`withdrawOvertimeParticipant`) |
@@ -79,10 +81,9 @@ module beside the code.
 | 9 | **Retention is filtered in the endpoints, not in the rules.** Rules are not filters: a `resource.data` condition fails the whole query rather than dropping a row, so one expired document would blank a reviewer's workspace. | `functions/overtime.js` |
 | 10 | **The purge deletes bottom-up, parent LAST.** Firestore does not cascade, and a parent deleted alone orphans its tree permanently. | `functions/overtime.js` (`purgeExpiredOvertimeWindows`) |
 | 11 | **Never name an internal document in staff-facing copy.** "The draft roster" is the roster office's artefact; to staff "the roster" is the one released on the Thursday. Reviewer surfaces may name it freely. | `overtime-format.js` |
-| 12 | **A withdrawn member is withdrawn on BOTH sides.** `getMyOvertimeState` omits the window and `submitOvertimeAvailability` refuses with its own code (`withdrawn`, distinct from `not-a-participant` — one was never asked, the other was and has been stood down). Hiding the window is the courtesy; refusing the write is the half that matters, because a page opened before the withdrawal still has the form and the button. **The refusal is decided INSIDE the submission transaction** (v24.48, external audit F3): the early check runs before it, so a withdrawal landing between the two was invisible and the member got a 200 and a new revision. | `functions/overtime.js` |
+| 12 | **A withdrawn member is withdrawn on BOTH sides.** `getMyOvertimeState` omits the window and `submitOvertimeAvailability` refuses with its own code (`withdrawn`, distinct from `not-a-participant` — one was never asked, the other was and has been stood down). Hiding the window is the courtesy; refusing the write is the half that matters, because a page opened before the withdrawal still has the form and the button. **The refusal is decided INSIDE the submission transaction** — a check before it cannot see a withdrawal that lands in between. | `functions/overtime.js` |
 | 13 | **Creation is conditional; the daily top-up is not.** "Nothing due" is the NORMAL state — the horizon is pre-created — so an early return on it would run the top-up only on the one day a week a new week enters the horizon, and a member invited on any other day would have no form on any already-open week until then. | `functions/overtime.js` (`autoCreateOvertimeWindows`) |
-
-| 14 | **A release request is a REQUEST, on CONTRACTED work, and it grants nothing.** `releaseRequested` asks the roster team to take the member off a Sunday they are rostered to. It writes no override, changes no roster and consumes no annual leave — Sundays stay uncontracted for leave. No surface may word it as granted, and it must never be merged with the day's overtime answer, which is about different work entirely. | `functions/overtime-core.js` (`REQUEST_DAY_FIELDS`; since v23.87 refused on any day but a Sunday — the server checks the calendar, still never the roster) · `overtime-answer.js` (the request survives every mode change and the bulk fill, and answers nothing itself — the two were merged in the client until v23.87) |
+| 14 | **A release request is a REQUEST, on CONTRACTED work, and it grants nothing.** `releaseRequested` asks the roster team to take the member off a Sunday they are rostered to. It writes no override, changes no roster and consumes no annual leave — Sundays stay uncontracted for leave. No surface may word it as granted, and it must never be merged with the day's overtime answer, which is about different work entirely. | `functions/overtime-core.js` (`REQUEST_DAY_FIELDS`; refused on any day but a Sunday — the server checks the calendar, never the roster) · `overtime-answer.js` (the request survives every mode change and the bulk fill, and answers nothing itself) |
 
 Reviewing is not participating — that one is an authorisation rule and lives in
 `AUTH_AND_SESSIONS.md` invariant 14, with the rest of the claim model.
@@ -105,10 +106,10 @@ never what exists.
 
 Anything that makes those rows less prominent makes the feature less safe.
 
-## The member surface's wording grammar (v20.84)
+## The member surface's wording grammar
 
-A wording sweep after the owner reported the area "messy and inconsistent" — which, inventoried,
-was four faults with one rule each. Keep to these when adding copy:
+Four rules, from a sweep after the owner reported the area "messy and inconsistent". Keep to them
+when adding copy:
 
 1. **A week is named once per surface.** The heading names it ("Week ending Saturday 29 August
    2026"); the span beneath locates it ("Sun 23 – Sat 29 Aug"). Never label the span "Roster
@@ -118,13 +119,11 @@ was four faults with one rule each. Keep to these when adding copy:
    was", "Closes" and "Answers due" on one page; only the reviewer's horizon keeps "Answers due"
    for the FIRST deadline, because it genuinely is a different boundary.
 3. **Every green pill completes "Available …"** — All day · Before 07:00 · After 15:00 · Before &
-   after duty · Custom times — and "Not available" stands apart as the charcoal answer. (The list
-   shrank twice after this rule was written: the `all_day` duplicate on worked days at v21.22, and
-   the 12-hour pill at v21.24 when willingness became its own tick. The RULE is unchanged.) The recorded CHIP keeps the full form ("Available all day"): chips stand alone on the
-   reviewer's list; buttons sit in a radiogroup already labelled "Availability on <day>".
-4. **Each fact is stated once, in one phrasing.** The BETA strip says the data is real, the card
-   hint says who the form tells, the explainer says it books nothing — three sentences, three
-   jobs, where they used to circle the same relationship. The privacy line uses the ? panel's
+   after duty · Custom times — and "Not available" stands apart as the charcoal answer. The
+   recorded CHIP keeps the full form ("Available all day"): chips stand alone on the reviewer's
+   list; buttons sit in a radiogroup already labelled "Availability on <day>".
+4. **Each fact is stated once, in one phrasing.** The card hint says who the form tells and the
+   explainer says it books nothing — one job each, where they used to circle the same relationship. The privacy line uses the ? panel's
    exact phrasing ("Managers and the admin can see what you submit"), and the member's row states
    speak one voice: Submitted — you can still change it · Submitted — now final · Not submitted
    yet · Nothing was submitted.
@@ -193,9 +192,8 @@ Widening the beta is a one-word edit there plus a deploy. A window's participant
 into its `participants` subcollection at creation and is **never rewritten** — including when a second
 Create arrives for a week that already exists. A pilot rung slots in as a third value.
 
-**But a frozen population may GROW while its week is still open** (v20.78), and it has to. The
-original rule was "existing windows are untouched", which was correct in isolation and became wrong
-the moment creation was automated: the scheduler keeps the whole horizon made in advance, so by the time
+**But a frozen population may GROW while its week is still open**, and it has to. "Existing
+windows are untouched" was correct in isolation and became wrong the moment creation was automated: the scheduler keeps the whole horizon made in advance, so by the time
 anybody is invited, every week they could usefully answer already exists. "Untouched" quietly meant
 "an audience change never takes effect". It was reported live — a member added to the beta was told
 "no forms are open for you" while the admin's were open, and her first form would have been a week
@@ -210,8 +208,8 @@ you can still meet.**
 | `FINAL_OPEN` (between the two deadlines) | **Never** | they can still submit, but not on time — every judgement about them would be false (see below) |
 | `CLOSED` / expired | **Never** | they could never have answered — adding them manufactures a permanent false non-responder, which is exactly what the freeze exists to prevent |
 
-**The middle row is the correction, and it is worth stating why (v20.81, external review).** v20.78
-gated this on "still open", which is one deadline too late. A window has two, and the FIRST is the
+**The middle row is the one that is easy to get wrong.** Gating on "still open" is one deadline
+too late. A window has two, and the FIRST is the
 one every judgement is measured against: `deriveHistory` asks whether anything was accepted before
 `initialDeadlineAt`. Add somebody after that and both answers about them are wrong in the same
 direction — until they submit they sit under **No response** for a deadline that pre-dated their
@@ -235,9 +233,9 @@ pressing "Add N" would actually add**. Without it the week looks complete, becau
 answered. It is `null` for a closed or final-phase week, so the row cannot offer an addition the server
 would refuse.
 
-**One number, computed server-side, deliberately (v21.15).** It used to send `audienceCount` (the size
-of the current audience) and let the client subtract `expected` — and those count different
-populations, because `expected` is net of withdrawals while `addMissingParticipants` compares the
+**One number, computed server-side, deliberately.** Sending `audienceCount` (the size of the
+current audience) and letting the client subtract `expected` went wrong, because those count
+different populations, because `expected` is net of withdrawals while `addMissingParticipants` compares the
 audience against *every* participant document, withdrawn included. So one use of **Stop asking** gave
 that week a permanent "Add 1": pressing it added nobody, reported "Nobody new to add", re-rendered and
 offered it again, on every load until the week left `INITIAL_OPEN`. The withdrawal feature changed what
@@ -273,11 +271,9 @@ The population comes from `functions/roster-members.json` (`overtimeRoster`, gen
 `npm run generate:roster-members` — never hand-edited, CI-locked). A new starter is therefore
 invisible to this feature until that file is regenerated, exactly as they are to roster import.
 
-**That file states who EXISTS, not who is asked** (v20.72). It lists every member with their
-`hidden` and `managerOnly` flags; `selectParticipants` decides. Until v20.72 the generator was
-called `overtimeEligibleMembers` and applied `!hidden && !managerOnly` at generation time — the same
-rule, in a file that cannot express a second audience and that nobody would think to open when
-asking who gets the form. Moving it changed no behaviour and made the rule answerable.
+**That file states who EXISTS, not who is asked.** It lists every member with their `hidden` and
+`managerOnly` flags; `selectParticipants` decides. A generated file cannot express a second
+audience, and nobody would think to open it when asking who gets the form.
 
 `selectParticipants` is deliberately **two stages**. Stage 1 is who could ever be asked — on this
 week, still here, and **not a manager** — and it binds every audience, including ones not yet
@@ -289,13 +285,12 @@ watched before every member has it. Stage 1 still binds those names: inviting a 
 changes nothing, which is what stops the invitation list becoming a second, unreviewed route into a
 population.
 
-**Reaching the page is a separate question from reviewing it, and the first invited CEA is what
-exposed that** (v20.76). The page had only ever had the reviewer answer — the nav pill was
-reviewer-gated and `PAGE_POLICIES.overtime` demanded an `admin`/`manager` role — so a member the
-server was already asking would have found no link in the drawer and a "not open to everyone yet"
-panel if she typed the URL, with her form waiting on the server the whole time. `canOpenOvertime`
-(reviewer **or** invited participant) now gates both; `isOvertimeReviewer` is untouched and still
-decides who may see anybody else's declarations. **Do not merge the two predicates.** Widening the
+**Reaching the page is a separate question from reviewing it.** Gated on the reviewer role alone,
+a member the server was already asking would find no link in the drawer and a "not open to everyone
+yet" panel if they typed the URL, with their form waiting on the server the whole time. So
+`canOpenOvertime` (reviewer **or** invited participant) gates both the nav pill and
+`PAGE_POLICIES.overtime`, while `isOvertimeReviewer` still decides who may see anybody else's
+declarations — and while the feature is paused, `canOpenOvertime` is false for everyone. **Do not merge the two predicates.** Widening the
 reviewer test to make a pill appear is the one edit that turns a testing invitation into access to
 colleagues' availability.
 
@@ -315,8 +310,8 @@ Dispatchers are the only grade rostered across midnight (22:00–07:00, 22:30–
 ending past 00:00). On such a day the duty's `end` is the **next** calendar morning, and two of the
 roster-anchored offers are wrong there in different ways: "After {end}" stores a boundary on the
 wrong day (hours the member never declared), and "Before & after duty" stores `until > from` —
-which `normaliseDay` refuses as `before-after-inverted`, so the button was an offer that could
-never be saved. Found by the v20.75 review, verified end-to-end before fixing.
+which `normaliseDay` refuses as `before-after-inverted`, so the button would be an offer that
+could never be saved.
 
 The rule (in `modesFor`, `overtime-format.js`): an overnight day offers Not available / All day /
 **Before {start}** / Custom. The pre-duty gap is real, so "Before" survives; everything else the
@@ -341,7 +336,7 @@ twice, on both days, producing a record neither they nor the clerk could act on.
 exposed to the same misreading from the other side: seeing the pair as a contradiction and ringing
 somebody to resolve one that does not exist.
 
-So it is stated on both surfaces (v20.88) — the member's custom-times hint says the range still
+So it is stated on both surfaces — the member's custom-times hint says the range still
 belongs to the day it starts on, and both `?` panels carry the rule in their own voice. **No logic
 changed**, and none should: the alternative reading would require a period crossing midnight to
 feed into two dates, which is a materially more complicated model for a station where the roster
@@ -350,87 +345,58 @@ cost to weigh.
 
 ---
 
-## "Up to 12 hours" — the one mode that is a ceiling, not a clock time (v20.83, owner)
+## The 12-hour ceiling, and the willingness tick (owner)
 
-Twelve hours is the legal ceiling of a turn, so the declaration means "I will work up to a 12-hour
-day": a full 12-hour turn on a rest day, or extending a rostered duty to 12 hours total on a worked
-one. It stores nothing but its mode — like `all_day`, there is no boundary a roster change could
-invalidate, so `answerAnchorStale` never fires on it and the reviewer's chip needs no times.
-
-**The offer is withheld on a day whose effective roster already reaches 720 minutes** — including a
-12-hour RDW already agreed as extra — because on that day there is nothing left to offer and the
-pill would be a question with no meaning. The gate (`offersFullTwelve` — `modesFor` until v21.24 —
-keyed on `rosteredMinutes` from `overtime-roster.js`) needs a POSITIVE fact to fire: an unknown day is not "already rostered
-12 hours", so the pill shows there. That is the same direction every unknown resolves on this page —
-withhold what would ANCHOR to an unverified roster (the before/after shortcuts), keep what anchors
-to nothing (this, all-day, custom). The server accepts the mode unconditionally, deliberately: the
-gate is about not asking a pointless question, not about policing a declaration that is valid
-whatever the roster later becomes.
-
-### The 12-hour ceiling is a rule, not an answer (v21.22, owner)
-
-The owner's Aug 2026 review of the option set asked whether a member needs to press TWO pills —
-"before or after my shift, but also up to 12 hours". The answer settled the model: **the 12-hour
-ceiling binds every plan whatever a member answers**, so "before & after AND up to 12 hours" adds
-nothing to "before & after" — the cap is not the member's to grant, and the form stays one tap per
-day. Three consequences shipped together:
-
-- **The cap is now STATED** — a standing `.ot-cap-note` above the day list ("However you answer, a
-  working day is never planned past 12 hours in total"), because until it was said, the 12-hour
-  pill reasonably looked like something you had to opt into.
-- **The 12-hour pill is worded as what it uniquely adds** — willingness for the LONGEST day
-  allowed: "For a full 12-hour turn" (rest) / "For a full 12 hours in total" (on duty). As "up
-  to …" it read as a duplicate of "All day" on rest days.
-- **The both-sides duplicate is folded**: on a normal worked day "Any time around my shift"
-  (`all_day`) and "Before & after duty" meant the same thing to a clerk, so `modesFor` withholds
-  `all_day` wherever `before_after` can be offered. The survivor stores the declared clock times —
-  a later roster change flags the answer stale instead of silently re-pointing it, which is the
-  schema's own philosophy. `all_day` stays on rest/spare days, overnight duties and unknown
-  rosters, and a saved `all_day` on any day still renders (the form re-adds a stored mode).
-
-Full multi-select was considered and rejected: it creates contradiction states the server would
-have to referee, and every stored answer stops being one unambiguous statement — the property the
-whole feature is built on.
-
-### SETTLED at v21.24: the two dimensions split (owner)
-
-External review of v21.22 pressed the point and it was right: with the cap stated, `twelve_hours`
-was redundant on a rest day (where "All day" already permits a 12-hour duty) and actively unhelpful
-on a worked one (it gave a DURATION with no WINDOW, so a clerk could not build a duty from it
-without ringing the person). The reviewer's remedy was to delete it and keep 12 hours purely as the
-planning ceiling — which is clean, and throws away the willingness signal the owner asked for at
-v20.83.
-
-The owner chose the third option: **split the dimensions rather than trade one for the other.**
+Twelve hours is the legal ceiling of a turn, and **it binds every plan whatever a member answers**
+(owner, Aug 2026). So it is STATED rather than offered: `.ot-cap-note` reads "A working day is never
+planned past 12 hours in total, whatever you answer below." Willingness to work the longest day
+allowed is a different question, and it has its own control, because the two dimensions do not
+overlap (owner, settled after external review):
 
 | Question | Control | Stored as |
 |---|---|---|
 | When can you work? | the radio group | `mode` (+ its clock boundaries) |
 | Would you work a long day? | an optional tick under it | `fullTwelve: true`, or absent |
 
-Nothing now overlaps, and both answers are expressible at once — "before and after my duty, **and**
-go long if it helps" is one unambiguous statement, which is exactly what the retired mode could not
-make. Five consequences worth keeping:
+Both answers are expressible at once — "before and after my duty, **and** go long if it helps" is
+one unambiguous statement. The rules that keep it that way:
 
-- **`twelve_hours` is retired, not deleted.** Revisions are append-only and immutable, so beta
-  answers stored under it live out their retention window; it stays in the schema, in `answerCopy`,
-  and in the form's stored-mode fallback. Removing it would make real records unreadable.
-- **"Up to" is correct on the tick and was wrong on the mode.** Beside a window it grants
-  PERMISSION for a long duty rather than naming a duration — the ambiguity that retired the mode.
-- **The flag is stored only when true**, so answers written before and after this change stay
+- **The tick is withheld on a day whose effective roster already reaches 720 minutes**
+  (`offersFullTwelve`, keyed on `rosteredMinutes` from `overtime-roster.js`) — including a 12-hour
+  RDW already agreed as extra, because there is nothing left to offer. It needs a POSITIVE fact to
+  fire: an unknown day is not "already rostered 12 hours", so the tick shows there. That is the
+  direction every unknown resolves on this page — withhold what would ANCHOR to an unverified roster
+  (the before/after shortcuts), keep what anchors to nothing (this, all-day, custom). The server
+  accepts the flag whatever the roster: the gate is about not asking a pointless question.
+- **"Up to" is correct on the tick.** Beside a window it grants PERMISSION for a long duty rather
+  than naming a duration.
+- **The flag is stored only when true**, so answers written before and after the split stay
   structurally comparable and nothing needs migrating.
 - **It is refused beside `unavailable`**, server and client, and the chip never renders that pairing.
 - **It survives a change of window but not a change to `unavailable`** — the two answers are
   independent, so moving the window must not silently retract it.
+- **`twelve_hours` is retired, not deleted.** It was a mode before the split, and it gave a DURATION
+  with no WINDOW, so a clerk could not build a duty from it. Revisions are append-only and immutable,
+  so answers stored under it live out their retention window; it stays in the schema, in
+  `answerCopy` and in the form's stored-mode fallback. Removing it would make real records unreadable.
+- **The both-sides duplicate is folded.** On a normal worked day "Any time around my shift"
+  (`all_day`) and "Before & after duty" mean the same thing to a clerk, so `modesFor` offers
+  `all_day` only on rest/spare days, overnight duties and unknown rosters. The survivor stores the
+  declared clock times, so a later roster change flags the answer stale instead of silently
+  re-pointing it — the schema's own philosophy. A saved `all_day` on any day still renders (the form
+  re-adds a stored mode).
+- **Full multi-select was considered and rejected:** it creates contradiction states the server
+  would have to referee, and every stored answer stops being one unambiguous statement — the
+  property the whole feature is built on.
 
-**It shipped in TWO pushes**, and anything similar must too: the three deploy workflows fire in
-parallel, so a client that gained the field before the server accepted it would have met
-`unknown-field` and refused real submissions for the length of the Functions deploy. v21.24 was the
-server accepting it (inert, nothing sent it); v21.25 was the client offering it.
+**A new answer field ships in TWO pushes**, and anything similar must too: the three deploy
+workflows fire in parallel, so a client that gained the field before the server accepted it would
+meet `unknown-field` and refuse real submissions for the length of the Functions deploy. The server
+accepts it first, inert; the client offers it in the next release.
 
 ---
 
-## Restoring is not the mirror of withdrawing (v21.26, external review)
+## Restoring is not the mirror of withdrawing
 
 `Stop asking` and `Ask again` look like one control in two directions. They are not, because only
 one of them can make the app state something false about a person.
@@ -462,7 +428,7 @@ Three details worth keeping:
 
 ---
 
-## Per-day freshness (v21.26, external review)
+## Per-day freshness
 
 A submission has ONE `updatedAt`, and the reviewer's rows printed their age from it. So a member who
 answered the whole week a fortnight ago and edited only the Saturday this morning had all seven days
@@ -530,15 +496,14 @@ It is deliberately *not* a Firestore rule. Rules are not filters: a `resource.da
 collection read fails the **whole query** rather than dropping a row, so one expired document would
 blank a reviewer's entire workspace.
 
-**The purge ARMS ITSELF ON 1 DECEMBER 2026** (v20.96 built it disarmed; dated at v24.10, owner
-decision). `purgeExpiredOvertimeWindows` runs daily at 04:00 Europe/London — an hour before the
+**The purge ARMS ITSELF ON 1 DECEMBER 2026** (owner decision, 19 Sep 2026). `purgeExpiredOvertimeWindows` runs daily at 04:00 Europe/London — an hour before the
 creator, so the two never contend — selects every window past its `retentionUntil`, walks it
 bottom-up and reports exactly what it would remove. Before the date it reports and deletes nothing;
 from the date it deletes. The rule is `purgeArmedAt` in `functions/overtime-core.js`.
 
-**Why a date, and why not the obvious one.** It shipped behind a boolean somebody would flip after
-reading a real dry run, and the owner asked for it armed on 19 Sep 2026. The calendar refused the
-straight answer three times over, and each refusal shaped the one above:
+**Why a date, and why not the obvious one.** It was built disarmed, behind a boolean somebody would
+flip after reading a real dry run, and the owner asked for it armed on 19 Sep 2026. The calendar
+refused the straight answer three times over, and each refusal shaped the one above:
 
 - **Flipping it that day would have deleted nothing for 63 days**, because retention is 91 days past
   the week-ending Saturday and the first windows ended 22 Aug — so the earliest expiry is 21 Nov.
@@ -546,8 +511,7 @@ straight answer three times over, and each refusal shaped the one above:
 - **It would also have retired the evidence gate**, since the only runs that can ever show a real
   window are the ones from 21 Nov onward, and arming turns those into deletions.
 - **And arming ON 21 Nov has the same flaw in miniature** — the window expires that morning and
-  would be deleted before any run had logged it. That was the first draft of this change, and it was
-  wrong for the reason the whole gate exists.
+  would be deleted before any run had logged it, which is the reason the whole gate exists.
 
 So the date is **1 Dec**: ten daily runs that name real expired windows and delete nothing, then the
 job arms itself. Read one if you want the confirmation the gate was always after — the log is
@@ -613,9 +577,8 @@ expected participant count — the same server code that will commit it, run wit
 the preview cannot drift from the result. Press *Open the form* to commit. The scheduler and the
 button call one `createWindow`, so they cannot disagree about what a window is.
 
-Automatic creation was DEFERRED in the original specification (§6.2, "beta will show whether manual
-creation is sufficient") and shipped at v20.61 once the owner settled the question it was waiting
-on: overtime is needed every week, so a window is needed every week.
+Automatic creation was deferred in the original specification and shipped once the owner settled
+the question it was waiting on: overtime is needed every week, so a window is needed every week.
 
 **During the window.** Reviewers watch *Who is available* for the selected week: three sections per
 day — Available, Not available, **No response** — which must never merge. One person said no; the
@@ -633,13 +596,13 @@ had.
 
 ---
 
-## First-release deploy ordering
+## Deploy ordering — including the release that switches it back on
 
 A push touching this feature fires all three deploy workflows **in parallel**, with no ordering
 guarantee: Hosting (the page), Functions (the endpoints) and Rules (the read permission). Until all
 three land, the page renders and reports a load failure — which is the correct behaviour and is
-self-healing within a minute or two. No client is holding stale Overtime data to be confused by,
-because none existed before.
+self-healing within a minute or two. While the feature is paused no client holds Overtime data to be
+confused by, so the release that switches it back on meets the same window and heals the same way.
 
 ---
 
@@ -651,15 +614,12 @@ One, stated in full in `ARCHITECTURE.md` → §3 and deliberately not re-explain
   participation is the **restricted beta** it was: the audience ladder is server-owned, so widening it is a one-word
   edit plus `npm run generate:roster-members`.
 
-The retention purge's exception **closed on 19 Sep 2026** — it arms itself on a date now, and
-*Retention* above is what it does rather than what it would do.
-
 ---
 
-## Push notices (v21.47) — targeted, and why that is the design rather than a limitation
+## Push notices — targeted, and why that is the design rather than a limitation
 
-The feature runs on deadlines, and until v21.47 nothing nudged anyone: a window opened silently
-overnight and the initial deadline passed silently at noon. A member who did not happen to open the
+The feature runs on deadlines, and without notices nothing nudges anyone: a window opens silently
+overnight and the initial deadline passes silently at noon. A member who did not happen to open the
 app that week became a permanent **No response** — the record the reviewer's workspace treats as
 its most load-bearing distinction, manufactured by the absence of a reminder rather than by the
 person. Two notices close that, both built by the pure `askedNotice`/`reminderNotice` in
@@ -687,29 +647,30 @@ member — and no push can ever fail the write it announces.
 
 ## Full-launch checklist — everything that changes when the beta ends
 
-Consolidated here (v21.47) because these items previously lived across four documents and one being
-missed would ship a half-launched feature. Work through ALL of them; each names its home.
+Consolidated here because one missed item would ship a half-launched feature. Work through ALL of
+them, after the steps in [Paused](#paused-owner-nov-2026) have switched the feature back on; each
+names its home.
 
 1. **Widen the audience** — the one-word edit in `functions/overtime.js`'s `currentAudience`
    (`EXC-003` above), plus `npm run generate:roster-members`.
 2. **Drop `CONFIG.OVERTIME_BETA`** from `roster-data.js` and regenerate — participation then follows
    eligibility alone. The nav pill and page policy already gate on `canOpenOvertime`, which needs no
    change (auth-policy.js keeps the reviewer/participant split).
-3. ~~**Remove the beta banner**~~ — **done early, at v23.84**, by owner decision rather than as a
-   launch step ("everyone on the beta knows it is a beta"): `.ot-beta` is gone from `overtime.html`
+3. ~~**Remove the beta banner**~~ — **done early**, by owner decision rather than as a launch step
+   ("everyone on the beta knows it is a beta"): `.ot-beta` is gone from `overtime.html`
    and `overtime.css`, and `e2e/overtime.spec.js` asserts its absence. Checked at the same time:
    `overtime-tips.js` no longer carries any beta wording, and the two reviewer-side "Beta audience"
    labels (`overtime-manager.js`, `overtime-review-controller.js`) read `w.audience === 'restricted'`
    from the data, so they retire THEMSELVES the moment item 1 widens the audience. Nothing here is
    left to do by hand at launch.
-4. ~~**Arm the retention purge**~~ — **nothing to do (v24.10).** It arms itself on 1 Dec 2026; see
+4. ~~**Arm the retention purge**~~ — **nothing to do.** It arms itself on 1 Dec 2026; see
    *Retention* above. Evidence row `VAL-OT-001` is settled by reading one of the ten dry runs that
    precede it, which is optional rather than a gate.
 5. **Re-check the reviewer workspace at scale** — the By-day view renders every participant under
    every date; at ~50 staff that is ~350 rows under the ALL lens. Decide between defaulting the day
    lens to the week's first date and collapsible day sections. (The empty-section invariant stands
    either way: a hidden "No response" makes "nobody outstanding" look like a render failure.)
-6. **Finish the revision-read economics if needed** — v21.47 already skips the read for
+6. **Finish the revision-read economics if needed** — the overview already skips the read for
    single-revision heads (most members), so the remaining cost is one read per member who resubmitted.
    If that ever matters at 50 members, lazy-load revisions on row expand; never store a derivation.
 7. **Notifications need nothing** — see above; targeted reach scales itself. Confirm the asked
@@ -722,20 +683,20 @@ missed would ship a half-launched feature. Work through ALL of them; each names 
 
 ### Evidence to gather during the beta — deferred by decision, not by omission
 
-An August 2026 external review proposed more than the P1s that shipped (targeted reminders and the
-N+1 removal at v21.47; Manager freshness, the leave-page guard and the honest `ready` milestone at
-v21.48). The rest was deferred because each needs evidence only real use produces — building them on
-a restricted beta means guessing. Watch for these signals and act on the item they belong to:
+An August 2026 external review proposed more than the items that shipped. The rest was deferred
+because each needs evidence only real use produces — building them on a restricted beta means
+guessing — and none can be gathered while the feature is paused. When the beta resumes, watch for
+these signals and act on the item they belong to:
 
 - **Does anyone hold the Manager view open through arriving submissions?** If yes, replace the
-  Refresh button + visibility refetch with a Firestore listener on the submission heads. The v21.48
-  shape was chosen because a listener costs a read per arriving revision for every open workspace,
-  which the beta cannot justify.
+  Refresh button + visibility refetch with a Firestore listener on the submission heads. The
+  current shape was chosen because a listener costs a read per arriving revision for every open
+  workspace, which the beta cannot justify.
 - **Do reviewers scroll past healthy Upcoming Weeks rows to reach the workspace?** If yes, collapse
   created-and-quiet weeks to a single line. (Review #6.)
 - **Do members re-open a submitted form often?** If yes, compact the seven answered rows into a
-  summary with an Edit affordance — an owner call, and now proposed by two reviews independently.
-  (Review #5; also raised in the v21.41 review.)
+  summary with an Edit affordance — an owner call, proposed by two reviews independently.
+  (Review #5.)
 - **Does the participants list dominate the workspace at full roster?** Checklist item 5 already
   carries the by-day scale decision; the review's collapse proposal (#7) is one of its options.
 - **Do custom availability windows get used, and are split shifts ever wanted?** Ask the beta
@@ -756,6 +717,7 @@ submission would announce what the receipt on their screen already states.
 ---
 
 ## Deliberately not built
+
 - **No override write-back.** Availability is a declaration, not a roster change; nothing here
   writes to `overrides`.
 - **No collection-group query, and so no composite index.** Participation is resolved by point reads

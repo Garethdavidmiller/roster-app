@@ -159,7 +159,14 @@ const CAPS = {
     // was chosen for its size. Both were two parallel branches writing the same targets — an actual
     // against an estimate, a sum included against a sum merely available — which is the one shape
     // whose failure is silent, and both now carry the invariant plus the tests that hold it.
-    'paycalc-app.js':          1880,
+    // 1880 → 1884 at v25.47, a RAISE, said so. The file stood at exactly its cap, so the Year to
+    // Date line under the take-home £ (owner, 7 Nov 2026) could not add a line here. Its RULE went
+    // into `ytdUpdateFrom` (paycalc-periods.js) and its DOM writes and button into
+    // paycalc-result-headline.js, beside the other words under the figure. What is left is the hook:
+    // one call that hands calculate()'s own facts (the period, whether the cumulative method ran,
+    // the tax code it read) to the rule, a comment, and the button's wiring at init. The cap is the
+    // measured size, so the next addition is a raise too.
+    'paycalc-app.js':          1884,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.

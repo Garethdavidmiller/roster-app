@@ -22,7 +22,7 @@
  * things is not a boundary; it is a cut made to create room, which is exactly what this extraction
  * was trying to avoid.
  *
- * This cluster needs NONE. 129 lines, importing the shift-type table and the status helper and
+ * This cluster needs NONE. It imports the shift-type table and the status helper and
  * nothing else — every function takes a row element and reads the DOM under it. That is what a
  * seam looks like: the functions here do not know the editor exists.
  *
@@ -156,6 +156,8 @@ export function _syncOverwriteBadge(row) {
 }
 
 /**
+ * Turn a row off. Clearing `dataset.type` is what stages a DELETE of a saved record, so an
+ * untouched saved row must never be deactivated by accident (`_bulkDeselectRow`, admin-week-editor.js).
  * @param {HTMLElement} row
  * @param {HTMLInputElement|null} checkbox
  * @param {NodeListOf<Element>} pills

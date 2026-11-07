@@ -1,21 +1,20 @@
 'use strict';
 
 /**
- * functions/overtime.js — the OVERTIME AVAILABILITY domain: four endpoints and the Firestore
+ * functions/overtime.js — the OVERTIME AVAILABILITY domain: its endpoints and the Firestore
  * orchestration behind them. Every RULE lives next door in overtime-core.js, unit-tested with no
  * emulator; this module is the boundary — auth, transactions, batches, HTTP.
  *
- * Factory, for the reasons in documents.js's header: index.js stays the composition root, the
- * shared literals keep one guarded home, and the deps argument is the seam a future Node test
- * drives a fake admin SDK through.
+ * Factory, for the reasons in documents.js's header: index.js stays the composition root, the shared
+ * literals keep one guarded home, and overtime-endpoints.test.mjs drives a fake admin SDK through deps.
  *
- * ── THE FOUR ENDPOINTS, AND WHY THERE ARE FOUR ─────────────────────────────────────────────────
+ * ── THE ENDPOINTS, AND WHY EACH EXISTS ─────────────────────────────────────────────────────────
  *
  *   createOvertimeWindow        reviewer. `dryRun: true` previews; false commits. ONE endpoint on
  *                               purpose — a separate preview would be a second code path claiming
  *                               to predict this one, and preview drift is exactly what that
  *                               arrangement produces.
- *   getOvertimeManagerOverview  reviewer. Six planning weeks WHETHER OR NOT a window exists. This
+ *   getOvertimeManagerOverview  reviewer. Every planning week WHETHER OR NOT a window exists. This
  *                               is the guard against the feature's one catastrophic silent
  *                               failure: nobody creates a window, so nobody is outstanding, no
  *                               reminder can fire, and an empty page is indistinguishable from
@@ -28,6 +27,7 @@
  *                               idempotent.
  *   purgeExpiredOvertimeWindows scheduled. The only irreversible thing here, so it reports what it
  *                               would remove until it ARMS ITSELF on a date (overtime-core.js).
+ *   autoCreateOvertimeWindows   scheduled, daily. Creates every horizon week nobody made, via createWindow.
  *   withdrawOvertimeParticipant reviewer. Stops a week EXPECTING one person — a leaver otherwise
  *                               stays a permanent non-responder in every open week. A flag, never
  *                               a delete: it changes what is expected, not what happened.
@@ -729,7 +729,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             // ── THE TOP-UP IS NOT PART OF THE CREATE LOOP, AND MUST NOT RETURN WITH IT ──────────
             //
             // This used to `return` here when nothing was due (v21.20, external review), which is
-            // the NORMAL state: the whole six-week horizon is pre-created, so on almost every day
+            // the NORMAL state: the whole planning horizon is pre-created, so on almost every day
             // there is no window to make. The top-up therefore ran only on the one day a week a new
             // week entered the horizon — and adding a beta tester on any other day left them
             // without a form on every already-open week until then, which is the exact gap this
