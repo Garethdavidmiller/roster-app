@@ -260,7 +260,7 @@ export function init() {
 
     // ── Pay Calculator Data — what this device is actually holding ────────────────
     //
-    // "Saved on this device only" is a warning about nothing until it says how much. The engine
+    // "Saved in this browser only" is a warning about nothing until it says how much. The engine
     // that already answers this for the backup card is `paycalc-inventory.js`, so it answers here
     // too rather than a second count being written — the whole point of that module is that the
     // summary, the itemised list and the damage preflight cannot disagree.

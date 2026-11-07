@@ -2246,7 +2246,8 @@ test('paycalc: an empty calculator points at Restore, and the link opens the bac
     await page.goto('/paycalc.html');
     const line = page.locator('#setupRestore');
     await expect(line).toBeVisible();
-    await expect(line).toContainText('Used the Pay Calculator before on this phone?');
+    // Not "on this phone": the line shows on a first visit anywhere, the station PC included.
+    await expect(line).toContainText('Used the Pay Calculator before?');
     await expect(page.locator('#payTransferBody')).not.toHaveClass(/open/);
     await line.getByRole('link', { name: 'Move Your Pay Data' }).click();
     await expect(page.locator('#payTransferBody')).toHaveClass(/open/);

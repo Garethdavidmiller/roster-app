@@ -122,12 +122,14 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         return { ok: false, kind: 'credential', error: 'Password not recognised — if you’ve forgotten it, or your account isn’t set up yet, ask the admin.' };
     }
     // Commit ONLY now that auth has genuinely resolved. If the write is swallowed (storage blocked —
-    // iOS Private Browsing), fail cleanly: without the local session every page re-check returns null,
+    // on an iPhone, Safari's Block All Cookies; Private Browsing has not refused storage since iOS 11,
+    // so the old advice to turn it off sent members after the wrong setting), fail cleanly: without
+    // the local session every page re-check returns null,
     // so an in-place re-init or reload would just loop back to this overlay. Sign back out (clearSession)
     // so we don't strand a signed-in Firebase identity with no app session, and tell the user why.
     if (!saveSession()) {
         clearSession();
-        return { ok: false, kind: 'storage', error: 'This browser is blocking storage. Turn off Private Browsing, or open the installed app, then sign in again.' };
+        return { ok: false, kind: 'storage', error: 'This browser is blocking storage, which the app needs to keep you signed in. Allow cookies and website data for this site — on an iPhone, turn off Block All Cookies in Safari’s settings — then sign in again.' };
     }
     return { ok: true };
 }

@@ -342,17 +342,17 @@ export function initTransferCard() {
 
     // AN IN-PAGE LINK HERE OPENS THE CARD TOO (the iPhone audit, 7 Nov 2026). The setup banner's
     // "Used the Pay Calculator before?" line sends an empty calculator here, and the same bare jump
-    // would land on the closed header. The page has settled by the time anybody taps it, so one
-    // scroll is enough — the correction loop above is for a page still laying out. Any such link,
-    // wherever it sits, so a second one needs no wiring of its own.
+    // would land on the closed header. It goes through the deep link's own open-and-keep-in-view
+    // above, not a scroll of its own: the banner is the first thing on the page, so a quick tap lands
+    // while the cards above this one are still arriving, and a single scroll then stops short of a
+    // card the growth has moved — measured, ~975px short at 390×844. The address takes the same
+    // fragment a link from Settings gives it (replaceState: no Back step, no hashchange). Any such
+    // link, wherever it sits, so a second one needs no wiring of its own.
     document.addEventListener('click', (e) => {
         const link = /** @type {Element|null} */ (e.target instanceof Element ? e.target : null)?.closest('a[href="#payTransferCard"]');
         if (!link) return;
         e.preventDefault();
-        if (!document.getElementById('payTransferBody')?.classList.contains('open')) {
-            document.getElementById('payTransferToggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        }
-        const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-        card.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+        history.replaceState(history.state, '', '#payTransferCard');
+        openCardNamedByHash('payTransferCard', 'payTransferBody', 'payTransferToggle');
     });
 }

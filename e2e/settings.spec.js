@@ -516,7 +516,7 @@ test('settings: a saved email does not push the card\'s own chevron off it (v23.
 });
 
 test('settings: the pay data card counts what is actually on the device', async ({ page }) => {
-    // "Saved on this device only" is a warning about nothing until it says how much.
+    // "Saved in this browser only" is a warning about nothing until it says how much.
     await openSettings(page, { configured: true, payKeys: 3, noPush: true });
     await expect(page.locator('#payDataStatusChip')).toHaveText('3 payslips');
     await expect(page.locator('#payDataInventory')).toContainText('3 payslips');
