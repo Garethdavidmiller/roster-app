@@ -766,6 +766,116 @@ export async function switchToDesign(page, name) {
     // the outcome here made that test fail on the helper's line instead of its own.
 }
 
+/**
+ * WAIT UNTIL THE PAGE SAYS IT HAS SETTLED, rather than sleeping a fixed time after `goto` (test
+ * audit, 7 Nov 2026).
+ *
+ * The every-page sweeps in pages.spec.js slept 700–1100ms after each load and then skipped anything
+ * not yet laid out — so on a slow runner a page measured before its coordinator had run passed with
+ * nothing measured, and said nothing. `page.goto` returns at the load event, and that is BEFORE the
+ * coordinator has drawn: measured on settings.html, one field on screen at the load event and five
+ * once the page marked itself ready. What this waits for instead:
+ *
+ *  - the `myb-page-ready` mark (perf-reporter.js), which a coordinator stamps once its own content is
+ *    on screen — seven of the nine app pages in this harness;
+ *  - the CALENDAR, which this harness gives no Firebase identity, so it never marks itself usable: it
+ *    asks to be signed in again, and that card (`#calLockWhy`, written by calendar-lock-cards.js) is
+ *    its settled state;
+ *  - a PAUSED Overtime page, which answers at once with its pause notice and has nothing to make
+ *    usable (overtime-app.js returns before `markPageReady` while `OVERTIME_ENABLED` is off).
+ *
+ * Two pages mark themselves usable a beat BEFORE content a sweep measures, and are waited for too:
+ * Links stamps the mark at auth-ready and loads its designs after (the masthead's name is written
+ * only once they have arrived — empty until then), and Admin draws its week grid when the member's
+ * saved changes land (until then it holds the "Loading…" status, which is not a settled state).
+ *
+ * A page that never settles FAILS here, naming what it was waiting for — the opposite of the sleep,
+ * which let it pass. Do not pin `page.clock` in a test that relies on this: Playwright's clock stub
+ * suppresses `performance.mark` (measured — see the usable-mark tests in pages.spec.js).
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+export async function waitForPageSettled(page) {
+    await expect.poll(() => page.evaluate(() => {
+        const d = document;
+        const ready = performance.getEntriesByName('myb-page-ready').length > 0
+            || !!d.querySelector('#calLockWhy:not(:empty)')
+            || (d.body.dataset.otPaused !== undefined && !!d.querySelector('#otMineContent .ot-state'));
+        if (!ready) return 'no myb-page-ready mark, no Calendar sign-in card, no Overtime pause notice';
+        const face = d.getElementById('designFaceName');
+        if (face && !(face.textContent || '').trim()) return 'Links: the designs have not loaded';
+        const grid = d.getElementById('weekGrid');
+        if (grid && !grid.querySelector('.day-row, .week-empty:not([role="status"])')) return 'Admin: the week grid has not drawn';
+        return 'settled';
+    }), { message: `${page.url()} never settled`, timeout: 15_000 }).toBe('settled');
+}
+
+/**
+ * WAIT UNTIL EVERY FIRESTORE READ STARTED SO FAR HAS ANSWERED (test audit, 7 Nov 2026).
+ *
+ * The stub counts reads as they start (`docReads`) and as they answer (`docReadsSettled`,
+ * e2e/fixtures.js), and the second moves in a reaction registered before the page's own — so once
+ * the two agree, every collection read the page has asked for has been delivered, and whatever the
+ * page did with each answer synchronously or in microtasks has happened. That is the signal a fixed
+ * sleep was guessing at in "let the first load land" and "let the slow read come back".
+ *
+ * Only where the spec MUTATES `window.__E2E` rather than replacing it (fixtures.js says why), and
+ * never while a read is deliberately held (`docsHeld`) — that one has not answered, by design.
+ * @param {import('@playwright/test').Page} page @param {string} [message]
+ */
+export async function waitForReadsToLand(page, message = 'a Firestore read never answered') {
+    await expect.poll(() => page.evaluate(() => {
+        const e = /** @type {any} */ (window).__E2E || {};
+        return (e.docReadsSettled || 0) >= (e.docReads || 0);
+    }), { message }).toBe(true);
+}
+
+/**
+ * FOLLOW ONE ENDPOINT'S ANSWERS INTO THE APP, so a spec can wait until the app has USED an answer
+ * instead of sleeping past it (test audit, 7 Nov 2026).
+ *
+ * `page.waitForResponse` resolves when a response ARRIVES. The app then still has to read the body
+ * and act on it, and how long that takes is exactly what a fixed sleep guesses at — "let the minted
+ * link land" was 200ms, "give a rebuild time to start" 500ms. This wraps `window.fetch` before any
+ * page script runs and counts, per endpoint, two things the page itself does: the calls it makes,
+ * and the bodies it has finished reading. A body is counted one TASK after its read resolved, so by
+ * the time the count moves, everything the app does with that answer synchronously or in microtasks
+ * has already happened — a value stored, a decision taken, a re-render or a follow-up call started.
+ * Waiting for the count is therefore waiting for the app's own step, however slow the runner.
+ *
+ * Install it before `goto`; read it with `endpointUse`. `name` is matched against the request url.
+ * @param {import('@playwright/test').Page} page @param {string} name
+ */
+export function trackEndpointUse(page, name) {
+    return page.addInitScript((n) => {
+        const w = /** @type {any} */ (window);
+        w.__endpointUse = w.__endpointUse || {};
+        const use = (w.__endpointUse[n] = w.__endpointUse[n] || { calls: 0, bodiesRead: 0 });
+        const realFetch = w.fetch.bind(w);
+        w.fetch = async (/** @type {any} */ input, /** @type {any} */ init) => {
+            const url = typeof input === 'string' ? input : String(input?.url ?? input);
+            const mine = url.includes(n);
+            if (mine) use.calls++;
+            const res = await realFetch(input, init);
+            if (!mine) return res;
+            for (const m of ['json', 'text']) {
+                const read = res[m].bind(res);
+                res[m] = () => read().then((/** @type {any} */ v) => { setTimeout(() => { use.bodiesRead++; }, 0); return v; });
+            }
+            return res;
+        };
+    }, name);
+}
+
+/**
+ * How many calls the page has made to `name`, and how many of their bodies it has finished with.
+ * @param {import('@playwright/test').Page} page @param {string} name
+ * @returns {Promise<{ calls: number, bodiesRead: number }>}
+ */
+export function endpointUse(page, name) {
+    return page.evaluate((n) => (/** @type {any} */ (window).__endpointUse || {})[n] || { calls: 0, bodiesRead: 0 }, name);
+}
+
 // ── LAYOUT PROBES SHARED BY THE PAGE SPECS (moved from pages.spec.js, 3 Nov 2026) ─────────────
 // Why text is scaled rather than the viewport narrowed: the comment above the "large text does
 // not shave the page" tests in pages.spec.js.

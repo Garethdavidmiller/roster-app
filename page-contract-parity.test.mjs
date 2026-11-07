@@ -508,6 +508,14 @@ test('a role-gated pill is gated from EVERY coordinator, not just its own page',
         .flatMap(c => optionsObjectsAfter(c.src, 'initNavPanel({').map((opts, i) => ({ file: i ? `${c.file} (call ${i + 1})` : c.file, opts })));
     assert.ok(new Set(callers.map(c => c.file.split(' ')[0])).size >= 7, `expected every page coordinator, found ${callers.length}`);
 
+    // An option that NAMES a policy function must be handed that function's ANSWER (test audit,
+    // 7 Nov 2026). Passing the key was all this checked, so `canOpenOvertime: !!member` on Trains — the
+    // pill drawn for any signed-in member while Overtime is paused — stayed green, and so would the
+    // shorthand `canOpenOvertime,`, which hands over the function itself: always truthy.
+    const policyFns = new Set([...read('./auth-policy.js').matchAll(/^export function (\w+)\(/gm)].map(m => m[1]));
+    assert.ok(gates.filter(g => policyFns.has(g.option)).length >= 2,
+        'no gate option is an auth-policy function any more — the value check below would check nothing');
+
     /** @type {string[]} */
     const holes = [];
     for (const { flag, option } of gates) {
@@ -519,6 +527,8 @@ test('a role-gated pill is gated from EVERY coordinator, not just its own page',
             // `key:` or bare shorthand `key,` / `key }` — both are passing it.
             if (!new RegExp(`(^|[\\s,{])${option}\\s*[:,}]`).test(opts)) {
                 holes.push(`${file} never passes \`${option}\` — the ${flag} pill is invisible there`);
+            } else if (policyFns.has(option) && !new RegExp(`(^|[\\s,{])${option}\\s*:\\s*${option}\\(`).test(opts)) {
+                holes.push(`${file} passes \`${option}\` without calling \`${option}(…)\` — the ${flag} pill no longer asks the policy`);
             }
         }
     }

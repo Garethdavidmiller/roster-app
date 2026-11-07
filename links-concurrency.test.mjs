@@ -170,16 +170,32 @@ describe('the design protocol has exactly one owner', () => {
         // legitimate target-set transaction put its `doc(...)` on the third line. A guard that
         // depends on where the author breaks a line reports formatting, not structure.
         const offenders = [];
-        for (const m of app.matchAll(/(setDoc|addDoc|deleteDoc|runTransaction)\s*\(/g)) {
-            let i = app.indexOf('(', m.index), depth = 0;
+        const lineOf = (/** @type {number} */ at) => app.slice(0, at).split('\n').length;
+        /** Judge the call opening at `at` by what it targets. @param {string} what @param {number} at */
+        const judge = (what, at) => {
+            let i = app.indexOf('(', at), depth = 0;
             for (; i < app.length; i++) {
                 const ch = app[i];
                 if (ch === '(' || ch === '{') depth++;
                 else if (ch === ')' || ch === '}') { if (--depth === 0) break; }
             }
-            const call = app.slice(m.index, i + 1);
-            if (/linkTargetSets|SETS_COL/.test(call)) continue;   // a different document entirely
-            offenders.push(`${m[1]} @ ${app.slice(0, m.index).split('\n').length}`);
+            const call = app.slice(at, i + 1);
+            if (/linkTargetSets|SETS_COL/.test(call)) return;   // a different document entirely
+            offenders.push(`${what} @ ${lineOf(at)}`);
+        };
+        // EVERY write firebase-client.js exports, not four of them (test audit, 7 Nov 2026): a design written with
+        // `updateDoc`, or through a batch, passed this while the same write by `setDoc` failed it.
+        for (const m of app.matchAll(/(setDoc|addDoc|deleteDoc|updateDoc|runTransaction)\s*\(/g)) judge(m[1], m.index);
+        // A batch names its targets in its own `.set` / `.update` / `.delete` calls, never in `writeBatch(db)`, so each
+        // of those is judged, up to the batch's commit. A batch with no name to follow cannot be judged at all.
+        for (const m of app.matchAll(/writeBatch\s*\(/g)) {
+            const name = /(?:const|let|var)\s+(\w+)\s*=\s*$/.exec(app.slice(Math.max(0, m.index - 80), m.index))?.[1];
+            if (!name) { offenders.push(`writeBatch @ ${lineOf(m.index)} (no name to follow)`); continue; }
+            const end = app.indexOf(`${name}.commit(`, m.index);
+            const body = app.slice(0, end === -1 ? app.length : end);
+            for (const op of body.slice(m.index).matchAll(new RegExp(`\\b${name}\\.(set|update|delete)\\s*\\(`, 'g'))) {
+                judge(`${name}.${op[1]}`, m.index + /** @type {number} */ (op.index));
+            }
         }
         assert.deepEqual(offenders, [],
             'links-app.js writes a design document itself — design persistence belongs in ' +
@@ -201,9 +217,11 @@ describe('the design protocol has exactly one owner', () => {
         // Rule 2. A serialisation mechanism failing is not a reason to substitute an unserialised
         // one — but a device with no server has nothing to serialise against, and this app is
         // deliberately offline-first. The gate is what keeps those two apart.
-        assert.match(store, /if \(!isOffline\(e\)\) throw err;/,
+        // Any spacing or line break, and braces or none (test audit, 7 Nov 2026): as exact strings these failed on a
+        // harmless reformat, which says nothing about the gate.
+        assert.match(store, /if\s*\(\s*!\s*isOffline\s*\(\s*e\s*\)\s*\)\s*\{?\s*throw\s+err\b/,
             'save must rethrow an ONLINE transaction failure rather than falling through');
-        assert.match(store, /if \(!isOffline\(err\)\) throw err;/,
+        assert.match(store, /if\s*\(\s*!\s*isOffline\s*\(\s*err\s*\)\s*\)\s*\{?\s*throw\s+err\b/,
             'rename must do the same');
     });
 

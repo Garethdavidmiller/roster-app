@@ -92,7 +92,13 @@ if (hits > 1) {
       + `  Refusing to guess which one you meant — pass --in to narrow it.`);
 }
 
-const mutated = original.slice(0, from) + region.replace(find, replace) + original.slice(to);
+// The replacement is INSERTED AS WRITTEN — passed as a function, because a replacement STRING is a
+// pattern to `String.prototype.replace`: `$'`, `$&`, `` $` `` and `$$` in it expand. A mutation of
+// the work-email regex in firestore.rules, whose text holds `$'`, inserted 270 lines of rules text
+// instead of the one-character change asked for: a third way for the mutation to land somewhere
+// else, silently, and the one this tool had no check for (test audit, 7 Nov 2026;
+// mutate-script.test.mjs).
+const mutated = original.slice(0, from) + region.replace(find, () => replace) + original.slice(to);
 if (mutated === original) {
     die('the edit changed nothing (find and replace are identical?)');
 }

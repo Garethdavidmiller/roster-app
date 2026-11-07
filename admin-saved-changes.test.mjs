@@ -273,6 +273,14 @@ async function bulkDelete(/** @type {string[]} */ ids) {
 
 beforeEach(() => { _commit = async () => {}; _deleted = []; _batchSizes = []; _removed = []; _mockAuth.currentUser = { uid: 'admin' }; setup(); });
 
+// The two-tap confirm disarms after 5 s and the list feedback fades after 6 s, both on REAL timers
+// nothing here waits for — so they held the process open after the last test, 6.3 s of wall for
+// ~200 ms of tests (test audit, 7 Nov 2026). Mocked file-wide, they are fake timers the reset
+// throws away; the one test that steps through the five seconds still mocks its own (`t.mock`).
+// Not `--test-force-exit`, which has silently dropped tests in this repo.
+beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); });
+afterEach(() => { mock.timers.reset(); });
+
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 
 describe('0. signed out (v24.38)', () => {

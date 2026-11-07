@@ -91,9 +91,10 @@ describe('served markup never bakes a glyph into a live region', () => {
 
 describe('a status line goes through setStatus, not straight to textContent', () => {
     // The whole right-hand side, up to the statement's `;` — NOT just the token after the `=`.
-    // Anchoring on the `=` is what let every ternary through (see the header).
+    // Anchoring on the `=` is what let every ternary through (see the header). `innerText` writes the
+    // same text node and was not read (test audit, 7 Nov 2026): `el.innerText = '✓ ' + msg` passed.
     const ASSIGN = new RegExp(
-        `([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*)\\.textContent\\s*=\\s*([^;]{0,600});`, 'gs');
+        `([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*)\\.(?:textContent|innerText)\\s*=\\s*([^;]{0,600});`, 'gs');
     const LEADING = new RegExp(`(['"\`])\\s?(?:${GLYPH_CLASS})\\s`);
     const BUTTONISH = /btn|button|chip/i;
 

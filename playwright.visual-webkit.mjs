@@ -49,6 +49,8 @@ const DEV = devServer(4003);
 export default defineConfig({
     testDir: './e2e',
     testMatch: 'visual-webkit.spec.js',
+    // A stray `test.only` must not quietly shrink this lane to one test on CI (runner-parity.test.mjs).
+    forbidOnly: !!process.env.CI,
     timeout: 45_000,
     expect: {
         timeout: 10_000,

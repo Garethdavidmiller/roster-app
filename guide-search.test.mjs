@@ -49,9 +49,19 @@ test('the LAST token is a prefix — a mid-keystroke query already finds its ans
     assert.equal(searchGuideIndex(IDX, 'euro france').filter(r => r.id === 'country-fr').length, 0);
 });
 
-test('title hits outrank body hits', () => {
-    const r = searchGuideIndex(IDX, 'network');
-    assert.equal(r[0].id, 'rc-network');        // title match beats rc-cards' body mention
+test('title hits outrank body hits — even when the body hit comes first in the index', () => {
+    // NOT `IDX` (test audit, 7 Nov 2026). There the body hit for "network" is `rc-cards`, the title
+    // hit's own PARENT, so suppression removed it and this test passed with the title weighting
+    // deleted. Here the body hit is nobody's parent and sits FIRST, so index order — the tie-break —
+    // would put it on top: only the weighting can lift the card above it.
+    const idx = [
+        UNIT({ id: 'rc-intro', t: 'Railcards at the gateline', tt: 'railcards at the gateline', k: 'network discount morning' }),
+        UNIT({ id: 'rc-network', t: 'Network Railcard', tt: 'network railcard', k: 'minimum fare' }),
+    ];
+    assert.deepEqual(searchGuideIndex(idx, 'network').map(r => r.id), ['rc-network', 'rc-intro']);
+    // …and the two units really are different answers: the card is refused a word it does not carry.
+    assert.deepEqual(searchGuideIndex(idx, 'network discount').map(r => r.id), ['rc-intro'],
+        'AND across tokens: the card does not say "discount" anywhere');
 });
 
 test('a card beats its own section: the parent row is dropped when both match', () => {
@@ -86,6 +96,24 @@ test('no tokens (empty, whitespace, all-short) → no results, no throw', () => 
 });
 
 test('limit caps results after suppression, not before', () => {
+    // The old fixture had no parents at all, so it could not tell the two orders apart (test audit,
+    // 7 Nov 2026): capping first passed it. Here five SECTIONS come first in the index, each the parent
+    // of a card that also matches. Capped before suppression, the five places go to the sections,
+    // suppression then drops all five, and the member is told nothing matched.
+    const sections = Array.from({ length: 5 }, (_, i) => UNIT({ id: `s${i}`, t: `Section ${i}`, tt: `section s${i}x`, k: 'gold' }));
+    const cards = Array.from({ length: 5 }, (_, i) => UNIT({ id: `c${i}`, t: `Gold card ${i}`, tt: `gold card c${i}x`, p: `s${i}` }));
+    assert.deepEqual(searchGuideIndex([...sections, ...cards], 'gold', { limit: 5 }).map(r => r.id),
+        ['c0', 'c1', 'c2', 'c3', 'c4']);
     const many = Array.from({ length: 20 }, (_, i) => UNIT({ id: `u${i}`, t: `Gold ${i}`, tt: `gold u${i}x` }));
     assert.equal(searchGuideIndex(many, 'gold', { limit: 5 }).length, 5);
+});
+
+test('the limit keeps the BEST results, not the first ones in the index', () => {
+    // Six body mentions come before the one card titled with the word. Capped before ranking, the
+    // twelve shown on the real index lose their best answer whenever it sits late in the guides.
+    const body = Array.from({ length: 6 }, (_, i) => UNIT({ id: `b${i}`, t: `Body ${i}`, tt: `body b${i}x`, k: 'gold' }));
+    const r = searchGuideIndex([...body, UNIT({ id: 'gold-card', t: 'Gold Card', tt: 'gold card' })], 'gold', { limit: 5 });
+    assert.equal(r.length, 5);
+    assert.equal(r[0].id, 'gold-card', 'the title hit is ranked first, and is not cut by the limit');
+    assert.deepEqual(r.slice(1).map(x => x.id), ['b0', 'b1', 'b2', 'b3'], 'ties keep index order');
 });

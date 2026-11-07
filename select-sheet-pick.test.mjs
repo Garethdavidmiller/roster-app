@@ -65,12 +65,27 @@ function fakeEl(/** @type {string} */ tag) {
 /** @type {any} */ global.document = { createElement: fakeEl, body: null };
 
 // ── A FAKE LIGHTBOX whose close() promise the test holds ────────────────────────────────────────
+// It honours its OPTIONS the way createLightbox does (test audit, 7 Nov 2026): the ✕ and a backdrop
+// tap call close(), close() runs `onClose`, the landing runs `afterClose`. It used to ignore them, so
+// the sheet's own close paths were never exercised here, and a pick reported from a close callback
+// would never have been seen.
 /** @type {Array<() => void>} */ let _landers = [];
 let _opens = 0, _closes = 0;
-const fakeLightbox = () => ({
-    open() { _opens++; },
-    close() { _closes++; return new Promise(res => { _landers.push(() => res()); }); },
-});
+/** @type {any} */ let _lbOpts = null;
+const fakeLightbox = (/** @type {any} */ opts = {}) => {
+    _lbOpts = opts;
+    const lb = {
+        open() { _opens++; opts.onOpen?.(); },
+        close() {
+            _closes++;
+            opts.onClose?.();
+            return new Promise(res => { _landers.push(() => { opts.afterClose?.(); res(); }); });
+        },
+    };
+    opts.closeBtn?.addEventListener('click', () => lb.close());
+    opts.overlay?.addEventListener('click', (/** @type {any} */ e) => { if (e.target === opts.overlay) lb.close(); });
+    return lb;
+};
 const land = () => { const fns = _landers; _landers = []; fns.forEach(fn => fn()); };
 const microtasks = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 
@@ -206,14 +221,49 @@ describe('ONE tap is one pick — a second tap during the fade is not another', 
 });
 
 describe('a cancel is not a pick', () => {
-    test('closing the sheet without tapping a row reports nothing, ever', async () => {
-        /** @type {string[]} */ const picked = [];
-        /** @type {string[]} */ const previewed = [];
-        mod.openOptionSheet({ title: 't', groups: GROUPS, createLightbox: fakeLightbox,
-            onPreview: (/** @type {string} */ v) => previewed.push(v), onPick: (/** @type {string} */ v) => picked.push(v) });
-        // The lightbox's own close (✕, backdrop, Escape, Back) — not a row.
+    // This test used to call `land()` with nothing closing (test audit, 7 Nov 2026): no close had been
+    // asked for, so there was nothing to land, and it passed whatever a close would have done. Each
+    // case below now CLOSES — through the sheet's own ✕ and its backdrop — and checks that it did.
+    for (const [how, dismiss] of /** @type {Array<[string, () => void]>} */ ([
+        ['the ✕', () => _lbOpts.closeBtn._fire('click', { target: _lbOpts.closeBtn })],
+        ['a tap on the backdrop', () => _lbOpts.overlay._fire('click', { target: _lbOpts.overlay })],
+    ])) {
+        test(`closing the sheet with ${how} reports nothing, ever`, async () => {
+            /** @type {string[]} */ const picked = [];
+            /** @type {string[]} */ const previewed = [];
+            mod.openOptionSheet({ title: 't', groups: GROUPS, current: 'a', createLightbox: fakeLightbox,
+                onPreview: (/** @type {string} */ v) => previewed.push(v), onPick: (/** @type {string} */ v) => picked.push(v) });
+            dismiss();
+            assert.equal(_closes, 1, 'premise: the sheet was closed');
+            land(); await microtasks();
+            assert.deepEqual(picked, [], 'a dismissed sheet reported a pick');
+            assert.deepEqual(previewed, [], 'a dismissed sheet repainted a trigger');
+        });
+    }
+
+    test('a dismissed enhanced select keeps its value and announces nothing', async () => {
+        // The same through enhanceSelect, where a pick reported on a close would MOVE the value and
+        // fire `change` — the member's own choice overwritten by a sheet they closed.
+        const options = [
+            { tagName: 'OPTION', value: 'a', textContent: 'A. Hared',  disabled: false, dataset: {} },
+            { tagName: 'OPTION', value: 'b', textContent: 'G. Miller', disabled: false, dataset: {} },
+        ];
+        /** @type {any} */ let trigger = null;
+        /** @type {string[]} */ const dispatched = [];
+        const select = /** @type {any} */ ({
+            ...fakeEl('select'),
+            id: 'who', options, children: options, selectedIndex: 1, tabIndex: 0,
+            get value() { return options[this.selectedIndex]?.value ?? ''; },
+            set value(v) { this.selectedIndex = options.findIndex(o => o.value === v); },
+            parentNode: { insertBefore(/** @type {any} */ btn) { trigger = btn; } },
+            dispatchEvent(/** @type {any} */ ev) { dispatched.push(ev.type); return true; },
+        });
+        mod.enhanceSelect(select, { title: 'Who', createLightbox: fakeLightbox });
+        trigger._fire('click');
+        _lbOpts.closeBtn._fire('click', { target: _lbOpts.closeBtn });
         land(); await microtasks();
-        assert.deepEqual(picked, []);
-        assert.deepEqual(previewed, []);
+        assert.equal(select.value, 'b');
+        assert.deepEqual(dispatched, []);
+        assert.equal(trigger.children[0].textContent, 'G. Miller', 'the face still names the value it holds');
     });
 });

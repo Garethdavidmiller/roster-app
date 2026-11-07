@@ -71,6 +71,9 @@ export function isDeleted(data) {
         && data.deletedAt !== undefined;
 }
 
+/** Local midnight at the start of the day `ms` falls on. @param {number} ms */
+const startOfLocalDay = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+
 /**
  * The staff-facing line under a deleted design's name.
  *
@@ -101,7 +104,12 @@ export function deletedLabel(data, nowMs) {
     const at   = tsMillis(data?.deletedAt);
     const who  = by ? ` by ${by}` : '';
     if (at === null) return `Deleted${who}`;
-    const ageDays = Math.floor(Math.max(0, nowMs - at) / DAY_MS);
+    // CALENDAR days, not elapsed 24-hour periods (test audit, 7 Nov 2026) — the rule `lastSavedLabel`
+    // beside it already follows. Counted in 24-hour blocks, a design binned at 23:30 was "Deleted
+    // today" at 00:30 the next morning, and one binned at 23:00 two days back read "yesterday".
+    // Rounded, because a day across a clock change is 23 or 25 hours long; floored at 0, because a
+    // server timestamp can run a little ahead of this device's clock.
+    const ageDays = Math.max(0, Math.round((startOfLocalDay(nowMs) - startOfLocalDay(at)) / DAY_MS));
     const when = ageDays === 0 ? 'today' : ageDays === 1 ? 'yesterday' : `${ageDays} days ago`;
     return `Deleted ${when}${who}`;
 }

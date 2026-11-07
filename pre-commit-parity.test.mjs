@@ -204,6 +204,14 @@ describe('the hook and CI check the same documents', () => {
         const hookRes = patterns(src, k => byEnv[k] ?? k);
         const ciRes = patterns(swSrc, k => k.replace(/^'|'$/g, ''));
 
+        // A LOOP OVER NOTHING ASSERTS NOTHING (test audit, 7 Nov 2026): with `rx` no longer matching
+        // either file, the comparison below ran zero times and passed. Every stamped document on
+        // each side must have had its pattern read before the two are compared.
+        assert.deepEqual(Object.keys(ciRes).sort(), [...ciDocs].sort(),
+            'the pattern was not read for every document sw-asset-check.test.mjs stamps — `rx` has stopped matching its rows');
+        assert.deepEqual(Object.keys(hookRes).sort(), stamped.map(d => d.path).sort(),
+            'the pattern was not read for every document githooks/pre-commit stamps — `rx` has stopped matching its rows');
+
         for (const [file, re] of Object.entries(ciRes)) {
             assert.equal(hookRes[file], re,
                 `githooks/pre-commit looks for ${file}'s version stamp with ${hookRes[file]} while `

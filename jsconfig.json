@@ -25,6 +25,7 @@
         "playwright.visual.mjs",
         "playwright.offline.mjs",
         "playwright.webkit.mjs",
-        "playwright.visual-webkit.mjs"
+        "playwright.visual-webkit.mjs",
+        "playwright.live.mjs"
     ]
 }

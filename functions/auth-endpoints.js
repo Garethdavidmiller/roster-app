@@ -758,14 +758,20 @@ const requestPasswordReset = onRequest(
             // nobody heard them when the doorbell had already rung. Exactly the never-settles-is-
             // not-a-rejection class v18.94 fixed in the forced overlay; it must not come back here.
             if (recorded) {
+                /** @type {ReturnType<typeof setTimeout>|undefined} */ let notifyTimer;
                 try {
                     await Promise.race([
                         notifyAdminOfResetRequest(member, cfg.admin, VAPID_PRIVATE_KEY),
-                        new Promise((_, rej) =>
-                            setTimeout(() => rej(new Error('notify timed out')), ADMIN_NOTIFY_BUDGET_MS)),
+                        new Promise((_, rej) => {
+                            notifyTimer = setTimeout(() => rej(new Error('notify timed out')), ADMIN_NOTIFY_BUDGET_MS);
+                        }),
                     ]);
                 } catch (e) {
                     console.warn('[requestPasswordReset] admin notify failed for', member, e && e.message);
+                } finally {
+                    // The race is settled; the losing timer must not run on for its full 10s after the answer
+                    // has gone (test audit, 7 Nov 2026 — it held this file's suite open ten seconds a run).
+                    clearTimeout(notifyTimer);
                 }
             }
             // IDENTICAL body either way (fix, v18.94). Returning `throttled: true` was the exact oracle

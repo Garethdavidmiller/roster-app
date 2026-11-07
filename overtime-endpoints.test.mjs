@@ -18,7 +18,7 @@
  * orchestration calling them.
  */
 
-import { test, describe, beforeEach } from 'node:test';
+import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
@@ -254,6 +254,7 @@ const TOKENS = {
     tok_member:  { name: 'G. Miller', member: 'G. Miller', uid: 'uid_g', admin: true, email: 'g.miller@myb-roster.local', firebase: { sign_in_provider: 'password' } },     // rostered Master Admin
     tok_plain:   { name: 'S. Silva',  member: 'S. Silva', uid: 'uid_s', email: 's.silva@myb-roster.local', firebase: { sign_in_provider: 'password' } },                  // ordinary member
     tok_manager: { name: 'H. Croft',  member: 'H. Croft', uid: 'uid_h', manager: true, email: 'h.croft@myb-roster.local', firebase: { sign_in_provider: 'password' } },   // reviewer, not a participant
+    tok_admin_out: { name: 'D. Watts', member: 'D. Watts', uid: 'uid_d', admin: true, email: 'd.watts@myb-roster.local', firebase: { sign_in_provider: 'password' } }, // an admin who is NOT in the window
     tok_viewer:  { uid: 'calendar-viewer', calendarViewer: true },     // the shared PIN identity
     // v24.23 — tokens that CARRY a member's name without being the member. Firebase copies a
     // self-set display name into `name`; each of these is one real way that arrives.
@@ -322,8 +323,13 @@ function seededWindow(extra = {}) {
 }
 
 // Every test runs against the frozen clock below unless it says otherwise.
-let realNow;
-beforeEach(() => { realNow = Date.now; });
+//
+// The REAL clock is captured once, at load, and put back after EVERY test (test audit, 7 Nov 2026).
+// It used to be re-read in a `beforeEach`, and many tests assert between `freeze` and `unfreeze`
+// with no try/finally — so one failure left Date.now frozen, the next test saved the frozen
+// function as "real", and every later failure in the file was a cascade from the first.
+const realNow = Date.now;
+afterEach(() => { Date.now = realNow; });
 function freeze(ms) { Date.now = () => ms; }
 function unfreeze() { Date.now = realNow; }
 
@@ -391,11 +397,33 @@ describe('the auth ladder — the same four rungs on every endpoint', () => {
         }
     });
 
-    test('an ordinary member is refused the two reviewer endpoints and allowed the two member ones', async () => {
-        const { eps } = build(seededWindow());
-        assert.equal((await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_plain'))).code, 403);
-        assert.equal((await call(eps.getOvertimeManagerOverview, req({}, 'tok_plain'))).code, 403);
+    test('an ordinary member is refused the three reviewer endpoints and allowed the two member ones', async () => {
+        // It said "the two reviewer endpoints" and tried two of three, and one of the two member ones
+        // (test audit, 7 Nov 2026). Every body is VALID, so a 403 is the role refusal and not a bad
+        // request — and the member's submission goes all the way to a stored write.
+        freeze(Date.parse('2026-08-17T09:00:00Z'));
+        const { db, eps } = build(seededWindow({
+            [`overtimeWindows/${WEEK}/participants/S. Silva`]: { memberName: 'S. Silva', grade: 'CEA', rosterOrder: 5 },
+        }));
+        const reviewerOnly = {
+            createOvertimeWindow: { weekEnding: WEEK },
+            getOvertimeManagerOverview: {},
+            withdrawOvertimeParticipant: { weekEnding: WEEK, memberName: 'G. Miller', withdrawn: true },
+        };
+        for (const [name, body] of Object.entries(reviewerOnly)) {
+            const r = await call(eps[name], req(body, 'tok_plain'));
+            assert.equal(r.code, 403, `${name} let an ordinary member through: ${JSON.stringify(r.body)}`);
+            assert.match(String(r.body.error), /reviewer access required/, name);
+        }
+        assert.equal(db._store.get(`overtimeWindows/${WEEK}/participants/G. Miller`).withdrawn, undefined,
+            'the refused withdrawal still changed the record');
         assert.equal((await call(eps.getMyOvertimeState, req({}, 'tok_plain'))).code, 200);
+        const sent = await call(eps.submitOvertimeAvailability, req({
+            weekEnding: WEEK, days: allDay(), ifRevision: 0, clientMutationId: 'member-route-01',
+        }, 'tok_plain'));
+        unfreeze();
+        assert.equal(sent.code, 200, `the member's own submission was refused: ${JSON.stringify(sent.body)}`);
+        assert.ok(db._store.has(`overtimeWindows/${WEEK}/submissions/S. Silva`));
     });
 });
 
@@ -1057,6 +1085,26 @@ describe('getMyOvertimeState — the member sees their own windows and nobody el
         unfreeze();
         assert.equal(JSON.stringify(r.body).includes('S. Silva'), false,
             'no part of a colleague may leak into a member payload');
+        // The name search above cannot see a leak of the colleague's DATA: `publicHead` never sends
+        // `memberName`, so S. Silva's whole week could arrive as G. Miller's own submission and that
+        // line stay green (test audit, 7 Nov 2026 — reading the window's first submission instead of
+        // the caller's own passed every test). G. Miller has filed nothing, so his must be empty.
+        assert.equal(r.body.windows.length, 1, 'fixture check: the member sees the window');
+        assert.equal(r.body.windows[0].submission, null, "a colleague's week came back as the member's own");
+    });
+
+    test('the state is read for the TOKEN\'s member, whatever a body names (invariant 6)', async () => {
+        // "Identity is never the request body." The endpoint takes no member field today, and that is
+        // exactly why nobody wrote this: a later change that read one would have passed every test.
+        freeze(Date.parse('2026-08-17T09:00:00Z'));
+        const { eps } = build(seededWindow({
+            [`overtimeWindows/${WEEK}/participants/S. Silva`]: { memberName: 'S. Silva', grade: 'CEA', rosterOrder: 5 },
+            [`overtimeWindows/${WEEK}/submissions/S. Silva`]: { memberName: 'S. Silva', currentRevision: 1, days: noDays() },
+        }));
+        const r = await call(eps.getMyOvertimeState, req({ memberName: 'S. Silva' }));   // signed in as G. Miller
+        unfreeze();
+        assert.equal(r.code, 200);
+        assert.equal(r.body.windows[0].submission, null, 'the body chose whose declaration came back');
     });
 
     test('an expired window is omitted even though the document still exists', async () => {
@@ -1212,10 +1260,29 @@ describe('submitOvertimeAvailability — the only mutation', () => {
         freeze(Date.parse('2026-08-17T09:00:00Z'));
         const { db, eps } = build(seededWindow());
         const r = await call(eps.submitOvertimeAvailability, req(good(), 'tok_plain'));
-        unfreeze();
         assert.equal(r.code, 403);
         assert.equal(r.body.error, 'not-a-participant');
         assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/S. Silva`), false);
+        // …and the case the title names, which this test never tried until the test audit (7 Nov 2026):
+        // `tok_plain` is an ordinary member, so letting admins through (`&& !who.admin`) stayed green.
+        const a = await call(eps.submitOvertimeAvailability, req(good(), 'tok_admin_out'));
+        unfreeze();
+        assert.equal(a.code, 403, 'a Master Admin outside the window filed a declaration');
+        assert.equal(a.body.error, 'not-a-participant');
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/D. Watts`), false);
+    });
+
+    test('a submission is filed under the TOKEN\'s member, whatever the body names (invariant 6)', async () => {
+        freeze(Date.parse('2026-08-17T09:00:00Z'));
+        const { db, eps } = build(seededWindow({
+            [`overtimeWindows/${WEEK}/participants/S. Silva`]: { memberName: 'S. Silva', grade: 'CEA', rosterOrder: 5 },
+        }));
+        const r = await call(eps.submitOvertimeAvailability, req(good({ memberName: 'G. Miller' }), 'tok_plain'));
+        unfreeze();
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/G. Miller`), false,
+            "the body filed a colleague's declaration");
+        assert.equal(r.code, 200, `S. Silva's own submission was refused: ${JSON.stringify(r.body)}`);
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/S. Silva`), true);
     });
 
     test('a malformed week is refused with the reason and the offending date', async () => {
@@ -1245,6 +1312,21 @@ describe('submitOvertimeAvailability — the only mutation', () => {
         const r = await call(eps.submitOvertimeAvailability, req(good()));
         unfreeze();
         assert.equal(r.code, 404);
+    });
+
+    test('an EXPIRED window answers as one that does not exist — 404, not 409 closed', async () => {
+        // Retention is checked BEFORE the phase: an expired week is gone as far as the app is
+        // concerned, whether or not the purge has reached it, and the read endpoint already omits it.
+        // Deleting that check left every suite green and turned this into a 409 `closed` — still a
+        // refusal, but about a week the member's own state says is not there (test audit, 7 Nov 2026).
+        // Frozen ON the retention instant, so `<=` is pinned too.
+        freeze(M.retentionUntil);
+        const { db, eps } = build(seededWindow());
+        const r = await call(eps.submitOvertimeAvailability, req(good()));
+        unfreeze();
+        assert.equal(r.code, 404);
+        assert.equal(r.body.error, 'no-window');
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/G. Miller`), false);
     });
 
     test('the participant uid is stamped on first contact, as the rename recovery route', async () => {

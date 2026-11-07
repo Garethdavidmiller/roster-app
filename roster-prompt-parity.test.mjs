@@ -38,9 +38,11 @@ import { createRequire } from 'node:module';
 const { normaliseShift } = createRequire(import.meta.url)('./functions/roster-parse-helpers.js');
 const { NOT_AVAILABLE_TOKENS, NOT_AVAILABLE_SUNDAY_TOKENS } = createRequire(import.meta.url)('./functions/cell-day-rules.js');
 
-const INDEX   = readFileSync('functions/index.js', 'utf8');
-const HELPERS = readFileSync('functions/roster-parse-helpers.js', 'utf8');
-const PROMPTS = readFileSync('functions/roster-prompt.js', 'utf8');
+// Beside this file, not the working directory (test audit, 7 Nov 2026): run from anywhere else, the
+// whole suite failed to load on ENOENT.
+const INDEX   = readFileSync(new URL('./functions/index.js', import.meta.url), 'utf8');
+const HELPERS = readFileSync(new URL('./functions/roster-parse-helpers.js', import.meta.url), 'utf8');
+const PROMPTS = readFileSync(new URL('./functions/roster-prompt.js', import.meta.url), 'utf8');
 
 /**
  * The code table — ONE copy, read where it now lives (v24.04).

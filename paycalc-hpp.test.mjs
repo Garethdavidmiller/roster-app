@@ -22,6 +22,7 @@ import { RATE_125, RATE_150, RATE_300 } from './paycalc-calc.js';
 const _ls = new Map();
 let _hasBankHolidayVal = false;
 let _hasBoxingDayVal   = false;
+let _proRate           = 1;
 
 mock.module('./paycalc-periods.js', {
     namedExports: {
@@ -40,9 +41,10 @@ mock.module('./paycalc-settings.js', {
         getGrade:          () => 'cea',
         getLoggedMember:   () => null,
         getEffectiveContr: () => 140,
-        // getProRateFactor kept for module shape only — _varPayForPeriod no longer imports it
-        // (London was the only component it touched; removed with London at v17.23).
-        getProRateFactor:  () => 1,
+        // CONTROLLABLE (test audit, 7 Nov 2026). It was a constant 1, so multiplying any premium in
+        // _varPayForPeriod by the joiner's factor was invisible — and invariant 7 (HPP is never
+        // pro-rated for a joiner) had nothing behind it. The module still imports it for other work.
+        getProRateFactor:  () => _proRate,
         getPensionDefault: () => 147.36,
         getStoredRateForYear: () => 20.74,
         isPensionOptedOut: () => false,
@@ -83,6 +85,7 @@ function reset() {
     _ls.clear();
     _hasBankHolidayVal = false;
     _hasBoxingDayVal   = false;
+    _proRate           = 1;
 }
 
 /**
@@ -340,5 +343,27 @@ describe('knownYtdLumps — non-premium lumps inside a Year to Date Taxable Pay 
 
     test('nothing known → nothing removed (an unreadable or empty period adds no guess)', () => {
         assert.equal(knownYtdLumps({ ...base, readSaved: () => ({ data: null, error: true }) }), 0);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Invariant 7 — HPP is NEVER pro-rated for a joiner (.claude/rules/paycalc.md)
+// ─────────────────────────────────────────────────────────────────────────────
+// It accrues on the extras actually done, so a part-year premium is lower by itself; a pro-rate term
+// on top would scale it down a second time. The joining period's factor reaches this function's
+// neighbours (London and the pension are pro-rated in calculate()), which is what makes a stray
+// `× getProRateFactor(p)` here look plausible.
+describe('_varPayForPeriod — no joiner pro-rate (invariant 7)', () => {
+    beforeEach(reset);
+
+    test('a joining period counts its premiums in full, whatever its pro-rate factor', () => {
+        const RATE = 21.49;
+        const d = { satH: 8, otH: 4, rdwH: 6, sunH: 5, bhOtH: 2 };
+        const full = _varPayForPeriod(makeP50(), d, RATE);
+        assert.ok(full > 0, 'premiums were worked');
+        for (const f of [0.25, 0.5, 10 / 28]) {
+            _proRate = f;
+            assertPounds(_varPayForPeriod(makeP50(), d, RATE), full, `factor ${f.toFixed(3)}`);
+        }
     });
 });

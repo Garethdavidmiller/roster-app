@@ -6,7 +6,7 @@
  * global.document is stubbed so validateShiftRules' DOM marking no-ops cleanly.
  */
 
-import { test, describe, mock, beforeEach } from 'node:test';
+import { test, describe, mock, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 // validateShiftRules calls document.getElementById to mark grid rows with .row-error.
@@ -33,6 +33,10 @@ let _failNextGetDocs = 0;
 // How many of the NEXT getDocs() calls answer from the OFFLINE CACHE (`metadata.fromCache`) — empty,
 // which is what Firestore hands back on a dead signal for a query this device never ran (v24.48).
 let _cachedNextGetDocs = 0;
+
+// How many single-document SERVER reads (`getDoc`) have been issued — the re-reads a delete or a
+// leave-year move makes before it writes.
+let _getDocReads = 0;
 
 // Lets a test HOLD a getDocs in flight (a load that has started and not yet resolved) and choose the
 // rows it eventually returns. That is the only way to exercise the ordering between a save and a
@@ -100,7 +104,8 @@ mock.module('./firebase-client.js', {
         deleteDoc:       async () => {},
         // The server's copy a delete re-reads first (Oct 2026) — the same `_server` the batches commit
         // to, so a colleague's later save is exactly what the re-read finds.
-        getDoc:          async (/** @type {any} */ ref) => ({ exists: () => _server.has(ref.id), data: () => _server.get(ref.id), metadata: {} }),
+        // COUNTED (test audit, 7 Nov 2026), so a test can say a refusal was reached without asking.
+        getDoc:          async (/** @type {any} */ ref) => { _getDocReads++; return { exists: () => _server.has(ref.id), data: () => _server.get(ref.id), metadata: {} }; },
         // An EXPLICIT id (doc(db, col, id)) is honoured — that is how a manual write names its document
         // since v24.48; only an auto-id call mints a fresh one.
         doc:             (() => { let n = 0; return (/** @type {any[]} */ ...a) => { const id = a.length >= 3 ? String(a[2]) : 'mock-doc-' + (++n); _issuedDocIds.push(id); return { id }; }; })(),
@@ -247,6 +252,24 @@ describe('cache-load-failure guard (Finding #2)', () => {
         auth.currentUser = null;
     });
 
+    // …and the week grid's save asks it of EVERY member its batch names, not only the one in the
+    // dropdown: each entry carries its own `memberName` (test audit, 7 Nov 2026 — narrowing the check
+    // to the dropdown member left every suite green). Here only G. Miller has been read.
+    test('executeSave refuses a batch that names a member this cache has not read', async () => {
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        const realGet = global.document.getElementById;
+        global.document.getElementById = (/** @type {string} */ id) => (id === 'fieldMember' ? { value: 'G. Miller' } : null);
+        _batchWrites.length = 0;
+        try {
+            await executeSave([{ memberName: 'S. Silva', date: '2026-06-15', type: 'rdw', value: '06:20-14:00' }]);
+        } finally {
+            global.document.getElementById = realGet;
+            auth.currentUser = null;
+        }
+        assert.deepEqual(_batchWrites, [], 'a day was written for a member whose saved changes were never read');
+        assert.equal(getAllOverrides().some(o => o.memberName === 'S. Silva'), false);
+    });
+
     // v24.38: a member whose load is still RUNNING is waited for, not refused as a failed load. A
     // Save straight after switching member was told "couldn't load — reload the page".
     test('a member still LOADING is waited for, not reported as a failed load', async () => {
@@ -306,7 +329,10 @@ describe('recordRangeOverrides — the payload, not the summary', () => {
         auth.currentUser = null;
 
         const written = _batchWrites.find(w => w.date === '2026-06-16');
-        if (written) assert.equal(written.replacedType ?? null, null);
+        // Required, not `if (written)` (test audit, 7 Nov 2026): a save that wrote nothing at all
+        // passed the conditional form, and "no replacement recorded" said nothing then.
+        assert.ok(written, 'the save must write the day');
+        assert.equal(written.replacedType ?? null, null);
     });
 });
 
@@ -411,7 +437,9 @@ describe('the leave-year choice — what is written', () => {
         seed([leave({ leaveYear: 2026 })]);
         await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: null, changedBy: MEMBER });
         assert.ok(!('leaveYear' in _batchWrites.at(-1)));
-        assert.ok(!('leaveYear' in (_server.get(FIXED) ?? {})));
+        // The record must still BE there (test audit, 7 Nov 2026): `?? {}` passed a deleted day too.
+        assert.ok(_server.get(FIXED), 'moving the year removed the leave itself');
+        assert.ok(!('leaveYear' in _server.get(FIXED)));
     });
 
     test('what the leave replaced travels with it — a swapped-in day still costs after it moves', async () => {
@@ -443,6 +471,19 @@ describe('the leave-year choice — what is written', () => {
         assert.equal(_server.has(FIXED), false);
     });
 
+    test('REFUSED, without asking the server, when the page does not show the day as leave', async () => {
+        // The page's own record is checked FIRST (test audit, 7 Nov 2026 — removing that check left
+        // every suite green, because the server re-read refuses too). Not the same refusal, though:
+        // offline, the re-read fails, and the admin is told to reconnect about a day that is not
+        // even leave. Refused here, nothing is read and the line is the one that is true.
+        seed([leave({ type: 'shift', value: '07:00-15:00' })]);
+        const reads = _getDocReads;
+        await assert.rejects(setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER }),
+            (/** @type {any} */ e) => /changed since the page loaded/.test(e.line));
+        assert.equal(_getDocReads, reads, 'the server was asked about a day the page already knew was not leave');
+        assert.equal(_batchWrites.length, 0, 'nothing was written');
+    });
+
     test('REFUSED when the fixed id holds a record this page never loaded', async () => {
         seed([leave({ id: 'import-1', source: 'roster_import' })]);
         _server.set(FIXED, { ...leave(), type: 'shift', value: '07:00-15:00' });
@@ -467,7 +508,11 @@ describe('the leave-year choice — what is written', () => {
     test('an absence recorded over a moved day DROPS it — the day is no longer leave', async () => {
         seed([leave({ leaveYear: 2026 })]);
         await recordRangeOverrides({ type: 'sick', value: 'SICK', memberName: MEMBER, dates: [DAY], changedBy: MEMBER });
-        assert.ok(!('leaveYear' in (_batchWrites.find(w => w.date === DAY) ?? {})));
+        // The absence must be WRITTEN (test audit, 7 Nov 2026): `?? {}` passed a save that wrote nothing.
+        const written = _batchWrites.find(w => w.date === DAY);
+        assert.ok(written, 'the absence was not written');
+        assert.equal(written.type, 'sick');
+        assert.ok(!('leaveYear' in written));
     });
 
     test('the week grid re-saving a moved day as leave KEEPS the year', async () => {
@@ -479,7 +524,49 @@ describe('the leave-year choice — what is written', () => {
     test('the week grid changing a moved day to a shift DROPS it', async () => {
         seed([leave({ leaveYear: 2026 })]);
         await executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '', existingId: FIXED }]);
-        assert.ok(!('leaveYear' in (_batchWrites.find(w => w.date === DAY) ?? {})));
+        // The shift must be WRITTEN (test audit, 7 Nov 2026): `?? {}` passed a save that wrote nothing.
+        const written = _batchWrites.find(w => w.date === DAY);
+        assert.ok(written, 'the shift was not written');
+        assert.equal(written.type, 'shift');
+        assert.ok(!('leaveYear' in written));
+    });
+});
+
+// ── A SWAPPED REST DAY IS RECORDED AS ONE (test audit, 7 Nov 2026) ─────────────────────────────
+// The week grid asks, for leave on a rest day, whether the member swapped working days onto it. The
+// answer "Swapped — counts" must leave `replacedType: 'shift'` on the record: the allowance reads
+// that afterwards, and without it the day reads as a free rest day the moment the save lands. No
+// test passed `swapped: true` into executeSave, so writing the ordinary replacedType instead left
+// every suite green — the v23.75 defect, in which three of one member's days went missing.
+describe('executeSave — a day answered "swapped" carries the contracted-work stamp', () => {
+    const MEMBER = 'G. Miller';
+    const REST_DAY = '2027-01-13';                  // a Wednesday rest day on this line (premise below)
+    beforeEach(() => {
+        _batchWrites.length = 0;
+        _failNextCommits = 0;
+        setAllOverrides([]);
+        mockAuth.currentUser = { uid: 'gm', getIdToken: async () => {} };
+    });
+
+    test('the premise: it is a rest day on this line, so the question is asked at all', async () => {
+        const { getBaseShift, parseISODate } = await import('./roster-data.js');
+        const m = teamMembers.find(x => x.name === MEMBER);
+        assert.ok(isRestShift(getBaseShift(m, parseISODate(REST_DAY))));
+    });
+
+    test('"Swapped — counts" writes replacedType "shift", and the instruction itself is not stored', async () => {
+        await executeSave([{ memberName: MEMBER, date: REST_DAY, type: 'annual_leave', value: 'AL', note: '', swapped: true }]);
+        const w = _batchWrites.find(x => x.date === REST_DAY);
+        assert.ok(w, 'premise: the day was written');
+        assert.equal(w.replacedType, 'shift', 'the allowance would read the day as a free rest day');
+        assert.ok(!('swapped' in w), 'a stray key reaches hasOnly() in the rules and refuses the whole save');
+    });
+
+    test('CONTROL: the same day saved without the answer carries no such stamp', async () => {
+        await executeSave([{ memberName: MEMBER, date: REST_DAY, type: 'annual_leave', value: 'AL', note: '' }]);
+        const w = _batchWrites.find(x => x.date === REST_DAY);
+        assert.ok(w, 'premise: the day was written');
+        assert.notEqual(w.replacedType, 'shift');
     });
 });
 
@@ -720,12 +807,13 @@ describe('validateShiftRules', () => {
     });
 });
 
-// ── recordRangeOverrides — Sunday prohibition (layer 3 of 5) ─────────────────
+// ── recordRangeOverrides — Sunday prohibition (layer 3 of 6) ─────────────────
 //
 // CLAUDE.md: "Sundays are non-contracted — AL and Absent cannot be recorded on
-// Sundays."  The filter in recordRangeOverrides is layer 3; the other 4 layers
-// live in the week-grid pill rendering, bulk-bar skip, computeCellStates, and
-// calendar-app.js Sunday sick suppression.
+// Sundays."  The filter in recordRangeOverrides is layer 3 of the SIX CLAUDE.md
+// numbers (this said five until the test audit, 7 Nov 2026): the week-grid pills,
+// the bulk-bar skip, this filter, the roster-upload normalisation, the display
+// suppression (`isOverrideDisplaySuppressed`) and the single-row save in admin-app.js.
 //
 // Test date: Mon 15 Jun – Sun 21 Jun 2026.  G. Miller is on main roster Week 1
 // (Mon-Sat all SPARE) for 15-20 Jun and Week 2 (sun: '14:30-23:25') for 21 Jun.
@@ -1083,7 +1171,10 @@ describe('_hasStagedEdits', () => {
         withGrid([row({ type: 'shift', existingId: 'a' }, ['prefilled-existing']), row({ type: 'al' }, [])]);
         assert.equal(_hasStagedEdits(), true);
     });
-    clearGrid();
+    // AFTER the tests, as a hook (test audit, 7 Nov 2026). A bare `clearGrid()` here ran while the
+    // tests were being COLLECTED — before any of them — so the last fake grid, holding a staged row,
+    // stayed installed for every block below.
+    after(clearGrid);
 });
 
 // ── A SAVE MUST SURVIVE A LOAD THAT WAS ALREADY RUNNING (v21.41) ──────────────────────────────────

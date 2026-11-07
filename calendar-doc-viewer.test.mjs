@@ -163,7 +163,10 @@ describe('doc viewer — a COLD deep link waits for the access decision before c
     // The viewer is wired before the Calendar decides access, so a notification tap that cold-opens
     // the page finds the gate shut simply because nothing has been decided yet — and told a
     // signed-in member to enter the staff PIN for the second or two the decision took.
-    test('undecided: "Loading…", not the PIN message', async () => {
+    test('undecided: "Loading…", not the PIN message', async (t) => {
+        // Mock timers (test audit, 7 Nov 2026): a decision that never comes leaves the viewer's own 8s
+        // bound waiting, correctly — on the real clock it held this file open for eight seconds.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
         global.window.location.hash = '#circular';
         initDocViewer({ authReady: Promise.resolve(), accessDecided: new Promise(() => {}),
             docAccess: { has: () => false, onChange: () => () => {} } });

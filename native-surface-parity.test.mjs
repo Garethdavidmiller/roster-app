@@ -82,6 +82,13 @@
  *     the aria states — so this checks it is there, covers every state, and is not restated by a
  *     page. `e2e/forced-colors.spec.js` proves the painting on real controls.
  *
+ * 15. **No `<input type="date">` is left to the OS** (test audit, 7 Nov 2026). The rule had lived in
+ *     `date-picker.js`'s header since v23.37 with nothing behind it: every date input is either in
+ *     an `initDatePickers([...])` list or a value holder nobody can reach. Contract 5 gained its
+ *     other half the same day — each textarea must be REACHED by a `resize: none`, because the
+ *     default is a grip — and contracts 1, 6 and 7 their second spellings (`title='…'`,
+ *     `input.type = 'time'`, `window.confirm(`).
+ *
  * What it cannot see: the surfaces that are the platform's by nature — the file picker, the print
  * dialog, Web Push, the install prompt, and the keyboard with its AutoFill bar. Those are correct
  * and the audit says so; this file is about the ones that were a choice. Note the line contract 10
@@ -107,8 +114,9 @@ const JS   = readdirSync(ROOT).filter(f => f.endsWith('.js') && !f.endsWith('.te
 test('no served page and no module puts a `title` attribute on anything', () => {
     const offenders = [];
     // `(?<![-\w])` keeps `data-cs-title="…"` and `subtitle="…"` out; `<title>` is an element and
-    // carries no `="`.
-    const attr = /(?<![-\w])title="/g;
+    // carries no `="`. Either quote (test audit, 7 Nov 2026): `title='Close'` is the same tooltip,
+    // and passed. `.`/`$` before it is a property, which the `.title =` rule below reads.
+    const attr = /(?<![-\w.$])title=["']/g;
     for (const f of HTML) {
         const n = (read(f).match(attr) || []).length;
         if (n) offenders.push(`${f}: ${n} title attribute${n === 1 ? '' : 's'}`);
@@ -154,27 +162,49 @@ function checkboxHandles() {
     return { own, wrap };
 }
 
+/** The rules in one stylesheet that restate the box's size or colour, given the derived handles.
+ *  @param {string} css @param {Set<string>} own @param {Set<string>} wrap */
+function boxRestatements(css, own, wrap) {
+    const offenders = [];
+    for (const m of strip(css).matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+        const body = m[2];
+        // `.gen-obj:has(input:checked)` styles the ROW the box sits in — its background is the
+        // row's. Only a selector that reaches the input itself is about the box.
+        const sel = m[1].trim().replace(/\s+/g, ' ').replace(/:has\([^)]*\)/g, '');
+        const aboutABox = /input\[type="?(?:checkbox|radio)"?\]/.test(sel)
+            || [...own].some(c => new RegExp(`\\.${c}(?![\\w-])`).test(sel))
+            || [...wrap].some(c => new RegExp(`\\.${c}(?![\\w-])[^,]*\\binput\\b`).test(sel));
+        if (!aboutABox) continue;
+        const bad = ['width', 'height', 'accent-color', 'background-color', 'border-radius']
+            .filter(p => new RegExp(`(^|[\\s;])${p}\\s*:`).test(body));
+        if (bad.length) offenders.push(`\`${sel}\` sets ${bad.join(', ')}`);
+    }
+    return offenders;
+}
+
 test('no page sets a checkbox or radio\'s size or colour — one recipe, in shared.css', () => {
     const { own, wrap } = checkboxHandles();
     const offenders = [];
     for (const f of CSS) {
         if (f === 'shared.css') continue;
-        for (const m of strip(read(f)).matchAll(/([^{}]+)\{([^}]*)\}/g)) {
-            const body = m[2];
-            // `.gen-obj:has(input:checked)` styles the ROW the box sits in — its background is the
-            // row's. Only a selector that reaches the input itself is about the box.
-            const sel = m[1].trim().replace(/\s+/g, ' ').replace(/:has\([^)]*\)/g, '');
-            const aboutABox = /input\[type="?(?:checkbox|radio)"?\]/.test(sel)
-                || [...own].some(c => new RegExp(`\\.${c}(?![\\w-])`).test(sel))
-                || [...wrap].some(c => new RegExp(`\\.${c}(?![\\w-])[^,]*\\binput\\b`).test(sel));
-            if (!aboutABox) continue;
-            const bad = ['width', 'height', 'accent-color', 'background-color', 'border-radius']
-                .filter(p => new RegExp(`(^|[\\s;])${p}\\s*:`).test(body));
-            if (bad.length) offenders.push(`${f}: \`${sel}\` sets ${bad.join(', ')}`);
-        }
+        for (const o of boxRestatements(read(f), own, wrap)) offenders.push(`${f}: ${o}`);
     }
     assert.deepEqual(offenders, [],
         'the box is shared.css\'s (20px, 22 coarse). Recolour with `--check-fill`; do not restate the recipe');
+});
+
+test('the checkbox scan finds the boxes it checks — guard the guard', () => {
+    // Contract 3 passes on handle sets that came back EMPTY (test audit, 7 Nov 2026): the derived
+    // half is what reaches a box by its own class or its row's, so a markup regex that stopped
+    // matching would leave only the `input[type=…]` selectors checked, and still read as clean.
+    const { own, wrap } = checkboxHandles();
+    // 6 and 14 on 7 Nov 2026 (`.day-cb`, `.gen-obj`, `.bp-mode-opt` …); a floor well under both.
+    assert.ok(own.size >= 3, `only ${own.size} checkbox/radio classes derived from the markup — the scan is wrong`);
+    assert.ok(wrap.size >= 5, `only ${wrap.size} wrapping rows derived from the markup — the scan is wrong`);
+    assert.equal(boxRestatements('.gen-obj input { width: 18px; }', own, wrap).length, 1, 'a row\'s box resized');
+    assert.equal(boxRestatements('.day-cb { accent-color: red; }', own, wrap).length, 1, 'a box recoloured by its own class');
+    assert.equal(boxRestatements('.gen-obj:has(input:checked) { background-color: white; }', own, wrap).length, 0,
+        'the ROW\'s background is the row\'s');
 });
 
 test('shared.css draws the checkbox and the radio', () => {
@@ -274,19 +304,94 @@ test('every forced-colours block uses the theme\'s colours, and shared.css rings
 test('no stylesheet lets the OS draw a textarea resize grip', () => {
     const offenders = [];
     for (const f of CSS) {
-        for (const m of strip(read(f)).matchAll(/resize\s*:\s*(vertical|horizontal|both)/g)) offenders.push(`${f}: resize: ${m[1]}`);
+        // `block` and `inline` are the logical spellings of `vertical`/`horizontal`, and passed until
+        // the test audit (7 Nov 2026). `none` is the only value that draws no grip.
+        for (const m of strip(read(f)).matchAll(/resize\s*:\s*(vertical|horizontal|both|block|inline)/g)) offenders.push(`${f}: resize: ${m[1]}`);
     }
     assert.deepEqual(offenders, [], 'a textarea grows with its content (`field-sizing: content`); the grip is the platform\'s');
+});
+
+test('every textarea the app ships has a `resize: none` rule that reaches it', () => {
+    // A textarea's DEFAULT is a grip, so forbidding the values above was half the rule: deleting
+    // `.li-paste`'s `resize: none` put the browser's grip back and passed (test audit, 7 Nov 2026).
+    // Each textarea is found in the markup and named by its class or id, as contract 3 finds boxes.
+    const handles = [];
+    for (const f of [...HTML, ...JS]) {
+        for (const m of strip(read(f)).replace(/<!--[\s\S]*?-->/g, '').matchAll(/<textarea\b[^>]*>/g)) {
+            const id = m[0].match(/\bid=["']([^"']+)["']/)?.[1] ?? '';
+            const classes = m[0].match(/\bclass=["']([^"']+)["']/)?.[1].split(/\s+/) ?? [];
+            handles.push({ where: `${f}: ${m[0].slice(0, 60)}`, id, classes });
+        }
+        if (/createElement\(\s*['"]textarea['"]/.test(strip(read(f)))) {
+            handles.push({ where: `${f}: createElement('textarea') — name it in markup, or teach this scan`, id: '', classes: [] });
+        }
+    }
+    const none = CSS.flatMap(f => [...strip(read(f)).matchAll(/([^{}]+)\{([^}]*)\}/g)]
+        .filter(m => /(^|[\s;])resize\s*:\s*none\b/.test(m[2]))
+        .map(m => m[1].trim().replace(/\s+/g, ' ')));
+    const reaches = (/** @type {{id: string, classes: string[]}} */ h) => none.some(sel =>
+        /(?<![\w-])textarea(?![\w-])/.test(sel)
+        || (h.id && new RegExp(`#${h.id}(?![\\w-])`).test(sel))
+        || h.classes.some(c => new RegExp(`\\.${c}(?![\\w-])`).test(sel)));
+    assert.ok(handles.length >= 1, 'no textarea found — the markup scan is wrong');   // three on 7 Nov 2026
+    assert.deepEqual(handles.filter(h => !reaches(h)).map(h => h.where), [],
+        'these textareas keep the OS resize grip: give each a `resize: none` rule (see .li-paste in links.css)');
 });
 
 // ── 6. no time input ────────────────────────────────────────────────────────────────────────────
 test('no <input type="time"> is served', () => {
     const offenders = [];
     for (const f of [...HTML, ...JS]) {
-        const n = (strip(read(f)).match(/type=["']time["']/g) || []).length;
+        const src = strip(read(f));
+        const n = (src.match(/type=["']time["']/g) || []).length;
         if (n) offenders.push(`${f}: ${n}`);
+        // …nor one made in code (test audit, 7 Nov 2026): `input.type = 'time'` built the same OS
+        // widget and passed, because only the markup spelling was read.
+        for (const m of src.matchAll(/\.type\s*=\s*['"`]time['"`]|setAttribute\(\s*['"]type['"]\s*,\s*['"]time['"]/g)) {
+            offenders.push(`${f}: ${m[0]}`);
+        }
     }
     assert.deepEqual(offenders, [], 'the OS time widget renders 12-hour from the device setting (roster-entry-control.js) — use a text field');
+});
+
+// ── 15. no date input the OS draws ──────────────────────────────────────────────────────────────
+test('every <input type="date"> is enhanced by date-picker.js, or a value holder nobody can reach', () => {
+    // NOTHING GUARDED THIS (test audit, 7 Nov 2026): dropping 'rosterWeekEnding' from Operations'
+    // `initDatePickers` list handed that field back to the OS calendar and both lanes stayed green —
+    // the e2e sets it through `evaluate`, and only the circular date's trigger is ever looked at.
+    // The same scan as contract 2 of select-sheet-parity: every date input is ENHANCED (its id is in
+    // an `initDatePickers([...])` list) or is a VALUE HOLDER — `hidden`, or the `fieldpick-native`
+    // 1px holder behind a picker the app opens itself (`openDatePicker`), with `tabindex="-1"` and
+    // `aria-hidden`.
+    const enhanced = new Set();
+    for (const f of JS) {
+        for (const m of strip(read(f)).matchAll(/\binitDatePickers\(\s*\[([^\]]*)\]/g)) {
+            for (const id of m[1].matchAll(/['"]([^'"]+)['"]/g)) enhanced.add(id[1]);
+        }
+    }
+    const found = [], offenders = [];
+    for (const f of [...HTML, ...JS]) {
+        const src = strip(read(f)).replace(/<!--[\s\S]*?-->/g, '');
+        for (const m of src.matchAll(/<input\b[^>]*\btype=["']date["'][^>]*>/g)) {
+            const tag = m[0];
+            const id = tag.match(/\bid=["']([^"']+)["']/)?.[1] ?? '';
+            found.push(id);
+            if (id && enhanced.has(id)) continue;
+            if (/(?<![-\w])hidden(?![-\w])/.test(tag)) continue;
+            if (/\bclass=["'][^"']*\bfieldpick-native\b/.test(tag) && /\btabindex=["']-1["']/.test(tag)
+                && /\baria-hidden=["']true["']/.test(tag)) continue;
+            offenders.push(`${f}: ${tag}`);
+        }
+        for (const m of src.matchAll(/\.type\s*=\s*['"`]date['"`]|setAttribute\(\s*['"]type['"]\s*,\s*['"]date['"]/g)) {
+            offenders.push(`${f}: ${m[0]} — a date input built in code; name it in markup, or teach this scan`);
+        }
+    }
+    // Ten date inputs and four enhanced ids on 7 Nov 2026; floors under both.
+    assert.ok(found.length >= 6 && enhanced.size >= 2,
+        `found ${found.length} date inputs and ${enhanced.size} enhanced ids — the scan is wrong`);
+    assert.deepEqual(offenders, [],
+        'these date inputs open the OS calendar — add the id to an initDatePickers([...]) list, or make it '
+        + 'a hidden value holder behind openDatePicker (date-picker.js)');
 });
 
 // ── 7. no native dialog ─────────────────────────────────────────────────────────────────────────
@@ -295,7 +400,12 @@ test('no module opens a native alert, confirm or prompt', () => {
     for (const f of JS) {
         // No whitespace before the paren: `confirm (` is how the countdown button's PROSE reads
         // ("Tap again to confirm (3)"), and this app never writes a call that way.
-        for (const m of strip(read(f)).matchAll(/(?<![\w.$'"`])(alert|confirm|prompt)\(/g)) offenders.push(`${f}: ${m[1]}(`);
+        const src = strip(read(f));
+        for (const m of src.matchAll(/(?<![\w.$'"`])(alert|confirm|prompt)\(/g)) offenders.push(`${f}: ${m[1]}(`);
+        // The lookbehind refuses ANY `.` before the name, which is what spares `deferred.prompt()` —
+        // and it spared `window.confirm(` too, the same OS dialog (test audit, 7 Nov 2026). The global
+        // object's names are read on their own.
+        for (const m of src.matchAll(/\b(?:window|globalThis|self|top|parent)\s*\.\s*(alert|confirm|prompt)\s*\(/g)) offenders.push(`${f}: ${m[0]}`);
     }
     assert.deepEqual(offenders, [], 'use confirmDialog / promptDialog from overlay.js');
 });

@@ -37,7 +37,7 @@
  * the chip are made of.
  */
 
-import { test, describe, mock, beforeEach } from 'node:test';
+import { test, describe, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 // ── THE FAKE DOM ────────────────────────────────────────────────────────────────────────────────
@@ -139,8 +139,9 @@ async function boot(c, weeks) {
     painted.length = 0;
 }
 
-/** Let every pending read settle — a macrotask, because these chains are more than one await deep. */
-const settle = () => new Promise(r => setTimeout(r, 0));
+/** Let every pending read settle — a macrotask, because these chains are more than one await deep.
+ *  `setImmediate` rather than `setTimeout(0)`, because setTimeout is MOCKED in this file (below). */
+const settle = () => new Promise(r => setImmediate(r));
 
 function makeController(over = {}) {
     return createReviewController({
@@ -158,7 +159,12 @@ beforeEach(() => {
     painted = [];
     createQueue = [];
     withdrawHold = null;
+    // A success flash arms a REAL 2.5-second auto-hide that no test here waits for, and it held the
+    // process open after the last test: 2.7 s of wall for ~60 ms of tests (test audit, 7 Nov 2026).
+    // Mocked, it is a fake timer that the reset below throws away.
+    mock.timers.enable({ apis: ['setTimeout'] });
 });
+afterEach(() => { mock.timers.reset(); });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 describe('an older read must never paint over a newer selection', () => {

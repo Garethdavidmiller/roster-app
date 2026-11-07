@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -109,7 +109,13 @@ test('day detail: names the roster it was changed from, and opens at full size',
 // two identical pills either side of an arrow, reading as "nothing changed" directly under a
 // headline saying it did. Found by looking at the render, not by reasoning about it. A timed pill
 // shows its TIME; the kind is still carried by the colour, the emoji and the accessible label.
+// THE TWO DAY-DETAIL TESTS BELOW SEED 2026 AND OPEN ON TODAY'S MONTH (test audit, 7 Nov 2026), so
+// from 1 Jan 2027 they found no changed day in view and failed — measured with the whole suite's
+// clock pinned to 4 Jan 2027. Neither is about the date, so both pin a 2026 one.
+const OVERRIDES_2026_DAY = new Date('2026-11-04T09:00:00Z');
+
 test('day detail: a same-KIND change still reads as a change', async ({ page }) => {
+    await page.clock.setFixedTime(OVERRIDES_2026_DAY);
     await seedMember(page);
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
@@ -1925,6 +1931,7 @@ test('day detail: states the roster week under the date', async ({ page }) => {
 });
 
 test('day detail: an unchanged day says so, a changed one shows the change instead', async ({ page }) => {
+    await page.clock.setFixedTime(OVERRIDES_2026_DAY);   // see the note above the same-KIND test
     await seedMember(page);
     // One override, so the same month holds both states and neither can pass by the fixture alone.
     await page.addInitScript(() => {
@@ -2870,13 +2877,19 @@ for (const [held, signed, expected] of [
             window.open = /** @type {any} */ ((url) => { /** @type {any} */ (window).__opened.push(String(url)); return null; });
         }, [DOC_STORED, held]);
         await page.route('**/getDocumentUrl', route => route.fulfill({ contentType: 'application/json', body: signedFor(signed) }));
-        const minted = page.waitForResponse('**/getDocumentUrl');
+        await trackEndpointUse(page, 'getDocumentUrl');
         await seedMemberSession(page, 'G. Miller');
         await page.goto('/#huddle');
-        await minted;
         const btn = page.locator('#huddleOpenFileBtn');
         await expect(btn).toBeVisible({ timeout: 15_000 });
-        await page.waitForTimeout(200);   // let the minted link land on the button's closure
+        // THE MINTED LINK HAS LANDED ON THE BUTTON, waited for rather than slept past (test audit,
+        // 7 Nov 2026). This was a 200ms sleep, and the 'stored' case could not fail with it: a tap
+        // that beats the mint opens the stored url anyway (the test below shows an early tap does
+        // exactly that), so on a slow runner it passed whether or not the same-file check worked.
+        // The body read is counted a task after it resolves, and the viewer's `signed = minted` is
+        // in the microtasks before that — so from here the click resolves against the signed link.
+        await expect.poll(async () => (await endpointUse(page, 'getDocumentUrl')).bodiesRead,
+            { message: 'the page never finished reading the signed link' }).toBeGreaterThan(0);
         await btn.click();
         await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__opened), { timeout: 3000 })
             .toEqual([expected === 'stored' ? DOC_STORED : DOC_SIGNED]);

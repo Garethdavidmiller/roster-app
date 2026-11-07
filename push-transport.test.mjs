@@ -79,7 +79,13 @@ function build(subs, statusFor = () => undefined) {
     });
     const collection = () => ({
         get: async () => ({ docs: subs.map(docFor), size: subs.length, empty: subs.length === 0 }),
-        where: (field, _op, value) => {
+        where: (field, op, value) => {
+            // THE OPERATOR IS PART OF THE QUERY (test audit, 7 Nov 2026). This fake took `_op` and
+            // filtered by equality whatever it said, so `'!='` — every OTHER member's devices —
+            // passed every test, in sendTargetedPush (a locked-out member's name, sent to everyone
+            // else) and in the leaver sweep (everyone else's records deleted, the leaver's kept).
+            // It models '==' and refuses anything else, so a changed operator fails here.
+            if (op !== '==') throw new Error(`fake where(): only '==' is modelled, got ${JSON.stringify(op)} on ${field}`);
             queries.push(value);
             return {
                 get: async () => {

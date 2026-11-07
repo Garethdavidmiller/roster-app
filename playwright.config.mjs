@@ -64,6 +64,8 @@ export default defineConfig({
     // printing `flaky`, and nobody is forced to look. Revisit if a flake count above 1 becomes
     // routine, or if a real regression is ever found to have reached main behind one.
     retries: process.env.CI ? 1 : 0,
+    // A stray `test.only` must not quietly shrink this lane to one test on CI (runner-parity.test.mjs).
+    forbidOnly: !!process.env.CI,
 
     // Explicit reporter prevents Playwright 1.50+ from auto-adding the GitHub Actions
     // reporter when GITHUB_ACTIONS=true — that auto-reporter has its own exit-code

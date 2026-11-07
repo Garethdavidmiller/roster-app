@@ -154,7 +154,12 @@ describe('refusing a legitimate value', () => {
     test('the two guards compose in the order that keeps both true', () => {
         // A Sunday AL on a base REST day is caught by either rule alone; asserting it proves
         // neither cancels the other, which a reordering could do.
-        assert.equal(normaliseCellValue('AL', 'RD', SUN).value, 'RD');
+        const r = normaliseCellValue('AL', 'RD', SUN);
+        assert.equal(r.value, 'RD');
+        // The value cannot show the ORDER — either guard alone gives RD — so it is the reported guard
+        // that does (test audit, 7 Nov 2026). Sunday runs first; a row named 'rest-day' instead would
+        // ask "was it a swapped working day?" about a Sunday.
+        assert.equal(r.guarded, 'sunday', 'the guard that actually moved the value is the one named');
     });
 });
 

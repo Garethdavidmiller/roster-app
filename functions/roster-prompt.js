@@ -335,6 +335,53 @@ function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dat
     return sent;
 }
 
+/**
+ * The reverse case: a day the model read as a REST DAY, in a Monday-to-Saturday cell the grid shows
+ * EMPTY, goes to the review (test audit, 7 Nov 2026). Geometry path only; modifies `safeEntries` in
+ * place, after `buildSafeEntries`.
+ *
+ * Mon–Sat a blank cell is a QUESTION, never a rest day: every roster type prints its unworked days
+ * (`RD`, `AL`, `SN`, `NA` …), so a blank there is a cell nobody can account for — measured, the
+ * blanks belong to somebody printed on a SECOND roster who works only its Saturday, and writing `RD`
+ * across their Monday to Friday would overwrite what their primary roster had just imported
+ * (v22.19). `buildSafeEntries` asks that question when the model reports the cell BLANK. When it
+ * reports `RD` instead, nothing asked: the witness refuses only CLAIMS landing in empty cells, and a
+ * rest day is not a claim, so the import wrote the rest days in silence. On this path the server
+ * knows the cell is empty, so it asks.
+ *
+ * Sunday is left alone: a blank Sunday IS a rest day (`blankCellMeaning`). Not counted as a witness
+ * refusal — an invented rest day is not evidence the row is a day out, and must not feed the drift
+ * breaker.
+ *
+ * @param {Array<{ memberName: string, shifts: Record<string, string> }>} safeEntries
+ * @param {Array<{ memberName: string, cells: string[] }>} cellRows   `buildCellTable(...).rows`
+ * @param {string[]} dates   7 ISO dates, Sunday first
+ * @returns {Array<{ memberName: string, dates: string[] }>} the cells sent to review
+ */
+function reviewRestReadsOfEmptyCells(safeEntries, cellRows, dates) {
+    /** @type {Array<{ memberName: string, dates: string[] }>} */
+    const sent = [];
+    if (!Array.isArray(dates) || dates.length < 7) return sent;
+    const cellsFor = new Map((cellRows || []).map(r => [r.memberName, r.cells]));
+    for (const entry of safeEntries) {
+        const cells = cellsFor.get(entry.memberName);
+        if (!Array.isArray(cells)) continue;
+        /** @type {string[]} */
+        const days = [];
+        for (let i = 1; i < 7; i++) {                         // Monday to Saturday — never the Sunday
+            const text = String(cells[i] == null ? '' : cells[i]).trim();
+            const v = String(entry.shifts[dates[i]] ?? '').trim().toUpperCase();
+            if (text || (v !== 'RD' && v !== 'OFF')) continue;
+            const label = DAY_LABELS[i];
+            console.warn(`[parseRosterPDF] ${entry.memberName} ${dates[i]}: the ${label} cell is empty on the PDF but was read as a rest day — sent to review`);
+            entry.shifts[dates[i]] = `UNKNOWN|this ${label} cell is empty on the PDF, but it was read as a rest day — check the PDF`;
+            days.push(dates[i]);
+        }
+        if (days.length) sent.push({ memberName: entry.memberName, dates: days });
+    }
+    return sent;
+}
+
 // ── HOW THE MODEL IS ASKED (moved here from index.js at v25.28) ───────────────────────────────────
 
 /**
@@ -397,6 +444,7 @@ module.exports = {
     renderCellTable,
     buildCellPrompt,
     reviewBlankReadsOfFilledCells,
+    reviewRestReadsOfEmptyCells,
     MODEL_REQUEST,
     DECLINED_ERROR,
 };

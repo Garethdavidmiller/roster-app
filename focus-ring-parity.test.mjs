@@ -65,11 +65,15 @@ test('the focus tokens are defined exactly once, in shared.css', () => {
 // legitimate ONLY when something visible replaces it (a box-shadow ring) or when the element is not
 // a Tab stop at all. Both exemptions are named below, so a NEW suppression has to be argued for
 // rather than merely typed.
+// EXACT SELECTORS, one per entry, compared with each selector of a rule's list (test audit, 7 Nov
+// 2026). These were substrings, so `.lb-content .picker-opt:focus-visible { outline: none }` — a
+// real Tab stop inside every overlay panel — matched '.lb-content' and passed the whole lane.
 const NO_INDICATOR_EXEMPT = [
     // Programmatically focused panel wrapper — never a Tab target (see overlay.js).
-    '.lb-content',
+    '.lb-content:focus',
+    '.lb-content:focus-visible',
     // #hourlyRate is the only .pfx--readonly field and carries tabindex="-1".
-    '.pfx--readonly input',
+    '.pfx--readonly input:not([type="checkbox"]):not([type="radio"]):focus',
     // The option ROWS carry the ring (`:has(input:focus-visible)` on the row) because the row is
     // what is being chosen; the app-drawn box inside (shared.css, v23.50) would otherwise draw a
     // second ring 10px away. Each of these is a Tab stop with a visible indicator — on the row.
@@ -78,21 +82,96 @@ const NO_INDICATOR_EXEMPT = [
     '.hpp-mode-opt input[type="radio"]:focus-visible',
 ];
 
+/** A selector list split at its top-level commas — not the ones inside `:not(…)` or `[…]`. */
+function selectorList(/** @type {string} */ selector) {
+    const out = [];
+    let depth = 0, start = 0;
+    for (let i = 0; i < selector.length; i++) {
+        const c = selector[i];
+        if (c === '(' || c === '[') depth++;
+        else if (c === ')' || c === ']') depth--;
+        else if (c === ',' && depth === 0) { out.push(selector.slice(start, i).trim()); start = i + 1; }
+    }
+    out.push(selector.slice(start).trim());
+    return out.filter(Boolean);
+}
+
+/** The ways an outline is taken away. `none` and `0` always were; a transparent colour, a zero
+ *  width and a `none` style draw exactly as little and passed until the test audit (7 Nov 2026). */
+const REMOVES_OUTLINE = [
+    /(?:^|[\s;])outline:\s*(?:none|0(?:px|em|rem)?)\b/,
+    /(?:^|[\s;])outline:[^;]*\btransparent\b/,
+    /(?:^|[\s;])outline-width:\s*0(?:px|em|rem)?\s*(?:!important\s*)?(?:;|$)/,
+    /(?:^|[\s;])outline-style:\s*none\b/,
+    /(?:^|[\s;])outline-color:\s*transparent\b/,
+];
+
+/**
+ * Every `:focus` rule in one stylesheet, and the ones that take the outline away and put nothing
+ * visible back. Comments are blanked first, keeping line breaks, so a rule's explanation cannot
+ * read as its declaration and the line numbers still point at the source.
+ * @param {string} css
+ */
+function focusSuppressions(css) {
+    const src = css.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+    /** @type {string[]} */ const offenders = [];
+    /** @type {Set<string>} */ const exemptUsed = new Set();
+    let rules = 0;
+    // Every rule whose selector mentions :focus, captured with its declaration block.
+    for (const m of src.matchAll(/([^{}]*:focus(?:-visible)?[^{}]*)\{([^}]*)\}/g)) {
+        rules++;
+        // After any `;`: a statement or a nested rule's parent declarations can sit before the selector.
+        const selector = (m[1].split(';').pop() ?? '').trim().replace(/\s+/g, ' ');
+        const body = m[2];
+        if (!REMOVES_OUTLINE.some(re => re.test(body))) continue;                     // outline intact
+        if (/box-shadow:/.test(body) && !/box-shadow:\s*none/.test(body)) continue; // replaced by a ring
+        const notExempt = selectorList(selector).filter(s => !NO_INDICATOR_EXEMPT.includes(s));
+        selectorList(selector).filter(s => NO_INDICATOR_EXEMPT.includes(s)).forEach(s => exemptUsed.add(s));
+        if (!notExempt.length) continue;
+        const line = src.slice(0, m.index).split('\n').length;
+        offenders.push(`${line} ${notExempt.join(', ')}`);
+    }
+    return { rules, offenders, exemptUsed };
+}
+
 test('a focus rule that removes the outline must put something visible back', () => {
     const offenders = [];
     for (const file of APP_CSS) {
-        const src = read(file);
-        // Every rule whose selector mentions :focus, captured with its declaration block.
-        for (const m of src.matchAll(/([^{}]*:focus(?:-visible)?[^{}]*)\{([^}]*)\}/g)) {
-            const selector = m[1].replace(/\/\*[\s\S]*?\*\//g, '').trim().replace(/\s+/g, ' ');
-            const body = m[2];
-            if (!/outline:\s*(none|0)\b/.test(body)) continue;                          // outline intact
-            if (/box-shadow:/.test(body) && !/box-shadow:\s*none/.test(body)) continue; // replaced by a ring
-            if (NO_INDICATOR_EXEMPT.some(s => selector.includes(s))) continue;
-            const line = src.slice(0, m.index).split('\n').length;
-            offenders.push(`${file}:${line} ${selector}`);
-        }
+        for (const o of focusSuppressions(read(file)).offenders) offenders.push(`${file}:${o}`);
     }
     assert.deepEqual(offenders, [],
         'focus rules that leave no visible indicator — if the element is not a Tab stop, add it to NO_INDICATOR_EXEMPT with the reason');
+});
+
+// ── Guard the guard (test audit, 7 Nov 2026) ────────────────────────────────────────────────────
+// Every assertion above passes if the scan finds no rules at all, which is indistinguishable from
+// stylesheets with nothing wrong in them. So: the scan reads the rules that are there, every
+// exemption still names a real rule, and each way of removing an outline is seen.
+test('the scan finds the focus rules, every exemption is in use, and each removal is seen', () => {
+    let rules = 0;
+    const used = new Set();
+    for (const file of APP_CSS) {
+        const r = focusSuppressions(read(file));
+        rules += r.rules;
+        r.exemptUsed.forEach(s => used.add(s));
+    }
+    assert.ok(rules >= 100, `only ${rules} :focus rules found across ${APP_CSS.length} stylesheets — the scan is wrong`);
+    assert.deepEqual(NO_INDICATOR_EXEMPT.filter(s => !used.has(s)), [],
+        'an exemption that names no rule any more would excuse the next rule written with that selector — drop it');
+
+    const caught = (/** @type {string} */ css) => focusSuppressions(css).offenders.length;
+    assert.equal(caught('.x:focus-visible { outline: none; }'), 1);
+    assert.equal(caught('.x:focus-visible { outline: 0px; }'), 1);
+    assert.equal(caught('.x:focus-visible { outline: 2px solid transparent; }'), 1);
+    assert.equal(caught('.x:focus-visible { outline-width: 0; }'), 1);
+    assert.equal(caught('.x:focus-visible { outline-style: none; }'), 1);
+    assert.equal(caught('.x:focus-visible { outline-color: transparent; }'), 1);
+    assert.equal(caught('.lb-content .picker-opt:focus-visible { outline: none; }'), 1,
+        'an exemption is a selector, not a substring');
+    assert.equal(caught('.lb-content:focus, .x:focus { outline: none; }'), 1,
+        'an exempt selector does not excuse the rest of its list');
+    assert.equal(caught('.lb-content:focus, .lb-content:focus-visible { outline: none; }'), 0);
+    assert.equal(caught('.x:focus-visible { outline: none; box-shadow: var(--focus-ring); }'), 0);
+    assert.equal(caught('.x:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }'), 0);
+    assert.equal(caught('.x:focus-visible { /* not outline: none */ outline: var(--focus-outline); }'), 0);
 });

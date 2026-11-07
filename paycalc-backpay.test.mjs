@@ -177,6 +177,7 @@ const { calcBackPay, _accrueBackPayPeriod, awardWindowFactor, _awardBackdateDate
     await import('./paycalc-backpay.js');
 const { getEffectiveContr, getProRateFactor } = await import('./paycalc-settings.js');
 const { _decodeHours } = await import('./paycalc-hpp.js');
+const { fd } = await import('./paycalc-format.js');
 
 // ── the 2026/27 award ───────────────────────────────────────────────────────────────────────────
 const TY = PERIOD_CONFIG.TAX_YEARS.find(/** @param {any} t */ t => t.label === '2026/27');
@@ -394,19 +395,27 @@ describe('which payslips the window contains', () => {
     });
 
     test('a payslip from the PREVIOUS tax year never joins this award', () => {
-        // The fence is `getTaxYearForOffset(p.num - 48) !== awardTy`. Without it a March payslip —
-        // paid inside the window's date range but belonging to last year's award — would accrue this
-        // year's rise as well as its own.
+        // Without a fence a March payslip — belonging to last year's award — would accrue this year's
+        // rise as well as its own. THREE things keep it out, and each is redundant with the others for
+        // an earlier year: the window's lower bound (`p.num < fromPNum`), the tax-year fence
+        // (`getTaxYearForOffset(p.num - 48) !== awardTy`), and `awardWindowFactor`, which is 0 for a
+        // period wholly before 1 April. Deleting any one, or both loop fences together, leaves this file
+        // green (test audit, 7 Nov 2026), and that is recorded rather than papered over. What this holds
+        // is the property they jointly deliver, which is what a member would feel.
         const march = PERIODS.filter(/** @param {any} p */ p => p.num < YEAR_PERIODS[0].num);
         assert.ok(march.length > 0, 'the grid holds no earlier periods — this case proves nothing');
+        calcBackPay();
+        // Read AFTER the card has run. This loop used to look at the breakdown BEFORE calcBackPay(),
+        // when beforeEach had just emptied it, so it could not fail. And by DATE: the printed payslip
+        // number restarts every April, so last year's P4 and this year's P4 print alike.
+        const printed = [...els.backPayRows.innerHTML.matchAll(/class="bp-lbl">([^<]+)</g)].map(m => m[1]);
         for (const p of march) {
             assert.ok(!WINDOW.includes(p));
-            assert.ok(!els.backPayRows.innerHTML.includes(`P${payslipPeriodNum(p)}<`),
-                `a payslip from before the award year appeared in the breakdown`);
+            assert.ok(!printed.some(l => l.startsWith(`${fd(p.payday)} ·`)),
+                `the ${fd(p.payday)} payslip, from before the award year, appeared in the breakdown`);
         }
-        calcBackPay();
-        const printed = [...els.backPayRows.innerHTML.matchAll(/class="bp-lbl">([^<]+)</g)].map(m => m[1]);
-        assert.equal(printed.length, WINDOW.length);
+        assert.deepEqual(printed, WINDOW.map(/** @param {any} p */ p => `${fd(p.payday)} · P${payslipPeriodNum(p)}`),
+            'the breakdown is exactly the award window, one row per payslip, in order');
     });
 
     test('an entered payslip raises the lump; the same window with no hours is the floor', () => {

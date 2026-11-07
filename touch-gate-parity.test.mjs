@@ -56,7 +56,24 @@ const SINGLE_PROJECT_EXEMPT = [
     },
 ];
 
+/** A line that compares the project's name with ONE touch project. Either quote, either order, loose
+ *  or strict (test audit, 7 Nov 2026): the name in double quotes walked straight past a pattern that
+ *  knew only `'mobile-chrome'`. */
+const NAMES_ONE_TOUCH_PROJECT =
+    /project\.name\s*[!=]==?\s*(['"`])mobile-(chrome|safari)\1|(['"`])mobile-(chrome|safari)\3\s*[!=]==?\s*[\w.]*project\.name/;
+
 describe('a touch-only test runs on every touch engine', () => {
+    test('the pattern sees every spelling of a one-engine gate, and not the shared helper', () => {
+        for (const gate of ["test.skip(info.project.name !== 'mobile-chrome', 'x')",
+                            'test.skip(info.project.name !== "mobile-safari", "x")',
+                            'if (testInfo.project.name === `mobile-chrome`) {',
+                            "test.skip('mobile-chrome' !== info.project.name, 'x')",
+                            "test.skip(info.project.name != 'mobile-safari')"]) {
+            assert.ok(NAMES_ONE_TOUCH_PROJECT.test(gate), `not seen: ${gate}`);
+        }
+        assert.ok(!NAMES_ONE_TOUCH_PROJECT.test("test.skip(!isTouchProject(info), 'needs a real coarse pointer')"));
+    });
+
     test('the shared list is used — no spec names one touch project by hand', () => {
         /** @type {string[]} */
         const offenders = [];
@@ -68,7 +85,7 @@ describe('a touch-only test runs on every touch engine', () => {
                 // a branch can decide whether an ASSERTION runs: the Links sticky-header test keyed
                 // its phone viewport and its phone expectations on 'mobile-chrome', so under
                 // mobile-safari it took the desktop branch and the phone half never ran on WebKit.
-                if (!/project\.name\s*[!=]==\s*'mobile-(chrome|safari)'/.test(line)) return;
+                if (!NAMES_ONE_TOUCH_PROJECT.test(line)) return;
                 if (SINGLE_PROJECT_EXEMPT.some(e => e.files.includes(f) && line.includes(e.match))) return;
                 offenders.push(`${f}:${i + 1}  ${line.trim()}`);
             });

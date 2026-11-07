@@ -21,7 +21,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require_ = createRequire(import.meta.url);
-const { buildCellTable, renderCellTable, buildCellPrompt, DAY_LABELS, SHIFT_VOCABULARY, reviewBlankReadsOfFilledCells } =
+const { buildCellTable, renderCellTable, buildCellPrompt, DAY_LABELS, SHIFT_VOCABULARY, reviewBlankReadsOfFilledCells, reviewRestReadsOfEmptyCells } =
     require_('./functions/roster-prompt.js');
 const { buildSafeEntries, buildWeekDates } = require_('./functions/roster-parse-helpers.js');
 const { awaitGeometryWithin, settledGeometry } = require_('./functions/roster-geometry.js');
@@ -269,5 +269,57 @@ describe('reviewBlankReadsOfFilledCells — the grid says what an empty read mis
     test('a weekday cell that SAYS rest keeps the ordinary unread-cell question', () => {
         const { safe } = run(reply({ Sunday: 'BLANK', ...WEEK, Wednesday: 'BLANK' }), ['', ...CELLS.slice(1)]);
         assert.match(safe[0].shifts[dates[3]], /^UNKNOWN\|no Wednesday cell was read/);
+    });
+});
+
+// THE REVERSE CASE (test audit, 7 Nov 2026). Monday to Saturday a blank cell is a question, never a
+// rest day (v22.19) — and `buildSafeEntries` asks it only when the model reports the cell BLANK. When
+// the model reports `RD` for an empty weekday instead, the witness cannot refuse it (a rest day is not
+// a claim), so the rest days were written in silence: measured, the empty weekday cells belong to the
+// one member printed on a second roster, and `RD` across their week overwrote their primary import.
+describe('reviewRestReadsOfEmptyCells — an empty weekday is a question, even when it was read as a rest day', () => {
+    const dates = buildWeekDates('2026-10-31');
+    /** buildSafeEntries, then the rule — the real pipeline order. */
+    const run = (/** @type {Record<string, string>} */ days, /** @type {string[]} */ cells) => {
+        const parsed = { memberName: 'G. Miller', ...days };
+        const safe = buildSafeEntries([parsed], DAY_LABELS, dates);
+        const sent = reviewRestReadsOfEmptyCells(safe, [{ memberName: 'G. Miller', cells }], dates);
+        return { s: safe[0].shifts, sent };
+    };
+    const ALL_RD = { Sunday: 'RD', Monday: 'RD', Tuesday: 'RD', Wednesday: 'RD', Thursday: 'RD', Friday: 'RD', Saturday: '06:00-14:00' };
+
+    test('the second-roster member: five empty weekdays read as rest days all go to review; the worked Saturday stays', () => {
+        const { s, sent } = run(ALL_RD, ['', '', '', '', '', '', '06:00-14:00']);
+        for (let i = 1; i <= 5; i++) {
+            assert.match(s[dates[i]], /^UNKNOWN\|this \w+day cell is empty on the PDF, but it was read as a rest day/,
+                `${DAY_LABELS[i]} was written as ${s[dates[i]]} — a rest day the PDF does not say`);
+        }
+        assert.equal(s[dates[6]], '06:00-14:00', 'the Saturday that was read from its own cell is untouched');
+        assert.deepEqual(sent, [{ memberName: 'G. Miller', dates: dates.slice(1, 6) }]);
+    });
+
+    test('an empty SUNDAY read as a rest day stays a rest day — a blank Sunday is one', () => {
+        const { s, sent } = run(ALL_RD, ['', 'RD', 'RD', 'RD', 'RD', 'RD', '06:00-14:00']);
+        assert.equal(s[dates[0]], 'RD');
+        assert.deepEqual(sent, []);
+    });
+
+    test('a weekday cell that PRINTS a rest code, read as a rest day, is left exactly as read', () => {
+        for (const printed of ['RD', 'OFF', 'SN', 'NA']) {
+            const { s, sent } = run(ALL_RD, ['', printed, 'RD', 'RD', 'RD', 'RD', '06:00-14:00']);
+            assert.equal(s[dates[1]], 'RD', `a Monday cell printed "${printed}" is a rest day either way`);
+            assert.deepEqual(sent, []);
+        }
+    });
+
+    test('an empty weekday the model reported BLANK keeps the ordinary unread-cell question', () => {
+        const { s, sent } = run({ ...ALL_RD, Tuesday: 'BLANK' }, ['', 'RD', '', 'RD', 'RD', 'RD', '06:00-14:00']);
+        assert.match(s[dates[2]], /^UNKNOWN\|no Tuesday cell was read/);
+        assert.deepEqual(sent, [], 'that day was already a question; this rule does not touch it');
+    });
+
+    test('a shift read into an empty weekday is left for the witness, which refuses claims', () => {
+        const { s } = run({ ...ALL_RD, Monday: '06:00-14:00' }, ['', '', 'RD', 'RD', 'RD', 'RD', '06:00-14:00']);
+        assert.equal(s[dates[1]], '06:00-14:00', 'this rule is about rest days only');
     });
 });

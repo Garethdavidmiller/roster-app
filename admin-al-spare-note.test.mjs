@@ -91,9 +91,26 @@ test('a Spare day a roster upload has since ASSIGNED does not count', () => {
         'the shift has been assigned, so the note would describe a day that no longer exists');
 });
 
+/** A CEA/CES member and a non-Sunday date whose BASE shift is a worked time — not Spare. */
+function findWorked() {
+    for (const m of teamMembers) {
+        if (m.hidden || m.managerOnly || (m.role !== 'CEA' && m.role !== 'CES')) continue;
+        for (let i = 0; i < 400; i++) {
+            const d = new Date(2026, 0, 1 + i);
+            const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (!isSunday(iso) && /^\d\d:\d\d-\d\d:\d\d$/.test(String(getBaseShift(m, d)))) return { m, iso };
+        }
+    }
+    return null;
+}
+
 test('a saved Spare override counts even over a working base', () => {
-    const f = /** @type {any} */ (findSpare());
+    // Over a WORKED base, as the name says (test audit, 7 Nov 2026). This used the Spare-base fixture
+    // above, so a count that also demanded a Spare base underneath stayed green.
+    const f = /** @type {any} */ (findWorked());
+    assert.ok(f, 'fixture: no member has a non-Sunday worked day in 2026');
     const spare = new Map([[f.iso, { type: 'spare_shift', value: 'SPARE' }]]);
+    assert.equal(countSpareDays(f.m, [f.iso], new Map()), 0, 'premise: the base alone is not Spare');
     assert.equal(countSpareDays(f.m, [f.iso], spare), 1);
     assert.equal(countSpareDays(null, [f.iso], spare), 0, 'no member, no count');
 });

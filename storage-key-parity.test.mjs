@@ -149,12 +149,14 @@ test('every key in storage-keys.js is genuinely cross-file', () => {
 // against files written to a temp directory, for the reason CLAUDE.md gives under "the rule tested,
 // the wiring not" — a perfect helper called with the wrong argument.
 
-test('the guard catches the two defects that motivated it — guard the guard', async () => {
-    const { mkdtempSync, writeFileSync } = await import('node:fs');
+test('the guard catches the two defects that motivated it — guard the guard', async (t) => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
 
     const dir = mkdtempSync(join(tmpdir(), 'storage-key-parity-'));
+    // Removed however the test ends: every run used to leave one of these behind (test audit, 7 Nov 2026).
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
     const write = (name, body) => { writeFileSync(join(dir, name), body); return join(dir, name); };
 
     // The real v23.45 state of myb_team_view: three modules, three literals, no declaration.

@@ -200,21 +200,43 @@ describe('the basis names the Hidden report and never claims to be law', () => {
         // actually reads on the printed sheet. A pass and a breach build separate strings, so a
         // re-sourcing that updated only one of them would leave the other quoting the old
         // attribution — which is exactly how "Chiltern company limit" ended up in three files.
-        for (const patterns of [design(wk(W, W, W, W, W, R, R)),
+        // Both lines drawn, or the "pass" is a part-built `unknown` — which it was until the test audit
+        // (7 Nov 2026), so the passing row's prose was never read here.
+        const statuses = [];
+        for (const patterns of [design(wk(W, W, W, W, W, R, R), wk(W, W, W, W, W, R, R)),
                                 design(wk(W, W, W, W, W, W, W), wk(W, W, W, W, W, W, W))]) {
             const c = assessHardLimits(patterns, 2).checks[0];
+            statuses.push(c.status);
             assert.match(c.detail, /Hidden/i, `a "${c.status}" row must name its source: ${c.detail}`);
         }
+        assert.deepEqual(statuses, ['ok', 'breach']);
     });
 
     test('no row anywhere claims to be law — in ANY state', () => {
         // Breach, pass and unknown each build their own strings, so each is checked. A wording
-        // change that only ever fires on a breach would otherwise slip through untested.
-        for (const patterns of [design(wk(W, W, W, W, W, R, R)), {}, design(wk(R, R, R, R, R, R, R))]) {
-            for (const c of assessHardLimits(patterns, 1).checks) {
+        // change that only ever fires on a breach would otherwise slip through untested — and did:
+        // there was no breach here until the test audit (7 Nov 2026), so "above the legal maximum of
+        // 13" passed every suite. Each design is assessed at its own length; the two drawn at the
+        // full rotation bring in the contracted-days row, which a shorter one never shows.
+        const full = (/** @type {string[]} */ week) => Object.fromEntries(Array.from({ length: ROTATING_LINES },
+            (_, i) => [String(i + 1), Object.fromEntries(DAYS.map((d, j) => [d, week[j]]))]));
+        const seen = new Set();
+        for (const [patterns, lines] of [
+            [design(wk(W, W, W, W, W, R, R)), 1],                            // ok
+            [design(wk(W, W, W, W, W, W, W), wk(W, W, W, W, W, W, W)), 2],   // breach
+            [{}, 1], [design(wk(R, R, R, R, R, R, R)), 1],                   // unknown
+            [full(wk(R, W, W, W, W, R, R)), ROTATING_LINES],                 // both limits met
+            [full(wk(R, W, W, W, W, W, R)), ROTATING_LINES],                 // over the contracted-days ceiling
+        ]) {
+            for (const c of assessHardLimits(patterns, lines).checks) {
+                seen.add(`${c.id}:${c.status}`);
                 assert.doesNotMatch(everyString(c), /\blegal\b|\blaw\b|statut|legislation/i,
                     `a "${c.status}" row must not present itself as law: ${everyString(c)}`);
             }
+        }
+        for (const s of ['consecutive-days:ok', 'consecutive-days:breach', 'consecutive-days:unknown',
+                         'contracted-days:ok', 'contracted-days:breach']) {
+            assert.ok(seen.has(s), `no ${s} row was checked, so its wording is not covered`);
         }
     });
 
@@ -242,12 +264,15 @@ describe('the basis names the Hidden report and never claims to be law', () => {
 // Deliberately NOT asserting the word "Hidden" — a second limit may legitimately come from a
 // different document. What it may never do is cite a person, a placeholder, or nothing at all.
 describe('every hard limit carries checkable evidence, whatever it is', () => {
+    // Assessed at TWO lines, so a state must draw both. The "ok" and "spare" entries drew one, and an
+    // undrawn line makes a design part-built: both were `unknown`, so no passing row was ever checked
+    // here (test audit, 7 Nov 2026). The first test below now holds the list to every state.
     const EVERY_STATE = [
-        design(wk(W, W, W, W, W, R, R)),                              // ok
+        design(wk(W, W, W, W, W, R, R), wk(W, W, W, W, W, R, R)),     // ok
         design(wk(W, W, W, W, W, W, W), wk(W, W, W, W, W, W, W)),     // breach
         {},                                                           // unknown
         design(wk(R, R, R, R, R, R, R)),                              // unknown (all rest)
-        design(wk(W, W, W, R, R, S, S)),                              // spare weeks in play
+        design(wk(W, W, W, R, R, S, S), wk(W, W, W, W, W, R, R)),     // spare days in play (ok)
     ];
     const everyCheck = function* () {
         for (const patterns of EVERY_STATE) {
@@ -265,6 +290,8 @@ describe('every hard limit carries checkable evidence, whatever it is', () => {
         }
         // Guard the guard: if a refactor ever returns no checks, the loop above passes vacuously.
         assert.ok(seen >= EVERY_STATE.length, `expected at least one check per state, saw ${seen}`);
+        // …and the list must keep every STATE it claims, or a row's wording goes unchecked again.
+        assert.deepEqual([...new Set([...everyCheck()].map(c => c.status))].sort(), ['breach', 'ok', 'unknown']);
     });
 
     test('a basis names a SOURCE, never a person and never a placeholder', () => {

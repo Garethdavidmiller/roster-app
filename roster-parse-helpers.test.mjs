@@ -12,7 +12,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'module';
-import { isCutoffDate, teamMembers } from './roster-data.js';
+import { isCutoffDate, teamMembers, getBaseShift } from './roster-data.js';
+// Pure, like roster-data.js: the breaker the "consistently shifted read" block hands its rows to.
+import { assessRosterAlignment } from './roster-alignment.js';
 
 const require = createRequire(import.meta.url);
 const {
@@ -612,6 +614,21 @@ describe('buildSafeEntries', () => {
         assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30');
         assert.equal(entries[0].shifts['2026-03-29'], 'RD');
     });
+    test('a member listed TWICE keeps the FIRST row — a repeat never replaces a real week (test audit, Nov 2026)', () => {
+        // A two-page roster can list somebody on both pages, and a model can invent a row. Without
+        // the skip both rows pass, and the client's Map keeps the LAST — the opposite of what is
+        // documented — so a repeat silently replaced the member's real week.
+        const warn = console.warn; console.warn = () => {};
+        try {
+            const entries = buildSafeEntries([
+                { memberName: 'G. Miller', Sun: 'RD', Mon: '05:30-11:30', Tue: '05:30-11:30', Wed: 'RD', Thu: '05:30-11:30', Fri: 'RD', Sat: 'RD' },
+                { memberName: ' G. Miller ', Sun: 'RD', Mon: 'AL', Tue: 'AL', Wed: 'AL', Thu: 'AL', Fri: 'AL', Sat: 'RD' },
+            ], HEADERS, DATES);
+            assert.equal(entries.length, 1, 'one member, one row');
+            assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30', 'the first row stands');
+        } finally { console.warn = warn; }
+    });
+
     // ── "NA" AND "NS" ARE REST DAYS, ON EVERY DAY (v25.38) ──────────────────────────────────────
     //
     // The owner's ruling, 6 Nov 2026: "NA and NS should be treated as rest days on the roster
@@ -684,13 +701,16 @@ describe('buildSafeEntries', () => {
         assert.equal(entries[0].shifts['2026-03-29'], 'AL');            // sunday → Sun
         assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30');  // monday → Mon
     });
-    test('missing key defaults to RD', () => {
+    // Named "missing key defaults to RD" until the test audit (7 Nov 2026) — the rule before v22.19.
+    // Only a SUNDAY does now; the full rule is pinned in the "MISSING CELLS" block further down.
+    test('a missing SUNDAY key defaults to RD — a missing weekday does not', () => {
         const entries = buildSafeEntries(
             [{ memberName: 'N. Tuck', Mon: 'AL' }], // all other days omitted
             HEADERS, DATES,
         );
         assert.equal(entries[0].shifts['2026-03-29'], 'RD'); // Sun missing → RD
         assert.equal(entries[0].shifts['2026-03-30'], 'AL'); // Mon present
+        assert.match(entries[0].shifts['2026-03-31'], /^UNKNOWN\|/, 'Tue missing → a question, never a rest day');
     });
     test('empty memberName is skipped', () => {
         const entries = buildSafeEntries(
@@ -1179,12 +1199,23 @@ describe('a consistently shifted read — all three channels agreeing on the sam
         // Three members, all left-shifted — the batch signature `assessRosterAlignment` refuses on.
         // What matters is that each row still carries SEVEN readable cells, because
         // `detectShiftedRow` scores only cells that are not UNKNOWN and needs >= 5 of 7 at +/-1.
+        // Each week is the member's OWN base week read one day left, and the breaker is RUN on what
+        // the server hands over (test audit, 7 Nov 2026). The breaker scores a read against the base
+        // roster, so the made-up week this used before could never trip it: the test claimed the
+        // breaker and never called it, and a breaker that refused nothing left it green.
         const members = ['G. Miller', 'S. Silva', 'M. Robson'];
-        const cs = colScanOf(...members.map(m => [m, SHIFTED]));
-        const entries = buildSafeEntries(members.map(memberName => ({ memberName, ...SHIFTED })),
+        const leftRead = Object.fromEntries(members.map(name => {
+            const member = teamMembers.find(m => m.name === name);
+            return [name, Object.fromEntries(HEADERS.map((h, i) => {
+                const next = new Date(DATES[i] + 'T12:00:00'); next.setDate(next.getDate() + 1);
+                return [h, getBaseShift(member, next)];
+            }))];
+        }));
+        const cs = colScanOf(...members.map(m => [m, leftRead[m]]));
+        const entries = buildSafeEntries(members.map(memberName => ({ memberName, ...leftRead[memberName] })),
             HEADERS, DATES);
         applyColumnScanCrossCheck(entries, cs, HEADERS, DATES);
-        applySundayScanCorrections(entries, Object.fromEntries(members.map(m => [m, '06:00-14:00'])),
+        applySundayScanCorrections(entries, Object.fromEntries(members.map(m => [m, leftRead[m].Sun])),
             true, DATES);
         for (const e of entries) {
             const unknowns = DATES.filter(d => String(e.shifts[d]).startsWith('UNKNOWN|'));
@@ -1192,8 +1223,12 @@ describe('a consistently shifted read — all three channels agreeing on the sam
                 `${e.memberName}: every cell must reach the client readable — an UNKNOWN here is a `
                 + 'cell the alignment detector scores as no-signal, and on a shifted row the Sunday '
                 + 'is the strongest signal there is');
-            assert.equal(e.shifts[SUN], '06:00-14:00', 'Monday\'s value, sitting in Sunday');
+            assert.equal(e.shifts[SUN], leftRead[e.memberName].Sun, 'Monday\'s value, sitting in Sunday');
         }
+        const verdict = assessRosterAlignment({ parsed: entries, dates: DATES });
+        assert.deepEqual(verdict.suspects.sort(), [...members].sort(), 'each shifted row is seen');
+        assert.equal(verdict.blocked, true, 'three members a day out the same way must stop the save');
+        assert.equal(verdict.direction, 'left');
     });
 });
 
@@ -1688,6 +1723,35 @@ describe('applyColumnScanCrossCheck', () => {
         applyColumnScanCrossCheck(entries, partial, HEADERS, DATES);
         assert.ok(entries[0].shifts[DATES[3]].startsWith('UNKNOWN|'), 'Wed flagged');
         assert.equal(entries[0].shifts[DATES[1]], '06:00-14:00', 'unsignalled days untouched');
+    });
+
+    // THE REPAIR'S TWO THRESHOLDS, AT THEIR EDGES (test audit, 7 Nov 2026). A repair needs at least
+    // two disagreeing days and five signalled ones. The isolated-cell case above puts its one
+    // disagreement on Thursday, where neither shift could ever verify, so it never tests the "two";
+    // and the "<5" case uses three signalled days, so a floor of four passed it too. Both lowered
+    // thresholds left every suite green.
+    test('ONE disagreement on a Saturday is a question — never silently "repaired" to a rest day', () => {
+        // Saturday is the one place a lone disagreement CAN verify as a shift (nothing follows it), so
+        // with the "two" lowered to one, a worked Saturday the scan read as blank is rewritten to RD —
+        // a MATCH where the base Saturday is a rest day, so nothing at all appears in the review.
+        const row = [...TRUE_ROW]; row[6] = '10:00-18:00';
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
+        const sat = entries[0].shifts[DATES[6]];
+        assert.ok(sat.startsWith('UNKNOWN|'), `a worked Saturday was resolved without asking: "${sat}"`);
+        assert.ok(sat.includes('10:00-18:00'), 'the admin must see the shift that was read');
+    });
+
+    test('FOUR signalled days are still too few to repair, even when a shift would verify', () => {
+        // Under a floor of four this exact read IS repaired (the suffix shift from Wednesday agrees on
+        // all four columns), which is how the boundary shows: five is the line, four is under it.
+        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        const four = { 'Wed': { 'G. Miller': 'blank' }, 'Thu': { 'G. Miller': '08:00-16:00' },
+                       'Fri': { 'G. Miller': '09:00-17:00' }, 'Sat': { 'G. Miller': 'blank' } };
+        applyColumnScanCrossCheck(entries, four, HEADERS, DATES);
+        assert.ok(entries[0].shifts[DATES[3]].startsWith('UNKNOWN|'), 'Wed must be flagged, not repaired to RD');
+        assert.ok(entries[0].shifts[DATES[4]].startsWith('UNKNOWN|'), 'Thu must be flagged too');
     });
 
     test('cells the row read already flagged UNKNOWN are left alone (no double-flag)', () => {

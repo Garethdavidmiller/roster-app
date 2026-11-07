@@ -84,6 +84,35 @@ describe('deletedLabel — the staff-facing line', () => {
                 `the bin promises an automatic removal that does not happen: "${deletedLabel(d, NOW)}"`);
         }
     });
+    // CALENDAR DAYS (test audit, 7 Nov 2026). The age was counted in elapsed 24-hour blocks, so the
+    // label disagreed with the clock on the wall either side of midnight — and with lastSavedLabel
+    // beside it, which already counts calendar days.
+    test('a design binned late last night was deleted YESTERDAY, an hour after midnight', () => {
+        const at = new Date(2026, 10, 6, 23, 30).getTime(), now = new Date(2026, 10, 7, 0, 30).getTime();
+        assert.equal(deletedLabel({ deletedAt: ts(at) }, now), 'Deleted yesterday');
+    });
+    test('one binned at 23:00 two evenings ago is two days ago, not yesterday', () => {
+        const at = new Date(2026, 10, 5, 23, 0).getTime(), now = new Date(2026, 10, 7, 1, 0).getTime();
+        assert.equal(deletedLabel({ deletedAt: ts(at) }, now), 'Deleted 2 days ago');
+    });
+    test('CONTROL: binned just after midnight and read just before the next one is still today', () => {
+        const at = new Date(2026, 10, 7, 0, 10).getTime(), now = new Date(2026, 10, 7, 23, 50).getTime();
+        assert.equal(deletedLabel({ deletedAt: ts(at) }, now), 'Deleted today');
+    });
+    test('a 25-hour day across the autumn clock change still counts as one day', () => {
+        const was = process.env.TZ;
+        process.env.TZ = 'Europe/London';
+        try {
+            // 25 Oct 2026 is the day the clocks go back: noon Saturday to noon Monday is 49 hours.
+            const at = new Date(2026, 9, 24, 12, 0).getTime(), now = new Date(2026, 9, 26, 12, 0).getTime();
+            assert.equal((now - at) / 3_600_000, 49, 'premise: the clock change is in this span');
+            assert.equal(deletedLabel({ deletedAt: ts(at) }, now), 'Deleted 2 days ago');
+        } finally { if (was === undefined) delete process.env.TZ; else process.env.TZ = was; }
+    });
+    test('a deletion stamped a little ahead of this device\'s clock reads today, never a negative age', () => {
+        const now = new Date(2026, 10, 7, 23, 59).getTime();
+        assert.equal(deletedLabel({ deletedAt: ts(now + 5 * 60_000) }, now), 'Deleted today');
+    });
     test('drops the name when nobody is recorded', () => {
         assert.equal(deletedLabel({ deletedAt: ts(NOW - DAY) }, NOW), 'Deleted yesterday');
     });

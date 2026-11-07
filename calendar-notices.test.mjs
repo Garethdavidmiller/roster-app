@@ -212,10 +212,15 @@ function STARTS_OF(/** @type {string} */ overlay) {
 const due = (/** @type {{ starts: number|null }} */ n) => n.starts === null || Date.now() >= n.starts;
 
 /** Would the Pay Calculator price this session's member? The real test, from the real roster. */
-const { teamMembers, gradeForRole } = await import('./roster-data.js');
+const { teamMembers, gradeForRole, CONFIG } = await import('./roster-data.js');
 function payCalcFor(/** @type {{ name: string } | null} */ session) {
     return !!gradeForRole(teamMembers.find(m => m.name === session?.name)?.role);
 }
+/** The role of the REAL roster row a case leans on. The cases below name real people because the
+ *  rule under test reads the real roster, so each one first asserts the person is still the kind of
+ *  member the case is about (test audit, 7 Nov 2026): when S. Stewart left at v25.05 the manager case
+ *  silently became a second "not on the roster" one, green whatever the manager rule did. */
+const rosterRole = (/** @type {string} */ name) => teamMembers.find(m => m.name === name)?.role;
 
 /** The real rule — pure, so mocking it would only test the mock. */
 const { noticeAudienceAllows } = await import('./calendar-access-core.js');
@@ -502,6 +507,7 @@ describe('5 · the install notice: a phone browser, third in line, and the right
     test('for a member the Year to Date notice is not for, it waits for the timetable one alone', async () => {
         // A Dispatcher never gets the Year to Date notice, so waiting for its flag would hold this one
         // back until that notice expires and is flagged on 1 November.
+        assert.equal(rosterRole('D. Minto'), 'Dispatcher', 'precondition: D. Minto is no longer a Dispatcher — name a current one');
         await wire({ ...SHOWN, store: { [DONE_KEY_OF(TT)]: '1' }, session: { name: 'D. Minto' } });
         await settleAccess();
         assert.ok(opened());
@@ -803,6 +809,7 @@ describe('7 · the Year to Date notice: the load AFTER the timetable one, to mem
     });
 
     test('for a CES too: the grade the Pay Calculator prices is the test, not one role', async () => {
+        assert.equal(rosterRole('F. Mohamed'), 'CES', 'precondition: F. Mohamed is no longer a CES — name a current one');
         await wire({ ...SHOWN, session: { name: 'F. Mohamed' } });   // a CES on the roster
         await settleAccess();
         assert.equal(ytdOpened(), true);
@@ -813,6 +820,10 @@ describe('7 · the Year to Date notice: the load AFTER the timetable one, to mem
         // unflagged, like an out-of-audience device: the notice is not theirs to have seen.
         // A CURRENT manager (48-hour review): S. Stewart left the roster at v25.05, which quietly turned
         // the manager case into a second "not on the roster" one — green whatever the manager rule did.
+        assert.equal(rosterRole('D. Minto'), 'Dispatcher', 'precondition: D. Minto is no longer a Dispatcher — name a current one');
+        assert.equal(rosterRole('D. Watts'), 'Management', 'precondition: D. Watts is no longer a manager on the roster — name a current one');
+        assert.ok(CONFIG.MANAGER_NAMES.includes('D. Watts'), 'precondition: D. Watts is no longer a manager — name a current one');
+        assert.equal(rosterRole('Z. Nobody'), undefined, 'precondition: the third case must be nobody on the roster');
         for (const name of ['D. Minto', 'D. Watts', 'Z. Nobody']) {            // Dispatcher · manager · not on the roster
             await wire({ ...SHOWN, session: { name } });
             await settleAccess();

@@ -21,6 +21,8 @@ export default defineConfig({
     timeout: 60_000,
     expect: { timeout: 20_000 },
     retries: 0,
+    // A stray `test.only` must not quietly shrink this lane to one test on CI (runner-parity.test.mjs).
+    forbidOnly: !!process.env.CI,
     reporter: 'list',
     use: {
         baseURL: DEV.baseURL,

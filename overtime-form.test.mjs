@@ -385,6 +385,22 @@ describe('what is recorded as saved is what was SENT', () => {
         }
         assert.equal(f.handle.isDirty(), true, 'the unsent edit is still waiting to be submitted');
     });
+
+    test('"Not available all week" changes each day\'s MODE and keeps a Sunday-release request', async () => {
+        // The page's own button, not a restatement of its loop (test audit, 7 Nov 2026): the rule is
+        // pinned in overtime-answer.test.mjs, and only the browser suite drove the button itself.
+        // Until v23.87 it wrote a bare `{ mode: 'unavailable' }` over every day, and a staged
+        // request to come off the Sunday went with it.
+        const sunday = DATES[0];
+        const days = { ...answeredWeek('all_day'), [sunday]: { mode: 'all_day', releaseRequested: true } };
+        const f = await mountForm({ win: { submission: { days, currentRevision: 3 } } });
+        await f.fillWeek();
+        await f.submit();
+
+        const sent = calls.find(c => c.call === 'submit').answers;
+        assert.deepEqual(sent[sunday], { mode: 'unavailable', releaseRequested: true }, 'the Sunday request was dropped');
+        for (const d of DATES.slice(1)) assert.deepEqual(sent[d], { mode: 'unavailable' }, d);
+    });
 });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────

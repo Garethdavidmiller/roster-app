@@ -111,8 +111,16 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
             renderUnknown('Couldn’t check the accounts — the account list didn’t load.');
             return;
         }
-        const setUp   = Array.isArray(gaps && gaps.setUp)   ? gaps.setUp   : [];
-        const leavers = Array.isArray(gaps && gaps.leavers) ? gaps.leavers : [];
+        // BOTH LISTS, OR NO ANSWER (test audit, 7 Nov 2026). A list that was missing used to default
+        // to empty, so a garbled or cut-short reply — `{}` — rendered "Everyone on the roster has a
+        // login, and no leaver still has one", which is exactly the line /leaver step 6 reads as proof
+        // that a leaver's login is off. The endpoint sends both arrays on every answer, a refusal
+        // included, so a reply without them is not a clean result: it is one nobody can read.
+        if (!gaps || !Array.isArray(gaps.setUp) || !Array.isArray(gaps.leavers)) {
+            renderUnknown('Couldn’t check the accounts — the answer couldn’t be read. Try again.');
+            return;                                   // report NOTHING: unknown is not "nothing to do"
+        }
+        const { setUp, leavers } = gaps;
         gapsEl.textContent = '';
         if (!setUp.length && !leavers.length) {
             const ok = document.createElement('p');

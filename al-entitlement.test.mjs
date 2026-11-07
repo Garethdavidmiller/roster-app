@@ -371,7 +371,12 @@ describe('the entitlement count is asked for with the overrides in hand', () => 
     // the cache — it is HANDED one — so the guard stays pointed at the coordinators, which are where
     // the argument can actually be dropped. Moving a reader behind a wrapper must not move it out of
     // the audit; it just changes which call the audit looks at.
-    const READERS = ['countedAlDates', 'alPosition', 'projectAlOverage'];
+    //
+    // `planAlWeekSave` and `entitlementNote` JOINED IT on 7 Nov 2026 (test audit): the week grid's
+    // save planner and the Dispatcher's day-in-lieu caption both take the cache, and `overrides: []`
+    // at either left the unit lanes green — the week-grid bar would then ignore all existing leave,
+    // and the caption read 0 days in lieu.
+    const READERS = ['countedAlDates', 'alPosition', 'projectAlOverage', 'planAlWeekSave', 'entitlementNote'];
     const SITES   = ['admin-al.js', 'admin-app.js'];
 
     for (const file of SITES) {

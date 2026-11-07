@@ -260,7 +260,12 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // v20.12 — a member's claim, `admin`, or the PIN's `calendarViewer`), so a read that goes
       // without one fails RETRYABLY into the error chip, which is the recoverable outcome. (Phase 1 deliberately does NOT do this — there the right answer is
       // never to wait at all. Bounded-wait is right here precisely because a user is watching.)
-      await Promise.race([authReady, new Promise(r => setTimeout(r, RETRY_AUTH_WAIT_MS))]);
+      /** @type {ReturnType<typeof setTimeout>|undefined} */ let authWait;
+      try {
+        await Promise.race([authReady, new Promise(r => { authWait = setTimeout(r, RETRY_AUTH_WAIT_MS); })]);
+      } finally {
+        clearTimeout(authWait);   // settled — see the phase-2 wait below (test audit, 7 Nov 2026)
+      }
       await fetchOverridesForRange(startStr, endStr);
       noteKnowledge(_initialMonthKeys, 'authoritative');
       syncResolved = true;
@@ -367,7 +372,14 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // settle, so neither catch nor finally ran and the fetch state leaked permanently (see
       // SYNC_TIMEOUT_MS). Past the deadline we read anyway — today that succeeds, and once reads
       // require a session it fails into the catch below, which is the recoverable path.
-      await Promise.race([authReady, new Promise(r => setTimeout(r, SYNC_TIMEOUT_MS))]);
+      /** @type {ReturnType<typeof setTimeout>|undefined} */ let authWait;
+      try {
+        await Promise.race([authReady, new Promise(r => { authWait = setTimeout(r, SYNC_TIMEOUT_MS); })]);
+      } finally {
+        // The race is settled; its losing timer must not run on for the full 10s once a session has
+        // answered (test audit, 7 Nov 2026 — it held the suite open ten seconds a run).
+        clearTimeout(authWait);
+      }
       await fetchOverridesForRange(startStr, endStr);
       noteKnowledge(_initialMonthKeys, 'authoritative');
       syncResolved = true;

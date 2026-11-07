@@ -11,11 +11,16 @@
  * Deleting either guard left every suite green. This file imports the real module under a window it
  * controls, fires the browser's offer at it, and pins each guard where it lives.
  */
-import { test, describe, mock } from 'node:test';
+import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
+/** Where every test starts. Reset before each one rather than put back on each test's last line
+ *  (test audit, 7 Nov 2026): a failed assertion skipped the put-back and ran the next test on the
+ *  wrong browser, so one real failure arrived looking like several. */
+const DEFAULTS = Object.freeze({ coarse: true, standalone: false, hostname: 'myb-roster.web.app', ios: false });
 /** The knobs the module reads, changed per test through getters so the module sees them live. */
-const browser = { coarse: true, standalone: false, hostname: 'myb-roster.web.app', ios: false };
+const browser = { ...DEFAULTS };
+beforeEach(() => { Object.assign(browser, DEFAULTS); });
 /** @type {Record<string, Function[]>} */
 const listeners = {};
 function installFakeBrowser() {
@@ -40,24 +45,34 @@ installFakeBrowser();
 mock.module('./notif.js', { namedExports: { isIOS: () => browser.ios } });
 const { installRoute, initInstallPrompt } = await import('./install-prompt.js');
 
+/**
+ * Fire the browser's install offer at the module, as Chrome does, wiring the strip first if no test
+ * has. The held offer is module state, so a test that needs one makes its own: the last test below
+ * used to borrow the offer the one before it fired, and run alone it read 'menu' (test audit,
+ * 7 Nov 2026).
+ */
+function offerInstall() {
+    if (!listeners.beforeinstallprompt?.length) initInstallPrompt({ accessReady: Promise.resolve(), getAccessType: () => 'named' });
+    const fire = listeners.beforeinstallprompt?.at(-1);
+    assert.ok(fire, 'guard: the strip must be listening for the offer');
+    fire({ preventDefault() {}, prompt: async () => {}, userChoice: Promise.resolve({ outcome: 'dismissed' }) });
+}
+
 describe('installRoute(): where the install notice may ask, and how', () => {
     test('inside the installed app there is no route at all', () => {
         browser.standalone = true;
         assert.equal(installRoute(), null);
-        browser.standalone = false;
     });
 
     test('a fine pointer (a desktop) gets no route: Chrome\'s own offer is left alone there', () => {
         browser.coarse = false;
         assert.equal(installRoute(), null);
-        browser.coarse = true;
     });
 
     test('a phone browser with no offer: the menu on Android, Share on iOS, and not the mirror', () => {
         assert.deepEqual(installRoute(), { how: 'menu', mirror: false });
         browser.ios = true;
         assert.deepEqual(installRoute(), { how: 'ios', mirror: false });
-        browser.ios = false;
     });
 
     test('once the browser has offered, the main address routes to that offer — and the mirror never does', () => {
@@ -71,11 +86,10 @@ describe('installRoute(): where the install notice may ask, and how', () => {
         assert.deepEqual(installRoute(), { how: 'menu', mirror: true }, 'the Pages mirror serves the manifest too, and its offer must NOT be taken');
         browser.ios = true;
         assert.deepEqual(installRoute(), { how: 'ios', mirror: true });
-        browser.ios = false;
-        browser.hostname = 'myb-roster.web.app';
     });
 
     test('the installed-app guard still wins over a held offer', () => {
+        offerInstall();
         browser.standalone = true;
         assert.equal(installRoute(), null);
         browser.standalone = false;

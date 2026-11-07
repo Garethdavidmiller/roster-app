@@ -31,18 +31,38 @@ const APP_CSS = ['shared.css', ...Object.values(pageStylesheets())];
  *  mention of "badge" in prose can't drag an unrelated rule into the check. */
 const CHIP_RULE = /([^{}]*(?:badge|chip|pill|tag)[^{}]*)\{([^}]*)\}/gi;
 
+/** The chip rules in one stylesheet, and the ones wearing the panel radius. @param {string} css */
+function chipRadii(css) {
+    const offenders = [];
+    let rules = 0;
+    for (const m of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(CHIP_RULE)) {
+        rules++;
+        if (/border-radius\s*:\s*var\(--radius-xl\)/.test(m[2])) {
+            offenders.push(m[1].trim().replace(/\s+/g, ' ').slice(0, 60));
+        }
+    }
+    return { rules, offenders };
+}
+
 test('no chip wears the lightbox/panel radius (--radius-xl)', () => {
     const offenders = [];
     for (const file of APP_CSS) {
-        const css = read(file).replace(/\/\*[\s\S]*?\*\//g, '');
-        for (const m of css.matchAll(CHIP_RULE)) {
-            if (/border-radius\s*:\s*var\(--radius-xl\)/.test(m[2])) {
-                offenders.push(`${file}: ${m[1].trim().replace(/\s+/g, ' ').slice(0, 60)}`);
-            }
-        }
+        for (const o of chipRadii(read(file)).offenders) offenders.push(`${file}: ${o}`);
     }
     assert.deepEqual(offenders, [],
         'chips using --radius-xl (the lightbox/panel corner) — use --radius-pill. They look identical below ~40px tall, which is exactly why this drifts unnoticed');
+});
+
+test('the scan reads the chip rules, and sees a chip on the panel corner — guard the guard', () => {
+    // The test above passes on a scan that finds no chip rules at all (test audit, 7 Nov 2026):
+    // 269 were read that day, so a regex edit that matched none would have read as a clean tree.
+    const rules = APP_CSS.reduce((n, f) => n + chipRadii(read(f)).rules, 0);
+    assert.ok(rules >= 150, `only ${rules} chip/badge/pill/tag rules read — the scan is wrong`);
+    assert.equal(chipRadii('.notice-badge { border-radius: var(--radius-xl); }').offenders.length, 1);
+    assert.equal(chipRadii('.x-chip,\n.y-pill { padding: 2px; border-radius: var(--radius-xl); }').offenders.length, 1);
+    assert.equal(chipRadii('.notice-badge { border-radius: var(--radius-pill); }').offenders.length, 0);
+    assert.equal(chipRadii('/* .badge { border-radius: var(--radius-xl) } */ .panel { border-radius: var(--radius-xl); }').offenders.length, 0,
+        'a comment is not a rule, and a panel is not a chip');
 });
 
 test('the overlay family still uses --radius-xl (the swap did not overreach)', () => {

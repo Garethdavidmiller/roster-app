@@ -72,6 +72,8 @@ export default defineConfig({
         },
     },
     retries: 0,
+    // A stray `test.only` must not quietly shrink this lane to one test on CI (runner-parity.test.mjs).
+    forbidOnly: !!process.env.CI,
     reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
     // One flat folder of baselines, named only by the screenshot arg (one project, so no
     // project/platform suffix needed) — keeps the committed set easy to eyeball in review.

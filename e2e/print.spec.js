@@ -27,7 +27,7 @@
  * is the engine half this station reads on, and it is where the `beforeprint` assumption came from.
  */
 import { test, expect } from './fixtures.js';
-import { seedSession, seedMemberSession } from './helpers.js';
+import { seedSession, seedMember, seedMemberSession, waitForPageSettled } from './helpers.js';
 
 /** A4 portrait in points, to the nearest whole number: 595 × 842. Landscape is the transpose. */
 const A4_W = 595, A4_H = 842;
@@ -84,6 +84,45 @@ test('the Staff & Admin Guide prints on two A4 sheets @print', async ({ page, br
     expect(Math.max(...counts), 'one sheet for the Staff Guide, one for the Admin Guide').toBe(2);
 });
 
+// ── A PRINTED MONTH IS ONE SHEET — checked where it can fail a merge (test audit, 7 Nov 2026) ───
+// print-visual.spec.js asserts this before it compares a picture, but that lane is opt-in and its CI
+// job is report-only, so a month that spilt onto a second sheet could not fail any gate. The count is
+// read off the PDF the same way, with no PDF library: the page tree's largest `/Count`, or the page
+// objects counted where a file has no `/Count`. Two months: the print-visual baseline's July 2026 (five
+// rows), and August 2026, which starts on a Saturday and so needs SIX rows — the tallest a month gets,
+// and the one that would spill first.
+/** @param {Buffer} pdf */
+function sheetCount(pdf) {
+    const s = pdf.toString('latin1');
+    const counts = [...s.matchAll(/\/Count\s+(\d+)/g)].map(m => +m[1]);
+    if (counts.length) return Math.max(...counts);
+    return (s.match(/\/Type\s*\/Page[^s]/g) || []).length;
+}
+for (const [label, day, rows] of /** @type {Array<[string, string, number]>} */ ([
+    ['July 2026, five rows', '2026-07-15T09:00:00Z', 5],
+    ['August 2026, six rows', '2026-08-15T09:00:00Z', 6],
+])) {
+    test(`a printed calendar month fits one sheet — ${label} @print`, async ({ page, browserName }) => {
+        test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+        await page.clock.setFixedTime(new Date(day));
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await seedSession(page, 'G. Miller');
+        await seedMember(page, 'G. Miller');
+        // A restorable Firebase identity as well as the session: without it the Calendar shows its
+        // sign-in card rather than the roster, and that would be printed instead (visual-harness.js).
+        await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authUser: true }); });
+        await page.goto('/index.html');
+        await expect(page.locator('.calendar-day:not(.other-month)').first()).toBeVisible();
+        // The month drawn is the one meant: its weeks counted off the grid (the leading days of the
+        // previous month are drawn; the trailing ones are not), so the label above is a fact.
+        const cells = await page.locator('#calendarDisplay .calendar-day').count();
+        expect(Math.ceil(cells / 7), `premise: ${label}`).toBe(rows);
+        await page.evaluate(() => document.fonts.ready);
+        const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+        expect(sheetCount(pdf), 'a printed month must fit one sheet').toBe(1);
+    });
+}
+
 // ── THE ROSTER'S ORIENTATION FOLLOWS THE VIEW ───────────────────────────────────────────────────
 // Landscape used to be installed by the About lightbox's Print button, so Ctrl+P, File → Print, the
 // `p` shortcut and AirPrint all printed the seven-column week grid portrait. This drives NONE of
@@ -95,7 +134,9 @@ test('Team View owns its paper, and gives it back @print', async ({ page, browse
     await seedSession(page);
     await page.goto('/index.html');
     await expect(page.locator('#teamViewBtn')).toBeAttached();
-    await page.waitForTimeout(1500);
+    // The Calendar has SETTLED, waited for rather than slept 1,500ms past (test audit, 7 Nov 2026):
+    // with a session and no Firebase identity it settles on its sign-in card (see the helper).
+    await waitForPageSettled(page);
 
     expect(await pageBox(page), 'month view prints portrait').toEqual({ w: A4_W, h: A4_H });
 

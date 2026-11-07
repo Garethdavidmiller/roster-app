@@ -74,9 +74,10 @@ export function startsWords(starts) {
 
 /**
  * The status card's body: what the page is, the three names (one equal tile each, A to Z), and by when views are wanted.
- * @param {{ proposals: ReadonlyArray<Proposal>, closes: string|null, starts?: string|null }} o
+ * `timetable` and `today` are 'YYYY-MM-DD'; with no `today` the line reads as it does before the timetable changes.
+ * @param {{ proposals: ReadonlyArray<Proposal>, closes: string|null, starts?: string|null, timetable?: string|null, today?: string|null }} o
  */
-export function renderStatus({ proposals, closes, starts = null }) {
+export function renderStatus({ proposals, closes, starts = null, timetable = null, today = null }) {
     // Each tile LOOKS pressable — white, raised, the page's button recipe — so it is one: it opens that proposal's weeks
     // (the review, 2 Nov 2026: three raised tiles that did nothing broke the page's own rule that raised means pressable).
     // The name and nothing else: the sheet code told a colleague nothing and took a second line on a phone, so it lives on
@@ -86,8 +87,14 @@ export function renderStatus({ proposals, closes, starts = null }) {
     // The link and the timetable change on DIFFERENT dates (owner, 2 Nov 2026), and the gap is the question a colleague
     // asks next: which link do I work in between? Today's, until the new one starts.
     const from = startsWords(starts);
+    // THE TENSE FOLLOWS THE DATE (test audit, 7 Nov 2026). With no date logic the line would still say, in January, that the
+    // link "starts on 1 January 2027" and that "the new timetable comes first, in December". ISO dates compare as strings.
+    // Once the link's own start has come the sentence goes, rather than guessing what happened next — this page's rule,
+    // as in weeksShape: say nothing rather than something untrue.
+    const reached = (/** @type {string|null} */ iso) => !!(iso && today && today >= iso);
+    const timetableLine = reached(timetable) ? 'The new timetable started in December' : 'The new timetable comes first, in December';
     // The day and the month stay together (a no-break space): at 390px the line broke after the "1" and left it stranded.
-    const when = from ? ` The new link starts on ${esc(from).replace(' ', '\u00a0')}. The new timetable comes first, in December, and today’s link carries on until then.` : '';
+    const when = from && !reached(starts) ? ` The new link starts on ${esc(from).replace(' ', '\u00a0')}. ${timetableLine}, and today’s link carries on until then.` : '';
     return `<p class="nl-callout"><strong>Nothing is decided.</strong>${when}
         These are the three proposals on the shortlist, in alphabetical order.</p>
     <ul class="nl-names" aria-label="The three proposals">${tiles}</ul>

@@ -16,7 +16,7 @@ import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
 import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, guardedRowHtml, guardedWrites, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, replacedFromState } from './roster-review-states.js';
+import { computeCellStates, guardedRowHtml, guardedWrites, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -28,6 +28,12 @@ import { assessRosterAlignment, driftCopy, stopCopy, geometryCopy } from './rost
 import { withSlowSaveNotice } from './slow-save.js';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** How long the browser waits for the roster parse before giving up: the server's own 120s limit
+ *  (`parseRosterPDF`'s `timeoutSeconds`) plus headroom, as fetch-timeout.js's table says. Below it,
+ *  a parse about to succeed is reported as a failure. Pinned to the server's figure by
+ *  admin-roster-upload.test.mjs. */
+export const PARSE_ABORT_MS = 130_000;
 
 /**
  * Badge HTML (+ raw time for worked shifts) for one shift value in the review table.
@@ -329,16 +335,20 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
             // Call the Cloud Function
             parseFeedback.textContent = 'Reading the PDF — this takes about 15 seconds…';
-            // A moving indicator alongside the (changing) status text — a 15–90s wait with only
+            // A moving indicator alongside the (changing) status text — a 15–130s wait with only
             // static text reads as "stuck", and reloading throws away the whole parse. Removed in
             // the finally so it never lingers; CSS drops the motion under reduced-motion (B1).
             parseFeedback.className   = 'huddle-feedback huddle-feedback--working';
 
             const idToken = await getIdToken();
             // iOS Safari aborts uncontrolled fetches at around 60s — explicit
-            // AbortController gives us a known 90s window and a typed AbortError.
+            // AbortController gives us a known window and a typed AbortError. ABOVE the server's own
+            // limit, never below (fetch-timeout.js → "Choosing a budget"): parseRosterPDF may run for
+            // 120s, and this gave up at 90 — a slow parse that was about to succeed was reported as a
+            // failure, and the admin started again from the upload (test audit, 7 Nov 2026).
+            // admin-roster-upload.test.mjs pins this against the function's timeoutSeconds.
             const abortCtrl  = new AbortController();
-            const abortTimer = setTimeout(() => abortCtrl.abort(), 90_000);
+            const abortTimer = setTimeout(() => abortCtrl.abort(), PARSE_ABORT_MS);
             let response;
             try {
                 response = await fetch(parseUrl, {
@@ -427,56 +437,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     applyBtn.addEventListener('click', async () => {
         if (!_parsedResult || !_cellStates) return;
 
-        // Collect all DIFF cells that are ticked (approved) + any CONFLICT cells
-        // where the admin chose "Use PDF"
-        /** @type {Parameters<typeof _saveOverrideBatches>[0]} */ const toWrite = [];
-
-        for (const [key, state] of _cellStates) {
-            const [memberName, date] = key.split('|');
-
-            // THE HARD GATE (v22.16) — defence in depth beneath the inert ticks, and the reason
-            // it is pinned statically rather than behaviourally (admin-roster-upload.test.mjs).
-            if (state.rosterBlocked) continue;
-
-            if (state.state === 'DIFF' && state.chosen !== false) {
-                // Write the value the row DISPLAYED (displayShift — Sunday/rest-day-normalised):
-                // what the admin approved is what gets written. manualId = any existing override
-                // doc, to be replaced. (There is no per-cell edit UI — the review is approve/skip.)
-                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: replacedFromState(state) });
-            }
-            if (state.state === 'REMOVE_IMPORT' && state.chosen !== false) {
-                // A stale previous import whose day now matches base — delete it, write nothing
-                // (a fresh base-matching override would be redundant and mask future base changes).
-                toWrite.push({ memberName, date, value: null, baseShift: state.baseShift, replaceId: state.manualId, deleteOnly: true });
-            }
-            if (state.state === 'UNREADABLE' && state.chosen === 'entered' && state.entered) {
-                // The admin answered the unreadable cell in place (v22.17). Writes the same shape a
-                // picked reading does, and the value has been through the identical guards.
-                // `swapped`: leave or an absence on a base rest day, answered "Swapped" in the entry
-                // control (whole-app review) — stored as covering a swapped-in working day.
-                toWrite.push({ memberName, date, value: state.entered.display, baseShift: state.baseShift, replaceId: state.manualId, swapped: !!state.entered.swapped, replacedFrom: replacedFromState(state) });
-            }
-            if (state.state === 'UNREADABLE' && typeof state.chosen === 'number' && state.options?.[state.chosen]) {
-                // The admin resolved a two-way "couldn't read" by picking one of the two readings
-                // (v19.32). Writes the option's DISPLAY value — already through normaliseCellValue,
-                // so it carries the same Sunday / base-rest-day guards and the RDW| marker as any
-                // parsed value. Untouched rows keep chosen === null and are still never written.
-                toWrite.push({ memberName, date, value: state.options[state.chosen].display, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: replacedFromState(state) });
-            }
-            // A rest day answered "swapped" (v24.42): the roster's value, as a swapped-in working day.
-            // A guarded rest day (v24.42; replacing a previous import since Oct 2026): guardedWrites.
-            toWrite.push(...guardedWrites(state, memberName, date));
-            if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
-                // Admin chose PDF over the existing manual entry — replace it, don't leave both
-                // docs for the same date. Write the row's DISPLAYED (normalised) value: a raw
-                // SICK on a base rest day would otherwise bypass the restSafe guard here and
-                // land as a rest-day absence doc the review had shown as "RD".
-                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: replacedFromState(state) });
-            }
-        }
-
-        // …and every OTHER manual record of the day goes too — a pre-v24.48 duplicate outranks an import.
-        for (const w of toWrite) w.alsoDelete = _cellStates.get(`${w.memberName}|${w.date}`)?.manualDupIds ?? [];
+        // What this Save writes, per row, including the hard gate on a refused read: one pure rule
+        // (roster-review-states.js), so the decision is tested by what it returns.
+        const toWrite = collectRosterWrites(_cellStates);
 
         if (toWrite.length === 0) {
             applyFeedback.textContent = 'Nothing to save — all changes are either skipped or already up to date.';

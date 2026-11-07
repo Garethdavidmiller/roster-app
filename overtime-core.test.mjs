@@ -659,11 +659,15 @@ describe('generated names must be safe as Firestore document ids', () => {
         // The invitation is a name typed into CONFIG, and a typo is silent in the direction that
         // matters: `selectParticipants` simply never matches it, so the member is invited on paper
         // and asked nothing. Nothing else in the system would notice.
-        const { overtimeRoster, overtimeBeta } = require('./functions/roster-members.json');
+        const { overtimeRoster, overtimeBeta, roles } = require('./functions/roster-members.json');
         const names = new Set(overtimeRoster.map(m => m.name));
-        for (const n of overtimeBeta) {
-            assert.ok(names.has(n), `beta member "${n}" is not on the roster — a typo, or a leaver`);
-        }
+        const notOnRoster = (/** @type {string[]} */ list) => list.filter(n => !names.has(n));
+        assert.deepEqual(notOnRoster(overtimeBeta), [], 'a beta member is not on the roster — a typo, or a leaver');
+        // The list has been EMPTY since 7 Oct 2026, so the line above checks nothing until somebody
+        // is invited again — the `for` loop it replaced ran no assertion at all (test audit, 7 Nov
+        // 2026). This proves the check itself still bites: a real name passes, a near miss does not,
+        // and a roster read under the wrong field would fail both.
+        assert.deepEqual(notOnRoster([roles.admin[0], `${roles.admin[0]}x`]), [`${roles.admin[0]}x`]);
     });
 
     test('a beta invitation cannot smuggle in somebody stage 1 excludes', () => {
@@ -753,7 +757,9 @@ describe('the availability schema — never invent an answer', () => {
             assert.deepEqual(r.days[DATES[0]], day);
         });
 
-        test('and it is type-checked, like every other field', () => {
+        // Named for its field (test audit, 7 Nov 2026): the willingness block below had a test of the
+        // same name, so a failure report could not say which of the two had broken.
+        test('and the request is type-checked, like every other field', () => {
             for (const bad of ['yes', 1, null, {}]) {
                 const r = C.normaliseDays(onSunday({ mode: 'all_day', releaseRequested: bad }), DATES);
                 assert.equal(r.ok, false, `releaseRequested: ${JSON.stringify(bad)} was accepted`);
@@ -833,10 +839,11 @@ describe('the availability schema — never invent an answer', () => {
             assert.equal(r.error, 'unknown-field');
         });
 
-        test('and it is type-checked, like every other field', () => {
+        test('and the willingness flag is type-checked, like every other field', () => {
             for (const bad of ['yes', 1, null, {}]) {
                 const r = C.normaliseDays(week({ mode: 'all_day', fullTwelve: bad }), DATES);
                 assert.equal(r.ok, false, `fullTwelve: ${JSON.stringify(bad)} was accepted`);
+                assert.equal(r.error, 'bad-full-twelve');
             }
         });
 
@@ -1351,7 +1358,26 @@ describe('purgeArmedAt — when the retention purge starts deleting', () => {
         // Fails CLOSED. The armed branch is irreversible, so anything that is not a real instant
         // past the date must read as "not yet".
         assert.equal(C.purgeArmedAt(NaN), false);
-        assert.equal(C.purgeArmedAt(/** @type {any} */ (undefined)), C.purgeArmedAt());
         assert.equal(C.purgeArmedAt(Number.NEGATIVE_INFINITY), false);
+        // The three that only the `Number.isFinite` guard refuses — without it `>=` coerces each one
+        // to a number past the date and arms the purge (test audit, 7 Nov 2026). This line used to
+        // be `purgeArmedAt(undefined) === purgeArmedAt()`, which compares the function with itself
+        // and cannot fail; `undefined` is not nonsense anyway, it is "now" (the test below).
+        for (const bad of [Number.POSITIVE_INFINITY, String(Date.UTC(2026, 11, 2)), { valueOf: () => Date.UTC(2026, 11, 2) }]) {
+            assert.equal(C.purgeArmedAt(/** @type {any} */ (bad)), false, String(bad));
+        }
+        assert.equal(C.purgeArmedAt(/** @type {any} */ (null)), false, 'null does not take the default clock');
+    });
+
+    test('with no argument it reads the clock at the moment it is CALLED', (t) => {
+        // How production calls it: index.js hands over `purgeArmedAt` itself and the handler calls it
+        // with nothing on every run, so the default parameter IS the production clock. Pinned either
+        // side of the date with the clock mocked (test audit, 7 Nov 2026).
+        t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 30, 23, 59) });
+        assert.equal(C.purgeArmedAt(), false);
+        assert.equal(C.purgeArmedAt(undefined), false);
+        t.mock.timers.setTime(Date.UTC(2026, 11, 1));
+        assert.equal(C.purgeArmedAt(), true);
+        assert.equal(C.purgeArmedAt(undefined), true);
     });
 });

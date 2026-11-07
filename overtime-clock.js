@@ -128,9 +128,15 @@ export function shouldResyncClock(correctedNow, deadlines, readAt = null) {
  * @param {number} initialDeadlineAt
  * @param {number|null|undefined} withdrawnAtMs
  * @param {number} nowMs
+ * @param {number} [finalDeadlineAt] when known, a CLOSED week refuses here as it does on the server
  * @returns {boolean}
  */
-export function canRestoreNow(initialDeadlineAt, withdrawnAtMs, nowMs) {
+export function canRestoreNow(initialDeadlineAt, withdrawnAtMs, nowMs, finalDeadlineAt) {
+    // A CLOSED WEEK REFUSES, as the server's `canChangeParticipation` does (test audit, 7 Nov 2026).
+    // Only the panel's separate `closed` flag used to, so this rule on its own said yes where the
+    // endpoint says no — the one direction it may not be wrong in. Unknown, it is skipped, as below.
+    if (Number.isFinite(finalDeadlineAt) && Number.isFinite(nowMs)
+        && nowMs >= /** @type {number} */ (finalDeadlineAt)) return false;
     // AN UNKNOWN DEADLINE ASKS THE SERVER — the one branch that is client-only, and it runs the
     // opposite way to the server's unknown case on purpose. The server refuses an unreadable
     // `withdrawnAt` because it is the protection and a wrong yes writes a false record. Here a
