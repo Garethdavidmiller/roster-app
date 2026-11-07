@@ -323,8 +323,10 @@ test('settings: the password form is behind a door once there is nothing to fix'
 // has had one since Oct 2026; the two places a member CHANGES their password had no form at all, so
 // iCloud Keychain saved a new one on nobody's name. Both now follow the sign-in card: a real form, a
 // hidden username holding the roster name, and a submit that is always cancelled. Whether Keychain
-// then offers to save is a device check; what a browser can prove is the shape, and that the keyboard
-// reaches the save THROUGH the form — and that only a password the checks accept is ever submitted.
+// then offers to save is a device check; what a browser can prove is the shape, that the keyboard
+// reaches the save, and that the form is submitted ONLY once the write is confirmed — never for a
+// password the checks refuse, and never for one the server refuses (a wrong current password used to
+// leave Keychain offering to save a new password that was never set).
 /** Count every submit that reaches the document, and whether it had been cancelled by then. */
 const recordSubmits = (page) => page.evaluate(() => {
     /** @type {any} */ (window).__submits = [];
@@ -332,7 +334,11 @@ const recordSubmits = (page) => page.evaluate(() => {
 });
 const submits = (page) => page.evaluate(() => /** @type {any} */ (window).__submits);
 
-test('settings: the password card is a real form under the member\'s name — Next moves on, Done saves through it', async ({ page }) => {
+test('settings: the password card is a real form under the member\'s name — Next moves on, Done saves, and only then is it submitted', async ({ page }) => {
+    // A signed-in Firebase user with the member's own address, so re-authentication and the write can
+    // SUCCEED under the stub (window.__E2E.authUser / authUserEmail).
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local' }; });
     await openSettings(page, { configured: false, noPush: true });     // un-migrated: the form is open
     await expect(page.locator('#pwCurrent')).toBeVisible();
     const shape = await page.evaluate(() => {
@@ -360,11 +366,24 @@ test('settings: the password card is a real form under the member\'s name — Ne
     expect(await submits(page), 'Next only moves on').toEqual([]);
     await page.locator('#pwConfirm').fill('a-real-password-9');
     await page.locator('#pwConfirm').press('Enter');
-    // The save ran (the hermetic stub has no signed-in user, so it reports a failure — any result will do).
-    await expect(page.locator('#pwFeedback')).not.toBeEmpty();
-    await expect(page.locator('#pwFeedback')).not.toContainText(/match/i);
-    expect(await submits(page), 'exactly one submit, and it was cancelled').toEqual([true]);
+    await expect(page.locator('#pwFeedback')).toContainText('Password updated');
+    expect(await submits(page), 'exactly one submit, once the write was confirmed, and it was cancelled').toEqual([true]);
     expect(new URL(page.url()).pathname, 'the form never goes anywhere').toBe('/settings.html');
+});
+
+test('settings: a password change the SERVER refuses is never submitted to the password manager', async ({ page }) => {
+    // No Firebase user: the stub refuses the re-authentication, as a wrong current password would.
+    await openSettings(page, { configured: false, noPush: true });
+    await expect(page.locator('#pwCurrent')).toBeVisible();
+    await recordSubmits(page);
+    await page.locator('#pwCurrent').fill('not-my-password');
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwFeedback')).not.toBeEmpty();
+    await expect(page.locator('#pwFeedback')).not.toContainText('Password updated');
+    await expect(page.locator('#pwSaveBtn')).toBeEnabled();                   // the attempt is over
+    expect(await submits(page), 'a refused password reached the password manager').toEqual([]);
 });
 
 test('forced password overlay: a real form under the member\'s name — a submit never closes it, and Tab stays inside', async ({ page }) => {
@@ -387,12 +406,12 @@ test('forced password overlay: a real form under the member\'s name — a submit
     expect(await submits(page)).toEqual([true]);
     await expect(overlay).toBeVisible();
 
-    // The keyboard's Go saves through the form — once the checks pass.
+    // The keyboard's Go runs the save; a write the server refuses is never handed to the password manager.
     await page.locator('#pwfNew').fill('a-real-password-9');
     await page.locator('#pwfConfirm').fill('a-real-password-9');
     await page.locator('#pwfConfirm').press('Enter');
     await expect(page.locator('#pwfError')).toBeVisible();          // the stub refuses the write — the save ran
-    expect(await submits(page), 'the save was submitted through the form, and cancelled').toEqual([true, true]);
+    expect(await submits(page), 'a refused write was submitted to the password manager').toEqual([true]);
     await expect(overlay).toBeVisible();
     expect(new URL(page.url()).pathname).toBe('/settings.html');
 
@@ -402,6 +421,23 @@ test('forced password overlay: a real form under the member\'s name — a submit
     await page.keyboard.press('Shift+Tab');
     expect(await page.evaluate(() => !!document.activeElement?.closest('#pwForceOverlay')), 'focus left the overlay').toBe(true);
     await expect(page.locator('#pwfUsername')).not.toBeFocused();
+});
+
+test('forced password overlay: a CONFIRMED save is submitted once, and only then does the overlay close', async ({ page }) => {
+    await forcePasswordSet(page);
+    // A signed-in Firebase user, so the write can SUCCEED under the stub (window.__E2E.authUser).
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, authUser: true }; });
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    const overlay = page.locator('#pwForceOverlay');
+    await expect(overlay).toBeVisible();
+    await recordSubmits(page);
+    await page.locator('#pwfNew').fill('a-real-password-9');
+    await page.locator('#pwfConfirm').fill('a-real-password-9');
+    await page.locator('#pwfConfirm').press('Enter');
+    await expect(overlay).toBeHidden();
+    expect(await submits(page), 'one submit, once the write was confirmed, and it was cancelled').toEqual([true]);
+    expect(new URL(page.url()).pathname, 'the form never goes anywhere').toBe('/settings.html');
 });
 
 test('settings: Show passwords reveals all THREE fields, not two', async ({ page }) => {

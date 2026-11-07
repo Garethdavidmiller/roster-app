@@ -590,7 +590,8 @@ export function init() {
         const member = currentUser;
         // THE FORM IS FOR THE PASSWORD MANAGER (iPhone audit, Nov 2026; the sign-in card's shape): it
         // files a new password under the username in the SAME form — this member's roster name. It never
-        // goes anywhere: every submit is cancelled, and Save submits through it only once the checks pass.
+        // goes anywhere: every submit is cancelled, and it is submitted only once a write is CONFIRMED
+        // (`onWriteConfirmed`), so a password manager is never offered one the account does not have.
         const userEl = /** @type {HTMLInputElement|null} */ (document.getElementById('pwUsername'));
         if (userEl) userEl.value = member ?? '';
         form?.addEventListener('submit', e => e.preventDefault());
@@ -678,6 +679,11 @@ export function init() {
         /** The write completed. Shared by the in-time and the LATE success paths.
          *  @param {any} res the setOwnPassword result ({ statusRecorded }) */
         const onWriteConfirmed = (res) => {
+            // Now, and only now, tell the password manager — through the form it watches, before the
+            // fields are cleared below. Earlier, a wrong CURRENT password (refused by the server, after
+            // every check here had passed) left Keychain offering to save a new password that was never
+            // set, under the member's name. The submit itself is cancelled; it carries the values only.
+            form?.requestSubmit();
             setFeedback(res && res.statusRecorded === false
                 ? '✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)'
                 : '✓ Password updated. Use it the next time you sign in.', 'ok');
@@ -735,9 +741,6 @@ export function init() {
                 (next && next !== confirm ? confEl : newEl).focus();
                 return;
             }
-            // Through the form — what a password manager watches — and only now, so it is never offered
-            // a password the checks refused. The submit is cancelled above; the save is this handler's.
-            form?.requestSubmit();
             saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
             _passwordSaving = true;
             // Track WHICH stage failed: a failure AFTER reauth succeeded is NOT "current password wrong"

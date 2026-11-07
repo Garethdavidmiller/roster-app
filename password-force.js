@@ -274,7 +274,7 @@ function _show(member) {
         // The fields carry enterkeyhint="next"/"go", so the Android keyboard shows a Go key — which
         // did nothing (FIX, v18.94). The form deliberately has no submit button, so the browser submits
         // nothing on Enter by itself (a mandatory overlay must not be submittable by stray means) — the
-        // key is wired explicitly, and Save submits through the form once the checks pass.
+        // key is wired explicitly, and the form is submitted only once the write is CONFIRMED.
         // FROM THE FIELDS ONLY (v25.06, whole-app review): on the whole overlay it also caught Enter
         // on "Continue for now" — after a failure re-enabled Save, the escape re-submitted the password
         // write instead of letting the member out (property 3). A focused button activates itself.
@@ -311,9 +311,6 @@ function _show(member) {
                 (isMismatch ? confEl : newEl).focus();
                 return;
             }
-            // Through the form — what a password manager watches — and only once the checks pass, so it
-            // is never offered a password this overlay refused. The submit itself is cancelled above.
-            form?.requestSubmit();
             saveBtn.disabled = true;
             saveBtn.textContent = 'Saving…';
             try {
@@ -379,6 +376,10 @@ function _show(member) {
 
         /** The write completed: finish the flow. Shared by the in-time and the LATE success paths. */
         function onWriteConfirmed() {
+            // Now, and only now, tell the password manager — through the form it watches, before the
+            // overlay closes. A write the server refused (a stale sign-in, no connection) must never leave
+            // Keychain holding a password the account does not have. The submit itself is cancelled above.
+            form?.requestSubmit();
             // Let the host page refresh anything showing migration state. On settings.html the
             // Password card read passwordStatus BEFORE this overlay ran, so without this its
             // header chip still said "using surname" until a reload (FIX, v18.94).

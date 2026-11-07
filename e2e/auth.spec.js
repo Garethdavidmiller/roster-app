@@ -434,12 +434,11 @@ test('forced password overlay: rejects a short or mismatched password and stays 
 // THE OTHER lockout guard. A mandatory overlay that fails to save is a trap unless it eventually
 // offers a way out, so after repeated auth-layer failures an escape appears and genuinely closes it.
 //
-// The hermetic stub makes this easy to drive: `getAuth()` returns `{ currentUser: null }`, so
-// setOwnPassword rejects with 'Not signed in' every time. That is also why the HAPPY path is not
-// asserted here — a successful updatePassword is unreachable under the stub without making
-// auth.currentUser mutable, which would change behaviour for every other spec (reconcileExpiredIdentity
-// and friends all branch on it). The password RULES are unit-tested (auth-identity.test.mjs) and the
-// write path is the same setOwnPassword the shipped Settings card uses.
+// The hermetic stub makes this easy to drive: `getAuth()` returns `{ currentUser: null }` by default,
+// so setOwnPassword rejects with 'Not signed in' every time. The HAPPY path needs the opt-in signed-in
+// user (window.__E2E.authUser, plus authUserEmail where re-authentication runs) — e2e/settings.spec.js
+// drives it on both password surfaces. The password RULES are unit-tested (auth-identity.test.mjs) and
+// the write path is the same setOwnPassword the shipped Settings card uses.
 test('forced password overlay: offers a way out after repeated save failures', async ({ page }) => {
     await forcePasswordSet(page);
     await page.goto('/settings.html');
