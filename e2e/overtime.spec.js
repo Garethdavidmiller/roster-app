@@ -3174,3 +3174,75 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         }
     });
 });
+
+// ── TWO iPHONE FINDINGS ON THE MEMBER FORM (7 Nov 2026, iPhone audit; dormant while paused) ──────
+test.describe('the member form on an iPhone', () => {
+    const D = ['2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05'];
+    const open = (over = {}) => ({ ...W, phase: 'FINAL_OPEN', participant: { grade: 'CEA', rosterOrder: 2 }, submission: null, ...over });
+
+    /** The two reads, with `windows` chosen per read. @param {import('@playwright/test').Page} page @param {(n: number) => any[]} windowsFor */
+    async function stubReads(page, windowsFor) {
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        let reads = 0;
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: windowsFor(++reads) }),
+        }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+    }
+
+    test('a submit whose answer is cut off is CHECKED, and a save that landed says so', async ({ page }) => {
+        // iOS suspends a page mid-request, and the answer can arrive cut off: a 200 whose body never
+        // came whole, which overtime-data.js reports as `network`. That said "Couldn't reach the
+        // server" about a week the server had saved, and the retry called the member's own save "a
+        // newer version". Driven through the real data layer, so the code the form receives is the
+        // one overtime-data.js really produces.
+        await seedSession(page, 'G. Miller');
+        let sentId = '';
+        const days = Object.fromEntries(D.map(d => [d, { mode: 'unavailable' }]));
+        await stubReads(page, n => [n === 1 ? open()
+            : open({ submission: { days, currentRevision: 1, lastMutationId: sentId } })]);
+        await page.route('**/submitOvertimeAvailability', r => {
+            sentId = JSON.parse(r.request().postData() || '{}').clientMutationId;
+            return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":tr' });
+        });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        for (let i = 0; i < 7; i++) {
+            await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        }
+        await page.locator('.ot-submit').click();
+        const feedback = page.locator('.ot-feedback');
+        await expect(feedback).toContainText('did save');
+        await expect(feedback, 'a claim the re-read has just disproved').not.toContainText("Couldn't reach");
+        expect(sentId, 'the submission carried no id to look for').not.toBe('');
+        await expect(page.locator('.ot-day--saved')).toHaveCount(7);
+    });
+
+    test('typing 0, 6, 0, 0 shows 06:00 before the box is left, and leaving it answers the day', async ({ page }) => {
+        // `inputmode="numeric"` puts up a number pad with no colon, so the time is shaped as it is
+        // typed, by the rule every text clock box shares (clock-input.js). "930" can only be 09:30,
+        // so it is shaped at the third digit — and because that last change is the page's, not the
+        // keyboard's, WebKit fires no `change` when the box is left: leaving it must commit anyway.
+        await seedSession(page, 'G. Miller');
+        await stubReads(page, () => [open()]);
+        await page.goto('/overtime.html');
+        const day = page.locator(`[data-day="${D[0]}"]`);
+        await day.waitFor();
+        await day.getByRole('radio', { name: 'Custom times' }).click();
+        const start = day.locator('[data-which="start"]');
+        await start.click();
+        await start.pressSequentially('0600');
+        await expect(start, 'still in the box').toBeFocused();
+        await expect(start).toHaveValue('06:00');
+        const end = day.locator('[data-which="end"]');
+        await end.click();
+        await end.pressSequentially('930');
+        await expect(end).toHaveValue('09:30');
+        await end.blur();
+        await expect(day.locator('.ot-custom-hint'), 'both times were not taken into the answer').toHaveText('');
+        await expect(page.locator('.ot-submit')).toContainText('6 days still to answer');
+    });
+});
