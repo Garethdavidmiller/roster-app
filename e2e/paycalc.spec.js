@@ -2146,3 +2146,80 @@ test('paycalc: the Decimal Hours Converter reads a decimal comma as the point', 
     await expect(answer, 'a cleared box asks nothing, so answers nothing').toHaveText('–');
     expect(errors).toHaveLength(0);
 });
+
+// "Download backup" said "Saved as …" the instant the tap landed — before iOS had saved anything —
+// and a blob download in the Home Screen app may open a preview rather than save. On an iPhone it now
+// opens the share sheet (Save to Files, in a tab and in the installed app), IN the tap, and reports
+// how the sheet ended; everywhere else it stays a download, worded as what to expect. The platform is
+// set per test rather than taken from the project, so both branches run on both engines.
+const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
+/** A device that CAN share files, recording each share and ending it as `__shareEnds` says. */
+const fakeShareDevice = (/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ ua) => page.addInitScript((agent) => {
+    const w = /** @type {any} */ (window);
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => agent });
+    Object.defineProperty(navigator, 'platform', { configurable: true, get: () => (agent.includes('iPhone') ? 'iPhone' : 'Linux armv8l') });
+    w.__shares = [];
+    w.__shareEnds = 'resolve';
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: (/** @type {any} */ d) => !!d?.files?.length });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: (/** @type {any} */ d) => {
+        w.__shares.push(d.files.map((/** @type {File} */ f) => f.name));
+        return w.__shareEnds === 'abort' ? Promise.reject(new DOMException('cancelled', 'AbortError')) : Promise.resolve();
+    } });
+    // IN THE TAP: a listener on the document runs AFTER the button's own handler, in the same
+    // dispatch. A share recorded by then was started inside the tap; one deferred to a later task —
+    // an awaited file read, a timer — was not, and iOS refuses it for want of a gesture. (A microtask
+    // also runs before this listener, because the browser checkpoints them between listeners, so this
+    // cannot tell one from a synchronous call; the handler makes the call synchronously anyway.)
+    document.addEventListener('click', (e) => {
+        if (/** @type {Element} */ (e.target)?.id === 'ptDownload') w.__sharedInTap = w.__shares.length;
+    });
+}, ua);
+
+test('paycalc: on an iPhone, Download backup opens the share sheet in the tap and says how it ended', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_gmiller_p16', '{"satH":7,"satM":30}'));
+    await fakeShareDevice(page, IPHONE_UA);
+    let downloads = 0;
+    page.on('download', () => { downloads++; });
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    const status = page.locator('#ptSaveStatus');
+
+    await page.locator('#ptDownload').click();
+    await expect(status).toContainText('If you chose Save to Files, look for');
+    await expect(status).toContainText('in the Files app');
+    expect(await page.evaluate(() => /** @type {any} */ (window).__sharedInTap),
+        'navigator.share must be called inside the tap, or iOS refuses it for want of a gesture').toBe(1);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__shares[0][0])).toMatch(/^myb-pay-backup-gmiller-\d{4}-\d{2}-\d{2}\.json$/);
+
+    // Closing the sheet saves nothing, and the card must not say otherwise.
+    await page.evaluate(() => { /** @type {any} */ (window).__shareEnds = 'abort'; });
+    await page.locator('#ptDownload').click();
+    await expect(status).toContainText('Not saved');
+    await expect(status).toHaveClass(/pt-status--warn/);
+    expect(downloads, 'an iPhone that can share files gets the share sheet, never a blob download').toBe(0);
+    expect(errors).toHaveLength(0);
+});
+
+test('paycalc: away from an iPhone, Download backup stays a download and says what to expect', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_gmiller_p16', '{"satH":7,"satM":30}'));
+    // Android CAN share files too — and must still get the download it has always had.
+    await fakeShareDevice(page, ANDROID_UA);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+
+    const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#ptDownload').click()]);
+    expect(download.suggestedFilename()).toMatch(/^myb-pay-backup-gmiller-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__shares.length), 'Android is never sent to the share sheet').toBe(0);
+    const status = page.locator('#ptSaveStatus');
+    await expect(status).toContainText(`If you're asked, choose Download`);
+    await expect(status, 'the page cannot see a download finish, so it must not claim one').not.toContainText('Saved as');
+    await expect(status, 'and it is not dressed as a confirmation either').not.toHaveClass(/pt-status--ok/);
+    expect(errors).toHaveLength(0);
+});
