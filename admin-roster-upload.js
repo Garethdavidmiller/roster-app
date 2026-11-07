@@ -35,6 +35,34 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  *  admin-roster-upload.test.mjs. */
 export const PARSE_ABORT_MS = 130_000;
 
+/** How long the waiting line says a read takes; one that fails sooner cannot have "taken longer". */
+const PARSE_EXPECTED_MS = 15_000;
+/** The second sentence is for a phone: iOS suspends a page left for another app, request and all. */
+const PARSE_WAIT_LINE = `Reading the PDF — this takes about ${PARSE_EXPECTED_MS / 1000} seconds. Keep this screen open until it finishes.`;
+
+/**
+ * The words after "Couldn't read the roster: " for a read that failed BEFORE the server answered.
+ * SAFARI CALLS EVERY NETWORK FAILURE "Load failed" (7 Nov 2026, iPhone audit), and all of them were
+ * answered "the PDF may be large", so a phone that lost its signal, or was put down mid-read, sent the
+ * admin to shrink a PDF that was fine. It is a DROPPED CONNECTION when the device is offline, when the
+ * screen was left during the read, or when a "Load failed" comes before the read could have finished;
+ * only a late one, or this page's own timeout while online, is a slow read.
+ * @param {any} err @param {{ online: boolean, elapsedMs: number, wasHidden: boolean }} seen
+ * @returns {string|null}  null for anything that is not a failure in transit
+ */
+function parseFailureLine(err, { online, elapsedMs, wasHidden }) {
+    const aborted = err?.name === 'AbortError';
+    const msg = err instanceof TypeError ? String(err.message || '') : '';
+    const loadFailed = msg.includes('Load failed');
+    const unreachable = msg === 'Failed to fetch' || msg.includes('NetworkError');
+    if (!aborted && !loadFailed && !unreachable) return null;
+    if (!online || (!aborted && (wasHidden || (loadFailed && elapsedMs < PARSE_EXPECTED_MS)))) {
+        return 'The connection dropped before it finished. Check your connection, keep this screen open, and try again.';
+    }
+    if (unreachable) return "Couldn't reach the server — check your internet connection or try again later.";
+    return 'Parsing took longer than expected. The PDF may be large — please try again, or check your connection.';
+}
+
 /**
  * Badge HTML (+ raw time for worked shifts) for one shift value in the review table.
  * Pure and stateless, so it lives at module scope and is reused across renders
@@ -329,12 +357,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         weekEndingEl.disabled       = true;
         fileInput.disabled          = true;
 
+        // What a failure's words depend on (`parseFailureLine`): when the read went, and if it was left.
+        let readStartedAt = 0, leftDuringRead = false;
+        const noteLeft = () => { if (document.visibilityState === 'hidden') leftDuringRead = true; };
+
         try {
             // Convert file to base64 — same technique as ingestHuddle
             const base64 = await fileToBase64(file);
 
             // Call the Cloud Function
-            parseFeedback.textContent = 'Reading the PDF — this takes about 15 seconds…';
+            parseFeedback.textContent = PARSE_WAIT_LINE;
             // A moving indicator alongside the (changing) status text — a 15–130s wait with only
             // static text reads as "stuck", and reloading throws away the whole parse. Removed in
             // the finally so it never lingers; CSS drops the motion under reduced-motion (B1).
@@ -349,6 +381,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // admin-roster-upload.test.mjs pins this against the function's timeoutSeconds.
             const abortCtrl  = new AbortController();
             const abortTimer = setTimeout(() => abortCtrl.abort(), PARSE_ABORT_MS);
+            readStartedAt  = Date.now();
+            leftDuringRead = document.visibilityState === 'hidden';
+            document.addEventListener('visibilitychange', noteLeft);
             let response;
             try {
                 response = await fetch(parseUrl, {
@@ -398,18 +433,17 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 parseFeedback.textContent = "Couldn't check your existing saved changes, so the roster was not applied. Check your connection and try again.";
                 parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             } else {
-                let userMsg;
-                if (_err.name === 'AbortError' || (_err.name === 'TypeError' && _err.message.includes('Load failed'))) {
-                    userMsg = 'Parsing took longer than expected. The PDF may be large — please try again, or check your connection.';
-                } else if (_err instanceof TypeError && _err.message === 'Failed to fetch') {
-                    userMsg = "Couldn't reach the server — check your internet connection or try again later.";
-                } else {
-                    userMsg = _err.serverMessage || 'Unexpected error — please try again or contact support.';
-                }
+                const inTransit = parseFailureLine(_err, {
+                    online: navigator.onLine !== false,
+                    elapsedMs: readStartedAt ? Date.now() - readStartedAt : Infinity,
+                    wasHidden: leftDuringRead,
+                });
+                const userMsg = inTransit ?? (_err.serverMessage || 'Unexpected error — please try again or contact support.');
                 parseFeedback.textContent = `Couldn't read the roster: ${userMsg}`;
                 parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             }
         } finally {
+            document.removeEventListener('visibilitychange', noteLeft);
             // Always stop the working indicator — success clears the text, the error paths swap in
             // the --err class, but the spinner must never outlive the attempt on any path (B1).
             parseFeedback.classList.remove('huddle-feedback--working');
