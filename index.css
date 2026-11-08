@@ -2165,8 +2165,11 @@
 
         /* ============================================
            iOS SPLASH SCREEN
-           Shown immediately on launch to prevent white flash.
-           Fades out once the calendar has rendered.
+           Shown immediately on launch to prevent white flash, and REMOVED a
+           frame after the calendar or the lock card has rendered — at once, by
+           calendar-app.js. It was written to fade, but shared.css's `.hidden`
+           (display: none !important) hid it instantly, so the fade never ran;
+           the owner kept the instant cut and the fade went (8 Nov 2026).
            ============================================ */
         #splash {
             position: fixed;
@@ -2178,12 +2181,6 @@
             justify-content: center;
             gap: 20px;
             z-index: var(--z-splash);
-            transition: opacity 0.4s ease;
-        }
-
-        #splash.hidden {
-            opacity: 0;
-            pointer-events: none;
         }
 
         #splash-icon {

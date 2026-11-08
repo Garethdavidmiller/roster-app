@@ -158,7 +158,7 @@
         splash.setAttribute('role', 'alertdialog');
         splash.style.background = '#001e3c';   // navy fallback if index.css didn't load
         splash.style.pointerEvents = 'auto';
-        splash.style.opacity = '1';            // `.hidden` faded it out; it is being reused now
+        splash.style.opacity = '1';            // whatever hid it, it is being reused now
 
         var title = document.createElement('div');
         title.textContent = 'Marylebone Roster couldn’t finish loading';
