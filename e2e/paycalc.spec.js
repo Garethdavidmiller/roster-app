@@ -1446,6 +1446,36 @@ test('paycalc: the loan rows name the plan picked and the payslip deductions sto
     expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
 });
 
+// THE SETTINGS SUMMARY QUOTES THE RATE THE PAYSLIP WAS PAID AT — periodRate (paycalc-settings.js), the
+// answer the rate field shows. They used to work it out separately; before the 28 Aug 2026 award
+// payslip it is the earlier rate, and the summary must not quote the new one over it.
+test('paycalc: the Settings summary and the rate field agree about the rate a payslip was paid at', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-08T12:00:00'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_gmiller_grade', 'cea');
+        localStorage.setItem('myb_pc_gmiller_setup', '1');
+        localStorage.setItem('myb_pc_gmiller_setup_2026_27', '1');   // the year confirmed, so the summary shows
+    });
+    await page.goto('/paycalc.html');
+    const view = (/** @type {number} */ n) => page.evaluate((num) => {
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
+        for (const o of sel.options) o.selected = o.value === String(num);
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }, n);
+    const award = AWARD_RATES.cea['2026/27'];
+    expect(award.pre, 'premise: the year has a rate before its award').not.toBe(award.rate);
+    await view(54);   // paid 31 Jul 2026
+    await expect(page.locator('#settingsHint')).toHaveText(`✓ 2026/27 — £${award.pre.toFixed(2)}/hr · pre-rise`);
+    await expect(page.locator('#hourlyRate')).toHaveValue(award.pre.toFixed(2));
+    await view(55);   // paid 28 Aug 2026, the award payslip
+    await expect(page.locator('#settingsHint')).toHaveText(`✓ 2026/27 — £${award.rate.toFixed(2)}/hr`);
+    await expect(page.locator('#hourlyRate')).toHaveValue(award.rate.toFixed(2));
+    expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
+});
+
 test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on', async ({ page }) => {
     const errors = collectFatalErrors(page);
     // The 2025/26 premium is paid on the first January payslip of 2027 (TAX_YEARS.hppPaidJan), so

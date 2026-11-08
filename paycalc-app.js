@@ -19,7 +19,6 @@ import {
   GRADES, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, getPensionForPeriod,
-  isPreAwardPeriod, getRateForPeriod,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, requestPersistentStorage } from './ls.js';
@@ -41,7 +40,7 @@ import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
   applyPensionOptOutUI, wirePensionControls, gradeForRole, periodDefaultPension,
   updateRateForPeriod, updateYtdForTaxYear, settingsKey, setSettingsCardOpen,
-  saveSettings, confirmSettings, loadSettings, getStoredRateForYear, wireSettingsCard,
+  saveSettings, confirmSettings, loadSettings, periodRate, wireSettingsCard,
 } from './paycalc-settings.js';
 import {
   updateRosterHint, updateJoinerNotice, toggleRosterDays,
@@ -410,17 +409,10 @@ export function init() {
       if (tyConfirmed) {
         // Confirmed — hide banner, update card header hint with saved values.
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
-        const _hdrGrade = getGrade();
-        // PERIOD-AWARE rate for the summary: on a pre-award period the payslip was actually paid at
-        // the pre-rise rate, so show THAT (with a "· pre-rise rate" qualifier, mirroring the rate
-        // field's own label) — otherwise the summary contradicts the £-breakdown + the payslip on
-        // screen (the "why does July 3rd show the new rate at the top?" report). Post-award/current
-        // periods show the year's settled rate. (Supersedes the v16.69 "always show the settled rate"
-        // hint, which pre-dated a confirmed mid-year award making the two rates diverge on screen.)
-        const _settledRate = getStoredRateForYear(ty);
-        const _hintPreAward = isPreAwardPeriod(p, _hdrGrade, ty.label);
-        const _hintRate = _hintPreAward ? getRateForPeriod(p, _hdrGrade, ty.label, _settledRate) : _settledRate;
-        const rate = (_hintRate || numVal('hourlyRate') || (GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
+        // The rate THIS payslip was paid at, as the rate field shows it (periodRate), with the field's
+        // "pre-rise" qualifier — never the year's settled rate over a payslip priced at the old one.
+        const { rate: _hintRate, preAward: _hintPreAward } = periodRate(ty, p);
+        const rate = (_hintRate || numVal('hourlyRate') || (GRADES[getGrade()]?.rate ?? GRADES.cea.rate)).toFixed(2);
         // No tax code in the collapsed summary (v17.95): with the period chip beside it the code
         // widowed onto a second line at 390px, and it's the least period-relevant item — the year,
         // rate and pre/post-rise position are the at-a-glance facts. The code lives inside the card.

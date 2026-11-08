@@ -296,18 +296,32 @@ export function getStoredRateForYear(ty) {
 }
 
 /**
- * Load the rate for the given period into the hourly rate field. Period-aware: a period paid
- * BEFORE its tax year's mid-year pay-award date shows the pre-award rate (e.g. 2025/26 periods
- * before 24 Oct 2025 show £20.06, not the settled £20.74) — so the calculator matches the real
- * payslip for historic periods. calculate() reads this field, so no change is needed there.
+ * The hourly rate a payslip was PAID at, and whether that is the rate before its tax year's pay
+ * award: a payslip paid before the award's mid-year date was paid the earlier rate (2025/26 payslips
+ * before 24 Oct 2025 at £20.06, not the settled £20.74), every other one the year's settled rate.
+ * ONE answer for the rate field and the Settings card's collapsed summary, which used to work it out
+ * separately — and a summary quoting the new rate over a payslip priced at the old one is the
+ * contradiction a member reported ("why does July 3rd show the new rate at the top?").
+ * @param {any} ty - the period's tax year
+ * @param {any} [p] - the period (omitted → the settled rate)
+ * @returns {{ rate: number, preAward: boolean }}
+ */
+export function periodRate(ty, p) {
+  const grade    = getGrade();
+  const settled  = getStoredRateForYear(ty);
+  const preAward = !!p && isPreAwardPeriod(p, grade, ty.label);
+  return { rate: preAward ? getRateForPeriod(p, grade, ty.label, settled) : settled, preAward };
+}
+
+/**
+ * Load the rate for the given period into the hourly rate field — `periodRate`'s answer, so the
+ * calculator matches the real payslip for historic periods. calculate() reads this field.
  * @param {any} ty  - the period's tax year
  * @param {any} [p] - the period (enables the mid-year step; omitted → settled rate only)
  */
 export function updateRateForPeriod(ty, p) {
   const grade    = getGrade();
-  const settled  = getStoredRateForYear(ty);
-  const preAward = !!p && isPreAwardPeriod(p, grade, ty.label);
-  const rate     = preAward ? getRateForPeriod(p, grade, ty.label, settled) : settled;
+  const { rate, preAward } = periodRate(ty, p);
   const field    = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate'));
   field.value = rate.toFixed(2);
   // The rate is FIXED BY GRADE (v17.87) — ALWAYS read-only; the member never types it. A pre-rise

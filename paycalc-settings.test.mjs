@@ -78,7 +78,7 @@ mock.module('./paycalc-roster-suggestions.js', {
 const { SK, periodKey } = await import('./paycalc-migrations.js');
 const {
     getStoredRateForYear, getPensionDefault, isPensionOptedOut, gradeForRole,
-    periodDefaultPension, getProRateFactor, getEffectiveContr,
+    periodDefaultPension, getProRateFactor, getEffectiveContr, periodRate,
 } = await import('./paycalc-settings.js');
 const { awardRatesFor, getPensionForPeriod, GRADES, computeGross, getRateForPeriod, getLondonAllowanceForPeriod } = await import('./paycalc-calc.js');
 // The REAL period grid and the REAL year engine, both running against the REAL settings module
@@ -103,6 +103,30 @@ describe('getStoredRateForYear — delegates to awardRatesFor, with the grade de
     });
     test('a year NOT on record falls back to the grade default rate (no throw)', () => {
         assert.equal(getStoredRateForYear({ label: '2099/00' }), GRADES.cea.rate);
+    });
+});
+
+// ── periodRate — the rate a payslip was paid at, one answer for the rate field and the summary ───
+// The Settings summary worked this out for itself beside updateRateForPeriod until both asked here.
+// Paydays from the real grid: 24 Oct 2025 and 28 Aug 2026 are the two award payslips.
+describe('periodRate — the rate a payslip was PAID at', () => {
+    const TY = (/** @type {string} */ l) => /** @type {any} */ (PERIOD_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === l));
+    const P = (/** @type {number} */ n) => /** @type {any} */ (getPeriods().find((/** @type {any} */ p) => p.num === n));
+    test('fixture: P44 and P55 are the award payslips, and each year has a rate before its award', () => {
+        assert.equal(P(44).payday.toDateString(), 'Fri Oct 24 2025');
+        assert.equal(P(55).payday.toDateString(), 'Fri Aug 28 2026');
+        for (const l of ['2025/26', '2026/27']) assert.notEqual(awardRatesFor('cea', l).pre, awardRatesFor('cea', l).rate);
+    });
+    test('a payslip before its year\'s award was paid the rate before it, and says so', () => {
+        assert.deepEqual(periodRate(TY('2025/26'), P(43)), { rate: awardRatesFor('cea', '2025/26').pre, preAward: true });
+        assert.deepEqual(periodRate(TY('2026/27'), P(54)), { rate: awardRatesFor('cea', '2026/27').pre, preAward: true });
+    });
+    test('from the award payslip on, the year\'s settled rate', () => {
+        assert.deepEqual(periodRate(TY('2025/26'), P(44)), { rate: awardRatesFor('cea', '2025/26').rate, preAward: false });
+        assert.deepEqual(periodRate(TY('2026/27'), P(55)), { rate: awardRatesFor('cea', '2026/27').rate, preAward: false });
+    });
+    test('no payslip named → the settled rate', () => {
+        assert.deepEqual(periodRate(TY('2026/27')), { rate: getStoredRateForYear(TY('2026/27')), preAward: false });
     });
 });
 
