@@ -246,8 +246,18 @@ def whole(t):
     t = re.sub(r'\b\d{1,2}h \d{2}m\b', lambda m: m.group(0).replace(' ', '\x00'), t)   # nor a duration (4 Nov 2026: "8h / 10m")
     return t.replace(' - ', '\x00- ')
 para = lambda t: textwrap.fill(whole(' '.join(t.split())), W, break_on_hyphens=False).replace('\x00', ' ')
+# A LABEL TOO LONG FOR ITS COLUMN HAS A LINE OF ITS OWN (8 Nov 2026, the pack audit). A format width pads a short label and
+# never cuts a long one, so when item 5 took its folder's full name on 6 Nov, "5 Import files for the Links page" ran
+# straight into its text: "5 Import files for the Links pageEach proposal as text...". Every label is kept, and the read-me
+# is refused below if one ever runs into its text again
+LABELS = []
 def item(label, text, hang=21):
-    return textwrap.fill(whole(' '.join(text.split())), W, initial_indent=f'  {label:<{hang - 2}}', subsequent_indent=' ' * hang,
+    LABELS.append(label)
+    body = whole(' '.join(text.split()))
+    if len(label) > hang - 3:   # at least one space between the label and the text, as every other label has
+        return f'  {label}\n' + textwrap.fill(body, W, initial_indent=' ' * hang, subsequent_indent=' ' * hang,
+                                              break_on_hyphens=False).replace('\x00', ' ')
+    return textwrap.fill(body, W, initial_indent=f'  {label:<{hang - 2}}', subsequent_indent=' ' * hang,
                          break_on_hyphens=False).replace('\x00', ' ')
 # the colour key: the mark at column 22, its words at 38, so a long description cannot run into the next mark (pack polish;
 # moved left on 5 Nov 2026, when "amber" became "amber triangle", the sheets' own name for the mark)
@@ -266,6 +276,26 @@ names_in = {n for n, _, _ in proposals}
 AT_2230 = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Crossover', 'Level Crossing']   # the read-me's
 if not set(AT_2230) <= names_in:   # 22:30 paragraph names these seven as drawn with it, and counts the rest
     raise SystemExit(f'pack: the read-me says {AT_2230} were drawn with the 22:30 office; the pack has {sorted(set(AT_2230) & names_in)}')
+# THE LEAGUE'S LEADER AND ITS LEAD, READ (8 Nov 2026, the pack audit). The 22:30 paragraph ended "since 7 November 2026
+# Crossover is, by 0.4 points", typed, while the shortlist sheet reads the same two facts from league.mjs. Its claim held
+# them only loosely (Crossover first by 0.35 to half a point, which can print 0.5), so a design joining or a grid changing
+# could have left the read-me a tenth, or a leader, behind the sheet. They are read here as the sheet reads them: the main
+# league, today's link and Familiar Nine inside its ranges (REF_IN_RANGE=1), the lead to a tenth (the sheet's f1). The
+# sentence says the leader has led since the day it was drawn, so a leader drawn before the shortlist is refused rather
+# than printed: the paragraph would need rewriting
+import json, subprocess, tempfile
+with tempfile.TemporaryDirectory() as _t:
+    subprocess.run(['node', 'league.mjs'], cwd=f'{ROOT}/tooling', check=True, stdout=subprocess.DEVNULL,
+                   env={**os.environ, 'REF_IN_RANGE': '1', 'OLD_READINGS': '0', 'JSON': f'{_t}/league.json'})
+    with open(f'{_t}/league.json', encoding='utf-8') as _f: _league = json.load(_f)
+if not _league.get('refInRange') or _league.get('oldReadings'):
+    raise SystemExit('pack: league.mjs did not write the main league with today inside its ranges')
+_ranked = sorted(_league['proposals'], key=lambda r: -r['total'])
+LEADER, LEAD = _ranked[0]['name'], f"{_ranked[0]['total'] - _ranked[1]['total']:.1f}"
+_LEADER_CODE = next(c for n, c, _ in proposals if n == LEADER)
+if _day(_LEADER_CODE) <= _drawn:
+    raise SystemExit(f'pack: the read-me says the league leader was drawn after the shortlist; {LEADER} was drawn on {FIRST[_LEADER_CODE]}')
+LEADER_FROM = f"{_day(_LEADER_CODE).day} {_day(_LEADER_CODE).strftime('%B %Y')}"   # '7 November 2026'
 sl30 = [n for n, c, _ in proposals if n in SHORTLIST and DIR_OF[c] == '30-days-off']   # shortlisted, in the 30-day folder itself
 readme = '\n'.join([
     'NEW CEA LINK PROPOSALS - 26 LINES',
@@ -426,7 +456,7 @@ readme = '\n'.join([
          'Balanced V9, drawn since, do. On the other '
          f'{WORDS[len(names_in - set(AT_2230))]} that hour comes off other Saturday lates, so the hours and the contract are '
          'as they were; every sheet and presentation was redrawn, and their fingerprints changed. Common Ground was then '
-         'first in the pack\'s league, just over half a point ahead of the next; since 7 November 2026 Crossover is, by 0.4 '
+         f'first in the pack\'s league, just over half a point ahead of the next; since {LEADER_FROM} {LEADER} is, by {LEAD} '
          'points.'),
     '',
     'HOW THE FIGURES ARE WORKED OUT',
@@ -462,6 +492,10 @@ for f in FOLDERS:
     for k in range(1, len(w)):
         if re.search(re.escape(' '.join(w[:k])) + r'\n *' + re.escape(' '.join(w[k:])), readme):
             raise SystemExit(f'pack: the read-me splits the folder name "{f}" across lines')
+# and no label running into its text (the pack audit, 8 Nov 2026: "5 Import files for the Links pageEach proposal")
+_run = sorted({lab for lab in LABELS if lab for l in readme.split('\n')
+               if l.startswith(f'  {lab}') and len(l) > 2 + len(lab) and l[2 + len(lab)] != ' '})
+if _run: raise SystemExit(f'pack: the read-me runs the label {_run} into its text; a label too long for its column needs a line of its own')
 
 
 if os.path.exists(OUT): os.remove(OUT)
