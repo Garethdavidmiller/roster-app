@@ -13,6 +13,12 @@ Run through every step in order. Do not skip steps.
 - [ ] If joining mid-year: add `startDate: new Date(year, month-1, day)` — **midnight only, no time component**
 - [ ] If joining mid-year: add `proRatedAL: { year: N }` — **ASK THE ROSTER CLERK AND TRANSCRIBE. Do not calculate it.**
   - The clerk's annual leave workbook (`Customer Service Annual Leave <year>.xlsx` → the **`New Marylebone Totals`** sheet, `AL allowance` column — not `Marylebone Totals`, the 2021 decoy: `docs/AL_WORKBOOK.md` §2) is the AUTHORITY for this figure (owner, 6 Sep 2026). It is a contractual number the roster office agrees and payroll works to; this app transcribes it.
+  - **Read column E's comment as well as `AL allowance`** [measured, 8 Nov 2026]. For recent joiners the clerks
+    keep `AL allowance` at the FULL grade figure and put the reduction in column E (`AL over depot quota`),
+    with the start date, and sometimes the joining allowance itself, in E's threaded comment. The figure to
+    transcribe is then `AL allowance − (E − any dated over-quota days)` — e.g. 32 − (25 − 2) = 9 — and
+    `AL allowance` alone overstates it. Older joiners' rows type the pro-rated figure straight into
+    `AL allowance`; both conventions are live in the same sheet (`docs/AL_WORKBOOK.md` §5).
   - **This step used to carry a formula, `⌈(daysRemainingInYear / 365) × entitlement⌉`, and it produced the wrong answer for every mid-year starter in the roster** (measured 6 Sep 2026 against the clerk's book; the figures are in the comment above the starters in `roster-member-data.js`). Two of the misses are a rounding difference a formula could in principle be fixed for; the others are not reachable by ANY formula from the fields in the roster data — prior AGENCY service, for one, means `startDate` is when somebody joined the payroll and not when their entitlement began accruing. A figure that depends on facts this app does not hold cannot be derived here, and a plausible derivation is worse than no derivation because nothing fails when it is wrong.
   - A rough day-count is fine as a SANITY CHECK — if the clerk's figure is wildly off what you expect, ask — but the clerk's number is what goes in the file.
   - **Do not add lieu days into `proRatedAL`.** A Dispatcher's bank-holiday lieu days are added on top of the pro-rated base by `getALEntitlement`, and the Boxing Day lieu day (for working a Boxing Day one was due to work) by `entitlementFor` (`al-entitlement.js`). Baking either in would count it twice. (Check the clerk has not already included them either.)
