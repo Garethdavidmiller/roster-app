@@ -301,6 +301,53 @@ test('guides: a paragraph keeps a reading measure on a desktop, and a phone is u
     }
 });
 
+// The Railcard quick check on a desktop (owner, Nov 2026: LARGER TEXT, not a narrower card). Its
+// note keeps the 64ch measure above, and at 12.5px that stopped about 200px short of a ~700px card —
+// each card measured ~30% empty on its right here, ~20% on CI's slightly wider render. One factor
+// (`--qc-scale`, railcard-guide.css) now steps every size in the card up together. Pinned by what it
+// is FOR: each card's widest line reaches near its content edge, every size grows by the SAME factor
+// (the hierarchy is kept, not merely the sizes raised), and a phone and paper keep the old sizes.
+test('railcard: on a desktop the quick-check type steps up to fill its cards, and a phone and paper do not', async ({ page }) => {
+    const measure = () => page.evaluate(() => [...document.querySelectorAll('.qc-group')].map(g => {
+        const cs = getComputedStyle(g), r = g.getBoundingClientRect();
+        const left = r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+        const right = r.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
+        let textRight = left;
+        for (const el of g.querySelectorAll('.qc-head, .qc-cards, .qc-note')) {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            for (const line of range.getClientRects()) textRight = Math.max(textRight, line.right);
+        }
+        const size = (/** @type {string} */ sel) => parseFloat(getComputedStyle(/** @type {Element} */ (g.querySelector(sel))).fontSize);
+        return { name: g.className, head: size('.qc-head'), cards: size('.qc-cards'), note: size('.qc-note'),
+                 empty: (right - textRight) / (right - left) };
+    }));
+    const open = async (/** @type {number} */ width) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/railcard-guide.html');
+        await page.evaluate(() => document.fonts.ready);
+    };
+    await open(390);
+    const phone = await measure();
+    expect(phone.length, 'the five quick-check groups').toBe(5);
+    for (const width of [1366, 1920]) {
+        await open(width);
+        const desk = await measure();
+        desk.forEach((card, i) => {
+            const step = card.note / phone[i].note;
+            expect(step, `${card.name} at ${width}px: the note grows on a desktop`).toBeGreaterThan(1.15);
+            expect(Math.abs(card.head / phone[i].head - step), `${card.name} at ${width}px: the head grows by the note's factor`).toBeLessThan(0.01);
+            expect(Math.abs(card.cards / phone[i].cards - step), `${card.name} at ${width}px: the card list grows by the note's factor`).toBeLessThan(0.01);
+            expect(card.empty, `${card.name} at ${width}px: the widest line stops ${Math.round(card.empty * 100)}% short of the card's edge`).toBeLessThan(0.15);
+        });
+    }
+    // Paper keeps the phone's sizes at any width: the step is `screen` only.
+    await page.emulateMedia({ media: 'print' });
+    const paper = await measure();
+    expect(paper.map(c => c.note), 'printed, the notes keep their size').toEqual(phone.map(c => c.note));
+    await page.emulateMedia({ media: 'screen' });
+});
+
 // The Staff guide drew every Calendar button it describes in navy, while the real ones are gold 📍,
 // navy 👥 Team, teal 🏖️ AL, navy-with-gold 📝 Admin and green 💷 Pay (desktop audit, Nov 2026) — five
 // buttons a reader could not match to the screen by sight. Compared with the REAL buttons, read off
