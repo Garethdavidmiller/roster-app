@@ -842,7 +842,7 @@ uppercase. */
     .tr-view[hidden] { display: none !important; }
     .tr-dot { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     body { background: white; padding: 0; color: black; }
-    .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-change-station { display: none; }
+    .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-grid-swipe, .tr-change-station { display: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
 }
 

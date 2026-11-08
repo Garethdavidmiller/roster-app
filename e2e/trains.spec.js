@@ -831,6 +831,11 @@ test.describe('trains — the swipe line is for a grid that scrolls', () => {
         await page.setViewportSize({ width: 375, height: 667 });            // and upright again
         await expect.poll(overflows, { message: 'premise: upright, it scrolls again' }).toBe(true);
         await expect(swipe, 'upright again, the grid scrolls and the line did not come back').toBeVisible();
+
+        // Paper cannot be swiped: printed, the line goes, as Team view's does.
+        await page.emulateMedia({ media: 'print' });
+        await expect(swipe, 'the printout told its reader to swipe the paper').toBeHidden();
+        await page.emulateMedia({ media: null });
     });
 
     test('a mouse is not told to swipe, however narrow the window', async ({ page }, info) => {
