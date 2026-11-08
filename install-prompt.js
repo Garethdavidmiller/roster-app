@@ -59,9 +59,9 @@
  *
  * ── AND IT IS MOBILE-ONLY, WHICH IS A BEHAVIOUR AND NOT JUST A LAYOUT ─────────────────────────
  *
- * `.top-prompt` is hidden at desktop widths (index.css), because the desktop calendar locks body
- * height and hides overflow — a band here squeezes the grid rather than sitting above it. That was
- * already true of the notification strip and is inherited rather than chosen.
+ * `.top-prompt` is hidden at desktop widths (index.css, "Mobile-only UI: hide on desktop"), as the
+ * notification strip already was: the strip is a phone's offer, inherited rather than chosen. (The
+ * old reason, a desktop calendar that locked the body's height, went with that lock.)
  *
  * But it cannot be left to CSS alone, because `preventDefault()` on `beforeinstallprompt` SUPPRESSES
  * CHROME'S OWN install promotion. Doing that at a width where the strip is then invisible leaves a

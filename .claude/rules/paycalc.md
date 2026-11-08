@@ -365,8 +365,9 @@ on the 24 Oct 2025 payslip — the same date as `londonAllowFrom`).
   year on the card.
 - **The award-application date is single-sourced** as the year's `londonAllowFrom` (read via
   `awardFromForYear(tyLabel)` — NOT stored on `AWARD_RATES`), and `isPreAwardPeriod(p, grade, tyLabel)`
-  is the one shared predicate — used by `getRateForPeriod`, `updateRateForPeriod` and `confirmSettings`
-  (`paycalc-settings.js`) and the header hint in `paycalc-app.js`.
+  is the one shared predicate — used by `getRateForPeriod` and `confirmSettings` (`paycalc-settings.js`),
+  and through `periodRate` there, the one answer to "what rate was this payslip paid at", by both the
+  rate field (`updateRateForPeriod`) and the Settings summary in `paycalc-app.js`.
 - **Accrual correctness:** `calcBackPay` (a) stops at `awardFromForYear` for a settled award — periods
   paid on/after it were already on the new rate and owe £0; (b) caps at `todaysPeriodNum()` (today, not
   the SELECTED period) so a future selection cannot accrue unworked weeks; (c) **excludes the paid-in
