@@ -9,7 +9,7 @@
  */
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
-import { CHANGES } from '../newlink-data.js';
+import { CHANGES, PACK } from '../newlink-data.js';
 
 test.describe('new link', () => {
     test('the admin sees the preview, the three proposals A to Z, and no recommendation anywhere', async ({ page }) => {
@@ -22,7 +22,7 @@ test.describe('new link', () => {
         await expect(page.locator('#nlPreview')).toContainText('Preview — only you and S. Silva can see this page.');
         // the stand-in audience: every CEA on the roster, listed for the admin to check
         await expect(page.locator('#nlPreview')).toContainText('every CEA on the roster');
-        await expect(page.locator('.nl-name-title')).toHaveText(['Common Ground', 'Even Step', 'Short Run']);
+        await expect(page.locator('.nl-name-title')).toHaveText(['Balanced V6', 'Level Crossing', 'Middle Ground']);
         await expect(page.locator('#nlStatus')).toContainText('Have your say by a date to be agreed');
         // EVENLY: nothing on the page names a recommendation (owner, 2 Nov 2026: "No, three evenly")
         await expect(page.locator('main')).not.toContainText(/recommend/i);
@@ -80,7 +80,7 @@ test.describe('new link', () => {
         await expect(status).toContainText('Nothing is decided.');
         await expect(status.locator('.nl-name'), 'the tiles are drawn again, and still open their weeks').toHaveCount(3);
         await status.locator('.nl-name').first().click();
-        await expect(page.locator('#nlWeeksStatus')).toContainText('Showing Common Ground’s');
+        await expect(page.locator('#nlWeeksStatus')).toContainText('Showing Balanced V6’s');
     });
 
     test('choosing a way of working shows its sentence and figures; Everything shows all six; pressing again goes back', async ({ page }) => {
@@ -97,7 +97,7 @@ test.describe('new link', () => {
         await expect(earlies).toBeFocused();   // the redraw keeps focus on the pressed tile
         await expect(panel.locator('.nl-persona')).toHaveCount(1);
         await expect(panel.locator('.nl-persona-h')).toHaveText(/If you prefer earlies/);
-        await expect(panel.locator('thead th')).toHaveText(['Today', 'Common Ground', 'Even Step', 'Short Run']);
+        await expect(panel.locator('thead th')).toHaveText(['Today', 'Balanced V6', 'Level Crossing', 'Middle Ground']);
         await expect(panel.locator('.nl-best').first()).toBeVisible();
 
         await page.locator('[data-persona="all"]').click();
@@ -124,7 +124,7 @@ test.describe('new link', () => {
         const chosen = weeks.locator('.nl-weeks-one.is-chosen');
         await expect(chosen.locator('.nl-flag')).toHaveText(/A proposal — not your roster/);
         // the first A to Z, never the recommendation — the page presents the three evenly
-        await expect(chosen.locator('caption')).toContainText('Common Ground');
+        await expect(chosen.locator('caption')).toContainText('Balanced V6');
         await expect(chosen.locator('tbody tr')).toHaveCount(26);
         await expect(chosen.locator('tbody tr.nl-wk-cover')).toHaveCount(5);
         // numbered, never dated
@@ -146,14 +146,19 @@ test.describe('new link', () => {
             const boxes = await Promise.all((await weeks.locator('.nl-weeks-one').all()).map(b => b.boundingBox()));
             expect(boxes.every(b => b && Math.abs(b.y - /** @type {any} */ (boxes[0]).y) < 2)).toBe(true);
             expect(boxes.map(b => b?.x)).toEqual([...boxes.map(b => b?.x)].sort((a, b) => (a ?? 0) - (b ?? 0)));
+            // THE LEFT-HAND GRID IS BALANCED V6 (owner, 8 Nov 2026: "make the balanced v5 option as the left hand grid on
+            // desktop. I must not be seen to be favouring my designs over Sara's"). A to Z puts it there; this keeps it there
+            const grids = await Promise.all((await weeks.locator('.nl-weeks-one').all())
+                .map(async g => ({ x: (await g.boundingBox())?.x ?? 0, name: await g.locator('caption').innerText() })));
+            expect(grids.sort((a, b) => a.x - b.x)[0].name).toContain('Balanced V6');
             return;
         }
         // A PHONE: the chosen one only, under tabs that change it
         await expect(weeks.locator('.nl-weeks-one:not(.is-chosen)').first()).toBeHidden();
-        await page.locator('[data-design="proposal:ES-26-T5"]').click();
-        await expect(page.locator('[data-design="proposal:ES-26-T5"]')).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.locator('[data-design="proposal:ES-26-T5"]')).toBeFocused();
-        await expect(chosen.locator('caption')).toContainText('Even Step');
+        await page.locator('[data-design="proposal:LC-26-T10"]').click();
+        await expect(page.locator('[data-design="proposal:LC-26-T10"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('[data-design="proposal:LC-26-T10"]')).toBeFocused();
+        await expect(chosen.locator('caption')).toContainText('Level Crossing');
         await expect(chosen.locator('tbody tr')).toHaveCount(26);
         // ...and the tabs stay in reach while the weeks scroll beneath them (a card with `overflow: hidden` would let
         // them scroll away — the cascade decides this, so only a browser can see it)
@@ -183,7 +188,7 @@ test.describe('new link', () => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
         const links = page.locator('#nlPackList a.nl-file');
-        await expect(links).toHaveCount(7);
+        await expect(links).toHaveCount(PACK.length);   // what the generated data lists — 4 since 8 Nov 2026, with no presentations yet
         for (const a of await links.all()) {
             await expect(a).toHaveAttribute('target', '_blank');
             await expect(a).toHaveAttribute('href', /^https:\/\/garethdavidmiller\.github\.io\/roster-app\/docs\/links-26\/.+\.pdf$/);
@@ -203,13 +208,13 @@ test.describe('new link', () => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
 
-        // the tile for Short Run opens Short Run's weeks, even with the weeks card folded
+        // the tile for Middle Ground opens Middle Ground's weeks, even with the weeks card folded
         await page.locator('#nlWeeksChevron').click();
         await expect(page.locator('#nlWeeksBody')).not.toHaveClass(/\bopen\b/);
-        await page.locator('[data-open-weeks="proposal:SR-26-F1"]').click();
+        await page.locator('[data-open-weeks="proposal:MG-26-T8"]').click();
         await expect(page.locator('#nlWeeksBody')).toHaveClass(/\bopen\b/);
-        await expect(page.locator('#nlWeeksPanel .is-chosen caption')).toContainText('Short Run');
-        await expect(page.locator('[data-design="proposal:SR-26-F1"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#nlWeeksPanel .is-chosen caption')).toContainText('Middle Ground');
+        await expect(page.locator('[data-design="proposal:MG-26-T8"]')).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#nlWeeksPanel .is-chosen caption')).toBeInViewport();
 
         // "Have your say" at the top opens its card, folded or not, and takes the reader there
@@ -277,7 +282,7 @@ test.describe('new link', () => {
         await expect(pill).toBeVisible();
         await pill.click();
         await expect(page).toHaveURL(/newlink\.html$/);
-        await expect(page.locator('.nl-name-title').first()).toHaveText('Common Ground');
+        await expect(page.locator('.nl-name-title').first()).toHaveText('Balanced V6');
     });
 
     // S. Silva is the new link's contact (newlink-config.js → CONTACT), and may see the preview before colleagues do
@@ -290,7 +295,7 @@ test.describe('new link', () => {
         await expect(pill).toBeVisible();
         await pill.click();
         await expect(page).toHaveURL(/newlink\.html$/);
-        await expect(page.locator('.nl-name-title').first()).toHaveText('Common Ground');
+        await expect(page.locator('.nl-name-title').first()).toHaveText('Balanced V6');
         await expect(page.locator('#nlPreview')).toContainText('Preview — only you and the admin can see this page.');
     });
 });

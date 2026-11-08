@@ -99,8 +99,8 @@ builds toward it, and so that nobody is surprised later that the custom work was
 
 **The link starts on 1 January 2027, not with the timetable** (owner, 2 Nov 2026: the timetable changes on 13 December,
 the link follows on 1 January, and today's link carries on until then). It is 26 weeks with five cover weeks
-(`docs/links-26/RULES.md`), and the shortlist is three — **Common Ground**, **Even Step** and **Short Run**, A to Z,
-with no recommendation (owner, 5 Nov 2026) — built into the Links designer read-only (`links-proposals.js`) and drawn
+(`docs/links-26/RULES.md`), and the shortlist is three — **Balanced V6**, **Level Crossing** and **Middle Ground**, A to
+Z, with no recommendation (owner, 8 Nov 2026, drawn for no two closing weeks side by side) — built into the Links designer read-only (`links-proposals.js`) and drawn
 in the pack (`docs/links-26/`). The new link page (`newlink.html`) presents them evenly to colleagues, as a
 **preview** for the admin and S. Silva for now.
 

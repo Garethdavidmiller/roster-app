@@ -89,7 +89,7 @@ list.
 | `links-target-sets.js` | named, shared SNAPSHOTS of the generator targets (staffing setups), and who may overwrite one (invariant 9) |
 | `links-target-sets-store.js` | the Firestore half of those setups — reading the collection, and the one guarded write |
 | `links-generator-targets.js` | the numbers the generator runs against, where they came from, and what may replace them; it writes a new setup itself |
-| `links-default-targets.js` | the table the generator STARTS from — the duty table of Short Run, one of the built-in proposals; not measured from today's roster |
+| `links-default-targets.js` | the table the generator STARTS from — the duty table of Short Run, in the pack (built in until 8 Nov 2026); not measured from today's roster |
 | `links-proposals.js` | the SHORTLISTED designs, built in as read-only proposals — a proposal id never reaches Firestore |
 | `links-shortlist.js` | "Keep only the shortlist" — the admin's one press that moves every design last saved before `OLDER_BEFORE` to the bin; the built-in shortlist stays read-only |
 | `links-tips.js` | `CARD_TIPS` for the page's `?` panels (pure data) |
@@ -752,7 +752,10 @@ act on.
   them is the floor for being worth discussing, not evidence of being right. **It is not a link**: the
   generator arranges the duties its own way, not as Short Run does, so read the panels before anyone
   takes a printout into a room. Its cover-week count, `DEFAULT_COVER_WEEKS`, is a term in its contract
-  equation: change it only together with the duty table.
+  equation: change it only together with the duty table. **Short Run left the shortlist on 8 Nov 2026**
+  and the table did not move with it: the three drawn that day staff the same duties each day (15 every
+  weekday, 14 on a Saturday, 10 on a Sunday) at other times, so it still fits them, and which design's
+  duties the generator starts from is the owner's question, not a side effect of the shortlist.
 - **The roster seed** (`buildRosterTargets` in `links-seed.js`) MEASURES today's link, so the contract
   gate refuses it with the gap named: today's duties pay fewer working lines than the design has.
   **It must sample exactly what the design represents** — the whole MAIN cycle, through

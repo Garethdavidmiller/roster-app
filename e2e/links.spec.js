@@ -2041,7 +2041,7 @@ test('links: Generate works on a card nobody has touched', async ({ page }) => {
     await expect(page.locator('#linksSummary')).toContainText('35h');
 });
 
-// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026; Common Ground, Even Step and Short Run since v25.36) ──
+// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026; Balanced V6, Level Crossing and Middle Ground since v25.52) ──
 // The unit tests pin the data and the masthead's words. What only the page can prove: the picker
 // REACHES them, opening one is read-only in the ways that matter (no rename, no delete, a Save that
 // makes a copy), and the copy that save writes is the proposal's own 26-line grid under a new name.
@@ -2059,10 +2059,10 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
     await expect(page.locator('#designPickerLb.visible')).toBeVisible();
     await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);   // every shortlisted design, however many (three since v25.04)
     await expect(designOptions(page)).toHaveCount(0);
-    await proposalOptions(page).filter({ hasText: 'Even Step' }).click();   // the middle of the three, A to Z
+    await proposalOptions(page).filter({ hasText: 'Level Crossing' }).click();   // the middle of the three, A to Z
 
-    await expect(activeDesignName(page)).toHaveText('Even Step — Dec 2026');
-    await expect(page.locator('#designWhoRole')).toHaveText('ES-26-T5 · fb7a3988');   // the printed sheet's ref
+    await expect(activeDesignName(page)).toHaveText('Level Crossing — Dec 2026');
+    await expect(page.locator('#designWhoRole')).toHaveText('LC-26-T10 · 32241e32');   // the printed sheet's ref
     await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
@@ -2074,13 +2074,13 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
 
     await page.locator('#linksSaveBtnTop').click();
     const input = page.locator('.dialog-overlay .dialog-input');
-    await expect(input).toHaveValue('Even Step — copy');
+    await expect(input).toHaveValue('Level Crossing — copy');
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
     await expect(page.locator('#designEyebrow')).toHaveText('Editing');
-    await expect(activeDesignName(page)).toHaveText('Even Step — copy');
+    await expect(activeDesignName(page)).toHaveText('Level Crossing — copy');
 
     const writes = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites || []);
-    const copy = writes.find((/** @type {any} */ w) => w.data?.name === 'Even Step — copy');
+    const copy = writes.find((/** @type {any} */ w) => w.data?.name === 'Level Crossing — copy');
     expect(copy, 'the first save CREATES a design').toBeTruthy();
     expect(Object.keys(copy.data.patterns)).toHaveLength(ROTATING_LINES);
     expect(copy.data.patterns['1'].mon, 'the proposal\'s own grid — line 1 is a cover week').toBe('SPARE');
@@ -2102,7 +2102,7 @@ test('links: a window edit during a first save does not re-arm Save for a second
     });
     await page.goto('/links.html');
     await page.locator('#linksEmptyProposals').click();
-    await proposalOptions(page).filter({ hasText: 'Common Ground' }).click();
+    await proposalOptions(page).filter({ hasText: 'Balanced V6' }).click();
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
@@ -2133,7 +2133,7 @@ test('links: Generate during a proposal copy\'s first save leaves the generated 
     });
     await page.goto('/links.html');
     await page.locator('#linksEmptyProposals').click();
-    await proposalOptions(page).filter({ hasText: 'Common Ground' }).click();
+    await proposalOptions(page).filter({ hasText: 'Balanced V6' }).click();
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
@@ -2171,7 +2171,7 @@ test('links: a copy\'s first save landing while the Apply question is open still
     });
     await page.goto('/links.html');
     await page.locator('#linksEmptyProposals').click();
-    await proposalOptions(page).filter({ hasText: 'Common Ground' }).click();
+    await proposalOptions(page).filter({ hasText: 'Balanced V6' }).click();
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });

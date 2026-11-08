@@ -21,6 +21,7 @@ import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
 import { kindBlocks } from './blocks.mjs';
 import { scoreOrder } from '../../../links-adjacency.js';
+import { SHORTLIST } from './fresh.mjs';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
 // Only the shortlist's decks were shipped from 3 Oct 2026 (owner): Second Nature's, Second Wind's and Second Sight's were
@@ -160,9 +161,12 @@ function marksWrong(xml) {
 const T0 = today(), TA = assess(T0.patterns, 20), TF = figures(T0.patterns, 20, null);
 const stats = folderStats();
 let bad = 0, ok = 0; const unchecked = new Set();
-if (process.argv.includes('--print')) {   // every figure a deck row can quote, for today and each design the decks cover
+// AND THE SHORTLIST'S DESIGNS SINCE 8 NOV 2026: the one-page "What it means" sheet reads its figures here, and the three drawn
+// that day have no decks yet (fresh.mjs → DECKS_KEPT), so --print covers every design the decks cover and every shortlisted one
+if (process.argv.includes('--print')) {   // every figure a deck row can quote, for today and each design the decks or the shortlist cover
   const out = { today: TF };
-  for (const name of new Set(DECKS.map(([, n]) => n))) { const f = stats.find(s => s.name === name);
+  for (const name of new Set([...DECKS.map(([, n]) => n), ...SHORTLIST])) { const f = stats.find(s => s.name === name);
+    if (!f) throw new Error(`deck-check: no proposal called ${name}`);
     const j = JSON.parse(readFileSync(f.url, 'utf8')); out[name] = figures(j.patterns ?? j, LINES, TA); }
   console.log(JSON.stringify(out, null, 1)); process.exit(0);
 }

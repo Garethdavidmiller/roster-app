@@ -6,8 +6,11 @@ buys 27 to 29 days, and needs 14 or 15 days' leave for four weeks off.
 
 They were put in a folder of their own on 4 November 2026 (owner: "Put all of the links that give 30 days off for 14
 days AL into a subfolder within links 26"). They are still part of the pack: the summary sheet, the shortlist sheet's
-comparisons and the league count them like every other proposal. Common Ground has been on the shortlist since
-5 November 2026, as the example of the links that keep today's leave (owner); the other eleven are not.
+comparisons and the league count them like every other proposal. **Since 8 November 2026 three of them are the
+shortlist**, Balanced V6, Level Crossing and Middle Ground (owner: "Put Level Crossing, Middle Ground and Balanced V6 as the
+shortlist for now"), drawn again for a new design target, no two closing weeks side by side (`../README.md` → "The
+shortlist redrawn for closing weeks apart"). The other nine are not on it; Common Ground, one of them, was on it from
+5 November 2026, as the example of the links that keep today's leave (owner).
 
 Each has the same three files as the proposals in `../proposals/`: the eight-page sheet (`<Name>-<CODE>-<fingerprint>.pdf`),
 the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name>-<CODE>-import.txt`). **The five Balanced designs
@@ -49,11 +52,11 @@ Balanced V9's column is as searched again later that night: its heaviest week ca
 own score moved, 83.1 to 83.3, and no place (`../README.md` → "Balanced V8 and V9 searched again").
 
 **What the 30 days cost.** Every layout found that buys 30 days for 14 has more single rest days than Even Step and
-Short Run, the other two shortlisted links: 10, 12 or 22 a year each here, against their 8 (today about 10). Open Return and
-Short Openers also have a 13h 15m shortest rest, where the shortlisted three have 14h 20m or more; Grand Tour has 16
+Short Run, on the shortlist until 8 November 2026: 10, 12 or 22 a year each here, against their 8 (today about 10). Open
+Return and Short Openers also have a 13h 15m shortest rest, where the three shortlisted have 14h 20m or more; Grand Tour has 16
 weeks of 21 on one shift time, against Fair Share's 18, and a 56h 40m week if a cover week falls badly. Common Ground
-has Grand Tour's weeks, so its 12 single rest days a year too, and a weaker weekday fit to the trains than the other two
-shortlisted links. Middle Ground has Common Ground's rest days and duties, so the same 12 and the same fit, and pays for
+has Grand Tour's weeks, so its 12 single rest days a year too, and a weaker weekday fit to the trains than Even Step and
+Short Run. Middle Ground has Common Ground's rest days and duties, so the same 12 and the same fit, and pays for
 spreading its closing and 06:20 weeks apart with one week fewer on one shift time (18 of 21) and a larger change of
 start from week to week. Balanced V7 has 12 too, and pays with three weeks mixing earlies and lates and 13 of 21 weeks on one
 shift time. Balanced V8 and V9 have 12 too, and Balanced V7's duties, so its weaker weekday fit to the trains; V9 also has
@@ -73,7 +76,7 @@ today's lates, a 07:00–15:30 early and two Sunday earlies. (Until 6 November 2
 the pack please"). It was drawn for the owner's point that Common Ground's closing weeks and its 06:20 weeks come in
 runs, which makes swapping a week with a colleague harder: it keeps Common Ground's rest days and its early and late
 weeks, and chooses again which week works which shift time, so that no two closing weeks and no two 06:20 weeks fall
-side by side. It is the only design in the pack where neither does. It is not on the shortlist.
+side by side. It is the only design in the pack where neither does. It has been on the shortlist since 8 November 2026.
 
 **The Saturday ticket office to 22:30** (6 November 2026; owner: "I have confirmed that it does close at 22.10 and needs
 to be a 22.30 ticket office closer. Do A on every proposal"). The office shuts at 22:10 on a Saturday and takes 20
@@ -104,7 +107,9 @@ Balanced V6 was drawn from it the same day as Relief Point (`RP-26-V5`): the sam
 finishing at 22:30, so under the corrected rule both meet all nine December rules, where they met eight. They pay for 30
 days off with the most single rest days in the folder, 22 a year each, 7 of 21 weeks on one shift time, three weeks
 mixing earlies and lates and a week-to-week change of start of over four hours, and they score far below every other
-design in the league.
+design in the league. Balanced V6 has been on the shortlist since 8 November 2026. Its closing weeks never fall side by
+side, as on Balanced V5, Level Crossing and Middle Ground, and of the three shortlisted it has the shortest runs of
+earlies or of lates.
 
 **Balanced V7** joined the folder later on 6 November 2026, the day it was drawn (owner, asking for Balanced V6 made again
 "without losing anything" — its 15:45 weekday closers, 14 days' leave buying 30 days off, its weekday 13:35, 13:45 and
@@ -155,7 +160,7 @@ closing weeks come in a row, where Crossover has four together.
   when it joined, at 86.8.
 - **The name** is a railway one, as the owner asked: a level crossing, and level for closing weeks spread evenly.
 
-It is not on the shortlist.
+It has been on the shortlist since 8 November 2026.
 
 **Balanced V8 and Balanced V9** joined the folder later on 7 November 2026 (owner: "What type of change would have to happen
 to get balanced v6 or v7 upto the standard of the leaders", then "Do the v7 week lay out again", then "Do A as Balanced V8
@@ -184,7 +189,9 @@ Neither is on the shortlist.
 
 **Presentations.** Common Ground has a colleague deck and a managers' deck, made on 5 November 2026 at the owner's request.
 They were kept outside the pack for a few hours, in a folder since removed, and have been in `../presentations/` since it
-joined the shortlist the same day. The other eleven links here, Middle Ground, Crossover, Level Crossing and Balanced V8 and V9 included, have none.
+joined the shortlist the same day. They were in the zip until 8 November 2026, when it left the shortlist; they stay in
+`../presentations/`, unchanged, and the zip carries no presentations for now, since each deck names the shortlist of
+5 November 2026 as the current one. The other eleven links here, the three shortlisted included, have none.
 
 **Taken out, and since deleted:** Quarter Past, whose shift times Open Return keeps, on the evening of 4 November 2026;
 and Well Kept, today's twenty weeks with six added, which was in this folder from that evening until 5 November 2026
