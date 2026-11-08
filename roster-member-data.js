@@ -149,6 +149,23 @@ export const teamMembers = [
       startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 11 },
       rosterChanges: [{ from: new Date(2026, 6, 20), rosterType: 'dispatcher', currentWeek: 4 }] },
 
+    // J. Bangi — started Mon 5 Oct 2026, the M. Campbell pattern. Phase 1 (to Sat 7 Nov): initial
+    // training Monday to Friday, which is `fixedRoster[3]` as the BASE roster — TRAINING WITH NO
+    // TIMES (owner, 8 Nov 2026: "Monday to Friday training with the other flavour"). Phase 2 (from
+    // Sun 8 Nov): the DISPATCHER link on the vacant line between A. Targanov and B. Toth, which was
+    // S. Warman's. `currentWeek: 3` there is REFERENCE-ANCHORED (A. Targanov's 2, plus one), not the
+    // line she is on that week.
+    // The owner gave the start as "Monday 4th of October"; 4 Oct 2026 is a Sunday, so the Monday,
+    // 5 Oct, is used. Were it the 4th, only that Sunday would read differently (a rest day rather
+    // than before her start), and the figure below would be the same.
+    // ⚠️ `proRatedAL: 5` is PROVISIONAL — a day-count (88 of 365 days × 22 = 5.3), entered on the
+    // owner's word ("pro-rata her leave until I get it from the workbook", 8 Nov 2026). REPLACE it
+    // with the workbook's `AL allowance`. It replaces only the 22-day BASE: lieu days for bank
+    // holidays worked are still added on top by getALEntitlement.
+    { name: 'J. Bangi',                currentWeek: 3,  rosterType: 'fixed',      role: 'Dispatcher',
+      startDate: new Date(2026, 9, 5), proRatedAL: { 2026: 5 },
+      rosterChanges: [{ from: new Date(2026, 10, 8), rosterType: 'dispatcher', currentWeek: 3 }] },
+
     // CES — Customer Experience Supervisors (reference: w/c 15 Feb 2026)
     { name: 'F. Mohamed',              currentWeek: 1,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Lloyd',                currentWeek: 2,  rosterType: 'ces',        role: 'CES' },
