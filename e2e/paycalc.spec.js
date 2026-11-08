@@ -1419,6 +1419,33 @@ test('paycalc: the take-home £ is the pay engine\'s figure for the payslip on s
     expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
 });
 
+// THE LOAN ROWS, THROUGH calculate(). Their words are buildLoanLines' (paycalc-breakdown.js) and are
+// pinned in Node; what only the page can show is that calculate() hands it the plan's own label from
+// the select and the date of the payslip the deductions stopped on — the wiring, not the rule.
+test('paycalc: the loan rows name the plan picked and the payslip deductions stopped on', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-08T12:00:00'));   // on screen: the 20 Nov payslip (P58)
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_gmiller_sl', 'plan4');
+        localStorage.setItem('myb_pc_gmiller_sl_paid_off', '57');   // stopped from the 23 Oct payslip
+        // 25 Sep, before the stop: a £2,000 correction takes pay well under any loan threshold
+        localStorage.setItem('myb_pc_gmiller_p56', JSON.stringify({ otherAdj: -2000 }));
+    });
+    await page.goto('/paycalc.html');
+    const summary = page.locator('#summary');
+    await expect(summary).toContainText('Student Loan — not deducted from your 23 Oct payslip onwards');
+    await page.evaluate(() => {
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
+        for (const o of sel.options) o.selected = o.value === '56';
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(summary).toContainText(
+        'Student Loan — no deduction: pay after pension is under the Plan 4 (Scotland) threshold (£2,599.61 per period)');
+    expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
+});
+
 test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on', async ({ page }) => {
     const errors = collectFatalErrors(page);
     // The 2025/26 premium is paid on the first January payslip of 2027 (TAX_YEARS.hppPaidJan), so

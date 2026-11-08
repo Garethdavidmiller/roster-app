@@ -65,7 +65,7 @@ import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite } from './paycalc-form-data.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
-import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildActualComparison, buildProvChips } from './paycalc-breakdown.js';
+import { buildSummaryRows, buildLoanLines, buildBreakdownRows, buildActualCheck, buildActualComparison, buildProvChips, buildBreakBar } from './paycalc-breakdown.js';
 
 import { setStatus } from './status-text.js';
 import { renderResultHeadline, renderYtdLine, wireYtdLine } from './paycalc-result-headline.js';
@@ -772,43 +772,14 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('badge-box')).textContent = f(RATE_300, '3');
     }
 
-    /**
-     * Render the proportional pay breakdown bar and legend above the summary rows.
-     * @param {number} gross
-     * @param {number} pension
-     * @param {number} tax
-     * @param {number} ni
-     * @param {number} sl
-     * @param {number} net
-     */
-    function updateBreakBar(gross, pension, tax, ni, sl, net) {
-      const bar    = document.getElementById('payBreakBar');
-      const legend = document.getElementById('payBreakLegend');
-      if (!bar || !legend || !(gross > 0)) {
-        bar?.classList.remove('pbb-visible');
-        legend?.classList.remove('pbb-visible');
-        return;
-      }
-      bar.classList.add('pbb-visible');
-      legend.classList.add('pbb-visible');
-
-      const pct = /** @param {number} v */ v => ((v / gross) * 100).toFixed(2);
-      const fmtPct = /** @param {number} v */ v => `${((v / gross) * 100).toFixed(0)}%`;
-
-      const segs = [
-        { id: 'pbbPension', cls: 'pbb-pension', val: pension, label: 'Pension', legendId: 'pblPension', dotCls: 'pbl-dot pbb-pension' },
-        { id: 'pbbTax',     cls: 'pbb-tax',     val: tax,     label: 'Tax',     legendId: 'pblTax',     dotCls: 'pbl-dot pbb-tax' },
-        { id: 'pbbNI',      cls: 'pbb-ni',      val: ni,      label: 'NI',      legendId: 'pblNI',      dotCls: 'pbl-dot pbb-ni' },
-        { id: 'pbbSL',      cls: 'pbb-sl',      val: sl,      label: 'Student Loan', legendId: 'pblSL', dotCls: 'pbl-dot pbb-sl' },
-        { id: 'pbbNet',     cls: 'pbb-net',     val: net,     label: 'Take-home', legendId: 'pblNet',   dotCls: 'pbl-dot pbb-net' },
-      ];
-
-      bar.innerHTML    = segs.filter(s => s.val > 0).map(s =>
-        `<div class="pbb-seg ${s.cls}" style="flex-grow:${pct(s.val)}"></div>`
-      ).join('');
-      legend.innerHTML = segs.filter(s => s.val > 0).map(s =>
-        `<span class="pbl-item"><span class="${s.dotCls}"></span>${s.label} <strong>${fmtPct(s.val)}</strong></span>`
-      ).join('');
+    /** The share-of-pay bar and its legend above the summary (buildBreakBar); no pay, neither shows.
+     *  @param {{ gross:number, pension:number, tax:number, ni:number, sl:number, net:number }} figures */
+    function updateBreakBar(figures) {
+      const bar = document.getElementById('payBreakBar'), legend = document.getElementById('payBreakLegend');
+      const b = bar && legend ? buildBreakBar(figures) : null;
+      bar?.classList.toggle('pbb-visible', !!b);
+      legend?.classList.toggle('pbb-visible', !!b);
+      if (b && bar && legend) { bar.innerHTML = b.bar; legend.innerHTML = b.legend; }
     }
 
     function calculate() {
@@ -975,46 +946,14 @@ export function init() {
 
       const net = sacGross - tax - ni - sl;
 
-      // Student/Postgraduate Loan summary lines — never silent when a loan is active (v16.77 clarity).
-      // ONE shared builder so the plan and PGL rows can't drift: the PGL row previously lost the
-      // "just above threshold → repayment rounds under £1" branch and wrongly said "under the
-      // threshold" for pay that was ABOVE it (v17.20 fix). Per-loan states: a deduction; £0 because
-      // Plan 5 isn't repayable this year; £0 genuinely under the threshold; or £0 because pay only just
-      // exceeds the threshold so the 9%/6% rounds under £1 (v16.84 — "under the threshold" is wrong there).
-      const _slPlanLabel = _slSel.selectedOptions[0]?.textContent?.trim() ?? plan;
-      // Penny-floor the periodic threshold for DISPLAY exactly as computeSL does (Math.floor(t*100)/100)
-      // — otherwise fmt() rounds the raw annual÷13 value and the parenthetical threshold in the message
-      // can read 1p above the figure the deduction is actually computed against.
-      const _pennyFloor  = (/** @type {number|undefined} */ t) => t == null ? t : Math.floor(t * 100) / 100;
-      const _slThreshold = _pennyFloor((/** @type {Record<string, any>} */ (thresholds.sl))[plan]?.t);
-      const _pgThreshold = _pennyFloor((/** @type {Record<string, any>} */ (thresholds.sl)).postgrad?.t);
-      /** One summary line for a loan: amount>0 → deduction row; else a NAMED £0 reason (or '' if inactive).
-       * @param {string} rowLabel @param {number} amount @param {boolean} active @param {string} planLabel
-       * @param {number|undefined} threshold @param {string|null} notAvailableMsg */
-      const _slLine = (rowLabel, amount, active, planLabel, threshold, notAvailableMsg) => {
-        if (amount > 0)       return `<div class="sum-row sum-ded"><span class="lbl">${rowLabel}</span><span class="val">−${fmt(amount)}</span></div>`;
-        if (!active)          return '';
-        if (notAvailableMsg)  return `<div class="sum-row sum-sl-zero"><span class="lbl">${rowLabel} — ${notAvailableMsg}</span><span class="val">£0.00</span></div>`;
-        if (threshold != null) return sacGross > threshold
-          ? `<div class="sum-row sum-sl-zero"><span class="lbl">${rowLabel} — no deduction: your repayment is under £1 this period (pay only just exceeds the ${planLabel} threshold, ${fmt(threshold)})</span><span class="val">£0.00</span></div>`
-          : `<div class="sum-row sum-sl-zero"><span class="lbl">${rowLabel} — no deduction: pay after pension is under the ${planLabel} threshold (${fmt(threshold)} per period)</span><span class="val">£0.00</span></div>`;
-        return '';
-      };
-      // The repaid cutover outranks the per-period skip (a settled loan is the stronger fact); the
-      // skip governs BOTH loans → ONE combined row (was two identical rows), matching the single
-      // breakdown line below.
+      // The loan rows of the summary, which never leave a £0 unexplained — buildLoanLines says how.
       const _slPaidOffP = slPaidOff ? getPeriods().find(/** @param {any} x */ x => x.num === _slPaidOffFromP) : null;
-      const slLines = (slPaidOff && _anyLoan)
-        // NOT "repaid in full" — the same wording fix as the Settings label (v19.27). The member may
-        // have moved to direct debit with a balance outstanding, which is the SLC's normal endgame.
-        ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — not deducted from your ${_slPaidOffP ? fdShort(_slPaidOffP.payday) + ' payslip' : 'chosen payslip'} onwards</span><span class="val">£0.00</span></div>`
-        : (slSkip && _anyLoan)
-        ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — marked as not deducted this period</span><span class="val">£0.00</span></div>`
-        : _slLine('Student Loan', slUnder, plan !== 'none', _slPlanLabel, _slThreshold,
-                  plan === 'plan5' && !_plan5Allowed ? `Plan 5 is not repayable in ${_ty.label} (repayments begin April 2026)` : null)
-          + _slLine('Postgraduate Loan', slPost, pgLoan, 'Postgraduate Loan', _pgThreshold, null);
+      const slLines = buildLoanLines({
+        sacGross, plan, planLabel: _slSel.selectedOptions[0]?.textContent?.trim() ?? plan, pgLoan, slUnder, slPost, slSkip,
+        slPaidOff, paidOffDay: _slPaidOffP ? fdShort(_slPaidOffP.payday) : '', sl: thresholds.sl, tyLabel: _ty.label,
+      });
 
-      updateBreakBar(grossWithBp, pension, tax, ni, sl, net);
+      updateBreakBar({ gross: grossWithBp, pension, tax, ni, sl, net });
 
       // UI
       /** @type {HTMLElement} */ (document.getElementById('netDisplay')).textContent = fmt(net);
