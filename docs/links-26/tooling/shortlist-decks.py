@@ -870,8 +870,10 @@ def managers(d):
     # SLIDE 1: the notes name the other two shortlisted designs, as deck-polish.py wrote Common Ground's
     swap_in(d, 1, f' {BASE} is one of three shortlisted designs, with {NB("Even Step")} and {NB("Short Run")}, and this deck sets out {BASE} on its own terms.',
             f' {NAME} is one of three shortlisted designs, with {andl([NB(n) for n in PEERS])}, and this deck sets out {NAME} on its own terms.')
-    swap_in(d, 1, 'worked out from the rota by the Marylebone Roster app and its tooling, and has been checked independently.',
-            'worked out from the rota by the Marylebone Roster app and its tooling, by the same calculations as the proposal sheet.')
+    # how the figures were worked out, as deck-polish.py's named_in_full says it: Common Ground's deck said "has been checked
+    # independently" until 8 Nov 2026 and says "by the same calculations as the proposal sheet" since, so either is taken and
+    # a rebuild changes nothing; it also refuses either claim or the roster's spelling of the contact left anywhere in the deck
+    dp.named_in_full(d, 'managers')
     # SLIDE 2: every December rule and today's leave — all three's, so Common Ground's bar holds (checked in setup)
     shape_of(S(2), 'Every December staffing rule met — and 30 days off for 14 days’ leave, as now.')
     check('30 days off for 14 days’ leave, as now', F['leaveBest'] == T['leaveBest'] and F['leaveFour'] == T['leaveFour'])
