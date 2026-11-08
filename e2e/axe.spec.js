@@ -551,7 +551,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
 
     // The new link (v25.06, an admin preview; the December link until v25.10). Scanned in the state with the most structure: every way of
     // working open at once — seven tiles and six figure tables, each figure tied to its label by `headers` — then a
-    // second proposal's weeks with the preview's audience list open.
+    // second proposal's weeks.
     test('newlink (admin, signed in) — Everything open, then Level Crossing\'s weeks', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
@@ -566,7 +566,6 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         } else {
             await expect(page.locator('#nlWeeksPanel caption')).toHaveCount(3);
         }
-        await page.locator('.nl-preview-who summary').click();
         v = await scan(page);
         expect(v.length, report(v)).toBe(0);
     });

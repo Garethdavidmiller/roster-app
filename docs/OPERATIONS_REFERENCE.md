@@ -1168,8 +1168,8 @@ Two reminders run themselves in the week before the change, and nobody presses a
 
 `newlink.html` shows colleagues the three shortlisted proposals for the new CEA link — **which starts
 in January 2027, not with the timetable** (owner, 2 Nov 2026; the day not yet set, owner, 8 Nov 2026). It is a **preview**: only the admin and
-the names in `CONFIG.NEWLINK_PREVIEW` (`roster-data.js`) can open it, and a banner says who else can see
-it.
+the names in `CONFIG.NEWLINK_PREVIEW` (`roster-data.js`) can open it, and they see exactly what colleagues
+will: no banner says it is a preview (owner, 8 Nov 2026: "Remove the preview banner as it will be going live soon").
 
 **Every setting is one line in `newlink-config.js`** — `STARTS`, `TIMETABLE_STARTS`, `CONTACT`,
 `CONTACT_ROLE`, `CLOSES`, `AUDIENCE`, `PHASE`, `PACK_BASE` and the "Have your say" lines — so changing
@@ -1184,7 +1184,7 @@ wording to both; the process is in LINKS_DEC2026_PLAN.md's dashboard, not in any
 **Who it is for: everyone on the normal CEA contract; a CEA bilingual contract keeps its own links**
 (owner, 8 Nov 2026). It goes by the contract, not the line: a normal contract on the bilingual link is on
 the new link. Until `AUDIENCE` names the 26, the page stands in with every CEA whose `bilingualContract` is
-not set, and the preview banner's *Who it would reach* lists them, so the admin can check it against the roster.
+not set. No page lists them since the preview banner went; `newlink-config.test.mjs` holds the list to the roster.
 
 **Opening it to colleagues is not a switch yet.** It needs a role for `AUDIENCE` in `auth-policy.js` and
 a matching pill flag in `nav-panel.js` first; `newlink-config.test.mjs` refuses any other `PHASE` until

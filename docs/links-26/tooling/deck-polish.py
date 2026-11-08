@@ -1041,7 +1041,7 @@ def managers_review(d, name, P, O, others, F, help_):
     put(s, f'For managers · 26 weeks · code {code} · the full proposal sheet has the detail',
         f'For managers · from {LINK_STARTS} · 26 weeks · code {code} · ' + ('not on the shortlist' if off else 'the full proposal sheet has the detail'))
     s.save()
-    notes(1, 'The headline figures only.', 'The headline figures only. Everything week by week, hour by hour and rule by rule is on the eight-page proposal sheet. Every figure here is worked out from the rota by the Marylebone Roster app and its tooling, and has been checked independently.'
+    notes(1, 'The headline figures only.', 'The headline figures only. Everything week by week, hour by hour and rule by rule is on the eight-page proposal sheet. Every figure here is worked out from the rota by the Marylebone Roster app and its tooling, by the same calculations as the proposal sheet.'
               + (f' {name} is not on the shortlist, which is {andl(list(SHORTLIST))}; this deck sets out {name} on its own terms.' if off
                  else f' {name} is one of {WORDS[len(SHORTLIST)]} shortlisted designs, with {andl([n for n in SHORTLIST if n != name])}, and this deck sets out {name} on its own terms.'))
 
@@ -1435,10 +1435,42 @@ def link_month(d, who):
     if stale: raise SystemExit(f'deck-polish: the {who} deck dates the new link’s start to a day ({", ".join(stale)}); it starts {LINK_ON}')
     return done
 def link_month_file(path):
-    """link_month on a finished deck, in place; the parts are written back in their order."""
+    """link_month on a finished deck, in place (in_place, below)."""
+    return in_place(path, link_month)
+
+# THE CONTACT NAMED IN FULL, AND NO "CHECKED INDEPENDENTLY" (owner, 8 Nov 2026: "Fix", of the eight decks built for earlier
+# shortlists, which still said "S. Silva" and that the figures "have been checked independently"). Slide 15 names who to tell
+# and who leads the change as newlink-config.js's CONTACT does, in full; the managers' slide 1 notes say the figures are worked
+# out by the same calculations as the proposal sheet, which is what was done — nobody outside checked them, and the shortlist's
+# decks stopped saying so the same day. Counted, as link_month's edits are: each sentence is found once as built and rewritten,
+# or found once as it is now; anything else stops. Then neither the roster's spelling of the contact nor the claim may be left
+# anywhere in the deck, slides or notes. polish() runs it, shortlist-decks.py does for the managers' notes, and
+# `deck-polish.py --named-in-full <deck.pptx>…` applies it in place to finished decks.
+ROSTERED = re.sub(r'^(\w)\w+ ', r'\1. ', CONTACT)   # the contact as the roster spells her: Sara Silva is S. Silva there
+UNCHECKED = 'worked out from the rota by the Marylebone Roster app and its tooling, and has been checked independently.'
+SAME_SUMS = 'worked out from the rota by the Marylebone Roster app and its tooling, by the same calculations as the proposal sheet.'
+def named_in_full(d, who):
+    tell = lambda w: f'Tell {w} or your manager what worries you, even if it is small'
+    lead = lambda w: f'{w}, {CONTACT_ROLE}, is leading the change'
+    edits = {'colleagues': [('ppt/slides/slide15.xml', tell(ROSTERED), tell(CONTACT)), ('ppt/slides/slide15.xml', lead(ROSTERED), lead(CONTACT))],
+             'managers': [('ppt/notesSlides/notesSlide1.xml', UNCHECKED, SAME_SUMS)]}[who]
+    done = 0
+    for f, old, new in edits:
+        if old == new: continue
+        p = os.path.join(d, f); x = open(p, encoding='utf-8').read(); o, n = x.count(escape(old)), x.count(escape(new))
+        if (o, n) == (1, 0): open(p, 'w', encoding='utf-8').write(x.replace(escape(old), escape(new))); done += 1
+        elif (o, n) != (0, 1): raise SystemExit(f'deck-polish: {who} {f}: "{new[:48]}…" found {o} times as built and {n} as it is now, not once')
+    plain = lambda p: ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', open(p, encoding='utf-8').read())).split())
+    left = [w for w in ((ROSTERED,) if ROSTERED != CONTACT else ()) + ('checked independently',)]
+    stale = sorted({f'{os.path.relpath(os.path.join(r, f), d)} ("{w}")' for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml')
+                    for w in left if w in plain(os.path.join(r, f))})
+    if stale: raise SystemExit(f'deck-polish: the {who} deck still says {", ".join(stale)}; it names {CONTACT} in full and says the figures are worked out by the proposal sheet’s calculations')
+    return done
+def in_place(path, edit):
+    """edit (link_month or named_in_full) on a finished deck, in place; the parts are written back in their order."""
     who = 'colleagues' if path.endswith('-for-colleagues.pptx') else 'managers'
     d = tempfile.mkdtemp(); names = zipfile.ZipFile(path).namelist(); zipfile.ZipFile(path).extractall(d)
-    done = link_month(d, who)
+    done = edit(d, who)
     if done:
         tmp = path + '.tmp'
         with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -1486,6 +1518,7 @@ def polish(path, name, grid, who):
     old = [f for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml') and OLD_LINK.search(open(os.path.join(r, f), encoding='utf-8').read())]
     if old: raise SystemExit(f'deck-polish: {name} for {who} still names the December 2026 link ({", ".join(sorted(old))}); it starts {LINK_ON}')
     link_month(d, who)
+    named_in_full(d, who)
     names = zipfile.ZipFile(path).namelist()
     extra = [os.path.relpath(os.path.join(r, f), d) for r, _, fs in os.walk(d) for f in fs if os.path.relpath(os.path.join(r, f), d) not in names]
     tmp = path + '.tmp'
@@ -1498,6 +1531,9 @@ if __name__ == '__main__':
     import sys
     if sys.argv[1:2] == ['--link-month']:   # finished decks, in place (owner, 8 Nov 2026): see link_month
         for path in sys.argv[2:]: print(f'{os.path.basename(path)}: {link_month_file(path)} of its start dates rewritten')
+        raise SystemExit(0)
+    if sys.argv[1:2] == ['--named-in-full']:   # finished decks, in place (owner, 8 Nov 2026): see named_in_full
+        for path in sys.argv[2:]: print(f'{os.path.basename(path)}: {in_place(path, named_in_full)} sentence(s) rewritten')
         raise SystemExit(0)
     require_built_for_shortlist(); shared_lines(); shared_lines_staffing()
     names = sys.argv[1:] or list(DESIGNS)   # a name on the command line polishes only that design's freshly built decks

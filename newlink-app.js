@@ -40,8 +40,8 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
-import { PHASE, CLOSES, STARTS, TIMETABLE_STARTS, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
-import { renderStatus, renderPreviewBanner, renderList, renderCommon, renderPersonas, renderPersonaChips,
+import { CLOSES, STARTS, TIMETABLE_STARTS, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
+import { renderStatus, renderList, renderCommon, renderPersonas, renderPersonaChips,
     renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou, aToZ } from './newlink-render.js';
 
 /** The collapsible cards, by the id prefix their header, body and chevron share. */
@@ -100,7 +100,7 @@ function start(member) {
     wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js — the one wiring)
     const cards = Object.fromEntries(CARDS.map(id => [id, initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`)]));
 
-    renderStatic(member);
+    renderStatic();
     wireChoices(cards);
     markPageReady();
     // The status speaks of TODAY — which dates have come — and an installed app is not reloaded when it is reopened:
@@ -116,29 +116,12 @@ function start(member) {
 }
 
 /**
- * Everyone who can see the preview apart from the reader, as the banner words them: "the admin" (never a name — staff
- * call that role the admin), then each named previewer. Empty for the admin while nobody else is named.
- * @param {string} member
- * @returns {string[]}
+ * Everything that does not depend on a choice: the status, the lists, the pack, the notes. NO PREVIEW BANNER (owner, 8 Nov
+ * 2026: "Remove the preview banner as it will be going live soon"): the admin and the named previewers see exactly what
+ * colleagues will, and who the page will reach is newlink-config.js → AUDIENCE, held to the roster by its test.
  */
-function previewOthers(member) {
-    return [
-        ...(CONFIG.ADMIN_NAMES.includes(member) ? [] : ['the admin']),
-        ...(CONFIG.NEWLINK_PREVIEW || []).filter(name => name !== member),
-    ];
-}
-
-/**
- * Everything that does not depend on a choice: the status, the banner, the lists, the pack, the notes.
- * @param {string} member  who is reading: the banner names everyone else who can see the preview
- */
-function renderStatic(member) {
+function renderStatic() {
     drawStatus();
-    const banner = el('nlPreview');
-    if (banner) {
-        banner.hidden = PHASE !== 'preview';
-        if (PHASE === 'preview') setHTML('nlPreview', renderPreviewBanner({ audience: audienceNames(), decided: !!AUDIENCE, others: previewOthers(member) }));
-    }
     setHTML('nlChangesList', renderList(CHANGES));
     setHTML('nlCommonList', renderCommon({ gains: GAINS, costs: COSTS }));
     setHTML('nlWeeksKey', renderWeeksKey());

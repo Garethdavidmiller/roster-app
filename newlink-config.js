@@ -20,8 +20,8 @@
  *
  * `PHASE` is the one switch. 'preview' is the only value built: the page is the admin's and the named previewers'
  * (CONFIG.NEWLINK_PREVIEW — S. Silva, who leads the change, since v25.33), read by auth-policy.js `newlink` and the nav pill's
- * `newlinkAudienceOnly` through `canOpenNewlink`, and it wears a banner saying so — under which they see exactly what
- * colleagues will. Opening it needs a gate of its own first: a role for AUDIENCE in auth-policy.js and a matching pill
+ * `newlinkAudienceOnly` through `canOpenNewlink`, and they see exactly what colleagues will, with no banner of its own
+ * (owner, 8 Nov 2026: "Remove the preview banner as it will be going live soon"). Opening it needs a gate of its own first: a role for AUDIENCE in auth-policy.js and a matching pill
  * flag in nav-panel.js, which page-contract-parity requires to move together. newlink-config.test.mjs refuses any other
  * phase until that gate exists, so the switch cannot be flipped to a page nobody can reach.
  *
@@ -84,8 +84,9 @@ export const CLOSES = null;
  * for. NOT a CEA bilingual contract, which keeps its own links (owner, 8 Nov 2026: "This link will only apply to people
  * with the normal CEA contract and NOT the bilingual contract who will still have their own links"). It is the CONTRACT,
  * `bilingualContract`, as the leave allowance reads it, not the line: M. Campbell, on a normal CEA contract and on the
- * bilingual link from 8 Nov 2026, is on the new link (owner, 8 Nov 2026: "Keep her on the new link"). The preview lists
- * them, so the admin can check who it would reach. Set it to the 26 names, spelt as `teamMembers` spells them.
+ * bilingual link from 8 Nov 2026, is on the new link (owner, 8 Nov 2026: "Keep her on the new link"). No page lists them
+ * since the preview banner went (8 Nov 2026); newlink-config.test.mjs holds the list to the roster. Set it to the 26 names,
+ * spelt as `teamMembers` spells them.
  * @type {ReadonlyArray<string>|null}
  */
 export const AUDIENCE = null;

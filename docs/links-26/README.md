@@ -6628,6 +6628,8 @@ important than any day as sat sun people are happier to work as they are paid mo
 - The New link page's preview banner names her as her account does, S. Silva.
 - The managers' decks are not on the New link page.
 
+Answered the same day: *The owner's answers to the eight open points*, below.
+
 ## The new link starts in January 2027, the day not yet set, and is for the normal CEA contract (8 Nov 2026)
 
 **The ask.** The owner, on 8 Nov 2026: "Needs to be changed everywhere that the new link will start in January 2027. We don't
@@ -6685,6 +6687,46 @@ bilingual contract who will still have their own links".
   - `link.mjs` naming another month: the test holding page and pack together fails;
   - the read-me saying "from 1 January 2027": `pack.py` stops;
   - a proposal sheet's subtitle saying "from 1 January 2027": the sheet build stops.
+
+## The owner's answers to the eight open points (8 Nov 2026)
+
+**The ask.** Shown the eight points left open above, the owner answered: "1. Sorry I meant v6 2. Do your recommendation
+3. No need 4. Fix 5. Remove the preview banner as it will be going live soon. 6 agree 7 agree 8. It is fine".
+
+- **1. Balanced V6 on the left.** As built: the New link page lists the three A to Z, and a test holds Balanced V6 on the
+  left on a wide screen.
+- **2. Middle Ground says only that no two closing weeks fall together.** The 06:20 half is gone from its strap and the
+  read-me, as it went from the decks and the shortlist sheet: it held only when week 20, two 06:20 starts and two 07:00s,
+  was read as a 07:00 week.
+  - `fresh.mjs` → `STRAPS` and `regenerate.mjs` carry the strap, `pack.py` the read-me's sentence, and the 30-day README's
+    table the same words. Middle Ground's sheet was rendered again; its fingerprint, 20668ac9, is unchanged.
+  - **A strap's weeks apart are now checked on its grid** (`regenerate.mjs`). "No two closing weeks", or "never two in a
+    row", is held to both of the shortlist sheet's readings: the most common Monday-to-Friday duty, and three or more
+    weekdays at the 23:55 close. The same said of 06:20 weeks is held to any weekday starting at 06:20, so a tie cannot
+    carry it.
+  - Broken on purpose with `scripts/mutate.mjs`: the old strap back fails it ("its strap says no two 06:20 weeks fall
+    together, and on its grid two do"), and so does "never two closing weeks in a row" put on Common Ground's.
+- **3. Balanced V5's author** stays unnamed, as the pack names no authors.
+- **4. The eight earlier decks are fixed.** Their colleague decks name Sara Silva in full on slide 15, and their managers'
+  decks say the figures are worked out "by the same calculations as the proposal sheet", as the shortlist's six do.
+  - `deck-polish.py` → `named_in_full`: each sentence is found once as built and rewritten, or once as it is now; then
+    neither "S. Silva" nor "checked independently" may be left in the deck, slides or notes. `--named-in-full <decks>`
+    applies it in place, and `polish()` runs it on every build. The managers' sentence is fixed at its source, `managers()`,
+    too.
+  - In each deck only its slide 15 (colleagues) or slide 1's notes (managers) changed, read part by part against the
+    decks as they were. All eight PDFs were exported again; `deck-check.mjs`: 378 rows agree.
+  - `shortlist-decks.py` reads Common Ground's finished decks, so it now takes the managers' sentence either way. The six
+    shortlist decks built again from the fixed Common Ground decks matched the committed six part for part, apart from an
+    embedded workbook's saved time, so the committed six were kept.
+  - Broken on purpose: one slide 15 edit left out stops it ("the colleagues deck still says ppt/slides/slide15.xml
+    ("S. Silva")"), and a managers' sentence that no longer matches stops it ("found 0 times as built and 0 as it is now").
+  - Left as built: their slide 1 notes still name the shortlist of their day, Common Ground's "with Even Step and Short Run".
+- **5. The New link page's preview banner is gone** (v25.55). The admin and Sara Silva see exactly what colleagues will.
+  Who the page will reach is still `newlink-config.js` → `AUDIENCE`, held to the roster by `newlink-config.test.mjs`;
+  nothing on the page lists them now. The browser tests check that no banner shows, for the admin and for her (a banner
+  put back fails both), and the test that nothing names the admin now reads the whole page, with nothing taken out.
+- **6. The managers' decks** stay off the New link page. **7. The tables' greens** stay as they are. **8. Sara Silva's name
+  in full** is fine.
 
 ## Notes for the whole set
 

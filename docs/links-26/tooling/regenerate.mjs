@@ -125,7 +125,7 @@ export const SUPPLIED = [
     { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: '03af96b2', dir: '30-days-off', strap: 'Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m, and 14 days’ leave buys 30 days off, as today' },
     // 5 Nov 2026: Middle Ground is Common Ground's weeks with the shift times varied from week to week (README.md → "Middle
     // Ground"). Its rest days are Common Ground's, so it buys 30 days off for 14 days' leave too and ships into 30-days-off/
-    { file: 'middle-ground.json',          name: 'Middle Ground',  code: 'MG-26-T8',   fp: '20668ac9', dir: '30-days-off', strap: 'Seven of today’s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'middle-ground.json',          name: 'Middle Ground',  code: 'MG-26-T8',   fp: '20668ac9', dir: '30-days-off', strap: 'Seven of today’s shift times, varied from week to week so that no two closing weeks fall together, and 14 days’ leave buys 30 days off, as today' },
     // 6 Nov 2026 (owner: "Balanced v5 and Relief Point need adding to the pack, but can you rename Relief Point as Balanced v6"):
     // Balanced V5 is its author's one-page Marylebone Balanced 26, version 5, read cell by cell; Balanced V6 (drawn as Relief Point,
     // RP-26-V5) is the owner's 15-minute weekday handover drawn from it. Both buy 30 days off for 14 days' leave, and both finish
@@ -232,6 +232,21 @@ for (const s of SUPPLIED) {
     if (fitQuote) { const g = j.patterns ?? j, T = today().patterns;
         const got = [weekdayFloorFit(g, Object.keys(g).length), weekdayFloorFit(T, Object.keys(T).length)].map(v => v.toFixed(1));
         if (got[0] !== fitQuote[1] || got[1] !== fitQuote[2]) { console.log(`FAIL ${s.code}: its strap quotes a weekday fit of ${fitQuote[1]} against today’s ${fitQuote[2]}; the grids give ${got[0]} and ${got[1]}`); failed++; continue; } }
+    // A STRAP'S WEEKS APART ARE THE GRID'S (owner, 8 Nov 2026, agreeing to drop Middle Ground's "no two 06:20 weeks": it held only
+    // when week 20, two 06:20 starts and two 07:00s, was read as a 07:00 week, and weeks 17 to 20 all have 06:20 starts). A strap
+    // that says no two closing weeks fall together, or never two in a row, is held to the grid on both of the shortlist sheet's
+    // readings: the most common Monday-to-Friday duty, and three or more weekdays at the 23:55 close. One that says it of 06:20
+    // weeks is held to the plainest reading a colleague has, any weekday starting at 06:20, so a tie can never carry it. Lapping
+    // the rotation; a cover week is neither (shortlist-sheet.mjs → CLOSING WEEKS)
+    const apart = [...s.strap.matchAll(/\b(?:no|never) two (closing|06:20) weeks\b/g)].map(m => m[1]);
+    if (apart.length) { const g = j.patterns ?? j, ks = Object.keys(g).sort((a, b) => a - b), WD = ['mon', 'tue', 'wed', 'thu', 'fri'];
+        const timed = x => /^\d\d:\d\d-\d\d:\d\d$/.test(String(x));
+        const main = r => { const c = {}; for (const d of WD) if (timed(r[d])) c[r[d]] = (c[r[d]] ?? 0) + 1; return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''; };
+        const together = is => ks.some((k, i) => is(g[k]) && is(g[ks[(i + 1) % ks.length]]));
+        const readings = { closing: [r => main(r).endsWith('-23:55'), r => WD.filter(d => String(r[d]).endsWith('-23:55')).length >= 3],
+                           '06:20': [r => WD.some(d => String(r[d]).startsWith('06:20'))] };
+        const broken = apart.filter(kind => readings[kind].some(together));
+        if (broken.length) { console.log(`FAIL ${s.code}: its strap says no two ${broken.join(' or ')} weeks fall together, and on its grid two do`); failed++; continue; } }
     if (checkOnly) { if (checkShipped(s.code, s.fp, s.dir ?? 'proposals')) { console.log(`ok   ${s.code}  ${got} (source grid and shipped JSON${s.dir ? `, in ${s.dir}/` : ''})`); done++; } continue; }
     process.stdout.write(`render ${s.code} … `);
     execFileSync('node', ['supplied.mjs', s.file, s.name, s.strap, s.code], { stdio: 'inherit' });

@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    closesWords, dutyKind, designName, ifYou, renderStatus, renderPreviewBanner, renderList, renderCommon, renderFigures,
+    closesWords, dutyKind, designName, ifYou, renderStatus, renderList, renderCommon, renderFigures,
     renderPersonas, renderPersonaChips, renderWeeks, renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, figuresKey,
 } from './newlink-render.js';
 import { PROPOSALS } from './links-proposals.js';
@@ -60,8 +60,8 @@ test('EVENLY: the status names the three A to Z, each once, in the same tile', (
 });
 
 /** Every state a COLLEAGUE can be shown, from the real builders and the real data — and the page's own static markup,
- *  comments stripped. The preview banner is the one surface left out: it is the previewers' own, and names the admin to
- *  S. Silva by design. */
+ *  comments stripped. Every surface is in it: the preview banner, the one surface once left out because it named the
+ *  admin to S. Silva by design, went on 8 Nov 2026 (owner: "Remove the preview banner as it will be going live soon"). */
 const colleagueStates = () => {
     const html = readFileSync(new URL('./newlink.html', import.meta.url), 'utf8');
     return [
@@ -214,22 +214,8 @@ test('the pack: every file opens in a new tab, with no opener, under the base', 
     assert.match(html, /opens in a new tab/, 'said to a screen reader, not only shown');
 });
 
-test('the preview banner names everyone else who can see the page — never "only you" when somebody else can', () => {
-    const base = { audience: ['A. One', 'B. Two'], decided: false };
-    assert.match(renderPreviewBanner(base), /Preview — only you can see this page\./);
-    // The admin reading it, and S. Silva (CONFIG.NEWLINK_PREVIEW, v25.33): each is told about the other.
-    assert.match(renderPreviewBanner({ ...base, others: ['S. Silva'] }), /Preview — only you and S\. Silva can see this page\./);
-    assert.match(renderPreviewBanner({ ...base, others: ['the admin'] }), /Preview — only you and the admin can see this page\./);
-    assert.match(renderPreviewBanner({ ...base, others: ['the admin', 'A. One', 'B. Two'] }),
-        /only you and the admin, A\. One and B\. Two can see this page\./, 'UK lists: no comma before the "and"');
-    assert.doesNotMatch(renderPreviewBanner({ ...base, others: ['<b>x</b>'] }), /<b>x<\/b>/);
-});
-
 test('everything it prints is escaped', () => {
     assert.equal(renderList(['<img onerror=x>']), '<ul class="nl-list"><li>&lt;img onerror=x&gt;</li></ul>');
-    const banner = renderPreviewBanner({ audience: ['<b>x</b>'], decided: true });
-    assert.doesNotMatch(banner, /<b>x<\/b>/);
-    assert.match(banner, /the 1 people|the 1 people on the new link/);
 });
 
 test('the status says when the new link starts, apart from the timetable, and who carries on until then', async () => {
