@@ -30,8 +30,13 @@ const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url
 // on 31 Oct 2026, recommended (owner: "Yes, keep all three"). On 5 Nov 2026 Common Ground took In Step's place, and In Step's
 // decks stayed in the pack off the shortlist (owner: "keep the other presentations in the pack, just not the shortlist";
 // fresh.mjs → DECKS_KEPT), so all eight are here. Common Ground's were made earlier that day in a folder outside the pack,
-// which went when they joined it.
-const DECKS = [['Even-Step-for-colleagues.pptx', 'Even Step'], ['Even-Step-for-managers.pptx', 'Even Step'],
+// which went when they joined it. On 8 Nov 2026 the shortlist became Balanced V6, Level Crossing and Middle Ground, and their
+// six decks were drawn the same day from Common Ground's (shortlist-decks.py); the eight earlier decks stay in presentations/,
+// out of the zip, and are still held to the grids here.
+const DECKS = [['Balanced-V6-for-colleagues.pptx', 'Balanced V6'], ['Balanced-V6-for-managers.pptx', 'Balanced V6'],
+  ['Level-Crossing-for-colleagues.pptx', 'Level Crossing'], ['Level-Crossing-for-managers.pptx', 'Level Crossing'],
+  ['Middle-Ground-for-colleagues.pptx', 'Middle Ground'], ['Middle-Ground-for-managers.pptx', 'Middle Ground'],
+  ['Even-Step-for-colleagues.pptx', 'Even Step'], ['Even-Step-for-managers.pptx', 'Even Step'],
   ['Common-Ground-for-colleagues.pptx', 'Common Ground'], ['Common-Ground-for-managers.pptx', 'Common Ground'],
   ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run'],
   ['In-Step-for-colleagues.pptx', 'In Step'], ['In-Step-for-managers.pptx', 'In Step']];
@@ -128,7 +133,8 @@ const ROWS = {
   'Days off in a row — worst place': 'leaveWorst', 'Leave for four full weeks off, at best': 'leaveFour',
 };
 /** Labels that carry their own times ("Weekday closer — starts 15:45, not 15:15"): matched by their start. */
-const ROW_PATTERNS = [[/^Weekday closer\b/, 'closerWk'], [/^Saturday closer\b/, 'closerSat'], [/^Sunday closer\b/, 'closerSun']];
+// A design with two Saturday closers says so in the plural (Balanced V6, 8 Nov 2026: "Saturday closers — start 15:00 and 15:15")
+const ROW_PATTERNS = [[/^Weekday closers?\b/, 'closerWk'], [/^Saturday closers?\b/, 'closerSat'], [/^Sunday closers?\b/, 'closerSun']];
 /** The leave figures come from a booking model the sheets do not compute — leave.mjs at 26 lines, which checks itself
  *  against the 24-line decks; this list only names them if a row is ever unknown. */
 const NOT_FROM_SHEETS = [/^Days off in a row/, /^Leave for four full weeks off/];

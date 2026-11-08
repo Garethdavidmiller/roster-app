@@ -12,7 +12,7 @@
 // "Fair Share's shifts in new weeks", "Open Return with…", "Even Step with…"), which a reader holding one sheet cannot
 // decode; Next Step's was also wrong, as its weeks are not Even Step's; and Common Ground's "Today's link on 26 weeks"
 // claimed today's weeks, where it keeps seven of today's times (the whole-pack review, 5 Nov 2026). All six now stand alone.
-import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, daysAYear } from './link.mjs';
+import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, daysAYear, LINK_STARTS } from './link.mjs';
 import { sheetRules as currentRules, h55Worst, singleRestsOver48, fitCmp } from './report-data.mjs';
 import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.js';
 
@@ -62,9 +62,12 @@ export const STRAPS = {
   // "Common Ground"). Shortlisted on 5 Nov 2026, as the 30-day example, and off the shortlist since 8 Nov 2026 (below)
   'CG-26-T8': ['Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 5 Nov 2026: Common Ground's weeks with the shift times varied from week to week, so no two closing weeks and no two 06:20
-  // weeks fall together (README.md → "Middle Ground"). Shortlisted on 8 Nov 2026 (below). NO STRAP NAMES ANOTHER DESIGN (owner, 5 Nov 2026:
-  // "the proposal description headlines should not reference other proposals"); regenerate.mjs refuses one that does
-  'MG-26-T8': ['Seven of today’s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together, and 14 days’ leave buys 30 days off, as today', 'search'],
+  // weeks fall together (README.md → "Middle Ground"). Shortlisted on 8 Nov 2026 (below). ITS STRAP SAYS THE CLOSING WEEKS ONLY
+  // (owner, 8 Nov 2026, agreeing): the 06:20 half held only when week 20, two 06:20 starts and two 07:00s, was read as a 07:00
+  // week, and weeks 17 to 20 all have 06:20 starts; regenerate.mjs now checks a strap's weeks apart on the grid.
+  // NO STRAP NAMES ANOTHER DESIGN (owner, 5 Nov 2026: "the proposal description headlines should not reference other
+  // proposals"); regenerate.mjs refuses one that does
+  'MG-26-T8': ['Seven of today’s shift times, varied from week to week so that no two closing weeks fall together, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 6 NOV 2026 (owner: "Balanced v5 and Relief Point need adding to the pack, but can you rename Relief Point as Balanced v6"):
   // its author's one-page Marylebone Balanced 26, version 5, and the owner's 15-minute handover drawn from it (README.md →
   // "Balanced V5 and Balanced V6 join the pack"). Each says what it is, naming no other design. Balanced V6 shortlisted on 8 Nov 2026 (below)
@@ -114,9 +117,10 @@ if (SHORTLIST.join() !== [...SHORTLIST].sort((a, b) => a.localeCompare(b, 'en-GB
 /** The day the shortlist above was drawn, for the sheets and the read-me that say when — after every design in the pack. */
 export const SHORTLIST_DATE = '8 Nov 2026';
 /** Designs off the shortlist whose presentations the pack still ships. In Step's from 5 Nov 2026 (owner: "keep the other
- *  presentations in the pack, just not the shortlist"); NONE SINCE 8 NOV 2026. None of the new three has presentations yet,
- *  and the eight in presentations/ each say they present a shortlisted link, so the zip leaves them out until the decks are
- *  redrawn (pack.py). They stay in the repository, unchanged, and deck-check.mjs still holds their figures to the grids. */
+ *  presentations in the pack, just not the shortlist"); NONE SINCE 8 NOV 2026. The eight in presentations/ from before that
+ *  day each say they present a shortlisted link, so the zip leaves them out (pack.py); they stay in the repository, unchanged,
+ *  and deck-check.mjs still holds their figures to the grids. The three shortlisted that day had their own drawn later the
+ *  same day, from Common Ground's (shortlist-decks.py), and the zip carries those. */
 export const DECKS_KEPT = [];
 if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is both shortlisted and kept off it: ${DECKS_KEPT}`);
 // NO RECOMMENDATION SINCE 5 NOV 2026. RECOMMENDED named the one the shortlist sheet argued for — Short Run from 3 Oct 2026,
@@ -246,7 +250,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     ${row('Full weekends off', `${T.checks.weekendsOff} in ${T.feel.workingLines + T.feel.spareLines.length}`, `${P.checks.weekendsOff} in ${LINES}`, mark(P.checks.weekendsOffPct, T.checks.weekendsOffPct, false))}
     ${row('Different shift times', `${T.feel.distinctTimes}`, `${P.feel.distinctTimes} — ${shared === P.feel.distinctTimes ? 'all' : shared === 0 ? 'none' : shared} already worked today`, mark(P.feel.distinctTimes, T.feel.distinctTimes))}
   </tbody></table>`;
-  const intro = `<p><b>${name}</b> is a proposal for the new CEA link, from 1 January 2027: a ${LINES}-line rotation for ${LINES} people, where today’s link has 20. In short: ${lc(strap)}.</p>
+  const intro = `<p><b>${name}</b> is a proposal for the new CEA link, from ${LINK_STARTS}: a ${LINES}-line rotation for ${LINES} people, where today’s link has 20. In short: ${lc(strap)}.</p>
   <p><b>Against today’s link</b> — the table below; page 2 explains each figure.</p>${glance}`;
 
   // hard limits first: a design that breaks one cannot be run, whatever else it does
@@ -315,7 +319,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
       // external review asked for an amber "undecided" chip here; it shipped for one release and was withdrawn the same day.
     metaLine: `Prepared ${rendered} · every figure is calculated from the rota, not entered by hand`,
     identExtra: `<div class="ident-row ident-minor"><span class="ident-k">Family</span><span class="ident-v">${FAMILY[code.split('-')[0]] ?? '—'}</span></div><div class="ident-row ident-minor"><span class="ident-k">Created</span><span class="ident-v">${(FIRST[code] ?? meta.date ?? '—').replace('Sep', 'September')}</span></div>`,
-    sub1: 'How this rota would work from 1 January 2027, and how it compares with today’s link',   // the link starts then, after the December timetable (owner, 2 Nov 2026)
+    sub1: `How this rota would work from ${LINK_STARTS}, and how it compares with today’s link`,   // the link starts then, after the December timetable (owner, 2 Nov 2026); the month alone since 8 Nov 2026, the day not yet set (link.mjs)
     intro, intro2: '',
     // page 1 must not call a fatigue count clear where a worked cover week would cross 55 hours (audit, 30 Sep 2026)
     h55Cover: h55 && h55.adds ? { lo: h55.lo, hi: h55.hi, loMin: h55.loMin, hiMin: h55.hiMin } : null,
@@ -338,7 +342,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     coverCallout: `The <b>floor</b> rows are the fair comparison. The ticket office is staffed to its opening hours, not to the trains, so counting it in can make a day look better or worse than the floor really is. The fit measures <b>shape, not numbers</b> — each hour’s share of the day’s staff against its share of the day’s trains — so an extra person in a quiet hour makes it worse even though nobody is worse off. Read it beside the numbers of people, never alone.`,
     frame: {
       family: 'keep',
-      question: `Should the new CEA link, from 1 January 2027, be <b>${name}</b>? It is judged against today’s 20-line link and the December 2026 rules, and page 9 sets it beside the other ${others.length} proposals on the same figures.`,
+      question: `Should the new CEA link, from ${LINK_STARTS}, be <b>${name}</b>? It is judged against today’s 20-line link and the December 2026 rules, and page 9 sets it beside the other ${others.length} proposals on the same figures.`,
       stands: `<b>${name}</b> — ${lc(strap)}.`,
       read: '',
     },

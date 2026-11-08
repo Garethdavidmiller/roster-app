@@ -45,9 +45,10 @@ files = [  # (source, path in the pack)
 for name, code, fp in proposals:
     base = f"{name.replace(' ', '-')}-{code}"
     # ONLY THE SHORTLIST'S DECKS, AND THOSE KEPT (8 Nov 2026): the eight in presentations/ were last rebuilt for the shortlist of
-    # 5 Nov 2026 and each names it as the shortlist (In Step's say it is not on it), so none ships while none of the three
-    # drawn on 8 Nov has decks;
-    # they stay in the repository, unchanged, and deck-check.mjs still holds their figures to the grids
+    # 5 Nov 2026 and each names it as the shortlist (In Step's say it is not on it), so none of them ships. The three shortlisted
+    # on 8 Nov had none that morning, and the zip carried no presentations; theirs were drawn later the same day, from Common
+    # Ground's (shortlist-decks.py), and ship. The eight stay in the repository, unchanged, and deck-check.mjs still holds
+    # their figures to the grids
     for who in ('colleagues', 'managers') if name in SHORTLIST + DECKS_KEPT else ():
         for ext in ('pptx', 'pdf'):
             src = f"{ROOT}/presentations/{name.replace(' ', '-')}-for-{who}.{ext}"
@@ -77,8 +78,9 @@ SHORTLIST_DATE = re.search(r"export const SHORTLIST_DATE = '([^']+)'", FRESH).gr
 if not SHORTLIST or any(s not in names.split(', ') for s in SHORTLIST): raise SystemExit(f'pack: shortlist {SHORTLIST} is not all in the pack')
 # WHERE EACH AUDIENCE STARTS: the shortlisted designs' presentations, A to Z, for managers and for colleagues alike — and
 # the one-page sheet last. Until the external review of 6 Nov 2026 a colleague was sent to "the chosen link's" deck: a
-# leftover of the managers' ask (removed the same day), and it read as if a link had already been picked. SINCE 8 NOV 2026
-# ONLY THE DECKS THE ZIP HOLDS: none of the three shortlisted that day has any yet, so the route runs through the sheets
+# leftover of the managers' ask (removed the same day), and it read as if a link had already been picked. ONLY THE DECKS
+# THE ZIP HOLDS: on the morning of 8 Nov 2026 the three shortlisted that day had none, and the route ran through the sheets
+# until theirs were drawn, later the same day
 MANAGERS = [d for _, d in files if d.startswith('3 Presentations/') and d.endswith('-for-managers.pdf')]
 COLLEAGUES = [d for _, d in files if d.startswith('3 Presentations/') and d.endswith('-for-colleagues.pdf')]
 WHAT_IT_MEANS = '1 Summary/links-26-what-it-means.pdf'   # 1 Nov 2026
@@ -104,15 +106,17 @@ if 'Tell ${CONTACT} or your manager what worries you' not in CFG:
 # saying what it repeats. (Until 5 Nov the figures were checked against the sheet's template text alone, which pins the
 # sentence and not the number.)
 SHEET = open(f'{ROOT}/tooling/shortlist-sheet.mjs', encoding='utf-8').read()
+# WHEN THE NEW LINK STARTS, the month alone (owner, 8 Nov 2026): link.mjs states it for the sheets, the read-me and the decks
+LINK_STARTS = re.search(r"^export const LINK_STARTS = '([^']+)';$", open(f'{ROOT}/tooling/link.mjs', encoding='utf-8').read(), re.M).group(1)
 # THE SHORTLIST OF 8 NOV 2026: each one's choice and its price, the target the three were drawn for, and the closing weeks of
 # the three that left, which the 8 Nov paragraph names — the last two are the sheet's claims, so the sheet still asserts them
 for said in ['is the one to choose for something different',
-             '<b>Choose Balanced V6</b> if the shortest runs of earlies or of lates matter most',
+             '<b>Choose Balanced V6</b> if the shortest runs of earlies or of lates, and the most long breaks, matter most',
              'weeks on one shift time, a ${hm(Math.round(BF.step))} change of start', 'fatigue warnings if a cover week falls badly',
              '<b>Choose Level Crossing</b> if no fatigue warning in any cover-week placement tested, and steady start times, matter most',
-             'for the most starts at 06:20', 'the weakest Saturday fit of the ${N}',
-             '<b>Choose Middle Ground</b> if no shift over 8h&nbsp;30m and the closest weekend fit matter most',
-             'for the fewest early finishes, four at the open every day and one fatigue warning if a cover week falls badly',
+             'for the most starts at 06:20', 'and the fewest long breaks, about ${longRestYear(LF)} a year',
+             '<b>Choose Middle Ground</b> if no shift over 8h&nbsp;30m and the closest Saturday fit matter most',
+             'for the fewest early finishes, four at the open every day and the least Sunday overtime pay',
              'for a new design target: no two closing weeks side by side, changes between earlies and lates placed at useful rest breaks, and weeks on one shift time still important',
              "claim('Common Ground and Crossover: four closing weeks together;",
              "claim('Even Step: two closing weeks side by side; Short Run, Balanced V8 and Balanced V9 three together'"]:
@@ -233,12 +237,16 @@ if sl_where != ['30-days-off', '30-days-off/balanced']:   # the route and item 4
 WORDS = ('zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty '
          'twenty-one twenty-two twenty-three twenty-four twenty-five twenty-six twenty-seven twenty-eight twenty-nine thirty').split()
 # owner, 3 Oct 2026: "only keep the shortlist's presentations, delete the rest"; 5 Nov 2026: "keep the other presentations in
-# the pack, just not the shortlist". SINCE 8 NOV 2026 THE ZIP SHIPS NONE: the read-me's item 3 says so, so a deck in the zip, or
-# a shortlisted design with decks the zip leaves out, stops the build until the item is rewritten
+# the pack, just not the shortlist". The zip ships the decks of the shortlist and of those kept off it, and only theirs; every
+# one of them has all four files (a deck for each audience, PowerPoint and PDF), as the read-me's item 3 says. From the
+# morning of 8 Nov 2026 it shipped none, until the three shortlisted that day had theirs, drawn the same day
+ORDER = sorted(SHORTLIST + DECKS_KEPT)
 with_decks = sorted({os.path.basename(d).rsplit('-for-', 1)[0].replace('-', ' ') for _, d in files if d.startswith('3 Presentations/')})
-sl_decks = [n for n in SHORTLIST if os.path.exists(f"{ROOT}/presentations/{n.replace(' ', '-')}-for-colleagues.pptx")]
-if with_decks or sl_decks:
-    raise SystemExit(f'pack: the read-me says no presentations ship; the zip holds decks for {with_decks}, and {sl_decks} have decks')
+if with_decks != ORDER:
+    raise SystemExit(f'pack: presentations for {with_decks}; the shortlist {SHORTLIST} and the decks kept {DECKS_KEPT}')
+_missing = [f'{n.replace(" ", "-")}-for-{w}.{e}' for n in ORDER for w in ('colleagues', 'managers') for e in ('pptx', 'pdf')
+            if f'3 Presentations/{n.replace(" ", "-")}-for-{w}.{e}' not in {dst for _, dst in files}]
+if _missing: raise SystemExit(f'pack: the read-me says each design has both presentations, as PowerPoint and PDF; missing {_missing}')
 # THE READ-ME IS WRAPPED BY CODE (4 Oct 2026, outside review): it opens in Notepad, so every line is at most 78
 # columns, both lists hang at the same column, and a paragraph edited later cannot come out ragged.
 import textwrap
@@ -280,6 +288,7 @@ def mark_item(label, text):
     return textwrap.fill(whole(' '.join(text.split())), W, initial_indent=' ' * 21 + f'{label:<16}', subsequent_indent=' ' * 37,
                          break_on_hyphens=False).replace('\x00', ' ')
 andl = lambda a: (', '.join(a[:-1]) + ' and ' + a[-1]) if len(a) > 1 else (a[0] if a else 'None yet')
+decks = andl(SHORTLIST) + (f', the shortlist, and {andl(DECKS_KEPT)}, kept from when it was on the shortlist' if DECKS_KEPT else '')
 # THE ROUTE FIRST, THE HISTORY LAST (the fifth review's follow-up, 1 Nov 2026): "The history interrupts the route into the pack. A
 # new reader needs the current recommendation, what they are being asked to decide, and which file to open." And
 # colleagues start with their presentation, "the proposal sheet and rota should follow as supporting detail". So the
@@ -313,9 +322,10 @@ LEADER_FROM = f"{_day(_LEADER_CODE).day} {_day(_LEADER_CODE).strftime('%B %Y')}"
 readme = '\n'.join([
     'NEW CEA LINK PROPOSALS - 26 LINES',
     '=' * len('NEW CEA LINK PROPOSALS - 26 LINES'),
-    # The START date is said; the date the 26 lines were set is not (office detail, owner, of slide 9's). The link starts on
-    # 1 January 2027, after the timetable changes in December (owner, 2 Nov 2026), and was "December 2026" here until then.
-    'Marylebone CEA link from 1 January 2027 - 26 weeks',
+    # The START is said; the date the 26 lines were set is not (office detail, owner, of slide 9's). The link starts after
+    # the timetable changes in December (owner, 2 Nov 2026), and was "December 2026" here until then, "1 January 2027" until
+    # 8 Nov 2026, and is the month alone since (owner: "We don't now know exactly what day"), read from link.mjs
+    f'Marylebone CEA link from {LINK_STARTS} - 26 weeks',
     '',
     # THE SATURDAY OFFICE, SAID FIRST (6 Nov 2026, the external review: "Give the Saturday correction one prominent
     # sentence ... Bring a short version forward"). The whole account stays in how the shortlist came about, below
@@ -329,13 +339,13 @@ readme = '\n'.join([
          + (f' {LATE_WORDS} came after the shortlist; see how the shortlist came about, below.' if LATE else '')),
     para('All three keep closing weeks apart: a week of closing shifts is never followed by another, cover weeks aside. All '
          'three keep today\'s leave too: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best.'),
-    item('Balanced V6', 'If the shortest runs of earlies or of lates matter most. The price: 7 of its 21 weeks on one shift '
+    item('Balanced V6', 'If the shortest runs of earlies or of lates, and the most long breaks, matter most. The price: 7 of its 21 weeks on one shift '
          'time, where the other two have 18, a larger change of start from week to week, more single rest days, and more '
          'fatigue warnings if a cover week falls badly.'),
     item('Level Crossing', 'If no fatigue warning in any cover-week placement tested, and steady start times, matter most. '
-         'The price: the most starts at 06:20 of the three, and the weakest Saturday fit.'),
-    item('Middle Ground', 'If no shift over 8h 30m and the closest weekend fit matter most. The price: the fewest early '
-         'finishes, four at the open every day, and one fatigue warning if a cover week falls badly.'),
+         'The price: the most starts at 06:20 of the three, and the fewest long breaks.'),
+    item('Middle Ground', 'If no shift over 8h 30m and the closest Saturday fit matter most. The price: the fewest early '
+         'finishes, four at the open every day, and the least Sunday overtime pay.'),
     para('Pages 1 and 2 of the shortlist sheet set out each one\'s edge and its costs in full.'),
     '',
     'WHAT IS ASKED',
@@ -345,17 +355,19 @@ readme = '\n'.join([
          f'{CONTACT}, {CONTACT_ROLE}, is leading the change.'),
     '',
     'WHERE TO START',
-    # THE SHEETS, NOT THE DECKS, SINCE 8 NOV 2026: none of the three has presentations yet (item 3), so each audience starts from
-    # the sheets; WHERE THE THREE SHEETS ARE (the pack's accuracy review, 6 Nov 2026) is said, and checked above (sl_where)
+    # THE PRESENTATIONS FIRST AGAIN (8 Nov 2026): the three's decks drawn, each audience starts from them, A to Z, as before the
+    # morning's shortlist; WHERE THE THREE SHEETS ARE (the pack's accuracy review, 6 Nov 2026) is said, and checked above (sl_where)
     item('Managers', 'Ten minutes: the shortlist sheet,'),
     ' ' * 23 + '1 Summary/links-26-shortlist.pdf',
-    item('', 'Then pages 1 and 2 of each shortlisted link\'s proposal sheet, in 4 Proposal sheets, folder 30 days off '
-         '(Balanced V6\'s in its subfolder Balanced).'),
-    item('Colleagues', 'First, the one-page sheet on what it means if you prefer earlies or lates, swap for overtime, '
-         'work your share of Sundays or no overtime at all, or save leave for long breaks,'),
+    item('', 'Then ten minutes for each presentation for managers:'),
+    *[' ' * 23 + path for path in MANAGERS],
+    item('Colleagues', 'First, the presentations for colleagues, one for each shortlisted link:'),
+    *[' ' * 23 + path for path in COLLEAGUES],
+    item('', 'Then pages 1 to 3 of each one\'s proposal sheet, in 4 Proposal sheets, folder 30 days off (Balanced V6\'s '
+         'in its subfolder Balanced): the detail, and every week of the link on page 3.'),
+    item('', 'Last, the one-page sheet on what it means if you prefer earlies or lates, swap for overtime, work your '
+         'share of Sundays or no overtime at all, or save leave for long breaks,'),
     ' ' * 23 + WHAT_IT_MEANS,
-    item('', 'Then pages 1 to 3 of each shortlisted link\'s proposal sheet, in the same folder: the detail, and every '
-         'week of the link on page 3.'),
     '',
     'STILL OPEN',
     para('Where the 13-day limit is written down, and how one fatigue factor (FF19, marked "definition to confirm" on '
@@ -376,9 +388,10 @@ readme = '\n'.join([
          'a year, which is hard too), the nine December 2026 rules scored on every sheet, and three flexible rules '
          'aimed for when designing (14 on a Saturday, five cover weeks as evenly spaced as 26 weeks allow, and '
          'weekday closers starting at 15:45 or later).'),
-    item('3 Presentations', 'None in this pack for now. The presentations made earlier each name the shortlist of '
-         '5 November 2026, Common Ground, Even Step and Short Run, as the current one, so they are left out, and none has '
-         'been made yet for the three shortlisted on 8 November 2026.'),
+    item('3 Presentations', f'{decks}: one for colleagues and one for managers{" each" if len(with_decks) > 1 else ""}. '
+         'PowerPoint and PDF copies of each. On the slides a figure better than today carries a green tick and one '
+         'worse an amber triangle, as on the sheets. The PowerPoints use the Inter font; if the PC showing them does '
+         'not have Inter, present the PDF instead.'),
     item('4 Proposal sheets', 'One eight-page PDF per proposal, compared only with today\'s link: pages 1 and 2 are the '
          'plain-English comparison, page 3 the rota, the rest the evidence managers can inspect. The links where 14 '
          'days\' leave buys 30 days off, as today, are in the folder 30 days off, the three shortlisted among them, and the '
@@ -444,7 +457,7 @@ readme = '\n'.join([
     # reference other proposals")
     *([para('Middle Ground, Balanced V5 and Balanced V6 (5 November 2026), Balanced V7 (6 November 2026), and Crossover, '
             'Level Crossing, Balanced V8 and Balanced V9 (7 November 2026) came after it. Middle Ground has seven of today\'s shift times, varied from week to week so '
-            'that no two closing weeks and no two 06:20 weeks fall together. Balanced V5, a one-page roster drawn up outside '
+            'that no two closing weeks fall together. Balanced V5, a one-page roster drawn up outside '
             'the app, has weeks of 06:20 starts and weeks of 08:00 starts and a 15:45 closer every weekday. Balanced V6 has a '
             '15-minute handover every weekday, from three 07:30-16:00s to the three 15:45 closers. Balanced V7 has Balanced '
             'V6\'s duties, every one, laid in new weeks, with no six-day weeks. Crossover keeps two 13:45 finishes every '
@@ -477,7 +490,8 @@ readme = '\n'.join([
          'rest breaks, and weeks on one shift time still important. Balanced V6, Level Crossing and Middle Ground keep '
          'closing weeks apart, where Common Ground, Even Step and Short Run each put two or more side by side, and all '
          'three keep today\'s leave. The presentations drawn for the earlier shortlists are left out of the pack, since each '
-         'says its link is shortlisted. A one-page sheet, links-26-other-designs.pdf, sets every other design beside the three.'),
+         'says its link is shortlisted; the three were given their own the same day. A one-page sheet, '
+         'links-26-other-designs.pdf, sets every other design beside the three.'),
     '',
     'HOW THE FIGURES ARE WORKED OUT',
     para('Every figure in the summary, the shortlist sheet, the sheet of the other designs, the "What it means if you..." '
@@ -497,6 +511,10 @@ if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6 or 
 _old = [n for n in RENAMED if n in ' '.join(readme.split())]
 if _old: raise SystemExit(f'pack: the read-me names {_old}, the old name of {[RENAMED[n] for n in _old]}')
 # PLAIN ASCII: it opens in Notepad, and an older one reads a file with no byte-order mark in the PC's own code page
+# NO DAY FOR THE START (owner, 8 Nov 2026), as the sheets refuse one (link.mjs → longDates) and the decks (deck-polish.py)
+_day_start = next((m for m in re.finditer(r'\b(?:from|starts?(?: on)?|follows(?: from)?) (\d{1,2}(?:st|nd|rd|th)? Jan(?:uary)? 2027)\b|\b(January 1st)\b', ' '.join(readme.split()), re.I)
+                   if (m.group(1) or m.group(2)) != LINK_STARTS), None)   # a day other than link.mjs's: none while it is a month
+if _day_start: raise SystemExit(f'pack: the read-me dates the new link\'s start to a day ("{_day_start.group(0)}"); it starts {("on " if LINK_STARTS[0].isdigit() else "in ") + LINK_STARTS}')
 if not readme.isascii(): raise SystemExit(f'pack: the read-me holds {sorted({c for c in readme if not c.isascii()})}; Notepad may garble them')
 # NO RECOMMENDATION IN IT EITHER (owner, 5 Nov 2026): the one use of the word is the sentence saying there is none
 _flat = ' '.join(readme.split())

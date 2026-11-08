@@ -61,32 +61,6 @@ body {
     --page-accent-text: var(--al-deep);
 }
 
-/* ── The preview banner — the admin's note between the header and the cards ─────────────────── */
-/* The app's note-between-cards (Trains' caveat, the Pay Calculator's setup banner): the card surface, a gold left
-   edge, the resting shadow — so it reads as the page's own notice and not as part of what colleagues will see. */
-.nl-preview {
-    margin: 0 0 12px;
-    padding: 10px 14px 10px 15px;
-    background: var(--surface);
-    border-left: 3px solid var(--accent-gold);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-1);
-    color: var(--text-mid);
-    font-size: var(--type-small);
-    line-height: 1.45;
-}
-.nl-preview[hidden] { display: none !important; }
-.nl-preview p { margin: 0 0 4px; }
-.nl-preview-head { color: var(--text-dark); font-size: var(--type-label); }
-/* The app draws its own disclosure arrow — the card chevron's ▾, turned — rather than the browser's triangle
-   (CLAUDE.md → "The OS draws nothing the app can draw"). */
-.nl-preview-who summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--primary-blue); font-weight: 700; list-style: none; }
-.nl-preview-who summary::-webkit-details-marker { display: none; }
-.nl-preview-who summary::after { content: "▾"; color: var(--text-light); transition: transform var(--dur-fast) var(--ease-standard); }
-.nl-preview-who[open] summary::after { transform: rotate(180deg); }
-.nl-preview-who summary:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
-.nl-preview-who p { margin-top: 4px; }
-
 /* ── What this is ─────────────────────────────────────────────────────────────────────────────── */
 .nl-callout {
     margin: 0 0 12px;
@@ -428,7 +402,7 @@ body {
    times over, ~340px each, which compares them at a glance and gives no proposal the first look. One 1,054px table of
    145px cells, a default tab and 40% of every text card empty was the review's finding (2 Nov 2026). */
 @media (min-width: 1024px) {
-    .nl-lead, .nl-callout, .nl-gist, .nl-note, .nl-preview p, #nlSayList .nl-list, #nlHowList .nl-list { max-width: 72ch; }
+    .nl-lead, .nl-callout, .nl-gist, .nl-note, #nlSayList .nl-list, #nlHowList .nl-list { max-width: 72ch; }
     #nlChangesList .nl-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 44px; }
     #nlChangesList .nl-list li + li { margin-top: 0; }
     .nl-gists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
@@ -468,7 +442,7 @@ body {
 
 @media print {
     body { background: white; padding: 0; color: black; }
-    .btn-burger, .nl-tiles, .nl-tabs, .nl-preview, .nl-back-row { display: none !important; }
+    .btn-burger, .nl-tiles, .nl-tabs, .nl-back-row { display: none !important; }
     /* On paper all three proposals' weeks, one after another — never only the one a tab had chosen. */
     .nl-weeks-one, .nl-weeks-one:not(.is-chosen) { display: block !important; break-inside: avoid; margin-bottom: 12px; }
     .nl-inline { color: inherit; text-decoration: none; }

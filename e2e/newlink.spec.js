@@ -17,11 +17,11 @@ test.describe('new link', () => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
 
-        await expect(page.locator('#nlPreview')).toBeVisible();
-        // the admin is told who else can see it: the one named previewer (CONFIG.NEWLINK_PREVIEW)
-        await expect(page.locator('#nlPreview')).toContainText('Preview — only you and S. Silva can see this page.');
-        // the stand-in audience: every CEA on the roster, listed for the admin to check
-        await expect(page.locator('#nlPreview')).toContainText('every CEA on the roster');
+        // NO PREVIEW BANNER (owner, 8 Nov 2026: "Remove the preview banner as it will be going live soon"): the admin sees
+        // exactly what colleagues will. Who it will reach is newlink-config.js → AUDIENCE, held to the roster in Node
+        await expect(page.locator('.nl-name-title').first()).toBeVisible();
+        await expect(page.locator('#nlPreview, .nl-preview')).toHaveCount(0);
+        await expect(page.locator('body')).not.toContainText(/Preview —|Who it would reach/);
         await expect(page.locator('.nl-name-title')).toHaveText(['Balanced V6', 'Level Crossing', 'Middle Ground']);
         await expect(page.locator('#nlStatus')).toContainText('Have your say by a date to be agreed');
         // EVENLY: nothing on the page names a recommendation (owner, 2 Nov 2026: "No, three evenly")
@@ -34,11 +34,11 @@ test.describe('new link', () => {
     });
 
     // The page passes TODAY to the status line (test audit, 7 Nov 2026). The tenses are renderStatus's unit tests; what only
-    // a browser can show is that the page hands it the real date — before this it had no date logic at all, and on
-    // 1 January it would still have said the link "starts on 1 January 2027".
+    // a browser can show is that the page hands it the real date — before this it had no date logic at all, and once the
+    // link's start had come it would still have said the link "starts on" it.
     for (const [day, says, never] of /** @type {[string, RegExp|null, RegExp][]} */ ([
-        ['2026-12-20T09:00:00Z', /The new timetable started in December, and today’s link carries on until then\./, /comes first/],
-        ['2027-01-04T09:00:00Z', null, /starts on|carries on until then/],
+        ['2026-12-20T09:00:00Z', /The new link starts in January\s2027\. The new timetable started in December, and today’s link carries on until then\./, /comes first/],
+        ['2027-01-04T09:00:00Z', null, /starts (on|in)|carries on until then/],
     ])) {
         test(`the status line on ${day.slice(0, 10)} speaks of the dates as they then are`, async ({ page }) => {
             await page.clock.setFixedTime(new Date(day));
@@ -76,7 +76,7 @@ test.describe('new link', () => {
         await setVisibility('hidden');
         await page.clock.setFixedTime(new Date('2027-01-04T09:00:00Z'));
         await setVisibility('visible');
-        await expect(status).not.toContainText(/starts on|carries on until then/);
+        await expect(status).not.toContainText(/starts (on|in)|carries on until then/);
         await expect(status).toContainText('Nothing is decided.');
         await expect(status.locator('.nl-name'), 'the tiles are drawn again, and still open their weeks').toHaveCount(3);
         await status.locator('.nl-name').first().click();
@@ -188,7 +188,7 @@ test.describe('new link', () => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
         const links = page.locator('#nlPackList a.nl-file');
-        await expect(links).toHaveCount(PACK.length);   // what the generated data lists — 4 since 8 Nov 2026, with no presentations yet
+        await expect(links).toHaveCount(PACK.length);   // what the generated data lists — since 8 Nov 2026 each shortlisted link's presentation and proposal sheet, and the rules
         for (const a of await links.all()) {
             await expect(a).toHaveAttribute('target', '_blank');
             await expect(a).toHaveAttribute('href', /^https:\/\/garethdavidmiller\.github\.io\/roster-app\/docs\/links-26\/.+\.pdf$/);
@@ -223,8 +223,10 @@ test.describe('new link', () => {
         await page.locator('#nlStatus [data-open-card="nlSay"]').click();
         await expect(page.locator('#nlSayBody')).toHaveClass(/\bopen\b/);
         await expect(page.locator('#nlSayCard h2')).toBeFocused();
-        // who leads the change: S. Silva, as the RMT rep — never the admin; and how the choice is made is left vague (owner, 4 Nov 2026)
-        await expect(page.locator('#nlSayList')).toContainText('S. Silva, the RMT rep, is leading the change.');
+        // who leads the change: Sara Silva, as the RMT rep — never the admin; and how the choice is made is left vague (owner, 4 Nov
+        // 2026). Named in full, as colleagues know her, not as the roster spells her (owner, 8 Nov 2026)
+        await expect(page.locator('#nlSayList')).toContainText('Tell Sara Silva or your manager what worries you');
+        await expect(page.locator('#nlSayList')).toContainText('Sara Silva, the RMT rep, is leading the change.');
         await expect(page.locator('#nlSayCard')).not.toContainText(/admin|managers decide/i);
         await expect(page.locator('#nlSayCard')).toBeInViewport();
 
@@ -251,17 +253,16 @@ test.describe('new link', () => {
     // LNK-8). The test above reads only the Have-your-say card, so "The admin will choose one of the three." added after
     // "Nothing is decided." in the status line passed every lane. This reads the page's whole text as it opens and with
     // every way of working drawn in full — the changes, what all three share, the notes, the six personas and all three
-    // proposals' weeks are all in it then (the weeks are drawn for all three; the tabs only choose which one shows). The
-    // one place allowed to name the admin is the preview banner, which tells a PREVIEWER who else can see the page:
-    // S. Silva is told "only you and the admin can see this page", which is why the test reads as her too.
+    // proposals' weeks are all in it then (the weeks are drawn for all three; the tabs only choose which one shows). No
+    // place on it may name the admin now: the preview banner, which told S. Silva "only you and the admin can see this
+    // page", went on 8 Nov 2026, so the whole text is read, as the admin and as her.
     for (const reader of ['G. Miller', 'S. Silva']) {
         test(`nothing names the admin, or managers, as the ones who decide — read as ${reader}`, async ({ page }) => {
             await seedSession(page, reader);
             await page.goto('/newlink.html');
             await expect(page.locator('.nl-name-title')).toHaveCount(3);
             const pageText = () => page.evaluate(() => {
-                const main = /** @type {HTMLElement} */ (document.getElementById('newlinkMain').cloneNode(true));
-                main.querySelector('#nlPreview')?.remove();
+                const main = /** @type {HTMLElement} */ (document.getElementById('newlinkMain'));
                 return (main.textContent || '').replace(/\s+/g, ' ');
             });
             const opened = await pageText();
@@ -287,7 +288,7 @@ test.describe('new link', () => {
 
     // S. Silva is the new link's contact (newlink-config.js → CONTACT), and may see the preview before colleagues do
     // (owner, 4 Nov 2026: "open up the new links page to S. Silva"; CONFIG.NEWLINK_PREVIEW).
-    test('S. Silva reaches it from the drawer too, and the banner names the admin as the one other reader', async ({ page }) => {
+    test('S. Silva reaches it from the drawer too, and sees what colleagues will, with no preview banner', async ({ page }) => {
         await seedSession(page, 'S. Silva');
         await page.goto('/admin.html');
         await page.locator('#navMenuBtn').click();
@@ -296,6 +297,6 @@ test.describe('new link', () => {
         await pill.click();
         await expect(page).toHaveURL(/newlink\.html$/);
         await expect(page.locator('.nl-name-title').first()).toHaveText('Balanced V6');
-        await expect(page.locator('#nlPreview')).toContainText('Preview — only you and the admin can see this page.');
+        await expect(page.locator('#nlPreview, .nl-preview')).toHaveCount(0);
     });
 });
