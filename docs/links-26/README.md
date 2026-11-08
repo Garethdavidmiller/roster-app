@@ -109,7 +109,7 @@ removed on 7 Nov 2026):
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
 | `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
 | `links-26-shortlist.pdf` | the three shortlisted designs (Balanced V6, Level Crossing and Middle Ground, A to Z, since 8 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
-| `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z folder by folder, on one page (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
+| `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z folder by folder, on two pages: the proposals folder, then the 30-day folder and its Balanced subfolder (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
 | `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary; since 7 Nov 2026 the five Balanced designs are in its subfolder `30-days-off/balanced/` (owner: "Put all the Balanced proposals in their own subfolder"), *Balanced* in the zip |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
@@ -6448,7 +6448,8 @@ pack.
   weeks laid again. B has 19 weeks on one shift time, the most possible, and 30 minutes fewer in its heaviest seven days.
   It costs 13 minutes of change of start and scores above Short Run.
 - **Saturday closers** still sit beside closing weeks in all three, as on Level Crossing.
-- **The grids** are in the session's scratchpad, not the repository.
+- **The grids** were in the session's scratchpad, not the repository. Later the same day Even Step's layout and Short Run's
+  B joined the pack as Clockface and Short Working (*Clockface and Short Working*, below); Short Run's A did not.
 - **The saved duty tables** (`tooling/results/`) keep the Saturday office at 22:00 (*Nine designs deleted*), so the solver
   started from each grid's own table.
 - **Checked again** with the pack's own measures: `assess()`, `scoreOrder()`, `leave()`, `kindBlocks()`, `h55Worst()`
@@ -7004,6 +7005,92 @@ from Common Ground's finished pair, and set beside the shortlist (`BESIDE`):
 
 **Checks.** `regenerate.mjs --check` (25 proposals), `check.mjs`, `closing.mjs --check`, `leave.mjs --check`,
 `newlink-data.mjs --check` (the app's data is unchanged, so no version bump), `deck-check.mjs` and `pack.py` (69 files).
+
+## Clockface and Short Working — Even Step's and Short Run's weeks laid again with their closing weeks apart (8 Nov 2026)
+
+**The ask.** Step 2 of *The shortlist redrawn for closing weeks apart*, above, laid Even Step and Short Run again with their
+closing weeks apart and put neither in the pack. The owner then named them, "Clockface, Short Working", taking Short Run's
+layout B, and asked for "the presentations for non shortlisted designs where they exist, to match the updated designs". With
+"For now leave the shortlist until I see Balanced v10", both are in the pack beside the shortlist, not on it, as Balanced V10 is.
+
+**What they are.**
+- **Clockface** (`CF-26-T5` · `62abf5eb`) has Even Step's duties and rest days, every one, and its early and late weeks. Only
+  which week works which shift time moved: 16 cells on 6 lines (3, 13, 15, 22, 23 and 26).
+- **Short Working** (`SWK-26-F1` · `be95ed62`) is Short Run's the same way: 32 cells on 11 lines (4, 5, 8, 9, 12, 14, 18, 22,
+  24, 25 and 26), with one more week on one shift time than Short Run.
+- Both are in `proposals/`, beside their parents, since neither buys 30 days off for 14 days' leave. Each code keeps its
+  parent's table, T5 and F1. Short Working's is `SWK`, not `SW`: `SW-26-F1` was Second Wind's (below).
+
+| | Even Step | Clockface | Short Run | Short Working |
+|---|---|---|---|---|
+| Closing weeks in a row, at most | 2 | 1 | 3 | 1 |
+| Most closes in any 14 days · any 21 | 9 · 9 | 6 · 6 | 9 · 11 | 6 · 8 |
+| Weeks on one shift time | 18 of 21 | 18 of 21 | 18 of 21 | 19 of 21 |
+| Change of start, week to week | 1h 30m | 1h 34m | 1h 14m | 1h 27m |
+| Working weeks with a shift time new to learn | 11 of 21 | 12 of 21 | 14 of 21 | 14 of 21 |
+| Backward · forward steps between shifts (FF17) | 9 · 12 | 10 · 13 | 11 · 11 | 12 · 12 |
+| Most hours in seven days · if a cover week falls badly | 50h 10m · 56h 45m | 50h 10m · 56h 40m | 51h 40m · 56h 50m | 51h 10m · 56h 10m |
+| Main league since 8 Nov, of 27 | 9th, 74.0 | 1st, 78.3 | 20th, 67.7 | 6th, 74.5 |
+| League until 8 Nov, of 27 | 5th, 86.0 | 6th, 86.0 | 20th, 82.9 | 19th, 83.1 |
+
+- **Everything else on each sheet is its parent's, figure for figure.** Each pair of sheets was compared line by line: the
+  December rules, the hard limits, the leave, the single rest days, the weekends, the runs, the shortest rest, the heaviest
+  and lightest weeks, the shift times, the fit to the trains, and the fatigue warnings, on the same checks.
+- **The most each can have.** With Even Step's weeks held and no two closing weeks together, 19 weeks on one shift time is
+  infeasible, so Clockface's 18 is the most. With Short Run's weeks held at its floors, 20 is infeasible with the
+  closing-weeks rule and without it, so Short Working's 19 is the most.
+
+**How.**
+- The committed `exact-rota.py` rebuilds both grids exactly, with the commands in its header. First the best layout at the
+  parent's own floors with `CLOSE_APART=2`: optimal at 330110 and 327825. Then `NEAR=` the parent for the fewest cells moved
+  at that optimum: 16 and 32, optimal, and the same grid on a second run.
+- Each is laid on its parent's own duties as its grid has had them since the Saturday office closed at 22:30
+  (`results/clockface-table.json`, `results/short-working-table.json`, counted from the parents' grids). The saved tables
+  Even Step and Short Run were drawn from keep the office at 22:00.
+- `FIX=` finds each grid feasible at the optimum and refuses each parent's: Even Step's closing weeks 13 and 14 sit together,
+  as do Short Run's 24, 25 and 26.
+
+**A code names one design, for good.** A code is what goes on a printout, so `regenerate.mjs` now refuses an entry that takes
+a code once given to a design that was withdrawn, deleted or renamed (`RETIRED_CODES`, fifteen of the pack's own and the
+outside reviewer's three), and two entries that share a code. Mutated with `scripts/mutate.mjs`: Short Working given
+`SW-26-F1`, and Clockface given Even Step's code, each fail with their own message. `pack.py` read `fresh.mjs`'s dates with a
+two-letter pattern, which would have missed `SWK-26-F1`; it reads two or three letters now.
+
+**The league.**
+- No other score moved in either league: both are inside every range both read. So every place below each is one lower.
+- **In the main league Clockface is first, 78.3**, 0.5 ahead of Level Crossing. It is first in 51% of the 4,000
+  reweightings and in the top three in 75% (places 1–1–5 at the 10th, 50th and 90th percentiles). Level Crossing is 2nd,
+  Middle Ground 3rd, Balanced V10 4th, Next Step 5th and Short Working 6th, 74.5.
+- In the league until 8 Nov, which cannot see the closing weeks, Clockface is 6th, 86.0, just behind Even Step's 86.01, and
+  Short Working 19th, 83.1.
+- The read-me's league sentence is read from `league.mjs`, so it now names Clockface first, by 0.5 points, and Level
+  Crossing second.
+
+**In the pack.**
+- **Their sheets and import files** are in `proposals/`.
+- **The summary** has their rows: 27, on one sheet at the 80% floor. That needed 40px. The dense page now sets the notes under
+  each figure ("up to 3§", "blocks 5 (up to 7)") at a line height of 1; the band's sentence on a design that breaks a hard
+  limit prints only when one does; and "Week-to-week" is kept whole, so no heading runs to a fourth line. The type and the
+  padding are as they were.
+- **The other designs' sheet** is two pages now, split at the folders: twenty-three rows ran 94px past the footer of one.
+  Page 1 has the band, the lead and the proposals folder's fourteen; page 2, under a continued band, the 30-day folder's
+  designs and the Balanced ones. The footnote on "no 55-hour week" is on each page with a row that uses it.
+  - Clockface has Even Step's early times, every one of today's, and its steadier weekly hours, with no two closing weeks
+    side by side, and pays with fewer early finishes.
+  - Short Working has Short Run's shorter weekday lates and closer weekday fit, and 19 of 21 weeks on one shift time, more
+    than any of the three, and pays with nine-hour earlies, 20 a year each.
+  - Even Step's and Short Run's rows now say Clockface and Short Working are their weeks laid again, as Common Ground's and
+    Crossover's name Middle Ground and Level Crossing.
+  - Claims pin each to its parent's duties and rest days with the closing weeks apart on both readings, what each keeps and
+    pays against the three, and the figures each row leans on.
+- **The shortlist sheet** changed only in its count: "the other twenty-four", from "twenty-two". The shortlist is as it was.
+- **The read-me** (`pack.py`):
+  - its paragraph after the shortlist's covers all three late designs and ends "None of the three is on the shortlist";
+  - the 22:30 paragraph names both among the designs drawn since;
+  - it says "a two-page sheet", reading the page count from the PDF, where it had said one page in two places.
+- **The zip** holds 73 files, from 69: the two sheets and their import files.
+
+**Their presentations** follow in a commit of their own, drawn as Balanced V10's were.
 
 ## Notes for the whole set
 

@@ -40,7 +40,8 @@ its grid, and FIX= checks that grid against the model.
        MIXED=n BF= BW= (6 Nov 2026, Balanced V7: allow up to n weeks mixing earlies and lates — below)
        GENTLE_STARTS=15:45 GENTLE_SHARED=0 (7 Nov 2026, Level Crossing: OBJ=gentle on the closing weeks alone — below)
        CLOSE_APART=1|2|3 (8 Nov 2026: no two closing weeks side by side)  NEAR=<rota.json> NEAR_CAP= (8 Nov 2026: the objective
-       held at NEAR_CAP and the fewest cells moved from that rota asked for) — both below, for Balanced V10
+       held at NEAR_CAP and the fewest cells moved from that rota asked for) — both below, for Balanced V10, Clockface and
+       Short Working
   e.g. HINT=closing-time.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py results/closing-time-table.json /tmp/ct.json 1200
 
 MIXED WEEKS (6 Nov 2026, owner: Balanced V6 made again "without losing anything"). Every rota above has a week all earlies
@@ -96,7 +97,29 @@ closing weeks sit side by side (README.md -> "Balanced V10"). Every floor is V8'
      31 cells from V8, optimal, and the same grid on a second run                                                13 s
 With ONE_MIN=19 it is infeasible, on CLOSE_APART=2 and on CLOSE_APART=3 alike, so 18 weeks of 21 on one shift time is the
 most V8's early and late weeks allow with no two closing weeks together. FIX= checks Balanced V10 with F (feasible, at the
-optimum) and refuses Balanced V8's own grid, whose closing weeks 2, 3 and 4 sit together."""
+optimum) and refuses Balanced V8's own grid, whose closing weeks 2, 3 and 4 sit together.
+
+CLOCKFACE AND SHORT WORKING (8 Nov 2026, the owner naming the two re-lays of "The shortlist redrawn for closing weeks apart":
+"Clockface, Short Working"): Even Step's and Short Run's duties and rest days, every one, and their early and late weeks,
+with only which week works which shift time chosen again, so that no two closing weeks sit side by side (README.md ->
+"Clockface and Short Working"). Each is laid on its parent's own duties as its grid has had them since the Saturday office
+closed at 22:30 (results/clockface-table.json, results/short-working-table.json), every floor at its parent's own level:
+  C = H55=3405 H7=3010 LV_BEST=28 LV_FOUR=15 LV_WORST=20 FF11_FIXED=9 FF11_WORST=12 ISO=4 HEAVY=2520 LIGHT=1530 REST=875
+      GAP=5 BLOCK=5 FF17=-3 SKELETON=even-step.json FAMILY=1 ONE_MIN=18 CLOSE_APART=2
+      OBJ=gentle GENTLE_STARTS=15:45 GENTLE_SHARED=0 WORKERS=2, on results/clockface-table.json
+  1. C HINT=even-step.json: optimal at 330110                                                                     11 s
+  2. C NEAR=even-step.json NEAR_CAP=330110: Clockface (results/clockface.json, 62abf5eb), 16 cells from Even Step,
+     optimal, and the same grid on a second run                                                                   1 s
+  W = H55=3410 H7=3100 LV_BEST=28 LV_FOUR=15 LV_WORST=20 FF11_FIXED=9 FF11_WORST=12 ISO=4 HEAVY=2550 LIGHT=1470 REST=860
+      GAP=5 BLOCK=5 FF17=0 SKELETON=short-run.json FAMILY=1 ONE_MIN=19 CLOSE_APART=2
+      OBJ=gentle GENTLE_STARTS=15:45 GENTLE_SHARED=0 WORKERS=2, on results/short-working-table.json
+  1. W HINT=short-run.json: optimal at 327825                                                                      3 s
+  2. W NEAR=short-run.json NEAR_CAP=327825: Short Working (results/short-working.json, be95ed62), 32 cells from Short
+     Run, optimal, and the same grid on a second run                                                              2 s
+C with ONE_MIN=19 is infeasible, so 18 weeks of 21 on one shift time is the most Even Step's weeks allow with no two closing
+weeks together. W with ONE_MIN=20 is infeasible, with CLOSE_APART=2 and without it, so Short Working's 19 is the most Short
+Run's weeks allow at its floors. FIX= checks each grid with its model (feasible, at the optimum) and refuses each parent's:
+Even Step's closing weeks 13 and 14 sit together, as do Short Run's 24, 25 and 26."""
 import sys, json, os
 from ortools.sat.python import cp_model
 TABLE, OUT = sys.argv[1], sys.argv[2]; LIMIT = float(sys.argv[3]) if len(sys.argv) > 3 else 600
@@ -287,12 +310,13 @@ for k in WORK:
                 if t2 != t: M.AddBoolOr([x[(k, d, t2)].Not(), u[(k, t)].Not()])
 one = sum(u.values())
 if os.environ.get('ONE_MIN'): M.Add(one >= int(os.environ['ONE_MIN']))
-# CLOSE_APART= (8 Nov 2026, Balanced V10; first run on a copy of this script for Even Step's and Short Run's layouts the same
-# day, README.md -> "The shortlist redrawn for closing weeks apart"): no two closing weeks side by side, where a cover week
-# between two weeks breaks the pair. CLOSE_APART=2, the one the pack's layouts were drawn with, is the strictest: no two
-# neighbouring working weeks may both have a weekday duty ending 23:55 at all. CLOSE_APART=1 reads a closing week as a week
-# whose most common Monday-to-Friday duty ends 23:55, a tie counted as closing; CLOSE_APART=3 as the sheets' first reading
-# does, a tie going to the duty worked first in the week. closing.mjs's three-or-more reading is implied by all three.
+# CLOSE_APART= (8 Nov 2026, Balanced V10; first run on a copy of this script for Even Step's and Short Run's layouts the
+# same day, README.md -> "The shortlist redrawn for closing weeks apart", which are Clockface and Short Working): no two
+# closing weeks side by side, where a cover week between two weeks breaks the pair. CLOSE_APART=2, the one the pack's
+# layouts were drawn with, is the strictest: no two neighbouring working weeks may both have a weekday duty ending 23:55 at
+# all. CLOSE_APART=1 reads a closing week as a week whose most common Monday-to-Friday duty ends 23:55, a tie counted as
+# closing; CLOSE_APART=3 as the sheets' first reading does, a tie going to the duty worked first in the week. closing.mjs's
+# three-or-more reading is implied by all three.
 cq = {}
 if os.environ.get('CLOSE_APART'):
     mode = int(os.environ['CLOSE_APART'])

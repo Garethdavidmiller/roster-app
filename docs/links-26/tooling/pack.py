@@ -144,10 +144,10 @@ if SHORTLIST != ['Balanced V6', 'Level Crossing', 'Middle Ground'] or SHORTLIST_
 # the last shortlisted one. The 3 Nov paragraph below says none is shortlisted and says what each is, so it refuses any
 # other set, and a shortlist that takes one of them in
 import datetime
-FIRST = dict(re.findall(r"'([A-Z]{2}-26-[A-Z0-9]+)': '([^']+)'", re.search(r'export const FIRST = \{([^}]*)\}', FRESH).group(1)))
+FIRST = dict(re.findall(r"'([A-Z]{2,3}-26-[A-Z0-9]+)': '([^']+)'", re.search(r'export const FIRST = \{([^}]*)\}', FRESH).group(1)))
 _day = lambda code: datetime.datetime.strptime(FIRST[code], '%d %b %Y')
 _drawn = max(_day(c) for n, c, _ in proposals if n in SHORTLIST)
-LATE = sorted(n for n, c, _ in proposals if _day(c) > _drawn)   # none from 5 Nov 2026 until Balanced V10, drawn after the 8 Nov shortlist
+LATE = sorted(n for n, c, _ in proposals if _day(c) > _drawn)   # none from 5 Nov 2026 until Balanced V10, Clockface and Short Working, drawn after the 8 Nov shortlist
 # THE DESIGNS DRAWN AFTER THE SHORTLIST OF 5 NOV 2026 (whose latest design, Common Ground, was drawn on 4 Nov), which the history
 # describes in a paragraph of their own; the shortlist of 8 Nov 2026 took three of them in
 AFTER_5_NOV = sorted(n for n, c, _ in proposals if datetime.datetime(2026, 11, 4) < _day(c) <= _drawn)   # up to the 8 Nov shortlist
@@ -196,11 +196,14 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # Balanced V8's duties and rest days with its weeks chosen again, no two closing weeks side by side. It buys 30 days off for 14
 # days' leave, so it is in the Balanced subfolder, and a paragraph after the 8 Nov one says what it has and that it is not on the
 # shortlist (LATE_SET, below)
-AFTER_31_OCT_SET = ['Balanced V10', 'Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Clean Slate', 'Common Ground', 'Crossover', 'Fair Share', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers']
+# Clockface and Short Working joined the same day (owner, naming the two re-lays of Even Step and Short Run: "Clockface, Short
+# Working"): each its parent's duties and rest days with its weeks chosen again, no two closing weeks side by side. Neither buys
+# 30 days off for 14 days' leave, so both are in the proposals folder, and the same late paragraph says what each has
+AFTER_31_OCT_SET = ['Balanced V10', 'Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Clean Slate', 'Clockface', 'Common Ground', 'Crossover', 'Fair Share', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers', 'Short Working']
 AFTER_5_NOV_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Crossover', 'Level Crossing', 'Middle Ground']
 if AFTER_5_NOV != AFTER_5_NOV_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(AFTER_5_NOV_SET)} as the designs after the shortlist of 5 November; they are {AFTER_5_NOV}')
-LATE_SET = ['Balanced V10']   # the paragraph after the 8 Nov one names these as drawn after that shortlist, none of them on it
+LATE_SET = ['Balanced V10', 'Clockface', 'Short Working']   # the paragraph after the 8 Nov one names these as drawn after that shortlist, none of them on it
 if LATE != LATE_SET:
     raise SystemExit(f'pack: the read-me names {LATE_SET} as drawn after the shortlist of 8 November; {LATE} were')
 if set(LATE) & set(SHORTLIST): raise SystemExit(f'pack: the read-me says {LATE} came after the shortlist and are not on it; SHORTLIST is {SHORTLIST}')
@@ -304,8 +307,11 @@ decks = andl(SHORTLIST) + (f', the shortlist, and {andl(DECKS_KEPT)}, kept from 
 # recommendation), the two asks and the two routes in, then what is still open and what each folder holds; how the
 # shortlist came about follows. Every file the route names starts a line of its own, so no wrap splits a name.
 names_in = {n for n, _, _ in proposals}
-AT_2230 = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Balanced V10', 'Crossover', 'Level Crossing']   # the read-me's
-if not set(AT_2230) <= names_in:   # 22:30 paragraph names these seven as drawn with it, and counts the rest
+# THE OTHER DESIGNS' SHEET'S PAGES, READ (8 Nov 2026): it went to two pages for Clockface and Short Working, and the read-me
+# called it one page in two places; its pages are counted from the PDF, as the summary's one page is printed and counted
+OTHER_PAGES = len(re.findall(rb'/Type\s*/Page(?!s)', open(f'{ROOT}/links-26-other-designs.pdf', 'rb').read()))
+AT_2230 = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Balanced V10', 'Clockface', 'Crossover', 'Level Crossing', 'Short Working']   # the read-me's
+if not set(AT_2230) <= names_in:   # 22:30 paragraph names these ten as drawn with it, and counts the rest
     raise SystemExit(f'pack: the read-me says {AT_2230} were drawn with the 22:30 office; the pack has {sorted(set(AT_2230) & names_in)}')
 # THE LEAGUE'S LEADER AND ITS LEAD, READ (8 Nov 2026, the pack audit). The 22:30 paragraph ended "since 7 November 2026
 # Crossover is, by 0.4 points", typed, while the shortlist sheet reads the same two facts from league.mjs. Its claim held
@@ -383,7 +389,7 @@ readme = '\n'.join([
     '',
     'WHAT IS IN THE PACK',
     item('1 Summary', f'The two-page shortlist sheet - the {WORDS[len(SHORTLIST)]} shortlisted designs against each other '
-         'and today: what they share, where they differ, and which to choose for what. A one-page sheet setting every other '
+         f'and today: what they share, where they differ, and which to choose for what. A {WORDS[OTHER_PAGES]}-page sheet setting every other '
          'design beside them: what each has, and what it pays. A one-page sheet for colleagues, '
          '"What it means if you...", on what each '
          'shortlisted link means for someone who prefers earlies or lates, swaps earlies for lates, works their share '
@@ -483,7 +489,7 @@ readme = '\n'.join([
     para('On 6 November 2026 the rules were corrected: the ticket office shuts at 22:10 on a Saturday and takes 20 minutes '
          'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. Balanced '
          'V5, Balanced V6 and Balanced V7 already finished them at 22:30, as Crossover, Level Crossing, Balanced V8, '
-         'Balanced V9 and Balanced V10, drawn since, do. On the other '
+         'Balanced V9, Balanced V10, Clockface and Short Working, drawn since, do. On the other '
          f'{WORDS[len(names_in - set(AT_2230))]} that hour comes off other Saturday lates, so the hours and the contract are '
          'as they were; every sheet and presentation was redrawn, and their fingerprints changed. Common Ground was then '
          'first in the pack\'s league, just over half a point ahead of the next. On 8 November 2026 the league was weighted '
@@ -497,14 +503,19 @@ readme = '\n'.join([
          'rest breaks, and weeks on one shift time still important. Balanced V6, Level Crossing and Middle Ground keep '
          'closing weeks apart, where Common Ground, Even Step and Short Run each put two or more side by side, and all '
          'three keep today\'s leave. The presentations drawn for the earlier shortlists are left out of the pack, since each '
-         'says its link is shortlisted; the three were given their own the same day. A one-page sheet, '
+         'says its link is shortlisted; the three were given their own the same day. A sheet, '
          'links-26-other-designs.pdf, sets every other design beside the three.'),
     '',
-    # BALANCED V10 (8 Nov 2026), drawn after that shortlist and not on it: described on its own terms, as the others are
-    *([para('Balanced V10 (8 November 2026) came after it. It has Balanced V8\'s duties and rest days, every one, laid in '
-            'new weeks so that no two closing weeks come in a row, with 18 of its 21 working weeks on one shift time; no '
-            'fatigue warning is present in any cover-week placement tested, and four full weeks off take 13 days\' leave. It '
-            'buys 30 days off for 14 days\' leave too, and is in the subfolder Balanced. It is not on the shortlist.'), '']
+    # BALANCED V10, CLOCKFACE AND SHORT WORKING (8 Nov 2026), drawn after that shortlist and none on it: what each has, in
+    # its own paragraph
+    *([para('Balanced V10, Clockface and Short Working (8 November 2026) came after it. Balanced V10 has Balanced V8\'s '
+            'duties and rest days, every one, laid in new weeks so that no two closing weeks come in a row, with 18 of its 21 '
+            'working weeks on one shift time; no fatigue warning is present in any cover-week placement tested, and four full '
+            'weeks off take 13 days\' leave. It buys 30 days off for 14 days\' leave too, and is in the subfolder Balanced. '
+            'Clockface and Short Working are Even Step and Short Run laid again the same way: each keeps every one of its '
+            'parent\'s duties and rest days, in new weeks, so that no two closing weeks come in a row. Clockface keeps Even Step\'s 18 of 21 '
+            'working weeks on one shift time; Short Working has 19, where Short Run has 18. Both sit beside them in 4 Proposal '
+            'sheets. None of the three is on the shortlist.'), '']
       if LATE else []),
     'HOW THE FIGURES ARE WORKED OUT',
     para('Every figure in the summary, the shortlist sheet, the sheet of the other designs, the "What it means if you..." '

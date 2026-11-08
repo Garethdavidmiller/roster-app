@@ -348,7 +348,8 @@ const NAMED = { 'Clean Slate': 'fitSat,fitSun,fitWk,heavy,iso,one,step', 'Closin
   'In Step': 'fitWk,heavy,iso,late22,step', 'Long Break': 'fitWk,heavy,late22,satNew', 'Next Step': 'fitWk,heavy,iso,step',
   'Second Edition': 'fitWk,heavy,iso,late22,satNew,step', 'Second Look': 'fitWk,iso,late22,satNew,step', 'Short Run': 'fitWk,iso,late22,satNew,step',
   'Common Ground': 'one,step', 'Crossover': 'one,step', 'Grand Tour': 'fitWk,heavy,step', 'Open Return': 'closerWk,step', 'Short Openers': 'fitWk,heavy,step',
-  'Balanced V5': '', 'Balanced V7': '', 'Balanced V8': 'lvFour,one', 'Balanced V9': 'block,lvFour', 'Balanced V10': 'lvFour' };
+  'Balanced V5': '', 'Balanced V7': '', 'Balanced V8': 'lvFour,one', 'Balanced V9': 'block,lvFour', 'Balanced V10': 'lvFour',
+  'Clockface': 'heavy,iso,newT', 'Short Working': 'fitWk,iso,late22,one,satNew,step' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
 const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k => loses(O[n]).includes(k)));
 // what each pays, as its row says it, against all three. The leave every design in the proposals folder pays is said once, in
@@ -357,11 +358,12 @@ pays('Clean Slate', 'newT', 'satNew'); pays('Closing Time', 'late22', 'longShift
 pays('Fair Share', 'fitSun'); pays('Home Grown', 'closerSat', 'fitSun'); pays('In Step', 'longEarly'); pays('Long Break', 'fixedRun');
 pays('Second Edition', 'fixedRun'); pays('Second Look', 'fixedRun', 'heavy'); pays('Short Run', 'longEarly'); pays('Grand Tour', 'fitSun', 'earlyOff');
 ['Open Return', 'Short Openers'].forEach(n => pays(n, 'rest', 'longShift', 'earlyOff')); pays('Balanced V5', 'fitWk', 'rest');
-['Balanced V7', 'Balanced V8', 'Balanced V9', 'Balanced V10'].forEach(n => pays(n, 'light'));
+['Balanced V7', 'Balanced V8', 'Balanced V9', 'Balanced V10'].forEach(n => pays(n, 'light')); pays('Clockface', 'earlyOff'); pays('Short Working', 'longEarly');
 claim('Common Ground and Crossover: worse than all three on no measure the sheet reads, so their rows say what they pay instead', loses(O['Common Ground']).length === 0 && loses(O['Crossover']).length === 0);
 const PACK = [...D, ...others], CT = O['Closing Time'].F, HG = O['Home Grown'].F, CS = O['Clean Slate'].F, NX = O['Next Step'].F, IF = O['In Step'].F, GT = O['Grand Tour'].F;
 const LB = O['Long Break'].F, SL = O['Second Look'].F, CX = O['Crossover'].F, CGF = O['Common Ground'].F, ESF = O['Even Step'].F, SRF = O['Short Run'].F, EKF = O['Even Keel'].F;
 const B5 = O['Balanced V5'].F, B7 = O['Balanced V7'].F, B8 = O['Balanced V8'].F, B9 = O['Balanced V9'].F, B10 = O['Balanced V10'].F;
+const CFF = O['Clockface'].F, SWF = O['Short Working'].F;
 const BF = BV.F, LF = LC.F, MF = MG.F, range = F => F.heavy - F.light;
 const opens = F => F.A.heads.open, iso = F => F.A.feel.isolatedRest, one = F => F.A.feel.oneTurn, mixedOf = F => F.A.feel.hybrid;
 const isoYear = F => Math.round(iso(F) * 52 / Object.keys(F.p).length);   // single rest days a year each
@@ -374,13 +376,16 @@ claim('the two readings of a closing week, by the most common weekday duty and b
 // THE CLOSING WEEKS OF THE THREE THAT LEFT, AND OF THE OTHERS (8 Nov 2026): Common Ground and Crossover each have four together, and
 // Middle Ground and Level Crossing are their duties and rest days laid again with none side by side; Even Step has two side by side,
 // Short Run three together, as Balanced V8 and V9 have; of the rest only Second Look and Balanced V5 have none, as the three, and
-// since 8 Nov 2026 Balanced V10, Balanced V8's duties and rest days laid again with none side by side
+// since 8 Nov 2026 Balanced V10, Clockface and Short Working, Balanced V8's, Even Step's and Short Run's duties and rest days laid
+// again with none side by side
 claim('Common Ground and Crossover: four closing weeks together; Middle Ground and Level Crossing their duties and rest days laid again, none side by side',
   closeRun(CGF) === 4 && closeRun(CX) === 4 && [[MF, CGF], [LF, CX]].every(([F, G]) => sameDuties(F, G) && sameRestDays(F, G) && !sideBySide(F, closing) && sideBySide(G, closing)));
 claim('Even Step: two closing weeks side by side; Short Run, Balanced V8 and Balanced V9 three together', closeRun(ESF) === 2 && [SRF, B8, B9].every(F => closeRun(F) === 3));
-claim('of the other designs, all but Second Look, Balanced V5 and Balanced V10 put closing weeks side by side', others.filter(d => !sideBySide(d.F, closing)).map(d => d.name).sort().join() === 'Balanced V10,Balanced V5,Second Look');
+claim('of the other designs, all but Second Look, Balanced V5, Balanced V10, Clockface and Short Working put closing weeks side by side', others.filter(d => !sideBySide(d.F, closing)).map(d => d.name).sort().join() === 'Balanced V10,Balanced V5,Clockface,Second Look,Short Working');
 claim('Balanced V10: Balanced V8’s duties and rest days, its weeks laid again with no two closing weeks side by side', sameDuties(B10, B8) && sameRestDays(B10, B8)
   && !sideBySide(B10, closing) && !sideBySide3(B10) && closeRun(B10) === 1 && sideBySide(B8, closing));
+claim('Clockface and Short Working: Even Step’s and Short Run’s duties and rest days, their weeks laid again with no two closing weeks side by side',
+  [[CFF, ESF], [SWF, SRF]].every(([F, G]) => sameDuties(F, G) && sameRestDays(F, G) && !sideBySide(F, closing) && !sideBySide3(F) && closeRun(F) === 1 && sideBySide(G, closing)));
 claim('Clean Slate, Common Ground, Crossover and Balanced V8: 19 of 21 weeks on one shift time, one more than any of the three', ['Clean Slate', 'Common Ground', 'Crossover', 'Balanced V8'].every(n => one(O[n].F) === 19)
   && D.every(d => one(d.F) < 19) && wl === 21);
 claim('Even Step: every early Monday to Saturday one of today’s times, which none of the three has', earliesToday(ESF) && D.every(d => !earliesToday(d.F)));
@@ -410,7 +415,7 @@ claim('Balanced V5 to V10, Common Ground, Crossover, Grand Tour, Level Crossing,
   && stats.filter(s => in30(s.dir)).length === THIRTY.length && D.every(d => THIRTY.includes(d)));
 // THE PROPOSALS FOLDER'S LEAVE, SAID ONCE IN ITS HEADING (8 Nov 2026): none of its twelve keeps today's 30 days off for 14 days' leave
 const PROP = PACK.filter(d => stats.find(s => s.name === d.name).dir === 'proposals'), propLo = Math.min(...PROP.map(d => d.F.lv.best)), propHi = Math.max(...PROP.map(d => d.F.lv.best));
-claim('every design in the proposals folder: 14 days’ leave buys fewer days off at best than today, from 27 to 29', PROP.length === 12 && propHi < TF.lv.best && propLo === 27 && propHi === 29);
+claim('every design in the proposals folder: 14 days’ leave buys fewer days off at best than today, from 27 to 29', PROP.length === 14 && propHi < TF.lv.best && propLo === 27 && propHi === 29);
 // Clean Slate's row says "the best weekend fit of all" (3 Nov 2026)
 claim('Clean Slate: the best Saturday and Sunday fit of all', PACK.every(d => d.name === 'Clean Slate' || (d.F.fit[1] > CS.fit[1] && d.F.fit[2] > CS.fit[2])));
 // NEXT STEP HAS EVEN STEP'S FIGURES WITH A TRADE: a closer weekday fit than Even Step's and a gentler change of start, for one
@@ -784,8 +789,8 @@ const ALTS = [
   { n: ['Clean Slate'], has: `the best weekend fit of all, and ${one(CS)} of ${wl} weeks on one shift time`, pays: `${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday` },
   { n: ['Next Step'], has: `a closer weekday fit and a gentler change of start than Even Step’s, and more starts at 06:20, ${nsOpen} a year each, not ${esOpen}`, pays: `${ns2245} finishes at 22:45 a year each rather than 22:30, and one more new time` },
   { n: ['Fair Share'], has: 'Next Step with an even Sunday, no long shifts', pays: `a weaker Sunday fit, ${word(FSx.newT - NX.newT)} more new times` },
-  { n: ['Even Step'], has: 'every early Monday to Saturday one of today’s times, and steadier weekly hours', pays: `fewer early finishes, and ${word(closeRun(ESF))} closing weeks side by side` },
-  { n: ['Short Run'], has: 'shorter weekday lates and a closer weekday fit', pays: `nine-hour earlies, ${longEarlyMS(SRF)} a year each Monday to Saturday; ${word(closeRun(SRF))} closing weeks together` },
+  { n: ['Even Step'], has: 'every early Monday to Saturday one of today’s times, and steadier weekly hours', pays: `fewer early finishes, and ${word(closeRun(ESF))} closing weeks side by side; Clockface is its weeks laid again to keep them apart` },
+  { n: ['Short Run'], has: 'shorter weekday lates and a closer weekday fit', pays: `nine-hour earlies, ${longEarlyMS(SRF)} a year each Monday to Saturday; ${word(closeRun(SRF))} closing weeks together; Short Working is its weeks laid again to keep them apart` },
   { n: ['Long Break'], has: 'a closer weekday fit, and fewer finishes at 22:00 or later', pays: `${word(LB.fixedRun)} days in a row, cover weeks aside` },
   { n: ['Common Ground'], has: `${one(CGF)} of ${wl} weeks on one shift time and steadier start times`, pays: `${word(closeRun(CGF))} closing weeks together; Middle Ground is its weeks laid again to keep them apart` },
   { n: ['Crossover'], has: `${one(CX)} of ${wl} weeks on one shift time and steadier start times`, pays: `${word(closeRun(CX))} closing weeks together; Level Crossing is its weeks laid again to keep them apart` },
@@ -796,11 +801,17 @@ const ALTS = [
   { n: ['Balanced V8'], has: `four weeks off for ${B8.lv.fourWeeks} days’ leave, ${one(B8)} of ${wl} weeks on one shift time, ${n55}`, pays: `a lighter lightest week, and ${word(closeRun(B8))} closing weeks together` },
   { n: ['Balanced V9'], has: `Balanced V8’s leave and ${n55}, and the pack’s shortest runs of earlies or lates`, pays: `a lighter lightest week, ${hm(B9.light)}, and ${word(closeRun(B9))} closing weeks together` },
   { n: ['Balanced V10'], has: `Balanced V8’s leave and ${n55}, with no two closing weeks side by side`, pays: `a lighter lightest week, ${hm(B10.light)}` },
+  { n: ['Clockface'], has: 'Even Step’s early times, every one of today’s, and its steadier weekly hours, with no two closing weeks side by side', pays: 'fewer early finishes' },
+  { n: ['Short Working'], has: `Short Run’s shorter weekday lates and closer weekday fit, and ${one(SWF)} of ${wl} weeks on one shift time, with no two closing weeks side by side`, pays: `nine-hour earlies, ${longEarlyMS(SWF)} a year each Monday to Saturday` },
 ];
 // THE ROWS' OWN FIGURES (8 Nov 2026): Balanced V5's weaker weekday fit and shorter rest are its pays above; the lightest weeks the Balanced rows print are read and are lighter than every one of the three's
 claim('Balanced V7 to V10: a lighter lightest week than the three', [B7, B8, B9, B10].every(F => D.every(d => d.F.light > F.light)));
 // BALANCED V10'S ROW (8 Nov 2026): Balanced V8's leave, and the figures its "has" leans on, are V8's
 claim('Balanced V10: Balanced V8’s leave, four weeks off for 13 days’, and the same lightest week', ['best', 'worst', 'fourWeeks'].every(k => B10.lv[k] === B8.lv[k]) && B10.lv.fourWeeks === 13 && B10.light === B8.light);
+// CLOCKFACE'S AND SHORT WORKING'S ROWS (8 Nov 2026): what each says it shares with its parent is the parent's, and Short Working's
+// weeks on one shift time are more than any of the three have
+claim('Clockface: Even Step’s new times and heaviest week; Short Working: Short Run’s fit and late finishes, and more weeks on one shift time than any of the three',
+  CFF.newT === ESF.newT && CFF.heavy === ESF.heavy && fitP(SWF.fit[0]) === fitP(SRF.fit[0]) && SWF.late22 === SRF.late22 && one(SWF) === 19 && one(SRF) === 18 && D.every(d => one(d.F) < one(SWF)));
 { const names = ALTS.flatMap(r => r.n);
   claim('the other designs’ sheet names every other design once', names.length === others.length && [...names].sort().join() === others.map(d => d.name).sort().join()); }
 const dirOf = n => stats.find(s => s.name === n).dir;
@@ -818,19 +829,32 @@ const OTHER_GROUPS = [['proposals', 'Proposal sheets', `the folder 4 Proposal sh
   ['30-days-off/balanced', 'The Balanced designs, 30 days off for 14 days’ leave too', 'the folder 4 Proposal sheets/30 days off/Balanced']];
 const rowsOf = dir => ALTS.filter(r => dirOf(r.n[0]) === dir).sort((a, b) => a.n[0].localeCompare(b.n[0], 'en-GB', { numeric: true })).map(r =>
   `<tr><td>${r.n.map(x => `<b>${esc(x)}</b><span class="code">${O[x].code} · ${O[x].fp}</span>`).join('')}</td><td>${cap(r.has)}</td><td>${cap(r.pays)}</td></tr>`).join('\n    ');
+// TWO PAGES, SPLIT AT THE FOLDERS (8 Nov 2026, Clockface and Short Working): twenty-three rows ran 94px past the footer of one
+// page, where twenty-one had left 17px. The proposals folder's designs take page 1 under the band and the lead, and the 30-day
+// folder's, the Balanced designs among them, page 2, so a row is never parted from its folder's heading. The footnote on "no
+// 55-hour week" goes on each page with a row that says it
+const OTHER_PAGES = [['proposals'], ['30-days-off', '30-days-off/balanced']];
+claim('the other designs’ two pages hold every folder once, in the order the pack lists them', OTHER_PAGES.flat().join() === OTHER_GROUPS.map(g => g[0]).join());
+const FNOTE = '<p class="fnote"><sup>*</sup> In every cover-week placement tested: a cover week’s four duties worked together, wherever they fall from Monday to Saturday, as 8-hour duties and again as 8h&nbsp;45m ones, with its Sunday worked as overtime.</p>';
+const groupsHtml = dirs => OTHER_GROUPS.filter(g => dirs.includes(g[0])).map(([dir, title, note]) => `<h2>${title}<span class="note">${note}</span></h2>
+  <table class="t others"><thead><tr><th>Design</th><th>What it has</th><th>What it pays</th></tr></thead><tbody>
+    ${rowsOf(dir)}
+  </tbody></table>`).join('\n  ') + (ALTS.some(r => dirs.includes(dirOf(r.n[0])) && r.has.includes(n55)) ? `\n  ${FNOTE}` : '');
 const othersHtml = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The other designs — the new CEA link</title>
 ${STYLE}</head><body>
 <section class="page">
   <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · Beside the shortlist</div><h1>The other ${word(others.length)} designs</h1>
   <div class="sub">What each has, and what it pays, beside ${esc(list(D.map(d => d.name)))}</div>
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
-  <p class="lead">Beside the ${N}, each design here has something and pays for it, meets every December staffing rule and has its own sheet. All but Second Look, Balanced V5 and Balanced V10 put closing weeks side by side, which the ${N} keep apart, cover weeks aside.</p>
-  ${OTHER_GROUPS.map(([dir, title, note]) => `<h2>${title}<span class="note">${note}</span></h2>
-  <table class="t others"><thead><tr><th>Design</th><th>What it has</th><th>What it pays</th></tr></thead><tbody>
-    ${rowsOf(dir)}
-  </tbody></table>`).join('\n  ')}
-  <p class="fnote"><sup>*</sup> In every cover-week placement tested: a cover week’s four duties worked together, wherever they fall from Monday to Saturday, as 8-hour duties and again as 8h&nbsp;45m ones, with its Sunday worked as overtime.</p>
-  <div class="foot"><span>Page 1 of 1 — Beside the shortlist: what each other design has, and what it pays</span><span><b>The other designs</b> · Marylebone Roster — Links designer</span></div>
+  <p class="lead">Beside the ${N}, each design here has something and pays for it, meets every December staffing rule and has its own sheet. All but Balanced V5, Balanced V10, Clockface, Second Look and Short Working put closing weeks side by side, which the ${N} keep apart, cover weeks aside.</p>
+  ${groupsHtml(OTHER_PAGES[0])}
+  <div class="foot"><span>Page 1 of 2 — Beside the shortlist: the designs in the proposals folder</span><span><b>The other designs</b> · Marylebone Roster — Links designer</span></div>
+</section>
+<section class="page">
+  <div class="mast"><div><div class="eyebrow">The other designs · continued</div><h1>Where 14 days’ leave buys 30 days off, as today</h1>
+  <div class="sub">What each has, and what it pays, beside ${esc(list(D.map(d => d.name)))}</div></div></div>
+  ${groupsHtml(OTHER_PAGES[1])}
+  <div class="foot"><span>Page 2 of 2 — Beside the shortlist: the designs where 14 days’ leave buys 30 days off</span><span><b>The other designs</b> · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;
 // THE PAGE IS A FIXED HEIGHT, so content that does not fit is HIDDEN, not pushed onto another page — a row added on

@@ -165,7 +165,30 @@ export const SUPPLIED = [
     // cells moved) so that no two closing weeks sit side by side, at 18 weeks of 21 on one shift time (README.md → "Balanced
     // V10"). It buys 30 days off for 14 days' leave, as Balanced V8 does, so it ships into 30-days-off/balanced/
     { file: 'results/balanced-v10.json',       name: 'Balanced V10',         code: 'MB-26-V10', fp: 'e745f804', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never two closing weeks in a row, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
+    // 8 Nov 2026 (owner, naming the two re-lays of "The shortlist redrawn for closing weeks apart": "Clockface, Short Working"):
+    // Even Step's and Short Run's duties and rest days, every one, and their early and late weeks, with only which week works
+    // which shift time chosen again by exact-rota.py (CLOSE_APART=2, then NEAR= for the fewest cells moved) so that no two
+    // closing weeks sit side by side. Clockface keeps Even Step's 18 weeks of 21 on one shift time; Short Working has 19, one
+    // more than Short Run. Neither buys 30 days off for 14 days' leave, so both ship into proposals/, beside their parents
+    // (README.md → "Clockface and Short Working"). Short Working's code is SWK, not SW: SW-26-F1 was Second Wind's (RETIRED_CODES)
+    { file: 'results/clockface.json',          name: 'Clockface',            code: 'CF-26-T5',  fp: '62abf5eb', strap: 'No shift over 8h 30m and every early one of today’s times, Monday to Saturday, a 13:45 finish every weekday, and never two closing weeks in a row' },
+    { file: 'results/short-working.json',      name: 'Short Working',        code: 'SWK-26-F1', fp: 'be95ed62', strap: 'No run over five days outside the cover weeks, weekends never more than five weeks apart, 19 of 21 weeks on one shift time, and never two closing weeks in a row' },
 ];
+
+// A CODE NAMES ONE DESIGN, FOR GOOD (8 Nov 2026). A code is what goes on a printout and what people say across a table, so
+// one that named a design which has left the pack must never name another: a sheet still in somebody's bag would then share
+// its code with a different rota. Short Working nearly took SW-26-F1, Second Wind's until it was deleted. These are the
+// codes of every design withdrawn, deleted or renamed (README.md → "Four designs withdrawn", "Nine designs deleted", "Both
+// Ways and Fine Tune deleted", and the renames to Open Return, Balanced V6 and Crossover), and of the outside reviewer's
+// candidates (tooling/external/). Every run refuses an entry that takes one under another name, and two entries that share
+// a code. A design brought back under its own name may have its own code back
+export const RETIRED_CODES = {
+    'SN-26-F2': 'Second Nature', 'SW-26-F1': 'Second Wind', 'SS-26-F1': 'Second Sight', 'SG-26-H1': 'Second Gear',
+    'QF-26-C1': 'Quiet Friday', 'SA-26-S1': 'Same Again', 'WK-26-S2': 'Well Kept', 'LO-26-EXT': 'Little and Often',
+    'QP-26-EXT': 'Quarter Past', 'QR-26-EXT': 'Quarter Past Relaid', 'RP-26-V5': 'Relief Point', 'SF-26-T9': 'Set Fair',
+    'SH-26-T10': 'Safe Hands', 'BW-26-T3': 'Both Ways', 'FT-26-H1': 'Fine Tune',
+    'SGR-26-C1': 'Second Gear Refined C1', 'SGR-26-C2': 'Second Gear Refined C2', 'FDF-26-C1': 'Five-Day Flow',
+};
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
 // The By the Book family (BB-24-D7 · 0f14abce, EF-24-E21 · 0cf19f56, B2-24-G21 · 02f3c005) was WITHDRAWN on 29 Sep 2026
@@ -219,6 +242,8 @@ for (const s of SUPPLIED) {
     const j = JSON.parse(readFileSync(s.file, 'utf8'));
     const got = fingerprint(j.patterns ?? j);
     if (got !== s.fp) { console.log(`FAIL ${s.code}: ${s.file} fingerprints ${got}, expected ${s.fp}`); failed++; continue; }
+    if (RETIRED_CODES[s.code] && RETIRED_CODES[s.code] !== s.name) { console.log(`FAIL ${s.code}: it was ${RETIRED_CODES[s.code]}'s, and a code names one design for good (RETIRED_CODES); give ${s.name} a code of its own`); failed++; continue; }
+    if (SUPPLIED.filter(x => x.code === s.code).length > 1) { console.log(`FAIL ${s.code}: two entries share it`); failed++; continue; }
     // ONE STRAP (31 Oct 2026 review): the sheet prints fresh.mjs's STRAPS, so a strap here is only ever passed along. Six of them
     // had drifted from the printed ones ("no week over 41h 30m" against "no Mon–Sat week"); a reader of this list was misled
     if (STRAPS[s.code]?.[0] !== s.strap) { console.log(`FAIL ${s.code}: its strap here is not fresh.mjs's, which the sheet prints`); failed++; continue; }

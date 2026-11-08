@@ -118,11 +118,18 @@ body.dense td{line-height:1.1}
 /* TWENTY-FIVE ROWS (8 Nov 2026, Balanced V10): under 5px onto a second sheet at the floor, measured with a taller page. The
    page's top and bottom margins come down from 6mm to 5mm (the @page rule above), which gives back 7.6px; the type, the
    spacing and the floor are as they were */
+/* TWENTY-SEVEN ROWS (8 Nov 2026, Clockface and Short Working): 40px onto a second sheet at the floor, measured with a taller
+   page. Every row is two lines, a figure over a note in smaller type ("up to 3§", "blocks 5 (up to 7)", "30 days off for 14
+   days' leave"), and dense now sets the notes at a line height of 1, which gives back 24px; the band's sentence on a design
+   that breaks a hard limit is printed only when one does, which gives back its last line; and "Week-to-week" is kept whole,
+   so no heading runs to a fourth line. Measured, the page then fits the sheet at the floor with 4px to spare. The type, the
+   padding and the floor are as they were */
+body.dense td .wv, body.dense td.n em.tl, body.dense td.n em.hl{line-height:1}
 </style></head><body>
 <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
-<div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${countWord(SHORTLIST.length)} shortlisted ones marked ★, and the ${countWord(rows.filter(r => r.thirty).length)} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last.<span class="how"> Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them.</span> Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
+<div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${countWord(SHORTLIST.length)} shortlisted ones marked ★, and the ${countWord(rows.filter(r => r.thirty).length)} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name${rows.some(r => r.hard) ? '; a proposal that breaks a hard limit cannot be run as it stands and comes last' : ''}.<span class="how"> Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them.</span> Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
 <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
-<table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest rest between shifts§</th><th>Shift times</th><th>Days a year*</th><th>Heaviest week, <span style="white-space:nowrap">Mon–Sat</span></th><th>Weeks on one shift time, all earlies or all lates</th><th class="mix">Weeks mixing earlies and lates</th><th>Week-to-week change of start</th><th>Finishes 23:00+ a year†</th></tr></thead><tbody>
+<table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest rest between shifts§</th><th>Shift times</th><th>Days a year*</th><th>Heaviest week, <span style="white-space:nowrap">Mon–Sat</span></th><th>Weeks on one shift time, all earlies or all lates</th><th class="mix">Weeks mixing earlies and lates</th><th><span style="white-space:nowrap">Week-to-week</span> change of start</th><th>Finishes 23:00+ a year†</th></tr></thead><tbody>
 ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}
 </tbody></table>
