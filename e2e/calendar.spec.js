@@ -4147,3 +4147,22 @@ test('a phone on its side keeps the Calendar\'s compact header, wider than 768px
     expect(header, 'the landscape block\'s header: 8px of padding round the burger, a 26px logo, 16px type')
         .toEqual({ height: 46, logo: 26, size: '16px' });
 });
+
+test('the Calendar\'s header logo opens no image menu when held', async ({ page }) => {
+    // The sub-pages' logo was cured of this in the iPhone audit (e2e/trains.spec.js, the same check)
+    // and the Calendar's, a separate element with its own rule, was not: IPHONE_RELEASE_CHECKLIST asks
+    // for no image menu on a held header logo. `user-select` is read off the element; the iOS-only
+    // `-webkit-touch-callout` from the stylesheet the page loaded, which neither test engine parses.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/index.html');
+    const logo = page.locator('.title-icon').first();
+    await expect(logo).toBeVisible();
+    expect(await logo.evaluate(el => getComputedStyle(el).userSelect), 'holding the logo starts a text selection')
+        .toBe('none');
+    const rule = await page.evaluate(async () => {
+        const css = await (await fetch('./index.css')).text();
+        return css.replace(/\/\*[\s\S]*?\*\//g, '').match(/\.title-icon\s*\{([^}]*)\}/)?.[1] ?? '';
+    });
+    expect(rule, 'the header-logo rule was not found in index.css, so this checks nothing').toContain('height: 32px');
+    expect(rule, 'holding the logo opens iOS\'s image menu').toMatch(/-webkit-touch-callout:\s*none/);
+});

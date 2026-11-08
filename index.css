@@ -91,6 +91,11 @@
             transition: transform var(--dur-fast) var(--ease-standard);
             /* Subtle ring — matches the sub-page header logos (shared.css .app-icon, v16.73). */
             box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.22);
+            /* Held, it opened iOS's image menu over the page — the sub-pages' logo was cured of that in
+               v25.49 (shared.css .app-icon has why) and this one was not. */
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
 
         @media (hover: hover) and (pointer: fine) {

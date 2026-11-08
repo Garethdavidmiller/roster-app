@@ -1854,7 +1854,7 @@ body.role-unsupported .disclaimer { display: none; }
     color: var(--text-light);
     cursor: pointer;
 }
-.check-more-btn:hover { color: var(--primary-blue); }
+@media (hover: hover) and (pointer: fine) { .check-more-btn:hover { color: var(--primary-blue); } }
 .check-more-btn[aria-expanded="true"] .bd-arrow { display: inline-block; transform: rotate(180deg); }
 .check-more-grid {
     display: grid;
