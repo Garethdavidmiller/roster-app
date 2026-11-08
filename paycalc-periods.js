@@ -228,10 +228,11 @@ export function _setSelectPeriod(/** @type {any} */ sel, /** @type {any} */ pNum
  * naming a payslip: staff remember paydates, not period numbers (owner, Jul 2026), and the printed
  * P-number stays as the cross-check against the payslip.
  * @param {any} sel @param {any[]} periods
- * @param {{ currentPNum?: number, groupLabel?: (tyLabel: string) => string }} [o]
- *   `currentPNum` marks the payslip being earned with "● "; `groupLabel` words each tax year's heading
+ * @param {{ currentPNum?: number }} [o]
+ *   `currentPNum` marks the payslip being earned with "● ". Every list heads a tax year the same way,
+ *   "Tax year 2026/27" — the student-loan stop's bare "2026/27" was the last exception (owner, 8 Nov 2026).
  */
-export function appendPayslipOptions(sel, periods, { currentPNum, groupLabel = (l) => `Tax year ${l}` } = {}) {
+export function appendPayslipOptions(sel, periods, { currentPNum } = {}) {
   /** @type {any} */ let group = null;
   /** @type {string|null} */ let label = null;
   for (const p of periods) {
@@ -239,7 +240,7 @@ export function appendPayslipOptions(sel, periods, { currentPNum, groupLabel = (
     if (ty.label !== label) {
       label = ty.label;
       group = document.createElement('optgroup');
-      group.label = groupLabel(label);
+      group.label = `Tax year ${label}`;
       sel.appendChild(group);
     }
     const o = document.createElement('option');

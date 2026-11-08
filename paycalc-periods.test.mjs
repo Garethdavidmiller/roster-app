@@ -464,10 +464,12 @@ describe('appendPayslipOptions', () => {
         ]);
     });
 
-    test('the payslip being earned is marked, and a list may word its own headings', () => {
+    test('the payslip being earned is marked, and every list heads its years "Tax year …"', () => {
+        // One wording for all five lists (owner, 8 Nov 2026): the student-loan stop's bare "2026/27"
+        // was the last list worded its own way, and there is no longer an option to do so.
         const sel = el('select');
-        appendPayslipOptions(sel, [P(57), P(58)], { currentPNum: 58, groupLabel: l => l });
-        assert.deepEqual(shape(sel), [['optgroup', '2026/27', [['57', 'Paid 23 Oct 2026 · P32'], ['58', '● Paid 20 Nov 2026 · P36']]]]);
+        appendPayslipOptions(sel, [P(57), P(58)], { currentPNum: 58 });
+        assert.deepEqual(shape(sel), [['optgroup', 'Tax year 2026/27', [['57', 'Paid 23 Oct 2026 · P32'], ['58', '● Paid 20 Nov 2026 · P36']]]]);
     });
 
     test('it APPENDS: an option the select already holds stays first', () => {

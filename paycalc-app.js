@@ -1097,10 +1097,10 @@ export function init() {
     })();
 
     // The student-loan stop's payslips, after its static "No — still deducted". Built BEFORE
-    // loadSettings so the saved choice restores. Its headings are the bare year ("2026/27"), where
-    // every other payslip list says "Tax year 2026/27".
+    // loadSettings so the saved choice restores. Headed "Tax year 2026/27" like every other payslip
+    // list — it read a bare "2026/27" until the owner asked for one wording (8 Nov 2026).
     const _slPaidOffSel = document.getElementById('slPaidOffFrom');
-    if (_slPaidOffSel) appendPayslipOptions(_slPaidOffSel, visiblePeriods(), { groupLabel: (l) => l });
+    if (_slPaidOffSel) appendPayslipOptions(_slPaidOffSel, visiblePeriods());
 
     loadSettings();
     // _defaultPeriodNum must be assigned BEFORE onPeriodChange() runs — the period
