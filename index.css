@@ -1386,6 +1386,10 @@
             text-align: center;
             padding: 3px 0 6px;
         }
+        /* `hidden` while the week fits its box (calendar-team-view.js → watchHintFit). Not optional:
+           both engines draw `hidden` as a presentational hint, which `.touch-only`'s `display: revert`
+           rolls back past, so without this the line shows anyway (measured — page-visibility's trap). */
+        .tv-scroll-hint[hidden] { display: none; }
         .tv-empty {
             text-align: center;
             padding: 24px 10px;

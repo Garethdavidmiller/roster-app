@@ -3443,6 +3443,82 @@ test('calendar: scrolling down the Team View names keeps the swipe hint; scrolli
     expect(await state(), 'a scroll across the week did not retire the hint').toMatchObject({ seen: '1', hidden: true });
 });
 
+// …and the hint is for a table that SCROLLS (desktop audit follow-up, Nov 2026). `touch-only` showed
+// it on any coarse pointer, so a tablet, a phone on its side or a touch laptop — seven days that fit —
+// was told to swipe a table that does not move. It shows only while the box overflows: measured as the
+// week is drawn, so the line arrives hidden rather than showing for a frame, and again whenever the box
+// changes size, which the steps below do in place, with no redraw between. And a change of size is not
+// the member's swipe: widening clamps the box's scroll back to the start, which retired the hint for
+// good on a tablet that had only been turned round. Each scroll step waits for its event, as above.
+test('Team View: the swipe hint shows only while the week is wider than its box', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the hint is touch-only UI');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-11-12T09:00:00Z'));      // a Thursday: the open scrolls to today
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const wrap = page.locator('.team-table-wrap');
+    const hint = page.locator('.tv-scroll-hint');
+    const overflows = () => wrap.evaluate(w => w.scrollWidth > w.clientWidth + 1);
+    const retired = () => page.evaluate(() => localStorage.getItem('myb_team_scroll_seen'));
+    /** Arm a wait for the next scroll the week's box reports, answered a task later so the app's own
+     *  listener has run by then; false if none comes. */
+    const armScrollWait = () => page.evaluate(() => {
+        /** @type {any} */ (window).__boxScrolled = new Promise((resolve) => {
+            /** @param {Event} e */
+            const on = (e) => {
+                if (!(e.target instanceof Element) || !e.target.classList.contains('team-table-wrap')) return;
+                document.removeEventListener('scroll', on, true);
+                setTimeout(() => resolve(true), 0);
+            };
+            document.addEventListener('scroll', on, true);
+            setTimeout(() => { document.removeEventListener('scroll', on, true); resolve(false); }, 5000);
+        });
+    });
+    const scrollHeard = () => page.evaluate(() => /** @type {any} */ (window).__boxScrolled);
+
+    await armScrollWait();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-table tbody tr').first()).toBeAttached();
+    expect(await scrollHeard(), 'premise: the open brought Thursday into view, and the box reported it').toBe(true);
+    expect(await overflows(), 'premise: on a phone the seven days are wider than the screen').toBe(true);
+    await expect(hint, 'a phone is told how to see the rest of the week').toBeVisible();
+
+    await armScrollWait();
+    await page.setViewportSize({ width: 1366, height: 1024 });                  // the same box, widened
+    expect(await scrollHeard(), 'premise: widened, the box clamped its scroll back to the start and said so').toBe(true);
+    expect(await overflows(), 'premise: widened, the week fits its box').toBe(false);
+    await expect(hint, 'widened in place, the box stopped scrolling, and the hint went with it').toBeHidden();
+    expect(await retired(), 'the box clamping its scroll on a resize was taken for the member\'s swipe').toBeNull();
+
+    // A wide touch screen from the first draw: back to the month, then into the week again, recording
+    // each hint the week draws as it arrives — after the render, before any frame could paint it.
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => {
+        const arrivals = /** @type {boolean[]} */ ((/** @type {any} */ (window)).__hintArrivals = []);
+        new MutationObserver((records) => {
+            for (const r of records) for (const n of r.addedNodes) {
+                if (!(n instanceof Element)) continue;
+                const h = n.matches('.tv-scroll-hint') ? n : n.querySelector('.tv-scroll-hint');
+                if (h) arrivals.push(/** @type {HTMLElement} */ (h).hidden);
+            }
+        }).observe(document.body, { childList: true, subtree: true });
+    });
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-table tbody tr').first()).toBeAttached();
+    expect(await overflows(), 'premise: drawn at 1366px, the week fits').toBe(false);
+    await expect(hint, 'a table that does not scroll is not offered a swipe').toBeHidden();
+    const arrivals = await page.evaluate(() => /** @type {any} */ (window).__hintArrivals);
+    expect(arrivals.length, 'premise: the week drew its hint').toBeGreaterThan(0);
+    expect(arrivals, 'the hint arrived showing, to be taken away a frame later').not.toContain(false);
+
+    await page.setViewportSize({ width: 390, height: 844 });                    // and narrowed in place
+    await expect.poll(overflows, { message: 'premise: narrowed, the week overflows again' }).toBe(true);
+    await expect(hint, 'narrowed in place, the table scrolls again and the hint is back').toBeVisible();
+    expect(await retired(), 'nothing on the way was the member\'s swipe').toBeNull();
+});
+
 // ── THE iPHONE KEYBOARD, FOCUS AND TOUCH (iPhone audit, 7 Nov 2026) ─────────────────────────────────
 //
 // The ‹ › arrows above the iPhone keyboard move focus to the previous or next text field in the
