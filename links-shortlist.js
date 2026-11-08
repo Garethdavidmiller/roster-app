@@ -11,7 +11,7 @@
  * exactly what they are — built in (`links-proposals.js`), read-only, at the top of the picker, the
  * owner's decision of 3 Oct 2026 — and what goes is everything that was saved before them. The
  * options left in the picker are the shortlist. The dialog names them from that list, so it says
- * the right three whichever they are (Common Ground, Even Step and Short Run since 5 Nov 2026, A to Z).
+ * the right three whichever they are (Balanced V6, Level Crossing and Middle Ground since 8 Nov 2026, A to Z).
  *
  * ── WHY ONE DELIBERATE PRESS, AND NOT A MOVE ON PAGE OPEN ──────────────────────────────────────
  *

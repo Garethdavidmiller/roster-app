@@ -25,25 +25,24 @@ function deepFreeze(o) {
 }
 
 /** The figure columns, in order: today's link, then the three proposals A to Z. */
-export const COLUMNS = deepFreeze(["Today", "Common Ground", "Even Step", "Short Run"]);
+export const COLUMNS = deepFreeze(["Today", "Balanced V6", "Level Crossing", "Middle Ground"]);
 
 /** What has changed since colleagues were first shown Short Run — drafts, for the owner to correct. */
 export const CHANGES = deepFreeze([
-    "Two more proposals sit beside Short\u00a0Run now: Common\u00a0Ground and Even\u00a0Step. Both were drawn up after Short\u00a0Run was first shown.",
-    "Both keep a shift finishing at 13:45 on every weekday of the rota. Short\u00a0Run has no shift finishing at 13:35 or 13:45.",
-    "Common\u00a0Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even\u00a0Step and Short\u00a0Run four weeks off take 15. The price on Common\u00a0Ground is more single rest days: about 12\u00a0a\u00a0year, where the other two have about 8.",
-    "Common\u00a0Ground has nothing over 8h\u00a030m on any day, and Even\u00a0Step nothing over 8h\u00a030m from Monday to Saturday. Short\u00a0Run has 9-hour weekday earlies and an 8h\u00a040m Saturday closer: about 20 of the earlies and 6 of the closers a year each.",
-    "On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10. To keep the hours the same, one Saturday late on Short\u00a0Run is now 13:30–21:00, a time worked on Saturdays today. Those are the only changes to Short\u00a0Run’s shifts since it was shown.",
-    "Short\u00a0Run still has the shortest lates of the three: 8h\u00a006m on average, closers included.",
-    "And when a cover week falls badly, the most days in a row is now 7, not 6 — the same as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top."
+    "The shortlist is new: Balanced\u00a0V6, Level\u00a0Crossing and Middle\u00a0Ground. Short\u00a0Run is no longer on it.",
+    "All three keep closing weeks apart: a week of closing shifts is never followed by another, cover weeks aside. On Short\u00a0Run three closing weeks fall together.",
+    "All three keep today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Short\u00a0Run four weeks off take 15, and 14 days buy 28 at best.",
+    "Level\u00a0Crossing and Middle\u00a0Ground keep 18\u00a0of\u00a021 weeks on one shift time, as Short\u00a0Run does. Balanced\u00a0V6 has 7, with more weeks mixing start times, and its runs of earlies or of lates are three weeks at most.",
+    "All three keep a shift finishing at 13:45 on every weekday of the rota. Short\u00a0Run has none.",
+    "On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10."
 ]);
 
 /** What all three proposals give everyone, against today. */
 export const GAINS = deepFreeze([
     "The same 35-hour week, so the same basic pay.",
-    "14 full weekends off a year (today\u00a010).",
+    "12\u00a0to\u00a014 full weekends off a year (today\u00a010).",
     "At most 5 days in a row, cover weeks aside (today\u00a07).",
-    "Every closing shift 30 minutes to an hour shorter.",
+    "Every closing shift 15 minutes to an hour shorter.",
     "At least 14h\u00a020m between shifts (today\u00a012h\u00a030m).",
     "No avoidable fatigue warnings on the set shifts (today\u00a04)."
 ]);
@@ -51,10 +50,10 @@ export const GAINS = deepFreeze([
 /** What all three proposals cost everyone, against today. */
 export const COSTS = deepFreeze([
     "42 finishes a year at 23:00 or later (today\u00a039).",
-    "At most 5 weeks of earlies, or of lates, in a row, or 7 if a cover week falls badly (today\u00a02, or 3).",
+    "At most 3\u00a0to\u00a05 weeks of earlies, or of lates, in a row, or 5\u00a0to\u00a07 if a cover week falls badly (today\u00a02, or 3).",
     "Two more Saturdays a year (28, today\u00a026).",
-    "Fewer earlies that finish before 14:00: 0\u00a0to\u00a012\u00a0a\u00a0year (today\u00a026).",
-    "Five or six new shift times to learn."
+    "Fewer earlies that finish before 14:00: 12\u00a0to\u00a020\u00a0a\u00a0year (today\u00a026).",
+    "Six or eight new shift times to learn."
 ]);
 
 /** @type {ReadonlyArray<Persona>} What each proposal means for six ways of working the roster — the sheet's bands. */
@@ -64,7 +63,7 @@ export const PERSONAS = deepFreeze([
         "icon": "☀️",
         "chip": "Prefer earlies",
         "who": "…prefer earlies",
-        "gist": "Fewer, longer earlies on all three, in longer runs. Common\u00a0Ground’s are the shortest on average and the most often finish at 13:45; Even\u00a0Step’s are all times worked today. Neither has one over 8h\u00a030m.",
+        "gist": "Fewer, longer earlies on all three, in longer runs; Balanced\u00a0V6’s runs are the shortest of the three.",
         "rows": [
             {
                 "label": "Earlies a year",
@@ -79,34 +78,34 @@ export const PERSONAS = deepFreeze([
                 "label": "Average early",
                 "cells": [
                     { "text": "7h\u00a059m", "best": false },
-                    { "text": "8h\u00a009m", "best": true },
-                    { "text": "8h\u00a013m", "best": false },
-                    { "text": "8h\u00a026m", "best": false }
+                    { "text": "8h\u00a006m", "best": true },
+                    { "text": "8h\u00a007m", "best": false },
+                    { "text": "8h\u00a009m", "best": false }
                 ]
             },
             {
                 "label": "Earlies over 8h\u00a030m, a year",
                 "cells": [
                     { "text": "0", "best": false },
+                    { "text": "2", "best": false },
                     { "text": "0", "best": true },
-                    { "text": "0", "best": true },
-                    { "text": "20", "best": false }
+                    { "text": "0", "best": true }
                 ]
             },
             {
                 "label": "Earlies finishing at 13:35 or 13:45, a year",
                 "cells": [
                     { "text": "26", "best": false },
-                    { "text": "12", "best": true },
-                    { "text": "10", "best": false },
-                    { "text": "0", "best": false }
+                    { "text": "20", "best": true },
+                    { "text": "20", "best": true },
+                    { "text": "12", "best": false }
                 ]
             },
             {
                 "label": "Weeks of earlies, or of lates, in a row",
                 "cells": [
                     { "text": "2, up to\u00a03", "best": false },
-                    { "text": "5, up to\u00a07", "best": false },
+                    { "text": "3, up to\u00a05", "best": false },
                     { "text": "5, up to\u00a07", "best": false },
                     { "text": "5, up to\u00a07", "best": false }
                 ]
@@ -118,7 +117,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🌙",
         "chip": "Prefer lates",
         "who": "…prefer lates",
-        "gist": "More lates on all three, in longer runs, and every closer 30 minutes to an hour shorter. Short\u00a0Run’s are the shortest on average.",
+        "gist": "More lates on all three, in longer runs, and every closer 15 minutes to an hour shorter. Middle\u00a0Ground’s are the shortest on average.",
         "rows": [
             {
                 "label": "Lates a year",
@@ -133,18 +132,18 @@ export const PERSONAS = deepFreeze([
                 "label": "Average late, closers included",
                 "cells": [
                     { "text": "8h\u00a029m", "best": false },
-                    { "text": "8h\u00a021m", "best": false },
-                    { "text": "8h\u00a018m", "best": false },
-                    { "text": "8h\u00a006m", "best": true }
+                    { "text": "8h\u00a024m", "best": false },
+                    { "text": "8h\u00a023m", "best": false },
+                    { "text": "8h\u00a021m", "best": true }
                 ]
             },
             {
                 "label": "Longest closing shift, any day",
                 "cells": [
                     { "text": "9h\u00a010m", "best": false },
-                    { "text": "8h\u00a010m", "best": true },
-                    { "text": "8h\u00a010m", "best": true },
-                    { "text": "8h\u00a040m", "best": false }
+                    { "text": "8h\u00a055m", "best": false },
+                    { "text": "8h\u00a040m", "best": false },
+                    { "text": "8h\u00a010m", "best": true }
                 ]
             },
             {
@@ -163,33 +162,33 @@ export const PERSONAS = deepFreeze([
         "icon": "🤝",
         "chip": "Swap for overtime",
         "who": "…swap earlies for lates, for the overtime",
-        "gist": "Swapping the shortest earlies brings less overtime than today on all three. Common\u00a0Ground keeps the most from its 13:45 finishes; Short\u00a0Run has none of those finishes. Other swaps may still add paid time.",
+        "gist": "Swapping the shortest earlies brings less overtime than today on all three. Balanced\u00a0V6 keeps the most from its 13:35 and 13:45 finishes, Middle\u00a0Ground the least. Other swaps may still add paid time.",
         "rows": [
             {
                 "label": "A late against an early, same day, on average",
                 "cells": [
                     { "text": "32\u00a0min longer", "best": false },
-                    { "text": "12\u00a0min longer", "best": false },
-                    { "text": "5\u00a0min longer", "best": false },
-                    { "text": "20\u00a0min shorter", "best": false }
+                    { "text": "17\u00a0min longer", "best": false },
+                    { "text": "16\u00a0min longer", "best": false },
+                    { "text": "12\u00a0min longer", "best": false }
                 ]
             },
             {
                 "label": "Each 13:35 or 13:45 early swapped for the day’s longest late, a year",
                 "cells": [
                     { "text": "+34h\u00a040m", "best": false },
-                    { "text": "+13h\u00a000m", "best": false },
-                    { "text": "+10h\u00a050m", "best": false },
-                    { "text": "none", "best": false }
+                    { "text": "+23h\u00a020m", "best": false },
+                    { "text": "+21h\u00a040m", "best": false },
+                    { "text": "+13h\u00a000m", "best": false }
                 ]
             },
             {
                 "label": "That overtime a year, gross, at time and a quarter",
                 "cells": [
                     { "text": "about £930", "best": false },
-                    { "text": "about £350", "best": false },
-                    { "text": "about £290", "best": false },
-                    { "text": "none", "best": false }
+                    { "text": "about £630", "best": false },
+                    { "text": "about £580", "best": false },
+                    { "text": "about £350", "best": false }
                 ]
             }
         ]
@@ -199,7 +198,7 @@ export const PERSONAS = deepFreeze([
         "icon": "📆",
         "chip": "Work Sundays",
         "who": "…work your share of Sundays and no other overtime",
-        "gist": "About £250 to £350\u00a0a\u00a0year less on all three, gross: two more Saturdays at time and a quarter, but fewer, shorter Sundays.",
+        "gist": "About £200 to £350\u00a0a\u00a0year less on all three, gross: two more Saturdays at time and a quarter, but fewer, shorter Sundays.",
         "rows": [
             {
                 "label": "Sundays a year, at time and a half",
@@ -214,18 +213,18 @@ export const PERSONAS = deepFreeze([
                 "label": "Sunday hours a year",
                 "cells": [
                     { "text": "177", "best": false },
-                    { "text": "164", "best": false },
                     { "text": "167", "best": false },
-                    { "text": "167", "best": false }
+                    { "text": "167", "best": false },
+                    { "text": "164", "best": false }
                 ]
             },
             {
                 "label": "Premium and overtime pay, against today",
                 "cells": [
                     { "text": "—", "best": false },
-                    { "text": "about £350\u00a0less", "best": false },
-                    { "text": "about £250\u00a0less", "best": false },
-                    { "text": "about £250\u00a0less", "best": false }
+                    { "text": "about £200\u00a0less", "best": false },
+                    { "text": "about £200\u00a0less", "best": false },
+                    { "text": "about £350\u00a0less", "best": false }
                 ]
             }
         ]
@@ -235,23 +234,23 @@ export const PERSONAS = deepFreeze([
         "icon": "🏠",
         "chip": "No overtime",
         "who": "…work no overtime at all",
-        "gist": "A little better off on all three — about £80 to £90\u00a0a\u00a0year, gross, from two more Saturdays at time and a quarter.",
+        "gist": "A little better off on all three — about £90 to £140\u00a0a\u00a0year, gross, from two more Saturdays at time and a quarter.",
         "rows": [
             {
                 "label": "Saturday hours a year, at time and a quarter",
                 "cells": [
                     { "text": "213", "best": false },
-                    { "text": "231", "best": false },
-                    { "text": "228", "best": false },
-                    { "text": "230", "best": false }
+                    { "text": "238", "best": false },
+                    { "text": "237", "best": false },
+                    { "text": "231", "best": false }
                 ]
             },
             {
                 "label": "Premium pay, against today",
                 "cells": [
                     { "text": "—", "best": false },
-                    { "text": "about £90\u00a0more", "best": false },
-                    { "text": "about £80\u00a0more", "best": false },
+                    { "text": "about £140\u00a0more", "best": false },
+                    { "text": "about £130\u00a0more", "best": false },
                     { "text": "about £90\u00a0more", "best": false }
                 ]
             }
@@ -262,33 +261,33 @@ export const PERSONAS = deepFreeze([
         "icon": "🏖️",
         "chip": "Save leave",
         "who": "…save your leave for long breaks",
-        "gist": "Four full weeks off, Sunday to Saturday, take 15 days’ leave on Even\u00a0Step and Short\u00a0Run; Common\u00a0Ground keeps today’s 14, for more single rest days. On average 14 days’ leave goes as far as today on all three.",
+        "gist": "All three keep today’s leave: four full weeks off, Sunday to Saturday, take 14 days, and 14 days buy 30 days off at best. Each has fewer three- and four-day breaks than today; Balanced\u00a0V6 has the most of the three, for 22 single rest days a year where today has 10.",
         "rows": [
             {
                 "label": "Leave for four full weeks off, Sunday to Saturday",
                 "cells": [
                     { "text": "14 days", "best": false },
-                    { "text": "14 days", "best": true },
-                    { "text": "15 days", "best": false },
-                    { "text": "15 days", "best": false }
+                    { "text": "14 days", "best": false },
+                    { "text": "14 days", "best": false },
+                    { "text": "14 days", "best": false }
                 ]
             },
             {
                 "label": "Days off in a row from 14 days’ leave, at best",
                 "cells": [
                     { "text": "30", "best": false },
-                    { "text": "30", "best": true },
-                    { "text": "28", "best": false },
-                    { "text": "28", "best": false }
+                    { "text": "30", "best": false },
+                    { "text": "30", "best": false },
+                    { "text": "30", "best": false }
                 ]
             },
             {
                 "label": "Rest-day breaks of three or four days, a year",
                 "cells": [
                     { "text": "about 13", "best": false },
-                    { "text": "about 4", "best": true },
-                    { "text": "none", "best": false },
-                    { "text": "none", "best": false }
+                    { "text": "about 6", "best": true },
+                    { "text": "about 2", "best": false },
+                    { "text": "about 4", "best": false }
                 ]
             }
         ]
@@ -301,46 +300,28 @@ export const NOTES = deepFreeze([
     "One person, over a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.",
     "Pounds are gross, before tax, at the CEA rate of £21.49 an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.",
     "A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.",
-    "Bold green marks the clear best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within a few Saturday hours a year.",
+    "Bold green marks the clear best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year.",
     "“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail."
 ]);
 
 /** @type {ReadonlyArray<PackFile>} The pack's colleague files. */
 export const PACK = deepFreeze([
     {
-        "design": "Common Ground",
-        "label": "The presentation",
-        "path": "presentations/Common-Ground-for-colleagues.pdf",
-        "pages": 15
-    },
-    {
-        "design": "Common Ground",
+        "design": "Balanced V6",
         "label": "The proposal sheet — every week on page 3",
-        "path": "30-days-off/Common-Ground-CG-26-T8-03af96b2.pdf",
+        "path": "30-days-off/balanced/Balanced-V6-MB-26-V6-1818a1c2.pdf",
         "pages": 8
     },
     {
-        "design": "Even Step",
-        "label": "The presentation",
-        "path": "presentations/Even-Step-for-colleagues.pdf",
-        "pages": 15
-    },
-    {
-        "design": "Even Step",
+        "design": "Level Crossing",
         "label": "The proposal sheet — every week on page 3",
-        "path": "proposals/Even-Step-ES-26-T5-fb7a3988.pdf",
+        "path": "30-days-off/Level-Crossing-LC-26-T10-32241e32.pdf",
         "pages": 8
     },
     {
-        "design": "Short Run",
-        "label": "The presentation",
-        "path": "presentations/Short-Run-for-colleagues.pdf",
-        "pages": 15
-    },
-    {
-        "design": "Short Run",
+        "design": "Middle Ground",
         "label": "The proposal sheet — every week on page 3",
-        "path": "proposals/Short-Run-SR-26-F1-247f3636.pdf",
+        "path": "30-days-off/Middle-Ground-MG-26-T8-20668ac9.pdf",
         "pages": 8
     },
     {

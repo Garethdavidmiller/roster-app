@@ -11,8 +11,8 @@
  *
  * ── WHY THE PAGE EXISTS ────────────────────────────────────────────────────────────────────────
  *
- * Short Run was shown to colleagues first; the designs beside it were drawn up afterwards, and since 5 Nov 2026 the shortlist
- * is Common Ground, Even Step and Short Run (In Step, shortlisted from 30 Oct, left it). A slide deck shown once
+ * Short Run was shown to colleagues first; the designs beside it were drawn up afterwards, and since 8 Nov 2026 the shortlist
+ * is Balanced V6, Level Crossing and Middle Ground, each keeping closing weeks apart (Short Run left it then). A slide deck shown once
  * cannot answer "what does it mean for ME?" a week later, and three decks side by side cannot be compared on a phone. So
  * the page leads with what has changed since Short Run was shown, then what all three share, then lets each colleague
  * pick the way they work and read the three against today for exactly that — the pack's one-page sheet, made into a choice.

@@ -45,6 +45,12 @@ the app present the three evenly, A to Z, and the deck builders, `pack.py` and `
 recommendation back. Sections dated before then speak of the shortlist and the recommendation of their day; *The
 shortlist drawn again* and *The whole pack reviewed* say what changed.
 
+**The shortlist was drawn again on 8 Nov 2026**, for a new design target, no two closing weeks side by side: Balanced V6,
+Level Crossing and Middle Ground, A to Z, all three in `30-days-off/`. Common Ground, Even Step and Short Run left it, and
+for now the zip carries no presentations, since each deck names the shortlist of 5 Nov as the current one. Sections dated
+before then speak of the shortlist of their day; *The shortlist redrawn for closing weeks apart*, near the end, says what
+changed.
+
 **Three designs were renamed on 4 Nov 2026** (owner: "Give all proposals individual names"): Quarter Past Relaid is
 **Open Return** (`OR-26-EXT`, drawn as `QR-26-EXT`), Fair Share's 30-day search result, which had no name, is **Grand
 Tour** (`GT-26-T7`), and Same Again Tidy is **Well Kept** (`WK-26-S2`, while it was in the pack, 4 to 5 Nov). Each
@@ -100,12 +106,12 @@ removed on 7 Nov 2026):
 | `links-NN-proposals.zip` | everything for sharing, in one download — for links-26 built on demand by `tooling/pack.py` and never committed |
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
 | `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
-| `links-26-shortlist.pdf` | the three shortlisted designs (Common Ground, Even Step and Short Run, A to Z, since 5 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
+| `links-26-shortlist.pdf` | the three shortlisted designs (Balanced V6, Level Crossing and Middle Ground, A to Z, since 8 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z folder by folder, on one page (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
 | `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary; since 7 Nov 2026 the five Balanced designs are in its subfolder `30-days-off/balanced/` (owner: "Put all the Balanced proposals in their own subfolder"), *Balanced* in the zip |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
-| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: the three shortlisted designs', and In Step's, kept from when it was on the shortlist |
+| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: Common Ground's, Even Step's, In Step's and Short Run's, made for the shortlists before 8 Nov 2026 and out of the zip since then; none of the three shortlisted now has any yet |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs, and `tooling/reference-24/` the few 24-line files they still read (since 7 Nov 2026) |
 | `RULES.md` | the rules in prose, with their sources and the open questions (26 lines only) |
 | `README.md` | this record — the repository's working record, not part of the pack (left out of the zip since 5 Nov 2026, owner) |
@@ -6334,6 +6340,155 @@ that draws it. The audit found two faults, both in the read-me.
   - The read-me tells a reader holding an older printout about the 22:30 change, and it could have done the same for V9.
   - It does not need to, because that zip went to no one (owner, 8 Nov 2026: "No it didn't go to anyone").
 
+## The shortlist redrawn for closing weeks apart (8 Nov 2026)
+
+**The ask.** The owner set a new design target on 8 Nov 2026: "The design target should be no consecutive closing weeks,
+with changes between early and late duties placed around useful rest breaks. That captures what colleagues appear to want
+much better than simply minimising the average change in start time. Weeks on one time is still Important". The reply
+weighed the pack against it and offered three next steps. The owner chose: "Put Level Crossing, Middle Ground and Balanced
+V6 as the shortlist for now. Make all the necessary changes including to the app in new links and make them the three
+shortlisted read only links in links designer. Do 2 and audit 3, only suggestions for 3." Step 2 was to lay Even Step and
+Short Run again with their closing weeks apart. Step 3 was to count the closing weeks and the changes between earlies and
+lates on the sheets and in the league, and to drop or reduce the change of start. Both are at the end of this section;
+neither changed the pack.
+
+**What a closing week is.**
+- A week whose most common Monday-to-Friday duty finishes at the 23:55 close. Two are side by side when they are next to
+  each other in the rotation, lapping it.
+- A cover week is neither. Its duties are the clerk's to place, and one worked as closes beside a closing week makes two
+  in a row on any design, today's included. So the sheets say "cover weeks aside".
+- The most common duty can be a tie. Read a second way, three or more of the five weekdays at the close, there are no
+  ties, and the two readings agree on every design and on today's link. The shortlist sheet stops if they ever disagree.
+- Five designs keep their closing weeks apart: Balanced V5, Balanced V6, Level Crossing, Middle Ground and Second Look.
+  So does today's link. Middle Ground alone keeps its 06:20 weeks apart too.
+
+**The shortlist** is Balanced V6, Level Crossing and Middle Ground, A to Z (`tooling/fresh.mjs`: `SHORTLIST`, and
+`SHORTLIST_DATE` 8 Nov 2026). Common Ground, Even Step and Short Run left it. All three new ones are in `30-days-off/`,
+Balanced V6 in its subfolder `balanced/`. So all three keep today's leave: 14 days' leave buys 30 days off, and four
+complete weeks off take 14.
+
+**The sheets.**
+- **The shortlist sheet**, rewritten.
+  - Page 1 has the lines the three share, the closing weeks kept apart among them; a card for each, with what it does
+    best and what it costs against both of the others; and sixteen rows where they differ.
+  - Page 2 says why these three, what they cost against today, and how to choose between them.
+  - Every comparison is a claim the sheet checks against the grids before it renders.
+- **The other designs' sheet** gives the other 21 a row each: what each keeps that the three do not, and what it pays. Its
+  lead says which put closing weeks side by side: all but Second Look and Balanced V5.
+- **The summary sheet** marks the new three. The ★ now follows the name, which brought the page back above its 80% print
+  floor; it renders at 82%.
+- **The "What it means if you…" sheet** sets out the new three, A to Z.
+- **The proposal sheets are unchanged.** Each compares only with today's link.
+
+**Decided in the change, each the owner's to reverse:**
+- **No presentations in the zip, for now.**
+  - The eight in `presentations/` are Common Ground's, Even Step's, In Step's and Short Run's, each for colleagues and for
+    managers. They were last rebuilt for the shortlist of 5 Nov 2026, and each names it, Common Ground, Even Step and
+    Short Run, as the shortlist; In Step's say it is not on it.
+  - They stay in the repository, unchanged, and `deck-check.mjs` still holds their 216 rows to the grids.
+  - None of the three has a deck yet. `DECKS_KEPT` is empty.
+  - `pack.py` refuses a zip that holds a deck while its read-me says none ships.
+- **No new measure in the tables or the league.** The closing weeks are a line the three share on the shortlist sheet,
+  asserted both ways. Counting them in the league is step 3, audited below and not done.
+- **The Links designer's default duty table stays Short Run's** (`links-default-targets.js`). The three staff the same
+  number of duties each day at different times: 15 every weekday, 14 on a Saturday and 10 on a Sunday. So the table
+  still fits them. Which design's duties the generator starts from is the owner's question, and nothing here answers it.
+
+**The read-me** (`pack.py`) was rewritten for the three.
+- With no decks to start from, both audiences start with the sheets. Its history gains a paragraph for 8 Nov.
+- Its checks read the shortlist and its date from `fresh.mjs`. It refuses the zip if:
+  - a deck is in it, or a shortlisted design has a deck the zip leaves out;
+  - `links-proposals.js` no longer says the three were built in at v25.52;
+  - the three sheets are no longer in `30-days-off/`, with Balanced V6's in its subfolder.
+- **The zip** holds 55 files, where the audit's had 71: the sixteen deck files are out.
+
+**The app, v25.52.**
+- **The Links designer.** The built-in, read-only shortlist is Balanced V6, Level Crossing and Middle Ground, A to Z
+  (`links-proposals.js`). Each is copied cell for cell from its grid, and `links-proposals.test.mjs` compares each with
+  the grid it came from.
+- **The New link page.** `newlink-data.js` is regenerated from `tooling/newlink-data.mjs`. The page says what has changed
+  since Short Run was shown, and what all three give and cost against today. Its full pack is the three proposal sheets
+  and the rules.
+- The unit tests and the browser tests follow the new names.
+
+**Step 2: Even Step and Short Run laid again with their closing weeks apart.** This was measured only; nothing is in the
+pack.
+- Each keeps its duties and rest days, cell for cell, and which weeks are early and which late. Only which week works
+  which shift time moved.
+- The solver, a scratch copy of `exact-rota.py`, held every other figure at the design's own level or better:
+  - the leave;
+  - the single rest days;
+  - the weekends and the longest wait for one;
+  - the runs of early or late weeks;
+  - the fatigue warnings;
+  - the most hours in seven days.
+- It kept the closing weeks apart on a stricter rule than the sheets': no weekday closer at all in two neighbouring weeks.
+- Each layout is proved best of its kind, and then the nearest to the design, in cells moved.
+
+| | Even Step | laid again | Short Run | laid again, A | laid again, B |
+|---|---|---|---|---|---|
+| Fingerprint | `fb7a3988` | `62abf5eb` | `247f3636` | `28e2a503` | `be95ed62` |
+| Cells moved | — | 16 | — | 32 | 32 |
+| Closing weeks | 13, 14, 22, 26 | 3, 14, 22, 26 | 5, 24, 25, 26 | 5, 14, 22, 24 | 4, 14, 24, 26 |
+| Weeks on one shift time | 18 of 21 | 18 of 21 | 18 of 21 | 18 of 21 | 19 of 21 |
+| Change of start, week to week | 1h 30m | 1h 34m | 1h 14m | 1h 17m | 1h 27m |
+| Most hours in seven days, cover weeks aside | 50h 10m | 50h 10m | 51h 40m | 51h 40m | 51h 10m |
+| The same, if a cover week falls badly | 56h 45m | 56h 40m | 56h 50m | 56h 30m | 56h 10m |
+| Main league, with today in its ranges | 86.01, 5th | 85.96, 6th of 25 | 82.92, 17th | 82.87, 18th of 25 | 83.11, 17th of 25 |
+
+- **Nothing else moved**: the December rules, the leave, the single rest days, the weekends, the shortest rest, the
+  fatigue warnings, the days in a row, the shift times and the fit to the trains. No other design's league score moved.
+- **Even Step's re-lay** costs four minutes of change of start, and 18 weeks on one shift time is the most it can have.
+  On the sheets' own reading it could have 1h 24m, but only with line 15 closing on the Tuesday, Wednesday and Saturday
+  straight after line 14's five, the kind of layout Level Crossing was drawn to avoid. With 17 weeks on one shift time it
+  could have 1h 29m, but would score 85.64.
+- **Short Run's re-lays.** A costs three minutes of change of start, and nothing frees it, not even the early and late
+  weeks laid again. B has 19 weeks on one shift time, the most possible, and 30 minutes fewer in its heaviest seven days.
+  It costs 13 minutes of change of start and scores above Short Run.
+- **Saturday closers** still sit beside closing weeks in all three, as on Level Crossing.
+- **The grids** are in the session's scratchpad, not the repository.
+- **The saved duty tables** (`tooling/results/`) keep the Saturday office at 22:00 (*Nine designs deleted*), so the solver
+  started from each grid's own table.
+- **Checked again** with the pack's own measures: `assess()`, `scoreOrder()`, `leave()`, `kindBlocks()`, `h55Worst()`
+  and `league.mjs` with `EXTRA=`. Every figure in the table agreed, and the fingerprints with them.
+
+**Step 3: closing weeks and changes between earlies and lates on the sheets and in the league.** This was audited only;
+nothing changed.
+- **Where the change of start is used now.**
+  - The league: weight 3 of 108, so at most 2.78 points.
+  - Page 2 and page 7 (FF18) of every proposal sheet.
+  - The summary.
+  - The shortlist and other designs' sheets.
+  - Even Step's and Common Ground's managers' notes.
+  - The read-me.
+  - In the app, the Links designer's "Gentle week-to-week change" objective. The New link page shows it nowhere.
+- **The closing-week measure.**
+  - The most common duty can be a tie, as on Closing Time, Second Look and Balanced V7. Second Look's "none side by
+    side" rests on one, which is why the sheets now read it both ways.
+  - Pairs are coarse. Middle Ground has none and still 11 closes in some 28 days, where Common Ground and Crossover
+    have 18 and 19, Even Step 9 and today's link 8.
+  - A cover week worked as closes makes two in a row on every design, so a row would read "0 (up to 2)".
+- **The change measure.**
+  - Most changes between earlies and lates fall in a cover week, so a row needs "cover weeks aside".
+  - Counting the hours off adds nothing, unless the rule depends on the direction of the change. Early to late over one
+    rest day gives 42.5 to 46.3 hours off; late to early gives 31.8 to 32.1.
+- **The league, eight ways.**
+  - With a closing-weeks factor, Level Crossing comes first on every reading tried.
+  - The one suggested is the change of start halved to 1.5, closing weeks side by side at 5 and changes without two rest
+    days at 3. On it Level Crossing scores 87.4 and Middle Ground 86.0. Common Ground falls to 14th and Crossover to 9th,
+    and Balanced V6 stays 23rd.
+- **Suggested, in order.**
+  1. One shared helper in `report-data.mjs`.
+  2. The league as above, with both new factors left out of `OLD_READINGS=1`.
+  3. Two rows on page 2 of the proposal sheets.
+  4. Both figures in one summary column, in place of the change of start: the page has no room for a fourteenth.
+  5. A strap check.
+  6. A recount in `check.mjs`.
+- **Its recommendation: reduce the change of start, don't drop it.** It is the league's only check on weeks that swap
+  between earlies and lates.
+- **Its cost.** The shortlist sheet's league claims and several of its comparisons would change, and every sheet that
+  shows the league would be re-rendered.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
@@ -6354,7 +6509,7 @@ repository ignores `*.zip`, so run the script and send the file). It is laid out
 1. a *Read me first* note;
 2. the one-page summary, the two-page shortlist sheet and the one-page "What it means if you…" sheet;
 3. the rules;
-4. the presentations;
+4. the presentations of the shortlisted designs (none since 8 Nov 2026: *The shortlist redrawn for closing weeks apart*);
 5. every proposal sheet;
 6. the import files;
 7. the technical notes: `RULES.md`. This README was in them until 5 Nov 2026, and stays in the repository (owner: "Leave
@@ -6366,7 +6521,7 @@ running `python3 docs/links-26/tooling/pack.py` after any re-render.
 
 **26 in the app since v24.47 (3 Oct 2026).** `ROTATING_LINES = 26` in `links-design.js`: the Links page lays out 26
 lines, so the import files in the pack paste straight in and the page re-runs every check on them; the shortlisted
-designs are built into that page as examples (three from v24.47, Closing Time from v25.01, In Step and Short Run from v25.02, Even Step, In Step and Short Run from v25.04, and from v25.36 the three on the shortlist now, A to Z), copied cell for cell from `proposals/` and Common Ground's from `30-days-off/` (`links-proposals.js` says so, and
+designs are built into that page as examples (three from v24.47, Closing Time from v25.01, In Step and Short Run from v25.02, Even Step, In Step and Short Run from v25.04, Common Ground, Even Step and Short Run from v25.36, and from v25.52 the three on the shortlist now, A to Z), copied cell for cell from `30-days-off/`, Balanced V6's from its subfolder `balanced/` (`links-proposals.js` says so, and
 says to re-copy if one changes). The tooling still
 passes 26 to every app function explicitly — harmless now, and it keeps the sheets' line count stated in one place
 (`tooling/link.mjs`) rather than inherited. Until that release the page was on 24 lines and refused the files; the

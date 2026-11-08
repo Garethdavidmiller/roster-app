@@ -17,7 +17,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { PROPOSALS } from './links-proposals.js';
@@ -84,10 +84,25 @@ test('nothing in it names a recommendation (owner, 2 Nov 2026: "No, three evenly
 test('every pack file is a PDF the repository holds, under docs/links-26', () => {
     assert.ok(PACK.length >= 4);
     for (const f of PACK) {
-        assert.match(f.path, /^[\w-]+(\/[\w-]+)?\.pdf$/, `${f.path}: a relative path, no climbing out of docs/links-26`);
+        // up to two folders deep since 8 Nov 2026 — Balanced V6's sheet is in 30-days-off/balanced/ — and still no segment that
+        // could climb out (no "..", no leading slash: every segment is letters, digits, hyphens or underscores)
+        assert.match(f.path, /^[\w-]+(\/[\w-]+){0,2}\.pdf$/, `${f.path}: a relative path, no climbing out of docs/links-26`);
         assert.ok(existsSync(here(`./docs/links-26/${f.path}`)), `${f.path} is not in docs/links-26`);
         assert.ok(f.pages > 0, `${f.path}: its pages are counted`);
     }
     // what a colleague is handed and nothing more: no shortlist sheet (it recommends), no managers' deck
     assert.ok(PACK.every(f => !/shortlist|for-managers|what-it-means/.test(f.path)), 'the pack the page offers is the colleague pack');
+});
+
+test('the full pack card names presentations only while the pack lists one (8 Nov 2026)', () => {
+    // newlink.html's hint is typed; the list beneath it is generated. Until 8 Nov 2026 the list held each shortlisted design's
+    // colleague deck and the hint read "The presentations, the proposal sheets and the rules". The three shortlisted that day
+    // have no decks yet, so the list holds none, and a hint still promising them sends a colleague looking for files that
+    // are not there. So the hint must name presentations exactly when the list has one
+    const html = readFileSync(here('./newlink.html'), 'utf8');
+    const hint = html.match(/id="nlPackToggleHeader"[\s\S]*?<span class="hint">([^<]*)<\/span>/)?.[1];
+    assert.ok(hint, 'the full pack card keeps its hint');
+    const decks = PACK.some(f => f.path.startsWith('presentations/'));
+    assert.equal(/presentation/i.test(hint), decks,
+        `the hint "${hint}" ${decks ? 'leaves out the presentations the list holds' : 'promises presentations the list does not hold'}`);
 });

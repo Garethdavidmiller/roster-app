@@ -13,13 +13,14 @@ import { PROPOSALS, PROPOSAL_PREFIX, isProposalId, proposalById, proposalCopyNam
 import { ROTATING_LINES, DAYS, normalisePatterns, weeklyHours, CONTRACTED_HOURS_PER_WEEK } from './links-design.js';
 import { assessHardLimits, contractedDaysPerYear } from './links-limits.js';
 
-// each source grid's path under docs/links-26/ — a 30-day link's is in its own folder (Common Ground's, since 5 Nov 2026)
-const SOURCES = { 'ES-26-T5': 'proposals/Even-Step-ES-26-T5', 'CG-26-T8': '30-days-off/Common-Ground-CG-26-T8', 'SR-26-F1': 'proposals/Short-Run-SR-26-F1' };
+// each source grid's path under docs/links-26/ — a 30-day link's is in its own folder, a Balanced design's in that folder's
+// balanced/ subfolder (all three since 8 Nov 2026)
+const SOURCES = { 'MB-26-V6': '30-days-off/balanced/Balanced-V6-MB-26-V6', 'LC-26-T10': '30-days-off/Level-Crossing-LC-26-T10', 'MG-26-T8': '30-days-off/Middle-Ground-MG-26-T8' };
 
-describe('the shortlist as the owner chose it (these three since 5 Nov 2026)', () => {
-    test('three designs, A to Z: Common Ground, Even Step and Short Run', () => {
-        assert.deepEqual(PROPOSALS.map(p => p.code), ['CG-26-T8', 'ES-26-T5', 'SR-26-F1']);
-        assert.deepEqual(PROPOSALS.map(p => p.name.split(' — ')[0]), ['Common Ground', 'Even Step', 'Short Run']);
+describe('the shortlist as the owner chose it (these three since 8 Nov 2026)', () => {
+    test('three designs, A to Z: Balanced V6, Level Crossing and Middle Ground', () => {
+        assert.deepEqual(PROPOSALS.map(p => p.code), ['MB-26-V6', 'LC-26-T10', 'MG-26-T8']);
+        assert.deepEqual(PROPOSALS.map(p => p.name.split(' — ')[0]), ['Balanced V6', 'Level Crossing', 'Middle Ground']);
     });
 
     test('none is recommended: the pack exports no recommendation, and the list is A to Z', () => {
@@ -33,8 +34,8 @@ describe('the shortlist as the owner chose it (these three since 5 Nov 2026)', (
     });
 
     test('the same shortlist, in the same order, as the pack the owner hands round', () => {
-        // The app and docs/links-26 are two copies of one decision, and the shortlist has changed five times in five
-        // weeks (three designs, then four, then two, then three, then a different three on 5 Nov 2026). fresh.mjs's SHORTLIST drives the printed sheet, the summary
+        // The app and docs/links-26 are two copies of one decision, and the shortlist has changed six times in six
+        // weeks (three designs, then four, then two, then three, then a different three on 5 Nov 2026, and another on 8 Nov). fresh.mjs's SHORTLIST drives the printed sheet, the summary
         // and the presentations, so the designs built in here must be exactly those — read from its source text,
         // as the deck builders do, rather than imported (it is tooling, not an app module).
         const src = readFileSync(new URL('./docs/links-26/tooling/fresh.mjs', import.meta.url), 'utf8');
@@ -110,9 +111,9 @@ describe('a proposal can never be mistaken for a saved design', () => {
     });
 
     test('the first save suggests "<Name> — copy", without the sheet\'s fingerprint, numbered if taken', () => {
-        const es = PROPOSALS.find(p => p.code === 'ES-26-T5');
-        assert.equal(proposalCopyName(es, []), 'Even Step — copy');
-        assert.equal(proposalCopyName(es, [{ name: 'even step — COPY' }]), 'Even Step — copy 2');
-        assert.doesNotMatch(proposalCopyName(es, []), /ES-26|·/);
+        const lc = PROPOSALS.find(p => p.code === 'LC-26-T10');
+        assert.equal(proposalCopyName(lc, []), 'Level Crossing — copy');
+        assert.equal(proposalCopyName(lc, [{ name: 'level crossing — COPY' }]), 'Level Crossing — copy 2');
+        assert.doesNotMatch(proposalCopyName(lc, []), /LC-26|·/);
     });
 });

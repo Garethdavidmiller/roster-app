@@ -17,13 +17,12 @@
 //   · anything about a person. The page has no member data, no pay estimate of anyone's own, and no votes.
 //
 // EVERY SENTENCE IS ASSERTED, as on the sheets: a design that stops fitting one stops this script. The "What's changed
-// since you saw Short Run" lines are DRAFTS for the owner to correct ("Draft them; I'll correct") — each one's figure is
-// asserted like the rest, and the one piece of history in them (a figure that moved on 31 Oct) is the README's, not computed.
-import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+// since Short Run was shown" lines are DRAFTS for the owner to correct ("Draft them; I'll correct") — each one's figure is
+// asserted like the rest. Redrafted on 8 Nov 2026 for the new shortlist; the history they carried until then (In Step's and
+// Even Step's beginnings, Short Run's 31 Oct cover-week figure) went with the designs it was about.
+import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { GROUPS, TC, C, CG, ES, SR, FIG, RATE, claim, tidyText, isBest, hm, H, first, timed, m, mins, isEarly, MS, SHORTLIST } from './what-it-means-data.mjs';
-import { FIRST } from './fresh.mjs';
+import { GROUPS, TC, C, BV, LC, MG, FIG, RATE, claim, tidyText, isBest, hm, H, Hmax, first, timed, mins, MS, SHORTLIST, grid } from './what-it-means-data.mjs';
 import { PROPOSALS } from '../../../links-proposals.js';
 import { DAYS } from '../../../links-design.js';
 
@@ -35,10 +34,11 @@ const WORDS = { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 
 /** One figure across the three: "12", or "0 to 12" where they differ. @param {number[]} v */
 const span = v => { const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? `${lo}` : `${lo} to ${hi}`; };
 
-// THE WORDS ARE WRITTEN FOR THESE THREE, in this order — A to Z, which is the Links workspace's order and, since 5 Nov 2026
-// (owner: Common Ground and Short Run beside Even Step, In Step off the shortlist, and no recommendation), fresh.mjs's too
+// THE WORDS ARE WRITTEN FOR THESE THREE, in this order — A to Z, which is the Links workspace's order and fresh.mjs's too, with
+// no recommendation (5 Nov 2026). Since 8 Nov 2026 they are Balanced V6, Level Crossing and Middle Ground (owner: "Put Level
+// Crossing, Middle Ground and Balanced V6 as the shortlist for now", for a new design target: no two closing weeks side by side)
 const NAMES = C.map(c => c.name);
-if (NAMES.join() !== 'Common Ground,Even Step,Short Run' || SHORTLIST.join() !== NAMES.join()) throw new Error(`the page's sentences are written for Common Ground, Even Step and Short Run, A to Z; the shortlist is ${SHORTLIST}`);
+if (NAMES.join() !== 'Balanced V6,Level Crossing,Middle Ground' || SHORTLIST.join() !== NAMES.join()) throw new Error(`the page's sentences are written for Balanced V6, Level Crossing and Middle Ground, A to Z; the shortlist is ${SHORTLIST}`);
 claim('the three in alphabetical order', [...NAMES].sort().join() === NAMES.join());
 // the page sorts the three A to Z itself (newlink-render.js aToZ), whatever order the built-in list keeps
 claim('the built-in proposals are the shortlist, which the page shows A to Z as COLUMNS lists them', PROPOSALS.map(p => p.name.replace(/ — Dec 2026$/, '')).sort().join() === NAMES.join());
@@ -47,95 +47,69 @@ const refOf = name => PROPOSALS.find(p => p.name.startsWith(name + ' ')).ref;
 
 // ── WHAT'S CHANGED SINCE SHORT RUN WAS SHOWN — drafts ─────────────────────────────────────────────────────────────────
 // Written for a reader who may not have been there: "since Short Run was shown", never "since you saw it" (the review,
-// 2 Nov 2026). The 26 on the new link are not the room it was shown to.
+// 2 Nov 2026). The 26 on the new link are not the room it was shown to. A NEW SHORTLIST SINCE 8 NOV 2026: none of the three on
+// the page is Short Run, so the lines say what changed and why against the Short Run colleagues were shown — the closing weeks
+// first, the reason the three were drawn — and name no other design the page does not show. Short Run's own figures are the
+// pack's (deck-check.mjs's --print, which covers the designs with decks) and its grid the pack's file
 const monSatDuties = p => Object.values(p).flatMap(r => MS.map(d => r[d])).filter(timed);
-// "after Short Run was first shown" is the owner's history (2 Nov 2026); what the folder can check is that both were MADE after it
-claim('Common Ground and Even Step created after Short Run (fresh.mjs FIRST)', [codeOf('Common Ground'), codeOf('Even Step')].every(c => new Date(FIRST[c]) > new Date(FIRST[codeOf('Short Run')])));
+const SRp = grid('Short Run'), SRf = FIG['Short Run'];
+claim('Short Run is off the shortlist, and the pack still has its figures', !SHORTLIST.includes('Short Run') && !!SRf);
+// A CLOSING WEEK, as the shortlist sheet reads one: its most common Monday-to-Friday duty works to the 23:55 close. Side by side
+// lapping the rotation; a cover week is neither, so the line says "cover weeks aside"
+const mainDuty = row => { const c = {}; for (const d of MS.slice(0, 5)) if (timed(row[d])) c[row[d]] = (c[row[d]] ?? 0) + 1;
+  return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''; };
+const closeRun = p => { const ks = Object.keys(p).sort((a, b) => a - b), n = ks.length, is = k => mainDuty(p[k]).endsWith('-23:55'); let most = 0;
+  for (let i = 0; i < n; i++) { if (!is(ks[i]) || is(ks[(i + n - 1) % n])) continue; let r = 0; while (r < n && is(ks[(i + r) % n])) r++; most = Math.max(most, r); }
+  return ks.every(is) ? n : most; };
+claim('no two closing weeks side by side on any of the three, cover weeks aside; three together on Short Run', C.every(c => closeRun(c.p) === 1) && closeRun(SRp) === 3);
+claim('all three keep today’s leave; on Short Run four weeks off take a day more, and 14 days buy two fewer at best', C.every(c => +c.f.leaveFour === +TC.f.leaveFour && +c.f.leaveBest === +TC.f.leaveBest)
+  && +SRf.leaveFour === +TC.f.leaveFour + 1 && +SRf.leaveBest === +TC.f.leaveBest - 2);
+const oneOf = f => +String(f.oneTurn).split(' of ')[0];
+claim('Level Crossing and Middle Ground: 18 of 21 weeks on one shift time, as Short Run; Balanced V6 7, its runs of earlies or of lates three weeks at most',
+  oneOf(LC.f) === 18 && oneOf(MG.f) === 18 && oneOf(SRf) === 18 && oneOf(BV.f) === 7 && +BV.f.block === 3 && C.every(c => /^\d+ of 21$/.test(c.f.oneTurn)));
 const keeps1345 = p => MS.slice(0, 5).every(d => Object.values(p).some(r => timed(r[d]) && r[d].endsWith('-13:45')));
-claim('Common Ground and Even Step keep a 13:45 every weekday; Short Run has no 13:35 or 13:45', keeps1345(CG.p) && keeps1345(ES.p)
-  && monSatDuties(SR.p).every(s => !/-13:(35|45)$/.test(s)) && +SR.f.shortYear === 0);
-const over = p => [...new Set(monSatDuties(p).filter(s => mins(s) > 510))];
-claim('Even Step: nothing over 8h 30m Monday to Saturday', over(ES.p).length === 0);
-// COMMON GROUND HAS NO LONG DUTY SINCE 6 NOV 2026: its one, a 9-hour Saturday late (13:30–22:30), finishes at 22:00 now that the
-// Saturday ticket-office lates finish at 22:30 (README → "The Saturday ticket office to 22:30"), and it has no 9-hour Sunday early.
-// Short Run's are its 9-hour earlies (and an 8h 40m Saturday closer)
-claim('Common Ground: nothing over 8h 30m on any day', over(CG.p).length === 0 && Object.values(CG.p).every(r => !timed(r.sun) || mins(r.sun) <= 510));
-claim('Short Run: some 9-hour earlies', over(SR.p).some(s => isEarly(s) && mins(s) === 540) && over(SR.p).filter(isEarly).every(s => mins(s) === 540));
-claim('Common Ground keeps today’s leave: four weeks off for 14 days, and 30 days off for 14 at best; the other two need 15 and buy 28', +CG.f.leaveFour === +TC.f.leaveFour
-  && +CG.f.leaveBest === +TC.f.leaveBest && [ES, SR].every(c => +c.f.leaveFour === +TC.f.leaveFour + 1 && +c.f.leaveBest === +TC.f.leaveBest - 2));
-// THE PRICE OF THE LEAVE, SAID BESIDE IT (whole-pack review, 5 Nov 2026): the line read as a gain with nothing paid for it
-claim('Common Ground: about 12 single rest days a year, where Even Step and Short Run have about 8', CG.singles === 12 && ES.singles === 8 && SR.singles === 8);
-// HOW OFTEN THE LONG DUTIES COME ROUND, a year each, counted as the shortlist sheet counts them: Monday to Saturday (a Sunday
-// is overtime), duty by duty across the rota, times 52 over its length
-const longYear = c => Math.round(monSatDuties(c.p).filter(s => mins(s) > 510).length * 52 / Object.keys(c.p).length);
-claim('over 8h 30m Monday to Saturday, a year each: Short Run about 26, Common Ground and Even Step none', longYear(SR) === 26 && longYear(CG) === 0 && longYear(ES) === 0);
-// EACH KIND COUNTED (6 Nov 2026, the 72-hour review): "about 26 a year each" read as 26 of the earlies AND 26 of the closers,
-// where the grid gives 26 in all, so the line names both counts and this holds them
-const longOf = (c, early) => Math.round(monSatDuties(c.p).filter(s => mins(s) > 510 && isEarly(s) === early).length * 52 / Object.keys(c.p).length);
-claim('Short Run’s long duties a year each: about 20 of the 9-hour earlies and 6 of the 8h 40m closers', longOf(SR, true) === 20 && longOf(SR, false) === 6);
-claim('Short Run’s long duties: 9-hour earlies on weekdays only, and an 8h 40m closer on Saturdays only',
-  over(SR.p).every(s => (isEarly(s) && mins(s) === 540) || (s.endsWith('-23:55') && mins(s) === 520))
-  && Object.values(SR.p).every(r => !(timed(r.sat) && isEarly(r.sat) && mins(r.sat) > 510) && MS.slice(0, 5).every(d => !(timed(r[d]) && r[d].endsWith('-23:55') && mins(r[d]) > 510)))
-  && Object.values(SR.p).some(r => timed(r.sat) && r.sat.endsWith('-23:55') && mins(r.sat) === 520));
-// THE GRID ITSELF, NOT ITS LABEL (the review, 2 Nov 2026): a ref string can outlive an edited grid, so the fingerprint is
-// recomputed from the cells as report-data.mjs computes every sheet's. 618348d6 was Short Run's from 3 Oct 2026; 9b0bf83a for a
-// few hours on 6 Nov 2026, when its Saturday ticket-office lates moved to 22:30 and its Saturday floor pair to 22:00; 247f3636 since
-// later that day (the owner's "Yes"), when that floor pair went back to one 14:00–22:30 and one 13:30–21:00, today's Saturday time.
-// Against 3 Oct's grid (git c87c465c) that is THREE cells, all on a Saturday: the two office lates, 14:30–22:00 to 14:30–22:30, and
-// one floor late, 14:00–22:30 to 13:30–21:00 — the changes to its shifts since it was shown, which CHANGES says
-const fpOf = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a, b) => a - b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
-claim('Short Run is the rota of 3 Oct 2026 with its Saturday office lates to 22:30 and one Saturday late to 13:30–21:00, fingerprint 247f3636, recomputed from its cells', fpOf(SR.p) === '247f3636' && refOf('Short Run').endsWith(fpOf(SR.p)) && FIRST[codeOf('Short Run')] === '3 Oct 2026');
-// THE 22:30 OFFICE ON ALL THREE (6 Nov 2026): two Saturday ticket-office lates, 14:30–22:30, where today's finish at 22:00, and
-// since the owner's "Yes" the same day one Saturday floor late, 14:00–22:30, finishing with them — three at 22:30 on each
+claim('all three keep a 13:45 every weekday; Short Run has no 13:35 or 13:45', C.every(c => keeps1345(c.p)) && monSatDuties(SRp).every(s => !/-13:(35|45)$/.test(s)) && +SRf.shortYear === 0);
+// THE 22:30 OFFICE ON ALL THREE (6 Nov 2026): two Saturday ticket-office lates, 14:30–22:30, where today's finish at 22:00
 const satAt = (p, t) => Object.values(p).filter(r => r.sat === t).length;
-claim('on all three, two Saturday office lates to 22:30 and one floor late with them; today’s office lates to 22:00', C.every(c => satAt(c.p, '14:30-22:30') === 2
-  && satAt(c.p, '14:00-22:30') === 1 && Object.values(c.p).filter(r => timed(r.sat) && r.sat.endsWith('-22:30')).length === 3) && satAt(TC.p, '14:30-22:00') === 2 && satAt(TC.p, '14:30-22:30') === 0);
-// SHORT RUN'S OTHER SATURDAY LATE IS TODAY'S 13:30–21:00, worked on a Saturday on today's link, which CHANGES says
-claim('Short Run: one Saturday 13:30–21:00, a time worked on a Saturday today', satAt(SR.p, '13:30-21:00') === 1 && satAt(TC.p, '13:30-21:00') > 0);
-claim('Short Run: the shortest lates of the three on average', C.every(c => c === SR || H(SR.f.avgLate) < H(c.f.avgLate)));
-claim('on all three, the most days in a row is 5, and 7 with a cover week placed badly', C.every(c => c.f.run === '5 (up to 7)'));
-// SINCE 5 NOV 2026 the two beside Short Run are Common Ground and Even Step. "From what colleagues said about it" was the owner's
-// history for In Step and Even Step; Common Ground was drawn on the owner's own brief (README → "Common Ground"), so the line
-// now says only what the folder can check, that both were drawn up after Short Run was shown
+claim('on all three, two Saturday office lates to 22:30; today’s to 22:00', C.every(c => satAt(c.p, '14:30-22:30') === 2) && satAt(TC.p, '14:30-22:00') === 2 && satAt(TC.p, '14:30-22:30') === 0);
 const CHANGES = [
-  'Two more proposals sit beside Short Run now: Common Ground and Even Step. Both were drawn up after Short Run was first shown.',
-  // OF THE ROTA, not of a person: someone on it finishes at 13:45 each weekday, where one person has 10 or 12 a year
-  'Both keep a shift finishing at 13:45 on every weekday of the rota. Short Run has no shift finishing at 13:35 or 13:45.',
-  'Common Ground keeps today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Even Step and Short Run four weeks off take 15. The price on Common Ground is more single rest days: about 12 a year, where the other two have about 8.',
-  'Common Ground has nothing over 8h 30m on any day, and Even Step nothing over 8h 30m from Monday to Saturday. Short Run has 9-hour weekday earlies and an 8h 40m Saturday closer: about 20 of the earlies and 6 of the closers a year each.',
-  // THE 22:30 OFFICE (6 Nov 2026): the one change to Short Run's shifts since it was shown, made on all three
-  'On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10. To keep the hours the same, one Saturday late on Short Run is now 13:30–21:00, a time worked on Saturdays today. Those are the only changes to Short Run’s shifts since it was shown.',
-  `Short Run still has the shortest lates of the three: ${hm(H(SR.f.avgLate))} on average, closers included.`,
-  // HISTORY, NOT COMPUTED: before 31 Oct a cover week's Sunday counted inside its four duties (README, the folder's opening).
-  // Short Run's figure moved; the other two were drawn up under the new reading
-  'And when a cover week falls badly, the most days in a row is now 7, not 6 — the same as on the other two. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top.',
+  'The shortlist is new: Balanced V6, Level Crossing and Middle Ground. Short Run is no longer on it.',
+  'All three keep closing weeks apart: a week of closing shifts is never followed by another, cover weeks aside. On Short Run three closing weeks fall together.',
+  'All three keep today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Short Run four weeks off take 15, and 14 days buy 28 at best.',
+  'Level Crossing and Middle Ground keep 18 of 21 weeks on one shift time, as Short Run does. Balanced V6 has 7, with more weeks mixing start times, and its runs of earlies or of lates are three weeks at most.',
+  // OF THE ROTA, not of a person: someone on it finishes at 13:45 each weekday, where one person has 12 or 20 a year
+  'All three keep a shift finishing at 13:45 on every weekday of the rota. Short Run has none.',
+  'On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10.',
 ].map(t);
 
 // ── WHAT ALL THREE GIVE EVERYONE, AND WHAT THEY COST ──────────────────────────────────────────────────────────────────
 const shared = (what, get) => { const v = C.map(c => get(c)); claim(`${what}, the same on all three`, v.every(x => x === v[0])); return v[0]; };
 const newTimes = c => (x => +x[1] - +x[2])(/^(\d+) \((\d+) you know\)$/.exec(c.f.times));
-const weekends = shared('full weekends off a year', c => +c.f.weekendsYear), run = shared('most days in a row', c => first(c.f.run)), ff = shared('avoidable fatigue warnings', c => first(c.f.ff));
+// NOT ONE FIGURE OF WEEKENDS SINCE 8 NOV 2026: Balanced V6 has 12 a year, the other two 14, so the line gives the range
+const weekends = C.map(c => +c.f.weekendsYear), run = shared('most days in a row', c => first(c.f.run)), ff = shared('avoidable fatigue warnings', c => first(c.f.ff));
 const restLo = Math.min(...C.map(c => H(c.f.rest))), hours = shared('contracted hours', c => c.f.hours);
-claim('better than today on all three', weekends > +TC.f.weekendsYear && run < first(TC.f.run) && restLo > H(TC.f.rest) && ff === 0 && first(TC.f.ff) > 0 && hours === TC.f.hours);
-const cuts = C.flatMap(c => ['closerWk', 'closerSat', 'closerSun'].map(k => H(TC.f[k]) - H(c.f[k])));
-claim('every closing shift 30 minutes to an hour shorter', Math.min(...cuts) === 30 && Math.max(...cuts) === 60);
+claim('better than today on all three', weekends.every(w => w > +TC.f.weekendsYear) && run < first(TC.f.run) && restLo > H(TC.f.rest) && ff === 0 && first(TC.f.ff) > 0 && hours === TC.f.hours);
+// EVERY CLOSER SHORTER, BY ITS LONGEST (8 Nov 2026): Balanced V6's Saturday has two, and its 8h 55m is 15 minutes under today's 9h 10m
+const cuts = C.flatMap(c => ['closerWk', 'closerSat', 'closerSun'].map(k => Hmax(TC.f[k]) - Hmax(c.f[k]))), cutLo = Math.min(...cuts);
+claim('every closing shift 15 minutes to an hour shorter', cutLo === 15 && Math.max(...cuts) === 60);
 const GAINS = [
   `The same ${hours.replace('h', '-hour')} week, so the same basic pay.`,
-  `${weekends} full weekends off a year (today ${TC.f.weekendsYear}).`,
+  `${span(weekends)} full weekends off a year (today ${TC.f.weekendsYear}).`,
   `At most ${run} days in a row, cover weeks aside (today ${first(TC.f.run)}).`,
-  `Every closing shift 30 minutes to an hour shorter.`,
+  `Every closing shift ${cutLo} minutes to an hour shorter.`,
   `At least ${hm(restLo)} between shifts (today ${hm(H(TC.f.rest))}).`,
   `No avoidable fatigue warnings on the set shifts (today ${first(TC.f.ff)}).`,
 ].map(t);
-const late23 = shared('finishes at 23:00 or later', c => +c.f.late23);   // the leave left the shared costs on 5 Nov 2026: Common Ground keeps today's (CHANGES says so)
-const block = shared('weeks of one kind in a row', c => +c.f.block), blockUpTo = shared('weeks of one kind with a cover week badly placed', c => +c.f.blockUpTo);
+const late23 = shared('finishes at 23:00 or later', c => +c.f.late23);   // the leave is not a cost on any of the three since 8 Nov 2026 (CHANGES says so)
+// NOT ONE FIGURE OF RUNS SINCE 8 NOV 2026: Balanced V6's are shorter (3, up to 5) than the other two's (5, up to 7), so ranges
+const block = C.map(c => +c.f.block), blockUpTo = C.map(c => +c.f.blockUpTo);
 const sat = shared('Saturdays a year', c => +c.f.sat);
 const nt = C.map(newTimes);
-claim('worse than today on all three', late23 > +TC.f.late23 && block > +TC.f.block && sat > +TC.f.sat
+claim('worse than today on all three', late23 > +TC.f.late23 && block.every(b => b > +TC.f.block) && blockUpTo.every(b => b > +TC.f.blockUpTo) && sat > +TC.f.sat
   && C.every(c => +c.f.shortYear < +TC.f.shortYear) && nt.every(n => n > 0));
 const COSTS = [
   `${late23} finishes a year at 23:00 or later (today ${TC.f.late23}).`,
-  `At most ${block} weeks of earlies, or of lates, in a row, or ${blockUpTo} if a cover week falls badly (today ${TC.f.block}, or ${TC.f.blockUpTo}).`,
+  `At most ${span(block)} weeks of earlies, or of lates, in a row, or ${span(blockUpTo)} if a cover week falls badly (today ${TC.f.block}, or ${TC.f.blockUpTo}).`,
   `${WORDS[sat - +TC.f.sat]} more Saturdays a year (${sat}, today ${TC.f.sat}).`,
   // the three's own figures, not only today's (the review, 2 Nov 2026: a cost with no new figure says nothing)
   `Fewer earlies that finish before 14:00: ${span(C.map(c => +c.f.shortYear))} a year (today ${TC.f.shortYear}).`,
@@ -176,7 +150,7 @@ const NOTES = [
   'One person, over a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.',
   `Pounds are gross, before tax, at the CEA rate of £${RATE.toFixed(2)} an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.`,
   'A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.',
-  'Bold green marks the clear best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within a few Saturday hours a year.',
+  'Bold green marks the clear best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year.',
   '“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail.',
 ].map(t);
 claim('the swap rows are left unranked, as the notes say', GROUPS[2].rows.every(r => !r.better));
@@ -186,12 +160,16 @@ claim('the no-overtime rows are left unranked, as the notes say', GROUPS.find(g 
 // Not the shortlist sheet or the one-page sheet, whose comparison this page already is, and not the managers' decks. Page
 // counts are read from the files, so a rebuilt pack that adds a page fails --check until this is run again.
 const pages = rel => (readFileSync(DIR + rel).toString('latin1').match(/\/Type\s*\/Page(?![s\w])/g) ?? []).length;
-// a 30-day link's sheet is in 30-days-off/ (Common Ground's, since it joined the shortlist on 5 Nov 2026), every other in proposals/
-const sheetOf = name => { const f = ['proposals', '30-days-off'].flatMap(dir => readdirSync(DIR + dir).filter(x => x.startsWith(`${name.replace(/ /g, '-')}-${codeOf(name)}-`) && x.endsWith('.pdf')).map(x => `${dir}/${x}`));
+// a 30-day link's sheet is in 30-days-off/, a Balanced design's in its balanced/ subfolder (all three shortlisted since 8 Nov 2026),
+// every other in proposals/
+const sheetOf = name => { const f = ['proposals', '30-days-off', '30-days-off/balanced'].flatMap(dir => readdirSync(DIR + dir).filter(x => x.startsWith(`${name.replace(/ /g, '-')}-${codeOf(name)}-`) && x.endsWith('.pdf')).map(x => `${dir}/${x}`));
   claim(`one proposal sheet for ${name}`, f.length === 1 && f[0].includes(refOf(name).split(' · ')[1])); return f[0]; };
+// THE PRESENTATION ONLY WHERE THERE IS ONE (8 Nov 2026): none of the three shortlisted that day has decks yet (fresh.mjs →
+// DECKS_KEPT), so each offers its proposal sheet; a colleague deck drawn for one joins the list the next time this is run
+const deckOf = name => `presentations/${name.replace(/ /g, '-')}-for-colleagues.pdf`;
 const PACK = [
   ...NAMES.flatMap(name => [
-    { design: name, label: 'The presentation', path: `presentations/${name.replace(/ /g, '-')}-for-colleagues.pdf` },
+    ...(existsSync(DIR + deckOf(name)) ? [{ design: name, label: 'The presentation', path: deckOf(name) }] : []),
     { design: name, label: 'The proposal sheet — every week on page 3', path: sheetOf(name) },
   ]),
   { design: null, label: 'The rules every proposal is judged against', path: 'links-26-rules.pdf' },

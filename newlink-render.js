@@ -162,7 +162,7 @@ export const ifYou = (who) => `If you ${who.replace(/^…/, '')}`;
 /**
  * One kind of colleague's figures: today and the three proposals, a row per measure. Each row's label sits on its own
  * line above its four figures, so a phone never has to squeeze a label and four figures onto one line — and every figure
- * is tied to its label and its column by `headers`, so a screen reader reads "Average early, Common Ground, 8h 09m".
+ * is tied to its label and its column by `headers`, so a screen reader reads "Average early, Middle Ground, 8h 09m".
  * @param {Persona} p @param {ReadonlyArray<string>} columns
  */
 export function renderFigures(p, columns) {

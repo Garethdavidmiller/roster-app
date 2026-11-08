@@ -59,15 +59,15 @@ export const STRAPS = {
   'GT-26-T7': ['No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today', 'search'],
   // 4 Nov 2026: today's link taken to 26 weeks on the owner's brief — openers finishing 13:45 or 14:20, closers from 15:45,
   // nothing over 8h 30m on a weekday or 9h at the weekend, an even Sunday, 30 days off for 14 days' leave (README.md →
-  // "Common Ground"). Shortlisted on 5 Nov 2026, as the 30-day example (below)
+  // "Common Ground"). Shortlisted on 5 Nov 2026, as the 30-day example, and off the shortlist since 8 Nov 2026 (below)
   'CG-26-T8': ['Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 5 Nov 2026: Common Ground's weeks with the shift times varied from week to week, so no two closing weeks and no two 06:20
-  // weeks fall together (README.md → "Middle Ground"). Not shortlisted. NO STRAP NAMES ANOTHER DESIGN (owner, 5 Nov 2026:
+  // weeks fall together (README.md → "Middle Ground"). Shortlisted on 8 Nov 2026 (below). NO STRAP NAMES ANOTHER DESIGN (owner, 5 Nov 2026:
   // "the proposal description headlines should not reference other proposals"); regenerate.mjs refuses one that does
   'MG-26-T8': ['Seven of today’s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 6 NOV 2026 (owner: "Balanced v5 and Relief Point need adding to the pack, but can you rename Relief Point as Balanced v6"):
   // its author's one-page Marylebone Balanced 26, version 5, and the owner's 15-minute handover drawn from it (README.md →
-  // "Balanced V5 and Balanced V6 join the pack"). Each says what it is, naming no other design
+  // "Balanced V5 and Balanced V6 join the pack"). Each says what it is, naming no other design. Balanced V6 shortlisted on 8 Nov 2026 (below)
   'MB-26-V5': ['Early weeks built from 06:20 and 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today', 'search'],
   'MB-26-V6': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 6 NOV 2026 (owner, asking for Balanced V6 made again "without losing anything", then "Add v7 please"): Balanced V6's duties
@@ -81,7 +81,7 @@ export const STRAPS = {
   'CO-26-T10': ['Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 7 NOV 2026, LATER (owner, of Crossover: "people don't want to do several weeks of closes", then "Do it"): Crossover's duties
   // and rest days with its weeks chosen again, so that no two closing weeks fall side by side. NO STRAP NAMES ANOTHER DESIGN, so
-  // this one says what it has, not whose weeks it re-lays: README.md → "Level Crossing"
+  // this one says what it has, not whose weeks it re-lays: README.md → "Level Crossing". Shortlisted on 8 Nov 2026 (below)
   'LC-26-T10': ['Two 13:45 finishes every weekday, a 15-minute handover to the three 15:45 closers, never two closing weeks in a row, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 7 NOV 2026 (owner: "Do the v7 week lay out again", then "Do A as Balanced V8 and B as Balanced V9"): Balanced V7's duties
   // with every rest day chosen again (README.md → "Balanced V8 and Balanced V9"). NO STRAP NAMES ANOTHER DESIGN, so each says what
@@ -104,13 +104,20 @@ export const STRAPS = {
  *  presentations in the pack, just not the shortlist"). Marked on the summary and compared on the shortlist sheet; the
  *  decks and the pack read it here. A TO Z SINCE 5 NOV 2026, with no recommendation: asked whether the pack should keep
  *  marking Even Step recommended, the owner chose to remove the marks and present the three evenly, as the New link page
- *  does — so nothing in the pack lists one of them first for any reason but the alphabet. */
-export const SHORTLIST = ['Common Ground', 'Even Step', 'Short Run'];
+ *  does — so nothing in the pack lists one of them first for any reason but the alphabet.
+ *  REDRAWN ON 8 NOV 2026 for a new design target (owner: "no consecutive closing weeks, with changes between early and late
+ *  duties placed around useful rest breaks ... Weeks on one time is still Important", then "Put Level Crossing, Middle Ground
+ *  and Balanced V6 as the shortlist for now"). Common Ground, Even Step and Short Run each put closing weeks side by side;
+ *  the three drawn here keep them apart and keep today's leave. README.md → "The shortlist redrawn for closing weeks apart". */
+export const SHORTLIST = ['Balanced V6', 'Level Crossing', 'Middle Ground'];
 if (SHORTLIST.join() !== [...SHORTLIST].sort((a, b) => a.localeCompare(b, 'en-GB')).join()) throw new Error(`the shortlist is presented A to Z: ${SHORTLIST}`);
 /** The day the shortlist above was drawn, for the sheets and the read-me that say when — after every design in the pack. */
-export const SHORTLIST_DATE = '5 Nov 2026';
-/** Designs off the shortlist whose presentations the pack still ships (owner, 5 Nov 2026, above). */
-export const DECKS_KEPT = ['In Step'];
+export const SHORTLIST_DATE = '8 Nov 2026';
+/** Designs off the shortlist whose presentations the pack still ships. In Step's from 5 Nov 2026 (owner: "keep the other
+ *  presentations in the pack, just not the shortlist"); NONE SINCE 8 NOV 2026. None of the new three has presentations yet,
+ *  and the eight in presentations/ each say they present a shortlisted link, so the zip leaves them out until the decks are
+ *  redrawn (pack.py). They stay in the repository, unchanged, and deck-check.mjs still holds their figures to the grids. */
+export const DECKS_KEPT = [];
 if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is both shortlisted and kept off it: ${DECKS_KEPT}`);
 // NO RECOMMENDATION SINCE 5 NOV 2026. RECOMMENDED named the one the shortlist sheet argued for — Short Run from 3 Oct 2026,
 // In Step from 30 Oct, Even Step from 31 Oct (README.md has each) — and was retired with the marks; it is gone rather than
