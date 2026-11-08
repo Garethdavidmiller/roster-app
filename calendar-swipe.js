@@ -82,6 +82,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
     let pendingX = 0;            // Most recent deltaX — consumed by the scheduled RAF frame
     let _vibratePrimed = false;  // navigator.vibrate(0) only needs to run once per page lifetime
     let hapticFired = false;
+    let lastPointerType = '';    // the last press's pointer — what the contextmenu handler asks
 
     // Returns true if swiping in the given direction would actually change the month.
     // At the year boundaries, swiping toward the blocked side should always snap back.
@@ -129,6 +130,11 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
     // user has moved far enough to trigger dragging, GPU layers are already ready —
     // eliminating the jank spike that occurred when panels were built mid-swipe.
     calendarDisplay.addEventListener('pointerdown', (e) => {
+        lastPointerType = e.pointerType;
+        // A right or middle press is not a swipe. And now that a right-click opens the browser's
+        // menu (the contextmenu handler below), the menu can take the pointerup that would have
+        // ended the gesture, leaving `_gestureActive` set behind it — so it never starts one.
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         if (!e.isPrimary || _swipeCooldown || isTeamViewMode()) return;
         // NO left-edge guard here, and the asymmetry with admin-week-swipe.js is deliberate
         // (v22.12). That module skips `e.clientX < 24` to stay clear of the iOS back-swipe region,
@@ -287,7 +293,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
             }
 
             changeMonth(direction === 'left' ? 1 : -1);
-            document.title = `Marylebone Roster — ${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()}`;
+            document.title = `${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()} — Marylebone Roster`;
             updateLegend();
             updateNavButtonState?.();   // refresh Prev/Next disabled state at year boundaries after a swipe
 
@@ -392,6 +398,14 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
         discardPanels();
     });
 
-    // Prevent context menu on long-press (Android) or right-click (desktop)
-    calendarDisplay.addEventListener('contextmenu', (e) => e.preventDefault());
+    // A LONG PRESS OPENS NO MENU; A RIGHT-CLICK DOES (desktop audit, Nov 2026). On a touch screen the
+    // long-press menu (copy, share, select) lands in the middle of the app's signature gesture, so
+    // it is cancelled. On a desktop the right-click menu is the browser's own, and cancelling it for
+    // every pointer took it away from the month entirely. The event's own pointer type where the
+    // engine gives one; the last press's where it does not (a keyboard menu key gives none).
+    // `user-select: none` on the grid stays: the mouse drag-to-page needs it.
+    calendarDisplay.addEventListener('contextmenu', (e) => {
+        const type = /** @type {any} */ (e).pointerType || lastPointerType;
+        if (type === 'touch' || type === 'pen') e.preventDefault();
+    });
 }

@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-    <title>Marylebone Roster — Links</title>
+    <title>Links — Marylebone Roster</title>
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
@@ -60,6 +60,7 @@
     <link rel="modulepreload" href="./firebase-client.js">
     <link rel="modulepreload" href="./links-adjacency.js">
     <link rel="modulepreload" href="./links-analysis.js">
+    <link rel="modulepreload" href="./links-grid-input.js">
     <link rel="modulepreload" href="./links-app.js">
     <link rel="modulepreload" href="./links-compare.js">
     <link rel="modulepreload" href="./links-concurrency.js">
@@ -88,10 +89,12 @@
     <link rel="modulepreload" href="./login-overlay.js">
     <link rel="modulepreload" href="./ls.js">
     <link rel="modulepreload" href="./nav-panel.js">
+    <link rel="modulepreload" href="./notice-archive.js">
     <link rel="modulepreload" href="./page-session.js">
     <link rel="modulepreload" href="./unsaved-draft.js">
     <link rel="modulepreload" href="./notif.js">
     <link rel="modulepreload" href="./overlay.js">
+    <link rel="modulepreload" href="./card-collapse.js">
     <link rel="modulepreload" href="./select-sheet.js">
     <link rel="modulepreload" href="./override-utils.js">
     <link rel="modulepreload" href="./clock-input.js">
@@ -130,7 +133,7 @@
         <div class="lightbox-app-name">Marylebone Roster</div>
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-        <div class="lightbox-badge">Links</div>
+        <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">🔗</span> Links</div>
         <a id="linksOpsLink" href="./operations.html" class="lightbox-bug-link" hidden><span aria-hidden="true">🔧</span> Operations</a>
         <!-- THE PERMANENT WAY BACK TO THE ORIENTATION PANEL (v22.83). It lives here, in the About
              panel, because this is where this app already keeps a PAGE's own links — the two either
@@ -308,7 +311,7 @@
                      use the Paint bar, and in the empty state there is no grid and no Paint bar on
                      screen — a card header describing controls that are not there. `linksGridHint`
                      is set from renderGrid, which already knows which state it is in. -->
-                <span class="hint" id="linksGridHint">Tap any shift cell to change it. Use the Paint bar to fill cells quickly. Save when done.</span>
+                <span class="hint" id="linksGridHint">Choose any shift cell to change it. Use the Paint bar to fill cells quickly. Save when done.</span>
             </div>
             <div class="card-header-actions">
                 <button type="button" class="btn-card-tips" data-card="links-grid" aria-label="Tips for link design">?</button>

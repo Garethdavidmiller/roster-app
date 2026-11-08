@@ -105,7 +105,7 @@ const {
     _setSelectPeriod, prevPeriod, nextPeriod,
     computeEarliestVisiblePNum, setEarliestVisiblePeriod, getEarliestVisiblePNum,
     visiblePeriods, isTaxYearVisible, ytdAutoSource, ytdSourceOffered, payslipMayBeInHand,
-    periodLinkMissNote, ytdUpdateFrom,
+    periodLinkMissNote, ytdUpdateFrom, ytdAnchorStatus, ytdSourceToStamp, appendPayslipOptions,
 } = await import('./paycalc-periods.js');
 
 const {
@@ -439,6 +439,44 @@ describe('_setSelectPeriod', () => {
                       dispatchEvent: () => true };
         assert.doesNotThrow(() => _setSelectPeriod(sel, 99));
         assert.equal(sel.options[0].selected, false);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// paycalc-periods.js — appendPayslipOptions: every payslip list names a payslip one way
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('appendPayslipOptions', () => {
+    /** @param {string} tag */
+    const el = tag => ({ tag, label: '', value: '', textContent: '', /** @type {any[]} */ children: [],
+        appendChild(/** @type {any} */ c) { this.children.push(c); return c; } });
+    beforeEach(() => { reset(); /** @type {any} */ (global).document = { createElement: el }; });
+    const P = (/** @type {number} */ n) => /** @type {any} */ (getPeriods().find((/** @type {any} */ p) => p.num === n));
+    const shape = (/** @type {any} */ sel) => sel.children.map((/** @type {any} */ g) =>
+        [g.tag, g.label, g.children.map((/** @type {any} */ o) => [o.value, o.textContent])]);
+
+    test('grouped by tax year, date first, the printed period number as the cross-check', () => {
+        const sel = el('select');
+        appendPayslipOptions(sel, [P(48), P(49), P(50)]);
+        assert.deepEqual(shape(sel), [
+            ['optgroup', 'Tax year 2025/26', [['48', 'Paid 13 Feb 2026 · P48'], ['49', 'Paid 13 Mar 2026 · P52']]],
+            ['optgroup', 'Tax year 2026/27', [['50', 'Paid 10 Apr 2026 · P4']]],
+        ]);
+    });
+
+    test('the payslip being earned is marked, and every list heads its years "Tax year …"', () => {
+        // One wording for all five lists (owner, 8 Nov 2026): the student-loan stop's bare "2026/27"
+        // was the last list worded its own way, and there is no longer an option to do so.
+        const sel = el('select');
+        appendPayslipOptions(sel, [P(57), P(58)], { currentPNum: 58 });
+        assert.deepEqual(shape(sel), [['optgroup', 'Tax year 2026/27', [['57', 'Paid 23 Oct 2026 · P32'], ['58', '● Paid 20 Nov 2026 · P36']]]]);
+    });
+
+    test('it APPENDS: an option the select already holds stays first', () => {
+        const sel = el('select');
+        sel.appendChild(el('option'));
+        appendPayslipOptions(sel, [P(58)]);
+        assert.deepEqual(sel.children.map((/** @type {any} */ c) => c.tag), ['option', 'optgroup']);
     });
 });
 
@@ -1034,5 +1072,64 @@ describe('ytdUpdateFrom — when the take-home asks for the latest Year to Date 
         assert.equal(ask({ taxCode: '1257L W1' }), null, 'week 1 never uses the figures');
         assert.equal(ask({ taxCode: 'NT' }), null, 'no tax to sharpen');
         assert.equal(ask({ taxCode: '1257L' }), oct23);
+    });
+});
+
+// ── THE YEAR TO DATE CARD'S OWN NOTE AND CHIP, AND THE SOURCE IT RECORDS ON LOAD ────────────────
+// Moved out of the coordinator. The figures sharpen only the payslip straight after their source,
+// which is calculate()'s rule too; these pin what the card SAYS about it, on the real grid.
+describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says and records', () => {
+    const TY = /** @type {any} */ (PC_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2026/27'));
+    const byNum = (/** @type {number} */ n) => /** @type {any} */ (getPeriods().find((/** @type {any} */ p) => p.num === n));
+    const oct23 = byNum(57), nov20 = byNum(58), dec18 = byNum(59), first = byNum(48 + TY.first);
+    const NOV7 = new Date(2026, 10, 7, 10), NOV21 = new Date(2026, 10, 21, 10);
+    const from = `your <strong>23 Oct payslip</strong> (P${payslipPeriodNum(oct23)})`;
+    /** The 20 Nov payslip on 7 Nov, figures from 23 Oct in the boxes, then whatever a case changes. @param {object} [o] */
+    const status = (o = {}) => ytdAnchorStatus({ p: nov20, ty: TY, src: oct23.num, hasFigures: true, now: NOV7, ...o });
+
+    test('fixture: the grid has the payslips these cases name', () => {
+        assert.equal(oct23.payday.getDate(), 23);
+        assert.equal(nov20.payday.getDate(), 20);
+        assert.equal(dec18.payday.getDate(), 18);
+    });
+
+    test('on the payslip straight after the source the figures are in use — note and chip agree', () => {
+        assert.deepEqual(status(), { noteLive: true, chip: '✓ in use', chipLive: true,
+            note: `<span aria-hidden="true">✓</span> Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.` });
+    });
+
+    test('on any other payslip they are not, and the note offers the payslip before it once that is paid', () => {
+        const later = status({ p: dec18 });
+        assert.deepEqual([later.chip, later.chipLive, later.noteLive], ['not in use', false, false]);
+        assert.equal(later.note, `Your Year to Date figures are from ${from}, so this payslip uses the standard method.`,
+            'on 7 Nov the 20 Nov payslip has not been paid, so there is nothing newer to copy');
+        assert.equal(status({ p: dec18, now: NOV21 }).note, `Your Year to Date figures are from ${from}, so this payslip uses the `
+            + `standard method. Update them from your <strong>20 Nov payslip</strong> (P${payslipPeriodNum(nov20)}) to sharpen it.`);
+    });
+
+    test('empty boxes: the chip has nothing to report, while the note still names the source', () => {
+        const empty = status({ hasFigures: false });
+        assert.deepEqual([empty.chip, empty.chipLive, empty.noteLive], ['', false, true]);
+        assert.match(empty.note, /they sharpen/);
+    });
+
+    test('no source on record: no note and no chip — the card already asks for one three times', () => {
+        assert.deepEqual(status({ src: 0 }), { noteLive: false, chip: '', chipLive: false, note: '' });
+        assert.deepEqual(status({ src: 999 }), { noteLive: false, chip: '', chipLive: false, note: '' }, 'a source the grid does not hold');
+    });
+
+    test('the first payslip of the year says Year to Date starts again, and the chip stays quiet', () => {
+        const s = status({ p: first, src: first.num - 1 });
+        assert.equal(s.chip, '');
+        assert.equal(s.note, 'This is the first payslip of 2026/27 — Year to Date starts fresh in April, so you can leave these blank.');
+    });
+
+    test('a source is recorded on load only for figures that never had one — a recorded 0 stays detached', () => {
+        assert.equal(ytdSourceToStamp(null, true, TY, NOV7), ytdAutoSource(TY, NOV7), 'old figures get the standing assumption');
+        assert.equal(ytdSourceToStamp(null, true, TY, NOV7), oct23.num, '…which on 7 Nov is the 23 Oct payslip');
+        assert.equal(ytdSourceToStamp('0', true, TY, NOV7), null, 'a member who picked the blank placeholder meant it');
+        assert.equal(ytdSourceToStamp('', true, TY, NOV7), null, 'anything recorded counts — only a key never written is stamped');
+        assert.equal(ytdSourceToStamp('56', true, TY, NOV7), null, 'a recorded source is kept');
+        assert.equal(ytdSourceToStamp(null, false, TY, NOV7), null, 'no figures, nothing to anchor');
     });
 });

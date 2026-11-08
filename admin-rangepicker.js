@@ -54,6 +54,8 @@ export function buildRangePicker(prefix, opts = {}) {
 
     let fromISO  = '', toISO = '', hoverISO = '';
     let yr = new Date().getFullYear(), mo = new Date().getMonth();
+    /** The day holding the calendar's ONE Tab stop — where the keyboard last was (see `renderGrid`). */
+    let focusISO = '';
 
     wrap.innerHTML = `
         <div class="rp-chips" role="group" aria-label="Selected date range" aria-live="polite">
@@ -147,6 +149,14 @@ export function buildRangePicker(prefix, opts = {}) {
         // every hover rebuilds (whole-app review, Oct 2026). The same date gets it back, below.
         const active      = /** @type {HTMLElement|null} */ (document.activeElement);
         const focusedIso  = active && target.contains(active) ? active.dataset.iso || '' : '';
+        // ONE TAB STOP PER CALENDAR — a roving tabindex, as the Calendar's own grid (calendar-keyboard.js)
+        // (desktop audit, Nov 2026). Every day was its own stop: the two open cards cost ~62 Tab presses
+        // to cross, and the arrow keys did nothing. The stop sits on the day the keyboard last reached,
+        // else the chosen start, else today, else the 1st; arrows move it (the keydown handler below).
+        // A swipe's off-screen neighbour (`buildAdjPanel`) gets no stop at all.
+        const inView      = (/** @type {string} */ iso) => !!iso && iso.startsWith(`${yr}-${String(mo + 1).padStart(2, '0')}-`);
+        const stop        = target === grid
+            ? [focusISO, focusedIso, fromISO, todayISO].find(inView) || `${yr}-${String(mo + 1).padStart(2, '0')}-01` : '';
         target.innerHTML  = '';
         ['S','M','T','W','T','F','S'].forEach(d => {
             const el = document.createElement('div');
@@ -165,7 +175,7 @@ export function buildRangePicker(prefix, opts = {}) {
             el.className  = 'rp-day';
             el.textContent = String(d);
             el.dataset.iso = iso;
-            el.tabIndex    = 0;
+            el.tabIndex    = iso === stop ? 0 : -1;
             el.setAttribute('role', 'button');
             // Full-date accessible name — the bare day number alone gives a screen
             // reader no month/weekday/year context.
@@ -356,11 +366,32 @@ export function buildRangePicker(prefix, opts = {}) {
         else if (iso < fromISO) { fromISO = iso; toISO = ''; }
         else                    { toISO   = iso; }
         hoverISO = '';
+        focusISO = iso;   // the Tab stop follows the last day picked
         commit();
     });
 
+    /** Arrow keys move a day (±1) or a week (±7); Home/End go to the row's Sunday/Saturday;
+     *  Page Up/Down a month. Crossing a month edge turns the page, as a swipe would. */
+    const KEY_STEP = /** @type {Record<string, number>} */ ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 });
     grid.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); /** @type {HTMLElement} */ (e.target).click(); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); /** @type {HTMLElement} */ (e.target).click(); return; }
+        const from = /** @type {HTMLElement} */ (e.target).dataset?.iso;
+        if (!from || !(e.key in KEY_STEP || ['Home', 'End', 'PageUp', 'PageDown'].includes(e.key))) return;
+        e.preventDefault();
+        const d = parseISODate(from);
+        if (e.key in KEY_STEP) d.setDate(d.getDate() + KEY_STEP[e.key]);
+        else if (e.key === 'Home' || e.key === 'End') d.setDate(d.getDate() + (e.key === 'Home' ? -d.getDay() : 6 - d.getDay()));
+        else {   // the same day a month away — or that month's last, when it is shorter
+            const delta = e.key === 'PageUp' ? -1 : 1;
+            d.setDate(Math.min(d.getDate(), new Date(d.getFullYear(), d.getMonth() + delta + 1, 0).getDate()));
+            d.setMonth(d.getMonth() + delta);
+        }
+        focusISO = formatISO(d);
+        yr = d.getFullYear(); mo = d.getMonth();
+        // While a range is half-drawn, the keyboard previews it as the pointer does.
+        if (fromISO && !toISO) hoverISO = focusISO > fromISO ? focusISO : '';
+        render();
+        /** @type {HTMLElement|null} */ (grid.querySelector(`[data-iso="${focusISO}"]`))?.focus();
     });
 
     // Hover preview only on devices with a real cursor — guards iOS from firing
@@ -387,7 +418,7 @@ export function buildRangePicker(prefix, opts = {}) {
 
     return {
         reset() {
-            fromISO = toISO = hoverISO = '';
+            fromISO = toISO = hoverISO = focusISO = '';
             yr = new Date().getFullYear();
             mo = new Date().getMonth();
             fromInput.value = toInput.value = '';

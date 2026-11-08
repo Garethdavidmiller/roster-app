@@ -121,13 +121,17 @@ Use these tokens, not inline `cubic-bezier(...)` or a bare `ease`.
 
 **Two overlay corner families, both named:** compact white DIALOGS (month-jump, team info, login,
 Tips, confirm/prompt) use `--radius-xl` (20px); full navy GLASS SHEETS (About, notices, day detail, AL)
-use `--radius-panel` (24px).
+use `--radius-panel` (24px). The Pay Calculator's `?` help sheet is a see-through glass sheet at the
+Tips' `--modal-standard` width — one width at every size (desktop audit, 7 Nov 2026; it was 620px).
 
-**Within the glass family, two are SOLID:** the one-time notices and the About panel share one opaque
-navy sheet (`.notice-lb-content, #iconLightboxContent` in shared.css — a third panel that wants it
+**Within the glass family, four are SOLID:** the one-time notices, the About panel and the drawer's
+App Notices and Coming Soon panels share one opaque navy sheet (`.notice-lb-content,
+#iconLightboxContent, #navNoticesContent, #navComingSoonContent` in shared.css — a panel that wants it
 joins the selector list, never copies it). Day detail and AL stay see-through, because they are a
 look at something still on screen behind them; a notice wants a decision and About describes the app,
-and a see-through About would make each pill's contrast depend on whatever page was underneath.
+and a see-through About would make each pill's contrast depend on whatever page was underneath. App
+Notices joined for that reason (desktop audit, Nov 2026): over Admin's light cards its section labels
+measured 3.0–3.4:1.
 
 **An overlay never wears the card radius.** `--radius-lg` is the radius `.card` uses on every page,
 and sharing a silhouette with the card underneath flattens the layering an overlay depends on — a
@@ -754,4 +758,11 @@ the one refused-read tick. The full account is `operations.css` → the dims not
 brand takes all the space between the burger and the badge, so the two can never overlap whatever the
 badge's width, and the title ellipses rather than wraps. A brand centred in that leftover space is
 centred on the page only when the burger and the badge are the same width. The Calendar's full-bleed
-`.header` (`index.css`) is separate and does not use these rules.
+`.header` (`index.css`) is separate and does not use these rules — but **from 768px up it draws the
+same header**: from the width where `.app-header` takes its desktop metrics it has the same height,
+logo, gap, title and top edge, and its burger sits in the same place, so a hop between the Calendar
+and any page does not rearrange the header. Only the width differs (`--page-max-width`, above).
+Below 768px, and on a phone held on its side, the Calendar keeps its own compact header — asked and
+**kept as it is** (owner, 8 Nov 2026), so do not re-propose matching it there. Pinned by
+`e2e/calendar.spec.js` → "from 768px the Calendar's header is every other page's header", which
+compares the computed metrics with Settings' at 768, 800 and 1366px.

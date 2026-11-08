@@ -707,7 +707,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `<div class="check-section-head"><span>Fatigue factors <span class="check-note">ORR good practice, p3</span></span>` +
             `<span class="check-section-meta">${escapeHtml(meta)}</span></div>`,
             `<div class="check-row check-neutral"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
-            `<div class="check-body">These are <strong>not pass/fail limits</strong>. The more factors a pattern features, ` +
+            `<div class="check-body check-prose">These are <strong>not pass/fail limits</strong>. The more factors a pattern features, ` +
             `the greater the need to justify, minimise, then assess and control the risk. This panel is an aid to that ` +
             `conversation, not a fatigue risk assessment.</div></div>`,
             // The hours caveat, stated where the hours are read (v19.59). `assessFatigue` has always
@@ -718,7 +718,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // flattering direction, which is the one thing this panel must not do quietly.
             ...(fat.hoursAreFloor ? [
                 `<div class="check-row check-neutral"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
-                `<div class="check-body">Every hours figure here is a <strong>floor, not an estimate</strong>. A spare week ` +
+                `<div class="check-body check-prose">Every hours figure here is a <strong>floor, not an estimate</strong>. A spare week ` +
                 `carries no times, so it counts as worked days but adds no hours — the real totals are higher.</div></div>`,
             ] : [])
         );

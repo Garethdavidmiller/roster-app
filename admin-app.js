@@ -177,19 +177,26 @@ export function init() {
                         { icon: '1️⃣', html: 'Select the <strong>week</strong> at the top, using the arrows or the date picker.', staffOnly: true },
                         // "amber" until v20.91 — the row turns GOLD, which is the word the rest of
                         // the app uses for the same colour, and the one thing a reader compares
-                        // against what is in front of them.
-                        { icon: '2️⃣', html: 'Tap a type on any day. The row turns <strong>gold</strong> to show it is ready to save; tap <strong>Save changes</strong> when you have finished.' },
+                        // against what is in front of them. Until the desktop audit (Nov 2026) a row
+                        // with a type wore Today's ivory and only a TICKED row had the gold edge, so
+                        // this described a row nobody could find; admin.css now draws what it says.
+                        { icon: '2️⃣', html: 'Choose a type on any day. The row turns <strong>gold</strong>, with a gold edge, to show it is ready to save; select <strong>Save changes</strong> when you have finished.' },
+                        { icon: '☑️', html: 'A ticked day with no type yet has the gold edge only, and saves nothing until it has one.' },
                         // Sundays are not contracted, so four of the six pills are disabled there
                         // (override-utils.js → SUNDAY_FORBIDDEN_TYPES). Saying "any day" sent an
                         // admin to a row where the pill they wanted would not respond.
                         { icon: '☀️', html: 'A <strong>Sunday</strong> offers only <strong>RDW</strong> and <strong>Rest Day</strong>. Sundays are not contracted, so leave and absence cannot be recorded on one and a worked Sunday is always RDW.' },
                         { icon: '🎨', html: 'A row already carrying a change is <strong>cream</strong>. Saving over one replaces what was there, so check the cream rows before you save.' },
-                        { icon: '👆', html: 'Swipe left or right to move between weeks.' },
+                        // Both ways, for both pointers (desktop audit, Nov 2026): this said only "Swipe",
+                        // which a mouse cannot do, and never named the arrows or Today.
+                        { icon: '↔️', html: 'Move between weeks with <strong>‹</strong> and <strong>›</strong>, or swipe the week sideways on a phone. <strong>📍 Today</strong> brings you back to this week.' },
                     ]},
                     { heading: 'Several days at once', items: [
-                        { icon: '1️⃣', html: 'Tap <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or tick the days you want individually.' },
+                        { icon: '1️⃣', html: 'Use <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or tick the days you want individually.' },
                         { icon: '2️⃣', html: 'Pick a type, and add a start and end time if it needs one.' },
-                        { icon: '3️⃣', html: 'Tap the <strong>Apply</strong> button under the pills — once you have picked a type it names it, so it reads <em>Apply “AL” to ticked days</em> — then <strong>Save changes</strong>.' },
+                        // It names the type's full LABEL (admin-week-editor.js) — this said “AL”, which the button never reads.
+                        { icon: '3️⃣', html: 'Select the <strong>Apply</strong> button under the pills — once you have picked a type it names it, so it reads <em>Apply “Annual Leave” to ticked days</em> — then <strong>Save changes</strong>.' },
+                        { icon: 'ℹ️', html: 'Until a day is ticked and a type is chosen, <strong>Apply</strong> is greyed out, and the line under it says which is still missing.' },
                         { icon: '🏖️', html: 'For a run of annual leave or absence, the two cards beside this one — below it on a phone — do a whole date range in one go — you do not have to tick days here.' },
                     ]},
                     { heading: 'What each type means', items: [
@@ -241,15 +248,15 @@ export function init() {
                 title: 'Saved Changes',
                 sections: [
                     { heading: 'Viewing', items: [
-                        { icon: '🔍', html: 'The list follows the <strong>member selected at the top of the page</strong>. Tap <strong>All staff</strong> above the table for everyone\'s changes, and the same button again to come back.', adminOnly: true },
+                        { icon: '🔍', html: 'The list follows the <strong>member selected at the top of the page</strong>. Select <strong>All staff</strong> above the table for everyone\'s changes, and the same button again to come back.', adminOnly: true },
                         { icon: '🔍', html: 'This list shows your own saved changes only.', staffOnly: true },
                         { icon: '📅', html: 'The <strong>month filter</strong> narrows it to one month. It starts on this month.', adminOnly: true },
                         // Staff default to All months on purpose — see admin-saved-changes.js.
                         { icon: '📅', html: 'The <strong>month filter</strong> narrows it to one month. It starts on <strong>All months</strong>, so leave you have booked for later in the year is not hidden behind it.', staffOnly: true },
                     ]},
                     { heading: 'Editing and deleting', items: [
-                        { icon: '✏️', html: 'Tap <strong>Edit</strong> on a change to adjust its type or time, then tap <strong>Save changes</strong>.' },
-                        { icon: '🗑️', html: 'Tap <strong>Delete</strong>, then tap again to confirm. That day goes back to whatever the roster originally said.' },
+                        { icon: '✏️', html: 'Select <strong>✎</strong> (Edit) on a change to adjust its type or time, then <strong>Save changes</strong>.' },
+                        { icon: '🗑️', html: 'Select <strong>✕</strong> (Delete), then again to confirm. That day goes back to whatever the roster originally said.' },
                     ]},
                     { heading: 'Where a change came from', adminOnly: true, items: [
                         { icon: '📋', html: 'Entries marked <strong>PDF upload</strong> came in from a roster PDF. A later upload of the same week replaces them — they arrive in the review already ticked rather than flagged for a decision, because the PDF is the source for those days.' },
@@ -278,40 +285,17 @@ export function init() {
     const saveBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('saveBtn'));
     const formFeedback = /** @type {HTMLElement} */ (document.getElementById('formFeedback'));
 
-    // On desktop, move the member-context-bar into col-side as the first card.
-    // This replaces the full-width navy banner with a compact white sidebar card.
-    // Mobile layout is unaffected — the bar stays in its original HTML position
-    // (before col-main) when the viewport is < 1024px.
-    // Uses a matchMedia listener so layout corrects on resize (not just at load).
-    (function syncMemberBarToSidebar() {
-        const mq  = window.matchMedia('(min-width: 1024px)');
-        const barEl = document.querySelector('.member-context-bar');
-        if (!barEl) return;
-        const bar = /** @type {Element} */ (barEl);
-        const colMain = bar.parentElement;
-        const colSide = document.querySelector('.col-side');
-        if (!colMain || !colSide) return;
-
-        /** @param {boolean} isDesktop */
-        function apply(isDesktop) {
-            if (isDesktop) {
-                const _side = /** @type {Element} */ (colSide);
-                _side.insertBefore(bar, _side.firstChild || null);
-            } else {
-                // colMain is .container; insert bar after the header, not before it
-                const _main = /** @type {Element} */ (colMain);
-                const appHeader = _main.querySelector('header.app-header');
-                if (appHeader) {
-                    appHeader.after(bar);
-                } else {
-                    _main.insertBefore(bar, _main.firstChild || null);
-                }
-            }
-        }
-
-        apply(mq.matches);
-        mq.addEventListener('change', e => apply(e.matches));
-    })();
+    // THE MEMBER BAR STAYS WHERE THE DOCUMENT PUTS IT (desktop audit, Nov 2026). From 1024px it was
+    // MOVED into `.col-side`, which drew it atop the right column and made the page's one member control
+    // the 23rd Tab stop, behind the whole Change a Shift card. admin.css now draws it there from its own
+    // place, so it comes straight after the header at every width. What CSS cannot know is two heights
+    // it lays out round — this bar's, and the fixed Unsaved bar's (0 while hidden) — so they are told.
+    if (typeof ResizeObserver === 'function') {
+        const root = document.documentElement, memberBar = document.querySelector('.member-context-bar');
+        const ro = new ResizeObserver(es => es.forEach(e => root.style.setProperty(e.target === memberBar ? '--member-bar-h' : '--staged-bar-h',
+            `${e.borderBoxSize?.[0]?.blockSize ?? /** @type {HTMLElement} */ (e.target).offsetHeight}px`)));
+        [memberBar, document.getElementById('stagedBar')].forEach(el => { if (el) ro.observe(el); });
+    }
 
     // ============================================
     // POPULATE MEMBER DROPDOWNS
@@ -454,6 +438,11 @@ export function init() {
             // Restore focus to wherever the user was before the banner interrupted them.
             _bannerReturnFocus?.focus?.();
             _bannerReturnFocus = null;
+        });
+        // Escape is "Keep editing" (desktop audit, Nov 2026), as it declines every other question in the
+        // app — but not while a dialog is open over the banner: that Escape is the dialog's.
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && banner.style.display === 'flex' && !document.body.classList.contains('lb-open')) keepBtn.click();
         });
     })();
 

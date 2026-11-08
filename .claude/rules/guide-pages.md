@@ -89,9 +89,13 @@ not redefine them.
   padding `max(14px, env(safe-area-inset-top))` for the iOS notch. **3px gold bottom rule** — the
   navy-and-gold brand echo; it prints too (the header doubles as the railcard/fip/rangers print
   banner).
-- **Chip bar alignment:** from 800px the bar's inline padding is the 760px content column's own text
-  edge, so the first chip starts where the text does. It restates the 760/16 pair the three page CSS
-  files declare — change them together.
+- **Chip bar and header alignment:** from 800px the chip bar's inline padding — and the header's, whose
+  navy band stays full-bleed — is the 760px content column's own text edge, so the first chip and the
+  `←` start, and `⤓ PDF` ends, where the text does. It restates the 760/16 pair the three page CSS
+  files and `guide-doc.css` declare — change them together, with the railcard and rangers source
+  banners' 728px (760 less its two 16px sides).
+- **The `←` has one hover, gold, on every guide** (fine pointers only). Its selector outranks a page's
+  own `a:hover`, which once turned it amber on navy.
 - **Footer back link:** `.guide-back-link` is ONE recipe for railcard, rangers and FIP — centred,
   44px tall, "← Back to calendar" to `./`, the last element of `<main>`, hidden in print by the
   shell. Do not restyle it per page; `e2e/guides.spec.js` fails if the three diverge.
@@ -110,6 +114,10 @@ not redefine them.
   760px wrapper **and** the two-column `.cols` print grid live in the shared **`guide-doc.css`** (not
   the page's own file); `railcard-guide.html`/`fip-guide.html`/`rangers-guide.html` set their own 760px
   single-column width in their page CSS.
+- **Reading measure:** from 1024px (screen only) the railcard, rangers and FIP guides hold a paragraph
+  or note to 64ch — the low end of the app's 64–72ch (`css-tokens.md` → "Reading measure"); 68ch
+  measured 102 characters a line on CI's render, over the e2e's 100. Boxes, tables, cards and rows
+  keep the column. The document guides need none: their two-column `.cols` already halves the line.
 - **Safe-area:** side insets `max(16px, env(safe-area-inset-*))` on the content wrapper; bottom
   `max(40px, env(safe-area-inset-bottom))`.
 - **PDF button markup:** `<button id="savePdfBtn" class="btn-print btn-pdf" type="button"

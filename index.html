@@ -11,7 +11,7 @@
          firebase.json, and is the ONLY noindex signal the GitHub Pages mirror gets (it cannot serve
          headers). Rationale in robots.txt; enforced by sw-asset-check.test.mjs. -->
     <meta name="robots" content="noindex, nofollow">
-    <title>Marylebone Roster</title>
+    <title>Calendar — Marylebone Roster</title>
     
     <!-- PWA Meta Tags -->
     <meta name="description" content="Marylebone station shift roster calendar for Chiltern Railways staff">
@@ -81,6 +81,7 @@
     <link rel="modulepreload" href="./calendar-state.js">
     <link rel="modulepreload" href="./calendar-swipe.js">
     <link rel="modulepreload" href="./calendar-team-view.js">
+    <link rel="modulepreload" href="./overflow-hint.js">
     <link rel="modulepreload" href="./client-errors.js">
     <link rel="modulepreload" href="./claim-retry.js">
     <link rel="modulepreload" href="./error-reporter.js">
@@ -97,6 +98,7 @@
     <link rel="modulepreload" href="./analytics-client.js">
     <link rel="modulepreload" href="./ls.js">
     <link rel="modulepreload" href="./nav-panel.js">
+    <link rel="modulepreload" href="./notice-archive.js">
     <link rel="modulepreload" href="./page-session.js">
     <link rel="modulepreload" href="./install-prompt.js">
     <link rel="modulepreload" href="./calendar-notif-prompt.js">
@@ -108,6 +110,7 @@
     <link rel="modulepreload" href="./text-scale.js">
     <link rel="modulepreload" href="./notif.js">
     <link rel="modulepreload" href="./overlay.js">
+    <link rel="modulepreload" href="./card-collapse.js">
     <link rel="modulepreload" href="./override-utils.js">
     <link rel="modulepreload" href="./clock-input.js">
     <link rel="modulepreload" href="./leave-year.js">
@@ -139,7 +142,7 @@
     <link rel="stylesheet" href="./index.css">
 </head>
 <body spellcheck="false">
-    <!-- iOS splash screen — shown immediately, fades out after first render -->
+    <!-- iOS splash screen — shown immediately, removed a frame after the first render -->
     <div id="splash" role="presentation" aria-hidden="true">
         <img id="splash-icon" src="icon-192.png" alt="" loading="eager">
         <div id="splash-title">Marylebone Roster</div>
@@ -162,27 +165,27 @@
             <div class="lightbox-app-name">Marylebone Roster</div>
             <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
             <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-            <div class="lightbox-badge" id="teamViewBadge" hidden>👥 Team Week View</div>
+            <div class="lightbox-badge" id="teamViewBadge" hidden><span class="badge-glyph" aria-hidden="true">👥</span> Team Week View</div>
             <div class="lightbox-tips" id="calendarTips">
                 <div class="lightbox-tips-title">Tips</div>
                 <div class="lightbox-tip touch-only"><span>Swipe left / right to change month</span></div>
-                <div class="lightbox-tip"><span>Tap the month heading to jump</span></div>
+                <div class="lightbox-tip"><span>Select the month heading to jump</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Keyboard: navigate months</span><span class="lightbox-tip-key">← →</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Go to today</span><span class="lightbox-tip-key">T</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
             </div>
             <div class="lightbox-tips" id="teamViewTips" hidden>
                 <div class="lightbox-tips-title">Tips</div>
-                <div class="lightbox-tip touch-only"><span>Swipe the table to see all 7 days</span></div>
-                <div class="lightbox-tip"><span>Tap CEA, CES or Dispatcher to switch grade</span></div>
-                <div class="lightbox-tip"><span>Tap ☰ → Daily Huddle for the latest day plan</span></div>
-                <div class="lightbox-tip"><span>Tap 📍, or Back to this week under the dates, to return to the current week</span></div>
+                <div class="lightbox-tip touch-only"><span>If the week is wider than your screen, swipe the table sideways</span></div>
+                <div class="lightbox-tip"><span>Select CEA, CES or Dispatcher to switch grade</span></div>
+                <div class="lightbox-tip"><span>Open ☰ → Daily Huddle for the latest day plan</span></div>
+                <div class="lightbox-tip"><span>Select 📍, or Back to this week under the dates, to return to the current week</span></div>
             </div>
             <div class="lightbox-print-wrap">
                 <button type="button" id="lightboxPrintBtn" class="lightbox-print-btn"><span aria-hidden="true">🖨️</span> Print this calendar</button>
                 <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current month's calendar</span>
             </div>
-            <a href="./staff-guide.html" class="lightbox-bug-link" style="margin-top:4px"><span aria-hidden="true">📖</span> View staff guide</a>
+            <a href="./staff-guide.html" class="lightbox-bug-link"><span aria-hidden="true">📘</span> Staff &amp; Admin Guide</a>
             <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
         </div>
     </div>
@@ -463,11 +466,11 @@
             <button id="teamInfoClose" class="lb-close" type="button" aria-label="Close">✕</button>
             <div class="team-help-title">👥 Team Week View</div>
             <ul class="team-help-list">
-                <li class="touch-only">Swipe the table left and right to see all 7 days</li>
+                <li class="touch-only">If the week is wider than your screen, swipe the table left and right to see all 7 days</li>
                 <li>Use ← → to move between weeks</li>
-                <li>Tap <strong>CEA</strong>, <strong>CES</strong> or <strong>Dispatcher</strong> to switch grade</li>
-                <li>Tap ☰ and open <strong>Daily Huddle</strong> to read the latest day plan</li>
-                <li>Tap <strong>📍</strong>, or <strong>Back to this week</strong> under the dates, to return to the current week</li>
+                <li>Select <strong>CEA</strong>, <strong>CES</strong> or <strong>Dispatcher</strong> to switch grade</li>
+                <li>Open ☰ and choose <strong>Daily Huddle</strong> to read the latest day plan</li>
+                <li>Use <strong>📍</strong>, or <strong>Back to this week</strong> under the dates, to return to the current week</li>
             </ul>
             <div class="team-info-section">Colour key</div>
             <div class="team-info-key">
@@ -536,7 +539,10 @@
             </div>
             <div class="controls-row">
                 <div class="control-group control-group--actions">
-                    <button type="button" id="todayBtn"   class="today-btn"  aria-label="Go to today">📍</button>
+                    <!-- The word shows from 1024px (index.css → `.today-word`): a phone's row has no room
+                         for it, and a desktop's was the one control without one. The name already
+                         contains it ("Go to today"), so what a voice user says still matches. -->
+                    <button type="button" id="todayBtn"   class="today-btn"  aria-label="Go to today"><span aria-hidden="true">📍</span><span class="today-word">Today</span></button>
                     <button type="button" id="teamViewBtn" class="team-btn"  aria-label="Switch to team week view"><span class="btn-ico" aria-hidden="true">👥</span> Team</button>
                     <button type="button" id="alBtn"       class="al-btn"    aria-label="AL — view annual leave balance"><span class="btn-ico" aria-hidden="true">🏖️</span> AL</button>
                     <!-- THE ICON IS A SPAN (v22.87) so the compact form can drop it: under large text the

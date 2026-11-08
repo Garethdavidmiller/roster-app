@@ -26,7 +26,7 @@ export function fmtHrsMins(h) {
 
 /**
  * Build the estimate summary rows (#summary): Regular/Total pay → back pay → HPP → pension →
- * tax → NI → Student Loan → estimated take-home. `slLines` is pre-rendered SL markup passed in.
+ * tax → NI → Student Loan → estimated take-home. `slLines` is the loan rows, from `buildLoanLines`.
  * @param {{
  *   _bpThisPeriod:number, _hppForPeriod:number, gross:number, grossWithBp:number,
  *   _bpIsEstimate:boolean, _hppIsEstimate:boolean, pension:number, sacGross:number,
@@ -53,6 +53,49 @@ export function buildSummaryRows(d) {
         ${slLines}
         <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_netNote(d) ? `<span class="sum-net-sub">${_netNote(d)}</span>` : ''}</span><span class="val">${fmt(net)}</span></div>
       `;
+}
+
+/**
+ * The Student Loan and Postgraduate Loan rows of the summary — `slLines` above. NEVER SILENT while a
+ * loan is active: a £0 always says why. One line builder serves both loans so the two rows cannot
+ * drift (the Postgraduate row once lost the "only just above the threshold" case and called pay ABOVE
+ * its threshold "under" it). Per loan: a deduction; £0 because Plan 5 is not repayable that tax year;
+ * £0 under the threshold; or £0 because pay only just exceeds it, so the 9%/6% rounds under £1.
+ *
+ * The stop-deducting payslip outranks the per-period skip (a loan that has stopped is the stronger
+ * fact), and either one covers BOTH loans, so it is ONE row, like the single breakdown line. Its words
+ * are what the payslip shows, never "repaid in full": moved to direct debit with a balance still owed
+ * is the Student Loans Company's normal endgame (.claude/rules/paycalc.md → Deductions STOP).
+ *
+ * A threshold is penny-floored for DISPLAY exactly as `computeSL` floors it, or the figure in brackets
+ * could read 1p above the one the deduction was worked out against.
+ * @param {{ sacGross:number, plan:string, planLabel:string, pgLoan:boolean, slUnder:number,
+ *   slPost:number, slSkip:boolean, slPaidOff:boolean, paidOffDay?:string, sl:Record<string, any>,
+ *   tyLabel:string }} d  `sl` is the tax year's loan table (`getThresholds(…).sl`), which also says
+ *   whether Plan 5 is repayable; `paidOffDay` names the stop-deducting payslip ('' when not found)
+ * @returns {string} '' when no loan is active
+ */
+export function buildLoanLines({ sacGross, plan, planLabel, pgLoan, slUnder, slPost, slSkip, slPaidOff, paidOffDay = '', sl, tyLabel }) {
+    const anyLoan = plan !== 'none' || pgLoan;
+    const zero = (/** @type {string} */ lbl) =>
+        `<div class="sum-row sum-sl-zero"><span class="lbl">${lbl}</span><span class="val">£0.00</span></div>`;
+    if (slPaidOff && anyLoan) return zero(`Student Loan — not deducted from your ${paidOffDay ? paidOffDay + ' payslip' : 'chosen payslip'} onwards`);
+    if (slSkip && anyLoan) return zero('Student Loan — marked as not deducted this period');
+    const floor = (/** @type {number|undefined} */ t) => t == null ? t : Math.floor(t * 100) / 100;
+    /** @param {string} row @param {number} amount @param {boolean} active @param {string} label
+     *  @param {number|undefined} threshold @param {string|null} notAvailable */
+    const line = (row, amount, active, label, threshold, notAvailable) => {
+        if (amount > 0) return `<div class="sum-row sum-ded"><span class="lbl">${row}</span><span class="val">−${fmt(amount)}</span></div>`;
+        if (!active) return '';
+        if (notAvailable) return zero(`${row} — ${notAvailable}`);
+        if (threshold == null) return '';
+        return zero(sacGross > threshold
+            ? `${row} — no deduction: your repayment is under £1 this period (pay only just exceeds the ${label} threshold, ${fmt(threshold)})`
+            : `${row} — no deduction: pay after pension is under the ${label} threshold (${fmt(threshold)} per period)`);
+    };
+    return line('Student Loan', slUnder, plan !== 'none', planLabel, floor(sl[plan]?.t),
+                plan === 'plan5' && !sl.plan5 ? `Plan 5 is not repayable in ${tyLabel} (repayments begin April 2026)` : null)
+         + line('Postgraduate Loan', slPost, pgLoan, 'Postgraduate Loan', floor(sl.postgrad?.t), null);
 }
 
 /**
@@ -331,4 +374,23 @@ export function buildProvChips(d) {
     if (d.hoursFromCalendar)
         h += `<span class="prov-chip"><span aria-hidden="true">📅</span> Hours from calendar</span>`;
     return h;
+}
+
+/**
+ * The share-of-pay bar above the summary, and its legend: the pension, each deduction and the
+ * take-home as a part of the total pay. A share of £0 is not drawn — a sliver for nothing would read
+ * as something — and without pay to divide there is no bar at all (null: the caller hides both).
+ * @param {{ gross:number, pension:number, tax:number, ni:number, sl:number, net:number }} d
+ * @returns {{ bar: string, legend: string } | null} innerHTML for #payBreakBar and #payBreakLegend
+ */
+export function buildBreakBar({ gross, pension, tax, ni, sl, net }) {
+    if (!(gross > 0)) return null;
+    const parts = /** @type {[string, number, string][]} */ ([['pbb-pension', pension, 'Pension'], ['pbb-tax', tax, 'Tax'],
+        ['pbb-ni', ni, 'NI'], ['pbb-sl', sl, 'Student Loan'], ['pbb-net', net, 'Take-home']]).filter(([, v]) => v > 0);
+    const share = (/** @type {number} */ v, /** @type {number} */ dp) => ((v / gross) * 100).toFixed(dp);
+    return {
+        bar: parts.map(([cls, v]) => `<div class="pbb-seg ${cls}" style="flex-grow:${share(v, 2)}"></div>`).join(''),
+        legend: parts.map(([cls, v, label]) =>
+            `<span class="pbl-item"><span class="pbl-dot ${cls}"></span>${label} <strong>${share(v, 0)}%</strong></span>`).join(''),
+    };
 }

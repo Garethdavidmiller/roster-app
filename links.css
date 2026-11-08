@@ -750,15 +750,11 @@ body.auth-ready .container { display: grid; }
     font-family: inherit;
     letter-spacing: 0.1px;
     padding: 2px 3px;
-    transition: filter var(--dur-fast) var(--ease-standard);
     line-height: 1.35;
     white-space: pre-line; /* allows \n in shiftLabel() to wrap start/end times */
     /* Paint mode = rapid taps; without this iOS/Android treat them as
        double-tap-to-zoom and the page lurches mid-paint. */
     touch-action: manipulation;
-}
-@media (hover: hover) and (pointer: fine) {
-    .shift-cell-btn:hover { filter: brightness(0.86); }
 }
 .shift-cell-btn:active { transform: scale(var(--press-scale)); }
 
@@ -811,10 +807,19 @@ body.auth-ready .container { display: grid; }
 /* ROW HOVER (v21.09). The grid is eleven columns wide since the totals arrived, so following one
    line from its Sunday cell to its hours needs the row picked out. Cosmetic only, and scoped to a
    real pointer — the app's rule is that hover/pointer queries are safe for a `:hover` transition
-   and never for layout, because some Android devices misreport `hover: hover`. */
+   and never for layout, because some Android devices misreport `hover: hover`.
+
+   THE SHIFT CELLS KEEP THEIR COLOURS (desktop audit, Nov 2026). The row was tinted by turning every
+   cell in it transparent, so the line under the pointer lost the very colours it is read by — and a
+   cell painted with the mouse showed no colour at all until the pointer left it. The row is marked
+   at its two ENDS instead, where no shift colour lives (its line number and its totals, opaque so
+   the sticky number column stays solid), and the cell under the pointer wears a navy inset ring:
+   the armed paint chip's marker, so the chip and the cell it is about to paint read as one idea.
+   An unfilled row keeps its amber flag. */
 @media (hover: hover) and (pointer: fine) {
-    .links-grid tbody tr:hover td { background-color: color-mix(in srgb, var(--accent-gold) 7%, transparent); }
-    .links-grid tbody tr:hover .shift-cell-btn { background-color: transparent; }
+    .links-grid tbody tr:not(.row-unfilled):hover > .pos-num,
+    .links-grid tbody tr:hover > .tot-cell { background-color: color-mix(in srgb, var(--accent-gold) 20%, var(--surface-sunken)); }
+    .shift-cell-btn:hover { box-shadow: inset 0 0 0 2px var(--primary-blue); }
 }
 .cov-label-e { color: var(--shift-early-text); }
 .cov-label-l { color: var(--shift-late-text); }
@@ -950,8 +955,10 @@ body.auth-ready .container { display: grid; }
 .brush-chip--custom    { background: var(--surface); color: var(--text-mid); border: 1px dashed var(--border-light); font-style: italic; }
 /* Armed state: solid navy ring */
 .brush-chip--active    { outline-color: var(--primary-blue); outline-width: 2px; }
+/* Hover never repaints a chosen control (css-tokens.md): the ARMED chip keeps its own colour under
+   the pointer that armed it, so it still matches the cells it paints. */
 @media (hover: hover) and (pointer: fine) {
-    .brush-chip:hover { filter: brightness(0.88); }
+    .brush-chip:not([aria-pressed="true"]):hover { filter: brightness(0.88); }
 }
 .brush-chip:active { transform: scale(var(--press-scale)); }
 
@@ -978,6 +985,27 @@ body.auth-ready .container { display: grid; }
         min-height: 30px;
         padding: 4px 9px;
     }
+}
+
+/* THE TIMES READ AT THE APP'S DENSE-LABEL SIZE ON A DESKTOP (desktop audit, Nov 2026): 10px in a
+   94–114px cell was the smallest text on the page. Screen only — print keeps its own 8px, which the
+   one-sheet measurement depends on — and AFTER both base rules, which it has to beat. A chip is the
+   cell it paints, so the two move together. */
+@media screen and (min-width: 1024px) and (pointer: fine) {
+    .shift-cell-btn, .brush-chip { font-size: var(--type-small); }
+}
+
+/* THE PAINT BAR STAYS IN REACH (desktop audit, Nov 2026). At 1366×768 it had scrolled away by line
+   16, so painting the lower lines meant scrolling up for every change of brush. From 768px on a fine
+   pointer it sticks to the top of the screen, and the day header sticks beneath it at the bar's
+   MEASURED height (`--brush-bar-h`, links-grid-input.js — the bar wraps with its chips). Not below
+   768px, where the header does not stick at all, and not on a phone, where the bar is already
+   counted as a cost to the screen (KNOWN_LIMITATIONS.md → Links). Opaque, so the rows pass under it.
+   The header tucks 1px UNDER the bar: a collapsed border does not travel with a sticky cell, so its
+   top pixel row showed slivers of the cells scrolling behind it. */
+@media screen and (min-width: 768px) and (pointer: fine) {
+    .brush-bar { position: sticky; top: 0; z-index: 4; }
+    #linksGridTable thead th { top: max(0px, calc(var(--brush-bar-h, 0px) - 1px)); }
 }
 
 /* ---- Design checks card ---- */
@@ -1099,8 +1127,10 @@ body.auth-ready .container { display: grid; }
 .check-info-icon { color: var(--text-mid); }
 .check-body { flex: 1; min-width: 0; }
 /* Explanations hold to the app's desktop reading width (owner, 26 Sep 2026): at 1280 they ran to
-   ~170 characters a line. The ROW keeps its full width and tint; only the prose inside is capped. */
-@media (min-width: 1024px) { .check-body .check-note, .check-body .check-sub { max-width: 72ch; } }
+   ~170 characters a line. The ROW keeps its full width and tint; only the prose inside is capped.
+   `.check-prose` is a row whose whole body IS an explanation — the fatigue panel's two caveats ran
+   to 110 and 159 characters a line until they joined the cap (desktop audit, Nov 2026). */
+@media (min-width: 1024px) { .check-body .check-note, .check-body .check-sub, .check-prose { max-width: 72ch; } }
 .check-note { font-size: var(--type-badge); color: var(--text-mid); }
 .check-sub  { font-size: var(--type-badge); color: var(--text-mid); margin-top: 3px; }
 .check-list {
@@ -1240,6 +1270,19 @@ body.auth-ready .container { display: grid; }
    the columns already say which day it is, so what was missing was only the boundary. */
 .gen-slot-newblock > td { border-top: 2px solid var(--border-mid); }
 .gen-select { width: 100%; min-width: 122px; }
+/* THE CLOSED FACE IS THE APP'S, the pop-up list stays the OS's (desktop audit, Nov 2026). The slot
+   times are native by decision (select-sheet-parity → NATIVE_BY_DECISION), but with only a fill set
+   Safari drew its own grey face and stepper over every one, 8px taller than the counts beside it.
+   The app's closed plain-select recipe — Admin's and Operations' — with the small chevron token. Two
+   classes, so its right padding beats the base rule. FINE POINTER ONLY: on a phone the time column is
+   104px at 16px type, and the chevron's 24px cut "07:00-16:00" short (pages.spec, 360px), so a touch
+   screen keeps the platform's own closed face, which it had before and which leaves room for the time. */
+@media (pointer: fine) {
+    .gen-select:not(.fieldpick) {
+        -webkit-appearance: none; appearance: none; background-image: var(--caret-chevron-small);
+        background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; cursor: pointer;
+    }
+}
 .gen-input:focus-visible, .gen-select:focus-visible {
     outline: var(--focus-outline);
     outline-offset: 1px;
@@ -1324,6 +1367,10 @@ body.auth-ready .container { display: grid; }
 }
 .btn-set:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .btn-set:disabled { opacity: 0.4; cursor: default; }
+/* A disabled "Use setup" drops its navy lead and reads like its disabled neighbours (desktop audit,
+   Nov 2026): at 40% of a navy 600-weight label it still looked stronger than the ENABLED "+ Save as
+   new…" beside it, so the one button you could not press was the one the row pointed you at. */
+.btn-set--primary:disabled { border-color: var(--border-light); color: var(--text-mid); font-weight: 400; }
 /* The row is the last thing before the objectives fieldset, so it needs air above it as well as
    the hint's own space below — it is a section, not a trailing line. */
 .gen-sets-row { padding-top: 4px; }
@@ -1383,7 +1430,9 @@ body.auth-ready .container { display: grid; }
 /* ---- Tablet/Desktop ---- */
 @media (min-width: 768px) {
     .container { gap: 14px; }
-    .app-header { margin-bottom: 0; }
+    /* net gap = 14px - 10px = 4px, the gap under the header on every card page (desktop audit,
+       Nov 2026; it was 0 — the first card 10px lower than on Pay or Settings). */
+    .app-header { margin-bottom: -10px; }
 }
 
 /* ---- Design picker strip ---- */
@@ -1423,6 +1472,9 @@ body.auth-ready .container { display: grid; }
     overflow: hidden;
     text-overflow: ellipsis;
 }
+/* A desktop has the room the cap was written for a phone without: at 1366 "Common Ground — Dec …"
+   was cut with ~400px of the row still empty (desktop audit, Nov 2026). */
+@media (min-width: 1024px) { .design-chip-name { max-width: 320px; } }
 @media (hover: hover) and (pointer: fine) {
     .design-chip:not(.design-chip--active):hover {
         background: var(--surface);

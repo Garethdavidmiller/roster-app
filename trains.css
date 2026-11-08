@@ -104,6 +104,9 @@ body {
     background: var(--surface-sunken);
     list-style: none;
 }
+/* On a desktop the box takes its column's width (desktop audit, Nov 2026): held to a phone's 340px it
+   stopped 64px short of the right-hand edge every block beneath it shares. */
+@media (min-width: 1024px) { .tr-totals-days { max-width: none; } }
 .tr-total {
     display: grid;
     grid-template-columns: 5.6em minmax(0, 1fr) auto;
@@ -429,6 +432,12 @@ the Pay Calculator's comparison table also uses — the uppercase label is the c
     line-height: 1.4;
 }
 .tr-head-go { color: var(--text-light); font-size: var(--type-large); }
+/* A ROW YOU CAN PRESS SAYS SO UNDER A MOUSE (desktop audit, Nov 2026): a "What's changing" row looked
+   the same pointed at as not. Its edge and its arrow take the navy of the page's other pressable rows. */
+@media (hover: hover) and (pointer: fine) {
+    .tr-head:hover { border-color: var(--primary-blue); }
+    .tr-head:hover .tr-head-go { color: var(--primary-blue); }
+}
 /* "Show N more" and "Show the N that stay the same" are the Pay Calculator's reveal-more button
 (.show-more-btn): full width, a dashed outline and a chevron — the app's one way of saying "there is
 more of this list". Until v24.93 they were underlined text links, which no other page uses for a
@@ -614,7 +623,9 @@ on the answer: the app's ring, not the browser's orange one. */
     .tr-grid-end { white-space: normal; line-height: 1.15; }
 }
 .tr-grid-swipe { margin: 0 0 6px; color: var(--text-light); font-size: var(--type-small); }
-@media (min-width: 700px) { .tr-grid-swipe.touch-only { display: none; } }
+/* Shown only while the grid scrolls sideways (trains-grid-mirror.js). `.touch-only`'s `display: revert`
+   rolls back past the `hidden` attribute, so without this the line shows anyway. */
+.tr-grid-swipe[hidden] { display: none; }
 /* After the base station-column rule, so it wins: the column is set, the trains share the rest. */
 @media (min-width: 1024px) { .tr-grid .tr-grid-st { width: 220px; max-width: none; } }
 .tr-grid-origin th, .tr-grid-origin td { background: var(--surface-sunken); }
@@ -645,6 +656,12 @@ on the answer: the app's ring, not the browser's orange one. */
 /* The chosen column: a light tint down the table so its times stay readable, and the page's colour on its
    heading's underline (v25.21 — the underline was navy, the old "chosen"). */
 .tr-grid thead th.tr-col-on { box-shadow: inset 0 -3px 0 var(--page-accent); }
+/* A column head is a button, and under a mouse it now looks like one (desktop audit, Nov 2026): a 10%
+   tint of the page's colour, as a hovered week in the date pickers takes. Never on the CHOSEN column,
+   which keeps the look its choice gave it (css-tokens.md: hover never repaints a chosen control). */
+@media (hover: hover) and (pointer: fine) {
+    .tr-grid thead th.tr-grid-colhead:not(.tr-col-on):hover { background: color-mix(in srgb, var(--page-accent) 10%, transparent); }
+}
 .tr-grid-focus { margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); }
 .tr-grid-focus .tr-more { margin: 0; }
 .tr-grid-tip { margin: 0 0 6px; }
@@ -825,7 +842,7 @@ uppercase. */
     .tr-view[hidden] { display: none !important; }
     .tr-dot { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     body { background: white; padding: 0; color: black; }
-    .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-change-station { display: none; }
+    .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-grid-swipe, .tr-change-station { display: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
 }
 

@@ -126,7 +126,9 @@ body {
     .nl-name:hover { border-color: var(--primary-blue); }
 }
 .nl-name-title { color: var(--primary-blue); font-size: var(--type-button); font-weight: 800; line-height: 1.2; }
-.nl-name-go { margin-top: 3px; color: var(--al-text); font-size: var(--type-badge); font-weight: 700; }
+/* `auto` pushes "See its weeks" to the foot of its tile, so a name that wraps to two lines leaves the three
+   sub-lines on one edge (desktop audit, Nov 2026: "Common Ground" wraps, and its line sat 18px lower). */
+.nl-name-go { margin-top: auto; padding-top: 3px; color: var(--al-text); font-size: var(--type-badge); font-weight: 700; }
 /* "Have your say", inside a sentence: a way to a card, drawn as the link it reads as. */
 .nl-inline {
     padding: 0;
@@ -220,7 +222,9 @@ body {
                 border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard),
                 transform var(--dur-fast) var(--ease-standard);
 }
-.nl-tile { flex-direction: column; gap: 3px; padding: 10px 6px; }
+/* From the TOP, not the centre: a label that wraps ("Swap for overtime" at 1024px) raised its emoji above its
+   neighbours', so the seven icons stopped sharing a line (desktop audit, Nov 2026). */
+.nl-tile { flex-direction: column; justify-content: flex-start; gap: 3px; padding: 10px 6px; }
 .nl-tile-icon { font-size: var(--type-large); line-height: 1.1; }
 .nl-tile:active, .nl-tab:active { transform: scale(var(--press-scale)); }
 /* The chosen tile and tab wear the page's teal, flat (v25.16 — they were navy with a gold underline on a

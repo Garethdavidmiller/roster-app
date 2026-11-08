@@ -54,19 +54,18 @@ const GLOBAL_WAIVERS = [];
 async function scan(page, { pageWaivers = [], exclude = [] } = {}) {
     // ── NEVER SCAN THROUGH THE SPLASH (v21.35) ──────────────────────────────────────────────────
     //
-    // The Calendar's splash fades for 400ms and is then REMOVED from the DOM. While it fades it is
-    // a full-screen navy panel with white text lying over whatever is underneath, so axe measures
-    // `#splash-title` against the card behind it and reports a SERIOUS colour-contrast violation —
-    // for a state that lasts under half a second and that `pointer-events: none` already makes
-    // untouchable. There is no defect to fix in the app: nobody reads that frame.
+    // The Calendar's splash is a full-screen navy panel with white text over whatever is underneath,
+    // REMOVED from the DOM a frame after the first render (it was written to fade; the fade never ran
+    // and went, 8 Nov 2026). A scan that lands before the removal measures `#splash-title` against the
+    // card behind it and reports a SERIOUS colour-contrast violation for a frame nobody reads. There is
+    // no defect to fix in the app.
     //
-    // It surfaced on WebKit in CI, where the runner is slow enough that the scan lands inside the
-    // fade. Locally it never reproduced, which is exactly why the wait belongs HERE rather than in
-    // the one test that happened to catch it: seven scans load `/`, all seven have the same race,
-    // and the other six pass today only because whatever they wait for outlasts the fade.
+    // It surfaced on WebKit in CI, where the runner is slow enough for the scan to land first. Locally
+    // it never reproduced, which is exactly why the wait belongs HERE rather than in the one test that
+    // happened to catch it: seven scans load `/`, all seven have the same race, and the other six pass
+    // only because whatever they wait for outlasts the splash.
     //
-    // Waiting for DETACHMENT, not for `.hidden` — the class goes on at the START of the fade, so
-    // waiting on it would still leave the whole 400ms in front of us.
+    // Waiting for DETACHMENT — the one state that means it has gone.
     await page.locator('#splash').waitFor({ state: 'detached', timeout: 15_000 }).catch(() => {
         // Pages other than the Calendar have no splash, and `detached` resolves immediately for an
         // element that never existed. A timeout here means one genuinely never came down — let the
@@ -152,6 +151,58 @@ async function faded(page) {
         }
         return [...new Set(out)].sort();
     });
+}
+
+/**
+ * The WCAG contrast of each matched text against the opaque navy sheet it is drawn on, composited
+ * the way the browser paints it: the sheet's navy, its top-lit gradient at the text's own height, then
+ * every tinted ancestor between the sheet and the text.
+ *
+ * ── WHY, BESIDE THE SCAN (desktop audit, Nov 2026) ─────────────────────────────────────────────
+ *
+ * axe cannot see through a gradient. Text on the sheet comes back "background could not be
+ * determined due to a background gradient" — `incomplete`, neither a pass nor a violation — so a scan
+ * of a panel on the sheet proves nothing about the text on it. That is not hypothetical: moving App
+ * Notices onto the sheet turned its axe violations into silence while its section labels still
+ * measured 3.5:1 at the panel's lit top. So the colours are measured here.
+ * A panel that is not opaque has no sheet to measure against, and says so as a 0:1 entry.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} sheet  the panel wearing the sheet
+ * @param {string} texts  the elements to measure, inside it
+ * @param {{ lightest?: boolean }} [opts]  `lightest`: measure every text at the sheet's LIGHTEST point
+ *   (the top of its gradient) rather than where it sits now — for a list that scrolls, where any
+ *   item can come to rest at the top.
+ * @returns {Promise<Array<{ text: string, ratio: number }>>}
+ */
+function contrastOnSheet(page, sheet, texts, { lightest = false } = {}) {
+    return page.evaluate(([sheetSel, textSel, atTop]) => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** Any CSS colour → sRGB bytes + alpha, by painting it (resolves oklch and color-mix too). @param {string} css */
+        const rgba = (css) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data; return [r, g, b, a / 255]; };
+        /** @param {number[]} top @param {number[]} under */
+        const over = (top, under) => [0, 1, 2].map(i => top[i] * top[3] + under[i] * (1 - top[3])).concat(1);
+        /** @param {number[]} c */
+        const lum = (c) => c.slice(0, 3).map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const panel = /** @type {HTMLElement} */ (document.querySelector(sheetSel));
+        const cs = getComputedStyle(panel);
+        if (rgba(cs.backgroundColor)[3] < 0.99) return [{ text: `${sheetSel} is see-through — no sheet to measure against`, ratio: 0 }];
+        const stops = [...cs.backgroundImage.matchAll(/rgba?\([^)]*\)/g)].map(m => rgba(m[0]));
+        const box = panel.getBoundingClientRect();
+        return [...panel.querySelectorAll(textSel)].map(el => {
+            const r = el.getBoundingClientRect();
+            const t = atTop ? 0 : Math.min(1, Math.max(0, (r.top + r.height / 2 - box.top) / box.height));
+            // The gradient's alpha at this height (white stops, as the sheet's are).
+            let bg = rgba(cs.backgroundColor);
+            if (stops.length === 2) bg = over([...stops[0].slice(0, 3), stops[0][3] + (stops[1][3] - stops[0][3]) * t], bg);
+            const chain = [];
+            for (let a = /** @type {Element|null} */ (el); a && a !== panel; a = a.parentElement) chain.unshift(a);
+            for (const a of chain) bg = over(rgba(getComputedStyle(a).backgroundColor), bg);
+            const fg = over(rgba(getComputedStyle(el).color), bg);
+            const [hi, lo] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+            return { text: `${el.className} "${(el.textContent || '').trim()}"`, ratio: Math.round((hi + 0.05) / (lo + 0.05) * 100) / 100 };
+        });
+    }, /** @type {[string, string, boolean]} */ ([sheet, texts, lightest]));
 }
 
 // Tagged @a11y. GREEN + BLOCKING since v17.52 — part of `npm run test:e2e` (a new WCAG A/AA
@@ -249,7 +300,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // the scan kept passing on its copy. Each state is now reached the way a member reaches it, over a
     // grid painted from the device's cache (the one place the chip is shown at all — index.css hides
     // it while the grid's own panel speaks): a server read that has not answered yet puts up
-    // "Updating your shifts…" at 800ms, and one that fails puts up "Couldn't update — tap to retry".
+    // "Updating your shifts…" at 800ms, and one that fails puts up "Couldn't update — try again".
     // Know what each one measures: the "updating" chip is a DISABLED button, and WCAG exempts an
     // inactive control, so axe skips its colours — that case scans the page around a live sync. The
     // failure chip is the one whose own contrast is checked (mutation-checked: an unreadable chip
@@ -352,6 +403,33 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await expect.poll(() => page.evaluate(async () =>
             (await import('./paycalc-roster-suggestions.js')).getOverridesFetchState()),
             { message: 'the recorded-changes read never answered' }).not.toBe('checking');
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    // EVERY CARD OPEN (desktop audit, 7 Nov 2026). A shut card's body is `visibility: hidden` now
+    // (paycalc.css → COLLAPSIBLE CARDS), so the scan above no longer reads what is inside one; it
+    // did before, because a body clipped to no height stays in the accessibility tree. Opened by
+    // their arrows, so each card draws what it draws on open (the back-pay card computes).
+    test('paycalc (signed in) — every card open', async ({ page }) => {
+        await seedSession(page);
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        await expect.poll(() => page.evaluate(async () =>
+            (await import('./paycalc-roster-suggestions.js')).getOverridesFetchState()),
+            { message: 'the recorded-changes read never answered' }).not.toBe('checking');
+        for (const [toggle, body] of [['settingsToggle', 'settingsBody'], ['payslipCardToggle', 'payslipCardBody'],
+            ['hppCardToggle', 'hppCardBody'], ['backPayCardToggle', 'backPayBody'],
+            ['decimalConverterToggle', 'decimalConverterBody'], ['payTransferToggle', 'payTransferBody']]) {
+            if (!await page.locator(`#${body}`).evaluate(el => el.classList.contains('open'))) {
+                await page.locator(`#${toggle} .card-toggle-arrow`).click();
+            }
+            await expect(page.locator(`#${body}`), `#${body} opened`).toHaveCSS('visibility', 'visible');
+        }
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
     });
@@ -707,6 +785,72 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);
     });
+
+    // App Notices OVER A LIGHT PAGE (desktop audit, Nov 2026). The archive panel was see-through —
+    // white 8% over the backdrop — so its small section labels and dates were measured against
+    // whatever page lay behind it: over the Calendar's dark grid they passed, over Admin's off-white
+    // cards TRAINS read 3.0:1, PAY 3.36:1 and a date 4.43:1. It now sits on the opaque navy sheet the
+    // notices it archives use. Admin, because it is the light page; one entry per section colour the
+    // archive draws (nav-panel.js → SECTION_MODS) and the neutral one, because each is its own small
+    // coloured label. The panel is tall enough at 1366×900 to show all seven unscrolled.
+    // TWO HALVES. The scan rates what it can see, but not text ON the sheet, whose gradient it cannot
+    // see through (`incomplete`). So `contrastOnSheet` measures the labels, dates and bodies against
+    // the sheet, and refuses a panel that is not opaque — a panel with its fill taken away passed the
+    // scan alone (mutation-checked). On the sheet the old 72% label colours measured 3.5:1 at its lit
+    // top — the move alone was not the fix.
+    test('App Notices open over a light page (admin)', async ({ page }) => {
+        await page.setViewportSize({ width: 1366, height: 900 });
+        await seedSession(page);
+        await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify(
+            ['Trains', 'Pay', 'Links', 'Settings', 'Operations', 'Calendar', 'General']
+                .map((section, i) => ({ id: `probe-${i}`, section, title: `A ${section} notice`, date: '21 Oct 2026',
+                    body: 'Body text.', archivedAt: '2026-10-21T09:00:00.000Z' })))));
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        await page.locator('#navMenuBtn').click();
+        const toggle = page.locator('#navGuidesToggle');
+        if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+        await page.locator('.nav-panel-link--notices').click();
+        await expect(page.locator('#navNoticesLightbox')).toBeVisible();
+        await expect(page.locator('#navNoticesContent .notices-item')).toHaveCount(7);
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+        // At the sheet's lightest point, not where each one happens to sit: the list scrolls, and
+        // whichever notice is newest comes first, so any section can rest at the top.
+        const measured = await contrastOnSheet(page, '#navNoticesContent', '.notices-item-section, .notices-item-date, .notices-item-body', { lightest: true });
+        const low = measured.filter(m => m.ratio < 4.5);
+        expect(low, `below 4.5:1 on the sheet: ${low.map(m => `${m.text} ${m.ratio}:1`).join(' · ')}`).toEqual([]);
+        expect(measured.length, 'a section label, a date and a body for each of the seven notices').toBe(21);
+    });
+
+    // …and EMPTY, its one line (Nov 2026). "Notices you've read on this device appear here." was white
+    // 50% on the sheet: 4.59:1 where it sat, a pass by a hair, and under AA at the sheet's lit top,
+    // where a taller panel moves it. It wears the sheet's secondary-text token now (`--on-navy-muted`,
+    // as the archive's bodies do). Measured at the LIGHTEST point, so no panel height can undo it, and
+    // with a margin rather than at the floor, so a hair's pass fails. Over the light page and over
+    // the Calendar: the sheet is opaque, so the page behind must not matter — `contrastOnSheet`
+    // refuses a see-through panel.
+    for (const where of /** @type {const} */ (['admin', 'calendar'])) {
+        test(`App Notices, empty, reads clear of AA on the sheet (${where})`, async ({ page }) => {
+            await page.setViewportSize({ width: 1366, height: 900 });
+            if (where === 'admin') {
+                await seedSession(page);
+                await page.goto('/admin.html');
+                await page.waitForSelector('.day-row', { timeout: 10000 });
+            } else {
+                await seedMember(page);
+                await page.goto('/');
+                await expect(page.locator('.calendar-day').first()).toBeVisible();
+            }
+            await page.locator('#navMenuBtn').click();
+            const toggle = page.locator('#navGuidesToggle');
+            if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+            await page.locator('.nav-panel-link--notices').click();
+            await expect(page.locator('#navNoticesEmpty')).toBeVisible();
+            const [top] = await contrastOnSheet(page, '#navNoticesContent', '#navNoticesEmpty', { lightest: true });
+            expect(top.ratio, `${top.text} at the sheet's lit top: ${top.ratio}:1`).toBeGreaterThanOrEqual(6);
+        });
+    }
 
     test('About lightbox open (calendar)', async ({ page }) => {
         await seedMember(page);

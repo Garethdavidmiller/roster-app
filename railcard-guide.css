@@ -346,6 +346,17 @@ a { color: var(--navy); text-underline-offset: 2px; }
 
 /* The footer's `.guide-back-link` is the shared recipe in guide-shell.css (polish round 2). */
 
+/* ── A reading measure from 1024px (desktop audit, Nov 2026) ─────────────────────────────────────
+   The 760px column held this page's 12–13px notes at 120–140 characters a line. The app's own rule
+   for prose on a desktop (css-tokens.md → "Reading measure") is a ~64–72ch cap from 1024px, and the
+   guides keep it too: a paragraph or a note stops at 64ch. Boxed callouts and the card rows keep the
+   column — a box is bounded and short, a row is data. The footer is centred, so its words are held
+   to the measure by its padding and its rule still spans the column. Screen only: print is as was. */
+@media screen and (min-width: 1024px) {
+    main p, .qc-note, .check-item > div, .gotcha-text { max-width: 64ch; }
+    .foot { padding-inline: max(0px, calc((100% - 64ch) / 2)); }
+}
+
 /* ── Print (shell handles .page-header + button hiding) ───────── */
 @media print {
     /* A4 PORTRAIT, stated (v23.20). Without an `@page size` the browser uses its own default,
@@ -385,7 +396,9 @@ a { color: var(--navy); text-underline-offset: 2px; }
     border-bottom: 2px solid var(--amber);
     padding: 12px max(16px, env(safe-area-inset-left));
 }
-.source-banner > * { max-width: 760px; margin-left: auto; margin-right: auto; }
+/* 728 = the 760px column less its 16px sides, so the banner's words start where the header's ←, the
+   chips and the text do (desktop audit, Nov 2026); it was 16px left of all three. */
+.source-banner > * { max-width: 728px; margin-left: auto; margin-right: auto; }
 .draft-title { font-weight: 800; color: var(--amber); font-size: 13px; letter-spacing: 0.2px; margin-bottom: 4px; }
 .source-banner p { font-size: 13px; color: var(--text); }
 
@@ -417,21 +430,34 @@ a { color: var(--navy); text-underline-offset: 2px; }
    Each group is a left-striped block in the token colour of its rule type, so the four kinds are
    distinguishable at a glance — but every one also carries its symbol AND its words, because a
    printed copy may be monochrome and because colour alone has never been how this app carries
-   meaning. */
-.qc-intro { font-size: 13px; color: var(--mid); margin-bottom: 10px; }
+   meaning.
+
+   Every size here is multiplied by `--qc-scale` (1 unless the desktop step below sets it), so the
+   intro, the head, the card list and the note grow TOGETHER and keep their order and proportions by
+   construction — a size changed above moves the desktop with it. */
+.qc-intro { font-size: calc(13px * var(--qc-scale, 1)); color: var(--mid); margin-bottom: 10px; }
 .qc-intro p { margin: 0; }
 .qc-group {
     background: var(--white);
     border: 1px solid var(--border);
     border-left: 4px solid var(--light);
     border-radius: 10px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
+    padding: calc(10px * var(--qc-scale, 1)) calc(12px * var(--qc-scale, 1));
+    margin-bottom: calc(8px * var(--qc-scale, 1));
 }
-.qc-head { font-size: 13.5px; font-weight: 800; color: var(--text); display: flex; align-items: baseline; gap: 7px; }
-.qc-tok { font-weight: 800; font-size: 15px; line-height: 1; }
-.qc-cards { font-size: 13px; color: var(--text); margin: 4px 0 3px; }
-.qc-note { font-size: 12.5px; color: var(--mid); line-height: 1.45; }
+.qc-head { font-size: calc(13.5px * var(--qc-scale, 1)); font-weight: 800; color: var(--text); display: flex; align-items: baseline; gap: calc(7px * var(--qc-scale, 1)); }
+.qc-tok { font-weight: 800; font-size: calc(15px * var(--qc-scale, 1)); line-height: 1; }
+.qc-cards { font-size: calc(13px * var(--qc-scale, 1)); color: var(--text); margin: calc(4px * var(--qc-scale, 1)) 0 calc(3px * var(--qc-scale, 1)); }
+.qc-note { font-size: calc(12.5px * var(--qc-scale, 1)); color: var(--mid); line-height: 1.45; }
+/* LARGER TEXT ON A DESKTOP, NOT A NARROWER CARD (owner, Nov 2026). From the guides' desktop line the
+   column gives each card ~700px, and the note's 64ch measure at 12.5px stopped about 200px short of
+   the card's edge (measured at 1366 and 1920: 505px of 699, the card ~30% empty on its right). A
+   narrower card was the other option and was declined. 1.28 puts the note at 16px, where its 64ch —
+   which grows with the type — spans the card; the measure itself is unchanged, so a line holds as
+   many characters as before. Screen only: a phone and paper keep the sizes above. */
+@media screen and (min-width: 1024px) {
+    .qc-intro, .qc-group { --qc-scale: 1.28; }
+}
 
 .qc-none  { border-left-color: var(--green); }
 .qc-none  .qc-tok, .qc-none  .qc-head { color: var(--green); }

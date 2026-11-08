@@ -396,7 +396,11 @@ export function init() {
             const has = emailMap.has(m.name);
             const emailText = document.createElement('span');
             emailText.className = 'acct-email' + (has ? '' : ' acct-email--none');
-            emailText.textContent = has ? `📧 ${emailMap.get(m.name)}` : '📧 No work email';
+            // The whole address, wrapping where it must (operations.css → .acct-email): the 📧 held to it by a
+            // no-break space, so it is never left alone on a line, and a break offered after the @ before any other.
+            const addr = has ? String(emailMap.get(m.name)) : '', at = addr.indexOf('@') + 1;
+            if (!has) emailText.textContent = '📧 No work email';
+            else emailText.append(`📧\u00a0${addr.slice(0, at || addr.length)}`, ...(at ? [document.createElement('wbr'), addr.slice(at)] : []));
             emailLine.appendChild(emailText);
 
             const setBtn = document.createElement('button');

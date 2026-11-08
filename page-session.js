@@ -93,7 +93,7 @@ export function warnOnUnload(isDirty) {
 }
 
 /** Where the app draws links that leave the page: the drawer, and every page's About panel
- *  (`#iconLightbox`, about-lightbox.js) — Admin's "View staff roster" and "View quick guide" went
+ *  (`#iconLightbox`, about-lightbox.js) — Admin's "View staff roster" and "Staff & Admin Guide" went
  *  straight past the question for as long as it asked about the drawer alone (iPhone audit, Nov 2026). */
 const LEAVING_ZONES = ['.nav-panel', '#iconLightbox'];
 

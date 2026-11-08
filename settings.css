@@ -96,6 +96,10 @@ body {
        INSIDE an already-narrow card, so at 60ch it was wrapping the hints earlier than the
        card required while the documented comfortable band runs to 72ch. */
     .card .hint { max-width: 68ch; }
+    /* …and the card's own opening paragraph, which is prose too (desktop audit, 7 Nov 2026): the
+       Work Email explainer ran ~103 characters a line across the 644px main column. `.card-explainer`
+       is shared.css's, so the measure is set here, beside its sibling, not on every page. */
+    .card .card-explainer { max-width: 68ch; }
 
     /* The 280px cap is REMOVED (v18.89). Its rationale — "no reason to span the full column" —
        holds on a 1100px page, but this column is 600px and the field above the button is 536px,
@@ -169,6 +173,8 @@ body {
 .contact-feedback.err { color: var(--error-red); }
 
 /* ---- Notifications card ---- */
+/* "You'll get:" — each kind and the "·" after it stay on one line (settings.html says why). */
+.notif-kind { white-space: nowrap; }
 #notifStatusMsg { font-size: var(--type-label); color: var(--text-mid); margin-bottom: 14px; }
 #notifDeniedMsg {
     display: none;
@@ -298,6 +304,28 @@ body {
     color: var(--text-mid);
 }
 .settings-summary-items:empty { display: none; }
+/* EACH TO-DO LEADS TO ITS CARD (desktop audit, 7 Nov 2026). The items are links to the card that
+   fixes them — settings-app.js opens it on the way — so they read as links, in the strip's own ink,
+   and each is a 24px target under a thumb (WCAG 2.5.8), which the bare line never had to be. */
+.settings-summary-items a {
+    display: inline-block;
+    padding: 4px 0;
+    color: var(--text-dark);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.settings-summary-items a:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-xs); }
+@media (hover: hover) and (pointer: fine) {
+    .settings-summary-items a:hover { text-decoration-thickness: 2px; }
+}
+/* …and on a desktop they run ALONG the band, beside the line that counts them, rather than down its
+   left edge: the strip spans the page, and three short lines stacked at its left left ~1,000px of
+   amber with nothing in it. One row says the same thing at a third of the height. */
+@media (min-width: 1024px) {
+    .settings-summary { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 24px; }
+    .settings-summary-items { display: flex; flex-wrap: wrap; gap: 0 20px; padding-left: 0; list-style: none; }
+}
 .settings-summary-items li { margin: 2px 0; }
 
 /* Section labels — three words that group four cards into the questions they answer. Small,

@@ -69,7 +69,7 @@ export function renderHeadlines(items, { showAll, partial }) {
     const more = !showAll && items.length > shown.length
         ? `<button type="button" class="tr-more" id="trHeadsMore">Show ${items.length - shown.length} more</button>` : '';
     const small = items.length
-        ? '<p class="card-explainer tr-note">The biggest changes only. A train a few minutes earlier or later is on its station’s card — tap a line, or use Stations.</p>'
+        ? '<p class="card-explainer tr-note">The biggest changes only. A train a few minutes earlier or later is on its station’s card — choose a line, or use Stations.</p>'
         : '';
     const note = partial
         ? '<p class="card-explainer tr-note">More stations appear here once Chiltern publishes where December’s trains stop.</p>'
@@ -296,14 +296,15 @@ export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, ban
         ? '<ul class="tr-grid-key">' + keyItem('', 'stops every hour') + (anySome ? keyItem('some', 'some hours only') : '')
             + (compared ? keyItem('new', 'new stop') + keyItem('lost', 'no longer stops') : '') + '</ul>'
         : '';
-    const swipe = grid.columns.length > 4 ? '<p class="tr-grid-swipe touch-only">Swipe the table sideways for more trains.</p>' : '';
+    // Drawn hidden, and shown only while the grid really scrolls sideways (trains-grid-mirror.js).
+    const swipe = '<p class="tr-grid-swipe touch-only" hidden>Swipe the table sideways for more trains.</p>';
     // What the chosen column is, in words — and the way back. Discovery does not depend on the
     // buttons being found: when none is chosen, one line says what they do.
     const c = col === null ? null : grid.columns[col];
     const focusLine = c
         ? `<p class="tr-grid-focus">Only where the <strong>:${String(c.minute).padStart(2, '0')} to ${esc(routeName(stations, c.end, c.via))}</strong> stops. `
             + '<button type="button" class="tr-more" id="trGridAll">Show every station</button></p>'
-        : '<p class="card-explainer tr-note tr-grid-tip">Tap a time at the top to show only where that train stops.</p>';
+        : '<p class="card-explainer tr-note tr-grid-tip">Choose a time at the top to show only where that train stops.</p>';
     return unknown + key + focusLine + swipe + `<div class="tr-grid-wrap" tabindex="0" role="region" aria-label="Where they stop — scrolls sideways"><table class="tr-grid"><thead>${head}</thead><tbody>${origin}${body}</tbody></table></div>`;
 }
 

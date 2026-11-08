@@ -404,8 +404,7 @@ export function init() {
         // The tab strip appears once there are two surfaces worth moving between: both exist, OR
         // the member's own side FAILED and its error is worth being able to return to. Drawing it
         // from the CONFIG guess would flash a tab at a reviewer who turns out to have no form.
-        const tabs = el('otTabs');
-        if (tabs) tabs.hidden = !(canReview && (canSubmit || mineFailed));
+        setTabStrip(canReview && (canSubmit || mineFailed));
         // Switch a reviewer to the workspace only when their own side genuinely has nothing —
         // never when it FAILED. Switching on failure hides the error the member is looking at and
         // replaces it with a different card, which reads as the page ignoring them.
@@ -687,6 +686,18 @@ export function init() {
         if (selected && focus) t.focus();
     }
 
+    /** The strip, and with it the panels' tab roles: a panel is a tabpanel and a Tab stop only while a strip names it — without
+     *  one, the form's panel was an empty Tab stop titled by a hidden tab (desktop audit, Nov 2026). @param {boolean} shown */
+    function setTabStrip(shown) {
+        const tabs = el('otTabs');
+        if (tabs) tabs.hidden = !shown;
+        for (const [id, tab] of [['otMinePanel', 'otTabMine'], ['otAllPanel', 'otTabAll']]) {
+            const panel = el(id);
+            if (panel && shown) { panel.setAttribute('role', 'tabpanel'); panel.setAttribute('aria-labelledby', tab); panel.tabIndex = 0; }
+            else if (panel) for (const a of ['role', 'aria-labelledby', 'tabindex']) panel.removeAttribute(a);
+        }
+    }
+
     // ── Shared render helpers ───────────────────────────────────────────────────────────────────
 
     /** @param {any} host @param {string} message */
@@ -721,10 +732,11 @@ export function init() {
     /** @param {boolean} [paused] switched off for everyone (owner, Nov 2026), rather than not open to this member */
     function renderUnavailable(paused = false) {
         const mine = el('otMineContent');
-        const tabs = el('otTabs');
         const allPanel = el('otAllPanel');
-        if (tabs) tabs.hidden = true;
+        const title = el('otMineTitle');   // paused, it names the feature, not a form that is not there (desktop audit, Nov 2026)
+        setTabStrip(false);
         if (allPanel) allPanel.hidden = true;
+        if (paused && title) title.innerHTML = '<span aria-hidden="true">⏱️</span> Overtime availability';
         if (mine) {
             mine.innerHTML = `
                 <div class="ot-state">

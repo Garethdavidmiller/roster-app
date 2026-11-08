@@ -187,12 +187,18 @@ test('a collapsed Settings card still prints its values @print', async ({ page }
     const h = await inPrint(page, () => {
         const b = document.getElementById('settingsBody');
         const grade = document.getElementById("gradeSelect");
+        const face = document.getElementById('gradeSelectTrigger');
         return { body: Math.round(b.getBoundingClientRect().height),
-                 gradeVisible: !!(grade && grade.getBoundingClientRect().height > 0) };
+                 gradeVisible: !!(grade && grade.getBoundingClientRect().height > 0),
+                 painted: !!face && getComputedStyle(face).visibility === 'visible' };
     });
     expect(h.body, 'the Settings body has height on paper even when collapsed on screen')
         .toBeGreaterThan(100);
     expect(h.gradeVisible, 'the grade field itself reaches the paper').toBe(true);
+    // PAINTED, not only laid out (desktop audit, 7 Nov 2026): a shut body is `visibility: hidden` on
+    // screen, which keeps its controls out of the Tab order, and a box with height but no paint would
+    // pass both checks above. Read at once, because a delayed transition would hold it hidden for 0.3s.
+    expect(h.painted, 'the grade the estimate used is drawn on the sheet').toBe(true);
 });
 
 // ── NAVIGATION IS NOT A DOCUMENT ────────────────────────────────────────────────────────────────

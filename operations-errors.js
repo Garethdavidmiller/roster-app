@@ -114,7 +114,7 @@ async function initErrorLog(opts = {}) {
                     // so the header chip stranded on the pre-resolve count).
                     _setCountChip();
                     allBtn.disabled = false;
-                    allBtn.textContent = `✗ ${failedItems.length} didn't resolve — tap to retry`;
+                    allBtn.textContent = `✗ ${failedItems.length} didn't resolve — try again`;
                     errStatus.textContent = `${succeeded} resolved, ${failedItems.length} failed`;
                     return;   // leave the list as-is so the admin can retry just the failures
                 }
@@ -217,7 +217,7 @@ async function initErrorLog(opts = {}) {
                         errStatus.textContent = `Error from ${err.memberName ?? 'unknown'} marked resolved`;
                     } catch {
                         resolveBtn.disabled = false;
-                        resolveBtn.textContent = '✗ Failed — tap to retry';
+                        resolveBtn.textContent = '✗ Failed — try again';
                         setTimeout(() => { resolveBtn.textContent = '✓ Resolve'; }, 3000);
                     }
                 });

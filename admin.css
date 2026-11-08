@@ -158,6 +158,10 @@
                 height: env(safe-area-inset-top, 0px);
                 background: var(--primary-blue);
             }
+            /* The bar is navy here, and a field's navy ring vanished into it, 1:1 (Nov 2026): the gold ring of
+               the navy Unsaved bar. From 1024px the bar is a white card and the field keeps the navy one. */
+            .member-context-bar select:focus-visible,
+            .member-context-bar .fieldpick:focus-visible { outline: var(--focus-outline-gold); }
         }
 
         /* The bar's own bottom padding is part of the gap the EYE sees. Below 1024px the bar is a
@@ -456,8 +460,9 @@
         }
 
         @media (hover: hover) and (pointer: fine) { .week-nav-btn:hover { background: var(--primary-blue-dark); } }
+        /* Navy: the ring sits 2px out on the white card, where gold is ~1.5:1 (desktop audit, Nov 2026). */
         .week-nav-btn:focus-visible {
-            outline: var(--focus-outline-gold);
+            outline: var(--focus-outline);
             outline-offset: 2px;
         }
 
@@ -477,7 +482,8 @@
         .week-today-word { display: none; }
         @media (min-width: 1024px) {
             .week-today-word { display: inline; }
-            .week-nav-today  { min-width: 84px; }
+            /* A word, not the phone's 10px icon size: "Today" was the page's smallest text (desktop audit). */
+            .week-nav-today  { min-width: 84px; font-size: var(--type-label); }
         }
         @media (hover: hover) and (pointer: fine) { .week-nav-today:hover { background: var(--accent-gold-dark); } }
 
@@ -672,7 +678,9 @@
             font-family: inherit;
         }
 
-        @media (hover: hover) and (pointer: fine) { .type-pill-btn:hover:not(:disabled) { opacity: 0.75; } }
+        /* A tint of the pill's own colour, never on the chosen one: `opacity: 0.75` faded a chosen AL's
+           white-on-teal from 5.19:1 to 3.31:1 (desktop audit, Nov 2026). */
+        @media (hover: hover) and (pointer: fine) { .type-pill-btn:not(.active):hover:not(:disabled) { background: color-mix(in srgb, currentColor 8%, transparent); } }
         .type-pill-btn:focus-visible {
             outline: var(--focus-outline);
             outline-offset: 2px;
@@ -737,11 +745,17 @@
             font-family: inherit;
         }
 
-        @media (hover: hover) and (pointer: fine) { .btn-bulk-apply:hover { background: var(--primary-blue-dark); } }
+        @media (hover: hover) and (pointer: fine) { .btn-bulk-apply:hover:not(:disabled) { background: var(--primary-blue-dark); } }
+        /* Navy, as the week arrows: the ring is drawn on the pale bulk bar, not on the button. */
         .btn-bulk-apply:focus-visible {
-            outline: var(--focus-outline-gold);
+            outline: var(--focus-outline);
             outline-offset: 2px;
         }
+        #bulkFeedback { margin-top: 8px; }   /* what Apply refused, said under it (admin.html) */
+        /* Greyed out until it can act, in Save changes' own disabled look (shared.css `.btn-save:disabled`), its
+           reason under it in Save's hint style — held to the button's left edge, not centred (owner, Nov 2026). */
+        .btn-bulk-apply:disabled { opacity: 0.35; cursor: not-allowed; }
+        #bulkApplyHint { text-align: left; }
 
         /* ---- Week grid ---- */
         .week-grid {
@@ -840,10 +854,11 @@
 
         /* day-row: checkbox | day | base | type pills | time inputs.
            Each row is a discrete rounded card (v15.58) — gaps come from the flex .week-panel.
-           .selected (ticked) and .has-override swap the 1px left border for a 4px accent
-           (gold / orange); .active shows a background tint only. The other three sides stay
-           1px, giving the accent-card look. */
+           A row's STATE is a 4px bar down its left edge: the 1px border recoloured plus a 3px inset
+           shadow (`--row-bar`), never a wider border, which moved the row 3px right when a day was
+           ticked (desktop audit, Nov 2026). */
         .day-row {
+            --row-bar: transparent;
             display: grid;
             grid-template-columns: 32px 100px 92px 1fr auto;
             gap: 8px;
@@ -852,18 +867,21 @@
             background: var(--surface);
             border: 1px solid var(--border-light);
             border-radius: var(--radius);
+            box-shadow: inset 3px 0 0 var(--row-bar);
             transition: background var(--dur-fast) var(--ease-standard),
-                        border-color var(--dur-fast) var(--ease-standard);
+                        border-color var(--dur-fast) var(--ease-standard),
+                        box-shadow var(--dur-fast) var(--ease-standard);
         }
 
-        /* Pre-selected (checkbox ticked, no type yet) — gold left-border aligns with brand */
-        .day-row.selected   { background: color-mix(in srgb, var(--accent-gold) 8%, transparent); border-left: 4px solid var(--accent-gold); }
-        /* Active (type is set — ready to save) */
-        .day-row.active     { background: var(--today-print); }
+        /* Ticked, no type yet: the gold bar on a faint wash. READY TO SAVE: the bar on a clear gold wash —
+           not Today's ivory, which it wore with no bar until the desktop audit (Nov 2026). Gold, not
+           `--page-accent`: a row state, not a chosen control (page-identity-parity → MEANING). */
+        .day-row.selected   { --row-bar: var(--accent-gold); border-left-color: var(--accent-gold); background: color-mix(in srgb, var(--accent-gold) 8%, transparent); }
+        .day-row.active     { --row-bar: var(--accent-gold); border-left-color: var(--accent-gold); background: color-mix(in srgb, var(--accent-gold) 20%, var(--surface)); }
         /* Has an existing Firestore override — will overwrite. Uses the SAME warm tone as the
            roster-upload conflict card (v15.68): --al-confirm-bg cream + a muted --conflict-strong
            left accent, instead of the old bright-orange accent + amber fill. */
-        .day-row.has-override { background: var(--al-confirm-bg); border-left: 4px solid var(--conflict-strong); }
+        .day-row.has-override { background: var(--al-confirm-bg); --row-bar: var(--conflict-strong); border-left-color: var(--conflict-strong); }
         /* Active (prefilled) override: a touch deeper warm cream so it reads a step stronger. */
         .day-row.has-override.active { background: color-mix(in srgb, var(--al-confirm-accent) 12%, white); }
 
@@ -1001,6 +1019,9 @@
             min-height: 34px;
             border-width: 1px;
         }
+        /* …and the bulk bar's are the same capsules for a mouse: they kept the 44px touch height, a 36×44
+           AL beside the rows' 46×34 (desktop audit, Nov 2026). A touch screen keeps its own sizes, below. */
+        @media (pointer: fine) { .bulk-type-group .type-pill-btn { padding: 5px 15px; min-height: 34px; border-width: 1px; } }
 
         .col-time {
             display: flex;
@@ -1174,8 +1195,15 @@
             vertical-align: 1px;
         }
 
-        /* Row with a validation error (e.g. time not filled) — highlighted red */
-        .day-row.row-error { background: var(--error-bg) !important; border-left: 4px solid var(--error-red) !important; }
+        /* Row with a validation error (e.g. time not filled) — highlighted red, its bar red */
+        .day-row.row-error { background: var(--error-bg) !important; --row-bar: var(--error-red) !important; border-left-color: var(--error-red) !important; }
+
+        /* The day column is the tick's label, so a mouse is told the row is a target (desktop audit) —
+           rows in no state only, and Today keeps its ivory and takes just the edge. */
+        @media (hover: hover) and (pointer: fine) {
+            .day-row:not(.active):not(.selected):not(.has-override):not(.row-error):hover { border-color: var(--border-mid); }
+            .day-row:not(.today):not(.active):not(.selected):not(.has-override):not(.row-error):hover { background: var(--surface-sunken); }
+        }
 
         .week-empty {
             text-align: center;
@@ -1260,13 +1288,13 @@
         .al-confirm-bar .al-confirm-btns { display: flex; gap: 8px; flex-wrap: wrap; }
         .al-confirm-bar .btn-confirm-save {
             background: var(--al-confirm-accent); color: var(--primary-blue);
-            border: none; border-radius: var(--radius-xs);
+            border: none; border-radius: var(--radius-button);
             padding: 7px 14px; font-size: var(--type-label); font-weight: 700;
             cursor: pointer; touch-action: manipulation;
         }
         .al-confirm-bar .btn-confirm-cancel {
             background: white; color: var(--text-mid);
-            border: 1.5px solid var(--border-light); border-radius: var(--radius-xs);
+            border: 1.5px solid var(--border-light); border-radius: var(--radius-button);
             padding: 7px 14px; font-size: var(--type-label); font-weight: 600;
             cursor: pointer; touch-action: manipulation;
         }
@@ -1418,7 +1446,8 @@
         .oc-date   { font-weight: 700; font-size: var(--type-label); color: var(--text-dark); white-space: nowrap; font-variant-numeric: tabular-nums; }
         .oc-member { font-size: var(--type-label); color: var(--text-mid); }
         .oc-detail { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
-        .oc-value  { font-family: ui-monospace, monospace; font-size: var(--type-small); color: var(--text-mid); }
+        /* Inter with tabular figures, as the grid's badges — a system monospace was Consolas on the station PC. */
+        .oc-value  { font-size: var(--type-small); color: var(--text-mid); font-variant-numeric: tabular-nums; }
         .oc-actions { display: flex; flex-direction: row; align-items: center; gap: 2px; flex-shrink: 0; }
         .override-state { padding: 16px 4px; text-align: center; color: var(--text-light); font-size: var(--type-label); line-height: 1.5; }
 
@@ -2173,16 +2202,19 @@
         }
         #unsavedBannerMsg { flex: 1; min-width: 160px; }
         .unsaved-banner-btns { display: flex; gap: 8px; }
+        /* The action-button corner; a white ring, because the banner is dark amber (desktop audit). */
         .unsaved-discard-btn {
             background: white; color: var(--warning-amber);
-            border: none; border-radius: var(--radius-sm);
+            border: none; border-radius: var(--radius-button);
             padding: 10px 16px; min-height: 36px; font-size: var(--type-label); font-weight: 600; cursor: pointer;
         }
         .unsaved-keep-btn {
             background: transparent; color: white;
-            border: 1.5px solid rgba(255,255,255,0.6); border-radius: var(--radius-sm);
+            border: 1.5px solid rgba(255,255,255,0.6); border-radius: var(--radius-button);
             padding: 10px 16px; min-height: 36px; font-size: var(--type-label); cursor: pointer;
         }
+        .unsaved-discard-btn:focus-visible,
+        .unsaved-keep-btn:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
 
         /* Login overlay CSS in shared.css (v11.06) */
 
@@ -2217,7 +2249,10 @@
         /* ── Tablet: 768px — single-column with more breathing room ── */
         @media (min-width: 768px) {
             .container { gap: 14px; }
-            .app-header { margin-bottom: 0; }
+            /* net gap = 14px - 10px = 4px, the gap under the header on every card page (desktop audit,
+               Nov 2026: this was 0, so Admin, Operations and Links set their first card 10px lower
+               than Pay, Settings, Trains, New link and Overtime). e2e/pages.spec.js measures all eight. */
+            .app-header { margin-bottom: -10px; }
             .col-main, .col-side { gap: 14px; }
 
             .list-toolbar { gap: 10px; }
@@ -2237,24 +2272,18 @@
                 align-items: start;
             }
 
-            /* Align confirm bar padding with page content on wide screens */
-            .al-confirm-bar {
-                padding-left:  max(20px, calc((100vw - var(--content-max-width)) / 2 + 20px));
-                padding-right: max(20px, calc((100vw - var(--content-max-width)) / 2 + 20px));
-            }
+            /* (The bars' band padding is at the foot of this file, after their base rules.) */
 
             /* Full-width rows spanning both columns */
             .app-header              { grid-column: 1 / -1; }
-            /* Fallback: member bar spans full width if JS hasn't moved it into col-side yet */
-            .container > .member-context-bar { grid-column: 1 / -1; }
             /* Saved Changes now lives inside .col-side (moved there in admin.html v16.72) so it
                stacks under Absence in the sticky right column and fills the right-column void,
                rather than stacking under Change a Shift in the left column. No grid placement
                needed here any more — it's a flex child of col-side. */
 
             /* Explicit column assignment — prevents auto-placement mis-ordering */
-            .col-main { grid-column: 1; }
-            .col-side { grid-column: 2; }
+            .col-main { grid-column: 1; grid-row: 2; }
+            .col-side { grid-column: 2; grid-row: 2; }
 
             /* Column wrappers become flex containers with tighter gap */
             .col-main,
@@ -2264,26 +2293,39 @@
                 gap: 16px;
             }
 
+            /* THE MEMBER BAR IS DRAWN HERE, NOT MOVED HERE (desktop audit, Nov 2026). Moved into
+               `.col-side` by script, the page's one member control came after the whole Change a Shift
+               card — 23 Tab presses in, against 2 on a phone. It keeps its place in the document and
+               shares the side column's grid cell as a compact white card, sticky, the column 16px under
+               it: `--member-bar-h` is measured (admin-app.js), and the column's max-height keeps the two
+               from parting or overlapping as the page scrolls. */
+            .container > .member-context-bar {
+                grid-column: 2; grid-row: 2; align-self: start; position: sticky; top: 20px;
+                background: white; border: 1px solid var(--border-light); box-shadow: var(--shadow-1);
+            }
+
             /* Fix 6: sticky sidebar — action cards stay visible as the week grid grows.
-               max-height + overflow-y stops bottom cards being unreachable on short screens. */
+               max-height + overflow-y stops bottom cards being unreachable on short screens.
+               `--side-foot`: the room under it — 20px, or the Unsaved bar's while that is up. */
             .col-side {
+                --side-foot: 20px;
                 position: sticky;
-                top: 20px;
-                max-height: calc(100vh - 40px);
-                max-height: calc(100dvh - 40px);
+                margin-top: calc(var(--member-bar-h) + 16px);
+                top: calc(20px + var(--member-bar-h) + 16px);
+                max-height: calc(100vh - 56px - var(--member-bar-h));
+                max-height: calc(100dvh - 36px - var(--side-foot) - var(--member-bar-h));
                 overflow-y: auto;
                 -webkit-overflow-scrolling: touch;
             }
+            body:has(#stagedBar:not([hidden])) .col-side { --side-foot: calc(var(--staged-bar-h) + 12px); }
+            /* Every card keeps its height, so the column scrolls instead of squashing them: a `.card` is
+               `overflow: hidden`, so its flex minimum is 0 — the Record button was cut off at 1366×768
+               (desktop audit, Nov 2026). As the Calendar's AL panel (index.css, `#alLightboxContent > *`). */
+            .col-side > * { flex-shrink: 0; }
 
-            /* Fix 1: member bar restyled as compact white card once JS moves it into col-side */
-            .col-side .member-context-bar {
-                background: white;
-                border: 1px solid var(--border-light);
-                box-shadow: var(--shadow-1);
-            }
-            .col-side .member-context-bar label { color: var(--text-light); }
-            .col-side .member-context-bar select,
-            .col-side .member-context-bar .fieldpick {
+            .container > .member-context-bar label { color: var(--text-light); }
+            .container > .member-context-bar select,
+            .container > .member-context-bar .fieldpick {
                 /* background-color (longhand) not `background` — the shorthand would wipe
                    the inherited chevron background-image. Dark chevron because this desktop
                    variant is a white field (the base white arrow would be invisible). */
@@ -2292,7 +2334,7 @@
                 border-color: var(--border-light);
                 color: var(--text-dark);
             }
-            .col-side .member-context-bar select option { color: var(--text-dark); }
+            .container > .member-context-bar select option { color: var(--text-dark); }
 
             /* THE CARD HAS ONE LEFT EDGE (v22.22). Both rules below were right about their own
                element and wrong together: the nav was capped AND centred, the save button capped and
@@ -2452,6 +2494,10 @@
             --page-accent:      var(--accent-gold);
             --page-accent-ink:  var(--primary-blue);
             --page-accent-text: var(--gold-text);
+            /* The member bar's and the Unsaved bar's heights at the default text size; admin-app.js
+               measures both and writes the real ones on <html>, which outranks this rule. */
+            --member-bar-h: 44px;
+            --staged-bar-h: 54px;
         }
 
         /* AL balance shown in the collapsed card header */
@@ -2476,6 +2522,12 @@
             box-shadow: 0 -4px 16px rgba(0,0,0,0.18);
         }
         #stagedBar[hidden] { display: none; }
+        /* While the bar is up nothing may land under it (desktop audit, Nov 2026): the save error, scrolled
+           to with block: 'nearest', stopped behind it, and at the page's end there was no further to go. The
+           page gains the bar's height at its foot, and the root's scroll padding keeps every scroll into
+           view — a message, a focused control — clear of it. `--staged-bar-h` is measured (admin-app.js). */
+        html:has(#stagedBar:not([hidden])) { scroll-padding-bottom: calc(var(--staged-bar-h) + 12px); }
+        body:has(#stagedBar:not([hidden])) { padding-bottom: calc(var(--staged-bar-h) + 12px); }
         .staged-bar-label {
             flex: 1;
             font-size: var(--type-label);
@@ -2485,11 +2537,12 @@
         }
         .staged-bar-label strong { color: white; }
         .staged-bar-btns { display: flex; gap: 8px; }
+        /* --radius-button, the app's action-button corner (desktop audit, Nov 2026: these were 6px). */
         .staged-discard-btn {
             background: transparent;
             border: 1.5px solid rgba(255,255,255,0.4);
             color: rgba(255,255,255,0.85);
-            border-radius: var(--radius-xs);
+            border-radius: var(--radius-button);
             padding: 7px 14px;
             font-size: var(--type-label);
             font-weight: 600;
@@ -2501,7 +2554,7 @@
             background: var(--accent-gold);
             border: none;
             color: var(--primary-blue);
-            border-radius: var(--radius-xs);
+            border-radius: var(--radius-button);
             padding: 7px 14px;
             font-size: var(--type-label);
             font-weight: 700;
@@ -2517,8 +2570,19 @@
            outlined with a pointer cursor — live-looking buttons that did nothing, which reads as the
            freeze the "waiting for signal" line exists to explain (v24.26). */
         .staged-save-btn:disabled, .staged-discard-btn:disabled { opacity: 0.55; cursor: default; }
-        .staged-discard-btn:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
-        .staged-save-btn:focus-visible    { outline: var(--focus-outline); outline-offset: 2px; }
+        /* Both gold: the ring sits 2px out, on the NAVY bar, where the navy ring Save wore was invisible. */
+        .staged-discard-btn:focus-visible,
+        .staged-save-btn:focus-visible    { outline: var(--focus-outline-gold); outline-offset: 2px; }
+
+        /* The bars span the window; their content keeps to the page (desktop audit, Nov 2026: at 1920 the
+           Unsaved bar's buttons sat ~400px right of it). HERE, after all three base rules: at equal
+           specificity a block placed earlier loses, and silently. */
+        @media (min-width: 1024px) {
+            .al-confirm-bar, #stagedBar, #unsavedBanner {
+                padding-left:  max(20px, calc((100vw - var(--content-max-width)) / 2 + 20px));
+                padding-right: max(20px, calc((100vw - var(--content-max-width)) / 2 + 20px));
+            }
+        }
 
         /* ---- "All staff" toggle button in the overrides list toolbar ----
            It says what pressing it DOES ("All staff" ↔ "This member only", admin-saved-changes.js)

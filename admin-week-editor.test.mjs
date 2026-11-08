@@ -110,7 +110,6 @@ const { teamMembers, getBaseShift, formatISO } = await import('./roster-data.js'
 const _changed = [];
 initWeekEditor({
     currentIsAdmin: true,
-    showError:   () => {},
     showSuccess: () => {},
     markChanged: () => { _changed.push(1); },
     memberDateMap: () => new Map(),   // no existing overrides — see the header

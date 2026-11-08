@@ -28,7 +28,7 @@
   <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-  <title>Marylebone Roster — Pay Calculator</title>
+  <title>Pay Calculator — Marylebone Roster</title>
   <link rel="stylesheet" href="./paycalc.css">
 
   <!--
@@ -73,9 +73,11 @@
   <link rel="modulepreload" href="./login-overlay.js">
   <link rel="modulepreload" href="./ls.js">
   <link rel="modulepreload" href="./nav-panel.js">
+  <link rel="modulepreload" href="./notice-archive.js">
   <link rel="modulepreload" href="./page-session.js">
   <link rel="modulepreload" href="./notif.js">
   <link rel="modulepreload" href="./overlay.js">
+  <link rel="modulepreload" href="./card-collapse.js">
   <link rel="modulepreload" href="./select-sheet.js">
   <link rel="modulepreload" href="./override-utils.js">
   <link rel="modulepreload" href="./clock-input.js">
@@ -142,7 +144,10 @@
   <!-- SETUP BANNER: shown when current tax year's settings haven't been confirmed yet -->
   <div class="setup-banner hidden" id="setupBanner">
     <h2 id="setupBannerTitle">👋 Estimate your take-home</h2>
-    <p id="setupBannerBody">We've filled in the usual defaults — <strong>check your grade and tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>.</p>
+    <!-- "⚙️ Your Settings" is a LINK (desktop audit, 7 Nov 2026): on a desktop the card is ~1,450px
+         below this banner, so the words open it and bring it up — paycalc-settings.js →
+         wireSettingsCard. "Select", not "tap": a mouse and a keyboard read this too. -->
+    <p id="setupBannerBody">We've filled in the usual defaults — <strong>check your grade and tax code</strong> in <a href="#settingsCard" class="setup-settings-link">⚙️ Your Settings</a>, then select <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>.</p>
     <!-- AN EMPTY CALCULATOR MAY BE A MOVED ONE (the iPhone audit, 7 Nov 2026). Figures live in the
          browser that saved them: on an iPhone, Safari and the Home Screen app keep separate copies,
          and Safari clears its own after about a week without a visit. So this line shows only while
@@ -592,7 +597,7 @@
         <div class="hours-row">
           <div class="h-info">
             <div class="h-title">Any other payslip adjustment</div>
-            <div class="h-sub">For absence deductions, corrections, or any extra payslip line. Taxed like pay, so leave out expense refunds. Tap <strong>+/−</strong> to switch between adding or deducting.</div>
+            <div class="h-sub">For absence deductions, corrections, or any extra payslip line. Taxed like pay, so leave out expense refunds. Use <strong>+/−</strong> to switch between adding or deducting.</div>
           </div>
           <div class="adj-controls">
             <button id="adjSignBtn" type="button" class="adj-sign-btn" aria-label="Toggle sign: currently positive">+</button>
@@ -984,7 +989,7 @@
     <div class="card-header card-header-toggle" id="decimalConverterToggle">
       <div>
         <h2><span aria-hidden="true">🔢</span> Decimal Hours Converter</h2>
-        <span class="hint">Chiltern payslips show hours as decimals — tap to convert</span>
+        <span class="hint">Chiltern payslips show hours as decimals — convert here</span>
       </div>
       <div class="card-header-actions">
         <span class="card-toggle-arrow">▼</span>
@@ -1086,7 +1091,7 @@
 </div>
 
 <!-- Sticky take-home bar — all widths (v16.12), shown when the result card scrolls off-screen -->
-<div id="stickyTotal" role="button" tabindex="0" aria-label="Estimated take-home — tap to go to the result">
+<div id="stickyTotal" role="button" tabindex="0" aria-label="Estimated take-home — go to the result">
   <div class="sticky-label" id="stickyLabel">💷 Estimated take-home</div>
   <div class="sticky-amount" id="stickyAmount">£–</div>
 </div>
@@ -1108,10 +1113,10 @@
     <div class="lightbox-app-name">Marylebone Roster</div>
     <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
     <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-    <div class="lightbox-badge">Pay Calculator</div>
+    <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">💷</span> Pay</div>
     <div class="lightbox-privacy">Pay data stays in this browser — never shared.</div>
-    <a href="./paycalc-guide.html" class="lightbox-bug-link"><span aria-hidden="true">📖</span> View pay guide</a>
-    <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
+    <!-- Print, then the link rows, then Report a bug — the order every About panel keeps (desktop
+         audit, Nov 2026; Print came last here and first on the Calendar). -->
     <div class="lightbox-print-wrap">
       <!-- "Print pay estimate", not "Print this page" (v23.27, external review). The print
            stylesheet builds a CURATED artefact — result first, then the hours entered, then the
@@ -1121,6 +1126,8 @@
       <button type="button" id="lightboxPrintBtn" class="lightbox-print-btn"><span aria-hidden="true">🖨️</span> Print pay estimate</button>
       <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the estimate, hours entered and settings used</span>
     </div>
+    <a href="./paycalc-guide.html" class="lightbox-bug-link"><span aria-hidden="true">💷</span> Pay Calculator Guide</a>
+    <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
   </div>
 </div>
 

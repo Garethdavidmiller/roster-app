@@ -139,7 +139,8 @@ const CAPS = {
     // because only the coordinator owns the live list and the open design. The cap is the measured
     // size, so the next addition is a raise too.
     // 2371 → 2399 on 7 Nov 2026 (iPhone audit), a RAISE: the unsaved-work draft's wiring — keep the open design and its baseline on a hide, offer and restore them; the rules went to unsaved-draft.js.
-    'links-app.js':            2399,   // ← v25.27 (2372 at v24.51: import + bin to links-design-library.js, was 2650). The next Links rule goes in a domain module
+    // 2399 → 2380 the same day (desktop audit), brought DOWN with the code that left: the grid's input — its clicks, the keyboard's one Tab stop and a mouse's paint stroke — went to links-grid-input.js.
+    'links-app.js':            2380,   // ← v25.27 (2372 at v24.51: import + bin to links-design-library.js, was 2650). The next Links rule goes in a domain module
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
     // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap
@@ -167,7 +168,12 @@ const CAPS = {
     // one call that hands calculate()'s own facts (the period, whether the cumulative method ran,
     // the tax code it read) to the rule, a comment, and the button's wiring at init. The cap is the
     // measured size, so the next addition is a raise too.
-    'paycalc-app.js':          1884,
+    // 1884 → 1600 on 8 Nov 2026, brought DOWN with what left (1,882 measured lines to 1,539): the loan
+    // rows and the share-of-pay bar (paycalc-breakdown.js), the Year to Date card's note, chip and
+    // load-time stamp and the one payslip-list builder (paycalc-periods.js), one rate for the field
+    // and the Settings summary (paycalc-settings.js), the stored prior-year HPP (paycalc-hpp.js) — and
+    // the comments that had become a changelog, each cut to the reason it left behind.
+    'paycalc-app.js':          1600,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.
@@ -337,7 +343,9 @@ const CAPS = {
     // 1350 → 1352 at v25.33 — a RAISE of two lines: the New link pill's own gate (S. Silva may preview the page), one
     // filter in the chain and its parameter's type. page-contract-parity derives the gates FROM that chain, so the
     // filter cannot fold into another line without hiding the gate from the check that keeps it honest.
-    'nav-panel.js':            1352,
+    // 1352 → 1300 (Nov 2026, at 1,248) — the extraction named above, done: the App Notices archive's rules left for
+    // notice-archive.js (re-exported, so no page's import moved), and the drawer's thrice-told history became one telling.
+    'nav-panel.js':            1300,
     // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
     // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
     // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix
@@ -366,7 +374,10 @@ const CAPS = {
     // The page still holds BOTH surfaces deliberately (overtime.html). What is left here is the
     // member's side plus the page's own chrome, and if it grows again the next seam is the member
     // controller — but only once the member path warrants one, not to make a number smaller.
-    'overtime-app.js':          750,   // the young one — this is the cap that matters most
+    // 750 → 762 on 7 Nov 2026 (desktop audit), a deliberate RAISE: the tab strip is this file's own declared subject, and the
+    // growth is its WIRING — the panels are tabpanels and Tab stops only while the strip shows — which no Node test could hold
+    // (e2e/overtime.spec.js does), plus the paused card's own title.
+    'overtime-app.js':          762,   // the young one — this is the cap that matters most
     // NEW at v24.71 with the page, at its measured size plus the standard fix-sized headroom. Every
     // judgement about the timetables is trains-change.js; growth here should be rendering only.
     // 330 → 400 at v24.84, a deliberate RAISE: the station PIN reads the page now, and what that

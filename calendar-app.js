@@ -385,7 +385,7 @@ function renderCalendar() {
         const calendarDisplay = document.getElementById('calendarDisplay');
         if (!calendarDisplay) throw new Error('Calendar display element not found');
 
-        document.title = `Marylebone Roster — ${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()}`;
+        document.title = `${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()} — Marylebone Roster`;
 
         // Persist so the user returns to the same month after closing the app
         persistViewedMonth();
@@ -766,18 +766,9 @@ try {
     // splash for ever and the PIN panel would never be seen. Clearing it here means the member sees
     // either their roster or the unlock card, and never a loading screen with no way out.
     // (splash-watchdog.js is the backstop for the module graph failing entirely, not for this.)
+    // It goes AT ONCE, a frame after the first render (index.css's splash block has why there is no fade).
     const splash = document.getElementById('splash');
-    if (splash) {
-        requestAnimationFrame(() => {
-            splash.classList.add('hidden');
-            // Fallback timer — iOS may not fire transitionend if the tab is backgrounded mid-fade.
-            const splashFallback = setTimeout(() => splash.remove(), 1000);
-            splash.addEventListener('transitionend', () => {
-                clearTimeout(splashFallback);
-                splash.remove();
-            }, { once: true });
-        });
-    }
+    if (splash) requestAnimationFrame(() => splash.remove());
 
         // ============================================
         // ICON LIGHTBOX / ABOUT PANEL

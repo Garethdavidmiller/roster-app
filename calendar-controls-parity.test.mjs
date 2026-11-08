@@ -53,7 +53,7 @@ test('1. every control-group MODIFIER is written under `.controls`, so no bare r
 test('2. no rule declares `gap` on a control group — it is `--cg-gap`, set, never `gap`, declared', () => {
     const groupRules = RULES.filter(r => /(^|[\s,])\.control-group(--[\w-]+)?\s*$/.test(r.selector)
         || /^\.controls \.control-group(--[\w-]+)?$/.test(r.selector));
-    assert.ok(groupRules.length >= 3, 'the base rule, the breakpoint override and the modifiers are all present');
+    assert.ok(groupRules.length >= 3, 'the base rule and the modifiers are all present');
     const base = groupRules.find(r => r.selector === '.control-group');
     assert.ok(base, 'the base .control-group rule exists');
     assert.match(base.body, /gap:\s*var\(--cg-gap\)/, 'the base rule reads the variable');

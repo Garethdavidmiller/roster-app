@@ -16,6 +16,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, ge
 import { lsGet, lsSet } from './ls.js';
 import { TEAM_VIEW } from './storage-keys.js';
 import { lazyImport } from './sw-register.js';
+import { watchOverflowHint } from './overflow-hint.js';
 import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift, isUncountedChristmasLeave } from './christmas-leave.js';
 import { worstKnowledge, decideDisplay, forget as forgetOverrideKnowledge } from './calendar-data-state.js';
@@ -110,6 +111,11 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      *  @type {'loading'|'unavailable'|'stale'|'render'} */
     let _lastRenderDisplay = 'loading';
 
+    /** The swipe hint's watch on the week table's box — see `watchHintFit`. One per drawn week:
+     *  replaced by every render, and disconnected when the Team view is left.
+     *  @type {ResizeObserver|null} */
+    let _hintFit = null;
+
     /** Sunday of the week currently shown in team view. Re-decided on each open by
      *  `weekStartForMonth` — today's week on the current month, the month's first week otherwise.
      *  The initial value here is only what stands before any open; `restoreTeamView` (a PWA
@@ -128,6 +134,19 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
     // ── HELPERS ───────────────────────────────────────────────────────────────
 
     // `getSunday` is at module scope — see its comment there.
+
+    /**
+     * THE SWIPE HINT IS FOR A TABLE THAT SCROLLS: shown only while the week is wider than its box
+     * (overflow-hint.js has the rule and why). The seven days fit from a 768px screen up, and 844px on
+     * its side (measured). `hidden` has a companion rule in index.css, because `.touch-only` sets
+     * `display`. Called with nothing to stop watching: the Team view's exit.
+     * @param {HTMLElement|null} wrap  the table's scroll box
+     * @param {HTMLElement|null} hint
+     */
+    function watchHintFit(wrap, hint) {
+        _hintFit?.disconnect();
+        _hintFit = watchOverflowHint(wrap, hint);
+    }
 
     /** Returns an array of 7 Date objects Sun–Sat starting from `sunday`. */
     function getTeamWeekDates(/** @type {any} */ sunday) {
@@ -478,26 +497,36 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         });
 
         // Scroll hint — show once per device, until the MEMBER first swipes the week sideways
-        // (7 Nov 2026, iPhone audit). Two scrolls are not that swipe, and both used to retire it for
+        // (7 Nov 2026, iPhone audit). Three scrolls are not that swipe, and each used to retire it for
         // good: the APP's own, which puts the week back or brings today into view just below (it moves
         // the box a pixel or two even on a Sunday, so the hint went on nearly every first open, within a
-        // frame, unread); and a scroll DOWN the names, which below 1024px happen inside this box under
-        // the date row (index.css). So a scroll that leaves the week where the app last put it is
-        // neither — `appLeft` is that place, re-read after each of the app's own moves.
+        // frame, unread); a scroll DOWN the names, which below 1024px happen inside this box under the
+        // date row (index.css); and the box CLAMPING its scroll when a change of size leaves the app's
+        // place past its new end — a tablet turned round, a window widened until the week fits. So a
+        // scroll that leaves the week where the app last put it is none of them — `appLeft` is that
+        // place, re-read after each of the app's own moves and after a clamp. A ResizeObserver
+        // re-reading it was tried and did not see the clamp in time (measured, Chromium), so the clamp
+        // is recognised here instead: the app's place is past the box's end, so the box has moved.
         const tableWrap = /** @type {HTMLElement|null} */ (calendarDisplay.querySelector('.team-table-wrap'));
-        const scrollHint = calendarDisplay.querySelector('.tv-scroll-hint');
+        const scrollHint = /** @type {HTMLElement|null} */ (calendarDisplay.querySelector('.tv-scroll-hint'));
         let appLeft = tableWrap ? tableWrap.scrollLeft : 0;
         if (scrollHint && lsGet('myb_team_scroll_seen')) {
             /** @type {HTMLElement} */ (scrollHint).style.display = 'none';
         } else if (tableWrap && scrollHint) {
             const onScroll = () => {
                 if (tableWrap.scrollLeft === appLeft) return;   // the app's own move, or down the names
+                if (appLeft > tableWrap.scrollWidth - tableWrap.clientWidth + 1) {   // the place is gone: a clamp
+                    appLeft = tableWrap.scrollLeft;
+                    return;
+                }
                 tableWrap.removeEventListener('scroll', onScroll);
                 /** @type {HTMLElement} */ (scrollHint).style.display = 'none';
                 lsSet('myb_team_scroll_seen', '1');
             };
             tableWrap.addEventListener('scroll', onScroll, { passive: true });
         }
+        // …and only while the week is wider than its box (see `watchHintFit`).
+        watchHintFit(tableWrap, scrollHint);
 
         // Restore scroll: keep position on grade-tab/fetch re-render; scroll today into view on open/week-nav.
         if (prevScrollLeft > 0 && tableWrap) {
@@ -607,6 +636,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             renderTeamView(currentTeamGrade);
         } else {
             _clearOverlayHistory(toggleTeamView); // Remove THIS overlay's pushed entry when exiting via button
+            watchHintFit(null, null);             // the week's box is about to go: stop watching it
             renderCalendar();
         }
     }
@@ -642,10 +672,11 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
     function applyTeamViewChrome() {
         applyTeamPrintPage(teamViewMode);
         const teamBtn = document.getElementById('teamViewBtn');
-        const navRow  = document.getElementById('navRow');
         const legend  = document.querySelector('.legend');
         if (teamBtn) {
-            teamBtn.classList.toggle('active', teamViewMode);
+            // AN ACTION IN BOTH VIEWS, NOT A TOGGLE (desktop audit, Nov 2026). In Team view it names
+            // the view it goes BACK to, so it is neither chosen nor pressed: it wore the chosen gold
+            // and announced "pressed" while saying "Month". No `.active`, no `aria-pressed`.
             // innerHTML, not textContent (v22.87): the icon is a span the compact form hides, and a
             // plain string here would put the raw emoji back the moment the view toggled. Static
             // markup, no data — nothing here comes from a user or a document.
@@ -657,9 +688,10 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             teamBtn.setAttribute('aria-label', teamViewMode
                 ? 'Switch back to the month view'
                 : 'Switch to team week view');
-            teamBtn.setAttribute('aria-pressed', teamViewMode ? 'true' : 'false');
         }
-        if (navRow)  /** @type {HTMLElement} */ (navRow).style.display = teamViewMode ? 'none' : '';
+        // The month's Prev · name · Next row is hidden by `body.team-view-active` in index.css, and
+        // only there: below 1024px it goes, on a desktop its slot is kept so the toggle does not move
+        // under the pointer. One rule per width, which an inline style here could not express.
         if (legend)  /** @type {HTMLElement} */ (legend).style.display = teamViewMode ? 'none' : '';
         // The same #calendarDisplay region holds a 7-day team table in team view — keep its
         // accessible name honest for screen-reader users instead of always saying "calendar".

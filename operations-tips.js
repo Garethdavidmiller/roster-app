@@ -40,9 +40,9 @@ export const CARD_TIPS = {
         sections: [
             { heading: 'How it works', items: [
                 { icon: '1️⃣', html: 'Choose the <strong>roster type</strong> (CEA/Bilingual, CES, or Dispatcher) and the <strong>week ending date</strong> — always a Saturday, and a date that is not one is moved forward to the next Saturday for you' },
-                { icon: '2️⃣', html: 'Choose the PDF roster file and tap <strong>Read roster</strong> — the app reads the shifts. It usually takes under a minute, sometimes a good deal longer — the spinner means it is still working' },
+                { icon: '2️⃣', html: 'Choose the PDF roster file and select <strong>Read roster</strong> — the app reads the shifts. It usually takes under a minute, sometimes a good deal longer — the spinner means it is still working' },
                 { icon: '3️⃣', html: 'Review each person\'s changes — <strong>Save</strong> or <strong>Skip</strong> each day individually' },
-                { icon: '4️⃣', html: 'Tap <strong>Save changes</strong> to write approved shifts to the roster' },
+                { icon: '4️⃣', html: 'Select <strong>Save changes</strong> to write approved shifts to the roster' },
             ]},
             { heading: 'Conflicts', items: [
                 { icon: '⚠️', html: 'If a day already has a <strong>recorded change</strong> that differs from the PDF, it shows as a conflict — choose which to keep' },
@@ -87,7 +87,7 @@ export const CARD_TIPS = {
             { heading: 'Resetting a password', items: [
                 // Both lines rewritten at v21.94: Reset is offered to EVERYONE (see
                 // `buildRow` — v18.84), and the new password is compelled, not optional.
-                { icon: '↩️', html: '<strong>Reset</strong> is offered next to <strong>everyone</strong>. Tap it if someone has forgotten their password — it goes back to their <strong>surname default</strong> and they\'re signed out of their other devices. Resetting an account that is already on the default is harmless, and still signs their other devices out.' },
+                { icon: '↩️', html: '<strong>Reset</strong> is offered next to <strong>everyone</strong>. Use it if someone has forgotten their password — it goes back to their <strong>surname default</strong> and they\'re signed out of their other devices. Resetting an account that is already on the default is harmless, and still signs their other devices out.' },
                 { icon: '🔒', html: 'They sign in with their surname again, and the app then <strong>asks them to choose a new password</strong> before they can carry on.' },
             ]},
         ],
@@ -145,10 +145,10 @@ export const CARD_TIPS = {
         sections: [
             { heading: 'What it captures', items: [
                 { icon: '🐛', html: 'Errors the app ran into on <strong>any page across the app</strong> (calendar, pay calculator, admin, operations, settings, links, overtime) — across all staff, not just you' },
-                { icon: '⎘', html: 'Tap <strong>⎘ Copy details</strong> on any error to copy it formatted for diagnosis — the message, the page, the app version, the device, the time, and <strong>the name of the member it happened to</strong>. Unlike the Usage and App Speed cards, this one is not anonymous' },
+                { icon: '⎘', html: 'Use <strong>⎘ Copy details</strong> on any error to copy it formatted for diagnosis — the message, the page, the app version, the device, the time, and <strong>the name of the member it happened to</strong>. Unlike the Usage and App Speed cards, this one is not anonymous' },
             ]},
             { heading: 'Resolving errors', items: [
-                { icon: '✓', html: 'Tapping <strong>Resolve</strong> marks an error as reviewed. It <strong>stays in the list</strong>, dimmed and below the unresolved ones, so you can see what you have already been through — up to 30 of them. It is not deleted immediately either: resolved errors are kept for 90 days, then pruned automatically' },
+                { icon: '✓', html: '<strong>Resolve</strong> marks an error as reviewed. It <strong>stays in the list</strong>, dimmed and below the unresolved ones, so you can see what you have already been through — up to 30 of them. It is not deleted immediately either: resolved errors are kept for 90 days, then pruned automatically' },
                 { icon: '🔄', html: 'You don\'t need to manually clean up the log — resolved errors expire on their own' },
             ]},
             { heading: 'What to act on', items: [

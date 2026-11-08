@@ -365,8 +365,9 @@ on the 24 Oct 2025 payslip — the same date as `londonAllowFrom`).
   year on the card.
 - **The award-application date is single-sourced** as the year's `londonAllowFrom` (read via
   `awardFromForYear(tyLabel)` — NOT stored on `AWARD_RATES`), and `isPreAwardPeriod(p, grade, tyLabel)`
-  is the one shared predicate — used by `getRateForPeriod`, `updateRateForPeriod` and `confirmSettings`
-  (`paycalc-settings.js`) and the header hint in `paycalc-app.js`.
+  is the one shared predicate — used by `getRateForPeriod` and `confirmSettings` (`paycalc-settings.js`),
+  and through `periodRate` there, the one answer to "what rate was this payslip paid at", by both the
+  rate field (`updateRateForPeriod`) and the Settings summary in `paycalc-app.js`.
 - **Accrual correctness:** `calcBackPay` (a) stops at `awardFromForYear` for a settled award — periods
   paid on/after it were already on the new rate and owe £0; (b) caps at `todaysPeriodNum()` (today, not
   the SELECTED period) so a future selection cannot accrue unworked weeks; (c) **excludes the paid-in
@@ -530,8 +531,10 @@ full-height navy void.
   grid row, **neither column's height can inflate the other's internal spacing** — the shorter column
   simply ends, and the residual gap falls to that column's bottom. (A sidebar that SPANS the left
   items' rows makes grid distribute its excess height across the spanned tracks, opening a navy void
-  mid-page.) On desktop it is a flex column with `order` putting the period band first, then Hours,
-  then Settings.
+  mid-page.) On desktop it is a flex column ordered period band, Hours, then Settings — and the
+  order is IN THE DOM there (`wireSettingsCard`, paycalc-settings.js, moves the card after Hours from
+  1024px and back below it), because CSS `order` moves the paint and not the Tab order. The `order`
+  rules stay, agreeing with the DOM, for the paint before that script runs.
 - **`.pc-side`** (in `paycalc.html`) wraps `[result-card, ytdYearSoFar, payslipCard, hppCard,
   backPayCard, decimalConverterCard, payTransferCard]`. Both wrappers are `display: contents` by
   DEFAULT, so on **mobile** they vanish and the cards stack in DOM order (Settings → period → Hours →
@@ -549,7 +552,9 @@ full-height navy void.
   layout changes with a **rendered screenshot** (Playwright at 1366/1440), not just the geometry e2e.
 
 **Sticky take-home bar (`#stickyTotal`)** — a fixed bottom bar on **all widths** (desktop capped to
-`--content-max-width`, centred, rounded top corners). It shows when the £ figure is off screen —
+`--content-max-width`, centred, rounded top corners, an `--on-navy-hairline` edge, and its label
+beside the £ rather than 760px from it). `html { scroll-padding-bottom }` keeps a control reached with
+Tab clear of it, and its own focus ring is the light token. It shows when the £ figure is off screen —
 an `IntersectionObserver` on `#netDisplay` decides, except with a phone's keyboard up, when the VISUAL
 viewport does (the keys cover the layout viewport without shrinking it, so the observer called a £
 behind them "in view"): `stickyBarShows` in `paycalc-sticky-total.js`, which also scrolls the field

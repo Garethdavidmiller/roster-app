@@ -548,7 +548,7 @@ only removed deliberately.
 
 **The mixed-version window at step 4** is one page load wide: the service worker claims immediately
 on activate and reloads the page, so a device is on the new client by its next open. Within that one
-load an old client shows the base roster plus the sync chip's "Couldn't update — tap to retry". That
+load an old client shows the base roster plus the sync chip's "Couldn't update — try again". That
 is visible and recoverable, and step 3's soak is what keeps the window to a single load rather than
 a deploy cycle.
 

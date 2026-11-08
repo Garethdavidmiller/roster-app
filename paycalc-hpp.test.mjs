@@ -68,16 +68,21 @@ mock.module('./ls.js', {
     },
 });
 
+// The REAL money parser for `priorHppToStore`: "£1,200" read back as 1 was that rule's whole defect,
+// so a stand-in here would test the stand-in.
+const { parseSmartFloatOrNull: _realOrNull } = await import('./roster-data.js?real');
 mock.module('./roster-data.js', {
     namedExports: {
         formatISO:       /** @param {Date} d */ d =>
             `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
         parseSmartFloat: /** @param {any} v */ v => parseFloat(String(v)),
+        parseSmartFloatOrNull: _realOrNull,
         teamMembers:     [],   // paycalc-migrations.js imports this for member-slug classification
     },
 });
 
-const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable, knownYtdLumps } = await import('./paycalc-hpp.js');
+const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable, knownYtdLumps,
+        priorHppToStore } = await import('./paycalc-hpp.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -138,6 +143,28 @@ describe('resolveHppForPeriod', () => {
 
     test('an estimate of £0 is not treated as a live estimate', () => {
         assert.deepEqual(resolveHppForPeriod(null, '0.00'), { amount: 0, isEstimate: false, hasActual: false });
+    });
+});
+
+// ── priorHppToStore — what a typed prior-year premium is stored as (moved from the coordinator) ──
+describe('priorHppToStore', () => {
+    test('a payslip-style figure is stored clean, never as typed', () => {
+        assert.equal(priorHppToStore('1,200'), '1200.00', 'stored verbatim, "1,200" read back as £1');
+        assert.equal(priorHppToStore('£350'), '350.00', 'stored verbatim, "£350" read back as NaN');
+        assert.equal(priorHppToStore(' 1843.017 '), '1843.02');
+    });
+
+    test('a typed 0 is a confirmed figure; a negative is floored to it', () => {
+        assert.equal(priorHppToStore('0'), '0.00', 'a year of absence: confirmed, and it must beat the estimate');
+        assert.equal(priorHppToStore('-50'), '0.00');
+    });
+
+    test('blank, or not a figure, clears the confirmation rather than confirming £0', () => {
+        for (const raw of ['', '   ', '.', 'abc']) assert.equal(priorHppToStore(raw), null, JSON.stringify(raw));
+    });
+
+    test('what it stores reads back as the confirmed amount', () => {
+        assert.deepEqual(resolveHppForPeriod(priorHppToStore('£1,843.01'), '1791.72'), { amount: 1843.01, isEstimate: false, hasActual: true });
     });
 });
 

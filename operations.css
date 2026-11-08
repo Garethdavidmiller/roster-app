@@ -133,13 +133,16 @@ body.auth-ready .container { display: grid; }
     min-width: 0;
     box-sizing: border-box;
 }
+/* The FIELD's corner and edge (desktop audit, Nov 2026): it sits beside the date field on the same row,
+   which wears `--radius-field` and `--field-border`; at 8px and a faint 1.5px hairline the button read
+   as a lighter kind of control than the box next to it. */
 .huddle-file-label {
     display: inline-flex;
     align-items: center;
     padding: 8px 14px;
     min-height: 44px;
-    border: 1.5px solid var(--border-light);
-    border-radius: var(--radius-sm);
+    border: var(--field-border);
+    border-radius: var(--radius-button);
     font-size: var(--type-body);
     font-weight: 600;
     color: var(--primary-blue);
@@ -198,7 +201,9 @@ body.auth-ready .container { display: grid; }
 }
 @media (hover: hover) and (pointer: fine) { .huddle-upload-btn:hover { background: var(--primary-blue-dark); } }
 .huddle-upload-btn:active:not(:disabled) { transform: scale(var(--press-scale)); }
-.huddle-upload-btn:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
+/* Navy, the light-surface ring (desktop audit, Nov 2026): it is drawn 2px out on the white card, where
+   the gold it was is ~1.5:1. */
+.huddle-upload-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .huddle-upload-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .huddle-feedback { margin-top: 10px; font-size: var(--type-label); }
 .huddle-feedback--ok  { color: var(--success-green); }
@@ -497,10 +502,12 @@ body.auth-ready .container { display: grid; }
 /* A ticked box nobody can untick needs to say why, on screen — it was a `title` too. */
 .roster-entry-lock { color: var(--text-light); font-size: var(--type-badge); }
 @media (hover: hover) and (pointer: fine) {
-    /* A type pill and a swap answer keep their own colour under the pointer and dim instead, as
-       Admin's do (v25.21) — a navy repaint would make the idle AL pill look like a different type. */
+    /* A type pill and a swap answer keep their own colour under the pointer and take a faint tint of
+       it, as Admin's do (v25.21; a tint rather than the old dim since the desktop audit, Nov 2026 — a
+       fade costs the words their contrast) — a navy repaint would make the idle AL pill look like a
+       different type. */
     .roster-entry-pill:not(.is-on):not(:disabled):hover,
-    .roster-entry-swap-btn:not(.is-on):hover { opacity: .75; }
+    .roster-entry-swap-btn:not(.is-on):hover { background: color-mix(in srgb, currentColor 8%, white); }
     .roster-entry-flavour:not(.is-on):hover {
         border-color: var(--primary-blue);
         color: var(--primary-blue);
@@ -916,7 +923,9 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 /* ── Tablet: 768px ── */
 @media (min-width: 768px) {
     .container { gap: 14px; }
-    .app-header { margin-bottom: 0; }
+    /* net gap = 14px - 10px = 4px, the gap under the header on every card page (desktop audit,
+       Nov 2026; it was 0 — the first card 10px lower than on Pay or Settings). */
+    .app-header { margin-bottom: -10px; }
 }
 
 /* ── Desktop: 1024px — wrapper-column layout (mirrors admin.html's col-main/col-side) ──
@@ -969,6 +978,9 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     /* Cap the measure on card descriptions and note prose so they don't run ~105ch in the
        wide (~664px) right column. Forms, tables and data-viz keep the full column width. */
     .card .hint, .auth-desc, .usage-note, .speed-note { max-width: 64ch; }
+    /* …and a capped hint does not leave one word alone on its second line (desktop audit, Nov 2026):
+       `pretty` balances the last two lines, inside the same cap. */
+    .card .hint { text-wrap: pretty; }
     /* Cap the usage/speed bar charts — a 1fr bar track stretched to ~400px produces long, thin,
        hard-to-compare pills. ~540px keeps them a scannable length in the wide column. */
     .usage-bars, .speed-rows { max-width: 540px; }
@@ -1162,11 +1174,9 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
-    transition: border-color var(--dur-fast) var(--ease-standard);
 }
-@media (hover: hover) and (pointer: fine) {
-    .acct-row:hover { border-color: var(--border-mid); }
-}
+/* No hover on the row (desktop audit, Nov 2026): it is not a control — its border changing under the
+   pointer promised a click that does nothing. Its buttons have their own. */
 .acct-row-head,
 .acct-row-email {
     display: flex;
@@ -1212,12 +1222,14 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     border-color: color-mix(in oklch, var(--accent-gold) 45%, white);
     color: var(--orange-text);
 }
+/* The WHOLE address, always: it WRAPS rather than ellipsising (Nov 2026). The card is read to check an
+   address is right, and the app has no tooltip to give back what an ellipsis cut — at a desk the one-line
+   row left ~130px for it, so a typical address was cut at every width. A line too narrow for it breaks it
+   anywhere, and the Edit and Remove buttons beside it stay where they are. */
 .acct-email {
     flex: 1 1 auto;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     font-size: var(--type-badge);
     color: var(--text-mid);
 }
@@ -1245,6 +1257,21 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 .btn-acct-reset:disabled { opacity: 0.6; cursor: not-allowed; }
 /* The inline email Set/Edit form sits full-width under the email line inside the row. */
 .acct-row .email-set-form { margin: 2px 0 0; }
+/* ONE LINE PER MEMBER FOR A MOUSE (desktop audit, Nov 2026). Stacked, ~50 rows made this card 4,617px
+   tall at every desktop width: the head over the email line is right for a thumb at 375px and wasteful
+   at a desk, where the card is ~600px wide. Gated on the POINTER as well as the width, as Admin's day
+   rows are (css-tokens.md → density). The head is ONE width on every row, so each email starts at the
+   same x down the list; the email line takes the rest, its hairline turned from a rule above it to one
+   beside it. The Set/Edit form and a removal error still take a whole line under the row.
+   A LINE TOO NARROW FOR ITS ADDRESS TAKES THE NEXT ONE (Nov 2026): sized by its content (`auto`, not 0),
+   the email line wraps under the head when the address and its buttons do not fit beside it, and there
+   has the row's whole width — so a row with no address, or a short one, stays one line. */
+@media (min-width: 1024px) and (pointer: fine) {
+    .acct-row { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 12px; padding: 6px 12px; }
+    .acct-row-head  { flex: 0 0 19rem; width: auto; }
+    .acct-row-email { flex: 1 1 auto; width: auto; border-top: none; padding-top: 0; border-left: 1px solid var(--border-light); padding-left: 12px; }
+    .acct-row > .email-set-form, .acct-row > .email-set-error { flex: 1 1 100%; }
+}
 
 /* The page's colour, orange: the header badge, the About badge and every chosen control all
    read it (shared.css :root → "Page identity", v25.14). Declared once, here.

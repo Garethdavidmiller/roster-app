@@ -9,7 +9,7 @@
  * summarising the wrong direction for Coming back, leaves every unit test green.
  */
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject } from './helpers.js';
 
 /**
  * Type into the station box. Under a chosen station the box and the chips have folded away (v24.92),
@@ -393,7 +393,7 @@ test.describe('trains', () => {
         await expect(page.locator('#trPattern .tr-grid-band')).toHaveText(['Main line', 'Aylesbury via Amersham']);
         const rows = page.locator('#trPattern tbody tr:not(.tr-grid-band)');
         const all = await rows.count();
-        await expect(page.locator('#trPattern .tr-grid-tip')).toContainText('Tap a time at the top');
+        await expect(page.locator('#trPattern .tr-grid-tip')).toContainText('Choose a time at the top');
         // The mirror: hidden while the real heads are on screen, shown once they have scrolled off —
         // drawn by its own module, served to the page with the one export the coordinator calls.
         // (Not the resource-timing buffer: the page loads more modules than its 250 entries hold.)
@@ -796,6 +796,62 @@ test.describe('trains — the heads copy is clamped to the grid', () => {
     });
 });
 
+// ── THE SWIPE LINE IS FOR A GRID THAT SCROLLS (8 Nov 2026) ───────────────────────────────────────────
+//
+// The line hid from 700px wide, so below that it told a reader to swipe a grid that fitted — measured
+// at 600 and 699px, 10 of the 12 day-and-timetable grids fitted and every one showed it — and above
+// 700px it was right only because no day's grid is wider. It now shows only while the grid scrolls
+// sideways (overflow-hint.js): measured as the grid is drawn, and again when the box changes size,
+// with no redraw. An iPhone SE is 375px wide upright and 667px on its side, inside that band.
+test.describe('trains — the swipe line is for a grid that scrolls', () => {
+    test('upright, the grid scrolls and the line says so; on its side it fits and the line goes; and back', async ({ page }, info) => {
+        test.skip(!isTouchProject(info), 'the line is touch-only UI');
+        await page.setViewportSize({ width: 375, height: 667 });
+        await page.clock.setFixedTime(new Date('2026-10-07T09:00:00Z'));    // a Wednesday: Weekdays
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="grid"]').click();
+        await expect(page.locator('#trPattern .tr-dot').first()).toBeVisible();
+        const wrap = page.locator('#trPattern .tr-grid-wrap');
+        const swipe = page.locator('#trPattern .tr-grid-swipe');
+        const overflows = () => wrap.evaluate(w => w.scrollWidth > w.clientWidth + 1);
+
+        expect(await overflows(), 'premise: upright, the weekday grid is wider than the screen').toBe(true);
+        await expect(swipe, 'a grid that scrolls is not explained').toBeVisible();
+
+        await page.setViewportSize({ width: 667, height: 375 });            // the same grid, turned
+        await expect.poll(overflows, { message: 'premise: on its side, the grid fits' }).toBe(false);
+        await expect(swipe, 'turned in place, the grid stopped scrolling and the line stayed').toBeHidden();
+
+        await page.locator('[data-day="SO"]').click();                      // a fresh draw, on its side
+        await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
+        expect(await overflows(), 'premise: drawn on its side, Saturdays fit').toBe(false);
+        await expect(swipe, 'a grid drawn to fit was offered a swipe').toBeHidden();
+
+        await page.setViewportSize({ width: 375, height: 667 });            // and upright again
+        await expect.poll(overflows, { message: 'premise: upright, it scrolls again' }).toBe(true);
+        await expect(swipe, 'upright again, the grid scrolls and the line did not come back').toBeVisible();
+
+        // Paper cannot be swiped: printed, the line goes, as Team view's does.
+        await page.emulateMedia({ media: 'print' });
+        await expect(swipe, 'the printout told its reader to swipe the paper').toBeHidden();
+        await page.emulateMedia({ media: null });
+    });
+
+    test('a mouse is not told to swipe, however narrow the window', async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'the line is touch-only UI: a fine pointer never sees it');
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.clock.setFixedTime(new Date('2026-10-07T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="grid"]').click();
+        await expect(page.locator('#trPattern .tr-dot').first()).toBeVisible();
+        expect(await page.locator('#trPattern .tr-grid-wrap').evaluate(w => w.scrollWidth > w.clientWidth + 1),
+            'premise: the grid scrolls').toBe(true);
+        await expect(page.locator('#trPattern .tr-grid-swipe')).toBeHidden();
+    });
+});
+
 // ── THE iPHONE KEYBOARD AND TOUCH (iPhone audit, 7 Nov 2026) ─────────────────────────────────────────
 
 test('the header logo — the installed app\'s way back — opens no image menu when held', async ({ page }) => {
@@ -829,4 +885,53 @@ test('the station and time boxes keep what is typed into them', async ({ page })
     await expect(station).toHaveAttribute('autocapitalize', 'none');
     await expect(station).toHaveAttribute('enterkeyhint', 'go');
     await expect(page.locator('#trLookupInput')).toHaveAttribute('autocorrect', 'off');
+});
+
+// ── ON A DESKTOP (desktop audit, Nov 2026) ───────────────────────────────────────────────────────────
+
+test('a changes row and a column head say they can be pressed under a mouse, and the chosen column keeps its look', async ({ page }, info) => {
+    // Both are buttons, and both looked the same pointed at as not. Hover is a fine-pointer surface.
+    test.skip(isTouchProject(info), 'hover is a fine-pointer surface');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/trains.html');
+    const row = page.locator('.tr-head').first();
+    await expect(row).toBeVisible();
+    const look = () => row.evaluate(b => [getComputedStyle(b).borderTopColor,
+        getComputedStyle(/** @type {Element} */ (b.querySelector('.tr-head-go'))).color].join(' | '));
+    await page.mouse.move(1, 1);
+    const idle = await look();
+    await row.hover();
+    expect(await look(), 'a changes row looks the same pointed at').not.toBe(idle);
+
+    await page.locator('[data-view="grid"]').click();
+    const heads = page.locator('#trPattern thead th.tr-grid-colhead');
+    await expect(heads.first()).toBeVisible();
+    const fill = (/** @type {import('@playwright/test').Locator} */ th) => th.evaluate(el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).boxShadow].join(' | '));
+    await page.mouse.move(1, 1);
+    const idleHead = await fill(heads.nth(1));
+    await heads.nth(1).hover();
+    expect(await fill(heads.nth(1)), 'a column head looks the same pointed at').not.toBe(idleHead);
+    // Chosen, a column keeps the look its choice gave it, pointer or no pointer.
+    await heads.nth(1).locator('.tr-grid-colbtn').click();
+    await expect(heads.nth(1)).toHaveClass(/tr-col-on/);
+    await page.mouse.move(1, 1);
+    const chosen = await fill(heads.nth(1));
+    await heads.nth(1).hover();
+    expect(await fill(heads.nth(1)), 'hover repainted the chosen column').toBe(chosen);
+});
+
+test('the trains-a-day box reaches the right-hand edge the blocks around it share on a desktop', async ({ page }) => {
+    // Held to a phone's 340px, it stopped 64px short of its 404px column.
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/trains.html');
+    await expect(page.locator('#trTotals .tr-totals-days')).toBeVisible();
+    const edge = await page.evaluate(() => ({
+        box: /** @type {Element} */ (document.querySelector('#trTotals .tr-totals-days')).getBoundingClientRect().right,
+        column: /** @type {Element} */ (document.querySelector('.tr-ov-side')).getBoundingClientRect().right,
+    }));
+    expect(Math.abs(edge.box - edge.column), `box ends at ${edge.box}, its column at ${edge.column}`).toBeLessThanOrEqual(1);
 });

@@ -637,6 +637,34 @@ test.describe('manager surface', () => {
         await expect(page.getByRole('button', { name: 'Open now' })).toHaveCount(4);
     });
 
+    test('the panels are tabpanels, and Tab stops, only while the strip is there to name them (desktop audit, Nov 2026)', async ({ page }) => {
+        // With the strip hidden, the form's panel stayed a `tabpanel` named by a tab nobody could see, and a Tab stop that
+        // led nowhere. A reviewer whose own form FAILS gets the strip, so the error stays reachable; "Try again" bringing
+        // back nothing of their own takes it away — and must take the roles and the stops with it.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { windows: [], weeks: sixWeeks() });
+        let failMine = true;
+        await page.route('**/getMyOvertimeState', r => (failMine
+            ? r.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"boom"}' })
+            : r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }) })));
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otTabs')).toBeVisible();
+        for (const [panel, tab] of [['#otMinePanel', 'otTabMine'], ['#otAllPanel', 'otTabAll']]) {
+            await expect(page.locator(panel), `${panel} is the strip's panel`).toHaveAttribute('role', 'tabpanel');
+            await expect(page.locator(panel)).toHaveAttribute('aria-labelledby', tab);
+            await expect(page.locator(panel)).toHaveAttribute('tabindex', '0');
+        }
+        failMine = false;
+        await page.locator('#otMineContent .ot-retry').click();
+        await expect(page.locator('#otTabs')).toBeHidden();
+        await expect(page.locator('#otHorizonContent')).toBeVisible();
+        for (const panel of ['#otMinePanel', '#otAllPanel']) {
+            await expect(page.locator(panel), `${panel} kept the strip's role with no strip`).not.toHaveAttribute('role');
+            await expect(page.locator(panel), `${panel} kept a Tab stop with no strip`).not.toHaveAttribute('tabindex');
+            await expect(page.locator(panel)).not.toHaveAttribute('aria-labelledby');
+        }
+    });
+
     test('a manager gets no personal form, and no tab strip offering one', async ({ page }) => {
         // `getMyOvertimeState` correctly returns [] for a reviewer who is not a participant. The
         // tab strip must not appear, or it would lead somewhere that says "nothing open for you".
@@ -1896,6 +1924,46 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(row).toHaveClass(/ot-day--saved/);
     });
 
+    // THE SAME MEANING READS THE SAME ON BOTH PAGES (owner, Nov 2026). Admin's week grid has two gold
+    // washes: a row TICKED with no type yet (8% — it saves nothing until it has one) and a row READY TO
+    // SAVE (20%). An answer chosen here and not yet submitted is the second; a Sunday release request on a
+    // day still to answer is the first — staged, but Submit sends nothing until the day has an answer. They
+    // wore the 8% wash alike. Read off both pages, because a check of the stylesheets cannot see a rule
+    // that loses to another, and nothing else here can see the colour at all.
+    test('a day reads as Admin\'s row does for the same meaning — an unsent answer is "ready to save", a Sunday request alone "ticked, no type"', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        // A worked Sunday, so the release question is asked of it.
+        await stubWithRoster(page, [winOver()], [{ id: 's1', memberName: 'G. Miller', date: D[0], type: 'rdw', value: '08:00-16:00', note: '', source: 'manual' }]);
+        await page.goto('/overtime.html');
+        /** Background and edge once the row's transitions have run. @param {import('@playwright/test').Locator} loc */
+        const paint = (loc) => loc.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished))
+            .then(() => ({ wash: getComputedStyle(el).backgroundColor, edge: getComputedStyle(el).borderLeftColor })));
+        const sunday = page.locator(`[data-day="${D[0]}"]`), monday = page.locator(`[data-day="${D[1]}"]`);
+        await sunday.locator('.ot-release-box').check();
+        await expect(sunday, 'premise: the request alone is staged').toHaveClass(/ot-day--set/);
+        await expect(sunday, 'and is not an answer').not.toHaveClass(/ot-day--answered/);
+        await monday.locator('[data-mode="unavailable"]').click();
+        await expect(monday).toHaveClass(/ot-day--set/);
+        await expect(monday).toHaveClass(/ot-day--answered/);
+        await page.mouse.move(1, 1);
+        const requestAlone = await paint(sunday), answered = await paint(monday);
+        expect(answered.wash, 'premise: the two read differently here').not.toBe(requestAlone.wash);
+
+        // Admin, the same member: one row ticked, another given a type.
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        const rows = page.locator('.day-row:not(.today):not(.has-override)');
+        const ticked = rows.nth(1), ready = rows.nth(2);
+        await ticked.locator('.day-cb').check();
+        await ready.locator('.day-cb').check();
+        await ready.locator('.pill-rdw').click();
+        await expect(ticked).toHaveClass(/\bselected\b/);
+        await expect(ready).toHaveClass(/\bactive\b/);
+        await page.mouse.move(1, 1);
+        expect(answered, 'an answer ready to submit wears Admin\'s ready-to-save wash and edge').toEqual(await paint(ready));
+        expect(requestAlone, 'a request alone wears Admin\'s ticked-no-type wash and edge').toEqual(await paint(ticked));
+    });
+
     test('re-pressing a saved anchored answer keeps it, even when the roster lost its time', async ({ page }) => {
         // The stale note says "change it if that no longer suits", inviting a tap on the selected
         // pill. Before v20.75 that tap rebuilt the answer from the CURRENT roster — a rest day, no
@@ -2088,6 +2156,10 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await day.getByRole('radio', { name: 'All day', exact: true }).click();
         await expect(day).toHaveClass(/ot-day--changed/);
         await page.locator('.ot-submit').click();
+        // The request must have REACHED the route before the budget runs out. Jumped at once, the 65s
+        // timer could fire first, and the re-read rightly said "it never reached the server" (seen 1
+        // run in 290 under load, desktop audit, Nov 2026). Not a sleep: the count is the condition.
+        await expect.poll(() => submits, 'the submit reached the server stub').toBe(1);
         await page.clock.fastForward(70_000);            // past the 65s budget
         await expect(page.locator('.ot-feedback')).toContainText('did save');
         await expect(page.locator('.ot-day--changed'), 'told it saved, so nothing is pending')
@@ -3176,6 +3248,57 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         await expect(page.locator('#iconLightbox.open')).toHaveCount(0);
         await page.locator('#appIcon').click();
         await expect(page).not.toHaveURL(/overtime\.html/);
+    });
+
+    test('paused, the card is the feature\'s own, and no hidden panel takes a Tab stop (desktop audit, Nov 2026)', async ({ page }) => {
+        // The paused page kept the form's tab panel — a `tabpanel` named by a hidden "My availability" tab — as a Tab
+        // stop, under the form's own title: the third stop on the page led to an empty box describing a form.
+        await seedSession(page, 'G. Miller');
+        await off(page);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        const title = page.locator('#otMineTitle');
+        await expect(title).toHaveText('⏱️ Overtime availability');
+        await expect(title.locator('> span[aria-hidden="true"]').first(), 'the emoji still leads the title').toHaveText('⏱️');
+        const panel = page.locator('#otMinePanel');
+        await expect(panel).not.toHaveAttribute('tabindex');
+        await expect(panel).not.toHaveAttribute('role');
+        await page.locator('#navMenuBtn').focus();
+        const reached = [];
+        for (let i = 0; i < 4; i++) {
+            await page.keyboard.press('Tab');
+            reached.push(await page.evaluate(() => `${document.activeElement?.tagName}#${document.activeElement?.id ?? ''}`));
+        }
+        expect(reached.filter(r => r.startsWith('SECTION')), `the Tab order: ${reached.join(' → ')}`).toEqual([]);
+    });
+
+    test('the page sits where every other card page does: the same inset, at a desktop and on a phone (desktop audit, Nov 2026)', async ({ page }) => {
+        // Overtime had no padding of its own and took shared.css's 16px fallback, so its header sat 4px higher and its
+        // burger further out than on the page before it. The header's TOP EDGE is what the eye compares between pages,
+        // so it is measured against Settings' first; the whole inset is then held to Trains'.
+        await seedSession(page, 'G. Miller');
+        await off(page);
+        const where = async () => {
+            await expect(page.locator('.app-header')).toBeVisible();
+            return page.evaluate(() => {
+                const s = getComputedStyle(document.body);
+                return {
+                    headerTop: Math.round(/** @type {HTMLElement} */ (document.querySelector('.app-header')).getBoundingClientRect().top),
+                    inset: [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].join(' '),
+                };
+            });
+        };
+        for (const width of [1366, 390]) {
+            await page.setViewportSize({ width, height: 768 });
+            await page.goto('/settings.html');
+            const settings = await where();
+            await page.goto('/trains.html');
+            const trains = await where();
+            await page.goto('/overtime.html');
+            const overtime = await where();
+            expect(overtime.headerTop, `at ${width}px the header's top edge is Settings' (${settings.headerTop}px)`).toBe(settings.headerTop);
+            expect(overtime.inset, `at ${width}px`).toBe(trains.inset);
+        }
     });
 
     test('no other page offers the pill while paused', async ({ page }) => {

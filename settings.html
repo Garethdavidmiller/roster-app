@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="MYB Roster">
-  <title>Marylebone Roster — Settings</title>
+  <title>Settings — Marylebone Roster</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="./icon-167.png">
@@ -67,7 +67,7 @@
         <div class="lightbox-app-name">Marylebone Roster</div>
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-        <div class="lightbox-badge">Settings</div>
+        <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">⚙️</span> Settings</div>
         <a href="./" class="lightbox-bug-link"><span aria-hidden="true">📅</span> View staff roster</a>
         <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
     </div>
@@ -254,7 +254,10 @@
         </div>
         <div class="card-collapsible-body" id="notifBody">
             <div class="card-body">
-                <p class="card-explainer">You’ll get: Daily Huddle · Retail Circular · Newsletter · Pay reminder · Timetable changes</p>
+                <!-- One unbreakable run per kind, its separator inside it (desktop audit, 7 Nov 2026):
+                     wrapped freely, a line could end "· Pay" and the next start "reminder ·". Now a
+                     line breaks only after a "·", the way it would after a comma. -->
+                <p class="card-explainer">You’ll get: <span class="notif-kind">Daily Huddle ·</span> <span class="notif-kind">Retail Circular ·</span> <span class="notif-kind">Newsletter ·</span> <span class="notif-kind">Pay reminder ·</span> <span class="notif-kind">Timetable changes</span></p>
                 <div id="notifStatusMsg" aria-live="polite"></div>
                 <button type="button" class="btn-action btn-primary" id="notifEnableBtn" style="display:none">Enable notifications</button>
                 <button type="button" class="btn-action btn-secondary" id="notifDisableBtn" style="display:none">Disable notifications</button>

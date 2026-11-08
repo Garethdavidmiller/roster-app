@@ -167,6 +167,7 @@ function _ensurePicker() {
     let _mo = new Date().getMonth();
     let _min = '';   // ISO lower bound (inclusive) or '' for none
     let _max = '';   // ISO upper bound (inclusive) or '' for none
+    let _focusIso = '';   // the day holding the grid's one Tab stop, once the arrow keys have moved it
 
     /** @param {string} iso @returns {boolean} */
     function _outOfBounds(iso) {
@@ -183,7 +184,14 @@ function _ensurePicker() {
         let html = '';
         const dows = _week ? ['S', 'M', 'T', 'W', 'T', 'F', 'S'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
         for (const d of dows) html += `<div class="dp-dow" aria-hidden="true">${d}</div>`;
-        for (const iso of monthCells(_yr, _mo, _week ? 0 : 1)) {
+        // ONE TAB STOP FOR THE WHOLE MONTH (desktop audit, Nov 2026) — a roving tabindex, as the
+        // Calendar's own grid: every day was its own stop, so crossing the picker took up to 31 Tab
+        // presses and the arrow keys did nothing. The stop is the day the arrows last reached, else the
+        // chosen day, else today, else the first day that can be picked — the day `initialFocus` opens on.
+        const cells = monthCells(_yr, _mo, _week ? 0 : 1);
+        const live  = (/** @type {string|null} */ iso) => !!iso && !_outOfBounds(iso);
+        const stop  = [_focusIso, selISO, todayISO].find(i => live(i) && cells.includes(i)) ?? cells.find(live);
+        for (const iso of cells) {
             if (!iso) { html += '<div class="dp-filler"></div>'; continue; }
             const dd    = parseISODate(iso);
             const day   = dd.getDate();
@@ -210,8 +218,8 @@ function _ensurePicker() {
             // have; the admin range picker likewise uses buttons). Full date in aria-label.
             html += `<button type="button" class="${cls.join(' ')}" data-iso="${iso}"${wk ? ` data-week="${wk}"` : ''}`
                  + ` aria-label="${aria}" aria-pressed="${sel}"`
-                 // Out-of-bounds days: not a tab stop (keyboard skips the inert cells) and marked disabled.
-                 + (off ? ' aria-disabled="true" tabindex="-1"' : '') + `>${day}</button>`;
+                 // Out-of-bounds days are marked disabled; no day but the one stop is in the Tab order.
+                 + (off ? ' aria-disabled="true"' : '') + (iso === stop ? '' : ' tabindex="-1"') + `>${day}</button>`;
         }
         gridEl.innerHTML = html;
     }
@@ -257,6 +265,28 @@ function _ensurePicker() {
         if (!cell || cell.classList.contains('dp-off')) return;
         _select(/** @type {HTMLElement} */ (cell).dataset.iso || '');
     });
+    /** Arrows move a day or a week, Home/End to the row's ends, Page Up/Down a month; crossing a month's
+     *  edge turns the page. A day that cannot be picked is never landed on — the key does nothing. */
+    const STEP = /** @type {Record<string, number>} */ ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 });
+    gridEl.addEventListener('keydown', e => {
+        const from = /** @type {HTMLElement} */ (e.target).dataset?.iso;
+        if (!from || !(e.key in STEP || ['Home', 'End', 'PageUp', 'PageDown'].includes(e.key))) return;
+        e.preventDefault();
+        const d = parseISODate(from);
+        const col = (d.getDay() - (_week ? 0 : 1) + 7) % 7;   // its column: week mode is Sunday-first
+        if (e.key in STEP) d.setDate(d.getDate() + STEP[e.key]);
+        else if (e.key === 'Home' || e.key === 'End') d.setDate(d.getDate() + (e.key === 'Home' ? -col : 6 - col));
+        else {   // the same day a month away — or that month's last, when it is shorter
+            const delta = e.key === 'PageUp' ? -1 : 1;
+            d.setDate(Math.min(d.getDate(), new Date(d.getFullYear(), d.getMonth() + delta + 1, 0).getDate()));
+            d.setMonth(d.getMonth() + delta);
+        }
+        const to = formatISO(d);
+        if (_outOfBounds(to)) return;
+        _focusIso = to; _yr = d.getFullYear(); _mo = d.getMonth();
+        _render();
+        /** @type {HTMLElement|null} */ (gridEl.querySelector(`[data-iso="${to}"]`))?.focus();
+    });
     /** @type {HTMLElement} */ (overlay.querySelector('#dpPrev')).addEventListener('click', () => _moveMonth(-1));
     /** @type {HTMLElement} */ (overlay.querySelector('#dpNext')).addEventListener('click', () => _moveMonth(+1));
 
@@ -271,16 +301,17 @@ function _ensurePicker() {
             _week = _pendingWeek;
             _min = input.min || '';
             _max = input.max || '';
+            _focusIso = '';   // each open starts on the chosen day, not where the arrows last left off
             const cur = input.value ? parseISODate(input.value) : new Date();
             _yr = cur.getFullYear();
             _mo = cur.getMonth();
             titleEl.textContent = _pendingTitle || input.getAttribute('aria-label') || 'Choose a date';
             _render();
         },
-        // Focus the selected day if visible, else today, else the first day, else close.
+        // Focus the grid's one Tab stop — the selected day if visible, else today, else the first day
+        // that can be picked (`_render` places it) — else close.
         initialFocus: () => /** @type {HTMLElement} */ (
-            gridEl.querySelector('.dp-sel') || gridEl.querySelector('.dp-today')
-            || gridEl.querySelector('.dp-day:not(.dp-off)') || closeBtn),
+            gridEl.querySelector('.dp-day:not([tabindex="-1"])') || closeBtn),
     });
 
     _picker = {

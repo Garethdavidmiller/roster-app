@@ -135,6 +135,23 @@ describe('"MYB" never names the app', () => {
             'the iOS home-screen title is gone — the icon label would fall back to the long name');
     });
 
+    test('every tab title names its page first and the app last, so two tabs never read the same', () => {
+        // Desktop audit, Nov 2026: eleven titles began "Marylebone Roster — …", so on a desktop with
+        // several tabs open they truncated to the same words. The page's own name leads now, and the
+        // app's name closes. The legacy redirect stubs say "moved" and are not pages anyone keeps open.
+        const pages = readdirSync(new URL('.', import.meta.url)).filter(f => f.endsWith('.html') && !['guide.html', 'fip.html'].includes(f));
+        /** @type {Record<string, string>} */
+        const titles = {};
+        for (const f of pages) {
+            const t = /<title>([^<]+)<\/title>/.exec(read('./' + f))?.[1]?.replace(/&amp;/g, '&');
+            assert.ok(t, `${f} has no <title>`);
+            assert.match(t, /^\S.* — Marylebone Roster$/, `${f}: "${t}" — the page's name first, then " — Marylebone Roster"`);
+            titles[f] = t;
+        }
+        assert.equal(new Set(Object.values(titles)).size, pages.length, `two pages share a title: ${JSON.stringify(titles)}`);
+        assert.ok(pages.length >= 14, `only ${pages.length} pages read — the app pages and the five guides should be here`);
+    });
+
     test('the pattern still catches both historical defects', () => {
         // Teeth, stated rather than assumed. Both strings shipped; a regex edit that stopped matching
         // them would leave this file passing for ever while guarding nothing.

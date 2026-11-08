@@ -31,7 +31,7 @@ export function isClaimRetryable(err, retryCode, hasUser) {
  * Is this failure "you are not allowed to read that" rather than "the network is poor"?
  *
  * THE TWO NEED DIFFERENT WORDS, and the app has said so since v20.40 — `calendar-access.js`'s
- * `handleAccessLost` states it plainly: an endless "couldn't update, tap to retry" against an
+ * `handleAccessLost` states it plainly: an endless "couldn't update, try again" against an
  * expired session "is a loop the member cannot win, and they would reasonably conclude the app is
  * broken." Telling somebody on a shift to check their signal, when the truth is that their session
  * has gone, sends them to fix the one thing that is not wrong.

@@ -102,32 +102,45 @@ export function shouldOpen(state) {
     return state === 'action' || state === 'blocked' || state === 'error';
 }
 
+/** Where each to-do LEADS: the card that fixes it, by its element id in settings.html (desktop audit,
+ *  7 Nov 2026). The strip's items are links to these — a list of things to finish that leads nowhere
+ *  leaves the member to go and find each card. settings-status.test.mjs holds every id to the page.
+ *  @type {Record<string, string>} */
+const TODO_CARD = {
+    'password':      'passwordCard',
+    'work-email':    'contactCard',
+    'install':       'deviceCard',
+    'notifications': 'notificationsCard',
+};
+
 /**
  * The summary line for the top of the page.
  *
  * @param {Record<string, CardState>} states card id → state. A card missing from this map is
  *   `unknown`, which is the whole point: nothing has to remember to report "not yet".
- * @returns {{ tone: 'checking'|'all-set'|'todo'|'error', headline: string, items: string[] }}
- *   `items` names what is outstanding, in `CARD_ORDER`. Empty unless tone is 'todo'.
+ * @returns {{ tone: 'checking'|'all-set'|'todo'|'error', headline: string, items: string[],
+ *             ids: string[], cards: string[] }}
+ *   `items` names what is outstanding, in `CARD_ORDER`. Empty unless tone is 'todo'. `ids` is the
+ *   card each item is about and `cards` that card's element id (`TODO_CARD`), item for item.
  */
 export function summarise(states) {
     const at = /** @param {string} id */ id => states[id] ?? 'unknown';
+    const none = { items: [], ids: [], cards: [] };
 
     // Unknown outranks every other answer. Not "optimistically all set until proven otherwise":
     // the reassurance is the thing being got wrong, so it has to be the thing that waits.
     if (CARD_ORDER.some(id => at(id) === 'unknown')) {
-        return { tone: 'checking', headline: 'Checking your settings…', items: [] };
+        return { tone: 'checking', headline: 'Checking your settings…', ...none };
     }
 
-    const items = CARD_ORDER
-        .filter(id => at(id) === 'action' || at(id) === 'blocked')
-        .map(id => (at(id) === 'blocked' ? BLOCKED_LABEL[id] : TODO_LABEL[id]) || id);
+    const ids = CARD_ORDER.filter(id => at(id) === 'action' || at(id) === 'blocked');
+    const items = ids.map(id => (at(id) === 'blocked' ? BLOCKED_LABEL[id] : TODO_LABEL[id]) || id);
 
     if (items.length) {
         return {
             tone: 'todo',
             headline: items.length === 1 ? '1 thing to finish' : `${items.length} things to finish`,
-            items,
+            items, ids, cards: ids.map(id => TODO_CARD[id] || ''),
         };
     }
 
@@ -135,8 +148,8 @@ export function summarise(states) {
     // fine, it has told us nothing. Saying "all set" over the top of that is the same lie as saying
     // it over silence, arriving one step later.
     if (CARD_ORDER.some(id => at(id) === 'error')) {
-        return { tone: 'error', headline: 'Some settings could not be checked', items: [] };
+        return { tone: 'error', headline: 'Some settings could not be checked', ...none };
     }
 
-    return { tone: 'all-set', headline: '✓ You’re all set', items: [] };
+    return { tone: 'all-set', headline: '✓ You’re all set', ...none };
 }

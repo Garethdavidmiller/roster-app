@@ -106,7 +106,7 @@ export function initHuddleNotifications({ onState } = {}) {
             _disableBtn.style.display = 'block';
             onState?.('ok', '✓ On');
         } else if (state === 'off-lapsed') {
-            _statusMsg.textContent   = 'Notifications were switched on but have stopped. Tap Enable to turn them back on.';
+            _statusMsg.textContent   = 'Notifications were switched on but have stopped. Select “Enable notifications” to turn them back on.';
             _enableBtn.style.display = 'block';
             onState?.('action', 'Off');
         } else if (state === 'denied') {
@@ -126,13 +126,13 @@ export function initHuddleNotifications({ onState } = {}) {
             onState?.('blocked', 'Blocked');
         } else if (notifOffByChoice()) {
             // Switched off HERE, on purpose (Sep 2026 review). Not a to-do: the member decided.
-            _statusMsg.textContent   = 'Notifications are off on this device. Tap Enable to turn them back on.';
+            _statusMsg.textContent   = 'Notifications are off on this device. Select “Enable notifications” to turn them back on.';
             _enableBtn.style.display = 'block';
             // `ok` to the summary — nothing to do — but not good news, so the chip is not green:
             // a green "Off" would have the colour and the word disagree (v25.14).
             onState?.('ok', 'Off', 'plain');
         } else {
-            _statusMsg.textContent   = 'Tap Enable to get an alert when a new document arrives and before the pay cut-off.';
+            _statusMsg.textContent   = 'Select “Enable notifications” to get an alert when a new document arrives and before the pay cut-off.';
             _enableBtn.style.display = 'block';
             onState?.('action', 'Off');
         }

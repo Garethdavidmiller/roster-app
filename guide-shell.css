@@ -102,6 +102,14 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
     touch-action: manipulation;
 }
 .btn-back:active { opacity: 0.7; }
+/* One hover for the ← on every guide (desktop audit, Nov 2026). It had none on four of them, and on
+   the Railcard guide that page's own `a:hover` (amber, for links in the text) reached it — amber on
+   navy, ~3.3:1. Gold, the header's own accent, at 10:1 on the navy; (0,2,0) outranks any page's
+   `a:hover`, so no guide's link colour can reach the arrow again. */
+.btn-back { transition: color 0.15s; }
+@media (hover: hover) and (pointer: fine) {
+    .btn-back:hover { color: var(--gold); }
+}
 .btn-back:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.85);
     outline-offset: 2px;
@@ -227,6 +235,15 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
     .chip-bar {
         padding-left:  max(12px, env(safe-area-inset-left),  calc((100% - 760px) / 2 + 16px));
         padding-right: max(12px, env(safe-area-inset-right), calc((100% - 760px) / 2 + 16px));
+    }
+    /* …and so does the header above it (desktop audit, Nov 2026): the ← and ⤓ PDF sat at the window's
+       edges — the ← at x=16 over text starting at x=596 at 1920 — so the two controls read as the
+       browser's rather than the page's. The navy band stays full-bleed; only its contents move in, to
+       the same column edge as the chips and the text. Phones are untouched (`max()` keeps 16px). The
+       two document guides' `.page` (guide-doc.css) is the same 760/16 column. */
+    .page-header {
+        padding-left:  max(16px, env(safe-area-inset-left),  calc((100% - 760px) / 2 + 16px));
+        padding-right: max(16px, env(safe-area-inset-right), calc((100% - 760px) / 2 + 16px));
     }
 }
 .chip {

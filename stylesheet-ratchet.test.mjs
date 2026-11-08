@@ -47,12 +47,19 @@ const LARGE_THRESHOLD = 900;
  * Measured on 3 Nov 2026 with v25.22 in, + 50, rounded up to the next 50. ⚠️ THESE MAY ONLY GO DOWN.
  */
 const CAPS = {
-    'index.css':      3950,   // the Calendar: grid, day panel, Team Week View, lock cards, notices
-    'shared.css':     3950,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
+    // 3950 → 3600 (8 Nov 2026, at 3,502): changelog comments cut to their reasons, dead and duplicated
+    // rules out.
+    'index.css':      3600,   // the Calendar: grid, day panel, Team Week View, lock cards, notices
+    // 3950 → 3850 (Nov 2026, at 3,781): comments that had become a changelog went back to the reason they
+    // left, stale claims were corrected, and the drawer pills' nine colour pairs and the sheet's four ✕
+    // colours became one block each.
+    'shared.css':     3850,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
     'admin.css':      2700,
     'links.css':      2650,
     'operations.css': 2150,
-    'paycalc.css':    2100,
+    // 2100 → 1950 on 8 Nov 2026, brought DOWN (2,099 measured lines to 1,891): changelog comments cut
+    // to their reasons, and rules that shared.css's `.hidden` or an identical twin already set.
+    'paycalc.css':    1950,
     'overtime.css':   1900,   // paused since v25.05, kept (owner, 3 Nov 2026); see KNOWN_LIMITATIONS
 };
 

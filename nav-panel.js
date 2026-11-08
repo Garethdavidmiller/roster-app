@@ -22,9 +22,7 @@
  * carrying the whole argument. The drawer had grown FIVE competing treatments for one list of
  * destinations, which is what "cluttered" turned out to mean — measured, it was not dense; there
  * was ~130px of dead space. Now: **pills** = go to a page · **Latest** = the documents you open on
- * a shift · **Reference** = look something up. (The zone's IDIOM is "on a shift"; its HEADING is
- * "Latest" — the argument is beside it in `_inject`. This line said "Today" for a release and a
- * half after the heading changed, which is a module header describing a word it stopped rendering.)
+ * a shift · **Reference** = look something up. (The idiom is "on a shift"; the heading "Latest" — `_inject`.)
  *
  * Three consequences that look like taste and are not:
  *
@@ -52,20 +50,20 @@
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications, releaseDevicePush } from './notif.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl, currentUserAfterBoot } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
-import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled } from './overlay.js';
-import { lsGet, lsSet } from './ls.js';
+import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade } from './overlay.js';
+import { readArchivedNotices } from './notice-archive.js';
 import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
+// The App Notices archive's rules are notice-archive.js's; the pages that archive a notice import these
+// two from here, as they always have.
+export { archiveNotice, isNoticeExpired } from './notice-archive.js';
 
 /**
  * Page navigation destinations. The current page is NOT omitted — it renders as an inert
  * `aria-current` pill (see `_inject`), so the row is the same shape on every page and the
- * drawer doubles as a map rather than a list of exits. This comment said "omitted" from
- * v10.57 to v20.06 while the code did the opposite.
- * colorClass mirrors the equivalent quick-action button on the calendar page:
- *   calendar → gold (matches Today button)
- *   admin    → navy + gold text (matches Admin button)
- *   paycalc  → green (matches Pay button)
+ * drawer doubles as a map rather than a list of exits.
+ * colorClass is the page's own colour, Admin's navy with gold text (css-tokens.md → "A page is one
+ * colour and one emoji"); `label` is its emoji and name, which its header and About badges repeat.
  */
 const NAV_PAGES = [
     { id: 'calendar',   label: '📅 Calendar',   url: './',      colorClass: 'nav-panel-pill--calendar'   },
@@ -85,12 +83,8 @@ const NAV_PAGES = [
     // The new link (v25.06; "December link" until v25.10 — the link starts on 1 January): the shortlisted proposals for it. The admin's and
     // the named previewers' while it is a preview (`canOpenNewlink`, v25.33) — the gate and auth-policy.js's role move together (page-contract-parity).
     { id: 'newlink',    label: '🔁 New link', url: './newlink.html',    colorClass: 'nav-panel-pill--newlink',    newlinkAudienceOnly: true },
-    // SETTINGS IS A PAGE, SO IT IS A PILL (v20.06). It used to be a flat link pinned above the
-    // footer, styled like the Information rows — which made it the only page-destination in the
-    // drawer that did not look like one, and meant "where do I go" had two answers in two places
-    // with two treatments. Folding it in removes a whole visual idiom and leaves the pill grid as
-    // the single, complete answer. Grey until v25.12; now its badges' indigo (shared.css has why).
-    // It still comes last, so "work pages first" holds by position.
+    // SETTINGS IS A PAGE, SO IT IS A PILL (the header has why); its badges' indigo (shared.css has
+    // why). It comes last, so "work pages first" holds by position.
     { id: 'settings',   label: '⚙️ Settings',      url: './settings.html',   colorClass: 'nav-panel-pill--settings'   },
 ];
 
@@ -107,10 +101,6 @@ const NAV_INFORMATION = [
             { icon: '📋', label: 'Daily Huddle',           url: './#huddle' },
             { icon: '📰', label: 'Weekly Retail Circular', circular: true, body: 'No circular has been uploaded yet — it\'s usually available on Friday.' },
             { icon: '🗞️', label: 'Marylebone Newsletter',  newsletter: true, body: 'No newsletter has been uploaded yet — check back soon.' },
-            // App Notices MOVED OUT at v20.06 — it sat here beside three live workplace documents
-            // while being a changelog for the app itself. Wrong group, and it diluted the one thing
-            // this section is for: the documents staff open on a shift. It now lives with the guides
-            // under "Reference", which is where you go to look something up rather than to work.
         ],
     },
 ];
@@ -183,80 +173,13 @@ registerPopInterceptor(() => _historyPushed && (_comingSoonOpen || _noticesOpen 
 // (v16.23) — a copy surviving a reset-while-open closed over the detached lightbox and could steal
 // the REBUILT drawer's history entry on Escape (the in-handler open-flag guards remain as backup).
 /** @type {any[]} */ let _navLbKeyHandlers = [];
+// The body's "more below" fade, as every scrolling lightbox wears (desktop audit, Nov 2026); open to close.
+/** @type {() => void} */ let _stopBodyFade = () => {};
 
-/** localStorage key for the archived notices list. */
 /** How long a drawer document tap waits for a session before reading anyway (v19.07). The user has
  *  just tapped and a loading state is showing, so this is the "here's a response" budget — not a
  *  general timeout. The whole fetch stays bounded by the existing 8s race below. */
 const DOC_AUTH_WAIT_MS = 2000;
-
-const NOTICES_KEY = 'myb_app_notices';
-/** Archive entries older than this are pruned from localStorage. */
-const ARCHIVE_EXPIRY_DAYS = 180;
-
-const _MONTHS = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
-/** @param {any} str */
-function _parseNoticeDate(str) {
-    const [d, mon, y] = str.trim().split(/\s+/);
-    const m = /** @type {Record<string, any>} */ (_MONTHS)[mon];
-    return (m === undefined) ? NaN : new Date(+y, m, +d).getTime();
-}
-
-/**
- * Returns true if a notice's posting date is older than the given number of days.
- * Use to silently dismiss stale notices on a new device:
- *   if (isNoticeExpired(NOTICE_DATE))     { lsSet(DONE_KEY, '1'); return; }  // 28-day (default)
- *   if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }  // 90-day (long)
- * @param {string} dateStr - "D Mon YYYY", e.g. "22 Jun 2026"
- * @param {number} [days=28] - expiry window: 28 for short-range, 90 for long-range
- */
-export function isNoticeExpired(dateStr, days = 28) {
-    const posted = _parseNoticeDate(dateStr);
-    return !isNaN(posted) && (Date.now() - posted) > days * 86_400_000;
-}
-
-/**
- * Archive a notice so it appears in the App Notices panel.
- * Call this when the user dismisses a notice lightbox.
- * Entries older than ARCHIVE_EXPIRY_DAYS (180) are pruned automatically.
- * @param {{ id: string, title: string, section: string, date: string, body: string }} notice
- */
-export function archiveNotice({ id, title, section, date, body }) {
-    try {
-        const expiryMs = ARCHIVE_EXPIRY_DAYS * 86_400_000;
-        const now    = Date.now();
-        const nowIso = new Date(now).toISOString();
-
-        // Parse defensively — malformed or non-array stored data must not stop a new
-        // notice being saved (it just starts a fresh archive).
-        let parsed;
-        try { parsed = JSON.parse(lsGet(NOTICES_KEY) || '[]'); } catch { parsed = []; }
-        const records = Array.isArray(parsed) ? parsed : [];
-
-        const existing = records
-            // Drop non-object members first: a null/garbage element would otherwise become
-            // `{ ...null, archivedAt }` = a content-less record that survives the expiry filter
-            // and later renders as a blank App Notices card (v16.19).
-            .filter(n => n && typeof n === 'object')
-            // Migrate legacy pre-v13.41 records (no archivedAt) by stamping them with
-            // `now` instead of dropping them — otherwise the first archive write after
-            // an upgrade would silently wipe the user's whole notice history.
-            .map(n => n.archivedAt ? n : { ...n, archivedAt: nowIso })
-            .filter(n => {
-                const t = new Date(n.archivedAt).getTime();
-                return Number.isFinite(t) && (now - t) < expiryMs;
-            });
-
-        if (!existing.some(n => n.id === id)) {
-            existing.unshift({ id, title, section, date, body, archivedAt: nowIso });
-        }
-        // Always write back so the legacy migration and expiry pruning persist even on
-        // the idempotent path (the same notice id archived again).
-        lsSet(NOTICES_KEY, JSON.stringify(existing.slice(0, 50)));
-    } catch (e) {
-        console.warn('[Nav] archiveNotice failed:', e);
-    }
-}
 
 /**
  * Tear down an already-initialised nav panel so initNavPanel() can rebuild it from scratch with a
@@ -280,6 +203,7 @@ export function resetNavPanel() {
     if (_popstateHandler)   { window.removeEventListener('popstate', _popstateHandler);   _popstateHandler = null; }
     _navLbKeyHandlers.forEach(fn => document.removeEventListener('keydown', fn));
     _navLbKeyHandlers = [];
+    _stopBodyFade(); _stopBodyFade = () => {};
     ['navPanel', 'navPanelOverlay', 'navComingSoonLightbox', 'navNoticesLightbox']
         .forEach(id => document.getElementById(id)?.remove());
     const burger = document.getElementById('navMenuBtn');
@@ -349,6 +273,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             history.pushState({ mybNavPanel: _navEntry }, '');
             _historyPushed = true;
         }
+        _stopBodyFade(); _stopBodyFade = watchScrollFade(/** @type {HTMLElement|null} */ (panel.querySelector('.nav-panel-body')));
         // Permission/subscription can change between opens (toggled in admin, or
         // at OS level), so re-read the bell state every time the panel opens.
         _refreshBell();
@@ -362,6 +287,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // before calling this, so we never set aria-hidden over the focused element.
     function _applyClosedState() {
         _panelOpen = false;
+        _stopBodyFade(); _stopBodyFade = () => {};
         panel.setAttribute('aria-hidden', 'true');
         overlay.setAttribute('aria-hidden', 'true');
         overlay.classList.remove('open');
@@ -983,13 +909,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
     function _openNotices() {
         if (!noticesLightbox) return;
-        // Render archived notices from localStorage
+        // Render the archive (notice-archive.js reads it, and an unreadable one reads as empty).
         const list  = noticesList;
         const empty = noticesEmpty;
-        let notices = [];
-        // Array.isArray guard like archiveNotice: a valid-JSON NON-array (e.g. `{}` from corruption)
-        // would pass JSON.parse, then notices.forEach throws a TypeError and breaks the panel (v16.21).
-        try { const p = JSON.parse(lsGet(NOTICES_KEY) || '[]'); notices = Array.isArray(p) ? p : []; } catch (_) {}
+        const notices = readArchivedNotices();
         // One entry per section a notice can archive under, or its chip falls back to the neutral
         // grey: Trains had none for its first two notices (v25.00). `calendar-notices.test.mjs` fails
         // on an archived section with no entry here, so the next page's notice cannot repeat that.
@@ -1126,8 +1049,6 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     window.addEventListener('popstate', _popstateHandler);
 }
 
-// lockBodyScroll / unlockBodyScroll imported from overlay.js
-
 /** Build and inject the overlay + drawer HTML into document.body.
  * @param {any} currentPage
  * @param {any} memberName
@@ -1173,24 +1094,20 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
     const guideLinks = NAV_GUIDES
         .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide nav-panel-link--stacked" data-open-id="${g.openId}"><span aria-hidden="true">${g.icon}</span><span class="nav-link-text"><span class="nav-link-title">${g.label}</span><span class="nav-link-sub">${g.sub}</span></span></a></li>`)
         .join('')
-        // App Notices joins the guides (v20.06): both are "look something up", neither is a document
-        // you open on a shift. It goes LAST — it is the rarest thing in the drawer.
+        // App Notices joins the guides, not the Workplace documents: it is a changelog for the app, and
+        // both are "look something up", never a document you open on a shift. It goes LAST — it is the
+        // rarest thing in the drawer.
         + `<li><button type="button" class="nav-panel-link nav-panel-link--notices"><span aria-hidden="true">📣</span> App Notices</button></li>`;
-
-    // Settings is a PILL now (v20.06) — see NAV_PAGES. Nothing renders here.
 
     // Footer is only rendered when a sign-out callback is supplied.
     // Member name is set via textContent (not innerHTML) after injection to avoid XSS.
     // The bell is only included when the device supports Web Push (notif.js folds
     // in the iOS-must-be-standalone rule); the settings Notifications card explains
     // the unsupported case for users who need it.
-    // A COMPACT icon button next to Sign out (owner decision, v16.75 — reverting the
-    // v16.56 full-width labelled row, the second time a labelled row has been tried
-    // and rolled back, see v13.19): the full Notifications area on settings.html is
-    // the canonical, discoverable surface; the drawer bell is just a quick toggle,
-    // and the labelled row gave it more footer prominence than it earns. Signed-in
-    // only (matches the footer) — unsigned users have the calendar's one-time
-    // #notifPrompt strip and the Settings card after signing in.
+    // A COMPACT icon button next to Sign out (owner decision: a labelled full-width row has been
+    // tried and reverted twice): settings.html's Notifications card is the canonical surface, and the
+    // bell is a quick toggle. Signed-in only (matches the footer) — unsigned users have the calendar's
+    // one-time #notifPrompt strip and the Settings card after signing in.
     // `onSignOut` as well as notifSupported() (v20.15). The footer used to render only for a
     // signed-in member, so "signed-in only" came for free; widening the footer to carry the
     // viewer's Lock Calendar button silently handed the bell to people with no member identity at
@@ -1248,45 +1165,24 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
             <div class="nav-panel-body">
                 <div class="nav-panel-pills">${pills}</div>
                 <div class="nav-panel-section">
-                    <!-- "Latest", not "Today" (v22.23, external review). The heading replaced
-                         "Information" at v20.06, which classified nothing — every drawer item is
-                         information. "Today" classified correctly under the zone's own idiom (the
-                         documents you open on a shift), and a reader does not have the idiom: they
-                         see TODAY over a WEEKLY circular and a MONTHLY newsletter, and one of the
-                         three is today's. "Latest" is true of all three and needs no idiom. -->
+                    <!-- "Latest", not "Today" or "Information": TODAY over a weekly circular and a
+                         monthly newsletter is wrong for two of three, and every drawer item is
+                         information. "Latest" is true of all three and needs no idiom. -->
                     <p class="nav-panel-section-heading">Latest</p>
                     ${infoGroups}
                 </div>
                 <div class="nav-panel-section">
-                    <!-- EXPANDED BY DEFAULT AGAIN (v20.09, owner) — reverting the one v20.06 change
-                         that was a judgement rather than a structural fix.
-                         v20.06 closed it on a fold measurement: six rows expanded put three of the
-                         five guides below 640px on a 360-wide phone. That measurement was right and
-                         it was not the whole question. A collapsed section is not a smaller version
-                         of an open one — it is a section you have to know is there, and the guides
-                         are exactly the content a reader does not know to look for. The drawer's
-                         three-zone structure (pills / Today / Reference), which is what "cluttered"
-                         actually meant, is untouched and stays.
-                         The rest of the v20.06 pass survives on its own evidence: the pills are one
-                         per row by arithmetic (260px drawer, Calendar needs 135), Settings is a pill
-                         because it is a page, and App Notices left Workplace because it is a
-                         changelog and not a document you open on a shift.
-                         It is still a real toggle, so anyone who wants the short drawer can close
-                         it — the state simply is not the default any more. -->
+                    <!-- EXPANDED BY DEFAULT (owner): a collapsed section is one you have to know is
+                         there, and the guides are what a reader does not know to look for. Still a
+                         real toggle. The measurements are this module's header. -->
                     <button type="button" class="nav-panel-guides-toggle" id="navGuidesToggle"
                             aria-expanded="true" aria-controls="navGuidesList">
                         <span class="nav-panel-guides-heading">Reference</span>
-                        <!-- A COUNT ON A COLLAPSED HEADER is an established convention here
-                             (css-tokens.md: "chips are added only where a card is often COLLAPSED
-                             and has one clear datum"): closed, "Reference ▾" alone reads like a
-                             section that failed to render rather than one holding six things.
-                             OPEN, the rows ARE the count, and printing it beside them states twice
-                             what the reader can already see — so the CSS hides it while expanded and
-                             brings it back the moment somebody collapses the section. Rendered in
-                             both states rather than branched in JS, because the toggle handler only
-                             flips aria-expanded; deriving the markup from the state would give the
-                             count a second home. Derived, never typed: a guide added to NAV_GUIDES
-                             must not leave a stale number behind it. -->
+                        <!-- The COLLAPSED header's count (css-tokens.md: a chip goes where a card is
+                             often collapsed): closed, "Reference ▾" alone reads as a section that
+                             failed to render. Open, the rows are the count, so the CSS hides it there
+                             (shared.css has why it is not branched here). Derived, never typed: a
+                             guide added to NAV_GUIDES must not leave a stale number behind it. -->
                         <span class="nav-panel-guides-count" aria-hidden="true">${NAV_GUIDES.length + 1}</span>
                         <span class="nav-panel-guides-arrow" aria-hidden="true">▾</span>
                     </button>

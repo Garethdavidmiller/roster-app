@@ -85,7 +85,7 @@ export function armSkeleton(ms) {
  * burger and a wordmark. MEASURED, with the auth restore held at 3s: splash down at ~700ms, the
  * card or the grid at ~3.6s, and 2.9 seconds of blank in between. It reads as a broken app, which
  * is a worse answer than the loading screen it replaced. `splash-watchdog.js` does not cover it
- * either — it stands down the moment the splash gets `.hidden`, which is exactly when this starts.
+ * either — it judges the page only at 20 seconds, long after this gap has closed.
  *
  * It shows the SHAPE of a calendar and no data — no dates, no shift text, nothing from the roster
  * module — so it is safe in front of a visitor who may turn out to have no access at all. That is

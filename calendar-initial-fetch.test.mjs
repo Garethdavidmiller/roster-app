@@ -348,7 +348,7 @@ describe('failure path', () => {
         _fetchImpl = () => Promise.reject(new Error('fail'));
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
         await flushAsync();
-        assert.equal(getSyncChip()?.textContent, "⚠ Couldn't update — tap to retry");
+        assert.equal(getSyncChip()?.textContent, "⚠ Couldn't update — try again");
     });
 
     test('retry is wired via onclick — one click issues exactly one request', async (t) => {
@@ -438,7 +438,7 @@ describe('failure path', () => {
 // Both `onAccessLost && isAccessFailure` branches — the boot read's and the retry's — could be
 // switched off with every Node suite green: the only test passing `onAccessLost` was the
 // earlier-grant case, which is meant NOT to call it. A session that expires at boot then got
-// "Couldn't update — tap to retry", and every tap was refused again: the loop the member cannot win.
+// "Couldn't update — try again", and every tap was refused again: the loop the member cannot win.
 // Each direction is pinned on each path, because dropping the classifier (re-locking on ANY
 // failure) is the same mistake the other way round — a PIN demanded from somebody whose signal
 // dropped.
@@ -453,7 +453,7 @@ describe('a refused read re-locks; a failed one offers the retry', () => {
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, onAccessLost: () => { lost++; } });
         await flushAsync();
         assert.equal(lost, 1, 'a refused boot read must re-open the unlock card');
-        assert.equal(getSyncChip(), null, 'no "tap to retry" beside the unlock card — it could never win');
+        assert.equal(getSyncChip(), null, 'no "try again" beside the unlock card — it could never win');
         assert.equal(_clearMonthsHistory.length, 3, 'the three months are still released for the next grant');
     });
 
@@ -494,7 +494,7 @@ describe('a refused read re-locks; a failed one offers the retry', () => {
         await flushAsync();
         assert.equal(lost, 0, 'a network failure on the retry was treated as lost access');
         assert.notEqual(chip._removed, true, 'the chip is still the way to try again');
-        assert.equal(chip.textContent, "⚠ Couldn't update — tap to retry");
+        assert.equal(chip.textContent, "⚠ Couldn't update — try again");
     });
 });
 
@@ -532,7 +532,7 @@ describe('sync-chip state machine', () => {
         const chip = getSyncChip();
         assert.ok(chip, 'chip should still exist after timeout');
         assert.ok(chip._classes.has('sync-chip-error'));
-        assert.equal(chip.textContent, "⚠ Couldn't update — tap to retry");
+        assert.equal(chip.textContent, "⚠ Couldn't update — try again");
         assert.equal(chip.disabled, false);
     });
 
@@ -631,7 +631,7 @@ describe('retry', () => {
         await flushAsync();
 
         assert.ok(chip._classes.has('sync-chip-error'));
-        assert.equal(chip.textContent, "⚠ Couldn't update — tap to retry");
+        assert.equal(chip.textContent, "⚠ Couldn't update — try again");
         assert.equal(chip.disabled, false);
     });
 
@@ -970,7 +970,7 @@ describe('the owed retry survives having nowhere to show it', () => {
 
         const chip = getSyncChip();
         assert.ok(chip, 'the owed retry must appear now that there is somewhere to put it');
-        assert.equal(chip.textContent, "⚠ Couldn't update — tap to retry");
+        assert.equal(chip.textContent, "⚠ Couldn't update — try again");
         assert.equal(chip.disabled, false, 'and it must be usable, not a decoration');
         assert.equal(typeof chip.onclick, 'function', 'with the retry actually wired');
     });
@@ -995,7 +995,7 @@ describe('the owed retry survives having nowhere to show it', () => {
     // The state must be CLEARED on success, not merely never set. Reaching that needs a sync that
     // owes a retry and then succeeds anyway: the 10s deadline declares failure and (headerless) arms
     // the watcher, then the slow fetch lands. Without the clear, the watcher is still live holding an
-    // error state, so the next render paints "Couldn't update — tap to retry" over a sync that WORKED.
+    // error state, so the next render paints "Couldn't update — try again" over a sync that WORKED.
     // A plain success cannot test this: nothing was ever owed, so removing the clear is undetectable.
     test('a success AFTER the failure deadline clears the owed state — no stale error on the next render', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -1091,7 +1091,7 @@ describe('the retry survives a calendar re-render', () => {
 
         const chip = getSyncChip();
         assert.ok(chip, 'the retry is still owed, so it must still be reachable after a swipe');
-        assert.equal(chip.textContent, "⚠ Couldn't update — tap to retry");
+        assert.equal(chip.textContent, "⚠ Couldn't update — try again");
         assert.equal(typeof chip.onclick, 'function', 'and still wired, not a decoration');
     });
 

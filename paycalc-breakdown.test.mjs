@@ -5,8 +5,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { fmtHrsMins, buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips, buildActualComparison,
-} from './paycalc-breakdown.js';
+import { fmtHrsMins, buildSummaryRows, buildLoanLines, buildBreakdownRows, buildActualCheck, buildProvChips, buildActualComparison,
+    buildBreakBar } from './paycalc-breakdown.js';
+import { getThresholds } from './paycalc-calc.js';
 
 test('fmtHrsMins formats decimal hours as "Nh"/"Nh Mm"', () => {
     assert.equal(fmtHrsMins(8), '8h');
@@ -107,6 +108,66 @@ test('buildSummaryRows: cumulative tax adds the "adjusted from payslip" note; sl
     const html = buildSummaryRows({ ...SUM_BASE, usingCumulative: true, slLines: sl });
     assert.ok(html.includes('adjusted from payslip'));
     assert.ok(html.includes(sl), 'pre-rendered slLines passed through unchanged');
+});
+
+// ── buildLoanLines — a loan never shows an unexplained £0 ───────────────────────────────────────
+// Moved out of calculate() whole. These pin each state's words against the REAL loan tables, so a
+// threshold that moves at the next uprating moves the expected figure with it rather than the rule.
+describe('buildLoanLines', () => {
+    const SL = getThresholds('2026/27').sl;
+    const LOAN = { sacGross: 3000, plan: 'plan2', planLabel: 'Plan 2', pgLoan: false, slUnder: 0, slPost: 0,
+                   slSkip: false, slPaidOff: false, paidOffDay: '', sl: SL, tyLabel: '2026/27' };
+    const zeroRow = (/** @type {string} */ lbl) =>
+        `<div class="sum-row sum-sl-zero"><span class="lbl">${lbl}</span><span class="val">£0.00</span></div>`;
+
+    test('a deduction is a row of its own for each loan', () => {
+        assert.equal(buildLoanLines({ ...LOAN, pgLoan: true, slUnder: 66, slPost: 83 }),
+            '<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−£66.00</span></div>'
+            + '<div class="sum-row sum-ded"><span class="lbl">Postgraduate Loan</span><span class="val">−£83.00</span></div>');
+    });
+
+    test('no loan says nothing — and neither does a skip or a stop with no loan to apply to', () => {
+        const none = { ...LOAN, plan: 'none' };
+        assert.equal(buildLoanLines(none), '');
+        assert.equal(buildLoanLines({ ...none, slSkip: true }), '');
+        assert.equal(buildLoanLines({ ...none, slPaidOff: true, paidOffDay: '23 Oct' }), '');
+    });
+
+    test('pay under the threshold says so, the threshold floored to the penny as computeSL floors it', () => {
+        // Plan 4's 2026/27 threshold is £2,599.615… a period: rounded it would read £2,599.62, 1p above
+        // the figure the deduction is worked out against.
+        assert.equal(Math.round(SL.plan4.t * 100) / 100, 2599.62, 'premise: this threshold rounds UP');
+        assert.equal(buildLoanLines({ ...LOAN, plan: 'plan4', planLabel: 'Plan 4 (Scotland)', sacGross: 2000 }),
+            zeroRow('Student Loan — no deduction: pay after pension is under the Plan 4 (Scotland) threshold (£2,599.61 per period)'));
+    });
+
+    test('pay only just over a threshold says the repayment rounds under £1 — on either loan', () => {
+        assert.equal(buildLoanLines({ ...LOAN, sacGross: 2265 }),
+            zeroRow('Student Loan — no deduction: your repayment is under £1 this period (pay only just exceeds the Plan 2 threshold, £2,260.38)'));
+        // The Postgraduate row once lost this case and told pay ABOVE its threshold it was under it.
+        assert.equal(buildLoanLines({ ...LOAN, plan: 'none', pgLoan: true, sacGross: 1620 }),
+            zeroRow('Postgraduate Loan — no deduction: your repayment is under £1 this period (pay only just exceeds the Postgraduate Loan threshold, £1,615.38)'));
+    });
+
+    test('Plan 5 before 2026/27 is named as not repayable yet — the table, not the label, decides', () => {
+        const y25 = { ...LOAN, plan: 'plan5', planLabel: 'Plan 5', sl: getThresholds('2025/26').sl, tyLabel: '2025/26' };
+        assert.equal(buildLoanLines(y25), zeroRow('Student Loan — Plan 5 is not repayable in 2025/26 (repayments begin April 2026)'));
+        assert.match(buildLoanLines({ ...y25, sl: SL, tyLabel: '2026/27', sacGross: 1500 }), /under the Plan 5 threshold \(£1,923\.07 per period\)/,
+            'from 2026/27 it is an ordinary plan');
+    });
+
+    test('the stop-deducting payslip is ONE row for both loans, and outranks the per-period skip', () => {
+        const both = { ...LOAN, pgLoan: true, slPaidOff: true, slSkip: true };
+        assert.equal(buildLoanLines({ ...both, paidOffDay: '23 Oct' }), zeroRow('Student Loan — not deducted from your 23 Oct payslip onwards'));
+        assert.equal(buildLoanLines(both), zeroRow('Student Loan — not deducted from your chosen payslip onwards'),
+            'a stop the list no longer holds still says what it is');
+        assert.doesNotMatch(buildLoanLines(both), /repaid/, 'never "repaid in full" — a direct debit may still be paying it off');
+    });
+
+    test('a skipped payslip is ONE row for both loans', () => {
+        assert.equal(buildLoanLines({ ...LOAN, pgLoan: true, slSkip: true, slUnder: 66, slPost: 83 }),
+            zeroRow('Student Loan — marked as not deducted this period'));
+    });
 });
 
 // ── buildBreakdownRows ──────────────────────────────────────────────────────────
@@ -307,6 +368,25 @@ test('buildProvChips: empty on a normal payslip; one chip per active source', ()
     assert.equal((all.match(/prov-chip--add/g) || []).length, 2, 'the two money adds are the gold chips');
     assert.equal((all.match(/class="prov-chip/g) || []).length, 4, 'four chips when everything is active');
     assert.equal(buildProvChips({ usingCumulative: false, bpAmount: 0, hppAmount: 0 }), '', 'zero amounts render nothing');
+});
+
+// ── buildBreakBar — the share-of-pay bar and its legend ─────────────────────────────────────────
+test('buildBreakBar: each part of the pay as its share, in order, and a £0 share left out', () => {
+    const r = buildBreakBar({ gross: 1000, pension: 50, tax: 100, ni: 60, sl: 0, net: 790 });
+    assert.ok(r, 'pay to divide → a bar');
+    assert.equal(r.bar, '<div class="pbb-seg pbb-pension" style="flex-grow:5.00"></div>'
+        + '<div class="pbb-seg pbb-tax" style="flex-grow:10.00"></div><div class="pbb-seg pbb-ni" style="flex-grow:6.00"></div>'
+        + '<div class="pbb-seg pbb-net" style="flex-grow:79.00"></div>');
+    assert.equal(r.legend, '<span class="pbl-item"><span class="pbl-dot pbb-pension"></span>Pension <strong>5%</strong></span>'
+        + '<span class="pbl-item"><span class="pbl-dot pbb-tax"></span>Tax <strong>10%</strong></span>'
+        + '<span class="pbl-item"><span class="pbl-dot pbb-ni"></span>NI <strong>6%</strong></span>'
+        + '<span class="pbl-item"><span class="pbl-dot pbb-net"></span>Take-home <strong>79%</strong></span>');
+    assert.match(buildBreakBar({ gross: 3000, pension: 0, tax: 400, ni: 160, sl: 149, net: 2291 })?.legend ?? '',
+        /Student Loan <strong>5%<\/strong>/, 'a loan has a share of its own');
+});
+
+test('buildBreakBar: no pay to divide → no bar at all', () => {
+    for (const gross of [0, -10, NaN]) assert.equal(buildBreakBar({ gross, pension: 0, tax: 0, ni: 0, sl: 0, net: 0 }), null);
 });
 
 // ── The CSS half of the same fix (v20.53) ───────────────────────────────────────────────────────

@@ -179,6 +179,30 @@ test('the colour a page declares is the colour of the drawer pill that takes you
     }
 });
 
+test('a page\'s badges carry its drawer pill\'s emoji — and its About badge the pill\'s whole name', () => {
+    // css-tokens.md → "A page is one colour and one emoji wherever it is named": the header badge, the
+    // drawer pill and the About badge. The About badge had no emoji on any page, and Pay's read "Pay
+    // Calculator" where the pill and the header say "💷 Pay" (desktop audit, Nov 2026). Text, not a
+    // browser: the pills are read from nav-panel.js, the badges from each page's markup.
+    const nav = read('nav-panel.js');
+    /** @type {Record<string, string>} */
+    const pillLabel = {};
+    for (const m of nav.matchAll(/label:\s*'([^']+)',\s*url:\s*'\.\/([\w-]*\.html)?'/g)) pillLabel[m[2] || 'index.html'] = m[1];
+    const text = (/** @type {string} */ html) => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    for (const page of CARD_PAGES) {
+        const html = read(page);
+        const label = pillLabel[page];
+        assert.ok(label, `${page} has no drawer pill in nav-panel.js's NAV_PAGES`);
+        const emoji = label.split(' ')[0];
+        const about = /<div class="lightbox-badge"[^>]*>([\s\S]*?)<\/div>/.exec(html.slice(html.indexOf('id="iconLightbox"')))?.[1];
+        assert.ok(about, `${page}: no About badge in #iconLightbox`);
+        assert.equal(text(about), label, `${page}: the About badge reads "${text(about)}" — the drawer pill says "${label}"`);
+        assert.match(about, /^<span class="badge-glyph" aria-hidden="true">/, `${page}: the About badge's emoji is a hidden .badge-glyph, as the header badge's is`);
+        const header = /class="badge-page"[^>]*>\s*<span class="badge-glyph" aria-hidden="true">([^<]+)<\/span>/.exec(html)?.[1];
+        assert.equal(header, emoji, `${page}: the header badge's glyph is "${header}" — the drawer pill's is "${emoji}"`);
+    }
+});
+
 // ── 4. A chosen control wears its page's colour ──────────────────────────────────────────────────
 
 /** What says "this one is chosen" in a selector: the pressed, selected and checked states, and the

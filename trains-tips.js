@@ -78,7 +78,7 @@ export const CARD_TIPS = {
             {
                 items: [
                     { icon: '📋', html: 'The biggest changes to trains <strong>leaving Marylebone</strong> on the day chosen above, one line per station, biggest first.' },
-                    { icon: '👆', html: 'Tap a change to open that station and see everything about it — including every train a few minutes earlier or later, which this list leaves out.' },
+                    { icon: '👆', html: 'Choose a change to open that station and see everything about it — including every train a few minutes earlier or later, which this list leaves out.' },
                     { icon: '🟢', html: '<strong>More trains</strong> means more trains or a new direct service, <strong>Fewer trains</strong> fewer or none, <strong>Times move</strong> the same trains at different times.' },
                     { icon: '☀️', html: `<strong>Daytime</strong> means ${DAYTIME}. It is not a fare: off-peak tickets have their own times.` },
                 ],
@@ -97,10 +97,10 @@ export const CARD_TIPS = {
         sections: [
             {
                 items: [
-                    { icon: '⌨️', html: 'Start typing a station, or tap one of the busiest. Short forms work too: <strong>Moor St</strong>, <strong>Gerrards X</strong>, <strong>Oxford Pkwy</strong>, <strong>Bham</strong>, <strong>Gt Missenden</strong>, or the three-letter code. Press Enter to open the first match. The card answers in one sentence first, then the figures, the old timetable beside the new.' },
+                    { icon: '⌨️', html: 'Start typing a station, or choose one of the busiest. Short forms work too: <strong>Moor St</strong>, <strong>Gerrards X</strong>, <strong>Oxford Pkwy</strong>, <strong>Bham</strong>, <strong>Gt Missenden</strong>, or the three-letter code. Press Enter to open the first match. The card answers in one sentence first, then the figures, the old timetable beside the new.' },
                     { icon: '🔢', html: `<strong>Daytime</strong> means ${DAYTIME}. <strong>2 (1 in some hours)</strong> trains an hour means most daytime hours have two trains, and some have only one; <strong>1 to 3</strong> means no one number is true of most hours.` },
                     { icon: '🕐', html: '<strong>Going there</strong>, every time is when the train leaves <strong>Marylebone</strong>. <strong>Coming back</strong>, it is when the train leaves the station on the card, with the time it gets into Marylebone underneath.' },
-                    { icon: '🔁', html: `<strong>Train by train</strong> lists only the trains that change; the ones that stay the same are one tap further. A train counts as the same train when it leaves within ${MAX_SHIFT_MIN} minutes of its old time. Beyond that it shows as removed, and the new one as a new train.` },
+                    { icon: '🔁', html: `<strong>Train by train</strong> lists only the trains that change; the ones that stay the same are one step further. A train counts as the same train when it leaves within ${MAX_SHIFT_MIN} minutes of its old time. Beyond that it shows as removed, and the new one as a new train.` },
                     { icon: '🚏', html: '<strong>No longer stops here</strong> is a train that still runs but passes this station; <strong>Will stop here</strong> is one that already ran and now calls here too. A train that no longer comes this far says where it now ends — or, coming back, where it starts.' },
                 ],
             },
@@ -121,7 +121,7 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '🔂', html: `Between ${DAYTIME} most hours repeat the same trains. Each column is one of them: <strong>:06</strong> at the top means it leaves Marylebone at 10:06, 11:06, 12:06 and so on.` },
                     { icon: '⚫', html: 'A dot means that train stops at that station every hour; a <strong>half dot</strong> means only in some hours. <strong>4 of 6 hours</strong> under a time means it does not run every hour.' },
-                    { icon: '👆', html: 'Tap a time at the top to show only the stations that train stops at. Tap it again, or <strong>Show every station</strong>, for the whole picture. The rows are in two groups, the main line and the Aylesbury line via Amersham, as Chiltern’s two timetable books divide them.' },
+                    { icon: '👆', html: 'Choose a time at the top to show only the stations that train stops at. Choose it again, or <strong>Show every station</strong>, for the whole picture. The rows are in two groups, the main line and the Aylesbury line via Amersham, as Chiltern’s two timetable books divide them.' },
                     { icon: '🧠', html: 'It is the one thing worth learning by heart: know it and you can answer most daytime questions without looking anything up.' },
                 ],
             },

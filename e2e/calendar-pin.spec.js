@@ -310,7 +310,7 @@ test('access lost mid-session: re-lock says why, the SAME PIN card re-unlocks, a
     await page.locator('#nextMonth').click();
 
     // Re-locked, and it says WHY — an expired session is not a network blip, and the generic
-    // "couldn't update, tap to retry" here would be a loop the member cannot win.
+    // "couldn't update, try again" here would be a loop the member cannot win.
     await expect(page.locator('#calendarLock')).toBeVisible();
     await expect(page.locator('#calLockMsg')).toContainText(/expired/i);
     await expect(page.locator('#calendarDisplay')).toBeHidden();

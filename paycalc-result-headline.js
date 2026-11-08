@@ -159,8 +159,9 @@ export function renderResultHeadline({ actual, net, payday, bpThisPeriod = 0, hp
     const stickyBar = byId('stickyTotal');
     // What pressing it DOES: it scrolls to the result card and leaves the breakdown shut
     // (paycalc-sticky-total.js) — it said "tap to view the full breakdown" (72-hour review, 6 Nov 2026).
-    // No "up" or "back": the bar shows whether the result is above the reader or below.
-    if (stickyBar) stickyBar.setAttribute('aria-label', `${L.stickyWords} ${amount} — tap to go to the result`);
+    // No "up" or "back": the bar shows whether the result is above the reader or below. And no "tap"
+    // (desktop audit, 7 Nov 2026): a keyboard reaches this bar as often as a thumb does.
+    if (stickyBar) stickyBar.setAttribute('aria-label', `${L.stickyWords} ${amount} — go to the result`);
 
     if (actual) {
         const netDisplay = byId('netDisplay');

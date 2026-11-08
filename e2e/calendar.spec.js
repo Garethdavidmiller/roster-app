@@ -324,7 +324,7 @@ test('calendar: the retry re-reads, and a grid appears when it succeeds', async 
 // A retry that WORKED must not leave the header saying it failed (48-hour review). The initial sync's
 // failure is recorded as a chip state that re-attaches whenever the header is rebuilt; the panel's own
 // Try again re-reads the month without passing through the chip, so the grid came back with
-// "Couldn't update — tap to retry" above it, contradicting the shifts it was showing.
+// "Couldn't update — try again" above it, contradicting the shifts it was showing.
 test('calendar: after the panel retry succeeds, no "couldn\'t update" chip is left behind', async ({ page }) => {
     await seedMember(page);
     await page.addInitScript(() => { (window.__E2E = window.__E2E || {}).failGetDocs = true; });
@@ -341,7 +341,7 @@ test('calendar: after the panel retry succeeds, no "couldn\'t update" chip is le
 
 // ONE MESSAGE AT A TIME (polish round 2). The withheld-grid panel and the header sync chip used to say
 // the same thing together — "Checking this month" beside "Updating your shifts…", "Couldn't check
-// this month" + Try again beside "Couldn't update — tap to retry". The chip now steps back while a
+// this month" + Try again beside "Couldn't update — try again". The chip now steps back while a
 // panel speaks, and ONLY then: over a painted grid it is the only thing saying a sync is running.
 //
 // Each case asserts the chip EXISTS before asserting it is hidden — `toBeHidden` alone also passes
@@ -3294,7 +3294,12 @@ for (const [width, height] of [[667, 375], [874, 402]]) {
 // the header gone off the screen, or moving WITH the names, the row beneath it is the first one at
 // every size. Landscape is in the list because there the page must scroll as well, and every row
 // still has to be reachable.
-for (const [width, height] of [[375, 667], [390, 844], [667, 375]]) {
+//
+// THE DESKTOP HAD IT TOO (desktop audit, Nov 2026), whatever index.css's comment said: at 1366×650 the
+// page scrolled 284px and the date row ended at −35px. And at 1920×1080, where the grade fits, the
+// card ran 146px past its last name — so there the assertion is the other one: the box ends where the
+// table does.
+for (const [width, height] of [[375, 667], [390, 844], [667, 375], [1366, 650], [1920, 1080]]) {
     test(`calendar: the Team View date row stays above the names as they scroll, at ${width}×${height}`, async ({ page }) => {
         await page.setViewportSize({ width, height });
         await seedMemberSession(page, 'G. Miller');
@@ -3316,11 +3321,19 @@ for (const [width, height] of [[375, 667], [390, 844], [667, 375]]) {
             const w = box(wrap);
             const rows = [...document.querySelectorAll('.team-table tbody tr')];
             const under = document.elementFromPoint(w.left + w.width / 2, head.bottom + 4)?.closest('tr');
-            return { vh: innerHeight, head, w, last: box(rows[rows.length - 1]), under: under ? rows.indexOf(under) : -1 };
+            return { vh: innerHeight, head, w, last: box(rows[rows.length - 1]), under: under ? rows.indexOf(under) : -1,
+                fits: wrap.scrollHeight <= wrap.clientHeight,
+                table: box(/** @type {Element} */ (document.querySelector('.team-table'))) };
         });
         expect(g.head.top, 'the date row is off the top of the screen').toBeGreaterThanOrEqual(0);
         expect(g.head.bottom, 'the date row is off the bottom of the screen').toBeLessThanOrEqual(g.vh);
         expect(Math.abs(g.head.top - g.w.top), 'the date row is not at the top of the box the names scroll in').toBeLessThanOrEqual(1);
+        if (g.fits) {
+            // A grade the screen has room for: nothing to scroll, and nothing drawn past its last name.
+            expect(width, 'premise: only a large screen holds the whole grade').toBeGreaterThan(1024);
+            expect(Math.round(g.w.bottom - g.table.bottom), 'an empty band runs below the last name').toBeLessThanOrEqual(1);
+            return;
+        }
         expect(g.under, 'the first name is still under the date row — nothing scrolled beneath it').toBeGreaterThan(0);
         expect(g.last.bottom, 'the last name cannot be brought on screen').toBeLessThanOrEqual(Math.min(g.vh, g.w.bottom) + 1);
         expect(g.w.top, 'scrolled to the end, the box the names scroll in is still above the screen').toBeGreaterThanOrEqual(0);
@@ -3428,6 +3441,82 @@ test('calendar: scrolling down the Team View names keeps the swipe hint; scrolli
     await page.evaluate(() => { /** @type {HTMLElement} */ (document.querySelector('.team-table-wrap')).scrollLeft = 120; });
     expect(await scrollHeard(), 'premise: the box reported the scroll across the week').toBe(true);
     expect(await state(), 'a scroll across the week did not retire the hint').toMatchObject({ seen: '1', hidden: true });
+});
+
+// …and the hint is for a table that SCROLLS (desktop audit follow-up, Nov 2026). `touch-only` showed
+// it on any coarse pointer, so a tablet, a phone on its side or a touch laptop — seven days that fit —
+// was told to swipe a table that does not move. It shows only while the box overflows: measured as the
+// week is drawn, so the line arrives hidden rather than showing for a frame, and again whenever the box
+// changes size, which the steps below do in place, with no redraw between. And a change of size is not
+// the member's swipe: widening clamps the box's scroll back to the start, which retired the hint for
+// good on a tablet that had only been turned round. Each scroll step waits for its event, as above.
+test('Team View: the swipe hint shows only while the week is wider than its box', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the hint is touch-only UI');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-11-12T09:00:00Z'));      // a Thursday: the open scrolls to today
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const wrap = page.locator('.team-table-wrap');
+    const hint = page.locator('.tv-scroll-hint');
+    const overflows = () => wrap.evaluate(w => w.scrollWidth > w.clientWidth + 1);
+    const retired = () => page.evaluate(() => localStorage.getItem('myb_team_scroll_seen'));
+    /** Arm a wait for the next scroll the week's box reports, answered a task later so the app's own
+     *  listener has run by then; false if none comes. */
+    const armScrollWait = () => page.evaluate(() => {
+        /** @type {any} */ (window).__boxScrolled = new Promise((resolve) => {
+            /** @param {Event} e */
+            const on = (e) => {
+                if (!(e.target instanceof Element) || !e.target.classList.contains('team-table-wrap')) return;
+                document.removeEventListener('scroll', on, true);
+                setTimeout(() => resolve(true), 0);
+            };
+            document.addEventListener('scroll', on, true);
+            setTimeout(() => { document.removeEventListener('scroll', on, true); resolve(false); }, 5000);
+        });
+    });
+    const scrollHeard = () => page.evaluate(() => /** @type {any} */ (window).__boxScrolled);
+
+    await armScrollWait();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-table tbody tr').first()).toBeAttached();
+    expect(await scrollHeard(), 'premise: the open brought Thursday into view, and the box reported it').toBe(true);
+    expect(await overflows(), 'premise: on a phone the seven days are wider than the screen').toBe(true);
+    await expect(hint, 'a phone is told how to see the rest of the week').toBeVisible();
+
+    await armScrollWait();
+    await page.setViewportSize({ width: 1366, height: 1024 });                  // the same box, widened
+    expect(await scrollHeard(), 'premise: widened, the box clamped its scroll back to the start and said so').toBe(true);
+    expect(await overflows(), 'premise: widened, the week fits its box').toBe(false);
+    await expect(hint, 'widened in place, the box stopped scrolling, and the hint went with it').toBeHidden();
+    expect(await retired(), 'the box clamping its scroll on a resize was taken for the member\'s swipe').toBeNull();
+
+    // A wide touch screen from the first draw: back to the month, then into the week again, recording
+    // each hint the week draws as it arrives — after the render, before any frame could paint it.
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => {
+        const arrivals = /** @type {boolean[]} */ ((/** @type {any} */ (window)).__hintArrivals = []);
+        new MutationObserver((records) => {
+            for (const r of records) for (const n of r.addedNodes) {
+                if (!(n instanceof Element)) continue;
+                const h = n.matches('.tv-scroll-hint') ? n : n.querySelector('.tv-scroll-hint');
+                if (h) arrivals.push(/** @type {HTMLElement} */ (h).hidden);
+            }
+        }).observe(document.body, { childList: true, subtree: true });
+    });
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-table tbody tr').first()).toBeAttached();
+    expect(await overflows(), 'premise: drawn at 1366px, the week fits').toBe(false);
+    await expect(hint, 'a table that does not scroll is not offered a swipe').toBeHidden();
+    const arrivals = await page.evaluate(() => /** @type {any} */ (window).__hintArrivals);
+    expect(arrivals.length, 'premise: the week drew its hint').toBeGreaterThan(0);
+    expect(arrivals, 'the hint arrived showing, to be taken away a frame later').not.toContain(false);
+
+    await page.setViewportSize({ width: 390, height: 844 });                    // and narrowed in place
+    await expect.poll(overflows, { message: 'premise: narrowed, the week overflows again' }).toBe(true);
+    await expect(hint, 'narrowed in place, the table scrolls again and the hint is back').toBeVisible();
+    expect(await retired(), 'nothing on the way was the member\'s swipe').toBeNull();
 });
 
 // ── THE iPHONE KEYBOARD, FOCUS AND TOUCH (iPhone audit, 7 Nov 2026) ─────────────────────────────────
@@ -3687,4 +3776,393 @@ test('App Notices with nothing on this device says where notices appear, not tha
     await expect(empty).toBeVisible();
     await expect(empty).toHaveText('Notices you’ve read on this device appear here.');
     await expect(empty).not.toContainText('No notices');
+});
+
+// ══ THE DESKTOP AUDIT (Nov 2026) ═══════════════════════════════════════════════════════════════════
+// The Calendar had been reviewed through a phone; these are what a laptop and a large screen showed.
+// One test per finding, each measuring what a member sees (a contrast, a position, a size) rather
+// than that a rule exists, and each mutation-checked: reverting its fix fails it.
+
+/** Puts `__rgb` (any CSS colour → the sRGB bytes a canvas paints) and `__contrast` (the WCAG ratio
+ *  of two opaque colours) on the page, so oklch, color-mix and rgba all compare as painted.
+ *  @param {import('@playwright/test').Page} page */
+function installColourProbe(page) {
+    return page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__rgb = (/** @type {string} */ c) => {
+            const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
+            ctx.fillStyle = c;
+            ctx.fillRect(0, 0, 1, 1);
+            return [...ctx.getImageData(0, 0, 1, 1).data];
+        };
+        w.__contrast = (/** @type {string} */ a, /** @type {string} */ b) => {
+            const lum = (/** @type {number[]} */ rgb) => rgb.slice(0, 3)
+                .map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+                .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+            const [hi, lo] = [lum(w.__rgb(a)), lum(w.__rgb(b))].sort((x, y) => y - x);
+            return (hi + 0.05) / (lo + 0.05);
+        };
+        w.__sameColour = (/** @type {string} */ a, /** @type {string} */ b) => JSON.stringify(w.__rgb(a)) === JSON.stringify(w.__rgb(b));
+        /** What a CSS expression resolves to on this page, read back off a throwaway element. */
+        w.__resolve = (/** @type {string} */ prop, /** @type {string} */ value, /** @type {string} */ read) => {
+            const probe = document.createElement('i');
+            probe.style.setProperty(prop, value);
+            document.body.append(probe);
+            const out = getComputedStyle(probe).getPropertyValue(read);
+            probe.remove();
+            return out;
+        };
+    });
+}
+
+/** The page's painted colours on `el` once its transitions have finished — a reading mid-fade is
+ *  neither the old colour nor the new. @param {import('@playwright/test').Locator} loc */
+const settledPaint = (loc) => loc.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+    const cs = getComputedStyle(el);
+    return { fg: cs.color, bg: cs.backgroundColor, transform: cs.transform };
+}));
+
+// CAL1 — the Pay button's hover fill was the pale print gold under white text: 1.03:1, the label gone
+// the moment the pointer arrived. Pay's own darker green now, as the day panel's Pay button.
+test('desktop: the Pay button keeps its label under the pointer', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'there is no hover on a touch screen');
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await installColourProbe(page);
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const pay = page.locator('#payBtn');
+    const rest = await settledPaint(pay);
+    await pay.hover();
+    const hover = await settledPaint(pay);
+    expect(hover.bg, 'premise: the hover state is what was measured').not.toBe(rest.bg);
+    const ratio = await page.evaluate(([fg, bg]) => /** @type {any} */ (window).__contrast(fg, bg), [hover.fg, hover.bg]);
+    expect(ratio, `"Pay" is ${ratio.toFixed(2)}:1 on its hover fill`).toBeGreaterThanOrEqual(4.5);
+});
+
+// CAL2 — the desktop controls are ONE centred row, and Team view used to remove the month's half of
+// it, so everything slid ~200px: the click after Team landed on 📝 Admin (a double-click on Team
+// opened Admin at every desktop width), the click after Month on Next →. The slot is now kept.
+for (const width of [1024, 1366, 1920]) {
+    test(`desktop: the Team/Month toggle stays under the pointer at ${width}px, and a double-click is not a trip to Admin`, async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'a pointer that stays where it clicked');
+        await page.setViewportSize({ width, height: 800 });
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        const box = /** @type {{x: number, y: number, width: number, height: number}} */ (await page.locator('#teamViewBtn').boundingBox());
+        const x = box.x + box.width / 2, y = box.y + box.height / 2;
+        const under = () => page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.closest('button')?.id ?? null, [x, y]);
+
+        await page.mouse.click(x, y);
+        await expect(page.locator('.team-week-text')).toBeVisible();
+        await expect(page.locator('#prevMonth'), 'the month row stays on show in Team view').toBeHidden();
+        expect(await under(), 'after Team, the pointer is over another control').toBe('teamViewBtn');
+        await page.mouse.click(x, y);
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        expect(await under(), 'after Month, the pointer is over another control').toBe('teamViewBtn');
+
+        await page.mouse.dblclick(x, y);
+        await expect(page.locator('.calendar-day').first(), 'a double-click is two toggles: back on the month').toBeVisible();
+        expect(new URL(page.url()).pathname, 'a double-click on Team left the Calendar').not.toMatch(/admin/);
+    });
+}
+
+// CAL3 — the day cells' keyboard ring was gold, drawn inside the cell: 1.0:1 on today's gold and
+// 1.3–1.5:1 on the pale days. Navy, outside the cell, is read against the card whatever the day.
+test('desktop: a keyboard-focused day has a navy ring outside it, against the card', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard');
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await installColourProbe(page);
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day.today')).toBeVisible();
+    await page.locator('.month-year').focus();
+    await page.keyboard.press('Tab');
+    const ring = await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        const el = /** @type {Element} */ (document.activeElement);
+        const cs = getComputedStyle(el);
+        const card = getComputedStyle(/** @type {Element} */ (document.querySelector('.calendar-container'))).backgroundColor;
+        return { today: el.classList.contains('today'), keyboard: el.matches(':focus-visible'), style: cs.outlineStyle,
+            offset: parseFloat(cs.outlineOffset), navy: w.__sameColour(cs.outlineColor, w.__resolve('color', 'var(--primary-blue)', 'color')),
+            onCard: w.__contrast(cs.outlineColor, card) };
+    });
+    expect(ring, 'Tab from the month heading lands on today, by keyboard').toMatchObject({ today: true, keyboard: true, style: 'solid' });
+    expect(ring.navy, 'the ring is not the light-surface navy').toBe(true);
+    expect(ring.offset, 'the ring is drawn inside the cell, on the day\'s own colour').toBeGreaterThanOrEqual(0);
+    expect(ring.onCard, `the ring is ${ring.onCard.toFixed(2)}:1 on the card`).toBeGreaterThanOrEqual(3);
+});
+
+// CAL5 — a 1366×768 laptop's browser window is about 1366×650, and the last week of a five-row month
+// sat wholly below its fold (the row floor meant to help could never apply: a row is as tall as its
+// tallest cell's content). On a short window the badge and the time now share a line.
+// Measured on the shared line at 1366×650: July (five rows) ends at 572px with the legend at 634;
+// August (six rows) at 623, its legend 35px below. A window under ~1260px wide is too narrow to
+// share the line, and there the stacked cell needs 663px for five rows.
+for (const [month, when, rows] of /** @type {const} */ ([['July 2026', '2026-07-15T09:00:00Z', 5], ['August 2026', '2026-08-18T09:00:00Z', 6]])) {
+    test(`desktop: the whole month fits a laptop window, 1366×650 — ${month}, ${rows} rows`, async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'a laptop window');
+        await page.clock.setFixedTime(new Date(when));
+        await page.setViewportSize({ width: 1366, height: 650 });
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/');
+        await expect(page.locator('.calendar-day.today')).toBeVisible();
+        const g = await page.evaluate(() => {
+            const cells = [...document.querySelectorAll('.calendar-day')];
+            return { cells: cells.length, scrolled: window.scrollY, vh: innerHeight,
+                last: cells[cells.length - 1].getBoundingClientRect().bottom,
+                legend: /** @type {Element} */ (document.querySelector('.legend')).getBoundingClientRect().bottom };
+        });
+        expect(g.cells, `${month} draws ${rows} weeks`).toBe(rows * 7);
+        expect(g.scrolled).toBe(0);
+        expect(g.last, `the last week ends ${Math.round(g.last - g.vh)}px below the window`).toBeLessThanOrEqual(g.vh);
+        if (rows === 5) expect(g.legend, 'with five rows the legend is on screen too').toBeLessThanOrEqual(g.vh);
+    });
+}
+
+// CAL6 + CAL10 — a desktop cell held a phone's 10px badge word and 11px time, and the Team view a
+// phone's 11px everywhere, with the name column's 88px phone cap cutting two names short at 1024px.
+test('desktop: the cells and the Team week read at desktop sizes, and nothing is cut short at 1024px', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a desktop window');
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day.today')).toBeVisible();
+    const token = (/** @type {string} */ name) => page.evaluate(n => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
+
+    const month = await page.evaluate(() => {
+        const cells = [...document.querySelectorAll('.calendar-day:not(.other-month)')];
+        const fs = (/** @type {string} */ s) => getComputedStyle(/** @type {Element} */ (document.querySelector(`.calendar-day ${s}`))).fontSize;
+        // A cell clips what overflows it, so "fits" is measured on the words themselves.
+        const cut = cells.filter(c => [...c.querySelectorAll('.shift-badge, .shift-time')].some(e => {
+            const r = document.createRange(); r.selectNodeContents(e);
+            const t = r.getBoundingClientRect(), box = c.getBoundingClientRect();
+            return t.left < box.left || t.right > box.right || t.bottom > box.bottom;
+        })).length;
+        return { time: fs('.shift-time'), badge: fs('.shift-badge'), cut };
+    });
+    expect(month.time, 'the time is body text on a desktop').toBe(await token('--type-body'));
+    expect(month.badge, 'the badge word is badge-sized on a desktop').toBe(await token('--type-badge'));
+    expect(month.cut, 'a badge or a time runs out of its cell').toBe(0);
+
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-table tbody tr').nth(15)).toBeAttached();
+    const team = await page.evaluate(() => {
+        const fs = (/** @type {string} */ s) => getComputedStyle(/** @type {Element} */ (document.querySelector(s))).fontSize;
+        const cut = [...document.querySelectorAll('.team-table tbody th.tv-name-col')].filter(th => {
+            const r = document.createRange(); r.selectNodeContents(th);
+            const cs = getComputedStyle(th);
+            return r.getBoundingClientRect().width > th.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 0.5;
+        }).map(th => th.textContent);
+        return { name: fs('.team-table tbody th.tv-name-col'), cell: fs('.tv-cell'), day: fs('.team-table thead th:nth-child(2)'), cut };
+    });
+    const small = await token('--type-small');
+    expect(team, 'the Team week reads a step up from the phone\'s 11px').toMatchObject({ name: small, cell: small, day: small });
+    expect(team.cut, 'a name in the Team week is cut short').toEqual([]);
+});
+
+// CAL7 — the header logo is a Tab stop, and so is the ✕ on each glass panel; none had a ring of its
+// own, so each fell back to the shared navy one — on navy. They wear the light ring now.
+test('desktop: the header logo wears the light focus ring, and the glass panels\' ✕ the gold one', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard');
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await installColourProbe(page);
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const ring = () => page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        const el = /** @type {Element} */ (document.activeElement);
+        const cs = getComputedStyle(el);
+        return { at: el.id || el.className, keyboard: el.matches(':focus-visible'), style: cs.outlineStyle,
+            light: w.__sameColour(cs.outlineColor, w.__resolve('outline', 'var(--focus-outline-light)', 'outline-color')),
+            gold: w.__sameColour(cs.outlineColor, w.__resolve('outline', 'var(--focus-outline-gold)', 'outline-color')) };
+    });
+
+    await page.locator('#navMenuBtn').focus();
+    await page.keyboard.press('Tab');
+    // The header's controls take the light ring (the burger's); a control INSIDE a navy panel takes
+    // gold, as the drawer, About and the day panel's own buttons do.
+    expect(await ring(), 'the header logo').toEqual({ at: 'title-icon', keyboard: true, style: 'solid', light: true, gold: false });
+
+    /** @type {Array<[string, () => Promise<void>, string]>} */
+    const panels = [
+        ['dayDetailClose', () => page.locator('.calendar-day:not(.other-month)').nth(10).click(), '#dayDetailLightbox'],
+        ['alLightboxClose', () => page.locator('#alBtn').click(), '#alLightbox'],
+        ['teamInfoClose', async () => { await page.locator('#teamViewBtn').click(); await page.locator('#teamHelpBtn').click(); }, '#teamInfoLightbox'],
+    ];
+    for (const [close, open, panel] of panels) {
+        await open();
+        await expect(page.locator(panel)).toHaveClass(/\bopen\b/);
+        await page.keyboard.press('Tab');                       // the panel's first stop is its ✕
+        expect(await ring(), `the ✕ on ${panel}`).toEqual({ at: close, keyboard: true, style: 'solid', light: false, gold: true });
+        await page.keyboard.press('Escape');
+        await expect(page.locator(panel)).not.toHaveClass(/\bopen\b/);
+    }
+});
+
+// CAL8 — in Team view the toggle wore the chosen gold and announced "pressed" while its word named
+// the OTHER view. It is an action in both views: navy, never pressed, named for where it goes.
+test('the Team toggle is an action in both views: navy, never pressed, named for where it goes', async ({ page }) => {
+    await installColourProbe(page);
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const btn = page.locator('#teamViewBtn');
+    const state = async () => {
+        await page.mouse.move(1, 1);                             // a hover is a different fill
+        const { bg } = await settledPaint(btn);
+        return btn.evaluate((el, fill) => ({ pressed: el.getAttribute('aria-pressed'), active: el.classList.contains('active'),
+            navy: /** @type {any} */ (window).__sameColour(fill, /** @type {any} */ (window).__resolve('color', 'var(--primary-blue)', 'color')) }), bg);
+    };
+    expect(await state(), 'the month view').toEqual({ pressed: null, active: false, navy: true });
+    await btn.click();
+    await expect(btn).toContainText('Month');
+    await expect(btn, 'it names the view it goes back to').toHaveAccessibleName(/month/i);
+    expect(await state(), 'the Team view').toEqual({ pressed: null, active: false, navy: true });
+});
+
+// CAL9 — today's rule comes after the hover's at equal specificity, so its scale replaced the lift
+// and today was the one day that did not move under the pointer.
+test('desktop: today lifts under the pointer like every other day', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'there is no hover on a touch screen');
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    const today = page.locator('.calendar-day.today');
+    await expect(today).toBeVisible();
+    const lift = async () => {
+        const { transform } = await settledPaint(today);
+        return page.evaluate(t => new DOMMatrixReadOnly(t).f, transform);   // the page's own parser
+    };
+    await page.mouse.move(1, 1);
+    expect(await lift(), 'at rest today sits in place').toBe(0);
+    await today.hover();
+    expect(await lift(), 'under the pointer today does not lift').toBeLessThan(0);
+});
+
+// CAL11 — the month cancelled the context menu for every pointer, so a desktop lost the browser's
+// right-click menu over the whole grid. A long press on a touch screen is still refused its menu; a
+// right press no longer starts a swipe either, since its menu can take the pointerup that ends one.
+test('desktop: a right-click on the month gets the browser\'s menu; a long press on a touch screen does not', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse');
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => {
+        document.addEventListener('contextmenu', e => { /** @type {any} */ (window).__menuRefused = e.defaultPrevented; });
+    });
+    const cell = page.locator('.calendar-day:not(.other-month)').nth(10);
+    const box = /** @type {{x: number, y: number, width: number, height: number}} */ (await cell.boundingBox());
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down({ button: 'right' });
+    expect(await page.evaluate(() => document.querySelectorAll('.carousel-panel').length), 'a right press began a swipe').toBe(0);
+    await page.mouse.up({ button: 'right' });
+    expect(await page.evaluate(() => /** @type {any} */ (window).__menuRefused), 'the right-click menu was refused').toBe(false);
+    await expect(page.locator('#dayDetailLightbox'), 'a right-click is not a click').not.toHaveClass(/\bopen\b/);
+
+    // A long press: its pointerdown, then the menu it asks for. Synthetic, because a desktop engine
+    // has no touch to press with — it is the handler's decision being tested, not the platform.
+    const refused = await cell.evaluate(el => {
+        el.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', isPrimary: true, bubbles: true }));
+        const menu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+        el.dispatchEvent(menu);
+        el.dispatchEvent(new PointerEvent('pointercancel', { pointerType: 'touch', isPrimary: true, bubbles: true }));
+        return menu.defaultPrevented;
+    });
+    expect(refused, 'a long press opened a menu in the middle of the swipe gesture').toBe(true);
+});
+
+// CAL12 — 📍 was the only control without a word; on a desktop it says "Today", and its name (which
+// already said "today") still contains what is shown. A phone's row has no room for the word. The
+// Team view's help names no gesture a mouse cannot make, bar the line that is touch-only.
+test('desktop: 📍 says "Today" beside it, and the Team view help is not all taps', async ({ page }) => {
+    await seedMemberSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/');
+    const btn = page.locator('#todayBtn');
+    await expect(btn).toBeVisible();
+    expect((await btn.innerText()).trim(), 'the word beside 📍').toMatch(/Today$/);
+    await expect(btn, 'what is shown is in the name, for a voice user').toHaveAccessibleName(/today/i);
+    const help = await page.locator('#teamInfoContent li:not(.touch-only)').allTextContents();
+    expect(help.length).toBeGreaterThan(2);
+    expect(help.filter(t => /^\s*Tap\b/.test(t)), 'the help tells a mouse user to tap').toEqual([]);
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect((await btn.innerText()).trim(), 'a phone has no room for the word').toBe('📍');
+});
+
+// X1 — the Calendar draws its own header, and a hop from it to any other page rearranged the
+// header: 62px against 72, a 32px logo against 40, the title 24px/700 against 20px/800, a gradient
+// canvas against flat navy. The width differs by decision (--page-max-width); nothing else may.
+// FROM 768px, which is where shared.css's `.app-header` takes these numbers — so a tablet either way
+// up, not only a desktop. 768 is the boundary the Calendar's own ≤768px block shares, the
+// width where source order decides; 800 is a tablet in portrait. Below 768 the two headers still
+// differ, and a phone on its side keeps the Calendar's compact header: neither is in this contract.
+for (const [width, height] of [[768, 1024], [800, 1280], [1366, 768]]) {
+    test(`from 768px the Calendar's header is every other page's header, metric for metric — ${width}px`, async ({ page }, info) => {
+        test.skip(width > 1023 && isTouchProject(info), 'a desktop window');
+        await page.setViewportSize({ width, height });
+        await seedMemberSession(page, 'G. Miller');
+        const measure = () => page.evaluate(() => {
+            const header = /** @type {Element} */ (document.querySelector('.header, .app-header'));
+            const logo = /** @type {Element} */ (header.querySelector('img'));
+            const h1 = /** @type {Element} */ (header.querySelector('h1'));
+            const burger = /** @type {Element} */ (header.querySelector('.btn-burger'));
+            const range = document.createRange(); range.selectNodeContents(h1);
+            const words = /** @type {DOMRect} */ ([...range.getClientRects()].pop());   // the title's line, past the logo
+            const h = header.getBoundingClientRect(), l = logo.getBoundingClientRect(), b = burger.getBoundingClientRect();
+            const cs = getComputedStyle(h1), body = getComputedStyle(document.body);
+            return { top: Math.round(h.top), height: Math.round(h.height), logo: [Math.round(l.width), Math.round(l.height)],
+                gap: Math.round(words.left - l.right), titleTop: Math.round(words.top), size: cs.fontSize, weight: cs.fontWeight,
+                // Where the burger sits inside its header: the one control both headers share, in the same place.
+                burger: [Math.round(b.left - h.left), Math.round(b.top - h.top)],
+                canvas: `${body.backgroundImage} ${body.backgroundColor}` };
+        });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        const calendar = await measure();
+        await page.goto('/settings.html');
+        await expect(page.locator('.app-header h1')).toBeVisible();
+        expect(calendar, `the Calendar's header against Settings' at ${width}px`).toEqual(await measure());
+    });
+}
+
+// …and a phone on its SIDE is not a tablet. 915×412 is wider than 768, but the landscape block keeps
+// the compact header there so the month fits a 412px-tall screen — the tablet rule must not reach it.
+test('a phone on its side keeps the Calendar\'s compact header, wider than 768px or not', async ({ page }) => {
+    await page.setViewportSize({ width: 915, height: 412 });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const header = await page.evaluate(() => {
+        const h = /** @type {Element} */ (document.querySelector('.header')).getBoundingClientRect();
+        const l = /** @type {Element} */ (document.querySelector('.title-icon')).getBoundingClientRect();
+        return { height: Math.round(h.height), logo: Math.round(l.width),
+            size: getComputedStyle(/** @type {Element} */ (document.querySelector('.header h1'))).fontSize };
+    });
+    expect(header, 'the landscape block\'s header: 8px of padding round the burger, a 26px logo, 16px type')
+        .toEqual({ height: 46, logo: 26, size: '16px' });
+});
+
+test('the Calendar\'s header logo opens no image menu when held', async ({ page }) => {
+    // The sub-pages' logo was cured of this in the iPhone audit (e2e/trains.spec.js, the same check)
+    // and the Calendar's, a separate element with its own rule, was not: IPHONE_RELEASE_CHECKLIST asks
+    // for no image menu on a held header logo. `user-select` is read off the element; the iOS-only
+    // `-webkit-touch-callout` from the stylesheet the page loaded, which neither test engine parses.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/index.html');
+    const logo = page.locator('.title-icon').first();
+    await expect(logo).toBeVisible();
+    expect(await logo.evaluate(el => getComputedStyle(el).userSelect), 'holding the logo starts a text selection')
+        .toBe('none');
+    const rule = await page.evaluate(async () => {
+        const css = await (await fetch('./index.css')).text();
+        return css.replace(/\/\*[\s\S]*?\*\//g, '').match(/\.title-icon\s*\{([^}]*)\}/)?.[1] ?? '';
+    });
+    expect(rule, 'the header-logo rule was not found in index.css, so this checks nothing').toContain('height: 32px');
+    expect(rule, 'holding the logo opens iOS\'s image menu').toMatch(/-webkit-touch-callout:\s*none/);
 });

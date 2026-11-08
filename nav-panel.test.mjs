@@ -1,6 +1,6 @@
 /**
- * Unit tests for nav-panel.js pure-ish exports: isNoticeExpired() and the
- * App Notices archive (archiveNotice).
+ * Unit tests for nav-panel.js: isNoticeExpired() and the App Notices archive (archiveNotice) — both
+ * notice-archive.js's, re-exported here and tested through the import every page uses — and the drawer.
  * Run with: node --experimental-test-module-mocks --test nav-panel.test.mjs
  *
  * nav-panel.js imports browser-only modules (notif.js, overlay.js, ls.js) that
@@ -51,6 +51,7 @@ mock.module('./overlay.js', {
         lockBodyScroll: () => {}, unlockBodyScroll: () => { scrollUnlocks += 1; },
         suppressNextPop: () => {}, registerPopInterceptor: () => {},   // v16.23 pop-ownership hooks
         whenHistorySettled: (/** @type {() => void} */ fn) => fn(),
+        watchScrollFade: () => () => {},   // the body's "more below" fade — decoration; e2e/pages.spec.js tests it
     },
 });
 mock.module('./ls.js', {
@@ -81,6 +82,14 @@ function noticeDate(daysAgo) {
 function readArchive() {
     return JSON.parse(store.get(NOTICES_KEY) || '[]');
 }
+
+// ── the archive is notice-archive.js's ───────────────────────────────────────
+
+test('the archive calls the pages import from nav-panel.js ARE notice-archive.js\'s', async () => {
+    const archive = await import('./notice-archive.js');
+    assert.equal(archiveNotice, archive.archiveNotice);
+    assert.equal(isNoticeExpired, archive.isNoticeExpired);
+});
 
 // ── isNoticeExpired ───────────────────────────────────────────────────────────
 

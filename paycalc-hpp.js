@@ -2,7 +2,8 @@
 /**
  * paycalc-hpp.js — Holiday Pay Premium estimator and shared period helpers.
  *
- * Owns: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp.
+ * Owns: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp, and what a confirmed
+ *   prior-year premium is stored as (priorHppToStore, commitPriorHppActual).
  * Does NOT own: period arithmetic (paycalc-periods.js), settings (paycalc-settings.js),
  *   calculation engine (paycalc-app.js), back-pay (paycalc-backpay.js).
  * Edit here for: HPP maths, prior-year HPP section, variable-pay formula.
@@ -17,7 +18,7 @@ import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, hasBankHoliday, 
 import { getLoggedMember, getGrade, getEffectiveContr, getProRateFactor, getPensionDefault, getStoredRateForYear, isPensionOptedOut } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
-import { formatISO, parseSmartFloat } from './roster-data.js';
+import { formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
 import { fmt, fdList } from './paycalc-format.js';
 import { hppPayslipForTaxYear, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
 
@@ -541,6 +542,36 @@ export function calcHPP() {
 // ── PRIOR YEAR HPP SECTION ───────────────────────────────────────────────────
 // Shows the previous tax year's HPP estimate (or confirmed actual) in the HPP card.
 // Called at the end of calcHPP() so it refreshes whenever the main calculation runs.
+
+/**
+ * What a confirmed prior-year premium, as typed, is STORED as: a clean 2dp figure, or null to clear
+ * the confirmation. Never the text verbatim — a payslip-style "1,200" or "£350" was read back later
+ * with parseFloat as 1 or NaN. A box left blank, or holding something that is not a figure, clears
+ * it rather than confirming £0; a typed 0 IS a confirmed figure (a year of absence); a negative is
+ * floored to 0, since a payslip's premium cannot be one.
+ * @param {string} raw @returns {string|null}
+ */
+export function priorHppToStore(raw) {
+  const v = parseSmartFloatOrNull(raw);
+  return v == null ? null : Math.max(0, v).toFixed(2);
+}
+
+/**
+ * Commit the prior-year premium typed on the card of payslip year `ty` into THAT year's prior year,
+ * and repaint the section. The caller commits on `change` (leaving the field), never per keystroke:
+ * per keystroke, typing "843" flashed "✓ Confirmed £8.00" on the way, and a select-all then a stray
+ * key — or an abandoned edit — deleted a confirmed figure, so the estimate resurfaced in the January
+ * take-home. The first tax year on record has no prior year to commit to.
+ * @param {any} ty - the viewed payslip's tax year @param {string} raw - the field's text
+ */
+export function commitPriorHppActual(ty, raw) {
+  const idx = CONFIG.TAX_YEARS.findIndex(t => t.label === ty.label);
+  if (idx <= 0) return;
+  const key = hppActualKey(CONFIG.TAX_YEARS[idx - 1]);
+  const v = priorHppToStore(raw);
+  if (v != null) lsSet(key, v); else lsDel(key);
+  updatePriorHpp(ty);
+}
 
 /**
  * Update the prior-year HPP section of the HPP card.

@@ -4,7 +4,8 @@
  *
  * Owns: grade cache, getContr/getLoggedMember/getEffectiveContr/getProRateFactor/
  *   getPensionDefault, updateRateForPeriod, updateYtdForTaxYear, settingsKey,
- *   saveSettings, confirmSettings, setSettingsCardOpen, loadSettings.
+ *   saveSettings, confirmSettings, setSettingsCardOpen, loadSettings, and wireSettingsCard — the
+ *   card's place in the desktop Tab order and the setup banner's link to it.
  * Does NOT own: period arithmetic (paycalc-periods.js), pay maths (paycalc-calc.js),
  *   roster hints (paycalc-roster-hint.js).
  * Edit here for: grade helpers, settings persistence, rate/YTD field updates.
@@ -12,12 +13,12 @@
  */
 
 import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor, awardFromForYear } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, payslipPeriodNum } from './paycalc-periods.js';
+import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, appendPayslipOptions } from './paycalc-periods.js';
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix } from './paycalc-migrations.js';
 import { getSession } from './session.js';
 import { teamMembers, gradeForRole } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
-import { fdShort, fdLong } from './paycalc-format.js';
+import { fdShort } from './paycalc-format.js';
 import { setStatus } from './status-text.js';
 import { pensionToStore } from './paycalc-form-data.js';
 import {
@@ -146,20 +147,7 @@ export function buildPensionFromSelect(timeline) {
   const field = document.getElementById('pensionOptOutField');
   if (!sel) return;
   sel.innerHTML = '';
-  let group = null; let groupLabel = '';
-  for (const p of visiblePeriods()) {
-    const ty = taxYearForPeriod(p);
-    if (ty.label !== groupLabel) {
-      groupLabel = ty.label;
-      group = document.createElement('optgroup');
-      group.label = `Tax year ${ty.label}`;
-      sel.appendChild(group);
-    }
-    const o = document.createElement('option');
-    o.value = String(p.num);
-    o.textContent = `Paid ${fdLong(p.payday)} · P${payslipPeriodNum(p)}`;
-    group?.appendChild(o);
-  }
+  appendPayslipOptions(sel, visiblePeriods());
   // WHAT THE SELECT IS SET TO IS WHAT `saveSettings` ACTS ON, so it carries both answers (v21.80):
   // while the box is TICKED it names where the spell begins, and while it is UNTICKED it names the
   // payslip the member is looking at — which is how the hint beneath it has told her to record a
@@ -295,18 +283,32 @@ export function getStoredRateForYear(ty) {
 }
 
 /**
- * Load the rate for the given period into the hourly rate field. Period-aware: a period paid
- * BEFORE its tax year's mid-year pay-award date shows the pre-award rate (e.g. 2025/26 periods
- * before 24 Oct 2025 show £20.06, not the settled £20.74) — so the calculator matches the real
- * payslip for historic periods. calculate() reads this field, so no change is needed there.
+ * The hourly rate a payslip was PAID at, and whether that is the rate before its tax year's pay
+ * award: a payslip paid before the award's mid-year date was paid the earlier rate (2025/26 payslips
+ * before 24 Oct 2025 at £20.06, not the settled £20.74), every other one the year's settled rate.
+ * ONE answer for the rate field and the Settings card's collapsed summary, which used to work it out
+ * separately — and a summary quoting the new rate over a payslip priced at the old one is the
+ * contradiction a member reported ("why does July 3rd show the new rate at the top?").
+ * @param {any} ty - the period's tax year
+ * @param {any} [p] - the period (omitted → the settled rate)
+ * @returns {{ rate: number, preAward: boolean }}
+ */
+export function periodRate(ty, p) {
+  const grade    = getGrade();
+  const settled  = getStoredRateForYear(ty);
+  const preAward = !!p && isPreAwardPeriod(p, grade, ty.label);
+  return { rate: preAward ? getRateForPeriod(p, grade, ty.label, settled) : settled, preAward };
+}
+
+/**
+ * Load the rate for the given period into the hourly rate field — `periodRate`'s answer, so the
+ * calculator matches the real payslip for historic periods. calculate() reads this field.
  * @param {any} ty  - the period's tax year
  * @param {any} [p] - the period (enables the mid-year step; omitted → settled rate only)
  */
 export function updateRateForPeriod(ty, p) {
   const grade    = getGrade();
-  const settled  = getStoredRateForYear(ty);
-  const preAward = !!p && isPreAwardPeriod(p, grade, ty.label);
-  const rate     = preAward ? getRateForPeriod(p, grade, ty.label, settled) : settled;
+  const { rate, preAward } = periodRate(ty, p);
   const field    = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate'));
   field.value = rate.toFixed(2);
   // The rate is FIXED BY GRADE (v17.87) — ALWAYS read-only; the member never types it. A pre-rise
@@ -487,12 +489,64 @@ export function confirmSettings(calculate) {
 export function setSettingsCardOpen(open) {
   const toggle = document.getElementById('settingsToggle');
   const body   = document.getElementById('settingsBody');
-  if (toggle) toggle.classList.toggle('open', open);
-  if (body)   body.classList.toggle('open', open);
   // aria-expanded lives on the collapse CONTROL (the arrow), not the header — the header is no
   // longer role="button" (v17.50), so aria-expanded on it is invalid ARIA. Mirror initCardCollapse.
   const ctrl = toggle?.querySelector('.card-toggle-arrow') || toggle;
+  // A shut body is out of the Tab order (paycalc.css → `.collapsible-body`), so the save's own
+  // close, 2.5s after "Save settings", would strand a keyboard member's focus on a control that is
+  // about to vanish. Hand it to the arrow that reopens the card — the disclosure pattern — without
+  // scrolling the page out from under them.
+  if (!open && body?.contains?.(document.activeElement)) /** @type {HTMLElement|null} */ (ctrl)?.focus?.({ preventScroll: true });
+  if (toggle) toggle.classList.toggle('open', open);
+  if (body)   body.classList.toggle('open', open);
   if (ctrl) ctrl.setAttribute('aria-expanded', String(open));
+}
+
+/**
+ * WHERE THE SETTINGS CARD SITS, AND THE WAY TO IT (desktop audit, 7 Nov 2026). Wiring, both halves.
+ *
+ * ITS PLACE. On a phone the card leads the work column, in the DOM, which is how a first-time
+ * member meets it first. On a desktop the decided order is the period band, Hours, then Settings
+ * (paycalc.md → Layout decisions), and that used to be CSS `order` alone — which moves the PAINT,
+ * not the FOCUS: Tab ran through Your Settings' `?` and arrow at the foot of the page before it went
+ * back up to the tax-year tabs (WCAG 2.4.3). So from 1024px the card itself moves after Hours, and
+ * back in front of the period band below it, on the grid's own breakpoint. paycalc.css keeps the
+ * `order` rules, which now agree with the DOM, so the paint before this runs is already the decided one.
+ *
+ * THE WAY TO IT. The setup banner asks a member to check their grade and tax code in "⚙️ Your
+ * Settings" — on a desktop ~1,450px below the banner, behind the whole Hours card. Those words are a
+ * link (`#settingsCard`, written by paycalc-app.js), and it goes the road the banner's Restore link
+ * does (paycalc-transfer-card.js): the deep link's open-and-keep-in-view, so a tap while the page is
+ * still growing still lands — then focus on the grade, the first thing the banner asks about. The
+ * fragment is a deep link in its own right too. `openCardNamedByHash` is INJECTED, as
+ * `wirePensionControls` takes `autosave`: overlay.js touches `window` at import, and this module is
+ * unit-tested in Node.
+ * @param {{ openCardNamedByHash: (cardId: string, bodyId: string, toggleId: string) => boolean }} deps
+ */
+export function wireSettingsCard({ openCardNamedByHash }) {
+  const card  = document.getElementById('settingsCard');
+  const hours = document.getElementById('hoursCard');
+  const band  = document.querySelector('.period-controls');
+  const wide  = window.matchMedia?.('(min-width: 1024px)');
+  if (card && hours && band && wide) {
+    const place = () => {
+      const focused = document.activeElement;
+      if (wide.matches) { if (hours.nextElementSibling !== card) hours.after(card); }
+      else if (band.previousElementSibling !== card) band.before(card);
+      // Moving a node takes its focus with it; a member part-way through the card keeps their place.
+      if (focused instanceof HTMLElement && card.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
+    };
+    place();
+    wide.addEventListener('change', place);
+  }
+  openCardNamedByHash('settingsCard', 'settingsBody', 'settingsToggle');   // a no-op without the fragment
+  document.addEventListener('click', (e) => {
+    if (!(e.target instanceof Element) || !e.target.closest('a[href="#settingsCard"]')) return;
+    e.preventDefault();
+    history.replaceState(history.state, '', '#settingsCard');   // no Back step, no hashchange
+    openCardNamedByHash('settingsCard', 'settingsBody', 'settingsToggle');
+    (document.getElementById('gradeSelectTrigger') ?? document.getElementById('gradeSelect'))?.focus({ preventScroll: true });
+  });
 }
 
 /** Load persisted settings into the form fields. */

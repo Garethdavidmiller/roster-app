@@ -18,7 +18,7 @@
       --conf-possible-text: oklch(58% 0.225 40deg);
 
       /* The page's colour, green: the header badge, the About badge and every chosen control all
-         read it (shared.css :root → "Page identity", v25.14). Declared once, here. */
+         read it (shared.css :root → "Page identity"). Declared once, here. */
       --page-accent:      var(--green);
       --page-accent-ink:  white;
       --page-accent-text: var(--green);
@@ -47,24 +47,15 @@
 
     .app { max-width: 480px; margin: 0 auto; }
 
-    /* .app-header, .app-header h1, .badge-page, .app-icon
-       are all defined in shared.css — the badge's green is --page-accent, in :root above */
-
-    /* paycalc-specific: header has bottom margin (admin uses grid gap) */
+    /* The header (.app-header, h1, .badge-page, .app-icon) is shared.css's; this page adds only a
+       bottom margin (admin uses a grid gap). */
     .app-header { margin-bottom: 4px; }
 
-    /* ── CARD HEADER (roster-app component pattern) ──
-       Deliberately a FLAT header here (padding + bottom border only), NOT the
-       shared.css `.card-header` flex row. Paycalc's cards use it in two forms —
-       `card-header card-header--row` (one static header) and
-       `card-header card-header-toggle` (×5 collapsible accordion headers, which
-       add their own flex + chevron rules). Keeping this base flat avoids fighting
-       those modifiers; do not fold it back onto the shared flex header. */
-    /* The FILL and the TITLE are not restated here (v25.12). This block used to copy both from
-       shared.css so the six pages would match (v18.29) — and a copy is exactly what stops matching:
-       when the shared header moved to the card's surface and a 14px title, this page alone kept the
-       grey band and 13px, and nothing failed. shared.css `.card-header` / `.card-header h2` now
-       reach this page directly; only the flat layout's padding and divider are this page's own. */
+    /* ── CARD HEADER — deliberately FLAT here (padding + divider only), NOT the shared flex row.
+       The cards use it as `card-header--row` (one static header) and `card-header-toggle` (the
+       collapsible ones, which add their own flex + chevron rules); a flex base would fight both.
+       The FILL and the TITLE are NOT restated: a copy of shared.css's is exactly what stops
+       matching — this page once kept a grey band and a 13px title alone, and nothing failed. */
     .card-header {
       padding: 11px 16px;
       border-bottom: 1px solid var(--border-light);
@@ -141,16 +132,13 @@
       display: flex; align-items: center; justify-content: center;
     }
     .nav-pill-today:active { transform: scale(var(--press-scale)); }
-    .nav-pill-today.hidden { display: none; }
     @media (hover: hover) and (pointer: fine) {
       .nav-pill-today:hover { background: var(--accent-gold-dark); }
     }
-    /* Left-aligned (v18.89): it was the only centred line in a stack of left-aligned siblings
-       (the date range, "Tax year 2026/27", "No entries saved for this period"), which read as an
-       accident rather than a choice. */
+    /* Left-aligned, like every line in the stack around it: a centred one read as an accident. */
     .period-hint   { margin: 4px 0 0; font-size: var(--type-micro); color: var(--text-faint); }
-    /* A deep link to a payslip the calculator does not carry (whole-app review, Oct 2026) — a STATUS
-       line in the navy info voice of .rate-step-note, never an error colour: nothing is wrong. */
+    /* A deep link to a payslip the calculator does not carry — a STATUS line in the navy info voice
+       of .rate-step-note, never an error colour: nothing is wrong. */
     .period-link-note {
       width: 100%; margin: 0;
       font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
@@ -174,7 +162,6 @@
       transition: color 0.3s;
     }
     .save-status.saved   { color: var(--success-text); }
-    .save-status.unsaved { color: var(--text-faint); }
     .save-status.corrupt { color: var(--warning-amber); font-weight: 600; }
     .clear-btn {
       font-size: var(--type-micro); font-weight: 600; color: var(--text-light);
@@ -185,12 +172,10 @@
     .clear-btn:active       { color: var(--error-red); }
     .clear-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     /* THE SMALL TEXT CONTROLS GET THE APP'S INVISIBLE HIT AREA under a thumb — the `.help-btn`
-       pattern (shared.css), which already makes a 20px `?` a 44px target. Drawn at 13–16px tall they
-       were the page's whole entry in the tap-target ratchet (e2e/pages.spec.js → KNOWN_SMALL), and
-       "Clear all entries" — destructive, if two-tap — was the smallest control on the page. The
-       region grows vertically (every one of them sits on its own line, with ≥24px to the next
-       control) and only a little sideways, so it never reaches a neighbour; the visible text, and
-       therefore the layout, does not move by a pixel. Coarse pointers only: a mouse hits text. */
+       pattern (shared.css). Drawn 13–16px tall they fail the tap-target ratchet (e2e/pages.spec.js),
+       and "Clear all entries", destructive, was the smallest control on the page. The region grows
+       vertically (each sits on its own line, ≥24px from the next control) and only a little sideways,
+       so it never reaches a neighbour and the layout does not move. Coarse pointers only. */
     @media (pointer: coarse) {
       .clear-btn, .roster-days-toggle, .disclaimer-toggle, .actuals-import-link { position: relative; }
       .clear-btn::after, .roster-days-toggle::after, .disclaimer-toggle::after, .actuals-import-link::after {
@@ -211,9 +196,8 @@
     }
     .result-net {
       background: var(--primary-blue);
-      /* Soft top-lit panel behind the take-home figure (v16.71): the £ number and its label sit on
-         a gently-lit navy surface instead of a flat slab — reads as a considered result panel, and
-         gives the empty "£–" state some life before a period is picked. Token-derived, subtle. */
+      /* A soft top-lit panel behind the take-home figure, not a flat slab — it reads as a considered
+         result, and gives the empty "£–" state some life. Token-derived, subtle. */
       background-image: radial-gradient(95% 130% at 50% 0%,
           color-mix(in oklch, var(--primary-blue) 84%, white) 0%,
           var(--primary-blue) 72%);
@@ -230,10 +214,9 @@
     }
     .net-period { font-size: var(--type-medium); font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 8px; }
     .net-hint   { font-size: var(--type-label); color: rgba(255,255,255,0.62); margin-top: 5px; letter-spacing: 0.1px; }
-    /* Provenance chips (v18.44 — review item 1): quiet on-navy labels naming what's inside the £
-       (the nav drawer's translucent-white chip language). Gold variant = money ADDED to the total
-       (back pay / HPP — the chips worth noticing); neutral = how it was computed. :empty hides the
-       row entirely, so a normal payslip pays no space cost. */
+    /* Provenance chips: quiet on-navy labels naming what is inside the £ (the drawer's translucent
+       chip language). Gold = money ADDED to the total (back pay, HPP); neutral = how it was worked
+       out. :empty hides the row, so a normal payslip pays no space for it. */
     .prov-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; }
     .prov-chips:empty { display: none; }
     .prov-chip {
@@ -248,9 +231,9 @@
       border-color: color-mix(in srgb, var(--accent-gold) 35%, transparent);
       background: color-mix(in srgb, var(--accent-gold) 10%, transparent);
     }
-    /* The Year to Date pointer (owner, 7 Nov 2026): shown only where the latest figures would sharpen
-       this estimate (`ytdUpdateFrom`). Quiet like the hint below it; the button is white and
-       underlined so it reads as the one thing to press, and its padding takes it to 24px tall. */
+    /* The Year to Date pointer (owner): shown only where the latest figures would sharpen this
+       estimate (`ytdUpdateFrom`). Quiet like the hint below it; the button is white and underlined
+       so it reads as the one thing to press, and its padding takes it to 24px tall. */
     .net-ytd {
       font-size: var(--type-label); line-height: 1.45; color: var(--on-navy-muted);
       margin: 10px auto 0; max-width: 34em; text-wrap: pretty;
@@ -285,10 +268,9 @@
     .pbl-dot  { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
 
     .summary { padding: 2px 16px; }
-    /* `gap` is load-bearing, not spacing taste (v20.53). `space-between` puts the figure hard against
-       the label the moment the label fills the row — reported from a phone, where "Back pay lump sum
-       (pay award — estimate)+£977.69" rendered with no space at all between the words and the money.
-       Any long label does it; the back-pay ones are simply the longest. */
+    /* `gap` is load-bearing, not spacing taste: `space-between` puts the figure hard against the label
+       the moment the label fills the row — reported from a phone as "Back pay lump sum (pay award —
+       estimate)+£977.69", no space at all between the words and the money. */
     .sum-row {
       display: flex; justify-content: space-between; align-items: center;
       gap: 16px;
@@ -315,15 +297,12 @@
       font-size: var(--type-small); font-weight: 600; color: var(--text-mid);
     }
     .sum-row.sum-net .val  { font-weight: 800; color: var(--primary-blue); font-size: var(--type-medium); }
-    .sum-row.sum-bp .lbl  { color: var(--text-mid); }
-    .sum-row.sum-hpp .lbl { color: var(--text-mid); }
-    .sum-row.sum-hpp .val { font-weight: 700; color: var(--success-green); }
-    /* Student Loan £0 explainer (v16.77): a plan is set but nothing is deducted this period —
-       muted, not red (it's information, not a deduction), smaller so the WHY fits on a phone. */
+    .sum-row.sum-bp .val, .sum-row.sum-hpp .val { font-weight: 700; color: var(--success-green); }
+    /* A loan's £0 explainer: information, not a deduction — muted, not red, and smaller so the WHY
+       fits on a phone. */
     .sum-row.sum-sl-zero .lbl { color: var(--text-light); font-size: var(--type-small); }
     .sum-row.sum-sl-zero .val { color: var(--text-light); }
     .sum-est { font-size: var(--type-micro); font-weight: 400; color: var(--text-faint); margin-left: 4px; }
-    .sum-row.sum-bp .val  { font-weight: 700; color: var(--success-green); }
     /* Green "included on this payslip" banners — back pay (on its paid-in period) and HPP (on the
        January period it lands). Shared styling so the two read as one pattern. */
     .bp-active-banner, .hpp-active-banner {
@@ -339,7 +318,7 @@
       font-weight: 600; cursor: pointer;
     }
     /* The opt-in tick is green because the banner is — recoloured through the recipe's token,
-       never by restating the box (v23.50). */
+       never by restating the box. */
     .banner-optin input { margin-top: 1px; --check-fill: var(--success-green); }
     /* "view … card" control — a real <button> for keyboard access, styled as a link. */
     .banner-link {
@@ -374,19 +353,13 @@
     .bd-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
     .bd-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); display: inline-block; }
     .bd-btn.open .bd-arrow { transform: rotate(180deg); }
-    .bd-body {
-    /* A containing block, for the reason `.collapsible-body` records above: `overflow: hidden`
-       does not clip an absolutely-positioned descendant unless the clipper is its containing
-       block, and every enhanced picker leaves a 1px `<select>` inside one. Found by the
-       contract rather than by a bug report, which is the point of deriving it. */
-    position: relative; max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
-    /* 1400px is a deliberate finite cap so the open/close can ANIMATE (max-height:none can't
-       transition). It is sized well above the tallest real content: the back-pay breakdown accrues
-       at most one row per period in a single award tax year (≤ ~13 rows, capped at todaysPeriodNum
-       and excluding the paid-in period) and the result breakdown is a fixed ~20-line category list —
-       ~550–800px in practice. Print unclips it (@media print below). Checked for the L4 clip concern:
-       within cap, no clipping at realistic sizes. If a future breakdown could exceed this, prefer
-       measuring height and dropping the cap after transitionend over a bigger magic number. */
+    /* A containing block, so the clip reaches a picker's 1px select (select-sheet-parity contract 12;
+       `.collapsible-body`, below, has the measurement). */
+    .bd-body { position: relative; max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+    /* A FINITE cap so the open/close can animate (max-height: none cannot), well above the tallest
+       real content: ≤ ~13 back-pay rows (one award year) or the ~20-line result breakdown, ~550–800px.
+       Print unclips it. Should a breakdown ever outgrow it, measure the height and drop the cap after
+       transitionend, rather than reach for a bigger number. */
     .bd-body.open { max-height: 1400px; }
     .bd-row {
       display: flex; justify-content: space-between; align-items: center;
@@ -403,9 +376,8 @@
     .bd-row.bd-extra .b-lbl { color: var(--text-mid); }
     .bd-row.bd-extra .b-val { color: var(--success-green); }
 
-    /* ── CONTENT CARDS ── */
-    /* NB: cards stack at 12px on mobile (deliberately tighter than the hero blocks' 16px);
-       the desktop grid overrides everything to a uniform 16px row-gap. (v18.07 audit note) */
+    /* ── CONTENT CARDS ── stack at 12px on mobile, deliberately tighter than the hero blocks' 16px;
+       the desktop grid gives everything one 16px rhythm. */
     .content-card {
       background: var(--surface); border-radius: var(--radius-lg);
       box-shadow: var(--shadow-2); margin-bottom: 12px; overflow: hidden;
@@ -413,16 +385,13 @@
 
     /* Section headings inside cards */
     .sec-hd {
-      /* Uppercase eyebrow (v17.95) — matches the app's field-label convention (GRADE, TAX CODE…)
-         so section dividers read as a different rank from card titles, not competing bold text. */
+      /* An uppercase eyebrow, like the field labels (GRADE, TAX CODE…), so a section divider reads
+         as a different rank from a card title rather than as competing bold text. */
       font-size: var(--type-small); font-weight: 700; color: var(--text-mid);
       text-transform: uppercase; letter-spacing: .05em;
       padding: 10px 0 5px; border-bottom: 1px solid var(--border-light);
     }
     .sec-hd.first { padding-top: 4px; }
-    /* The cut-off note riding on the section heading (v21.69). Sentence case and un-tracked
-       against the uppercase heading beside it: it is a FACT about the group, not a second
-       heading, and matching the eyebrow treatment would make it compete with one. */
 
     /* ── SETTINGS NEW-YEAR NOTICE ── */
   .settings-notice {
@@ -431,22 +400,22 @@
     font-size: var(--type-small); color: var(--notice-text);
     margin-bottom: 12px; line-height: 1.5;
   }
-  .settings-notice.hidden { display: none; }
 
-  /* ── HELP LIGHTBOX ── */
-  /* #helpLightbox uses .lb-overlay; unique: higher z-index for pay calc context */
+  /* ── HELP LIGHTBOX ── an .lb-overlay, raised for this page */
   #helpLightbox { z-index: var(--z-notice); }
+  /* One width at every size, the Tips' own (css-tokens.md has three, and no fourth); a see-through
+     glass sheet, so the glass family's corner. */
   #helpLightboxContent {
     background: rgba(255,255,255,0.09);
     border: 1px solid rgba(255,255,255,0.15);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-panel);
     padding: 28px 24px 24px;
-    width: min(340px, 88vw);
+    width: min(var(--modal-standard), var(--modal-cap));
     max-height: 78vh;
     max-height: 78dvh;
   }
   .help-lightbox-title {
-    color: white; font-size: var(--type-large); font-weight: 700;   /* unified overlay title (v18.29) */
+    color: white; font-size: var(--type-large); font-weight: 700;   /* the unified overlay title */
     margin-bottom: 14px; padding-right: 22px; line-height: 1.3;
   }
   .help-lightbox-list {
@@ -511,9 +480,8 @@
     /* Badge sits on its own line between the title and sub-description */
     .h-info > .rate-badge { margin: 4px 0 3px; }
     .h-sub { font-size: var(--type-small); color: var(--text-light); margin-top: 3px; line-height: 1.45; }
-    /* The payslip-name tail on its own quieter line (v22.09): "Shows as X on your payslip" serves
-       a different moment from the sentence above it — reconciling a payslip later, not choosing a
-       row now — and inline it made every explainer read one sentence longer than it is. */
+    /* "Shows as X on your payslip" on its own quieter line: it serves another moment (reconciling a
+       payslip later, not choosing a row now), and inline it made every explainer a sentence longer. */
     .h-payslip { display: block; margin-top: 2px; color: var(--text-faint); }
 
     /* Rate badges — pill-shaped, colour-coded to match the roster's shift system */
@@ -530,10 +498,9 @@
     .badge-sun  { background: var(--blue-light);   color: var(--blue-sky); border-color: var(--blue-sky); }
     .badge-box  { background: var(--boxing-day-bg); color: var(--boxing-day-text); border-color: var(--accent-gold); }
     .badge-peer { background: var(--green-light);  color: var(--green);    border-color: var(--green);    }
-    /* --al-text, not --al: teal-on-teal-tint measures 4.16:1, under the 4.5 AA floor. The token
-       already existed for this (shared.css, beside --orange-text and --rdw-text) and these badges
-       had simply never used it — they render only when the pay period contains a bank holiday, so
-       the a11y gate first SAW them on 28 Aug 2026. Border keeps --al: a 3:1 non-text element. */
+    /* --al-text, not --al: teal on its tint measures 4.16:1, under the 4.5 AA floor. The badge shows
+       only in a period with a bank holiday, which is why the a11y gate was late to see it. The border
+       keeps --al: a 3:1 non-text element. */
     .badge-bh   { background: var(--al-light);     color: var(--al-text);  border-color: var(--al);       }
 
     /* HH:MM input (all hours rows) */
@@ -542,7 +509,7 @@
       display: flex; flex-direction: column; align-items: center; gap: 3px;
     }
     .hhmm-field input:not([type="checkbox"]):not([type="radio"]) {
-      width: 54px; padding: 9px 6px; min-height: 44px;   /* 44px = min touch target (was ~40px) */
+      width: 54px; padding: 9px 6px; min-height: 44px;   /* 44px = the minimum touch target */
       border: var(--field-border); border-radius: var(--radius-field);
       font-variant-numeric: tabular-nums;
       font-size: var(--type-medium); font-weight: 600;
@@ -600,13 +567,9 @@
       user-select: none; padding: 0 2px;
     }
 
-    /* Boxing Day banner */
+    /* Boxing Day banner — `position: relative` makes it a containing block, as `.bd-body`'s is. */
     .boxing-banner {
-    /* A containing block, for the reason `.collapsible-body` records above: `overflow: hidden`
-       does not clip an absolutely-positioned descendant unless the clipper is its containing
-       block, and every enhanced picker leaves a 1px `<select>` inside one. Found by the
-       contract rather than by a bug report, which is the point of deriving it. */
-    position: relative;
+      position: relative;
       background: var(--primary-blue); color: white;
       font-size: var(--type-small); font-weight: 700;
       border-radius: var(--radius-sm); text-align: center;
@@ -648,11 +611,9 @@
       color: var(--text-dark); background-color: var(--field-bg);
       touch-action: manipulation; transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     }
-    /* Brighten to white when active — the field 'fills in' on focus */
-    /* The OUTLINE is stated, not left to the browser (polish pass). These rules set the border and
-       the ring and said nothing about `outline`, so the UA's own `outline: auto` painted on top —
-       an AMBER ring on Android Chrome, around a navy border, on every field in the calculator.
-       Admin and Settings already carry the full recipe; this is theirs. */
+    /* Brighten to white when active — the field 'fills in' on focus. The OUTLINE is stated, never
+       left to the browser: unstated, the UA's `outline: auto` painted an AMBER ring on Android
+       Chrome around the navy border, on every field in the calculator. */
     .field input:not([type="checkbox"]):not([type="radio"]):focus-visible, .field select:focus-visible, .field .fieldpick:focus-visible {
       border-color: var(--primary-blue); box-shadow: var(--focus-ring);
       outline: var(--focus-outline); outline-offset: 2px;
@@ -670,15 +631,15 @@
       font-size: var(--type-button); font-weight: 600; color: var(--text-mid); pointer-events: none;
     }
     .pfx input:not([type="checkbox"]):not([type="radio"]) { padding-left: 26px; width: 100%; }
-    /* Pre-rise status strip under the rate (v18.03): a STATUS line about the payslip on screen —
-       navy info voice (matches .bp-award-scope / .ytd-upto-note), not another grey hint. */
+    /* The pre-rise strip under the rate: a STATUS line about the payslip on screen, in the navy info
+       voice of .bp-award-scope / .ytd-upto-note — not another grey hint. */
     .rate-step-note {
       font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
       border-left: 3px solid var(--primary-blue); padding: 8px 10px;
       background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; margin-top: 8px;
     }
-    /* Read-only, grade-set rate (v17.87; restyled v17.91) — reads as a fixed VALUE, not an empty
-       field: solid faint fill, bold value, and a small lock on the right. */
+    /* The read-only, grade-set rate reads as a fixed VALUE, not an empty field: a faint fill, a bold
+       value and a small lock on the right. */
     .pfx--readonly input:not([type="checkbox"]):not([type="radio"]), input[readonly]#hourlyRate {
       background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
       cursor: default; border-color: var(--border-light); padding-right: 32px;
@@ -686,18 +647,17 @@
     /* Safe to suppress entirely: the one .pfx--readonly field (#hourlyRate) carries tabindex="-1",
        so it is not a Tab stop — unlike .bp-rate-locked below, which is. */
     .pfx--readonly input:not([type="checkbox"]):not([type="radio"]):focus { outline: none; box-shadow: none; }
-    /* ONE lock treatment everywhere (v18.07): same glyph size/offset/opacity as the back-pay
-       locked boxes below — the two had drifted in all four values. */
+    /* ONE lock treatment: the same glyph, size, offset and opacity as the locked back-pay boxes'
+       below (the two had drifted in all four). Not one rule: that one needs :has(), and a selector
+       list fails WHOLE in an engine without it, which would take this lock too. */
     .pfx--readonly::after {
       content: "🔒"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
       font-size: var(--type-small); opacity: .5; pointer-events: none;
     }
-    /* Not in the pension scheme (v21.64): the amount is nil BY DECISION, not left blank, so the
-       field reads as a settled value rather than an empty one waiting to be filled — same faint
-       fill and default cursor as the read-only rate above. No lock glyph: this state is undone by
-       the tick box directly beneath it, which the lock (used where nothing on screen can unlock the
-       field) would contradict. `:disabled` also keeps it out of the Tab order, which is correct —
-       there is nothing to type. */
+    /* Not in the pension scheme: the amount is nil BY DECISION, so it reads as a settled value, with
+       the read-only rate's fill and cursor. No lock glyph — the tick box beneath undoes this state,
+       and a lock says nothing on screen can. `:disabled` keeps it out of the Tab order: there is
+       nothing to type. */
     .pfx.is-disabled input:not([type="checkbox"]):not([type="radio"]), #pensionAmt:disabled {
       background: var(--bg-faint); color: var(--text-mid); font-weight: 700;
       cursor: default; border-color: var(--border-light); -webkit-text-fill-color: var(--text-mid);
@@ -720,43 +680,33 @@
     }
     .adj-sign-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     .field-hint { font-size: var(--type-small); color: var(--text-light); margin-top: 5px; line-height: 1.45; }
-    /* No one-word last lines in the calculator's teaching prose (polish pass). Measured at 390px:
-       "payslip" alone under the Year to Date header, "there" under Pay Rise Back Pay in the desktop
-       sidebar, "it." and "above." closing the back-pay hints. `pretty` rebalances only the final
-       lines; the words, and every collapsed header's teaching (invariant 16), are untouched. An
-       engine without it wraps exactly as before. */
+    /* No one-word last lines in the calculator's teaching prose (measured at 390px: "payslip" alone
+       under the Year to Date header, "it." closing a back-pay hint). `pretty` rebalances only the
+       final lines; the words, and every collapsed header's teaching (invariant 16), are untouched. */
     .content-card .card-header .hint, .field-hint, .card-note, .content-card .card-explainer,
     .backpay-notice { text-wrap: pretty; }
-    /* "Up to which payslip" pointer at the top of the Year to Date card — a subtle gold-accented
-       note so it reads as guidance about WHICH payslip to copy from, not just another hint. */
-    /* YTD source-status strip (v18.01): navy = informational (matches .bp-award-scope) — gold read
-       as a WARNING, wrong for a status line. The --live variant (figures sharpen THIS payslip) goes
-       success-green, echoing the ✓ Confirmed language. */
+    /* The Year to Date source strip: navy = informational, as .bp-award-scope (gold read as a
+       WARNING). The --live variant — the figures sharpen THIS payslip — goes green, like ✓ Confirmed. */
     .ytd-upto-note { margin: 0 0 12px; padding: 8px 10px; border-left: 3px solid var(--primary-blue);
       background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
       font-size: var(--type-small); color: var(--text-mid); line-height: 1.5; }
     .ytd-upto-note--live { border-left-color: var(--green);
       background: var(--success-green-bg); color: var(--success-text); }
     .ytd-upto-note:empty { display: none; }
-    /* YTD header status chip (v18.40 — review item 6): whether the entered figures sharpen the
-       VIEWED payslip, readable even while the card is collapsed. The --live variant echoes the
-       note's success-green voice; the resting state stays the neutral chip. */
+    /* The Year to Date header chip: whether the figures sharpen the VIEWED payslip, readable with
+       the card shut. --live echoes the note's green; at rest it is the neutral chip. */
     .ytd-status-chip--live {
       background: var(--success-green-bg); color: var(--success-text);
       border-color: color-mix(in oklch, var(--green) 40%, white);
     }
-    /* "This tax year so far": a STANDALONE quiet card after the result since v22.08 — it lived
-       inside the YTD card's collapsible body, where the fill-the-year control shipped invisible
-       (the card is collapsed by default). An output summary wears the card surface, at a calmer
+    /* "This tax year so far": a STANDALONE quiet card after the result — inside the shut Year to Date
+       card its fill-the-year control went unseen. An output summary on the card surface, at a calmer
        register than the result beside it. */
     .ytd-yearso {
       background: var(--surface); border-radius: var(--radius-lg);
       box-shadow: var(--shadow-2); padding: 14px 16px;
-      /* The mobile stack's own 12px, like every other card — it shipped at `margin: 0`, which is
-         right in the two contexts that own their spacing with flex `gap` (the desktop sidebar and
-         print) and wrong in the one that does not. On mobile it left this card FLUSH against the
-         Year to Date card below it, so the two read as one tall card with a seam. Both flex
-         contexts reset it: `.pc-side > *` on desktop, and the print block below. */
+      /* The mobile stack's own 12px, like every card: at 0 it sat FLUSH on the Year to Date card
+         below, the two reading as one card with a seam. The flex contexts reset it (.pc-side > *, print). */
       margin: 0 0 12px;
     }
     .yearso-head {
@@ -772,16 +722,14 @@
       font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
       border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 6px;
     }
-    /* "Check against your payslip" (v18.42 — review item 3): a quiet self-check at the foot of the
-       result card — separated by a hairline, input at 16px (iOS focus-zoom floor), verdict lines in
-       the calm status voices (green = matches; neutral = investigate — never red, a mismatch is
-       information, not an error). */
+    /* "Check against your payslip": a quiet self-check at the foot of the result card — a hairline
+       above, a 16px input (the iOS focus-zoom floor), and the calm status voices for the verdict:
+       never red, as a mismatch is information, not an error. */
     .check-actual {
       border-top: 1px solid var(--border-light); margin: 12px 16px 0; padding-top: 12px;
     }
     .check-actual .pfx { max-width: 240px; margin-top: 6px; }
-    /* Field convention (v18.46 — sweep item 14): 2px --border-mid + the token focus ring,
-       matching every other input (it launched with a one-off 1px + outline). */
+    /* The field convention — the token border and focus ring every other input wears. */
     .check-actual input:not([type="checkbox"]):not([type="radio"]) {
       width: 100%; font-size: var(--type-medium); padding: 8px 10px 8px 26px;
       border: var(--field-border); border-radius: var(--radius-field);
@@ -796,12 +744,9 @@
       font-size: var(--type-small); line-height: 1.5; margin: 8px 0 12px; color: var(--text-mid);
     }
     .check-actual-line.check-ok { color: var(--success-text); font-weight: 600; }
-    /* The DISAGREEING states had no rule at all until v21.94, so a payslip more than £25 away from
-       the estimate rendered as ordinary grey body text — quieter than the ✓ that needs no
-       attention, and visually identical to the "close enough" case beside it. Amber, matching the
-       app's warning token, and the same 600 weight as the ✓ so the two read as one pair of answers
-       rather than a statement and an aside. Every `page-css-parity` sibling is scoped to
-       cross-page borrowing, so nothing could have caught a class defined nowhere. */
+    /* The DISAGREEING state: amber, the warning token, at the ✓'s 600 weight so the two read as one
+       pair of answers. With no rule it rendered as grey body text — quieter than the ✓ that needs
+       no attention — and page-css-parity cannot see a class that is defined nowhere. */
     .check-actual-line.check-near { color: var(--warning-amber); font-weight: 600; }
 
     /* First-run banner */
@@ -813,25 +758,21 @@
     }
     .setup-banner h2 { font-size: var(--type-button); font-weight: 800; color: var(--primary-blue); margin-bottom: 4px; }
     .setup-banner p  { font-size: var(--type-label); color: var(--text-mid); line-height: 1.5; }
-    /* A second paragraph in a banner — the setup banner's Restore line (#setupRestore) — takes a
-       gap, or the two run together and read as one block. (The refusal card was the first banner to
-       need it; since v25.50 it wears the sign-in card's panel instead, below.) */
+    /* A second paragraph in the banner — the Restore line (#setupRestore) — takes a gap, or the two
+       run together and read as one block. */
     .setup-banner p + p { margin-top: 8px; }
-    .setup-restore-link {
+    .setup-restore-link, .setup-settings-link {
       color: var(--primary-blue); font-weight: 700;
       text-decoration: underline; text-underline-offset: 2px;
     }
-    .setup-restore-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-    /* THE REFUSAL CARD (v25.50 — paycalc-role-card.js writes its words). Shown INSTEAD of the
-       calculator to a member it will not price, and it wears the do-this-first panel the sign-in
-       card wears (shared.css → `.pc-role-card`): white, centred, one width. Its "What it does" box
-       IS the sign-in card's `.login-about`, and its way out is the same "← Back to roster", so the
-       page's two refusals — "sign in" and "not for your role" — read as one door.
-       What is its own: a masthead (the Pay pill's 💷 over a title that says what happened — in
-       place of the sign-in card's app icon, since this card sits under the page's own header,
-       which already carries the brand) and the REASON, straight after the title because it answers
-       the question the reader arrived with. The reason is prose past two lines, so it is
-       left-aligned (css-tokens.md); the title and the short footer lines stay centred. */
+    .setup-restore-link:focus-visible, .setup-settings-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+    /* THE REFUSAL CARD (paycalc-role-card.js writes its words). Shown INSTEAD of the calculator to a
+       member it will not price, in the sign-in card's do-this-first panel (shared.css →
+       `.pc-role-card`), with its "What it does" box and its "← Back to roster", so the page's two
+       refusals — "sign in" and "not for your role" — read as one door. Its own: a masthead (the Pay
+       pill's 💷 over a title that says what happened, as the page header already carries the brand)
+       and the REASON straight after it, which answers what the reader came with. The reason is prose
+       past two lines, so left-aligned (css-tokens.md); the title and short footer lines stay centred. */
     .pc-role-icon {
       font-size: 40px; line-height: 1; margin-bottom: 12px;
     }
@@ -848,34 +789,33 @@
     /* The way out is the sign-in card's link, given the touch target a bare line of text lacks. */
     .pc-role-back { padding: 10px 8px; margin-top: 4px; }
     .pc-role-back:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
-    /* A BROWSER THAT WILL NOT SAVE (the iPhone audit, 7 Nov 2026). paycalc-app.js sets
-       `body.storage-blocked` from ls.js's `lsAvailable()` — a write that reads back — and the Hours
-       card's "Saved automatically as you type" gives way to the truth, in the calm amber of
-       `.check-actual-line.check-near`. The Restore line goes too: a restore needs the same writes. */
+    /* A BROWSER THAT WILL NOT SAVE: paycalc-app.js sets `body.storage-blocked` from ls.js's
+       `lsAvailable()` (a write that reads back), and the Hours card's "Saved automatically as you
+       type" gives way to the truth, in the calm amber of `.check-near`. The Restore line goes too:
+       a restore needs the same writes. */
     .hours-save-blocked { display: none; color: var(--warning-amber); font-weight: 600; }
     body.storage-blocked .hours-save-ok { display: none; }
     body.storage-blocked .hours-save-blocked { display: inline; }
     body.storage-blocked #setupRestore { display: none; }
-    /* Standalone privacy note — FIRST VISIT ONLY since v24.32 (paycalc.html says why); the same
-       line leads the note at the foot of the page for everyone else. */
+    /* The standalone privacy note — FIRST VISIT ONLY (paycalc.html says why); the same line leads the
+       note at the foot of the page for everyone else. No navy stripe on a note that sits ON navy (it
+       showed only as a white edge inside every other card's), so its 3px went to the padding. */
     .privacy-note-standalone {
       background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
-      padding: 9px 12px 9px 15px; margin-bottom: 16px;
-      border-left: 3px solid var(--primary-blue);
+      padding: 9px 12px 9px 18px; margin-bottom: 16px;
       font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
     }
 
     /* Disclaimer */
     .disclaimer {
       background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
-      padding: 11px 14px; font-size: var(--type-small); color: var(--text-light);
-      line-height: 1.6; margin-bottom: 16px; border-left: 3px solid var(--primary-blue);
+      padding: 11px 14px 11px 17px; font-size: var(--type-small); color: var(--text-light);
+      line-height: 1.6; margin-bottom: 16px;
     }
     /* Two statements, one card: where the figures are kept, then how far to trust them. The
        privacy line is the one a member ACTS on (it is why they back up before changing phone), so
        it reads a step darker than the caveat beneath it. */
     .disclaimer-privacy { color: var(--text-mid); margin-bottom: 6px; }
-
 
     /* HPP formula note toggle */
     .hpp-toggle-btn {
@@ -890,12 +830,8 @@
     .hpp-toggle-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
     .hpp-toggle-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); display: inline-block; }
     .hpp-toggle-btn.open .hpp-toggle-arrow { transform: rotate(180deg); }
-    .hpp-note-body {
-    /* A containing block, for the reason `.collapsible-body` records above: `overflow: hidden`
-       does not clip an absolutely-positioned descendant unless the clipper is its containing
-       block, and every enhanced picker leaves a 1px `<select>` inside one. Found by the
-       contract rather than by a bug report, which is the point of deriving it. */
-    position: relative; max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+    /* `position: relative` — a containing block, as `.bd-body`'s is. */
+    .hpp-note-body { position: relative; max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
     .hpp-note-body.open { max-height: 400px; }
 
     /* Actual HPP badge */
@@ -922,21 +858,14 @@
        a sentence) indented it off the paragraph's left edge. It is its own line, so say so. */
     #hppBackPayLink { display: block; margin: 6px 0 0; text-align: left; }
 
-    /* .card-explainer MOVED TO shared.css at v20.09 — settings.html had been using it since
-       v19.16 without loading this file, so that paragraph rendered as a bare <p>: browser-default
-       size and colour, no 1.55 line-height, wrong margin. Found by screenshot; now guarded by
-       page-css-parity.test.mjs, which fails when one page's HTML uses a class only another page's
-       stylesheet defines. */
     .hpp-result {
       background: var(--bg-faint); border-radius: var(--radius-md);
       padding: 14px 16px; margin-bottom: 12px; text-align: center;
     }
-    /* Card hierarchy (v18.33 polish): a card's PRIMARY figure is raised to a white chip with a hairline
-       + soft lift so it reads as the headline result. Two of them: the HPP current-year estimate
-       (#hppCardBody > .hpp-result — the prior-year copy is nested in #priorHppSection and stays the
-       recessed grey `.hpp-result`, a settled secondary reference) and the back-pay lump sum
-       (#backPayTotal), which is that card's one headline figure. Unified v18.37 — before, only HPP was
-       raised and the back-pay lump sat flat grey, so the two sibling cards' results looked different. */
+    /* A card's PRIMARY figure is raised to a white chip with a hairline and a soft lift, so it reads as
+       the headline result — on both sibling cards alike: the HPP current-year estimate (the prior-year
+       copy in #priorHppSection stays the recessed grey, a settled secondary reference) and the
+       back-pay lump sum (#backPayTotal). */
     #hppCardBody > .hpp-result,
     #backPayTotal {
       background: white;
@@ -973,33 +902,28 @@
       background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
       margin-top: 10px;
     }
-    /* Second paragraph inside the back-pay notice (v21.70) — the actionable "missing hours" fact,
-       separated from the tax warning it used to run on from. `display:block` + margin rather than
-       a second element, so the notice keeps its single gold rule down the left. */
+    /* The back-pay notice's second paragraph — the actionable "missing hours" fact, set apart from
+       the tax warning. `display: block` + margin rather than a second element, so the notice keeps
+       its single gold rule down the left. */
     .bp-notice-sep { display: block; margin-top: 7px; }
 
-    /* Estimate banner — shown while the award year's rates are unconfirmed (offered, awaiting acceptance) */
-    /* Gold boxed-notice family (matches .settings-notice / .joiner-notice / #resultRateNotice) —
-       was the file's only srgb color-mix + literal radius/odd padding (v18.07 consistency audit). */
+    /* The estimate banner, while the award year's rates are unconfirmed — the gold boxed-notice
+       family of .settings-notice, .joiner-notice and #resultRateNotice. */
     .backpay-estimate-note {
       font-size: var(--type-small); color: var(--primary-blue); line-height: 1.5;
       background: var(--al-confirm-bg);
       border: 1px solid var(--accent-gold);
       border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 14px;
     }
-    /* Amount-source toggle (compute vs enter-from-payslip) — v17.86 */
-    /* Amount-source choice ROWS (v18.06 — "looks undesigned"): each option is a bordered, tappable
-       card; the checked one gets the navy border + faint fill + bold, so the choice reads as part of
-       the design system instead of two bare browser radios floating in space. Real radios kept for
-       accessibility; the container styles via :has(). */
-    /* HPP shares this same radio-group styling (v18.32) — the current-year estimate can come from
-       entered hours, a quick year-to-date figure, or a hand-entered amount, mirroring back-pay. */
+    /* The amount-source choice ROWS, back pay's and HPP's alike: each option a bordered, tappable
+       card, the checked one navy-bordered, faint-filled and bold — part of the design, not bare
+       radios floating in space ("looks undesigned"). Real radios, for accessibility; :has() styles. */
     .bp-mode-toggle, .hpp-mode-toggle { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
     .bp-mode-opt, .hpp-mode-opt {
       display: flex; align-items: center; gap: 10px; cursor: pointer;
       font-size: var(--type-medium); color: var(--text-dark); line-height: 1.35;
-      /* Softer resting box (v18.33 polish, was --border-mid 2px) — the unselected options recede so
-         the navy-outlined active one carries the emphasis. Same 2px width both states → no reflow. */
+      /* A soft resting box, so the navy-outlined choice carries the emphasis; 2px in both states,
+         so choosing never reflows. */
       border: 2px solid var(--border-light); border-radius: var(--radius-sm);
       padding: 10px 12px; background-color: white;
       transition: border-color var(--dur-fast) var(--ease-standard),
@@ -1019,48 +943,42 @@
     }
     /* The ring is on the ROW (above); the box's own is suppressed — see .gen-obj in links.css. */
     .bp-mode-opt input[type="radio"]:focus-visible, .hpp-mode-opt input[type="radio"]:focus-visible { outline: none; box-shadow: none; }
-    /* Manual entry disabled while the paid-in payslip is still in the future (v18.48) —
-       there is no printed figure to copy until it exists. calcBackPay owns the state. */
+    /* Manual entry is disabled while the paid-in payslip is still in the future — there is no printed
+       figure to copy until it exists. calcBackPay owns the state. */
     .bp-mode-opt--disabled { opacity: 0.55; }
     .bp-mode-opt--disabled, .bp-mode-opt--disabled input { cursor: default; }
-    /* Why the manual option is unavailable, said in the row (v23.50). It needs `display: block`
-       to sit under the label text rather than beside it — which OUT-SPECIFIES the UA `[hidden]`
-       rule, so the `[hidden]` line below is load-bearing and not belt-and-braces. That is the
-       page-visibility-parity trap: without it the reason renders permanently, including on the
-       payslip where the option IS available. (This comment claimed the opposite until v23.52.) */
+    /* Why the manual option is unavailable, said in the row. Its `display: block` (to sit under the
+       label) OUT-SPECIFIES the UA `[hidden]` rule, so the `[hidden]` line below is load-bearing —
+       the page-visibility-parity trap: without it the reason shows where the option IS available. */
     .bp-mode-text { flex: 1 1 auto; }
     .bp-mode-why { display: block; font-size: var(--type-small); font-weight: 400; color: var(--text-mid); margin-top: 2px; }
     .bp-mode-why[hidden] { display: none; }
-    /* The compact "rates on record" line replacing the locked Old→New boxes (v18.48) */
+    /* The compact "rates on record" line, in place of the locked Old→New boxes */
     #bpRatesLine { margin: 0 0 14px; line-height: 1.5; }
-    /* Per-option figure on the HPP amount-source rows (v18.40 — review item 4): each radio shows
-       its CURRENT £ on the right so the choice is informed. "≈" marks the two estimates; the
-       member's own figure shows plain. Empty span = that source has nothing to offer (costs no
-       space — the text flexes into it). */
+    /* Each HPP amount source shows its CURRENT £ on the right, so the choice is informed: "≈" marks
+       the two estimates, the member's own figure shows plain, and an empty span (nothing to offer)
+       costs no space. */
     .hpp-mode-text { flex: 1 1 auto; }
     .hpp-mode-amt {
       font-size: var(--type-label); font-weight: 700; color: var(--primary-blue);
       font-variant-numeric: tabular-nums; white-space: nowrap;
     }
-    /* Locked (confirmed-award) rate boxes — read as fixed VALUES, matching the Settings read-only
-       rate treatment (solid faint fill, bold, small 🔒; unified v17.93 / lock added v18.00). */
+    /* The locked (confirmed-award) rate boxes read as fixed VALUES, as the read-only Settings rate
+       does: a faint fill, bold, and the 🔒. */
     input.bp-rate-locked { background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
       border-color: var(--border-light); cursor: default; padding-right: 32px; }
-    /* Locked boxes suppress the "active field" glow — they are not editable, so brightening them
-       would lie. But they stay in the Tab order (the JS sets `readOnly`, not `disabled`), so they
-       must still show WHERE you are: `outline: none` here left four reachable inputs with no focus
-       indicator at all, which no axe rule and no screenshot baseline can see. (v18.99) */
+    /* No "active field" glow — brightening a box nobody can edit would lie. But they stay in the Tab
+       order (`readOnly`, not `disabled`), so they must still show WHERE you are: `outline: none`
+       here once left four reachable inputs with no focus indicator, which no axe rule can see. */
     input.bp-rate-locked:focus { box-shadow: none; }
     input.bp-rate-locked:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     .pfx:has(> input.bp-rate-locked)::after {
       content: "🔒"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
       font-size: var(--type-small); opacity: .5; pointer-events: none;
     }
-    /* The STORY strip leading the back-pay card (v18.00 as the award-context line; promoted to the
-       card's lead narrative v18.39 — which award, paid from which payslip, backdated to which
-       1 April, and this member's rough £, written live by calcBackPay via bpStoryHtml). Navy info
-       voice (mirrors .backpay-notice geometry; navy = informational, gold = warning); one type step
-       up from a hint because it now IS the card's message, not context for it. */
+    /* The STORY strip leading the back-pay card — which award, paid from which payslip, backdated to
+       which 1 April, and this member's rough £ (calcBackPay, via bpStoryHtml). The navy info voice
+       (navy = informational, gold = warning), one type step above a hint: it IS the card's message. */
     .bp-award-scope {
       font-size: var(--type-label); color: var(--text-dark); line-height: 1.55;
       border-left: 3px solid var(--primary-blue); padding: 10px 12px;
@@ -1082,8 +1000,7 @@
   /* ── CLEAR BUTTON confirming state ── */
   .clear-btn.confirming { color: var(--error-red) !important; }
 
-    /* ── ABOUT LIGHTBOX — overrides on top of shared.css base ── */
-    /* Tighter horizontal padding than the default 40px in shared.css */
+    /* ── ABOUT LIGHTBOX — tighter side padding than shared.css's 40px ── */
     #iconLightboxContent { padding: 36px 32px 28px; }
 
     /* ═══════════════════════════════════════════════════════════════════
@@ -1116,70 +1033,36 @@
       .period-hint    { margin-top: 0; }
       #rosterViewLink { grid-column: 1 / -1; } /* span both cols of the period-controls subgrid */
 
-      /* Buttons: stop at 280px — no need to span a 720px card */
+      /* Buttons stop at 280px — no need to span a 720px card — except in the ~400px sidebar, where
+         the backup card's primary sat 280px wide over a full-width secondary (a mismatched pair
+         reads as a fault), and under the Settings fields: a button under a field matches the field
+         (css-tokens.md), as on mobile. */
       .btn-primary { max-width: 280px; }
-      /* …but the SIDEBAR is ~400px, not 720, and its one primary button ("Download backup") sat
-         280px wide directly above a full-width secondary ("Copy as text") — a mismatched pair
-         under one heading, which reads as a rendering fault rather than a hierarchy (v22.14).
-         The cap is about the wide work column; this card is not in it. */
-      #payTransferBody .btn-primary { max-width: none; }
-      /* …and "Save settings" sits directly under the Settings fields, which span the card — so the
-         cap left a 280px button beside a 648px field at 1280px (polish round 2). A button under a
-         field matches the field (css-tokens.md), which is what the mobile layout already does. */
-      #saveSettingsBtn { max-width: none; }
-
-      /* Help lightbox: wider at tablet */
-      #helpLightboxContent { width: min(520px, 88vw); }
+      #payTransferBody .btn-primary, #saveSettingsBtn { max-width: none; }
     }
 
-    /* ── Desktop: 1024px — three-column WORKSPACE (v16.67; single shared row v18.47) ──
-       Two wide work columns (the .pc-work wrapper: period band + Hours + Settings) + a col-3
-       SIDEBAR (.pc-side: result + the four occasional cards). Since v18.47 both wrappers share
-       ONE grid row, so neither column's height can inflate the other's internal spacing (the
-       old row-span model let an all-expanded sidebar open a navy void between the period band
-       and Hours). Both wrappers are display:contents on mobile (the SAME source gives a good
-       mobile stack), so nothing in this block reaches mobile/tablet. Full rationale:
-       .claude/rules/paycalc.md → Desktop workspace. */
+    /* ── Desktop: 1024px — a three-column WORKSPACE in ONE shared grid row: .pc-work (period band,
+       Hours, Settings) across the two wide work columns, .pc-side (the result and the occasional
+       cards) in col 3. One row, so neither column's height can inflate the other's spacing — a
+       sidebar spanning the left items' rows opened a navy void between the period band and Hours.
+       Both wrappers are display: contents on mobile, so nothing here reaches mobile or tablet.
+       Rationale: .claude/rules/paycalc.md → Desktop workspace. */
     @media (min-width: 1024px) {
-      /* 1100px content band: two work columns (~636px combined form entry) + a ~400px col-3
-         sidebar. 1400px was too wide — descriptions ran unreadably long. */
+      /* The 1100px band: two work columns + a ~400px sidebar (1400px ran descriptions unreadably long). */
       .app { max-width: var(--content-max-width); }
 
-      /* Cap the measure on the full-width prose blocks so they don't run to ~150ch on desktop (the
-         rest of the page caps text at the sidebar column). Left-aligned.
-
-         ONE EXPLICIT LENGTH, not `72ch` (v18.91). These bands stack directly on top of each other,
-         so the goal is a shared left AND right edge — and `ch` cannot deliver that here, because it
-         resolves against each element's OWN font-size: the same `72ch` gave the 12px notes 576px
-         and the 14px setup banner 648px, leaving exactly the 72px step in the right edge that
-         capping the banner (v18.89) was meant to remove. 576px is the width the notes already had,
-         so only the banner moves. Change these together or they drift apart again. */
-      /* The disclaimer's measure lives on its PARAGRAPH, not its box (polish pass) — the v23.71
-         rule for the bands at the top, applied to the one at the bottom. The box used to span
-         1 / -1 and be capped at 576px, which tracked nothing on the page: at 1280 it stopped 104px
-         short of the work column above it, and at 1024 it ran 34px PAST that column's right edge
-         into the gutter. It now spans the work columns like the privacy note (see the grid block
-         below), and the prose keeps its reading measure. */
+      /* The reading measure lives on the PARAGRAPH, never the box: the boxes span the work columns
+         (below), so the page has one left and one right edge, and the prose inside keeps a measure.
+         A 576px box cap tracked nothing — 104px short of the column at 1280, past it at 1024. */
       .disclaimer-text { max-width: 72ch; }
-      /* The setup banner is prose too, and was the ONE full-width band never capped (v18.89): it ran
-         the whole 1100px — about 150ch, double the documented ~75ch ceiling — directly above the
-         privacy strip, which IS capped. So the band obeying the rule looked narrow beside the band
-         breaking it. Capping the BOX (not just the paragraph) fixes the reading measure. */
-      /* The BOX now matches the column; the PROSE keeps its reading measure. Capping the box was
-         what produced the ragged right edge above. */
       .setup-banner p { max-width: 68ch; }
-
-      /* The Settings card's field hints ran to 90ch here — measured, and over the documented
-         ~64–72ch ceiling. Capped at 64ch to match operations' `.card .hint`, the app's existing
-         in-card convention. `ch` IS right for these, unlike the stacked bands above: each hint
-         sits under its own field rather than sharing a right edge with a differently-sized
-         neighbour, which is the case that made `ch` wrong there. */
+      /* Field hints ran to 90ch, over the ~64–72ch ceiling: 64ch, operations' `.card .hint`
+         convention. `ch` suits these — each sits under its own field, sharing no edge with a band. */
       .field-hint, .roster-card-note { max-width: 64ch; }
 
-      /* Grid on <main>: the .pc-work wrapper spans the TWO wide work columns (~660px → forms
-         wrap far less — the real scroll-reduction lever) beside the col-3 .pc-side sidebar,
-         both in one shared row (v18.47). Three columns are kept (not two) so the period band /
-         Hours / Settings keep their tuned ~680px width against a 360–400px sidebar. */
+      /* Grid on <main>: .pc-work spans the TWO wide work columns (~660px, so forms wrap far less —
+         the real scroll-reduction lever) beside the col-3 sidebar. Three columns, not two, keep the
+         work stack's tuned ~680px against a 360–400px sidebar. */
       main {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(360px, 400px);
@@ -1192,54 +1075,32 @@
          only vertical spacing (avoids 32px double-gaps). */
       main > * { margin-bottom: 0; }
 
-      /* Full-width bands above the workspace. #setupBanner is display:none when hidden, so
-         its row collapses and privacy-note becomes the topmost visible row with no gap. */
-      /* THE WORK COLUMNS, NOT THE WHOLE GRID (v23.71). Both bands used to span 1 / -1 — every
-         column INCLUDING the sidebar — and were then capped at 576px to stop the prose running
-         1100px. That cap is a magic number with no relationship to anything on the page: the card
-         stack directly beneath them is 680px, so each band stopped 104px short of the column it
-         sits on top of, sharing its left edge and missing its right one. Three different right
-         edges down one page, and the app's own rule for this (v22.22) is that a gutter on both
-         sides reads as deliberate while a gutter on ONE side reads as unfinished.
-         Spanning the work columns makes the width structural instead: 680px at 1280 and 1440,
-         543px at 1024, tracking `.pc-work` exactly at every width with nothing to keep in sync.
-         The reading measure the cap was protecting is kept where it belongs — on the PARAGRAPH,
-         not on the box that positions it, which is the same v22.22 rule from the other side. */
+      /* The bands above the workspace span THE WORK COLUMNS, not the whole grid, so their width is
+         structural — 680px at 1280, 543px at 1024, tracking .pc-work — with a gutter on both sides
+         or neither: one side only reads as unfinished. A hidden #setupBanner collapses its row. */
       #setupBanner             { grid-column: 1 / 3; grid-row: 1; }
-      /* The refusal card is the exception, and on purpose: it is the ONLY thing on the page (the
-         work columns, the sidebar and both footer rows are hidden with it — role-unsupported,
-         below), so there are no edges for it to share. It spans the whole band and the panel
-         recipe's `margin: auto` centres it, as the sign-in card is centred over the same page. */
+      /* The refusal card is the exception, on purpose: it is the ONLY thing on the page (everything
+         else is hidden with it — role-unsupported, below), so it has no edges to share. It spans the
+         band and the panel recipe's `margin: auto` centres it, as the sign-in card is centred. */
       #unsupportedGradeBanner  { grid-column: 1 / -1; grid-row: 1; }
       .privacy-note-standalone { grid-column: 1 / 3; grid-row: 2; }
 
-      /* THE WORKSPACE IS ONE SHARED GRID ROW (v18.47 — sweep item 1, the expanded-sidebar void
-         fix). Previously the left items (period band / Hours / Settings) were three separate grid
-         rows the sidebar SPANNED (grid-row: 3 / 6) — so when the sidebar's expanded cards grew
-         taller than the left column, CSS grid distributed the excess across all three spanned
-         tracks, inflating row 3 and opening a large navy void between the period band and Hours.
-         Now BOTH columns are wrappers sharing row 3: .pc-work (a flex column: period band first
-         via `order`, then Hours, then Settings — mobile keeps the Settings-first DOM order via
-         display:contents) in the two wide work columns, .pc-side in col 3. Neither wrapper can
-         inflate the other's internal spacing — whichever column is shorter simply ends, leaving
-         the residual gap at that column's BOTTOM (the accepted least-prominent spot, exactly like
-         admin/operations), never mid-page. */
+      /* Both wrappers share row 3; whichever column is shorter simply ends, so the leftover gap falls
+         at its BOTTOM (the accepted least-prominent spot, as on admin and operations), never mid-page. */
       .pc-work {
         grid-column: 1 / 3; grid-row: 3; align-self: start;
         display: flex; flex-direction: column; gap: 16px;
       }
       .pc-work > * { margin-bottom: 0; }   /* flex `gap` owns the spacing (the `main > *` reset misses these nested cards) */
-      /* Period band heads the work stack (v16.26 rationale): flush-left, same ~680px width the
-         internal #periodSelect + meta/save rows were tuned for (v15.70). Hours before Settings
-         (Fill from calendar at its top = the obvious first action, top-left). */
+      /* The period band heads the work stack, then Hours (Fill from calendar at its top is the obvious
+         first action), then Settings. `order` moves paint, not Tab, so the DOM matches
+         (wireSettingsCard, paycalc-settings.js); these hold the order for the paint before it runs. */
       .period-controls { order: 1; }
       #hoursCard       { order: 2; }
       #settingsCard    { order: 3; }
 
-      /* COLUMN-3 SIDEBAR (v16.67): result card + the four occasional cards, stacked tight — the
-         result (the take-home £) heads the TOP-RIGHT corner, level with the period band. The
-         result is NOT sticky (the retired v16.14 rail was); the fixed #stickyTotal bar keeps the
-         take-home figure visible while scrolling. */
+      /* COLUMN-3 SIDEBAR: the result (the take-home £, top right, level with the period band) and the
+         occasional cards. NOT sticky — the fixed #stickyTotal bar keeps the £ in view. */
       .pc-side {
         grid-column: 3; grid-row: 3; align-self: start;
         display: flex; flex-direction: column; gap: 16px;
@@ -1247,46 +1108,31 @@
       .pc-side > * { margin-bottom: 0; }   /* flex `gap` owns the spacing (the `main > *` reset misses these nested cards) */
 
       /* The footer rows sit on the work columns too, so the page has the SAME two edges at the
-         bottom as at the top (the privacy note, above). Spanning 1 / -1 centred the guide link on
-         the whole band and left the disclaimer's right edge matching nothing. */
+         bottom as at the top. */
       .guide-footer-link    { grid-column: 1 / 3; grid-row: 4; }
       .disclaimer           { grid-column: 1 / 3; grid-row: 5; }
-      /* THE BANDS' MOBILE MARGINS ARE NOT THE GRID'S GAP. `main > * { margin-bottom: 0 }` above
-         is (0,0,1) and loses to each band's own class rule, so the setup banner, the privacy note
-         and the guide link each kept their 12–16px margin ON TOP of the 16px row-gap: 32px and 28px
-         steps between the top bands and the workspace, beside the 16px rhythm of every card below
-         them — the exact double-gap the v18.47 wrapper resets were written to end. */
+      /* `main > *` (0,0,1) loses to each band's own margin rule, which then sat ON TOP of the 16px
+         row-gap — 32px and 28px steps beside every other 16px. These are the bands' resets. */
       main > .setup-banner, main > .privacy-note-standalone, main > .guide-footer-link { margin-bottom: 0; }
     }
-    /* A HIDDEN TOP NOTE MUST NOT LEAVE ITS GAP BEHIND (v24.32). The privacy note owns grid row 2, and
-       an empty grid row still takes a row-gap on each side, so once the note became first-visit-only
-       a returning member's workspace dropped 16px lower than it used to sit (measured at 1280: 128px
-       from the top of <main> against 112px). Pulling the workspace up by one gap restores it, with the
-       setup banner shown or not. `screen` because the print block lays <main> out as a flex column
-       with its own gap, where this would overlap the cards. */
+    /* A HIDDEN TOP NOTE MUST NOT LEAVE ITS GAP: the privacy note owns row 2, and an empty row still
+       takes a row-gap, so a returning member's workspace sat 16px low; this pulls it up one gap.
+       `screen`: print lays <main> out as a flex column with its own gap, where this would overlap. */
     @media screen and (min-width: 1024px) {
       main:has(> #privacyNoteTop.hidden) > :is(.pc-work, .pc-side) { margin-top: -16px; }
     }
     @media (min-width: 1024px) {
-
-      /* Headline figure benefits from the extra horizontal space */
+      /* The headline figure takes the extra width, and Fill from calendar — the obvious first action,
+         top left — a little more presence (scoped to the Hours card). */
       .net-amount { font-size: 60px; }
       .net-period { font-size: var(--type-large); }
-
-      /* Fill from calendar — the obvious first action, top-left of the workspace. A little
-         more presence on the roster hint bar's primary button on desktop (scoped to the
-         Hours card so mobile is untouched). */
       #hoursCard .fill-roster-btn { padding: 12px 22px; font-size: var(--type-button); }
-
-      /* Lightbox: comfortable reading width */
-      #helpLightboxContent { width: min(620px, 85vw); }
     }
 
     /* ── PRINT STYLES ────────────────────────────────────────────────── */
-    /* Paycalc prints as a keep-able pay estimate (v18.71 print pass): the RESULT (take-home +
-       full breakdown) LEADS, then the hours entered, then the settings context — the input-form
-       chrome, occasional cards and EVERY overlay are stripped, and the navy result hero prints
-       ink-light (navy-on-white) instead of a full ink block. */
+    /* Paycalc prints as a keep-able pay estimate: the RESULT (take-home + full breakdown) LEADS,
+       then the hours entered, then the settings context — the input-form chrome, occasional cards
+       and EVERY overlay are stripped, and the navy hero prints navy-on-white, not an ink block. */
     @media print {
       @page { margin: 1.2cm; size: A4 portrait; }
       * {
@@ -1301,11 +1147,9 @@
         margin: 0 !important; overflow: visible !important;
         min-height: auto !important;
       }
-      /* Lead with the result: one column ordered result → hours → settings → disclaimer.
-         The flex container is <main> (it holds .pc-work/.pc-side/.disclaimer — .app is just the
-         outer max-width wrapper). Order the WRAPPERS (not their cards via display:contents, which
-         doesn't reliably honour `order`): .pc-side (result) first, then .pc-work (settings+hours)
-         with hours ahead of settings inside it, then the disclaimer. */
+      /* One column: result → hours → settings → disclaimer. The flex container is <main> (.app is
+         only the max-width wrapper), and the WRAPPERS are ordered, not their cards through
+         display: contents, which does not reliably honour `order`. */
       .app { max-width: 100% !important; display: block !important; }
       main { display: flex !important; flex-direction: column !important; gap: 10px !important; }
       .pc-work, .pc-side { display: flex !important; flex-direction: column !important; gap: 10px !important; }
@@ -1315,8 +1159,8 @@
       #hoursCard    { order: 1 !important; }
       #settingsCard { order: 2 !important; }
 
-      /* Hide EVERY overlay (an open Welcome / notice / help lightbox must never print over the
-         page — the pre-v18.71 bug) plus all interactive-only chrome and the occasional cards. */
+      /* EVERY overlay (an open lightbox must never print over the page), the interactive-only
+         chrome and the occasional cards. */
       .lb-overlay,
       #iconLightbox, #helpLightbox, .setup-banner, .period-controls, .save-row,
       #saveSettingsBtn, #actualsImportBtn,
@@ -1356,21 +1200,16 @@
       .result-net { background: white !important; }
       .net-label, .net-amount, .net-period { color: var(--primary-blue) !important; }
       .bd-body { max-height: none !important; overflow: visible !important; }
-      /* The Settings card prints its VALUES, whatever it was doing on screen (v23.20).
-         `.collapsible-body` rests at `max-height: 0; overflow: hidden` with its padding forced to
-         zero, and the print block above lifts that for `.bd-body` only — so a collapsed Settings
-         card printed the heading "⚙ Your Settings" and its hint, and then nothing. Not merely
-         incomplete: a heading that ASSERTS the provenance is below it, over a blank space. The
-         estimate on that sheet is a take-home figure with no grade, rate, tax code, pension or
-         student-loan assumption to check it against later, which is most of what makes a printed
-         estimate worth keeping.
-         And collapsed is the NORMAL state, not an edge case — `paycalc-settings.js` opens the card
-         only for first-time users, and CLOSES it 2.5s after a successful save. Every established
-         member prints from the collapsed state. It is the one collapsible body that survives into
-         print (the other five cards are `display: none` in the list above), so this is the whole
-         fix, not the first of several. */
+      /* The Settings card prints its VALUES, whatever it was doing on screen. A shut
+         `.collapsible-body` is `max-height: 0; overflow: hidden`, padding zero and `visibility:
+         hidden`, so a collapsed card printed "⚙ Your Settings" over a blank — a take-home figure with
+         no grade, rate, tax code, pension or loan to check it against later. Collapsed is the NORMAL
+         state (the card closes 2.5s after a save), and this is the one collapsible body that prints
+         (the other cards are hidden above). Transition off: the delayed visibility would outrank
+         `!important` for 0.3s. */
       #settingsBody {
         max-height: none !important; overflow: visible !important;
+        visibility: visible !important; transition: none !important;
         padding-top: 8px !important; padding-bottom: 16px !important;
       }
       .content-card {
@@ -1380,9 +1219,8 @@
         page-break-inside: avoid !important;
         margin-bottom: 0 !important;
       }
-      /* `gap` owns the print flow's spacing, exactly as it does for the two cards above. */
-      /* …and it prints as the cards around it do: a hairline, not a screen shadow smudged under
-         the last line of the first sheet. */
+      /* `gap` owns the print flow's spacing, as for the two cards above, and it prints as they do:
+         a hairline, not a screen shadow smudged under the last line of the first sheet. */
       .ytd-yearso {
         margin-bottom: 0 !important;
         box-shadow: none !important; border: 1.5px solid var(--border-light) !important;
@@ -1401,7 +1239,7 @@
       .stepper-val { font-weight: 700 !important; font-size: var(--type-label) !important; }
       .disclaimer {
         box-shadow: none !important; font-size: var(--type-micro) !important;
-        border-left: 3px solid var(--primary-blue) !important;
+        border-left: 3px solid var(--primary-blue) !important; padding-left: 14px !important; /* shows on paper */
       }
       /* Paper cannot expand a "More ▼", so the sheet carries the whole disclaimer and not the
          control — a printed estimate is exactly where the caveats about how tax was worked out
@@ -1434,14 +1272,9 @@
     /* ── YTD NOTICE LIGHTBOX ─────────────────────────────────────────── */
     /* emoji → app name → badge → desc (the shape the retired welcome lightbox set) */
     #noticeYtdLightbox { z-index: var(--z-notice); }
-    /* THE CARD ITSELF IS `.notice-lb-content` IN shared.css AND ALWAYS SHOULD HAVE BEEN (v23.33).
-       An id-level block here restated the whole card — the old translucent glass, centred layout,
-       36/40px padding, a 300px width — so this one notice was silently exempt from the shared
-       component while shared.css's own comment said "do NOT add page-specific overrides". It was
-       found when the v23.32 redesign reached four notices out of five. The `.open` transform went
-       with it: `.lb-overlay.open .lb-content` already does that for every panel, and an id-level
-       transform on a lightbox panel is the exact shape lightbox-transform-parity.test.mjs exists
-       to catch. Close-button colour is now `.notice-lb-content .lb-close`, shared with the rest. */
+    /* The card itself is `.notice-lb-content` in shared.css — never restate it here by id: a copy
+       left this one notice out of a redesign that reached the others, and an id-level transform on
+       a lightbox panel is the shape lightbox-transform-parity.test.mjs exists to catch. */
     #noticeYtdContent strong { color: rgba(255,255,255,0.9); }
 
     /* ── REDUCED MOTION ──────────────────────────────────────────────── */
@@ -1457,7 +1290,6 @@
       }
     }
 
-  /* ── COLLAPSIBLE CARDS (Settings, Payslip, HPP, Back Pay) ── */
   /* ── DECIMAL HOURS CONVERTER ── */
   .decimal-conv-row {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
@@ -1477,8 +1309,7 @@
     transition: border-color var(--dur-med), background-color var(--dur-med);
   }
   .decimal-hrs-input:focus-visible { border-color: var(--primary-blue); outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring); background-color: white; }
-  /* Both columns now carry an eyebrow label, so the boxes align naturally — the old +20px
-     padding/margin compensation hacks are gone; the = centres on the box row instead. (v18.02) */
+  /* Both columns carry an eyebrow label, so the boxes align; the = centres on the box row. */
   .decimal-conv-equals {
     font-size: 20px; font-weight: 700; color: var(--text-light);
     flex-shrink: 0; align-self: flex-end; padding-bottom: 9px;
@@ -1490,39 +1321,35 @@
     border: 2px solid var(--border-light);
   }
 
-  /* .card-header-toggle / .card-toggle-arrow — PROMOTED to shared.css (v18.16, canonical
-     header system for all pages). The arrow is the focusable collapse toggle (v17.50). */
+  /* ── COLLAPSIBLE CARDS ── the header is shared.css's; the arrow is the focusable toggle */
   .card-toggle-arrow { cursor: pointer; }
   .card-toggle-arrow:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 3px; }
   .collapsible-body {
     max-height: 0; overflow: hidden;
-    /* A CONTAINING BLOCK, so the clip above actually reaches what is inside (v23.71).
-       `overflow: hidden` clips an absolutely-positioned descendant only when the clipping element
-       is that descendant's CONTAINING BLOCK — and a `position: static` box is not one. Every
-       enhanced picker keeps the real `<select>` as a 1px `opacity: 0` value holder at
-       `position: absolute`, so inside a collapsed card those selects escaped the clip, kept the
-       offset they had when the card was open, and held the DOCUMENT open beneath a card that is
-       visibly 56px tall. Measured with only Your Settings collapsed: 517px of empty navy below the
-       disclaimer, the document 2,387px against content ending at 1,870.
-       `position: relative` costs nothing — this box paints no background and positions no child of
-       its own — and it is the fix that does not MOVE anything. Pinning the selects to `top/left: 0`
-       was tried first and is why this comment exists: it cured the height and put the Calendar's
-       member select on top of the ← Prev button, which `e2e/calendar.spec.js`'s overlap guard
-       caught at six widths. The bug is that the clip does not reach the select, not that the select
-       is in the wrong place. */
+    /* A CONTAINING BLOCK, so the clip reaches what is inside: `overflow: hidden` clips an
+       absolutely-positioned descendant only when it is that descendant's containing block, and a
+       static box is not one. Every enhanced picker keeps its real <select> as a 1px `opacity: 0`
+       value holder at `position: absolute`, so a collapsed card's selects escaped the clip and held
+       the DOCUMENT open beneath it (517px of empty navy below the disclaimer). `position: relative`
+       moves nothing — the box paints no background and positions no child of its own. Pinning the
+       selects to `top/left: 0` instead put the Calendar's member select over ← Prev (caught by
+       e2e/calendar.spec.js's overlap guard): the fault is the clip, not where the select sits. */
     position: relative;
-    /* One duration for the whole reveal (v18.87). Height ran 0.4s while its own padding ran 0.3s,
-       so the last 100ms of every card opening was height-only — the padding had already settled.
-       Now all three share --dur-slower, matching .boxing-banner's reveal on the same page. */
-    transition: max-height var(--dur-slower) var(--ease-standard), padding-top var(--dur-slower) var(--ease-standard), padding-bottom var(--dur-slower) var(--ease-standard);
+    /* SHUT TO THE KEYBOARD TOO (desktop audit, 7 Nov 2026): the clip hid only the eye — 20 of 61 Tab
+       stops sat in shut cards, and Space on the unseen pension tick moved the £. Hidden once the close
+       has played (the delay below); visible at once on open, so a script may open and focus in one go. */
+    visibility: hidden;
+    /* One duration for height and padding (--dur-slower, as .boxing-banner's reveal): with them
+       split, the last 100ms of every opening was height-only. */
+    transition: max-height var(--dur-slower) var(--ease-standard), padding-top var(--dur-slower) var(--ease-standard), padding-bottom var(--dur-slower) var(--ease-standard), visibility 0s linear var(--dur-slower);
     padding-top: 0 !important; padding-bottom: 0 !important;
   }
   .collapsible-body.open {
-    /* 1800px is a finite cap so the open/close can ANIMATE (max-height:none can't tween).
-       The tallest body is #backPayBody — MEASURED at ~1404px with a full 13-period breakdown
-       expanded (chrome ~1028px + 13 rows), comfortably under this cap, so it does not clip at
-       realistic sizes (v17.25 verification pass). Revisit only if a body could exceed ~1800px. */
+    /* A finite cap so the open/close can ANIMATE (max-height: none cannot tween). The tallest body,
+       #backPayBody with a full 13-period breakdown, MEASURED ~1404px; revisit only if one could
+       exceed 1800px. */
     max-height: 1800px;
+    visibility: visible; transition-delay: 0s;
     padding-top: 8px !important; padding-bottom: 16px !important;
   }
 
@@ -1533,8 +1360,7 @@
   .ty-tab {
     flex: 1; padding: 7px 8px;
     background: transparent; color: var(--text-mid);
-    /* A tab is a button, so it wears the button corner (v25.12 — was --radius-sm). Overtime's
-       `.ot-tab` is sized to match this one and moved with it. */
+    /* A tab is a button, so it wears the button corner; Overtime's `.ot-tab` is sized to match. */
     border: 1.5px solid var(--border-mid); border-radius: var(--radius-button);
     font-size: var(--type-small); font-weight: 700;
     cursor: pointer; touch-action: manipulation;
@@ -1542,7 +1368,7 @@
     font-family: inherit;
   }
   .ty-tab:active { transform: scale(var(--press-scale)); }
-  /* The chosen year wears the page's green (v25.16 — it was navy; shared.css → "CHOSEN = THE PAGE'S COLOUR"). */
+  /* The chosen year wears the page's green (shared.css → "CHOSEN = THE PAGE'S COLOUR"). */
   .ty-tab.active {
     background: var(--page-accent); color: var(--page-accent-ink); border-color: var(--page-accent);
   }
@@ -1556,7 +1382,6 @@
     padding: 10px 0; border-top: 1px solid var(--border-light);
   }
   .toggle-row label, .toggle-row-text { font-size: var(--type-body); color: var(--text-mid); cursor: pointer; margin: 0; font-weight: 400; }
-  .toggle-row.hidden { display: none; }
   /* THE ROW IS THE LABEL for the three money-deciding ticks (pension membership, a postgraduate
      loan, a skipped student-loan deduction) — so the whole 43px row is the tap target, not the 22px
      box. The label used to be a SIBLING of the box, which left the box itself the only target the
@@ -1575,12 +1400,8 @@
   /* Same rhythm for the dated opt-out question that the pension tick reveals: it is a nested
      `.field` directly after a hint, so its label sat hard under "…Railways Pension Scheme." */
   #pensionOptOutField { margin-top: 14px; }
-  .hours-row.hidden { display: none; }
 
-  /* (Result peek button removed v16.78 — the take-home figure appeared three times on
-      mobile; the sticky bar below carries the same live figure and tap-to-scroll.) */
-
-  /* ── STICKY TAKE-HOME BAR (all widths since v16.12; desktop capped + centred below) ── */
+  /* ── STICKY TAKE-HOME BAR (all widths; desktop capped and centred below) ── */
   #stickyTotal {
     display: none;
     position: fixed; bottom: 0; left: 0; right: 0;
@@ -1588,7 +1409,7 @@
     padding: 10px 20px;
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
     /* and the side insets: iOS ignores the manifest's portrait lock, and in landscape the Dynamic
-       Island takes the left or right edge, where the payday label or the £ figure sat (v24.61) */
+       Island takes the left or right edge, where the payday label or the £ figure sat */
     padding-left: max(20px, env(safe-area-inset-left));
     padding-right: max(20px, env(safe-area-inset-right));
     z-index: 200;
@@ -1606,9 +1427,8 @@
     flex: 1 1 auto; min-width: 0;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  /* Two-weight label (v18.15): the payday is the load-bearing half — full-white semibold — while
-     the boilerplate descriptor is muted. Replaces the flat whole-label 0.75 opacity, which gave
-     "Paid 31 Jul" the same visual weight as the boilerplate beside it. */
+  /* Two weights: the payday is the load-bearing half (white semibold), the boilerplate beside it
+     muted — one flat weight gave "Paid 31 Jul" no more presence than its descriptor. */
   #stickyTotal .sticky-label .s-pay  { font-weight: 600; }
   #stickyTotal .sticky-label .s-desc { opacity: 0.72; }
   #stickyTotal .sticky-amount {
@@ -1617,25 +1437,30 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum' 1;
   }
-  /* iOS soft keyboard: the bar is PINNED above the keyboard (v21.65 — was display:none, which is
-     what staff reported as "the total is slow to update": the figure was hidden for the whole
-     typing session). The translateY glue lives in paycalc-app.js (_pinSticky, visualViewport);
-     this class only swaps the padding — the safe-area inset is UNDER the keyboard, and keeping
-     it while pinned made the bar a home-indicator taller than it is anywhere else. */
+  /* iOS soft keyboard: the bar is PINNED above the keyboard — hidden, the figure was gone for the
+     whole typing session ("the total is slow to update"). The translateY glue is _pinSticky in
+     paycalc-sticky-total.js; this class only swaps the padding, because the safe-area inset is
+     UNDER the keyboard and keeping it made the bar a home-indicator taller than anywhere else. */
   #stickyTotal.keyboard-up { padding-bottom: 10px; }
-  /* Desktop (v16.12): the bar runs here too. Since v16.67 the result card is a STATIC card at
-     the top of the col-3 sidebar (.pc-side — the sticky rail was retired); the bar is the
-     backstop once the £ figure scrolls out of view. Capped and centred to the content band so
-     it doesn't run the full window width. */
+  /* A Tab stop on navy: the light ring, inside the edge the window cuts (the navy one vanished; desktop audit). */
+  #stickyTotal:focus-visible { outline: var(--focus-outline-light); outline-offset: -4px; }
+  /* Desktop: the result card is static at the top of the sidebar, so the bar is the backstop once
+     the £ scrolls away — capped and centred to the content band, not the full window. */
   @media (min-width: 1024px) {
     #stickyTotal {
       left: 50%; right: auto; transform: translateX(-50%);
       width: min(100%, var(--content-max-width));
       border-radius: var(--radius) var(--radius) 0 0;
+      /* An edge, and the label beside its £ (desktop audit): navy on navy, the bar had no edge, and
+         space-between across 1,100px put the two ~760px apart. */
+      border: 1px solid var(--on-navy-hairline); border-bottom: 0; justify-content: center; gap: 16px;
     }
+    #stickyTotal .sticky-label { flex: 0 1 auto; }
   }
   /* Space so the disclaimer is never hidden behind the sticky bar */
   body.sticky-active { padding-bottom: max(70px, calc(60px + env(safe-area-inset-bottom))); }
+  /* …and a control reached with Tab is scrolled clear of it, not under it (desktop audit: 84–95% hidden). */
+  html { scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
 
   /* ── GUIDE FOOTER LINK ── */
   .guide-footer-link { text-align: center; margin-bottom: 12px; }
@@ -1668,12 +1493,10 @@
   }
   .roster-state-badge.loaded    { background: var(--conf-high-bg);     color: var(--conf-high-text); }
   .roster-state-badge.base-only { background: var(--boxing-day-bg); color: var(--badge-pending-text); }
-  /* (.conf-high class removed — only the recorded/possible badges are rendered;
-     the --conf-high-* tokens above stay for the .loaded state badge) */
   /* Roster "From your calendar" rows — discrete cards, matching the hours-row +
      admin day-card treatment (white on the cream card, hairline border, var(--radius) corners). */
   .roster-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-  /* The calendar's "none" (v25.06): shown only when a stale figure is waiting for Replace to clear it. */
+  /* The calendar's "none": shown only when a stale figure is waiting for Replace to clear it. */
   .roster-none-note { margin: 0; font-size: var(--type-small); color: var(--text-mid); line-height: 1.45; }
   .roster-row {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
@@ -1685,32 +1508,28 @@
   .roster-row-icon  { font-size: var(--type-body); flex-shrink: 0; width: 20px; text-align: center; }
   .roster-row-label { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); white-space: nowrap; flex-shrink: 0; }
   .roster-row-total { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); min-width: 52px; flex-shrink: 0; }
-  /* The meta column is a WRAPPING flex row (v23.86): its text ("3 days" / "Calendar: 8h") and the
-     confidence chip are siblings, so when the column is too narrow for both the chip drops to its
-     own line whole, instead of a separator dangling at the end of one line and the chip breaking
-     mid-phrase on the next. There is deliberately no " · " between them any more — the chip's own
-     fill is the separator, and a typed one was the thing left dangling. */
+  /* The meta column is a WRAPPING flex row: too narrow for its text ("3 days" / "Calendar: 8h")
+     and the confidence chip together, the chip drops to its own line WHOLE. No " · " between them —
+     the chip's fill is the separator, and a typed one was left dangling at a line end. */
   .roster-row-meta  { font-size: var(--type-micro); color: var(--text-faint); flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
   .roster-cat-arrow { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); flex-shrink: 0; }
-  @media (hover: hover) and (pointer: fine) {
-    .roster-row:hover { background: var(--bg-faint); }
-  }
   .roster-row:focus-visible { outline: var(--focus-outline); outline-offset: -2px; border-radius: var(--radius); }
   .roster-row--matched { background: var(--row-matched-bg); }
   .roster-row--differs { background: var(--row-differs-bg); }
+  /* Hover keeps a row's verdict (desktop audit): (0,2,0) beat the tints, so pointing at "matches" or
+     "differs" turned it plain grey. A tinted row deepens its own tint; this block sits after them. */
+  @media (hover: hover) and (pointer: fine) {
+    .roster-row:hover { background: var(--bg-faint); }
+    .roster-row--matched:hover { background: color-mix(in oklch, var(--row-matched-bg) 92%, var(--success-green)); }
+    .roster-row--differs:hover { background: color-mix(in oklch, var(--row-differs-bg) 94%, var(--orange)); }
+  }
   .roster-cat-match { font-size: var(--type-small); font-weight: 700; color: var(--row-matched-text); flex-shrink: 0; }
   .roster-row--differs .roster-row-total { color: var(--chip-ot-bg); }
   .roster-cat-arrow--differs { color: var(--chip-ot-bg); }
-  /* The chip WRAPS inside its column (v23.86). It was `white-space: nowrap`, and the meta column it
-     sits in is ~110px wide on a phone once the icon, label, a "16h 30m entered" total and the arrow
-     have taken theirs — so the longest chip, "Includes an 8h estimate — check", ran clean off the
-     right edge of the row and the card (owner screenshot, 15 Sep 2026). Nothing failed: an overflow
-     paints. `white-space: normal` is the whole fix: as a flex item of the wrapping column above the
-     chip may shrink to its longest word, and normal lets the text wrap inside it. (A `max-width:
-     100%` was tried alongside and MEASURED redundant — deleting it changed nothing on either
-     project — so it is not here to be mistaken for load-bearing.) Pinned by e2e/paycalc.spec.js
-     ("chip wraps inside its row"), which reads scrollWidth as well as the box: with `nowrap` the
-     box can be capped while the text still runs out of it. */
+  /* The chip WRAPS inside its column (`white-space: normal`, the whole fix): the meta column is
+     ~110px on a phone, and with `nowrap` the longest chip, "Includes an 8h estimate — check", ran
+     off the row and the card with nothing failing — an overflow paints. Pinned by
+     e2e/paycalc.spec.js ("chip wraps inside its row"), which reads scrollWidth as well as the box. */
   .conf-badge { display: inline-block; font-size: var(--type-micro); padding: 1px 5px; border-radius: 3px; font-weight: 600; vertical-align: middle; line-height: 1.6; white-space: normal; }
   .conf-recorded { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
   .conf-possible { background: var(--conf-possible-bg); color: var(--conf-possible-text); }
@@ -1719,8 +1538,7 @@
     line-height: 1.45; margin: 0 0 8px;
   }
   .roster-card-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  /* Primary-button family member (v18.07 audit): --radius-button, the shared press scale, and the
-     token focus ring — it was the file's only hand-rolled ring + the only pressless primary. */
+  /* A primary-button family member: --radius-button, the shared press scale and the token ring. */
   .fill-roster-btn {
     padding: 10px 16px; background: var(--primary-blue); color: white;
     border: none; border-radius: var(--radius-button); min-height: 44px;
@@ -1729,16 +1547,13 @@
     transition: background var(--dur-med), transform var(--dur-fast) var(--ease-standard);
   }
   .fill-roster-btn:active:not(:disabled) { transform: scale(var(--press-scale)); }
-  /* Nothing fillable (v21.67): the button states it and refuses — an enabled no-op control is
-     indistinguishable from a broken one, which is exactly how it got reported. */
+  /* Nothing fillable: the button says so and refuses — an enabled no-op reads as a broken control. */
   .fill-roster-btn:disabled { opacity: 0.45; cursor: default; }
 
-  /* ── A DISABLED FIELD MUST LOOK DISABLED (v21.69) ──────────────────────────────────────────
-     Found by screenshot review: the HPP "confirmed amount" box is genuinely `disabled` until the
-     January payslip exists, and its hint says so — but it rendered identical to every editable
-     box on the page, so the page showed a typeable-looking field and a sentence explaining why
-     you cannot type in it. Same faint fill + muted ink as the read-only hourly rate, so "you
-     cannot edit this" has ONE appearance across the calculator rather than one per author.
+  /* ── A DISABLED FIELD MUST LOOK DISABLED ───────────────────────────────────────────────────
+     The HPP "confirmed amount" box is `disabled` until the January payslip exists, and it drew like
+     every editable box — a typeable-looking field beside a sentence saying you cannot type in it.
+     The read-only hourly rate's faint fill and muted ink, so "you cannot edit this" has ONE look.
      -webkit-text-fill-color because iOS Safari otherwise fades the value past legibility. */
   input:not([type="checkbox"]):not([type="radio"]):disabled, .pfx input:not([type="checkbox"]):not([type="radio"]):disabled {
     background: var(--bg-faint); color: var(--text-mid);
@@ -1786,22 +1601,19 @@
     font-size: var(--type-micro); color: var(--primary-blue); text-decoration: none;
   }
   @media (hover: hover) and (pointer: fine) { .roster-view-link:hover { text-decoration: underline; } }
-  /* THE GOLD "FROM YOUR CALENDAR" FILL — and a specificity trap it fell into once already.
-     v23.50 added `:not([type="checkbox"]):not([type="radio"])` to the base `.hhmm-field input`
-     rule above, which took it to (0,3,1). This rule was (0,2,1), so it silently lost: the class
-     was still applied and every suggested field painted plain `--field-bg` — the one visual that
-     says "these hours came from your calendar, check them" stopped existing with nothing failing.
-     `:not(:focus-visible)` brings it back to (0,3,1), where source order (this rule is later)
-     wins over the base, AND keeps the focused field on its white "filling in" state, which is
-     what the (0,2,1) rule used to lose to before the regression. */
+  /* The period band's 10px small print at a size a desk reads (desktop audit). A density call, so
+     gated on the pointer too (css-tokens.md), and after every base rule it overrides. */
+  @media (min-width: 1024px) and (pointer: fine) { #saveStatus, #clearBtn, #rosterViewLink, .period-hint, #rosterDaysToggle, #periodBadge { font-size: var(--type-small); } }
+  /* THE GOLD "FROM YOUR CALENDAR" FILL, and a specificity trap it fell into once: the base
+     `.hhmm-field input:not([type="checkbox"]):not([type="radio"])` rule is (0,3,1), so at (0,2,1)
+     this silently lost — the class stayed on and every suggested field painted plain `--field-bg`.
+     `:not(:focus-visible)` makes it (0,3,1), where source order (this rule is later) wins, AND
+     keeps a focused field on its white "filling in" state. */
   .hhmm-field input.roster-suggested:not(:focus-visible) {
     background-color: var(--roster-suggested-bg); border-color: var(--accent-gold);
   }
 
   /* ── LAYOUT UTILITIES ── (replaces inline styles in paycalc.html) */
-
-  /* .card-header-actions / .card-year-chip / .card-header--row — PROMOTED to shared.css
-     (v18.16, canonical header system for all pages). */
 
   /* Two side-by-side field columns (YTD pair, back-pay rate pair) */
   .field-pair {
@@ -1809,7 +1621,7 @@
     /* Bottom-align the two columns: the eyebrow labels differ in length ("TAXABLE PAY — YEAR TO
        DATE" wraps to two lines, "TAX PAID — YEAR TO DATE" doesn't), and top alignment left the
        input boxes at different heights. Anchoring to the end keeps the boxes level and lets a
-       wrapping label grow upward instead (v16.70 — the misaligned-boxes screenshot). */
+       wrapping label grow upward instead. */
     align-items: flex-end;
   }
 
@@ -1818,28 +1630,24 @@
     flex: 1; min-width: 0;
   }
 
-  /* Eyebrow label above an input (all-caps, small, muted) */
-  /* .field-eyebrow — PROMOTED to shared.css (v18.16, the app-wide field-label convention). */
-
   /* The → arrow separator between Old and New rate columns */
   .rate-sep {
     display: flex; align-items: center;
     font-size: var(--type-large); color: var(--text-light); flex-shrink: 0;
   }
 
-  /* HPP prior-year section header row: title left, badge right */
+  /* HPP prior-year section header row: title left, badge right, ruled beneath */
   .hpp-section-header {
     display: flex; align-items: center;
     justify-content: space-between; gap: 8px; margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-light); padding-bottom: 5px;
   }
 
-  /* HPP year headings — same uppercase eyebrow rank as the hours card's .sec-hd dividers
-     (v17.99: was two near-duplicate bold classes; the rule under each replaces .field-divider). */
+  /* HPP year headings — the same uppercase eyebrow rank as the hours card's .sec-hd dividers. */
   .hpp-section-title {
     font-size: var(--type-small); font-weight: 700; color: var(--text-mid);
     text-transform: uppercase; letter-spacing: .05em;
   }
-  .hpp-section-header { border-bottom: 1px solid var(--border-light); padding-bottom: 5px; }
   .section-subhead {
     font-size: var(--type-small); font-weight: 700; color: var(--text-mid);
     text-transform: uppercase; letter-spacing: .05em;
@@ -1851,7 +1659,6 @@
     background: var(--accent-gold); color: var(--primary-blue);
   }
 
-  /* ---- Extracted from paycalc.html inline styles ---- */
   #taxCode { text-transform: uppercase; }
 
   #absenceCaveat {
@@ -1874,9 +1681,8 @@
 
   .adj-controls { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
 
-  /* ---- Presentational styles lifted out of paycalc.html inline `style=` (v15.70) ----
-     Only non-JS-toggled styling is moved here; the remaining inline `display:none` on
-     conditionally-shown elements stays inline (it's the initial state JS flips). */
+  /* The inline `display:none` left in paycalc.html on conditionally-shown elements stays there:
+     it is the initial state the script flips. Everything else presentational lives here. */
   #saveSettingsBtn { margin-top: 8px; }
   .settings-save-feedback {
     font-size: var(--type-small); color: var(--success-text);
@@ -1889,16 +1695,13 @@
     cursor: pointer; padding: 4px 0; color: var(--text-faint);
   }
   .pfx--adj { width: 90px; }
-  /* THE ADJUSTMENT BOX WEARS THE FIELD RECIPE (the iPhone audit, 7 Nov 2026). It sits in an
-     `.hours-row`, not a `.field`, so none of the field rules above ever reached it: it drew as the
-     browser's own input — Arial at 13.33px, an inset grey border, 19px tall — and iOS ZOOMED the
-     page every time it was focused, which it does for any field under 16px. The 16px sweep never
-     measured it, because it lives in the "Unusual deductions or corrections" disclosure, closed at
-     load, and a field with no box is skipped (e2e/pages.spec.js now opens it). 44px tall to match
-     the ± button beside it. At 16px the box is tight at 90px, so its £ sits 2px further in than the
-     wider boxes' and the paddings are trimmed: MEASURED, "999.99" now fits whole with 2px to spare
-     (it overflowed by 2px at the wider boxes' 12px £ and 24px padding); a longer figure scrolls
-     inside the box, as any field's does. The ID out-ranks `.pfx input`'s padding. */
+  /* THE ADJUSTMENT BOX WEARS THE FIELD RECIPE. It sits in an `.hours-row`, not a `.field`, so no
+     field rule reached it: it drew as the browser's own 13.33px input, and iOS ZOOMED the page on
+     every focus, as it does for any field under 16px (e2e/pages.spec.js opens its closed
+     disclosure to measure it). 44px tall to match the ± beside it. At 16px the 90px box is tight,
+     so its £ sits 2px further in and the paddings are trimmed: MEASURED, "999.99" fits whole with
+     2px to spare; a longer figure scrolls inside, as any field's does. The ID out-ranks
+     `.pfx input`'s padding. */
   .pfx--adj .pfx-sym { left: 10px; }
   #otherAdj {
     text-align: right; min-height: 44px; padding: 9px 6px 9px 22px;
@@ -1918,7 +1721,7 @@
   .actuals-status { font-size: var(--type-small); min-height: 18px; margin: 6px 0; }
 
 
-/* ── Back up your pay data (v19.16) ───────────────────────────────────────────
+/* ── Back up your pay data ─────────────────────────────────────────────────────
    Deliberately plain: this card is a safety net, not a feature to advertise. It
    reuses .btn-action / .card-explainer so it inherits the app's focus rings and
    press feedback rather than inventing a look for a card most staff open once. */
@@ -1927,7 +1730,7 @@
     color: var(--text-mid);
     margin: 0 0 6px;
 }
-/* The itemised inventory under that line (v22.14). Marker-less: these are the contents of one
+/* The itemised inventory under that line. Marker-less: these are the contents of one
    thing, not a list of choices, and a bullet column would indent them away from the line they
    belong to. `hidden` still hides it — page-visibility-parity would fail on a `display:` here. */
 .pt-inventory {
@@ -1952,11 +1755,9 @@
    stack anyway — and its `gap` would then stack on top of the shared
    `.btn-action + .btn-action { margin-top: 8px }`, double-spacing the buttons. */
 .pt-actions { margin-bottom: 12px; }
-/* `.pt-rule` was removed at v22.14: the two halves of this card now carry `.sec-hd` section
-   eyebrows, which already draw the dividing line AND name what is on either side of it. A rule
-   plus a heading is two dividers doing one job. */
-/* The card's section headings need a little more air above them than the Hours card's do —
-   there a heading follows a field row, here it follows a paragraph of prose. */
+/* The card's two halves are divided by their `.sec-hd` eyebrows alone — a rule as well would be two
+   dividers doing one job. They need more air above than the Hours card's: here a heading follows
+   prose, there a field row. */
 #payTransferBody .sec-hd { margin-top: 6px; margin-bottom: 10px; }
 #payTransferBody .sec-hd.first { margin-top: 0; }
 .pt-paste-label {
@@ -1972,14 +1773,13 @@
     font-size: var(--type-small);
     background-color: var(--field-bg);
     color: var(--text-dark);
-    /* The calculator's FIELD skin (polish pass): `--field-border` on `--radius-field`, as every
-       other box on this page wears. It had a 1px `--border-light` hairline on `--radius-md`,
-       so the one place you paste a backup read as a different, fainter kind of control. */
+    /* The calculator's FIELD skin, as every other box on this page wears — a fainter hairline made
+       the one place you paste a backup read as a different kind of control. */
     border: var(--field-border);
     border-radius: var(--radius-field);
     padding: 8px 12px;
     margin-bottom: 12px;
-    resize: none;            /* v23.50 — see .li-paste in links.css for the reasoning */
+    resize: none;            /* see .li-paste in links.css for the reasoning */
     field-sizing: content;
     min-height: 3lh;
     max-height: 40vh;
@@ -1993,10 +1793,9 @@
 }
 /* iOS force-zooms a page whose focused field is under 16px, and this one is a TEXTAREA you paste a
    long blob into — the worst place to have the viewport jump. 12px monospace is deliberate on
-   desktop (it fits more of the backup on screen), so the bump is scoped to coarse pointers.
-   Declared immediately after the base rule on purpose: the same override in links.css sat ~230 lines
-   BEFORE its base rule and, at equal specificity, silently lost for two versions. Found by the
-   cross-page scan in e2e/pages.spec.js, which now runs on every branch. */
+   desktop (it fits more of the backup on screen), so the bump is scoped to coarse pointers, and
+   declared straight after the base rule on purpose: before it, at equal specificity, it would
+   silently lose (as links.css's once did). The cross-page scan in e2e/pages.spec.js measures it. */
 @media (pointer: coarse) {
     .pt-paste { font-size: var(--type-medium); }
 }
@@ -2006,7 +1805,7 @@
 .pt-status--warn { color: var(--error-red); }
 .pt-status:empty { display: none; }
 
-/* ── A ROLE THIS CALCULATOR HAS NO CONFIRMED RATES FOR (v21.78) ────────────────────────────────
+/* ── A ROLE THIS CALCULATOR HAS NO CONFIRMED RATES FOR ────────────────────────────────────────
    Set on <body> by paycalc-app.js when the signed-in member's role has no grade on record. The
    two-part selector is deliberate: `.pc-work` and `.pc-side` carry `display: contents` on mobile
    and `display: flex` on desktop, so anything at single-class specificity — including the
@@ -2021,7 +1820,7 @@ body.role-unsupported #stickyTotal,
 body.role-unsupported .guide-footer-link,
 body.role-unsupported .disclaimer { display: none; }
 
-/* ── Fill-the-year control + receipt (v22.06) — lives in the year-so-far block ─────────────── */
+/* ── Fill-the-year control + receipt — lives in the year-so-far block ─────────────────────── */
 .yearso-fill { margin: 8px 0 2px; }
 /* Repeated from shared.css rather than relied on across files: the rule below re-declares
    `display`, and the companion that defeats it is worth having where a reader checking THAT rule
@@ -2041,11 +1840,9 @@ body.role-unsupported .disclaimer { display: none; }
 }
 .yearso-receipt div + div { margin-top: 4px; }
 
-/* ── Estimate-vs-payslip comparison (v22.07) ────────────────────────────────────────────────── */
-/* 24px tall at least — WCAG 2.2's tap-target floor, which pages.spec.js enforces on a phone. At
-   12px type and this padding it drew 23px, and nothing noticed while the payslip check showed only
-   on PAID payslips: the tap-target sweep opens the Pay page on today's payslip, where the box was
-   hidden. From v24.87 it shows from the payslip's cut-off, so the sweep met it and failed by 1px. */
+/* ── Estimate-vs-payslip comparison ───────────────────────────────────────────────────────── */
+/* 24px tall at least — WCAG 2.2's tap-target floor, which pages.spec.js enforces on a phone; at
+   12px type and this padding it drew 23px. */
 .check-more-btn {
     background: none;
     border: none;
@@ -2057,7 +1854,7 @@ body.role-unsupported .disclaimer { display: none; }
     color: var(--text-light);
     cursor: pointer;
 }
-.check-more-btn:hover { color: var(--primary-blue); }
+@media (hover: hover) and (pointer: fine) { .check-more-btn:hover { color: var(--primary-blue); } }
 .check-more-btn[aria-expanded="true"] .bd-arrow { display: inline-block; transform: rotate(180deg); }
 .check-more-grid {
     display: grid;

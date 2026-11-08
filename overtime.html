@@ -18,7 +18,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="MYB Roster">
-  <title>Marylebone Roster — Overtime availability</title>
+  <title>Overtime availability — Marylebone Roster</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="./icon-167.png">
@@ -72,7 +72,7 @@
         <div class="lightbox-app-name">Marylebone Roster</div>
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-        <div class="lightbox-badge">Overtime</div>
+        <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">⏱️</span> Overtime</div>
         <a href="./" class="lightbox-bug-link"><span aria-hidden="true">📅</span> View staff roster</a>
         <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
     </div>
@@ -106,7 +106,10 @@
     </div>
 
     <!-- ── MY AVAILABILITY ───────────────────────────────────────────────────────────────────── -->
-    <section id="otMinePanel" role="tabpanel" aria-labelledby="otTabMine" tabindex="0">
+    <!-- The two panels become tabpanels, named by their tabs and each a Tab stop, only while the strip
+         above is shown (`setTabStrip`). With the strip hidden — most visitors, and the paused page —
+         a tabpanel was an empty Tab stop titled by a tab nobody could see (desktop audit, Nov 2026). -->
+    <section id="otMinePanel">
         <!-- WHOSE answers these are, in ADMIN'S OWN BAR (v21.57; v21.58 copied that bar verbatim
              INTO the card and the owner called it "very weird"; v21.59 restyled it as an in-card
              field; v23.84 moves it OUT). The v21.59 note had the diagnosis right: admin's bar earns
@@ -121,7 +124,7 @@
         <div class="card" id="otMineCard">
             <div class="card-header card-header-toggle" id="otMineToggleHeader">
                 <div>
-                    <h2><span aria-hidden="true">📝</span> My availability</h2>
+                    <h2 id="otMineTitle"><span aria-hidden="true">📝</span> My availability</h2>
                     <span class="hint">Tell the roster team when you can work overtime</span>
                 </div>
                 <div class="card-header-actions">
@@ -152,7 +155,7 @@
     </section>
 
     <!-- ── ALL AVAILABILITY (reviewers) ─────────────────────────────────────────────────────── -->
-    <section id="otAllPanel" role="tabpanel" aria-labelledby="otTabAll" tabindex="0" hidden>
+    <section id="otAllPanel" hidden>
 
         <!-- The planning horizon. FIRST on the page, above the week detail, because the failure it
              catches is invisible everywhere else: a week nobody created has no participants, so

@@ -427,7 +427,7 @@ test('admin: the Calendar pill opens the Calendar on the month being edited, a f
 });
 
 // ── THE ABOUT PANEL'S LINKS ASK TOO (iPhone audit, Nov 2026) ─────────────────────────────────────
-// "View staff roster" and "View quick guide" sit in the About panel (#iconLightbox), outside the
+// "View staff roster" and "Staff & Admin Guide" sit in the About panel (#iconLightbox), outside the
 // drawer, and the in-page question looked for drawer links alone — so on an iPhone, where the browser
 // never asks, either one left staged rows behind without a word. Report a bug is mail, and leaves
 // nothing behind, so it never asks.
@@ -516,7 +516,7 @@ test('admin: staged rows kept when the page was hidden are offered on the next l
     await expect(page.locator('#weekNavLabel')).toContainText('Dec 2026');
     await expect(page.locator(`.day-row[data-date="${date}"] .type-pill-btn[data-type="sick"]`)).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#saveBtn'), 'back as UNSAVED work, for the member to check and save').toBeEnabled();
-    await expect(page.locator('#formFeedback')).toContainText('Your unsaved changes are back — check them, then tap Save changes.');
+    await expect(page.locator('#formFeedback')).toContainText('Your unsaved changes are back — check them, then select Save changes.');
     expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'cleared once it is the page\'s work again').toBeNull();
     // And a save clears it for good: the next hide, with nothing unsaved, keeps nothing.
     await page.locator('#saveBtn').click();
@@ -3132,7 +3132,9 @@ test('admin: a rest day that ALREADY holds leave is not reported as "no leave re
     await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
     await clickInView(page.locator('#saveBtn'));
 
-    const feedback = page.locator('.feedback, #weekGridFeedback').first();
+    // The grid's own line by id: `.feedback` first-in-the-page became the bulk bar's refusal slot when
+    // that moved beside the bar (desktop audit, Nov 2026), and it sits above this one.
+    const feedback = page.locator('#formFeedback');
     await expect(feedback, 'the receipt must say the existing leave was left alone')
         .toContainText(/left as it is/);
     await expect(feedback, 'and must not use the wording for a day that is genuinely clear')
@@ -3211,7 +3213,7 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
     await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
     await clickInView(row.locator('.al-swap-btn[data-swap="yes"]'));
     await clickInView(page.locator('#saveBtn'));
-    await expect(page.locator('.feedback, #weekGridFeedback').first(),
+    await expect(page.locator('#formFeedback'),   // by id — see the note in the test above
         'the control must actually save — otherwise the "no write" half above proves nothing')
         .toContainText(/saved for/);
     await expect.poll(async () => {
@@ -3288,4 +3290,512 @@ test('admin: leave over a worked Boxing Day names the day in lieu it takes back,
     const bar = page.locator('#alConfirmBar');
     await expect(bar, 'one day left, and the save takes the day in lieu back: it ends one over').toHaveClass(/visible/);
     await expect(bar).toContainText('1 day over their 2026 AL entitlement');
+});
+
+// ── THE DESKTOP AUDIT (Nov 2026) ─────────────────────────────────────────────────────────────────
+//
+// Admin is the page most used at a desk, and the audit measured it at the station PC's sizes
+// (1366×768, 1536×864, 1920×1080) rather than at the phone width every earlier pass started from. Each
+// test below is GEOMETRY or a computed style read off the rendered page, because every one of these
+// defects was invisible to a behavioural assertion: the DOM said the right thing while the pixels hid
+// it, squashed it or put it 400px from where the reader was looking. Desktop-only where the subject is
+// a mouse or a wide window; a phone's own layout is held by the tests above.
+
+/** Admin at a desk-sized window on a fixed Wednesday (15 Jul 2026), as the audit shot it.
+ *  @param {import('@playwright/test').Page} page @param {{ width: number, height: number }} size
+ *  @param {any[]} [docs] */
+async function deskAdmin(page, size, docs = []) {
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await page.setViewportSize(size);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');   // the member on screen, or the grid opens on the roster's first name
+    await page.addInitScript((d) => { const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { docs: d }); }, docs);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+}
+
+/** A token's resolved colour, serialised as the page serialises an outline that uses it.
+ *  @param {import('@playwright/test').Page} page @param {string} name */
+const tokenColour = (page, name) => page.evaluate((n) => {
+    const el = document.createElement('i'); el.style.color = `var(${n})`; document.body.append(el);
+    const c = getComputedStyle(el).color; el.remove(); return c;
+}, name);
+
+/** Wait until `loc` has no transition running — two frames first, so a change the last input has
+ *  only just caused (a hover, a class) has had the chance to START. A read taken mid-transition, or
+ *  before one begins, sees neither state, and a check that something did NOT change passes on it.
+ *  @param {import('@playwright/test').Locator} loc */
+async function settled(loc) {
+    await loc.page().evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await expect.poll(() => loc.evaluate(el => el.getAnimations().length), { message: 'its transitions finish' }).toBe(0);
+    return loc;
+}
+
+test('admin: the side column SCROLLS to the Record button, rather than squashing its cards (1366×768)', async ({ page }, info) => {
+    // A `.card` is `overflow: hidden`, so as a flex item its automatic minimum height is 0: the sticky
+    // column shrank its cards to fit itself and never overflowed. With Record Annual Leave open the
+    // Record button was cut off below a clipped card — 175px of it at this size — with nothing to
+    // scroll, and the wheel moved nothing. `elementFromPoint` is the honest reading: a button can be
+    // in the DOM, enabled and "visible", and still not be what a click there would hit.
+    test.skip(isTouchProject(info), 'the sticky two-column layout and a mouse wheel');
+    await deskAdmin(page, { width: 1366, height: 768 });
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+    const side = page.locator('.col-side');
+    expect(await side.evaluate(el => el.scrollHeight - el.clientHeight),
+        'the open card makes the column taller than the window, so it must overflow — not squash').toBeGreaterThan(50);
+    const box = /** @type {{x:number,y:number,width:number,height:number}} */ (await side.boundingBox());
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 2000);
+    await expect.poll(() => page.evaluate(() => {
+        const b = /** @type {HTMLElement} */ (document.getElementById('alSaveBtn')).getBoundingClientRect();
+        const s = /** @type {HTMLElement} */ (document.querySelector('.col-side')).getBoundingClientRect();
+        const hit = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
+        return { inColumn: b.top >= s.top - 1 && b.bottom <= s.bottom + 1, inWindow: b.bottom <= innerHeight, hit: hit?.id ?? '' };
+    }), { message: 'after the wheel the Record button is in view, and is what a click there hits' })
+        .toEqual({ inColumn: true, inWindow: true, hit: 'alSaveBtn' });
+    // Every card keeps its own height: none is clipped by its own `overflow: hidden`.
+    const clipped = await page.evaluate(() => [...document.querySelectorAll('.col-side > .card')]
+        .filter(c => c.scrollHeight - c.clientHeight > 1).map(c => c.id));
+    expect(clipped, 'a card in the side column is squashed below its content').toEqual([]);
+});
+
+test('admin: a save error is never under the Unsaved bar — scrolled to, or at the very end of the page (1366×768)', async ({ page }, info) => {
+    // The bar is fixed over the foot of the screen and nothing reserved its height: the save error,
+    // brought into view with block: 'nearest', stopped exactly behind it, and at the end of the page
+    // there was nowhere further to scroll. The row turned red and the reason was hidden.
+    test.skip(isTouchProject(info), 'a desk-sized window; the phone has the same reserve but its own layout');
+    await deskAdmin(page, { width: 1366, height: 768 });
+    const tue = page.locator('.day-row[data-date="2026-07-14"]');
+    await tue.locator('label.col-day').click();
+    await tue.locator('.pill-shift').click();
+    await tue.locator('.day-start').fill('');
+    await tue.locator('.day-end').fill('');
+    await page.locator('#stagedSaveBtn').click();
+    const feedback = page.locator('#formFeedback');
+    await expect(feedback).toContainText('fill in the start and end time');
+    const gap = () => page.evaluate(() => {
+        const f = /** @type {HTMLElement} */ (document.getElementById('formFeedback')).getBoundingClientRect();
+        const bar = /** @type {HTMLElement} */ (document.getElementById('stagedBar')).getBoundingClientRect();
+        return Math.round(bar.top - f.bottom);
+    });
+    await expect.poll(gap, { message: 'the message, scrolled to, ends above the bar' }).toBeGreaterThanOrEqual(0);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect.poll(gap, { message: 'and at the end of the page it still clears the bar' }).toBeGreaterThanOrEqual(0);
+});
+
+// APPLY IS GREYED OUT UNTIL IT CAN ACT, AND SAYS WHY (owner, Nov 2026). The audit above left Apply live,
+// refusing a press with something missing in a line under it; the owner chose Save changes' own pattern
+// instead — greyed out until it can do something, the reason in the line beneath. A phone and a desk
+// alike, so this runs on both projects. The Sunday refusal below is the one a press still finds.
+test('admin: Apply is greyed out until a day is ticked AND a type is chosen, and the line under it says which is missing', async ({ page }, info) => {
+    await deskAdmin(page, isTouchProject(info) ? { width: 393, height: 851 } : { width: 1366, height: 768 });
+    const apply = page.locator('#bulkApplyBtn');
+    const why = page.locator('#bulkApplyHint');
+    const al = page.locator('#bulkTypePills .pill-annual_leave');
+    // Nothing ticked, no type: greyed out the way Save changes is, which nothing is staged for either.
+    await expect(apply).toBeDisabled();
+    await expect(why).toHaveText('Tick at least one day and choose a type');
+    await expect(page.locator('#saveBtn'), 'premise: Save changes is greyed out too').toBeDisabled();
+    const look = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => ({ opacity: getComputedStyle(el).opacity, cursor: getComputedStyle(el).cursor }));
+    expect(await look('#bulkApplyBtn'), 'Save\'s own disabled look, not a new one').toEqual(await look('#saveBtn'));
+    // A screen reader reads the reason straight after the button, as it does Save's.
+    const tree = (await page.locator('#bulkBar').ariaSnapshot()).split('\n').map(l => l.trim());
+    const at = tree.findIndex(l => l.startsWith('- button "3 Apply to ticked days" [disabled]'));
+    expect(at, 'Apply is in the tree, unavailable').toBeGreaterThan(-1);
+    expect(tree[at + 1], 'and the next thing read is why').toBe('- paragraph: Tick at least one day and choose a type');
+    // The line sits under the button, at its left edge — not centred under the bar.
+    const geo = await page.evaluate(() => {
+        const a = /** @type {HTMLElement} */ (document.getElementById('bulkApplyBtn')).getBoundingClientRect();
+        const h = /** @type {HTMLElement} */ (document.getElementById('bulkApplyHint'));
+        const r = document.createRange(); r.selectNodeContents(h); const t = r.getBoundingClientRect();
+        return { below: Math.round(t.top - a.bottom), left: Math.round(t.left - a.left) };
+    });
+    expect(geo.below, 'directly under Apply').toBeGreaterThanOrEqual(0);
+    expect(geo.below, 'directly under Apply').toBeLessThan(16);
+    expect(Math.abs(geo.left), 'starting where Apply starts').toBeLessThanOrEqual(1);
+
+    // A type, nothing ticked.
+    await clickInView(al);
+    await expect(apply).toBeDisabled();
+    await expect(why).toHaveText('Tick the days to apply it to');
+    await clickInView(al);   // the same pill again puts the type back
+    await expect(why).toHaveText('Tick at least one day and choose a type');
+    // Days ticked, no type — one by its own box, then a whole run.
+    await clickInView(page.locator('.day-row[data-date="2026-07-14"] .day-cb'));
+    await expect(apply).toBeDisabled();
+    await expect(why).toHaveText('Choose a type for the ticked day');
+    await clickInView(page.locator('#bulkSelMonFri'));
+    await expect(why).toHaveText('Choose a type for the ticked days');
+    await expect(apply).toBeDisabled();
+    // Both: it can act, and the line goes quiet, as Save's does when there is something to save.
+    await clickInView(al);
+    await expect(apply).toBeEnabled();
+    await expect(apply).toContainText('Apply “Annual Leave” to ticked days');
+    await expect(why).toHaveText('');
+    // …and it really applies: the five weekdays take the leave, the weekend does not.
+    await clickInView(apply);
+    const staged = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.day-row')]
+        .map(r => [/** @type {HTMLElement} */ (r).dataset.date, /** @type {HTMLElement} */ (r).dataset.type || ''])));
+    expect(staged).toEqual({ '2026-07-12': '', '2026-07-13': 'annual_leave', '2026-07-14': 'annual_leave',
+        '2026-07-15': 'annual_leave', '2026-07-16': 'annual_leave', '2026-07-17': 'annual_leave', '2026-07-18': '' });
+    await expect(page.locator('#saveBtn')).toBeEnabled();
+    await expect(apply, 'the days are still ticked and the type still chosen').toBeEnabled();
+});
+
+// A row's own pill can untick it — pressing the chosen type again takes the row back to nothing — and the
+// bar follows. Its count was read only when a box or a bulk button changed, so it went on counting a day
+// no longer ticked; with Apply's state read from the same count, that would leave Apply live over nothing.
+test('admin: a day unticked by its own pill leaves the bulk bar\'s count, and Apply', async ({ page }, info) => {
+    await deskAdmin(page, isTouchProject(info) ? { width: 393, height: 851 } : { width: 1366, height: 768 });
+    const tue = page.locator('.day-row[data-date="2026-07-14"]');
+    await clickInView(tue.locator('.day-cb'));
+    await clickInView(page.locator('#bulkTypePills .pill-rdw'));
+    await expect(page.locator('#bulkSelCount')).toHaveText('1 day selected');
+    await expect(page.locator('#bulkApplyBtn'), 'premise: a ticked day and a type').toBeEnabled();
+    await clickInView(tue.locator('.pill-annual_leave'));
+    await clickInView(tue.locator('.pill-annual_leave'));   // pressed again: the row goes back to nothing
+    await expect(tue.locator('.day-cb'), 'premise: the row\'s own pill unticked it').not.toBeChecked();
+    await expect(page.locator('#bulkSelCount'), 'the count follows the row').toHaveText('');
+    await expect(page.locator('#bulkApplyBtn'), 'and Apply has nothing to act on').toBeDisabled();
+    await expect(page.locator('#bulkApplyHint')).toHaveText('Tick the days to apply it to');
+});
+
+test('admin: a Sunday a type cannot go on greys Apply out too — the reason under it, before any press — and a working day beside it brings Apply back', async ({ page }, info) => {
+    // The last refusal only a press used to find (owner, 8 Nov 2026): AL, Absent and Shift skip a Sunday
+    // (the Sunday rule's layer 2), so a week whose only ticked day is the Sunday had nothing to apply,
+    // and Apply looked ready until it was pressed. It is known before the press, so it is said before
+    // it, the way the rest of Apply's reasons are (admin-bulk-apply.js). Layer 2 itself is unchanged: a
+    // Sunday ticked among working days is still skipped by the apply, and the receipt says so.
+    test.skip(isTouchProject(info), 'a desk-sized window');
+    await deskAdmin(page, { width: 1366, height: 768 });
+    const apply = page.locator('#bulkApplyBtn');
+    const hint = page.locator('#bulkApplyHint');
+    const sunday = page.locator('.day-row[data-date="2026-07-12"]');
+    const monday = page.locator('.day-row[data-date="2026-07-13"]');
+    await sunday.locator('.day-cb').check();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await expect(apply, 'only a Sunday ticked, and AL cannot go on one').toBeDisabled();
+    await expect(hint).toHaveText('Sunday isn’t a contracted day — tick a working day');
+    await page.locator('#bulkTypePills .pill-rdw').click();
+    await expect(apply, 'RDW can: a worked Sunday is RDW').toBeEnabled();
+    await expect(hint).toHaveText('');
+    await page.locator('#bulkTypePills .pill-sick').click();
+    await expect(apply, 'nor can Absent').toBeDisabled();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await monday.locator('.day-cb').check();
+    await expect(apply, 'a working day ticked beside it: there is something to apply').toBeEnabled();
+    await expect(hint).toHaveText('');
+    await apply.click();
+    await expect(monday, 'the working day is staged').toHaveAttribute('data-type', 'annual_leave');
+    await expect(sunday, 'layer 2: nothing was staged on the Sunday').not.toHaveAttribute('data-type', /./);
+    await expect(page.locator('#formFeedback'), 'and the receipt says the Sunday was skipped').toContainText('Sunday skipped');
+});
+
+test('admin: every focus ring stands out from what is behind it — navy on the card, gold on the navy bar', async ({ page }, info) => {
+    // Gold is ~1.5:1 on a light surface, under the 3:1 a focus indicator needs, and around the gold
+    // Today button it vanished outright; the navy ring on the Unsaved bar's Save was navy on navy. A
+    // ring is drawn only for a keyboard, so no screenshot sees it: this reads the outline each control
+    // actually gets, against the token for the surface it is drawn on.
+    test.skip(isTouchProject(info), 'a keyboard ring');
+    await deskAdmin(page, { width: 1366, height: 900 });
+    const navy = await tokenColour(page, '--primary-blue');
+    const gold = await tokenColour(page, '--accent-gold');
+    // Stage something with the mouse first, so the Unsaved bar is up — then switch to the keyboard,
+    // because `:focus-visible` follows the last input the reader used.
+    const tue = page.locator('.day-row[data-date="2026-07-14"]');
+    await tue.locator('label.col-day').click();
+    await tue.locator('.pill-annual_leave').click();
+    await expect(page.locator('#stagedBar')).toBeVisible();
+    // …and a bulk type, because Apply is greyed out — out of the Tab order — until it can act (owner,
+    // Nov 2026), and a ring is drawn only on a control that can take focus.
+    await page.locator('#bulkTypePills .pill-rdw').click();
+    await expect(page.locator('#bulkApplyBtn')).toBeEnabled();
+    // A real Tab, so the focused control matches :focus-visible. WebKit hands a SCRIPTED focus() the
+    // previous element's focus-visible state, and the last focus came from a click.
+    await page.locator('#navMenuBtn').focus();
+    await page.keyboard.press('Tab');
+    /** @param {string} sel */
+    const ring = async (sel) => {
+        const loc = page.locator(sel);
+        await loc.focus();
+        return loc.evaluate(el => ({ visible: el.matches(':focus-visible'), style: getComputedStyle(el).outlineStyle, colour: getComputedStyle(el).outlineColor }));
+    };
+    for (const sel of ['#prevWeekBtn', '#nextWeekBtn', '#thisWeekBtn', '#bulkApplyBtn']) {
+        expect(await ring(sel), `${sel} sits on the light card: its ring is navy`).toEqual({ visible: true, style: 'solid', colour: navy });
+    }
+    for (const sel of ['#stagedDiscardBtn', '#stagedSaveBtn']) {
+        expect(await ring(sel), `${sel} sits on the navy bar: its ring is gold`).toEqual({ visible: true, style: 'solid', colour: gold });
+    }
+    // The week picker's month arrows are on its white panel (shared.css).
+    await page.locator('#weekNavLabel').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.dp-content')).toBeVisible();
+    for (const sel of ['#dpPrev', '#dpNext']) {
+        expect(await ring(sel), `${sel} sits on the picker's white panel: its ring is navy`).toEqual({ visible: true, style: 'solid', colour: navy });
+    }
+});
+
+test('admin: on a wide screen the Unsaved bar and the unsaved-changes banner keep their buttons over the page', async ({ page }, info) => {
+    // At 1920 the bar's buttons sat at x=1701–1904 and the banner's the same — ~400px right of the
+    // 1100px page, at the window's edge. The bar itself still spans the window; its CONTENT keeps to
+    // the band, as the AL over-limit bar's already did.
+    test.skip(isTouchProject(info), 'a wide window');
+    await deskAdmin(page, { width: 1920, height: 1080 });
+    const tue = page.locator('.day-row[data-date="2026-07-14"]');
+    await tue.locator('label.col-day').click();
+    await tue.locator('.pill-annual_leave').click();
+    await expect(page.locator('#stagedBar')).toBeVisible();
+    /** @param {string} sel */
+    const within = (sel) => page.evaluate((s) => {
+        const c = /** @type {HTMLElement} */ (document.querySelector('main.container')).getBoundingClientRect();
+        const r = /** @type {HTMLElement} */ (document.querySelector(s)).getBoundingClientRect();
+        return { left: Math.round(r.left - c.left), right: Math.round(c.right - r.right) };
+    }, sel);
+    for (const sel of ['.staged-bar-label', '.staged-bar-btns']) {
+        const m = await within(sel);
+        expect(m.left, `${sel} starts inside the page`).toBeGreaterThanOrEqual(0);
+        expect(m.right, `${sel} ends inside the page`).toBeGreaterThanOrEqual(0);
+    }
+    // The banner: a week change with that staged edit asks first.
+    await page.locator('#prevWeekBtn').click();
+    await expect(page.locator('#unsavedBanner')).toBeVisible();
+    const banner = await within('.unsaved-banner-btns');
+    expect(banner.right, 'the banner\'s buttons end inside the page').toBeGreaterThanOrEqual(0);
+    expect(banner.left, 'the banner\'s buttons start inside the page').toBeGreaterThanOrEqual(0);
+});
+
+test('admin: the unsaved-changes banner closes on Escape and keeps the edit; the Unsaved bar is the last Tab stop, not the first', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard');
+    await deskAdmin(page, { width: 1366, height: 768 });
+    const week = await page.locator('#weekNavLabel').textContent();
+    const tue = page.locator('.day-row[data-date="2026-07-14"]');
+    await tue.locator('label.col-day').click();
+    await tue.locator('.pill-annual_leave').click();
+    await expect(page.locator('#stagedBar')).toBeVisible();
+    // Escape answers the question the way "Keep editing" does: nothing moves, nothing is discarded.
+    await page.locator('#prevWeekBtn').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#unsavedBanner')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#unsavedBanner')).toBeHidden();
+    await expect(page.locator('#weekNavLabel'), 'the week did not change').toHaveText(/** @type {string} */ (week));
+    await expect(tue, 'the staged AL is still staged').toHaveAttribute('data-type', 'annual_leave');
+    await expect(page.locator('#prevWeekBtn'), 'focus is back where the reader was').toBeFocused();
+    // The bar is drawn at the foot of the screen, and it comes AFTER the page in the tab order: before
+    // <main>, its two buttons were the first Tab stops whenever anything was staged.
+    await page.locator('#navMenuBtn').focus();
+    await page.keyboard.press('Shift+Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('#stagedBar')),
+        'nothing before the burger — the Unsaved bar is not ahead of the page').toBe(false);
+    expect(await page.evaluate(() => !!(document.querySelector('main')?.compareDocumentPosition(
+        /** @type {HTMLElement} */ (document.getElementById('stagedBar'))) & Node.DOCUMENT_POSITION_FOLLOWING)),
+        'the bar follows <main> in the document').toBe(true);
+});
+
+test('admin: on a desktop the staff member picker is two Tab presses from the burger, as on a phone — and still sits atop the right column', async ({ page }, info) => {
+    // From 1024px the bar used to be MOVED into the right column, which put the page's one member
+    // control behind the whole Change a Shift card: 23 Tab presses, against 2 on a phone. It now keeps
+    // its place in the document and is only DRAWN in the right column — the same place as before, and
+    // the side column stuck the same 16px beneath it while the page scrolls.
+    test.skip(isTouchProject(info), 'the two-column layout and a keyboard');
+    await deskAdmin(page, { width: 1366, height: 768 });
+    await page.locator('#navMenuBtn').focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#fieldMemberTrigger'), 'burger → logo → the member picker').toBeFocused();
+    const geo = () => page.evaluate(() => {
+        const bar = /** @type {HTMLElement} */ (document.querySelector('.member-context-bar')).getBoundingClientRect();
+        const side = /** @type {HTMLElement} */ (document.querySelector('.col-side')).getBoundingClientRect();
+        const main = /** @type {HTMLElement} */ (document.querySelector('.col-main')).getBoundingClientRect();
+        return { sameColumn: Math.abs(bar.left - side.left) < 1 && Math.abs(bar.width - side.width) < 1,
+                 rightOfMain: bar.left > main.right, gap: Math.round(side.top - bar.bottom), top: Math.round(bar.top) };
+    });
+    const atRest = await geo();
+    expect(atRest.sameColumn && atRest.rightOfMain, 'the bar is drawn atop the right column').toBe(true);
+    expect(atRest.gap, 'with the side column 16px beneath it').toBe(16);
+    await page.evaluate(() => window.scrollTo(0, 300));
+    await expect.poll(geo, { message: 'scrolled, the two stay pinned together: the bar at the top, the column under it' })
+        .toEqual({ sameColumn: true, rightOfMain: true, gap: 16, top: 20 });
+});
+
+// THE STAFF PICKER SHOWS KEYBOARD FOCUS ON THE NAVY BAR (Nov 2026). Below 1024px the member bar is navy,
+// and the picker took a field's default ring — navy, drawn 2px out on the navy bar, 1:1 — so only its
+// border turning gold said where focus was. It wears the gold ring the navy Unsaved bar's buttons wear;
+// from 1024px the bar is a white card and keeps the navy one. Measured from the PAINTED colours: what
+// counts is the ring against what is actually behind it, which no token comparison can see.
+test('admin: the staff picker\'s focus ring stands out from the member bar behind it — navy on a phone, white at a desk', async ({ page }, info) => {
+    const sizes = isTouchProject(info) ? [{ width: 393, height: 851 }] : [{ width: 900, height: 800 }, { width: 1366, height: 768 }];
+    await deskAdmin(page, sizes[0]);
+    for (const size of sizes) {
+        await page.setViewportSize(size);
+        await page.locator('#navMenuBtn').focus();
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('Tab');
+        const picker = page.locator('#fieldMemberTrigger');
+        await expect(picker, `${size.width}: burger → logo → the member picker`).toBeFocused();
+        const m = await picker.evaluate(el => {
+            // Any CSS colour as painted, over what is under it: a canvas resolves oklch, color-mix and alpha
+            // (the recipe of calendar.spec.js → installColourProbe, which one spec cannot import from another).
+            const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+            const paint = (/** @type {string[]} */ ...layers) => { ctx.clearRect(0, 0, 1, 1);
+                layers.forEach(c => { ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); }); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+            const lum = (/** @type {number[]} */ c) => c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+                .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+            let host = el.parentElement;   // the surface the ring is drawn on: the nearest painted ancestor
+            while (host && getComputedStyle(host).backgroundColor === 'rgba(0, 0, 0, 0)') host = host.parentElement;
+            const behind = getComputedStyle(/** @type {Element} */ (host)).backgroundColor, cs = getComputedStyle(el);
+            const [hi, lo] = [lum(paint(behind, cs.outlineColor)), lum(paint(behind))].sort((a, b) => b - a);
+            const reach = parseFloat(cs.outlineOffset) + parseFloat(cs.outlineWidth), r = el.getBoundingClientRect(), b = /** @type {Element} */ (host).getBoundingClientRect();
+            return { focusVisible: el.matches(':focus-visible'), style: cs.outlineStyle, width: parseFloat(cs.outlineWidth),
+                     ratio: Math.round((hi + 0.05) / (lo + 0.05) * 100) / 100, onBar: /** @type {Element} */ (host).classList.contains('member-context-bar'),
+                     ringInsideBar: r.left - reach >= b.left && r.right + reach <= b.right && r.top - reach >= b.top && r.bottom + reach <= b.bottom };
+        });
+        expect(m.focusVisible, `${size.width}: a keyboard focus`).toBe(true);
+        expect(m.onBar, `${size.width}: premise: the ring is drawn on the member bar`).toBe(true);
+        expect(m.style, `${size.width}: a ring is drawn`).not.toBe('none');
+        expect(m.width, `${size.width}: at least 2px`).toBeGreaterThanOrEqual(2);
+        expect(m.ratio, `${size.width}: 3:1 against the bar behind it`).toBeGreaterThanOrEqual(3);
+        expect(m.ringInsideBar, `${size.width}: and the bar has room for all of it`).toBe(true);
+    }
+});
+
+test('admin: each calendar is ONE Tab stop, and the arrow keys move the day — the leave range and the week jump', async ({ page }, info) => {
+    // Every day was its own Tab stop: ~62 to cross the two open range calendars, and the arrows did
+    // nothing in either picker. Now a roving tabindex, as the Calendar's own grid.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await deskAdmin(page, { width: 1366, height: 900 });
+    await page.locator('#alToggleHeader').click();
+    const grid = page.locator('#alRpGrid');
+    const stops = grid.locator('.rp-day[tabindex="0"]');
+    await expect(stops, 'one stop in the whole month').toHaveCount(1);
+    await expect(stops, 'and it is today, with nothing chosen yet').toHaveAttribute('data-iso', '2026-07-15');
+    await stops.focus();
+    const at = () => page.evaluate(() => /** @type {HTMLElement|null} */ (document.activeElement)?.dataset.iso ?? null);
+    await page.keyboard.press('ArrowRight');
+    expect(await at()).toBe('2026-07-16');
+    await page.keyboard.press('ArrowDown');
+    expect(await at()).toBe('2026-07-23');
+    await page.keyboard.press('End');
+    expect(await at(), 'End is the week row\'s Saturday').toBe('2026-07-25');
+    await page.keyboard.press('PageDown');
+    expect(await at(), 'Page Down turns the month').toBe('2026-08-25');
+    await expect(page.locator('#alRpLabel')).toHaveText('August 2026');
+    await expect(stops, 'the stop moved with the keyboard, and is still the only one').toHaveCount(1);
+    await expect(stops).toHaveAttribute('data-iso', '2026-08-25');
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('#alRpGrid')), 'one Tab leaves the month').toBe(false);
+
+    // The week jump: the app's own date picker, opened from the keyboard.
+    await page.locator('#weekNavLabel').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.dp-content')).toBeVisible();
+    await expect(page.locator('#dpGrid .dp-day:not([tabindex="-1"])'), 'one stop in the picker\'s month').toHaveCount(1);
+    expect(await at(), 'it opens on the chosen day').toBe('2026-07-15');
+    await page.keyboard.press('ArrowRight');
+    expect(await at()).toBe('2026-07-16');
+    await page.keyboard.press('ArrowUp');
+    expect(await at()).toBe('2026-07-09');
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('#dpGrid')), 'one Tab leaves the picker\'s month').toBe(false);
+});
+
+test('admin: with a mouse, the bulk bar\'s type pills are the same capsules as a row\'s', async ({ page }, info) => {
+    // They kept the base 44px height for a fine pointer — AL a 36×44 lozenge, taller than wide — beside
+    // the 46×34 capsules on every row. A touch screen keeps its own, larger, sizes.
+    test.skip(isTouchProject(info), 'a fine pointer');
+    await deskAdmin(page, { width: 1366, height: 900 });
+    await page.locator('.day-row[data-date="2026-07-14"] label.col-day').click();
+    const size = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => {
+        const r = el.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) };
+    });
+    const bulk = await size('#bulkTypePills .pill-annual_leave');
+    const row = await size('.day-row[data-date="2026-07-14"] .pill-annual_leave');
+    expect(bulk.h, 'the bulk pill is the row pill\'s height').toBe(row.h);
+    expect(bulk.w, 'and wider than it is tall').toBeGreaterThan(bulk.h);
+});
+
+test('admin: hovering a chosen type pill leaves it as it is; an idle one takes a tint of its colour, never a fade', async ({ page }, info) => {
+    // `opacity: 0.75` on every pill under the pointer faded a CHOSEN AL's white-on-teal from 5.19:1 to
+    // 3.31:1 — a hover repainting a choice, and a fade on words still being read.
+    test.skip(isTouchProject(info), 'a mouse');
+    await deskAdmin(page, { width: 1366, height: 900 });
+    const tue = page.locator('.day-row[data-date="2026-07-14"]');
+    await tue.locator('label.col-day').click();
+    const chosen = tue.locator('.pill-annual_leave');
+    await chosen.click();
+    await expect(chosen).toHaveClass(/\bactive\b/);
+    // Read once the pill's transition has run: "did not change" passes trivially on a read taken
+    // before the hover's own transition has begun.
+    const paint = async (/** @type {import('@playwright/test').Locator} */ loc) => (await settled(loc))
+        .evaluate(el => ({ op: getComputedStyle(el).opacity, bg: getComputedStyle(el).backgroundColor }));
+    await page.mouse.move(2, 2);
+    expect(await paint(chosen), 'premise: the chosen pill at rest is AL\'s own fill')
+        .toEqual({ op: '1', bg: await tokenColour(page, '--al') });
+    await chosen.hover();
+    expect(await paint(chosen), 'the chosen pill does not change under the pointer')
+        .toEqual({ op: '1', bg: await tokenColour(page, '--al') });
+    const idle = tue.locator('.pill-rdw');
+    await idle.hover();
+    const hovered = await paint(idle);
+    expect(hovered.op, 'an idle pill is never faded').toBe('1');
+    expect(hovered.bg, 'it takes a tint instead').not.toBe('rgba(0, 0, 0, 0)');
+});
+
+test('admin: ticking or typing a row never moves it, a row ready to save is not Today\'s colour, and Tips describes what is drawn', async ({ page }, info) => {
+    // Ticking widened the left border 1px → 4px and shoved the row's content 3px right; a row with a
+    // type wore `--today-print`, Today's own tint, with no bar; and Tips said the row "turns gold".
+    test.skip(isTouchProject(info), 'the desk layout and a mouse');
+    await deskAdmin(page, { width: 1366, height: 900 });
+    const row = (/** @type {string} */ iso) => page.locator(`.day-row[data-date="${iso}"]`);
+    // Each read waits for the row's transitions (its tint and bar ease in), or two states compare
+    // as different only because one was caught halfway.
+    const look = async (/** @type {string} */ iso) => (await settled(row(iso))).evaluate(el => ({
+        cb: Math.round(/** @type {HTMLElement} */ (el.querySelector('.day-cb')).getBoundingClientRect().left * 10) / 10,
+        bg: getComputedStyle(el).backgroundColor, bar: getComputedStyle(el).boxShadow,
+    }));
+    const untouched = await look('2026-07-13');
+    await row('2026-07-13').locator('.day-cb').check();
+    const ticked = await look('2026-07-13');
+    await row('2026-07-13').locator('.pill-annual_leave').click();
+    await page.mouse.move(2, 2);
+    const ready = await look('2026-07-13');
+    expect(ticked.cb, 'ticking does not move the row').toBe(untouched.cb);
+    expect(ready.cb, 'nor does giving it a type').toBe(untouched.cb);
+    const today = await look('2026-07-15');
+    expect(ready.bg, 'a row ready to save is not Today\'s tint').not.toBe(today.bg);
+    expect(ready.bg, 'nor the ticked row\'s').not.toBe(ticked.bg);
+    expect(ticked.bar, 'a ticked row has its bar').toMatch(/inset/);
+    expect(ready.bar, 'so does a row ready to save').toMatch(/inset/);
+    expect(ready.bar, 'the bar is drawn').not.toMatch(/^rgba\(0, 0, 0, 0\)|^none/);
+    // A mouse is told the rest of the row is a target too — on an untouched row only.
+    const sat = row('2026-07-18');
+    const restBg = (await look('2026-07-18')).bg;
+    await sat.hover({ position: { x: 300, y: 10 } });
+    expect((await look('2026-07-18')).bg, 'an untouched row tints under the pointer').not.toBe(restBg);
+    // Tips: the words match the pixels.
+    await page.locator('.btn-card-tips[data-card="change-shift"]').click();
+    const tips = page.locator('#tipsLbBody');
+    await expect(tips).toContainText('with a gold edge, to show it is ready to save');
+    await expect(tips).toContainText('A ticked day with no type yet has the gold edge only');
+    await expect(tips, 'the arrows, for a mouse — not swipe alone').toContainText('Move between weeks with ‹ and ›');
+});
+
+test('admin: the small things on a desk — Today\'s word, the Saved Changes times, and no "tap" in the save hint', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the desk layout');
+    await deskAdmin(page, { width: 1366, height: 900 }, [
+        { id: 'c1', memberName: 'G. Miller', date: '2026-07-17', value: '06:00-14:00', type: 'shift', source: 'manual' },
+    ]);
+    // "Today" was 10px — the smallest word on the page, inside an 84×44 gold button.
+    expect(parseFloat(await page.locator('.week-today-word').evaluate(el => getComputedStyle(el).fontSize)),
+        'the Today word is a readable size').toBeGreaterThanOrEqual(12);
+    // The save hint names no touch verb on a desk.
+    await expect(page.locator('#saveBtnHint')).not.toContainText(/\btap\b/i);
+    // Saved Changes' times were a system monospace — Consolas on the station PC.
+    await page.locator('#overridesToggleHeader').click();
+    const value = page.locator('.override-card .oc-value').first();
+    await expect(value).toContainText('06:00');
+    const fonts = await value.evaluate(el => ({ own: getComputedStyle(el).fontFamily, page: getComputedStyle(document.body).fontFamily, nums: getComputedStyle(el).fontVariantNumeric }));
+    expect(fonts.own, 'the times are in the page\'s typeface').toBe(fonts.page);
+    expect(fonts.nums, 'with tabular figures, so they line up').toBe('tabular-nums');
 });

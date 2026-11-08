@@ -3,8 +3,9 @@
  * and unlockBodyScroll.
  * Run with: node --test overlay.test.mjs
  *
- * overlay.js has no module imports — only browser globals. A minimal stub
- * is provided before the import so the module loads cleanly in Node.
+ * overlay.js imports one module, card-collapse.js (re-exported, so initCardCollapse is tested here
+ * through it), and that imports nothing; otherwise only browser globals. A minimal stub is provided
+ * before the import so the module loads cleanly in Node.
  */
 
 import { test, describe, beforeEach, mock } from 'node:test';

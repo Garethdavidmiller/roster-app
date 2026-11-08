@@ -52,7 +52,9 @@ main {
     border-bottom: 2px solid var(--amber);
     padding: 12px max(16px, env(safe-area-inset-left));
 }
-.source-banner > * { max-width: 760px; margin-left: auto; margin-right: auto; }
+/* 728 = the 760px column less its 16px sides, so the banner's words start where the header's ←, the
+   chips and the text do (desktop audit, Nov 2026); it was 16px left of all three. */
+.source-banner > * { max-width: 728px; margin-left: auto; margin-right: auto; }
 .draft-title {
     font-weight: 800;
     color: var(--amber);
@@ -398,6 +400,17 @@ h2.section:first-of-type { margin-top: 4px; }
 
 /* The footer's `.guide-back-link` is the shared recipe in guide-shell.css (polish round 2) — it
    keeps the 44px touch target this page gave it at v24.30. */
+
+/* ── A reading measure from 1024px (desktop audit, Nov 2026) ─────────────────────────────────────
+   The 760px column held this page's 13px notes at ~115–130 characters a line. The app's own rule for
+   prose on a desktop (css-tokens.md → "Reading measure") is a ~64–72ch cap from 1024px, and the guides
+   keep it too: a paragraph or a note stops at 64ch. The amber callouts and the card rows keep the
+   column — a box is bounded and short, a row is data. The footer's words take the measure from its
+   padding, so its rule still spans the column. Screen only: print is as it was. */
+@media screen and (min-width: 1024px) {
+    main p, .check-item > div { max-width: 64ch; }
+    .foot { padding-right: max(0px, calc(100% - 64ch)); }
+}
 
 /* ── Print ──────────────────────────────────────────────────────────────────
    The sticky header prints as the title banner (guide-shell.css). The chip bar is navigation and

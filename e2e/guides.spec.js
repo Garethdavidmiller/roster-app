@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors } from './helpers.js';
+import { collectFatalErrors, isTouchProject, seedMemberSession } from './helpers.js';
 
 // ── FIP GUIDE (fip-guide.html) — jump-to-open + malformed-hash safety ──────────────
 
@@ -225,6 +225,183 @@ test('guides: from 800px the section chips start where the content column\'s tex
     await page.goto('/fip-guide.html');
     expect(await page.locator('.chip-bar .chip').first().evaluate(el => Math.round(el.getBoundingClientRect().left)))
         .toBe(12);
+});
+
+// …and the header above them (desktop audit, Nov 2026). Its ← and ⤓ PDF sat at the window's edges —
+// the ← at x=16 over text starting at x=596 at 1920 — on all five guides, so the two controls read as
+// the browser's rather than the page's. From 800px the navy band stays full-bleed and its contents
+// take the column's edges, as the chips do; a phone keeps its 16px gutter. The amber source banner
+// between them (railcard, rangers) sat 16px left of both, and takes the same edges.
+test('guides: from 800px the header\'s ← and ⤓ PDF sit on the content column\'s edges', async ({ page }) => {
+    const pages = { 'fip-guide': '.content', 'railcard-guide': '.content', 'rangers-guide': 'main',
+                    'staff-guide': '.page', 'paycalc-guide': '.page' };
+    for (const [guide, column] of Object.entries(pages)) {
+        for (const width of [1920, 1366, 800]) {
+            await page.setViewportSize({ width, height: 900 });
+            await page.goto(`/${guide}.html`);
+            const m = await page.evaluate((sel) => {
+                const c = /** @type {HTMLElement} */ (document.querySelector(sel));
+                const cs = getComputedStyle(c), r = c.getBoundingClientRect();
+                const back = /** @type {HTMLElement} */ (document.querySelector('.page-header .btn-back')).getBoundingClientRect();
+                const pdf = /** @type {HTMLElement} */ (document.querySelector('.page-header .btn-pdf')).getBoundingClientRect();
+                const band = /** @type {HTMLElement} */ (document.querySelector('.page-header')).getBoundingClientRect();
+                // The amber source banner between the header and the chips (railcard, rangers) too.
+                const banner = document.querySelector('.source-banner > *')?.getBoundingClientRect();
+                return { textLeft: r.left + parseFloat(cs.paddingLeft), textRight: r.right - parseFloat(cs.paddingRight),
+                         back: back.left, pdf: pdf.right, bandLeft: band.left, bandRight: band.right,
+                         banner: banner ? [banner.left, banner.right] : null };
+            }, column);
+            expect(Math.abs(m.back - m.textLeft), `${guide} at ${width}px: ← at ${m.back}, the text at ${m.textLeft}`).toBeLessThanOrEqual(1);
+            expect(Math.abs(m.pdf - m.textRight), `${guide} at ${width}px: ⤓ PDF ends at ${m.pdf}, the text at ${m.textRight}`).toBeLessThanOrEqual(1);
+            expect([m.bandLeft, m.bandRight], `${guide} at ${width}px: the navy band stays full-bleed`).toEqual([0, width]);
+            if (m.banner) {
+                expect(Math.abs(m.banner[0] - m.textLeft) + Math.abs(m.banner[1] - m.textRight),
+                    `${guide} at ${width}px: the source banner's words span ${m.banner}, the text ${m.textLeft}–${m.textRight}`).toBeLessThanOrEqual(2);
+            }
+        }
+    }
+    // Below the breakpoint nothing moved: the header keeps its 16px phone gutter.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/fip-guide.html');
+    expect(await page.locator('.page-header .btn-back').evaluate(el => Math.round(el.getBoundingClientRect().left))).toBe(16);
+});
+
+// The 760px column held the card guides' 12–14px prose at 110–140 characters a line on a desktop
+// (desktop audit, Nov 2026). From 1024px a paragraph keeps the app's reading measure (css-tokens.md →
+// "Reading measure"; 64ch — the low end of its 64–72ch, because 68ch measured 102 characters on CI's
+// render of one Railcard paragraph); a phone is untouched. Counted in
+// CHARACTERS, by measuring each paragraph's own text in its own font, because "too long" is a count
+// of letters, not of pixels.
+test('guides: a paragraph keeps a reading measure on a desktop, and a phone is untouched', async ({ page }) => {
+    /** The most characters any full line of a `main` paragraph holds. */
+    const longest = () => page.evaluate(() => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
+        let most = 0;
+        for (const p of document.querySelectorAll('main p')) {
+            const r = p.getBoundingClientRect();
+            if (!r.width) continue;
+            const cs = getComputedStyle(p);
+            ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+            const text = (p.textContent || '').replace(/\s+/g, ' ').trim();
+            const width = ctx.measureText(text).width;
+            const room = r.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+            if (width > room * 1.2) most = Math.max(most, Math.round(text.length * room / width));   // wraps, with a full line
+        }
+        return most;
+    });
+    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+        await page.setViewportSize({ width: 1366, height: 900 });
+        await page.goto(`/${guide}.html`);
+        await page.evaluate(() => document.fonts.ready);
+        await page.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; }));
+        expect(await longest(), `${guide} at 1366px: the longest paragraph line, in characters`).toBeLessThanOrEqual(100);
+        await page.setViewportSize({ width: 390, height: 900 });
+        await page.goto(`/${guide}.html`);
+        expect(await page.locator('main p').first().evaluate(p => getComputedStyle(p).maxWidth), `${guide}: no measure on a phone`).toBe('none');
+    }
+});
+
+// The Railcard quick check on a desktop (owner, Nov 2026: LARGER TEXT, not a narrower card). Its
+// note keeps the 64ch measure above, and at 12.5px that stopped about 200px short of a ~700px card —
+// each card measured ~30% empty on its right here, ~20% on CI's slightly wider render. One factor
+// (`--qc-scale`, railcard-guide.css) now steps every size in the card up together. Pinned by what it
+// is FOR: each card's widest line reaches near its content edge, every size grows by the SAME factor
+// (the hierarchy is kept, not merely the sizes raised), and a phone and paper keep the old sizes.
+test('railcard: on a desktop the quick-check type steps up to fill its cards, and a phone and paper do not', async ({ page }) => {
+    const measure = () => page.evaluate(() => [...document.querySelectorAll('.qc-group')].map(g => {
+        const cs = getComputedStyle(g), r = g.getBoundingClientRect();
+        const left = r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+        const right = r.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
+        let textRight = left;
+        for (const el of g.querySelectorAll('.qc-head, .qc-cards, .qc-note')) {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            for (const line of range.getClientRects()) textRight = Math.max(textRight, line.right);
+        }
+        const size = (/** @type {string} */ sel) => parseFloat(getComputedStyle(/** @type {Element} */ (g.querySelector(sel))).fontSize);
+        return { name: g.className, head: size('.qc-head'), cards: size('.qc-cards'), note: size('.qc-note'),
+                 empty: (right - textRight) / (right - left) };
+    }));
+    const open = async (/** @type {number} */ width) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/railcard-guide.html');
+        await page.evaluate(() => document.fonts.ready);
+    };
+    await open(390);
+    const phone = await measure();
+    expect(phone.length, 'the five quick-check groups').toBe(5);
+    for (const width of [1366, 1920]) {
+        await open(width);
+        const desk = await measure();
+        desk.forEach((card, i) => {
+            const step = card.note / phone[i].note;
+            expect(step, `${card.name} at ${width}px: the note grows on a desktop`).toBeGreaterThan(1.15);
+            expect(Math.abs(card.head / phone[i].head - step), `${card.name} at ${width}px: the head grows by the note's factor`).toBeLessThan(0.01);
+            expect(Math.abs(card.cards / phone[i].cards - step), `${card.name} at ${width}px: the card list grows by the note's factor`).toBeLessThan(0.01);
+            expect(card.empty, `${card.name} at ${width}px: the widest line stops ${Math.round(card.empty * 100)}% short of the card's edge`).toBeLessThan(0.15);
+        });
+    }
+    // Paper keeps the phone's sizes at any width: the step is `screen` only.
+    await page.emulateMedia({ media: 'print' });
+    const paper = await measure();
+    expect(paper.map(c => c.note), 'printed, the notes keep their size').toEqual(phone.map(c => c.note));
+    await page.emulateMedia({ media: 'screen' });
+});
+
+// The Staff guide drew every Calendar button it describes in navy, while the real ones are gold 📍,
+// navy 👥 Team, teal 🏖️ AL, navy-with-gold 📝 Admin and green 💷 Pay (desktop audit, Nov 2026) — five
+// buttons a reader could not match to the screen by sight. Compared with the REAL buttons, read off
+// the Calendar, within a whisker: the guides keep their own print-friendly palette, which mirrors the
+// app's by eye (guide-colour-parity.test.mjs), so a near-match is the contract, not an exact one.
+test('staff guide: each button it describes wears the real button\'s colours', async ({ page }) => {
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const ids = { today: '#todayBtn', team: '#teamViewBtn', al: '#alBtn', admin: '#adminBtn', pay: '#payBtn' };
+    /** @param {string} css */
+    const rgb = (css) => page.evaluate((c) => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1);
+        return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+    }, css);
+    /** @type {Record<string, { fill: number[], ink: number[] }>} */
+    const real = {};
+    for (const [k, sel] of Object.entries(ids)) {
+        // Once its transitions finish: iPhone WebKit read the Today button mid-fade (243,200,34).
+        const cs = await page.locator(sel).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => {})))
+            .then(() => ({ fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color })));
+        real[k] = { fill: await rgb(cs.fill), ink: await rgb(cs.ink) };
+    }
+    await page.goto('/staff-guide.html');
+    for (const k of Object.keys(ids)) {
+        const cs = await page.locator(`.feature-label--${k}`).evaluate(el => ({ fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color }));
+        const label = { fill: await rgb(cs.fill), ink: await rgb(cs.ink) };
+        for (const part of /** @type {const} */ (['fill', 'ink'])) {
+            const off = Math.max(...label[part].map((v, i) => Math.abs(v - real[k][part][i])));
+            expect(off, `${k}: the guide's ${part} ${label[part]} — the real button's ${real[k][part]}`).toBeLessThanOrEqual(24);
+        }
+    }
+});
+
+// The ← had no hover on four guides, and on the Railcard guide that page's `a:hover` (amber, meant for
+// links in the text) reached it — amber on navy, ~3.3:1 (desktop audit, Nov 2026). One hover now, the
+// shell's, read off the rendered arrow under a real mouse.
+test('guides: the ← answers a mouse with one hover on every guide, never a page\'s link colour', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a hover is a fine pointer\'s');
+    for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide']) {
+        await page.goto(`/${guide}.html`);
+        const gold = await page.evaluate(() => {
+            const probe = document.createElement('span');
+            probe.style.color = 'var(--gold)';
+            document.body.append(probe);
+            const c = getComputedStyle(probe).color;
+            probe.remove();
+            return c;
+        });
+        const back = page.locator('.page-header .btn-back');
+        await back.hover();
+        await expect.poll(() => back.evaluate(el => getComputedStyle(el).color), { message: `${guide}: the ← on hover` }).toBe(gold);
+    }
 });
 
 // "Search a country or operator — e.g. Spain, ÖBB, Railjet" was 418px of text in a 282px field at

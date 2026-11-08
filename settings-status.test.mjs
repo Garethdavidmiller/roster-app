@@ -21,6 +21,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { summarise, shouldOpen, CARD_ORDER } from './settings-status.js';
 
 // `install` is 'n/a' in the ALL-OK set because that is what it reports almost everywhere: an
@@ -172,6 +173,22 @@ describe('the list itself', () => {
             assert.equal(s.items.length, 1);
             assert.notEqual(s.items[0], id, `${id} has no to-do label`);
             assert.ok(/^[A-Z]/.test(s.items[0]), `${id}'s label should read as a sentence`);
+        }
+    });
+
+    test('every to-do leads to a card that is on the page (desktop audit, 7 Nov 2026)', () => {
+        // The strip's items are links to `#<card>`. A card id renamed in settings.html would leave a
+        // to-do that jumps nowhere — the "leads nowhere" defect again, arriving by a different road.
+        const html = readFileSync(new URL('./settings.html', import.meta.url), 'utf8');
+        for (const [id, state] of CARD_ORDER.flatMap(id => [[id, 'action'], [id, 'blocked']])) {
+            const s = summarise({ ...ALL_OK, [id]: state });
+            if (!s.items.length) continue;
+            assert.deepEqual(s.ids, [id], `${id} (${state}): the item is about its own card`);
+            assert.equal(s.cards.length, s.items.length, 'one card per item');
+            assert.ok(s.cards[0] && html.includes(`id="${s.cards[0]}"`), `${id} → #${s.cards[0]} is not in settings.html`);
+        }
+        for (const s of [summarise({}), summarise(ALL_OK), summarise({ ...ALL_OK, password: 'error' })]) {
+            assert.deepEqual([s.ids, s.cards], [[], []], `${s.tone}: nothing to lead to`);
         }
     });
 });

@@ -106,7 +106,7 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
     // The store owns the cache and the reads; it repaints through these. Injected rather than
     // imported back, which is what keeps the graph acyclic (import-graph.test.mjs).
     initWeekEditor({
-        currentIsAdmin, showError, showSuccess,
+        currentIsAdmin, showSuccess,
         markChanged: () => _markChanged(),
         memberDateMap: buildMemberDateMap,
     });
