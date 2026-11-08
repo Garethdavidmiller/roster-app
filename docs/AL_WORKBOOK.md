@@ -94,7 +94,7 @@ Each row of `New Marylebone Totals` is:
 | A | Role | typed — `CEA` · `BLCEA` · `CES` · `DISP`. **`BLCEA` is the LINE, not the CONTRACT** [measured, 14 Sep 2026]: a `BLCEA` row can carry an allowance of **32**, and the app has that member as a plain CEA with `bilingualContract: false` — which agrees. Read as a contract it predicts 34 (CLAUDE.md's bilingual entitlement) and reports a false disagreement against a workbook that is right. A plain CEA is routinely placed on a bilingual line until a CEA one frees up, so this column cannot answer the entitlement question; `bilingualContract` in the app can. **Corroborated across ALL SEVEN `BLCEA` rows, 14 Sep 2026** — five carry an allowance of 32 and two carry 34, and that split matches `bilingualContract` in the app exactly, 7/7. So the workbook and the app agree on who holds the contract; it is the ROLE COLUMN that does not answer the question. **And it does not always agree with the app on the LINE either** [measured, 1 Oct 2026]: one `BLCEA` row belongs to a member the app has on the MAIN rotation (`rosterType: 'main'`). Either the column is stale or the app is; only the owner can say, so ask rather than pick (§10, question 12). |
 | B | Name | typed — `Surname . I` (see §7) |
 | C | c/f previous year | typed |
-| D | AL allowance | typed |
+| D | AL allowance | typed — **not always the joining-year figure**: a recent joiner's row keeps the full grade figure here and pro-rates in column E (§5) |
 | E | **AL over depot quota** | **typed** — see §5 |
 | F | Total | `=C+D` |
 | G | Used | `=COUNTIF('New Marylebone Calendar'!<range>,"<name>")` |
@@ -281,6 +281,23 @@ alone is one day short.
 **The exception to the pattern.** One value is a lump with no dates: a comment reading
 `A/L FROM PRE JUNE 2026` [measured]. So column E is *also* used for a balance carried in from
 elsewhere. Read the comment before assuming the value means over-quota days.
+
+> **COLUMN E ALSO PRO-RATES A JOINER — and then the allowance column overstates them**
+> [measured, 8 Nov 2026]. Three recent joiners' rows (8, 68 and 76) keep column D at the FULL grade
+> figure (32 for a CEA, 22 for a Dispatcher) and carry the reduction in column E. The threaded
+> comment gives the start date (`STARTED 5/10`, `STARTED 28/09`) and, on one row, the joining
+> allowance in words (`STARTED ON 20/09 9 DAYS LEAVE ALLOWANCE`). That row ALSO has two dated
+> over-quota days as REPLIES in the same thread, so its E is the reduction plus those days
+> (25 = 23 + 2), and only the comment says which part is which:
+>
+> ```
+> joining-year allowance = D − (E − dated over-quota days)      e.g. 32 − (25 − 2) = 9
+> ```
+>
+> `Remaining` still comes out right, because the formula deducts the whole of E. An earlier
+> joiner's row (73) does it the other way, with the pro-rated figure typed straight into D — so
+> **both conventions are live in the same sheet**, and neither is marked. Read the comment on every
+> joiner's row before quoting an allowance, and before the §9 check against `proRatedAL`.
 
 **The pattern holds TEN FOR TEN** [measured, 14 Sep 2026]. Every dated over-quota comment checked —
 ten dates across eight members, one of whom has three — falls on a date whose four CEA slots are
@@ -583,6 +600,18 @@ Every one of these is silent, and every one has been seen. [measured]
    `New Marylebone Calendar`; a script that iterates `wb.worksheets` looking for a surname will find
    the 2021 one too, and §6 already warns about exactly this class of error for the threaded
    comments.
+9. **A name spelt two ways IN THE GRID, so the row's own count misses days** [measured, 8 Nov
+   2026]. §7 records a second spelling in a free-text Sunday tag, which costs nothing. In the
+   Dispatcher block one surname appears **22 times in one spelling and 9 times in another** — the 9
+   are one continuous block — and the totals row's `COUNTIF` matches the first spelling only. **Nine
+   booked days are uncounted**, and the row reads as exactly at its allowance. Before trusting any
+   row's Used figure, count the grade block for the surname LOOSELY and compare.
+10. **A person with grid bookings and no totals row** [measured, 8 Nov 2026]. One Dispatcher has 22
+   days in the Dispatcher block and **no row on `New Marylebone Totals` at all**, so nothing counts
+   them and no Remaining exists anywhere in the file. The app has the member.
+11. **A column-E value its comment does not account for** [measured, 8 Nov 2026]. One Dispatcher
+   row (67) has E = 5 and a comment naming a single date. Four of the five days are unexplained —
+   §0 step 3 applies, and it is a question for the clerks, not a rounding error.
 
 
 ---
@@ -598,7 +627,7 @@ difference is.
 | **Over-quota days** | app shows **more** remaining | The day is real leave but exists only in column E. The app cannot know about it unless somebody records it in Change a Shift. |
 | **Sundays inside a block** | agree (both exclude) | Both refuse leave on an uncontracted day. |
 | **Carry-forward** | app shows **less** entitlement | `getALEntitlement` has no c/f input. **This stops being theoretical in January 2027, and the row that will do it is already visible** [owner-confirmed, 14 Sep 2026]: one row has an untouched full allowance that is expected to carry over, so column C on its 2027 row is the c/f value this has been waiting for — at which point the app will state an entitlement lower than the workbook's for as long as the carry-over lasts. Worth deciding BEFORE it appears rather than discovering it as a discrepancy. **CONFIRMED IN USE [owner, 3 Nov 2026]:** some members are being allowed to take a few 2026 days in early January 2027. The owner's direction for the app is **per DAY, not per year**: from 1 January a leave day counts against the new year by default, and until 31 January an admin can charge a January day to the previous year's allowance instead. That is the opposite bookkeeping to this workbook's c/f column, which ADDS the carried days to the new year's allowance and counts the January days in the new year's grid — so once it is built the two will book the carried days to different years. The app counts them as 2026 days used; the workbook leaves them as 2026 remaining, carries them as c/f, and counts them as 2027 days used against a 2027 allowance raised by the same c/f. **2027's REMAINING agrees; 2026's differs by exactly the carried days** — an explained difference, not a disagreement. **BUILT at v25.18, switched ON at v25.19** (3 Nov 2026, once the rules accepting the field were live): a January leave day may carry `leaveYear: <year − 1>` (docs/DATA_MODEL.md), set from the Admin AL card's "Which year's allowance" panel. The owner's final answers (3 Nov 2026) widened the direction above in two places: a member may move their OWN days, and a manager or the admin anyone's; and a moved day stays correctable after January — there is no lock on 31 January. The one limit is **no more than the previous year has left**. So when reconciling 2026 against this workbook from January 2027 on, expect the app's 2026 used to exceed the sheet's by the moved days, and its 2027 used to fall short by the same days. |
-| **Pro-rated joining year** | should agree | The workbook's allowance for a joiner should equal the app's `proRatedAL[2026]`. Check it — this is the cheapest real check in the whole reconciliation. |
+| **Pro-rated joining year** | should agree | The workbook's allowance for a joiner — column D, or D less the undated part of column E where the clerks pro-rate there (§5) — should equal the app's `proRatedAL[2026]`. Check it — this is the cheapest real check in the whole reconciliation. |
 | **Dispatcher lieu days** | check | The app adds one lieu day per bank holiday worked. Whether the workbook's allowance for a Dispatcher already includes them is **[unknown]**. |
 | **A SWAPPED working day booked off** | app shows **more** remaining | **The commonest real cause, ANSWERED BY THE OWNER 14 Sep 2026** — see below. |
 | **Employee of the Month** | **BOTH may show less entitlement** | **One extra AL day per award** [owner, 14 Sep 2026]. Neither system holds it: the workbook's allowance column reads a flat 32 for every CEA, and `getALEntitlement` returns a flat 32 too. **PARKED at the owner's request** — see below. |
@@ -763,6 +792,17 @@ them change what a figure MEANS, so an unanswered one is not a tidiness problem.
    does the clerks' allowance column add the extra day, and on which year's row: the year of the
    Boxing Day, or the next? **The app's answer is the Boxing Day's own year** [owner, 5 Nov 2026,
    built v25.37], so the question that remains is only whether the clerks' sheet agrees.
+
+14. **A Dispatcher on the app with no workbook row, and two workbook Dispatchers not on the app**
+   [measured, 8 Nov 2026]. The app's newest Dispatcher appears nowhere in the live sheets, under any
+   spelling. Two Dispatcher rows for recent starters (68 and 76) match nobody on the app roster. Is
+   the app's starter one of those rows under another name, or is the workbook not yet updated — and
+   are the two rows staff the app is missing?
+15. **Do the clerks know about §8 defects 9–11?** A misspelt block of nine days, a person with no
+   totals row, and an unexplained column-E value each make that person's Remaining wrong, silently.
+
+Toward question 4 [measured, 8 Nov 2026]: three of the eleven Dispatcher rows carry an allowance of
+**24** and the rest **22** — consistent with lieu days being included for some, and not proof of it.
 
 ---
 
