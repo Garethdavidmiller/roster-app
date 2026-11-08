@@ -741,13 +741,17 @@
             font-family: inherit;
         }
 
-        @media (hover: hover) and (pointer: fine) { .btn-bulk-apply:hover { background: var(--primary-blue-dark); } }
+        @media (hover: hover) and (pointer: fine) { .btn-bulk-apply:hover:not(:disabled) { background: var(--primary-blue-dark); } }
         /* Navy, as the week arrows: the ring is drawn on the pale bulk bar, not on the button. */
         .btn-bulk-apply:focus-visible {
             outline: var(--focus-outline);
             outline-offset: 2px;
         }
         #bulkFeedback { margin-top: 8px; }   /* what Apply refused, said under it (admin.html) */
+        /* Greyed out until it can act, in Save changes' own disabled look (shared.css `.btn-save:disabled`), its
+           reason under it in Save's hint style — held to the button's left edge, not centred (owner, Nov 2026). */
+        .btn-bulk-apply:disabled { opacity: 0.35; cursor: not-allowed; }
+        #bulkApplyHint { text-align: left; }
 
         /* ---- Week grid ---- */
         .week-grid {

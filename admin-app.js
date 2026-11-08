@@ -194,7 +194,9 @@ export function init() {
                     { heading: 'Several days at once', items: [
                         { icon: '1️⃣', html: 'Use <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or tick the days you want individually.' },
                         { icon: '2️⃣', html: 'Pick a type, and add a start and end time if it needs one.' },
-                        { icon: '3️⃣', html: 'Select the <strong>Apply</strong> button under the pills — once you have picked a type it names it, so it reads <em>Apply “AL” to ticked days</em> — then <strong>Save changes</strong>.' },
+                        // It names the type's full LABEL (admin-week-editor.js) — this said “AL”, which the button never reads.
+                        { icon: '3️⃣', html: 'Select the <strong>Apply</strong> button under the pills — once you have picked a type it names it, so it reads <em>Apply “Annual Leave” to ticked days</em> — then <strong>Save changes</strong>.' },
+                        { icon: 'ℹ️', html: 'Until a day is ticked and a type is chosen, <strong>Apply</strong> is greyed out, and the line under it says which is still missing.' },
                         { icon: '🏖️', html: 'For a run of annual leave or absence, the two cards beside this one — below it on a phone — do a whole date range in one go — you do not have to tick days here.' },
                     ]},
                     { heading: 'What each type means', items: [

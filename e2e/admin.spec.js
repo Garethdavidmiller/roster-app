@@ -3384,17 +3384,100 @@ test('admin: a save error is never under the Unsaved bar — scrolled to, or at 
     await expect.poll(gap, { message: 'and at the end of the page it still clears the bar' }).toBeGreaterThanOrEqual(0);
 });
 
-test('admin: what the bulk bar refuses is said beside the bar, and clears when the ticks change', async ({ page }, info) => {
-    // It went to the foot of the card — measured 557px below the Apply button at 1366×768, after a
-    // 244px scroll, and under the Unsaved bar. A reader who pressed Apply saw the page jump and nothing
-    // next to the button they pressed.
+// APPLY IS GREYED OUT UNTIL IT CAN ACT, AND SAYS WHY (owner, Nov 2026). The audit above left Apply live,
+// refusing a press with something missing in a line under it; the owner chose Save changes' own pattern
+// instead — greyed out until it can do something, the reason in the line beneath. A phone and a desk
+// alike, so this runs on both projects. The Sunday refusal below is the one a press still finds.
+test('admin: Apply is greyed out until a day is ticked AND a type is chosen, and the line under it says which is missing', async ({ page }, info) => {
+    await deskAdmin(page, isTouchProject(info) ? { width: 393, height: 851 } : { width: 1366, height: 768 });
+    const apply = page.locator('#bulkApplyBtn');
+    const why = page.locator('#bulkApplyHint');
+    const al = page.locator('#bulkTypePills .pill-annual_leave');
+    // Nothing ticked, no type: greyed out the way Save changes is, which nothing is staged for either.
+    await expect(apply).toBeDisabled();
+    await expect(why).toHaveText('Tick at least one day and choose a type');
+    await expect(page.locator('#saveBtn'), 'premise: Save changes is greyed out too').toBeDisabled();
+    const look = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => ({ opacity: getComputedStyle(el).opacity, cursor: getComputedStyle(el).cursor }));
+    expect(await look('#bulkApplyBtn'), 'Save\'s own disabled look, not a new one').toEqual(await look('#saveBtn'));
+    // A screen reader reads the reason straight after the button, as it does Save's.
+    const tree = (await page.locator('#bulkBar').ariaSnapshot()).split('\n').map(l => l.trim());
+    const at = tree.findIndex(l => l.startsWith('- button "3 Apply to ticked days" [disabled]'));
+    expect(at, 'Apply is in the tree, unavailable').toBeGreaterThan(-1);
+    expect(tree[at + 1], 'and the next thing read is why').toBe('- paragraph: Tick at least one day and choose a type');
+    // The line sits under the button, at its left edge — not centred under the bar.
+    const geo = await page.evaluate(() => {
+        const a = /** @type {HTMLElement} */ (document.getElementById('bulkApplyBtn')).getBoundingClientRect();
+        const h = /** @type {HTMLElement} */ (document.getElementById('bulkApplyHint'));
+        const r = document.createRange(); r.selectNodeContents(h); const t = r.getBoundingClientRect();
+        return { below: Math.round(t.top - a.bottom), left: Math.round(t.left - a.left) };
+    });
+    expect(geo.below, 'directly under Apply').toBeGreaterThanOrEqual(0);
+    expect(geo.below, 'directly under Apply').toBeLessThan(16);
+    expect(Math.abs(geo.left), 'starting where Apply starts').toBeLessThanOrEqual(1);
+
+    // A type, nothing ticked.
+    await clickInView(al);
+    await expect(apply).toBeDisabled();
+    await expect(why).toHaveText('Tick the days to apply it to');
+    await clickInView(al);   // the same pill again puts the type back
+    await expect(why).toHaveText('Tick at least one day and choose a type');
+    // Days ticked, no type — one by its own box, then a whole run.
+    await clickInView(page.locator('.day-row[data-date="2026-07-14"] .day-cb'));
+    await expect(apply).toBeDisabled();
+    await expect(why).toHaveText('Choose a type for the ticked day');
+    await clickInView(page.locator('#bulkSelMonFri'));
+    await expect(why).toHaveText('Choose a type for the ticked days');
+    await expect(apply).toBeDisabled();
+    // Both: it can act, and the line goes quiet, as Save's does when there is something to save.
+    await clickInView(al);
+    await expect(apply).toBeEnabled();
+    await expect(apply).toContainText('Apply “Annual Leave” to ticked days');
+    await expect(why).toHaveText('');
+    // …and it really applies: the five weekdays take the leave, the weekend does not.
+    await clickInView(apply);
+    const staged = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.day-row')]
+        .map(r => [/** @type {HTMLElement} */ (r).dataset.date, /** @type {HTMLElement} */ (r).dataset.type || ''])));
+    expect(staged).toEqual({ '2026-07-12': '', '2026-07-13': 'annual_leave', '2026-07-14': 'annual_leave',
+        '2026-07-15': 'annual_leave', '2026-07-16': 'annual_leave', '2026-07-17': 'annual_leave', '2026-07-18': '' });
+    await expect(page.locator('#saveBtn')).toBeEnabled();
+    await expect(apply, 'the days are still ticked and the type still chosen').toBeEnabled();
+});
+
+// A row's own pill can untick it — pressing the chosen type again takes the row back to nothing — and the
+// bar follows. Its count was read only when a box or a bulk button changed, so it went on counting a day
+// no longer ticked; with Apply's state read from the same count, that would leave Apply live over nothing.
+test('admin: a day unticked by its own pill leaves the bulk bar\'s count, and Apply', async ({ page }, info) => {
+    await deskAdmin(page, isTouchProject(info) ? { width: 393, height: 851 } : { width: 1366, height: 768 });
+    const tue = page.locator('.day-row[data-date="2026-07-14"]');
+    await clickInView(tue.locator('.day-cb'));
+    await clickInView(page.locator('#bulkTypePills .pill-rdw'));
+    await expect(page.locator('#bulkSelCount')).toHaveText('1 day selected');
+    await expect(page.locator('#bulkApplyBtn'), 'premise: a ticked day and a type').toBeEnabled();
+    await clickInView(tue.locator('.pill-annual_leave'));
+    await clickInView(tue.locator('.pill-annual_leave'));   // pressed again: the row goes back to nothing
+    await expect(tue.locator('.day-cb'), 'premise: the row\'s own pill unticked it').not.toBeChecked();
+    await expect(page.locator('#bulkSelCount'), 'the count follows the row').toHaveText('');
+    await expect(page.locator('#bulkApplyBtn'), 'and Apply has nothing to act on').toBeDisabled();
+    await expect(page.locator('#bulkApplyHint')).toHaveText('Tick the days to apply it to');
+});
+
+test('admin: the refusal only a press can find — every ticked day a Sunday — is said beside Apply, and clears when the bar changes', async ({ page }, info) => {
+    // Refusals went to the foot of the card — measured 557px below the Apply button at 1366×768, after
+    // a 244px scroll, and under the Unsaved bar. Since Apply is greyed out until a day is ticked and a
+    // type chosen, the one left is the Sunday: AL, Absent and Shift skip it (the Sunday rule's layer 2),
+    // so a week whose only ticked day is the Sunday has nothing to apply, and only the press knows.
     test.skip(isTouchProject(info), 'a desk-sized window');
     await deskAdmin(page, { width: 1366, height: 768 });
     const apply = page.locator('#bulkApplyBtn');
     const said = page.locator('#bulkFeedback');
+    const sunday = page.locator('.day-row[data-date="2026-07-12"]');
+    await sunday.locator('.day-cb').check();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await expect(apply, 'a day is ticked and a type chosen').toBeEnabled();
     await apply.click();
-    await expect(said).toContainText('Choose a type in step 2 first, then select Apply.');
-    await expect(page.locator('#formFeedback'), 'not at the foot of the card as well').not.toContainText('step 2');
+    await expect(said).toContainText('Nothing applied — Sunday is not a contracted day. Tick a working day.');
+    await expect(sunday, 'layer 2: nothing was staged on the Sunday').not.toHaveAttribute('data-type', /./);
+    await expect(page.locator('#formFeedback'), 'not at the foot of the card as well').not.toContainText('Sunday');
     const near = await page.evaluate(() => {
         const a = /** @type {HTMLElement} */ (document.getElementById('bulkApplyBtn')).getBoundingClientRect();
         const f = /** @type {HTMLElement} */ (document.getElementById('bulkFeedback')).getBoundingClientRect();
@@ -3403,11 +3486,12 @@ test('admin: what the bulk bar refuses is said beside the bar, and clears when t
     expect(near.below, 'the line sits directly under Apply').toBeGreaterThanOrEqual(0);
     expect(near.below, 'the line sits directly under Apply').toBeLessThan(24);
     expect(near.inWindow, 'and on screen').toBe(true);
-    // A type but no days: the other refusal, in the same place.
-    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    // Another type withdraws the refusal it answered; so does a change of ticks.
+    await page.locator('#bulkTypePills .pill-rdw').click();
     await expect(said, 'choosing a type withdraws the refusal it answered').toBeHidden();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
     await apply.click();
-    await expect(said).toContainText('Tick some days first');
+    await expect(said).toContainText('Nothing applied');
     await page.locator('#bulkSelMonFri').click();
     await expect(said, 'ticking days withdraws it too').toBeHidden();
 });
@@ -3427,6 +3511,10 @@ test('admin: every focus ring stands out from what is behind it — navy on the 
     await tue.locator('label.col-day').click();
     await tue.locator('.pill-annual_leave').click();
     await expect(page.locator('#stagedBar')).toBeVisible();
+    // …and a bulk type, because Apply is greyed out — out of the Tab order — until it can act (owner,
+    // Nov 2026), and a ring is drawn only on a control that can take focus.
+    await page.locator('#bulkTypePills .pill-rdw').click();
+    await expect(page.locator('#bulkApplyBtn')).toBeEnabled();
     // A real Tab, so the focused control matches :focus-visible. WebKit hands a SCRIPTED focus() the
     // previous element's focus-visible state, and the last focus came from a click.
     await page.locator('#navMenuBtn').focus();

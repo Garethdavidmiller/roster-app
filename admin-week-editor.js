@@ -425,8 +425,7 @@ export function buildWeekGridInto(container, dateStr) {
                     _deactivateRow(row, checkbox, pills, startEl, endEl);
                     if (hadStaged) _markChanged();
                 }
-                updateSaveBtn();
-                _updateBulkSelCount();
+                updateSaveBtn();   // …which recounts the bulk bar too
             });
         }
 
@@ -570,7 +569,7 @@ export function updateSaveBtn() {
     const saveBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
     if (!weekGrid || !saveBtn) return;
     const rows       = /** @type {HTMLElement[]} */ ([...weekGrid.querySelectorAll('.day-row')]);
-    rows.forEach(_syncOverwriteBadge); // keep every overwrite badge in step with its row's state
+    rows.forEach(_syncOverwriteBadge); _updateBulkSelCount(); // every overwrite badge, and the bulk bar, in step with the rows
     const saveCount  = rows.filter(r => r.dataset.type && !r.classList.contains('prefilled-existing')).length;
     const delCount   = rows.filter(r => !r.dataset.type && r.dataset.existingId).length;
     const total = saveCount + delCount;
@@ -638,13 +637,17 @@ export function updateSaveBtn() {
 const _bulkSay = (/** @type {string} */ msg) => { const el = document.getElementById('bulkFeedback');
     if (el) { el.className = msg ? 'feedback error' : 'feedback'; setStatus(el, msg ? '⚠ ' + msg : ''); } };
 
+/** The bulk bar, read off the grid as it stands: the count, and Apply GREYED OUT until a day is ticked AND a
+ *  type chosen, the line under it naming what is missing — Save changes' own pattern (owner, Nov 2026). */
 function _updateBulkSelCount() {
-    _bulkSay('');
-    const weekGrid = document.getElementById('weekGrid');
-    const el = document.getElementById('bulkSelCount');
-    if (!el || !weekGrid) return;
-    const n = weekGrid.querySelectorAll('.day-cb:checked').length;
-    el.textContent = n > 0 ? `${n} day${n > 1 ? 's' : ''} selected` : '';
+    _bulkSay('');   // whatever a press refused, the bar has changed since
+    const n = document.getElementById('weekGrid')?.querySelectorAll('.day-cb:checked').length ?? 0, t = _bulkActiveType;
+    const why = n ? (t ? '' : `Choose a type for the ticked day${n > 1 ? 's' : ''}`) : t ? 'Tick the days to apply it to' : 'Tick at least one day and choose a type';
+    const count = document.getElementById('bulkSelCount'), hint = document.getElementById('bulkApplyHint');
+    const apply = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkApplyBtn'));
+    if (count) count.textContent = n > 0 ? `${n} day${n > 1 ? 's' : ''} selected` : '';
+    if (apply) apply.disabled = !!why;
+    if (hint && hint.textContent !== why) hint.textContent = why;
 }
 
 // ── BULK BAR ──────────────────────────────────────────────────────────────────
@@ -694,16 +697,14 @@ function _initBulkBar() {
             if (!pill || !bulkTypePills.contains(pill)) return;
             const type    = pill.dataset.type ?? '';
             const already = pill.classList.contains('active');
-            if (already) { resetBulkPills(); return; }
-            _bulkSay(''); bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
+            resetBulkPills();   // pills, times, label and Apply back to rest; a second press stops there
+            if (already) return;
             pill.classList.add('active');
             pill.setAttribute('aria-pressed', 'true');
-            _bulkActiveType = type;
+            _bulkActiveType = type; _updateBulkSelCount();
             const bulkApplyLabel = document.getElementById('bulkApplyLabel');
             if (bulkApplyLabel) bulkApplyLabel.textContent = `Apply “${TYPES[type]?.label ?? type}” to ticked days`;
             if (bulkTimeGroup) bulkTimeGroup.style.display = (TYPES[type] && !TYPES[type].fixed) ? 'flex' : 'none';
-            if (bulkStart) bulkStart.value = '';
-            if (bulkEnd)   bulkEnd.value   = '';
         });
     }
 
@@ -752,7 +753,7 @@ function _initBulkBar() {
         // Only when staged state genuinely changed — mere ticking stages nothing, and a false
         // unsaved-changes flag also froze the admin week-swipe gesture (v16.23).
         if (stagedChanged) _markChanged();
-        updateSaveBtn(); _updateBulkSelCount();
+        updateSaveBtn();
     });
 
     document.getElementById('bulkSelWorking')?.addEventListener('click', () => {
@@ -779,7 +780,7 @@ function _initBulkBar() {
             }
         });
         if (stagedChanged) _markChanged();
-        updateSaveBtn(); _updateBulkSelCount();
+        updateSaveBtn();
     });
 
     document.getElementById('bulkSelAll')?.addEventListener('click', () => {
@@ -791,7 +792,7 @@ function _initBulkBar() {
             if (!row.dataset.type) row.classList.add('selected');
         });
         // No _markChanged: ticking alone stages nothing (the collector keys off dataset.type).
-        updateSaveBtn(); _updateBulkSelCount();
+        updateSaveBtn();
     });
 
     bulkApplyBtn?.addEventListener('click', () => {
@@ -817,13 +818,12 @@ function _initBulkBar() {
                 if (bulkEnd?.value && endEl)     endEl.value   = bulkEnd.value;
             }
         });
-        // Silent-no-op fixes: "Apply" used to do nothing (no feedback) when no days were
-        // ticked, or when the only ticked day was a Sunday that AL/Absent/Other skips.
+        // Apply is greyed out until a day is ticked and a type chosen, so the type and tick refusals are a
+        // backstop. The Sunday one is the refusal only a press finds: every ticked day was a Sunday it skips.
         if (ticked === 0)  { _bulkSay('Tick some days first — use the buttons above, or tick days in the week below.'); return; }
         if (applied === 0) { _bulkSay('Nothing applied — Sunday is not a contracted day. Tick a working day.'); return; }
         _markChanged();
-        updateSaveBtn();
-        _updateBulkSelCount();
+        updateSaveBtn();   // …and with it the bulk bar's count and Apply
         // Tell the user when ticked Sundays were dropped, so "All 7 → 6 applied" isn't a surprise.
         if (sundaySkipped > 0) _showSuccess(`Set ${applied} day${applied !== 1 ? 's' : ''} — Sunday skipped (not a contracted day).`);
     });

@@ -197,11 +197,13 @@
                         <input type="text" class="time-input" id="bulkEnd" inputmode="numeric" placeholder="HH:MM" maxlength="5" aria-label="Bulk end time (HH:MM)">
                     </div>
                 </div>
-                <!-- Step 3: apply -->
-                <button type="button" class="btn-bulk-apply" id="bulkApplyBtn"><span class="bulk-step-num bulk-step-num--on-navy">3</span><span id="bulkApplyLabel">Apply to ticked days</span></button>
-                <!-- What Apply refused, said HERE (desktop audit, Nov 2026): it went to the card's foot,
+                <!-- Step 3: apply. Greyed out until it can act, with the reason in the line under it,
+                     as Save changes is (owner, Nov 2026) — `_updateBulkSelCount`, admin-week-editor.js. -->
+                <button type="button" class="btn-bulk-apply" id="bulkApplyBtn" disabled><span class="bulk-step-num bulk-step-num--on-navy">3</span><span id="bulkApplyLabel">Apply to ticked days</span></button>
+                <!-- What a PRESS refused, said HERE (desktop audit, Nov 2026): it went to the card's foot,
                      ~560px below the button and under the Unsaved bar. -->
                 <div class="feedback" id="bulkFeedback" role="status" aria-live="polite"></div>
+                <p class="save-hint" id="bulkApplyHint">Tick at least one day and choose a type</p>
             </div>
 
             <!-- 7-day week grid -->
