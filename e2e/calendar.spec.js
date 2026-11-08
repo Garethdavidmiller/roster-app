@@ -4022,26 +4022,52 @@ test('desktop: 📍 says "Today" beside it, and the Team view help is not all ta
 // X1 — the Calendar draws its own header, and a hop from it to any other page rearranged the
 // header: 62px against 72, a 32px logo against 40, the title 24px/700 against 20px/800, a gradient
 // canvas against flat navy. The width differs by decision (--page-max-width); nothing else may.
-test('desktop: the Calendar\'s header is every other page\'s header, metric for metric', async ({ page }, info) => {
-    test.skip(isTouchProject(info), 'a desktop window');
-    await page.setViewportSize({ width: 1366, height: 768 });
-    await seedMemberSession(page, 'G. Miller');
-    const measure = () => page.evaluate(() => {
-        const header = /** @type {Element} */ (document.querySelector('.header, .app-header'));
-        const logo = /** @type {Element} */ (header.querySelector('img'));
-        const h1 = /** @type {Element} */ (header.querySelector('h1'));
-        const range = document.createRange(); range.selectNodeContents(h1);
-        const words = /** @type {DOMRect} */ ([...range.getClientRects()].pop());   // the title's line, past the logo
-        const h = header.getBoundingClientRect(), l = logo.getBoundingClientRect();
-        const cs = getComputedStyle(h1), body = getComputedStyle(document.body);
-        return { top: Math.round(h.top), height: Math.round(h.height), logo: [Math.round(l.width), Math.round(l.height)],
-            gap: Math.round(words.left - l.right), titleTop: Math.round(words.top), size: cs.fontSize, weight: cs.fontWeight,
-            canvas: `${body.backgroundImage} ${body.backgroundColor}` };
+// FROM 768px, which is where shared.css's `.app-header` takes these numbers — so a tablet either way
+// up, not only a desktop. 768 is the boundary the Calendar's own ≤768px block shares, the
+// width where source order decides; 800 is a tablet in portrait. Below 768 the two headers still
+// differ, and a phone on its side keeps the Calendar's compact header: neither is in this contract.
+for (const [width, height] of [[768, 1024], [800, 1280], [1366, 768]]) {
+    test(`from 768px the Calendar's header is every other page's header, metric for metric — ${width}px`, async ({ page }, info) => {
+        test.skip(width > 1023 && isTouchProject(info), 'a desktop window');
+        await page.setViewportSize({ width, height });
+        await seedMemberSession(page, 'G. Miller');
+        const measure = () => page.evaluate(() => {
+            const header = /** @type {Element} */ (document.querySelector('.header, .app-header'));
+            const logo = /** @type {Element} */ (header.querySelector('img'));
+            const h1 = /** @type {Element} */ (header.querySelector('h1'));
+            const burger = /** @type {Element} */ (header.querySelector('.btn-burger'));
+            const range = document.createRange(); range.selectNodeContents(h1);
+            const words = /** @type {DOMRect} */ ([...range.getClientRects()].pop());   // the title's line, past the logo
+            const h = header.getBoundingClientRect(), l = logo.getBoundingClientRect(), b = burger.getBoundingClientRect();
+            const cs = getComputedStyle(h1), body = getComputedStyle(document.body);
+            return { top: Math.round(h.top), height: Math.round(h.height), logo: [Math.round(l.width), Math.round(l.height)],
+                gap: Math.round(words.left - l.right), titleTop: Math.round(words.top), size: cs.fontSize, weight: cs.fontWeight,
+                // Where the burger sits inside its header: the one control both headers share, in the same place.
+                burger: [Math.round(b.left - h.left), Math.round(b.top - h.top)],
+                canvas: `${body.backgroundImage} ${body.backgroundColor}` };
+        });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        const calendar = await measure();
+        await page.goto('/settings.html');
+        await expect(page.locator('.app-header h1')).toBeVisible();
+        expect(calendar, `the Calendar's header against Settings' at ${width}px`).toEqual(await measure());
     });
+}
+
+// …and a phone on its SIDE is not a tablet. 915×412 is wider than 768, but the landscape block keeps
+// the compact header there so the month fits a 412px-tall screen — the tablet rule must not reach it.
+test('a phone on its side keeps the Calendar\'s compact header, wider than 768px or not', async ({ page }) => {
+    await page.setViewportSize({ width: 915, height: 412 });
+    await seedMemberSession(page, 'G. Miller');
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
-    const calendar = await measure();
-    await page.goto('/settings.html');
-    await expect(page.locator('.app-header h1')).toBeVisible();
-    expect(calendar, 'the Calendar\'s header against Settings\'').toEqual(await measure());
+    const header = await page.evaluate(() => {
+        const h = /** @type {Element} */ (document.querySelector('.header')).getBoundingClientRect();
+        const l = /** @type {Element} */ (document.querySelector('.title-icon')).getBoundingClientRect();
+        return { height: Math.round(h.height), logo: Math.round(l.width),
+            size: getComputedStyle(/** @type {Element} */ (document.querySelector('.header h1'))).fontSize };
+    });
+    expect(header, 'the landscape block\'s header: 8px of padding round the burger, a 26px logo, 16px type')
+        .toEqual({ height: 46, logo: 26, size: '16px' });
 });

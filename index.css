@@ -993,16 +993,6 @@
             .swipe-hint   { display: none !important; }
         }
 
-        /* ON A DESKTOP THE HEADER IS THE SUB-PAGES' HEADER: shared.css's `.app-header` numbers, so a hop
-           does not rearrange it (an e2e compares the two). Only the width differs, by decision. The
-           height is stated: the title is absolutely centred. `screen`: A4 landscape is over 1024px. */
-        @media screen and (min-width: 1024px) {
-            body { padding-top: 20px; }
-            .header { min-height: 72px; }
-            .header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; gap: 14px; }
-            .title-icon { width: 40px; height: 40px; border-radius: var(--radius-sm); }
-        }
-
         /* SHORT DESKTOP WINDOWS: THE MONTH ON ONE SCREEN. A row is as tall as its tallest cell's
            CONTENT, so the row floor that was here never applied. The badge and the time share a line
            where they fit (from ~1260px wide) and wrap back to the stacked cell where not; the card's
@@ -1123,6 +1113,19 @@
 
             /* Reduce the gap between the month heading and the day-name row. */
             .calendar-header { margin-bottom: 8px; padding-bottom: 7px; }
+        }
+
+        /* FROM 768px THE HEADER IS THE SUB-PAGES' HEADER: shared.css's `.app-header` takes its desktop
+           metrics at 768px, and these are its numbers, so a hop does not rearrange the header (an e2e
+           compares the two at 768, 800 and 1366). Only the width differs, by decision. The height is
+           stated: the title is absolutely centred. AFTER the ≤768px block, which it must beat at 768
+           itself. Not a phone on its side (≤500px tall below 1024px), where the landscape block keeps
+           its compact header for the month's sake. `screen`: a printed sheet is this wide too. */
+        @media screen and (min-width: 768px) and (min-height: 501px), screen and (min-width: 1024px) {
+            body { padding-top: max(20px, env(safe-area-inset-top)); }
+            .header { min-height: 72px; padding: 16px 20px; }
+            .header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; gap: 14px; }
+            .title-icon { width: 40px; height: 40px; border-radius: var(--radius-sm); }
         }
 
         @media (max-width: 480px) {

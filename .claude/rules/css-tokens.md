@@ -758,4 +758,10 @@ the one refused-read tick. The full account is `operations.css` → the dims not
 brand takes all the space between the burger and the badge, so the two can never overlap whatever the
 badge's width, and the title ellipses rather than wraps. A brand centred in that leftover space is
 centred on the page only when the burger and the badge are the same width. The Calendar's full-bleed
-`.header` (`index.css`) is separate and does not use these rules.
+`.header` (`index.css`) is separate and does not use these rules — but **from 768px up it draws the
+same header**: from the width where `.app-header` takes its desktop metrics it has the same height,
+logo, gap, title and top edge, and its burger sits in the same place, so a hop between the Calendar
+and any page does not rearrange the header. Only the width differs (`--page-max-width`, above).
+Below 768px, and on a phone held on its side, the Calendar keeps its own compact header. Pinned by
+`e2e/calendar.spec.js` → "from 768px the Calendar's header is every other page's header", which
+compares the computed metrics with Settings' at 768, 800 and 1366px.
