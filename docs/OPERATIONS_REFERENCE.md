@@ -1181,9 +1181,10 @@ choice, so **no line may name the admin as deciding, recommending or collecting 
 choice is made is left deliberately vague. `newlink-config.test.mjs` and `e2e/newlink.spec.js` hold the
 wording to both; the process is in LINKS_DEC2026_PLAN.md's dashboard, not in anything colleagues read.
 
-**Who it is for: everyone on a CEA contract, not a CEA bilingual contract** (owner, 8 Nov 2026). Until
-`AUDIENCE` names the 26, the page stands in with every CEA whose `bilingualContract` is not set, and the
-preview banner's *Who it would reach* lists them, so the admin can check it against the roster.
+**Who it is for: everyone on the normal CEA contract; a CEA bilingual contract keeps its own links**
+(owner, 8 Nov 2026). It goes by the contract, not the line: a normal contract on the bilingual link is on
+the new link. Until `AUDIENCE` names the 26, the page stands in with every CEA whose `bilingualContract` is
+not set, and the preview banner's *Who it would reach* lists them, so the admin can check it against the roster.
 
 **Opening it to colleagues is not a switch yet.** It needs a role for `AUDIENCE` in `auth-policy.js` and
 a matching pill flag in `nav-panel.js` first; `newlink-config.test.mjs` refuses any other `PHASE` until

@@ -21,9 +21,11 @@ test.describe('new link', () => {
         await expect(page.locator('#nlPreview')).toBeVisible();
         // the admin is told who else can see it: the one named previewer (CONFIG.NEWLINK_PREVIEW)
         await expect(page.locator('#nlPreview')).toContainText('Preview — only you and S. Silva can see this page.');
-        // the stand-in audience: everyone on a CEA contract, listed for the admin to check — and nobody on a CEA bilingual
-        // contract (owner, 8 Nov 2026: "The new link will be for everyone with a cea contract, not a cea blingual contract")
-        await expect(page.locator('#nlPreview')).toContainText('everyone on a CEA contract');
+        // the stand-in audience: everyone on a normal CEA contract, listed for the admin to check — and nobody on a CEA
+        // bilingual contract, which keeps its own links (owner, 8 Nov 2026: "This link will only apply to people with the
+        // normal CEA contract and NOT the bilingual contract who will still have their own links")
+        await expect(page.locator('#nlPreview')).toContainText('everyone on a normal CEA contract');
+        await expect(page.locator('#nlPreview')).toContainText('those on a CEA bilingual contract keep their own links');
         const bilingual = teamMembers.filter(m => m.role === 'CEA' && m.bilingualContract && !m.hidden).map(m => m.name);
         expect(bilingual.length, 'a CEA bilingual contract on the roster for the page to leave out').toBeGreaterThan(0);
         for (const name of bilingual) await expect(page.locator('#nlPreview .nl-preview-who')).not.toContainText(name);

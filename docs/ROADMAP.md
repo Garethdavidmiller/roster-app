@@ -98,8 +98,8 @@ builds toward it, and so that nobody is surprised later that the custom work was
 **Status:** Committed · **Owner:** S. Silva, the RMT rep, who leads the change (owner, 4 Nov 2026) · **Plan:** `LINKS_DEC2026_PLAN.md`
 
 **The link starts in January 2027, not with the timetable** (owner, 2 Nov 2026: the timetable changes on 13 December,
-the link follows, and today's link carries on until then; 8 Nov 2026: the day is not yet known). It is for everyone on a
-CEA contract, not a CEA bilingual contract (owner, 8 Nov 2026). It is 26 weeks with five cover weeks
+the link follows, and today's link carries on until then; 8 Nov 2026: the day is not yet known). It is for everyone on the
+normal CEA contract; those on a CEA bilingual contract keep their own links (owner, 8 Nov 2026). It is 26 weeks with five cover weeks
 (`docs/links-26/RULES.md`), and the shortlist is three — **Balanced V6**, **Level Crossing** and **Middle Ground**, A to
 Z, with no recommendation (owner, 8 Nov 2026, drawn for no two closing weeks side by side) — built into the Links designer read-only (`links-proposals.js`) and drawn
 in the pack (`docs/links-26/`). The new link page (`newlink.html`) presents them evenly to colleagues, as a

@@ -3,8 +3,8 @@
 **The new link starts in January 2027, the day not yet set** (owner, 2 Nov 2026: the timetable changes in December, and the
 link follows; 8 Nov 2026: "We don't now know exactly what day"). Until 2 Nov this folder called it "the December 2026 link",
 and the dated sections below keep the name, and the date, they were written with; *The new link starts on 1 January 2027*
-and *The new link starts in January 2027*, near the end, say what changed. It is for everyone on a CEA contract, not a CEA
-bilingual contract (owner, 8 Nov 2026). The "December 2026 rules" keep their name,
+and *The new link starts in January 2027*, near the end, say what changed. It is for everyone on the normal CEA contract;
+those on a CEA bilingual contract keep their own links (owner, 8 Nov 2026). The "December 2026 rules" keep their name,
 because they are the new timetable's.
 
 **From 1 Oct 2026 the new link is 26 lines, not 24.** Everything drawn for 24 lines was kept in `../links-24/` — the
@@ -6628,11 +6628,12 @@ important than any day as sat sun people are happier to work as they are paid mo
 - The New link page's preview banner names her as her account does, S. Silva.
 - The managers' decks are not on the New link page.
 
-## The new link starts in January 2027, the day not yet set, and is for CEA contracts (8 Nov 2026)
+## The new link starts in January 2027, the day not yet set, and is for the normal CEA contract (8 Nov 2026)
 
 **The ask.** The owner, on 8 Nov 2026: "Needs to be changed everywhere that the new link will start in January 2027. We don't
 now know exactly what day". And, while that was being done: "The new link will be for everyone with a cea contract, not a cea
-blingual contract".
+blingual contract", then, more exactly: "This link will only apply to people with the normal CEA contract and NOT the
+bilingual contract who will still have their own links".
 
 **The start, a month.**
 - **One source for the pack, one for the app.**
@@ -6662,12 +6663,14 @@ blingual contract".
   `link_month`, for every deck.
 - **Left as written:** this README's dated sections from before 8 Nov say 1 January 2027, as the record of their day.
 
-**Who the new link is for: everyone on a CEA contract, not a CEA bilingual contract.**
-- It is the contract that counts, `bilingualContract`, as the leave allowance reads it, not the line.
+**Who the new link is for: everyone on the normal CEA contract.** Those on a CEA bilingual contract keep their own links.
+- It is the contract that counts, `bilingualContract`, as the leave allowance reads it, not the line. One CEA on a normal
+  contract works the bilingual link from 8 Nov 2026; asked, the owner kept her on the new link ("Keep her on the new link").
+  `newlink-config.test.mjs` holds any such case in the list.
 - The New link page's stand-in audience leaves out the CEAs on a bilingual contract. That is `audienceNames` in
   `newlink-config.js`, used until `AUDIENCE` names the 26. On today's roster it is 23 people, not 25.
-- The preview banner says "everyone on a CEA contract (23), not a CEA bilingual contract", and its *Who it would reach* list
-  follows.
+- The preview banner says it in the owner's words: "everyone on a normal CEA contract (23) until the 26 on the new link are
+  decided; those on a CEA bilingual contract keep their own links". Its *Who it would reach* list follows.
 - The pack always treated the new link as the main roster widened, with the bilingual roster outside it, so nothing in it
   changed for this.
 
@@ -6678,6 +6681,7 @@ blingual contract".
 - Guards broken on purpose with `scripts/mutate.mjs`, each refused:
   - the audience keeping bilingual contracts: the audience test fails, and so does the browser test, which then finds a CEA on
     a bilingual contract in *Who it would reach*;
+  - the audience leaving out a normal contract on the bilingual link: the audience test fails;
   - `link.mjs` naming another month: the test holding page and pack together fails;
   - the read-me saying "from 1 January 2027": `pack.py` stops;
   - a proposal sheet's subtitle saying "from 1 January 2027": the sheet build stops.

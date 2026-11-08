@@ -135,9 +135,11 @@ function weeksShape(proposals) {
  *   stand-in. others: everyone else who can see the preview, as they should be named to this reader ("the admin", a name)
  */
 export function renderPreviewBanner({ audience, decided, others = [] }) {
-    // Not decided: everyone on a CEA contract, and not a CEA bilingual contract (owner, 8 Nov 2026), said so, since the admin
-    // checks this line against the roster and the roster's CEAs include the bilingual contracts
-    const who = decided ? `the ${audience.length} people on the new link` : `everyone on a CEA contract (${audience.length}), not a CEA bilingual contract, until the 26 on the new link are decided`;
+    // Not decided: everyone on a NORMAL CEA contract; a CEA bilingual contract keeps its own links (owner, 8 Nov 2026: "This link
+    // will only apply to people with the normal CEA contract and NOT the bilingual contract who will still have their own
+    // links"). Said in the owner's words, since the admin checks this line against the roster, whose CEAs include both
+    const who = decided ? `the ${audience.length} people on the new link`
+        : `everyone on a normal CEA contract (${audience.length}) until the 26 on the new link are decided; those on a CEA bilingual contract keep their own links`;
     const alsoSees = others.length === 0 ? ''
         : ` and ${others.length === 1 ? others[0] : `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}`}`;
     return `<p class="nl-preview-head"><span aria-hidden="true">👁️</span> <strong>Preview — only you${esc(alsoSees)} can see this page.</strong></p>

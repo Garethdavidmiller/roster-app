@@ -66,18 +66,23 @@ test('the closing date is a real day, or null — "a date to be agreed"', () => 
     assert.notEqual(closesWords(CLOSES), 'a date to be agreed', 'a set date is said as a date');
 });
 
-test('the audience: null stands for everyone on a CEA contract, not a CEA bilingual contract; a list must name real people', () => {
+test('the audience: null stands for everyone on a normal CEA contract, not a CEA bilingual contract; a list must name real people', () => {
     const names = audienceNames();
     assert.ok(names.length >= 20, `the audience reads as ${names.length} people`);
     const byName = new Map(teamMembers.map(m => [m.name, m]));
     for (const n of names) assert.ok(byName.has(n), `${n} is not on the roster — spell names as teamMembers does`);
     if (AUDIENCE === null) {
         assert.ok(names.every(n => byName.get(n)?.role === 'CEA'), 'the stand-in is CEAs only');
-        // Owner, 8 Nov 2026: "The new link will be for everyone with a cea contract, not a cea blingual contract." The
-        // CONTRACT, as the leave allowance reads it — not the line
+        // Owner, 8 Nov 2026: "This link will only apply to people with the normal CEA contract and NOT the bilingual
+        // contract who will still have their own links." The CONTRACT, as the leave allowance reads it — not the line
         assert.ok(names.every(n => !byName.get(n)?.bilingualContract), 'and nobody on a CEA bilingual contract');
         const due = teamMembers.filter(m => m.role === 'CEA' && !m.bilingualContract && !m.hidden && !m.managerOnly).map(m => m.name);
-        assert.deepEqual([...names].sort(), [...due].sort(), 'everyone on a CEA contract, and nobody else');
+        assert.deepEqual([...names].sort(), [...due].sort(), 'everyone on a normal CEA contract, and nobody else');
+        // A NORMAL CONTRACT ON THE BILINGUAL LINK IS ON THE NEW LINK (owner, 8 Nov 2026, of M. Campbell: "Keep her on the
+        // new link"): whoever's base line is bilingual but whose contract is not is still in the list
+        const onBilingualLine = teamMembers.filter(m => m.role === 'CEA' && !m.hidden && !m.bilingualContract
+            && (m.rosterType === 'bilingual' || (m.rosterChanges ?? []).some(c => c.rosterType === 'bilingual')));
+        for (const m of onBilingualLine) assert.ok(names.includes(m.name), `${m.name}: a normal CEA contract on the bilingual link, so on the new link`);
         assert.ok(teamMembers.some(m => m.role === 'CEA' && m.bilingualContract && !m.hidden),
             'a CEA bilingual contract on the roster for the rule to leave out — if none is left, this line can go');
         assert.ok(names.every(n => !byName.get(n)?.hidden), 'and nobody who has left');

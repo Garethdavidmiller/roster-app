@@ -80,15 +80,17 @@ export const CLOSES = null;
 
 /**
  * Who the page is for once it opens: the 26 colleagues on the new link (owner: "The exact 26 on the new link"). Not
- * decided yet ("Decide later"), so null stands for everyone on a CEA contract today — the people a CEA link is for, and
- * NOT a CEA bilingual contract (owner, 8 Nov 2026: "The new link will be for everyone with a cea contract, not a cea
- * blingual contract"): the CONTRACT, `bilingualContract`, as the leave allowance reads it, not the line. The preview lists
+ * decided yet ("Decide later"), so null stands for everyone on a normal CEA contract today — the people the new link is
+ * for. NOT a CEA bilingual contract, which keeps its own links (owner, 8 Nov 2026: "This link will only apply to people
+ * with the normal CEA contract and NOT the bilingual contract who will still have their own links"). It is the CONTRACT,
+ * `bilingualContract`, as the leave allowance reads it, not the line: M. Campbell, on a normal CEA contract and on the
+ * bilingual link from 8 Nov 2026, is on the new link (owner, 8 Nov 2026: "Keep her on the new link"). The preview lists
  * them, so the admin can check who it would reach. Set it to the 26 names, spelt as `teamMembers` spells them.
  * @type {ReadonlyArray<string>|null}
  */
 export const AUDIENCE = null;
 
-/** The page's audience, as names: AUDIENCE, or everyone on a CEA contract while it is null. @returns {string[]} */
+/** The page's audience, as names: AUDIENCE, or everyone on a normal CEA contract while it is null. @returns {string[]} */
 export function audienceNames() {
     if (AUDIENCE) return [...AUDIENCE];
     return teamMembers.filter(m => m.role === 'CEA' && !m.bilingualContract && !m.hidden && !m.managerOnly).map(m => m.name);
