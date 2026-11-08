@@ -1167,7 +1167,7 @@ Two reminders run themselves in the week before the change, and nobody presses a
 ## The new link page
 
 `newlink.html` shows colleagues the three shortlisted proposals for the new CEA link — **which starts
-on 1 January 2027, not with the timetable** (owner, 2 Nov 2026). It is a **preview**: only the admin and
+in January 2027, not with the timetable** (owner, 2 Nov 2026; the day not yet set, owner, 8 Nov 2026). It is a **preview**: only the admin and
 the names in `CONFIG.NEWLINK_PREVIEW` (`roster-data.js`) can open it, and a banner says who else can see
 it.
 
@@ -1180,6 +1180,11 @@ one never means touching the page. Each is an owner decision, recorded beside it
 choice, so **no line may name the admin as deciding, recommending or collecting views**, and how the
 choice is made is left deliberately vague. `newlink-config.test.mjs` and `e2e/newlink.spec.js` hold the
 wording to both; the process is in LINKS_DEC2026_PLAN.md's dashboard, not in anything colleagues read.
+
+**Who it is for: everyone on the normal CEA contract; a CEA bilingual contract keeps its own links**
+(owner, 8 Nov 2026). It goes by the contract, not the line: a normal contract on the bilingual link is on
+the new link. Until `AUDIENCE` names the 26, the page stands in with every CEA whose `bilingualContract` is
+not set, and the preview banner's *Who it would reach* lists them, so the admin can check it against the roster.
 
 **Opening it to colleagues is not a switch yet.** It needs a role for `AUDIENCE` in `auth-policy.js` and
 a matching pill flag in `nav-panel.js` first; `newlink-config.test.mjs` refuses any other `PHASE` until

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * newlink-app.js — coordinator for newlink.html: the three shortlisted proposals for the new CEA link (from 1 January 2027), presented to
+ * newlink-app.js — coordinator for newlink.html: the three shortlisted proposals for the new CEA link (from January 2027), presented to
  * the colleagues who will work it.
  *
  * Owns: the access gate, the session wiring, and which view is on screen — the kind of colleague chosen in "What it means

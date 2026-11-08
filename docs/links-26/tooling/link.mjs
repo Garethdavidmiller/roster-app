@@ -19,6 +19,13 @@ export const COVER_LINES = [1, 6, 11, 16, 21];
 /** The headcounts the duty tables are built to: fourteen on a Saturday (F1), ten on a Sunday (S4), and the weekday
  *  figure the days ceiling leaves: 89 Mon–Sat duties at most, 14 of them Saturday's, so 15 a weekday. */
 export const HEADS = { weekday: 15, sat: 14, sun: 10 };
+/** When the new link starts: a MONTH, not a day (owner, 8 Nov 2026: "Needs to be changed everywhere that the new link will
+ *  start in January 2027. We don't now know exactly what day"). It was 1 January 2027 from 2 Nov 2026. The sheets read it
+ *  from here, and so do the read-me (pack.py) and the decks (deck-polish.py); the app's New link page keeps its own copy,
+ *  newlink-config.js → STARTS, which newlink-config.test.mjs holds to this one. When the day is set ("18 January 2027"), it
+ *  is these two edits: the refusals of a day-dated start (longDates below, pack.py, deck-polish.py) accept that day and
+ *  no other. */
+export const LINK_STARTS = 'January 2027';
 
 const timed = s => !!s && s !== 'RD' && s !== 'SPARE' && s !== 'OFF' && startMinutes(s) !== null;
 /** Contracted days a year: Monday to Saturday, a cover week counted as four days, Sunday left out (it is overtime). */
@@ -42,12 +49,21 @@ export function monSatMinutes(p) {
 }
 
 /** "6 Nov 2026" → "6 November 2026" in the TEXT of a finished sheet (the pack's reviews, 6 Nov 2026). The house style is
- *  the month in full — the decks and the read-me already wrote it so, and the sheets set "from 1 January 2027" beside
+ *  the month in full — the decks and the read-me already wrote it so, and the sheets set "from January 2027" beside
  *  "Prepared 6 Nov 2026" in one masthead. Tags, styles and scripts are left alone, and the date holds together with
  *  no-break spaces, so it can no longer split "28 / Sep 2026" at a line end. Every sheet builder runs its HTML through
- *  this just before writing and printing it. */
+ *  this just before writing and printing it — which is why it is also where a sheet that dates the new link's START to a
+ *  day is refused (owner, 8 Nov 2026: the day is not known): "from 1 January 2027" was on all 24 proposal sheets until then.
+ *  The text is read with tags, styles and scripts gone and every space one space, so neither markup nor a no-break space
+ *  between the day and the month hides one. */
 const MONTHS = { Jan: 'January', Feb: 'February', Mar: 'March', Apr: 'April', Jun: 'June', Jul: 'July', Aug: 'August',
   Sep: 'September', Oct: 'October', Nov: 'November', Dec: 'December' };
-export const longDates = html => html.replace(
-  /(<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<title>[\s\S]*?<\/title>|<[^>]+>)|\b(\d{1,2})[  ](Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[  ](20\d\d)\b/g,
-  (m, keep, d, mon, y) => keep ?? `${d} ${MONTHS[mon]} ${y}`);
+const START_DAY = /\b(?:from|starts?(?: on)?|follows(?: from)?) (\d{1,2}(?:st|nd|rd|th)? Jan(?:uary)? 2027)\b|\b(January 1st)\b/gi;
+export const longDates = html => {
+  const text = html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/\s+/g, ' ');
+  const said = [...text.matchAll(START_DAY)].find(m => (m[1] ?? m[2]) !== LINK_STARTS);
+  if (said) throw new Error(`a sheet dates the new link's start to a day ("${said[0]}"); it starts ${/^\d/.test(LINK_STARTS) ? 'on' : 'in'} ${LINK_STARTS} (owner, 8 Nov 2026: the day not yet set)`);
+  return html.replace(
+    /(<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<title>[\s\S]*?<\/title>|<[^>]+>)|\b(\d{1,2})[  ](Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[  ](20\d\d)\b/g,
+    (m, keep, d, mon, y) => keep ?? `${d} ${MONTHS[mon]} ${y}`);
+};

@@ -1,8 +1,10 @@
 # Links — the new CEA link, 26 lines
 
-**The new link starts on 1 January 2027** (owner, 2 Nov 2026): the timetable changes in December, and the link follows.
-Until then this folder called it "the December 2026 link", and the dated sections below keep the name they were written
-with; *The new link starts on 1 January 2027* at the end says what changed. The "December 2026 rules" keep their name,
+**The new link starts in January 2027, the day not yet set** (owner, 2 Nov 2026: the timetable changes in December, and the
+link follows; 8 Nov 2026: "We don't now know exactly what day"). Until 2 Nov this folder called it "the December 2026 link",
+and the dated sections below keep the name, and the date, they were written with; *The new link starts on 1 January 2027*
+and *The new link starts in January 2027*, near the end, say what changed. It is for everyone on the normal CEA contract;
+those on a CEA bilingual contract keep their own links (owner, 8 Nov 2026). The "December 2026 rules" keep their name,
 because they are the new timetable's.
 
 **From 1 Oct 2026 the new link is 26 lines, not 24.** Everything drawn for 24 lines was kept in `../links-24/` — the
@@ -46,10 +48,10 @@ recommendation back. Sections dated before then speak of the shortlist and the r
 shortlist drawn again* and *The whole pack reviewed* say what changed.
 
 **The shortlist was drawn again on 8 Nov 2026**, for a new design target, no two closing weeks side by side: Balanced V6,
-Level Crossing and Middle Ground, A to Z, all three in `30-days-off/`. Common Ground, Even Step and Short Run left it, and
-for now the zip carries no presentations, since each deck names the shortlist of 5 Nov as the current one. Sections dated
-before then speak of the shortlist of their day; *The shortlist redrawn for closing weeks apart*, near the end, says what
-changed.
+Level Crossing and Middle Ground, A to Z, all three in `30-days-off/`. Common Ground, Even Step and Short Run left it. The
+three's presentations were drawn the same day, and the zip carries only theirs: the earlier decks each name the shortlist of
+5 Nov as the current one. Sections dated before then speak of the shortlist of their day; *The shortlist redrawn for closing
+weeks apart*, near the end, says what changed.
 
 **Three designs were renamed on 4 Nov 2026** (owner: "Give all proposals individual names"): Quarter Past Relaid is
 **Open Return** (`OR-26-EXT`, drawn as `QR-26-EXT`), Fair Share's 30-day search result, which had no name, is **Grand
@@ -111,7 +113,7 @@ removed on 7 Nov 2026):
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
 | `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary; since 7 Nov 2026 the five Balanced designs are in its subfolder `30-days-off/balanced/` (owner: "Put all the Balanced proposals in their own subfolder"), *Balanced* in the zip |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
-| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: Common Ground's, Even Step's, In Step's and Short Run's, made for the shortlists before 8 Nov 2026 and out of the zip since then; none of the three shortlisted now has any yet |
+| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: Balanced V6's, Level Crossing's and Middle Ground's, the shortlist's since 8 Nov 2026 and the only ones in the zip; and Common Ground's, Even Step's, In Step's and Short Run's, made for the shortlists before then and out of the zip since |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs, and `tooling/reference-24/` the few 24-line files they still read (since 7 Nov 2026) |
 | `RULES.md` | the rules in prose, with their sources and the open questions (26 lines only) |
 | `README.md` | this record — the repository's working record, not part of the pack (left out of the zip since 5 Nov 2026, owner) |
@@ -181,7 +183,7 @@ with that folder on 7 Nov 2026; two of its modules live on in `tooling/reference
 | | `what-it-means-sheet.mjs` | the one-page "What it means if you…" sheet (`../links-26-what-it-means.pdf`). It lays out and prints `what-it-means-data.mjs`, which reads the colleague decks' slide 5 and its notes back, so it runs after `deck-polish.py` and before `pack.py` (step 4) |
 | | `what-it-means-data.mjs` | the sheet's figures and asserted sentences, split out of it unchanged (2 Nov 2026) so the app's New link page reads the same ones; imported, never run |
 | | `newlink-data.mjs` | writes the app's `newlink-data.js` — the New link page's figures, sentences and pack list — from `what-it-means-data.mjs`; `--check` is what `newlink-data.test.mjs` runs. After `what-it-means-sheet.mjs` (step 4) |
-| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`) → `common-ground-decks.py` → `deck-marks.py`; `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; Common Ground's, rewritten from Even Step's finished pair; the ✓ and ▲ beside every green and amber figure, run last (5 Nov 2026); the checker that reads every deck row back against the sheets and refuses an unmarked colour; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks, and reads the league's leader and its lead for the read-me as the shortlist sheet does (8 Nov 2026) |
+| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`) → `common-ground-decks.py` → `deck-marks.py`; `shortlist-decks.py`; `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; Common Ground's, rewritten from Even Step's finished pair; the ✓ and ▲ beside every green and amber figure, run last (5 Nov 2026); the shortlist's of 8 Nov 2026, rewritten from Common Ground's finished pair and marked as they are built; the checker that reads every deck row back against the sheets and refuses an unmarked colour; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks, and reads the league's leader and its lead for the read-me as the shortlist sheet does (8 Nov 2026) |
 | league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them; `FAM_SUNDAY=1` for the main league with the Sunday duties counted in familiar shift times, as it was read before 3 Nov; `EXTRA=Name=<grid.json>;…` scores a candidate beside the pack's proposals, inside the range and ranked, before anything is rendered, since "Set Fair") — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
@@ -6489,6 +6491,201 @@ nothing changed.
 - **Its cost.** The shortlist sheet's league claims and several of its comparisons would change, and every sheet that
   shows the league would be re-rendered.
 
+## The shortlist's presentations (8 Nov 2026)
+
+**The ask.** The owner, on 8 Nov 2026: "Write proposals for the shortlist, audit them against existing proposals, then
+aesthetic polish and aesthetic consistency check", and later that day: "The presentations once complete should be put in
+the new links page on the app". They passed on an outside review too, "only use this as advice".
+
+**How they are built.** `tooling/shortlist-decks.py` writes six decks by rewriting Common Ground's finished pair: a colleague
+deck (15 slides) and a managers' deck (10) for each of Balanced V6, Level Crossing and Middle Ground.
+- A sentence of Common Ground's is kept only once every figure it quotes is checked equal (`same()`). Everything else is
+  rewritten from the grids, and each claim is checked against them first (`check()`).
+- It refuses Common Ground's text where it is not true of the design (`CG_ONLY`), another design's name with an ordinary
+  space, and "recommend", "union rep" and "fixed rota". It puts the ✓ and ▲ on as it builds, from each figure's colour.
+- `deck-check.mjs` reads every row of all fourteen decks back against the grids: 378 agree, none disagree, none unchecked.
+- The outside review was used where it is about presenting: the rules as gates, fatigue apart, each design's main cost
+  beside its gain, closing weeks said directly, no league position.
+
+**Where they are** (v25.53). In the zip, PowerPoint and PDF, the six and no others: `pack.py` refuses otherwise, and its
+read-me routes both audiences through them. The New link page's full-pack card offers the three colleague decks; the
+managers' decks stay off it. The eight earlier decks stay in `presentations/`, out of the zip.
+
+**Two audits, and every fix.** Two independent audits read the decks, one the colleague decks and one the managers'. Each
+recomputed the figures from the grids with scripts of its own, and both found them right. Their findings were about what
+the words claim, and most were about evenness between the three. Each was checked against the grids before it was fixed.
+Every fix is in the builder, checked as it builds; the six were rebuilt, their PDFs exported, and the changed slides looked
+at in screenshots.
+- **One rule for an edge or a cost, for all three.**
+  - An edge or a cost against the other two is claimed only where the design is better or worse than both of them by more
+    than 5%. `report-data.mjs`'s `fitCmp` calls anything closer "about the same" (`clear_best` in the builder,
+    `clearBest` in the shortlist sheet).
+  - Before, Middle Ground claimed edges of 2–4% (its Sunday fit, its 06:20 starts, its shortest rest) and Level Crossing a
+    2% Saturday cost, while Balanced V6's costs were listed in full.
+  - The notes no longer need three gains and three costs each: a design gets as many as it clearly has, one at least.
+- **Balanced V6.**
+  - Its added edge is the most rest-day breaks of three days or more, about 6 a year (Level Crossing 2, Middle Ground 4).
+    It replaces "as many finishes before 14:00 as Level Crossing", which is no edge against both.
+  - Its change of start. The notes said its three mixed weeks were why the start moves 4h 08m a week. On the pack's own
+    measure the weeks clear of a mixed week average the same; the change comes from switching between early and late
+    weeks, the other side of its short runs. The notes now say so.
+  - Its weeks on one shift time. "7 of the 21 … as 7 weeks in 16 do today" read as parity. They are said a year now, about
+    14 against 18 today, and "all earlies or all lates".
+  - Its runs of earlies or of lates were framed as a gain against today ("in return …") and kept off slide 13, "say it if
+    asked". They are a cost against today, on its slide 13 card as on the other two.
+  - Slide 9's subtitle, "The biggest improvement over today", stood over two ▲ rows. It reads "More weekends off and
+    longer rests, but more single rest days".
+  - The managers' slide 8 says the worst case beside the gain: "5 at most, not 7; up to 10 if a cover week falls badly,
+    today 9".
+  - One cost added, the twin of Middle Ground's four at the open: five on duty at 22:00 on a weekday, the rules' minimum,
+    where the other two have seven.
+- **Level Crossing.**
+  - Two costs were not costs against both, and are gone. Its long Monday-to-Saturday shifts and 9-hour Sunday: Balanced V6
+    has more, and the same Sunday. The weakest Saturday fit: 17.6 against Balanced V6's 17.3.
+  - Its cost now: of the three, the most 06:20 starts and the fewest long breaks, about 2 a year. The slide says "of the
+    three", because its 58 starts at 06:20 a year are fewer than today's 62.
+  - "Two 06:20–13:45s every weekday" is gone too: Balanced V6 has two finishes before 14:00 every weekday as well. Its
+    added edge is the fewest single rest days, about 10 a year, as today.
+- **Middle Ground.**
+  - "No two 06:20 weeks side by side" is gone from the decks and the shortlist sheet. It held only when week 20, two
+    06:20 starts and two 07:00s, was counted a 07:00 week; weeks 17 to 20 all have 06:20 starts.
+  - "The longest rest, 14h 35m" was its shortest rest, and within 5% of the others' anyway. It is gone.
+  - Its costs now include the Sunday pay. Its Sundays are the shortest, so about £350 a year less premium and overtime pay
+    than today, where both others have about £200 less. There are also six on duty at 22:00 on a Saturday, where both have
+    seven.
+  - Its one possible fatigue warning is no longer a cost against both: Balanced V6 has more.
+  - The managers' slide 4 note explaining its weekday fit by today's 11:00–19:30 is gone. No other design's fit was
+    explained.
+- **All three.**
+  - A closing week is defined where the target is first said, in slide 2's notes: one spent mostly on the 23:55 close,
+    Monday to Friday. The notes add "as today".
+  - Balanced V6 alone has closing weeks either side of a cover week: its weeks 5 and 7, round cover week 6. Its notes say
+    that if that week's duties are closes as well it makes three in a row, which is for the roster office to avoid. The
+    builder checks the other two have none.
+  - FF15 is "more than four starts before 07:00 in a row", not "more than four earlies". The decks' earlies start before
+    11:00, and Balanced V6 has five of those in a row in two of its fixed weeks.
+  - Today's long shifts are said in full: about 31 duties a year over 8h 30m, Monday to Saturday, not "the Saturday closer
+    alone".
+  - The managers' slide 1 said the figures "have been checked independently", a sentence from Common Ground's deck. They
+    are now worked out "by the same calculations as the proposal sheet".
+  - Each design's source is "another design in the pack": Balanced V5, Crossover and Common Ground.
+  - The slide 10 notes give the change of start against today for each; Balanced V6's 4h 08m is about the same as today's
+    4h 00m.
+  - Smaller fixes:
+    - a stale pointer to the shortlist sheet's weekday lates;
+    - "no shift over 9 hours" said twice;
+    - the 13:35 named where a design has none;
+    - "(today 26)" written one way;
+    - the other two designs named A to Z;
+    - "which can avoid it" on Middle Ground's 55-hour note, as on Balanced V6's.
+
+**League language off the sheets.** Both audits found it on the shortlist sheet. It said "Crossover, first in the pack's
+league", and "Balanced V6 scores far below every design but Balanced V5", the second dismissive of a colleague's own roster.
+- Page 2's "Why these three" now says only that Crossover and Common Ground, whose duties and rest days Level Crossing and
+  Middle Ground keep, each put four closing weeks together.
+- The other designs' sheet no longer says Crossover is first in the league. The league stays in `league.mjs` and in this
+  README.
+- The cards, the guide rows and "How to choose" follow the 5% rule.
+- "Week to week, on Balanced V6" gives its weeks on one shift time a year: about 14, against 18.
+- The read-me's choice lines (`pack.py`) follow the sheet.
+
+**Sara Silva, named in full** (owner, 8 Nov 2026: "Where it says tell S. Silva. Can you make that Sara Silva").
+- `CONTACT` in `newlink-config.js` is "Sara Silva", and every line that names her is built from it: the New link page's
+  "Have your say", the read-me, and slide 15 of the colleague decks ("Tell Sara Silva or your manager what worries you, even
+  if it is small"; "Sara Silva, the RMT rep, is leading the change").
+- On the roster, and in the lists that hold her identity (`CONFIG.NEWLINK_PREVIEW`, `CONFIG.LINKS_DESIGNERS`), she stays
+  S. Silva. `newlink-config.test.mjs` holds the contact to that member, and the deck builder refuses "S. Silva" anywhere in a
+  deck.
+
+**The weekday closer on the New link page** (owner, 8 Nov 2026: "This should have longest closing shift weekday on it. More
+important than any day as sat sun people are happier to work as they are paid more").
+- The "…prefer lates" row is "Longest closing shift, weekday": 8h 40m today, 8h 10m on all three.
+- Its line says every closer is shorter, the weekday's by half an hour. `what-it-means-data.mjs` checks both.
+- The line no longer says Middle Ground's lates are the shortest on average. That was 8h 21m against 8h 23m and 8h 24m,
+  inside the 5%. The row still shows all three averages, and `what-it-means-data.mjs` stops if they ever spread far enough
+  apart for an edge to be true.
+- The weekend closers stay on the page's "Whichever is chosen" card and the decks' slide 6.
+- The printed sheet, `links-26-what-it-means.pdf`, follows.
+
+**Checked.**
+- `npm run check`: 2,564 tests, none failing. The New link page's browser tests: 14 pass.
+- `deck-check.mjs`: 378 rows agree. The sheets render, and refuse to if a page overflows.
+- `pack.py`: the zip holds 67 files.
+- Four guards broken on purpose with `scripts/mutate.mjs`, each refused:
+  - the slide 15 replacement removed: the build stops, "slide 15 names Sara Silva twice";
+  - `clearBest` loosened to any difference: Level Crossing's costs claim fails;
+  - the weekday cut set to 25 minutes: the weekday closer claim fails;
+  - the average-late guard tightened to any difference: the page data stops.
+
+**Left for the owner.**
+- Middle Ground's strap and the read-me still say it was drawn so that no two closing weeks, and no two 06:20 weeks, fall
+  together. That is what it was drawn for, and it holds on the pack's reading of a week by its main duty. The decks and
+  cards no longer claim it.
+- The pack names no authors, so Balanced V6's decks do not credit Balanced V5 as a colleague's own roster.
+- The eight earlier decks keep their wording, apart from the start month (*The new link starts in January 2027*, below): they
+  still say "S. Silva" and "checked independently". They are out of the zip.
+- The greens in the sheets' tables still mark any difference; the 5% rule is for written claims.
+- The New link page's preview banner names her as her account does, S. Silva.
+- The managers' decks are not on the New link page.
+
+## The new link starts in January 2027, the day not yet set, and is for the normal CEA contract (8 Nov 2026)
+
+**The ask.** The owner, on 8 Nov 2026: "Needs to be changed everywhere that the new link will start in January 2027. We don't
+now know exactly what day". And, while that was being done: "The new link will be for everyone with a cea contract, not a cea
+blingual contract", then, more exactly: "This link will only apply to people with the normal CEA contract and NOT the
+bilingual contract who will still have their own links".
+
+**The start, a month.**
+- **One source for the pack, one for the app.**
+  - `tooling/link.mjs` → `LINK_STARTS = 'January 2027'`. The sheets read it (`fresh.mjs`, `render.mjs`), and so do the
+    read-me (`pack.py`) and the decks (`deck-polish.py`, which `shortlist-decks.py` and `common-ground-decks.py` use).
+  - The New link page has its own: `newlink-config.js` → `STARTS = '2027-01'`. `newlink-config.test.mjs` holds the two
+    together. When the day is set, it is those two edits.
+- **The sheets.** All 24 proposal sheets now say "How this rota would work from January 2027". They were re-rendered with
+  `regenerate.mjs`, every fingerprint unchanged. The shortlist, other designs' and "What it means" sheets were re-rendered
+  too, because they follow the decks; none of them names the start.
+- **The decks, all fourteen.**
+  - Each said 1 January 2027 in five places: the colleagues' title slide, slide 3 and slide 3's notes, the managers' title
+    slide and slide 9's notes.
+  - `deck-polish.py`'s `link_month` rewrites each, counted. The slides say "For discussion · from January 2027" and "the new
+    link follows in January 2027". The notes say the link "starts in January 2027; the day is still to be agreed", because a
+    presenter will be asked.
+  - The eight decks built for earlier shortlists, Common Ground's, Even Step's, In Step's and Short Run's, were rewritten in
+    place with `python3 tooling/deck-polish.py --link-month <decks>`. So Common Ground's, the template, says it too, and the
+    shortlist's six were rebuilt from it.
+  - All fourteen PDFs were exported again. `deck-check.mjs`: 378 rows agree.
+- **The read-me:** "Marylebone CEA link from January 2027 - 26 weeks".
+- **The New link page** says "The new link starts in January 2027." With a month alone, the line goes on 1 January: from then
+  it could already be untrue, and the page says nothing rather than something untrue. Once a day is set it says "on
+  18 January 2027" (say), and goes on that day.
+- **Three guards.** Each refuses a start dated to any day other than the one `link.mjs` names, which is none while it names a
+  month: `link.mjs` → `longDates`, which every sheet's text passes through; `pack.py`, for the read-me; and `deck-polish.py` →
+  `link_month`, for every deck.
+- **Left as written:** this README's dated sections from before 8 Nov say 1 January 2027, as the record of their day.
+
+**Who the new link is for: everyone on the normal CEA contract.** Those on a CEA bilingual contract keep their own links.
+- It is the contract that counts, `bilingualContract`, as the leave allowance reads it, not the line. One CEA on a normal
+  contract works the bilingual link from 8 Nov 2026; asked, the owner kept her on the new link ("Keep her on the new link").
+  `newlink-config.test.mjs` holds any such case in the list.
+- The New link page's stand-in audience leaves out the CEAs on a bilingual contract. That is `audienceNames` in
+  `newlink-config.js`, used until `AUDIENCE` names the 26. On today's roster it is 23 people, not 25.
+- The preview banner says it in the owner's words: "everyone on a normal CEA contract (23) until the 26 on the new link are
+  decided; those on a CEA bilingual contract keep their own links". Its *Who it would reach* list follows.
+- The pack always treated the new link as the main roster widened, with the bilingual roster outside it, so nothing in it
+  changed for this.
+
+**Checked.**
+- `newlink-config.test.mjs` and `newlink-render.test.mjs`. The New link page's browser tests now also check that nobody on a
+  CEA bilingual contract is in *Who it would reach*.
+- Every committed PDF read back: 38 name January 2027, and none names a day.
+- Guards broken on purpose with `scripts/mutate.mjs`, each refused:
+  - the audience keeping bilingual contracts: the audience test fails, and so does the browser test, which then finds a CEA on
+    a bilingual contract in *Who it would reach*;
+  - the audience leaving out a normal contract on the bilingual link: the audience test fails;
+  - `link.mjs` naming another month: the test holding page and pack together fails;
+  - the read-me saying "from 1 January 2027": `pack.py` stops;
+  - a proposal sheet's subtitle saying "from 1 January 2027": the sheet build stops.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
@@ -6509,7 +6706,7 @@ repository ignores `*.zip`, so run the script and send the file). It is laid out
 1. a *Read me first* note;
 2. the one-page summary, the two-page shortlist sheet and the one-page "What it means if you…" sheet;
 3. the rules;
-4. the presentations of the shortlisted designs (none since 8 Nov 2026: *The shortlist redrawn for closing weeks apart*);
+4. the presentations of the shortlisted designs (Balanced V6's, Level Crossing's and Middle Ground's since 8 Nov 2026: *The shortlist's presentations*);
 5. every proposal sheet;
 6. the import files;
 7. the technical notes: `RULES.md`. This README was in them until 5 Nov 2026, and stays in the repository (owner: "Leave

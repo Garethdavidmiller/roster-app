@@ -11,7 +11,7 @@
 # Every figure comes from `deck-check.mjs --print` (the sheets' own counts) or is computed from the grid here; shapes are
 # found by their text, so a template change fails loudly. From the repository root, after the builders:
 #   python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
-import importlib.util, json, os, re, shutil, struct, subprocess, tempfile, zipfile
+import html, importlib.util, json, os, re, shutil, struct, subprocess, tempfile, zipfile
 
 TOOL = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(TOOL, '..', 'presentations')
 spec = importlib.util.spec_from_file_location('snd', os.path.join(TOOL, 'second-nature-decks.py')); snd = importlib.util.module_from_spec(spec); spec.loader.exec_module(snd)
@@ -55,8 +55,14 @@ GRIDS = {**DESIGNS, **BUILT_AFTER}
 def grid_of(n):
     """A design's grid by name: the three built here and Common Ground's, which is built after them."""
     return (lambda j: j.get('patterns', j))(json.load(open(os.path.join(TOOL, GRIDS[n]), encoding='utf-8')))
-assert set(GRIDS) == set(SHORTLIST) | set(OFF_SHORTLIST) and not set(SHORTLIST) & set(OFF_SHORTLIST) and not set(DESIGNS) & set(BUILT_AFTER), \
-    f'decks are built for {sorted(DESIGNS)} and after the polish for {sorted(BUILT_AFTER)}, but the shortlist is {sorted(SHORTLIST)} and the designs off it {sorted(OFF_SHORTLIST)}'
+# THE CHECK RUNS WHEN THE POLISH RUNS, NOT WHEN ITS HELPERS ARE IMPORTED (8 Nov 2026). The shortlist drawn that day — Balanced
+# V6, Level Crossing and Middle Ground — has decks of its own, built by shortlist-decks.py from Common Ground's finished decks,
+# which imports this file for its helpers. So polishing still refuses unless these designs ARE the shortlist and the decks kept
+# off it (which since 8 Nov 2026 they are not: the eight decks here were made for the shortlists of 31 Oct and 5 Nov 2026, and
+# stay as they are), but importing this file under another shortlist no longer does
+def require_built_for_shortlist():
+    assert set(GRIDS) == set(SHORTLIST) | set(OFF_SHORTLIST) and not set(SHORTLIST) & set(OFF_SHORTLIST) and not set(DESIGNS) & set(BUILT_AFTER), \
+        f'decks are built for {sorted(DESIGNS)} and after the polish for {sorted(BUILT_AFTER)}, but the shortlist is {sorted(SHORTLIST)} and the designs off it {sorted(OFF_SHORTLIST)}'
 if len(SHORTLIST) != len(set(SHORTLIST)): raise SystemExit(f'a name twice in the shortlist: {SHORTLIST}')   # the set comparison passes it; "all five" would not
 DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 WORDS = 'zero one two three four five six seven eight nine ten'.split(); ORDS = 'zeroth first second third fourth fifth sixth'.split()
@@ -86,13 +92,18 @@ def explain_h55(name, f):
 def every_built(what, ok):
     bad = [n for n in DESIGNS if not ok(FIG[n])]
     if bad: raise SystemExit(f'deck-polish: "{what}" is printed on the decks of {", ".join(bad)}, and is not true of them')
-every('all 9 December rules', lambda f: f['met'] == '9')
-# on the FIXED rota (31 Oct 2026): a cover week worked with its Sunday as overtime can make a 55-hour week, so the worst
-# case is "0 (up to 1)" on both — the line says what holds of the fixed rota, and the tables carry the rest
-every('no avoidable fatigue warning on the fixed rota', lambda f: first(f['ff']) == 0)
-same('full weekends off a year', 'weekendsYear'); GAP = max(int(f['weekendGap']) for f in SL.values())
-every('no shift over 9 hours', lambda f: H(f['longest']) <= 9 * 60)
-every('every closing shift shorter', lambda f: all(H(f[k]) < H(T[k]) for k in ('closerWk', 'closerSat', 'closerSun')))
+# THE SHARED LINES ARE CHECKED WHEN THE POLISH RUNS (8 Nov 2026), with the shortlist check above: they are the old decks'
+# "All three" lines, and the shortlist drawn on 8 Nov 2026 does not share all of them (Balanced V6 has 12 full weekends a
+# year, the other two 14). shortlist-decks.py writes and checks its own. GAP stays here: the helpers below read it
+GAP = max(int(f['weekendGap']) for f in SL.values())
+def shared_lines():
+    every('all 9 December rules', lambda f: f['met'] == '9')
+    # on the FIXED rota (31 Oct 2026): a cover week worked with its Sunday as overtime can make a 55-hour week, so the worst
+    # case is "0 (up to 1)" on both — the line says what holds of the fixed rota, and the tables carry the rest
+    every('no avoidable fatigue warning on the fixed rota', lambda f: first(f['ff']) == 0)
+    same('full weekends off a year', 'weekendsYear')
+    every('no shift over 9 hours', lambda f: H(f['longest']) <= 9 * 60)
+    every('every closing shift shorter', lambda f: all(H(f[k]) < H(T[k]) for k in ('closerWk', 'closerSat', 'closerSun')))
 # FOUR WEEKS OFF IS NO LONGER A SHARED COST (5 Nov 2026): Common Ground, shortlisted, keeps today's 14 days. The leave notes on
 # slide 11 and the managers' notes 7 now say which designs need more and which keeps today's, from the figures
 # slide 12's subtitle (colleagues): more on duty every day, and more at the open and the close on most days — "most" because
@@ -103,9 +114,10 @@ def more_on(f, key, days_needed):
     d, t = lo_hi(f[key]), lo_hi(T[key])
     days = 5 * (d[0][0] > t[0][1]) + (d[1][0] > t[1][1]) + (d[2][0] > t[2][1])
     return days >= days_needed and all(d[i][0] >= t[i][1] for i in range(3))
-every('more people rostered every day', lambda f: more_on(f, 'daily', 7))
-every_built('more at the open on most days', lambda f: more_on(f, 'open', 4))   # not Common Ground's: four at every open, the minimum
-every('more at the close on most days', lambda f: more_on(f, 'close', 4))
+def shared_lines_staffing():
+    every('more people rostered every day', lambda f: more_on(f, 'daily', 7))
+    every_built('more at the open on most days', lambda f: more_on(f, 'open', 4))   # not Common Ground's: four at every open, the minimum
+    every('more at the close on most days', lambda f: more_on(f, 'close', 4))
 
 def shape_of(s, text):
     hits = [i for i, (a, b) in enumerate(spans(s.x)) if runs_of(s.x[a:b]) == [escape(text)]]
@@ -1229,7 +1241,7 @@ def managers_review(d, name, P, O, others, F, help_):
     put(s, 'The nine December rules. Everything here is built on them.', 'Everything here is built on them; worth having in writing before a link is chosen.')
     put(s, 'Colleagues’ views come first.', 'After colleagues’ views. Not yet through the roster office.')   # no union rep (owner, 5 Nov 2026: S. Silva, the RMT rep, leads it)
     s.save()
-    notes(9, 'The Sunday finish stays at 23:25', 'The December rules and the Sunday cover were confirmed verbally on 29 September 2026, and are worth having in writing before a link is chosen; the 26-week link was set on 1 October 2026. The new link starts on 1 January 2027, after the timetable changes in December. The 13-day limit used in the checks is Chiltern practice; its written source is still to be confirmed. The fatigue check still open is FF19 on the rules sheet: start times moving more than two hours between shifts, which is not counted across a rest day. The proposal has not yet been through the roster office. The Sunday finish stays at 23:25, as agreed practice.')
+    notes(9, 'The Sunday finish stays at 23:25', f'The December rules and the Sunday cover were confirmed verbally on 29 September 2026, and are worth having in writing before a link is chosen; the 26-week link was set on 1 October 2026. The new link starts {LINK_ON}, after the timetable changes in December{LINK_TBC}. The 13-day limit used in the checks is Chiltern practice; its written source is still to be confirmed. The fatigue check still open is FF19 on the rules sheet: start times moving more than two hours between shifts, which is not counted across a rest day. The proposal has not yet been through the roster office. The Sunday finish stays at 23:25, as agreed practice.')
 
     # SLIDE 10: the fingerprint beside the code, as the sheets and the shortlist pair them
     replace_in_run(f'{d}/ppt/slides/slide10.xml', code, f'{code} · {fp}')
@@ -1365,7 +1377,15 @@ def family_polish(d, who):
 # slide 3 said the link "has to follow" the December trains. The timetable does change in December, and the nine December
 # rules are still its rules, so those words stay. What changes is the link's own name, and its date is said on the title
 # slide, on slide 3 and in the notes. Every replacement is counted, and polish() refuses a deck that still names the old link.
-LINK_STARTS = '1 January 2027'
+# WHEN IT STARTS (owner, 8 Nov 2026: "Needs to be changed everywhere that the new link will start in January 2027. We don't
+# now know exactly what day"): read from link.mjs, which the sheets and the read-me read too, so the pack says one thing. A
+# month until a day is set: "from January 2027", "starts in January 2027", and in the notes the day is still to be agreed.
+LINK_STARTS = re.search(r"^export const LINK_STARTS = '([^']+)';$", open(os.path.join(TOOL, 'link.mjs'), encoding='utf-8').read(), re.M).group(1)
+LINK_DAY = LINK_STARTS[0].isdigit()
+LINK_ON = ('on ' if LINK_DAY else 'in ') + LINK_STARTS
+LINK_TBC = '' if LINK_DAY else '; the day is still to be agreed'
+# A start dated to a day other than LINK_STARTS's, in the decks' words (link.mjs → longDates and pack.py hold the same)
+START_DAY = re.compile(r'\b(?:from|starts?(?: on)?|follows(?: from)?) (\d{1,2}(?:st|nd|rd|th)? Jan(?:uary)? 2027)\b|\b(January 1st)\b', re.I)
 OLD_LINK = re.compile(r'December 2026 (?:CEA )?link')
 def link_date(d, who):
     nums = sorted(int(m.group(1)) for m in (re.fullmatch(r'slide(\d+)\.xml', f) for f in os.listdir(f'{d}/ppt/slides')) if m)
@@ -1386,9 +1406,45 @@ def link_date(d, who):
         s.save()
         replace_in_run(f'{d}/ppt/slides/slide1.xml', 'A proposal for discussion · CEA link · ', f'For discussion · from {LINK_STARTS} · ')   # the managers' cover's pattern, and one line: In Step's, with "not on the shortlist", wrapped (whole-pack review, 6 Nov 2026)
         s = Slide(f'{d}/ppt/slides/slide3.xml')
-        put(s, 'More trains, at new times — the link has to follow them.', f'More trains, at new times — the new link follows from {LINK_STARTS}.')
+        put(s, 'More trains, at new times — the link has to follow them.', f'More trains, at new times — the new link follows {LINK_ON}.')
         s.save()
-        notes_edit(d, 3, 'mean the link has to be redrawn.', f'mean the link has to be redrawn. The timetable changes in December, and the new link starts on {LINK_STARTS}.')
+        notes_edit(d, 3, 'mean the link has to be redrawn.', f'mean the link has to be redrawn. The timetable changes in December, and the new link starts {LINK_ON}{LINK_TBC}.')
+
+# THE MONTH, NOT A DAY (owner, 8 Nov 2026). Every deck was built between 2 and 8 Nov 2026 saying "1 January 2027" in five places:
+# the colleagues' title slide, slide 3 and slide 3's notes, the managers' title slide and slide 9's notes. Each is rewritten to
+# what link.mjs says now, counted (found once as built, or already rewritten), and then nothing in the deck may date the start
+# to any other day. polish() runs it, so does shortlist-decks.py, and `deck-polish.py --link-month <deck.pptx>…` applies it
+# in place to finished decks: the eight built for earlier shortlists are not rebuilt (README.md, "The shortlist's presentations").
+BUILT_ON = '1 January 2027'
+def link_month(d, who):
+    edits = {'colleagues': [('ppt/slides/slide1.xml', f'For discussion · from {BUILT_ON} · ', f'For discussion · from {LINK_STARTS} · '),
+                            ('ppt/slides/slide3.xml', f'the new link follows from {BUILT_ON}.', f'the new link follows {LINK_ON}.'),
+                            ('ppt/notesSlides/notesSlide3.xml', f'and the new link starts on {BUILT_ON}.', f'and the new link starts {LINK_ON}{LINK_TBC}.')],
+             'managers': [('ppt/slides/slide1.xml', f'For managers · from {BUILT_ON} · ', f'For managers · from {LINK_STARTS} · '),
+                          ('ppt/notesSlides/notesSlide9.xml', f'The new link starts on {BUILT_ON}, after the timetable changes in December.',
+                           f'The new link starts {LINK_ON}, after the timetable changes in December{LINK_TBC}.')]}[who]
+    done = 0
+    for f, old, new in edits:
+        if old == new: continue
+        p = os.path.join(d, f); x = open(p, encoding='utf-8').read(); o, n = x.count(escape(old)), x.count(escape(new))
+        if (o, n) == (1, 0): open(p, 'w', encoding='utf-8').write(x.replace(escape(old), escape(new))); done += 1
+        elif (o, n) != (0, 1): raise SystemExit(f'deck-polish: {who} {f}: the start found {o} times as built and {n} as it is now, not once')
+    plain = lambda p: ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', open(p, encoding='utf-8').read())).split())
+    stale = sorted({os.path.relpath(os.path.join(r, f), d) for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml')
+                    for m in START_DAY.finditer(plain(os.path.join(r, f))) if (m.group(1) or m.group(2)) != LINK_STARTS})
+    if stale: raise SystemExit(f'deck-polish: the {who} deck dates the new link’s start to a day ({", ".join(stale)}); it starts {LINK_ON}')
+    return done
+def link_month_file(path):
+    """link_month on a finished deck, in place; the parts are written back in their order."""
+    who = 'colleagues' if path.endswith('-for-colleagues.pptx') else 'managers'
+    d = tempfile.mkdtemp(); names = zipfile.ZipFile(path).namelist(); zipfile.ZipFile(path).extractall(d)
+    done = link_month(d, who)
+    if done:
+        tmp = path + '.tmp'
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as z:
+            for n in names: z.write(os.path.join(d, n), n)
+        os.replace(tmp, path)
+    shutil.rmtree(d); return done
 
 # UK ENGLISH (owner, 3 Nov 2026: "use UK English ... throughout the app"). The decks' template tagged every run of text
 # lang="en-US", so PowerPoint spell-checked British spelling as American and a screen reader read it in an American voice,
@@ -1428,7 +1484,8 @@ def polish(path, name, grid, who):
     us = [f for r, _, fs in os.walk(d) for f in fs if f.endswith(('.xml', '.rels')) and US_LANG.search(open(os.path.join(r, f), encoding='utf-8').read())]
     if us: raise SystemExit(f'deck-polish: {name} for {who} still tags text as US English ({", ".join(sorted(us))})')
     old = [f for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml') and OLD_LINK.search(open(os.path.join(r, f), encoding='utf-8').read())]
-    if old: raise SystemExit(f'deck-polish: {name} for {who} still names the December 2026 link ({", ".join(sorted(old))}); it starts on {LINK_STARTS}')
+    if old: raise SystemExit(f'deck-polish: {name} for {who} still names the December 2026 link ({", ".join(sorted(old))}); it starts {LINK_ON}')
+    link_month(d, who)
     names = zipfile.ZipFile(path).namelist()
     extra = [os.path.relpath(os.path.join(r, f), d) for r, _, fs in os.walk(d) for f in fs if os.path.relpath(os.path.join(r, f), d) not in names]
     tmp = path + '.tmp'
@@ -1439,6 +1496,10 @@ def polish(path, name, grid, who):
 
 if __name__ == '__main__':
     import sys
+    if sys.argv[1:2] == ['--link-month']:   # finished decks, in place (owner, 8 Nov 2026): see link_month
+        for path in sys.argv[2:]: print(f'{os.path.basename(path)}: {link_month_file(path)} of its start dates rewritten')
+        raise SystemExit(0)
+    require_built_for_shortlist(); shared_lines(); shared_lines_staffing()
     names = sys.argv[1:] or list(DESIGNS)   # a name on the command line polishes only that design's freshly built decks
     bad = [n for n in names if n not in DESIGNS]
     if bad: raise SystemExit(f'deck-polish: no design {bad}; the designs are {list(DESIGNS)}')

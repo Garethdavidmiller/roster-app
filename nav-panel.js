@@ -80,7 +80,7 @@ const NAV_PAGES = [
     // Trains is every member's since v24.81 (owner, 20 Oct 2026); it was an admin preview from v24.71.
     // A gate here and the auth-policy role always move together — page-contract-parity checks it.
     { id: 'trains',     label: '🚆 Trains',        url: './trains.html',     colorClass: 'nav-panel-pill--trains'     },
-    // The new link (v25.06; "December link" until v25.10 — the link starts on 1 January): the shortlisted proposals for it. The admin's and
+    // The new link (v25.06; "December link" until v25.10 — the link starts in January): the shortlisted proposals for it. The admin's and
     // the named previewers' while it is a preview (`canOpenNewlink`, v25.33) — the gate and auth-policy.js's role move together (page-contract-parity).
     { id: 'newlink',    label: '🔁 New link', url: './newlink.html',    colorClass: 'nav-panel-pill--newlink',    newlinkAudienceOnly: true },
     // SETTINGS IS A PAGE, SO IT IS A PILL (the header has why); its badges' indigo (shared.css has

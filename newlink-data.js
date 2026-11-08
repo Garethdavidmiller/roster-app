@@ -117,7 +117,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🌙",
         "chip": "Prefer lates",
         "who": "…prefer lates",
-        "gist": "More lates on all three, in longer runs, and every closer 15 minutes to an hour shorter. Middle\u00a0Ground’s are the shortest on average.",
+        "gist": "More lates on all three, in longer runs, and every closer shorter, the weekday’s by half an hour.",
         "rows": [
             {
                 "label": "Lates a year",
@@ -138,12 +138,12 @@ export const PERSONAS = deepFreeze([
                 ]
             },
             {
-                "label": "Longest closing shift, any day",
+                "label": "Longest closing shift, weekday",
                 "cells": [
-                    { "text": "9h\u00a010m", "best": false },
-                    { "text": "8h\u00a055m", "best": false },
                     { "text": "8h\u00a040m", "best": false },
-                    { "text": "8h\u00a010m", "best": true }
+                    { "text": "8h\u00a010m", "best": false },
+                    { "text": "8h\u00a010m", "best": false },
+                    { "text": "8h\u00a010m", "best": false }
                 ]
             },
             {
@@ -308,15 +308,33 @@ export const NOTES = deepFreeze([
 export const PACK = deepFreeze([
     {
         "design": "Balanced V6",
+        "label": "The presentation",
+        "path": "presentations/Balanced-V6-for-colleagues.pdf",
+        "pages": 15
+    },
+    {
+        "design": "Balanced V6",
         "label": "The proposal sheet — every week on page 3",
         "path": "30-days-off/balanced/Balanced-V6-MB-26-V6-1818a1c2.pdf",
         "pages": 8
     },
     {
         "design": "Level Crossing",
+        "label": "The presentation",
+        "path": "presentations/Level-Crossing-for-colleagues.pdf",
+        "pages": 15
+    },
+    {
+        "design": "Level Crossing",
         "label": "The proposal sheet — every week on page 3",
         "path": "30-days-off/Level-Crossing-LC-26-T10-32241e32.pdf",
         "pages": 8
+    },
+    {
+        "design": "Middle Ground",
+        "label": "The presentation",
+        "path": "presentations/Middle-Ground-for-colleagues.pdf",
+        "pages": 15
     },
     {
         "design": "Middle Ground",

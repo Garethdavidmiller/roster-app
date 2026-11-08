@@ -187,11 +187,11 @@ league.
 
 Neither is on the shortlist.
 
-**Presentations.** Common Ground has a colleague deck and a managers' deck, made on 5 November 2026 at the owner's request.
-They were kept outside the pack for a few hours, in a folder since removed, and have been in `../presentations/` since it
-joined the shortlist the same day. They were in the zip until 8 November 2026, when it left the shortlist; they stay in
-`../presentations/`, unchanged, and the zip carries no presentations for now, since each deck names the shortlist of
-5 November 2026 as the current one. The other eleven links here, the three shortlisted included, have none.
+**Presentations.** The three shortlisted have a colleague deck and a managers' deck each, in `../presentations/`, drawn on
+8 November 2026 from Common Ground's (`../tooling/shortlist-decks.py`); the zip carries them, and the New link page in the app
+offers the colleague decks. Common Ground's, made on 5 November 2026 at the owner's request, were in the zip until 8 November
+2026, when it left the shortlist; they stay in `../presentations/`, unchanged, as the source of the three. The other eight
+links here have none.
 
 **Taken out, and since deleted:** Quarter Past, whose shift times Open Return keeps, on the evening of 4 November 2026;
 and Well Kept, today's twenty weeks with six added, which was in this folder from that evening until 5 November 2026

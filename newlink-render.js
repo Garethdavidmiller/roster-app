@@ -60,16 +60,22 @@ export function closesWords(closes) {
 }
 
 /**
- * When the new link starts, as "1 January 2027" — or null for anything that is not a real 'YYYY-MM-DD', so the page says
- * nothing rather than something untrue.
+ * When the new link starts, with its preposition: "in January 2027" for a month, 'YYYY-MM' — the day is not known yet
+ * (owner, 8 Nov 2026) — or "on 18 January 2027" for a day, 'YYYY-MM-DD', once one is set. Null for anything else, so the
+ * page says nothing rather than something untrue.
  * @param {string|null|undefined} starts
  */
 export function startsWords(starts) {
+    const month = /^(\d{4})-(\d{2})$/.exec(starts ?? '');
+    if (month) {
+        if (+month[2] < 1 || +month[2] > 12) return null;
+        return `in ${new Date(+month[1], +month[2] - 1, 1, 12).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`;
+    }
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(starts ?? '');
     if (!m) return null;
     const d = new Date(+m[1], +m[2] - 1, +m[3], 12);
     if (d.getFullYear() !== +m[1] || d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[3]) return null;
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    return `on ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`;
 }
 
 /**
@@ -90,11 +96,13 @@ export function renderStatus({ proposals, closes, starts = null, timetable = nul
     // THE TENSE FOLLOWS THE DATE (test audit, 7 Nov 2026). With no date logic the line would still say, in January, that the
     // link "starts on 1 January 2027" and that "the new timetable comes first, in December". ISO dates compare as strings.
     // Once the link's own start has come the sentence goes, rather than guessing what happened next — this page's rule,
-    // as in weeksShape: say nothing rather than something untrue.
+    // as in weeksShape: say nothing rather than something untrue. A MONTH ('YYYY-MM') is reached on its first day, which
+    // a 'YYYY-MM-DD' today compares as at or after: with the day not known, from 1 January the line could already be untrue.
     const reached = (/** @type {string|null} */ iso) => !!(iso && today && today >= iso);
     const timetableLine = reached(timetable) ? 'The new timetable started in December' : 'The new timetable comes first, in December';
-    // The day and the month stay together (a no-break space): at 390px the line broke after the "1" and left it stranded.
-    const when = from && !reached(starts) ? ` The new link starts on ${esc(from).replace(' ', '\u00a0')}. ${timetableLine}, and today’s link carries on until then.` : '';
+    // The two words after the preposition stay together (a no-break space): "18 January", "January 2027". At 390px the
+    // line broke after the "1" of "1 January" and left it stranded.
+    const when = from && !reached(starts) ? ` The new link starts ${esc(from).replace(/^(in|on) (\S+) /, '$1 $2\u00a0')}. ${timetableLine}, and today’s link carries on until then.` : '';
     return `<p class="nl-callout"><strong>Nothing is decided.</strong>${when}
         These are the three proposals on the shortlist, in alphabetical order.</p>
     <ul class="nl-names" aria-label="The three proposals">${tiles}</ul>
@@ -127,7 +135,11 @@ function weeksShape(proposals) {
  *   stand-in. others: everyone else who can see the preview, as they should be named to this reader ("the admin", a name)
  */
 export function renderPreviewBanner({ audience, decided, others = [] }) {
-    const who = decided ? `the ${audience.length} people on the new link` : `every CEA on the roster (${audience.length}) until the 26 on the new link are decided`;
+    // Not decided: everyone on a NORMAL CEA contract; a CEA bilingual contract keeps its own links (owner, 8 Nov 2026: "This link
+    // will only apply to people with the normal CEA contract and NOT the bilingual contract who will still have their own
+    // links"). Said in the owner's words, since the admin checks this line against the roster, whose CEAs include both
+    const who = decided ? `the ${audience.length} people on the new link`
+        : `everyone on a normal CEA contract (${audience.length}) until the 26 on the new link are decided; those on a CEA bilingual contract keep their own links`;
     const alsoSees = others.length === 0 ? ''
         : ` and ${others.length === 1 ? others[0] : `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}`}`;
     return `<p class="nl-preview-head"><span aria-hidden="true">👁️</span> <strong>Preview — only you${esc(alsoSees)} can see this page.</strong></p>
