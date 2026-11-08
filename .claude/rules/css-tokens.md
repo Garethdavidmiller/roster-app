@@ -762,6 +762,7 @@ centred on the page only when the burger and the badge are the same width. The C
 same header**: from the width where `.app-header` takes its desktop metrics it has the same height,
 logo, gap, title and top edge, and its burger sits in the same place, so a hop between the Calendar
 and any page does not rearrange the header. Only the width differs (`--page-max-width`, above).
-Below 768px, and on a phone held on its side, the Calendar keeps its own compact header. Pinned by
+Below 768px, and on a phone held on its side, the Calendar keeps its own compact header — asked and
+**kept as it is** (owner, 8 Nov 2026), so do not re-propose matching it there. Pinned by
 `e2e/calendar.spec.js` → "from 768px the Calendar's header is every other page's header", which
 compares the computed metrics with Settings' at 768, 800 and 1366px.
