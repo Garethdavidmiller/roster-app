@@ -338,7 +338,9 @@ const CAPS = {
     // 1350 → 1352 at v25.33 — a RAISE of two lines: the New link pill's own gate (S. Silva may preview the page), one
     // filter in the chain and its parameter's type. page-contract-parity derives the gates FROM that chain, so the
     // filter cannot fold into another line without hiding the gate from the check that keeps it honest.
-    'nav-panel.js':            1352,
+    // 1352 → 1300 (Nov 2026, at 1,248) — the extraction named above, done: the App Notices archive's rules left for
+    // notice-archive.js (re-exported, so no page's import moved), and the drawer's thrice-told history became one telling.
+    'nav-panel.js':            1300,
     // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
     // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
     // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix
