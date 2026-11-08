@@ -145,7 +145,7 @@ roster-app/
 ├── paycalc-result-headline.js ← WHICH figure is the headline and what it is CALLED: `headlineLabels` (pure) and `renderResultHeadline`, which writes every target on both paths so one branch's number never sits under the other's label. **An actual is never called an estimate.** Tested by paycalc-result-headline.test.mjs
 ├── paycalc-money-banner.js ← the two OPT-IN money banners: `backPayBannerCopy`, `hppBannerCopy`, `paintBanner`. **A banner may only say "Includes" when the sum is actually in the figure above it.** Tested by paycalc-money-banner.test.mjs
 ├── paycalc-lightboxes.js   ← lightbox and overlay initialisation for paycalc.html: initPaycalcLightboxes() → { openAboutLightbox, showYtdNotice }
-├── paycalc-periods.js      ← period arithmetic + select UI (getPeriods, prev/next, BH/Boxing-Day, CONDITIONAL_ROWS)
+├── paycalc-periods.js      ← period arithmetic + select UI (getPeriods, prev/next, BH/Boxing-Day, CONDITIONAL_ROWS) and the Year to Date source rules: what is offered, stamped and said about it
 ├── paycalc-settings.js     ← grade/contracted-hours helpers + settings persistence (getGrade, getEffectiveContr, getProRateFactor, saveSettings, loadSettings, …)
 ├── paycalc-roster-hint.js  ← roster-assist hint bar UI (updateRosterHint, fillFromRoster, fillCategoryFromRoster, snapKey, …)
 ├── paycalc-hpp.js          ← Holiday Pay Premium estimator and shared period helpers: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp

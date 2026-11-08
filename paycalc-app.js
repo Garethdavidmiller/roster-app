@@ -35,7 +35,7 @@ import {
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
   setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
-  _setSelectPeriod, buildYtdSourceSelect, ytdAutoSource, payslipMayBeInHand, ytdUpdateFrom,
+  _setSelectPeriod, buildYtdSourceSelect, ytdSourceToStamp, ytdAnchorStatus, payslipMayBeInHand, ytdUpdateFrom,
 } from './paycalc-periods.js';
 import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
@@ -281,11 +281,9 @@ export function init() {
     }
 
     /**
-     * Refresh the Year-to-Date source-payslip anchor for the viewed tax year (v17.98): rebuild the
-     * "From which payslip?" select with the year's paid payslips, restore the stored source (legacy
-     * figures with no recorded source are stamped with the app's own standing assumption — the
-     * payslip before today's, clamped into the year — making the old implicit behaviour explicit
-     * and editable), and rewrite the note that states whether the figures sharpen THIS payslip.
+     * Refresh the Year to Date card's source anchor for the viewed tax year: rebuild the "From which
+     * payslip?" select, record a source for figures that never had one (`ytdSourceToStamp`), select
+     * the stored source and rewrite the note and chip.
      * @param {any} ty @param {any} p
      */
     function _refreshYtdSrc(ty, p) {
@@ -293,64 +291,23 @@ export function init() {
       if (!sel) return;
       buildYtdSourceSelect(ty);
       const _rawSrc = lsGet(ytdSrcKey(ty));
-      let src = parseInt(_rawSrc ?? '', 10) || 0;
-      const hasFigures = _ytdHasFigures();
-      // Legacy stamp: ONLY when NO source was EVER recorded (raw === null) — anchor pre-v17.98 figures
-      // to the payslip before TODAY's (the latest paid), clamped into this tax year, so a maintained
-      // user's next-payslip estimate is unchanged. A recorded '0' means the member DELIBERATELY
-      // un-anchored (picked the blank placeholder); that must PERSIST and never be re-stamped here —
-      // otherwise the next period change silently re-engages cumulative PAYE against figures the
-      // member detached (v18.12 — the un-anchor handler now records '0' rather than deleting the key).
-      if (_rawSrc == null && hasFigures) {
-        src = ytdAutoSource(ty);
-        lsSet(ytdSrcKey(ty), String(src));
-      }
+      const stamp = ytdSourceToStamp(_rawSrc, _ytdHasFigures(), ty);
+      if (stamp != null) lsSet(ytdSrcKey(ty), String(stamp));
+      const src = stamp ?? (parseInt(_rawSrc ?? '', 10) || 0);
       if (src) _setSelectPeriod(sel, src);
       _updateYtdNote(ty, p, src);
     }
 
-    /** The YTD note: states which payslip the figures are from and whether they sharpen the one on
-     *  screen (the cumulative method engages only on source + 1). Also writes the header status
-     *  chip (#ytdStatusChip, v18.40 — review item 6) so the in-use state is visible even while the
-     *  card is collapsed. @param {any} ty @param {any} p @param {number} src */
+    /** The Year to Date note and header chip for the payslip on screen (`ytdAnchorStatus`).
+     *  @param {any} ty @param {any} p @param {number} src */
     function _updateYtdNote(ty, p, src) {
       const note = document.getElementById('ytdUptoNote');
       if (!note) return;
-      const srcP0 = src ? getPeriods().find(/** @param {any} x */ x => x.num === src) : null;
-      note.classList.toggle('ytd-upto-note--live', !!(srcP0 && p.num === src + 1));
-      const periodIdx = (p.num - 48) - ty.first + 1; // 1-based HMRC period within the tax year
-      // Header status chip: "✓ in use" (green) when the figures sharpen THIS payslip, "not in use"
-      // when another payslip is viewed, empty (hidden) when there's nothing to report — no figures,
-      // no source, or the year's first payslip (Year to Date starts fresh in April).
-      const _chip = document.getElementById('ytdStatusChip');
-      if (_chip) {
-        const _hasFigures = _ytdHasFigures();
-        const _live = !!(srcP0 && p.num === src + 1 && _hasFigures);
-        _chip.classList.toggle('ytd-status-chip--live', _live);
-        _chip.textContent = (!_hasFigures || !srcP0 || periodIdx <= 1) ? '' : (_live ? '✓ in use' : 'not in use');
-      }
-      if (periodIdx <= 1) {
-        note.innerHTML = `This is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.`;
-        return;
-      }
-      const srcP = srcP0;   // same lookup as above — do not re-find (sweep item 10)
-      if (!srcP) {
-        // No source yet → NO note (v18.49): the old copy-and-pick prompt here was the FOURTH
-        // statement of the same instruction on one screen (header hint, field labels, select
-        // label all carry it). Empty → hidden via the .ytd-upto-note:empty CSS rule.
-        note.innerHTML = '';
-        return;
-      }
-      const from = `your <strong>${fdShort(srcP.payday)} payslip</strong> (P${payslipPeriodNum(srcP)})`;
-      if (p.num === src + 1) {
-        note.innerHTML = `<span aria-hidden="true">✓</span> Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.`;
-      } else {
-        const prevP = getPeriods().find(/** @param {any} x */ x => x.num === p.num - 1);
-        const upd = prevP && prevP.num < todaysPeriodNum()
-          ? ` Update them from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}) to sharpen it.`
-          : '';
-        note.innerHTML = `Your Year to Date figures are from ${from}, so this payslip uses the standard method.${upd}`;
-      }
+      const s = ytdAnchorStatus({ p, ty, src, hasFigures: _ytdHasFigures() });
+      note.classList.toggle('ytd-upto-note--live', s.noteLive);
+      note.innerHTML = s.note;   // '' is hidden by `.ytd-upto-note:empty`
+      const chip = document.getElementById('ytdStatusChip');
+      if (chip) { chip.classList.toggle('ytd-status-chip--live', s.chipLive); chip.textContent = s.chip; }
     }
 
     function onPeriodChange() {

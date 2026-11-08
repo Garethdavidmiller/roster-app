@@ -15,7 +15,7 @@ import {
   P_YR, TAX_YEARS, getTaxYearForOffset,
 } from './paycalc-calc.js';
 import { bhsForYear } from './paycalc-roster-suggestions.js';
-import { fdLong } from './paycalc-format.js';
+import { fdLong, fdShort } from './paycalc-format.js';
 import { MONTH_ABB } from './date-format.js';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -369,6 +369,52 @@ export function ytdSourceOffered(p, ty, now = new Date()) {
 export function ytdAutoSource(ty, now = new Date()) {
   const { today } = _todayAt(now);
   return Math.min(Math.max(today - 1, 48 + ty.first), 48 + ty.last);
+}
+
+/**
+ * The source to RECORD for `ty`'s Year to Date figures as the card loads, or null to record nothing.
+ * Only when no source was EVER recorded (`raw` is null) and figures are in the boxes: figures from
+ * before sources were recorded are anchored to the app's old standing assumption (`ytdAutoSource`),
+ * so a maintained member's next estimate does not move. A recorded '0' is the member deliberately
+ * un-anchoring them (the blank placeholder) and is never re-stamped — or the next period change would
+ * quietly re-engage the cumulative method on figures they had detached.
+ * @param {string|null} raw  what storage holds @param {boolean} hasFigures
+ * @param {{ first:number, last:number }} ty @param {Date} [now]
+ * @returns {number|null}
+ */
+export function ytdSourceToStamp(raw, hasFigures, ty, now = new Date()) {
+  return raw == null && hasFigures ? ytdAutoSource(ty, now) : null;
+}
+
+/**
+ * What the Year to Date card says about its figures on payslip `p`: the note under its heading, and
+ * the chip in its header that is readable while the card is shut. Both answer from the rule
+ * calculate() applies — the figures sharpen ONLY the payslip straight after the one they were copied
+ * from — and both are written together, so every path that refreshes one refreshes the other.
+ *  - The chip is '' when there is nothing to report: no figures, no source, or the year's first
+ *    payslip, where Year to Date starts again.
+ *  - The note is '' while no source is recorded: the card's hint, its field labels and the select's
+ *    label all ask for one already, and a fourth asking was noise.
+ *  - Otherwise it names the source payslip, date first, and offers the payslip before this one to
+ *    update from once that one has been paid.
+ * `noteLive` (the note's green) follows the source alone; the chip's also needs figures in the boxes.
+ * @param {{ p: any, ty: { label: string, first: number }, src: number, hasFigures: boolean, now?: Date }} a
+ * @returns {{ note: string, noteLive: boolean, chip: string, chipLive: boolean }}
+ */
+export function ytdAnchorStatus({ p, ty, src, hasFigures, now = new Date() }) {
+  const srcP = src ? getPeriods().find((/** @type {any} */ x) => x.num === src) : null;
+  const next = !!srcP && p.num === src + 1;
+  const first = (p.num - 48) - ty.first + 1 <= 1;   // 1-based HMRC period within the tax year
+  const out = { noteLive: next, chip: (!hasFigures || !srcP || first) ? '' : (next ? '✓ in use' : 'not in use'), chipLive: next && hasFigures };
+  if (first) return { ...out, note: `This is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.` };
+  if (!srcP) return { ...out, note: '' };
+  const from = `your <strong>${fdShort(srcP.payday)} payslip</strong> (P${payslipPeriodNum(srcP)})`;
+  if (next) return { ...out, note: `<span aria-hidden="true">✓</span> Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.` };
+  const prevP = getPeriods().find((/** @type {any} */ x) => x.num === p.num - 1);
+  const upd = prevP && prevP.num < _todayAt(now).today
+    ? ` Update them from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}) to sharpen it.`
+    : '';
+  return { ...out, note: `Your Year to Date figures are from ${from}, so this payslip uses the standard method.${upd}` };
 }
 
 /**
