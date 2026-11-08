@@ -47,7 +47,9 @@ const LARGE_THRESHOLD = 900;
  * Measured on 3 Nov 2026 with v25.22 in, + 50, rounded up to the next 50. ⚠️ THESE MAY ONLY GO DOWN.
  */
 const CAPS = {
-    'index.css':      3950,   // the Calendar: grid, day panel, Team Week View, lock cards, notices
+    // 3950 → 3600 (8 Nov 2026, at 3,502): changelog comments cut to their reasons, dead and duplicated
+    // rules out.
+    'index.css':      3600,   // the Calendar: grid, day panel, Team Week View, lock cards, notices
     // 3950 → 3850 (Nov 2026, at 3,781): comments that had become a changelog went back to the reason they
     // left, stale claims were corrected, and the drawer pills' nine colour pairs and the sheet's four ✕
     // colours became one block each.

@@ -25,7 +25,6 @@
             margin: 20px;
         }
 
-
         body {
             font-family: var(--font-sans);
             -webkit-font-smoothing: antialiased;
@@ -157,49 +156,29 @@
 
         .control-group {
             display: flex;
-            /* THE GAP IS A VARIABLE, NOT A DECLARATION (v22.86). Three releases in a row lost a
-               `gap` here to source order — a later `.control-group { gap }` in a media block beat
-               a modifier's `gap` at equal specificity, twice, and the file's own comment warning
-               about it was the thing being ignored. So no rule declares `gap` on a control group
-               any more: this one reads `--cg-gap`, and every breakpoint and every modifier SETS the
-               variable. A custom property cascades per property, so a later rule that sets it for
-               `.control-group` cannot override a modifier that sets it for `.control-group--actions`
-               — there is nothing to lose to. Kept by calendar-controls-parity.test.mjs. */
+            /* THE GAP IS A VARIABLE, NOT A DECLARATION: a `gap` here was lost to source order three
+               times, to a later bare `.control-group` rule in a media block. No rule declares `gap` on
+               a control group; this one reads `--cg-gap`, and each modifier SETS it under the
+               `.controls` prefix (0,2,0), which no bare rule can outrank. calendar-controls-parity. */
             --cg-gap: 6px;
             gap: var(--cg-gap);
             align-items: center;
             flex-shrink: 0;
         }
-        /* THE QUICK-ACTION ROW MUST BE ABLE TO WRAP (v22.62, staff report from a 360px Samsung A).
-           📍 · Team · AL · Admin · Pay measured 366px at the default 14px against 322px of usable
-           width on a 360px device — so it overflowed by 6px with NO font scaling at all, and
-           `justify-content: center` pushed it off BOTH edges (left -3, right 363) where the body's
-           `overflow-x: clip` cut it rather than scrolling. At 320px it was 46px over. Measured.
-
-           `flex-shrink: 0` on `.control-group` was the cause AND the reason a lone `flex-wrap`
-           does nothing: an item that cannot shrink keeps its single-line max-content width, so it
-           never reaches a wrap point (candidate A of three, measured). The BUTTONS keep their own
-           `flex-shrink: 0` — that is what stops Android stretching them, which is what that rule
-           was really protecting — while this GROUP may shrink, and so may wrap.
-
-           Wrapping is the SAFETY NET, not the everyday state: tighter spacing below 400px keeps all
-           five on one line at the default size (315px into 322px), and the wrap only engages under
-           Chrome's text scaling, where no fixed padding could have saved it. Padding alone would
-           just move the threshold. Larger phones are untouched — 412px already fits at full size.
-
-           WHY NOTHING CAUGHT IT: the mobile e2e project is Pixel 5 at 393px and the visual
-           baselines are 390px, and the row first fits at 384px. The whole estate sat just above the
-           threshold, so 360px — the commonest Android width there is — was never rendered. */
-        /* `.controls` prefix, for the reason the comment further down already gave and this rule
-           did not heed at v22.83: `@media (max-width: 1023px) { .control-group { gap: 6px } }` sits
-           LATER in this file at equal specificity, so an unprefixed `gap` here loses to it on every
-           phone and tablet. It did — below 380px the outer gaps stayed 6px while the pair's inner
-           gap took the 5px, so the row rendered 6·6·6·5 and sat 3px wider than v22.82. Uneven by
-           one pixel is not visible; being 3px wider on the width this whole rule exists to fit is. */
+        /* THE QUICK-ACTION ROW MAY WRAP. On a 360px Samsung A, 📍 · Team · AL · Admin · Pay measured
+           366px against 322px of row at the default size, and `justify-content: center` pushed it off
+           BOTH edges, where the body's `overflow-x: clip` cut it. `flex-shrink: 0` on `.control-group`
+           was the cause, and the reason a lone `flex-wrap` did nothing: an item that cannot shrink
+           never reaches a wrap point. The BUTTONS keep their `flex-shrink: 0` (it stops Android
+           stretching them); this GROUP may shrink, and so may wrap. Wrapping is the net, not the
+           everyday state: the tiers below keep all five on one line at the default size. 360px is
+           measured on purpose — the mobile e2e device (393px) and the 390px baselines sit just above
+           the 384px where the row first fits, so they never render the case.
+           The `.controls` prefix on every modifier is load-bearing: the breakpoint rules for
+           `.controls button` and `.control-group` come LATER at equal specificity, and bare rules here
+           lost to them twice (the row rendered 3px wider on the very width this rule exists to fit). */
         .controls .control-group--actions {
-            /* One declaration of the row's gap, read by the pair below too — the two must match or
-               the pair's inner spacing drifts from the outer at one width and not the other. The
-               group's own gap is set through `--cg-gap` (see `.control-group`), never as `gap`. */
+            /* One declaration of the row's gap, read by the pair below too, so the two cannot drift. */
             --qa-gap: 6px;
             --cg-gap: var(--qa-gap);
             flex-wrap: wrap;
@@ -207,80 +186,42 @@
             min-width: 0;
             flex-shrink: 1;
         }
-        /* THE WRAP MUST NOT ORPHAN A BUTTON (v22.83, owner report from the same 360px Samsung).
-           v22.62 stopped the row being CLIPPED and its guard checks exactly that — nothing off
-           screen — which it still is. What no assertion could see is the SHAPE of the wrap: five
-           items break 4 + 1, so a lone centred "💷 Pay" sat under the other four, reading as a
-           mistake rather than as a second line, and the row grew from 39px to 95px on the phone
-           with the least room to give. Measured: 360px at 18px text, 320px at the default, 412px
-           at 20px — all three produced the widow.
-
-           `.control-group--pair` makes Admin + Pay ONE unbreakable flex item, so the four wrap
-           points become three and every case above breaks 3 + 2 instead. The pairing is the app's
-           own distinction and not a layout trick — 📍 · Team · AL act on this page, Admin and Pay
-           leave it — which is why it is expressed in the markup rather than as a `:nth-child` rule
-           that the next person would read as arbitrary.
-
-           WHY NOT THE OBVIOUS ALTERNATIVES. Tighter padding or shorter labels only move the
-           threshold, and Chrome's Android text scaling does not change the CSS viewport, so no
-           media query can see the case that actually breaks (it is why v22.62 needed the wrap at
-           all). A horizontal scroll strip would keep one line and put a primary action off screen.
-           An equal-column grid sizes 📍 like "📝 Admin". Two rows at every width costs 44px of
-           calendar on phones that were never short of room. */
-        /* The pair IS a control group (`class="control-group control-group--pair"`, v22.86): the
-           base rule gives it its flex row, its centring and its refusal to shrink — its buttons
-           already refuse to shrink, so a shrinkable wrapper would not compress them, it would let
-           them overflow it — and its gap arrives through `--cg-gap` like every other group's. */
+        /* THE WRAP MUST NOT ORPHAN A BUTTON. Five items broke 4 + 1, so a lone centred "💷 Pay" sat
+           under the other four, reading as a mistake (360px at 18px text, 320px at the default, 412px
+           at 20px). The pair makes Admin + Pay ONE unbreakable item, so every case breaks 3 + 2. It is
+           the app's own distinction, in the markup on purpose: 📍 · Team · AL act on this page, Admin
+           and Pay leave it. Not the alternatives: tighter padding or shorter labels only move the
+           threshold (and Android's text scaling leaves the viewport alone, so no media query sees the
+           case that breaks); a scroll strip puts a primary action off screen; an equal-column grid
+           sizes 📍 like "📝 Admin"; two rows everywhere cost 44px of calendar on phones with room.
+           The pair IS a control group: the base rule gives it its row and its refusal to shrink (its
+           buttons refuse too, so a shrinkable wrapper would let them overflow it). */
         .controls .control-group--pair {
             --cg-gap: var(--qa-gap);
             flex-wrap: nowrap;
         }
-        /* `.controls` prefix is LOAD-BEARING, not decoration. Both of these are overridden later in
-           this file at equal specificity — `.controls select, .controls button` sets the padding,
-           and a later media block resets `.control-group { gap: 6px }` — so an unprefixed rule here
-           loses on source order and silently does nothing. It did: the first cut of this fix
-           measured 10px of computed padding instead of 8px, and the row still wrapped at 360px. */
-        /* 380px, not 400px: 384px already fits all five at the default size with 9px to spare, so
-           tightening it would change what a Pixel-class phone looks like to fix a device that was
-           never broken — and churn the 390px visual baselines for nothing. The devices that need it
-           are 320-380. Measured either side. */
-        /* COMPACT UNDER TEXT SCALING (v22.87, owner decision). Android's accessibility text size
-           scales every font size and leaves the CSS viewport alone, so no width query can see it —
-           and at 412px the five-button row wrapped to 3 + 2 the moment its buttons reached 15px
-           ("Largest", 1.3×): 390px needed, 386px available. text-scale.js measures the scale at
-           boot and stamps <html> at 1.2× and above; this is the whole of what the stamp does.
-           Tighter gaps and side padding buy ~70px, and dropping the four decorative icons (the
-           word is the content; 📍 stays, it IS the content) buys ~90px more — measured: one line at
-           412px up to ~2× and at 360px up to ~1.5×, which is every Android step a 412px phone
-           offers and all but the last two on a 360px one. Beyond that the wrap below is still the
-           last resort — a fifth button cut off the edge is worse than a second row, and always was.
-           `.controls` prefix and the variable, for the reasons on `.control-group`; nothing here
-           declares `gap`. */
+        /* COMPACT UNDER TEXT SCALING (owner decision). Android's text size scales the type and leaves
+           the CSS viewport alone, so no width query sees it: at 412px the row wrapped once its buttons
+           reached 15px ("Largest", 1.3×). text-scale.js stamps <html> from 1.2×, and this is all the
+           stamp does — tighter gaps and side padding (~70px) and the four decorative icons dropped
+           (~90px; 📍 stays, it IS the content). Measured: one line at 412px to ~2×, at 360px to ~1.5×.
+           Beyond that the wrap is the last resort; a button cut off the edge is worse than a 2nd row. */
         html[data-text-scale="compact"] .controls .control-group--actions { --qa-gap: 4px; }
         html[data-text-scale="compact"] .controls .control-group--actions button { padding-left: 8px; padding-right: 8px; }
         html[data-text-scale="compact"] .controls .control-group--actions .btn-ico { display: none; }
+        /* 380px, not 400: 384px already fits all five with 9px to spare, so a Pixel-class phone and
+           the 390px baselines are left alone. The devices that need it are 320–380, measured. */
         @media (max-width: 380px) {
             .controls .control-group--actions { --qa-gap: 5px; }
-            /* Horizontal only — the vertical padding, and so the touch target's height, is
-               untouched. The 📍 button stays 35x39px, above both WCAG 2.5.8 (24px) and the 30px
-               floor v22.61 set for coarse pointers. */
+            /* Horizontal only: the touch target's height is untouched, and the 📍 button stays
+               35×39px, above WCAG 2.5.8's 24px and the app's 30px floor for coarse pointers. */
             .controls .control-group--actions button { padding-left: 8px; padding-right: 8px; }
         }
-        /* COMPACT IS ABOUT WHETHER THE ROW FITS, AND WIDTH IS THE OTHER INPUT TO THAT (v22.89).
-           The tier above triggers on TEXT SCALE, which was only ever half the question. At the
-           DEFAULT text size a 320px phone needs 319px of buttons and gaps against 294px of row, so
-           the five buttons wrapped to two — the exact thing the compact tier exists to prevent,
-           happening on the narrowest phones, with the remedy already written and withheld from
-           them. Measured plain, with no scaling and no seam: two rows at 320 and 333, one row from
-           344. Dropping the four decorative icons ALONE fits it (223px of buttons), so the gap and
-           padding the 380px block already tightens are left exactly as they are.
-           This is why no text-scale tier could ever have caught it: Android's "Display size"
-           setting shrinks the CSS VIEWPORT — an older Samsung on a larger one reports ~320-333px —
-           where the separate font-size setting scales type and leaves the viewport alone. Two axes,
-           and v22.87 measured one.
-           359 rather than the measured 343: at 344 the fit has 4px of headroom, which a fallback
-           font stack would eat, and 360 is the width every other measurement in this file is taken
-           at. Narrow it if a 344-359px phone ever wants its icons back. */
+        /* …AND WIDTH IS THE OTHER HALF OF "DOES IT FIT". At the DEFAULT text size a 320px phone needs
+           319px of row against 294px (two rows at 320 and 333, one from 344), and dropping the four
+           icons alone fits it. No text-scale tier could see this: Android's "Display size" shrinks the
+           CSS VIEWPORT (an older Samsung reports ~320–333px), where its font size scales the type.
+           359 rather than 343: at 344 the fit has 4px of headroom, which a fallback font would eat. */
         @media (max-width: 359px) {
             .controls .control-group--actions .btn-ico { display: none; }
         }
@@ -289,51 +230,26 @@
             flex-direction: column;
             align-items: center;
             --cg-gap: 2px;
-            /* THE MEMBER SELECT IS WHAT GIVES WAY, NOT THE MONTH ARROWS (v22.84). At 320px this
-               row measured 334px into 300px of usable width, so `← Prev` hung 14px off the left
-               edge and `Next →` 14px off the right — both cut by the body's `overflow-x: clip`,
-               and the same arithmetic the action row below was fixed for at v22.63, in the row
-               above it that nobody re-measured.
-               `.control-group` sets `flex-shrink: 0`, which is right for the two arrow buttons —
-               a squashed "← Prev" is unreadable — and wrong for the dropdown, which already
-               ellipsises a long name and is the one item here with room to give. `min-width: 0`
-               is the load-bearing half: a flex item's default `min-width: auto` floors it at its
-               own min-content, so `flex-shrink` alone would not have moved it. */
+            /* THE MEMBER SELECT GIVES WAY, NOT THE MONTH ARROWS. At 320px the row measured 334px into
+               300px, so `← Prev` and `Next →` each hung 14px off an edge, cut by `overflow-x: clip`.
+               `flex-shrink: 0` is right for the arrows (a squashed "← Prev" is unreadable) and wrong
+               for the dropdown, which already ellipsises a long name. `min-width: 0` is the
+               load-bearing half: a flex item's default `min-width: auto` floors it at its min-content. */
             flex-shrink: 1;
             min-width: 0;
         }
-        /* THE SELECT MUST FOLLOW THE GROUP, and it does not by default: the group centres its
-           children, so the select keeps its own content width and simply overflows a shrunken
-           parent — painting the dropdown straight over `← Prev` and `Next →` by 19px at 320px,
-           21px at 360px/18px text and 35px at 360px/22px. Letting the group shrink without letting
-           its select follow is half a fix, and the visible half is the wrong one: the old behaviour
-           at least pushed the arrows off screen where `overflow-x: clip` hid them, while this
-           covered them where they still looked tappable.
-           `align-self: stretch` and NOT `max-width: 100%`: a percentage max-width against a
-           shrink-to-fit parent is the cyclic case, and Chromium resolves it as `none` — which
-           throws away the `.controls select { max-width: 200px }` cap and made the select WIDER at
-           1280px than it had been. Caught by the visual baseline, not by the phone widths this fix
-           is for. Stretching takes the group's used width with no percentage and no cycle, so the
-           cap still applies and the desktop row is byte-identical. */
+        /* THE SELECT MUST FOLLOW THE GROUP: the group centres its children, so a select keeping its
+           own width overflowed the shrunken group and painted over both arrows (19px at 320px), where
+           they still looked tappable. `align-self: stretch` and NOT `max-width: 100%`: a percentage
+           against a shrink-to-fit parent is the cyclic case Chromium resolves as `none`, which threw
+           the 200px cap away and made the select WIDER on the desktop (calendar-controls-parity 3);
+           stretching takes the group's width with no percentage and no cycle, so the cap holds.
+           One width whichever member it shows: select-sheet.js sizes the trigger to the widest option,
+           as a <select> sizes itself (owner, 9 Sep 2026 — a control that resizes with its VALUE is not
+           the control it replaced). Pinned by e2e/calendar.spec.js → "the name picker does not change
+           width when the member changes". */
         .controls .control-group--stacked select,
         .controls .control-group--stacked .fieldpick { align-self: stretch; }
-        /* THE ROW WAS NARROWER FOR SIX RELEASES, AND THAT WAS A REGRESSION (v23.33 → v23.39).
-           A <select> sizes to its WIDEST option — every name on the roster, so ~189px of the 200px
-           cap whoever was reading it — while the trigger button that replaced it sized to the one
-           name it was showing. So the control changed width as you switched member and the row
-           re-centred around it, `← Prev` and `Next →` sliding in and out under your thumb. This
-           comment used to say that was "the change not a regression". The owner's call is that
-           consistency is the point (9 Sep 2026), and that is the right call: a control that
-           resizes when its VALUE changes is not the control this replaced.
-           Fixed in select-sheet.js, not here — the trigger carries a hidden copy of the widest
-           option and is a one-cell grid, so its intrinsic width is the widest option exactly as a
-           <select>'s is, and the 200px cap below still clamps it. Every enhanced select in the app
-           gets it, because every one of them had the same fault.
-           The warning that outlived the claim, and still stands: do NOT reach for a percentage
-           width here. The paragraph above is the record of that being tried, and a percentage
-           against a shrink-to-fit parent is the cyclic case Chromium resolves as `none`, which
-           throws the 200px cap away and made the control WIDER on desktop. Pinned by
-           e2e/calendar.spec.js — "the name picker does not change width when the member changes". */
 
         /* `:not(.fieldpick)` throughout: select-sheet.js's trigger is a <button>, but it stands in
            for the member SELECT and has to keep the field's light chrome. Without this the navy pill
@@ -344,6 +260,10 @@
             width: auto;            /* Prevents Android flex-stretch making buttons full-width */
             white-space: nowrap;
             flex-shrink: 0;
+            background: var(--primary-blue);
+            color: white;
+            border-color: var(--primary-blue);
+            box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
         }
 
         .controls select, .controls .fieldpick, .controls button {
@@ -375,14 +295,6 @@
         }
 
         /* text-align on <option> is not supported cross-browser — omitted */
-
-        .controls button:not(.fieldpick) {
-            background: var(--primary-blue);
-            color: white;
-            border-color: var(--primary-blue);
-            box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
-            transition: background-color var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard);
-        }
 
         @media (hover: hover) and (pointer: fine) {
             .controls button:not(.fieldpick):hover {
@@ -452,33 +364,21 @@
            the one-time reveal sets an inline `display`. */
         body.team-view-active #swipeHint { display: none !important; }
 
-        /* ── The one-off prompt strips: install · notifications (v22.28) ────────────────────────
-           The calendar's only dismissable OFFERS, and they share this one treatment so the two can
-           never look like different kinds of thing. `install-prompt.js` explains why only one of
-           them is ever on screen.
-
-           THE ACTION BUTTON HAD NO FILL. `background: var(--primary-blue)` was the EXACT colour of
-           the body canvas it sits on — measured, byte-identical — so the "Enable" button had shipped
-           since the notification prompt was written as bold white text with an invisible box round
-           it. Nothing on screen said *press this*. It is gold-on-navy now, which is not a new idea:
-           `.notice-cta` has been the app's on-navy primary action all along, and this makes the two
-           agree.
-
-           The strip is a RAISED SURFACE rather than bare text on the canvas for the same reason.
-           The canvas carries chrome (the swipe hint, the pay-period line); cards carry content. An
-           offer you can act on is content, so it gets the on-navy raised surface — the third rung of
-           the three-surface model, which the nav drawer has used for its pills all along. */
+        /* ── The one-off prompt strips: install · notifications ──────────────────────────────────
+           The calendar's only dismissable OFFERS, sharing one treatment so the two can never look
+           like different kinds of thing (`install-prompt.js` says why only one is ever on screen).
+           The action is gold on navy, `.notice-cta`'s on-navy primary: a navy fill was the EXACT
+           colour of the canvas, so "Enable" shipped as bold text in an invisible box. The strip is a
+           RAISED SURFACE, not bare text on the canvas: the canvas carries chrome (the swipe hint),
+           cards carry content, and an offer you can act on is content — the on-navy third rung. */
         .top-prompt {
-            /* ── The one flag JS reads off this rule (v22.28) ───────────────────────────────────
-               These strips are MOBILE-ONLY (the desktop override far below), and `install-prompt.js`
-               has to know it BEFORE it decides anything: it calls `preventDefault()` on Chromium's
-               `beforeinstallprompt`, which suppresses the browser's own install promotion. Doing
-               that on a width where we then show nothing would leave a desktop member with no offer
-               from us AND none from Chrome — strictly worse than not having the feature.
-
-               The alternative was `matchMedia('(min-width: 1024px)')` in the module, i.e. the
-               breakpoint written down twice, in two languages, with nothing to keep them in step.
-               A custom property is one declaration that both sides read. */
+            /* ── The one flag JS reads off this rule ──────────────────────────────────────────────
+               These strips are MOBILE-ONLY (the desktop override below), and `install-prompt.js` must
+               know it BEFORE it calls `preventDefault()` on Chromium's `beforeinstallprompt`, which
+               suppresses the browser's own install promotion: doing that where we then show nothing
+               would leave a desktop member with no offer from us AND none from Chrome. A custom
+               property is one declaration both sides read; `matchMedia` in the module would write the
+               breakpoint down twice, in two languages, with nothing to keep them in step. */
             --prompt-available: 1;
             display: flex; align-items: center; justify-content: space-between;
             gap: 10px; padding: 10px 8px 10px 14px; margin-bottom: 16px;
@@ -567,7 +467,6 @@
             box-shadow: var(--shadow-2);
             margin-bottom: 16px;
             width: 100%;
-            box-sizing: border-box;
             /* Note: transform transition is set entirely by the swipe JS (TRANSITION constant).
                No static transition here — it would conflict with pointerdown setting transition:'none'. */
             touch-action: pan-y;
@@ -600,17 +499,12 @@
             padding-bottom: 10px;
             border-bottom: 1px solid var(--border-light);
             gap: 0 6px;
-            /* ONE LINE BY CONSTRUCTION, WRAP AS THE LAST RESORT (v22.87, owner). v22.86 stacked the
-               heading and the week note on the narrowest phones and wrapped the note beneath on
-               the rest — and on the owner's own phone that turned a row that had always been one
-               line into two. Measured: at 360px the default row needed 337px of 334 and fitted by
-               overflowing 3px invisibly; at 412px it stopped fitting at 1.2× text. So the row is
-               made CHEAPER instead: the note is `--type-small` with no separator dot (its size and
-               its grey already set it apart, and the dot was 8px), the gap is 6px, and under text
-               scaling (`html[data-text-scale]`, from 1.1×) the two scale from a smaller base so
-               they still share the line — 360px to ~1.15×, 412px to ~1.35×. Beyond that the note
-               drops beneath the heading, whole; the heading itself never splits. Default phones
-               keep the 24px heading exactly as before. */
+            /* ONE LINE BY CONSTRUCTION, WRAP AS THE LAST RESORT (owner). Stacking the heading and the
+               week note made a row that had always been one line two. So the row is CHEAPER instead:
+               the note is `--type-small` with no separator dot (its size and grey set it apart), the
+               gap 6px, and under text scaling (`html[data-text-scale]`, from 1.1×) both scale from a
+               smaller base so they still share the line — 360px to ~1.15×, 412px to ~1.35×. Beyond that
+               the note drops beneath the heading, whole; the heading itself never splits. */
             flex-wrap: wrap;
         }
         /* 21px so that, once the phone scales it back up, the heading still shares its line: at
@@ -677,13 +571,10 @@
                 box-shadow: 0 5px 15px rgba(0,0,0,0.1);
                 z-index: 2;
             }
-            /* A DAY IS NOW A BUTTON ON A MOUSE TOO (v23.59) — a click opens the day panel on every
-               pointer type, so the cursor has to say so. It could not before: only the two
-               pay-marked cells a month did anything, and there was no way to advertise that without
-               advertising it on the twenty-eight that did not. `.other-month` is excluded because
-               the filler cells are still inert. The CONTAINER stays `default` — the block above
-               drops grab/grabbing deliberately, and a cell offering a click is the opposite claim
-               from a surface offering a drag. */
+            /* A DAY IS A BUTTON ON A MOUSE TOO: a click opens the day panel on every pointer type, so
+               the cursor says so. `.other-month` is excluded because the filler cells are inert. The
+               CONTAINER stays `default` (the block above drops grab/grabbing deliberately): a cell
+               offering a click is the opposite claim from a surface offering a drag. */
             .calendar-day:not(.other-month) { cursor: pointer; }
         }
         /* Navy, outside the cell, against the light card: a gold ring inside it was 1.0:1 on today's
@@ -709,16 +600,13 @@
             box-shadow: 0 3px 10px rgba(0,0,0,0.22);
         }
         #calTooltip[hidden] { display: none; }
-        /* An overlay takes the tooltip down with it (v23.59) — BELT AND BRACES, and saying so
-           because the first version of this comment claimed a defect that was never observed. A
-           click now opens the day panel on a mouse too and the pointer does not move on the way, so
-           `mousemove` never re-runs; the reason the tip does not strand over the backdrop is that
-           the full-screen overlay appearing under a stationary cursor fires a `mouseover`, whose
-           handler resolves no cell and hides it. MEASURED on both engines by deleting this line —
-           the test below still passed. It is kept because that mechanism is incidental: it works
-           because `closest()` returns null on the overlay, so scoping the tooltip's listeners to
-           the grid — a plausible tidy-up — would strand the tip with nothing in the CSS to catch
-           it. `e2e/calendar.spec.js` pins the behaviour whichever of the two delivers it. */
+        /* An overlay takes the tooltip down with it — BELT AND BRACES. A click that opens the day
+           panel does not move the pointer, so `mousemove` never re-runs; what hides the tip today is
+           the `mouseover` the overlay fires appearing under the cursor, whose handler resolves no
+           cell. MEASURED on both engines by deleting this line: the e2e still passed. Kept because
+           that mechanism is incidental (it works only because `closest()` is null on the overlay), so
+           scoping the tooltip's listeners to the grid would strand the tip. The e2e pins the behaviour
+           whichever of the two delivers it. */
         body.lb-open #calTooltip { display: none; }
         @media print { #calTooltip { display: none !important; } }
 
@@ -802,14 +690,18 @@
             }
         }
 
-        .calendar-day.bank-holiday::before {
-            content: '⭐';
+        /* The corner markers. Each keeps its own rule for its `content` — day-detail-explains.test.mjs
+           reads the emoji from them. */
+        .calendar-day.bank-holiday::before,
+        .calendar-day.payday::before,
+        .calendar-day.cutoff::before,
+        .calendar-day.easter-day::before {
             position: absolute;
             top: 3px;
-            right: 3px;
             font-size: var(--type-micro);
             z-index: 10;
         }
+        .calendar-day.bank-holiday::before { content: '⭐'; right: 3px; }
 
         /* Payday and cutoff cells navigate to the pay calculator on click */
         .calendar-day.payday,
@@ -821,35 +713,12 @@
            Cutoff also anchors top-left so would overlap payday if both applied to the
            same day. In practice this cannot happen: cutoff is always Saturday, payday
            is always Friday or Thursday. Documented here in case the pay cycle changes. */
-        .calendar-day.payday::before {
-            content: '💷';
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            font-size: var(--type-micro);
-            z-index: 10;
-        }
-        
-        .calendar-day.cutoff::before {
-            content: '✂️';
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            font-size: var(--type-micro);
-            z-index: 10;
-        }
+        .calendar-day.payday::before { content: '💷'; left: 3px; }
+        .calendar-day.cutoff::before { content: '✂️'; left: 3px; }
 
-        /* Easter Sunday — 🐣 replaces the ⭐ bank holiday marker top-right.
-           Easter Sunday is not itself a bank holiday so it has no ::before by default;
-           we add our own in the same top-right position. */
-        .calendar-day.easter-day::before {
-            content: '🐣';
-            position: absolute;
-            top: 3px;
-            right: 3px;
-            font-size: var(--type-micro);
-            z-index: 10;
-        }
+        /* Easter Sunday — 🐣 takes the bank holiday's top-right corner. Easter Sunday is not itself
+           a bank holiday, so the two never meet on one cell. */
+        .calendar-day.easter-day::before { content: '🐣'; right: 3px; }
 
         /* Christmas Day (Dec 25) — 🎄 tree centred at the bottom of the cell.
            Positions below the shift content without touching the corner markers.
@@ -967,37 +836,20 @@
             white-space: nowrap;
         }
 
-        /* Desktop: lock entire layout to one screen — no scrolling needed */
         /* ── Desktop (≥1024px) ─────────────────────────────────────────────── */
         @media (min-width: 1024px) {
 
-            /* ── ONE SCREEN WHEN IT FITS, A SCROLLING PAGE WHEN IT DOES NOT (v23.95) ────────
-               Reported from a laptop: the month stopped mid-week above the legend, and the rest
-               of it could not be reached. Measured across 520–1080px tall — the last week was
-               unreachable at every height below ~825px, and the `max-height: 760px` hatch below
-               did not save it: under ~720px it failed the same way with the grid spilling over
-               the legend instead of being clipped by it.
-
-               ⚠️ THE DECISIVE LINE IS `flex: 1 0 auto`, NOT THE `overflow` OR THE `min-height`.
-               That is measured, not assumed, and it is the opposite of where this reads like the
-               bug should be. The chain used to be `flex: 1` + `min-height: 0` on all four boxes,
-               which lets every one of them shrink below its own content — so the grid's 90px row
-               floor pushed the last week past the bottom of a body that then had no reason to
-               grow. Restoring `height: 100dvh` + `overflow: hidden` here while LEAVING the chain
-               alone keeps the page reachable (it scrolls; only the body's 16px bottom padding is
-               clipped). Restoring the chain breaks it again on its own. So if you are shortening
-               this block, the two `flex: 1 0 auto` lines below are the ones that matter.
-
-               `min-height` rather than `height` is still the honest declaration — the body's box
-               should be allowed to be as tall as its content — and it keeps the fill-the-screen
-               behaviour exactly, because the chain still grows to the viewport when there is room
-               (verified: `scrollY` is 0 at every height at or above the layout's 845px minimum).
-               Do not put `min-height: 0` back on any of the four. */
+            /* ── ONE SCREEN WHEN IT FITS, A SCROLLING PAGE WHEN IT DOES NOT ────────────────────
+               Reported from a laptop: the month stopped mid-week above the legend, unreachable at
+               every height below ~825px. ⚠️ THE DECISIVE LINES ARE THE `flex: 1 0 auto` ON THE CHAIN
+               (`.container`, `#calendarDisplay`, `.calendar-container`), NOT an `overflow` or a
+               `min-height` — measured, and the opposite of where it reads like the bug should be. The
+               chain was `flex: 1` + `min-height: 0`, which lets each box shrink below its content, so
+               the grid's row floor pushed the last week past the bottom of a body with no reason to
+               grow. The body keeps the base rule's `min-height` (not `height`): its box may be as tall
+               as its content, and the chain still fills the screen when there is room. Do not put
+               `min-height: 0` back on any of them; e2e/responsive.spec.js measures reachability. */
             body {
-                min-height: 100vh;
-                min-height: 100dvh;
-                display: flex;
-                flex-direction: column;
                 overflow-x: hidden;
                 /* No gradient: the flat navy of every other page (a ramp here alone changed colour on a hop). */
                 padding: 16px;
@@ -1005,8 +857,6 @@
 
             .container {
                 flex: 1 0 auto;
-                display: flex;
-                flex-direction: column;
                 gap: 10px;
             }
 
@@ -1026,10 +876,7 @@
             .controls button.today-btn .today-word { display: inline; margin-left: 5px; }
 
             /* Select: no longer needs iOS font-size workaround on desktop */
-            .controls select, .controls .fieldpick {
-                font-size: var(--type-body);
-                max-width: 200px;
-            }
+            .controls select, .controls .fieldpick { font-size: var(--type-body); }
 
             /* Calendar display */
             #calendarDisplay {
@@ -1042,15 +889,11 @@
                 flex: 1 0 auto;
                 display: flex;
                 flex-direction: column;
-                box-sizing: border-box;
                 padding: 14px 18px 18px 18px;
-                /* Was `auto`, and switching it changes nothing on its own — with the chain above
-                   fixed this box is never shorter than its content, so `auto` would find nothing
-                   to scroll (measured: 0px of inner scroll at every height from 520 to 1080).
-                   It is here to state the intent, and so that a future regression surfaces as a
-                   page that scrolls rather than as an inner scroller on a card with no visible
-                   edge — which is how the clipped week hid: the page looked finished at the
-                   legend. `e2e/responsive.spec.js` asserts the 0. */
+                /* With the chain fixed this box is never shorter than its content, so `auto` would
+                   find nothing to scroll. `visible` states the intent: a regression surfaces as a page
+                   that scrolls, not as an inner scroller on a card with no visible edge, which is how
+                   the clipped week hid. `e2e/responsive.spec.js` asserts the 0. */
                 overflow-y: visible;
             }
 
@@ -1076,7 +919,6 @@
             .calendar-day {
                 min-height: unset;
                 overflow: hidden;
-                justify-content: flex-start;
                 padding: 7px 8px;
             }
 
@@ -1106,11 +948,7 @@
             }
 
             /* Decorative icons: larger on desktop */
-            .calendar-day.bank-holiday::before {
-                font-size: var(--type-large) !important;
-                top: 5px !important;
-                right: 5px !important;
-            }
+            .calendar-day.bank-holiday::before,
             .calendar-day.easter-day::before {
                 font-size: var(--type-large) !important;
                 top: 5px !important;
@@ -1127,20 +965,14 @@
                 bottom: 6px !important;
             }
 
-            /* Legend: wider spacing on desktop — and a BALANCED wrap (polish round 2, owner-approved).
-               A flex row wraps greedily, so when a busy month's keys overran one line at 1024px the
-               overflow was just the last two ("✂️ Pay cut-off", "💷 Payday") alone on line 2. Flex
-               has no balance; an inline formatting context does. So on desktop the keys become
-               atomic inline boxes in a centred block with `text-wrap: balance`, and the lines come
-               out even whichever of the conditional keys this month shows.
-
-               The geometry is the flex version's exactly: the 20px column gap is 10px of margin
-               either side of each key, with the legend's 24px side padding cut to 14px to absorb
-               the outer ones; the 6px row gap is 3px above and below, with the 12px top/bottom
-               padding cut to 9px. `font-size: 0` removes the source whitespace between keys, which
-               would otherwise add a space's width to every gap — every key sets its own size
-               (`.legend-text` below, the swatch in px), so nothing inherits the zero. The rows stay
-               `display: contents`, so the keys still pool across them as they did in flex. */
+            /* Legend: wider spacing on desktop — and a BALANCED wrap (owner-approved). A flex row wraps
+               greedily, so a busy month's overflow at 1024px was the last two keys alone on line 2.
+               Flex has no balance; an inline formatting context does, so the keys become atomic
+               inline boxes in a centred block with `text-wrap: balance`. Their margins stand in for
+               the gaps, and the padding is cut to absorb the outer ones. `font-size: 0` removes the
+               source whitespace between keys, which would add a space to every gap — each key sets
+               its own size, so nothing inherits the zero. The rows stay `display: contents`, so the
+               keys still pool across them. */
             .legend {
                 display: block;
                 text-align: center;
@@ -1155,10 +987,8 @@
             }
             .legend-text { font-size: var(--type-label); }
 
-            /* Mobile-only UI: hide on desktop. `--prompt-available` is how install-prompt.js
-               LEARNS that, without a second copy of this breakpoint living in JS — see the note on
-               the flag's declaration. The desktop calendar locks body height and hides overflow, so
-               a 60px band here does not just look wrong, it squeezes the grid. */
+            /* Mobile-only UI: hide on desktop. `--prompt-available` is how install-prompt.js LEARNS
+               that, without a second copy of this breakpoint in JS (see the flag's declaration). */
             .top-prompt { --prompt-available: 0; display: none !important; }
             .swipe-hint   { display: none !important; }
         }
@@ -1216,10 +1046,6 @@
 
             .shift-time {
                 font-size: var(--type-label);
-            }
-
-            .control-group {
-                --cg-gap: 6px;   /* the variable, never `gap` — see .control-group */
             }
         }
 
@@ -1282,29 +1108,16 @@
             .controls select, .controls .fieldpick {
                 padding: 10px 30px 10px 10px;
                 font-size: var(--type-medium); /* Must stay 16px — iOS Safari zooms viewport if select < 16px */
-                /* PINNED, BECAUSE `normal` IS NOT DETERMINISTIC ON A NATIVE SELECT (v22.93).
-                   A `<select>` with no line-height takes its content height from the font the
-                   control is laid out with, and this one measured 17px on most loads and 20px on
-                   some — 41px against 44px overall — on identical code, in one browser, in one
-                   container. Everything below it then sits 3px up or down: the whole calendar
-                   grid, every cell, every badge.
-                   It is not only a test problem, though that is how it surfaced (the mobile
-                   baselines were captured in the rarer state, so the report-only visual lane cried
-                   wolf on two unrelated pull requests). A member on a cold load can see the same
-                   3px jump under the month arrows.
-                   20px is the value the baselines already hold, and it is the safe direction:
-                   Inter's ascent+descent at 16px is ~19.4px, so 17px would put the glyph box
-                   outside a line box the control clips. It also lands the select on 44px, which is
-                   the touch-target floor this app holds everything else to.
-                   The exact trigger for the two states is NOT pinned down — but the dependency is
-                   what makes it possible, and stating a height removes the dependency.
-                   UNITLESS, NOT `20px`, AND THE SUITE IS WHAT SAID SO. A px line-height does not
-                   scale with the member's Android text size, so the first cut broke the 1.3×
-                   compact baseline — and on a real phone at "Largest" it would have held the line
-                   box at 20px while the glyphs grew past it, clipping the member's own name. That
-                   is a worse fault than the one being fixed, and it renders perfectly on every
-                   machine set to the default. 1.25 × 16px is the same 20px at the default size, so
-                   nothing moves for anybody who was not affected. */
+                /* PINNED, BECAUSE `normal` IS NOT DETERMINISTIC ON A NATIVE SELECT. With no line-height
+                   a `<select>` takes its content height from the font it is laid out with, and this one
+                   measured 17px on most loads and 20px on some (41px against 44px overall) on identical
+                   code, so the whole grid below it sat 3px up or down — on a member's cold load too, not
+                   only in the baselines. 20px is the safe direction (Inter's ascent+descent at 16px is
+                   ~19.4px, so 17px clips the glyphs) and lands the select on the 44px touch floor. The
+                   trigger for the two states is not pinned down; stating a height removes the dependency.
+                   UNITLESS, NOT `20px`: a px line-height does not scale with Android's text size, so at
+                   "Largest" it would hold the line box while the glyphs grew past it, clipping the
+                   member's own name (the 1.3× compact baseline caught it). 1.25 × 16px is the same 20px. */
                 line-height: 1.25;
             }
 
@@ -1318,7 +1131,6 @@
             }
 
             .calendar-container {
-                padding: 6px;
                 border-radius: var(--radius-md);
             }
 
@@ -1339,13 +1151,8 @@
                 min-height: 70px;
                 padding: 3px;
                 border-radius: 6px;
-                border-width: 1px;
                 min-width: 0;
                 overflow: hidden;
-            }
-
-            .calendar-day.today {
-                border-width: 3px;
             }
 
             .day-header {
@@ -1358,10 +1165,6 @@
                 gap: 2px;
             }
 
-            .shift-time {
-                font-size: var(--type-badge);
-            }
-
             .day-number {
                 font-size: var(--type-small);
             }
@@ -1371,10 +1174,8 @@
                 padding: 2px 5px;
                 display: flex;
                 flex-direction: column;
-                align-items: center;
                 gap: 0;
                 width: 100%;        /* consistent width across all badge types */
-                box-sizing: border-box;
             }
 
             /* Tighten the gaps between the three white cards — saves ~18px of
@@ -1426,14 +1227,9 @@
             .legend-color { width: 12px; height: 12px; }
         }
 
-        /* ---- Team view button — navy in BOTH views: an action that names where it goes, never a
-           chosen state (it wore the chosen gold while saying "📅 Month"). ---- */
-        .controls button.team-btn {
-            background: var(--primary-blue);
-            color: white;
-            border-color: var(--primary-blue);
-            font-weight: 700;
-        }
+        /* ---- Team view button — the row's plain navy in BOTH views: an action that names where it
+           goes, never a chosen state (it wore the chosen gold while saying "📅 Month"). ---- */
+        .controls button.team-btn { font-weight: 700; }
         /* Team view hides the month's Prev · name · Next. On a desktop the controls are ONE centred
            row, so removing it slid the toggle ~200px and a double-click on Team opened Admin: there
            the slot is kept, empty. (`visibility` also leaves the Tab order and the a11y tree.) */
@@ -1459,10 +1255,6 @@
             display: flex;
             flex-direction: column;
         }
-        @media (min-width: 900px) and (max-width: 1023px) {
-            /* On tablet widths cap the team table so 7 columns don't stretch too wide. */
-            .team-view-container { width: 100%; max-width: 1040px; margin: 0 auto; }
-        }
         @media (min-width: 1024px) {
             /* As tall as its table: `flex: 1` left a 146px empty band at 1920×1080. The scroll box is
                `.team-table-wrap`, capped below. */
@@ -1471,9 +1263,6 @@
                 max-width: var(--page-max-width);
                 margin: 0 auto;
                 flex: none;
-                display: flex;
-                flex-direction: column;
-                overflow: visible;
             }
         }
         /* Grade tab row: CSS grid keeps tabs truly centred regardless of right-side button count */
@@ -1535,12 +1324,10 @@
             outline-offset: 2px;
             box-shadow: var(--focus-ring);
         }
-        /* THE SECOND LINE OF THE WEEK ROW (v22.88): "This week" as a state, or "↩ Back to this
-           week" as an action — the words a colleague should not have to decode from a gold rule and
-           a bare ↩ (v22.85, reversed on review). Always present, so the centre is the same shape on
-           every week and the arrows, aligned to the date line above it, never float. The state
-           carries the app's today idiom as a small gold dot, the action is a quiet text button on
-           the same grid as everything else here. */
+        /* THE SECOND LINE OF THE WEEK ROW: "This week" as a state, or "↩ Back to this week" as an
+           action — words, where a gold rule and a bare ↩ had to be decoded. Always present, so the
+           centre is the same shape on every week and the arrows, aligned to the date line, never
+           float. The state carries the app's today idiom as a small gold dot. */
         .tv-week-status {
             font-size: var(--type-small);
             font-weight: 600;
@@ -1646,30 +1433,22 @@
         }
         .team-week-row {
             display: flex;
-            /* The arrows align to the DATE line, not to the two-line centre's middle (v22.88): the
-               label's line box is given the arrows' own height below, so the three sit on one
-               band and the second line hangs beneath it. */
+            /* The arrows align to the DATE line, not to the two-line centre's middle: the label's line
+               box is given the arrows' own height below, so the three sit on one band and the second
+               line hangs beneath it. */
             align-items: flex-start;
             padding: 2px 4px 4px;
-            /* CLEARANCE THE LABEL CANNOT EAT (v22.84, owner report from a 412px phone). The centre
-               is `flex: 1`, so a label that wraps fills the whole column and its painted box runs
-               flush against both arrows — measured at ZERO px to each at 320/360/390 default and at
-               412 under any text scaling. On screen "2026" sat directly against "← Prev" and read
-               as a collision. Shortening the label (below) stops the wrap in every case measured;
-               this gap is what makes the worst case merely tidy rather than broken.
-               4px, NOT 8 (v22.85): the gap is charged twice against the centre column, and at 412px
-               under 20px text the 8px version took exactly the 16px the longest label needed — one
-               line without it, two with it. The guard asks for 4px of clearance and 4px is what a
-               wrapped label's box now gets; the label itself was shortened as well, so it wraps at
-               fewer sizes than before the gap existed at all. */
+            /* CLEARANCE THE LABEL CANNOT EAT (owner report, 412px). The centre is `flex: 1`, so a
+               wrapped label's painted box ran flush against both arrows ("2026" against "← Prev"). The
+               shortened label stops the wrap in every case measured; this gap keeps the worst case
+               tidy. 4px, NOT 8: it is charged twice against the centre column, and at 412px under 20px
+               text 8px took exactly the 16px the longest label needed — one line without it, two with. */
             gap: 4px;
         }
-        /* THE BAR IS A CLUSTER, NOT A FULL-WIDTH ROW (v22.86). At 1280px the two arrows sat at the
-           far edges of a 1040px card, 400px from the label they move, while the month view directly
-           above keeps Prev · name · Next as one compact centred group. Both rows take the same cap so
-           the ↩ and the ? stay in line with the arrows beneath them; a gutter on both sides reads as
-           deliberate, which one side never does. Placed AFTER both base rules on purpose — the first
-           cut sat in a 900–1023px tablet block and so applied on no desktop at all. */
+        /* THE BAR IS A CLUSTER, NOT A FULL-WIDTH ROW. At 1280px the arrows sat 400px from the label
+           they move, while the month view keeps Prev · name · Next as one centred group. Both rows
+           take the same cap, so the ↩ and the ? stay in line with the arrows beneath them; a gutter on
+           both sides reads as deliberate. AFTER both base rules on purpose, so it wins on order. */
         @media (min-width: 768px) {
             .grade-tabs-row, .team-week-row { width: 100%; max-width: 640px; margin-left: auto; margin-right: auto; }
         }
@@ -1682,10 +1461,8 @@
             min-width: 0;
         }
         .team-week-text {
-            /* A real <button> since v23.64 — it opens the week jump. The appearance reset is what
-               keeps it looking exactly as the <span> did; every metric below is unchanged, and the
-               `min-height` comment that follows still describes the same box. `.week-nav-label` on
-               Admin is the same control and the same reset. */
+            /* A real <button> — it opens the week jump — reset to read as the week's label, as
+               `.week-nav-label` on Admin is (the same control and the same reset). */
             -webkit-appearance: none;
             appearance: none;
             background: none;
@@ -1707,13 +1484,11 @@
             align-items: center;
             min-height: calc(0.8125em + 16px);
         }
-        /* THE AFFORDANCE (v23.69, external review). On desktop the label underlines on hover and
-           reads as a control; on a phone there is no hover, so it read as ordinary text and the
-           week jump went undiscovered — people kept tapping Next. A chevron, not a calendar glyph:
-           it is the mark this app already puts on every picker trigger (`.fieldpick`), and what
-           opens here is a picker. Small and low-contrast on purpose — the label must keep reading
-           as THE WEEK, not as a third control beside the two arrows.
-           Sized in `em` so it tracks the label under OS text scaling, like the min-height above. */
+        /* THE AFFORDANCE (external review). On a phone there is no hover underline, so the label read
+           as ordinary text and the week jump went undiscovered. A chevron, the mark every picker
+           trigger wears (`.fieldpick`), because what opens is a picker. Small and low-contrast on
+           purpose: the label must keep reading as THE WEEK, not as a third control beside the arrows.
+           In `em`, so it tracks the label under OS text scaling, like the min-height above. */
         .team-week-text::after {
             content: '';
             flex: none;
@@ -1747,11 +1522,8 @@
             transition: background-color var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard);
         }
         @media (hover: hover) and (pointer: fine) {
-            /* The only affordance a label-as-button gets — it must keep reading as the week, not
-               as a third control beside the two arrows. */
+            /* The label's hover cue, and no more: it must keep reading as the week, not as a control. */
             .team-week-text:hover { text-decoration: underline; }
-        }
-        @media (hover: hover) and (pointer: fine) {
             .tv-week-nav:hover {
                 background: var(--primary-blue-dark);
                 border-color: var(--primary-blue-dark);
@@ -1835,13 +1607,11 @@
             padding-left: 10px;
             touch-action: manipulation;
         }
+        /* The corner cell sticks both ways, above both bands (its `top`, `left` and navy come from
+           the two rules above). */
         .team-table thead th.tv-name-col {
             position: sticky;
-            top: 0;
-            left: 0;
             z-index: 4;
-            text-align: left;
-            background: var(--primary-blue);
         }
         .team-table tbody th.tv-name-col {
             background: white;
@@ -1853,7 +1623,6 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            text-align: left;
         }
         .team-table tbody tr:nth-child(even) th.tv-name-col {
             background: var(--bg-faint);
@@ -2003,7 +1772,8 @@
         /* Print styles
          * Checklist — update when adding new shift types, cell classes, or badges:
          * [ ] New shift type badge visible / coloured correctly in print
-         * [ ] New cell class (e.g. .payday, .cutoff, .faith-*) has print-color-adjust
+         * [ ] New cell class (e.g. .payday, .cutoff) prints its fill — the `*` rule below sets
+         *     `print-color-adjust: exact !important` on every element, the Team View's included
          * [ ] New overlay / lightbox hidden in print
          * [ ] New sticky / fixed element repositioned or hidden in print
          * [ ] Team View print header shows new columns if added
@@ -2035,8 +1805,8 @@
                 width: 100% !important;
                 height: auto !important;
                 /* ⚠️ DO NOT ADD `min-height: auto !important` HERE. It looks like an omission —
-                   this block overrides `height` and the desktop rule sets `min-height: 100dvh`
-                   (v23.95), so the two appear to have fallen out of step. They have not. TRIED at
+                   this block overrides `height` and the base body rule sets `min-height: 100dvh`,
+                   so the two appear to have fallen out of step. They have not. TRIED at
                    v23.98 and REVERTED the same hour: releasing the floor lets the printed body
                    collapse, and the navy canvas paints over the bottom half of the sheet — caught
                    by `print-visual.spec.js`, which rasterises page 1 of the real PDF. The floor is
@@ -2312,35 +2082,18 @@
                 height: 12px !important;
             }
 
-            .calendar-day.bank-holiday::before {
-                content: '⭐' !important;
-                position: absolute !important;
-                top: 2px !important;
-                right: 2px !important;
-                font-size: var(--type-micro) !important;
-            }
-
+            .calendar-day.bank-holiday::before { content: '⭐' !important; }
+            .calendar-day.easter-day::before { content: '🐣' !important; }
+            .calendar-day.bank-holiday::before,
             .calendar-day.easter-day::before {
-                content: '🐣' !important;
-                position: absolute !important;
-                top: 2px !important;
-                right: 2px !important;
+                position: absolute !important; top: 2px !important; right: 2px !important;
                 font-size: var(--type-micro) !important;
             }
-
-            .calendar-day.payday::before {
-                content: '💷' !important;
-                position: absolute !important;
-                top: 2px !important;
-                left: 2px !important;
-                font-size: 9px !important;
-            }
-
+            .calendar-day.payday::before { content: '💷' !important; }
+            .calendar-day.cutoff::before { content: '✂️' !important; }
+            .calendar-day.payday::before,
             .calendar-day.cutoff::before {
-                content: '✂️' !important;
-                position: absolute !important;
-                top: 2px !important;
-                left: 2px !important;
+                position: absolute !important; top: 2px !important; left: 2px !important;
                 font-size: 9px !important;
             }
 
@@ -2361,10 +2114,9 @@
 
         /* ---- Team view print layout ---- */
         @media print {
-            /* The week row too (v22.86): `.tv-print-header` states the grade and the week, so the
-               label beneath it printed the same date twice. */
-            .grade-tabs-row, .team-week-row, .tv-week-nav, #teamInfoLightbox { display: none; }
-            .tv-scroll-hint { display: none; }
+            /* The week row too: `.tv-print-header` states the grade and the week, so the label beneath
+               it printed the same date twice. */
+            .grade-tabs-row, .team-week-row, .tv-week-nav, .tv-scroll-hint, #teamInfoLightbox { display: none; }
             .tv-print-header {
                 display: block;
                 font-size: var(--type-body);
@@ -2378,46 +2130,24 @@
             .team-table { min-width: 0; width: 100%; font-size: 9px; }
             .team-table thead th {
                 background: var(--primary-blue) !important;
-                -webkit-print-color-adjust: exact; print-color-adjust: exact;
                 position: static;
             }
-            .team-table thead .tv-today-col {
-                background: var(--accent-gold) !important;
-                -webkit-print-color-adjust: exact; print-color-adjust: exact;
-            }
-            .team-table tbody .tv-today-col {
-                -webkit-print-color-adjust: exact; print-color-adjust: exact;
-            }
+            .team-table thead .tv-today-col { background: var(--accent-gold) !important; }
             .tv-cell { white-space: normal; }
             .team-table th.tv-name-col,
             .team-table td.tv-name-col { position: static; }
-            /* A NAME IS NEVER ELLIPSISED ON PAPER (v23.71).
-             *
-             * On screen the name column is `nowrap` + `text-overflow: ellipsis` and that is right:
-             * the column is deliberately narrow so seven day columns fit a phone, and a member who
-             * needs the full name can widen, scroll or tap. **Paper has none of those.** An ellipsis
-             * there is unrecoverable — the sheet names a colleague as "R. Forrester-Black…" and
-             * there is no way to ask it for the rest.
-             *
-             * It survived the v23.20 print review because the check was a DOM measurement, and a
-             * DOM measurement cannot see this: with `overflow: hidden` and `text-overflow: ellipsis`
-             * a cell reports `scrollWidth === clientWidth` even while the compositor is drawing an
-             * ellipsis, so "no cell over its box" came back true and the review recorded "no
-             * ellipsis in either orientation". The rasterised first sheet in
-             * `e2e/print-visual.spec.js` disagreed on sight, which is the argument for a picture of
-             * paper over a measurement of the DOM.
-             *
-             * Wrapping rather than widening: the column is auto-layout, so a wider `max-width` is a
-             * hint the table may ignore, and taking guaranteed width from seven day columns to suit
-             * one 23-character name is the wrong trade. Two lines for that row costs nothing. */
+            /* A NAME IS NEVER ELLIPSISED ON PAPER. On screen the narrow name column ellipsises, and a
+               member who needs the full name can scroll or tap; paper has neither, so "R.
+               Forrester-Black…" would be unrecoverable. A DOM check cannot see it — with `overflow:
+               hidden` a cell reports `scrollWidth === clientWidth` while an ellipsis is drawn — which
+               is why the rasterised sheet in e2e/print-visual.spec.js is what pins it. Wrap rather
+               than widen: in an auto-layout table a wider `max-width` is a hint it may ignore, and
+               taking width from seven day columns for one long name is the wrong trade. */
             .team-table tbody th.tv-name-col {
                 white-space: normal;
                 overflow: visible;
                 text-overflow: clip;
                 max-width: none;
-            }
-            .tv-early, .tv-late, .tv-night, .tv-spare, .tv-rdw, .tv-al, .tv-sick, .tv-other {
-                -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
         }
 
@@ -2501,14 +2231,11 @@
             #splash-bar > span { animation: none; width: 100%; opacity: 0.45; }
         }
 
-        /* ---- Day detail lightbox (touch tap on a calendar cell) ---- */
+        /* ---- Day detail lightbox (a click or tap on a calendar cell, on every pointer type) ---- */
         /* NO `transform` in this block. `.lb-content` owns the entry animation (0.88 -> 1 on
-           `.lb-overlay.open`) and an ID selector out-specifies it: this rule used to say
-           `scale(0.85)`, so the panel NEVER scaled up — it rendered permanently at 85%, 272px of a
-           320px panel, every glyph 15% under the type scale, and the spring entrance never played.
-           Measured rather than reasoned: `.open` was on the overlay and the computed transform was
-           still `matrix(0.85, ...)`. Four sibling panels carried the same fossil and were fixed with
-           it (v22.64). Nothing here may set `transform` again without re-freezing the animation. */
+           `.lb-overlay.open`) and an ID selector out-specifies it: a `scale(0.85)` here froze the
+           panel at 85% for good — every glyph 15% under the type scale, the entrance never played —
+           and only a measured computed transform showed it. lightbox-transform-parity.test.mjs. */
         #dayDetailContent {
             display: flex;
             flex-direction: column;
@@ -2519,38 +2246,25 @@
             border-radius: var(--radius-panel);
             padding: 30px 24px 26px;
             width: min(320px, 90vw);
-            /* CAPPED, SO A TALL PANEL SCROLLS INSIDE ITSELF (7 Nov 2026, iPhone audit). `.lb-content`
-               scrolls only once something limits its height, and nothing did: the overlay centres
-               its panel, so on a phone turned on its side (375–402px tall) a busy day ran off the top
-               and the bottom of the screen together, its ✕ and its last row out of reach. SIZE only —
-               `transform` stays shared.css's (the note above). */
+            /* CAPPED, SO A TALL PANEL SCROLLS INSIDE ITSELF. `.lb-content` scrolls only once something
+               limits its height, and the overlay centres its panel: on a phone on its side (375–402px
+               tall) a busy day ran off both ends, its ✕ out of reach. SIZE only (the note above). */
             max-height: 86vh;
             max-height: 86dvh;
             text-align: center;
         }
-        /* THE DATE CLEARS THE CLOSE BUTTON, SYMMETRICALLY (v22.70). `.lb-close` is a 44x44 touch
-           target at `top/right: 14px`, so it occupies 14–58px down the panel's right edge — and the
-           panel's own 30px top padding puts this line squarely inside that band.
-
-           MEASURED across 320/360/390/412px on the longest date the app can render ("Wednesday 30
-           September 2026"), because the first version of this comment overstated it and the test
-           written from that overstatement could not fail. At 18px of side padding the gap to the
-           button is exactly ZERO at 360, 390 and 412 — the final glyph crosses the target's left
-           edge by a pixel — and at 320 the line wraps and clears. So it is a hairline overlap on
-           the longest dates plus visible crowding on the ordinary ones, not a gross collision; that
-           is still a fault, and it is one no behavioural assertion can see.
-
-           40px is the button's 44px reach less the panel's own 24px, plus room to breathe, applied
-           to BOTH sides because the line is centred — clearing only the right would shift every
-           short date off-centre to fix the rare long one. It buys a 48px gap. A 27-character date
-           then wraps to two balanced lines; a 23-character one ("Friday 18 December 2026") still
-           does not. A wrap is legible, an overlap is a fault. */
+        /* THE DATE CLEARS THE CLOSE BUTTON, SYMMETRICALLY. `.lb-close` is a 44×44 target at
+           `top/right: 14px`, so it occupies 14–58px down the right edge, and the panel's 30px top
+           padding puts this line inside that band. MEASURED on the longest date ("Wednesday 30
+           September 2026"): at 18px of side padding the gap was ZERO at 360–412px — a hairline
+           overlap no behavioural assertion can see. 40px is the button's 44px reach less the panel's
+           24px, plus room, on BOTH sides because the line is centred (clearing only the right would
+           shift every short date off-centre). A 27-character date then wraps to two balanced lines;
+           a 23-character one does not. A wrap is legible, an overlap is a fault. */
         .day-detail-date  {
-            /* `width: 100%` + an explicit `text-align` rather than relying on the flex parent's
-               `align-items: center` to shrink-wrap this: a shrink-wrapped box centres its BOX and
-               leaves a wrapped second line ragged inside it, which is visible the moment a date or
-               a shift line goes to two lines. Both are stated on all four blocks so the panel's
-               centring does not depend on which of them happen to be one line today. */
+            /* `width: 100%` + an explicit `text-align`, not the flex parent's `align-items: center`:
+               a shrink-wrapped box centres its BOX and leaves a wrapped second line ragged inside it.
+               Stated on all four blocks, so the centring does not depend on which are one line. */
             width: 100%;
             text-align: center;
             color: rgba(255,255,255,0.6);
@@ -2560,13 +2274,10 @@
             text-wrap: balance;
             line-height: 1.35;
         }
-        /* THE ROSTER WEEK, under the date it qualifies (v22.89, external review). Quieter than the
-           date above it and quieter again than the shift below: this is context FOR the date, not
-           a third fact competing with the two the member came for. Hidden entirely for a member on
-           a fixed line — `weekContext` decides that, never this stylesheet. */
-        /* The date and its week are ONE zone — see the note in index.html. 3px inside the pair
-           against the panel's 8px between zones, which is what makes the week read as belonging to
-           the date above rather than floating between it and the shift. */
+        /* THE ROSTER WEEK, under the date it qualifies: context FOR the date, so quieter than it and
+           than the shift. Hidden for a member on a fixed line — `weekContext` decides, never this
+           sheet. The date and its week are ONE zone (the note in index.html): 3px inside the pair
+           against the panel's 8px between zones is what makes the week belong to the date. */
         .day-detail-head {
             width: 100%;
             display: flex;
@@ -2574,11 +2285,9 @@
             align-items: center;
             gap: 3px;
         }
-        /* A CAPTION, not a second line of heading (v22.91). At 12px/600/45% against the date's
-           13px/600/60% the two were one pixel and one shade apart, so the eye read a two-line grey
-           block instead of a heading and its qualifier. `--type-badge` puts a real step between
-           them; the letter-spacing and the slightly higher opacity are what keep 11px legible on
-           the glass, and are the same trade the `.ddc-eyebrow` above the change pair already makes. */
+        /* A CAPTION, not a second line of heading: one pixel and one shade from the date, the two
+           read as one grey block. `--type-badge` puts a real step between them; the tracking and the
+           opacity keep 11px legible on the glass (the trade `.ddc-eyebrow` makes too). */
         .day-detail-week {
             width: 100%;
             text-align: center;
@@ -2588,17 +2297,11 @@
             letter-spacing: 0.5px;
         }
         .day-detail-week[hidden] { display: none !important; }
-        /* THE SHIFT, LED BY ITS OWN KIND GLYPH (v22.70). The panel used to be monochrome unless
-           something had CHANGED — the coloured pair below was the only colour on it — so the app's
-           shift identity read as a property of "something happened" rather than of the shift, and a
-           plain Late turn and a plain Rest day were one grey card with different words. The glyph is
-           the tapped cell's own emoji, from `shiftBadgeParts`, so the two cannot disagree. A pill was
-           tried here and is wrong: it competes with the change pair directly beneath it, and on an
-           unchanged day it is a lone badge floating with nothing to be compared against. */
-        /* NORMAL TEXT FLOW, NOT A FLEX ROW. As a flex row the glyph was a sibling COLUMN: when the
-           line wrapped at 320px it stayed vertically centred against two lines of text and drifted
-           to the far left of the panel, detached from the words it belongs to. Inline, it simply
-           leads the first line and wraps with it. */
+        /* THE SHIFT, LED BY ITS OWN KIND GLYPH — the tapped cell's emoji, from `shiftBadgeParts`, so
+           the two cannot disagree; without it a plain Late and a plain Rest day were one grey card.
+           Not a pill: it competes with the change pair beneath it, and floats alone on an unchanged
+           day. NORMAL TEXT FLOW, NOT A FLEX ROW: as a flex column the glyph stayed centred against a
+           wrapped line and drifted away from its words; inline, it leads the first line. */
         .day-detail-shift {
             width: 100%;
             text-align: center;
@@ -2641,22 +2344,14 @@
             .day-detail-shift { font-size: 17.5px; }
             .dds-glyph { font-size: 19px; }
         }
-        /* THE CHANGE, AS TWO BADGES (v22.69). The words above answer "what am I doing?"; this
-           answers "what was it?" in the colours the member already reads in the grid — which is
-           the whole reason a spare week is worth spotting: 📋 purple against ☀️ orange is a
-           different KIND of week, not a different time. Colour is never the sole carrier here
-           (every badge keeps its emoji and its word, per the app's WCAG 1.4.1 rule); it is the
-           thing that makes the pair readable at a glance rather than at a read.
-
-           The pair CAN wrap: at 320px with two long badges it goes to two lines rather than
-           overflowing, and the arrow wraps with them. */
-        /* ONE HAIRLINE, ABOVE THE CONTEXT GROUP (v22.70). The panel says two kinds of thing: what
-           this TURN is (date + shift) and what is true AROUND it (what it was changed from, what the
-           date itself is). Those get one rule between them, never one per sub-block — the change and
-           the markers are the same group, and a second rule 40px below the first made a 280px card
-           read as four stacked fragments. So both blocks declare the rule and the second gives it up
-           whenever the first is on screen, which is what keeps it correct in every combination:
-           change alone, markers alone, and both. */
+        /* THE CHANGE, AS TWO BADGES. The words above answer "what am I doing?"; this answers "what
+           was it?" in the grid's own colours — 📋 purple against ☀️ orange is a different KIND of
+           week, not a different time. Colour is never the sole carrier (every badge keeps its emoji
+           and word, WCAG 1.4.1). The pair may wrap at 320px, and the arrow wraps with it.
+           ONE HAIRLINE, ABOVE THE CONTEXT GROUP: the panel says what this TURN is (date + shift) and
+           what is true AROUND it (what it was changed from, what the date is), and those get one rule
+           between them — a second one per sub-block made the card read as four stacked fragments.
+           Each block declares the rule and the markers give it up whenever a block above has it. */
         .day-detail-change,
         .day-detail-asrostered,
         .day-detail-markers {
@@ -2664,15 +2359,10 @@
             padding-top: 12px;
             border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
-        /* `~`, NOT `+` (v22.89). The rule above says the markers give up their hairline whenever a
-           block above them is already carrying one — and as an ADJACENT-sibling selector that was
-           true only while the change block sat immediately before the markers. Adding "As rostered"
-           between them would have silently stopped it matching, putting a second rule 40px below
-           the first: the four-stacked-fragments look the comment above is about, arriving with no
-           error and on the commonest day of all, an unchanged one. A general sibling combinator
-           states what was always meant — anything above, not the thing directly above — and cannot
-           be broken by inserting a fourth block later. The two selectors are never both live: a day
-           was changed or it was not. */
+        /* `~`, NOT `+`: an adjacent-sibling selector held only while the change block sat directly
+           above the markers, and inserting "As rostered" between them would silently have put the
+           second rule back on the commonest day of all. "Anything above" is what was meant, and a
+           fourth block cannot break it. The two are never both live: a day was changed or it was not. */
         .day-detail-change:not([hidden]) ~ .day-detail-markers,
         .day-detail-asrostered:not([hidden]) ~ .day-detail-markers {
             border-top: none;
@@ -2685,14 +2375,11 @@
             gap: 6px;
         }
         .day-detail-change[hidden] { display: none !important; }
-        /* "AS ROSTERED" — the change block's other state, in the change block's slot, and the
-           quietest line on the panel. It CONFIRMS an expectation rather than reporting news, so
-           anything louder would compete with the very shift it is confirming: no card, no fill, no
-           heading. The tick is the app's own affirmative idiom — the same gold as Team View's "This
-           week" dot, which is the same kind of statement — and it is `aria-hidden`, because the
-           words already say it. `display: flex` out-specifies the `hidden` attribute, so the
-           `!important` reset below is load-bearing: this is exactly the page-visibility-parity
-           trap, where the row draws empty and nothing throws. */
+        /* "AS ROSTERED" — the change block's other state, in its slot, and the quietest line on the
+           panel: it CONFIRMS an expectation, so anything louder would compete with the shift it
+           confirms. The tick is the app's affirmative gold (Team View's "This week" dot), and
+           `aria-hidden` because the words say it. `display: flex` out-specifies `hidden`, so the
+           `!important` reset below is load-bearing — the page-visibility-parity trap. */
         .day-detail-asrostered {
             display: flex;
             align-items: center;
@@ -2725,12 +2412,10 @@
             align-items: center;
             gap: 8px;
         }
-        /* The panel's own pill. It wears the shared COLOUR class (`badge-early`, `badge-spare`…)
-           and nothing else from the calendar cell: `.shift-badge` is retuned at six breakpoints in
-           this file for cells — `min-width: 80%`, `margin-bottom`, 7px type at 360px — so reusing
-           it here drew a full-width block with the emoji stacked above the word. Measured, and the
-           screenshot is why this is a separate class rather than a pile of overrides.
-           The hairline stops the palest fills dissolving into the navy panel. */
+        /* The panel's own pill. It wears the shared COLOUR class (`badge-early`, `badge-spare`…) and
+           nothing else from the cell: `.shift-badge` is retuned at six breakpoints for cells
+           (`min-width: 80%`, 7px type at 360px), so reusing it drew a full-width block with the emoji
+           stacked above the word. The hairline stops the palest fills dissolving into the navy. */
         .ddc-badge {
             display: inline-flex;
             align-items: center;
@@ -2749,10 +2434,9 @@
                identity away. Outline also costs no layout. */
             outline: 1px solid rgba(255, 255, 255, 0.16);
         }
-        /* Between two bold saturated pills the arrow has to read as the RELATIONSHIP, not as
-           punctuation — and at 0.75 white it still receded (v22.70, from the screenshots). It is the
-           only thing on the panel saying these two pills are one fact in sequence rather than two
-           facts side by side, so it is now the same weight as what it joins. */
+        /* Between two bold saturated pills the arrow must read as the RELATIONSHIP, not as
+           punctuation (at 0.75 white it receded): it alone says the two are one fact in sequence,
+           so it carries the weight of what it joins. */
         .ddc-arrow {
             color: rgba(255, 255, 255, 0.92);
             font-size: var(--type-large);
@@ -2768,17 +2452,12 @@
             line-height: 1.35;
         }
         .ddc-by[hidden] { display: none !important; }
-        /* THE DAY MARKERS, AS THE CALENDAR'S OWN ICONS (v22.70). They were a comma-joined gold
-           sentence — "Bank holiday, Christmas Day" — which is prose where the rest of the app uses
-           a marker vocabulary: ⭐ 💷 ✂️ 🐣 🎄, declared as cell `::before`/`::after` content 1,400
-           lines above this. THIS PANEL IS WHERE A MEMBER ASKS WHAT THE STAR ON A CELL MEANS, and it
-           was the one surface that answered without the star.
-
-           Gold is kept — it is what these facts already wear — but as a tinted chip rather than
-           bold body text, so several markers read as several facts instead of one long phrase. The
-           hairline is an `outline`, matching `.ddc-badge`: not a `border` (it would win on source
-           order over a badge's own) and not a `--shadow-*` (these are rings, not depth, which is
-           what the shadow ratchet is there to keep true). */
+        /* THE DAY MARKERS, AS THE CALENDAR'S OWN ICONS — ⭐ 💷 ✂️ 🐣 🎄, the cells' `::before`/`::after`
+           content above. THIS PANEL IS WHERE A MEMBER ASKS WHAT THE STAR ON A CELL MEANS, so it
+           answers with the star, not a comma-joined sentence. Gold, as tinted chips, so several
+           markers read as several facts. The hairline is an `outline`, as on `.ddc-badge`: not a
+           `border` (it would win on source order over a badge's own), not a `--shadow-*` (a ring,
+           not depth). */
         .day-detail-markers {
             display: flex;
             flex-wrap: wrap;
@@ -2822,32 +2501,16 @@
             outline-offset: -4px;
             border-radius: var(--radius-sm);
         }
-        /* "View pay estimate" — green to match the app's Pay identity (the nav Pay pill),
-           standing out on the navy day-detail lightbox. Shown only on payday/cut-off days.
-
-           IT IS SIZED TO ITS WORDS, NOT TO THE PANEL (v22.70, owner: "looks huge"). Full width at
-           15px/700 made a 320px card end in a green slab wider and heavier than the shift it is
-           about — a footer, not an offer. The panel is a READ surface: you tapped a day to find out
-           what it is, and the calculator is one thing you might then want, not the conclusion. An
-           auto-width pill states that, and it still clears the 44px touch floor by `min-height`
-           rather than by padding, so shrinking the type can never shrink the target. */
-        /* The two panel actions share every dimension and differ only in colour and destination —
-           one selector list rather than a second copy that would drift. Each wears its own
-           feature's identity: green is the app's Pay colour (the nav Pay pill), teal is Annual
-           Leave's (the 🏖️ badge, the AL lightbox). */
-        /* THE ACTION ROW (v22.98). The two routes sat STACKED, and at 34px each plus the zone gap
-           that is a 76px block — the tallest group on a panel whose subject is the change row above
-           it. Shrinking the buttons could not fix that, because the problem was that there are two
-           of them: v22.92 took 23% off the height and the block still outweighed the answer.
-           Side by side it is 34px, and the panel reads top-down again.
-           THE LABELS ARE WHAT MADE IT FIT, and they are the substantive half of this change.
-           "View leave dates" + "View pay estimate" measure 139 + 148 + 8 = 295px against 288px of
-           content width — six pixels short of a row, at EVERY width. Without the verb they are
-           106 + 112 + 8 = 226px and fit at 390px and at 320px with room. The word was also the one
-           part of the label that says nothing: the comment on the leave link already asks it to
-           NAME ITS DESTINATION rather than describe a journey, and "View" describes the journey.
-           `flex-wrap` is the honest fallback, not a decoration — a future text-scale tier or a
-           longer label wraps back to the stack rather than overflowing the panel. */
+        /* THE PANEL'S TWO ACTIONS — "Pay estimate" (payday and cut-off days) and "Leave dates"
+           (annual-leave days). SIZED TO THEIR WORDS, NOT TO THE PANEL (owner: "looks huge"): the panel
+           is a READ surface, and a full-width slab made the route outweigh the answer. They share
+           every dimension and differ only in colour — Pay's green, Annual Leave's teal — so one
+           selector list, not two copies that would drift.
+           ONE ROW: stacked they were a 76px block, the tallest thing on the panel; side by side, 34px.
+           THE LABELS ARE WHAT MADE IT FIT: with "View" they measured 295px against 288px of content
+           at every width, without it 226px — and a label names its destination, which "View" never
+           did (day-detail-explains.test.mjs refuses the verb). `flex-wrap` is the honest fallback: a
+           longer label or a text-scale tier wraps back to the stack rather than overflowing. */
         .day-detail-actions {
             margin-top: 12px;
             display: flex;
@@ -2856,35 +2519,26 @@
             justify-content: center;
             align-items: center;
         }
-        /* AN EMPTY ROW MUST NOT DRAW ITS OWN MARGIN. Most days have neither action — the pair is
-           about one day a year per member — so a row that stays put adds 12px of nothing to the
-           COMMON case to serve the rare one. `:has()` asks the children directly, so the rule
-           cannot drift from what is actually on screen the way a third place holding the same
-           state would; the same technique already runs in four of this app's stylesheets. */
+        /* AN EMPTY ROW MUST NOT DRAW ITS OWN MARGIN: most days have neither action, so a row that
+           stays adds 12px of nothing to the COMMON case. `:has()` asks the children directly, so the
+           rule cannot drift from what is on screen as a third place holding the state would. */
         .day-detail-actions:not(:has(> :not([hidden]))) { display: none; }
 
         .day-detail-pay-btn,
         .day-detail-leave-btn {
-            /* SMALLER, WHICH IS WHAT THE COMPLAINT WAS ABOUT (v22.92, owner). 44px is the platform
-               RECOMMENDATION, not a floor: this stylesheet already sets 30px as the app's own floor
-               for a coarse pointer, and WCAG 2.5.8 AA asks 24px. 34x~112px is a 23% shorter button
-               with 4px still in hand — where 30px would sit exactly on the floor with nothing spare
-               for a future text-scale tier to eat. */
+            /* SMALLER, WHICH IS WHAT THE COMPLAINT WAS ABOUT (owner). 44px is the platform
+               RECOMMENDATION, not a floor: the app's own floor for a coarse pointer is 30px, and WCAG
+               2.5.8 AA asks 24px. 34px keeps 4px in hand for a future text-scale tier to eat. The min-
+               height, not the padding, holds the target, so a smaller type cannot shrink it. */
             padding: 0 14px;
             min-height: 34px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             color: white;
-            /* SOLID, AND THE TINT IT REPLACED WAS THE WRONG FIX (v22.92). v22.91 read the "they
-               dominate" report as being about COLOUR and washed the fill out to ~20%. It was about
-               SIZE. Compared side by side the wash costs more than it buys: a translucent control on
-               a dark panel reads as UNAVAILABLE, which is the one thing an action must never look
-               like — and every other action in the app is a solid fill (`.btn-action` on paycalc,
-               admin, settings), so the two panel buttons would have been the only exception to the
-               app's own button idiom. The line beneath this one calls it "the one thing on the panel
-               you can press"; a fill states that, a wash argues with it. Shrinking the box fixes the
-               dominance without inventing a style that exists nowhere else. */
+            /* SOLID. A ~20% wash was tried for "they dominate", and the report was about SIZE: a
+               translucent control on a dark panel reads as UNAVAILABLE, which an action must never
+               look like, and every other action in the app is a solid fill. */
             background: var(--ddb);
             border: none;
             text-decoration: none;
@@ -2904,17 +2558,12 @@
         .day-detail-pay-btn[hidden],
         .day-detail-leave-btn[hidden] { display: none !important; }
         /* Two tokens — the fill and its pressed/hover rung — set per class, because every other
-           declaration above is shared and colour is the only thing the two actions may differ in.
-           (This carried a second, stale copy of itself saying "One token" until v22.93, left behind
-           when the hover rung was added.) */
+           declaration above is shared and colour is the only thing the two actions may differ in. */
         .day-detail-pay-btn   { --ddb: var(--green); --ddb-hover: var(--green-hover); }
         .day-detail-leave-btn { --ddb: var(--al);    --ddb-hover: var(--al-hover); }
-        /* THE PANEL'S TWO ACTIONS HAD NO RING OF THEIR OWN (v22.93), so they fell back to the
-           browser's default on a surface the app replaced it on everywhere else.
-           GOLD, not `--focus-outline`: that token is navy, and this panel's ground is navy glass —
-           the prompt strip's dismiss is the same case. (The calendar CELLS are not: they sit on the
-           light card and take the navy ring.) The 2px offset puts the ring on the navy behind the
-           button rather than on its teal or green fill, so one token serves both colours. */
+        /* Their own ring, GOLD, not `--focus-outline`: that token is navy, and this panel's ground is
+           navy glass (the calendar CELLS sit on the light card and take the navy one). The 2px offset
+           puts the ring on the navy behind the button, not on its fill, so one token serves both. */
         .day-detail-pay-btn:focus-visible,
         .day-detail-leave-btn:focus-visible {
             outline: var(--focus-outline-gold);
@@ -2929,10 +2578,8 @@
             .day-detail-pay-btn:hover,
             .day-detail-leave-btn:hover { background: var(--ddb-hover); }
         }
-        /* Both at once is rare but real — an annual-leave day that is also a payday, about one day
-           a year per member — and it is the case the row above was designed against: the pair now
-           shares one line and one 8px gap, owned by `.day-detail-actions`, so neither button
-           carries spacing of its own. */
+        /* Both at once (an annual-leave day that is also a payday) shares one line and the row's one
+           8px gap, so neither button carries spacing of its own. */
 
         /* ---- Annual Leave lightbox ---- */
         /* #alLightbox uses .lb-overlay — no unique properties */
@@ -3124,32 +2771,17 @@
         }
         #huddleViewerTitle { font-weight: 600; font-size: 1rem; flex: 1; }
         #huddleViewerClose {
-            /* THE NOTCH FIX — do not remove. The huddle viewer is a FULL-BLEED panel
-               (#huddleViewer is position:fixed; inset:0), NOT a centred .lb-content card.
-               The shared .lb-close class (which this button also carries) sets
-               position:absolute; top:14px — on a full-bleed panel that anchors the ✕ to the
-               very top of the SCREEN, under the iOS notch / Dynamic Island, completely
-               escaping #huddleViewerHeader's safe-area padding-top. Forcing position:static
-               returns the ✕ to the in-flow flex row inside the header, so the header's
-               safe-area-aware padding governs it too. This is why earlier "fix the header
-               padding" attempts never stuck — the absolutely-positioned button ignored that
-               padding. See CLAUDE.md → canonical lightbox lifecycle (huddle = full-bleed). */
+            /* THE NOTCH FIX — do not remove. The huddle viewer is a FULL-BLEED panel (position:
+               fixed; inset: 0), NOT a centred .lb-content card, and the shared .lb-close (which this
+               button also carries) sets position: absolute; top: 14px — on a full-bleed panel, the very
+               top of the SCREEN, under the iOS notch, escaping the header's safe-area padding. Static
+               returns the ✕ to the header's flex row, so that padding governs it (which is why padding
+               the header alone never stuck). CLAUDE.md → canonical lightbox lifecycle. The rest of
+               its shape — the 44px target, the reset, the transition — is `.lb-close`'s. */
             position: static;
-            background: none;
-            border: none;
             color: rgba(255,255,255,0.7);
             font-size: 1.5rem;
-            line-height: 1;
-            cursor: pointer;
             padding: 8px;
-            min-width: 44px;
-            min-height: 44px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
-            transition: color var(--dur-med) ease;
         }
         @media (hover: hover) and (pointer: fine) {
             #huddleViewerClose:hover { color: white; }
@@ -3177,14 +2809,11 @@
         #huddleViewerBody h2 { font-size: 1.05rem; }
         #huddleViewerBody h3 { font-size: 0.95rem; }
         #huddleViewerBody p  { margin: 0.4em 0; }
-        /* ── THE HUDDLE TABLE SCROLLS INSIDE ITSELF, NOT BY DRAGGING THE PAGE (v22.27) ──────────
-           Reported from two staff screenshots on a 412px phone. The Huddle grew a fifth column
-           (Shift · Call Sign · Early · Middle · Late) and stopped fitting, and because
-           `#huddleViewerBody` is the only scroll container, reading the Late column scrolled the
-           WHOLE document sideways — so "Wednesday 2nd September 2026" slid off to "nd September
-           2026" and the Shift/Call Sign columns, which are what tell you whose row you are on,
-           went with it. Nothing was broken; it was unusable, which is worse to diagnose.
-           `.huddle-table-wrap` is added around every table by calendar-huddle-viewer.js. */
+        /* ── THE HUDDLE TABLE SCROLLS INSIDE ITSELF, NOT BY DRAGGING THE PAGE ──────────────────────
+           A fifth column stopped the Huddle fitting a 412px phone, and with `#huddleViewerBody` the
+           only scroll container, reading the Late column dragged the WHOLE document sideways — the
+           date and the Shift/Call Sign columns (whose row you are on) went with it. Every table is
+           wrapped in `.huddle-table-wrap` by calendar-huddle-viewer.js. */
         #huddleViewerBody .huddle-table-wrap {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
@@ -3196,26 +2825,17 @@
                 linear-gradient(to left,  white 30%, rgba(255,255,255,0)) right / 24px 100% no-repeat local,
                 radial-gradient(farthest-side at 0%   50%, rgba(0,0,0,.16), rgba(0,0,0,0)) left / 8px 100% no-repeat scroll,
                 radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.16), rgba(0,0,0,0)) right / 8px 100% no-repeat scroll;
-            /* THE COVERS ARE THE VIEWER'S OWN GROUND, WHITE (polish pass). They were `--surface`,
-               the off-white CARD colour — but this panel is white, so on a table that fits (the
-               common case) two off-white 24px bands showed down its left and right edges, and in
-               the margin above and below the table they read as grey smudges at all four corners.
-               The margin now lives on the wrapper for the same reason: inside it, that strip was
-               wrapper with no table over it. */
+            /* THE COVERS ARE THE VIEWER'S OWN GROUND, WHITE: in the card's off-white, a table that
+               fits showed two pale bands down its edges. The margin lives on the wrapper for the same
+               reason — inside it, the strip was wrapper with no table over it. */
             margin: 0.75em 0;
         }
         #huddleViewerBody .huddle-table-wrap > table { margin: 0; }
         #huddleViewerBody table {
-            /* NOT `width: 100%` (v22.29). That pinned the table to the container, so it could only
-               ever SQUEEZE. `min-width` keeps a narrow table filling the panel; `width: auto` lets
-               a wide one be as wide as it needs and scroll, which is what the wrapper assumes.
-
-               MEASURED, so the next reader is not misled: this is DEFENSIVE, not the fix. Reverting
-               it alone (with `break-word` below kept) does not reproduce the defect, because a
-               column that cannot break mid-word already demands more than the container and
-               overflows regardless. It is here so the layout works by INTENT rather than by that
-               coincidence — `width: 100%` beside an overflow-x wrapper is two rules contradicting
-               each other, and the next person to touch the wrapping rule would meet the bug again. */
+            /* NOT `width: 100%`, which pins the table to the container so it can only SQUEEZE:
+               `min-width` keeps a narrow table filling the panel, `width: auto` lets a wide one
+               scroll. DEFENSIVE, not the fix (measured — reverting it alone does not bring the defect
+               back while `break-word` holds), so the layout works by intent, not by coincidence. */
             width: auto;
             min-width: 100%;
             border-collapse: collapse;
@@ -3226,31 +2846,18 @@
             border: 1px solid var(--border-mid);
             padding: 5px 7px;
             vertical-align: top;
-            /* `break-word`, NOT `anywhere` (v22.29 — this was the reported defect, and the
-               comment that used to sit here argued for exactly the wrong one).
-
-               The two differ in one way that matters: `anywhere` is taken into account when the
-               browser computes a column's MIN-CONTENT width, so it permits a break at any character
-               and the column can be crushed to nothing. That is how "Call Sign" rendered as four
-               stacked fragments — `Cal / l / Sig / n` — and "Information Controller" as
-               `Informatio / n Controller`.
-
-               The old comment treated the table demanding room for its longest token and
-               "overflowing anyway" as the problem to solve. Overflowing is what the scroller above
-               is FOR. `break-word` keeps each column at least as wide as its longest word, and
-               still breaks a genuinely unbreakable token rather than letting one URL push the
-               table to an absurd width. */
+            /* `break-word`, NOT `anywhere` (the reported defect): `anywhere` counts in a column's
+               MIN-CONTENT width, so a column could be crushed to nothing — "Call Sign" rendered as
+               `Cal / l / Sig / n`. Overflowing is what the scroller above is FOR; `break-word` keeps
+               each column as wide as its longest word and still breaks a genuinely unbreakable token
+               (one URL cannot push the table to an absurd width). */
             overflow-wrap: break-word;
         }
-        /* The row's identity stays put while the times scroll. On a five-column Huddle the first
-           cell is the job ("Station Manager", "Booking Office") — without it a scrolled row is a
-           set of times belonging to nobody. Inert when the table fits, which is the common case.
-
-           SELECTED BY CLASS, never by `:first-child` (v22.33). `td:first-child` means "the first
-           cell this row writes", which stops being column 1 the moment a cell above spans down —
-           and the real Huddle's Gate line cell spans three rows, so C17 and C18 were pinned over
-           it. `wrapTables` computes the real grid and marks only true column-1 cells; the argument
-           is in huddle-table-grid.js. A cell here may span rows, so it is not `td` or `th` alone. */
+        /* The row's identity stays put while the times scroll: the first cell is the job ("Station
+           Manager"), without which a scrolled row is times belonging to nobody. Inert when it fits.
+           SELECTED BY CLASS, never by `:first-child`, which stops being column 1 once a cell above
+           spans down (the real Huddle's Gate line spans three rows, and the rows under it were
+           pinned over it). `wrapTables` marks only true column-1 cells — huddle-table-grid.js. */
         #huddleViewerBody .huddle-shift-col {
             position: sticky;
             left: 0;
@@ -3301,7 +2908,6 @@
             padding: 14px 28px;
             cursor: pointer;
             touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
             transition: background var(--dur-med) ease, opacity var(--dur-med) ease;
         }
         .huddle-open-btn:active { opacity: 0.8; }
@@ -3332,18 +2938,12 @@
             font-weight: 700;
             color: var(--primary-blue);
             text-align: center;
-            /* ON THE ✕ LINE, NOT UNDER IT (polish round 2, owner-approved) — the day panel's shape.
-               It used to sit below the button (`margin-top: 24px`, written when the ✕ was ~34px),
-               which left a measured 50px band above the title holding nothing but the ✕. With no
-               top margin the first line starts at the panel's 26px padding and its centre lands
-               within 3px of the ✕'s (36px — the 44px target at top:14).
-
-               The side padding is what keeps a title that now SHARES the ✕'s band off it. The
-               target spans 14–58px from the panel's right edge, i.e. 34px into the 24px-padded
-               content box, so 40px — the day panel's figure — leaves a 6px floor on the longest
-               line, applied to BOTH sides because the text is centred. The longer names wrap
-               earlier for it ("🗞️ Marylebone" / "Newsletter" below ~390px); `balance` keeps the
-               two lines even, and a wrap is legible where an overlap is a fault. */
+            /* ON THE ✕ LINE, NOT UNDER IT (owner-approved) — the day panel's shape. Below the button
+               it left a 50px band holding nothing but the ✕; with no top margin its centre lands
+               within 3px of the ✕'s. The side padding keeps a title SHARING that band off it: the
+               target reaches 34px into the content box, so 40px (the day panel's figure) leaves a 6px
+               floor, on BOTH sides because the text is centred. The longer names wrap earlier for it
+               (`balance` keeps the lines even): a wrap is legible, an overlap is a fault. */
             margin: 0 0 16px;
             padding: 0 40px;
             line-height: 1.3;
@@ -3483,10 +3083,8 @@
             padding: 2px 6px;
             transition: background var(--dur-med);
         }
-        /* NON-BREAKING space, or the caret is a word of its own (v22.84). With a plain space the
-           browser may break between the year and the ▾ — measured at 360px under Chrome's text
-           scaling, where "September 2026" filled the line and the caret dropped alone onto the
-           next one, reading as a stray glyph rather than as this heading's affordance. */
+        /* NON-BREAKING space, or the caret is a word of its own: at 360px under text scaling the ▾
+           dropped alone onto the next line, a stray glyph rather than this heading's affordance. */
         .month-year::after {
             content: '\00a0▾';
             font-size: 0.6em;
@@ -3498,13 +3096,9 @@
         }
 
         /* ---- Firestore loading indicator ---- */
-        /* A "Syncing…" chip injected into .calendar-header while Firestore fetch is in flight.
-           Fades in after 800 ms to avoid flashing on fast connections. */
-
-        /* The chip sits INSIDE the white calendar card (.calendar-header is transparent over the card,
-           NOT the navy page header), so mid-tone text on the light wash is correct. Washes/borders
-           are derived from the app tokens (were foreign rgb literals) (v17.57). The forced-state
-           axe test (axe.spec.js) verifies both chip states against the REAL composited background. */
+        /* The sync chip, injected into .calendar-header while the fetch is in flight (after 800ms,
+           so a fast connection never flashes it). It sits INSIDE the light calendar card, so mid-tone
+           text on a token-derived wash is right; axe.spec.js checks both states on the REAL ground. */
         .sync-chip {
             display: inline-flex;
             align-items: center;
@@ -3530,10 +3124,9 @@
             cursor: pointer;
             position: relative;             /* for the tap expander below */
         }
-        /* "tap to retry" is a BUTTON drawn 20px tall — under WCAG 2.2's 24px floor (polish pass). The
-           expander grows DOWNWARD only: the chip's top edge is flush with the bottom of the month
-           heading (measured: both at the same y), and the heading is itself a target — it opens
-           the month jump — so reaching upward would take taps meant for it. */
+        /* "Couldn't update — try again" is a BUTTON drawn 20px tall, under WCAG 2.2's 24px floor. The
+           expander grows DOWNWARD only: the chip's top edge is flush with the month heading, itself
+           a target (it opens the month jump), so reaching upward would take taps meant for it. */
         .sync-chip-error::before {
             content: '';
             position: absolute;
@@ -3550,21 +3143,16 @@
         @media (prefers-reduced-motion: reduce) {
             .sync-chip { animation: none; }
         }
-        /* ONE MESSAGE AT A TIME (polish round 2, owner-approved). While the month is WITHHELD the
-           panel below the header already says what the chip says — "Checking this month" beside
-           "Updating your shifts…", or "Couldn't check this month" with its own "Try again" beside
-           "Couldn't update — tap to retry" — so the chip steps back and the panel speaks alone.
-
-           Two cases keep the chip, and both are deliberate:
-             · a PAINTED grid (a cached month being refreshed, or a failed refresh over it) — there
-               is no panel, and the chip is the only thing saying a sync is running or has failed;
-             · a FAILED panel with NO "Try again" — drawn while the initial fetch still holds its
-               claim (the 10s timeout path), where the chip is the only retry on screen. Hiding it
-               there would leave a failure with nothing to press.
-           CSS rather than a branch in calendar-initial-fetch.js because the header and the panel are
-           rebuilt by every render, in either order, and the loading chip is not re-attached after
-           one — a selector on the rendered result is right after every transition without the
-           state machine having to know about the grid. `e2e/calendar.spec.js` pins both halves. */
+        /* ONE MESSAGE AT A TIME (owner-approved). While the month is WITHHELD the panel below the
+           header already says what the chip says ("Checking this month", or "Couldn't check this
+           month" with its own Try again), so the chip steps back. Two cases keep it, deliberately:
+             · a PAINTED grid (a cached month refreshing, or a failed refresh over it) — no panel, so
+               the chip is the only thing saying a sync is running or has failed;
+             · a FAILED panel with NO Try again (the initial fetch still holds its claim, the timeout
+               path) — the chip is the only retry on screen.
+           CSS, not a branch in calendar-initial-fetch.js: the header and the panel are rebuilt by
+           every render in either order, so a selector on the result is right after every transition.
+           `e2e/calendar.spec.js` pins both halves. */
         .calendar-container:has(> .calendar-pending:not(.calendar-pending--failed)) .sync-chip,
         .calendar-container:has(> .calendar-pending .calendar-pending-retry) .sync-chip,
         .calendar-container[data-override-state="snapshot"] .sync-chip {
@@ -3635,10 +3223,7 @@
             0%   { background-position: -400px 0; }
             100% { background-position:  400px 0; }
         }
-        .calendar-fetching .calendar-day {
-            position: relative;
-            overflow: hidden;
-        }
+        .calendar-fetching .calendar-day { overflow: hidden; }   /* the cell is already `position: relative` */
         .calendar-fetching .calendar-day::after {
             content: '';
             position: absolute;
@@ -3742,10 +3327,7 @@
         .tv-pending { line-height: 1.5; }
         .tv-retry { margin-top: 10px; display: block; margin-inline: auto; }
 
-
-
-
-        /* ── Staff PIN access card (v20.12; rebuilt on the login panel recipe v20.14) ──────────
+        /* ── Staff PIN access card (built on the login panel recipe) ─────────────────────────────
            The PANEL itself lives in shared.css, joined to `#loginCard`/`#pwForceContent` — same
            moment, same shape, one recipe. Everything here is the small set of genuine DELTAS.
 
@@ -3862,41 +3444,19 @@
         @media print { .cal-snapshot { display: none !important; } }
 
         /* ── THE DAILY HUDDLE IS NOT A PRINTABLE DOCUMENT (owner decision, 7 Sep 2026) ───────
-           The viewer had no print rules at all, and the consequence was not an ugly sheet — it was
-           a SILENT LOSS. `#huddleViewer` is `position: fixed; inset: 0` over a scrolling body, so
-           printing clipped the day plan to one viewport and stopped: measured with a 40-row plan,
-           30 rows reached the paper and rows 31–40 simply were not there, with nothing on the sheet
-           to say so. The ✕ printed too.
-
-           The owner's answer is that the Huddle should not be printed at all, which makes this the
-           same shape as admin.css / operations.css / settings.css: say so, rather than leaving it
-           accidental. It is NOT the same scope, though — those three replace a whole page that has
-           nothing worth printing, whereas the Calendar underneath is this app's primary printable
-           artefact. So the notice appears ONLY while the viewer is open.
-
-           Saying it matters more than it might look. Silently printing the month grid because the
-           Huddle was on screen would hand the reader a sheet that is not the document they asked
-           for, with nothing explaining the substitution — the same silent-surprise failure as the
-           truncation this replaces, just tidier.
-
-           `:has()` DEGRADES SAFELY AND THAT IS THE POINT: where it is unsupported the notice does
-           not appear, the plain `#huddleViewer` rule below still fires, and the reader gets the
-           calendar rather than a Huddle. The decision holds either way; only the explanation is
-           progressive.
-
-           REPLACING IT WITH A BODY-STATE CLASS WAS PROPOSED AND DECLINED (v23.27, external review).
-           Two reasons, and the second is the stronger. It would single out the one `:has()` in the
-           tree whose failure mode is already the safest: the app leans on the selector in five
-           stylesheets, including for the SELECTED state of the back-pay/HPP mode options and the
-           Links generator objectives, where an unsupported engine would leave a chosen radio
-           looking unchosen — a live wrong answer, against a missing sentence here. And a body class
-           would put a third piece of open/closed state into a hand-rolled lifecycle that has
-           already produced two shipped bugs from exactly that duplication (the double-close and
-           the duplicated history entry, both recorded in `calendar-huddle-viewer.js`).
-
-           NOTE what this cannot control: a PDF Huddle opens as a real PDF in the browser's own
-           viewer, and that can be printed from there like any other file. This is a rule about
-           what the APP produces on paper, not a claim that a Huddle is unprintable. */
+           With no print rules the loss was SILENT: `#huddleViewer` is fixed over a scrolling body,
+           so printing clipped the day plan to one viewport (30 of a 40-row plan reached the paper,
+           with nothing to say so). Admin, Operations and Settings print a notice INSTEAD of the
+           page; here the Calendar underneath is the app's primary printable artefact, so the notice
+           appears ONLY while the viewer is open — silently printing the month in its place would hand
+           over a sheet that is not the document asked for, with nothing to explain it.
+           `:has()` DEGRADES SAFELY: unsupported, the notice does not appear, the plain `#huddleViewer`
+           rule still fires, and the reader gets the calendar. A body-state class was proposed and
+           DECLINED: it would add a third piece of open/closed state to a hand-rolled lifecycle that
+           has shipped two bugs from exactly that duplication (`calendar-huddle-viewer.js` records
+           them), and the app's other `:has()` uses fail worse than a missing sentence would.
+           A PDF Huddle opens in the browser's own viewer and prints from there; this rule is about
+           what the APP puts on paper. */
         @media print {
             #huddleViewer { display: none !important; }
 
@@ -3916,11 +3476,9 @@
             }
         }
 
-
-        /* The MEMBER variant's explanation (v20.79). It stands alone rather than sitting under a
-           field, so it has to carry the breathing room `.login-field`'s own margin would otherwise
-           have given it — without this the sentence sits ~10px off the button, where every other
-           card in this family leaves 14–24px. */
+        /* The MEMBER variant's explanation. It stands alone rather than under a field, so it carries
+           the room `.login-field`'s margin would have given it — without it the sentence sits ~10px
+           off the button, where every card in this family leaves 14–24px. */
         #calLockWhy { margin: 0 0 18px; }
 
         /* The lock card is not part of a printed roster, and a printed page cannot be unlocked. */
@@ -3928,19 +3486,14 @@
             .cal-lock { display: none !important; }
         }
 
-        /* ── The workspace gate has to BEAT the author display rules (v20.12) ───────────────────
+        /* ── The workspace gate has to BEAT the author display rules ─────────────────────────────
            `hidden` is a UA `display: none`, and any author `display` rule beats it — `.controls`
            is `display: flex`, so `nav.controls[hidden]` rendered in full. This is the same trap
-           `.win-editor[hidden]` hit on the links page, and here it is load-bearing rather than
-           cosmetic: these six elements are the Calendar workspace, and `calendar-access.js` hides
-           them before the access decision resolves.
-
-           They contain nothing while locked (the workspace is never built), so this is the second
-           layer rather than the only one — but a gate that works only because the thing behind it
-           happens to be empty is one refactor away from not being a gate.
-
-           `!important` because two of them (#notifPrompt, #swipeHint) carry an inline `display`,
-           which nothing else can outrank. */
+           `.win-editor[hidden]` hit on the links page, and here it is load-bearing: these six are the
+           Calendar workspace, hidden by `calendar-access.js` before the access decision resolves.
+           They are empty while locked, so this is the second layer — but a gate that works only
+           because the thing behind it is empty is one refactor away from not being a gate.
+           `!important`: two of them (#notifPrompt, #swipeHint) carry an inline `display`. */
         #calendarControls[hidden],
         #installPrompt[hidden],
         #notifPrompt[hidden],
