@@ -54,6 +54,12 @@ That file carries **two** unrelated things, which is why this step is unconditio
 
 - [ ] Send the welcome email — **`welcome-email.html`**, in this folder.
 
+**For a CEA already working at Marylebone, send `welcome-email-cea.html` instead** (owner, 8 Nov 2026:
+"so a consistent version can be used for CEAs"). It is the email sent to a CEA on 7 Nov 2026, with
+the choices below already made: the existing-staff opening, grade CEA, and the Pay Calculator section
+that works for a CEA. Only the first name, roster name, surname password and PIN are left to fill.
+A change to the wording belongs in both files.
+
 Nothing in the app introduces itself. A new starter is provisioned, appears on every screen, and
 has no idea any of it is there; the only thing that closes that gap is somebody telling them.
 
