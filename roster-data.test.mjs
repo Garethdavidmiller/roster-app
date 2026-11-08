@@ -1531,11 +1531,15 @@ test('S. Boyle: main wk10 until 27 Jun, then fixed pattern 2 (28 Jun+)', () => {
 // M. Campbell's training weeks are TRAINING WITH NO TIMES (owner, 6 Nov 2026: "show Other (Training
 // flavour) with no shift times from her start date Monday to Friday until Friday 6th of November").
 // The whole span is walked, not its two ends: a pattern that slipped by a day would pass both.
-test('M. Campbell: pre-start RD, Training with no times Mon–Fri 22 Sep–6 Nov, then bilingual from 8 Nov', () => {
+// Her start is Sun 20 Sep, the clerks' workbook date (owner, 8 Nov 2026), so training begins Mon 21 Sep.
+test('M. Campbell: pre-start RD, Training with no times Mon–Fri 21 Sep–6 Nov, then bilingual from 8 Nov', () => {
     const m = teamMembers.find(x => x.name === 'M. Campbell');
     assert.ok(m, 'M. Campbell not found');
-    assert.equal(getBaseShift(m, new Date(2026, 8, 21)), 'RD');            // Mon 21 Sep — before her start
-    for (const d = new Date(2026, 8, 22); d <= new Date(2026, 10, 7); d.setDate(d.getDate() + 1)) {
+    // Asserted by value: a weekend start shows nothing on the grid, so the walk cannot tell the
+    // workbook's Sunday from the Saturday before it or the Monday after.
+    assert.equal(m.startDate.getTime(), new Date(2026, 8, 20).getTime(), 'Sun 20 Sep, the workbook date');
+    assert.equal(getBaseShift(m, new Date(2026, 8, 18)), 'RD');            // Fri 18 Sep — a weekday before her start
+    for (const d = new Date(2026, 8, 20); d <= new Date(2026, 10, 7); d.setDate(d.getDate() + 1)) {
         const weekend = d.getDay() === 0 || d.getDay() === 6;
         assert.equal(getBaseShift(m, d), weekend ? 'RD' : 'TRG', d.toDateString());
     }
