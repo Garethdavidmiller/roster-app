@@ -813,6 +813,9 @@ def colleagues_rest(d):
         swap_in(d, 13, 'and slide 7 has the late finishes in full.',
                 f'and slide 7 has the late finishes in full. A badly placed cover week can make {NUMW[runup]} days in a row, where today’s worst is {NUMW[trunup]} (slide 9).')
         check('runs longer than today’s, and a worse worst case of days in a row', int(F['block']) > int(T['block']) and runup > trunup)
+    # BESIDE THE SHORTLIST, the shortlist sheet is the three's, so its downsides are on its own proposal sheet (8 Nov 2026: Balanced
+    # V10's deck said "or the shortlist sheet", where it has no row; relay-decks.py says the same of Clockface and Short Working)
+    if BES: swap_in(d, 13, 'Every one is on the proposal sheet or the shortlist sheet as well,', 'Every one is on the proposal sheet as well,')
 
     # SLIDE 14: the table's rows are deck-check.mjs's; the costs line is this design's
     p14 = f'{d}/ppt/slides/slide14.xml'

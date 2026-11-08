@@ -183,7 +183,7 @@ with that folder on 7 Nov 2026; two of its modules live on in `tooling/reference
 | | `what-it-means-sheet.mjs` | the one-page "What it means if you…" sheet (`../links-26-what-it-means.pdf`). It lays out and prints `what-it-means-data.mjs`, which reads the colleague decks' slide 5 and its notes back, so it runs after `deck-polish.py` and before `pack.py` (step 4) |
 | | `what-it-means-data.mjs` | the sheet's figures and asserted sentences, split out of it unchanged (2 Nov 2026) so the app's New link page reads the same ones; imported, never run |
 | | `newlink-data.mjs` | writes the app's `newlink-data.js` — the New link page's figures, sentences and pack list — from `what-it-means-data.mjs`; `--check` is what `newlink-data.test.mjs` runs. After `what-it-means-sheet.mjs` (step 4) |
-| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`) → `common-ground-decks.py` → `deck-marks.py`; `shortlist-decks.py`; `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; Common Ground's, rewritten from Even Step's finished pair; the ✓ and ▲ beside every green and amber figure, run last (5 Nov 2026); the shortlist's of 8 Nov 2026, rewritten from Common Ground's finished pair and marked as they are built; the checker that reads every deck row back against the sheets and refuses an unmarked colour; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks, and reads the league's leader and its lead for the read-me as the shortlist sheet does (8 Nov 2026) |
+| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`) → `common-ground-decks.py` → `deck-marks.py`; `shortlist-decks.py`; `relay-decks.py`; `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; Common Ground's, rewritten from Even Step's finished pair; the ✓ and ▲ beside every green and amber figure, run last (5 Nov 2026); the shortlist's of 8 Nov 2026, rewritten from Common Ground's finished pair and marked as they are built; Clockface's and Short Working's, rewritten the same way from Even Step's and Short Run's; the checker that reads every deck row back against the sheets and refuses an unmarked colour; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks, and reads the league's leader and its lead for the read-me as the shortlist sheet does (8 Nov 2026) |
 | league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them; `FAM_SUNDAY=1` for the main league with the Sunday duties counted in familiar shift times, as it was read before 3 Nov; `EXTRA=Name=<grid.json>;…` scores a candidate beside the pack's proposals, inside the range and ranked, before anything is rendered, since "Set Fair") — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
@@ -7090,7 +7090,40 @@ two-letter pattern, which would have missed `SWK-26-F1`; it reads two or three l
   - it says "a two-page sheet", reading the page count from the PDF, where it had said one page in two places.
 - **The zip** holds 73 files, from 69: the two sheets and their import files.
 
-**Their presentations** follow in a commit of their own, drawn as Balanced V10's were.
+**Their presentations.** A colleague deck and a managers' deck each, in `presentations/` as PowerPoint and PDF, set beside
+the shortlist as Balanced V10's are. Like V10's they are not in the zip, which carries the shortlist's decks only.
+- **Drawn from the parents' finished decks** by `tooling/relay-decks.py`. Each design has its parent's duties, rest days,
+  cover weeks and early and late weeks, so every sentence of Even Step's and Short Run's decks stays true of it except three
+  kinds. Each is rewritten exactly once, and the build refuses if the text it replaces is not there:
+  - **the figures that moved:** the busiest seven days a badly placed cover week can make (56h 40m and 56h 10m), the change
+    of start week to week (1h 34m and 1h 27m), and Short Working's 19 of 21 weeks on one shift time;
+  - **the closing weeks:** the colleague bar says "never two closing weeks in a row, cover weeks aside", and the notes on the
+    short version, the rest slide and the strip say what a closing week is and that none follows another, as today;
+  - **the old shortlist** (Common Ground, Even Step, Short Run): the managers' cover reads "A new CEA link drawn after the
+    shortlist", the fit notes set each beside Balanced V6, Level Crossing and Middle Ground, and the "Why" slide says what
+    it shares with all three and what it adds and costs against all three, by the 5% rule the shortlist's decks use.
+- **What each adds and costs, against all three.**
+  - Clockface adds every early Monday to Saturday a time worked today, the fewest new shift times (five) and the fewest
+    single rest days. It costs four weeks off for 15 days' leave, not 14, and 28 days off at best, not 30; the fewest
+    finishes before 14:00; and no rest-day break of three days or more.
+  - Short Working adds the closest weekday fit (29.1), the shortest weekday lates (8h 00m, closers aside) and steadier
+    weeks (19 of 21 on one shift time, a 1h 27m change of start, the fewest single rest days). It costs the 9-hour weekday
+    07:00–16:00, about 20 a year each; the same leave; and no finish before 14:00 and no break of three days or more.
+  - Each "Why" slide's notes also say what laying the weeks again changed against the parent, both ways, and that every
+    other figure is the parent's.
+- **Short Working's managers' bar** reads "a closer weekday fit than any shortlisted link". "Than any of the three
+  shortlisted" left its last word alone on a second line.
+- **Slide 10's strip** is the parent's picture, pixel for pixel. It draws rest days, cover weeks, full weekends and which
+  weeks are earlies or lates, all four the parent's; it is drawn from the new grid all the same.
+- **Even Step's and Short Run's own decks are unchanged.** They set out those designs as they were shortlisted on 4 Nov.
+- **Balanced V10's colleague deck** said in its slide 13 notes that its downsides are "on the proposal sheet or the
+  shortlist sheet", where it has no row. For a design beside the shortlist `shortlist-decks.py` now says "on the proposal
+  sheet". Nothing else changed in V10's colleague deck; its managers' deck rebuilt identical bar the chart workbook's save
+  time, so the committed file was kept.
+- **Checks.** `deck-check.mjs` reads both new pairs: 540 rows across all twenty decks agree, from 432. Mutated with
+  `scripts/mutate.mjs`, the build refuses each time: the colleague leave notes left naming the old shortlist; the managers'
+  55-hour figure left as Even Step's; the decks drawn on Even Step's own weeks; and Short Working's rest slide left at 18 of
+  21.
 
 ## Notes for the whole set
 
