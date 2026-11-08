@@ -91,6 +91,10 @@ export const STRAPS = {
   // it has, not whose duties it lays
   'MB-26-V8': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, 19 of 21 weeks on one shift time, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
   'MB-26-V9': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never more than three early or three late weeks in a row outside the cover weeks, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
+  // 8 NOV 2026 (owner: "Do your suggestion with Balanced v8 to create Balanced v10"): Balanced V8's duties and rest days with
+  // its weeks chosen again so that no two closing weeks sit side by side (README.md → "Balanced V10"). NO STRAP NAMES ANOTHER
+  // DESIGN, so it says what it has, not whose weeks it re-lays
+  'MB-26-V10': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never two closing weeks in a row, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
@@ -128,7 +132,7 @@ if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is bo
 // left null, so any script still reading it fails loudly instead of quietly recommending nothing.
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
 export const FAMILY = { SL: 'Second Nature', SE: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', OR: 'Quarter Past', SO: 'Quarter Past', GT: 'Home Grown', CG: 'Home Grown', MG: 'Home Grown', MB: 'Marylebone Balanced', CO: 'Home Grown', LC: 'Home Grown' };
-export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'OR-26-EXT': '4 Nov 2026', 'SO-26-EXT': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026', 'MB-26-V5': '5 Nov 2026', 'MB-26-V6': '5 Nov 2026', 'MB-26-V7': '6 Nov 2026', 'CO-26-T10': '7 Nov 2026', 'LC-26-T10': '7 Nov 2026', 'MB-26-V8': '7 Nov 2026', 'MB-26-V9': '7 Nov 2026' };
+export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'OR-26-EXT': '4 Nov 2026', 'SO-26-EXT': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026', 'MB-26-V5': '5 Nov 2026', 'MB-26-V6': '5 Nov 2026', 'MB-26-V7': '6 Nov 2026', 'CO-26-T10': '7 Nov 2026', 'LC-26-T10': '7 Nov 2026', 'MB-26-V8': '7 Nov 2026', 'MB-26-V9': '7 Nov 2026', 'MB-26-V10': '8 Nov 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a
@@ -186,7 +190,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   // TIERS, NOT A RANKING (external review, 28 Sep 2026): rules met, then fatigue findings, then ALPHABETICAL. Sorting a tie
   // on the weekday floor fit put a proxy ahead of tangible things it does not weigh — familiar times, the longest duty,
   // the shortest rest — and a sorted table is read top to bottom however it is captioned.
-  const rank = [...folder].sort((a, b) => b.rules.met - a.rules.met || a.present - b.present || a.name.localeCompare(b.name));
+  const rank = [...folder].sort((a, b) => b.rules.met - a.rules.met || a.present - b.present || a.name.localeCompare(b.name, 'en-GB', { numeric: true }));
   // lines holding a time nobody works today, and lines holding the longest duty — ALL of them (a review found a list
   // cut at five presented as complete)
   const linesWith = pred => keys.filter(k => ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].some(d => pred(P.patterns[k][d]))).map(Number);

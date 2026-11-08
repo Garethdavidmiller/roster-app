@@ -42,7 +42,7 @@ const rows = folderStats().map(f => { const j=JSON.parse(fs.readFileSync(f.url,'
     thirty:String(f.url).includes('/30-days-off/'), turns:f.turnarounds, run:f.fixedRun, runW:f.run, wkd:`${f.weekends} in ${x.L}`, gap:gapOf(p), wkYear:f.weekends*52/x.L, rest:f.rest, times:`${f.distinct} (${f.newTimes} new)`, ...x }; });
 // a proposal that breaks a HARD limit cannot be run as it stands, so it sorts last whatever it scores (accuracy audit,
 // 1 Oct 2026 — it sat mid-table on its rules count)
-rows.sort((a,b)=> a.hard-b.hard || b.met-a.met || a.present-b.present || a.name.localeCompare(b.name));
+rows.sort((a,b)=> a.hard-b.hard || b.met-a.met || a.present-b.present || a.name.localeCompare(b.name, 'en-GB', { numeric: true }));
 const todayRow = { name:'Today’s link', code:'20 weeks', met:null, of:null, present:TA.fixed.present, presentW:TA.fatigue.present, run:TA.fixed.run, runW:TA.checks.longestStretch, wkd:`${TA.checks.weekendsOff} in 20`, gap:gapOf(T.patterns), wkYear:TA.checks.weekendsOff*52/20, rest:TA.rest?.minutes, times:`${TA.feel.distinctTimes}`, ...extra(T.patterns) };
 // today's rules met, the rules sheet's own figure
 { const R0 = currentRules({ patterns:T.patterns, ...TA }, TA, 'today'); todayRow.met = R0.met; todayRow.of = R0.of; }
@@ -63,7 +63,7 @@ const countWord = n => 'no one two three four five six seven eight nine ten elev
 const PREPARED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>New CEA link proposals — at a glance</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><style>
-@page{size:A4 landscape;margin:6mm 10mm}
+@page{size:A4 landscape;margin:5mm 10mm}
 html, body{background:white !important;padding:0 !important;margin:0}
 body{font-family:var(--font-sans);color:var(--text-dark);font-size:9pt;line-height:1.3}
 .mast{background:var(--primary-blue);color:white;padding:7px 16px 6px;border-bottom:4px solid var(--accent-gold);border-radius:var(--radius);display:flex;gap:14px;align-items:center;margin-bottom:6px}
@@ -115,6 +115,9 @@ body.dense td{padding:0 5px}
    the sheet at the floor, measured at the printed width. The cells' line height comes down from 1.12 to 1.1, which ends it
    7px inside; the type, the padding, the borders and the floor are as they were */
 body.dense td{line-height:1.1}
+/* TWENTY-FIVE ROWS (8 Nov 2026, Balanced V10): under 5px onto a second sheet at the floor, measured with a taller page. The
+   page's top and bottom margins come down from 6mm to 5mm (the @page rule above), which gives back 7.6px; the type, the
+   spacing and the floor are as they were */
 </style></head><body>
 <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
 <div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${countWord(SHORTLIST.length)} shortlisted ones marked ★, and the ${countWord(rows.filter(r => r.thirty).length)} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last.<span class="how"> Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them.</span> Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>

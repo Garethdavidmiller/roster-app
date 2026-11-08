@@ -6916,13 +6916,94 @@ week 42h 30m and the lightest 24h 00m, a 14h 20m shortest rest, as many backward
 - **In the league since 8 November either layout stands third**, behind Level Crossing and Middle Ground, from 11th. A is
   in the top three in 61% of the weightings and first in 22%; C in 62% and 24%. In the league before, which cannot see
   closing weeks, either loses about a point.
-- **Nothing is in the pack.** The grids are in the session's scratchpad.
+- **Nothing is in the pack.** The grids are in the session's scratchpad. Later the same day layout A joined the pack as
+  Balanced V10 (*Balanced V10*, below); C did not.
 
 **Even Step and Short Run, laid again on 8 November (above), in the same league**, each scored beside the pack alone:
 - Even Step's (`62abf5eb`) would be first, 78.3, first in 53% of the weightings and in the top three in 86%. It buys 28
   days off for 14 days' leave, not today's 30.
 - Short Run's B (`be95ed62`) would be 4th, 74.5, and A (`28e2a503`) 7th, 74.0.
 - As they are, Even Step is 6th and Short Run 17th. None of the three is in the pack.
+
+## Balanced V10 — Balanced V8's weeks laid again with its closing weeks apart (8 Nov 2026)
+
+**The ask.** "Do your suggestion with Balanced v8 to create Balanced v10" (owner, 8 Nov 2026), after *Balanced V8 laid
+again with its closing weeks apart*, above, which measured two layouts and put neither in the pack. Layout A, which keeps
+Balanced V8's early and late weeks, is Balanced V10 (`MB-26-V10` · `e745f804`). Then: "For now leave the shortlist until I
+see Balanced v10". So Balanced V10 is in the pack beside the shortlist, not on it. Nothing on the shortlist changed but one
+count: the shortlist sheet's "the other twenty-one" is now "twenty-two".
+
+**What it is.** Balanced V8's duties and rest days, every one, and its early and late weeks. Only which week works which
+shift time moved: 31 cells on 10 lines (2, 4, 5, 9, 10, 13, 14, 15, 22 and 23). Its duties are Balanced V7's and Balanced
+V6's too. Its closing weeks are 3, 5, 15 and 23 on the sheets' reading (the most common weekday duty a closer) and 3, 15
+and 23 on the league's (three or more weekday closes). Never two are together on either reading, nor on the solver's
+stricter one (no two neighbouring weeks with any weekday closer).
+
+| | Balanced V8 | Balanced V10 |
+|---|---|---|
+| Closing weeks in a row, at most | 3 | 1 |
+| Most closes in any 14 days · any 21 | 11 · 15 | 7 · 9 |
+| Weeks on one shift time | 19 of 21 | 18 of 21 |
+| Change of start, week to week | 1h 39m | 2h 01m |
+| Backward · forward steps between shifts (FF17) | 12 · 12 | 10 · 17 |
+| Main league since 8 Nov, of 25 | 12th, 69.6 | 3rd, 76.6 |
+| League until 8 Nov, of 25 | 10th, 84.7 | 13th, 83.9 |
+
+- **Everything else on the sheet is Balanced V8's, figure for figure.** The two sheets' text was compared line by line:
+  the December rules, the hard limits, the leave (30 · 23.5 · 20, four weeks off for 13), the single rest days, the
+  weekends, the shortest rest, the heaviest and lightest weeks, the shift times, the fit to the trains, and no fatigue
+  warning in any cover-week placement tested.
+- **19 weeks on one shift time is impossible** with V8's early and late weeks held and no two closing weeks together: the
+  solver proves it infeasible, on `CLOSE_APART=2` and on 3 (the sheets' reading).
+
+**How.** `exact-rota.py` gained the two options the measured layouts were drawn with on a scratch copy:
+- `CLOSE_APART=`: no two closing weeks side by side. 2 is the strict reading and is the one used here; 1 and 3 are the
+  sheets' readings.
+- `NEAR=` and `NEAR_CAP=`: the objective is held at its optimum, then the fewest cells moved from a given rota are asked for.
+
+Every objective now goes through one `objective()` call, so `NEAR=` can hold it. The header has the two commands, every
+floor at V8's own level. The committed script rebuilds `results/balanced-v10.json` exactly (31 cells, optimal). `FIX=`
+finds the grid feasible at the optimum, and refuses Balanced V8's own grid, whose closing weeks 2, 3 and 4 sit together.
+
+**The league.** No other score moved, in either reading: V10 is inside every range both read. So every place below it is
+one lower.
+- In the main league: Grand Tour 5th, Balanced V8 12th, Common Ground 15th, Balanced V9 16th, Short Openers 17th, Crossover
+  19th, Open Return 22nd, Balanced V7 23rd, V6 24th and V5 25th.
+- V10 is first in 22% of the 4,000 reweightings and in the top three in 61% (places 1–3–8 at the 10th, 50th and 90th
+  percentiles).
+- The read-me's league sentence is unchanged: Level Crossing first, by 1.0, and Middle Ground second.
+
+**In the pack.**
+- **Its sheet and import file** are in `30-days-off/balanced/`.
+- **The summary** has its row. The summary's page margins came down from 6mm to 5mm top and bottom, which prints a 25th
+  row at the 80% floor.
+- **The other designs' sheet** has its row, against all three shortlisted: has "Balanced V8's leave and no 55-hour week\*,
+  with no two closing weeks side by side"; pays "a lighter lightest week, 24h 00m". Claims pin that it is V8's duties and
+  rest days laid again with the closing weeks apart, and V8's leave and lightest week. To fit the row, the sheet's cells
+  took its own table padding (1.5px above and 2px below, was 2.5 and 3) and its lead lost a few words. The row prints
+  17px clear of the footer.
+- **The read-me** has a paragraph after the 8 November shortlist's, which ends "It is not on the shortlist". The 22:30
+  paragraph names it among the designs drawn with the 22:30 office, and item 4 counts six Balanced designs.
+- **The A-to-Z order** puts "Balanced V10" after "Balanced V9", not before "Balanced V5", on the summary, the other designs'
+  sheet and the folder lists (`localeCompare` with `numeric`).
+
+**Its presentations.** A colleague deck and a managers' deck, drawn by `shortlist-decks.py` as the three shortlisted were,
+from Common Ground's finished pair, and set beside the shortlist (`BESIDE`):
+- **Duty lines.** Its shift times, closers and new times are Balanced V6's, since its duties are V6's (`DUTIES`).
+- **Its own lines.** Its weeks, single rest days, trade-off cards and leave are its own. Four weeks off for 13 days'
+  leave, a day less than today, is said wherever "as today" stood.
+- **The managers' title slide** reads "A new CEA link drawn after the shortlist".
+- **The managers' "Why" slide** says what it shares with all three. It adds, against all three, four weeks off for 13
+  days' leave (5% clear). It costs, against Level Crossing and Middle Ground, whose duties differ, a weaker weekday fit
+  (V6's 40.0). Against Balanced V6 its shifts can cost nothing, so its notes say what its weeks change against V6's both
+  ways, every figure checked.
+- **Checks.** `deck-check.mjs` holds both decks' tables to the grid: 432 rows across all sixteen decks agree. Rebuilt with
+  the changed builder, the shortlist's six decks match the committed ones part for part. Only the chart workbook's save
+  time differed, and the committed files were kept.
+- **Not in the zip.** The zip carries the shortlist's decks only, so V10's are not in it.
+
+**Checks.** `regenerate.mjs --check` (25 proposals), `check.mjs`, `closing.mjs --check`, `leave.mjs --check`,
+`newlink-data.mjs --check` (the app's data is unchanged, so no version bump), `deck-check.mjs` and `pack.py` (69 files).
 
 ## Notes for the whole set
 

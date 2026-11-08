@@ -32,8 +32,10 @@ const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url
 // fresh.mjs → DECKS_KEPT), so all eight are here. Common Ground's were made earlier that day in a folder outside the pack,
 // which went when they joined it. On 8 Nov 2026 the shortlist became Balanced V6, Level Crossing and Middle Ground, and their
 // six decks were drawn the same day from Common Ground's (shortlist-decks.py); the eight earlier decks stay in presentations/,
-// out of the zip, and are still held to the grids here.
+// out of the zip, and are still held to the grids here. Balanced V10's two were drawn later that day, beside the shortlist and
+// not on it (owner: "For now leave the shortlist until I see Balanced v10"), the same way (shortlist-decks.py → BESIDE).
 const DECKS = [['Balanced-V6-for-colleagues.pptx', 'Balanced V6'], ['Balanced-V6-for-managers.pptx', 'Balanced V6'],
+  ['Balanced-V10-for-colleagues.pptx', 'Balanced V10'], ['Balanced-V10-for-managers.pptx', 'Balanced V10'],
   ['Level-Crossing-for-colleagues.pptx', 'Level Crossing'], ['Level-Crossing-for-managers.pptx', 'Level Crossing'],
   ['Middle-Ground-for-colleagues.pptx', 'Middle Ground'], ['Middle-Ground-for-managers.pptx', 'Middle Ground'],
   ['Even-Step-for-colleagues.pptx', 'Even Step'], ['Even-Step-for-managers.pptx', 'Even Step'],

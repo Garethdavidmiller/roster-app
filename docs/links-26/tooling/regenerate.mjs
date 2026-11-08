@@ -160,6 +160,11 @@ export const SUPPLIED = [
     // "Balanced V8 and Balanced V9"). Both buy 30 days off for 14 days' leave, so both ship into 30-days-off/
     { file: 'results/balanced-v8.json',        name: 'Balanced V8',          code: 'MB-26-V8',  fp: '9ac65459', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, 19 of 21 weeks on one shift time, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
     { file: 'results/balanced-v9.json',        name: 'Balanced V9',          code: 'MB-26-V9',  fp: 'e2b7d945', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never more than three early or three late weeks in a row outside the cover weeks, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
+    // 8 Nov 2026 (owner: "Do your suggestion with Balanced v8 to create Balanced v10"): Balanced V8's duties and rest days, every
+    // one, and its early and late weeks, with its weeks chosen again by exact-rota.py (CLOSE_APART=2, then NEAR= for the fewest
+    // cells moved) so that no two closing weeks sit side by side, at 18 weeks of 21 on one shift time (README.md → "Balanced
+    // V10"). It buys 30 days off for 14 days' leave, as Balanced V8 does, so it ships into 30-days-off/balanced/
+    { file: 'results/balanced-v10.json',       name: 'Balanced V10',         code: 'MB-26-V10', fp: 'e745f804', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never two closing weeks in a row, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
