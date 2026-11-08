@@ -6763,6 +6763,167 @@ for the 5 Nov shortlist.
 passing. Only Level Crossing's managers' deck changed of the six; the other five rebuilt identical but for their timestamps
 and keep their shipped bytes.
 
+## The league reweighted for the design target (8 Nov 2026)
+
+**The ask.** The design target the owner set on 8 Nov 2026 (*The shortlist redrawn for closing weeks apart*, above): *"no
+consecutive closing weeks, with changes between early and late duties placed around useful rest breaks … Weeks on one
+shift time is still Important"*. The league could not see it: it had no measure of closing weeks at all. Step 3 of that
+day audited it; an outside review the owner passed on was read as advice (owner: *"only use this as advice"*); the owner
+added *"Most colleagues prefer the opening shifts, but not all"*, asked for a *"Deep think … from everything you know"*,
+and then, of the changes suggested, *"Make the changes you mentioned"*. The reading below is the main league from that day,
+and the one before it is kept, unchanged, as an alternative.
+
+### The method, set before any figure below was read
+
+`league.mjs`'s header says the same; the new measures are `tooling/closing.mjs`, one definition for the league and for any
+sheet that prints them.
+- **Gates, not points.** The nine December rules, and no more than 219 contracted days a year. Every design passes both,
+  so as factors they gave every design the same 25 points of 100 and made every gap look smaller. A design that fails a gate is
+  listed after every design that passes, whatever it scores. (No design fails one, so the gates are not exercised today.)
+- **Fatigue shown apart.** The worst-case warnings are a column beside the score, as the decks show them, not inside it.
+- **Six categories**, each measure 0 to 100 between the worst and the best of the designs, today's link and Familiar Nine,
+  as before (`REF_IN_RANGE=1`), weighted and rescaled to 100:
+
+| Category | Measures, weight out of 83 | Share of 100 |
+|---|---|---|
+| Closing weeks and switches | closing weeks in a row 5; most closes in any 21 days 3; in any 14 days 2; changes between earlies and lates without two rest days, a year 3; finishes at 23:00 or later, a year 2 | 18 |
+| Rest and weekends | full weekends off 6; longest wait between them 4; single rest days 4; most days in a row, worst case 3; shortest rest 3 | 24 |
+| Leave | 14 days' leave, best stretch 3 and worst 2; leave for four weeks off 2; first days from which 14 days buy 30 off 3 | 12 |
+| Earlies and weekly consistency | weeks on one shift time 6; change of start 1.5; opening shifts (06:20 starts), a year 3.5; earlies over 8h 30m Monday to Friday or 9h on a Saturday, a year 4 | 18 |
+| Fit to the trains | the fit, the weekday counting five times 11 | 13 |
+| Duty lengths and familiar times | familiar shift times, Monday to Saturday 6; the closing shift's length 3; the heaviest week 3 | 14 |
+
+- **What each new measure is** (`closing.mjs`). A closing week has three or more of its five weekdays finishing at 23:00 or
+  later: no tie can decide it, where "its most common duty is the close" can be a tie. A cover week is neither, and breaks
+  a run. The closes in any 14 and 21 days count every day's closers. A change between earlies and lates is the link's
+  own, cover weeks aside, and without two rest days when one or none lies between them.
+- **What changed from the league before.**
+  - The weeks mixing earlies and lates are gone: they moved with the weeks on one shift time almost exactly, so the two
+    counted one property twice.
+  - The change of start is halved, not dropped: it is the only measure of how far a start moves between weeks.
+  - Opening shifts count as a modest gain, since most colleagues prefer them.
+  - A Saturday early counts as long only over 9 hours: the owner's brief for Common Ground allowed 9 at the weekend.
+  - Leave is a tenth of the score, from under a twentieth.
+- **Close alternatives, not one order.** Each category's weight is moved by a random factor around 1 (log-normal, sigma
+  0.4), and each measure's within it (0.3), 4,000 times from a fixed seed; the table gives the place each design reaches or
+  beats in 10%, 50% and 90% of those weightings, and the share in which it is first. Designs a point apart swap places
+  under small changes of weight, so a band is honest where a single place is not.
+- **Why not the outside reviewer's weights as they stand** (six categories at 25/20/20/15/15/5, equal inside each). The
+  audit found them lifting Second Look to third with 15 of 21 weeks on one shift time. And leave at a fifth of the score
+  splits only the 30-day designs from the 28-day ones: every 30-day design buys 30 days from one first day, as today does
+  (Balanced V8 and V9 from two). The reviewer's weights put the same two designs first all the same.
+
+### The league
+
+| | Design | Score | Closing weeks and switches /18 | Rest and weekends /24 | Leave /12 | Earlies and weekly consistency /18 | Fit to the trains /13 | Duty lengths and familiar times /14 | Fatigue, worst case | Places as the weights move | Until 8 Nov |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | Level Crossing | 77.8 | 16.5 | 22.1 | 6.6 | 14.9 | 11.8 | 5.9 | 0 | 1–1–4 (first 59%) | 2nd |
+| 2 | Middle Ground | 76.8 | 14.9 | 21.1 | 9.0 | 12.9 | 11.9 | 7.1 | 1 | 1–2–6 (first 22%) | 9th |
+| 3 | Next Step | 74.6 | 11.7 | 22.2 | 3.6 | 17.3 | 12.6 | 7.3 | 1 | 2–4–6 (first 8%) | 4th |
+| 4 | Grand Tour | 74.4 | 8.6 | 21.1 | 9.0 | 16.1 | 12.3 | 7.3 | 1 | 2–4–8 (first 9%) | 8th |
+| 5 | Fair Share | 74.3 | 11.7 | 22.2 | 3.6 | 17.3 | 12.3 | 7.3 | 1 | 3–5–7 | 6th |
+| 6 | Even Step | 74.0 | 13.0 | 22.2 | 3.6 | 15.3 | 11.9 | 8.1 | 1 | 3–5–8 | 5th |
+| 7 | Clean Slate | 73.1 | 12.4 | 22.2 | 3.6 | 17.5 | 12.8 | 4.5 | 1 | 4–7–11 | 11th |
+| 8 | Long Break | 70.7 | 12.2 | 21.2 | 6.0 | 11.5 | 12.7 | 7.0 | 1 | 7–10–14 | 19th |
+| 9 | Second Edition | 70.1 | 11.9 | 21.7 | 3.6 | 13.1 | 12.7 | 7.0 | 1 | 8–10–15 | 14th |
+| 10 | Second Look | 69.7 | 16.2 | 22.6 | 2.4 | 11.1 | 12.6 | 4.8 | 0 | 6–12–20 | 20th |
+| 11 | Balanced V8 | 69.6 | 8.0 | 21.6 | 12.0 | 13.9 | 9.2 | 4.9 | 0 | 4–12–18 | 10th |
+| 12 | Home Grown | 69.4 | 11.4 | 22.2 | 3.6 | 14.1 | 9.1 | 9.0 | 1 | 8–12–18 | 13th |
+| 13 | Closing Time | 68.8 | 8.8 | 22.2 | 3.6 | 14.5 | 10.8 | 9.0 | 1 | 9–13–17 | 7th |
+| 14 | Common Ground | 68.7 | 5.9 | 21.1 | 9.0 | 13.7 | 11.9 | 7.1 | 1 | 8–14–18 | 3rd |
+| 15 | Balanced V9 | 68.3 | 7.5 | 21.6 | 12.0 | 13.2 | 9.2 | 4.9 | 0 | 8–15–20 | 16th |
+| 16 | Short Openers | 67.8 | 8.8 | 20.2 | 6.6 | 13.0 | 12.3 | 6.9 | 0 | 12–15–19 | 12th |
+| 17 | Short Run | 67.7 | 10.3 | 21.7 | 3.6 | 13.0 | 12.7 | 6.3 | 1 | 12–16–19 | 17th |
+| 18 | Crossover | 67.5 | 5.7 | 22.1 | 6.6 | 15.5 | 11.8 | 5.9 | 0 | 10–16–20 | 1st |
+| 19 | In Step | 66.8 | 9.1 | 22.2 | 3.6 | 10.6 | 12.8 | 8.5 | 1 | 12–18–21 | 18th |
+| 20 | Even Keel | 65.9 | 5.8 | 22.2 | 3.6 | 15.4 | 12.7 | 6.2 | 1 | 14–19–21 | 15th |
+| 21 | Open Return | 65.4 | 9.1 | 20.2 | 6.6 | 13.0 | 10.7 | 5.7 | 0 | 16–20–21 | 21st |
+| 22 | Balanced V7 | 61.2 | 8.2 | 20.6 | 9.0 | 9.7 | 9.2 | 4.4 | 1 | 21–22–22 | 22nd |
+| 23 | Balanced V6 | 51.1 | 16.9 | 8.8 | 6.6 | 5.2 | 9.2 | 4.4 | 4 | 23–23–23 | 23rd |
+| 24 | Balanced V5 | 47.7 | 16.9 | 7.9 | 6.6 | 5.2 | 6.0 | 5.0 | 4 | 24–24–24 | 24th |
+| | *Today's link, for reference* | 41.8 | 14.5 | 4.0 | 7.2 | 9.0 | 0.0 | 7.2 | 5 | | |
+
+(The categories are each design's points, out of the category's share. Fatigue is the most avoidable warnings with a cover
+week placed badly. The last column is the place in the league as weighted until 8 November 2026, `LEAGUE=31oct`.)
+
+- **Level Crossing first, Middle Ground second**, 2nd and 9th until 8 November. Both keep their closing weeks apart and
+  today's leave. Level Crossing is first in 59% of the weightings and in the top three in 88%; Middle Ground first in 22%,
+  top three in 76%.
+- **Next Step, Grand Tour, Fair Share and Even Step** follow within 0.6 points of one another, and their bands overlap:
+  close alternatives to one another, below the two.
+- **Crossover from first to 18th, Common Ground from third to 14th**: four closing weeks together, the lowest closing
+  scores in the pack with Even Keel's.
+- **Balanced V6 23rd and V5 24th, as before.** Their closing weeks are the best spread in the pack (16.9), and their 22
+  single rest days a year and seven weeks of 21 on one shift time cost more than that earns.
+
+**Kept as alternatives, exactly as they were.** `LEAGUE=31oct` is the main league from 31 October to 8 November 2026, and
+`OLD_READINGS=1` the one before. Against the last commit's `league.mjs`, both give every score as before, to 0.00, with
+every switch tried (`REF_IN_RANGE`, `FAM_SUNDAY`, `RUN_FIXED`).
+
+**Where the pack shows it.**
+- No sheet has printed a league place since 8 November 2026, so no sheet changed.
+- The read-me's 22:30 paragraph now ends: *"On 8 November 2026 the league was weighted again for the design target set
+  that day, counting the closing weeks and the changes between earlies and lates: Level Crossing is first on it, by 1.0
+  points, and Middle Ground second."* Both names and the lead are read from `league.mjs`, and `pack.py` refuses a league
+  written in any other reading.
+- The shortlist sheet's claims hold the main league to its measures and gates, and hold two of them to the sheet:
+  - its long earlies are the sheet's Monday-to-Friday ones, with a Saturday early only over 9 hours;
+  - its closing weeks in a row are the sheet's own count, on every design (all 24 agree).
+- The 30-day folder's README has a row for each league, and one for the closing weeks in a row.
+- `exact-rota.py`'s `OBJ=league` still scores the slopes of the league before, and says so.
+
+**Checked.**
+- `closing.mjs --check` pins seven designs to the audit's figures, which a script of its own measured before the module
+  existed.
+- Mutated with `scripts/mutate.mjs`, "three or more weekday closes" read as two is caught by Second Look's pin and by the
+  shortlist sheet's claim. A Saturday early counted from 8h 30m, not 9h, is caught by the sheet's long-earlies claim.
+- `LEAGUE=31oct python3 pack.py` is refused.
+
+### Balanced V8 laid again with its closing weeks apart (measured only)
+
+**The ask.** The audit found Balanced V5 and V6 keeping their closing weeks apart best of all, and paying for it with 22
+single rest days a year and a third of their weeks on one shift time, while Balanced V7, V8 and V9 fix both and put three
+closing weeks in a row. The suggestion, which the owner took up: give Balanced V8 what Crossover and Common Ground were given,
+the same duties and rest days with the weeks chosen again, and report the cost before anything enters the pack.
+
+**How.** A scratch copy of `exact-rota.py` (its `CLOSE_APART=` and `NEAR=` lines, as for Even Step and Short Run above),
+every floor held at Balanced V8's own level: the 55-hour worst case at 51h 00m, the most hours in seven days at 51h 00m, 30
+days off and a worst stretch of 20 for 14 days' leave, four weeks off for 13, 6 single rest days in 26 weeks, the heaviest
+week 42h 30m and the lightest 24h 00m, a 14h 20m shortest rest, as many backward steps as forward, and FF11 at 9 and 12.
+`OBJ=gentle GENTLE_STARTS=15:45 GENTLE_SHARED=0`, then the fewest cells moved among the best layouts.
+
+| | Balanced V8 | Laid again, A | Laid again, C |
+|---|---|---|---|
+| Fingerprint | `9ac65459` | `e745f804` | `a9e83bf2` |
+| What moved | — | which week works which time, 31 cells on 10 lines | the early and late weeks too, 36 cells on 11 lines |
+| Closing weeks (in a row, at most) | 2, 3, 4 and 15 (3) | 3, 5, 15 and 23 (1) | 4, 14, 20 and 22 (1) |
+| Most closes in any 14 days · any 21 | 11 · 15 | 7 · 9 | 7 · 9 |
+| Weeks on one shift time | 19 of 21 | 18 of 21 | 19 of 21 |
+| Change of start, week to week | 1h 39m | 2h 01m | 2h 52m |
+| Changes between earlies and lates, a year (all at a two-day break) | 6 | 6 | 10 |
+| Backward · forward steps (FF17) | 12 · 12 | 10 · 17 | 12 · 12 |
+| Most hours in seven days, a cover week placed badly | 51h 00m | 51h 00m | 50h 30m |
+| League since 8 Nov, of 25 with the layout beside the pack | 11th of 24, 69.6 | 3rd, 76.6 | 3rd, 76.7 |
+| League until 8 Nov, of 25 | 10th of 24, 84.7 | 13th, 83.9 | 15th, 83.6 |
+
+- **Everything else is V8's**: the leave, the single rest days, the weekends, the shortest rest, the heaviest and lightest
+  weeks, the 06:20 earlies in a row and no fatigue warning in any cover-week placement tested.
+- **Keeping 19 weeks on one shift time with V8's early and late weeks is impossible**: proved infeasible in seconds, on the
+  strict reading (no weekday closer at all in two neighbouring weeks) and on the sheets' reading alike. C keeps 19 only by
+  moving early and late weeks, for a 2h 52m change of start and ten changes a year.
+- **A third layout**, on the sheets' reading at 18 weeks, has a 1h 56m change of start, but two weeks of two closes each
+  side by side, so it was not taken.
+- **In the league since 8 November either layout stands third**, behind Level Crossing and Middle Ground, from 11th. A is
+  in the top three in 61% of the weightings and first in 22%; C in 62% and 24%. In the league before, which cannot see
+  closing weeks, either loses about a point.
+- **Nothing is in the pack.** The grids are in the session's scratchpad.
+
+**Even Step and Short Run, laid again on 8 November (above), in the same league**, each scored beside the pack alone:
+- Even Step's (`62abf5eb`) would be first, 78.3, first in 53% of the weightings and in the top three in 86%. It buys 28
+  days off for 14 days' leave, not today's 30.
+- Short Run's B (`be95ed62`) would be 4th, 74.5, and A (`28e2a503`) 7th, 74.0.
+- As they are, Even Step is 6th and Short Run 17th. None of the three is in the pack.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

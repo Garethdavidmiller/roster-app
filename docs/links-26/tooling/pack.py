@@ -303,22 +303,20 @@ if not set(AT_2230) <= names_in:   # 22:30 paragraph names these seven as drawn 
 # Crossover is, by 0.4 points", typed, while the shortlist sheet reads the same two facts from league.mjs. Its claim held
 # them only loosely (Crossover first by 0.35 to half a point, which can print 0.5), so a design joining or a grid changing
 # could have left the read-me a tenth, or a leader, behind the sheet. They are read here as the sheet reads them: the main
-# league, today's link and Familiar Nine inside its ranges (REF_IN_RANGE=1), the lead to a tenth (the sheet's f1). The
-# sentence says the leader has led since the day it was drawn, so a leader drawn before the shortlist is refused rather
-# than printed: the paragraph would need rewriting
+# league, today's link and Familiar Nine inside its ranges (REF_IN_RANGE=1), the lead to a tenth (the sheet's f1). SINCE 8 NOV
+# 2026 THE MAIN LEAGUE COUNTS THE CLOSING WEEKS (league.mjs; README.md -> "The league reweighted for the design target"): the
+# sentence names the day it was reweighted and the leader on it, and refuses a JSON from any other reading
 import json, subprocess, tempfile
 with tempfile.TemporaryDirectory() as _t:
     subprocess.run(['node', 'league.mjs'], cwd=f'{ROOT}/tooling', check=True, stdout=subprocess.DEVNULL,
                    env={**os.environ, 'REF_IN_RANGE': '1', 'OLD_READINGS': '0', 'JSON': f'{_t}/league.json'})
     with open(f'{_t}/league.json', encoding='utf-8') as _f: _league = json.load(_f)
-if not _league.get('refInRange') or _league.get('oldReadings'):
-    raise SystemExit('pack: league.mjs did not write the main league with today inside its ranges')
-_ranked = sorted(_league['proposals'], key=lambda r: -r['total'])
-LEADER, LEAD = _ranked[0]['name'], f"{_ranked[0]['total'] - _ranked[1]['total']:.1f}"
-_LEADER_CODE = next(c for n, c, _ in proposals if n == LEADER)
-if _day(_LEADER_CODE) <= datetime.datetime(2026, 11, 6):   # since 8 Nov 2026 against the correction of 6 Nov, which the paragraph is about
-    raise SystemExit(f'pack: the read-me says the league leader was drawn after the 22:30 correction; {LEADER} was drawn on {FIRST[_LEADER_CODE]}')
-LEADER_FROM = f"{_day(_LEADER_CODE).day} {_day(_LEADER_CODE).strftime('%B %Y')}"   # '7 November 2026'
+if not _league.get('refInRange') or _league.get('oldReadings') or _league.get('reading') != 'closing':
+    raise SystemExit('pack: league.mjs did not write the main league, the closing weeks counted, with today inside its ranges')
+_ranked = [r for r in _league['proposals'] if r['gate']]   # league.mjs lists a design that fails a gate after every other
+if len(_ranked) < 2 or any(r['gate'] for r in _league['proposals'][len(_ranked):]):
+    raise SystemExit('pack: league.mjs did not list the designs that pass its gates first')
+LEADER, LEAD, SECOND = _ranked[0]['name'], f"{_ranked[0]['total'] - _ranked[1]['total']:.1f}", _ranked[1]['name']
 readme = '\n'.join([
     'NEW CEA LINK PROPOSALS - 26 LINES',
     '=' * len('NEW CEA LINK PROPOSALS - 26 LINES'),
@@ -480,8 +478,9 @@ readme = '\n'.join([
          'Balanced V9, drawn since, do. On the other '
          f'{WORDS[len(names_in - set(AT_2230))]} that hour comes off other Saturday lates, so the hours and the contract are '
          'as they were; every sheet and presentation was redrawn, and their fingerprints changed. Common Ground was then '
-         f'first in the pack\'s league, just over half a point ahead of the next; since {LEADER_FROM} {LEADER} is, by {LEAD} '
-         'points.'),
+         'first in the pack\'s league, just over half a point ahead of the next. On 8 November 2026 the league was weighted '
+         'again for the design target set that day, counting the closing weeks and the changes between earlies and lates: '
+         f'{LEADER} is first on it, by {LEAD} points, and {SECOND} second.'),
     '',
     # THE SHORTLIST OF 8 NOV 2026 (owner: "Put Level Crossing, Middle Ground and Balanced V6 as the shortlist for now"), for the
     # target set that day; the closing weeks of the three that left are the shortlist sheet's claims, held above (SHEET)

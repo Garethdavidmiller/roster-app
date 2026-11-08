@@ -350,7 +350,9 @@ if os.environ.get('OBJ') == 'gentle':
 # the sheets count it, Monday to Friday one time and every duty one kind (W_ONE, each, up to ONE_CAP) and a week mixing
 # earlies and lates (W_MIXED, each). The defaults are the main league's slopes on 7 Nov 2026 (league.mjs, REF_IN_RANGE=1,
 # with Balanced V8 and V9 in the pack); a figure past the edge of its range earns nothing more there, so the sheets and the
-# league still judge whatever this finds
+# league still judge whatever this finds. THESE ARE THE 31 OCT LEAGUE'S SLOPES (LEAGUE=31oct in league.mjs since 8 Nov 2026,
+# when the main league began counting the closing weeks): for the main league, OBJ=gentle with GENTLE_STARTS=15:45 keeps
+# the closing weeks apart, as Level Crossing and Middle Ground were laid
 OBJ, LG = os.environ.get('OBJ', 'one'), {}
 if OBJ == 'league':
     if os.environ.get('MIXED') is not None:   # a mixed week is never one shift time on the sheets, whatever its weekdays

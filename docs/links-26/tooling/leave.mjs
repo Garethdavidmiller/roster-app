@@ -13,7 +13,15 @@
 import { readFileSync } from 'node:fs';
 import { today } from './report-data.mjs';
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+/** Every first day's stretch: the days off in a row that `budget` days of leave buys from each day of the rotation, in order. */
+export function leaveRuns(p, budget = 14) { return walk(p, budget).runs; }
 export function leave(p, budget = 14) {
+  const { runs, four } = walk(p, budget);
+  return { best: Math.max(...runs), avg: +(runs.reduce((a, b) => a + b, 0) / runs.length).toFixed(1), worst: Math.min(...runs), fourWeeks: four };
+}
+// ONE WALK FOR BOTH (8 Nov 2026): the league's "starting days giving 30 days off" reads these runs, so it cannot count leave
+// another way
+function walk(p, budget) {
   const keys = Object.keys(p).sort((a, b) => a - b), seq = [];
   for (const k of keys) { const cover = DAYS.every(d => p[k][d] === 'SPARE'); for (const d of DAYS) seq.push({ week: k, cover, sun: d === 'sun', rd: p[k][d] === 'RD' }); }
   const n = seq.length;
@@ -23,7 +31,7 @@ export function leave(p, budget = 14) {
       out.push(c); } return out; };
   const runs = []; for (let s = 0; s < n; s++) { const c = cost(s, n); let len = 0; while (len < n && c[len] <= budget) len++; runs.push(len); }
   let four = Infinity; for (let s = 0; s < n; s += 7) four = Math.min(four, cost(s, 28)[27]);
-  return { best: Math.max(...runs), avg: +(runs.reduce((a, b) => a + b, 0) / n).toFixed(1), worst: Math.min(...runs), fourWeeks: four };
+  return { runs, four };
 }
 // run as a script, not when imported — argv[1] is undefined under `node -e`, which threw on import (30 Oct 2026)
 if (process.argv[1]?.endsWith('leave.mjs')) {

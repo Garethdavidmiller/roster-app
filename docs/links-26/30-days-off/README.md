@@ -33,9 +33,16 @@ README and its table still cover them.
 | Weeks on one shift time, all earlies or all lates | 19 of 21 | 18 of 21 | 19 of 21 | 16 of 21 | 18 of 21 | 19 of 21 | 18 of 21 | 18 of 21 | 18 of 21 | 13 of 21 | 7 of 21 | 7 of 21 | 7 of 16 |
 | Shift times (new to learn) | 13 (6) | 13 (6) | 13 (6) | 16 (8) | 13 (6) | 17 (8) | 14 (6) | 17 (8) | 16 (8) | 17 (8) | 17 (8) | 16 (7) | 18 (—) |
 | Heaviest week, Monday to Saturday | 42h 30m | 42h 30m | 42h 30m | 42h 00m | 42h 30m | 42h 30m | 42h 00m | 42h 30m | 43h 00m | 42h 55m | 42h 55m | 42h 55m | 43h 50m |
-| Weighted league, of 24 | 1st, 86.8 | 2nd, 86.4 | 3rd, 86.2 | 8th, 85.4 | 9th, 85.3 | 10th, 84.7 | 12th, 84.0 | 16th, 83.3 | 21st, 81.9 | 22nd, 76.7 | 23rd, 55.9 | 24th, 53.2 | 20.3, for reference |
+| League until 8 Nov 2026, of 24 | 1st, 86.8 | 2nd, 86.4 | 3rd, 86.2 | 8th, 85.4 | 9th, 85.3 | 10th, 84.7 | 12th, 84.0 | 16th, 83.3 | 21st, 81.9 | 22nd, 76.7 | 23rd, 55.9 | 24th, 53.2 | 20.3, for reference |
+| Closing weeks in a row, at most | 4 | **1** | 4 | 3 | **1** | 3 | 3 | 3 | 3 | 3 | **1** | **1** | 1 |
+| League since 8 Nov 2026, of 24 | 18th, 67.5 | 1st, 77.8 | 14th, 68.7 | 4th, 74.4 | 2nd, 76.8 | 11th, 69.6 | 16th, 67.8 | 15th, 68.3 | 21st, 65.4 | 22nd, 61.2 | 23rd, 51.1 | 24th, 47.7 | 41.8, for reference |
 
-The columns are in league order, and the places are as of the evening of 7 November 2026 (below). Every other figure in
+The columns are in the order of the league as it was weighted until 8 November 2026, and its places are as of the evening
+of 7 November 2026 (below). **Since 8 November 2026 the main league counts the closing weeks**, the switches between earlies
+and lates and the opening shifts, with the December rules and the contracted days as gates and the fatigue warnings shown
+apart (`../README.md` → "The league reweighted for the design target"): its places are the last row, read from `league.mjs`
+that day, and Level Crossing and Middle Ground lead it. The closing weeks row reads a week of three or more weekday closes
+as a closing week, cover weeks aside. Every other figure in
 the table is as of 6 November 2026, after the Saturday ticket office's
 lates moved to 22:30, one Saturday floor late with them, and Balanced V5 and V6 joined (below); their two low scores
 widened the league's ranges, so every other score rose and the places moved. Balanced V7 joined later the same day inside
@@ -107,7 +114,7 @@ Balanced V6 was drawn from it the same day as Relief Point (`RP-26-V5`): the sam
 finishing at 22:30, so under the corrected rule both meet all nine December rules, where they met eight. They pay for 30
 days off with the most single rest days in the folder, 22 a year each, 7 of 21 weeks on one shift time, three weeks
 mixing earlies and lates and a week-to-week change of start of over four hours, and they score far below every other
-design in the league. Balanced V6 has been on the shortlist since 8 November 2026. Its closing weeks never fall side by
+design in the league, then and since 8 November 2026. Balanced V6 has been on the shortlist since 8 November 2026. Its closing weeks never fall side by
 side, as on Balanced V5, Level Crossing and Middle Ground, and of the three shortlisted it has the shortest runs of
 earlies or of lates.
 
@@ -121,8 +128,9 @@ to Saturday is 24h 00m, where V6's is 24h 30m (with the Sundays counted, V7's we
 to 50h 55m). Against V6 it has no six-day
 weeks (V6 three), 12 single rest days a year (22), at most 7 days in a row however the cover weeks fall (10), 7 full
 weekends in 26 (6), 13 of 21 weeks on one shift time (7) and a week-to-week change of start of 2h 33m (4h 08m), with V6's
-three mixed weeks and its runs of earlies or lates (3, or 5 with the cover weeks beside them). It is 22nd in the league,
-76.7, between the rest of the pack and Balanced V5 and V6 (20th, 77.2, when it joined: above).
+three mixed weeks and its runs of earlies or lates (3, or 5 with the cover weeks beside them). It was 22nd in the league
+as weighted until 8 November 2026, 76.7, between the rest of the pack and Balanced V5 and V6 (20th, 77.2, when it joined:
+above), and is 22nd in the one since, 61.2.
 
 **Crossover** joined the folder on 7 November 2026, the day it was drawn, on the owner's brief: keep the 13:45 finishes
 and make the 13:35s 13:45 too, every weekday closer at 15:45, 14 days' leave buying 30 days off, every rule and fatigue
@@ -133,8 +141,10 @@ three 15:45–23:55 closers, and no early finishes between 15:00 and 16:00.
 - **Shift times.** Thirteen; seven of them are worked today.
 - **Fatigue.** No fatigue factor is present in any cover-week placement tested. Its rest days are Short Openers', whose
   cover weeks can never make a 55-hour week; its duties and its weeks are its own.
-- **The league.** It is first, 86.8, 0.4 points ahead of Level Crossing and 0.6 ahead of Common Ground. It joined at
-  87.3, inside every range the league reads, so no other score moved then (Balanced V8 and V9 moved them all: above).
+- **The league.** It was first in the league as weighted until 8 November 2026, 86.8, 0.4 points ahead of Level Crossing
+  and 0.6 ahead of Common Ground. It joined at 87.3, inside every range the league reads, so no other score moved then
+  (Balanced V8 and V9 moved them all: above). In the league since 8 November it is 18th, 67.5: its four closing weeks
+  together.
 - **What it pays.** Its Saturday fit and its worst leave stretch (above), a 14h 20m shortest rest, and a week-to-week
   change of start of 1h 31m.
 - **The name.** On the railway, a crossover is the track that lets a train cross from one line to the other; on a rota, it
@@ -156,8 +166,8 @@ closing weeks come in a row, where Crossover has four together.
 - **Its 06:20 weeks** are as Crossover has them, up to three together. Keeping those apart as well was measured and set
   aside: with five 06:20 starts every weekday and two 07:30s to put between them, it costs a start that moves over two
   hours a week on average.
-- **The league.** It is second, 86.4, 0.4 points behind Crossover and 0.2 ahead of Common Ground. No other score moved
-  when it joined, at 86.8.
+- **The league.** It was second in the league as weighted until 8 November 2026, 86.4, 0.4 points behind Crossover and 0.2
+  ahead of Common Ground. No other score moved when it joined, at 86.8. In the league since 8 November it is first, 77.8.
 - **The name** is a railway one, as the owner asked: a level crossing, and level for closing weeks spread evenly.
 
 It has been on the shortlist since 8 November 2026.
@@ -171,7 +181,8 @@ league.
   week; at most 6 days in a row if a cover week falls badly (7); four full weeks off for 13 days' leave, the least in the
   pack; and Balanced V7's 30 days off and worst stretch of 20 for 14 days' leave, and its 12 single rest days a year.
 - **Balanced V8** has 19 of 21 weeks on one shift time (V7 13), no week mixing earlies and lates (3), a week-to-week
-  change of start of 1h 39m (2h 33m) and a heaviest week of 42h 30m (42h 55m). It is 10th in the league, 84.7.
+  change of start of 1h 39m (2h 33m) and a heaviest week of 42h 30m (42h 55m). It was 10th in the league as weighted until
+  8 November 2026, 84.7, and is 11th in the one since, 69.6, its three closing weeks together.
 - **Balanced V9** keeps Balanced V7's short runs of early or late weeks, shorter still: no more than three in a row
   outside the cover weeks, four with them (V7 three, five with them), for two weeks mixing earlies and lates, 18 of 21
   weeks on one shift time and a change of start of 1h 51m. It is 16th, 83.3: searched again later the same day, its weeks 13 and

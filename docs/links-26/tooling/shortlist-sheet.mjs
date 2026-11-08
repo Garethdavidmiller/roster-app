@@ -495,15 +495,24 @@ claim('Middle Ground’s costs: the fewest early finishes before 14:00, clearly;
 const runLeague = old => { const tmp = mkdtempSync(`${tmpdir()}/league-`);
   execFileSync('node', [new URL('./league.mjs', import.meta.url).pathname], { env: { ...process.env, REF_IN_RANGE: '1', OLD_READINGS: old ? '1' : '0', JSON: `${tmp}/league.json` }, stdio: 'ignore' });
   const j = JSON.parse(readFileSync(`${tmp}/league.json`, 'utf8')); rmSync(tmp, { recursive: true });
-  if (j.oldReadings !== old || !j.refInRange) throw new Error(`league.mjs wrote ${j.oldReadings ? 'the old weighting' : 'the main league'}${j.refInRange ? '' : ' without today in the range'}, not what was asked`);
+  if (j.oldReadings !== old || !j.refInRange || (!old && j.reading !== 'closing')) throw new Error(`league.mjs wrote ${j.oldReadings ? 'the old weighting' : `the ${j.reading} league`}${j.refInRange ? '' : ' without today in the range'}, not what was asked`);
   return j; };
 const LJ = runLeague(false), LO = runLeague(true);
 const LGall = LJ.proposals, LG = LGall.filter(r => SHORTLIST.includes(r.name));
 const total = name => LJ.proposals.find(r => r.name === name).total;
 claim('the league scores all three shortlisted designs, and every design, both ways', LG.length === D.length && LGall.length === stats.length && LO.proposals.length === stats.length);
-claim('the main league counts long earlies and the closing shift; the one before it neither', ['lerl', 'close'].every(k => k in LJ.weights && !(k in LO.weights)));
-// the league's long earlies are the sheet's own, Monday to Saturday, a year each — one definition, not two
-claim('the league’s long earlies are the sheet’s', PACK.every(d => Math.round(LGall.find(r => r.name === d.name).raw.lerl) === longEarlyMS(d.F)));
+// THE MAIN LEAGUE SINCE 8 NOV 2026 (league.mjs → "the closing weeks"): the closing weeks, the switches, the opening shifts and the
+// long earlies with a Saturday allowed 9 hours; the rules and the days are gates, not factors. The one weighted before 31 Oct had none
+const NEW_KEYS = ['closeRun', 'close14', 'close21', 'swNoBreak', 'open0620', 'lerl9'];
+claim('the main league counts the closing weeks, the switches, the opening shifts and long earlies, and gates the rules and the days; the one before 31 Oct none of these',
+  NEW_KEYS.every(k => k in LJ.weights) && !['met', 'days', 'fat', 'mixed', 'lerl'].some(k => k in LJ.weights) && LJ.gates && !NEW_KEYS.some(k => k in LO.weights));
+// the league's long earlies are the sheet's own Monday-to-Friday ones, with a Saturday early counted only over 9 hours (the owner's
+// brief for Common Ground) — the definition a sheet would print, not a second one of the league's own
+const longEarly9 = F => Math.round(perYear(F.p, (s, d) => isEarly(s) && (d === 'sat' ? mins(s) > 540 : d !== 'sun' && mins(s) > 510)));
+claim('the league’s long earlies are the sheet’s, a Saturday early counted over 9 hours', PACK.every(d => Math.round(LGall.find(r => r.name === d.name).raw.lerl9) === longEarly9(d.F)));
+// THE CLOSING WEEKS IN A ROW, ONE COUNT (8 Nov 2026): the league reads three or more weekday closes (closing.mjs), this sheet the most
+// common weekday duty; the two readings agree on every design (claimed above, side by side), and so must the longest run
+claim('the league’s closing weeks in a row are the sheet’s, on every design', PACK.every(d => LGall.find(r => r.name === d.name).raw.closeRun === closeRun(d.F)));
 // NO LEAGUE POSITION ON THE SHEET (8 Nov 2026): the outside review the owner passed on that day, taken as advice — no league
 // position or lead anywhere — and both deck audits, which found "first in the pack's league" and "far below every design but
 // Balanced V5" here: league language, and the second dismissive of a colleague's own roster. The league is league.mjs's and
