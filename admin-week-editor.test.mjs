@@ -337,7 +337,7 @@ describe('the "Base roster" column says what the day WAS', () => {
     });
 
     test('a training day\'s RDW warning names the day in words, never the raw code (6 Nov 2026 review)', () => {
-        // M. Campbell's base is a bare TRG Mon–Fri from 22 Sep to 6 Nov 2026. Ticking RDW on an Other
+        // M. Campbell's base is a bare TRG Mon–Fri from 21 Sep to 6 Nov 2026. Ticking RDW on an Other
         // day there showed "Originally rostered TRG this day".
         const MON = '2026-10-05';
         assert.equal(getBaseShift(teamMembers.find(m => m.name === 'M. Campbell'), new Date(MON + 'T12:00:00')), 'TRG',
