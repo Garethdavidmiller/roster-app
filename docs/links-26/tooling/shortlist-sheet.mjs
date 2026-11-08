@@ -419,9 +419,10 @@ const TRADE = ['fitWk', 'step', 'newT', 'times'], xNS = measure(NX), xES = measu
 claim('Next Step: Even Step’s figures but a closer weekday fit, a gentler change of start and one more new shift time', Object.keys(DIR).every(k => TRADE.includes(k) || xNS[k] === xES[k])
   && xNS.fitWk < xES.fitWk && xNS.step < xES.step && xNS.newT === xES.newT + 1 && xNS.times === xES.times + 1 && longMS(NX) === 0);
 claim('Next Step: a weekday fit closer than Even Step’s, not than Short Run’s — so its row says which', SRF.fit[0] < NX.fit[0] && NX.fit[0] < ESF.fit[0]);
-// NEXT STEP'S TWO OTHER COSTS, ON ITS ROW SINCE 6 NOV 2026 (the external review): the 06:20 starts its retimed 07:15 early adds, and
-// the 22:45 finishes of its two retimed weekday lates, each a year each against Even Step's — counted here, and asserted to be that
-// trade: Even Step finishes nothing at 22:45, and Next Step's 22:45s are exactly the 22:30s it has fewer of
+// NEXT STEP'S 06:20 STARTS AND 22:45 FINISHES, ON ITS ROW SINCE 6 NOV 2026 (the external review): the 06:20 starts its retimed 07:15
+// early adds, and the 22:45 finishes of its two retimed weekday lates, each a year each against Even Step's — counted here, and
+// asserted to be that trade: Even Step finishes nothing at 22:45, and Next Step's 22:45s are exactly the 22:30s it has fewer of. The
+// 06:20 starts were a cost until 8 Nov 2026, and are what it has since (owner: "Most colleagues prefer the opening shifts, but not all")
 const opens0620 = F => Math.round(perYear(F.p, s => s.startsWith('06:20'))), endsAt = (F, hhmm) => Math.round(perYear(F.p, s => s.slice(6) === hhmm));
 const nsOpen = opens0620(NX), esOpen = opens0620(ESF), ns2245 = endsAt(NX, '22:45');
 claim('Next Step: more starts at 06:20 than Even Step, and finishes at 22:45 where Even Step finishes at 22:30', nsOpen > esOpen && ns2245 > 0
@@ -473,7 +474,9 @@ claim('Level Crossing: no fatigue warning in any cover-week placement tested, at
 claim('Level Crossing: the gentlest change of start of the three, clearly, and the fewest single rest days, clearly, as today', clearBest(Math.round(LF.step), [BF, MF].map(F => Math.round(F.step)))
   && clearBest(isoYear(LF), [BF, MF].map(isoYear)) && isoYear(LF) === isoYear(TF));
 claim('Level Crossing: five at the weekday open, the others four', MS.slice(0, 5).every(d => opens(LF)[d] === 5 && [BF, MF].every(F => opens(F)[d] === 4)));
-claim('Level Crossing’s costs: the most starts at 06:20 and the fewest long breaks, each clearly; its Saturday fit within 5% of Balanced V6’s, so not a cost against both',
+// ITS 06:20 STARTS ARE AN EDGE, NOT A COST (owner, 8 Nov 2026: "Most colleagues prefer the opening shifts, but not all"): the card
+// listed them as a cost until then. A preference, so the card says who it is for; the five at the weekday open is where they come from
+claim('Level Crossing: the most starts at 06:20, clearly, an edge for those who like them; its cost the fewest long breaks, clearly; its Saturday fit within 5% of Balanced V6’s, so not a cost against both',
   clearBest(LF.pp.open0620, [BF, MF].map(F => F.pp.open0620), true) && clearBest(longRestYear(LF), [BF, MF].map(longRestYear)) && !clearBest(fitP(LF.fit[1]), [BF, MF].map(F => fitP(F.fit[1])), true));
 // MIDDLE GROUND: no shift over 8h 30m, every closer 8h 10m, the closest Saturday fit
 claim('Middle Ground: no shift over 8h 30m on any day, alone of the three', longShift(MF) === 0 && MF.pp.longest === 510 && [BF, LF].every(F => longShift(F) > 0));
@@ -698,7 +701,7 @@ ${STYLE}</head><body>
   <h2>Each one’s edge</h2>
   <div class="cards">
     <div class="card"><span class="head"><b class="k">Balanced V6</b><span class="code">${BV.code} · ${BV.fp}</span></span><b class="edge">The shortest runs, and the most long breaks.</b>Earlies or lates three weeks at most, five beside cover weeks (the others five and seven); ${longRestYear(BF)} breaks a year of three days or more (${longRestYear(LF)} and ${longRestYear(MF)}); five at the Saturday open. Its cost: one shift time in ${one(BF)} of ${wl} weeks, not ${one(LF)}, ${word(mixedOf(BF))} mixing earlies and lates; a ${hm(Math.round(BF.step))} change of start; ${isoYear(BF)} single rest days a year; ${wkOffYear(BF)} weekends off a year, not ${wkOffYear(LF)}; up to ${word(ffWorst(BF))} fatigue warnings and ${word(BF.worstRun)} days in a row if a cover week falls badly.</div>
-    <div class="card"><span class="head"><b class="k">Level Crossing</b><span class="code">${LC.code} · ${LC.fp}</span></span><b class="edge">No fatigue warning in any cover-week placement tested, the steadiest start times.</b>Never more than ${word(LF.worstRun)} days in a row however a cover week falls (Balanced V6 ${word(BF.worstRun)}, Middle Ground ${word(MF.worstRun)}); the gentlest change of start, ${hm(Math.round(LF.step))}; the fewest single rest days, ${isoYear(LF)} a year, as today; five at the weekday open. Its cost: the most 06:20 starts, ${Math.round(LF.pp.open0620)} a year (today ${Math.round(TF.pp.open0620)}), and the fewest breaks of three days or more, ${longRestYear(LF)} a year.</div>
+    <div class="card"><span class="head"><b class="k">Level Crossing</b><span class="code">${LC.code} · ${LC.fp}</span></span><b class="edge">No fatigue warning in any cover-week placement tested, the steadiest start times.</b>Never more than ${word(LF.worstRun)} days in a row however a cover week falls (Balanced V6 ${word(BF.worstRun)}, Middle Ground ${word(MF.worstRun)}); the gentlest change of start, ${hm(Math.round(LF.step))}; the fewest single rest days, ${isoYear(LF)} a year, as today; five at the weekday open, so the most 06:20 starts, ${Math.round(LF.pp.open0620)} a year (today ${Math.round(TF.pp.open0620)}), for those who like them. Its cost: the fewest breaks of three days or more, ${longRestYear(LF)} a year.</div>
     <div class="card"><span class="head"><b class="k">Middle Ground</b><span class="code">${MG.code} · ${MG.fp}</span></span><b class="edge">No shift over 8h&nbsp;30m, the closest Saturday fit.</b>Alone of the three, nothing over 8h&nbsp;30m on any day, and every closer ${hm(MF.closers[1])}; a Saturday fit of ${f1(MF.fit[1])}, where the others are ${f1(BF.fit[1])} and ${f1(LF.fit[1])}. Its cost: the fewest early finishes before 14:00, ${earlyOff(MF)} a year, not ${earlyOff(LF)}; four at the open every day; the shortest Sundays, so the least Sunday overtime pay.</div>
   </div>
   <h2>Which one, by what matters most</h2>
@@ -739,7 +742,7 @@ ${STYLE}</head><body>
   <h2>How to choose<span class="note">each of the ${N} is the one to choose for something different</span></h2>
   <ul class="list">
     <li><b>Choose Balanced V6</b> if the shortest runs of earlies or of lates, and the most long breaks, matter most — for ${one(BF)} of ${wl} weeks on one shift time, a ${hm(Math.round(BF.step))} change of start, ${isoYear(BF)} single rest days a year and up to ${word(ffWorst(BF))} fatigue warnings if a cover week falls badly.</li>
-    <li><b>Choose Level Crossing</b> if no fatigue warning in any cover-week placement tested, and steady start times, matter most — for the most starts at 06:20, ${Math.round(LF.pp.open0620)} a year each, and the fewest long breaks, about ${longRestYear(LF)} a year.</li>
+    <li><b>Choose Level Crossing</b> if no fatigue warning in any cover-week placement tested, steady start times and the most starts at 06:20, ${Math.round(LF.pp.open0620)} a year each, matter most — for the fewest long breaks, about ${longRestYear(LF)} a year.</li>
     <li><b>Choose Middle Ground</b> if no shift over 8h&nbsp;30m and the closest Saturday fit matter most — for the fewest early finishes, four at the open every day and the least Sunday overtime pay.</li>
   </ul>
   <div class="foot"><span>Page 2 of 2 — Against today, the costs, how to choose</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Links designer</span></div>
@@ -767,7 +770,7 @@ const ALTS = [
   { n: ['Second Edition'], has: 'the steadiest start times from week to week', pays: `${word(O['Second Edition'].F.fixedRun)} days in a row, cover weeks aside` },
   { n: ['Second Look'], has: `${n55}, and no two closing weeks side by side`, pays: `${word(SL.fixedRun)} days in a row, cover weeks aside, and a heavier heaviest week` },
   { n: ['Clean Slate'], has: `the best weekend fit of all, and ${one(CS)} of ${wl} weeks on one shift time`, pays: `${word(CS.newT)} new times, ${word(satNew(CS))} on a Saturday` },
-  { n: ['Next Step'], has: 'a closer weekday fit and a gentler change of start than Even Step’s', pays: `${nsOpen} starts at 06:20 a year each, not ${esOpen}, ${ns2245} finishes at 22:45 rather than 22:30, and one more new time` },
+  { n: ['Next Step'], has: `a closer weekday fit and a gentler change of start than Even Step’s, and more starts at 06:20, ${nsOpen} a year each, not ${esOpen}`, pays: `${ns2245} finishes at 22:45 a year each rather than 22:30, and one more new time` },
   { n: ['Fair Share'], has: 'Next Step with an even Sunday, no long shifts', pays: `a weaker Sunday fit, ${word(FSx.newT - NX.newT)} more new times` },
   { n: ['Even Step'], has: 'every early Monday to Saturday one of today’s times, and steadier weekly hours', pays: `fewer early finishes, and ${word(closeRun(ESF))} closing weeks side by side` },
   { n: ['Short Run'], has: 'shorter weekday lates and a closer weekday fit', pays: `nine-hour earlies, ${longEarlyMS(SRF)} a year each Monday to Saturday; ${word(closeRun(SRF))} closing weeks together` },

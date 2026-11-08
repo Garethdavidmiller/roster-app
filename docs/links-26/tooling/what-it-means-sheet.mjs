@@ -37,7 +37,9 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
 p { margin: 3px 0 6px; } .lead { font-size: 11.2px; margin: 7px 0 5px; }
 table.t { border-collapse: collapse; width: 100%; font-size: 10.2px; line-height: 1.32; }
-table.t th, table.t td { padding: 1px 7px 1.5px; border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: top; }
+/* 8 Nov 2026: the earlies band's 06:20 row (owner: "Most colleagues prefer the opening shifts, but not all") ran 13px into the
+   footer; a quarter-pixel under each row, a pixel above each band and 3px above the notes made the room, type and floor unchanged */
+table.t th, table.t td { padding: 1px 7px 1.25px; border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: top; }
 table.t th { background: var(--surface-sunken); color: var(--text-mid); font-size: 9.2px; text-transform: uppercase; letter-spacing: .3px; }
 table.t th.num, table.t td.num { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; width: 14%; } table.t th:first-child { width: 44%; }
 table.t td.today { color: var(--text-light); }
@@ -45,11 +47,11 @@ table.t .best { font-weight: 800; color: color-mix(in srgb, var(--success-green)
 table.t tr.r:nth-child(odd) td { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
 table.t .nt { display: block; color: var(--text-mid); font-size: 8.6px; line-height: 1.25; }
 /* each kind of colleague: the sentence the page title starts, finished, and what it comes to — in short */
-table.t tr.band td { border-bottom: 1.5px solid var(--primary-blue); padding: 6px 7px 2.5px; background: white; }
-table.t tbody:first-of-type tr.band td { padding-top: 5px; }
+table.t tr.band td { border-bottom: 1.5px solid var(--primary-blue); padding: 5px 7px 2.5px; background: white; }
+table.t tbody:first-of-type tr.band td { padding-top: 4px; }
 table.t tr.band .who { display: block; font-size: 14px; font-weight: 800; color: var(--primary-blue); }   /* the family's section-heading size */
 table.t tr.band .gist { display: block; font-size: 10.4px; color: var(--text-dark); line-height: 1.36; }
-.notes { margin-top: 8px; color: var(--text-mid); font-size: 8.6px; line-height: 1.36; display: flex; gap: 22px; } .notes > p { flex: 1; margin: 0; }   /* two columns set by hand, broken between sentences: CSS columns split a note mid-sentence (the looks review: "…a quarter | (“Overtime 1.25”…"), and unsplittable notes left one column 40px taller */
+.notes { margin-top: 5px; color: var(--text-mid); font-size: 8.6px; line-height: 1.36; display: flex; gap: 22px; } .notes > p { flex: 1; margin: 0; }   /* two columns set by hand, broken between sentences: CSS columns split a note mid-sentence (the looks review: "…a quarter | (“Overtime 1.25”…"), and unsplittable notes left one column 40px taller */
 .notes b { color: var(--text-dark); }
 .foot { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; gap: 16px; font-size: 8.5px; color: var(--text-light); border-top: 1px solid var(--border-light); padding-top: 4px; }
 .foot b { color: var(--primary-blue); } .nw { white-space: nowrap; }

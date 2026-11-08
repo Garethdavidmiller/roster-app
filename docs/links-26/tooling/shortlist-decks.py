@@ -287,8 +287,11 @@ def story():
         check('the gentlest change of start of the three, clearly', clear_best(H(F['step']), [H(o['step']) for o in O.values()]))
         check('the fewest single rest days, clearly, as today', clear_best(year(singles(P), P), [year(singles(g(n)), g(n)) for n in PEERS]) and year(singles(P), P) == year(singles(TP), TP))
         check('five at the weekday open, the other two four', opens(P, WK) == [5] * 5 and all(opens(g(n), WK) == [4] * 5 for n in PEERS))
-        check('the most 06:20 starts of the three, clearly, and the fewest breaks of three days or more',
-              clear_worst(int(F['open0620']), [int(o['open0620']) for o in O.values()]) and clear_worst(long_breaks(P), [long_breaks(g(n)) for n in PEERS], high=True))
+        # THE 06:20 STARTS ARE AN EDGE, NOT A COST (owner, 8 Nov 2026: "Most colleagues prefer the opening shifts, but not all"):
+        # until then this card listed them as a cost. They are a preference, so the line says who it is for. The five at the
+        # weekday open is where they come from, so the two are one note
+        check('the most 06:20 starts of the three, clearly, from the five at the weekday open; and the fewest breaks of three days or more',
+              clear_best(int(F['open0620']), [int(o['open0620']) for o in O.values()], high=True) and clear_worst(long_breaks(P), [long_breaks(g(n)) for n in PEERS], high=True))
         # what it shares with Balanced V6 is no cost against both, so it is not one here: a 9-hour Sunday, long shifts Monday to
         # Saturday (Balanced V6 more), and a Saturday fit within 5% of Balanced V6's
         check('not a cost against both: long Monday-to-Saturday shifts (Balanced V6 more) and the Saturday fit (within 5% of Balanced V6)',
@@ -296,12 +299,11 @@ def story():
         return dict(
             what=f'{NAME} is the duties and rest days of Crossover, another design in the pack, laid in new weeks so that no two closing weeks come together, where Crossover has four in a row',
             adds='This one adds: no fatigue warning in any cover-week placement tested',
-            costs='This one costs: of the three, the most 06:20 starts and the fewest long breaks',
+            costs='This one costs: of the three, the fewest long breaks',
             add_notes=[f'no fatigue warning in any cover-week placement tested, and never more than {NUMW[upto(F["run"])]} days in a row however a cover week falls ({BVn} up to {NUMW[ffw(B6)]} warnings and {NUMW[upto(B6["run"])]} days, {MGn} up to {NUMW[ffw(M)]} and {NUMW[upto(M["run"])]})',
                        f'the gentlest change of start from one week to the next, {F["step"]} on average ({BVn} {B6["step"]}, {MGn} {M["step"]}; today {T["step"]}), and the fewest single rest days, about {year(singles(P), P)} a year each, as today ({BVn} about {year(singles(g("Balanced V6")), g("Balanced V6"))}, {MGn} about {year(singles(g("Middle Ground")), g("Middle Ground"))})',
-                       'five at the weekday open, where the other two have four'],
-            cost_notes=[f'the most starts at 06:20, about {F["open0620"]} a year each ({BVn} {B6["open0620"]}, {MGn} {M["open0620"]}; today {T["open0620"]})',
-                        f'the fewest rest-day breaks of three days or more, about {long_breaks(P)} a year each ({BVn} about {long_breaks(g("Balanced V6"))}, {MGn} about {long_breaks(g("Middle Ground"))}; today {long_breaks(TP)})'],
+                       f'five at the weekday open, where the other two have four, so the most starts at 06:20 of the three, for those who like them, about {F["open0620"]} a year each ({BVn} {B6["open0620"]}, {MGn} {M["open0620"]}; today {T["open0620"]})'],
+            cost_notes=[f'the fewest rest-day breaks of three days or more, about {long_breaks(P)} a year each ({BVn} about {long_breaks(g("Balanced V6"))}, {MGn} about {long_breaks(g("Middle Ground"))}; today {long_breaks(TP)})'],
             worry_bar='Expect late finishes and long breaks first — the colleague presentation answers both.')
     if NAME == 'Middle Ground':
         check(f'{BASE}’s duties and rest days, laid in new weeks; {BASE} has four closing weeks in a row', all(sorted(P[k][d] for k in P) == sorted(PB[k][d] for k in PB) for d in DAYS)

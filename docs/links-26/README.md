@@ -6728,6 +6728,41 @@ bilingual contract who will still have their own links".
 - **6. The managers' decks** stay off the New link page. **7. The tables' greens** stay as they are. **8. Sara Silva's name
   in full** is fine.
 
+## Opening shifts, a gain for most colleagues (8 Nov 2026)
+
+**The ask.** The owner, on 8 Nov 2026: *"Most colleagues prefer the opening shifts, but not all"*, then, of the changes
+suggested in reply, *"Make the changes you mentioned"*. The pack had counted a 06:20 start as a cost wherever it judged one,
+so for most colleagues it had them the wrong way round.
+
+**What changed.**
+- **Level Crossing's card.** The most 06:20 starts of the three, 58 a year each (Balanced V6 50, Middle Ground 48; today
+  62), moved from its costs to what it adds, "for those who like them", beside the five at the weekday open they come
+  from. Its one cost against both of the others is now the fewest long breaks. The same on page 1 of the shortlist sheet,
+  in its "Choose Level Crossing if …" line on page 2, on slide 7 of the managers' deck and in its notes, and in the read-me.
+  The claims are unchanged in what they test: the most 06:20 starts clearly, the fewest long breaks clearly.
+- **Next Step's row** on the other designs' sheet: its 70 starts at 06:20 a year (Even Step 60) moved from what it pays to
+  what it has.
+- **The proposal sheets' page 1** listed "More 06:20 starts" as a concern and "Fewer 06:20 starts" as a gain (`plain.mjs`).
+  Now neither: it is a preference, so it stays out of both boxes, as the colleague decks' slide 7 has always kept it
+  neutral. The page-1 tile and page 2's row still give the count against today's.
+  - Four sheets changed: Clean Slate, Fair Share, Grand Tour and Next Step, each of which listed "More 06:20 starts" as a
+    concern. Their fingerprints do not change; only page 1's concerns box does.
+  - The other twenty re-rendered identical but for the date, so their shipped copies stand.
+- **"What it means if you… prefer earlies"**, on the one-page sheet and on the New link page (v25.56): a row "Starting at
+  06:20, the open, a year" (today 62; Balanced V6 50, Level Crossing 58, Middle Ground 48), ranked so more is better for
+  this reader, which marks Level Crossing's. The lates band does not carry it.
+  - The sheet ran 13px into its footer with the row. A quarter-pixel under each row, a pixel above each band and 3px above
+    the notes made the room, 3px to spare; the type and the print floor are as they were.
+
+**Where 06:20 starts stay neutral:** the colleague decks' slide 7, the shortlist sheet's page 2 row "Starting at 06:20,
+each a year", and the proposal sheets' tile and page 2. **Not changed:** the eight earlier decks, out of the zip and as built
+for the 5 Nov shortlist.
+
+**Checked:** the shortlist sheet's claims; `deck-check.mjs`, 378 rows; `regenerate.mjs --check`; `check.mjs`;
+`newlink-data.mjs --check`; `npm test`, 2,561 passing; the New link page's and the accessibility browser tests, 131
+passing. Only Level Crossing's managers' deck changed of the six; the other five rebuilt identical but for their timestamps
+and keep their shipped bytes.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

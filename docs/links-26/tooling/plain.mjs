@@ -213,9 +213,9 @@ function front({ T, P, meta, pages, coverHead }) {
   // pushed Polished Clean's longest concern list into the footer)
   add(lateDiff >= 2, bad, 30, `More late finishes — about ${Math.round(pp.late23)} a year each (today ${Math.round(tp.late23)})`);
   add(lateDiff <= -2, good, 30, `Fewer late finishes — about ${Math.round(pp.late23)} a year each (today ${Math.round(tp.late23)})`);
-  // the 06:20 open was a page-1 tile until the staff tiles left page 1 (owner, 30 Sep 2026); it is a bullet now
-  add(openDiff >= 2, bad, 42, `More 06:20 starts — about one extra every ${weeksWords(52 / openDiff)} weeks each`);
-  add(openDiff <= -2, good, 42, `Fewer 06:20 starts — about one fewer every ${weeksWords(52 / -openDiff)} weeks each`);
+  // THE 06:20 STARTS ARE NEITHER A GAIN NOR A COST (owner, 8 Nov 2026: "Most colleagues prefer the opening shifts, but not all"):
+  // until then more of them was a concern here and fewer a gain, the wrong way round for most colleagues, and the right way for
+  // some. A preference, so they stay out of both boxes, as the decks' slide 7 keeps them neutral; the tile and page 2 give the count
   // Closing shifts are judged SHIFT BY SHIFT (independent check, 29 Sep 2026): an average across a day's closers said
   // "every closing shift shorter" of a Saturday still carrying today's 9h10 closer beside two shorter ones.
   const cl = ['wk', 'sat', 'sun'].map(k => [k, pp.closerAll[k], tp.closerAll[k]]).filter(([, p, t]) => p.length && t.length);

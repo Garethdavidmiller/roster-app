@@ -113,8 +113,8 @@ LINK_STARTS = re.search(r"^export const LINK_STARTS = '([^']+)';$", open(f'{ROOT
 for said in ['is the one to choose for something different',
              '<b>Choose Balanced V6</b> if the shortest runs of earlies or of lates, and the most long breaks, matter most',
              'weeks on one shift time, a ${hm(Math.round(BF.step))} change of start', 'fatigue warnings if a cover week falls badly',
-             '<b>Choose Level Crossing</b> if no fatigue warning in any cover-week placement tested, and steady start times, matter most',
-             'for the most starts at 06:20', 'and the fewest long breaks, about ${longRestYear(LF)} a year',
+             '<b>Choose Level Crossing</b> if no fatigue warning in any cover-week placement tested, steady start times and the most starts at 06:20',
+             'matter most — for the fewest long breaks, about ${longRestYear(LF)} a year', 'for those who like them. Its cost: the fewest breaks of three days or more',
              '<b>Choose Middle Ground</b> if no shift over 8h&nbsp;30m and the closest Saturday fit matter most',
              'for the fewest early finishes, four at the open every day and the least Sunday overtime pay',
              'for a new design target: no two closing weeks side by side, changes between earlies and lates placed at useful rest breaks, and weeks on one shift time still important',
@@ -342,8 +342,8 @@ readme = '\n'.join([
     item('Balanced V6', 'If the shortest runs of earlies or of lates, and the most long breaks, matter most. The price: 7 of its 21 weeks on one shift '
          'time, where the other two have 18, a larger change of start from week to week, more single rest days, and more '
          'fatigue warnings if a cover week falls badly.'),
-    item('Level Crossing', 'If no fatigue warning in any cover-week placement tested, and steady start times, matter most. '
-         'The price: the most starts at 06:20 of the three, and the fewest long breaks.'),
+    item('Level Crossing', 'If no fatigue warning in any cover-week placement tested, steady start times and the most starts '
+         'at 06:20 matter most. The price: the fewest long breaks of the three.'),
     item('Middle Ground', 'If no shift over 8h 30m and the closest Saturday fit matter most. The price: the fewest early '
          'finishes, four at the open every day, and the least Sunday overtime pay.'),
     para('Pages 1 and 2 of the shortlist sheet set out each one\'s edge and its costs in full.'),
