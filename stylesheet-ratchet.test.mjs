@@ -48,7 +48,10 @@ const LARGE_THRESHOLD = 900;
  */
 const CAPS = {
     'index.css':      3950,   // the Calendar: grid, day panel, Team Week View, lock cards, notices
-    'shared.css':     3950,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
+    // 3950 → 3850 (Nov 2026, at 3,781): comments that had become a changelog went back to the reason they
+    // left, stale claims were corrected, and the drawer pills' nine colour pairs and the sheet's four ✕
+    // colours became one block each.
+    'shared.css':     3850,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
     'admin.css':      2700,
     'links.css':      2650,
     'operations.css': 2150,

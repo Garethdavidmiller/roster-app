@@ -1,7 +1,5 @@
-/* MYB Roster App — shared.css
-   CSS shared by all app pages (index.html, admin.html, paycalc.html, operations.html, settings.html).
-   Loaded via <link rel="stylesheet" href="shared.css">
-   before their own <style> block, so page-specific rules can override. */
+/* Marylebone Roster — shared.css: the CSS every app page shares (scripts/app-pages.mjs lists them;
+   the guides load none of it). Linked before each page's own stylesheet, so page rules can override. */
 
 /* Crossfade between pages on same-origin navigation (Chrome 126+, Firefox 133+, Safari 18.2+).
    Ignored silently by older browsers — no JS changes needed. */
@@ -384,12 +382,9 @@
     --radius-panel: 24px;   /* navy glass overlay sheets */
     --radius-pill:  999px;  /* fully-rounded pills/chips (v17.72) */
 
-    /* ── Spacing scale (v17.45) ───────────────────────────────────
-       Route paddings / gaps through these so the app sits on ONE rhythm
-       instead of scattered px. Values equal the common existing px, so
-       swapping a matching literal for a token is a no-op. The scale grows
-       as literals are adopted (the repo enforces no unused :root tokens,
-       so only adopted steps are defined — full sweep is incremental). */
+    /* ── Spacing — a CARD rhythm, not a general scale ── In this file they name the card-body padding
+       and the drawer's gaps; a general sweep is a won't-do (css-tokens.md → Spacing has the numbers).
+       Only adopted steps are defined, because the repo refuses an unused :root token. */
     --space-2:  8px;
     --space-3: 12px;
     --space-4: 16px;
@@ -904,10 +899,8 @@ html {
     text-size-adjust: 100%;
 }
 
-/* Typographic refinement (v14.54, low-risk): balance headings and avoid orphan
-   lines in prose. Additive only — text-wrap is set nowhere else — and degrades
-   gracefully (ignored) on engines that don't support it. :where() keeps heading
-   specificity at 0 so no existing heading rule's cascade is disturbed. */
+/* Balance headings and avoid orphan lines in prose; ignored where unsupported. :where() keeps the
+   heading rule at specificity 0, so any component's own `text-wrap` wins. */
 :where(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
 p { text-wrap: pretty; }
 
@@ -956,13 +949,10 @@ body {
 input.visually-hidden[autocomplete="username"] { font-size: var(--type-medium); }
 
 /* ============================================================
-   LIGHTBOX / MODAL BASE CLASSES
-   Structural rules shared by all floating overlays:
-     #iconLightbox, #tipsLightbox, #alLightbox, #teamInfoLightbox,
-     #helpLightbox, #monthJumpOverlay.
-   Add lb-overlay / lb-content / lb-close to the HTML element.
-   Keep theme-specific rules (colours, width, border-radius,
-   z-index overrides) in the element's own ID selector.
+   LIGHTBOX / MODAL BASE CLASSES — structure shared by every
+   floating overlay (lb-overlay / lb-content / lb-close). Theme
+   rules (colours, width, corners, z-index) go in the overlay's
+   own id or modifier class.
    ============================================================ */
 .lb-overlay {
     display: none;
@@ -1307,12 +1297,6 @@ button.lightbox-bug-link {
    in" — so it follows the v18.89 rule and left-aligns. The title above it stays centred (masthead). */
 #pwForceContent .login-subtitle { text-align: left; text-wrap: pretty; }
 
-/* `.pwf-req` was here until v20.49: it un-did the label's uppercase and weight so
-   "(at least 8 characters)" could sit INSIDE the `NEW PASSWORD` eyebrow — two typographic
-   treatments on one line, and the only place in the login family where a label mixed casing. The
-   requirement is now a `.login-hint` under the field, which is where the login card has always put
-   its own ("Your surname in lowercase — or the password you've set yourself") and where the PIN
-   card puts its explanation. One pattern for "what this field wants", in all three cards. */
 /* The escape hatch. Deliberately QUIET and hidden until a failure the member cannot type their way
    out of reveals it (rate-limit / offline / three failures) — it must never read as an equal choice
    to setting a password, but it must exist, or a mandatory overlay becomes a lockout. */
@@ -1531,8 +1515,7 @@ button.lightbox-bug-link {
    with the close button starting at 313 — the text ran 9px under the control. 8 + 52 = 60 clears it;
    a title that no longer fits takes a second line, which `text-wrap: balance` keeps even. */
 .picker-head { padding: 12px 52px 12px 12px; border-bottom: 1px solid var(--border-light); }
-.picker-head b { text-wrap: balance; }
-.picker-head b    { display: block; font-size: var(--type-medium); font-weight: 800; color: var(--primary-blue); letter-spacing: -0.2px; }
+.picker-head b    { display: block; font-size: var(--type-medium); font-weight: 800; color: var(--primary-blue); letter-spacing: -0.2px; text-wrap: balance; }
 .picker-head span { display: block; font-size: var(--type-small); color: var(--text-mid); margin-top: 2px; }
 /* THE FILTER ON A LONG SHEET (v23.68, external review). Only rendered from `SEARCH_FROM` options —
    `select-sheet.js` owns that threshold and the reason for it.
@@ -1612,14 +1595,9 @@ button.lightbox-bug-link {
 
 
 /* ── THE DATE PICKER (date-picker.js) — the app's own calendar ────────────────
-   MOVED HERE FROM operations.css AT v23.38, and the move is the point. Admin's week-jump
-   started using this module, and Admin does not load operations.css — so every rule below
-   would simply not have applied, and the calendar would have rendered as unstyled buttons in
-   an unstyled box: the exact "undesigned" fault the module exists to fix, reintroduced by
-   putting a shared component's CSS on one page. `page-css-parity.test.mjs` guards this class
-   of thing and would have refused it; the module's own header always described it as a shared
-   replacement for a native control, and its CSS is the last part to catch up.
-   `.date-trigger` comes with it — one module, one home. */
+   HERE, not in a page's sheet: two pages open it (Admin loads no operations.css), and a shared
+   component's CSS on one page renders unstyled on the other (`page-css-parity.test.mjs`).
+   `.date-trigger` lives with it — one module, one home. */
 /* Trigger: matches the shared field look (border/--field-bg/radius/44px) so it reads as
    the same control the native input was, but fully themable. */
 .date-trigger {
@@ -1672,8 +1650,8 @@ button.lightbox-bug-link {
 @media (hover: hover) and (pointer: fine) { .dp-close:hover { color: var(--text-dark); } }
 .dp-title { font-size: var(--type-medium); font-weight: 700; color: var(--primary-blue); text-align: center; margin: 2px 24px 12px; }
 /* Day grid mirrors the admin range picker (.rp-*) so both calendars read as one component:
-   flat borderless cells, a navy CIRCLE for the selected day, today = navy bold + a small gold
-   dot, and borderless navy month-nav glyphs. */
+   flat borderless cells, a CIRCLE in the page's colour for the chosen day, today = navy bold + a
+   small gold dot, and borderless navy month-nav glyphs. */
 .dp-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
 .dp-nav-btn {
     width: 44px; height: 44px;
@@ -1947,18 +1925,12 @@ button.lightbox-bug-link {
     .notice-later { transition: none; }
 }
 
-/* The card is opaque now, so an inherited dark ✕ reads as almost black on the navy. Every notice
-   close button gets the same muted white the About panel's has always had. */
-.notice-lb-content .lb-close { color: rgba(255, 255, 255, 0.5); }
+/* Every ✕ on the opaque navy sheet — colour only, the structure is `.lb-close`. An inherited dark ✕
+   reads as almost black on the navy, so each wears the muted white the About panel's always had. */
+.notice-lb-content .lb-close, #iconLightboxClose, #navNoticesClose, #navComingSoonClose { color: rgba(255, 255, 255, 0.5); }
 @media (hover: hover) and (pointer: fine) {
-    .notice-lb-content .lb-close:hover { color: white; }
-}
-
-/* Close button — colour only; structural rules from .lb-close */
-#iconLightboxClose { color: rgba(255,255,255,0.5); }
-
-@media (hover: hover) and (pointer: fine) {
-    #iconLightboxClose:hover { color: white; }
+    .notice-lb-content .lb-close:hover, #iconLightboxClose:hover, #navNoticesClose:hover,
+    #navComingSoonClose:hover { color: white; }
 }
 
 /* Focus on the navy sheet (desktop audit, Nov 2026): the fallback ring is navy, invisible here. Gold,
@@ -2379,16 +2351,11 @@ button.lightbox-bug-link {
 
 /* The drawer itself */
 .nav-panel {
-    /* ── Dark drawer palette (v11.54) ───────────────────────────
-       The drawer is one continuous navy surface — the same navy as
-       the page header and the login overlay, so the three read as
-       one family. These scoped tokens are the on-navy equivalents
-       of the global neutral tokens (--text-*, --border-light,
-       --bg-faint): every child rule below reads them, so the whole
-       drawer re-tones from one place. Defined here (not as silent
-       overrides of the global --text-* tokens) so the dark context
-       is explicit. Alpha values are tuned to clear WCAG AA on navy:
-       0.70 ≈ 7:1 for body text, 0.55 ≈ 5:1 for small headings. */
+    /* ── Dark drawer palette ── One continuous navy surface, the header's and the login overlay's
+       navy, so the three read as one family. These scoped tokens are the on-navy equivalents of the
+       global neutrals (--text-*, --border-light, --bg-faint), declared here rather than as silent
+       overrides of the globals so the dark context is explicit; their values forward the global
+       on-navy tokens. Alphas clear WCAG AA on navy: 0.70 ≈ 7:1 body text, 0.55 ≈ 5:1 small headings. */
     --nav-surface:       var(--primary-blue);
     --nav-raised:        var(--on-navy-raised);        /* chips, hover fills */
     --nav-raised-strong: var(--on-navy-raised-strong); /* active / pressed */
@@ -2533,19 +2500,11 @@ button.lightbox-bug-link {
 }
 
 /* Page navigation pills */
-/* ONE PILL PER ROW, FULL WIDTH (v20.06) — and the reason is arithmetic, not taste.
-   The drawer is 260px wide (`min(260px, 72vw)`), leaving 228px for pills. Measured natural widths:
-   Calendar 135 · Settings 118 · Admin 106 · Links 98 · Ops 89 · Pay 86. So a two-column grid gives
-   each pill 110px and BOTH Calendar and Settings wrap their label onto a second line — and
-   content-width flex-wrap cannot pair Calendar with anything at all (135 + the smallest, 86, is
-   over the 220px budget). That is what made the old row ragged: Calendar forced onto its own line,
-   then pairs, then whichever pill was left over stranded alone. No packing rule fixes it, because
-   the pill count changes with permissions (6 for an admin designer, 5, 4 for a plain member) and
-   every rule leaves an orphan at some count.
-   Full-width rows are tidy at EVERY count, give a gloved thumb the whole drawer width as a target,
-   and put each destination in a fixed position so muscle memory works. They also let the pills share
-   the left-aligned rhythm of the Today rows below, so the drawer reads as one list rather than a
-   block of chips above a list. */
+/* ONE PILL PER ROW, FULL WIDTH — arithmetic, not taste (the measurements are nav-panel.js's header).
+   A 260px drawer leaves 228px: two columns wrap Calendar's and Settings' labels, content-width packing
+   cannot pair Calendar with anything, and the pill count changes with permissions, so every packing
+   rule leaves an orphan at some count. Full-width rows are tidy at every count, give a gloved thumb
+   the whole width, keep each destination in one place, and share the left edge of the rows below. */
 .nav-panel-pills {
     display: flex;
     flex-direction: column;
@@ -2556,10 +2515,9 @@ button.lightbox-bug-link {
    default is a raised (white-overlay) chip. The coloured variants below override
    it; this base only shows for a variant-less pill (a safety fallback). */
 .nav-panel-pill {
-    /* `flex`, not `inline-flex`, since v20.06 — each pill is its own full-width row now (see
-       `.nav-panel-pills`). Left-aligned rather than centred: a centred label in a 228px pill floats
-       in the middle of nothing, and left alignment puts every pill's text on the SAME x as the Today
-       rows underneath, so the whole drawer reads down one edge. */
+    /* `flex`: each pill is its own full-width row. Left-aligned, not centred — a centred label floats
+       in 228px of nothing, and left alignment puts every pill's text on the SAME x as the rows
+       underneath, so the whole drawer reads down one edge. */
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2580,82 +2538,36 @@ button.lightbox-bug-link {
     .nav-panel-pill:hover { background: var(--nav-raised-strong); }
 }
 
-/* Pill colour variants — match the equivalent quick-action buttons on the calendar page */
-.nav-panel-pill--calendar {
-    background: var(--accent-gold);
-    color: var(--primary-blue);
-}
+/* Pill colour variants — each page's own colour, the one its header and About badges wear (css-tokens.md
+   → "A page is one colour and one emoji wherever it is named"); a drawer only works as a map if each
+   colour means one destination. Admin keeps its navy + gold identity as a raised chip with gold text,
+   because a navy fill would vanish on the navy drawer. Overtime wears `--ot`, the app's overtime colour:
+   it first shipped in the Late shift's sky-blue, which on navy reads as a lighter patch of the drawer.
+   New link takes the leave teal and Trains raspberry, hues no other pill wears. Settings wears its
+   badges' indigo like every page (v25.12): a destination that is indigo when you arrive and grey on the
+   way there is two answers to one question. "Work pages first" holds by POSITION — Settings is last. */
+.nav-panel-pill--calendar   { background: var(--accent-gold); color: var(--primary-blue); }
+.nav-panel-pill--admin      { background: var(--nav-raised);  color: var(--accent-gold); }
+.nav-panel-pill--pay        { background: var(--green);       color: white; }
+.nav-panel-pill--operations { background: var(--orange);      color: var(--primary-blue); }
+.nav-panel-pill--overtime   { background: var(--ot);          color: white; }
+.nav-panel-pill--trains     { background: var(--raspberry);   color: white; }
+.nav-panel-pill--newlink    { background: var(--al);          color: white; }
+.nav-panel-pill--links      { background: var(--purple);      color: white; }
+.nav-panel-pill--settings   { background: var(--indigo);      color: white; }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill--calendar:hover { background: var(--accent-gold-dark); }
-}
-
-/* Admin keeps its navy + gold identity, but its old navy fill is now the drawer
-   itself — so it renders as a raised chip with gold text, clearly distinct from
-   the solid-gold Calendar pill. */
-.nav-panel-pill--admin {
-    background: var(--nav-raised);
-    color: var(--accent-gold);
-}
-@media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill--admin:hover { background: var(--nav-raised-strong); }
-}
-
-.nav-panel-pill--pay {
-    background: var(--green);
-    color: white;
-}
-@media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill--pay:hover { background: var(--green-hover); }
-}
-
-.nav-panel-pill--operations {
-    background: var(--orange);
-    color: var(--primary-blue);
-}
-@media (hover: hover) and (pointer: fine) {
+    .nav-panel-pill--calendar:hover   { background: var(--accent-gold-dark); }
+    .nav-panel-pill--admin:hover      { background: var(--nav-raised-strong); }
+    .nav-panel-pill--pay:hover        { background: var(--green-hover); }
     .nav-panel-pill--operations:hover { background: color-mix(in oklch, var(--orange) 91%, black); }
+    .nav-panel-pill--trains:hover     { background: var(--raspberry-hover); }
+    .nav-panel-pill--newlink:hover    { background: var(--al-hover); }
+    .nav-panel-pill--links:hover      { background: color-mix(in oklch, var(--purple) 91%, black); }
+    .nav-panel-pill--settings:hover   { background: var(--indigo-hover); }
 }
-
-/* Overtime — the app's clock-face feature, so it takes the sky-blue that no other
-   pill uses. Deliberately not gold (the Calendar's) and not purple (Links'): a
-   drawer of six pills only works as a map if each colour means one destination. */
-/* `--ot` is the app's OVERTIME colour and has been since long before this page —
-   the admin override list's overtime pill and the paycalc overtime rate badge both
-   wear it. The pill shipped in `--blue-sky` instead, which is the LATE SHIFT colour,
-   and which is the one hue that neither contrasts with the navy drawer nor belongs
-   to it: on a navy surface it reads as a lighter patch of the surface itself. */
-.nav-panel-pill--overtime {
-    background: var(--ot);
-    color: white;
-}
+/* The one pill hover gated on `hover` alone, without its siblings' `pointer: fine` — as it shipped. */
 @media (hover: hover) {
     .nav-panel-pill--overtime:hover { background: color-mix(in oklch, var(--ot) 91%, black); }
-}
-
-/* Trains — raspberry, the one palette hue no other pill or page wears. */
-.nav-panel-pill--trains {
-    background: var(--raspberry);
-    color: white;
-}
-@media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill--trains:hover { background: var(--raspberry-hover); }
-}
-
-/* The December link — the leave teal, which no other pill wears (v25.06). */
-.nav-panel-pill--newlink {
-    background: var(--al);
-    color: white;
-}
-@media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill--newlink:hover { background: var(--al-hover); }
-}
-
-.nav-panel-pill--links {
-    background: var(--purple);
-    color: white;
-}
-@media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill--links:hover { background: color-mix(in oklch, var(--purple) 91%, black); }
 }
 
 /* The collapsed Reference count (v20.06) — quiet-status tier (600), the weight css-tokens.md
@@ -2672,33 +2584,11 @@ button.lightbox-bug-link {
     letter-spacing: 0;
 }
 
-/* Settings joined the pill grid at v20.06 (was a flat link pinned above the footer, the only
-   page-destination in the drawer that did not look like one). It was then the QUIETEST pill — the
-   raised-chip treatment with plain text — on the reasoning that Settings had no colour identity
-   anywhere else, so the drawer should not invent one.
-
-   THAT STOPPED BEING TRUE, AND THE PILL DID NOT FOLLOW (v25.12). Settings' page badge is indigo, its
-   About badge is indigo and its notice badge is indigo; the drawer was the one surface still saying
-   it had no colour, and the drawer is the map — a destination that is indigo when you arrive and
-   grey on the way there is two answers to one question. So it wears its own colour now, like every
-   other page pill. "Work pages first" still holds by POSITION: Settings is last in the grid. */
-.nav-panel-pill--settings {
-    background: var(--indigo);
-    color: white;
-}
-@media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill--settings:hover { background: var(--indigo-hover); }
-}
-
-/* "You are here" — the current page's pill is inert, ringed, and carries a dot.
-   The dot is ABSOLUTELY POSITIONED (v21.74). It used to be an ordinary `::before`, which in a flex
-   pill is a flex ITEM: it took the 8px gap plus its own 6px margin and pushed the emoji and label
-   ~23px to the right — on the one pill in the row that differs. That broke the alignment the base
-   rule two hundred lines up exists to create ("left alignment puts every pill's text on the SAME x
-   as the Today rows underneath, so the whole drawer reads down one edge"), and it broke it on
-   whichever page you happened to be on, so the drawer never looked the same twice.
-   Out of flow, it marks without moving anything; the ring stays as the redundant, colour-blind-safe
-   half of the signal, and `aria-current` (set in nav-panel.js) is what actually carries it. */
+/* "You are here" — the current page's pill is inert, ringed, and carries a dot. The dot is ABSOLUTELY
+   POSITIONED: as a flex item it pushed this one pill's label ~23px right, off the one left edge every
+   pill's text shares with the rows below, and so differently on every page. Out of flow it marks
+   without moving anything; the ring is the redundant, colour-blind-safe half of the signal, and
+   `aria-current` (set in nav-panel.js) is what actually carries it. */
 .nav-panel-pill--current {
     position: relative;
     cursor: default;
@@ -2769,11 +2659,8 @@ button.lightbox-bug-link {
     transition: transform 0.2s;
     line-height: 1;
 }
-/* KEYED ON `aria-expanded`, NOT ON A `.open` CLASS (v20.09). The class was a second copy of a state
-   the button already carries, and expanding the section by default is precisely what made the two
-   disagree: the initial markup said `aria-expanded="true"` with no `.open`, so the arrow pointed
-   DOWN over an open section and stayed that way — the indicator inverted permanently, because the
-   handler only ever toggles from wherever it started. One source of truth cannot drift from itself. */
+/* KEYED ON `aria-expanded`, NEVER ON AN `.open` CLASS: a second copy of the state once left the arrow
+   inverted for good (nav-panel.js's header has the account). One source of truth cannot drift. */
 .nav-panel-guides-toggle[aria-expanded="true"] .nav-panel-guides-arrow { transform: rotate(180deg); }
 
 /* OPEN, the rows ARE the count — printing it beside them says twice what the reader can already see.
@@ -2859,11 +2746,9 @@ button.lightbox-bug-link {
     padding: 0 8px 2px;
     min-height: 16px;
 }
-/* The drawer's TWO-LINE ROW — a title with a quiet second line under it. Declared once and used by
-   both consumers: the static guide list (the line says what that guide answers) and a search result
-   (it says which guide the hit came from). It was `.nav-gs-*` and search-only until v22.49; the
-   static list needed the identical treatment, and a second copy of the recipe is the drift this
-   repo keeps writing parity tests about. */
+/* The drawer's TWO-LINE ROW — a title with a quiet second line under it — declared once for both
+   consumers: the static guide list (what that guide answers) and a search result (which guide the hit
+   came from). A second copy of the recipe is how the two would drift. */
 .nav-panel-link--stacked, .nav-gs-result { align-items: flex-start; }
 .nav-link-text  { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .nav-link-title { color: var(--nav-text); overflow-wrap: anywhere; }
@@ -2905,11 +2790,7 @@ button.nav-panel-link--notices {
 }
 .nav-cs-icon  { font-size: 52px; line-height: 1; }
 .nav-cs-title { color: white; font-size: var(--type-large); font-weight: 700; letter-spacing: -0.3px; }
-.nav-cs-body  { color: rgba(255, 255, 255, 0.7); font-size: var(--type-body); }
-#navComingSoonClose { color: rgba(255, 255, 255, 0.5); }
-@media (hover: hover) and (pointer: fine) {
-    #navComingSoonClose:hover { color: white; }
-}
+.nav-cs-body  { color: var(--on-navy-muted); font-size: var(--type-body); }
 
 /* App Notices archive lightbox — layout only; its surface is the opaque navy sheet (above). */
 #navNoticesContent {
@@ -2928,10 +2809,6 @@ button.nav-panel-link--notices {
 }
 /* Centre the heading; list items below it are left-aligned */
 #navNoticesContent > .nav-cs-title { text-align: center; }
-#navNoticesClose { color: rgba(255, 255, 255, 0.5); }
-@media (hover: hover) and (pointer: fine) {
-    #navNoticesClose:hover { color: white; }
-}
 .nav-notices-empty {
     color: var(--on-navy-muted);   /* the sheet's secondary text: 6.6:1 at its lit top, where white 50% was 4.18:1 */
     font-size: var(--type-label);
@@ -3031,12 +2908,10 @@ button.nav-panel-link--notices {
     flex-shrink: 0;
 }
 
-/* Notification bell — compact icon button in the footer row, next to Sign out
-   (v16.75, owner decision: the full Notifications area on settings.html is the
-   canonical surface; the drawer bell is a quick toggle. This is the SECOND time a
-   labelled full-width row has been tried and reverted — see v13.14→v13.19 and
-   v16.56→v16.75 — don't re-promote it without a fresh discussion). The 44px
-   min-box keeps the tap target honest despite the compact glyph. */
+/* Notification bell — a compact icon beside Sign out (owner decision: settings.html's Notifications
+   card is the canonical surface, this is a quick toggle; a labelled full-width row has been tried and
+   reverted twice — do not re-promote it without a fresh discussion). The 44px min-box keeps the tap
+   target honest despite the compact glyph. */
 .nav-panel-bell {
     display: inline-flex;
     align-items: center;
@@ -3101,14 +2976,11 @@ button.nav-panel-link--notices {
     min-width: 0;
 }
 
-/* Lock Calendar is rendered hidden and revealed on drawer open (viewer mode only). `.nav-panel-signout`
-   sets a display, which beats the `hidden` attribute's UA rule — so without this the button shows to
-   every signed-in member and offers them an action that does nothing. Same trap as the calendar
-   workspace gate in index.css. */
+/* `.nav-panel-signout` and `.nav-panel-footer` set a display, which beats the `hidden` attribute's UA
+   rule. Without these, Lock Calendar (rendered hidden, revealed for a PIN viewer) showed to every
+   signed-in member as an action that does nothing, and a locked visitor's footer showed as an empty
+   bar with a blank name. */
 .nav-panel-lock[hidden] { display: none !important; }
-/* Same reason as the lock button: `.nav-panel-footer` sets a display, which beats the `hidden`
-   attribute's UA rule — so a footer rendered hidden for a locked visitor would show anyway, as an
-   empty bar with a blank name. */
 .nav-panel-footer[hidden] { display: none !important; }
 
 .nav-panel-signout {
@@ -3134,17 +3006,9 @@ button.nav-panel-link--notices {
 }
 .nav-panel-signout:active { opacity: 0.5; }
 
-/* The pinned Settings shelf was REMOVED at v20.06 — Settings is a pill now (see
-   `.nav-panel-pill--settings`). The drawer is back to three zones (head / body / footer) rather
-   than four, which is what the v18.18 note here was working around: that shelf existed because a
-   page-destination had been rendered as an Information-style row and then needed its own boundary
-   to stop it floating between the body and the footer. Fixing the treatment removed the need for
-   the boundary. Do not re-add a fourth zone without a destination that genuinely is not a page. */
-
-/* Keyboard focus rings for the whole drawer — gold reads clearly on the navy
-   surface. Without these, desktop keyboard users got only the browser default
-   (often invisible on dark backgrounds), so Tab-navigating the drawer felt
-   inconsistent with the calendar/admin/paycalc buttons, which all ring. */
+/* Keyboard focus rings for the whole drawer — gold, because the navy fallback ring (and most browser
+   defaults) vanish on the navy surface. The drawer is three zones (head / body / footer); a fourth
+   needs a destination that genuinely is not a page (nav-panel.js header). */
 .nav-panel-pill:focus-visible,
 .nav-panel-link:focus-visible,
 .nav-panel-brand:focus-visible,
@@ -3265,7 +3129,9 @@ button.nav-panel-link--notices {
 }
 /* First-timer helper under the password field — the initial password convention
    (surname) isn't guessable otherwise. Not a secret: protection is Firebase
-   rate-limiting + Firestore rules, so showing it costs nothing. (Onboarding H2.) */
+   rate-limiting + Firestore rules, so showing it costs nothing. (Onboarding H2.)
+   ONE pattern for "what this field wants" in all three cards: a hint UNDER the field, never
+   words inside the uppercase eyebrow, which would put two treatments on one line. */
 .login-hint {
     font-size: var(--type-small);
     color: var(--text-mid);
@@ -3502,11 +3368,9 @@ button.login-back:focus-visible { outline: var(--focus-outline); outline-offset:
     gap: 10px;
     min-height: 40vh;
     min-height: 40dvh;
-    /* The on-navy muted value the nav drawer uses (0.70 alpha ≈ 7:1 on --primary-blue, which is
-       what makes it AA). Not `var(--nav-text-muted)` — that token is scoped to `.nav-panel`, so the
-       reference would silently fall through to the fallback and the pairing would only LOOK
-       maintained. Stated here on purpose; see the token block in the drawer for the reasoning. */
-    color: rgba(255, 255, 255, 0.70);
+    /* The global on-navy muted text (≈ 7:1 on the navy) — not the drawer's `--nav-text-muted`, which is
+       scoped to `.nav-panel` and would silently fall through here. */
+    color: var(--on-navy-muted);
     font-size: var(--type-label);
 }
 body.auth-ready .boot-placeholder { display: none; }
@@ -3529,10 +3393,8 @@ body.auth-ready .boot-placeholder { display: none; }
    ══════════════════════════════════════════════════════════════════ */
 
 /* ── Card header / body ─────────────────────────────────────────── */
-/* The header shares the CARD's surface (v25.12). It used to sit on a grey band (--bg-light), which
-   with the 13px title made every card read as a form from an older app: a strip of grey, small type,
-   then the content. One surface with the hairline beneath it is the modern card, and the title now
-   carries the hierarchy the band was standing in for. */
+/* The header shares the CARD's surface, with a hairline beneath it: a grey band made every card read
+   as a form from an older app, and the title now carries the hierarchy the band stood in for. */
 .card-header {
     background: var(--surface);
     border-bottom: 1px solid var(--border-light);
@@ -3542,30 +3404,19 @@ body.auth-ready .boot-placeholder { display: none; }
     align-items: flex-start;
     gap: 3px;
 }
-/* h2 OR h3 — operations groups its cards under section headings, so its card titles are h3
-   (page h1 → group h2 → card h3); admin/settings keep h2. Same look either way. */
-/* Card titles are `h2` on every app page (v18.86). The selector used to accept `h3` too, which is
-   how operations.html came to mark all nine of its cards up as h3 while the other four pages used
-   h2: styled identically, it looked right, so the heading outline silently ran h1 → h3 with no h2
-   at all. Keeping only h2 here means a stray h3 now looks wrong immediately instead of hiding.
-   (axe's heading-order rule is tagged best-practice, not WCAG A/AA, so the a11y gate never saw it.) */
-/* 14px (--type-body) since v25.12 — was --type-label, 13px, the size of the dense row text inside the
-   card it names, so a title could not out-rank its own content.
+/* Card titles are `h2` on every app page, and only h2 is styled: when this selector accepted h3 too,
+   one page's cards all became h3, looked right, and its outline ran h1 → h3 unseen (axe's heading-order
+   rule is best-practice, not WCAG A/AA, so the a11y gate never saw it). A stray h3 now looks wrong. */
+/* 14px (--type-body), so a title out-ranks the 13px dense rows of the card it names.
    WHY NOT 15px, WHICH WAS TRIED: measured at 360/375/390px on every card page, 15px tipped paycalc's
-   "🏖️ Holiday Pay Premium (HPP)" onto two lines at 375px — the width v18.53 trimmed a chip to keep it
-   on one — while at 14px it kept that line. (It wraps at 360px either way, as it always has, and it
-   may not be shortened: paycalc.md invariant 16.) The one title 14px newly wrapped was the admin-only
-   New link page's "🆕 What's changed since Short Run was shown", at 375px — balanced onto two lines.
-   The slight negative tracking is what bolder Inter wants at this size. `text-wrap: balance` makes a
-   title that must wrap split evenly rather than leave one word on a line of its own.
-   NO ICON TILE (v25.16 — it was v25.14's and v25.15's). The emoji sat on a 28px square in a pale
-   tint of the page's colour. It is gone, on the owner's doubt that the tint was an improvement,
-   confirmed by side-by-side screenshots. Four things against it: ten-plus pastel squares per page
-   were the busiest thing on a calm page; they repeated the page badge's colour without saying
-   anything the badge did not; the 28px square made every title line taller; and it spent the 375px
-   line above, tipping the HPP title onto two lines. The page's colour now goes where it means
-   something, on whatever you have chosen (see "CHOSEN = THE PAGE'S COLOUR" by the --page-accent trio
-   in :root). Do not bring the tile back to "add colour": it was tried, and that is the verdict. */
+   "🏖️ Holiday Pay Premium (HPP)" onto two lines at 375px; at 14px it keeps that line (it wraps at 360px
+   either way, and it may not be shortened: paycalc.md invariant 16). The slight negative tracking is
+   what bolder Inter wants at this size; `text-wrap: balance` splits a title that must wrap evenly.
+   NO ICON TILE (owner, confirmed by side-by-side screenshots). A 28px pastel square behind every emoji
+   was the busiest thing on a calm page, repeated the badge's colour saying nothing new, made every title
+   line taller and tipped the HPP title onto two lines at 375px. The page's colour goes on whatever you
+   have chosen instead ("CHOSEN = THE PAGE'S COLOUR", by the --page-accent trio in :root). Do not bring
+   the tile back to "add colour": it was tried, and that is the verdict. */
 .card-header h2 { font-size: var(--type-body); font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; color: var(--primary-blue); margin: 0; }
 /* A WRAPPED TITLE HANGS FROM ITS EMOJI. Inline, a title's second line runs back under the emoji, which
    reads as an accident. As a flex row the words become one block beside the emoji and wrap inside it,
@@ -3593,26 +3444,14 @@ body.auth-ready .boot-placeholder { display: none; }
 .nav-path { white-space: nowrap; }
 .card-body { padding: var(--space-3) var(--space-4); }
 
-/* ── Collapsible card body + chevron ───────────────────────────────
-   The old .card-collapsible-header GRID header was RETIRED v18.17 — every page now uses the
-   canonical .card-header-toggle row system above. The body show/hide and the chevron below are
-   shared by every collapsible card (the chevron is the focusable toggle; see initCardCollapse). */
+/* ── Collapsible card body + chevron — shared by every collapsible card (the chevron is the
+   focusable toggle; see initCardCollapse). The header is the .card-header-toggle row system below. */
 .card-collapsible-body          { display: none; padding: var(--space-3) var(--space-4); }
 .card-collapsible-body.open     { display: block; }
-/* A `.card-body` NESTED inside a collapsible body applies the same padding a second time (v19.81,
-   staff report: "why is the padding at the edges of links much thicker than every other page?").
-   Measured at 360px: content started at **42px** on links against **26px** on admin — 16px of it
-   from the outer body and 16px from an inner `.card-body` that contributes nothing else, since that
-   class is padding and nothing but padding.
-   Eighteen cards were doubled — 4 on links, 10 on operations, 4 on settings. Admin and paycalc
-   never nested, which is exactly why the difference was visible from the outside: the report
-   compared links against admin.
-   It showed up on LINKS first because that is the page where the padding CLIPS rather than merely
-   frames. Its generator table is 380px inside a 276px wrapper, so the doubled inset spends 32px of
-   a width that is already 104px short and takes a visible column with it; on an operations or
-   settings form the same 32px just reflows text and nobody could see it.
-   Zeroing the inner one rather than deleting ~18 wrapper divs: the class is queried by page JS in
-   places, and this states the rule once where the padding is defined. */
+/* A `.card-body` NESTED inside a collapsible body would apply the same padding twice (a staff report:
+   content started 42px in on Links against Admin's 26px, and on Links the doubled 32px clipped a column
+   of the generator table). Zeroed here, where the padding is defined, rather than deleting the wrapper
+   divs, which page JS queries in places. */
 .card-collapsible-body > .card-body { padding: 0; }
 .collapse-chevron {
     margin-left: auto;
@@ -3623,12 +3462,9 @@ body.auth-ready .boot-placeholder { display: none; }
 }
 .collapse-chevron.open { transform: rotate(180deg); }
 
-/* ── Row card header + actions cluster (canonical since v18.16) ─────────
-   Promoted VERBATIM from paycalc.css (the v17.95–v18.07 polish generation) so every page uses
-   ONE header system instead of page-local copies drifting apart. The layout puts title+hint in a
-   left <div> and a .card-header-actions cluster (context chip, Tips/Help button, collapse arrow)
-   on the right. Used by ALL six app pages since v18.17 (paycalc/admin v18.16; operations/settings/
-   links v18.17) — the old .card-collapsible-header grid is gone. A11y (v17.50): the focusable
+/* ── Row card header + actions cluster — the ONE header system every card page uses ─────────
+   Title + hint in a left <div>, a .card-header-actions cluster (context chip, Tips/Help button,
+   collapse arrow) on the right; page-local copies are how headers drift apart. A11y: the focusable
    collapse toggle is the ARROW/CHEVRON, never a header that wraps another button — initCardCollapse
    enforces this. */
 .card-header-toggle {
@@ -3695,13 +3531,9 @@ body.auth-ready .boot-placeholder { display: none; }
 }
 .card-year-chip:empty { display: none; }
 
-/* Explanatory paragraph inside a card body — the "here is what this card is for" text that sits
-   above the controls. SHARED since v20.09: it lived in paycalc.css and settings.html had been using
-   it since v19.16 without loading that file, so the Pay Calculator Data card's one paragraph
-   rendered at browser-default size and colour with no line-height. Nothing throws when a class is
-   simply absent — the text is still there and still readable, which is why it survived a release.
-   page-css-parity.test.mjs now fails when one page's HTML uses a class only another page's
-   stylesheet defines. */
+/* Explanatory paragraph inside a card body — the "here is what this card is for" text above the
+   controls. Here, not in a page's sheet, because two pages use it: a class absent from a page's own
+   sheets renders at browser defaults with nothing thrown (page-css-parity.test.mjs). */
 .card-explainer {
     font-size: var(--type-label);
     color: var(--text-mid);
