@@ -30,18 +30,18 @@ import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.
 // are times nobody works today. LATER THE SAME DAY (owner: "Yes") the hour came off one floor late instead of half an hour
 // off two (README.md → "One Saturday floor late keeps 22:30"): Home Grown's 14:00-22:00 went, so the ticket office's
 // 14:30-22:30 is its one new Saturday late, and its headline says so.
+// 8 NOV 2026 — SECOND LOOK, EVEN KEEL, IN STEP, OPEN RETURN AND SHORT OPENERS DELETED (owner: "Delete in step, even keel,
+// open return, short openers and second look from the pack and repo"): their straps, families and first dates went with
+// them (regenerate.mjs, RETIRED_CODES; README.md → "Five designs deleted").
 export const STRAPS = {
-  'SL-26-G3': ['Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates', 'search'],
   'SE-26-F1': ['Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time', 'search'],
-  'EK-26-H1': ['18 of 21 weeks on one shift time, no Mon–Sat week over 42h, and never less than 14h 35m between fixed duties', 'search'],
   'SR-26-F1': ['No run over five days outside the cover weeks, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time', 'search'],
   'LB-26-F1': ['Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week', 'search'],
   // 26 Oct 2026: today's link on 26 lines (README.md → "Today's link on 26 lines")
   'HG-26-T1': ['Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, and the ticket office’s new Saturday late, with a 13:35 finish every weekday and Saturday closing as today', 'search'],
   'CT-26-T2': ['A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
-  // 30 Oct 2026: Closing Time's weeks with the times searched again (README.md → "In Step")
-  'IS-26-T4': ['Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
-  // 31 Oct 2026: In Step's weeks with no duty over 8h 30m from Monday to Saturday (README.md → "Even Step")
+  // 31 Oct 2026: In Step's weeks with no duty over 8h 30m from Monday to Saturday (README.md → "Even Step"); In Step, which
+  // was Closing Time's weeks with the times searched again, was deleted on 8 Nov 2026
   'ES-26-T5': ['No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday', 'search'],
   // 3 Nov 2026: the owner's question — the link with today's shift times given no weight in the league (README.md → "Clean
   // Slate and Next Step"). Neither is shortlisted; Next Step is Even Step with Clean Slate's three weekday changes
@@ -50,12 +50,9 @@ export const STRAPS = {
   // 4 Nov 2026: Next Step with its Sunday evened out, so a Sunday early and a Sunday late pay within a few pounds (README.md
   // → "Fair Share"). Not shortlisted
   'FS-26-T7': ['Every Sunday duty 8h 10m or 8h 15m, so a Sunday early and late pay within a few pounds, and no shift over 8h 30m on any day', 'search'],
-  // 4 Nov 2026: Quarter Past, supplied as a one-page PDF roster; its duties in new weeks (Quarter Past Relaid); and the Relaid
-  // with eight-hour openers and 15:45 closers on a weekday (Short Openers). README.md → each by name. Not shortlisted
-  // Open Return was drawn as Quarter Past Relaid (QR-26-EXT), renamed the same day for a name of its own (owner, 4 Nov 2026:
-  // "Give all proposals individual names"); Grand Tour is Fair Share's 30-day search result, which had no name until then
-  'OR-26-EXT': ['A 16:15 closer every weekday, 14 days’ leave buys 30 days off, as today, and no fatigue warning in any cover-week placement tested', 'hand+search'],
-  'SO-26-EXT': ['Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buys 30 days off, as today', 'search'],
+  // 4 Nov 2026: Grand Tour is Fair Share's 30-day search result, which had no name until then (owner: "Give all proposals
+  // individual names"). Not shortlisted. Open Return and Short Openers, drawn the same day from Quarter Past's duties, were
+  // deleted on 8 Nov 2026 (README.md → "Five designs deleted")
   'GT-26-T7': ['No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today', 'search'],
   // 4 Nov 2026: today's link taken to 26 weeks on the owner's brief — openers finishing 13:45 or 14:20, closers from 15:45,
   // nothing over 8h 30m on a weekday or 9h at the weekend, an even Sunday, 30 days off for 14 days' leave (README.md →
@@ -106,14 +103,14 @@ export const STRAPS = {
 // Second Nature's weeks were grown from Silva Lining's (README.md); the 26-line family is named after Second Nature,
 // as the 24-line Right Away family was after the design its members came from. It keeps that name though Second Nature
 // itself was withdrawn on 3 Nov 2026, with Second Wind, Second Sight and Second Gear (regenerate.mjs says how to restore
-// one): a family is named for where its designs started, and Second Look, Second Edition and the rest still start there.
+// one): a family is named for where its designs started, and Second Edition and the rest still start there.
 /** The designs taken forward. Three on 3 Oct 2026 (Second Edition, Short Run, Even Keel), Closing Time added on 30 Oct 2026
  *  (owner: "Can we add closing time to the shortlist?"), and the same day cut to two (owner: "Only do the shortlist for
  *  instep and short run"). Even Step joined on 31 Oct 2026 (owner, asked whether Short Run should stay: "Yes, keep all
  *  three"). On 5 Nov 2026 Common Ground took In Step's place (owner: "I would like common ground in the shortlist as the
  *  best 30 day example, short run too because colleagues have seen it and the best one of the others which I think is even
- *  step"), and In Step's presentations stay in the pack though it is no longer on the shortlist ("keep the other
- *  presentations in the pack, just not the shortlist"). Marked on the summary and compared on the shortlist sheet; the
+ *  step"), and In Step's presentations stayed in the pack though it was no longer on the shortlist ("keep the other
+ *  presentations in the pack, just not the shortlist") until it was deleted with them on 8 Nov 2026. Marked on the summary and compared on the shortlist sheet; the
  *  decks and the pack read it here. A TO Z SINCE 5 NOV 2026, with no recommendation: asked whether the pack should keep
  *  marking Even Step recommended, the owner chose to remove the marks and present the three evenly, as the New link page
  *  does — so nothing in the pack lists one of them first for any reason but the alphabet.
@@ -126,9 +123,10 @@ if (SHORTLIST.join() !== [...SHORTLIST].sort((a, b) => a.localeCompare(b, 'en-GB
 /** The day the shortlist above was drawn, for the sheets and the read-me that say when — after every design in the pack. */
 export const SHORTLIST_DATE = '8 Nov 2026';
 /** Designs off the shortlist whose presentations the pack still ships. In Step's from 5 Nov 2026 (owner: "keep the other
- *  presentations in the pack, just not the shortlist"); NONE SINCE 8 NOV 2026. The eight in presentations/ from before that
- *  day each say they present a shortlisted link, so the zip leaves them out (pack.py); they stay in the repository, unchanged,
- *  and deck-check.mjs still holds their figures to the grids. The three shortlisted that day had their own drawn later the
+ *  presentations in the pack, just not the shortlist"); NONE SINCE 8 NOV 2026. The six in presentations/ from before that
+ *  day (eight until In Step's were deleted with it, the same day) each say they present a shortlisted link, so the zip
+ *  leaves them out (pack.py); they stay in the repository, unchanged, and deck-check.mjs still holds their figures to the
+ *  grids. The three shortlisted that day had their own drawn later the
  *  same day, from Common Ground's (shortlist-decks.py), and the zip carries those. */
 export const DECKS_KEPT = [];
 if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is both shortlisted and kept off it: ${DECKS_KEPT}`);
@@ -136,8 +134,8 @@ if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is bo
 // In Step from 30 Oct, Even Step from 31 Oct (README.md has each) — and was retired with the marks; it is gone rather than
 // left null, so any script still reading it fails loudly instead of quietly recommending nothing.
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
-export const FAMILY = { SL: 'Second Nature', SE: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', OR: 'Quarter Past', SO: 'Quarter Past', GT: 'Home Grown', CG: 'Home Grown', MG: 'Home Grown', MB: 'Marylebone Balanced', CO: 'Home Grown', LC: 'Home Grown', CF: 'Home Grown', SWK: 'Second Nature' };
-export const FIRST = { 'SL-26-G3': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'OR-26-EXT': '4 Nov 2026', 'SO-26-EXT': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026', 'MB-26-V5': '5 Nov 2026', 'MB-26-V6': '5 Nov 2026', 'MB-26-V7': '6 Nov 2026', 'CO-26-T10': '7 Nov 2026', 'LC-26-T10': '7 Nov 2026', 'MB-26-V8': '7 Nov 2026', 'MB-26-V9': '7 Nov 2026', 'MB-26-V10': '8 Nov 2026', 'CF-26-T5': '8 Nov 2026', 'SWK-26-F1': '8 Nov 2026' };
+export const FAMILY = { SE: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', GT: 'Home Grown', CG: 'Home Grown', MG: 'Home Grown', MB: 'Marylebone Balanced', CO: 'Home Grown', LC: 'Home Grown', CF: 'Home Grown', SWK: 'Second Nature' };
+export const FIRST = { 'SE-26-F1': '2 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026', 'MB-26-V5': '5 Nov 2026', 'MB-26-V6': '5 Nov 2026', 'MB-26-V7': '6 Nov 2026', 'CO-26-T10': '7 Nov 2026', 'LC-26-T10': '7 Nov 2026', 'MB-26-V8': '7 Nov 2026', 'MB-26-V9': '7 Nov 2026', 'MB-26-V10': '8 Nov 2026', 'CF-26-T5': '8 Nov 2026', 'SWK-26-F1': '8 Nov 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a

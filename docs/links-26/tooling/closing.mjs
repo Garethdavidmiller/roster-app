@@ -79,9 +79,14 @@ if (process.argv[1]?.endsWith('closing.mjs')) {
       ['Middle Ground', grid('Middle-Ground-MG-26-T8.json'), { closeRun: 1, close14: 7, close21: 10, swNoBreak: 2, open0620: 48, lerl9: 0 }],
       ['Crossover', grid('Crossover-CO-26-T10.json'), { closeRun: 4, close14: 11, close21: 16, swNoBreak: 0, open0620: 58, lerl9: 0 }],
       ['Common Ground', grid('Common-Ground-CG-26-T8.json'), { closeRun: 4, close14: 10, close21: 15, swNoBreak: 2, open0620: 48, lerl9: 0 }],
-      ['In Step', grid('In-Step-IS-26-T4.json'), { closeRun: 3, close14: 10, close21: 13, swNoBreak: 0, open0620: 60, lerl9: 40 }],
-      // the one design where two weekday closes would join a closing week to its neighbour: it pins "three or more" itself
-      ['Second Look', grid('Second-Look-SL-26-G3.json'), { closeRun: 1, close14: 6, close21: 9, swNoBreak: 0 }],
+      // the long earlies: In Step's 40 a year were pinned here until it was deleted (8 Nov 2026); Short Run's 20 are now
+      ['Short Run', grid('Short-Run-SR-26-F1.json'), { closeRun: 3, close14: 9, close21: 11, swNoBreak: 0, open0620: 60, lerl9: 20 }],
+      // "THREE OR MORE" ITSELF. Second Look pinned it, the one design where two weekday closes would have joined a closing week
+      // to its neighbour; since it was deleted (8 Nov 2026) no design in the pack tells three from two, so four made-up weeks do:
+      // a closing week, then one with two closes and two 22:30 lates. Three or more reads 1; two or more would read 2, four 0
+      ['the threshold', (() => { const E = '06:20-14:20', C = '15:45-23:55', M = '14:00-22:30', R = 'RD';
+        return { 1: { sun: R, mon: C, tue: C, wed: C, thu: R, fri: R, sat: R }, 2: { sun: R, mon: C, tue: C, wed: M, thu: M, fri: R, sat: R },
+          3: { sun: R, mon: E, tue: E, wed: E, thu: E, fri: E, sat: R }, 4: { sun: R, mon: E, tue: E, wed: E, thu: E, fri: E, sat: R } }; })(), { closeRun: 1 }],
     ];
     let bad = 0;
     for (const [name, p, want] of pins) { const got = closingMeasures(p), off = Object.keys(want).filter(k => Math.abs(got[k] - want[k]) > 0.05);

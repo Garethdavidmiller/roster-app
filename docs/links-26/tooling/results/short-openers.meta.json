@@ -1,5 +1,6 @@
 {
  "date": "4 November 2026",
+ "kept": "Short Openers was deleted on 8 Nov 2026 with Open Return, its parent, and their duty table (README.md → \"Five designs deleted\"). This grid stays, out of the pack, because Crossover's and Balanced V8's weeks were laid from its rest days (crossover.meta.json; exact-rota.py, Balanced V8's step 1). The table and lineage below are as it was drawn: results/short-openers-table.json is in git history, not the tree.",
  "identity": {
   "table": "Quarter Past's, with the weekday changed: no 06:20–14:50, every closer at 15:45, the 12:00–21:00 a 12:00–20:45, no 13:45–22:30 (results/short-openers-table.json)",
   "seed": "— (final-table.mjs for the weekday, then exact-rota.py; the grid is the record, and FIX= checks it)",

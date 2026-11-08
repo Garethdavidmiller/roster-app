@@ -67,9 +67,10 @@ under 14h 20m is forced, the Sunday 09:00-18:00 before a Monday 07:30. Its worke
 Saturday before, and there the only early week with the Monday off follows a 06:20 Saturday, both 08:00-16:30 Saturdays
 being needed before cover weeks. Freeing the early weeks' rest days (SKELETON_FREE) clears it; the whole model, every rest
 day free, then climbs from that grid, though from nothing it found no first rota in ten minutes. Each step's HINT= is the
-step before's output; F is the floors every step holds unless it says otherwise:
+step before's output; F is the floors every step holds unless it says otherwise. Short Openers' grid is the one kept in
+results/ when it was deleted on 8 Nov 2026 (README.md -> "Five designs deleted"); its cells are those it shipped with:
   F = H55=3300 LV_BEST=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2575 REST=860
-  1. F SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json REST=0 REST_TO=860 OBJ=rest                        60 s
+  1. F SKELETON=results/short-openers.json REST=0 REST_TO=860 OBJ=rest                                          60 s
   2. F SKELETON=(the same) SKELETON_FREE=4,5,12,13,14,22,23,24,25,26 OBJ=one                                  240 s
   3. the same, ONE_MIN=19 OBJ=step                                                                             300 s
   4, 5. F ONE_MIN=19 OBJ=step, no SKELETON, twice                                                              600 s each

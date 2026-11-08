@@ -44,11 +44,11 @@ files = [  # (source, path in the pack)
 ]
 for name, code, fp in proposals:
     base = f"{name.replace(' ', '-')}-{code}"
-    # ONLY THE SHORTLIST'S DECKS, AND THOSE KEPT (8 Nov 2026): the eight in presentations/ were last rebuilt for the shortlist of
-    # 5 Nov 2026 and each names it as the shortlist (In Step's say it is not on it), so none of them ships. The three shortlisted
-    # on 8 Nov had none that morning, and the zip carried no presentations; theirs were drawn later the same day, from Common
-    # Ground's (shortlist-decks.py), and ship. The eight stay in the repository, unchanged, and deck-check.mjs still holds
-    # their figures to the grids
+    # ONLY THE SHORTLIST'S DECKS, AND THOSE KEPT (8 Nov 2026): the six in presentations/ from before that day (eight until In
+    # Step's were deleted with it, the same day) were last rebuilt for the shortlist of 5 Nov 2026 and each names it as the
+    # shortlist, so none of them ships. The three shortlisted on 8 Nov had none that morning, and the zip carried no
+    # presentations; theirs were drawn later the same day, from Common Ground's (shortlist-decks.py), and ship. The six stay
+    # in the repository, unchanged, and deck-check.mjs still holds their figures to the grids
     for who in ('colleagues', 'managers') if name in SHORTLIST + DECKS_KEPT else ():
         for ext in ('pptx', 'pdf'):
             src = f"{ROOT}/presentations/{name.replace(' ', '-')}-for-{who}.{ext}"
@@ -135,8 +135,8 @@ for said in ['All three keep today’s leave: four full weeks off, Sunday to Sat
 # contradicting itself.
 if {'Home Grown', 'Closing Time'} & set(SHORTLIST):   # the third of 26 Oct, Both Ways, was deleted on 7 Nov 2026
     raise SystemExit(f'pack: the read-me says neither of the 26 Oct two is shortlisted; SHORTLIST is {SHORTLIST}')
-if 'In Step' in SHORTLIST or DECKS_KEPT:   # the history says In Step left on 5 Nov, and item 3 that no presentations ship
-    raise SystemExit(f'pack: the read-me says In Step left the shortlist and no presentations ship; SHORTLIST is {SHORTLIST}, DECKS_KEPT {DECKS_KEPT}')
+if DECKS_KEPT:   # item 3 and the 8 Nov paragraph say the presentations shipped are the shortlist's alone (In Step, whose were kept, deleted 8 Nov 2026)
+    raise SystemExit(f'pack: the read-me says the shortlist\'s presentations are the only ones in the pack; DECKS_KEPT is {DECKS_KEPT}')
 if SHORTLIST != ['Balanced V6', 'Level Crossing', 'Middle Ground'] or SHORTLIST_DATE != '8 Nov 2026':   # the first section and the 8 Nov paragraph name the three
     raise SystemExit(f'pack: the read-me says Balanced V6, Level Crossing and Middle Ground were shortlisted on 8 November 2026; SHORTLIST is {SHORTLIST}, drawn {SHORTLIST_DATE}')
 # THE THREE THAT CAME AFTER THE SHORTLIST (3 Nov 2026, owner: add Clean Slate and Next Step to the pack, the shortlist and the
@@ -159,7 +159,8 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # sheet for all of today's work. Put them into the repo"): Quarter Past, a one-page roster drawn outside the app, and the
 # two laid from its duties, Quarter Past Relaid and Short Openers; the paragraph names each and what it is
 # Quarter Past Relaid was renamed Open Return, and Fair Share's 30-day search result joined as Grand Tour, the same day
-# (owner: "Give all proposals individual names")
+# (owner: "Give all proposals individual names"). Open Return and Short Openers were deleted on 8 Nov 2026 (DELETED, below),
+# and the paragraph names Grand Tour and Common Ground alone as the day's 30-day links
 # Quarter Past was taken out the same evening (owner: "Remove quarter past from the pack please"), and Well Kept, drawn up on
 # 26 Oct 2026 as Same Again Tidy, joined the 30-day folder; it was taken out on 5 Nov 2026 (owner: "Remove well kept"). Both
 # were deleted on 6 Nov 2026 (DELETED, below)
@@ -199,7 +200,7 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # Clockface and Short Working joined the same day (owner, naming the two re-lays of Even Step and Short Run: "Clockface, Short
 # Working"): each its parent's duties and rest days with its weeks chosen again, no two closing weeks side by side. Neither buys
 # 30 days off for 14 days' leave, so both are in the proposals folder, and the same late paragraph says what each has
-AFTER_31_OCT_SET = ['Balanced V10', 'Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Clean Slate', 'Clockface', 'Common Ground', 'Crossover', 'Fair Share', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Next Step', 'Open Return', 'Short Openers', 'Short Working']
+AFTER_31_OCT_SET = ['Balanced V10', 'Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Clean Slate', 'Clockface', 'Common Ground', 'Crossover', 'Fair Share', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Next Step', 'Short Working']
 AFTER_5_NOV_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Crossover', 'Level Crossing', 'Middle Ground']
 if AFTER_5_NOV != AFTER_5_NOV_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(AFTER_5_NOV_SET)} as the designs after the shortlist of 5 November; they are {AFTER_5_NOV}')
@@ -218,11 +219,13 @@ LATE_WORDS = ', '.join(LATE[:-1]) + ' and ' + LATE[-1] if len(LATE) > 1 else ''.
 DELETED = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear', 'Quiet Friday', 'Same Again', 'Little and Often',
            'Quarter Past', 'Well Kept',   # Same Again Tidy was Well Kept; 'Same Again' also catches its name
            'Set Fair',   # 7 Nov 2026 (owner: "Delete set fair as it would not work"): drawn and deleted the same day, Crossover in its place
-           'Both Ways', 'Fine Tune']   # 7 Nov 2026 (owner: "Please cut both ways and fine tune from the links 26 pack"): of the
+           'Both Ways', 'Fine Tune',   # 7 Nov 2026 (owner: "Please cut both ways and fine tune from the links 26 pack"): of the
            # 21 outside Balanced V5-V7, the lowest and fourth-lowest average place over the league's ten readings, and alone
            # best at none of its twenty measures (README.md -> "Both Ways and Fine Tune deleted")
+           'Second Look', 'Even Keel', 'In Step', 'Open Return', 'Short Openers']   # 8 Nov 2026 (owner: "Delete in step, even
+           # keel, open return, short openers and second look from the pack and repo"; README.md -> "Five designs deleted")
 if any(n in names.split(', ') for n in DELETED):
-    raise SystemExit(f'pack: {DELETED} were deleted (6 and 7 Nov 2026); regenerate.mjs SUPPLIED lists one of them')
+    raise SystemExit(f'pack: {DELETED} were deleted (6, 7 and 8 Nov 2026); regenerate.mjs SUPPLIED lists one of them')
 # RENAMED (7 Nov 2026): a design's old name, and the name it has now. The owner saw Safe Hands on a sheet before it was renamed
 # Crossover, so the old name is refused in SUPPLIED and in the read-me, as a deleted one is, and so are the old names of the
 # other designs renamed in the pack (Same Again Tidy, Well Kept's, is refused already, by DELETED's 'Same Again').
@@ -231,7 +234,7 @@ RENAMED = {'Quarter Past Relaid': 'Open Return', 'Relief Point': 'Balanced V6', 
 if any(n in names.split(', ') for n in RENAMED):
     raise SystemExit(f'pack: regenerate.mjs SUPPLIED lists an old name; {", ".join(f"{o} is {n}" for o, n in RENAMED.items())}')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
-THIRTY_SET = ['Balanced V10', 'Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Common Ground', 'Crossover', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Open Return', 'Short Openers']
+THIRTY_SET = ['Balanced V10', 'Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Common Ground', 'Crossover', 'Grand Tour', 'Level Crossing', 'Middle Ground']
 THIRTY_IN = sorted(n for n, c, _ in proposals if in30(DIR_OF[c]))
 if THIRTY_IN != THIRTY_SET:
     raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
@@ -331,6 +334,25 @@ _ranked = [r for r in _league['proposals'] if r['gate']]   # league.mjs lists a 
 if len(_ranked) < 2 or any(r['gate'] for r in _league['proposals'][len(_ranked):]):
     raise SystemExit('pack: league.mjs did not list the designs that pass its gates first')
 LEADER, LEAD, SECOND = _ranked[0]['name'], f"{_ranked[0]['total'] - _ranked[1]['total']:.1f}", _ranked[1]['name']
+# THE EVEN STEP SENTENCE, CHECKED (8 Nov 2026): the history says what Even Step keeps of Closing Time and what it changed,
+# since In Step, the design between them, was deleted. Each clause is held to the two grids and today's link, so a grid that
+# moved would stop the build rather than leave the read-me describing a design that is no longer there
+if {'Even Step', 'Closing Time'} <= names_in:
+    _g = lambda n: (lambda j: j.get('patterns', j))(json.load(open(f"{ROOT}/{DIR_OF[dict((x, c) for x, c, _ in proposals)[n]]}/{n.replace(' ', '-')}-{dict((x, c) for x, c, _ in proposals)[n]}.json", encoding='utf-8')))
+    ES, CT = _g('Even Step'), _g('Closing Time')
+    TODAY_T = json.loads(subprocess.check_output(['node', '-e', "import('./report-data.mjs').then(m => process.stdout.write(JSON.stringify(m.today().patterns)))"], cwd=f'{ROOT}/tooling', text=True))
+    _t = lambda v: bool(re.fullmatch(r'\d\d:\d\d-\d\d:\d\d', v or ''))
+    _m = lambda v: (int(v[6:8]) * 60 + int(v[9:]) - int(v[:2]) * 60 - int(v[3:5])) % 1440
+    _kind = lambda v: v if not _t(v) else ('E' if int(v[:2]) < 11 else 'L')
+    _MS, _WK = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat'), ('mon', 'tue', 'wed', 'thu', 'fri')
+    _today = {r[d] for r in TODAY_T.values() for d in r if _t(r[d])}
+    _closers = lambda p: {r[d][:5] for r in p.values() for d in _MS if _t(r[d]) and r[d][6:] == '23:55'}
+    _ok = {'Closing Time\'s weeks': all(_kind(ES[k][d]) == _kind(CT[k][d]) for k in CT for d in CT[k]),
+           'no shift over 8h 30m Monday to Saturday': all(_m(r[d]) <= 510 for r in ES.values() for d in _MS if _t(r[d])),
+           'every early one of today\'s times': all(r[d] in _today for r in ES.values() for d in _MS if _t(r[d]) and int(r[d][:2]) < 11),
+           'a 13:45 finish every weekday': all(any(_t(r[d]) and r[d][6:] == '13:45' for r in ES.values()) for d in _WK),
+           'the closer at 15:45 instead of 16:00': _closers(ES) == {'15:45'} and _closers(CT) == {'16:00'}}
+    if not all(_ok.values()): raise SystemExit(f'pack: the read-me says Even Step has {[k for k, v in _ok.items() if not v]}, and its grid does not')
 readme = '\n'.join([
     'NEW CEA LINK PROPOSALS - 26 LINES',
     '=' * len('NEW CEA LINK PROPOSALS - 26 LINES'),
@@ -426,36 +448,33 @@ readme = '\n'.join([
     para(f'Proposals in this pack: {names}.'),
     '',
     'HOW THE SHORTLIST CAME ABOUT',
-    *([para('The first shortlist, on 3 October 2026, was Second Edition, Short Run and Even Keel.'), '']
-      if {'Second Edition', 'Short Run', 'Even Keel'} <= names_in else []),
+    # THE FIRST SHORTLIST, ITS TWO STILL IN THE PACK (8 Nov 2026): it was Second Edition, Short Run and Even Keel, and Even Keel
+    # was deleted that day, so the sentence names the two left and claims nothing about the third
+    *([para('The first shortlist, on 3 October 2026, included Second Edition and Short Run.'), '']
+      if {'Second Edition', 'Short Run'} <= names_in else []),
     *([para('Home Grown and Closing Time (26 October 2026) answer a later question: today\'s link on 26 lines, '
             'keeping as many of its shift times as it can, with a 13:35 or 13:45 finish every weekday and the weekday closer at 16:00. Each pays for '
             'the short finishes a different way; the summary sheet sets them side by side. Closing Time, improved on 27 and 30 '
             'October, was shortlisted on 30 October until the shortlist was cut to two the same day; Home Grown '
             'was never on it.'), '']
       if {'Home Grown', 'Closing Time'} <= names_in else []),
-    *([para('In Step (30 October 2026) answers the next question: whether Closing Time could have five on at the Saturday '
-            'open and follow the weekday trains more closely. It keeps Closing Time\'s weeks and a 13:45 finish every '
-            'weekday, with the closer at 15:45 instead of 16:00. The same day the shortlist was cut to two: Short Run, on it '
-            'since 3 October, and In Step (Second Edition, Even Keel and Closing Time left it).'), '']
-      if 'In Step' in names_in else []),
-    *([para('Even Step (31 October 2026) answers the one thing about In Step expected to concern colleagues most: the length of its '
-            'main weekday earlies, 8h 55m and 8h 45m. It keeps In Step\'s weeks - the same rest days, weekends and early '
-            'and late weeks - with the shift times chosen again. It joined the shortlist the same day, beside In Step '
-            'and Short Run.'), '']
-      if 'Even Step' in names_in else []),
-    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Open Return, Short Openers, Grand Tour and '
+    # EVEN STEP ON ITS OWN TERMS (8 Nov 2026): its paragraph followed In Step's and answered it, and In Step was deleted that
+    # day, so it says what Even Step keeps of Closing Time, which In Step's weeks were: checked on the two grids below
+    *([para('Even Step (31 October 2026) keeps Closing Time\'s weeks - the same rest days, weekends and early and late '
+            'weeks - with every shift time chosen again: no shift over 8h 30m Monday to Saturday, every early one of '
+            'today\'s times, a 13:45 finish every weekday, and the closer at 15:45 instead of 16:00. It joined the '
+            'shortlist the same day.'), '']
+      if {'Even Step', 'Closing Time'} <= names_in else []),
+    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Grand Tour and '
             'Common Ground (4 November 2026) came after the shortlist of 31 October. Clean Slate '
             'chooses every shift time afresh for the trains, with no shift over 8h 30m Monday to Saturday, one 13:45 '
             'finish and a closer from 15:45 every weekday. Next Step has Even Step\'s shift times with three weekday ones '
             'retimed for the trains, laid on Home Grown\'s weeks, still with no shift over 8h 30m Monday to Saturday. Fair '
             'Share is Next Step with an even Sunday: '
             'every Sunday duty is 8h 10m or 8h 15m, so a Sunday early and a Sunday late pay within a few pounds, and no '
-            'shift is over 8h 30m on any day. Open Return, Short Openers, Grand Tour and Common Ground are links where '
+            'shift is over 8h 30m on any day. Grand Tour and Common Ground are links where '
             '14 days\' leave buys 30 days off, and four weeks off take 14, as today; their sheets and import files have a '
-            'folder of their own, 30 days off. Open Return has a 16:15 closer every weekday and no avoidable fatigue '
-            'warning. Short Openers has Open Return\'s weeks, with every weekday 06:20 finishing by 14:20, every weekday '
-            'closer at 15:45, and two weekday lates 15 minutes shorter, which keeps each weekday\'s hours. Grand Tour keeps '
+            'folder of their own, 30 days off. Grand Tour keeps '
             'Fair Share\'s shift times in new weeks. Common Ground was drawn on the brief of today\'s link taken to 26 '
             'weeks, and is laid on Grand Tour\'s weeks: today\'s shift times kept where the rules allow, a 13:45 finish '
             'every weekday, closers from 15:45 Monday to Saturday, nothing over 8h 30m on any day, and Sunday duties of 8h to '
@@ -463,7 +482,7 @@ readme = '\n'.join([
       if AFTER_31_OCT else []),
     para('On 5 November 2026 the shortlist was drawn again, after every design then in the pack, and listed A to Z: Common '
          'Ground, as the example of the links that keep today\'s leave; Even Step, then first in the pack\'s league; and '
-         'Short Run, which colleagues had already seen. In Step left the shortlist, and its presentations stayed in the pack.'),
+         'Short Run, which colleagues had already seen.'),
     '',
     # described on its own terms, as its headline is (owner, 5 Nov 2026: "the proposal description headlines should not
     # reference other proposals")
@@ -531,7 +550,7 @@ readme = '\n'.join([
 ])
 assert all(len(l) <= W for l in readme.split('\n')), [l for l in readme.split('\n') if len(l) > W]
 _named = [n for n in DELETED if n in ' '.join(readme.split())]
-if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6 or 7 Nov 2026 (README.md -> "Nine designs deleted", "Crossover", "Both Ways and Fine Tune deleted")')
+if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6, 7 or 8 Nov 2026 (README.md -> "Nine designs deleted", "Crossover", "Both Ways and Fine Tune deleted", "Five designs deleted")')
 _old = [n for n in RENAMED if n in ' '.join(readme.split())]
 if _old: raise SystemExit(f'pack: the read-me names {_old}, the old name of {[RENAMED[n] for n in _old]}')
 # PLAIN ASCII: it opens in Notepad, and an older one reads a file with no byte-order mark in the PC's own code page

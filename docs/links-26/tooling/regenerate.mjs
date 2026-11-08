@@ -37,29 +37,27 @@ export const SUPPLIED = [
     // (SG-26-H1 · 8d61e5c3), the bottom four of the main league, each matched or beaten on all but one measure by a design
     // that stays (README.md → "Four designs withdrawn"). DELETED ON 6 NOV 2026 with five others (owner: "Permanently delete
     // well kept, quarter past, the four second designs, quiet friday, little and often and same again"): their grids, metas
-    // and search starts are gone, and pack.py refuses their names (README.md → "Nine designs deleted"). Their duty tables stay,
-    // because the designs that grew from them were drawn from them: table F (results/second-nature-*.json) Second Edition,
-    // Short Run and Long Break, and table H1 (results/second-gear-table.json) Even Keel (and Fine Tune, until it too was
-    // deleted on 7 Nov 2026, below). Those designs — with Second Look — keep their comments below.
+    // and search starts are gone, and pack.py refuses their names (README.md → "Nine designs deleted"). Their duty tables stayed
+    // while a design drawn from them was in the pack: table F (results/second-nature-*.json) stays for Second Edition, Short
+    // Run and Long Break, which keep their comments below; table H1 (results/second-gear-table.json) went on 8 Nov 2026 with
+    // Even Keel, the last design drawn from it (below).
     // BOTH WAYS AND FINE TUNE, DELETED ON 7 NOV 2026 (owner: "Please cut both ways and fine tune from the links 26 pack"):
     // of the 21 designs outside Balanced V5-V7, Both Ways had the lowest average place over the league's ten readings and
     // Fine Tune the fourth lowest, and neither was alone best at any of the league's twenty measures. Their sheets, grids,
     // import files, metas, Both Ways' duty table and Fine Tune's outside review folder are gone, and pack.py refuses their
     // names (README.md → "Both Ways and Fine Tune deleted").
-    // Second Look (2 Oct 2026): from the same restart as Second Sight, on a variation of Second Nature's duty table (table
-    // G3: the Saturday 08:00-16:30 pair moved to 07:15-15:45), one of the only two rotas in it that met every floor (the
-    // other, Second Gear, is withdrawn). README.md → "Second Look and Second Gear".
-    { file: 'second-look.json',            name: 'Second Look',    code: 'SL-26-G3',   fp: 'a97f4052', strap: 'Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates' },
+    // SECOND LOOK, EVEN KEEL, IN STEP, OPEN RETURN AND SHORT OPENERS, DELETED ON 8 NOV 2026 (owner: "Delete in step, even
+    // keel, open return, short openers and second look from the pack and repo"). Their sheets, import files, grids, metas and
+    // duty tables are gone, with In Step's presentations, table H1 and the outside reviewer's second folder, which only Even
+    // Keel still used; pack.py refuses their names, and RETIRED_CODES (below) their codes (README.md → "Five designs deleted").
+    // Short Openers' grid alone stays, in results/ and out of the pack, because two designs that stay were laid from its rest
+    // days: Crossover, and Balanced V8 (exact-rota.py's first step for it).
     // Second Edition (2 Oct 2026): the owner asked for a roster stronger than any so far, at 219 days. Same duty table as
     // Second Nature; the weeks were built from a rest-day SKELETON (skeleton.mjs) that carries every rule a finished rota
     // must meet, then the times were searched. Weekends at most five apart, four single rest days, no mixed week, 18 of 21
     // weeks on one shift time, heaviest week 42h 00m, step 1h 01m — better than or equal to every design on every line.
     // README.md → "Second Edition".
     { file: 'second-edition.json',         name: 'Second Edition', code: 'SE-26-F1',   fp: '40715a41', strap: 'Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time' },
-    // Even Keel (3 Oct 2026): a second reordering of Second Gear by the outside reviewer of Fine Tune (their SGR-26-C2, with its
-    // recount in external/roster-search-results-2/). Same duties every day; 18 of 21 weeks on one shift time. Checked
-    // here by the app's own code. Their other candidate, Five-Day Flow, was NOT shipped: README.md → "Even Keel".
-    { file: 'even-keel.json',              name: 'Even Keel',      code: 'EK-26-H1',   fp: '250f90d5', strap: '18 of 21 weeks on one shift time, no Mon–Sat week over 42h, and never less than 14h 35m between fixed duties' },
     // Short Run (3 Oct 2026): the final targeted search's one find. Second Edition's duty table on a rest-day skeleton
     // the EXACT solver produced (exact-skeletons.py: no run over FIVE days, no mixed week, four single rest days — a
     // layout the annealing skeleton search never reached in 16 seeds), then the same soft → hard polish chain. Equal to
@@ -81,12 +79,8 @@ export const SUPPLIED = [
     // (factors-like.mjs). README.md → "Today's link on 26 lines".
     { file: 'home-grown.json',             name: 'Home Grown',     code: 'HG-26-T1',   fp: '021e6f03', strap: 'Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, and the ticket office’s new Saturday late, with a 13:35 finish every weekday and Saturday closing as today' },
     { file: 'closing-time.json',           name: 'Closing Time',   code: 'CT-26-T2',   fp: 'd6c56b87', strap: 'A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties' },
-    // In Step (30 Oct 2026): the owner asked whether Closing Time could be improved to fix the Saturday open or fit the trains
-    // better on a weekday, and to give the answer a new name. Closing Time's rest days and early and late weeks, held while
-    // exact-rota.py chose every time from a table with 15:45 closers, five at every opening Monday to Saturday and two new
-    // early times that finish by 15:45, so its 14h 35m rest holds. README.md → "In Step".
-    { file: 'in-step.json',                name: 'In Step',        code: 'IS-26-T4',   fp: '2bb1a9f4', strap: 'Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties' },
-    // Even Step (31 Oct 2026): the owner's one reservation about In Step was the length of its main early shift. The same
+    // Even Step (31 Oct 2026): the owner's one reservation about In Step (deleted 8 Nov 2026, above) was the length of its
+    // main early shift. The same
     // weeks (Closing Time's rest days and early and late weeks) with every duty Monday to Saturday 8h 30m or less, every
     // early one of today's times and every closer still 15:45; the lates take the half hour. README.md → "Even Step".
     { file: 'even-step.json',              name: 'Even Step',      code: 'ES-26-T5',   fp: 'fb7a3988', strap: 'No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday' },
@@ -101,18 +95,16 @@ export const SUPPLIED = [
     // 4 Nov 2026 (owner: "Do a proposal sheet for all of today's work. Put them into the repo"): Quarter Past, a one-page roster
     // supplied as a PDF and read in cell by cell; its duties in new weeks so 14 days' leave buys 30 days off (drawn as Quarter
     // Past Relaid, QR-26-EXT); and Short Openers, that link with every weekday 06:20 finishing by 14:20 and every weekday
-    // closer at 15:45 (README.md → "Quarter Past", "Quarter Past Relaid", "Short Openers"). Their grids and meta files live in
-    // results/, under the names they were drawn with.
+    // closer at 15:45 (README.md → "Quarter Past", "Quarter Past Relaid", "Short Openers"). Their grids and meta files lived in
+    // results/, under the names they were drawn with; both were deleted on 8 Nov 2026 (above), and Short Openers' grid stays.
     // THREE NEW NAMES AND A FOLDER (owner, 4 Nov 2026: "Give all proposals individual names", then "Put all of the links that
     // give 30 days off for 14 days AL into a subfolder within links 26"). Quarter Past Relaid is Open Return, a name of its own
     // rather than its parent's; Fair Share's 30-day search result, which had none, is Grand Tour and joins the pack; and the
     // three links where 14 days' leave buys 30 days off ship into 30-days-off/ (README.md → "30 days off for 14 days' leave").
     // The fingerprints did not move: the cells are the same, only the names and the folder.
     // QUARTER PAST TAKEN OUT, 4 NOV 2026 (owner: "Remove quarter past from the pack please"): the one-page roster QP-26-EXT ·
-    // dfdbd724, in the pack for a few hours, and DELETED on 6 Nov 2026 (above). Open Return and Short Openers keep its shift
-    // times and say so in their lineage, so its duty table stays (results/quarter-past-table.json): Open Return was drawn from it.
-    { file: 'results/quarter-past-re-laid.json', name: 'Open Return',          code: 'OR-26-EXT', fp: '190eba69', dir: '30-days-off', strap: 'A 16:15 closer every weekday, 14 days’ leave buys 30 days off, as today, and no fatigue warning in any cover-week placement tested' },
-    { file: 'results/short-openers.json',        name: 'Short Openers',        code: 'SO-26-EXT', fp: '65f99952', dir: '30-days-off', strap: 'Every weekday 06:20 finishing by 14:20, every weekday closer at 15:45, and 14 days’ leave buys 30 days off, as today' },
+    // dfdbd724, in the pack for a few hours, and DELETED on 6 Nov 2026 (above). Its duty table (results/quarter-past-table.json)
+    // stayed while Open Return, drawn from it, was in the pack, and went with it on 8 Nov 2026.
     // Grand Tour (4 Nov 2026): Fair Share's duties in new weeks, so that 14 days' leave buys 30 days off and four weeks off
     // take 14, as today — the answer to the owner's question that morning (README.md → "Fair Share", run e). It was a search
     // result with no name, sheet or import file until the 30-day folder was made
@@ -143,7 +135,8 @@ export const SUPPLIED = [
     // pack. Delete set fair as it would not work"; then "Needs a better name" and "Use railway names in future"): Crossover, drawn
     // as Safe Hands the same day, two 13:45s every weekday, and no weekday early finishing between 15:00 and 16:00, so two are
     // still on for the 15:45 closers' first 15 minutes. Set Fair, drawn first the same day, had three 07:15-15:45s leaving as the
-    // closers came on, and was deleted. Laid on Short Openers' rest days with the 55-hour worst case held (README.md →
+    // closers came on, and was deleted. Laid on Short Openers' rest days (results/short-openers.json, kept for it when Short
+    // Openers was deleted on 8 Nov 2026) with the 55-hour worst case held (README.md →
     // "Crossover"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
     { file: 'crossover.json',              name: 'Crossover',            code: 'CO-26-T10', fp: '6596c0d9', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
     // 7 Nov 2026 (owner, of Crossover: "Middle ground is a reworking of common ground to make it a gentle change between weeks.
@@ -179,14 +172,16 @@ export const SUPPLIED = [
 // one that named a design which has left the pack must never name another: a sheet still in somebody's bag would then share
 // its code with a different rota. Short Working nearly took SW-26-F1, Second Wind's until it was deleted. These are the
 // codes of every design withdrawn, deleted or renamed (README.md → "Four designs withdrawn", "Nine designs deleted", "Both
-// Ways and Fine Tune deleted", and the renames to Open Return, Balanced V6 and Crossover), and of the outside reviewer's
-// candidates (tooling/external/). Every run refuses an entry that takes one under another name, and two entries that share
-// a code. A design brought back under its own name may have its own code back
+// Ways and Fine Tune deleted", "Five designs deleted", and the renames to Open Return, Balanced V6 and Crossover), and of the
+// outside reviewer's candidates (their folders in tooling/external/ were deleted with Fine Tune and Even Keel). Every run
+// refuses an entry that takes one under another name, and two entries that share a code. A design brought back under its
+// own name may have its own code back
 export const RETIRED_CODES = {
     'SN-26-F2': 'Second Nature', 'SW-26-F1': 'Second Wind', 'SS-26-F1': 'Second Sight', 'SG-26-H1': 'Second Gear',
     'QF-26-C1': 'Quiet Friday', 'SA-26-S1': 'Same Again', 'WK-26-S2': 'Well Kept', 'LO-26-EXT': 'Little and Often',
     'QP-26-EXT': 'Quarter Past', 'QR-26-EXT': 'Quarter Past Relaid', 'RP-26-V5': 'Relief Point', 'SF-26-T9': 'Set Fair',
     'SH-26-T10': 'Safe Hands', 'BW-26-T3': 'Both Ways', 'FT-26-H1': 'Fine Tune',
+    'SL-26-G3': 'Second Look', 'EK-26-H1': 'Even Keel', 'IS-26-T4': 'In Step', 'OR-26-EXT': 'Open Return', 'SO-26-EXT': 'Short Openers',
     'SGR-26-C1': 'Second Gear Refined C1', 'SGR-26-C2': 'Second Gear Refined C2', 'FDF-26-C1': 'Five-Day Flow',
 };
 

@@ -89,6 +89,13 @@ every design needing 14 scores 0.46 less, those needing 15 nothing less. Crossov
 second; Closing Time passed Grand Tour, and Long Break, Open Return and Second Look moved. *Balanced V8 and Balanced V9*,
 near the end, has the table.
 
+**League places and scores dated before late on 8 Nov 2026 count Second Look, Even Keel, In Step, Open Return and Short
+Openers**, deleted then (owner: "Delete in step, even keel, open return, short openers and second look from the pack and
+repo"). Unlike Both Ways and Fine Tune, three of them set an end of four of the ranges both leagues read — Second Look the
+fewest days off at best for 14 days' leave, In Step the most long earlies and the lightest heaviest week, Open Return the
+shortest closing shift on average — so every other score moved: in the main league Level Crossing is now first and Clockface
+second, and the designs with 20 long earlies a year fell furthest. *Five designs deleted*, near the end, has the tables.
+
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
 So a rebuild adds nothing about who decides, votes or recommends — the process is recorded in
@@ -109,11 +116,11 @@ removed on 7 Nov 2026):
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
 | `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
 | `links-26-shortlist.pdf` | the three shortlisted designs (Balanced V6, Level Crossing and Middle Ground, A to Z, since 8 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
-| `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z folder by folder, on two pages: the proposals folder, then the 30-day folder and its Balanced subfolder (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
+| `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z folder by folder, on one page when it fits — nineteen rows since 8 Nov 2026 — and otherwise on two, split at the folders (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
-| `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary; since 7 Nov 2026 the five Balanced designs are in its subfolder `30-days-off/balanced/` (owner: "Put all the Balanced proposals in their own subfolder"), *Balanced* in the zip |
+| `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary; since 7 Nov 2026 the Balanced designs, six since Balanced V10, are in its subfolder `30-days-off/balanced/` (owner: "Put all the Balanced proposals in their own subfolder"), *Balanced* in the zip |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
-| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: Balanced V6's, Level Crossing's and Middle Ground's, the shortlist's since 8 Nov 2026 and the only ones in the zip; and Common Ground's, Even Step's, In Step's and Short Run's, made for the shortlists before then and out of the zip since |
+| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: Balanced V6's, Level Crossing's and Middle Ground's, the shortlist's since 8 Nov 2026 and the only ones in the zip; Common Ground's, Even Step's and Short Run's, made for the shortlists before then and out of the zip since (In Step's, made with them, were deleted with it on 8 Nov 2026); and Balanced V10's, Clockface's and Short Working's, drawn on 8 Nov 2026 beside the shortlist, not in the zip either |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs, and `tooling/reference-24/` the few 24-line files they still read (since 7 Nov 2026) |
 | `RULES.md` | the rules in prose, with their sources and the open questions (26 lines only) |
 | `README.md` | this record — the repository's working record, not part of the pack (left out of the zip since 5 Nov 2026, owner) |
@@ -512,7 +519,11 @@ FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MA
   LEAVE_WORST_MIN=20 node space-polish.mjs results/second-sight-start.json /tmp/ss.json 1 300000   # → /tmp/ss.closest.json
 ```
 
-## Second Look and Second Gear — the same restart, on two variations of the duty table (2 Oct 2026; Second Gear withdrawn 3 Nov 2026, deleted 6 Nov 2026)
+## Second Look and Second Gear — the same restart, on two variations of the duty table (2 Oct 2026; Second Gear withdrawn 3 Nov 2026, deleted 6 Nov 2026; Second Look deleted 8 Nov 2026)
+
+**Second Look deleted on 8 Nov 2026** (owner: *"Delete in step, even keel, open return, short openers and second look from the pack and repo"*; *Five designs deleted*, below). Its sheet, import file, grid, meta, search
+start and duty table (table G3, `results/second-look-table.json`) are no longer in the repository either, and nor is table
+H1, which went with Even Keel, the last design drawn from it. The paragraph below was written on 6 Nov; git history has the files (on main, `69ebb70f`, the last commit before the deletion; on this branch, `93530a9b`).
 
 **Deleted on 6 Nov 2026** (owner: *"Permanently delete well kept, quarter past, the four second designs, quiet friday,
 little and often and same again"*; *Nine designs deleted*, below). Second Gear's grid, meta and search start are no longer in the repository. Second Look's files stay, and so does table
@@ -733,7 +744,13 @@ Put forward as **Fine Tune** (`FT-26-H1` · `9a7393d3`, owner: "give it its own 
 instead of two and a week-to-week step of 1h 09m instead of 1h 25m, and nothing worse. The grid is the source, as for
 the other supplied designs: their search is time-budgeted, so a re-run need not reproduce it.
 
-## Even Keel — a second Second Gear refinement; Five-Day Flow not shipped (3 Oct 2026)
+## Even Keel — a second Second Gear refinement; Five-Day Flow not shipped (3 Oct 2026; deleted 8 Nov 2026)
+
+**Deleted on 8 Nov 2026** (owner: *"Delete in step, even keel, open return, short openers and second look from the pack and repo"*; *Five designs deleted*, below). Its sheet, import file, grid and meta are no longer in the
+repository, and nor are table H1 (`results/second-gear-table.json`), which only it still used, or the outside reviewer's
+second folder, `tooling/external/roster-search-results-2/`, named below: Even Keel's own record and Five-Day Flow's, never
+shipped. Its fifteen shift times are written into `tooling/exact/common.py` (`EVEN_KEEL`), so the times an exact repair may
+use are as they were. So the file names below are the record of how it was made; git history has the files (on main, `69ebb70f`, the last commit before the deletion; on this branch, `93530a9b`).
 
 The reviewer behind Fine Tune sent a second pack (`tooling/external/roster-search-results-2/`, kept unchanged) with two
 candidates and the same caveat: the app's own checker had not been run. It was, and gave two different answers.
@@ -1640,7 +1657,13 @@ late finish from 23:00, and the shortlist sheet and decks give the 22:00 figure;
 fraction from a fixed list ("about two-thirds" for Closing Time's 0.70, "a tenth" for 0.13) where the decks' notes say
 "seven-tenths" and "an eighth" — changing the list re-renders all thirteen sheets.
 
-## In Step — Closing Time's weeks, five at every opening and a closer fit to the trains (30 Oct 2026)
+## In Step — Closing Time's weeks, five at every opening and a closer fit to the trains (30 Oct 2026; deleted 8 Nov 2026)
+
+**Deleted on 8 Nov 2026** (owner: *"Delete in step, even keel, open return, short openers and second look from the pack and repo"*; *Five designs deleted*, below). Its sheet, import file, grid, meta, duty table and both
+presentations are no longer in the repository. `tooling/in-step-decks.py` stays, with the deck builders before Common
+Ground's that read In Step's grid (`short-run-decks.py`, `even-step-decks.py`, `deck-polish.py`): they are the record of how
+Short Run's, Even Step's and Common Ground's presentations were made, and they could not finish a deck after the shortlist of
+8 Nov 2026 in any case. So the file names below are the record of how it was made; git history has the files (on main, `69ebb70f`, the last commit before the deletion; on this branch, `93530a9b`).
 
 *(This section records In Step as it was made, off the shortlist. Later the same day the owner cut the shortlist to In
 Step and Short Run and In Step became the recommendation, which changed its read-me paragraph, its "Why" slide and its
@@ -3358,7 +3381,12 @@ owner to look at, not a design in the pack: it has no name, sheet or import file
 - **Not changed:** the decks, "What it means if you…", the New link page and the Links designer's built-in examples
   (the shortlist's three).
 
-## Quarter Past Relaid — 30 days off for 14 days' leave (4 Nov 2026)
+## Quarter Past Relaid — 30 days off for 14 days' leave (4 Nov 2026; as Open Return, deleted 8 Nov 2026)
+
+**Deleted on 8 Nov 2026, as Open Return** (owner: *"Delete in step, even keel, open return, short openers and second look from the pack and repo"*; *Five designs deleted*, below). Its sheet, import file and grid
+(`results/quarter-past-re-laid.json`) and meta are no longer in the repository, and nor is Quarter Past's duty table
+(`results/quarter-past-table.json`), which it was drawn from. So the file names below are the record of how it was made;
+git history has the files (on main, `69ebb70f`, the last commit before the deletion; on this branch, `93530a9b`).
 
 **The question** (owner, 4 Nov 2026, of Quarter Past above): *"Can you adjust quarter past to keep the 14 days off to buy
 30 days annual leave (sundays can be made not available) but meet all the other fatigue rules, maximise weekends off,
@@ -3447,7 +3475,11 @@ the same day: see* Today's three join the pack.
 OUT=/tmp/Quarter-Past-Relaid.pdf node supplied.mjs results/quarter-past-re-laid.json "Quarter Past Relaid" "Quarter Past's shifts in new weeks: 14 days' leave buys 30 days off, as today, with no fatigue warning and seven full weekends" QR-26-EXT
 ```
 
-## Short Openers — Quarter Past Relaid with every weekday opener 8 hours at most (4 Nov 2026)
+## Short Openers — Quarter Past Relaid with every weekday opener 8 hours at most (4 Nov 2026; deleted 8 Nov 2026)
+
+**Deleted on 8 Nov 2026** (owner: *"Delete in step, even keel, open return, short openers and second look from the pack and repo"*; *Five designs deleted*, below). Its sheet, import file and duty table are no longer in the
+repository. Its grid stays, `results/short-openers.json` with its meta, out of the pack: Crossover's and Balanced V8's weeks
+were laid from its rest days, and `exact-rota.py` names it as Balanced V8's starting point. Git history has the files (on main, `69ebb70f`, the last commit before the deletion; on this branch, `93530a9b`).
 
 **The question** (owner, 4 Nov 2026): *"Can you do the quarter past relaid but all 6.20 starts Monday to Friday must
 finish at 13.45 or 14.20. Keep the 8 hours maximum shift time Mon to Friday and the 14 AL days buys 30 days off."* Then,
@@ -3523,8 +3555,8 @@ renderer refused the page 8px into its footer.
 
 ## Today's three join the pack — Quarter Past, Quarter Past Relaid and Short Openers (4 Nov 2026)
 
-*Quarter Past was deleted on 6 Nov 2026 (*Nine designs deleted*, below). Quarter Past Relaid is Open Return, and it and
-Short Openers are in the 30-day folder.*
+*Quarter Past was deleted on 6 Nov 2026 (*Nine designs deleted*, below). Quarter Past Relaid is Open Return; it and
+Short Openers were in the 30-day folder until both were deleted on 8 Nov 2026 (*Five designs deleted*, below).*
 
 **The request** (owner, 4 Nov 2026): *"Do a proposal sheet for all of today's work. Put them into the repo and then give
 me the league table".* Read as: the three designs drawn today join the pack as proposals, as Fair Share did that
@@ -7124,6 +7156,122 @@ the shortlist as Balanced V10's are. Like V10's they are not in the zip, which c
   `scripts/mutate.mjs`, the build refuses each time: the colleague leave notes left naming the old shortlist; the managers'
   55-hour figure left as Even Step's; the decks drawn on Even Step's own weeks; and Short Working's rest slide left at 18 of
   21.
+
+## Five designs deleted (8 Nov 2026)
+
+**The ask** (owner, 8 Nov 2026), after asking which proposals were best and which were very weak and could be discarded, the
+Balanced family aside: *"Delete in step, even keel, open return, short openers and second look from the pack and repo"*. The
+choice is the owner's; none of the five was on the shortlist.
+
+| Design | Code · fingerprint | What it was | Main league before, of 27 | Files deleted |
+|---|---|---|---|---|
+| Second Look | `SL-26-G3` · `a97f4052` | from the restart of 2 Oct 2026, on table G3: weekends never more than five weeks apart, four single rest days | 13th, 69.7 | its sheet, import file and JSON in `proposals/`; `tooling/second-look.json` + meta; `results/second-look-start.json` and `second-look-table.json` (table G3) |
+| Even Keel | `EK-26-H1` · `250f90d5` | Second Gear's weeks reordered by an outside reviewer (their `SGR-26-C2`), 3 Oct 2026; on the first shortlist | 23rd, 65.9 | its sheet, import file and JSON in `proposals/`; `tooling/even-keel.json` + meta; table H1 (`results/second-gear-table.json`); `results/keep-1345-even-keel-x1.json`; `tooling/external/roster-search-results-2/`, six files: the reviewer's read-me, two import files, a verifier and its results |
+| In Step | `IS-26-T4` · `2bb1a9f4` | Closing Time's weeks with five at every opening, 30 Oct 2026; shortlisted and recommended that day, off the shortlist from 5 Nov | 22nd, 66.8 | its sheet, import file and JSON in `proposals/`; both presentations, PowerPoint and PDF; `tooling/in-step.json` + meta; `results/in-step-table.json` |
+| Open Return | `OR-26-EXT` · `190eba69` | Quarter Past's duties in new weeks, 30 days off for 14 days' leave (drawn as Quarter Past Relaid, 4 Nov 2026) | 24th, 65.4 | its sheet, import file and JSON in `30-days-off/`; `results/quarter-past-re-laid.json` + meta; Quarter Past's duty table, `results/quarter-past-table.json` |
+| Short Openers | `SO-26-EXT` · `65f99952` | Open Return with every weekday 06:20 finishing by 14:20 and every weekday closer at 15:45, 4 Nov 2026 | 19th, 67.8 | its sheet, import file and JSON in `30-days-off/`; `results/short-openers-table.json` |
+
+Forty tracked files in all, and their local renders in `tooling/` (ignored by git). In the league as weighted until 8 Nov
+they were 13th (Short Openers), 17th (Even Keel), 21st (In Step), 23rd (Second Look) and 24th (Open Return) of 27.
+
+**What stays, and why.**
+- **Short Openers' grid**, `results/short-openers.json` with its meta, out of the pack. Crossover's and Balanced V8's weeks
+  were laid from its rest days, and `exact-rota.py`'s recipe for Balanced V8 starts from it: it named the shipped copy in
+  `30-days-off/`, and names this one now, cell for cell the same. The meta says why it stays.
+- **Even Keel's shift times**, written into `tooling/exact/common.py` as `EVEN_KEEL`. The exact solver lets a repair use the
+  times of the first shortlist's designs, read from their grids; written there, the times are as they were — the same 29 for
+  Short Run and 30 for Clockface, checked against a list built from the deleted grid.
+- **`tooling/in-step-decks.py`**, and the deck builders before Common Ground's that read In Step's grid or figures
+  (`short-run-decks.py`, `even-step-decks.py`, `deck-polish.py`). They are the record of how Short Run's, Even Step's and
+  Common Ground's presentations were made, and none of them could finish a deck after the shortlist of 8 Nov 2026 in any
+  case: the polish refuses. The two builders of the decks in use, `shortlist-decks.py` and `relay-decks.py`, take only
+  helpers from the polish; both were run after the deletion, and their twelve decks came out identical to the committed ones
+  but for the chart workbook's save time, so the committed files were kept.
+- **Their codes**, in `regenerate.mjs` → `RETIRED_CODES`: a code names one design for good, so none of the five can be given
+  to another design (a mutation giving Clockface `IS-26-T4` fails the check, naming In Step).
+- **`links-proposals.js`** in the app names Even Keel and In Step in its history comments: true of their day, and changing a
+  served file would start a Hosting deploy for nothing anyone sees. **The app does not change**, and there is no version
+  bump.
+- **This README's sections** about them, each marked deleted with a note under its heading, the 30-day folder's README,
+  which says the same for Open Return and Short Openers, and the tooling's comments that name them as history.
+
+**The league.** Unlike Both Ways and Fine Tune, three of the five set an end of four of the ranges both leagues read
+(today's link and Familiar Nine inside them, as the main table reads), so every other score moved:
+
+| Measure | Range before | Range after | The end set by |
+|---|---|---|---|
+| Days off at best for 14 days' leave | 27 to 30 | 28 to 30 | Second Look |
+| Long earlies, a year each | 0 to 40 | 0 to 21.7 (the league before 8 Nov: 0 to 32.5) | In Step |
+| Closing shift, Monday to Saturday average | 7h 45m to 8h 45m | 7h 55m to 8h 45m | Open Return |
+| Heaviest week | 41h 05m to 43h 50m | 41h 45m to 43h 50m | In Step |
+
+The designs with 20 long earlies a year — Short Working, Short Run, Second Edition and Long Break — fell furthest: with In
+Step's 40 gone, 20 is near the worst end of that range rather than half-way along it. The main league now (the closing weeks
+counted; `REF_IN_RANGE=1 node league.mjs`):
+
+| Place | Design | Score | Before, of 27 |
+|---|---|---|---|
+| 1st | Level Crossing | 78.7 | 2nd, 77.8 |
+| 2nd | Clockface | 78.2 | 1st, 78.3 |
+| 3rd | Middle Ground | 77.8 | 3rd, 76.8 |
+| 4th | Balanced V10 | 77.5 | 4th, 76.6 |
+| 5th | Grand Tour | 75.6 | 7th, 74.4 |
+| 6th | Next Step | 74.6 | 5th, 74.6 |
+| 7th | Fair Share | 74.3 | 8th, 74.3 |
+| 8th | Even Step | 74.0 | 9th, 74.0 |
+| 9th | Clean Slate | 73.1 | 10th, 73.1 |
+| 10th | Short Working | 72.1 | 6th, 74.5 |
+| 11th | Balanced V8 | 70.5 | 14th, 69.6 |
+| 12th | Common Ground | 69.7 | 17th, 68.7 |
+| 13th–15th | Balanced V9, Home Grown, Long Break | 69.2 each | 18th, 15th and 11th |
+| 16th | Closing Time | 69.0 | 16th, 68.8 |
+| 17th | Crossover | 68.5 | 21st, 67.5 |
+| 18th | Second Edition | 68.0 | 12th, 70.1 |
+| 19th | Short Run | 65.4 | 20th, 67.7 |
+| 20th–22nd | Balanced V7, V6, V5 | 61.9, 51.9, 48.4 | 25th–27th |
+
+Today's link stays at 41.8. In the league as weighted until 8 Nov (`LEAGUE=31oct`) every score but four rose 0.5 to 0.9
+points (Second Edition's stayed, Short Working's and Short Run's fell 0.1, Long Break's rose 0.1), and the order is the same
+but for Closing Time passing Fair Share and Balanced V9 passing Second Edition: Crossover 87.5, Level Crossing 87.1, Common
+Ground 86.9 at the top, Balanced V5 53.7 last. The read-me's league sentence, read from `league.mjs`, now says Level
+Crossing is first by 0.5 points and Clockface second.
+
+**The pack.** 22 designs: eleven in `proposals/` and eleven in `30-days-off/`, six of them in `balanced/`. The zip holds 63
+files, from 73: the five sheets and their five import files (In Step's presentations were not in the zip).
+- **The read-me** (`pack.py`) names none of the five and refuses them (`DELETED`; a mutation putting "In Step" back in a
+  sentence stops the build). Its history lost In Step's paragraph; the first shortlist "included Second Edition and Short
+  Run"; Even Step's paragraph says what it keeps of Closing Time — In Step's weeks were Closing Time's — and each of its
+  clauses is held to the two grids (a mutation of the closer clause stops the build); the paragraph on the designs after 31
+  Oct names Grand Tour and Common Ground as that day's 30-day links; and the 5 Nov paragraph no longer says In Step's
+  presentations stayed. `THIRTY_SET` and `AFTER_31_OCT_SET` lost the two from the 30-day folder.
+- **The sheet of the other designs** has nineteen rows, and is one page again: it is laid out on one page first and split at
+  the folders only if that page overflows (`shortlist-sheet.mjs` → `OTHER_LAYOUTS`; with 100px added to its lead it went
+  back to two pages, built and whole). Its proposals heading reads "28 to 29 days off at best", from 27 to 29, and its lead
+  names the four other designs that keep closing weeks apart, without Second Look.
+- **The shortlist sheet** says "the other nineteen", and its guide lost the row "A fourth person to the Saturday close":
+  only Even Keel had four there. The claim now refuses a design that brings four back until the row does (a mutation that
+  counts three at the close as a fourth stops the sheet). The claims that named the five went with them, and those that
+  listed them in a set — the 30-day folder, the closing weeks side by side, no 55-hour week — read the remaining designs.
+- **The summary** has 22 rows.
+- **Unchanged:** the 22 proposal sheets (rendered again, text identical but the date, so the committed files were kept), the
+  rules sheet, the "What it means if you…" sheet (the same text, rebuilt and checked against the decks) and every deck.
+- **`RULES.md`** (in the zip as the technical notes) gives the app's release history without naming In Step: "v25.02
+  narrowed them to the two then shortlisted, v25.04 made them three again".
+
+**Checks.** `closing.mjs --check` pinned In Step (its 40 long earlies) and Second Look (the one design where two weekday
+closes would join a closing week to its neighbour). Short Run now pins the long earlies (20 a year), and four made-up weeks
+pin "three or more" itself: a closing week, then one with two closes and two 22:30 lates. Mutated with `scripts/mutate.mjs`,
+the check fails each time: "three or more" read as two (the made-up weeks read 2) and as four (Crossover, Common Ground,
+Short Run and the made-up weeks), and long earlies counted over 9 hours on a weekday (Short Run's 20 read 0). And on the
+tree: `regenerate.mjs --check`, 22 proposals; `check.mjs`, everything agrees; `leave.mjs --check` and `newlink-data.mjs
+--check`, ok; `deck-check.mjs`, 486 rows agree, from 540 (In Step's two decks); `pack.py`, 63 files; `npm test`, 2,561 pass.
+
+**Getting back.** `git checkout 69ebb70f -- <path>` restores any of the files from main (`93530a9b` on this branch). To put
+a design back in the pack: its files, its `SUPPLIED` entry, its strap, family and date in `fresh.mjs`, its row and claims on
+the other designs' sheet, and its name out of `pack.py`'s `DELETED`. It may have its own code back; `RETIRED_CODES` refuses
+only a code given to another design.
+
+**Outside the repository.** Zips sent before this change hold the five; the one sent with it does not.
 
 ## Notes for the whole set
 
