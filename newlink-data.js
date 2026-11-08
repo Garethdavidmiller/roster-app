@@ -117,7 +117,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🌙",
         "chip": "Prefer lates",
         "who": "…prefer lates",
-        "gist": "More lates on all three, in longer runs, and every closer shorter, the weekday’s by half an hour. Middle\u00a0Ground’s are the shortest on average.",
+        "gist": "More lates on all three, in longer runs, and every closer shorter, the weekday’s by half an hour.",
         "rows": [
             {
                 "label": "Lates a year",

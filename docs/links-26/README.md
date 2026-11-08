@@ -6599,6 +6599,9 @@ league", and "Balanced V6 scores far below every design but Balanced V5", the se
 important than any day as sat sun people are happier to work as they are paid more").
 - The "…prefer lates" row is "Longest closing shift, weekday": 8h 40m today, 8h 10m on all three.
 - Its line says every closer is shorter, the weekday's by half an hour. `what-it-means-data.mjs` checks both.
+- The line no longer says Middle Ground's lates are the shortest on average. That was 8h 21m against 8h 23m and 8h 24m,
+  inside the 5%. The row still shows all three averages, and `what-it-means-data.mjs` stops if they ever spread far enough
+  apart for an edge to be true.
 - The weekend closers stay on the page's "Whichever is chosen" card and the decks' slide 6.
 - The printed sheet, `links-26-what-it-means.pdf`, follows.
 
@@ -6606,10 +6609,11 @@ important than any day as sat sun people are happier to work as they are paid mo
 - `npm run check`: 2,564 tests, none failing. The New link page's browser tests: 14 pass.
 - `deck-check.mjs`: 378 rows agree. The sheets render, and refuse to if a page overflows.
 - `pack.py`: the zip holds 67 files.
-- Three guards broken on purpose with `scripts/mutate.mjs`, each refused:
+- Four guards broken on purpose with `scripts/mutate.mjs`, each refused:
   - the slide 15 replacement removed: the build stops, "slide 15 names Sara Silva twice";
   - `clearBest` loosened to any difference: Level Crossing's costs claim fails;
-  - the weekday cut set to 25 minutes: the weekday closer claim fails.
+  - the weekday cut set to 25 minutes: the weekday closer claim fails;
+  - the average-late guard tightened to any difference: the page data stops.
 
 **Left for the owner.**
 - Middle Ground's strap and the read-me still say it was drawn so that no two closing weeks, and no two 06:20 weeks, fall

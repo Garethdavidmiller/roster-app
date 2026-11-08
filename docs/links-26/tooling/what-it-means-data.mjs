@@ -141,7 +141,12 @@ const cut = (c, k) => Hmax(TC.f[k]) - Hmax(c.f[k]);
 const wkCuts = C.map(c => cut(c, 'closerWk')), weCuts = C.flatMap(c => ['closerSat', 'closerSun'].map(k => cut(c, k)));
 claim('every weekday closer half an hour shorter, on every link', wkCuts.every(x => x === 30));
 claim('every weekend closer shorter too, so every closer is', Math.min(...weCuts) > 0);
-claim('Middle Ground: the shortest lates on average', C.every(c => c === MG || H(MG.f.avgLate) < H(c.f.avgLate)));
+// NO EDGE IN THE AVERAGE LATE (8 Nov 2026): the band said "Middle Ground's are the shortest on average", on 8h 21m against 8h 23m
+// and 8h 24m. Both deck audits' rule, which the shortlist sheet and the decks now follow: an edge is written only where a design is
+// better than both of the others by more than 5% (report-data.mjs's fitCmp, "about the same" inside it). The row still shows the
+// three figures; the band claims nothing, and this fails if the averages ever spread far enough apart for an edge to be true
+const avgLates = C.map(c => H(c.f.avgLate));
+claim('the three average lates within 5% of each other, so the band names no shortest', Math.min(...avgLates) >= 0.95 * Math.max(...avgLates));
 // …swap (the external review's wording, 1 Nov 2026)
 const swapLess = C.map(c => TC.swapPounds - c.swapPounds);
 claim('swapping the shortest earlies brings less overtime than today on every link', swapLess.every(x => x > 0) && all(c => +c.f.shortYear < +TC.f.shortYear));
@@ -204,7 +209,7 @@ const GROUPS = [
       row('Earlies finishing at 13:35 or 13:45, a year', c => v(c.f.shortYear, +c.f.shortYear), 'high'),
       row('Weeks of earlies, or of lates, in a row', c => v(upTo(`${c.f.block} (up to ${c.f.blockUpTo})`)))] },
   { who: '…prefer lates',
-    gist: `More lates on every link, in longer runs, and every closer shorter, the weekday’s by half an hour. Middle Ground’s are the shortest on average.`,
+    gist: `More lates on every link, in longer runs, and every closer shorter, the weekday’s by half an hour.`,
     rows: [row('Lates a year', c => v(c.f.lateYear, +c.f.lateYear), 'high'),
       row('Average late, closers included', c => v(hm(H(c.f.avgLate)), H(c.f.avgLate)), 'low'),
       row('Longest closing shift, weekday', c => v(hm(Hmax(c.f.closerWk)), Hmax(c.f.closerWk)), 'low'),
