@@ -146,6 +146,11 @@ test.describe('new link', () => {
             const boxes = await Promise.all((await weeks.locator('.nl-weeks-one').all()).map(b => b.boundingBox()));
             expect(boxes.every(b => b && Math.abs(b.y - /** @type {any} */ (boxes[0]).y) < 2)).toBe(true);
             expect(boxes.map(b => b?.x)).toEqual([...boxes.map(b => b?.x)].sort((a, b) => (a ?? 0) - (b ?? 0)));
+            // THE LEFT-HAND GRID IS BALANCED V6 (owner, 8 Nov 2026: "make the balanced v5 option as the left hand grid on
+            // desktop. I must not be seen to be favouring my designs over Sara's"). A to Z puts it there; this keeps it there
+            const grids = await Promise.all((await weeks.locator('.nl-weeks-one').all())
+                .map(async g => ({ x: (await g.boundingBox())?.x ?? 0, name: await g.locator('caption').innerText() })));
+            expect(grids.sort((a, b) => a.x - b.x)[0].name).toContain('Balanced V6');
             return;
         }
         // A PHONE: the chosen one only, under tabs that change it
