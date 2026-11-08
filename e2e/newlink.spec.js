@@ -10,7 +10,6 @@
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
 import { CHANGES, PACK } from '../newlink-data.js';
-import { teamMembers } from '../roster-data.js';
 
 test.describe('new link', () => {
     test('the admin sees the preview, the three proposals A to Z, and no recommendation anywhere', async ({ page }) => {
@@ -18,17 +17,11 @@ test.describe('new link', () => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
 
-        await expect(page.locator('#nlPreview')).toBeVisible();
-        // the admin is told who else can see it: the one named previewer (CONFIG.NEWLINK_PREVIEW)
-        await expect(page.locator('#nlPreview')).toContainText('Preview — only you and S. Silva can see this page.');
-        // the stand-in audience: everyone on a normal CEA contract, listed for the admin to check — and nobody on a CEA
-        // bilingual contract, which keeps its own links (owner, 8 Nov 2026: "This link will only apply to people with the
-        // normal CEA contract and NOT the bilingual contract who will still have their own links")
-        await expect(page.locator('#nlPreview')).toContainText('everyone on a normal CEA contract');
-        await expect(page.locator('#nlPreview')).toContainText('those on a CEA bilingual contract keep their own links');
-        const bilingual = teamMembers.filter(m => m.role === 'CEA' && m.bilingualContract && !m.hidden).map(m => m.name);
-        expect(bilingual.length, 'a CEA bilingual contract on the roster for the page to leave out').toBeGreaterThan(0);
-        for (const name of bilingual) await expect(page.locator('#nlPreview .nl-preview-who')).not.toContainText(name);
+        // NO PREVIEW BANNER (owner, 8 Nov 2026: "Remove the preview banner as it will be going live soon"): the admin sees
+        // exactly what colleagues will. Who it will reach is newlink-config.js → AUDIENCE, held to the roster in Node
+        await expect(page.locator('.nl-name-title').first()).toBeVisible();
+        await expect(page.locator('#nlPreview, .nl-preview')).toHaveCount(0);
+        await expect(page.locator('body')).not.toContainText(/Preview —|Who it would reach/);
         await expect(page.locator('.nl-name-title')).toHaveText(['Balanced V6', 'Level Crossing', 'Middle Ground']);
         await expect(page.locator('#nlStatus')).toContainText('Have your say by a date to be agreed');
         // EVENLY: nothing on the page names a recommendation (owner, 2 Nov 2026: "No, three evenly")
@@ -260,17 +253,16 @@ test.describe('new link', () => {
     // LNK-8). The test above reads only the Have-your-say card, so "The admin will choose one of the three." added after
     // "Nothing is decided." in the status line passed every lane. This reads the page's whole text as it opens and with
     // every way of working drawn in full — the changes, what all three share, the notes, the six personas and all three
-    // proposals' weeks are all in it then (the weeks are drawn for all three; the tabs only choose which one shows). The
-    // one place allowed to name the admin is the preview banner, which tells a PREVIEWER who else can see the page:
-    // S. Silva is told "only you and the admin can see this page", which is why the test reads as her too.
+    // proposals' weeks are all in it then (the weeks are drawn for all three; the tabs only choose which one shows). No
+    // place on it may name the admin now: the preview banner, which told S. Silva "only you and the admin can see this
+    // page", went on 8 Nov 2026, so the whole text is read, as the admin and as her.
     for (const reader of ['G. Miller', 'S. Silva']) {
         test(`nothing names the admin, or managers, as the ones who decide — read as ${reader}`, async ({ page }) => {
             await seedSession(page, reader);
             await page.goto('/newlink.html');
             await expect(page.locator('.nl-name-title')).toHaveCount(3);
             const pageText = () => page.evaluate(() => {
-                const main = /** @type {HTMLElement} */ (document.getElementById('newlinkMain').cloneNode(true));
-                main.querySelector('#nlPreview')?.remove();
+                const main = /** @type {HTMLElement} */ (document.getElementById('newlinkMain'));
                 return (main.textContent || '').replace(/\s+/g, ' ');
             });
             const opened = await pageText();
@@ -296,7 +288,7 @@ test.describe('new link', () => {
 
     // S. Silva is the new link's contact (newlink-config.js → CONTACT), and may see the preview before colleagues do
     // (owner, 4 Nov 2026: "open up the new links page to S. Silva"; CONFIG.NEWLINK_PREVIEW).
-    test('S. Silva reaches it from the drawer too, and the banner names the admin as the one other reader', async ({ page }) => {
+    test('S. Silva reaches it from the drawer too, and sees what colleagues will, with no preview banner', async ({ page }) => {
         await seedSession(page, 'S. Silva');
         await page.goto('/admin.html');
         await page.locator('#navMenuBtn').click();
@@ -305,6 +297,6 @@ test.describe('new link', () => {
         await pill.click();
         await expect(page).toHaveURL(/newlink\.html$/);
         await expect(page.locator('.nl-name-title').first()).toHaveText('Balanced V6');
-        await expect(page.locator('#nlPreview')).toContainText('Preview — only you and the admin can see this page.');
+        await expect(page.locator('#nlPreview, .nl-preview')).toHaveCount(0);
     });
 });

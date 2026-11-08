@@ -127,26 +127,6 @@ function weeksShape(proposals) {
         kept free to cover leave and absence. A cover week has four shifts between Monday and Saturday, set nearer the time.</p>`;
 }
 
-/**
- * The preview banner — for the admin and the named previewers alone, above everything colleagues will see. It says who
- * the page will reach, because the audience is a setting nobody else can check (newlink-config.js → AUDIENCE), and who
- * else can see it now, because "only you" stopped being true the day a second person could (v25.33: S. Silva).
- * @param {{ audience: string[], decided: boolean, others?: string[] }} o  decided: AUDIENCE is a list, not the every-CEA
- *   stand-in. others: everyone else who can see the preview, as they should be named to this reader ("the admin", a name)
- */
-export function renderPreviewBanner({ audience, decided, others = [] }) {
-    // Not decided: everyone on a NORMAL CEA contract; a CEA bilingual contract keeps its own links (owner, 8 Nov 2026: "This link
-    // will only apply to people with the normal CEA contract and NOT the bilingual contract who will still have their own
-    // links"). Said in the owner's words, since the admin checks this line against the roster, whose CEAs include both
-    const who = decided ? `the ${audience.length} people on the new link`
-        : `everyone on a normal CEA contract (${audience.length}) until the 26 on the new link are decided; those on a CEA bilingual contract keep their own links`;
-    const alsoSees = others.length === 0 ? ''
-        : ` and ${others.length === 1 ? others[0] : `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}`}`;
-    return `<p class="nl-preview-head"><span aria-hidden="true">👁️</span> <strong>Preview — only you${esc(alsoSees)} can see this page.</strong></p>
-    <p>When it opens it will be for ${esc(who)}. Below is exactly what they will see.</p>
-    <details class="nl-preview-who"><summary>Who it would reach</summary><p>${audience.map(esc).join(', ')}</p></details>`;
-}
-
 /** A plain bulleted list of sentences. @param {ReadonlyArray<string>} items @param {string} [cls] */
 export function renderList(items, cls = 'nl-list') {
     return `<ul class="${cls}">${items.map(s => `<li>${esc(s)}</li>`).join('')}</ul>`;
