@@ -2933,7 +2933,7 @@ button.nav-panel-link--notices {
     #navNoticesClose:hover { color: white; }
 }
 .nav-notices-empty {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--on-navy-muted);   /* the sheet's secondary text: 6.6:1 at its lit top, where white 50% was 4.18:1 */
     font-size: var(--type-label);
     text-align: center;
     padding: 8px 0 4px;

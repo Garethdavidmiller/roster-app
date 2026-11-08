@@ -824,6 +824,35 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(measured.length, 'a section label, a date and a body for each of the seven notices').toBe(21);
     });
 
+    // …and EMPTY, its one line (Nov 2026). "Notices you've read on this device appear here." was white
+    // 50% on the sheet: 4.59:1 where it sat, a pass by a hair, and under AA at the sheet's lit top,
+    // where a taller panel moves it. It wears the sheet's secondary-text token now (`--on-navy-muted`,
+    // as the archive's bodies do). Measured at the LIGHTEST point, so no panel height can undo it, and
+    // with a margin rather than at the floor, so a hair's pass fails. Over the light page and over
+    // the Calendar: the sheet is opaque, so the page behind must not matter — `contrastOnSheet`
+    // refuses a see-through panel.
+    for (const where of /** @type {const} */ (['admin', 'calendar'])) {
+        test(`App Notices, empty, reads clear of AA on the sheet (${where})`, async ({ page }) => {
+            await page.setViewportSize({ width: 1366, height: 900 });
+            if (where === 'admin') {
+                await seedSession(page);
+                await page.goto('/admin.html');
+                await page.waitForSelector('.day-row', { timeout: 10000 });
+            } else {
+                await seedMember(page);
+                await page.goto('/');
+                await expect(page.locator('.calendar-day').first()).toBeVisible();
+            }
+            await page.locator('#navMenuBtn').click();
+            const toggle = page.locator('#navGuidesToggle');
+            if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+            await page.locator('.nav-panel-link--notices').click();
+            await expect(page.locator('#navNoticesEmpty')).toBeVisible();
+            const [top] = await contrastOnSheet(page, '#navNoticesContent', '#navNoticesEmpty', { lightest: true });
+            expect(top.ratio, `${top.text} at the sheet's lit top: ${top.ratio}:1`).toBeGreaterThanOrEqual(6);
+        });
+    }
+
     test('About lightbox open (calendar)', async ({ page }) => {
         await seedMember(page);
         await page.goto('/');
