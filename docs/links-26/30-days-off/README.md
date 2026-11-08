@@ -10,11 +10,14 @@ comparisons and the league count them like every other proposal. Common Ground h
 5 November 2026, as the example of the links that keep today's leave (owner); the other eleven are not.
 
 Each has the same three files as the proposals in `../proposals/`: the eight-page sheet (`<Name>-<CODE>-<fingerprint>.pdf`),
-the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name>-<CODE>-import.txt`).
+the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name>-<CODE>-import.txt`). **The five Balanced designs
+are in this folder's subfolder `balanced/`** (*Balanced* in the zip) since 7 November 2026 (owner: "Put all the Balanced
+proposals in their own subfolder"): they buy 30 days off for 14 days' leave too, so they stay inside this folder, and this
+README and its table still cover them.
 
 | | Crossover | Level Crossing | Common Ground | Grand Tour | Middle Ground | Balanced V8 | Short Openers | Balanced V9 | Open Return | Balanced V7 | Balanced V6 | Balanced V5 | Today's link |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Code · fingerprint | `CO-26-T10` · `6596c0d9` | `LC-26-T10` · `32241e32` | `CG-26-T8` · `03af96b2` | `GT-26-T7` · `d9b82d23` | `MG-26-T8` · `20668ac9` | `MB-26-V8` · `9ac65459` | `SO-26-EXT` · `65f99952` | `MB-26-V9` · `8c679ae2` | `OR-26-EXT` · `190eba69` | `MB-26-V7` · `75e9e7f3` | `MB-26-V6` · `1818a1c2` | `MB-26-V5` · `ded4a15f` | 20 weeks |
+| Code · fingerprint | `CO-26-T10` · `6596c0d9` | `LC-26-T10` · `32241e32` | `CG-26-T8` · `03af96b2` | `GT-26-T7` · `d9b82d23` | `MG-26-T8` · `20668ac9` | `MB-26-V8` · `9ac65459` | `SO-26-EXT` · `65f99952` | `MB-26-V9` · `e2b7d945` | `OR-26-EXT` · `190eba69` | `MB-26-V7` · `75e9e7f3` | `MB-26-V6` · `1818a1c2` | `MB-26-V5` · `ded4a15f` | 20 weeks |
 | What it is | Two 13:45 finishes and three 15:45 closers every weekday, with two earlies on until 16:00, the closers' first 15 minutes | Crossover's shift times and handover, laid in new weeks so that no two closing weeks come in a row | Seven of today's shift times, a 13:45 finish every weekday, nothing over 8h 30m on any day | No shift over 8h 30m on any day | Seven of today's shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together | Balanced V7's duties in new weeks: 19 of 21 weeks on one shift time and no week mixing earlies and lates | Every weekday 06:20 finishing by 14:20, and every weekday closer at 15:45 | Balanced V7's duties in new weeks, with no more than three early or three late weeks in a row outside the cover weeks | A 16:15 closer every weekday | A 15-minute handover every weekday, from three 07:30–16:00s to the three 15:45 closers, and no six-day weeks | A 15-minute handover every weekday, from three 07:30–16:00s to the three 15:45 closers | Weeks of 06:20 starts and weeks of 08:00 starts, a 15:45 closer every weekday | — |
 | 14 days' leave buys: best · average · worst | **30** · 23.4 · 19 | **30** · 23.4 · 19 | **30** · 23.4 · 20 | **30** · 23.4 · 20 | **30** · 23.4 · 20 | **30** · 23.5 · 20 | **30** · 23.4 · 19 | **30** · 23.5 · 20 | **30** · 23.4 · 19 | **30** · 23.4 · 20 | **30** · 23.5 · 19 | **30** · 23.5 · 19 | 30 · 23.4 · 19 |
 | Leave for four weeks off | **14** | **14** | **14** | **14** | **14** | **13** | **14** | **13** | **14** | **14** | **14** | **14** | 14 |
@@ -26,8 +29,8 @@ the grid (`<Name>-<CODE>.json`) and the text for the Links page's Import (`<Name
 | Shortest rest between fixed duties | 14h 20m | 14h 20m | 14h 35m | 14h 35m | 14h 35m | 14h 20m | 13h 15m | 14h 20m | 13h 15m | 14h 20m | 14h 20m | 13h 50m | 12h 30m |
 | Weeks on one shift time, all earlies or all lates | 19 of 21 | 18 of 21 | 19 of 21 | 16 of 21 | 18 of 21 | 19 of 21 | 18 of 21 | 18 of 21 | 18 of 21 | 13 of 21 | 7 of 21 | 7 of 21 | 7 of 16 |
 | Shift times (new to learn) | 13 (6) | 13 (6) | 13 (6) | 16 (8) | 13 (6) | 17 (8) | 14 (6) | 17 (8) | 16 (8) | 17 (8) | 17 (8) | 16 (7) | 18 (—) |
-| Heaviest week, Monday to Saturday | 42h 30m | 42h 30m | 42h 30m | 42h 00m | 42h 30m | 42h 30m | 42h 00m | 42h 40m | 43h 00m | 42h 55m | 42h 55m | 42h 55m | 43h 50m |
-| Weighted league, of 24 | 1st, 86.8 | 2nd, 86.4 | 3rd, 86.2 | 8th, 85.4 | 9th, 85.3 | 10th, 84.7 | 12th, 84.0 | 16th, 83.1 | 21st, 81.9 | 22nd, 76.7 | 23rd, 55.9 | 24th, 53.2 | 20.3, for reference |
+| Heaviest week, Monday to Saturday | 42h 30m | 42h 30m | 42h 30m | 42h 00m | 42h 30m | 42h 30m | 42h 00m | 42h 30m | 43h 00m | 42h 55m | 42h 55m | 42h 55m | 43h 50m |
+| Weighted league, of 24 | 1st, 86.8 | 2nd, 86.4 | 3rd, 86.2 | 8th, 85.4 | 9th, 85.3 | 10th, 84.7 | 12th, 84.0 | 16th, 83.3 | 21st, 81.9 | 22nd, 76.7 | 23rd, 55.9 | 24th, 53.2 | 20.3, for reference |
 
 The columns are in league order, and the places are as of the evening of 7 November 2026 (below). Every other figure in
 the table is as of 6 November 2026, after the Saturday ticket office's
@@ -42,6 +45,8 @@ Balanced V8 and V9 joined later that evening, 10th and 16th. Their four weeks of
 pack, so the league's range for it widened: every design needing 14 days' leave for four weeks off, all ten others here
 among them, scored 0.46 less, and those needing 15 nothing less. So Closing Time passed Grand Tour, Second Look passed
 Open Return, and every place below the two new designs is lower (`../README.md` → "Balanced V8 and Balanced V9").
+Balanced V9's column is as searched again later that night: its heaviest week came down inside every range, so only its
+own score moved, 83.1 to 83.3, and no place (`../README.md` → "Balanced V8 and V9 searched again").
 
 **What the 30 days cost.** Every layout found that buys 30 days for 14 has more single rest days than Even Step and
 Short Run, the other two shortlisted links: 10, 12 or 22 a year each here, against their 8 (today about 10). Open Return and
@@ -164,7 +169,9 @@ league.
   change of start of 1h 39m (2h 33m) and a heaviest week of 42h 30m (42h 55m). It is 10th in the league, 84.7.
 - **Balanced V9** keeps Balanced V7's short runs of early or late weeks, shorter still: no more than three in a row
   outside the cover weeks, four with them (V7 three, five with them), for two weeks mixing earlies and lates, 18 of 21
-  weeks on one shift time and a change of start of 1h 51m. It is 16th, 83.1.
+  weeks on one shift time and a change of start of 1h 51m. It is 16th, 83.3: searched again later the same day, its weeks 13 and
+  15 swapped their Saturday lates, which brought its heaviest week from 42h 40m to 42h 30m and put a shift time new to learn
+  into one more week, 15 of 21 (fingerprint `8c679ae2`, now `e2b7d945`; 83.1 before).
 - **What they pay, against Balanced V7.** Four 06:20 earlies in a row where V7 has three; at most 51.0 hours in seven days
   (50.5); as many backward steps between shifts as forward, 12 of each (7 and 20); and lighter light weeks, 29h 00m with
   the Sunday (30h 15m), and on V9 22h 15m from Monday to Saturday (24h 00m). Balanced V8's runs of early or late weeks are

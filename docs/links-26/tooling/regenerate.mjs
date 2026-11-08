@@ -29,7 +29,8 @@ const fingerprint = p => createHash('sha256')
 // 26 LINES (1 Oct 2026; nine by 3 Oct). Each 26-line design is one entry, in the shape the 24-line list used
 // (docs/links-24/tooling/regenerate.mjs, removed 7 Nov 2026; `git checkout 924b9dbc -- docs/links-24` restores it): { file, name, code, fp, strap }, the code carrying -26- (e.g. AB-26-EXT).
 // A design ships into proposals/ unless its entry says `dir:` — one of report-data.mjs's PACK_DIRS — after its fp
-// (4 Nov 2026: the links where 14 days' leave buys 30 days off live in 30-days-off/, and are the pack all the same).
+// (4 Nov 2026: the links where 14 days' leave buys 30 days off live in 30-days-off/, and are the pack all the same; since 7 Nov
+// 2026 the five Balanced designs in its subfolder 30-days-off/balanced/, owner: "Put all the Balanced proposals in their own subfolder").
 export const SUPPLIED = [
     // FOUR WITHDRAWN ON 3 NOV 2026 (owner: "Remove the four weak proposals please and reengineer the pack"): Second Nature
     // (SN-26-F2 · a52d0f20), Second Wind (SW-26-F1 · 4bec8d8e), Second Sight (SS-26-F1 · 3c6aac4d) and Second Gear
@@ -130,12 +131,12 @@ export const SUPPLIED = [
     // RP-26-V5) is the owner's 15-minute weekday handover drawn from it. Both buy 30 days off for 14 days' leave, and both finish
     // the Saturday office lates at 22:30 as drawn, so the 6 Nov correction changed neither (README.md → "Balanced V5 and Balanced
     // V6 join the pack")
-    { file: 'results/balanced-v5.json',        name: 'Balanced V5',          code: 'MB-26-V5',  fp: 'ded4a15f', dir: '30-days-off', strap: 'Early weeks built from 06:20 and 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today' },
-    { file: 'results/balanced-v6.json',        name: 'Balanced V6',          code: 'MB-26-V6',  fp: '1818a1c2', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'results/balanced-v5.json',        name: 'Balanced V5',          code: 'MB-26-V5',  fp: 'ded4a15f', dir: '30-days-off/balanced', strap: 'Early weeks built from 06:20 and 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'results/balanced-v6.json',        name: 'Balanced V6',          code: 'MB-26-V6',  fp: '1818a1c2', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today' },
     // 6 Nov 2026 (owner: Balanced V6 made again "without losing anything", then "Add v7 please"): Balanced V7 is Balanced V6's
     // duties, every one, laid again by exact-rota.py (MIXED) on Grand Tour's rest days, so it keeps V6's handover, closers, early
     // finishes and leave, with no six-day weeks and at most 7 days in a row however the cover weeks fall (README.md → "Balanced V7")
-    { file: 'results/balanced-v7.json',        name: 'Balanced V7',          code: 'MB-26-V7',  fp: '75e9e7f3', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, no six-day weeks, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'results/balanced-v7.json',        name: 'Balanced V7',          code: 'MB-26-V7',  fp: '75e9e7f3', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, no six-day weeks, and 14 days’ leave buys 30 days off, as today' },
     // 7 Nov 2026 (owner: "create a proposal that keeps the 1345 finishes and converts all the 1335 finishes to 1345 too … all
     // closers on a 1545 start on a weekday … 30 days off for 14 days AL … all the rules, fatigue rules, minimise numbers of shift
     // times and be competitive with the best proposals in the league table"; then "give hb a new name and put that into the
@@ -157,8 +158,8 @@ export const SUPPLIED = [
     // and V7's 30 days off and worst stretch of 20 for 14 days' leave. Balanced V8 has no week mixing earlies and lates and 19
     // weeks of 21 on one shift time; Balanced V9 keeps V7's short runs of early or late weeks, with two mixed weeks (README.md →
     // "Balanced V8 and Balanced V9"). Both buy 30 days off for 14 days' leave, so both ship into 30-days-off/
-    { file: 'results/balanced-v8.json',        name: 'Balanced V8',          code: 'MB-26-V8',  fp: '9ac65459', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, 19 of 21 weeks on one shift time, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
-    { file: 'results/balanced-v9.json',        name: 'Balanced V9',          code: 'MB-26-V9',  fp: '8c679ae2', dir: '30-days-off', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never more than three early or three late weeks in a row outside the cover weeks, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'results/balanced-v8.json',        name: 'Balanced V8',          code: 'MB-26-V8',  fp: '9ac65459', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, 19 of 21 weeks on one shift time, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
+    { file: 'results/balanced-v9.json',        name: 'Balanced V9',          code: 'MB-26-V9',  fp: 'e2b7d945', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never more than three early or three late weeks in a row outside the cover weeks, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
@@ -253,10 +254,11 @@ for (const t of SEARCHED) {
 // NOTHING IN THE PACK'S FOLDERS THAT NO ENTRY SHIPS (4 Nov 2026). A rename or a move leaves the old name's three files
 // behind, and everything that reads the folders would count them as one more design: a renamed design twice in the
 // league, a moved one twice in the summary. Every sheet, grid and import file must be an entry's, under its name, code
-// and folder; the 30-day folder may also hold its own README.md.
+// and folder; the 30-day folder may also hold its own README.md, and since 7 Nov 2026 the Balanced designs' subfolder, which is one
+// of PACK_DIRS itself and is read as a folder of its own
 if (!only) { const want = new Set(SUPPLIED.flatMap(s => { const base = `${s.dir ?? 'proposals'}/${s.name.replace(/ /g, '-')}-${s.code}`;
     return [`${base}-${s.fp}.pdf`, `${base}.json`, `${base}-import.txt`]; }));
-  const stray = PACK_DIRS.flatMap(d => readdirSync(`../${d}`).map(f => `${d}/${f}`)).filter(f => !want.has(f) && !/\/README\.md$/.test(f));
+  const stray = PACK_DIRS.flatMap(d => readdirSync(`../${d}`).map(f => `${d}/${f}`)).filter(f => !want.has(f) && !/\/README\.md$/.test(f) && !PACK_DIRS.includes(f));
   if (stray.length) { console.log(`FAIL files no entry ships: ${stray.join(', ')}`); failed++; } }
 console.log(`\n${done} proposal${done === 1 ? '' : 's'}${failed ? `, ${failed} FAILED` : ''}`);
 // THE RULES REFERENCE (28 Sep 2026) is rendered by every full run, after the sheets, from the same rule code
