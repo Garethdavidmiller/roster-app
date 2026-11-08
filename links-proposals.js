@@ -4,7 +4,7 @@
  *
  * ── WHAT THESE ARE ─────────────────────────────────────────────────────────────────────────────
  *
- * The designs shortlisted for the new link (from 1 January 2027) — Balanced V6, Level Crossing and
+ * The designs shortlisted for the new link (from January 2027) — Balanced V6, Level Crossing and
  * Middle Ground, since 8 Nov 2026 (v25.52) — copied cell for cell from each design's `.json` in
  * `docs/links-26/30-days-off/` (Balanced V6's in its `balanced/` subfolder). The shortlist was Second
  * Edition, Even Keel and Short Run on 3 Oct 2026; Closing Time joined it on 30 Oct (v25.01) and the

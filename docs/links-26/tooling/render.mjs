@@ -1,6 +1,6 @@
 // HTML → PDF, using the workspace's OWN stylesheets so the grid, chips, check rows and heat cells are
 // the app's rendering rather than an imitation of it. Own CSS covers only what a sheet of paper needs.
-import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, longDates } from './link.mjs';
+import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, longDates, LINK_STARTS } from './link.mjs';
 import { writeFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { classifyShift, DAYS, hmFromHours, dutyMinutes, startMinutes, endMinutes, MAX_CONSECUTIVE_WORKED_DAYS, family, folderStats, weekdayFit, fitCmp } from './report-data.mjs';
@@ -421,7 +421,7 @@ export async function renderPdf(D, out) {
   <div class="foot"><span>Page 2 of 10 — How to read the numbers</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 `;
-  let html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>${esc(meta.identity.name)} (${esc(meta.identity.code)}) — proposed new CEA link, from 1 January 2027</title>
+  let html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>${esc(meta.identity.name)} (${esc(meta.identity.code)}) — proposed new CEA link, from ${esc(LINK_STARTS)}</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
 <style>
 @page { size: A4; margin: 11mm; }   /* even all round: the bottom was 13mm and the footer rule sat 26mm up on a page whose content starts 11mm down */

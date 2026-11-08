@@ -1053,9 +1053,12 @@ def build(who):
         if ROSTERED != dp.CONTACT:
             said = [os.path.relpath(f, d) for f in xmls if ROSTERED in plain(html.unescape(open(f, encoding='utf-8').read()))]
             if said: raise SystemExit(f'{out}: names {ROSTERED} ({", ".join(sorted(said))}); the decks name her {dp.CONTACT}, as the New link page does')
-        for rx, why in ((dp.US_LANG, 'text tagged as US English'), (dp.OLD_LINK, f'the December 2026 link, which starts on {dp.LINK_STARTS}')):
+        for rx, why in ((dp.US_LANG, 'text tagged as US English'), (dp.OLD_LINK, f'the December 2026 link, which starts {dp.LINK_ON}')):
             said = [os.path.relpath(f, d) for f in xmls if rx.search(open(f, encoding='utf-8').read())]
             if said: raise SystemExit(f'{out}: {why} ({", ".join(sorted(said))})')
+        # THE START, A MONTH (owner, 8 Nov 2026: "We don't now know exactly what day"): Common Ground's decks said 1 January 2027
+        # in five places until then; deck-polish.py's link_month rewrites any it still finds, and refuses a start dated to a day
+        dp.link_month(d, who)
         # THE MARKS, judged afresh from each figure's colour (deck-marks.py)
         for f in os.listdir(f'{d}/ppt/slides'):
             if f.endswith('.xml'):

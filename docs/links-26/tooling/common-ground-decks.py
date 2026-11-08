@@ -405,7 +405,7 @@ def managers(d):
     sg, sg_t = singles(P), singles(TP)
     s = S(1)
     shape_of(s, f'One of {WORDS[len(SHORT)]} shortlisted new CEA links, in ten minutes')   # as the polish writes every shortlisted deck's
-    shape_of(s, f'For managers · from 1 January 2027 · 26 weeks · code {BCODE} · the full proposal sheet has the detail')
+    shape_of(s, f'For managers · from {dp.LINK_STARTS} · 26 weeks · code {BCODE} · the full proposal sheet has the detail')   # the month alone since 8 Nov 2026 (link.mjs)
     s.save()
     # notes 1 as deck-polish.py writes them for every shortlisted design, with this one's name and the other two
     swap_in(d, 1, f' {ES_} is one of {WORDS[len(SHORT)]} shortlisted designs, with {andl(PEERS_NB_OF(BASE))}, and this deck sets out {ES_} on its own terms.',

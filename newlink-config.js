@@ -35,11 +35,14 @@
 import { teamMembers } from './roster-data.js';
 
 /**
- * When the new link starts, 'YYYY-MM-DD'. NOT the timetable's date: the new timetable starts in December and the link
- * follows on 1 January (owner, 2 Nov 2026: "Whilst the new timetable will start in December, the new cea link design
- * will be from January 1st"). Until then today's link carries on, and the page says so.
+ * When the new link starts: 'YYYY-MM' while only the month is known, 'YYYY-MM-DD' once the day is set. NOT the timetable's
+ * date: the new timetable starts in December and the link follows (owner, 2 Nov 2026: "Whilst the new timetable will start
+ * in December, the new cea link design will be from January 1st"); and the day is not known (owner, 8 Nov 2026: "Needs to
+ * be changed everywhere that the new link will start in January 2027. We don't now know exactly what day"). Until then
+ * today's link carries on, and the page says so. The pack's own copy is docs/links-26/tooling/link.mjs → LINK_STARTS,
+ * held to this one by newlink-config.test.mjs: change both together when the day is set.
  */
-export const STARTS = '2027-01-01';
+export const STARTS = '2027-01';
 
 /**
  * When the new TIMETABLE starts, 'YYYY-MM-DD' — the day the status line's "comes first, in December" becomes "started in
@@ -77,16 +80,18 @@ export const CLOSES = null;
 
 /**
  * Who the page is for once it opens: the 26 colleagues on the new link (owner: "The exact 26 on the new link"). Not
- * decided yet ("Decide later"), so null stands for every CEA on the roster today — the people a CEA link is for — and the
- * preview lists them, so the admin can check who it would reach. Set it to the 26 names, spelt as `teamMembers` spells them.
+ * decided yet ("Decide later"), so null stands for everyone on a CEA contract today — the people a CEA link is for, and
+ * NOT a CEA bilingual contract (owner, 8 Nov 2026: "The new link will be for everyone with a cea contract, not a cea
+ * blingual contract"): the CONTRACT, `bilingualContract`, as the leave allowance reads it, not the line. The preview lists
+ * them, so the admin can check who it would reach. Set it to the 26 names, spelt as `teamMembers` spells them.
  * @type {ReadonlyArray<string>|null}
  */
 export const AUDIENCE = null;
 
-/** The page's audience, as names: AUDIENCE, or every CEA on the roster while it is null. @returns {string[]} */
+/** The page's audience, as names: AUDIENCE, or everyone on a CEA contract while it is null. @returns {string[]} */
 export function audienceNames() {
     if (AUDIENCE) return [...AUDIENCE];
-    return teamMembers.filter(m => m.role === 'CEA' && !m.hidden && !m.managerOnly).map(m => m.name);
+    return teamMembers.filter(m => m.role === 'CEA' && !m.bilingualContract && !m.hidden && !m.managerOnly).map(m => m.name);
 }
 
 /**

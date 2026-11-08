@@ -11,7 +11,7 @@
 # Every figure comes from `deck-check.mjs --print` (the sheets' own counts) or is computed from the grid here; shapes are
 # found by their text, so a template change fails loudly. From the repository root, after the builders:
 #   python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
-import importlib.util, json, os, re, shutil, struct, subprocess, tempfile, zipfile
+import html, importlib.util, json, os, re, shutil, struct, subprocess, tempfile, zipfile
 
 TOOL = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(TOOL, '..', 'presentations')
 spec = importlib.util.spec_from_file_location('snd', os.path.join(TOOL, 'second-nature-decks.py')); snd = importlib.util.module_from_spec(spec); spec.loader.exec_module(snd)
@@ -1241,7 +1241,7 @@ def managers_review(d, name, P, O, others, F, help_):
     put(s, 'The nine December rules. Everything here is built on them.', 'Everything here is built on them; worth having in writing before a link is chosen.')
     put(s, 'Colleagues’ views come first.', 'After colleagues’ views. Not yet through the roster office.')   # no union rep (owner, 5 Nov 2026: S. Silva, the RMT rep, leads it)
     s.save()
-    notes(9, 'The Sunday finish stays at 23:25', 'The December rules and the Sunday cover were confirmed verbally on 29 September 2026, and are worth having in writing before a link is chosen; the 26-week link was set on 1 October 2026. The new link starts on 1 January 2027, after the timetable changes in December. The 13-day limit used in the checks is Chiltern practice; its written source is still to be confirmed. The fatigue check still open is FF19 on the rules sheet: start times moving more than two hours between shifts, which is not counted across a rest day. The proposal has not yet been through the roster office. The Sunday finish stays at 23:25, as agreed practice.')
+    notes(9, 'The Sunday finish stays at 23:25', f'The December rules and the Sunday cover were confirmed verbally on 29 September 2026, and are worth having in writing before a link is chosen; the 26-week link was set on 1 October 2026. The new link starts {LINK_ON}, after the timetable changes in December{LINK_TBC}. The 13-day limit used in the checks is Chiltern practice; its written source is still to be confirmed. The fatigue check still open is FF19 on the rules sheet: start times moving more than two hours between shifts, which is not counted across a rest day. The proposal has not yet been through the roster office. The Sunday finish stays at 23:25, as agreed practice.')
 
     # SLIDE 10: the fingerprint beside the code, as the sheets and the shortlist pair them
     replace_in_run(f'{d}/ppt/slides/slide10.xml', code, f'{code} · {fp}')
@@ -1377,7 +1377,15 @@ def family_polish(d, who):
 # slide 3 said the link "has to follow" the December trains. The timetable does change in December, and the nine December
 # rules are still its rules, so those words stay. What changes is the link's own name, and its date is said on the title
 # slide, on slide 3 and in the notes. Every replacement is counted, and polish() refuses a deck that still names the old link.
-LINK_STARTS = '1 January 2027'
+# WHEN IT STARTS (owner, 8 Nov 2026: "Needs to be changed everywhere that the new link will start in January 2027. We don't
+# now know exactly what day"): read from link.mjs, which the sheets and the read-me read too, so the pack says one thing. A
+# month until a day is set: "from January 2027", "starts in January 2027", and in the notes the day is still to be agreed.
+LINK_STARTS = re.search(r"^export const LINK_STARTS = '([^']+)';$", open(os.path.join(TOOL, 'link.mjs'), encoding='utf-8').read(), re.M).group(1)
+LINK_DAY = LINK_STARTS[0].isdigit()
+LINK_ON = ('on ' if LINK_DAY else 'in ') + LINK_STARTS
+LINK_TBC = '' if LINK_DAY else '; the day is still to be agreed'
+# A start dated to a day other than LINK_STARTS's, in the decks' words (link.mjs → longDates and pack.py hold the same)
+START_DAY = re.compile(r'\b(?:from|starts?(?: on)?|follows(?: from)?) (\d{1,2}(?:st|nd|rd|th)? Jan(?:uary)? 2027)\b|\b(January 1st)\b', re.I)
 OLD_LINK = re.compile(r'December 2026 (?:CEA )?link')
 def link_date(d, who):
     nums = sorted(int(m.group(1)) for m in (re.fullmatch(r'slide(\d+)\.xml', f) for f in os.listdir(f'{d}/ppt/slides')) if m)
@@ -1398,9 +1406,45 @@ def link_date(d, who):
         s.save()
         replace_in_run(f'{d}/ppt/slides/slide1.xml', 'A proposal for discussion · CEA link · ', f'For discussion · from {LINK_STARTS} · ')   # the managers' cover's pattern, and one line: In Step's, with "not on the shortlist", wrapped (whole-pack review, 6 Nov 2026)
         s = Slide(f'{d}/ppt/slides/slide3.xml')
-        put(s, 'More trains, at new times — the link has to follow them.', f'More trains, at new times — the new link follows from {LINK_STARTS}.')
+        put(s, 'More trains, at new times — the link has to follow them.', f'More trains, at new times — the new link follows {LINK_ON}.')
         s.save()
-        notes_edit(d, 3, 'mean the link has to be redrawn.', f'mean the link has to be redrawn. The timetable changes in December, and the new link starts on {LINK_STARTS}.')
+        notes_edit(d, 3, 'mean the link has to be redrawn.', f'mean the link has to be redrawn. The timetable changes in December, and the new link starts {LINK_ON}{LINK_TBC}.')
+
+# THE MONTH, NOT A DAY (owner, 8 Nov 2026). Every deck was built between 2 and 8 Nov 2026 saying "1 January 2027" in five places:
+# the colleagues' title slide, slide 3 and slide 3's notes, the managers' title slide and slide 9's notes. Each is rewritten to
+# what link.mjs says now, counted (found once as built, or already rewritten), and then nothing in the deck may date the start
+# to any other day. polish() runs it, so does shortlist-decks.py, and `deck-polish.py --link-month <deck.pptx>…` applies it
+# in place to finished decks: the eight built for earlier shortlists are not rebuilt (README.md, "The shortlist's presentations").
+BUILT_ON = '1 January 2027'
+def link_month(d, who):
+    edits = {'colleagues': [('ppt/slides/slide1.xml', f'For discussion · from {BUILT_ON} · ', f'For discussion · from {LINK_STARTS} · '),
+                            ('ppt/slides/slide3.xml', f'the new link follows from {BUILT_ON}.', f'the new link follows {LINK_ON}.'),
+                            ('ppt/notesSlides/notesSlide3.xml', f'and the new link starts on {BUILT_ON}.', f'and the new link starts {LINK_ON}{LINK_TBC}.')],
+             'managers': [('ppt/slides/slide1.xml', f'For managers · from {BUILT_ON} · ', f'For managers · from {LINK_STARTS} · '),
+                          ('ppt/notesSlides/notesSlide9.xml', f'The new link starts on {BUILT_ON}, after the timetable changes in December.',
+                           f'The new link starts {LINK_ON}, after the timetable changes in December{LINK_TBC}.')]}[who]
+    done = 0
+    for f, old, new in edits:
+        if old == new: continue
+        p = os.path.join(d, f); x = open(p, encoding='utf-8').read(); o, n = x.count(escape(old)), x.count(escape(new))
+        if (o, n) == (1, 0): open(p, 'w', encoding='utf-8').write(x.replace(escape(old), escape(new))); done += 1
+        elif (o, n) != (0, 1): raise SystemExit(f'deck-polish: {who} {f}: the start found {o} times as built and {n} as it is now, not once')
+    plain = lambda p: ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', open(p, encoding='utf-8').read())).split())
+    stale = sorted({os.path.relpath(os.path.join(r, f), d) for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml')
+                    for m in START_DAY.finditer(plain(os.path.join(r, f))) if (m.group(1) or m.group(2)) != LINK_STARTS})
+    if stale: raise SystemExit(f'deck-polish: the {who} deck dates the new link’s start to a day ({", ".join(stale)}); it starts {LINK_ON}')
+    return done
+def link_month_file(path):
+    """link_month on a finished deck, in place; the parts are written back in their order."""
+    who = 'colleagues' if path.endswith('-for-colleagues.pptx') else 'managers'
+    d = tempfile.mkdtemp(); names = zipfile.ZipFile(path).namelist(); zipfile.ZipFile(path).extractall(d)
+    done = link_month(d, who)
+    if done:
+        tmp = path + '.tmp'
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as z:
+            for n in names: z.write(os.path.join(d, n), n)
+        os.replace(tmp, path)
+    shutil.rmtree(d); return done
 
 # UK ENGLISH (owner, 3 Nov 2026: "use UK English ... throughout the app"). The decks' template tagged every run of text
 # lang="en-US", so PowerPoint spell-checked British spelling as American and a screen reader read it in an American voice,
@@ -1440,7 +1484,8 @@ def polish(path, name, grid, who):
     us = [f for r, _, fs in os.walk(d) for f in fs if f.endswith(('.xml', '.rels')) and US_LANG.search(open(os.path.join(r, f), encoding='utf-8').read())]
     if us: raise SystemExit(f'deck-polish: {name} for {who} still tags text as US English ({", ".join(sorted(us))})')
     old = [f for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml') and OLD_LINK.search(open(os.path.join(r, f), encoding='utf-8').read())]
-    if old: raise SystemExit(f'deck-polish: {name} for {who} still names the December 2026 link ({", ".join(sorted(old))}); it starts on {LINK_STARTS}')
+    if old: raise SystemExit(f'deck-polish: {name} for {who} still names the December 2026 link ({", ".join(sorted(old))}); it starts {LINK_ON}')
+    link_month(d, who)
     names = zipfile.ZipFile(path).namelist()
     extra = [os.path.relpath(os.path.join(r, f), d) for r, _, fs in os.walk(d) for f in fs if os.path.relpath(os.path.join(r, f), d) not in names]
     tmp = path + '.tmp'
@@ -1451,6 +1496,9 @@ def polish(path, name, grid, who):
 
 if __name__ == '__main__':
     import sys
+    if sys.argv[1:2] == ['--link-month']:   # finished decks, in place (owner, 8 Nov 2026): see link_month
+        for path in sys.argv[2:]: print(f'{os.path.basename(path)}: {link_month_file(path)} of its start dates rewritten')
+        raise SystemExit(0)
     require_built_for_shortlist(); shared_lines(); shared_lines_staffing()
     names = sys.argv[1:] or list(DESIGNS)   # a name on the command line polishes only that design's freshly built decks
     bad = [n for n in names if n not in DESIGNS]

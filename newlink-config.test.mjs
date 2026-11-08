@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 import * as config from './newlink-config.js';
 import { PHASE, CLOSES, STARTS, TIMETABLE_STARTS, CONTACT, CONTACT_ROLE, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
 import { CHANGE_DATE } from './trains-data.js';
-import { closesWords } from './newlink-render.js';
+import { closesWords, startsWords } from './newlink-render.js';
 import { PAGE_POLICIES, requirePage, admitsStaffPin, canOpenNewlink } from './auth-policy.js';
 import { teamMembers, CONFIG } from './roster-data.js';
 
@@ -66,13 +66,20 @@ test('the closing date is a real day, or null — "a date to be agreed"', () => 
     assert.notEqual(closesWords(CLOSES), 'a date to be agreed', 'a set date is said as a date');
 });
 
-test('the audience: null stands for every CEA on the roster; a list must name real people', () => {
+test('the audience: null stands for everyone on a CEA contract, not a CEA bilingual contract; a list must name real people', () => {
     const names = audienceNames();
     assert.ok(names.length >= 20, `the audience reads as ${names.length} people`);
     const byName = new Map(teamMembers.map(m => [m.name, m]));
     for (const n of names) assert.ok(byName.has(n), `${n} is not on the roster — spell names as teamMembers does`);
     if (AUDIENCE === null) {
         assert.ok(names.every(n => byName.get(n)?.role === 'CEA'), 'the stand-in is CEAs only');
+        // Owner, 8 Nov 2026: "The new link will be for everyone with a cea contract, not a cea blingual contract." The
+        // CONTRACT, as the leave allowance reads it — not the line
+        assert.ok(names.every(n => !byName.get(n)?.bilingualContract), 'and nobody on a CEA bilingual contract');
+        const due = teamMembers.filter(m => m.role === 'CEA' && !m.bilingualContract && !m.hidden && !m.managerOnly).map(m => m.name);
+        assert.deepEqual([...names].sort(), [...due].sort(), 'everyone on a CEA contract, and nobody else');
+        assert.ok(teamMembers.some(m => m.role === 'CEA' && m.bilingualContract && !m.hidden),
+            'a CEA bilingual contract on the roster for the rule to leave out — if none is left, this line can go');
         assert.ok(names.every(n => !byName.get(n)?.hidden), 'and nobody who has left');
     } else {
         assert.equal(new Set(AUDIENCE).size, AUDIENCE.length, 'nobody twice');
@@ -96,9 +103,15 @@ test('the drafted words promise nothing the page does not do, and name no recomm
     // Every other state of the page is held to the same two patterns in newlink-render.test.mjs ("S. SILVA LEADS").
 });
 
-test('the new link starts on 1 January 2027 — not with the timetable, which changes in December', () => {
+test('the new link starts in January 2027, the day not yet known — not with the timetable, which changes in December', () => {
     // Owner, 2 Nov 2026: "Whilst the new timetable will start in December, the new cea link design will be from January 1st."
-    assert.equal(STARTS, '2027-01-01');
+    // 8 Nov 2026: "Needs to be changed everywhere that the new link will start in January 2027. We don't now know exactly
+    // what day."
+    assert.equal(STARTS, '2027-01');
+    // ONE START, PAGE AND PACK: the sheets, the read-me and the decks say docs/links-26/tooling/link.mjs → LINK_STARTS
+    const pack = /^export const LINK_STARTS = '([^']+)';$/m.exec(readFileSync(new URL('./docs/links-26/tooling/link.mjs', import.meta.url), 'utf8'))?.[1];
+    assert.ok(pack, 'link.mjs states when the new link starts');
+    assert.equal(startsWords(STARTS)?.replace(/^(in|on) /, ''), pack, 'the page says the start the pack says');
 });
 
 test('the contact is Sara Silva, S. Silva on the roster — a real member, and the only person the page\'s words name', () => {

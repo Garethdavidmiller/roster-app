@@ -1,8 +1,10 @@
 # Links — the new CEA link, 26 lines
 
-**The new link starts on 1 January 2027** (owner, 2 Nov 2026): the timetable changes in December, and the link follows.
-Until then this folder called it "the December 2026 link", and the dated sections below keep the name they were written
-with; *The new link starts on 1 January 2027* at the end says what changed. The "December 2026 rules" keep their name,
+**The new link starts in January 2027, the day not yet set** (owner, 2 Nov 2026: the timetable changes in December, and the
+link follows; 8 Nov 2026: "We don't now know exactly what day"). Until 2 Nov this folder called it "the December 2026 link",
+and the dated sections below keep the name, and the date, they were written with; *The new link starts on 1 January 2027*
+and *The new link starts in January 2027*, near the end, say what changed. It is for everyone on a CEA contract, not a CEA
+bilingual contract (owner, 8 Nov 2026). The "December 2026 rules" keep their name,
 because they are the new timetable's.
 
 **From 1 Oct 2026 the new link is 26 lines, not 24.** Everything drawn for 24 lines was kept in `../links-24/` — the
@@ -6620,10 +6622,65 @@ important than any day as sat sun people are happier to work as they are paid mo
   together. That is what it was drawn for, and it holds on the pack's reading of a week by its main duty. The decks and
   cards no longer claim it.
 - The pack names no authors, so Balanced V6's decks do not credit Balanced V5 as a colleague's own roster.
-- The eight earlier decks are unchanged: they still say "S. Silva" and "checked independently". They are out of the zip.
+- The eight earlier decks keep their wording, apart from the start month (*The new link starts in January 2027*, below): they
+  still say "S. Silva" and "checked independently". They are out of the zip.
 - The greens in the sheets' tables still mark any difference; the 5% rule is for written claims.
 - The New link page's preview banner names her as her account does, S. Silva.
 - The managers' decks are not on the New link page.
+
+## The new link starts in January 2027, the day not yet set, and is for CEA contracts (8 Nov 2026)
+
+**The ask.** The owner, on 8 Nov 2026: "Needs to be changed everywhere that the new link will start in January 2027. We don't
+now know exactly what day". And, while that was being done: "The new link will be for everyone with a cea contract, not a cea
+blingual contract".
+
+**The start, a month.**
+- **One source for the pack, one for the app.**
+  - `tooling/link.mjs` → `LINK_STARTS = 'January 2027'`. The sheets read it (`fresh.mjs`, `render.mjs`), and so do the
+    read-me (`pack.py`) and the decks (`deck-polish.py`, which `shortlist-decks.py` and `common-ground-decks.py` use).
+  - The New link page has its own: `newlink-config.js` → `STARTS = '2027-01'`. `newlink-config.test.mjs` holds the two
+    together. When the day is set, it is those two edits.
+- **The sheets.** All 24 proposal sheets now say "How this rota would work from January 2027". They were re-rendered with
+  `regenerate.mjs`, every fingerprint unchanged. The shortlist, other designs' and "What it means" sheets were re-rendered
+  too, because they follow the decks; none of them names the start.
+- **The decks, all fourteen.**
+  - Each said 1 January 2027 in five places: the colleagues' title slide, slide 3 and slide 3's notes, the managers' title
+    slide and slide 9's notes.
+  - `deck-polish.py`'s `link_month` rewrites each, counted. The slides say "For discussion · from January 2027" and "the new
+    link follows in January 2027". The notes say the link "starts in January 2027; the day is still to be agreed", because a
+    presenter will be asked.
+  - The eight decks built for earlier shortlists, Common Ground's, Even Step's, In Step's and Short Run's, were rewritten in
+    place with `python3 tooling/deck-polish.py --link-month <decks>`. So Common Ground's, the template, says it too, and the
+    shortlist's six were rebuilt from it.
+  - All fourteen PDFs were exported again. `deck-check.mjs`: 378 rows agree.
+- **The read-me:** "Marylebone CEA link from January 2027 - 26 weeks".
+- **The New link page** says "The new link starts in January 2027." With a month alone, the line goes on 1 January: from then
+  it could already be untrue, and the page says nothing rather than something untrue. Once a day is set it says "on
+  18 January 2027" (say), and goes on that day.
+- **Three guards.** Each refuses a start dated to any day other than the one `link.mjs` names, which is none while it names a
+  month: `link.mjs` → `longDates`, which every sheet's text passes through; `pack.py`, for the read-me; and `deck-polish.py` →
+  `link_month`, for every deck.
+- **Left as written:** this README's dated sections from before 8 Nov say 1 January 2027, as the record of their day.
+
+**Who the new link is for: everyone on a CEA contract, not a CEA bilingual contract.**
+- It is the contract that counts, `bilingualContract`, as the leave allowance reads it, not the line.
+- The New link page's stand-in audience leaves out the CEAs on a bilingual contract. That is `audienceNames` in
+  `newlink-config.js`, used until `AUDIENCE` names the 26. On today's roster it is 23 people, not 25.
+- The preview banner says "everyone on a CEA contract (23), not a CEA bilingual contract", and its *Who it would reach* list
+  follows.
+- The pack always treated the new link as the main roster widened, with the bilingual roster outside it, so nothing in it
+  changed for this.
+
+**Checked.**
+- `newlink-config.test.mjs` and `newlink-render.test.mjs`. The New link page's browser tests now also check that nobody on a
+  CEA bilingual contract is in *Who it would reach*.
+- Every committed PDF read back: 38 name January 2027, and none names a day.
+- Guards broken on purpose with `scripts/mutate.mjs`, each refused:
+  - the audience keeping bilingual contracts: the audience test fails, and so does the browser test, which then finds a CEA on
+    a bilingual contract in *Who it would reach*;
+  - `link.mjs` naming another month: the test holding page and pack together fails;
+  - the read-me saying "from 1 January 2027": `pack.py` stops;
+  - a proposal sheet's subtitle saying "from 1 January 2027": the sheet build stops.
 
 ## Notes for the whole set
 

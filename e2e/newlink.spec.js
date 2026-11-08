@@ -10,6 +10,7 @@
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
 import { CHANGES, PACK } from '../newlink-data.js';
+import { teamMembers } from '../roster-data.js';
 
 test.describe('new link', () => {
     test('the admin sees the preview, the three proposals A to Z, and no recommendation anywhere', async ({ page }) => {
@@ -20,8 +21,12 @@ test.describe('new link', () => {
         await expect(page.locator('#nlPreview')).toBeVisible();
         // the admin is told who else can see it: the one named previewer (CONFIG.NEWLINK_PREVIEW)
         await expect(page.locator('#nlPreview')).toContainText('Preview — only you and S. Silva can see this page.');
-        // the stand-in audience: every CEA on the roster, listed for the admin to check
-        await expect(page.locator('#nlPreview')).toContainText('every CEA on the roster');
+        // the stand-in audience: everyone on a CEA contract, listed for the admin to check — and nobody on a CEA bilingual
+        // contract (owner, 8 Nov 2026: "The new link will be for everyone with a cea contract, not a cea blingual contract")
+        await expect(page.locator('#nlPreview')).toContainText('everyone on a CEA contract');
+        const bilingual = teamMembers.filter(m => m.role === 'CEA' && m.bilingualContract && !m.hidden).map(m => m.name);
+        expect(bilingual.length, 'a CEA bilingual contract on the roster for the page to leave out').toBeGreaterThan(0);
+        for (const name of bilingual) await expect(page.locator('#nlPreview .nl-preview-who')).not.toContainText(name);
         await expect(page.locator('.nl-name-title')).toHaveText(['Balanced V6', 'Level Crossing', 'Middle Ground']);
         await expect(page.locator('#nlStatus')).toContainText('Have your say by a date to be agreed');
         // EVENLY: nothing on the page names a recommendation (owner, 2 Nov 2026: "No, three evenly")
@@ -34,11 +39,11 @@ test.describe('new link', () => {
     });
 
     // The page passes TODAY to the status line (test audit, 7 Nov 2026). The tenses are renderStatus's unit tests; what only
-    // a browser can show is that the page hands it the real date — before this it had no date logic at all, and on
-    // 1 January it would still have said the link "starts on 1 January 2027".
+    // a browser can show is that the page hands it the real date — before this it had no date logic at all, and once the
+    // link's start had come it would still have said the link "starts on" it.
     for (const [day, says, never] of /** @type {[string, RegExp|null, RegExp][]} */ ([
-        ['2026-12-20T09:00:00Z', /The new timetable started in December, and today’s link carries on until then\./, /comes first/],
-        ['2027-01-04T09:00:00Z', null, /starts on|carries on until then/],
+        ['2026-12-20T09:00:00Z', /The new link starts in January\s2027\. The new timetable started in December, and today’s link carries on until then\./, /comes first/],
+        ['2027-01-04T09:00:00Z', null, /starts (on|in)|carries on until then/],
     ])) {
         test(`the status line on ${day.slice(0, 10)} speaks of the dates as they then are`, async ({ page }) => {
             await page.clock.setFixedTime(new Date(day));
@@ -76,7 +81,7 @@ test.describe('new link', () => {
         await setVisibility('hidden');
         await page.clock.setFixedTime(new Date('2027-01-04T09:00:00Z'));
         await setVisibility('visible');
-        await expect(status).not.toContainText(/starts on|carries on until then/);
+        await expect(status).not.toContainText(/starts (on|in)|carries on until then/);
         await expect(status).toContainText('Nothing is decided.');
         await expect(status.locator('.nl-name'), 'the tiles are drawn again, and still open their weeks').toHaveCount(3);
         await status.locator('.nl-name').first().click();

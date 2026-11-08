@@ -106,6 +106,8 @@ if 'Tell ${CONTACT} or your manager what worries you' not in CFG:
 # saying what it repeats. (Until 5 Nov the figures were checked against the sheet's template text alone, which pins the
 # sentence and not the number.)
 SHEET = open(f'{ROOT}/tooling/shortlist-sheet.mjs', encoding='utf-8').read()
+# WHEN THE NEW LINK STARTS, the month alone (owner, 8 Nov 2026): link.mjs states it for the sheets, the read-me and the decks
+LINK_STARTS = re.search(r"^export const LINK_STARTS = '([^']+)';$", open(f'{ROOT}/tooling/link.mjs', encoding='utf-8').read(), re.M).group(1)
 # THE SHORTLIST OF 8 NOV 2026: each one's choice and its price, the target the three were drawn for, and the closing weeks of
 # the three that left, which the 8 Nov paragraph names — the last two are the sheet's claims, so the sheet still asserts them
 for said in ['is the one to choose for something different',
@@ -320,9 +322,10 @@ LEADER_FROM = f"{_day(_LEADER_CODE).day} {_day(_LEADER_CODE).strftime('%B %Y')}"
 readme = '\n'.join([
     'NEW CEA LINK PROPOSALS - 26 LINES',
     '=' * len('NEW CEA LINK PROPOSALS - 26 LINES'),
-    # The START date is said; the date the 26 lines were set is not (office detail, owner, of slide 9's). The link starts on
-    # 1 January 2027, after the timetable changes in December (owner, 2 Nov 2026), and was "December 2026" here until then.
-    'Marylebone CEA link from 1 January 2027 - 26 weeks',
+    # The START is said; the date the 26 lines were set is not (office detail, owner, of slide 9's). The link starts after
+    # the timetable changes in December (owner, 2 Nov 2026), and was "December 2026" here until then, "1 January 2027" until
+    # 8 Nov 2026, and is the month alone since (owner: "We don't now know exactly what day"), read from link.mjs
+    f'Marylebone CEA link from {LINK_STARTS} - 26 weeks',
     '',
     # THE SATURDAY OFFICE, SAID FIRST (6 Nov 2026, the external review: "Give the Saturday correction one prominent
     # sentence ... Bring a short version forward"). The whole account stays in how the shortlist came about, below
@@ -508,6 +511,10 @@ if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6 or 
 _old = [n for n in RENAMED if n in ' '.join(readme.split())]
 if _old: raise SystemExit(f'pack: the read-me names {_old}, the old name of {[RENAMED[n] for n in _old]}')
 # PLAIN ASCII: it opens in Notepad, and an older one reads a file with no byte-order mark in the PC's own code page
+# NO DAY FOR THE START (owner, 8 Nov 2026), as the sheets refuse one (link.mjs → longDates) and the decks (deck-polish.py)
+_day_start = next((m for m in re.finditer(r'\b(?:from|starts?(?: on)?|follows(?: from)?) (\d{1,2}(?:st|nd|rd|th)? Jan(?:uary)? 2027)\b|\b(January 1st)\b', ' '.join(readme.split()), re.I)
+                   if (m.group(1) or m.group(2)) != LINK_STARTS), None)   # a day other than link.mjs's: none while it is a month
+if _day_start: raise SystemExit(f'pack: the read-me dates the new link\'s start to a day ("{_day_start.group(0)}"); it starts {("on " if LINK_STARTS[0].isdigit() else "in ") + LINK_STARTS}')
 if not readme.isascii(): raise SystemExit(f'pack: the read-me holds {sorted({c for c in readme if not c.isascii()})}; Notepad may garble them')
 # NO RECOMMENDATION IN IT EITHER (owner, 5 Nov 2026): the one use of the word is the sentence saying there is none
 _flat = ' '.join(readme.split())
