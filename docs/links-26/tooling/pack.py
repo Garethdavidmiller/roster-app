@@ -25,7 +25,9 @@ proposals = [(n, c, f) for n, c, f, _ in found]
 PACK_DIRS = re.findall(r"'([^']+)'", re.search(r"export const PACK_DIRS = \[([^\]]*)\]", open(f'{ROOT}/tooling/report-data.mjs', encoding='utf-8').read()).group(1))
 DIR_OF = {c: (d or 'proposals') for _, c, _, d in found}
 if any(d not in PACK_DIRS for d in DIR_OF.values()): raise SystemExit(f'pack: a SUPPLIED folder is not one of PACK_DIRS {PACK_DIRS}: {DIR_OF}')
-IN_ZIP = {'proposals': '', '30-days-off': '30 days off/'}   # each folder's place inside "4 Proposal sheets" and "5 Import files"
+# THE BALANCED SUBFOLDER (7 Nov 2026, owner: "Put all the Balanced proposals in their own subfolder"): inside the 30-day one
+IN_ZIP = {'proposals': '', '30-days-off': '30 days off/', '30-days-off/balanced': '30 days off/Balanced/'}   # each folder's place inside "4 Proposal sheets" and "5 Import files"
+in30 = lambda d: d.split('/')[0] == '30-days-off'   # the 30-day folder or its Balanced subfolder
 if set(IN_ZIP) != set(PACK_DIRS): raise SystemExit(f'pack: IN_ZIP {sorted(IN_ZIP)} does not name every one of PACK_DIRS {PACK_DIRS}')
 
 files = [  # (source, path in the pack)
@@ -206,7 +208,7 @@ if any(n in names.split(', ') for n in RENAMED):
     raise SystemExit(f'pack: regenerate.mjs SUPPLIED lists an old name; {", ".join(f"{o} is {n}" for o, n in RENAMED.items())}')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
 THIRTY_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Common Ground', 'Crossover', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Open Return', 'Short Openers']
-THIRTY_IN = sorted(n for n, c, _ in proposals if DIR_OF[c] == '30-days-off')
+THIRTY_IN = sorted(n for n, c, _ in proposals if in30(DIR_OF[c]))
 if THIRTY_IN != THIRTY_SET:
     raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
 built_in = open('links-proposals.js', encoding='utf-8').read()
@@ -264,7 +266,7 @@ names_in = {n for n, _, _ in proposals}
 AT_2230 = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Crossover', 'Level Crossing']   # the read-me's
 if not set(AT_2230) <= names_in:   # 22:30 paragraph names these seven as drawn with it, and counts the rest
     raise SystemExit(f'pack: the read-me says {AT_2230} were drawn with the 22:30 office; the pack has {sorted(set(AT_2230) & names_in)}')
-sl30 = [n for n, c, _ in proposals if n in SHORTLIST and DIR_OF[c] == '30-days-off']   # shortlisted, in the 30-day folder
+sl30 = [n for n, c, _ in proposals if n in SHORTLIST and DIR_OF[c] == '30-days-off']   # shortlisted, in the 30-day folder itself
 readme = '\n'.join([
     'NEW CEA LINK PROPOSALS - 26 LINES',
     '=' * len('NEW CEA LINK PROPOSALS - 26 LINES'),
@@ -337,7 +339,8 @@ readme = '\n'.join([
          'not have Inter, present the PDF instead.'),
     item('4 Proposal sheets', 'One eight-page PDF per proposal, compared only with today\'s link: pages 1 and 2 are the '
          'plain-English comparison, page 3 the rota, the rest the evidence managers can inspect. The links where 14 '
-         'days\' leave buys 30 days off, as today, are in the folder 30 days off, Common Ground\'s among them. The marks mean the '
+         'days\' leave buys 30 days off, as today, are in the folder 30 days off, Common Ground\'s among them, and the five Balanced '
+         'designs in its subfolder Balanced. The marks mean the '
          'same on every page:'),
     mark_item('green tick', 'meets a rule, or better than today on something the rules, the limits or the fatigue '
               'guidance aim for, or on a plain gain such as full weekends off or the fit to the trains'),
@@ -411,7 +414,8 @@ readme = '\n'.join([
             'fatigue warning is present in any cover-week placement tested, and four full weeks off take 13 days\' leave. '
             'Balanced V8 has 19 of its 21 working weeks on one shift time and no week mixing earlies and lates; Balanced V9 '
             'has no more than three early or three late weeks in a row outside the cover weeks, with two weeks mixing them. '
-            'All eight buy 30 days off for 14 days\' leave too, and are in the folder 30 days off.'), '']
+            'All eight buy 30 days off for 14 days\' leave too, and are in the folder 30 days off, the five Balanced designs in its '
+            'subfolder Balanced.'), '']
       if LATE else []),
     # THE 22:30 OFFICE (6 Nov 2026; README.md -> "The Saturday ticket office to 22:30"): what it changed, said once, for a reader
     # holding a printout from before it, whose fingerprints no longer match. THE COUNT IS READ SINCE 7 NOV 2026: it said "the

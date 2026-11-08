@@ -30,7 +30,7 @@ CP-SAT runs in parallel, so two runs of one command need not return the same rot
 mode did not either (two runs with the same seed and budget differed, 27 Oct 2026) — so a design it finds is committed as
 its grid, and FIX= checks that grid against the model.
   python3 exact-rota.py <table.json> <out.json> [seconds]
-  env: OBJ=one|step|both|chg|heavy|four|best|rest|gentle  ONE_MIN= STEP= LIGHT= MAXCHG= (at most n early/late switches the step can see)
+  env: OBJ=one|step|both|chg|heavy|four|best|rest|iso|gentle|league  ONE_MIN= STEP= LIGHT= MAXCHG= (at most n early/late switches the step can see)
        HINT=<rota.json> (start from it)  FIX=<rota.json> (check a rota against the model)  WORKERS=4  LOG=1
        BEST_LEN= (the days in a row OBJ=best prices; 29 unless set)
        SKELETON=<rota.json> (hold its rest days; FAMILY=1 holds its early and late weeks too: 30 Oct 2026, for a new table
@@ -73,10 +73,15 @@ step before's output; F is the floors every step holds unless it says otherwise:
   6. F LV_WORST=20 ONE_MIN=18 OBJ=step                                                                         600 s
   7. F LV_WORST=20 OBJ=both: Balanced V8 (results/balanced-v8.json)                                            600 s
   8. F LV_WORST=20 MIXED=3 BF=3 BW=5 BLOCK=20 OBJ=one, from V8                                                  600 s
-  9. the same, ONE_MIN=19 OBJ=step: Balanced V9 (results/balanced-v9.json; ONE_MIN's 19 is the sheets' 18)      600 s
+  9. the same, ONE_MIN=19 OBJ=step: Balanced V9 as first drawn (8c679ae2; ONE_MIN's 19 is the sheets' 18)        600 s
+ 10. H55=3300 LV_BEST=30 LV_FOUR=13 LV_WORST=20 ISO=6 HEAVY=2575 REST=860 REST_TO=875 MIXED=3 BF=3 BW=4 BLOCK=20
+     ONE_MIN=19 OBJ=league WORKERS=2, from step 9: Balanced V9 (results/balanced-v9.json, e2b7d945), its weeks 13 and 15
+     swapping their Saturday lates                                                                        1,200 s
 Step 6's worst stretch of 20 with the 55-hour rule held is the one README.md said no search had found ("The worst leave
-stretch is 19, not 20"). FIX= checks both grids, V8 with step 7's floors and V9 with step 9's: feasible. README.md ->
-"Balanced V8 and Balanced V9"."""
+stretch is 19, not 20"). FIX= checks both grids, V8 with step 7's floors and V9 with step 10's: feasible. README.md ->
+"Balanced V8 and Balanced V9", and "Balanced V8 and V9 searched again" for every run since step 9 (OBJ=league and
+OBJ=iso were added for them), all from V8 or V9 with these floors: none found more for V8, and none more for V9 than
+step 10."""
 import sys, json, os
 from ortools.sat.python import cp_model
 TABLE, OUT = sys.argv[1], sys.argv[2]; LIMIT = float(sys.argv[3]) if len(sys.argv) > 3 else 600
@@ -338,14 +343,37 @@ if os.environ.get('OBJ') == 'gentle':
         for g in starts:
             if g in ('06:20', '15:45'): continue
             s = M.NewBoolVar(f'oth_{a}_{g}'); M.Add(s >= wk[(a, g)] + wk[(b, g)] - 1); oth.append(s)
-OBJ = os.environ.get('OBJ', 'one')
+# OBJ=league (7 Nov 2026, owner, of Balanced V8 and V9: "Exhaust the possibilities"): the main league's own points for the
+# measures a layout moves, so one run trades them as the league does rather than one figure after another. In millionths of
+# a point per unit: a single rest day (W_ISO, each), the step (W_STEP, per minute of gentleMean), the heaviest week (W_HEAVY,
+# per minute), every rest REST_TO or more (W_REST, once: set REST_TO to the range's top, 875), a week on one shift time as
+# the sheets count it, Monday to Friday one time and every duty one kind (W_ONE, each, up to ONE_CAP) and a week mixing
+# earlies and lates (W_MIXED, each). The defaults are the main league's slopes on 7 Nov 2026 (league.mjs, REF_IN_RANGE=1,
+# with Balanced V8 and V9 in the pack); a figure past the edge of its range earns nothing more there, so the sheets and the
+# league still judge whatever this finds
+OBJ, LG = os.environ.get('OBJ', 'one'), {}
+if OBJ == 'league':
+    if os.environ.get('MIXED') is not None:   # a mixed week is never one shift time on the sheets, whatever its weekdays
+        ot = [M.NewBoolVar(f'ot_{k}') for k in WORK]
+        for j, k in enumerate(WORK):
+            M.Add(ot[j] <= sum(u[(k, t)] for t in TYPES['mon'])); M.Add(ot[j] <= 1 - mx[k])
+        oneSheets = sum(ot); mixedN = sum(mx.values())
+    else: oneSheets = one; mixedN = 0
+    oneC = M.NewIntVar(0, len(WORK), 'oneC'); M.AddMinEquality(oneC, [oneSheets, env('ONE_CAP', 19)])
+    r875 = M.NewBoolVar('restTop'); M.Add(sum(tight) == 0).OnlyEnforceIf(r875)
+    LG = dict(iso=sum(s.values()), heavy=heavyMax, restTop=r875, one=oneC, mixed=mixedN)
+    per = 20 * len(pairs)   # stepSum is 20 x the sum of the moves; gentleMean = stepSum / per
+    M.Minimize(per * (env('W_ISO', 416140) * LG['iso'] + env('W_HEAVY', 16848) * heavyMax - env('W_REST', 333560) * r875
+                      - env('W_ONE', 385800) * oneC + env('W_MIXED', 403120) * mixedN) + env('W_STEP', 14854) * stepSum)
 if OBJ == 'one': M.Maximize(one)
+elif OBJ == 'league': pass                   # set above
 elif OBJ == 'step': M.Minimize(stepSum)
 elif OBJ == 'chg': M.Minimize(sum(z))   # the fewest visible switches, so a one-switch layout can be climbed to
 elif OBJ == 'heavy': M.Minimize(heavyMax)   # the heaviest Monday-to-Saturday week
 elif OBJ == 'four': M.Minimize(four)        # the leave four full weeks from a Sunday cost
 elif OBJ == 'best': M.Minimize(best29)      # the leave the cheapest 29 days cost (14 is a best stretch of 29)
 elif OBJ == 'rest': M.Minimize(sum(tight))  # the rests under REST_TO (default 15h)
+elif OBJ == 'iso': M.Minimize(sum(s.values()))   # the single rest days (7 Nov 2026, climbing below ISO)
 elif OBJ == 'gentle': M.Minimize(sum(co) * 1000000 + sum(big) * 100000 + sum(oth) * (10000 if env('GENTLE_SHARED', 1) else 0) + stepSum)   # see GENTLE above
 else: M.Maximize(one * 100000 - stepSum)   # 'both': the most one-turn weeks, then the smallest step
 S = cp_model.CpSolver(); S.parameters.num_workers = env('WORKERS', 4)
@@ -355,6 +383,7 @@ r = S.Solve(M)
 print('heavy', S.Value(heavyMax) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'four', S.Value(four) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'best29cost', S.Value(best29) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'tight', S.Value(sum(tight)) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None)
 print('step', round(S.Value(stepSum) / 20 / len(pairs), 2) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'FF17 b-f', (S.Value(sum(bw)) - S.Value(sum(fw))) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None)
 if OBJ == 'gentle' and r in (cp_model.OPTIMAL, cp_model.FEASIBLE): print('gentle:', '/'.join(GENTLE_STARTS), 'starts side by side', sum(S.Value(v) for v in co), 'moves over GENTLE', sum(S.Value(v) for v in big), 'other shared starts', sum(S.Value(v) for v in oth) if env('GENTLE_SHARED', 1) else 'not counted (GENTLE_SHARED=0)')
+if LG and r in (cp_model.OPTIMAL, cp_model.FEASIBLE): print('league:', ' '.join(f'{k} {S.Value(v) if not isinstance(v, int) else v}' for k, v in LG.items()))
 print('status', S.StatusName(r), 'one-turn', S.ObjectiveValue() if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'bound', S.BestObjectiveBound(), 'time', round(S.WallTime(), 1), flush=True)
 if r in (cp_model.OPTIMAL, cp_model.FEASIBLE):
     P = {}
