@@ -1924,6 +1924,46 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(row).toHaveClass(/ot-day--saved/);
     });
 
+    // THE SAME MEANING READS THE SAME ON BOTH PAGES (owner, Nov 2026). Admin's week grid has two gold
+    // washes: a row TICKED with no type yet (8% — it saves nothing until it has one) and a row READY TO
+    // SAVE (20%). An answer chosen here and not yet submitted is the second; a Sunday release request on a
+    // day still to answer is the first — staged, but Submit sends nothing until the day has an answer. They
+    // wore the 8% wash alike. Read off both pages, because a check of the stylesheets cannot see a rule
+    // that loses to another, and nothing else here can see the colour at all.
+    test('a day reads as Admin\'s row does for the same meaning — an unsent answer is "ready to save", a Sunday request alone "ticked, no type"', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        // A worked Sunday, so the release question is asked of it.
+        await stubWithRoster(page, [winOver()], [{ id: 's1', memberName: 'G. Miller', date: D[0], type: 'rdw', value: '08:00-16:00', note: '', source: 'manual' }]);
+        await page.goto('/overtime.html');
+        /** Background and edge once the row's transitions have run. @param {import('@playwright/test').Locator} loc */
+        const paint = (loc) => loc.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished))
+            .then(() => ({ wash: getComputedStyle(el).backgroundColor, edge: getComputedStyle(el).borderLeftColor })));
+        const sunday = page.locator(`[data-day="${D[0]}"]`), monday = page.locator(`[data-day="${D[1]}"]`);
+        await sunday.locator('.ot-release-box').check();
+        await expect(sunday, 'premise: the request alone is staged').toHaveClass(/ot-day--set/);
+        await expect(sunday, 'and is not an answer').not.toHaveClass(/ot-day--answered/);
+        await monday.locator('[data-mode="unavailable"]').click();
+        await expect(monday).toHaveClass(/ot-day--set/);
+        await expect(monday).toHaveClass(/ot-day--answered/);
+        await page.mouse.move(1, 1);
+        const requestAlone = await paint(sunday), answered = await paint(monday);
+        expect(answered.wash, 'premise: the two read differently here').not.toBe(requestAlone.wash);
+
+        // Admin, the same member: one row ticked, another given a type.
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        const rows = page.locator('.day-row:not(.today):not(.has-override)');
+        const ticked = rows.nth(1), ready = rows.nth(2);
+        await ticked.locator('.day-cb').check();
+        await ready.locator('.day-cb').check();
+        await ready.locator('.pill-rdw').click();
+        await expect(ticked).toHaveClass(/\bselected\b/);
+        await expect(ready).toHaveClass(/\bactive\b/);
+        await page.mouse.move(1, 1);
+        expect(answered, 'an answer ready to submit wears Admin\'s ready-to-save wash and edge').toEqual(await paint(ready));
+        expect(requestAlone, 'a request alone wears Admin\'s ticked-no-type wash and edge').toEqual(await paint(ticked));
+    });
+
     test('re-pressing a saved anchored answer keeps it, even when the roster lost its time', async ({ page }) => {
         // The stale note says "change it if that no longer suits", inviting a tap on the selected
         // pill. Before v20.75 that tap rebuilt the answer from the CURRENT roster — a rest day, no

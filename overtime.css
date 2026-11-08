@@ -851,7 +851,10 @@ body[data-ot-paused] #otMineToggleHeader { cursor: default; }
    what a missing state system looks like from the outside.
 
      plain row      unanswered — the normal state, no colour at all
-     gold tint      chosen this sitting, nothing saved yet (admin .selected)
+     gold wash      an answer chosen this sitting, nothing saved yet — Submit sends it: admin's
+                    READY TO SAVE (.day-row.active), its 20% wash (owner, Nov 2026)
+     faint gold     a Sunday release request alone, the day still to answer — staged, but Submit
+                    sends nothing until the day has an answer: admin's TICKED, NO TYPE (.day-row.selected)
      CREAM          about to overwrite a saved answer (admin .day-row.has-override:
                     --al-confirm-bg + the muted --conflict-strong accent)
      green accent   what is shown is what is recorded */
@@ -868,6 +871,8 @@ body[data-ot-paused] #otMineToggleHeader { cursor: default; }
     background: color-mix(in srgb, var(--accent-gold) 8%, transparent);
     border-left: 4px solid var(--accent-gold);
 }
+/* The same 8% wash admin gives a ticked row with no type; an ANSWERED day is admin's row ready to save. */
+.ot-day--set.ot-day--answered { background: color-mix(in srgb, var(--accent-gold) 20%, var(--surface)); }
 .ot-day--changed {
     background: var(--al-confirm-bg);
     border-left: 4px solid var(--conflict-strong);
