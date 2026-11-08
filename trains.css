@@ -623,7 +623,9 @@ on the answer: the app's ring, not the browser's orange one. */
     .tr-grid-end { white-space: normal; line-height: 1.15; }
 }
 .tr-grid-swipe { margin: 0 0 6px; color: var(--text-light); font-size: var(--type-small); }
-@media (min-width: 700px) { .tr-grid-swipe.touch-only { display: none; } }
+/* Shown only while the grid scrolls sideways (trains-grid-mirror.js). `.touch-only`'s `display: revert`
+   rolls back past the `hidden` attribute, so without this the line shows anyway. */
+.tr-grid-swipe[hidden] { display: none; }
 /* After the base station-column rule, so it wins: the column is set, the trains share the rest. */
 @media (min-width: 1024px) { .tr-grid .tr-grid-st { width: 220px; max-width: none; } }
 .tr-grid-origin th, .tr-grid-origin td { background: var(--surface-sunken); }

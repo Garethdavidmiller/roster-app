@@ -796,6 +796,57 @@ test.describe('trains — the heads copy is clamped to the grid', () => {
     });
 });
 
+// ── THE SWIPE LINE IS FOR A GRID THAT SCROLLS (8 Nov 2026) ───────────────────────────────────────────
+//
+// The line hid from 700px wide, so below that it told a reader to swipe a grid that fitted — measured
+// at 600 and 699px, 10 of the 12 day-and-timetable grids fitted and every one showed it — and above
+// 700px it was right only because no day's grid is wider. It now shows only while the grid scrolls
+// sideways (overflow-hint.js): measured as the grid is drawn, and again when the box changes size,
+// with no redraw. An iPhone SE is 375px wide upright and 667px on its side, inside that band.
+test.describe('trains — the swipe line is for a grid that scrolls', () => {
+    test('upright, the grid scrolls and the line says so; on its side it fits and the line goes; and back', async ({ page }, info) => {
+        test.skip(!isTouchProject(info), 'the line is touch-only UI');
+        await page.setViewportSize({ width: 375, height: 667 });
+        await page.clock.setFixedTime(new Date('2026-10-07T09:00:00Z'));    // a Wednesday: Weekdays
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="grid"]').click();
+        await expect(page.locator('#trPattern .tr-dot').first()).toBeVisible();
+        const wrap = page.locator('#trPattern .tr-grid-wrap');
+        const swipe = page.locator('#trPattern .tr-grid-swipe');
+        const overflows = () => wrap.evaluate(w => w.scrollWidth > w.clientWidth + 1);
+
+        expect(await overflows(), 'premise: upright, the weekday grid is wider than the screen').toBe(true);
+        await expect(swipe, 'a grid that scrolls is not explained').toBeVisible();
+
+        await page.setViewportSize({ width: 667, height: 375 });            // the same grid, turned
+        await expect.poll(overflows, { message: 'premise: on its side, the grid fits' }).toBe(false);
+        await expect(swipe, 'turned in place, the grid stopped scrolling and the line stayed').toBeHidden();
+
+        await page.locator('[data-day="SO"]').click();                      // a fresh draw, on its side
+        await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
+        expect(await overflows(), 'premise: drawn on its side, Saturdays fit').toBe(false);
+        await expect(swipe, 'a grid drawn to fit was offered a swipe').toBeHidden();
+
+        await page.setViewportSize({ width: 375, height: 667 });            // and upright again
+        await expect.poll(overflows, { message: 'premise: upright, it scrolls again' }).toBe(true);
+        await expect(swipe, 'upright again, the grid scrolls and the line did not come back').toBeVisible();
+    });
+
+    test('a mouse is not told to swipe, however narrow the window', async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'the line is touch-only UI: a fine pointer never sees it');
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.clock.setFixedTime(new Date('2026-10-07T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="grid"]').click();
+        await expect(page.locator('#trPattern .tr-dot').first()).toBeVisible();
+        expect(await page.locator('#trPattern .tr-grid-wrap').evaluate(w => w.scrollWidth > w.clientWidth + 1),
+            'premise: the grid scrolls').toBe(true);
+        await expect(page.locator('#trPattern .tr-grid-swipe')).toBeHidden();
+    });
+});
+
 // ── THE iPHONE KEYBOARD AND TOUCH (iPhone audit, 7 Nov 2026) ─────────────────────────────────────────
 
 test('the header logo — the installed app\'s way back — opens no image menu when held', async ({ page }) => {

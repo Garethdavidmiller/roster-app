@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * trains-grid-mirror.js — the Trains grid's column heads, kept in view (v24.92).
+ * trains-grid-mirror.js — the Trains grid's column heads, kept in view (v24.92), and its swipe line.
  *
  * A fixed copy of the stopping-pattern grid's header row, shown while the real one has scrolled
  * off the top of the screen and the table has not. On a phone the grid is 39 rows, and without this
@@ -22,12 +22,23 @@
  * (one rAF a frame, at most), and hidden the moment the real header is back on screen or the table
  * has gone past. A hidden view or a collapsed card measures as nothing and shows nothing.
  *
+ * ── AND THE SWIPE LINE ─────────────────────────────────────────────────────────────────────────
+ *
+ * The grid's other measured companion: "Swipe the table sideways" shows only while the grid really
+ * scrolls (overflow-hint.js has the rule and the measurements). It used to hide from 700px wide,
+ * which was right only while no day's grid was wider than that, and told a phone on its side to
+ * swipe a grid that fitted. `hidden` has its companion rule in trains.css.
+ *
  * Owned by trains-app.js, which calls `syncGridMirror` after every render: the copy is rebuilt from
  * whatever grid is on the page, and torn down when there is none.
  */
+import { watchOverflowHint } from './overflow-hint.js';
 
 /** @type {{ stick: HTMLElement, wrap: HTMLElement, onSync: () => void }|null} */
 let mirror = null;
+
+/** The swipe line's watch on the grid's box, replaced with the grid. @type {ResizeObserver|null} */
+let swipeFit = null;
 
 /**
  * How far the copy slides: the grid's sideways scroll, held to the range a scroll can really have.
@@ -49,6 +60,8 @@ function sideways(left, scrollWidth, clientWidth) {
  * @param {HTMLElement|null} host   the element the grid is rendered into (#trPattern)
  */
 export function syncGridMirror(host) {
+    swipeFit?.disconnect();
+    swipeFit = null;
     if (mirror) {
         window.removeEventListener('scroll', mirror.onSync);
         window.removeEventListener('resize', mirror.onSync);
@@ -57,6 +70,7 @@ export function syncGridMirror(host) {
         mirror = null;
     }
     const wrap = /** @type {HTMLElement|null} */ (host?.querySelector('.tr-grid-wrap') ?? null);
+    swipeFit = watchOverflowHint(wrap, /** @type {HTMLElement|null} */ (host?.querySelector('.tr-grid-swipe') ?? null));
     const heads = wrap ? /** @type {HTMLElement[]} */ ([...wrap.querySelectorAll('thead th')]) : [];
     if (!wrap || heads.length < 2) return;
     const stick = document.createElement('div');

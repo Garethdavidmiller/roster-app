@@ -81,6 +81,7 @@
     <link rel="modulepreload" href="./calendar-state.js">
     <link rel="modulepreload" href="./calendar-swipe.js">
     <link rel="modulepreload" href="./calendar-team-view.js">
+    <link rel="modulepreload" href="./overflow-hint.js">
     <link rel="modulepreload" href="./client-errors.js">
     <link rel="modulepreload" href="./claim-retry.js">
     <link rel="modulepreload" href="./error-reporter.js">
@@ -175,7 +176,7 @@
             </div>
             <div class="lightbox-tips" id="teamViewTips" hidden>
                 <div class="lightbox-tips-title">Tips</div>
-                <div class="lightbox-tip touch-only"><span>Swipe the table to see all 7 days</span></div>
+                <div class="lightbox-tip touch-only"><span>If the week is wider than your screen, swipe the table sideways</span></div>
                 <div class="lightbox-tip"><span>Select CEA, CES or Dispatcher to switch grade</span></div>
                 <div class="lightbox-tip"><span>Open ☰ → Daily Huddle for the latest day plan</span></div>
                 <div class="lightbox-tip"><span>Select 📍, or Back to this week under the dates, to return to the current week</span></div>
@@ -465,7 +466,7 @@
             <button id="teamInfoClose" class="lb-close" type="button" aria-label="Close">✕</button>
             <div class="team-help-title">👥 Team Week View</div>
             <ul class="team-help-list">
-                <li class="touch-only">Swipe the table left and right to see all 7 days</li>
+                <li class="touch-only">If the week is wider than your screen, swipe the table left and right to see all 7 days</li>
                 <li>Use ← → to move between weeks</li>
                 <li>Select <strong>CEA</strong>, <strong>CES</strong> or <strong>Dispatcher</strong> to switch grade</li>
                 <li>Open ☰ and choose <strong>Daily Huddle</strong> to read the latest day plan</li>

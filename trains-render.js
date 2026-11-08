@@ -296,7 +296,8 @@ export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, ban
         ? '<ul class="tr-grid-key">' + keyItem('', 'stops every hour') + (anySome ? keyItem('some', 'some hours only') : '')
             + (compared ? keyItem('new', 'new stop') + keyItem('lost', 'no longer stops') : '') + '</ul>'
         : '';
-    const swipe = grid.columns.length > 4 ? '<p class="tr-grid-swipe touch-only">Swipe the table sideways for more trains.</p>' : '';
+    // Drawn hidden, and shown only while the grid really scrolls sideways (trains-grid-mirror.js).
+    const swipe = '<p class="tr-grid-swipe touch-only" hidden>Swipe the table sideways for more trains.</p>';
     // What the chosen column is, in words — and the way back. Discovery does not depend on the
     // buttons being found: when none is chosen, one line says what they do.
     const c = col === null ? null : grid.columns[col];

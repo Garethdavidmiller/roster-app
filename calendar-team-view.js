@@ -16,6 +16,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, ge
 import { lsGet, lsSet } from './ls.js';
 import { TEAM_VIEW } from './storage-keys.js';
 import { lazyImport } from './sw-register.js';
+import { watchOverflowHint } from './overflow-hint.js';
 import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift, isUncountedChristmasLeave } from './christmas-leave.js';
 import { worstKnowledge, decideDisplay, forget as forgetOverrideKnowledge } from './calendar-data-state.js';
@@ -135,31 +136,16 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
     // `getSunday` is at module scope — see its comment there.
 
     /**
-     * THE SWIPE HINT IS FOR A TABLE THAT SCROLLS (desktop audit follow-up, Nov 2026). `touch-only`
-     * shows it on any coarse pointer, so a tablet, a phone on its side or a touch laptop, where the
-     * seven days fit (measured: from a 768px screen up, and 844px on its side), was told to swipe a
-     * table that does not move. It shows only while the box is wider inside than out — measured as
-     * the week is drawn, so it never arrives showing, and again whenever the box or its table changes
-     * size (a rotation, a resized window, the typeface arriving), which one measurement could not see.
-     * `hidden` has a companion rule in index.css, because `.touch-only` sets `display`. Called with
-     * nothing to stop watching: the Team view's exit.
+     * THE SWIPE HINT IS FOR A TABLE THAT SCROLLS: shown only while the week is wider than its box
+     * (overflow-hint.js has the rule and why). The seven days fit from a 768px screen up, and 844px on
+     * its side (measured). `hidden` has a companion rule in index.css, because `.touch-only` sets
+     * `display`. Called with nothing to stop watching: the Team view's exit.
      * @param {HTMLElement|null} wrap  the table's scroll box
      * @param {HTMLElement|null} hint
      */
     function watchHintFit(wrap, hint) {
         _hintFit?.disconnect();
-        _hintFit = null;
-        if (!wrap || !hint) return;
-        const fit = () => { hint.hidden = wrap.scrollWidth <= wrap.clientWidth + 1; };
-        fit();
-        if (typeof ResizeObserver !== 'function') return;
-        // A frame later, not inside the callback: showing or hiding the line can resize the very box
-        // being watched (below 1024px a short grade's box grows into the space it leaves), and a size
-        // change made inside an observer's callback is reported as a "loop" error.
-        _hintFit = new ResizeObserver(() => requestAnimationFrame(fit));
-        _hintFit.observe(wrap);
-        const table = wrap.querySelector('table');
-        if (table) _hintFit.observe(table);
+        _hintFit = watchOverflowHint(wrap, hint);
     }
 
     /** Returns an array of 7 Date objects Sun–Sat starting from `sunday`. */
