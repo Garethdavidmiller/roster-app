@@ -447,47 +447,111 @@ test('operations: App speed says when a month mixes two ways of timing', async (
     await expect(note).toContainText('50% of these opens were timed the older way');
 });
 
-// Account-status email rows must not overflow the card on a narrow phone (merged card, v18.65).
-// Regression guard for the original v14.35 bug class: a long-email row must ellipsise so the
-// fixed-width Edit/Remove buttons stay on-screen instead of being clipped by overflow:hidden.
-test('operations: Account-status email rows keep Edit/Remove on-screen at 375px (long emails ellipsise)', async ({ page }) => {
+// A WORK EMAIL IS READ WHOLE, AT EVERY WIDTH (Nov 2026). The card is where an admin checks an address
+// is right, and it cut them with an ellipsis the app has no tooltip to undo: on a phone, and at a desk,
+// where the one-line row of the desktop audit left the address ~130px at every width — a typical one cut
+// at 1366, and at 1024 not even "No work email" fitted. An invented address, longer than any real one.
+const LONG_EMAIL = 'firstname.considerablylongersurname@chilternrailways.co.uk';
+
+/** Serve the account cards one stored address — LONG_EMAIL, for the first member the card lists.
+ *  @param {import('@playwright/test').Page} page */
+async function seedLongEmail(page) {
+    const first = teamMembers.find(m => !m.hidden || m.managerOnly)?.name;
+    await page.addInitScript(([name, email]) => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: {
+            staffContact: [{ id: name, memberName: name, workEmail: email }], passwordStatus: [], resetRequests: [] } };
+    }, [first, LONG_EMAIL]);
+}
+
+/** The email's row and how its address is drawn: whole (no ellipsis, nothing scrolled away, no ancestor
+ *  clipping any of it), on how many lines, and whether its line sits beside the head or under it.
+ *  @param {import('@playwright/test').Page} page */
+async function longEmailRow(page) {
+    await page.evaluate(() => /** @type {HTMLElement|null} */ (
+        document.querySelector('#accountStatusCard .card-header-toggle'))?.click());
+    const row = page.locator('.acct-row').filter({ hasText: LONG_EMAIL });
+    await expect(row).toBeVisible();
+    return row.evaluate(r => {
+        const em = /** @type {HTMLElement} */ (r.querySelector('.acct-email'));
+        const range = document.createRange(); range.selectNodeContents(em);
+        const bits = [...range.getClientRects()].filter(q => q.width > 0);
+        const clippedBy = [];
+        for (let a = em.parentElement; a && a !== document.body; a = a.parentElement) {
+            const cs = getComputedStyle(a);
+            if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue;
+            const box = a.getBoundingClientRect();
+            if (bits.some(q => q.left < box.left - 1 || q.right > box.right + 1 || q.top < box.top - 1 || q.bottom > box.bottom + 1)) clippedBy.push(a.id || a.className);
+        }
+        const head = /** @type {HTMLElement} */ (r.querySelector('.acct-row-head')).getBoundingClientRect();
+        const line = /** @type {HTMLElement} */ (r.querySelector('.acct-row-email')).getBoundingClientRect();
+        const rem = /** @type {HTMLElement} */ (r.querySelector('.email-set-btn--remove')).getBoundingClientRect();
+        // Where it breaks: the text before the <wbr> on one line, the domain after it on the next.
+        const tops = (/** @type {Node|null|undefined} */ n) => { if (!n) return []; const g = document.createRange(); g.selectNodeContents(n);
+            return [...new Set([...g.getClientRects()].filter(q => q.width > 0).map(q => Math.round(q.top)))]; };
+        const wbr = em.querySelector('wbr'), local = tops(wbr?.previousSibling), domain = tops(wbr?.nextSibling);
+        return { text: em.textContent, scrolled: em.scrollWidth - em.clientWidth, ellipsis: getComputedStyle(em).textOverflow === 'ellipsis' && em.scrollWidth > em.clientWidth,
+                 clippedBy, lines: new Set(bits.map(q => Math.round(q.top))).size, underHead: line.top >= head.bottom - 1,
+                 breaksAtTheAt: local.length === 1 && domain.length === 1 && domain[0] > local[0],
+                 firstLine: Math.round(bits[0]?.width ?? 0),
+                 removeInRow: rem.right <= r.getBoundingClientRect().right + 1 };
+    });
+}
+
+// Account-status email rows must not overflow the card on a narrow phone (merged card, v18.65) — the
+// v14.35 bug class, where a long address forced the row wide and overflow:hidden clipped the fixed-width
+// Edit/Remove buttons. They stay on-screen now because the address WRAPS beside them, whole.
+test('operations: Account-status email rows keep Edit/Remove on-screen at 375px, and a long address wraps whole', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 760 });
+    await seedLongEmail(page);
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
     await expect(page.locator('#accountStatusCard')).toBeVisible();
-
-    // Inject a member block with a deliberately long email (Firestore is stubbed empty in e2e),
-    // matching the merged initAccountStatus row markup, into the expanded card.
-    const res = await page.evaluate(() => {
-        const body = document.getElementById('accountStatusContent');
-        const list = document.createElement('div'); list.className = 'acct-status-list';
-        const row = document.createElement('div'); row.className = 'acct-row';
-        const head = document.createElement('div'); head.className = 'acct-row-head';
-        const nm = document.createElement('span'); nm.className = 'acct-name'; nm.textContent = 'C. Francisco-Charles';
-        const pw = document.createElement('span'); pw.className = 'acct-pw'; pw.textContent = '🔑 Own password';
-        const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'btn-acct-reset'; reset.textContent = 'Reset';
-        head.append(nm, pw, reset);
-        const emailLine = document.createElement('div'); emailLine.className = 'acct-row-email';
-        const em = document.createElement('span'); em.className = 'acct-email'; em.textContent = '📧 csherrice.francisco-charles@chilternrailways.co.uk';
-        const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'email-set-btn'; edit.textContent = 'Edit';
-        const rem = document.createElement('button'); rem.type = 'button'; rem.className = 'email-set-btn email-set-btn--remove'; rem.textContent = 'Remove';
-        emailLine.append(em, edit, rem);
-        row.append(head, emailLine); list.appendChild(row);
-        body.innerHTML = ''; body.appendChild(list);
-        document.getElementById('accountStatusBody')?.classList.add('open');
-        const cardRight = document.getElementById('accountStatusCard').getBoundingClientRect().right;
-        return {
-            removeRight: rem.getBoundingClientRect().right,
-            cardRight,
-            emailEllipsized: em.scrollWidth > em.clientWidth,
-        };
-    });
-    // The Remove button (rightmost element of the email line) must sit within the card, not clipped.
-    expect(res.removeRight, 'Remove button must be inside the card').toBeLessThanOrEqual(res.cardRight + 1);
-    expect(res.emailEllipsized, 'a long email must ellipsise, not force the row wide').toBe(true);
+    const m = await longEmailRow(page);
+    expect(m.text, 'the address is all there, the 📧 held to it').toBe(`📧\u00a0${LONG_EMAIL}`);
+    expect(m.ellipsis, 'no ellipsis').toBe(false);
+    expect(m.scrolled, 'nothing scrolled out of the box').toBeLessThanOrEqual(0);
+    expect(m.clippedBy, 'and no ancestor cuts any of it').toEqual([]);
+    expect(m.lines, 'it wraps, rather than forcing the row wide').toBeGreaterThan(1);
+    expect(m.firstLine, 'and the 📧 is never left alone on the first line').toBeGreaterThan(40);
+    expect(m.removeInRow, 'Remove stays inside the row').toBe(true);
     const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow, 'no horizontal overflow').toBeLessThanOrEqual(1);
+});
+
+test('operations: at a desk a long work email is read whole, on a line of its own, while at 1366 an account without one stays one line', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a desk-sized window and a mouse');
+    await seedLongEmail(page);
+    await seedSession(page);
+    await seedMember(page);
+    for (const width of [1024, 1366]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/operations.html');
+        await expect(page.locator('#accountStatusCard')).toBeVisible({ timeout: 10000 });
+        const m = await longEmailRow(page);
+        expect(m.ellipsis, `${width}: no ellipsis`).toBe(false);
+        expect(m.scrolled, `${width}: nothing scrolled out of the box`).toBeLessThanOrEqual(0);
+        expect(m.clippedBy, `${width}: no ancestor cuts any of it`).toEqual([]);
+        expect(m.underHead, `${width}: the row cannot hold it beside the head, so its line is under it`).toBe(true);
+        expect(m.lines, `${width}: where it has the row's width, at most two lines`).toBeLessThanOrEqual(2);
+        // …and at 1024, where it needs two, they break at the @ — the 📧 held to the name before it.
+        if (width === 1024) expect(m.breaksAtTheAt, '1024: name@ on one line, the domain on the next').toBe(true);
+        expect(m.removeInRow, `${width}: Remove stays inside the row`).toBe(true);
+        const others = await page.evaluate((long) => [...document.querySelectorAll('.acct-row')]
+            .filter(r => !(r.textContent ?? '').includes(long)).map(r => {
+                const head = /** @type {HTMLElement} */ (r.querySelector('.acct-row-head')).getBoundingClientRect();
+                const mail = /** @type {HTMLElement} */ (r.querySelector('.acct-row-email')).getBoundingClientRect();
+                const em = /** @type {HTMLElement} */ (r.querySelector('.acct-email'));
+                return { oneLine: Math.abs(head.top - mail.top) < 4 && mail.left > head.right && r.getBoundingClientRect().height < 50,
+                         whole: em.scrollWidth <= em.clientWidth && em.clientWidth > 0 };
+            }), LONG_EMAIL);
+        expect(others.length, `${width}: premise: the card lists the roster`).toBeGreaterThan(10);
+        // At 1024 the one-line row cannot hold even "No work email" and its button beside a 19rem head
+        // (it read "📧 N…"), so each takes the two-line shape — whole, where it was cut.
+        expect(others.filter(o => !o.whole).length, `${width}: every other account's line is whole too`).toBe(0);
+        // At 1366 every other account is still ONE line — the audit's compact card, unchanged where it fitted.
+        if (width === 1366) expect(others.filter(o => !o.oneLine).length, '1366: every account without that address is one line').toBe(0);
+    }
 });
 
 // ── OPERATIONS: Password Reset Requests card WITH ROWS (v18.94) ────────────────────────────────

@@ -1222,12 +1222,14 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     border-color: color-mix(in oklch, var(--accent-gold) 45%, white);
     color: var(--orange-text);
 }
+/* The WHOLE address, always: it WRAPS rather than ellipsising (Nov 2026). The card is read to check an
+   address is right, and the app has no tooltip to give back what an ellipsis cut — at a desk the one-line
+   row left ~130px for it, so a typical address was cut at every width. A line too narrow for it breaks it
+   anywhere, and the Edit and Remove buttons beside it stay where they are. */
 .acct-email {
     flex: 1 1 auto;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     font-size: var(--type-badge);
     color: var(--text-mid);
 }
@@ -1260,11 +1262,14 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
    at a desk, where the card is ~600px wide. Gated on the POINTER as well as the width, as Admin's day
    rows are (css-tokens.md → density). The head is ONE width on every row, so each email starts at the
    same x down the list; the email line takes the rest, its hairline turned from a rule above it to one
-   beside it. The Set/Edit form and a removal error still take a whole line under the row. */
+   beside it. The Set/Edit form and a removal error still take a whole line under the row.
+   A LINE TOO NARROW FOR ITS ADDRESS TAKES THE NEXT ONE (Nov 2026): sized by its content (`auto`, not 0),
+   the email line wraps under the head when the address and its buttons do not fit beside it, and there
+   has the row's whole width — so a row with no address, or a short one, stays one line. */
 @media (min-width: 1024px) and (pointer: fine) {
     .acct-row { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 12px; padding: 6px 12px; }
     .acct-row-head  { flex: 0 0 19rem; width: auto; }
-    .acct-row-email { flex: 1 1 0; width: auto; border-top: none; padding-top: 0; border-left: 1px solid var(--border-light); padding-left: 12px; }
+    .acct-row-email { flex: 1 1 auto; width: auto; border-top: none; padding-top: 0; border-left: 1px solid var(--border-light); padding-left: 12px; }
     .acct-row > .email-set-form, .acct-row > .email-set-error { flex: 1 1 100%; }
 }
 
