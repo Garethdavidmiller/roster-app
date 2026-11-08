@@ -86,10 +86,10 @@ test('the pack base is the served docs folder, over https', () => {
 test('the drafted words promise nothing the page does not do, and name no recommendation', () => {
     const words = HAVE_YOUR_SAY.join(' ');
     assert.doesNotMatch(words, /recommend/i);
-    // Who leads the change is said in the card where views are asked for — S. Silva, as the RMT rep, never the admin (owner,
-    // 4 Nov 2026) — and nothing more about how the choice is made: "It is deliberately vague."
+    // Who leads the change is said in the card where views are asked for — Sara Silva, as the RMT rep, never the admin
+    // (owner, 4 Nov 2026) — and nothing more about how the choice is made: "It is deliberately vague."
     assert.equal(CONTACT_ROLE, 'the RMT rep');
-    assert.match(words, /S\. Silva, the RMT rep, is leading the change\./);
+    assert.match(words, /Sara Silva, the RMT rep, is leading the change\./);
     assert.doesNotMatch(words, /\badmin\b|G\. Miller|managers decide/i, 'nothing gives the impression that the admin, or the managers, choose among the three');
     assert.doesNotMatch(words, /final call|\bdecides?\b|decided by|goes to the managers/i, 'and no more: how the choice is made is left deliberately vague');
     assert.match(words, /does not collect/, 'and that the page itself collects nothing');
@@ -101,14 +101,20 @@ test('the new link starts on 1 January 2027 — not with the timetable, which ch
     assert.equal(STARTS, '2027-01-01');
 });
 
-test('the contact is S. Silva, a real member — and the only person the page\'s words name', () => {
-    // Owner, 2 Nov 2026: "Sara Silva (S. Silva) is the primary contact for it not me."
-    assert.equal(CONTACT, 'S. Silva');
-    assert.ok(teamMembers.some(m => m.name === CONTACT && !m.hidden), 'spelt as the roster spells it, and on the roster');
+test('the contact is Sara Silva, S. Silva on the roster — a real member, and the only person the page\'s words name', () => {
+    // Owner, 2 Nov 2026: "Sara Silva (S. Silva) is the primary contact for it not me." 8 Nov 2026: "Where it says tell
+    // S. Silva. Can you make that Sara Silva."
+    assert.equal(CONTACT, 'Sara Silva');
+    const rostered = CONTACT.replace(/^(\p{Lu})\p{Ll}+ /u, '$1. ');   // the roster's spelling: an initial and the surname
+    assert.equal(rostered, 'S. Silva');
+    assert.ok(teamMembers.some(m => m.name === rostered && !m.hidden), 'the person named is on the roster, as S. Silva');
     const words = HAVE_YOUR_SAY.join(' ');
-    assert.match(HAVE_YOUR_SAY[0], /^Tell S\. Silva or your manager/, 'Have your say names the contact');
-    const named = teamMembers.map(m => m.name).filter(n => words.includes(n));
-    assert.deepEqual(named, [CONTACT], 'no other member is named as the person to ask');
+    assert.match(HAVE_YOUR_SAY[0], /^Tell Sara Silva or your manager/, 'Have your say names the contact, in full');
+    assert.match(HAVE_YOUR_SAY[1], /^Sara Silva, the RMT rep, is leading the change\.$/);
+    // no member is named by the roster's own spelling: the contact is named in full, and nobody else is named at all
+    const named = teamMembers.map(m => m.name)
+        .filter(n => words.includes(n) || (n !== rostered && words.includes(n.split(' ').pop())));
+    assert.deepEqual(named, [], 'no other member is named as the person to ask');
 });
 
 test('nothing is written on the canvas under the last card — the footer line was not needed', () => {

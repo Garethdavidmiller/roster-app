@@ -117,7 +117,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🌙",
         "chip": "Prefer lates",
         "who": "…prefer lates",
-        "gist": "More lates on all three, in longer runs, and every closer 15 minutes to an hour shorter. Middle\u00a0Ground’s are the shortest on average.",
+        "gist": "More lates on all three, in longer runs, and every closer shorter, the weekday’s by half an hour. Middle\u00a0Ground’s are the shortest on average.",
         "rows": [
             {
                 "label": "Lates a year",
@@ -138,12 +138,12 @@ export const PERSONAS = deepFreeze([
                 ]
             },
             {
-                "label": "Longest closing shift, any day",
+                "label": "Longest closing shift, weekday",
                 "cells": [
-                    { "text": "9h\u00a010m", "best": false },
-                    { "text": "8h\u00a055m", "best": false },
                     { "text": "8h\u00a040m", "best": false },
-                    { "text": "8h\u00a010m", "best": true }
+                    { "text": "8h\u00a010m", "best": false },
+                    { "text": "8h\u00a010m", "best": false },
+                    { "text": "8h\u00a010m", "best": false }
                 ]
             },
             {

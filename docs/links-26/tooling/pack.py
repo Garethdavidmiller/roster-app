@@ -109,12 +109,12 @@ SHEET = open(f'{ROOT}/tooling/shortlist-sheet.mjs', encoding='utf-8').read()
 # THE SHORTLIST OF 8 NOV 2026: each one's choice and its price, the target the three were drawn for, and the closing weeks of
 # the three that left, which the 8 Nov paragraph names — the last two are the sheet's claims, so the sheet still asserts them
 for said in ['is the one to choose for something different',
-             '<b>Choose Balanced V6</b> if the shortest runs of earlies or of lates matter most',
+             '<b>Choose Balanced V6</b> if the shortest runs of earlies or of lates, and the most long breaks, matter most',
              'weeks on one shift time, a ${hm(Math.round(BF.step))} change of start', 'fatigue warnings if a cover week falls badly',
              '<b>Choose Level Crossing</b> if no fatigue warning in any cover-week placement tested, and steady start times, matter most',
-             'for the most starts at 06:20', 'the weakest Saturday fit of the ${N}',
-             '<b>Choose Middle Ground</b> if no shift over 8h&nbsp;30m and the closest weekend fit matter most',
-             'for the fewest early finishes, four at the open every day and one fatigue warning if a cover week falls badly',
+             'for the most starts at 06:20', 'and the fewest long breaks, about ${longRestYear(LF)} a year',
+             '<b>Choose Middle Ground</b> if no shift over 8h&nbsp;30m and the closest Saturday fit matter most',
+             'for the fewest early finishes, four at the open every day and the least Sunday overtime pay',
              'for a new design target: no two closing weeks side by side, changes between earlies and lates placed at useful rest breaks, and weeks on one shift time still important',
              "claim('Common Ground and Crossover: four closing weeks together;",
              "claim('Even Step: two closing weeks side by side; Short Run, Balanced V8 and Balanced V9 three together'"]:
@@ -336,13 +336,13 @@ readme = '\n'.join([
          + (f' {LATE_WORDS} came after the shortlist; see how the shortlist came about, below.' if LATE else '')),
     para('All three keep closing weeks apart: a week of closing shifts is never followed by another, cover weeks aside. All '
          'three keep today\'s leave too: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best.'),
-    item('Balanced V6', 'If the shortest runs of earlies or of lates matter most. The price: 7 of its 21 weeks on one shift '
+    item('Balanced V6', 'If the shortest runs of earlies or of lates, and the most long breaks, matter most. The price: 7 of its 21 weeks on one shift '
          'time, where the other two have 18, a larger change of start from week to week, more single rest days, and more '
          'fatigue warnings if a cover week falls badly.'),
     item('Level Crossing', 'If no fatigue warning in any cover-week placement tested, and steady start times, matter most. '
-         'The price: the most starts at 06:20 of the three, and the weakest Saturday fit.'),
-    item('Middle Ground', 'If no shift over 8h 30m and the closest weekend fit matter most. The price: the fewest early '
-         'finishes, four at the open every day, and one fatigue warning if a cover week falls badly.'),
+         'The price: the most starts at 06:20 of the three, and the fewest long breaks.'),
+    item('Middle Ground', 'If no shift over 8h 30m and the closest Saturday fit matter most. The price: the fewest early '
+         'finishes, four at the open every day, and the least Sunday overtime pay.'),
     para('Pages 1 and 2 of the shortlist sheet set out each one\'s edge and its costs in full.'),
     '',
     'WHAT IS ASKED',

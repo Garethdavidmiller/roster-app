@@ -133,9 +133,14 @@ claim('the 13:35 and 13:45 earlies are the only earlies that finish before 14:00
   [TC, ...C].every(c => Math.round(perYearOf(c, s => isEarly(s) && m(s.slice(6)) < 14 * 60)) === +c.f.shortYear));
 // …prefer lates
 claim('more lates on every link', all(c => +c.f.lateYear > +TC.f.lateYear));
-// EVERY CLOSER SHORTER, BY ITS LONGEST (8 Nov 2026): Balanced V6's Saturday 8h 55m closer is 15 minutes shorter than today's 9h 10m
-const cuts = C.flatMap(c => ['closerWk', 'closerSat', 'closerSun'].map(k => Hmax(TC.f[k]) - Hmax(c.f[k]))), cutLo = Math.min(...cuts), cutHi = Math.max(...cuts);
-claim('every closing shift shorter, by 15 minutes to an hour', cutLo === 15 && cutHi === 60);
+// EVERY CLOSER SHORTER, BY ITS LONGEST (8 Nov 2026): Balanced V6's Saturday 8h 55m closer is 15 minutes shorter than today's 9h 10m.
+// THE WEEKDAY FIRST (owner, 8 Nov 2026: "This should have longest closing shift weekday on it. More important than any day as sat
+// sun people are happier to work as they are paid more"): the row is the weekday's, and the band says every closer is shorter and
+// the weekday's by how much — the weekend's figures are the page's "Whichever is chosen" card and the decks' slide 6
+const cut = (c, k) => Hmax(TC.f[k]) - Hmax(c.f[k]);
+const wkCuts = C.map(c => cut(c, 'closerWk')), weCuts = C.flatMap(c => ['closerSat', 'closerSun'].map(k => cut(c, k)));
+claim('every weekday closer half an hour shorter, on every link', wkCuts.every(x => x === 30));
+claim('every weekend closer shorter too, so every closer is', Math.min(...weCuts) > 0);
 claim('Middle Ground: the shortest lates on average', C.every(c => c === MG || H(MG.f.avgLate) < H(c.f.avgLate)));
 // …swap (the external review's wording, 1 Nov 2026)
 const swapLess = C.map(c => TC.swapPounds - c.swapPounds);
@@ -173,7 +178,6 @@ claim('every link: more full weekends, fewer days in a row, a longer shortest re
 // …BUT A BADLY PLACED COVER WEEK ON BALANCED V6 MAKES ONE DAY MORE IN A ROW THAN TODAY'S WORST (8 Nov 2026), which the band says
 const worstRun = c => +(/up to (\d+)/.exec(c.f.run)?.[1] ?? first(c.f.run));
 claim('Balanced V6: one day more in a row than today if a cover week falls badly; the other two fewer than today', worstRun(BV) === worstRun(TC) + 1 && [LC, MG].every(c => worstRun(c) < worstRun(TC)));
-const closerMax = c => Math.max(...['closerWk', 'closerSat', 'closerSun'].map(k => Hmax(c.f[k])));
 const lo = (xs) => Math.min(...xs), hi = (xs) => Math.max(...xs);
 
 // NOT RANKED: no overtime (5 Nov 2026). The three's Saturday hours are close a year, so a green on the highest would rank a few
@@ -200,10 +204,10 @@ const GROUPS = [
       row('Earlies finishing at 13:35 or 13:45, a year', c => v(c.f.shortYear, +c.f.shortYear), 'high'),
       row('Weeks of earlies, or of lates, in a row', c => v(upTo(`${c.f.block} (up to ${c.f.blockUpTo})`)))] },
   { who: '…prefer lates',
-    gist: `More lates on every link, in longer runs, and every closer ${cutLo} minutes to an hour shorter. Middle Ground’s are the shortest on average.`,
+    gist: `More lates on every link, in longer runs, and every closer shorter, the weekday’s by half an hour. Middle Ground’s are the shortest on average.`,
     rows: [row('Lates a year', c => v(c.f.lateYear, +c.f.lateYear), 'high'),
       row('Average late, closers included', c => v(hm(H(c.f.avgLate)), H(c.f.avgLate)), 'low'),
-      row('Longest closing shift, any day', c => v(hm(closerMax(c)), closerMax(c)), 'low'),
+      row('Longest closing shift, weekday', c => v(hm(Hmax(c.f.closerWk)), Hmax(c.f.closerWk)), 'low'),
       row('Finishing at 23:00 or later, any day, a year', c => v(c.f.late23, +c.f.late23))] },
   { who: '…swap earlies for lates, for the overtime',
     gist: `Swapping the shortest earlies brings less overtime than today on every link. Balanced V6 keeps the most from its 13:35 and 13:45 finishes, Middle Ground the least. Other swaps may still add paid time.`,

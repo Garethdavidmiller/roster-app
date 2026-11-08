@@ -6489,6 +6489,138 @@ nothing changed.
 - **Its cost.** The shortlist sheet's league claims and several of its comparisons would change, and every sheet that
   shows the league would be re-rendered.
 
+## The shortlist's presentations (8 Nov 2026)
+
+**The ask.** The owner, on 8 Nov 2026: "Write proposals for the shortlist, audit them against existing proposals, then
+aesthetic polish and aesthetic consistency check", and later that day: "The presentations once complete should be put in
+the new links page on the app". They passed on an outside review too, "only use this as advice".
+
+**How they are built.** `tooling/shortlist-decks.py` writes six decks by rewriting Common Ground's finished pair: a colleague
+deck (15 slides) and a managers' deck (10) for each of Balanced V6, Level Crossing and Middle Ground.
+- A sentence of Common Ground's is kept only once every figure it quotes is checked equal (`same()`). Everything else is
+  rewritten from the grids, and each claim is checked against them first (`check()`).
+- It refuses Common Ground's text where it is not true of the design (`CG_ONLY`), another design's name with an ordinary
+  space, and "recommend", "union rep" and "fixed rota". It puts the ✓ and ▲ on as it builds, from each figure's colour.
+- `deck-check.mjs` reads every row of all fourteen decks back against the grids: 378 agree, none disagree, none unchecked.
+- The outside review was used where it is about presenting: the rules as gates, fatigue apart, each design's main cost
+  beside its gain, closing weeks said directly, no league position.
+
+**Where they are** (v25.53). In the zip, PowerPoint and PDF, the six and no others: `pack.py` refuses otherwise, and its
+read-me routes both audiences through them. The New link page's full-pack card offers the three colleague decks; the
+managers' decks stay off it. The eight earlier decks stay in `presentations/`, out of the zip.
+
+**Two audits, and every fix.** Two independent audits read the decks, one the colleague decks and one the managers'. Each
+recomputed the figures from the grids with scripts of its own, and both found them right. Their findings were about what
+the words claim, and most were about evenness between the three. Each was checked against the grids before it was fixed.
+Every fix is in the builder, checked as it builds; the six were rebuilt, their PDFs exported, and the changed slides looked
+at in screenshots.
+- **One rule for an edge or a cost, for all three.**
+  - An edge or a cost against the other two is claimed only where the design is better or worse than both of them by more
+    than 5%. `report-data.mjs`'s `fitCmp` calls anything closer "about the same" (`clear_best` in the builder,
+    `clearBest` in the shortlist sheet).
+  - Before, Middle Ground claimed edges of 2–4% (its Sunday fit, its 06:20 starts, its shortest rest) and Level Crossing a
+    2% Saturday cost, while Balanced V6's costs were listed in full.
+  - The notes no longer need three gains and three costs each: a design gets as many as it clearly has, one at least.
+- **Balanced V6.**
+  - Its added edge is the most rest-day breaks of three days or more, about 6 a year (Level Crossing 2, Middle Ground 4).
+    It replaces "as many finishes before 14:00 as Level Crossing", which is no edge against both.
+  - Its change of start. The notes said its three mixed weeks were why the start moves 4h 08m a week. On the pack's own
+    measure the weeks clear of a mixed week average the same; the change comes from switching between early and late
+    weeks, the other side of its short runs. The notes now say so.
+  - Its weeks on one shift time. "7 of the 21 … as 7 weeks in 16 do today" read as parity. They are said a year now, about
+    14 against 18 today, and "all earlies or all lates".
+  - Its runs of earlies or of lates were framed as a gain against today ("in return …") and kept off slide 13, "say it if
+    asked". They are a cost against today, on its slide 13 card as on the other two.
+  - Slide 9's subtitle, "The biggest improvement over today", stood over two ▲ rows. It reads "More weekends off and
+    longer rests, but more single rest days".
+  - The managers' slide 8 says the worst case beside the gain: "5 at most, not 7; up to 10 if a cover week falls badly,
+    today 9".
+  - One cost added, the twin of Middle Ground's four at the open: five on duty at 22:00 on a weekday, the rules' minimum,
+    where the other two have seven.
+- **Level Crossing.**
+  - Two costs were not costs against both, and are gone. Its long Monday-to-Saturday shifts and 9-hour Sunday: Balanced V6
+    has more, and the same Sunday. The weakest Saturday fit: 17.6 against Balanced V6's 17.3.
+  - Its cost now: of the three, the most 06:20 starts and the fewest long breaks, about 2 a year. The slide says "of the
+    three", because its 58 starts at 06:20 a year are fewer than today's 62.
+  - "Two 06:20–13:45s every weekday" is gone too: Balanced V6 has two finishes before 14:00 every weekday as well. Its
+    added edge is the fewest single rest days, about 10 a year, as today.
+- **Middle Ground.**
+  - "No two 06:20 weeks side by side" is gone from the decks and the shortlist sheet. It held only when week 20, two
+    06:20 starts and two 07:00s, was counted a 07:00 week; weeks 17 to 20 all have 06:20 starts.
+  - "The longest rest, 14h 35m" was its shortest rest, and within 5% of the others' anyway. It is gone.
+  - Its costs now include the Sunday pay. Its Sundays are the shortest, so about £350 a year less premium and overtime pay
+    than today, where both others have about £200 less. There are also six on duty at 22:00 on a Saturday, where both have
+    seven.
+  - Its one possible fatigue warning is no longer a cost against both: Balanced V6 has more.
+  - The managers' slide 4 note explaining its weekday fit by today's 11:00–19:30 is gone. No other design's fit was
+    explained.
+- **All three.**
+  - A closing week is defined where the target is first said, in slide 2's notes: one spent mostly on the 23:55 close,
+    Monday to Friday. The notes add "as today".
+  - Balanced V6 alone has closing weeks either side of a cover week: its weeks 5 and 7, round cover week 6. Its notes say
+    that if that week's duties are closes as well it makes three in a row, which is for the roster office to avoid. The
+    builder checks the other two have none.
+  - FF15 is "more than four starts before 07:00 in a row", not "more than four earlies". The decks' earlies start before
+    11:00, and Balanced V6 has five of those in a row in two of its fixed weeks.
+  - Today's long shifts are said in full: about 31 duties a year over 8h 30m, Monday to Saturday, not "the Saturday closer
+    alone".
+  - The managers' slide 1 said the figures "have been checked independently", a sentence from Common Ground's deck. They
+    are now worked out "by the same calculations as the proposal sheet".
+  - Each design's source is "another design in the pack": Balanced V5, Crossover and Common Ground.
+  - The slide 10 notes give the change of start against today for each; Balanced V6's 4h 08m is about the same as today's
+    4h 00m.
+  - Smaller fixes:
+    - a stale pointer to the shortlist sheet's weekday lates;
+    - "no shift over 9 hours" said twice;
+    - the 13:35 named where a design has none;
+    - "(today 26)" written one way;
+    - the other two designs named A to Z;
+    - "which can avoid it" on Middle Ground's 55-hour note, as on Balanced V6's.
+
+**League language off the sheets.** Both audits found it on the shortlist sheet. It said "Crossover, first in the pack's
+league", and "Balanced V6 scores far below every design but Balanced V5", the second dismissive of a colleague's own roster.
+- Page 2's "Why these three" now says only that Crossover and Common Ground, whose duties and rest days Level Crossing and
+  Middle Ground keep, each put four closing weeks together.
+- The other designs' sheet no longer says Crossover is first in the league. The league stays in `league.mjs` and in this
+  README.
+- The cards, the guide rows and "How to choose" follow the 5% rule.
+- "Week to week, on Balanced V6" gives its weeks on one shift time a year: about 14, against 18.
+- The read-me's choice lines (`pack.py`) follow the sheet.
+
+**Sara Silva, named in full** (owner, 8 Nov 2026: "Where it says tell S. Silva. Can you make that Sara Silva").
+- `CONTACT` in `newlink-config.js` is "Sara Silva", and every line that names her is built from it: the New link page's
+  "Have your say", the read-me, and slide 15 of the colleague decks ("Tell Sara Silva or your manager what worries you, even
+  if it is small"; "Sara Silva, the RMT rep, is leading the change").
+- On the roster, and in the lists that hold her identity (`CONFIG.NEWLINK_PREVIEW`, `CONFIG.LINKS_DESIGNERS`), she stays
+  S. Silva. `newlink-config.test.mjs` holds the contact to that member, and the deck builder refuses "S. Silva" anywhere in a
+  deck.
+
+**The weekday closer on the New link page** (owner, 8 Nov 2026: "This should have longest closing shift weekday on it. More
+important than any day as sat sun people are happier to work as they are paid more").
+- The "…prefer lates" row is "Longest closing shift, weekday": 8h 40m today, 8h 10m on all three.
+- Its line says every closer is shorter, the weekday's by half an hour. `what-it-means-data.mjs` checks both.
+- The weekend closers stay on the page's "Whichever is chosen" card and the decks' slide 6.
+- The printed sheet, `links-26-what-it-means.pdf`, follows.
+
+**Checked.**
+- `npm run check`: 2,564 tests, none failing. The New link page's browser tests: 14 pass.
+- `deck-check.mjs`: 378 rows agree. The sheets render, and refuse to if a page overflows.
+- `pack.py`: the zip holds 67 files.
+- Three guards broken on purpose with `scripts/mutate.mjs`, each refused:
+  - the slide 15 replacement removed: the build stops, "slide 15 names Sara Silva twice";
+  - `clearBest` loosened to any difference: Level Crossing's costs claim fails;
+  - the weekday cut set to 25 minutes: the weekday closer claim fails.
+
+**Left for the owner.**
+- Middle Ground's strap and the read-me still say it was drawn so that no two closing weeks, and no two 06:20 weeks, fall
+  together. That is what it was drawn for, and it holds on the pack's reading of a week by its main duty. The decks and
+  cards no longer claim it.
+- The pack names no authors, so Balanced V6's decks do not credit Balanced V5 as a colleague's own roster.
+- The eight earlier decks are unchanged: they still say "S. Silva" and "checked independently". They are out of the zip.
+- The greens in the sheets' tables still mark any difference; the 5% rule is for written claims.
+- The New link page's preview banner names her as her account does, S. Silva.
+- The managers' decks are not on the New link page.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

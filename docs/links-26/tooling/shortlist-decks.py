@@ -41,6 +41,7 @@ snd, dp, dm = load('second-nature-decks'), load('deck-polish'), load('deck-marks
 Slide, notes, escape, runs_of, spans = snd.Slide, snd.notes, snd.escape, snd.runs_of, snd.spans
 GREEN, NAVY, AMBER = snd.GREEN, snd.NAVY, snd.AMBER
 put, set_shape, shape_of = dp.put, dp.set_shape, dp.shape_of
+ROSTERED = re.sub(r'^(\w)\w+ ', r'\1. ', dp.CONTACT)   # the contact as the roster spells her: Sara Silva is S. Silva there
 DAYS, WK, _len, _timed, WORDS, H, first, upto = dp.DAYS, dp.DAYS[1:6], dp._len, dp._timed, dp.WORDS, dp.H, dp.first, dp.upto
 NUMW = WORDS + 'eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen'.split()
 
@@ -78,6 +79,12 @@ closers = lambda p, days: sorted({p[k][d] for k in p for d in days if _timed(p[k
 long_breaks = lambda p: year(sum(1 for n in dp.rest_lens(p) if n > 2), p)
 six_days = lambda p: sum(1 for k in p if sum(1 for d in DAYS if _timed(p[k][d])) >= 6)
 opens = lambda p, days: [sum(1 for k in p if _timed(p[k][d]) and p[k][d][:5] == '06:20') for d in days]
+# CLEARLY, AS THE PACK SAYS IT (the managers'-deck audit, 8 Nov 2026): two figures within 5% of each other are "about the same"
+# (report-data.mjs → fitCmp), so a design's edge or cost against the other two is claimed only where it is wider than that against
+# BOTH of them. Before this, Middle Ground claimed edges of 2–4% (its Sunday fit, its 06:20 starts, its shortest rest) and Level
+# Crossing a 2% Saturday one, while Balanced V6's costs were listed in full
+clear_best = lambda v, others, high=False: all((o < 0.95 * v) if high else (v < 0.95 * o) for o in others)
+clear_worst = lambda v, others, high=False: clear_best(v, others, not high)
 tn = lambda f: tuple(int(v) for v in re.fullmatch(r'(\d+) \((\d+) you know\)', f['times']).groups()) if 'you know' in f['times'] else (int(f['times']), None)
 TT = times(TP)
 TODAY_CLOSER = {'Weekdays': closers(TP, WK), 'Saturday': closers(TP, ['sat']), 'Sunday': closers(TP, ['sun'])}
@@ -97,6 +104,21 @@ def side_by_side(p, test):
     return any(test(main_duty(p[k])) and test(main_duty(p[ks[(i + 1) % len(ks)]])) for i, k in enumerate(ks))
 closing = lambda t: t.endswith('-23:55')
 opening = lambda t: t.startswith('06:20')
+def sandwiches(p):
+    """Closing weeks either side of one cover week, as (before, cover, after): apart, cover weeks aside, but three closing weeks in
+    a row if that cover week's own duties are closes too (both audits, 8 Nov 2026)."""
+    ks = sorted(p, key=int); n = len(ks)
+    cw = lambda k: all(p[k][d] == 'SPARE' for d in DAYS)
+    cl = lambda k: not cw(k) and closing(main_duty(p[k]))
+    return [(ks[i - 1], ks[i], ks[(i + 1) % n]) for i in range(n) if cw(ks[i]) and cl(ks[i - 1]) and cl(ks[(i + 1) % n])]
+def cover_sandwich():
+    """The notes' sentence for this design's closing weeks either side of a cover week, or '' where it has none."""
+    hit = sandwiches(P)
+    every = {n: sandwiches(P if n == NAME else OP[n]) for n in SHORT}
+    check('Balanced V6 alone of the three has closing weeks either side of a cover week: its weeks 5 and 7, round week 6',
+          every == {'Balanced V6': [('5', '6', '7')], 'Level Crossing': [], 'Middle Ground': []})
+    return ' '.join(f'Weeks {a} and {c} are closing weeks either side of cover week {b}: if that week’s duties are closes as well, it makes three in a row, '
+                    'which is for the roster office to avoid when it places them.' for a, b, c in hit)
 closes3 = lambda row: sum(1 for d in WK if str(row[d]).endswith('-23:55')) >= 3
 side3 = lambda p: (lambda ks: any(closes3(p[k]) and closes3(p[ks[(i + 1) % len(ks)]]) for i, k in enumerate(ks)))(sorted(p, key=int))
 
@@ -232,10 +254,10 @@ def story():
         L, M = O['Level Crossing'], O['Middle Ground']
         check('the shortest runs of earlies or of lates of the three, the other two level', int(F['block']) < min(int(o['block']) for o in O.values()) and int(F['blockUpTo']) < min(int(o['blockUpTo']) for o in O.values())
               and L['block'] == M['block'] and L['blockUpTo'] == M['blockUpTo'])
-        check('as many finishes before 14:00 as Level Crossing, more than Middle Ground, today’s 13:35, 13:45 and 14:20 every weekday, and a 13:35 neither of the others has',
-              dp.early_off(P) == dp.early_off(g('Level Crossing')) > dp.early_off(g('Middle Ground')) and all(per_day(P, t, WK) == {n} for t, n in (('06:20-13:35', 1), ('06:20-13:45', 1), ('06:20-14:20', 2)))
-              and not any(t.endswith('13:35') for n in PEERS for t in times(g(n))))
+        check('the most rest-day breaks of three days or more, clearly: about 6 a year, the other two 2 and 4', clear_best(long_breaks(P), [long_breaks(g(n)) for n in PEERS], high=True))
         check('five at the Saturday open, the other two four', opens(P, ['sat']) == [5] and all(opens(g(n), ['sat']) == [4] for n in PEERS))
+        check('five on duty at 22:00 on a weekday, the rules’ minimum, where the other two have seven', F['at22'].startswith('5 ·') and all(o['at22'].startswith('7 ·') for o in O.values()))
+        check('more changes between early and late weeks than the other two: the other side of the short runs', switches(P) > max(switches(g(n)) for n in PEERS))
         mixed = dp.grid_facts(GRIDF)['mixed']
         check('fewer weeks on one shift time, weeks mixing earlies and lates, the biggest change of start, the most single rest days, more six-day weeks, fewer weekends off, the most warnings and days in a row if a cover week falls badly',
               first(F['oneTurn']) < min(first(o['oneTurn']) for o in O.values()) and L['oneTurn'] == M['oneTurn'] and mixed == 3
@@ -244,15 +266,16 @@ def story():
               and int(F['weekendsYear']) < min(int(o['weekendsYear']) for o in O.values()) and L['weekendsYear'] == M['weekendsYear']
               and ffw(F) > max(ffw(o) for o in O.values()) and upto(F['run']) > max(upto(o['run']) for o in O.values()))
         return dict(
-            what=f'{NAME} is {NB("Balanced V5")}’s weeks with its three weekday 08:00–16:30s at 07:30–16:00, so that they overlap the three 15:45 closers for 15 minutes, a handover',
-            adds='This one adds: the shortest runs of earlies or of lates, at most 3 weeks',
+            what=f'{NAME} is the weeks of {NB("Balanced V5")}, another design in the pack, with its three weekday 08:00–16:30s at 07:30–16:00, so that they overlap the three 15:45 closers for 15 minutes, a handover',
+            adds='This one adds: the shortest runs of earlies or of lates, and the most long breaks',
             costs=f'This one costs: {F["oneTurn"]} weeks on one shift time, and {year(singles(P), P)} single rest days a year',
             add_notes=[f'the shortest runs of earlies or of lates — at most {NUMW[int(F["block"])]} weeks of either in a row, {NUMW[int(F["blockUpTo"])]} with cover weeks beside them, where the other two have {NUMW[int(L["block"])]} and {NUMW[int(L["blockUpTo"])]}',
-                       f'as many finishes before 14:00 as {LCn}, about {dp.early_off(P)} a year each, where {MGn} has {dp.early_off(g("Middle Ground"))}, among them today’s 13:35, which neither of the others keeps',
+                       f'the most rest-day breaks of three days or more, about {long_breaks(P)} a year each ({LCn} about {long_breaks(g("Level Crossing"))}, {MGn} about {long_breaks(g("Middle Ground"))}; today {long_breaks(TP)})',
                        'five at the Saturday open, where the other two have four'],
-            cost_notes=[f'{F["oneTurn"]} weeks on one shift time, where the other two have {first(L["oneTurn"])}, and three weeks mixing earlies and lates, where they have none, so the start moves {F["step"]} from one week to the next on average ({LCn} {L["step"]}, {MGn} {M["step"]}; today {T["step"]})',
+            cost_notes=[f'{F["oneTurn"]} weeks on one shift time, where the other two have {first(L["oneTurn"])}, and three weeks mixing earlies and lates, where they have none; and, the other side of its short runs, '
+                        f'more changes between early and late weeks, so the start moves {F["step"]} from one week to the next on average ({LCn} {L["step"]}, {MGn} {M["step"]}; today {T["step"]})',
                         f'{NUMW[singles(P)]} single rest days in 26 weeks, about {year(singles(P), P)} a year each ({LCn} about {year(singles(g("Level Crossing")), g("Level Crossing"))}, {MGn} about {year(singles(g("Middle Ground")), g("Middle Ground"))}; today {year(singles(TP), TP)}), three six-day weeks where they have none, and {F["weekendsYear"]} full weekends off a year where they have {L["weekendsYear"]}',
-                        f'if a cover week falls badly, up to {NUMW[ffw(F)]} fatigue warnings and {NUMW[upto(F["run"])]} days in a row ({LCn} none and {NUMW[upto(L["run"])]}, {MGn} {NUMW[ffw(M)]} and {NUMW[upto(M["run"])]})'],
+                        f'if a cover week falls badly, up to {NUMW[ffw(F)]} fatigue warnings and {NUMW[upto(F["run"])]} days in a row ({LCn} none and {NUMW[upto(L["run"])]}, {MGn} {NUMW[ffw(M)]} and {NUMW[upto(M["run"])]}); and five on duty at 22:00 on a weekday, the rules’ minimum, where they have seven'],
             worry_bar='Expect late finishes and single rest days first — the colleague presentation answers both.')
     if NAME == 'Level Crossing':
         CO = grid(find_grid('Crossover'))
@@ -261,45 +284,55 @@ def story():
         B6, M = O['Balanced V6'], O['Middle Ground']
         check('no fatigue warning in any cover-week placement tested, where the other two show one or more, and the fewest days in a row if a cover week falls badly',
               F['ff'] == '0' and not F['h55'] and all(ffw(o) > 0 for o in O.values()) and upto(F['run']) < min(upto(o['run']) for o in O.values()))
-        check('the gentlest change of start of the three', H(F['step']) < min(H(o['step']) for o in O.values()))
-        check('two 06:20–13:45s every weekday and five at the weekday open, the other two one and four', per_day(P, '06:20-13:45', WK) == {2} and opens(P, WK) == [5] * 5
-              and all(per_day(g(n), '06:20-13:45', WK) == {1} and opens(g(n), WK) == [4] * 5 for n in PEERS))
-        check('the most 06:20 starts of the three and the weakest Saturday fit, and long shifts Monday to Saturday where Middle Ground has none',
-              int(F['open0620']) > max(int(o['open0620']) for o in O.values()) and float(F['fitSat']) > max(float(o['fitSat']) for o in O.values()) and long_ms(P) > 0 and long_ms(g('Middle Ground')) == 0)
+        check('the gentlest change of start of the three, clearly', clear_best(H(F['step']), [H(o['step']) for o in O.values()]))
+        check('the fewest single rest days, clearly, as today', clear_best(year(singles(P), P), [year(singles(g(n)), g(n)) for n in PEERS]) and year(singles(P), P) == year(singles(TP), TP))
+        check('five at the weekday open, the other two four', opens(P, WK) == [5] * 5 and all(opens(g(n), WK) == [4] * 5 for n in PEERS))
+        check('the most 06:20 starts of the three, clearly, and the fewest breaks of three days or more',
+              clear_worst(int(F['open0620']), [int(o['open0620']) for o in O.values()]) and clear_worst(long_breaks(P), [long_breaks(g(n)) for n in PEERS], high=True))
+        # what it shares with Balanced V6 is no cost against both, so it is not one here: a 9-hour Sunday, long shifts Monday to
+        # Saturday (Balanced V6 more), and a Saturday fit within 5% of Balanced V6's
+        check('not a cost against both: long Monday-to-Saturday shifts (Balanced V6 more) and the Saturday fit (within 5% of Balanced V6)',
+              long_ms(g('Balanced V6')) > long_ms(P) > 0 and not clear_worst(float(F['fitSat']), [float(o['fitSat']) for o in O.values()]))
         return dict(
-            what=f'{NAME} is Crossover’s duties and rest days, laid in new weeks so that no two closing weeks come together, where Crossover has four in a row',
+            what=f'{NAME} is the duties and rest days of Crossover, another design in the pack, laid in new weeks so that no two closing weeks come together, where Crossover has four in a row',
             adds='This one adds: no fatigue warning in any cover-week placement tested',
-            costs=f'This one costs: the most 06:20 starts, {F["open0620"]} a year, and the weakest Saturday fit',
-            add_notes=[f'no fatigue warning in any cover-week placement tested, and never more than {NUMW[upto(F["run"])]} days in a row however a cover week falls ({MGn} up to {NUMW[ffw(M)]} warning and {NUMW[upto(M["run"])]} days, {BVn} up to {NUMW[ffw(B6)]} and {NUMW[upto(B6["run"])]})',
-                       f'the gentlest change of start from one week to the next, {F["step"]} on average ({MGn} {M["step"]}, {BVn} {B6["step"]}; today {T["step"]})',
-                       'two 06:20–13:45s every weekday and five at the weekday open, where the other two have one and four'],
-            cost_notes=[f'the most starts at 06:20, about {F["open0620"]} a year each ({MGn} {M["open0620"]}, {BVn} {B6["open0620"]}; today {T["open0620"]})',
-                        f'the weakest Saturday fit to the trains, {F["fitSat"]} ({MGn} {M["fitSat"]}, {BVn} {B6["fitSat"]})',
-                        f'about {long_ms(P)} shifts a year each over 8h 30m Monday to Saturday, where {MGn} has none, and a 9-hour Sunday 09:00–18:00'],
+            costs='This one costs: of the three, the most 06:20 starts and the fewest long breaks',
+            add_notes=[f'no fatigue warning in any cover-week placement tested, and never more than {NUMW[upto(F["run"])]} days in a row however a cover week falls ({BVn} up to {NUMW[ffw(B6)]} warnings and {NUMW[upto(B6["run"])]} days, {MGn} up to {NUMW[ffw(M)]} and {NUMW[upto(M["run"])]})',
+                       f'the gentlest change of start from one week to the next, {F["step"]} on average ({BVn} {B6["step"]}, {MGn} {M["step"]}; today {T["step"]}), and the fewest single rest days, about {year(singles(P), P)} a year each, as today ({BVn} about {year(singles(g("Balanced V6")), g("Balanced V6"))}, {MGn} about {year(singles(g("Middle Ground")), g("Middle Ground"))})',
+                       'five at the weekday open, where the other two have four'],
+            cost_notes=[f'the most starts at 06:20, about {F["open0620"]} a year each ({BVn} {B6["open0620"]}, {MGn} {M["open0620"]}; today {T["open0620"]})',
+                        f'the fewest rest-day breaks of three days or more, about {long_breaks(P)} a year each ({BVn} about {long_breaks(g("Balanced V6"))}, {MGn} about {long_breaks(g("Middle Ground"))}; today {long_breaks(TP)})'],
             worry_bar='Expect late finishes and long breaks first — the colleague presentation answers both.')
     if NAME == 'Middle Ground':
         check(f'{BASE}’s duties and rest days, laid in new weeks; {BASE} has four closing weeks in a row', all(sorted(P[k][d] for k in P) == sorted(PB[k][d] for k in PB) for d in DAYS)
               and all((P[k][d] == 'RD') == (PB[k][d] == 'RD') and (P[k][d] == 'SPARE') == (PB[k][d] == 'SPARE') for k in P for d in DAYS) and closing_run(PB) == 4 and closing_run(P) == 1)
-        check('no two 06:20 weeks side by side either, alone of the three', not side_by_side(P, opening) and all(side_by_side(g(n), opening) for n in PEERS))
         L, B6 = O['Level Crossing'], O['Balanced V6']
         check('nothing over 8h 30m on any day and every closer 8h 10m, where the other two have a 9-hour Sunday and longer Saturday closers',
               max(_len(t) for t in times(P)) == 510 and F['closers'] == '8h 10m · 8h 10m · 8h 10m' and all(max(_len(t) for t in times(g(n))) == 540 and days_of(g(n), '09:00-18:00') == {'sun'} for n in PEERS)
               and all(min(H(v) for v in o['closerSat'].split('–')) > H(F['closerSat']) for o in O.values()))
-        check('the closest Saturday and Sunday fit of the three', all(float(o['fitSat']) > float(F['fitSat']) and float(o['fitSun']) > float(F['fitSun']) for o in O.values()))
-        check('the longest rest between shifts and the fewest 06:20 starts of the three', all(H(o['rest']) < H(F['rest']) and int(o['open0620']) > int(F['open0620']) for o in O.values()) and L['rest'] == B6['rest'])
-        check('the fewest finishes before 14:00, the other two level; four at the open every day, the minimum, where the others have five on one kind of day',
-              dp.early_off(P) < dp.early_off(g('Level Crossing')) == dp.early_off(g('Balanced V6')) and F['open'] == '4 · 4 · 4' and L['open'] == '5 · 4 · 4' and B6['open'] == '4 · 5 · 4')
-        check('one fatigue warning if a cover week falls badly, the 55-hour week, where Level Crossing has none', F['ff'] == '0 (up to 1)' and F['h55'] and L['ff'] == '0')
+        check('the closest Saturday fit of the three, clearly', clear_best(float(F['fitSat']), [float(o['fitSat']) for o in O.values()]))
+        # NOT EDGES, BY THE PACK'S 5% (the managers'-deck audit, 8 Nov 2026): its Sunday fit, 06:20 starts and shortest rest are
+        # within 5% of one of the others, and "no two 06:20 weeks side by side" held only when a week of two 06:20s and two 07:00s
+        # was counted a 07:00 week (week 20, after week 19's four)
+        check('its Sunday fit, its 06:20 starts and its shortest rest within 5% of one of the others: no edge',
+              not clear_best(float(F['fitSun']), [float(o['fitSun']) for o in O.values()]) and not clear_best(int(F['open0620']), [int(o['open0620']) for o in O.values()])
+              and not clear_best(H(F['rest']), [H(o['rest']) for o in O.values()], high=True))
+        check('the fewest finishes before 14:00, clearly, the other two level; four at the open every day, the rules’ minimum, where the others have five on one kind of day; six at 22:00 on a Saturday, where both have seven',
+              clear_worst(dp.early_off(P), [dp.early_off(g(n)) for n in PEERS], high=True) and dp.early_off(g('Level Crossing')) == dp.early_off(g('Balanced V6'))
+              and F['open'] == '4 · 4 · 4' and L['open'] == '5 · 4 · 4' and B6['open'] == '4 · 5 · 4' and F['at22'].split(' · ')[1] == '6' and all(o['at22'].split(' · ')[1] == '7' for o in O.values()))
+        loss = {n: pay(P if n == NAME else g(n), FIG[n], n)[0] for n in SHORT}   # slide 5's £, the colleague decks' own
+        sun_avg = lambda p: (lambda xs: sum(xs) / len(xs))([_len(p[k]['sun']) for k in p if _timed(p[k]['sun'])])
+        check('its Sundays the shortest of the three, so the most Sunday pay lost against today: about £350 a year, where both lose the same, about £200',
+              loss[NAME] > max(loss[n] for n in PEERS) and len({loss[n] for n in PEERS}) == 1 and sun_avg(P) < min(sun_avg(g(n)) for n in PEERS))
         return dict(
-            what=f'{NAME} is {NB(BASE)}’s duties and rest days, laid in new weeks so that no two closing weeks come together, where {NB(BASE)} has four in a row, and no two weeks of 06:20 starts either',
-            adds='This one adds: nothing over 8h 30m on any day, and no two 06:20 weeks in a row',
-            costs=f'This one costs: the fewest finishes before 14:00, {dp.early_off(P)} a year, and four at the open',
-            add_notes=[f'no shift over 8h 30m on any day and every closer {F["closerWk"]}, where both have a 9-hour Sunday, the 09:00–18:00, and Saturday closers of {L["closerSat"]} ({LCn}) and {B6["closerSat"]} ({BVn})',
-                       f'the closest Saturday and Sunday fit to the trains, {F["fitSat"]} and {F["fitSun"]} ({LCn} {L["fitSat"]} and {L["fitSun"]}, {BVn} {B6["fitSat"]} and {B6["fitSun"]})',
-                       f'the longest rest between shifts, {F["rest"]} (both {L["rest"]}), the fewest starts at 06:20, about {F["open0620"]} a year each ({LCn} {L["open0620"]}, {BVn} {B6["open0620"]}), and no two weeks of 06:20 starts side by side either, alone of the three'],
+            what=f'{NAME} is the duties and rest days of {NB(BASE)}, another design in the pack, laid in new weeks so that no two closing weeks come together, where {NB(BASE)} has four in a row',
+            adds='This one adds: nothing over 8h 30m on any day, and the closest Saturday fit',
+            costs='This one costs: the fewest finishes before 14:00, and four at the open every day',
+            add_notes=[f'no shift over 8h 30m on any day and every closer {F["closerWk"]}, where both have a 9-hour Sunday, the 09:00–18:00, and Saturday closers of {B6["closerSat"]} ({BVn}) and {L["closerSat"]} ({LCn})',
+                       f'the closest Saturday fit to the trains, {F["fitSat"]} ({BVn} {B6["fitSat"]}, {LCn} {L["fitSat"]})'],
             cost_notes=[f'the fewest finishes before 14:00, about {dp.early_off(P)} a year each (both {dp.early_off(g("Level Crossing"))}; today {dp.early_off(TP)})',
-                        f'four at the open every day, the minimum, where {LCn} has five on weekdays and {BVn} five on a Saturday',
-                        f'one fatigue warning if a cover week falls badly: seven days of up to {F["h55"]} with 8-hour duties, over the 55-hour guideline, where {LCn} has none'],
+                        f'four at the open every day, the rules’ minimum, where {BVn} has five on a Saturday and {LCn} five on weekdays, and six on duty at 22:00 on a Saturday, where both have seven',
+                        f'the shortest Sundays, so someone working their full share has about £{loss[NAME]} a year less premium and overtime pay than today, gross, where both have about £{loss[PEERS[0]]} less'],
             worry_bar='Expect late finishes and single rest days first — the colleague presentation answers both.')
     raise SystemExit(f'shortlist-decks: no story for {NAME}')
 
@@ -339,8 +372,11 @@ def colleagues(d):
     if NAME == 'Balanced V6': check('today’s 13:35, 13:45 and 14:20 every weekday', all(per_day(P, t, WK) == {n} for t, n in (('06:20-13:35', 1), ('06:20-13:45', 1), ('06:20-14:20', 2))))
     else: check('no 13:35 finish', not any(t.endswith('13:35') for t in times(P)))
     if NAME == 'Middle Ground': check('today’s 13:45 and 14:20 every weekday', all(min(per_day(P, t, WK)) >= 1 for t in ('06:20-13:45', '06:20-14:20')))
-    weeks_line = (f'Every working week is all earlies or all lates, and {one_a} of the {one_b} working weeks keep one shift time Monday to Friday.' if mixed == 0 else
-                  f'{NUMW[mixed].capitalize()} of the {one_b} working weeks mix earlies and lates, and {one_a} keep one shift time Monday to Friday; in return, no run of earlies or of lates is longer than {NUMW[int(F["block"])]} weeks, cover weeks aside.')
+    one_y, one_y_t = round(int(one_a) * 52 / len(P)), round(first(T['oneTurn']) * 52 / len(TP))   # weeks a year on one shift time
+    check('weeks on one shift time a year: 14 on Balanced V6, 36 on the other two, today 18', T['oneTurn'] == '7 of 16' and one_y_t == 18 and one_y == {'Balanced V6': 14}.get(NAME, 36))
+    weeks_line = (f'Every working week is all earlies or all lates, and {one_a} of the {one_b} working weeks keep one shift time Monday to Friday — about {one_y} weeks a year each, against about {one_y_t} today.' if mixed == 0 else
+                  f'{NUMW[mixed].capitalize()} of the {one_b} working weeks mix earlies and lates, and {one_a} keep one shift time Monday to Friday, all earlies or all lates — about {one_y} weeks a year each, against about {one_y_t} today. '
+                  f'Runs of earlies or of lates are {NUMW[int(F["block"])]} weeks at most, cover weeks aside, where today’s are {NUMW[int(T["block"])]}.')
     cost_line = {'Middle Ground': f'more single rest days — {NUMW[sg]} in every 26 weeks, where today has {NUMW[sg_t]} in 20, so about {sg_y} a year each against {sg_y_t}.',
                  'Balanced V6': f'more single rest days — {NUMW[sg]} in every 26 weeks, where today has {NUMW[sg_t]} in 20, so about {sg_y} a year each against {sg_y_t} — and {NUMW[six]} six-day weeks, where today has {NUMW[six_t]}.',
                  'Level Crossing': f'fewer long breaks — {NUMW[rl.count(3)]} break of three days in 26 weeks, about {lb} a year each, where today has about {lb_t} of three or four days.'}[NAME]
@@ -350,8 +386,8 @@ def colleagues(d):
     notes(d, 2, 'This is the whole proposal on one slide.',
           'This is the whole proposal on one slide. Same 35-hour week as now. Leave goes as far as it does today: at its best, '
           f'14 days’ leave buys {F["leaveBest"]} days off in a row, and four full weeks off in a row, Sunday to Saturday, take {F["leaveFour"]} days’ leave, as now; {leave_rel()}. '
-          'A week of closing shifts is never followed by another: the closing weeks are spread through the 26, cover weeks aside'
-          + (', and so are the weeks of 06:20 starts.' if NAME == 'Middle Ground' else '.') + ' '
+          'A closing week — one spent mostly on the 23:55 close, Monday to Friday — is never followed by another: the closing weeks are spread through the 26, cover weeks aside, as today. '
+          + (f'{cover_sandwich()} ' if cover_sandwich() else '') +
           f'Never more than five days in a row outside the cover weeks — {NUMW[runup]} at most when a cover week falls badly and its Sunday is worked as overtime, where today it is seven and can reach nine. '
           f'{NUMW[int(F["weekendsShort"].split()[0])].capitalize()} full weekends off in every 26 weeks, against four in 20 today, and never more than {NUMW[gap]} weeks apart — though each person works about two more Saturdays a year. '
           f'{weeks_line} {times_line} {longest_sentence()} '
@@ -401,10 +437,12 @@ def colleagues(d):
     sat_cl = '; '.join(f'Saturday {c[:5]} to 23:55' for c in CL['Saturday'])
     sat_desc = (f'Saturday {andl([c[:5] for c in CL["Saturday"]])} to 23:55 instead of {TODAY_CLOSER["Saturday"][0][:5]} ({" or ".join(hm(_len(c)) for c in CL["Saturday"])}, not {T["closerSat"]})')
     long_ms = round(dp.per_year(P, lambda s_, d_: d_ != 'sun' and _len(s_) > 510))
+    long_ms_t = round(dp.per_year(TP, lambda s_, d_: d_ != 'sun' and _len(s_) > 510))
+    check('today: about 31 duties a year each over 8h 30m, Monday to Saturday, the longest the Saturday closer', long_ms_t == 31 and max(_len(t) for t in times(TP, DAYS[1:])) == _len(TODAY_CLOSER['Saturday'][0]))
     over = sorted({(P[k][dd]) for k in P for dd in DAYS[1:] if _timed(P[k][dd]) and _len(P[k][dd]) > 510})
     longs = ('Nothing on any day runs over 8h 30m, Sunday included. ' if mx == 510 else
              f'Nothing runs over 9 hours: the one 9-hour shift is the Sunday 09:00–18:00, and about {long_ms} duties a year each run over 8h 30m Monday to Saturday — the Saturday {andl([dash(t) for t in over])}, '
-             f'where today the Saturday closer alone is {T["closerSat"]}. ')
+             f'where today about {long_ms_t} a year each do, the Saturday closer the longest at {T["closerSat"]}. ')
     if mx != 510: check('the Monday-to-Saturday duties over 8h 30m are all Saturday ones', all(days_of(P, t) == {'sat'} for t in over) and long_ms > 0)
     notes(d, 6, 'Lead with the closers:',
           'Lead with the closers: they are the shifts people dislike most, and every one of them is shorter. '
@@ -412,7 +450,7 @@ def colleagues(d):
           + longs +
           'But the time the closers lose goes onto the other shifts, so more of them run to the full 8h 30m than today — three of the seven weekday earlies, where today two of six do. '
           'Be upfront about the two minutes on the average: the 26-week link may have no more than 219 contracted days a year, so the same 35 hours go into slightly fewer, slightly longer shifts. '
-          f'On average, Monday to Saturday, the average early is {F["avgEarly"]} against {T["avgEarly"]} today, and the average late {F["avgLate"]} against {T["avgLate"]}, so the average shift hardly moves. The average late includes the closers; the shortlist sheet’s weekday lates leave them out. '
+          f'On average, Monday to Saturday, the average early is {F["avgEarly"]} against {T["avgEarly"]} today, and the average late {F["avgLate"]} against {T["avgLate"]}, so the average shift hardly moves. The average late includes the closers. '
           f'Cover weeks aside, each person works about {F["earlyYear"]} earlies and {F["lateYear"]} lates a year, Monday to Saturday, against about {T["earlyYear"]} of each today; '
           f'the cover weeks add about {cover_days(P)} days a year to that, against about {cover_days(TP)} today, so the total stays just under today’s.')
     check('today’s earlies and lates the same number a year', T['earlyYear'] == T['lateYear'])
@@ -494,7 +532,7 @@ def colleagues(d):
         for dd in days_of(P, t): groups[KIND(dd)].add(t)
     ref = '; '.join(f'{day}, ' + ', '.join(f'{dash(t)} ({what_is(day, t)})' for t in sorted(ts_)) for day, ts_ in groups.items() if ts_)
     peers_times = ', '.join(f'{NB(n)} {tn(O[n])[1]} of {tn(O[n])[0]}' for n in PEERS)
-    intro = {'Middle Ground': f'{NAME} keeps what you know today — the 13:45 and 14:20 finishes and today’s leave — on new weeks, the closing weeks and the 06:20 weeks spread apart. '
+    intro = {'Middle Ground': f'{NAME} keeps what you know today — the 13:45 and 14:20 finishes and today’s leave — on new weeks, with the closing weeks spread apart. '
                               'Today’s 06:20–13:45 stays on every weekday, and today’s 06:20–14:20 too; nobody finishes at 13:35. '
                               'Three of the new times are shorter versions of today’s lates: the weekday and Saturday closers start at 15:45 and the Sunday closer at 15:15, and the Sunday office late finishes at 22:30, not 23:25. '
                               'On a Saturday the same office late finishes half an hour later than today’s 14:30–22:00: the office shuts at 22:10 and needs 20 minutes to cash up. '
@@ -531,6 +569,10 @@ def colleagues(d):
     cell(s, 23, B['oneTurn'], F['oneTurn'], GREEN if one_share > one_share_t else AMBER)
     put(s, f'{B["weekendsYear"]} full weekends off a year, at most five weeks apart, and never more than five\u00a0days\u00a0in\u00a0a\u00a0row, cover weeks aside.',
         f'{F["weekendsYear"]} full weekends off a year, at most {NUMW[gap]} weeks apart, and never more than five\u00a0days\u00a0in\u00a0a\u00a0row, cover weeks aside.')
+    if NAME == 'Balanced V6':
+        # "The biggest improvement over today" stood over two ▲ rows and a worse worst case of days in a row (both audits, 8 Nov 2026)
+        check('more weekends off and longer rests than today, and more single rest days', int(F['weekendsYear']) > int(T['weekendsYear']) and H(F['rest']) > H(T['rest']) and sg_y > sg_y_t)
+        put(s, 'The biggest improvement over today', 'More weekends off and longer rests, but more single rest days')
     s.save()
     two, three_up = rl.count(2), sum(1 for n in rl if n > 2)
     longer = sorted(n for n in rl if n > 2)
@@ -539,8 +581,11 @@ def colleagues(d):
                    + f' and the other {NUMW[sg]} single days; today {T["breaks"]} are two days or more, {NUMW[sum(1 for n in rl_t if n > 2)]} of them three or four days, about one every {NUMW[round(len(TP) / sum(1 for n in rl_t if n > 2))]} weeks each. '
                    + (f'Single rest days go up from {NUMW[sg_t]} to {NUMW[sg]}, about {sg_y} a year each against {sg_y_t}.' if sg_y > sg_y_t else
                       f'Single rest days are {NUMW[sg]} in 26 weeks, about {sg_y} a year each, as today.'))
-    mix_line = (f'Every working week is all earlies or all lates — today seven weeks in 16 mix the two — and {one_a} of the {one_b} keep one shift time Monday to Friday; today 7 weeks in 16 do both.' if mixed == 0 else
-                f'{NUMW[mixed].capitalize()} of the {one_b} working weeks mix earlies and lates — today seven weeks in 16 do — and {one_a} of the {one_b} keep one shift time Monday to Friday, as 7 weeks in 16 do today.')
+    one_y, one_y_t = round(int(one_a) * 52 / len(P)), round(first(T['oneTurn']) * 52 / len(TP))
+    mix_line = (f'Every working week is all earlies or all lates — today seven weeks in 16 mix the two — and {one_a} of the {one_b} keep one shift time Monday to Friday; today 7 weeks in 16 do both. '
+                f'That is about {one_y} weeks a year each on one shift time, against about {one_y_t} today.' if mixed == 0 else
+                f'{NUMW[mixed].capitalize()} of the {one_b} working weeks mix earlies and lates — today seven weeks in 16 do — and {one_a} of the {one_b} keep one shift time Monday to Friday, all earlies or all lates, '
+                f'where today 7 weeks in 16 do: about {one_y} weeks a year each, against about {one_y_t} today.')
     check('today: seven of 16 working weeks mixed, seven on one shift time; and this design’s mixed weeks as the strip draws them', T['oneTurn'] == '7 of 16' and mixed_of(TP) == 7 and mixed_of(P) == mixed)
     six_line = 'There are no six-day weeks (today there is one).' if six == 0 else f'There are {NUMW[six]} six-day weeks (today there is one).'
     notes(d, 9, 'A full weekend is Saturday',
@@ -548,8 +593,8 @@ def colleagues(d):
           + ('Five is as close as they can be: a cover week’s days are placed later, so a full weekend is not counted in a cover week or the week before one, which leaves 16 of the 26 weeks able to begin one. ' if gap == 5 else '')
           + f'Outside the cover weeks nobody works more than five days in a row — today it is seven — and {NUMW[runup]} is the most a badly placed cover week can make it, with its Sunday worked as overtime'
           + (', where today it is nine. ' if runup > trunup else '. ')
-          + f'{mix_line} A week of closing shifts is never followed by another, cover weeks aside, as today'
-          + ('; nor is a week of 06:20 starts. ' if NAME == 'Middle Ground' else '. ')
+          + f'{mix_line} A week of closing shifts is never followed by another, cover weeks aside, as today. '
+          + (f'{cover_sandwich()} ' if cover_sandwich() else '')
           + f'{breaks_line} {six_line}')
     check('today has no closing weeks side by side', not side_by_side(TP, closing))
     return st
@@ -582,7 +627,9 @@ def colleagues_rest(d):
           + f'Sundays stay overtime, {F["sun"]} a year each (today {T["sun"]}), and still finish at 23:25. Who starts on which week is decided after the link is chosen. '
           f'A block is weeks in a row all on earlies or all on lates. Cover weeks aside, the longest is {F["block"]} weeks (today {T["block"]}); because a cover week’s duties are placed later, '
           f'a block can run to {F["blockUpTo"]} if the cover weeks beside it are given the same kind (today {T["blockUpTo"]}). Fewer switches between earlies and lates than today, but someone who prefers one kind waits longer for it to come round. '
-          'The strip does not mark the closing weeks: none of them comes straight after another, cover weeks aside' + (', and nor does a week of 06:20 starts.' if NAME == 'Middle Ground' else '.'))
+          'The strip does not mark the closing weeks: none of them comes straight after another, cover weeks aside. '
+          f'On average the start moves {F["step"]} from one week to the next, against {T["step"]} today'
+          + (', about the same.' if abs(H(F['step']) - H(T['step'])) <= 0.05 * H(T['step']) else '.'))
     check('blocks longer than today’s, and fewer switches between earlies and lates a year than today', int(F['block']) > int(T['block']) and switches(P) < switches(TP))
 
     # SLIDE 11: the leave, as today
@@ -624,15 +671,15 @@ def colleagues_rest(d):
     if F['ff'] == '0 (up to 1)':
         check('the one possible warning is the 55-hour week', pres == [] and F['h55'])
         tail12 = (f'The “up to 1” beside the fatigue warnings is more than 55 hours in seven days. If a cover week’s four duties come straight after a busy week, and its Sunday is worked as overtime too, '
-                  f'those seven days can come to {F["h55"]} with 8-hour duties, and more with longer ones, which the rail industry’s guidance flags. Where the four fall, and whether the Sunday is worked, is for the roster office.')
+                  f'those seven days can come to {F["h55"]} with 8-hour duties, and more with longer ones, which the rail industry’s guidance flags. Where the four fall, and whether the Sunday is worked, is for the roster office, which can avoid it.')
     elif F['ff'] == '0':
         check('no warning in any cover-week placement tested', pres == [] and not F['h55'])
         tail12 = 'None appears however the cover weeks fall, in every placement tested, so the figure has nothing beside it in brackets: even the busiest seven days stay under 55 hours.'
     else:
-        check('the worst case is three run-length warnings — more than 13 shifts without a two-day break, more than four earlies in a row, more than seven 8-hour shifts in a row — and the 55-hour week',
+        check('the worst case is three run-length warnings — more than 13 shifts without a two-day break, more than four starts before 07:00 in a row, more than seven 8-hour shifts in a row — and the 55-hour week',
               F['ff'] == '0 (up to 4)' and F['h55'] and sorted(pres) == ['FF11 More than 13 consecutive shifts without a 48h break', 'FF15 More than 4 consecutive early shifts in a rotating pattern', 'MRSF More than 7 consecutive 8h shifts'])
         tail12 = ('The “up to 4” beside the fatigue warnings is what a badly placed cover week can add, if its four duties come straight after a busy run and its Sunday is worked as overtime too: '
-                  'more than 13 shifts without a two-day break, more than four earlies in a row, more than seven shifts of 8 hours or more in a row, '
+                  'more than 13 shifts without a two-day break, more than four starts before 07:00 in a row, more than seven shifts of 8 hours or more in a row, '
                   f'and more than 55 hours in seven days — {F["h55"]} with 8-hour duties, and more with longer ones. Where the four fall, and whether the Sunday is worked, is for the roster office, which can avoid all four.')
     notes(d, 12, 'The Office of Rail and Road', head + tail12)
 
@@ -650,16 +697,16 @@ def colleagues_rest(d):
                                      f'{NUMW[rl.count(3)].capitalize()} break of 3 days in 26 weeks, about {lb} a year each (today {lb_t}).'),
                                     ('Fewer early finishes and long breaks', 'Fewer early finishes',
                                      f'12 a year each finish before 14:00 (today 26); 4 breaks a year of 3 days or more (today 13).',
-                                     f'{eo} a year each finish before 14:00, where today {eo_t} do.')],
+                                     f'{eo} a year each finish before 14:00 (today {eo_t}).')],
                  'Balanced V6': [('Six new shift times to learn', 'Eight new shift times to learn',
                                   'Three shorter versions of today’s lates, a new 07:00 early and two Sunday earlies.',
                                   'Three later closers, a 07:30 handover, a 12:00 late and three weekend times.'),
-                                 ('Earlies or lates in longer runs', 'Six-day weeks',
+                                 ('Earlies or lates in longer runs', 'Earlies or lates in longer runs',
                                   'Up to 5 weeks of one kind, 7 if the cover weeks go the same way (today 2, up to 3).',
-                                  f'{NUMW[six].capitalize()} in 26 weeks (today one); up to {runup} days in a row if a cover week falls badly (today {trunup}).'),
-                                 ('More single rest days', 'More single rest days',
+                                  f'Up to {F["block"]} weeks of one kind, {F["blockUpTo"]} if the cover weeks go the same way (today {T["block"]}, up to {T["blockUpTo"]}).'),
+                                 ('More single rest days', 'More single rest days, six-day weeks',
                                   f'Six in 26 weeks, about 12 a year each (today about 10).',
-                                  f'{NUMW[sg].capitalize()} in 26 weeks, about {sg_y} a year each (today about {sg_y_t}).'),
+                                  f'{NUMW[sg].capitalize()} in 26 weeks, about {sg_y} a year each (today {sg_y_t}); {NUMW[six]} six-day weeks (today one).'),
                                  ('Fewer early finishes and long breaks', 'Fewer early finishes and long breaks',
                                   f'12 a year each finish before 14:00 (today 26); 4 breaks a year of 3 days or more (today 13).',
                                   f'{eo} a year each finish before 14:00 (today {eo_t}); {lb} breaks a year of 3 days or more (today {lb_t}).')]}[NAME]
@@ -684,8 +731,8 @@ def colleagues_rest(d):
     check('two more Saturdays and the late finishes, as on the cards', int(F['sat']) - int(T['sat']) == 2)
     if NAME == 'Balanced V6':
         swap_in(d, 13, 'and slide 7 has the late finishes in full.',
-                f'and slide 7 has the late finishes in full. Not on the slide, but say it if asked: runs of earlies or of lates up to {F["block"]} weeks, {F["blockUpTo"]} if the cover weeks go the same way (today {T["block"]}, up to {T["blockUpTo"]}).')
-        check('runs longer than today’s', int(F['block']) > int(T['block']))
+                f'and slide 7 has the late finishes in full. A badly placed cover week can make {NUMW[runup]} days in a row, where today’s worst is {NUMW[trunup]} (slide 9).')
+        check('runs longer than today’s, and a worse worst case of days in a row', int(F['block']) > int(T['block']) and runup > trunup)
 
     # SLIDE 14: the table's rows are deck-check.mjs's; the costs line is this design's
     p14 = f'{d}/ppt/slides/slide14.xml'
@@ -707,6 +754,22 @@ def colleagues_rest(d):
     s.save()
     if NAME == 'Balanced V6': check('three six-day weeks', six == 3)
 
+    # SLIDE 15: who to tell, and who is leading the change, as the New link page and the read-me say it — newlink-config.js's
+    # CONTACT, named in full (owner, 8 Nov 2026: "Where it says tell S. Silva. Can you make that Sara Silva"). Common Ground's
+    # deck was built while the page named her as the roster spells her, S. Silva; either spelling is taken, so rebuilding that
+    # deck later changes nothing here.
+    p15 = f'{d}/ppt/slides/slide15.xml'
+    tell = lambda who: f'Tell {who} or your manager what worries you, even if it is small'
+    lead = lambda who: f'{who}, {dp.CONTACT_ROLE}, is leading the change'
+    x15 = open(p15, encoding='utf-8').read()
+    was = next((w for w in dict.fromkeys((ROSTERED, dp.CONTACT)) if f'<a:t>{escape(tell(w))}</a:t>' in x15), None)
+    if was is None: raise SystemExit('slide 15: Common Ground’s deck no longer says who to tell')
+    if was != dp.CONTACT:
+        dp.replace_run(p15, tell(was), tell(dp.CONTACT)); dp.replace_run(p15, lead(was), lead(dp.CONTACT))
+    surname = dp.CONTACT.split()[-1]
+    said = [html.unescape(t) for t in re.findall(r'<a:t>([^<]*)</a:t>', open(p15, encoding='utf-8').read()) if surname in t]
+    check(f'slide 15 names {dp.CONTACT} twice, as the New link page does', said == [tell(dp.CONTACT), lead(dp.CONTACT)])
+
 def strip(d):
     """Slide 10's picture, drawn by rota-strip.mjs from this design's grid, in Common Ground's place and at its size."""
     png = os.path.join(tempfile.mkdtemp(), 'strip.png')
@@ -717,14 +780,16 @@ def strip(d):
     shutil.copy(png, media); shutil.rmtree(os.path.dirname(png))
 
 def why_notes(st, lo, hi):
-    """Slide 7's notes: what the design is, what all three share, its three gains and three costs against the other two (the
-    shortlist sheet's card), its new times, its closers, and the costs all three share."""
+    """Slide 7's notes: what the design is, what all three share, its gains and costs against the other two (the shortlist sheet's
+    card) — each one where it is better or worse than BOTH of them by more than 5% (clear_best), so the three are held to one rule
+    and a design gets as many as it has — its new times, its closers, and the costs all three share."""
     n_times, _ = tn(F)
     newp = lambda n: (len(times(OP[n]) - TT), len(times(OP[n])))
     check('the costs all three share, as the bar says them', all(FIG[n]['late23'] == F['late23'] and FIG[n]['sat'] == F['sat'] for n in SHORT))
-    check('three gains and three costs, as each of the three decks has', len(st['add_notes']) == len(st['cost_notes']) == 3)
+    check('a gain and a cost at least, and no more than three of each, as the card has room for', all(1 <= len(st[k]) <= 3 for k in ('add_notes', 'cost_notes')))
     return (f'{st["what"]}. It is one of three shortlisted designs, with {andl([NB(n) for n in PEERS])}; all three meet the nine December rules, keep today’s leave '
             'and never put two closing weeks side by side, cover weeks aside. '
+            + (f'{cover_sandwich()} ' if cover_sandwich() else '') +
             f'What it adds, against the other two: {"; ".join(st["add_notes"])}. '
             f'What it costs, against them: {"; ".join(st["cost_notes"])}. '
             f'{NUMW[len(NEW)].capitalize()} of its {NUMW[n_times]} shift times are new ({", ".join(f"{NB(n)} {NUMW[newp(n)[0]]} of {NUMW[newp(n)[1]]}" for n in PEERS)}). '
@@ -767,11 +832,15 @@ def notice_notes(pounds):
     swap_min = lambda f: int(f['swap'].split()[0]) * (1 if f['swap'].endswith('longer') else -1)
     check('a swap for a late adds less time than today, and there are fewer short earlies to swap', swap_min(F) < swap_min(T) and int(F['shortYear']) < int(T['shortYear']))
     check('the CEA rate as the notes say it', abs(PAY['rate'] - 21.49) < 1e-9)
-    if mixed == 0:
-        one = f'one shift time Monday to Friday, all earlies or all lates, in {F["oneTurn"]} weeks (today {T["oneTurn"]})'
-    else:
-        one = f'one shift time Monday to Friday in {F["oneTurn"]} weeks (today {T["oneTurn"]}), and {NUMW[mixed]} weeks mixing earlies and lates (today seven in 16)'
-    third = (f'every closing shift {lo} to {hi} minutes shorter' if NAME == 'Middle Ground' else 'no shift over 9 hours')
+    # ONE SHIFT TIME, A YEAR AS WELL (the managers'-deck audit, as plain.mjs found on 6 Nov 2026): "7 of 21 (today 7 of 16)" read as
+    # the same, and the two cycles differ in length — about 14 weeks a year each against 18
+    one_y, one_y_t = round(first(F['oneTurn']) * 52 / len(P)), round(first(T['oneTurn']) * 52 / len(TP))
+    one = f'one shift time Monday to Friday, all earlies or all lates, in {F["oneTurn"]} weeks, about {one_y} a year each (today {T["oneTurn"]}, about {one_y_t})'
+    if mixed: one += f', and {NUMW[mixed]} weeks mixing earlies and lates (today 7 of 16)'
+    check('today: 7 of 16 weeks mixing earlies and lates', mixed_of(TP) == 7)
+    # what the slide does not show: Middle Ground's slide shows nothing over 8h 30m where the others show the closers, so its closers
+    # go here; the longest shift is said above (longest_sentence), so it is not said twice
+    third = [f'every closing shift {lo} to {hi} minutes shorter'] if NAME == 'Middle Ground' else []
     check('at least three on the floor at all times, against two today', F['floorMin'] == '3' and T['floorMin'] == '2')
     return ('Figures are per person, a year, with cover weeks aside, as on the slide. '
             f'Days at work are {F["daysYear"]} a year, Monday to Saturday, just under today’s 219; Sunday is overtime. '
@@ -783,9 +852,12 @@ def notice_notes(pounds):
             'The two extra Saturdays come from aiming for fourteen on a Saturday. '
             f'The pay figure is gross premium and overtime pay at the CEA rate of £{PAY["rate"]:.2f}, for someone working their full share of Sundays and no swap overtime; basic pay does not change. '
             f'On average, swapping an early for a late pays less on this link: on the same day a late is {F["swap"].replace(" min ", " minutes ")} than an early, against {T["swap"].replace(" min ", " minutes ")} today, '
-            f'and the shortest earlies, the 13:35 and 13:45 finishes that add most when swapped, fall from about {T["shortYear"]} a year each to {F["shortYear"]}. Other swaps may still add paid time. '
+            + (f'and the shortest earlies, the 13:35 and 13:45 finishes that add most when swapped, fall from about {T["shortYear"]} a year each to {F["shortYear"]}. '
+               if any(t.endswith('13:35') for t in times(P)) else
+               f'and the shortest earlies, which add most when swapped — today’s 13:35 and 13:45 finishes, here 13:45 alone — fall from about {T["shortYear"]} a year each to {F["shortYear"]}. ')
+            + 'Other swaps may still add paid time. '
             f'{longest_sentence()} '
-            f'Not on the slide, but worth having to hand: {one}, {third}, the shortest rest between shifts {F["rest"]} (today {T["rest"]}), '
+            f'Not on the slide, but worth having to hand: {", ".join([one] + third)}, the shortest rest between shifts {F["rest"]} (today {T["rest"]}), '
             f'at least {F["floorMin"]} on the floor at all times (today {T["floorMin"]}), {len(NEW)} of the {n_times} shift times new to learn, and {F["late23"]} finishes a year at 23:00 or later (today {T["late23"]}). '
             'The full comparison is on the proposal sheet.')
 
@@ -798,6 +870,8 @@ def managers(d):
     # SLIDE 1: the notes name the other two shortlisted designs, as deck-polish.py wrote Common Ground's
     swap_in(d, 1, f' {BASE} is one of three shortlisted designs, with {NB("Even Step")} and {NB("Short Run")}, and this deck sets out {BASE} on its own terms.',
             f' {NAME} is one of three shortlisted designs, with {andl([NB(n) for n in PEERS])}, and this deck sets out {NAME} on its own terms.')
+    swap_in(d, 1, 'worked out from the rota by the Marylebone Roster app and its tooling, and has been checked independently.',
+            'worked out from the rota by the Marylebone Roster app and its tooling, by the same calculations as the proposal sheet.')
     # SLIDE 2: every December rule and today's leave — all three's, so Common Ground's bar holds (checked in setup)
     shape_of(S(2), 'Every December staffing rule met — and 30 days off for 14 days’ leave, as now.')
     check('30 days off for 14 days’ leave, as now', F['leaveBest'] == T['leaveBest'] and F['leaveFour'] == T['leaveFour'])
@@ -841,10 +915,6 @@ def managers(d):
     head4 = note_text(d, 4).split(f' {BASE} scores')[0]
     if not head4.endswith('the rules on the previous slide are the requirement.'): raise SystemExit('managers’ notes 4 no longer open as this file expects')
     extra4 = ''
-    if NAME == 'Middle Ground':
-        same('the weekday fit and today’s 11:00–19:30', 'fitWk')
-        extra4 = ' Part of the weekday gap is today’s 11:00–19:30, kept on weekdays where an 11:30–20:00 would score 31.9.'
-        check('Common Ground’s duties, so its 11:00–19:30 sentence holds', all(sorted(P[k][dd] for k in P) == sorted(PB[k][dd] for k in PB) for dd in WK))
     notes(d, 4, 'The score compares', head4 + f' {NAME} scores {F["fitWk"]} on weekdays, {F["fitSat"]} on a Saturday and {F["fitSun"]} on a Sunday, against today’s {T["fitWk"]}, {T["fitSat"]} and {T["fitSun"]}; lower is closer. '
           f'Among the three shortlisted links, its weekday fit is {place("fitWk")}, its Saturday fit {place("fitSat")} and its Sunday fit {place("fitSun")}.' + extra4)
     # SLIDE 5: the weeks' range and the Sunday's hours
@@ -893,7 +963,8 @@ def managers(d):
     pb, _ = pay(PB, B, BASE); pounds, _ = pay(P, F, NAME)
     lo, hi = lo_hi_cut()
     lb, lb_t = long_breaks(P), long_breaks(TP)
-    welcome = ['More weekends off', f'{F["weekendsYear"]} full weekends a year, not {T["weekendsYear"]}', 'Fewer days in a row', f'{first(F["run"])} at most, not {first(T["run"])}']
+    welcome = ['More weekends off', f'{F["weekendsYear"]} full weekends a year, not {T["weekendsYear"]}', 'Fewer days in a row',
+               f'{first(F["run"])} at most, not {first(T["run"])}' + (f'; up to {runup} if a cover week falls badly, today {trunup}' if runup > trunup else '')]
     welcome += (['Nothing over 8h 30m, any day', f'today’s longest is {T["longest"]}'] if NAME == 'Middle Ground' else ['Shorter closing shifts', f'every one {lo} to {hi} minutes shorter'])
     s.runs(5, ['More weekends off', f'{B["weekendsYear"]} full weekends a year, not {T["weekendsYear"]}', 'Fewer days in a row', f'{first(B["run"])} at most, not {first(T["run"])}', 'Nothing over 8h 30m, any day', f'today’s longest is {T["longest"]}'], welcome)
     second = (['More single rest days', f'about {sg_y} a year, not {sg_y_t}'] if NAME != 'Level Crossing' else ['Fewer long breaks', f'about {lb} a year of 3 days or more, not {lb_t}'])
@@ -911,7 +982,7 @@ CG_ONLY = [(re.compile(p_), ok) for p_, ok in (
     (r'[Nn]othing (on any day )?(runs )?over 8h 30m|[Nn]o shift (on any day )?(is )?(longer than|over) 8h 30m|8h 30m, any day', {'Middle Ground'}),
     (r'07:00–\u2060?15:30|09:00–\u2060?17:30|07:15–\u2060?15:30|a new 07:00 early|an hour on Saturdays|Saturday closer by an hour', {'Middle Ground'}),
     (r'starts 15:45, not 14:45|today’s 13:45 and 14:20 finishes', {'Middle Ground'}),
-    (r'Earlies or lates in longer runs|Up to 5 weeks of one kind', {'Middle Ground', 'Level Crossing'}),
+    (r'Up to 5 weeks of one kind', {'Middle Ground', 'Level Crossing'}),
     (r'More single rest days|Six in 26 weeks, about 12', {'Middle Ground', 'Balanced V6'}),
     (r'nobody finishes at 13:35', {'Middle Ground', 'Level Crossing'}),
     (r'^4 · 4 · 4$|four every day, Sunday included', {'Middle Ground'}),
@@ -975,9 +1046,13 @@ def build(who):
         # NO RECOMMENDATION, NO UNION REP, NO "FIXED ROTA", UK ENGLISH AND THE JANUARY LINK, in slides and notes alike (deck-polish.py's
         # own guards, as Common Ground's decks passed them)
         xmls = [os.path.join(r, f) for r, _, fs in os.walk(d) for f in fs if f.endswith(('.xml', '.rels'))]
-        for word, why in (('recommend', 'the shortlist is presented evenly'), ('union rep', 'S. Silva, the RMT rep, leads it'), ('fixed rota', 'the decks say “cover weeks aside”')):
+        for word, why in (('recommend', 'the shortlist is presented evenly'), ('union rep', f'{dp.CONTACT}, {dp.CONTACT_ROLE}, leads it'), ('fixed rota', 'the decks say “cover weeks aside”')):
             said = [os.path.relpath(f, d) for f in xmls if word in open(f, encoding='utf-8').read().lower()]
             if said: raise SystemExit(f'{out}: says "{word}" ({", ".join(sorted(said))}); {why}')
+        # THE CONTACT IN FULL: the roster's spelling of her name is her account's, not what colleagues are told (owner, 8 Nov 2026)
+        if ROSTERED != dp.CONTACT:
+            said = [os.path.relpath(f, d) for f in xmls if ROSTERED in plain(html.unescape(open(f, encoding='utf-8').read()))]
+            if said: raise SystemExit(f'{out}: names {ROSTERED} ({", ".join(sorted(said))}); the decks name her {dp.CONTACT}, as the New link page does')
         for rx, why in ((dp.US_LANG, 'text tagged as US English'), (dp.OLD_LINK, f'the December 2026 link, which starts on {dp.LINK_STARTS}')):
             said = [os.path.relpath(f, d) for f in xmls if rx.search(open(f, encoding='utf-8').read())]
             if said: raise SystemExit(f'{out}: {why} ({", ".join(sorted(said))})')
