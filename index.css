@@ -2948,6 +2948,20 @@
 
         .al-lb-icon   { font-size: 44px; margin-bottom: 4px; }
         .al-lb-title  { color: white; font-size: var(--type-large); font-weight: 700; letter-spacing: -0.3px; }
+        /* WHOSE LEAVE (v25.50): the member's name, between the title and the year. A label, not a
+           control — the raised on-navy rung with no border, so it cannot be mistaken for the outlined
+           links at the foot of the panel — and it wraps rather than clips a long name at 320px. */
+        .al-lb-who {
+            max-width: 100%;
+            padding: 3px 12px;
+            border-radius: var(--radius-pill);
+            background: var(--on-navy-raised);
+            color: white;
+            font-size: var(--type-label);
+            font-weight: 700;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+        }
         .al-lb-year   { color: rgba(255,255,255,0.6); font-size: var(--type-label); font-weight: 500; min-width: 4.5ch; }
         /* The year flips with ‹ › (v24.46). 44px targets, the same quiet white-on-navy as the close
            button, and a disabled end reads as absent rather than as a button that does nothing. */

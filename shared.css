@@ -3193,6 +3193,10 @@ button.nav-panel-link--notices {
    padding, and a different title rank. Joining the selector is the precedent `#pwForceContent`
    already set for a second do-this-first panel.
 
+   `.pc-role-card` (the Pay Calculator's refusal, v25.50) joins for the same reason: it is that page's
+   other way of saying "not for you", to a Dispatcher or a manager, and it sits on the same page as
+   the sign-in card. Two doors on one page that look nothing alike read as two different apps.
+
    What does NOT join: the fixed full-screen `#loginOverlay` wrapper. The lock card stays in the
    page flow, because the nav drawer, the guides and the documents must stay reachable while the
    Calendar is locked — an `inset: 0` overlay would cover the burger. */
@@ -3200,7 +3204,7 @@ button.nav-panel-link--notices {
    #loginCard and its fields (login-overlay.js). */
 .login-form { display: contents; }
 
-#loginCard, #pwForceContent, .cal-lock-card {
+#loginCard, #pwForceContent, .cal-lock-card, .pc-role-card {
     background: white;
     border-radius: var(--radius-xl);
     padding: 36px 32px 28px;
@@ -3208,8 +3212,8 @@ button.nav-panel-link--notices {
     margin: auto;
     text-align: center;
     box-shadow: var(--shadow-3);
-    /* State the type base rather than inherit it (v20.49). These three cards are ONE family and
-       look it, but two are appended to a sub-page `body` (14px, --text-dark) while the PIN card
+    /* State the type base rather than inherit it (v20.49). These cards are ONE family and look
+       it, but two are appended to a sub-page `body` (14px, --text-dark) while the PIN card
        lives in index.html, whose base is 16px and PURE BLACK — a colour this app uses for text
        nowhere. Every element inside sets its own size, so the only thing this moves is the PIN
        card: MEASURED at 1px, because the masthead `<img>` is INLINE and the baseline gap beneath
@@ -3409,6 +3413,40 @@ button.login-back:focus-visible { outline: var(--focus-outline); outline-offset:
 /* The one-line reason the card is up (an expired session). A hint, standing alone above the fields,
    so it carries the gap `.login-field` would otherwise give it. */
 .login-notice { margin: 0 0 18px; text-align: center; }
+/* A page's own explanation on its sign-in card (login-overlay.js → `about`, v25.50 — the Pay
+   Calculator's): what the page is and who it is for, so a visitor it will not serve learns that from
+   the card. The SUNKEN rung of the three-surface model, so it reads as context for the form rather
+   than as one of its fields; prose past two lines is left-aligned (css-tokens.md). */
+.login-about {
+    background: var(--surface-sunken);
+    border-radius: var(--radius-field);
+    padding: 12px 14px;
+    margin: 0 0 20px;
+    text-align: left;
+}
+.login-about-line {
+    font-size: var(--type-label);
+    color: var(--text-mid);
+    line-height: 1.45;
+}
+.login-about-line + .login-about-line { margin-top: 6px; }
+/* The guide link: a link's underline, and a real touch target rather than a line of text. */
+.login-about-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    margin-top: 2px;
+    font-size: var(--type-label);
+    font-weight: 700;
+    color: var(--primary-blue);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.login-about-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
+/* Inert while a sign-in is in flight, like the Back link (login-overlay.js) — an inactive control. */
+.login-about-link[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
+/* The footnote under the way out: `.login-help`'s size and colour, a step closer. */
+.login-footnote { margin-top: 12px; }
 /* Staged "still working" reassurance under the Sign in button (display:none until it has text). */
 .login-status {
     display: none;

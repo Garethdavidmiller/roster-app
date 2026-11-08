@@ -728,6 +728,12 @@ async function failTwice(page, name) {
 // overlay's OWN password wrapper (same class, injected on every page), so settings.html's sign-in
 // card silently grew 14px taller than the other five. Page CSS files are loaded per page, so this
 // class of leak is invisible to any single-page test.
+//
+// ONE DIFFERENCE IS ALLOWED, AND IT IS SET ASIDE RATHER THAN TOLERATED (v25.50). A page may explain
+// itself on the card (login-overlay.js → `about`; the Pay Calculator does), which makes that card
+// taller by design. The explanation is hidden before measuring, so the rest of the card is still
+// compared to the pixel — a tolerance on height would let exactly the leak this test exists for
+// through. The explanation's own placement is `e2e/paycalc.spec.js`'s to check.
 test('login overlay geometry is identical across every page that shows it', async ({ page }) => {
     // Every page that puts up the shared sign-in, from scripts/app-pages.mjs (v25.21: this list was five
     // by hand and had missed Trains and New link). Not the Calendar, which opens on its own front door,
@@ -739,6 +745,11 @@ test('login overlay geometry is identical across every page that shows it', asyn
         await page.goto(url);
         await page.locator('#loginOverlay.visible').waitFor();
         return page.evaluate(() => {
+            // The page's own explanation, set aside (above). Absent on every page but one.
+            for (const id of ['loginAbout', 'loginFootnote']) {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            }
             const pick = (/** @type {string} */ sel) => {
                 const el = document.querySelector('#loginOverlay ' + sel);
                 if (!el) return null;

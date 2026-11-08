@@ -813,15 +813,41 @@
     }
     .setup-banner h2 { font-size: var(--type-button); font-weight: 800; color: var(--primary-blue); margin-bottom: 4px; }
     .setup-banner p  { font-size: var(--type-label); color: var(--text-mid); line-height: 1.5; }
-    /* The refusal card (#unsupportedGradeBanner) is the one banner with TWO paragraphs — what is
-       missing, then the way out — and they ran together with no gap, reading as one block. The
-       setup banner's Restore line (#setupRestore) takes the same gap. */
+    /* A second paragraph in a banner — the setup banner's Restore line (#setupRestore) — takes a
+       gap, or the two run together and read as one block. (The refusal card was the first banner to
+       need it; since v25.50 it wears the sign-in card's panel instead, below.) */
     .setup-banner p + p { margin-top: 8px; }
     .setup-restore-link {
       color: var(--primary-blue); font-weight: 700;
       text-decoration: underline; text-underline-offset: 2px;
     }
     .setup-restore-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+    /* THE REFUSAL CARD (v25.50 — paycalc-role-card.js writes its words). Shown INSTEAD of the
+       calculator to a member it will not price, and it wears the do-this-first panel the sign-in
+       card wears (shared.css → `.pc-role-card`): white, centred, one width. Its "What it does" box
+       IS the sign-in card's `.login-about`, and its way out is the same "← Back to roster", so the
+       page's two refusals — "sign in" and "not for your role" — read as one door.
+       What is its own: a masthead (the Pay pill's 💷 over a title that says what happened — in
+       place of the sign-in card's app icon, since this card sits under the page's own header,
+       which already carries the brand) and the REASON, straight after the title because it answers
+       the question the reader arrived with. The reason is prose past two lines, so it is
+       left-aligned (css-tokens.md); the title and the short footer lines stay centred. */
+    .pc-role-icon {
+      font-size: 40px; line-height: 1; margin-bottom: 12px;
+    }
+    .pc-role-title {
+      font-size: var(--type-large); font-weight: 800; line-height: 1.3;
+      color: var(--primary-blue); letter-spacing: -0.01em; text-wrap: balance;
+      margin-bottom: 12px;
+    }
+    .pc-role-why {
+      font-size: var(--type-body); line-height: 1.5; color: var(--text-mid);
+      text-align: left; margin-bottom: 18px;
+    }
+    .pc-role-card .field-eyebrow { margin-bottom: 6px; }
+    /* The way out is the sign-in card's link, given the touch target a bare line of text lacks. */
+    .pc-role-back { padding: 10px 8px; margin-top: 4px; }
+    .pc-role-back:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
     /* A BROWSER THAT WILL NOT SAVE (the iPhone audit, 7 Nov 2026). paycalc-app.js sets
        `body.storage-blocked` from ls.js's `lsAvailable()` — a write that reads back — and the Hours
        card's "Saved automatically as you type" gives way to the truth, in the calm amber of
@@ -1180,7 +1206,11 @@
          The reading measure the cap was protecting is kept where it belongs — on the PARAGRAPH,
          not on the box that positions it, which is the same v22.22 rule from the other side. */
       #setupBanner             { grid-column: 1 / 3; grid-row: 1; }
-      #unsupportedGradeBanner  { grid-column: 1 / 3; grid-row: 1; }
+      /* The refusal card is the exception, and on purpose: it is the ONLY thing on the page (the
+         work columns, the sidebar and both footer rows are hidden with it — role-unsupported,
+         below), so there are no edges for it to share. It spans the whole band and the panel
+         recipe's `margin: auto` centres it, as the sign-in card is centred over the same page. */
+      #unsupportedGradeBanner  { grid-column: 1 / -1; grid-row: 1; }
       .privacy-note-standalone { grid-column: 1 / 3; grid-row: 2; }
 
       /* THE WORKSPACE IS ONE SHARED GRID ROW (v18.47 — sweep item 1, the expanded-sidebar void
