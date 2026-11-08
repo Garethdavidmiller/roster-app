@@ -175,7 +175,7 @@ with that folder on 7 Nov 2026; two of its modules live on in `tooling/reference
 | | `what-it-means-sheet.mjs` | the one-page "What it means if you…" sheet (`../links-26-what-it-means.pdf`). It lays out and prints `what-it-means-data.mjs`, which reads the colleague decks' slide 5 and its notes back, so it runs after `deck-polish.py` and before `pack.py` (step 4) |
 | | `what-it-means-data.mjs` | the sheet's figures and asserted sentences, split out of it unchanged (2 Nov 2026) so the app's New link page reads the same ones; imported, never run |
 | | `newlink-data.mjs` | writes the app's `newlink-data.js` — the New link page's figures, sentences and pack list — from `what-it-means-data.mjs`; `--check` is what `newlink-data.test.mjs` runs. After `what-it-means-sheet.mjs` (step 4) |
-| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`) → `common-ground-decks.py` → `deck-marks.py`; `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; Common Ground's, rewritten from Even Step's finished pair; the ✓ and ▲ beside every green and amber figure, run last (5 Nov 2026); the checker that reads every deck row back against the sheets and refuses an unmarked colour; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks |
+| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`) → `common-ground-decks.py` → `deck-marks.py`; `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; Common Ground's, rewritten from Even Step's finished pair; the ✓ and ▲ beside every green and amber figure, run last (5 Nov 2026); the checker that reads every deck row back against the sheets and refuses an unmarked colour; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks, and reads the league's leader and its lead for the read-me as the shortlist sheet does (8 Nov 2026) |
 | league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them; `FAM_SUNDAY=1` for the main league with the Sunday duties counted in familiar shift times, as it was read before 3 Nov; `EXTRA=Name=<grid.json>;…` scores a candidate beside the pack's proposals, inside the range and ranked, before anything is rendered, since "Set Fair") — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
@@ -6261,6 +6261,73 @@ So V9's two mixed weeks are what buy its short runs and its other figures togeth
 - `regenerate.mjs --check`: 24 proposals.
 - `check.mjs`, `deck-check.mjs`, `leave.mjs --check`, `newlink-data.mjs --check`.
 - `pack.py`: 71 files.
+
+## The pack audited (8 Nov 2026)
+
+The owner asked: "Can you audit the links 26 pack". Every file in the zip was checked again, against the grids and the code
+that draws it. The audit found two faults, both in the read-me.
+
+**What held:**
+- **The zip.** It holds 71 files. Each is byte-identical to its file in this folder, except the read-me, which `pack.py`
+  writes, with CRLF line ends for Notepad.
+- **The self-checks.** All five pass:
+  - `regenerate.mjs --check`, all 24 fingerprints;
+  - `check.mjs`;
+  - `deck-check.mjs`, 216 rows;
+  - `leave.mjs --check`;
+  - `newlink-data.mjs --check`.
+- **No sheet behind its code.**
+  - All 24 proposal sheets were re-rendered with `--no-ship`. Their grids and import files are byte-identical. Every page
+    has the same text and the same pixels, apart from the "Prepared" date.
+  - The summary, shortlist, other designs', what-it-means and rules sheets came out the same.
+- **The import files.**
+  - All 24 went through the Links page's own importer (`parseDesignImport` in `links-import.js`). Each gave its grid back
+    cell for cell, with no warning.
+  - The app's three built-in designs are identical to the shipped grids.
+- **The decks.**
+  - Every word on every slide appears on its PDF page, so no PDF is behind its PowerPoint.
+  - The managers' notes quote weekday fits of 32.7, 32.6, 29.1 and today's 52.0. All four were recomputed.
+- **What is typed, read back against the grids:**
+  - **The read-me's own history:**
+    - In Step's 8h 55m and 8h 45m earlies, and five on at its Saturday open;
+    - Next Step's three weekday duties retimed (07:15–15:45 to 06:20–14:50, and two 14:00–22:30s to 14:15–22:45);
+    - Fair Share's Sunday duties;
+    - the 30-day leave figures;
+    - Middle Ground's closing and 06:20 weeks never side by side;
+    - Balanced V6's handover, and Balanced V7's no six-day weeks;
+    - Crossover's two 13:45s and two 07:30–16:00s;
+    - Balanced V8's 19 weeks on one shift time and no mixed week;
+    - Balanced V9's runs of three and its two mixed weeks;
+    - four weeks off for 13 days' leave, on both Balanced V8 and V9.
+  - **Every strap's figures.**
+  - **`RULES.md`:**
+    - the Sunday office lates finish at 22:30 on every design;
+    - no design falls on a different side of 55 hours between the 8-hour and 8h 45m readings;
+    - no single rest day gives 48 hours.
+  - **`30-days-off/README.md`:** every cell of its table, the league row included, and every claim under it.
+- **Looks.** Screenshots of the summary, shortlist, other designs', what-it-means and rules sheets, and of the four newest
+  proposal sheets.
+
+**Fixed:**
+- **The read-me's item 5 ran into its label.**
+  - It read "5 Import files for the Links pageEach proposal as text…" from 6 Nov 2026, when the item took its folder's
+    full name. A format width pads a short label but never cuts a long one.
+  - A label too long for its column now has a line of its own.
+  - `pack.py` now refuses a read-me where any label runs into its text.
+- **The read-me's league sentence was typed:** "since 7 November 2026 Crossover is, by 0.4 points".
+  - The shortlist sheet reads the same leader and lead from `league.mjs`. But its claim allows a lead anywhere from 0.35
+    to half a point, which could print 0.5 while the read-me still said 0.4.
+  - `pack.py` now reads both as the sheet does: `REF_IN_RANGE=1`, the lead to a tenth.
+  - It refuses a leader drawn before the shortlist, because the sentence says the leader has led since the day it was
+    drawn.
+  - The sentence reads as it did.
+- **Each guard was broken on purpose with `scripts/mutate.mjs`:**
+  - With the long-label branch removed, the read-me is refused for "5 Import files for the Links page".
+  - With the third design put first, it is refused for Common Ground, which was drawn on 4 Nov.
+
+**Left as it is:** Even Step's strap says "every early one of today's times". That counts 07:15–15:45, which today is worked
+only on a Sunday. This is the reading the folder settled on 3 Nov 2026 (*Familiar shift times count the Monday-to-Saturday
+duties only*).
 
 ## Notes for the whole set
 
