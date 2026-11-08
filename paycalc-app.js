@@ -48,7 +48,7 @@ import {
   fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
   clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS,
 } from './paycalc-roster-hint.js';
-import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
+import { isDataEmpty, calcHPP, commitPriorHppActual, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
 import { hppTaxYearForPayslip } from './paycalc-hpp-schedule.js';
 import { initNavPanel } from './nav-panel.js';
@@ -1551,30 +1551,11 @@ export function init() {
       calculate();
     });
 
-    // Prior year HPP actual — saves to per-year key and refreshes the prior HPP section display.
-    // Commit on `change` (fires on blur / keyboard "done"), NOT `input` (v17.26): committing per
-    // keystroke made typing "843" flash "✓ Confirmed £8.00" mid-entry, and a mid-edit select-all
-    // then a stray character (or an abandoned edit) silently DELETED a previously-confirmed figure
-    // — the estimate then resurfaced in the January take-home. On blur the final value commits once.
+    // The prior year's confirmed premium commits on `change` (leaving the field), NEVER on `input`:
+    // commitPriorHppActual (paycalc-hpp.js) says what per-keystroke commits did to a confirmed figure.
     /** @type {HTMLElement} */ (document.getElementById('priorHppActualInput')).addEventListener('change', () => {
-      const pNum  = currentPeriodNum();
-      const curP  = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
-      const curTy = taxYearForPeriod(curP);
-      const tyIdx = CONFIG.TAX_YEARS.findIndex(t => t.label === curTy.label);
-      if (tyIdx <= 0) return;
-      const priorTy = CONFIG.TAX_YEARS[tyIdx - 1];
-      // Store a CLEAN numeric string, not the raw field value (v16.84): a payslip-style
-      // "1,200" or "£350" stored verbatim was later read with parseFloat → 1 / NaN. Smart-parse
-      // (strips commas/£/smart-punctuation) then toFixed, mirroring how hppEst is stored. A blank
-      // field clears the actual (lsDel); a genuine 0 is a valid confirmed figure. Negatives clamp
-      // to 0 — a payslip HPP can't be negative.
-      const _v = parseSmartFloatOrNull(/** @type {HTMLInputElement} */ (document.getElementById('priorHppActualInput')).value);
-      if (_v != null) {
-        lsSet(hppActualKey(priorTy), Math.max(0, _v).toFixed(2));
-      } else {
-        lsDel(hppActualKey(priorTy));
-      }
-      updatePriorHpp(curTy);
+      const curP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+      commitPriorHppActual(taxYearForPeriod(curP), /** @type {HTMLInputElement} */ (document.getElementById('priorHppActualInput')).value);
     });
 
     // HPP opt-in tick — lives IN the January-payslip banner (#hppBannerTick). The per-year flag it

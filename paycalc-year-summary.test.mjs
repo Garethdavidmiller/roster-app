@@ -72,6 +72,8 @@ mock.module('./roster-data.js', {
         formatISO:       /** @param {Date} d */ d =>
             `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
         parseSmartFloat: /** @param {any} v */ v => parseFloat(String(v)),
+        // paycalc-hpp.js imports it for the prior-year premium; nothing in this suite parses money.
+        parseSmartFloatOrNull: /** @param {any} v */ v => { const n = parseFloat(String(v)); return Number.isFinite(n) ? n : null; },
         teamMembers:     [],
     },
 });
