@@ -797,10 +797,20 @@ runtime, so `overlay-parity.test.mjs`'s scan of the served HTML cannot see them.
 - `watchScrollFade(panel)` → stop function — toggles `.has-more` (the "more below" fade in shared.css)
   while a scrolling panel has content past its fold. Every lightbox gets it through `createLightbox`; the
   nav drawer's body is the one other caller (`nav-panel.js`), from open to close.
-- `initCardCollapse(headerId, bodyId, chevronId, onToggle)` — the chevron is the focusable toggle, never
-  a header that holds another button (WCAG `nested-interactive`).
+- `initCardCollapse` and `openCardNamedByHash` are **re-exported** from `card-collapse.js` (below), so
+  every page imports them from here as before.
+
+### `card-collapse.js`
+A card's collapsible header and the deep link that opens a collapsed card by name. Moved out of
+`overlay.js`, whose subject is overlays; `overlay.js` re-exports both functions, so no page's import
+changed. No imports, and no browser global read at load. Tested by `card-collapse.test.mjs` (the deep link
+and the re-export) and `overlay.test.mjs` (the toggle, through the re-export).
+- `initCardCollapse(headerId, bodyId, chevronId, onToggle)` → `{ setOpen }` — the chevron is the focusable
+  toggle, never a header that holds another button (WCAG `nested-interactive`); `setOpen` is the one
+  place the open state is written, so `aria-expanded` and `.open` cannot disagree.
 - `openCardNamedByHash(cardId, bodyId, toggleId)` → boolean — opens the collapsed card the URL fragment
-  names and keeps it in view while the page grows, until a real gesture. Call after `initCardCollapse`.
+  names through its toggle's own click, and keeps it at the top while the page GROWS (a `ResizeObserver`,
+  never a timer), until the first real gesture or the watch's end. Call after `initCardCollapse`.
 
 ### `about-lightbox.js`
 The shared About panel (`#iconLightbox`) on every app page.
