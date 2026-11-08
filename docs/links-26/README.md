@@ -6325,9 +6325,14 @@ that draws it. The audit found two faults, both in the read-me.
   - With the long-label branch removed, the read-me is refused for "5 Import files for the Links page".
   - With the third design put first, it is refused for Common Ground, which was drawn on 4 Nov.
 
-**Left as it is:** Even Step's strap says "every early one of today's times". That counts 07:15–15:45, which today is worked
-only on a Sunday. This is the reading the folder settled on 3 Nov 2026 (*Familiar shift times count the Monday-to-Saturday
-duties only*).
+**Left as it is:**
+- **Even Step's strap** says "every early one of today's times". That counts 07:15–15:45, which today is worked only on a
+  Sunday. This is the reading the folder settled on 3 Nov 2026 (*Familiar shift times count the Monday-to-Saturday duties
+  only*).
+- **No read-me note on Balanced V9's earlier fingerprint.**
+  - The zip sent on 7 Nov 2026 carried Balanced V9 as 8c679ae2, before it was searched again.
+  - The read-me tells a reader holding an older printout about the 22:30 change, and it could have done the same for V9.
+  - It does not need to, because that zip went to no one (owner, 8 Nov 2026: "No it didn't go to anyone").
 
 ## Notes for the whole set
 
