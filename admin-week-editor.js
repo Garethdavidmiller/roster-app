@@ -33,6 +33,7 @@ import { swapDecisionDates } from './al-swapped-days.js';
 import { isRestShift, isForbiddenOnSunday, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
+import { bulkApplyWaitingFor } from './admin-bulk-apply.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
 // The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
 // headroom. Same names, so every call site below is unchanged; see that module's header for why
@@ -637,12 +638,12 @@ export function updateSaveBtn() {
 const _bulkSay = (/** @type {string} */ msg) => { const el = document.getElementById('bulkFeedback');
     if (el) { el.className = msg ? 'feedback error' : 'feedback'; setStatus(el, msg ? '⚠ ' + msg : ''); } };
 
-/** The bulk bar, read off the grid as it stands: the count, and Apply GREYED OUT until a day is ticked AND a
- *  type chosen, the line under it naming what is missing — Save changes' own pattern (owner, Nov 2026). */
+/** The bulk bar as the grid stands: the count, and Apply greyed out with the reason under it (admin-bulk-apply.js). */
 function _updateBulkSelCount() {
     _bulkSay('');   // whatever a press refused, the bar has changed since
-    const n = document.getElementById('weekGrid')?.querySelectorAll('.day-cb:checked').length ?? 0, t = _bulkActiveType;
-    const why = n ? (t ? '' : `Choose a type for the ticked day${n > 1 ? 's' : ''}`) : t ? 'Tick the days to apply it to' : 'Tick at least one day and choose a type';
+    const ticked = [...(document.getElementById('weekGrid')?.querySelectorAll('.day-cb:checked') ?? [])]
+        .map(cb => /** @type {HTMLElement|null} */ (cb.closest('.day-row'))?.dataset.date ?? ''), n = ticked.length;
+    const why = bulkApplyWaitingFor(ticked, _bulkActiveType);
     const count = document.getElementById('bulkSelCount'), hint = document.getElementById('bulkApplyHint');
     const apply = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkApplyBtn'));
     if (count) count.textContent = n > 0 ? `${n} day${n > 1 ? 's' : ''} selected` : '';
@@ -818,8 +819,7 @@ function _initBulkBar() {
                 if (bulkEnd?.value && endEl)     endEl.value   = bulkEnd.value;
             }
         });
-        // Apply is greyed out until a day is ticked and a type chosen, so the type and tick refusals are a
-        // backstop. The Sunday one is the refusal only a press finds: every ticked day was a Sunday it skips.
+        // Backstops: Apply is greyed out for both of these before a press (admin-bulk-apply.js).
         if (ticked === 0)  { _bulkSay('Tick some days first — use the buttons above, or tick days in the week below.'); return; }
         if (applied === 0) { _bulkSay('Nothing applied — Sunday is not a contracted day. Tick a working day.'); return; }
         _markChanged();

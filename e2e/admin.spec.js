@@ -3461,39 +3461,35 @@ test('admin: a day unticked by its own pill leaves the bulk bar\'s count, and Ap
     await expect(page.locator('#bulkApplyHint')).toHaveText('Tick the days to apply it to');
 });
 
-test('admin: the refusal only a press can find — every ticked day a Sunday — is said beside Apply, and clears when the bar changes', async ({ page }, info) => {
-    // Refusals went to the foot of the card — measured 557px below the Apply button at 1366×768, after
-    // a 244px scroll, and under the Unsaved bar. Since Apply is greyed out until a day is ticked and a
-    // type chosen, the one left is the Sunday: AL, Absent and Shift skip it (the Sunday rule's layer 2),
-    // so a week whose only ticked day is the Sunday has nothing to apply, and only the press knows.
+test('admin: a Sunday a type cannot go on greys Apply out too — the reason under it, before any press — and a working day beside it brings Apply back', async ({ page }, info) => {
+    // The last refusal only a press used to find (owner, 8 Nov 2026): AL, Absent and Shift skip a Sunday
+    // (the Sunday rule's layer 2), so a week whose only ticked day is the Sunday had nothing to apply,
+    // and Apply looked ready until it was pressed. It is known before the press, so it is said before
+    // it, the way the rest of Apply's reasons are (admin-bulk-apply.js). Layer 2 itself is unchanged: a
+    // Sunday ticked among working days is still skipped by the apply, and the receipt says so.
     test.skip(isTouchProject(info), 'a desk-sized window');
     await deskAdmin(page, { width: 1366, height: 768 });
     const apply = page.locator('#bulkApplyBtn');
-    const said = page.locator('#bulkFeedback');
+    const hint = page.locator('#bulkApplyHint');
     const sunday = page.locator('.day-row[data-date="2026-07-12"]');
+    const monday = page.locator('.day-row[data-date="2026-07-13"]');
     await sunday.locator('.day-cb').check();
     await page.locator('#bulkTypePills .pill-annual_leave').click();
-    await expect(apply, 'a day is ticked and a type chosen').toBeEnabled();
-    await apply.click();
-    await expect(said).toContainText('Nothing applied — Sunday is not a contracted day. Tick a working day.');
-    await expect(sunday, 'layer 2: nothing was staged on the Sunday').not.toHaveAttribute('data-type', /./);
-    await expect(page.locator('#formFeedback'), 'not at the foot of the card as well').not.toContainText('Sunday');
-    const near = await page.evaluate(() => {
-        const a = /** @type {HTMLElement} */ (document.getElementById('bulkApplyBtn')).getBoundingClientRect();
-        const f = /** @type {HTMLElement} */ (document.getElementById('bulkFeedback')).getBoundingClientRect();
-        return { below: Math.round(f.top - a.bottom), inWindow: f.bottom <= innerHeight && f.top >= 0 };
-    });
-    expect(near.below, 'the line sits directly under Apply').toBeGreaterThanOrEqual(0);
-    expect(near.below, 'the line sits directly under Apply').toBeLessThan(24);
-    expect(near.inWindow, 'and on screen').toBe(true);
-    // Another type withdraws the refusal it answered; so does a change of ticks.
+    await expect(apply, 'only a Sunday ticked, and AL cannot go on one').toBeDisabled();
+    await expect(hint).toHaveText('Sunday isn’t a contracted day — tick a working day');
     await page.locator('#bulkTypePills .pill-rdw').click();
-    await expect(said, 'choosing a type withdraws the refusal it answered').toBeHidden();
+    await expect(apply, 'RDW can: a worked Sunday is RDW').toBeEnabled();
+    await expect(hint).toHaveText('');
+    await page.locator('#bulkTypePills .pill-sick').click();
+    await expect(apply, 'nor can Absent').toBeDisabled();
     await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await monday.locator('.day-cb').check();
+    await expect(apply, 'a working day ticked beside it: there is something to apply').toBeEnabled();
+    await expect(hint).toHaveText('');
     await apply.click();
-    await expect(said).toContainText('Nothing applied');
-    await page.locator('#bulkSelMonFri').click();
-    await expect(said, 'ticking days withdraws it too').toBeHidden();
+    await expect(monday, 'the working day is staged').toHaveAttribute('data-type', 'annual_leave');
+    await expect(sunday, 'layer 2: nothing was staged on the Sunday').not.toHaveAttribute('data-type', /./);
+    await expect(page.locator('#formFeedback'), 'and the receipt says the Sunday was skipped').toContainText('Sunday skipped');
 });
 
 test('admin: every focus ring stands out from what is behind it — navy on the card, gold on the navy bar', async ({ page }, info) => {
