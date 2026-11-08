@@ -158,6 +158,10 @@
                 height: env(safe-area-inset-top, 0px);
                 background: var(--primary-blue);
             }
+            /* The bar is navy here, and a field's navy ring vanished into it, 1:1 (Nov 2026): the gold ring of
+               the navy Unsaved bar. From 1024px the bar is a white card and the field keeps the navy one. */
+            .member-context-bar select:focus-visible,
+            .member-context-bar .fieldpick:focus-visible { outline: var(--focus-outline-gold); }
         }
 
         /* The bar's own bottom padding is part of the gap the EYE sees. Below 1024px the bar is a

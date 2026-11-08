@@ -3623,6 +3623,47 @@ test('admin: on a desktop the staff member picker is two Tab presses from the bu
         .toEqual({ sameColumn: true, rightOfMain: true, gap: 16, top: 20 });
 });
 
+// THE STAFF PICKER SHOWS KEYBOARD FOCUS ON THE NAVY BAR (Nov 2026). Below 1024px the member bar is navy,
+// and the picker took a field's default ring — navy, drawn 2px out on the navy bar, 1:1 — so only its
+// border turning gold said where focus was. It wears the gold ring the navy Unsaved bar's buttons wear;
+// from 1024px the bar is a white card and keeps the navy one. Measured from the PAINTED colours: what
+// counts is the ring against what is actually behind it, which no token comparison can see.
+test('admin: the staff picker\'s focus ring stands out from the member bar behind it — navy on a phone, white at a desk', async ({ page }, info) => {
+    const sizes = isTouchProject(info) ? [{ width: 393, height: 851 }] : [{ width: 900, height: 800 }, { width: 1366, height: 768 }];
+    await deskAdmin(page, sizes[0]);
+    for (const size of sizes) {
+        await page.setViewportSize(size);
+        await page.locator('#navMenuBtn').focus();
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('Tab');
+        const picker = page.locator('#fieldMemberTrigger');
+        await expect(picker, `${size.width}: burger → logo → the member picker`).toBeFocused();
+        const m = await picker.evaluate(el => {
+            // Any CSS colour as painted, over what is under it: a canvas resolves oklch, color-mix and alpha
+            // (the recipe of calendar.spec.js → installColourProbe, which one spec cannot import from another).
+            const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+            const paint = (/** @type {string[]} */ ...layers) => { ctx.clearRect(0, 0, 1, 1);
+                layers.forEach(c => { ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); }); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+            const lum = (/** @type {number[]} */ c) => c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+                .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+            let host = el.parentElement;   // the surface the ring is drawn on: the nearest painted ancestor
+            while (host && getComputedStyle(host).backgroundColor === 'rgba(0, 0, 0, 0)') host = host.parentElement;
+            const behind = getComputedStyle(/** @type {Element} */ (host)).backgroundColor, cs = getComputedStyle(el);
+            const [hi, lo] = [lum(paint(behind, cs.outlineColor)), lum(paint(behind))].sort((a, b) => b - a);
+            const reach = parseFloat(cs.outlineOffset) + parseFloat(cs.outlineWidth), r = el.getBoundingClientRect(), b = /** @type {Element} */ (host).getBoundingClientRect();
+            return { focusVisible: el.matches(':focus-visible'), style: cs.outlineStyle, width: parseFloat(cs.outlineWidth),
+                     ratio: Math.round((hi + 0.05) / (lo + 0.05) * 100) / 100, onBar: /** @type {Element} */ (host).classList.contains('member-context-bar'),
+                     ringInsideBar: r.left - reach >= b.left && r.right + reach <= b.right && r.top - reach >= b.top && r.bottom + reach <= b.bottom };
+        });
+        expect(m.focusVisible, `${size.width}: a keyboard focus`).toBe(true);
+        expect(m.onBar, `${size.width}: premise: the ring is drawn on the member bar`).toBe(true);
+        expect(m.style, `${size.width}: a ring is drawn`).not.toBe('none');
+        expect(m.width, `${size.width}: at least 2px`).toBeGreaterThanOrEqual(2);
+        expect(m.ratio, `${size.width}: 3:1 against the bar behind it`).toBeGreaterThanOrEqual(3);
+        expect(m.ringInsideBar, `${size.width}: and the bar has room for all of it`).toBe(true);
+    }
+});
+
 test('admin: each calendar is ONE Tab stop, and the arrow keys move the day — the leave range and the week jump', async ({ page }, info) => {
     // Every day was its own Tab stop: ~62 to cross the two open range calendars, and the arrows did
     // nothing in either picker. Now a roving tabindex, as the Calendar's own grid.
