@@ -1547,6 +1547,34 @@ test('M. Campbell: pre-start RD, Training with no times Mon–Fri 22 Sep–6 Nov
     }
 });
 
+// J. Bangi: the M. Campbell pattern for a Dispatcher (owner, 8 Nov 2026) — training with no times
+// Monday to Friday from her start, then the vacant Dispatcher line between A. Targanov and B. Toth.
+// The neighbours are asserted, not just the number: "between" is what the owner said, and a
+// reference-anchored value written as the line she is on that week would still look plausible.
+test('J. Bangi: pre-start RD, Training with no times Mon–Fri 5 Oct–6 Nov, then the Dispatcher line between A. Targanov and B. Toth from 8 Nov', () => {
+    const m = teamMembers.find(x => x.name === 'J. Bangi');
+    assert.ok(m, 'J. Bangi not found');
+    assert.equal(m.role, 'Dispatcher');
+    assert.equal(getBaseShift(m, new Date(2026, 9, 4)), 'RD');             // Sun 4 Oct — before her start
+    for (const d = new Date(2026, 9, 5); d <= new Date(2026, 10, 7); d.setDate(d.getDate() + 1)) {
+        const weekend = d.getDay() === 0 || d.getDay() === 6;
+        assert.equal(getBaseShift(m, d), weekend ? 'RD' : 'TRG', d.toDateString());
+    }
+    const after = resolveMemberRoster(m, new Date(2026, 10, 8));           // Sun 8 Nov — the link
+    assert.equal(after.rosterType, 'dispatcher');
+    const byName = (/** @type {string} */ n) => teamMembers.find(x => x.name === n);
+    const len = CONFIG.DISPATCHER_ROSTER_WEEKS;
+    // On her first day and a whole cycle later: A. Targanov's row, then hers, then B. Toth's.
+    for (const when of [new Date(2026, 10, 8), new Date(2026, 10, 8 + 7 * len)]) {
+        const wk = (/** @type {any} */ x) => getWeekNumberForDate(when, x);
+        assert.equal(wk(m), wk(byName('A. Targanov')) % len + 1, `one row after A. Targanov, ${when.toDateString()}`);
+        assert.equal(wk(byName('B. Toth')), wk(m) % len + 1, `one row before B. Toth, ${when.toDateString()}`);
+    }
+    for (let day = 8; day <= 14; day++) {                                   // and no training on it
+        assert.notEqual(getBaseShift(m, new Date(2026, 10, day)), 'TRG', `${day} Nov`);
+    }
+});
+
 test('B. Khalil: pre-start RD, then CES rotation from 9 Jun and across 1 Jul', () => {
     const m = teamMembers.find(x => x.name === 'B. Khalil');
     assert.ok(m, 'B. Khalil not found');
