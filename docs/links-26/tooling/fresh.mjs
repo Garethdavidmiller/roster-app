@@ -62,9 +62,12 @@ export const STRAPS = {
   // "Common Ground"). Shortlisted on 5 Nov 2026, as the 30-day example, and off the shortlist since 8 Nov 2026 (below)
   'CG-26-T8': ['Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 5 Nov 2026: Common Ground's weeks with the shift times varied from week to week, so no two closing weeks and no two 06:20
-  // weeks fall together (README.md → "Middle Ground"). Shortlisted on 8 Nov 2026 (below). NO STRAP NAMES ANOTHER DESIGN (owner, 5 Nov 2026:
-  // "the proposal description headlines should not reference other proposals"); regenerate.mjs refuses one that does
-  'MG-26-T8': ['Seven of today’s shift times, varied from week to week so that no two closing weeks and no two 06:20 weeks fall together, and 14 days’ leave buys 30 days off, as today', 'search'],
+  // weeks fall together (README.md → "Middle Ground"). Shortlisted on 8 Nov 2026 (below). ITS STRAP SAYS THE CLOSING WEEKS ONLY
+  // (owner, 8 Nov 2026, agreeing): the 06:20 half held only when week 20, two 06:20 starts and two 07:00s, was read as a 07:00
+  // week, and weeks 17 to 20 all have 06:20 starts; regenerate.mjs now checks a strap's weeks apart on the grid.
+  // NO STRAP NAMES ANOTHER DESIGN (owner, 5 Nov 2026: "the proposal description headlines should not reference other
+  // proposals"); regenerate.mjs refuses one that does
+  'MG-26-T8': ['Seven of today’s shift times, varied from week to week so that no two closing weeks fall together, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 6 NOV 2026 (owner: "Balanced v5 and Relief Point need adding to the pack, but can you rename Relief Point as Balanced v6"):
   // its author's one-page Marylebone Balanced 26, version 5, and the owner's 15-minute handover drawn from it (README.md →
   // "Balanced V5 and Balanced V6 join the pack"). Each says what it is, naming no other design. Balanced V6 shortlisted on 8 Nov 2026 (below)

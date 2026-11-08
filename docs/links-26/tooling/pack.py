@@ -457,7 +457,7 @@ readme = '\n'.join([
     # reference other proposals")
     *([para('Middle Ground, Balanced V5 and Balanced V6 (5 November 2026), Balanced V7 (6 November 2026), and Crossover, '
             'Level Crossing, Balanced V8 and Balanced V9 (7 November 2026) came after it. Middle Ground has seven of today\'s shift times, varied from week to week so '
-            'that no two closing weeks and no two 06:20 weeks fall together. Balanced V5, a one-page roster drawn up outside '
+            'that no two closing weeks fall together. Balanced V5, a one-page roster drawn up outside '
             'the app, has weeks of 06:20 starts and weeks of 08:00 starts and a 15:45 closer every weekday. Balanced V6 has a '
             '15-minute handover every weekday, from three 07:30-16:00s to the three 15:45 closers. Balanced V7 has Balanced '
             'V6\'s duties, every one, laid in new weeks, with no six-day weeks. Crossover keeps two 13:45 finishes every '
