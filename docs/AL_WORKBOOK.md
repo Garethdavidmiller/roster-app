@@ -793,11 +793,16 @@ them change what a figure MEANS, so an unanswered one is not a tidiness problem.
    Boxing Day, or the next? **The app's answer is the Boxing Day's own year** [owner, 5 Nov 2026,
    built v25.37], so the question that remains is only whether the clerks' sheet agrees.
 
-14. **A Dispatcher on the app with no workbook row, and two workbook Dispatchers not on the app**
+14. ~~**A Dispatcher on the app with no workbook row, and two workbook Dispatchers not on the app**
    [measured, 8 Nov 2026]. The app's newest Dispatcher appears nowhere in the live sheets, under any
    spelling. Two Dispatcher rows for recent starters (68 and 76) match nobody on the app roster. Is
    the app's starter one of those rows under another name, or is the workbook not yet updated — and
-   are the two rows staff the app is missing?
+   are the two rows staff the app is missing?~~ **Answered [owner, 8 Nov 2026]:** two different
+   people. Rows 68 and 76 are new Dispatchers still in training, with no roster line yet, so the app
+   does not carry them; the app's starter is in neither row, because the workbook has not yet been
+   updated for them. **So the two systems can each hold a starter the other does not, for a while,
+   and neither case is a spelling to be matched.** Ask; do not pair a starter row with an app member
+   because the dates are close — here they were the same week.
 15. **Do the clerks know about §8 defects 9–11?** A misspelt block of nine days, a person with no
    totals row, and an unexplained column-E value each make that person's Remaining wrong, silently.
 
