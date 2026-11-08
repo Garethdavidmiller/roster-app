@@ -114,9 +114,10 @@ if (SHORTLIST.join() !== [...SHORTLIST].sort((a, b) => a.localeCompare(b, 'en-GB
 /** The day the shortlist above was drawn, for the sheets and the read-me that say when — after every design in the pack. */
 export const SHORTLIST_DATE = '8 Nov 2026';
 /** Designs off the shortlist whose presentations the pack still ships. In Step's from 5 Nov 2026 (owner: "keep the other
- *  presentations in the pack, just not the shortlist"); NONE SINCE 8 NOV 2026. None of the new three has presentations yet,
- *  and the eight in presentations/ each say they present a shortlisted link, so the zip leaves them out until the decks are
- *  redrawn (pack.py). They stay in the repository, unchanged, and deck-check.mjs still holds their figures to the grids. */
+ *  presentations in the pack, just not the shortlist"); NONE SINCE 8 NOV 2026. The eight in presentations/ from before that
+ *  day each say they present a shortlisted link, so the zip leaves them out (pack.py); they stay in the repository, unchanged,
+ *  and deck-check.mjs still holds their figures to the grids. The three shortlisted that day had their own drawn later the
+ *  same day, from Common Ground's (shortlist-decks.py), and the zip carries those. */
 export const DECKS_KEPT = [];
 if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is both shortlisted and kept off it: ${DECKS_KEPT}`);
 // NO RECOMMENDATION SINCE 5 NOV 2026. RECOMMENDED named the one the shortlist sheet argued for — Short Run from 3 Oct 2026,

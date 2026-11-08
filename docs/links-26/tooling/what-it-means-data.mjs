@@ -104,8 +104,8 @@ for (const c of C) {
 }
 // THE DECKS' OWN £, READ BACK: the Sunday £ off each colleague deck's slide 5, and the swap £ off its notes (the deep review,
 // 1 Nov 2026, found the swap £ computed twice — here in JS, in deck-polish.py in Python, which rounds an exact half the other
-// way — so the two could have quoted different figures for the same swaps). ONLY WHERE A DECK EXISTS since 8 Nov 2026: the three
-// shortlisted that day have none yet, and a deck drawn for one is held to this sheet's figures from the day it lands
+// way — so the two could have quoted different figures for the same swaps). ONLY WHERE A DECK EXISTS: the three shortlisted on
+// 8 Nov 2026 had none that morning, and theirs, drawn later that day (shortlist-decks.py), are held to this sheet's figures
 for (const c of C) {
   const deck = fileURLToPath(new URL(`../presentations/${c.name.replace(/ /g, '-')}-for-colleagues.pptx`, import.meta.url));
   if (!existsSync(deck)) continue;

@@ -308,15 +308,33 @@ export const NOTES = deepFreeze([
 export const PACK = deepFreeze([
     {
         "design": "Balanced V6",
+        "label": "The presentation",
+        "path": "presentations/Balanced-V6-for-colleagues.pdf",
+        "pages": 15
+    },
+    {
+        "design": "Balanced V6",
         "label": "The proposal sheet — every week on page 3",
         "path": "30-days-off/balanced/Balanced-V6-MB-26-V6-1818a1c2.pdf",
         "pages": 8
     },
     {
         "design": "Level Crossing",
+        "label": "The presentation",
+        "path": "presentations/Level-Crossing-for-colleagues.pdf",
+        "pages": 15
+    },
+    {
+        "design": "Level Crossing",
         "label": "The proposal sheet — every week on page 3",
         "path": "30-days-off/Level-Crossing-LC-26-T10-32241e32.pdf",
         "pages": 8
+    },
+    {
+        "design": "Middle Ground",
+        "label": "The presentation",
+        "path": "presentations/Middle-Ground-for-colleagues.pdf",
+        "pages": 15
     },
     {
         "design": "Middle Ground",

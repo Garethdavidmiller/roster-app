@@ -164,8 +164,9 @@ const pages = rel => (readFileSync(DIR + rel).toString('latin1').match(/\/Type\s
 // every other in proposals/
 const sheetOf = name => { const f = ['proposals', '30-days-off', '30-days-off/balanced'].flatMap(dir => readdirSync(DIR + dir).filter(x => x.startsWith(`${name.replace(/ /g, '-')}-${codeOf(name)}-`) && x.endsWith('.pdf')).map(x => `${dir}/${x}`));
   claim(`one proposal sheet for ${name}`, f.length === 1 && f[0].includes(refOf(name).split(' · ')[1])); return f[0]; };
-// THE PRESENTATION ONLY WHERE THERE IS ONE (8 Nov 2026): none of the three shortlisted that day has decks yet (fresh.mjs →
-// DECKS_KEPT), so each offers its proposal sheet; a colleague deck drawn for one joins the list the next time this is run
+// THE PRESENTATION ONLY WHERE THERE IS ONE (8 Nov 2026): the three shortlisted that day had no decks that morning, so each
+// offered its proposal sheet alone; their colleague decks were drawn later the same day and joined the list (owner: "The
+// presentations once complete should be put in the new links page on the app"). The managers' decks stay off it, as above
 const deckOf = name => `presentations/${name.replace(/ /g, '-')}-for-colleagues.pdf`;
 const PACK = [
   ...NAMES.flatMap(name => [

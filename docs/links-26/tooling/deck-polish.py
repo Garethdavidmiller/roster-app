@@ -55,8 +55,14 @@ GRIDS = {**DESIGNS, **BUILT_AFTER}
 def grid_of(n):
     """A design's grid by name: the three built here and Common Ground's, which is built after them."""
     return (lambda j: j.get('patterns', j))(json.load(open(os.path.join(TOOL, GRIDS[n]), encoding='utf-8')))
-assert set(GRIDS) == set(SHORTLIST) | set(OFF_SHORTLIST) and not set(SHORTLIST) & set(OFF_SHORTLIST) and not set(DESIGNS) & set(BUILT_AFTER), \
-    f'decks are built for {sorted(DESIGNS)} and after the polish for {sorted(BUILT_AFTER)}, but the shortlist is {sorted(SHORTLIST)} and the designs off it {sorted(OFF_SHORTLIST)}'
+# THE CHECK RUNS WHEN THE POLISH RUNS, NOT WHEN ITS HELPERS ARE IMPORTED (8 Nov 2026). The shortlist drawn that day — Balanced
+# V6, Level Crossing and Middle Ground — has decks of its own, built by shortlist-decks.py from Common Ground's finished decks,
+# which imports this file for its helpers. So polishing still refuses unless these designs ARE the shortlist and the decks kept
+# off it (which since 8 Nov 2026 they are not: the eight decks here were made for the shortlists of 31 Oct and 5 Nov 2026, and
+# stay as they are), but importing this file under another shortlist no longer does
+def require_built_for_shortlist():
+    assert set(GRIDS) == set(SHORTLIST) | set(OFF_SHORTLIST) and not set(SHORTLIST) & set(OFF_SHORTLIST) and not set(DESIGNS) & set(BUILT_AFTER), \
+        f'decks are built for {sorted(DESIGNS)} and after the polish for {sorted(BUILT_AFTER)}, but the shortlist is {sorted(SHORTLIST)} and the designs off it {sorted(OFF_SHORTLIST)}'
 if len(SHORTLIST) != len(set(SHORTLIST)): raise SystemExit(f'a name twice in the shortlist: {SHORTLIST}')   # the set comparison passes it; "all five" would not
 DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 WORDS = 'zero one two three four five six seven eight nine ten'.split(); ORDS = 'zeroth first second third fourth fifth sixth'.split()
@@ -86,13 +92,18 @@ def explain_h55(name, f):
 def every_built(what, ok):
     bad = [n for n in DESIGNS if not ok(FIG[n])]
     if bad: raise SystemExit(f'deck-polish: "{what}" is printed on the decks of {", ".join(bad)}, and is not true of them')
-every('all 9 December rules', lambda f: f['met'] == '9')
-# on the FIXED rota (31 Oct 2026): a cover week worked with its Sunday as overtime can make a 55-hour week, so the worst
-# case is "0 (up to 1)" on both — the line says what holds of the fixed rota, and the tables carry the rest
-every('no avoidable fatigue warning on the fixed rota', lambda f: first(f['ff']) == 0)
-same('full weekends off a year', 'weekendsYear'); GAP = max(int(f['weekendGap']) for f in SL.values())
-every('no shift over 9 hours', lambda f: H(f['longest']) <= 9 * 60)
-every('every closing shift shorter', lambda f: all(H(f[k]) < H(T[k]) for k in ('closerWk', 'closerSat', 'closerSun')))
+# THE SHARED LINES ARE CHECKED WHEN THE POLISH RUNS (8 Nov 2026), with the shortlist check above: they are the old decks'
+# "All three" lines, and the shortlist drawn on 8 Nov 2026 does not share all of them (Balanced V6 has 12 full weekends a
+# year, the other two 14). shortlist-decks.py writes and checks its own. GAP stays here: the helpers below read it
+GAP = max(int(f['weekendGap']) for f in SL.values())
+def shared_lines():
+    every('all 9 December rules', lambda f: f['met'] == '9')
+    # on the FIXED rota (31 Oct 2026): a cover week worked with its Sunday as overtime can make a 55-hour week, so the worst
+    # case is "0 (up to 1)" on both — the line says what holds of the fixed rota, and the tables carry the rest
+    every('no avoidable fatigue warning on the fixed rota', lambda f: first(f['ff']) == 0)
+    same('full weekends off a year', 'weekendsYear')
+    every('no shift over 9 hours', lambda f: H(f['longest']) <= 9 * 60)
+    every('every closing shift shorter', lambda f: all(H(f[k]) < H(T[k]) for k in ('closerWk', 'closerSat', 'closerSun')))
 # FOUR WEEKS OFF IS NO LONGER A SHARED COST (5 Nov 2026): Common Ground, shortlisted, keeps today's 14 days. The leave notes on
 # slide 11 and the managers' notes 7 now say which designs need more and which keeps today's, from the figures
 # slide 12's subtitle (colleagues): more on duty every day, and more at the open and the close on most days — "most" because
@@ -103,9 +114,10 @@ def more_on(f, key, days_needed):
     d, t = lo_hi(f[key]), lo_hi(T[key])
     days = 5 * (d[0][0] > t[0][1]) + (d[1][0] > t[1][1]) + (d[2][0] > t[2][1])
     return days >= days_needed and all(d[i][0] >= t[i][1] for i in range(3))
-every('more people rostered every day', lambda f: more_on(f, 'daily', 7))
-every_built('more at the open on most days', lambda f: more_on(f, 'open', 4))   # not Common Ground's: four at every open, the minimum
-every('more at the close on most days', lambda f: more_on(f, 'close', 4))
+def shared_lines_staffing():
+    every('more people rostered every day', lambda f: more_on(f, 'daily', 7))
+    every_built('more at the open on most days', lambda f: more_on(f, 'open', 4))   # not Common Ground's: four at every open, the minimum
+    every('more at the close on most days', lambda f: more_on(f, 'close', 4))
 
 def shape_of(s, text):
     hits = [i for i, (a, b) in enumerate(spans(s.x)) if runs_of(s.x[a:b]) == [escape(text)]]
@@ -1439,6 +1451,7 @@ def polish(path, name, grid, who):
 
 if __name__ == '__main__':
     import sys
+    require_built_for_shortlist(); shared_lines(); shared_lines_staffing()
     names = sys.argv[1:] or list(DESIGNS)   # a name on the command line polishes only that design's freshly built decks
     bad = [n for n in names if n not in DESIGNS]
     if bad: raise SystemExit(f'deck-polish: no design {bad}; the designs are {list(DESIGNS)}')

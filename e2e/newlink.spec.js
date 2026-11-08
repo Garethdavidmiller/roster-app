@@ -188,7 +188,7 @@ test.describe('new link', () => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
         const links = page.locator('#nlPackList a.nl-file');
-        await expect(links).toHaveCount(PACK.length);   // what the generated data lists — 4 since 8 Nov 2026, with no presentations yet
+        await expect(links).toHaveCount(PACK.length);   // what the generated data lists — since 8 Nov 2026 each shortlisted link's presentation and proposal sheet, and the rules
         for (const a of await links.all()) {
             await expect(a).toHaveAttribute('target', '_blank');
             await expect(a).toHaveAttribute('href', /^https:\/\/garethdavidmiller\.github\.io\/roster-app\/docs\/links-26\/.+\.pdf$/);
