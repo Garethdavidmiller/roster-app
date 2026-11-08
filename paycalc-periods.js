@@ -221,29 +221,38 @@ export function _setSelectPeriod(/** @type {any} */ sel, /** @type {any} */ pNum
   }
 }
 
+/**
+ * Append one option per payslip to `sel`, grouped by tax year, date first: "Paid 31 Jul 2026 · P20".
+ * EVERY payslip list on the page is built here — the period picker, the Year to Date source, the
+ * back-pay paid-in, the pension opt-out and the student-loan stop — so a member meets one way of
+ * naming a payslip: staff remember paydates, not period numbers (owner, Jul 2026), and the printed
+ * P-number stays as the cross-check against the payslip.
+ * @param {any} sel @param {any[]} periods
+ * @param {{ currentPNum?: number, groupLabel?: (tyLabel: string) => string }} [o]
+ *   `currentPNum` marks the payslip being earned with "● "; `groupLabel` words each tax year's heading
+ */
+export function appendPayslipOptions(sel, periods, { currentPNum, groupLabel = (l) => `Tax year ${l}` } = {}) {
+  /** @type {any} */ let group = null;
+  /** @type {string|null} */ let label = null;
+  for (const p of periods) {
+    const ty = getTaxYearForOffset(p.num - 48);
+    if (ty.label !== label) {
+      label = ty.label;
+      group = document.createElement('optgroup');
+      group.label = groupLabel(label);
+      sel.appendChild(group);
+    }
+    const o = document.createElement('option');
+    o.value = String(p.num);
+    o.textContent = (currentPNum && p.num === currentPNum ? '● ' : '') + `Paid ${fdLong(p.payday)} · P${payslipPeriodNum(p)}`;
+    group.appendChild(o);
+  }
+}
+
 function _populatePeriodSelect(/** @type {any} */ el, /** @type {any} */ periods, { placeholder, currentPNum } = /** @type {{ placeholder?: string, currentPNum?: number }} */ ({})) {
   if (!el) return;
   el.innerHTML = placeholder ? `<option value="">${placeholder}</option>` : '';
-  /** @type {any} */
-  let currentGroup = null;
-  /** @type {any} */
-  let currentTyLabel = null;
-  periods.forEach((/** @type {any} */ p) => {
-    const ty = getTaxYearForOffset(p.num - 48);
-    if (ty.label !== currentTyLabel) {
-      currentGroup = document.createElement('optgroup');
-      currentGroup.label = `Tax year ${ty.label}`;
-      el.appendChild(currentGroup);
-      currentTyLabel = ty.label;
-    }
-    const o = document.createElement('option');
-    o.value = p.num;
-    const payStr = fdLong(p.payday);
-    // Date FIRST — staff remember paydates, not period numbers (owner, Jul 2026); the printed
-    // P-number stays as the secondary cross-check against the payslip.
-    o.textContent = (currentPNum && p.num === currentPNum ? '● ' : '') + `Paid ${payStr} · P${payslipPeriodNum(p)}`;
-    currentGroup.appendChild(o);
-  });
+  appendPayslipOptions(el, periods, { currentPNum });
 }
 
 /**

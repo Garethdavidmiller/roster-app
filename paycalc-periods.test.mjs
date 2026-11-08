@@ -105,7 +105,7 @@ const {
     _setSelectPeriod, prevPeriod, nextPeriod,
     computeEarliestVisiblePNum, setEarliestVisiblePeriod, getEarliestVisiblePNum,
     visiblePeriods, isTaxYearVisible, ytdAutoSource, ytdSourceOffered, payslipMayBeInHand,
-    periodLinkMissNote, ytdUpdateFrom, ytdAnchorStatus, ytdSourceToStamp,
+    periodLinkMissNote, ytdUpdateFrom, ytdAnchorStatus, ytdSourceToStamp, appendPayslipOptions,
 } = await import('./paycalc-periods.js');
 
 const {
@@ -439,6 +439,42 @@ describe('_setSelectPeriod', () => {
                       dispatchEvent: () => true };
         assert.doesNotThrow(() => _setSelectPeriod(sel, 99));
         assert.equal(sel.options[0].selected, false);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// paycalc-periods.js — appendPayslipOptions: every payslip list names a payslip one way
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('appendPayslipOptions', () => {
+    /** @param {string} tag */
+    const el = tag => ({ tag, label: '', value: '', textContent: '', /** @type {any[]} */ children: [],
+        appendChild(/** @type {any} */ c) { this.children.push(c); return c; } });
+    beforeEach(() => { reset(); /** @type {any} */ (global).document = { createElement: el }; });
+    const P = (/** @type {number} */ n) => /** @type {any} */ (getPeriods().find((/** @type {any} */ p) => p.num === n));
+    const shape = (/** @type {any} */ sel) => sel.children.map((/** @type {any} */ g) =>
+        [g.tag, g.label, g.children.map((/** @type {any} */ o) => [o.value, o.textContent])]);
+
+    test('grouped by tax year, date first, the printed period number as the cross-check', () => {
+        const sel = el('select');
+        appendPayslipOptions(sel, [P(48), P(49), P(50)]);
+        assert.deepEqual(shape(sel), [
+            ['optgroup', 'Tax year 2025/26', [['48', 'Paid 13 Feb 2026 · P48'], ['49', 'Paid 13 Mar 2026 · P52']]],
+            ['optgroup', 'Tax year 2026/27', [['50', 'Paid 10 Apr 2026 · P4']]],
+        ]);
+    });
+
+    test('the payslip being earned is marked, and a list may word its own headings', () => {
+        const sel = el('select');
+        appendPayslipOptions(sel, [P(57), P(58)], { currentPNum: 58, groupLabel: l => l });
+        assert.deepEqual(shape(sel), [['optgroup', '2026/27', [['57', 'Paid 23 Oct 2026 · P32'], ['58', '● Paid 20 Nov 2026 · P36']]]]);
+    });
+
+    test('it APPENDS: an option the select already holds stays first', () => {
+        const sel = el('select');
+        sel.appendChild(el('option'));
+        appendPayslipOptions(sel, [P(58)]);
+        assert.deepEqual(sel.children.map((/** @type {any} */ c) => c.tag), ['option', 'optgroup']);
     });
 });
 

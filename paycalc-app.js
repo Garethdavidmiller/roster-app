@@ -35,6 +35,7 @@ import {
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
   setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
   _setSelectPeriod, buildYtdSourceSelect, ytdSourceToStamp, ytdAnchorStatus, payslipMayBeInHand, ytdUpdateFrom,
+  appendPayslipOptions,
 } from './paycalc-periods.js';
 import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
@@ -1237,26 +1238,11 @@ export function init() {
     // into the hint, which duplicated the read-only rate field directly below; the static HTML
     // hint now carries the one-line version. v18.03)
 
-    // Loan-repaid cutover options (v18.41 — review item 9): one option per visible payslip,
-    // grouped by tax year, date-first. Built BEFORE loadSettings so the saved p.num restores.
-    (function _buildSlPaidOffOptions() {
-      const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
-      if (!sel) return;
-      let group = null; let groupLabel = '';
-      for (const p of visiblePeriods()) {
-        const ty = taxYearForPeriod(p);
-        if (ty.label !== groupLabel) {
-          groupLabel = ty.label;
-          group = document.createElement('optgroup');
-          group.label = ty.label;
-          sel.appendChild(group);
-        }
-        const o = document.createElement('option');
-        o.value = String(p.num);
-        o.textContent = `Paid ${fdLong(p.payday)} · P${payslipPeriodNum(p)}`;   // full-year date — the list spans tax years
-        (group || sel).appendChild(o);
-      }
-    })();
+    // The student-loan stop's payslips, after its static "No — still deducted". Built BEFORE
+    // loadSettings so the saved choice restores. Its headings are the bare year ("2026/27"), where
+    // every other payslip list says "Tax year 2026/27".
+    const _slPaidOffSel = document.getElementById('slPaidOffFrom');
+    if (_slPaidOffSel) appendPayslipOptions(_slPaidOffSel, visiblePeriods(), { groupLabel: (l) => l });
 
     loadSettings();
     // _defaultPeriodNum must be assigned BEFORE onPeriodChange() runs — the period

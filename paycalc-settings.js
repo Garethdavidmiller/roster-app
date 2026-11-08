@@ -13,12 +13,12 @@
  */
 
 import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor, awardFromForYear } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, payslipPeriodNum } from './paycalc-periods.js';
+import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, appendPayslipOptions } from './paycalc-periods.js';
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix } from './paycalc-migrations.js';
 import { getSession } from './session.js';
 import { teamMembers, gradeForRole } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
-import { fdShort, fdLong } from './paycalc-format.js';
+import { fdShort } from './paycalc-format.js';
 import { setStatus } from './status-text.js';
 import { pensionToStore } from './paycalc-form-data.js';
 import {
@@ -147,20 +147,7 @@ export function buildPensionFromSelect(timeline) {
   const field = document.getElementById('pensionOptOutField');
   if (!sel) return;
   sel.innerHTML = '';
-  let group = null; let groupLabel = '';
-  for (const p of visiblePeriods()) {
-    const ty = taxYearForPeriod(p);
-    if (ty.label !== groupLabel) {
-      groupLabel = ty.label;
-      group = document.createElement('optgroup');
-      group.label = `Tax year ${ty.label}`;
-      sel.appendChild(group);
-    }
-    const o = document.createElement('option');
-    o.value = String(p.num);
-    o.textContent = `Paid ${fdLong(p.payday)} · P${payslipPeriodNum(p)}`;
-    group?.appendChild(o);
-  }
+  appendPayslipOptions(sel, visiblePeriods());
   // WHAT THE SELECT IS SET TO IS WHAT `saveSettings` ACTS ON, so it carries both answers (v21.80):
   // while the box is TICKED it names where the spell begins, and while it is UNTICKED it names the
   // payslip the member is looking at — which is how the hint beneath it has told her to record a
