@@ -45,6 +45,11 @@ describe('readArchivedNotices — what the App Notices panel lists', () => {
         assert.deepEqual(readArchivedNotices(), []);
     });
 
+    test('a null or bare value inside the list is left out, so the panel never reads a field off it', () => {
+        store.set(KEY, JSON.stringify([null, notice('kept'), 7, 'text', notice('also')]));
+        assert.deepEqual(readArchivedNotices().map(n => n.id), ['kept', 'also']);
+    });
+
     test('a device whose storage throws on every access (iOS private mode) reads as empty, and archiving is silent', () => {
         storageThrows = true;
         assert.deepEqual(readArchivedNotices(), []);

@@ -86,9 +86,14 @@ export function archiveNotice({ id, title, section, date, body }) {
 /**
  * The archive as the App Notices panel lists it, newest first. Never throws: unreadable storage, or
  * valid JSON that is not an array (`{}` from corruption), reads as an empty archive — a non-array
- * passed JSON.parse once and then broke the panel with a TypeError on `forEach` (v16.21).
+ * passed JSON.parse once and then broke the panel with a TypeError on `forEach` (v16.21). A list
+ * holding a `null` or a bare value reads without it, for the same reason one level down: the panel
+ * reads each entry's fields, and `archiveNotice` drops such members on its next write anyway.
  * @returns {any[]}
  */
 export function readArchivedNotices() {
-    try { const p = JSON.parse(lsGet(NOTICES_KEY) || '[]'); return Array.isArray(p) ? p : []; } catch (_) { return []; }
+    try {
+        const p = JSON.parse(lsGet(NOTICES_KEY) || '[]');
+        return Array.isArray(p) ? p.filter(n => n && typeof n === 'object') : [];
+    } catch (_) { return []; }
 }
