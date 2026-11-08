@@ -1446,6 +1446,54 @@ test('paycalc: the loan rows name the plan picked and the payslip deductions sto
     expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
 });
 
+// THE TWO-TAP CLEAR (the coordinator's `_clearState`). The one destructive control on the page: the
+// first tap only ARMS it, with a countdown; three seconds, or a change of payslip, disarms it; only a
+// second tap while armed wipes the payslip — and only the one on screen.
+test('paycalc: "Clear all entries" needs a second tap, and disarms itself', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.install({ time: new Date('2026-11-08T12:00:00') });   // on screen: the 20 Nov payslip (P58)
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_gmiller_p57', JSON.stringify({ satH: 7 }));
+        localStorage.setItem('myb_pc_gmiller_p58', JSON.stringify({ satH: 8 }));
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#satH')).toHaveValue('8');
+    await page.clock.pauseAt(new Date('2026-11-08T12:01:00'));
+    const btn = page.locator('#clearBtn');
+    const saved = (/** @type {number} */ n) => page.evaluate((k) => localStorage.getItem(k), `myb_pc_gmiller_p${n}`);
+    const view = (/** @type {number} */ n) => page.evaluate((num) => {
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
+        for (const o of sel.options) o.selected = o.value === String(num);
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }, n);
+
+    await btn.click();
+    await expect(btn).toHaveText('Select again to confirm (3)');
+    await expect(btn).toHaveClass(/confirming/);
+    await page.clock.runFor(1000);
+    await expect(btn).toHaveText('Select again to confirm (2)');
+    await page.clock.runFor(2000);
+    await expect(btn, 'three seconds disarm it').toHaveText('Clear all entries');
+    await expect(btn).not.toHaveClass(/confirming/);
+    expect(await saved(58), 'nothing was cleared').not.toBeNull();
+
+    await btn.click();
+    await view(57);
+    await expect(btn, 'a change of payslip disarms it').toHaveText('Clear all entries');
+    await btn.click();
+    expect(await saved(57), 'one tap on the new payslip only arms it').not.toBeNull();
+    await btn.click();
+    await expect(btn).toHaveText('Clear all entries');
+    expect(await saved(57), 'the second tap clears the payslip on screen').toBeNull();
+    expect(await saved(58), '…and only that one').not.toBeNull();
+    await expect(page.locator('#saveStatus')).toHaveText('No entries saved for this period');
+    await page.clock.runFor(4000);   // the cleared arm's timers are gone: nothing re-arms or changes
+    await expect(btn).toHaveText('Clear all entries');
+    expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
+});
+
 // THE SETTINGS SUMMARY QUOTES THE RATE THE PAYSLIP WAS PAID AT — periodRate (paycalc-settings.js), the
 // answer the rate field shows. They used to work it out separately; before the 28 Aug 2026 award
 // payslip it is the earlier rate, and the summary must not quote the new one over it.
