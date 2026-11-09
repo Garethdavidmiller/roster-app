@@ -1,5 +1,6 @@
 {
  "date": "5 November 2026",
+ "kept": "Balanced V5 was discarded on 9 Nov 2026 (README.md → \"Four designs discarded\"). This grid stays, out of the pack, because Balanced V6 is its weeks with the three weekday 08:00-16:30s at 07:30-16:00 (balanced-v6.meta.json), and Balanced V7 to V10 keep V6's duties.",
  "identity": {
   "table": "Supplied as a one-page A3 PDF roster headed Marylebone Balanced 26 / Version 5, read cell by cell; every week matches the sheet's own Hours and Days columns",
   "seed": "—",

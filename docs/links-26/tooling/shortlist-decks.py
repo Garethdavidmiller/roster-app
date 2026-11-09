@@ -11,6 +11,8 @@
 # Ground's sentence is kept. What differs is rewritten from the grids and deck-check.mjs --print: Middle Ground is Common
 # Ground's own duties and rest days laid in new weeks, so little moves beyond the weeks; Level Crossing is Crossover's duties
 # on Short Openers' rest days; Balanced V6 is Balanced V5's weeks with a 15-minute handover, and most of its figures differ.
+# Common Ground, Crossover and Balanced V5 were discarded on 9 Nov 2026: Common Ground's finished pair moved to deck-template/
+# (fresh.mjs BASES), where every design here still starts, and no deck names any of the three.
 #
 # WHAT THE OWNER ASKED THE DECKS TO SHOW. The design target (8 Nov 2026): "no consecutive closing weeks, with changes between
 # early and late duties placed around useful rest breaks … Weeks on one time is still Important". So the short version, the
@@ -76,6 +78,7 @@ def find_grid(name):
     for d in ('proposals', '30-days-off', '30-days-off/balanced'):
         f = os.path.join('..', d, f'{name.replace(" ", "-")}-{code}.json')
         if os.path.exists(os.path.join(TOOL, f)): return f
+    if name in dp.BASE_GRIDS: return dp.BASE_GRIDS[name]   # a base, out of the pack since 9 Nov 2026: its grid in the tooling (fresh.mjs BASES)
     raise SystemExit(f'shortlist-decks: no grid for {name}')
 grid = lambda f: (lambda j: j.get('patterns', j))(json.load(open(os.path.join(TOOL, f), encoding='utf-8')))
 TP, PB = dp.TODAY_P, grid(find_grid(BASE))
@@ -264,11 +267,10 @@ def story():
     MGn, LCn, BVn = (NB(n) for n in ('Middle Ground', 'Level Crossing', 'Balanced V6'))
     fig = lambda n: FIG[n]
     if NAME == 'Balanced V6':
-        V5 = grid(find_grid('Balanced V5'))
-        diff = [(k, d) for k in P for d in DAYS if P[k][d] != V5[k][d]]
-        check('Balanced V5’s weeks with its three weekday 08:00–16:30s at 07:30–16:00, nothing else changed',
-              all(V5[k][d] == '08:00-16:30' and P[k][d] == '07:30-16:00' for k, d in diff) and {d: sum(1 for _, x in diff if x == d) for d in WK} == {d: 3 for d in WK}
-              and per_day(P, '15:45-23:55', WK) == {3})
+        # ITS HANDOVER, READ FROM ITS OWN GRID (9 Nov 2026): the first sentence said these were the weeks of Balanced V5, another
+        # design in the pack, with the three weekday 08:00-16:30s at 07:30-16:00, until V5 was discarded; it says what they make
+        check('three weekday 07:30–16:00s beside the three 15:45 closers every weekday: a 15-minute handover',
+              per_day(P, '07:30-16:00', WK) == {3} and per_day(P, '15:45-23:55', WK) == {3})
         L, M = O['Level Crossing'], O['Middle Ground']
         check('the shortest runs of earlies or of lates of the three, the other two level', int(F['block']) < min(int(o['block']) for o in O.values()) and int(F['blockUpTo']) < min(int(o['blockUpTo']) for o in O.values())
               and L['block'] == M['block'] and L['blockUpTo'] == M['blockUpTo'])
@@ -284,7 +286,7 @@ def story():
               and int(F['weekendsYear']) < min(int(o['weekendsYear']) for o in O.values()) and L['weekendsYear'] == M['weekendsYear']
               and ffw(F) > max(ffw(o) for o in O.values()) and upto(F['run']) > max(upto(o['run']) for o in O.values()))
         return dict(
-            what=f'{NAME} is the weeks of {NB("Balanced V5")}, another design in the pack, with its three weekday 08:00–16:30s at 07:30–16:00, so that they overlap the three 15:45 closers for 15 minutes, a handover',
+            what=f'{NAME}’s three weekday 07:30–16:00s overlap the three 15:45 closers for 15 minutes, a handover',
             adds='This one adds: the shortest runs of earlies or of lates, and the most long breaks',
             costs=f'This one costs: {F["oneTurn"]} weeks on one shift time, and {year(singles(P), P)} single rest days a year',
             add_notes=[f'the shortest runs of earlies or of lates — at most {NUMW[int(F["block"])]} weeks of either in a row, {NUMW[int(F["blockUpTo"])]} with cover weeks beside them, where the other two have {NUMW[int(L["block"])]} and {NUMW[int(L["blockUpTo"])]}',
@@ -296,9 +298,12 @@ def story():
                         f'if a cover week falls badly, up to {NUMW[ffw(F)]} fatigue warnings and {NUMW[upto(F["run"])]} days in a row ({LCn} none and {NUMW[upto(L["run"])]}, {MGn} {NUMW[ffw(M)]} and {NUMW[upto(M["run"])]}); and five on duty at 22:00 on a weekday, the rules’ minimum, where they have seven'],
             worry_bar='Expect late finishes and single rest days first — the colleague presentation answers both.')
     if NAME == 'Level Crossing':
-        CO = grid(find_grid('Crossover'))
-        check('Crossover’s duties and rest days, laid in new weeks; Crossover has four closing weeks in a row', all(sorted(P[k][d] for k in P) == sorted(CO[k][d] for k in CO) for d in DAYS)
-              and all((P[k][d] == 'RD') == (CO[k][d] == 'RD') and (P[k][d] == 'SPARE') == (CO[k][d] == 'SPARE') for k in P for d in DAYS) and closing_run(CO) == 4 and closing_run(P) == 1)
+        # ITS SHORT FINISHES AND HANDOVER, READ FROM ITS OWN GRID (9 Nov 2026): the first sentence said these were the duties and
+        # rest days of Crossover, another design in the pack, laid again with no two closing weeks together, until Crossover was
+        # discarded; it says what the weekday's duties are
+        ends = lambda p, e, days: {sum(1 for k in p if _timed(p[k][d]) and p[k][d].endswith('-' + e)) for d in days}
+        check('two 13:45 finishes every weekday, and two 07:30–16:00s beside the three 15:45 closers: a 15-minute handover',
+              ends(P, '13:45', WK) == {2} and per_day(P, '07:30-16:00', WK) == {2} and per_day(P, '15:45-23:55', WK) == {3})
         B6, M = O['Balanced V6'], O['Middle Ground']
         check('no fatigue warning in any cover-week placement tested, where the other two show one or more, and the fewest days in a row if a cover week falls badly',
               F['ff'] == '0' and not F['h55'] and all(ffw(o) > 0 for o in O.values()) and upto(F['run']) < min(upto(o['run']) for o in O.values()))
@@ -315,7 +320,7 @@ def story():
         check('not a cost against both: long Monday-to-Saturday shifts (Balanced V6 more) and the Saturday fit (within 5% of Balanced V6)',
               long_ms(g('Balanced V6')) > long_ms(P) > 0 and not clear_worst(float(F['fitSat']), [float(o['fitSat']) for o in O.values()]))
         return dict(
-            what=f'{NAME} is the duties and rest days of Crossover, another design in the pack, laid in new weeks so that no two closing weeks come together, where Crossover has four in a row',
+            what=f'{NAME} has two 13:45 finishes every weekday, and two 07:30–16:00s that overlap the three 15:45 closers for 15 minutes, a handover',
             adds='This one adds: no fatigue warning in any cover-week placement tested',
             costs='This one costs: of the three, the fewest long breaks',
             add_notes=[f'no fatigue warning in any cover-week placement tested, and never more than {NUMW[upto(F["run"])]} days in a row however a cover week falls ({BVn} up to {NUMW[ffw(B6)]} warnings and {NUMW[upto(B6["run"])]} days, {MGn} up to {NUMW[ffw(M)]} and {NUMW[upto(M["run"])]})',
@@ -345,7 +350,7 @@ def story():
         check('its Sundays the shortest of the three, so the most Sunday pay lost against today: about £350 a year, where both lose the same, about £200',
               loss[NAME] > max(loss[n] for n in PEERS) and len({loss[n] for n in PEERS}) == 1 and sun_avg(P) < min(sun_avg(g(n)) for n in PEERS))
         return dict(
-            what=f'{NAME} is the duties and rest days of {NB(BASE)}, another design in the pack, laid in new weeks so that no two closing weeks come together, where {NB(BASE)} has four in a row',
+            what=None,   # 9 Nov 2026: it named Common Ground, discarded that day; "seven of today's shift times" would only repeat the new-times sentence below
             adds='This one adds: nothing over 8h 30m on any day, and the closest Saturday fit',
             costs='This one costs: the fewest finishes before 14:00, and four at the open every day',
             add_notes=[f'no shift over 8h 30m on any day and every closer {F["closerWk"]}, where both have a 9-hour Sunday, the 09:00–18:00, and Saturday closers of {B6["closerSat"]} ({BVn}) and {L["closerSat"]} ({LCn})',
@@ -882,7 +887,7 @@ def why_notes(st, lo, hi):
                 f'{st["beside_note"]} '
                 f'Every closing shift is {lo} to {hi} minutes shorter than today’s. '
                 f'The costs it shares with all three are in the bar: {F["late23"]} finishes a year at 23:00 or later against {T["late23"]}, and {F["sat"]} Saturdays against {T["sat"]}.')
-    return (f'{st["what"]}. It is one of three shortlisted designs, with {andl([NB(n) for n in PEERS])}; all three meet the nine December rules, keep today’s leave '
+    return ((f'{st["what"]}. It is' if st['what'] else f'{NAME} is') + f' one of three shortlisted designs, with {andl([NB(n) for n in PEERS])}; all three meet the nine December rules, keep today’s leave '
             'and never put two closing weeks side by side, cover weeks aside. '
             + (f'{cover_sandwich()} ' if cover_sandwich() else '') +
             f'What it adds, against the other two: {"; ".join(st["add_notes"])}. '
@@ -1123,7 +1128,7 @@ CG_ONLY = [(re.compile(p_), ok) for p_, ok in (
 plain = lambda t: t.replace('\u00a0', ' ').replace('\u2060', '')
 # every design the tooling knows by a name of two words: a mention with an ordinary space, before the rename, is either this
 # design (NAME) or Common Ground's own text (BASE, renamed), so any other is a sentence of Common Ground's deck left in place
-OTHERS = sorted({n for n in list(dp.IDS) + list(FIG) + ['Fair Share', 'Grand Tour', 'Closing Time', 'Short Openers', 'Open Return', 'Second Look', 'Home Grown'] if ' ' in n})
+OTHERS = sorted({n for n in list(dp.IDS) + list(FIG) + ['Fair Share', 'Grand Tour', 'Closing Time', 'Short Openers', 'Open Return', 'Second Look', 'Home Grown', 'Balanced V5'] if ' ' in n})
 
 def rename(d):
     for root, _, files in os.walk(d):
@@ -1142,7 +1147,8 @@ def rename(d):
         wb.save(xp)
 
 def build(who):
-    src, out = os.path.join(OUT, f'{BASE.replace(" ", "-")}-for-{who}.pptx'), os.path.join(OUT, f'{NAME.replace(" ", "-")}-for-{who}.pptx')
+    bf = f'{BASE.replace(" ", "-")}-for-{who}.pptx'   # the base's finished deck: in deck-template/ since 9 Nov 2026 (fresh.mjs BASES)
+    src, out = os.path.join(OUT if os.path.exists(os.path.join(OUT, bf)) else dp.BASE_DECKS, bf), os.path.join(OUT, f'{NAME.replace(" ", "-")}-for-{who}.pptx')
     d = tempfile.mkdtemp(); zipfile.ZipFile(src).extractall(d)
     try:
         texts = lambda: [(f, html.unescape(t[0] or t[1])) for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml')
@@ -1169,6 +1175,11 @@ def build(who):
         left = [f'{f}: {t[:90]!r}' for f, t in texts() for rx, ok in CG_ONLY if NAME not in ok and rx.search(plain(t))]
         left += [f'{f}: {t[:90]!r}' for f, t in texts() if re.search(r'Even.Step|Short.Run|In.Step|CG-26|ES-26|SR-26|IS-26|03af96b2', t)
                  or (NAME != 'Middle Ground' and 'Common' in t and 'Ground' in t)]
+        # NO DESIGN OUT OF THE PACK FOR GOOD, ANYWHERE (9 Nov 2026: Common Ground, Crossover and Balanced V5 among them): each part's
+        # text read whole across its runs, its spaces made plain, against regenerate.mjs's RETIRED_CODES (deck-polish.py RETIRED)
+        whole = {os.path.relpath(os.path.join(r, f), d): ' '.join(plain(html.unescape(re.sub(r'<[^>]+>', ' ', open(os.path.join(r, f), encoding='utf-8').read()))).split())
+                 for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml')}
+        left += [f'{f}: names {n}, out of the pack for good' for f, x in whole.items() for n in dp.RETIRED if n in x]
         chart = f'{d}/ppt/charts/chart1.xml'
         if os.path.exists(chart):
             cx = open(chart, encoding='utf-8').read()

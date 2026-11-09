@@ -73,12 +73,15 @@ if (process.argv[1]?.endsWith('closing.mjs')) {
     const { existsSync } = await import('node:fs');
     const R = new URL('../', import.meta.url).pathname;
     const grid = f => { const at = PACK_DIRS.map(d => `${R}${d.replace(/^links-26\/?/, '')}/${f}`).filter(existsSync); return load(at[0]); };
+    const kept = f => load(new URL(f, import.meta.url));   // a grid kept in the tooling, out of the pack
     const pins = [
       ["today's link", today().patterns, { closeRun: 1, close14: 5, close21: 6, swNoBreak: 13, open0620: 62.4, lerl9: 0 }],
       ['Level Crossing', grid('Level-Crossing-LC-26-T10.json'), { closeRun: 1, close14: 7, close21: 7, swNoBreak: 0, open0620: 58, lerl9: 0 }],
       ['Middle Ground', grid('Middle-Ground-MG-26-T8.json'), { closeRun: 1, close14: 7, close21: 10, swNoBreak: 2, open0620: 48, lerl9: 0 }],
-      ['Crossover', grid('Crossover-CO-26-T10.json'), { closeRun: 4, close14: 11, close21: 16, swNoBreak: 0, open0620: 58, lerl9: 0 }],
-      ['Common Ground', grid('Common-Ground-CG-26-T8.json'), { closeRun: 4, close14: 10, close21: 15, swNoBreak: 2, open0620: 48, lerl9: 0 }],
+      // CROSSOVER AND COMMON GROUND, DISCARDED ON 9 NOV 2026, are still the only rotas with four closing weeks in a row. Their grids
+      // stay in the tooling, because Level Crossing and Middle Ground were laid from them, so these two pins read them there
+      ['Crossover', kept('crossover.json'), { closeRun: 4, close14: 11, close21: 16, swNoBreak: 0, open0620: 58, lerl9: 0 }],
+      ['Common Ground', kept('common-ground.json'), { closeRun: 4, close14: 10, close21: 15, swNoBreak: 2, open0620: 48, lerl9: 0 }],
       // the long earlies: In Step's 40 a year were pinned here until it was deleted (8 Nov 2026); Short Run's 20 are now
       ['Short Run', grid('Short-Run-SR-26-F1.json'), { closeRun: 3, close14: 9, close21: 11, swNoBreak: 0, open0620: 60, lerl9: 20 }],
       // "THREE OR MORE" ITSELF. Second Look pinned it, the one design where two weekday closes would have joined a closing week

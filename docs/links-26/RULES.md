@@ -138,5 +138,5 @@ repository, beside this file, and not in the pack:
 The Links page itself (`ROTATING_LINES` in `links-design.js`) moved to 26 lines in v24.47 on 3 October 2026; until then
 the tooling passed 26 to every app function explicitly, and it still does. The three shortlisted designs were built in
 as examples in the same release, and Closing Time, shortlisted on 30 October, joined them in v25.01. v25.02 narrowed
-them to the two then shortlisted, v25.04 made them three again, and v25.36 Common Ground, Even Step and Short Run; since
-v25.52 the app builds in the three on the shortlist now, Balanced V6, Level Crossing and Middle Ground.
+them to the two then shortlisted, v25.04 made them three again, and v25.36 changed one of the three; since v25.52 the app
+builds in the three on the shortlist now, Balanced V6, Level Crossing and Middle Ground.

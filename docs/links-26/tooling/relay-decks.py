@@ -16,7 +16,9 @@
 #     cover, slide 1 and 4 notes, slide 2's bar for Short Working, the whole "Why" slide and the colleague leave notes, now said
 #     beside the three of 8 Nov 2026, by the 5% rule the shortlist's decks use (shortlist-decks.py: clear_best).
 # Everything else is the parent's deck, part for part. Even Step's and Short Run's own decks are not touched: they set out those
-# designs as they were shortlisted on 4 Nov 2026, and the zip carries the current shortlist's decks only.
+# designs as they were shortlisted on 4 Nov 2026, and the zip carries the current shortlist's decks only. Even Step was discarded on
+# 9 Nov 2026 (fresh.mjs BASES): its pair moved to deck-template/, where Clockface's still start, and Clockface's notes no longer
+# name it (setup: A PARENT OUT OF THE PACK).
 #
 # THE GUARDS. Every edit refuses unless the text it replaces is there exactly once. Before the rename, text written here must not
 # name the parent or any other design with an ordinary space (a deliberate mention is written with a no-break space, as every deck
@@ -154,9 +156,14 @@ def story():
     check(f'the change of start week to week larger than {PARENT}’s; for Short Working, a week more on one shift time',
           H(F['step']) > H(PF['step']) and ('oneTurn' not in DIFFERS[NAME] or first(F['oneTurn']) == first(PF['oneTurn']) + 1))
     check(f'a badly placed cover week makes a lighter seven days than on {PARENT}', H(F['h55']) < H(PF['h55']))
-    st['what'] = (f'{NAME} has the duties, rest days and early and late weeks of {pn}, another design in the pack; only which week works which shift time moved, '
-                  f'on {len(MOVED)} of the 26 lines, so that no two closing weeks come together, where {pn} has {NUMW[closing_run(Q)]} in a row')
-    st['beside'] = (f'Against {pn}, {more}. Every other figure is {pn}’s but one: a badly placed cover week can make seven days of {F["h55"]} with 8-hour duties, not {PF["h55"]}.')
+    # A PARENT OUT OF THE PACK (9 Nov 2026): Even Step, discarded that day, is a base (fresh.mjs BASES), where these decks start
+    # but which the pack no longer holds, so the notes do not name it: Clockface's say what it is in the shared sentences, and
+    # the first sentence and the two set beside the parent go. Short Working's parent, Short Run, is in the pack, and stays named
+    if PARENT in dp.BASE_GRIDS: st['what'] = st['beside'] = None
+    else:
+        st['what'] = (f'{NAME} has the duties, rest days and early and late weeks of {pn}, another design in the pack; only which week works which shift time moved, '
+                      f'on {len(MOVED)} of the 26 lines, so that no two closing weeks come together, where {pn} has {NUMW[closing_run(Q)]} in a row')
+        st['beside'] = (f'Against {pn}, {more}. Every other figure is {pn}’s but one: a badly placed cover week can make seven days of {F["h55"]} with 8-hour duties, not {PF["h55"]}.')
     return st
 
 def why_notes(st):
@@ -164,11 +171,12 @@ def why_notes(st):
     check('every closing shift shorter than today’s', lo > 0)
     check('the costs it shares with all three, as the bar says them', all(FIG[n]['late23'] == F['late23'] and FIG[n]['sat'] == F['sat'] for n in SHORT))
     check('like all three, all 9 December rules and no two closing weeks side by side', F['met'] == '9' and all(o['met'] == '9' for o in O.values()))
-    return (f'{st["what"]}. It is not on the shortlist: it was drawn after it, and is set here beside the three shortlisted designs, {andl([NB(n) for n in SHORT])}. '
+    return ((f'{st["what"]}. It is' if st['what'] else f'{NAME} is') + f' not on the shortlist: it was drawn after it, and is set here beside the three shortlisted designs, {andl([NB(n) for n in SHORT])}. '
             'Like them it meets the nine December rules and never puts two closing weeks side by side, cover weeks aside. '
             f'What it adds, against all three: {"; ".join(st["add_notes"])}. '
             f'What it costs, against all three: {"; ".join(st["cost_notes"])}. '
-            f'{st["beside"]} '
+            + (f'{st["beside"]} ' if st['beside'] else '') +
+            f''
             f'Every closing shift is {lo} to {hi} minutes shorter than today’s. '
             f'The costs it shares with all three are in the bar: {F["late23"]} finishes a year at 23:00 or later against {T["late23"]}, and {F["sat"]} Saturdays against {T["sat"]}.')
 
@@ -317,7 +325,8 @@ def rename(d):
         wb.save(xp)
 
 def build(who):
-    src = os.path.join(OUT, f'{PARENT.replace(" ", "-")}-for-{who}.pptx')
+    pf = f'{PARENT.replace(" ", "-")}-for-{who}.pptx'   # a base's finished deck is in deck-template/ since 9 Nov 2026 (fresh.mjs BASES)
+    src = os.path.join(OUT if os.path.exists(os.path.join(OUT, pf)) else dp.BASE_DECKS, pf)
     out = os.path.join(OUT, f'{NAME.replace(" ", "-")}-for-{who}.pptx')
     d = tempfile.mkdtemp(); zipfile.ZipFile(src).extractall(d)
     try:
@@ -340,10 +349,13 @@ def build(who):
         why = 'ppt/notesSlides/notesSlide7.xml' if who == 'managers' else None
         whole = {os.path.relpath(os.path.join(r, f), d): ' '.join(plain(html.unescape(re.sub(r'<[^>]+>', ' ', open(os.path.join(r, f), encoding='utf-8').read()))).split())
                  for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml')}   # each part's text read across its runs, so a name split over two runs is seen
-        left = [f'{f}: {n}' for f, x in whole.items() for n in OLD_SHORTLIST if n in (x.replace(PARENT, '') if f == why else x)]
+        kept = PARENT not in dp.BASE_GRIDS   # a parent still in the pack may be named in the "Why" notes; a base nowhere (9 Nov 2026)
+        left = [f'{f}: {n}' for f, x in whole.items() for n in OLD_SHORTLIST if n in (x.replace(PARENT, '') if f == why and kept else x)]
         left += [f'{f}: {m.group(0)!r}' for f, x in whole.items() for m in STALE.finditer(x)]
         left += [f'{f}: {c}' for f, x in whole.items() for c in (PCODE, PFP) if c in x]
-        if why and NB(PARENT) not in open(os.path.join(d, why), encoding='utf-8').read(): left.append(f'{why}: does not set {NAME} beside {PARENT}')
+        # no design out of the pack for good, anywhere, however its spaces are written (9 Nov 2026; deck-polish.py RETIRED)
+        left += [f'{f}: names {n}, out of the pack for good' for f, x in whole.items() for n in dp.RETIRED if n in x]
+        if why and kept and NB(PARENT) not in open(os.path.join(d, why), encoding='utf-8').read(): left.append(f'{why}: does not set {NAME} beside {PARENT}')
         for k in DIFFERS[NAME]:
             pat = re.compile(rf'\b{first(PF[k])} of (the )?21\b') if k == 'oneTurn' else re.compile(re.escape(PF[k]))
             left += [f'{f}: {PARENT}’s {k} {m.group(0)!r}' for f, x in whole.items() if f != why for m in pat.finditer(x)]
