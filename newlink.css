@@ -9,6 +9,11 @@
    three-surface model, the layer a button belongs on — with navy type at full strength, and the chosen one fills with
    the page's teal (v25.16; it was navy with a gold edge — shared.css → "CHOSEN = THE PAGE'S COLOUR"). Nothing a reader
    can press is grey-on-grey or translucent.
+
+   ONE BUTTON, ONE CORNER (the 9 Nov 2026 polish). Everything a reader can press wears the app's button corner,
+   `--radius-button`, as v25.12 settled for every button and tab in the app; a PILL here is always a label (the flag
+   above each proposal's weeks, a file's "PDF · 8 pages"), never a control. And every white button wears the same grey
+   edge at rest: teal is what CHOSEN looks like on this page, so an edge in it read as three things already chosen.
    ========================================================================= */
 
 body {
@@ -84,8 +89,8 @@ body {
     height: 100%;
     min-width: 0;
     padding: 10px 6px 8px;
-    border: 1.5px solid var(--al);
-    border-radius: var(--radius-md);
+    border: 1.5px solid var(--border-mid);
+    border-radius: var(--radius-button);
     background: white;
     box-shadow: var(--shadow-1);
     font-family: var(--font-sans);
@@ -120,18 +125,20 @@ body {
 /* ── Prose ────────────────────────────────────────────────────────────────────────────────────── */
 .nl-lead { margin: 0 0 8px; color: var(--text-dark); line-height: 1.5; }
 .nl-lead:last-child { margin-bottom: 0; }
+/* A proposal's name heading its files, drawn as the weeks' caption draws it: at the rows' own 14px bold it read as one
+   more row (the 9 Nov 2026 polish). */
 .nl-sub {
-    margin: 14px 0 6px;
+    margin: 18px 0 8px;
     color: var(--primary-blue);
-    font-size: var(--type-body);
-    font-weight: 700;
+    font-size: var(--type-medium);
+    font-weight: 800;
 }
 .nl-sub:first-child { margin-top: 0; }
 .nl-list { margin: 0; padding-left: 20px; color: var(--text-dark); line-height: 1.5; }
 .nl-list li + li { margin-top: 6px; }
 .nl-list li::marker { color: var(--primary-blue); }
-/* What has changed is a plain list, as every other list here: five gold edges read as five notices, and gold on this page
-   marks the one thing chosen (the review, 2 Nov 2026). */
+/* What has changed is a plain list, as every other list here: five gold edges read as five notices (the review,
+   2 Nov 2026). Gold on this page now marks only the "Nothing is decided" callout. */
 .nl-note { margin: 8px 0 0; color: var(--text-light); font-size: var(--type-small); line-height: 1.45; }
 .nl-gist { margin: 0 0 10px; color: var(--text-dark); line-height: 1.5; }
 
@@ -181,7 +188,7 @@ body {
     min-width: 0;
     padding: 9px 8px;
     border: 1.5px solid var(--border-mid);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-button);
     background: white;
     box-shadow: var(--shadow-1);
     color: var(--primary-blue);
@@ -280,7 +287,7 @@ body {
     gap: 6px;
     padding: 8px 14px;
     border: 1.5px solid var(--border-mid);
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-button);
     background: white;
     box-shadow: var(--shadow-1);
     color: var(--primary-blue);
@@ -356,6 +363,9 @@ body {
 /* Longhands: the `border` shorthand would reset the colour each kind gives its swatch (above, at equal specificity), and
    the Early and Late swatches drew a dark edge their cells do not have (the review, 2 Nov 2026). */
 .nl-swatch { flex: 0 0 auto; width: 14px; height: 14px; border-width: 1px; border-style: solid; border-radius: 3px; }
+/* A rest day's cell is near-white on a near-white card; at 14px its own hairline vanished and the key showed a gap where
+   its square should be (the 9 Nov 2026 polish). The CELL keeps its hairline: 26 rows of firm edges would shout. */
+.nl-key .nl-swatch.nl-d--rest { border-color: var(--border-mid); }
 /* One proposal at a time on a phone — the chosen one; all three side by side on a wide screen (Desktop, below). */
 .nl-weeks-one:not(.is-chosen) { display: none; }
 .nl-weeks-one:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-md); }
@@ -369,7 +379,7 @@ body {
     gap: 10px;
     padding: 10px 12px;
     border: 1.5px solid var(--border-mid);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-button);
     background: white;
     box-shadow: var(--shadow-1);
     color: var(--primary-blue);
@@ -403,7 +413,11 @@ body {
    145px cells, a default tab and 40% of every text card empty was the review's finding (2 Nov 2026). */
 @media (min-width: 1024px) {
     .nl-lead, .nl-callout, .nl-gist, .nl-note, #nlSayList .nl-list, #nlHowList .nl-list { max-width: 72ch; }
-    #nlChangesList .nl-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 44px; }
+    /* Two COLUMNS the list flows down, not a grid of rows: a row is as tall as its taller item, so a two-line point beside
+       a four-line one left a hole under it, and the points read left, right, left (the 9 Nov 2026 polish). Spacing is
+       padding, not margin: a margin at the top of the second column is kept by some engines and dropped by others. */
+    #nlChangesList .nl-list { columns: 2; column-gap: 44px; margin-bottom: -8px; }   /* the last point's padding back */
+    #nlChangesList .nl-list li { padding-bottom: 8px; break-inside: avoid; }
     #nlChangesList .nl-list li + li { margin-top: 0; }
     .nl-gists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
     .nl-gists li:nth-child(2) { border-top: none; padding-top: 0; }
