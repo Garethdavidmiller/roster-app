@@ -21,7 +21,7 @@ import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
 import { kindBlocks } from './blocks.mjs';
 import { scoreOrder } from '../../../links-adjacency.js';
-import { SHORTLIST } from './fresh.mjs';
+import { SHORTLIST, BASES } from './fresh.mjs';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
 // Only the shortlist's decks were shipped from 3 Oct 2026 (owner): Second Nature's, Second Wind's and Second Sight's were
@@ -31,15 +31,22 @@ const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url
 // decks stayed in the pack off the shortlist (owner: "keep the other presentations in the pack, just not the shortlist";
 // fresh.mjs → DECKS_KEPT), so all eight are here. Common Ground's were made earlier that day in a folder outside the pack,
 // which went when they joined it. On 8 Nov 2026 the shortlist became Balanced V6, Level Crossing and Middle Ground, and their
-// six decks were drawn the same day from Common Ground's (shortlist-decks.py); the eight earlier decks stay in presentations/,
-// out of the zip, and are still held to the grids here.
+// six decks were drawn the same day from Common Ground's (shortlist-decks.py); the earlier decks stay in presentations/,
+// out of the zip, and are still held to the grids here — six of them since In Step's two were deleted with it, the same day
+// (owner: "Delete in step, even keel, open return, short openers and second look from the pack and repo"). Balanced V10's two were drawn later that day, beside the shortlist and
+// not on it (owner: "For now leave the shortlist until I see Balanced v10"), the same way (shortlist-decks.py → BESIDE).
+// Clockface's and Short Working's were drawn the same evening from Even Step's and Short Run's finished decks, whose duties and
+// rest days they keep (relay-decks.py), beside the shortlist too. On 9 Nov 2026 Common Ground and Even Step were discarded
+// (owner: "Discard those three and balanced v5 now please, very carefully"): their decks are no presentations of the pack's
+// any more, so they are not checked here, but they are where the two builders above start, so they moved to deck-template/
+// and --print still gives the two designs' figures, read from their grids in the tooling (fresh.mjs → BASES).
 const DECKS = [['Balanced-V6-for-colleagues.pptx', 'Balanced V6'], ['Balanced-V6-for-managers.pptx', 'Balanced V6'],
+  ['Balanced-V10-for-colleagues.pptx', 'Balanced V10'], ['Balanced-V10-for-managers.pptx', 'Balanced V10'],
   ['Level-Crossing-for-colleagues.pptx', 'Level Crossing'], ['Level-Crossing-for-managers.pptx', 'Level Crossing'],
   ['Middle-Ground-for-colleagues.pptx', 'Middle Ground'], ['Middle-Ground-for-managers.pptx', 'Middle Ground'],
-  ['Even-Step-for-colleagues.pptx', 'Even Step'], ['Even-Step-for-managers.pptx', 'Even Step'],
-  ['Common-Ground-for-colleagues.pptx', 'Common Ground'], ['Common-Ground-for-managers.pptx', 'Common Ground'],
   ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run'],
-  ['In-Step-for-colleagues.pptx', 'In Step'], ['In-Step-for-managers.pptx', 'In Step']];
+  ['Clockface-for-colleagues.pptx', 'Clockface'], ['Clockface-for-managers.pptx', 'Clockface'],
+  ['Short-Working-for-colleagues.pptx', 'Short Working'], ['Short-Working-for-managers.pptx', 'Short Working']];
 
 const hm = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
 const span = s => String(s).replace(/(\d+)h(\d\d)(?!m)/g, '$1h $2m');                 // plain.mjs's "8h40" → the decks' "8h 40m"
@@ -174,6 +181,9 @@ if (process.argv.includes('--print')) {   // every figure a deck row can quote, 
   for (const name of new Set([...DECKS.map(([, n]) => n), ...SHORTLIST])) { const f = stats.find(s => s.name === name);
     if (!f) throw new Error(`deck-check: no proposal called ${name}`);
     const j = JSON.parse(readFileSync(f.url, 'utf8')); out[name] = figures(j.patterns ?? j, LINES, TA); }
+  // THE BASES (9 Nov 2026): out of the pack, so not in the folders, but a builder starts from each — read from the tooling
+  for (const b of BASES) { if (stats.some(s => s.name === b.name)) throw new Error(`deck-check: ${b.name} is a base, out of the pack, and is shipped too`);
+    const j = JSON.parse(readFileSync(new URL(b.file, import.meta.url), 'utf8')); out[b.name] = figures(j.patterns ?? j, LINES, TA); }
   console.log(JSON.stringify(out, null, 1)); process.exit(0);
 }
 for (const [file, name] of DECKS) { const dir = DIR;

@@ -28,9 +28,15 @@ TODAY = ['06:20-13:35', '06:20-13:45', '06:20-14:00', '06:20-14:20', '06:20-14:5
          '08:30-16:30', '11:00-19:30', '12:00-20:00', '13:00-21:00', '13:30-21:00', '13:30-22:00', '14:00-22:30',
          '14:30-22:00', '14:30-23:25', '14:45-23:55', '15:15-23:55']
 PLAN = ['15:45-23:55', '07:15-15:30', '13:30-22:30', '06:20-14:20', '14:00-22:30', '06:20-14:50', '14:30-22:30']
-SHORTLIST = ['Short-Run-SR-26-F1', 'Second-Edition-SE-26-F1', 'Even-Keel-EK-26-H1', 'Long-Break-LB-26-F1']
+SHORTLIST = ['Short-Run-SR-26-F1', 'Second-Edition-SE-26-F1', 'Long-Break-LB-26-F1']
+# EVEN KEEL'S TIMES, KEPT WHEN IT WAS DELETED (8 Nov 2026, README.md -> "Five designs deleted"). It was the fourth design of the
+# shortlist of 3 Oct 2026 above, and its sheet went with it; its shift times are written here so that the times a repair may
+# use, and so every repair already run, stay as they were. Three are in no other list here: 06:20-15:00, 07:45-16:45 and
+# 14:45-22:30.
+EVEN_KEEL = ['06:20-14:00', '06:20-14:20', '06:20-14:50', '06:20-15:00', '07:15-15:45', '07:45-16:45', '09:00-18:00',
+             '11:00-19:30', '14:00-22:30', '14:30-22:00', '14:30-22:30', '14:45-22:30', '15:15-23:25', '15:15-23:55', '15:45-23:55']
 def universe(base):
     """The shift times a repair may use: the design's own, today's, the plan's office and closer, and the shortlist's."""
-    u = times_of(base) | set(TODAY) | set(PLAN)
+    u = times_of(base) | set(TODAY) | set(PLAN) | set(EVEN_KEEL)
     for f in SHORTLIST: u |= times_of(load(os.path.join(TOOLING, '..', 'proposals', f + '.json')))
     return sorted(u, key=lambda s: (st(s), en(s)))

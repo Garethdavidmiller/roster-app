@@ -203,7 +203,10 @@ const money = (x, word) => x ? `about £${x}${word ? ` ${word}` : ''}` : 'none';
 const GROUPS = [
   { who: '…prefer earlies',
     gist: `Fewer, longer earlies on every link, in longer runs; Balanced V6’s runs are the shortest of the three.`,
+    // THE OPENING SHIFTS (owner, 8 Nov 2026: "Most colleagues prefer the opening shifts, but not all"): more is better for the
+    // reader who prefers earlies, so the row is ranked high, as the earlies are; the lates band does not carry it
     rows: [row('Earlies a year', c => v(c.f.earlyYear, +c.f.earlyYear), 'high'),
+      row('Starting at 06:20, the open, a year', c => v(c.f.open0620, +c.f.open0620), 'high'),
       row('Average early', c => v(hm(H(c.f.avgEarly)), H(c.f.avgEarly)), 'low'),
       row('Earlies over 8h 30m, a year', c => v(`${c.longEarly}`, c.longEarly), 'low'),
       row('Earlies finishing at 13:35 or 13:45, a year', c => v(c.f.shortYear, +c.f.shortYear), 'high'),

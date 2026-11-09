@@ -1,0 +1,13 @@
+{
+ "date": "8 November 2026",
+ "identity": {
+  "table": "Even Step's duties, every one, unchanged (results/clockface-table.json, counted from Even Step's grid since the Saturday office closed at 22:30): a weekday of 7,450 minutes (06:20-13:45, 06:20-14:20 x2, 06:20-14:50 x2, 07:15-15:45 x2, 12:15-20:30, 14:00-22:30 x4, 15:45-23:55 x3), a Saturday of 6,850 (06:20-14:00, 06:20-14:20 x2, 06:20-14:50 x2, 08:00-16:30 x2, 14:00-22:30, 14:30-22:00, 14:30-22:30 x2, 15:45-23:55 x3) and a Sunday of 07:15-15:45 x4, 09:00-18:00, 14:30-22:30 x2 and 15:15-23:25 x3. So no duty over 8h 30m Monday to Saturday, every early one of today's times, the 13:45 finish every weekday, the 15:45 closers, the staffing and the contract are Even Step's",
+  "seed": "Even Step's rest days and its early and late weeks held, and only which week works which shift time chosen again by the exact solver (exact-rota.py with SKELETON=even-step.json, FAMILY=1 and CLOSE_APART=2, every floor at Even Step's own level: H55=3405, H7=3010, LV_BEST=28, LV_FOUR=15, LV_WORST=20, FF11_FIXED=9, FF11_WORST=12, ISO=4, HEAVY=2520, LIGHT=1530, REST=875, GAP=5, BLOCK=5, FF17=-3, ONE_MIN=18): no two neighbouring weeks with a weekday closer in both, then OBJ=gentle with GENTLE_STARTS=15:45 and GENTLE_SHARED=0, and among the optimal layouts the fewest cells moved from Even Step (NEAR=). Optimal at both steps; FIX= checks this grid against that model, and the commands are in exact-rota.py's header",
+  "lineage": "Asked for on 8 Nov 2026, when the owner named the two re-lays of \"The shortlist redrawn for closing weeks apart\" (\"Clockface, Short Working\"): Even Step given what Balanced V8 was given for Balanced V10, its duties and rest days kept and its weeks chosen again so that no two closing weeks sit side by side, with 16 cells moved on 6 lines (3, 13, 15, 22, 23 and 26). Against Even Step: never two closing weeks together (Even Step has weeks 13 and 14 side by side), at most 6 closing duties in any 14 days and 6 in any 21 (9 and 9), and up to 56h 40m in seven days if a cover week falls badly (56h 45m). It pays with a week-to-week change of start of 1h 34m (1h 30m), its five new shift times on 12 of the 21 working weeks (11), and 10 backward and 13 forward start-time steps (9 and 12). Everything else is Even Step's: the 18 weeks of 21 on one shift time, the leave, the single rest days, the weekends, the runs, the shortest rest, the heaviest and lightest weeks, the fit to the trains and the fatigue warnings, on the same checks"
+ },
+ "parent": {
+  "file": "even-step.json",
+  "name": "Even Step",
+  "code": "ES-26-T5"
+ }
+}

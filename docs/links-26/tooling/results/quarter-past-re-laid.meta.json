@@ -1,8 +1,0 @@
-{
- "date": "4 November 2026",
- "identity": {
-  "table": "Quarter Past's own (QP-26-EXT): every shift time and every day's headcount unchanged",
-  "seed": "— (a CP-SAT search; the grid is the record, and exact-rota.py's FIX= checks it)",
-  "lineage": "Quarter Past (QP-26-EXT · dfdbd724) with its weeks laid out again on 4 Nov 2026, to the owner's brief: 14 days' leave to buy 30 days off, Sundays made not available; no fatigue warning; then the most full weekends, the fewest single rest days and the most weeks on one shift time. The rest days were searched first, with the leave figure as a rule and the Friday before every cover week kept off; Quarter Past's times were then laid onto them (exact-rota.py, SKELETON= and FAMILY=1)."
- }
-}

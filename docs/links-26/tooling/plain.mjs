@@ -213,9 +213,9 @@ function front({ T, P, meta, pages, coverHead }) {
   // pushed Polished Clean's longest concern list into the footer)
   add(lateDiff >= 2, bad, 30, `More late finishes — about ${Math.round(pp.late23)} a year each (today ${Math.round(tp.late23)})`);
   add(lateDiff <= -2, good, 30, `Fewer late finishes — about ${Math.round(pp.late23)} a year each (today ${Math.round(tp.late23)})`);
-  // the 06:20 open was a page-1 tile until the staff tiles left page 1 (owner, 30 Sep 2026); it is a bullet now
-  add(openDiff >= 2, bad, 42, `More 06:20 starts — about one extra every ${weeksWords(52 / openDiff)} weeks each`);
-  add(openDiff <= -2, good, 42, `Fewer 06:20 starts — about one fewer every ${weeksWords(52 / -openDiff)} weeks each`);
+  // THE 06:20 STARTS ARE NEITHER A GAIN NOR A COST (owner, 8 Nov 2026: "Most colleagues prefer the opening shifts, but not all"):
+  // until then more of them was a concern here and fewer a gain, the wrong way round for most colleagues, and the right way for
+  // some. A preference, so they stay out of both boxes, as the decks' slide 7 keeps them neutral; the tile and page 2 give the count
   // Closing shifts are judged SHIFT BY SHIFT (independent check, 29 Sep 2026): an average across a day's closers said
   // "every closing shift shorter" of a Saturday still carrying today's 9h10 closer beside two shorter ones.
   const cl = ['wk', 'sat', 'sun'].map(k => [k, pp.closerAll[k], tp.closerAll[k]]).filter(([, p, t]) => p.length && t.length);
@@ -366,7 +366,10 @@ function front({ T, P, meta, pages, coverHead }) {
   const dayWord = d => d === 'weekday' ? 'weekdays' : d, sameTail = sameDays.length ? `; ${andList(sameDays.map(dayWord))} about the same` : '';
   const trainsV = closerDays.length === 3
     ? (worseWeekdays.length ? ['Mostly', `closer than today — less close on ${andList(worseWeekdays)}`, 'warn'] : ['Yes', 'closer than today, weekdays and weekend', 'good'])
-    : closerDays.length && !furtherDays.length ? ['Partly', `closer than today on ${andList(closerDays.map(dayWord))}${sameTail}`, 'good']
+    // A PARTLY IS NOT GREEN (whole-pack polish, 9 Nov 2026): Balanced V5's "Partly" wore the green of a full "Yes" while page 2
+    // leaves the same row unshaded, its weekday "about the same" (fitCmp). Closer on some days and less close on none is a fact
+    // for colleagues to weigh, so the tile takes the neutral navy bar, as page 2 takes no colour
+    : closerDays.length && !furtherDays.length ? ['Partly', `closer than today on ${andList(closerDays.map(dayWord))}${sameTail}`, 'info']
     : !closerDays.length && !furtherDays.length ? ['No', 'about the same as today on every day', 'warn']
     : closerDays.length === 0 ? ['No', `less close than today on ${furtherDays.length === 3 ? 'every day' : andList(furtherDays.map(dayWord))}${sameTail}`, 'warn']
     : ['Partly', `closer than today on ${andList(closerDays.map(dayWord))} only`, 'warn'];
@@ -381,7 +384,7 @@ function front({ T, P, meta, pages, coverHead }) {
       present.length ? `avoidable ${present.length === 1 ? 'warning' : 'warnings'} in the fixed duties` : 'none in the fixed duties',
       `${present.length && presentPlain.length <= 2 ? `${esc(andList(presentPlain))} · ` : ''}today’s link has ${T.fixed.present}${worstDiffers ? ` · ${upTo}` : ''} · guidance, not a pass or fail · page 7`),
     tile(trainsV[2], 'Does staffing follow the trains better?', trainsV[0], trainsV[1],
-      `weekday · Sat · Sun ${n1f(pw)} · ${n1f(ps)} · ${n1f(psu)} (today ${n1f(tw)} · ${n1f(ts)} · ${n1f(tsu)}) · ${fitCmp(pw, tw) === 'same' ? 'lower is closer' : `on weekdays ${offWords(pw, tw) ?? 'lower is closer'}`} · page&nbsp;5`),   /* "about the same" is the verdict's own words above it (whole-pack review, 6 Nov 2026) */   // today's beside all three, as page 2 sets them (the pack review, 6 Nov 2026)
+      `<span class="tri">weekday · Sat · Sun</span><br><span class="tri">${n1f(pw)} · ${n1f(ps)} · ${n1f(psu)}</span><br><span class="tri">(today ${n1f(tw)} · ${n1f(ts)} · ${n1f(tsu)})</span><br>${fitCmp(pw, tw) === 'same' ? 'lower is closer' : `on weekdays ${offWords(pw, tw) ?? 'lower is closer'}`} · page&nbsp;5`),   /* "about the same" is the verdict's own words above it (whole-pack review, 6 Nov 2026). THREE LINES, EACH WHOLE (whole-pack polish, 9 Nov 2026): run on, the two triples broke "40.0 · / 17.3 · 29.2" and "(today 52.0 · / 65.9 · 70.2)" on every sheet, so a figure could not be told from its day */   // today's beside all three, as page 2 sets them (the pack review, 6 Nov 2026)
   ].join('');
   const failItems = [...(breaks.length ? [`<b>It cannot be run as it stands</b> — ${esc(andList(breaks))}.`] : []), ...failed.map(r => `<b>${esc(r.rule)}</b> — here ${esc(String(r.value))}`)];
   const failBox = failItems.length ? `<div class="pbox pbox-bad"><h3>${breaks.length ? (failed.length ? `What stops it being run, and the ${nWord(failed.length)} December ${failed.length === 1 ? 'rule' : 'rules'} it does not meet` : 'What stops it being run') : `The ${nWord(failed.length)} December ${failed.length === 1 ? 'rule' : 'rules'} it does not meet`}</h3><ul>${failItems.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '';
@@ -534,7 +537,7 @@ function methodPage({ meta, pages }) {
     ['Cover weeks', 'Each is marked on all seven days but worked on four, Monday to Saturday, placed by the roster clerk; its Sunday can be worked as overtime on top. A cover week counts as a full contracted week and as four days at work. Its shift times are not known yet, so the runs, rest gaps, yearly counts and fatigue warnings are worked out on the fixed duties — the cover weeks left out, and today’s link the same way. Where a cover week’s four duties could make a figure worse, the worst place they could fall, with its Sunday worked, is given beside it as “up to”, and the hard limits are tested at that worst case. Whatever is later given in a cover week must still be rostered within the normal limits.'],
     ['Sundays', 'Sunday is not in the contract: Sunday duties are overtime, as today. So “days at work” and the 35-hour week are Monday to Saturday. A Sunday off costs no annual leave.'],
     ['Each person, a year', `Every week’s duties, times 52, shared across everyone on the link — Sunday overtime included. “Days at work a year” is Monday to Saturday only: the days a week × 365 ÷ 7. ${52 % LINES === 0 ? `Fifty-two weeks are exactly ${52 / LINES === 2 ? 'two turns' : `${52 / LINES} turns`} of this link, so these are everyone’s figures whichever week they start on; today’s are averages over its 20 weeks.` : 'Somebody’s own year depends on which week they start on.'}`],
-    ['Following the trains', 'For each hour, the share of the day’s floor staff is set against the share of the day’s train service in the December 2026 timetable, each train weighted by its length; the differences are squared — so one big mismatch counts far more than several small ones — added up and multiplied by 10,000. 0 would be a perfect match; lower is closer. The staff share uses the minutes each person spends on the floor, finer than the whole-person counts on page 5, where anyone on for part of an hour counts. It measures the shape of the day, not a staffing level: an extra person in a quiet hour makes it worse although nobody is worse off. The ticket office is taken out first: it is staffed to its opening hours, not to the trains, which is why its rows on page 5 carry no match figure.'],
+    ['Following the trains', 'For each hour, the share of the day’s floor staff is set against the share of the day’s train service in the December 2026 timetable, each train weighted by its length; the differences are squared — so one big mismatch counts far more than several small ones — added up and multiplied by 10,000. Lower is closer; 0 would be a perfect match. The staff share uses the minutes each person spends on the floor, finer than the whole-person counts on page 5, where anyone on for part of an hour counts. It measures the shape of the day, not a staffing level: an extra person in a quiet hour makes it worse although nobody is worse off. The ticket office is taken out first: it is staffed to its opening hours, not to the trains, which is why its rows on page 5 carry no match figure.'],
     ['The ticket office', meta.namedOfficeP8 ?? `In the proposal, two people on every ticket-office shift, not floor cover except at the quiet ends: Monday to Saturday one of each pair is on the floor until 08:00 and from 19:30. On a Sunday one early is on the floor until 09:00; the two lates until 15:00, then both in the office, one back on the floor from 18:00 and the other from 22:00, once the office has shut at 21:40 and cashed up; a late that runs to 22:30 spends its last half hour on the floor. On a Saturday the lates stay until 22:30 to cash up after it shuts at 22:10 (today’s roster: 22:00). Today one person keeps the office on a Sunday afternoon and evening, until 22:00.${(meta.pairDays ?? []).length < 7 ? ' This rota does not mark which duties are in the office on every day, so where it does not, the office posts are assumed from its duties — page 5 shows them.' : ''}`],
     ['Rest, runs and weekends', 'The shortest gap is the single tightest one in the fixed duties, Saturday into Sunday and line into line included. The most days in a row counts Sunday overtime too; it is given for the fixed duties, with “up to” where a cover week placed as badly as it can be, its Sunday worked, would make it longer, and the 13-day limit is tested at that worst case. A full weekend off is a Saturday off then a Sunday off. The shortest gap is one gap: a rota with many rests of just over 12 hours reads the same as one with none.'],
     ['Handover', 'The overlap when one shift takes over from another. The December rules ask for 15 minutes to each closer, and 20 in the ticket office (30 on a Sunday) — page 6.'],
@@ -645,7 +648,11 @@ table.t th { border-bottom: 0 !important; } table.t thead tr:last-child th { box
 .check-row .check-icon { align-self: flex-start; margin-top: 1px; }
 /* the fatigue table: a factor's name is read in one colour; the verdict columns carry the colour */
 td.ff-title { color: var(--text-dark, #1a1a2e) !important; }
-ul.p8list { margin: 8px 0 0 16px; padding: 0; font-size: 9.2px; line-height: 1.45; color: var(--text-dark, #1a1a2e); } ul.p8list li { margin: 3px 0; } tr.ff-na-note td { font-size: 9px; color: var(--text-mid); padding-top: 5px; border-bottom: 0; }
+ul.p8list { margin: 8px 0 0 16px; padding: 0; font-size: 9.2px; line-height: 1.45; color: var(--text-dark, #1a1a2e); } ul.p8list li { margin: 3px 0; }
+/* PAGE 7'S NOTES IN TWO COLUMNS, as page 5's Good to know (whole-pack polish, 9 Nov 2026): set full width they ran about 160
+   characters a line, twice a comfortable measure. An item may run on into the second column, or the long cover-week note
+   would leave the first one short */
+ul.p8list { column-count: 2; column-gap: 20px; } ul.p8list li { margin: 0 0 4px; } tr.ff-na-note td { font-size: 9px; color: var(--text-mid); padding-top: 5px; border-bottom: 0; }
 table.pcmp { font-size: 9.8px; margin-top: 5px; } table.pcmp td { padding: 2.2px 6px; line-height: 1.28; } table.pcmp td.num, table.pcmp th.num { text-align: center; } table.pcmp { table-layout: fixed; width: 100%; } table.pcmp th:nth-child(1) { width: 29%; } table.pcmp th:nth-child(2) { width: 16%; } table.pcmp th:nth-child(3) { width: 19%; } table.pcmp th:nth-child(4) { width: 36%; }
 table.pcontents td { font-size: 10px; padding: 1.8px 6px; } table.pcontents td.num { width: 24px; font-weight: 800; color: var(--primary-blue); }
 dl.pmethod { margin: 10px 0; } dl.pmethod dt { font-weight: 800; color: var(--primary-blue); font-size: 11.5px; margin-top: 7px; } dl.pmethod dd { margin: 2px 0 0; font-size: 10.2px; line-height: 1.42; max-width: 175mm; }
@@ -684,6 +691,7 @@ table.ff .ff-plain { display: block; font-weight: 700; } table.ff .ff-orr { disp
 .cover.plain .tiles.head4 .ptile { padding: 12px 14px 13px; }
 .cover.plain .tiles.head4 .ptile b { font-size: 26px; }
 .cover.plain .tiles.head4 .ptile p, .cover.plain .tiles.head4 .ptile .q, .cover.plain .tiles.head4 .ptile small, .cover.plain .tiles.head4 .ptile span { font-size: 10.6px; line-height: 1.42; }
+.cover.plain .ptile .tri { white-space: nowrap; }   /* the trains tile's three figure lines, each whole (whole-pack polish, 9 Nov 2026) */
 .cover.plain .pcols { margin-top: 12px; gap: 14px; }
 .cover.plain .pcols .pbox { padding: 12px 16px 13px; }
 .cover.plain .pcols .pbox h3, .cover.plain .pcols .pbox .pbox-h { font-size: 12px; }
@@ -729,6 +737,10 @@ table.p5r { width: 100%; border-collapse: collapse; font-size: 9.6px; } table.p5
 table.p5r th:first-child { text-align: left; color: var(--primary-blue); } table.p5r td { text-align: center; padding: 2px 4px; font-variant-numeric: tabular-nums; } table.p5r td:first-child { text-align: left; }
 table.p5r tr.p5r-p td { font-weight: 800; } table.p5r td.up { color: var(--success-green); } table.p5r td.down { color: color-mix(in srgb, var(--warning-amber) 75%, black); }
 .p5res p { margin: 0; font-size: 9.2px; line-height: 1.4; color: var(--text-mid); } .p5res p b { color: var(--text-dark, #1a1a2e); }
+/* THE SCORE BOX'S MARK HANGS (whole-pack polish, 9 Nov 2026): centred together with its figure, the ✓ pushed each of the
+   proposal's figures 4.5pt right of today's above it. Taken out of the flow, the figure alone is centred, under today's, and
+   the mark sits at its static place, the figure's left edge, moved one mark-width and a gap further left */
+table.p5r td:has(> .pm) { position: relative; } table.p5r td > .pm { position: absolute; margin: 0; transform: translateX(calc(-100% - 3px)); }
 table.p5t tr:has(> th.floor-day) th { font-weight: 800 !important; color: var(--primary-blue) !important; }
 table.p5t tr:has(> th.floor-day) .cov-heat-cell { font-weight: 800; }
 /* THE TWO ROWS THE MATCH DOES NOT COMPARE STAY READABLE (visual review, 6 Nov 2026). Faded with opacity, their figures
@@ -758,12 +770,19 @@ table.p5t tr:has(> th.dem-day) th { font-weight: 800 !important; }
 .tboxes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 12px 0 6px; }
 .tbox { background: var(--surface-sunken); border-radius: 8px; padding: 9px 12px; box-shadow: inset 0 4px 0 var(--bar); }
 .tbox-firm { --bar: var(--success-green); } .tbox-guide { --bar: var(--primary-blue); } .tbox-unknown { --bar: var(--text-light); }
-.tbox h3 { margin: 0 0 3px; font-size: 13px; color: var(--primary-blue); } .tbox-firm h3 { color: var(--success-green); }
+/* ONE HEADING COLOUR FOR THE THREE BOXES (whole-pack polish, 9 Nov 2026): "Firm" alone wore its rule's green, so one heading
+   of three read as a verdict. The coloured rule above each box carries the scale; the headings are all navy, as every
+   heading on the page is. The leads are fixed words, two lines in two boxes and one in the third, so each lead takes two
+   lines' room and the three lists start level */
+.tbox h3 { margin: 0 0 3px; font-size: 13px; color: var(--primary-blue); } .tbox p { min-height: 2.7em; }
 .tbox p { margin: 0 0 4px; font-size: 9.4px; color: var(--text-mid); line-height: 1.35; } .tbox ul { margin: 0 0 0 14px; padding: 0; font-size: 10px; line-height: 1.45; }
 h2.pmh { font-size: 12.5px; margin: 12px 0 5px; }
 .pcards { column-count: 2; column-gap: 12px; } .pcard { break-inside: avoid; background: var(--surface-sunken); border-radius: 0 8px 8px 0; box-shadow: inset 3px 0 0 color-mix(in srgb, var(--primary-blue) 35%, white); padding: 6px 11px; margin: 0 0 7px; }
 .pcard h4 { margin: 0 0 2px; font-size: 10.6px; color: var(--primary-blue); } .pcard p { margin: 0; font-size: 9.6px; line-height: 1.42; }
 p.pimport { font-size: 9px; margin-top: 8px; }
+/* the closing note about the import file sat 6px under the right-hand column, as though it were that column's last card:
+   a hairline above it says it is the page's own last word (whole-pack polish, 9 Nov 2026) */
+p.pimport { border-top: 1px solid var(--border-light); padding-top: 5px; }
 @media print { .pm, .mk, .tag, .rpill { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 /* POLISH PASS (1 Oct 2026, owner: "aesthetic polish, using screenshots"). Nothing here moves a figure or a word.
    ONE ACCENT PER CARD, as the rule above says: page 1's "Can it work?" tiles were the one set it missed — a gold side
@@ -838,12 +857,22 @@ p.pnext { margin-top: 7px; }
 .p4shape2 table.p4shape td.num { white-space: normal; text-align: left; } .p4shape2 table.p4shape th.num { text-align: left; } .p4shape2 table.p4shape .p4nw { display: block; white-space: normal; }   /* outranks the full-width table's nowrap: a nowrap aside here ran off the page (Second Nature) */
 .p4shape2 .psub { display: block; font-size: 8.4px; color: var(--text-mid); line-height: 1.25; margin-top: 1px; font-weight: 400; }
 .p4shape2 table.t td { background: none !important; border-bottom-color: color-mix(in srgb, var(--border-mid) 60%, white); } .p4shape2 table.t th { background: none; box-shadow: inset 0 -1px 0 var(--border-mid) !important; }
-.cols.duty.bb-dense .dutyt td { padding: 3.5px 6px; font-size: 9.6px; white-space: nowrap; }   /* the room the shape table left at the foot of the page goes to the table's rows */
+.cols.duty.bb-dense .dutyt td { padding: 3.5px 4.5px; font-size: 9.6px; white-space: nowrap; } .cols.duty.bb-dense .dutyt th { padding-left: 4.5px; padding-right: 4.5px; }
+/* THE TABLE INSIDE ITS COLUMN (whole-pack polish, 9 Nov 2026): at 6px a side its no-wrap cells made the table 453px in a 441px
+   column on all 22 sheets, 12px into the 14px gutter, so its grey header band all but met the side column's panel. At 4.5px it
+   fits its column exactly and the full gutter comes back. */   /* the room the shape table left at the foot of the page goes to the table's rows */
 /* page 8: the file name is one plain token — Inter's tabular figures (.tt) widen the hyphen too, which read as a gap after each */
 p.pimport .tt { font-variant-numeric: normal; letter-spacing: 0; white-space: nowrap; }
 /* page 5: the smallest type in the set, on the page a reader holds closest; the foot of the page had the room */
 table.p5t .cov-heat-cell { font-size: 9.2px !important; height: 16px !important; }
 table.p5t tr:has(> .office-day) .cov-heat-cell, table.p5t tr:has(> .floor-day) .cov-heat-cell { font-size: 8.4px !important; height: 13px !important; }
+/* THE WEEKDAY TABLE IN THE TYPE OF THE OTHER TWO (whole-pack polish, 9 Nov 2026). Its two extra rows, today's two weekday
+   patterns, were paid for in smaller type, its labels 7% and its figures 13% under the Saturday and Sunday tables beside
+   it, while every sheet had 27 to 41px free above page 5's footer. The figures and labels are now the others' size, and only
+   its rows are a pixel tighter: 15px and 12px, not 16 and 13, which every sheet's page 5 has room for */
+table.p5t.cov-heat--dense .cov-heat-cell { height: 15px !important; font-size: 9.2px !important; }
+table.p5t.cov-heat--dense tr:has(> .office-day) .cov-heat-cell, table.p5t.cov-heat--dense tr:has(> .floor-day) .cov-heat-cell { height: 12px !important; font-size: 8.4px !important; }
+table.p5t.cov-heat--dense .cov-heat-day { font-size: 9px !important; } table.p5t.cov-heat--dense .office-day, table.p5t.cov-heat--dense .floor-day { font-size: 8.4px !important; }
 .p5 ul.p5notes { font-size: 9.3px; line-height: 1.38; } .p5 .p5legend { font-size: 9px; }
 /* page 6: the three limit cards size to their own text; the rules table gives the RULE the room (it was 190px against a 450px
    asks column, so every rule wrapped two to four lines) and its rows are nearer page 2's density */
@@ -887,6 +916,14 @@ table.ff { table-layout: fixed; }
    widened the column instead, and under the fixed one ran 55px off Second Edition's page; the hanging indent below aligns it */
 table.ff td.ff-st .ff-alt { white-space: normal; }
 table.ff td.ff-st { padding-left: calc(6px + 1.1em); text-indent: -1.1em; }
+/* PAGE 7'S AMBER IS ITS KEY'S AMBER (whole-pack polish, 9 Nov 2026). A present mark and its words were mixed 55% with black
+   (render.mjs), #432000, darker than the body text beside them, so the one state the page asks a reader to look at read as
+   black beside the key's amber chip. They wear the chip's colour now, and a cell whose headline is present is tinted as page
+   2 tints the cells it asks a reader to look at. The tint is the CELL's, not the row's: render.mjs tinted a whole row when
+   the proposal's figure was present, which the zebra then hid on every other row, so two rows in the same state differed. */
+table.ff .ff-present { color: var(--warning-amber); }
+table.ff tbody tr.ff-present td { background-color: transparent; }
+table.ff tbody tr td.ff-st.ff-present, table.ff tbody tr:nth-child(even):not(.ff-na-note) td.ff-st.ff-present { background-color: color-mix(in srgb, var(--warning-amber) 16%, white); }
 table.t.rules td:has(> .mk:first-child) { padding-left: calc(8px + 1.05em); text-indent: -1.05em; }
 /* text-indent is INHERITED, and the mark is an inline-block, so without this its glyph took the cell's -1.05em a second
    time and hung a further em into the padding, far from its words (the regression check, 1 Nov). The rules sheet's mark
@@ -903,8 +940,14 @@ h2.pmh, .p5 h2.p5gtk, h2.p5gtk { font-size: 14px; }
 table.pcmp td.up, table.pcmp tbody tr:nth-child(even) td.up { background-color: color-mix(in srgb, var(--success-green) 12%, white); }
 table.pcmp td.down, table.pcmp tbody tr:nth-child(even) td.down { background-color: color-mix(in srgb, var(--warning-amber) 16%, white); }
 .cov-sub, .p4shape2 table.p4shape td { font-variant-numeric: normal; }
+/* "one-turn weeks" under the Turns total is a label, not a cover count: it wore the cover weeks' olive (.cov-sub, render.mjs)
+   beside the row's "SP 5"s, as though the 18 were cover weeks too (whole-pack polish, 9 Nov 2026) */
+.print-grid tfoot td.tot-avg .cov-sub { color: var(--text-mid); }
 /* the colour keys in the navy headers of pages 2 and 7: each mark on a white chip in the colour it names */
 .mast .lgkp { white-space: nowrap; } .mast .lgk { display: inline-block; min-width: 1.3em; padding: 0 .12em; border-radius: 4px; background: #fff; text-align: center; font-weight: 800; line-height: 1.3; text-indent: 0; }
+/* the ▲ is a solid shape and filled its chip beside the ✓'s and ✕'s strokes; it is drawn at four fifths, by a transform, so
+   the chip keeps its size and its place on the line (whole-pack polish, 9 Nov 2026) */
+.mast .lgk-sm { display: inline-block; transform: scale(.8); }
 .mast .lgk-ok { color: var(--success-green); } .mast .lgk-warn { color: var(--warning-amber); } .mast .lgk-no { color: var(--danger-red, #b3261e); } .mast .lgk-st { color: var(--text-mid); }
 /* page 8: the closing note about the import file sat 2mm above the footer rule; the cards and headings give back 10px */
 .tboxes { margin: 8px 0 4px; } .pcard { margin-bottom: 5px; } h2.pmh { margin: 8px 0 4px; }
@@ -913,11 +956,15 @@ table.pcmp td.down, table.pcmp tbody tr:nth-child(even) td.down { background-col
    page 3 does, the cover tightens in two steps and only as far as it must — the spacing first, then the staff lists' type.
    render.mjs adds a step only to a cover that would otherwise be refused, so a cover that fits takes neither and no other
    sheet moves. Nothing is cut: every concern is still shown. */
-section.page.p1-tight h2.psec { margin: 8px 0 4px !important; }
-section.page.p1-tight .pbottom { margin-top: 8px; padding: 8px 14px; }
-section.page.p1-tight .pcaveat, section.page.p1-tight .ptakes { margin-top: 6px; }
-section.page.p1-tight .pcols { margin-top: 6px; }
-section.page.p1-tight .pcols .pbox { padding: 9px 14px 10px; }
+/* SPACING FIRST, ON ITS OWN (whole-pack polish, 9 Nov 2026). p1-snug was half of p1-tight: a cover a few pixels too long
+   took the staff lists' tighter line height with the spacing, and Balanced V6 and V9 then ended 12–17mm above the footer
+   with their lists visibly denser than Balanced V5's. Now the spacing goes first, the line height only if that is not enough,
+   and render.mjs gives back what a step freed beyond what it needed. */
+section.page.p1-snug h2.psec { margin: 8px 0 4px !important; }
+section.page.p1-snug .pbottom { margin-top: 8px; padding: 8px 14px; }
+section.page.p1-snug .pcaveat, section.page.p1-snug .ptakes { margin-top: 6px; }
+section.page.p1-snug .pcols { margin-top: 6px; }
+section.page.p1-snug .pcols .pbox { padding: 9px 14px 10px; }
 section.page.p1-tight .pcols .pbox ul { line-height: 1.28; }
 section.page.p1-tighter .pcols .pbox ul { font-size: 9.6px; line-height: 1.24; }
 section.page.p1-tighter .pbottom { font-size: 12.6px; line-height: 1.45; }
@@ -1035,7 +1082,8 @@ function shiftPage(s, { T, P }) {
   const fresh = P.tableRows.filter(r => !tSet.has(r.time)), kept = P.tableRows.filter(r => tSet.has(r.time)), gone = T.tableRows.filter(r => !pSet.has(r.time));
   const when = r => andList([r.weekday ? 'weekdays' : '', r.sat ? 'Saturdays' : '', r.sun ? 'Sundays' : ''].filter(Boolean));
   const len = m => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
-  const kind = r => r.family === 'E' ? 'early' : 'late';
+  // capitalised, as the duty table beside the cards writes its families: "8h 40m · Early" (whole-pack polish, 9 Nov 2026)
+  const kind = r => r.family === 'E' ? 'Early' : 'Late';
   const learn = `<div class="p4learn">
     <div class="p4n"><b>${P.tableRows.length}</b><span>shift times in all</span></div>
     <div class="p4n"><b>${kept.length}</b><span>already worked today</span></div>
@@ -1113,7 +1161,7 @@ function hourAnswer(s, { T, P, meta }) {
 /** Page 6 — the rules. Three hard limits as cards (each a number against its limit), a count for the December rules,
  *  and the full table. The "Still to settle" list goes: a failed rule is shaded in the table and named on page 1. */
 function rulesPage(s, { T, P, meta }) {
-  s = retitle(s, 'The rules', 'Hard limits and the December 2026 rules', `Three hard limits a rota must meet to be run at all, and the ceiling of ${DAYS_CEILING} contracted days a year, then the ${['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven'][meta.decOf] ?? meta.decOf} December 2026 staffing rules, each with today’s link beside it.`);
+  s = retitle(s, 'The rules', 'Hard limits and the December 2026 rules', `Three hard limits a rota must meet to be run at all, and the ceiling of ${DAYS_CEILING} contracted days a year, then the ${['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven'][meta.decOf] ?? meta.decOf} December 2026 staffing rules, each with today’s link beside it. <b>✓</b> met · <b>✕</b> not met — against the rule, not against today.`);
   const rows = [...s.matchAll(/<div class="check-row check-(good|bad|warn)"><span class="check-icon[^"]*">[^<]*<\/span><div class="check-body"><b>([^<]*)<\/b>[\s\S]*?<div class="check-sub">([\s\S]*?)<\/div><\/div><\/div>/g)];
   if (rows.length !== 3) throw new Error(`plain appendix: expected 3 hard-limit rows, found ${rows.length}`);
   const hm2 = m => m == null ? '—' : `${Math.floor(m / 60)}h&nbsp;${String(m % 60).padStart(2, '0')}m`;
@@ -1133,6 +1181,9 @@ function rulesPage(s, { T, P, meta }) {
     : `<span class="rpill rpill-ok">✓ ${meta.decMet} of ${meta.decOf} met${waived.length ? ` — the other ${waived.length === 1 ? 'one' : waived.length} waived for this design` : ''}</span>`;
   s = must(s, /<h2>The December 2026 rules <span[^>]*>[^<]*<\/span><\/h2>/, `<h2>The December 2026 rules ${pill}</h2>`, 'the rules heading');
   s = must(s, /\s*<!-- The heading used to be[\s\S]*?-->\s*<h2>Still to settle<\/h2>\s*<ul class="oq-list">[\s\S]*?<\/ul>/, '', 'the rules page still-to-settle list');
+  // ONE NAME FOR THE PROPOSAL'S COLUMN (whole-pack polish, 9 Nov 2026): page 7 heads its columns Today’s link and Proposed;
+  // this table said This proposal, a third name for the same column. The narrow cards keep Today (pages 2 and 4)
+  s = must(s, /<th>This proposal<\/th>/, '<th>Proposed</th>', 'the rules table head');
   return s;
 }
 
@@ -1218,9 +1269,13 @@ export function plainEdition(html, ctx) {
   // THE KEYS SHOW THEIR COLOURS (pack polish, 1 Nov 2026). Pages 2 and 7 explain green, amber and red in their navy headers,
   // where every mark was white: the reader was told the colours and never shown them. Each mark sits on a small white
   // chip in its own colour, held to its word, and both keys bold the word, not the mark (page 7 bolded the mark alone).
-  const KEYS = [['<b>✓ green</b>', '<b><span class="lgk lgk-ok">✓</span>&nbsp;green</b>'], ['<b>▲ amber</b>', '<b><span class="lgk lgk-warn">▲</span>&nbsp;amber</b>'],
+  const KEYS = [['<b>✓ green</b>', '<b><span class="lgk lgk-ok">✓</span>&nbsp;green</b>'], ['<b>▲ amber</b>', '<b><span class="lgk lgk-warn"><span class="lgk-sm">▲</span></span>&nbsp;amber</b>'],
     ['<b>✕ red</b>: a rule', '<b><span class="lgk lgk-no">✕</span>&nbsp;red</b>: a&nbsp;rule'], ['<b>⚠</b> present', '<span class="lgk lgk-warn">⚠</span>&nbsp;<b>present</b>'],
-    ['<b>✓</b> clear', '<span class="lgk lgk-ok">✓</span>&nbsp;<b>clear</b>'], ['<b>●</b> standing', '<span class="lgk lgk-st">●</span>&nbsp;<b>standing</b>']];
+    ['<b>✓</b> clear', '<span class="lgk lgk-ok">✓</span>&nbsp;<b>clear</b>'], ['<b>●</b> standing', '<span class="lgk lgk-st">●</span>&nbsp;<b>standing</b>'],
+    // PAGE 6 SAYS WHAT ITS MARKS MEAN (whole-pack polish, 9 Nov 2026): its ✓ is "met", against the rule, where page 2's is "better
+    // than today" — so Balanced V5's and V6's 10 days in a row, worse than today's 9 and inside the limit of 13, wore a green ✓
+    // with no key to say why; page 7, which measures against guidance too, has always carried its own
+    ['<b>✓</b> met', '<span class="lgk lgk-ok">✓</span>&nbsp;<b>met</b>'], ['<b>✕</b> not met', '<span class="lgk lgk-no">✕</span>&nbsp;<b>not&nbsp;met</b>']];
   // HELD BY A NO-WRAP SPAN, NOT BY THE NO-BREAK SPACE ALONE (the regression check, 1 Nov): Chromium breaks after an
   // inline-block chip even before a no-break space, so "[✕] / red: a rule" still split on eleven sheets with the &nbsp; in place.
   // Red holds "a rule" too: four designs then ended a line on "red: a", where the other eleven start the next with the chip
@@ -1262,10 +1317,29 @@ export function plainEdition(html, ctx) {
     .replace(/(?<!\b(?:to|in|of)(?: |&nbsp;))\b(\d[\d,.]*) (minutes|weeks|days|hours|lines|weekends)\b/g, '$1&nbsp;$2')
     .replace(/\b(\d+) a year\b/g, '$1&nbsp;a&nbsp;year')
     .replace(/\b(\d{1,2}) (January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/g, '$1&nbsp;$2')
-    .replace(/ = (?=\d)/g, ' =&nbsp;')}`);
+    .replace(/ = (?=\d)/g, ' =&nbsp;')
+    // THE WHOLE-PACK POLISH (9 Nov 2026): what the screenshot review found split at a line end, on every sheet unless named.
+    // Each binds two to five words, as above. A month keeps its year ("December / 2026", page 6); "about" keeps its number
+    // ("(about / 12 a year", page 1); "up to" keeps its figure ("today up / to 5", page 1; “up / to”, page 8); a bracket
+    // naming today keeps the word before it, so it never opens a line ("(today 7)." at a line start, page 1); a stated
+    // count keeps its noun ("21 / working weeks", "17 shift / times", pages 3 and 4; "218.6 / contracted days a year",
+    // page 6); and six set phrases stay whole: 30 days off, 14 days' leave, fixed duties, of whom, ticket office, see below
+    .replace(/\b(January|February|March|April|May|June|July|August|September|October|November|December) (20\d\d)\b/g, '$1&nbsp;$2')
+    .replace(/\b(about|About) (?=\d)/g, '$1&nbsp;')
+    .replace(/\bup to (?=[\d“"])/g, 'up&nbsp;to&nbsp;').replace(/“up to”/g, '“up&nbsp;to”')
+    .replace(/([A-Za-z’)\d]) \((?=today\b)/g, '$1&nbsp;(').replace(/\btoday (?=up&nbsp;to)/g, 'today&nbsp;')
+    .replace(/\((today’s [^()<]{1,24})\)/g, (m, r) => `(${r.replace(/ /g, '&nbsp;')})`)
+    .replace(/\b(\d[\d.,]*) (working weeks|shift times|new shift times|full weekends|contracted days a year)\b/g, (m, n, w) => `${n}&nbsp;${w.replace(/ /g, '&nbsp;')}`)
+    .replace(/\b(days|days’) (off|leave)\b/g, '$1&nbsp;$2')
+    .replace(/\b(fixed duties|of whom|ticket office|see below|on average|a perfect match)\b/g, w => w.replace(/ /g, '&nbsp;'))
+    // a sentence that opens with "A" does not leave it at a line end ("darker is busier. A / guide", page 5's key), and
+    // "day-on-day-off" keeps its hyphens on one line (page 6), with word joiners as the fractions above have
+    .replace(/([.:;] )A (?=\w)/g, '$1A&nbsp;').replace(/\bday-on-day-off\b/g, 'day-⁠on-⁠day-⁠off')}`);
   // ORPHANS (4 Oct 2026): a plain-text table cell or list item — no tags inside it, and long enough to wrap — never ends on a
   // lone short word ("to Friday", "— people", "(today 7)"): its last space is a no-break space. A cell with markup is left alone.
-  out = out.replace(/<(td|li)(\s[^>]*)?>([^<]{25,})<\/\1>/g, (m, tag, attrs, txt) => { const i = txt.lastIndexOf(' ');
+  // A plain paragraph too (whole-pack polish, 9 Nov 2026): page 8's "Rest, runs and weekends" card ended on "with none."
+  // alone, on every sheet, where text-wrap: pretty (above) left it.
+  out = out.replace(/<(td|li|p)(\s[^>]*)?>([^<]{25,})<\/\1>/g, (m, tag, attrs, txt) => { const i = txt.lastIndexOf(' ');
     if (i < 0 || txt.length - i > 16) return m; return `<${tag}${attrs ?? ''}>${txt.slice(0, i)}&nbsp;${txt.slice(i + 1)}</${tag}>`; });
   // A CLOCK RANGE IS ONE UNIT (30 Oct 2026). Page 6's ticket-office rule broke "14:00–" from "22:30" at a line end on every
   // sheet. Each range sits in a no-wrap span — not a word joiner, as the fractions have, because a range is what a reader
