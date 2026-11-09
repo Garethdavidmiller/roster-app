@@ -55,15 +55,24 @@ export function monSatMinutes(p) {
  *  this just before writing and printing it — which is why it is also where a sheet that dates the new link's START to a
  *  day is refused (owner, 8 Nov 2026: the day is not known): "from 1 January 2027" was on all 24 proposal sheets until then.
  *  The text is read with tags, styles and scripts gone and every space one space, so neither markup nor a no-break space
- *  between the day and the month hides one. */
+ *  between the day and the month hides one.
+ *  THE ENTITY TOO, AND NOTHING SHORT SURVIVES (whole-pack polish, 9 Nov 2026). plain.mjs holds a day to its month with
+ *  "&nbsp;" ("8&nbsp;Nov 2026"), and this matched only a typed space or no-break space, so from 6 Nov every proposal sheet
+ *  kept "Prepared 8 Nov 2026", "Created 7 Nov 2026" and four dates in its text, under summary sheets reading "Prepared
+ *  8 November 2026", and nothing said so. The separator now takes the entity as well, and a short date left in the text
+ *  after the change is refused. */
 const MONTHS = { Jan: 'January', Feb: 'February', Mar: 'March', Apr: 'April', Jun: 'June', Jul: 'July', Aug: 'August',
   Sep: 'September', Oct: 'October', Nov: 'November', Dec: 'December' };
 const START_DAY = /\b(?:from|starts?(?: on)?|follows(?: from)?) (\d{1,2}(?:st|nd|rd|th)? Jan(?:uary)? 2027)\b|\b(January 1st)\b/gi;
+const SP = '(?: | |&nbsp;|&#160;)';
+const SHORT_DATE = new RegExp('(<style[\\s\\S]*?</style>|<script[\\s\\S]*?</script>|<title>[\\s\\S]*?</title>|<[^>]+>)'
+  + `|\\b(\\d{1,2})${SP}(Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)${SP}(20\\d\\d)\\b`, 'g');
+const textOf = html => html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/\s+/g, ' ');
 export const longDates = html => {
-  const text = html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/\s+/g, ' ');
-  const said = [...text.matchAll(START_DAY)].find(m => (m[1] ?? m[2]) !== LINK_STARTS);
+  const said = [...textOf(html).matchAll(START_DAY)].find(m => (m[1] ?? m[2]) !== LINK_STARTS);
   if (said) throw new Error(`a sheet dates the new link's start to a day ("${said[0]}"); it starts ${/^\d/.test(LINK_STARTS) ? 'on' : 'in'} ${LINK_STARTS} (owner, 8 Nov 2026: the day not yet set)`);
-  return html.replace(
-    /(<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<title>[\s\S]*?<\/title>|<[^>]+>)|\b(\d{1,2})[  ](Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[  ](20\d\d)\b/g,
-    (m, keep, d, mon, y) => keep ?? `${d} ${MONTHS[mon]} ${y}`);
+  const out = html.replace(SHORT_DATE, (m, keep, d, mon, y) => keep ?? `${d} ${MONTHS[mon]} ${y}`);
+  const left = textOf(out).match(/\b\d{1,2} (?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec) 20\d\d\b/);
+  if (left) throw new Error(`longDates: "${left[0]}" is still a short date in the sheet's text; the pack writes the month in full`);
+  return out;
 };
