@@ -88,7 +88,7 @@ states, which `subscribeAuth` fires on).
 | Pay Calculator | required | best-effort | best-effort | none | **soft** |
 | Overtime | required | named | **named** | admin, manager *or* `overtimeBeta` participant — **paused, closed to everyone** (`OVERTIME_AVAILABILITY.md` → Paused) | no |
 | Trains | required, or the staff PIN | — (no Firestore reads) | — | none | no |
-| New link | required | — (no Firestore reads) | — | master admin, or a name in `CONFIG.NEWLINK_PREVIEW` | no |
+| New link | required | — (no Firestore reads) | — | master admin, a name in `CONFIG.NEWLINK_PREVIEW`, or `newlinkAudience` — a normal CEA contract or a manager (since v25.60) | no |
 | Guides | — | — | — | — | n/a |
 
 **Start page-based; leave the seam for action-based.** Policy keys can later evolve `page → page.action`

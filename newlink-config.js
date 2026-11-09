@@ -18,12 +18,15 @@
  *
  * ── THE LIFECYCLE ──────────────────────────────────────────────────────────────────────────────
  *
- * `PHASE` is the one switch. 'preview' is the only value built: the page is the admin's and the named previewers'
- * (CONFIG.NEWLINK_PREVIEW — S. Silva, who leads the change, since v25.33), read by auth-policy.js `newlink` and the nav pill's
- * `newlinkAudienceOnly` through `canOpenNewlink`, and they see exactly what colleagues will, with no banner of its own
- * (owner, 8 Nov 2026: "Remove the preview banner as it will be going live soon"). Opening it needs a gate of its own first: a role for AUDIENCE in auth-policy.js and a matching pill
- * flag in nav-panel.js, which page-contract-parity requires to move together. newlink-config.test.mjs refuses any other
- * phase until that gate exists, so the switch cannot be flipped to a page nobody can reach.
+ * `PHASE` is the one switch. 'preview' (v25.06 to v25.59): the page was the admin's and the named previewers'
+ * (CONFIG.NEWLINK_PREVIEW — S. Silva, who leads the change, since v25.33), and they saw exactly what colleagues would, with no
+ * banner of its own (owner, 8 Nov 2026: "Remove the preview banner as it will be going live soon"). 'open' since v25.60
+ * (owner, 9 Nov 2026: "send the new links section live for everyone with a cea contract and the managers"): the gate it
+ * needed is auth-policy.js's `newlinkAudience` role — every colleague on a normal CEA contract, and the managers — read by
+ * the `newlink` policy and, through `canOpenNewlink`, by the nav pill's `newlinkAudienceOnly`. The role is written there
+ * rather than imported from here, because newlink-boundary.test.mjs keeps this file out of the roster pages' reach.
+ * newlink-config.test.mjs holds the switch, the role and the pill to one story: 'open' exactly while the policy admits the
+ * audience, and the role equal to `audienceNames()` and the managers for every name on the roster.
  *
  * ── WHAT IT IS NOT ─────────────────────────────────────────────────────────────────────────────
  *
@@ -67,10 +70,10 @@ export const CONTACT = 'Sara Silva';
  */
 export const CONTACT_ROLE = 'the RMT rep';
 
-/** @typedef {'preview'} Phase  'preview' alone until the audience gate exists (see the header) */
+/** @typedef {'preview'|'open'} Phase  'preview' until v25.59, 'open' since v25.60 (see the header) */
 
 /** @type {Phase} Where the page is in its life. */
-export const PHASE = 'preview';
+export const PHASE = 'open';
 
 /**
  * The last day for views, 'YYYY-MM-DD' — or null, which the page words as "a date to be agreed" (owner: "Not set yet").

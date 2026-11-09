@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v25.50 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.60 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -1167,9 +1167,10 @@ Two reminders run themselves in the week before the change, and nobody presses a
 ## The new link page
 
 `newlink.html` shows colleagues the three shortlisted proposals for the new CEA link — **which starts
-in January 2027, not with the timetable** (owner, 2 Nov 2026; the day not yet set, owner, 8 Nov 2026). It is a **preview**: only the admin and
-the names in `CONFIG.NEWLINK_PREVIEW` (`roster-data.js`) can open it, and they see exactly what colleagues
-will: no banner says it is a preview (owner, 8 Nov 2026: "Remove the preview banner as it will be going live soon").
+in January 2027, not with the timetable** (owner, 2 Nov 2026; the day not yet set, owner, 8 Nov 2026). It is **open**
+since v25.60 to everyone on the normal CEA contract and the managers (owner, 9 Nov 2026: "send the new links section
+live for everyone with a cea contract and the managers"). Before that it was a preview for the admin and the names in
+`CONFIG.NEWLINK_PREVIEW` (`roster-data.js`), who still reach it by that list.
 
 **Every setting is one line in `newlink-config.js`** — `STARTS`, `TIMETABLE_STARTS`, `CONTACT`,
 `CONTACT_ROLE`, `CLOSES`, `AUDIENCE`, `PHASE`, `PACK_BASE` and the "Have your say" lines — so changing
@@ -1181,20 +1182,26 @@ choice, so **no line may name the admin as deciding, recommending or collecting 
 choice is made is left deliberately vague. `newlink-config.test.mjs` and `e2e/newlink.spec.js` hold the
 wording to both; the process is in LINKS_DEC2026_PLAN.md's dashboard, not in anything colleagues read.
 
-**Who it is for: everyone on the normal CEA contract; a CEA bilingual contract keeps its own links**
-(owner, 8 Nov 2026). It goes by the contract, not the line: a normal contract on the bilingual link is on
-the new link. Until `AUDIENCE` names the 26, the page stands in with every CEA whose `bilingualContract` is
-not set. No page lists them since the preview banner went; `newlink-config.test.mjs` holds the list to the roster.
+**Who it is for: everyone on the normal CEA contract, and the managers; a CEA bilingual contract keeps its
+own links** (owner, 8 and 9 Nov 2026). It goes by the contract, not the line: a normal contract on the bilingual
+link is on the new link. Until `AUDIENCE` names the 26, the page stands in with every CEA whose `bilingualContract`
+is not set. CES and Dispatchers are not on it.
 
-**Opening it to colleagues is not a switch yet.** It needs a role for `AUDIENCE` in `auth-policy.js` and
-a matching pill flag in `nav-panel.js` first; `newlink-config.test.mjs` refuses any other `PHASE` until
-those exist, so the page cannot be flipped open to people who cannot reach it.
+**The gate is the `newlinkAudience` role in `auth-policy.js`**: a member with `role: 'CEA'`, no
+`bilingualContract`, not `hidden`, or a name in `CONFIG.MANAGER_NAMES`. The `newlink` policy reads it, and so,
+through `canOpenNewlink`, does the drawer's pill. It follows the roster, so there is no list to keep: **a new
+starter on a normal CEA contract can open the page once they are on the roster, and a leaver loses it when
+`hidden` is set.** It is written in `auth-policy.js` rather than read from `newlink-config.js`, because
+`newlink-boundary.test.mjs` keeps the page's modules out of every roster page; `newlink-config.test.mjs` fails
+unless the role and `audienceNames()` with the managers agree for every name. So **setting `AUDIENCE` to the 26
+means changing the role in the same commit**, and closing the page again means `PHASE = 'preview'` and
+`'newlinkAudience'` out of the `newlink` policy together, with the test's pinned decision.
 
-**Letting one more person preview it is one line**: add their name, spelt as the roster spells it, to
-`CONFIG.NEWLINK_PREVIEW` in `roster-data.js`, then bump and release. It is page access only — the page
-reads nothing from the server and shows only public files — so there is no claim to set, no
-`npm run generate:roster-members` and no Set up accounts. `newlink-config.test.mjs` refuses a name that
-is not an active member of the roster.
+**Letting somebody outside the audience in is one line**: add their name, spelt as the roster spells it, to
+`CONFIG.NEWLINK_PREVIEW` in `roster-data.js`, then bump and release (S. Silva has been on it since the preview).
+It is page access only — the page reads nothing from the server and shows only public files — so there is no
+claim to set, no `npm run generate:roster-members` and no Set up accounts. `newlink-config.test.mjs` refuses a
+name that is not an active member of the roster.
 
 **Its PDFs come from the GitHub Pages mirror** (`PACK_BASE`), because Firebase Hosting serves nothing
 under `docs/`. Retiring the mirror breaks those links — move the files into a served folder first. And

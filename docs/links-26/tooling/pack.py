@@ -40,6 +40,7 @@ files = [  # (source, path in the pack)
     (f'{ROOT}/links-26-shortlist.pdf', '1 Summary/links-26-shortlist.pdf'),
     (f'{ROOT}/links-26-other-designs.pdf', '1 Summary/links-26-other-designs.pdf'),   # off the shortlist's page 2 (7 Nov 2026, the outside review)
     (f'{ROOT}/links-26-what-it-means.pdf', '1 Summary/links-26-what-it-means.pdf'),   # colleagues: what it means if you… (1 Nov 2026)
+    (f'{ROOT}/links-26-shortlist-at-a-glance.pdf', '1 Summary/links-26-shortlist-at-a-glance.pdf'),   # the three beside today, one page (9 Nov 2026, owner: "Yes")
     (f'{ROOT}/links-26-rules.pdf', '2 Rules/links-26-rules.pdf'),
 ]
 for name, code, fp in proposals:
@@ -88,15 +89,18 @@ if not SHORTLIST or any(s not in names.split(', ') for s in SHORTLIST): raise Sy
 MANAGERS = sorted(d for _, d in files if d.startswith('3 Presentations/') and d.endswith('-for-managers.pdf'))
 COLLEAGUES = sorted(d for _, d in files if d.startswith('3 Presentations/') and d.endswith('-for-colleagues.pdf'))
 WHAT_IT_MEANS = '1 Summary/links-26-what-it-means.pdf'   # 1 Nov 2026
-for path in MANAGERS + COLLEAGUES + [WHAT_IT_MEANS]:
+GLANCE = '1 Summary/links-26-shortlist-at-a-glance.pdf'   # 9 Nov 2026
+for path in MANAGERS + COLLEAGUES + [WHAT_IT_MEANS, GLANCE]:
     if not any(dst == path for _, dst in files): raise SystemExit(f'pack: the read-me points at {path}, which the pack does not hold')
 # NOT A STALE SHEET (the deep review, 1 Nov 2026): the sheet reads the colleague decks' slide 5 and asserts its £ against them,
 # but only when it is rebuilt, so a re-polish followed straight by this script would ship a sheet the decks have moved on
 # from. It must be at least as new as every colleague deck (a minute's grace: a fresh checkout writes the files in path
-# order, the sheet a moment before the decks)
-_sheet = f'{ROOT}/links-26-what-it-means.pdf'
-_older = [os.path.basename(s) for s, _ in files if s.endswith('-for-colleagues.pptx') and os.path.getmtime(s) > os.path.getmtime(_sheet) + 60]
-if _older: raise SystemExit(f'pack: links-26-what-it-means.pdf is older than {_older}; run what-it-means-sheet.mjs after deck-polish.py')
+# order, the sheet a moment before the decks). The at-a-glance sheet reads the same figures (what-it-means-data.mjs), so
+# the same holds for it (9 Nov 2026)
+for _name, _tool in (('links-26-what-it-means.pdf', 'what-it-means-sheet.mjs'), ('links-26-shortlist-at-a-glance.pdf', 'glance-sheet.mjs')):
+    _sheet = f'{ROOT}/{_name}'
+    _older = [os.path.basename(s) for s, _ in files if s.endswith('-for-colleagues.pptx') and os.path.getmtime(s) > os.path.getmtime(_sheet) + 60]
+    if _older: raise SystemExit(f'pack: {_name} is older than {_older}; run {_tool} after deck-polish.py')
 # WHO TO TELL (owner, 5 Nov 2026: "Match the New link page"). The colleagues' ask is the page's and the colleague decks' last
 # slide's, and the name and role are newlink-config.js's, read as deck-polish.py reads them
 CFG = open('newlink-config.js', encoding='utf-8').read()
@@ -435,6 +439,10 @@ readme = '\n'.join([
     'WHERE TO START',
     # THE PRESENTATIONS FIRST AGAIN (8 Nov 2026): the three's decks drawn, each audience starts from them, A to Z, as before the
     # morning's shortlist; WHERE THE THREE SHEETS ARE (the pack's accuracy review, 6 Nov 2026) is said, and checked above (sl_where)
+    # A MINUTE FIRST (9 Nov 2026, owner: "Yes", the at-a-glance sheet into the pack): before either route, not instead of
+    # one, so the presentations-first order of 8 Nov stands
+    item('Anyone', 'One minute: the shortlist at a glance, the three beside today on one page,'),
+    ' ' * 23 + GLANCE,
     item('Managers', 'Ten minutes: the shortlist sheet,'),
     ' ' * 23 + '1 Summary/links-26-shortlist.pdf',
     item('', 'Then ten minutes for each presentation for managers:'),
@@ -455,7 +463,9 @@ readme = '\n'.join([
     '',
     'WHAT IS IN THE PACK',
     item('1 Summary', f'The two-page shortlist sheet - the {WORDS[len(SHORTLIST)]} shortlisted designs against each other '
-         f'and today: what they share, where they differ, and which to choose for what. A {WORDS[OTHER_PAGES]}-page sheet setting every other '
+         f'and today: what they share, where they differ, and which to choose for what. The shortlist at a glance, one page: '
+         'the three beside today\'s link, what all three change, where they differ, and each one\'s edge and cost. '
+         f'A {WORDS[OTHER_PAGES]}-page sheet setting every other '
          'design beside them: what each has, and what it pays. A one-page sheet for colleagues, '
          '"What it means if you...", on what each '
          'shortlisted link means for someone who prefers earlies or lates, swaps earlies for lates, works their share '
@@ -607,7 +617,7 @@ _flat = ' '.join(readme.split())
 if 'none is recommended' not in _flat or re.search(r'recommend', _flat.replace('none is recommended', ''), re.I):
     raise SystemExit('pack: the read-me names a recommendation, or no longer says there is none (owner, 5 Nov 2026: "Remove the marks")')
 # and no name split across two lines: each file the route names is whole on a line, and no folder's name breaks
-for path in ['1 Summary/links-26-shortlist.pdf', *MANAGERS, *COLLEAGUES, WHAT_IT_MEANS]:
+for path in [GLANCE, '1 Summary/links-26-shortlist.pdf', *MANAGERS, *COLLEAGUES, WHAT_IT_MEANS]:
     if not any(l.strip() == path for l in readme.split('\n')):
         raise SystemExit(f'pack: the read-me does not give {path} a line of its own, so a wrap can split it')
 for f in FOLDERS:

@@ -40,7 +40,7 @@ describe('rolesFor (real CONFIG)', () => {
     // `roles[r]` for each name in a page's role list, so a flag that quietly stops being returned
     // makes every page requiring it fail closed — and a flag that quietly appears is a new
     // privilege nobody reviewed. Either way the shape is what has to be pinned.
-    const NO_ROLES = { admin: false, manager: false, designer: false, overtimeBeta: false, newlinkPreview: false };
+    const NO_ROLES = { admin: false, manager: false, designer: false, overtimeBeta: false, newlinkPreview: false, newlinkAudience: false };
     test('a name in no list → all false', () => assert.deepEqual(rolesFor(PLAIN), NO_ROLES));
     test('null/undefined → all false', () => {
         assert.deepEqual(rolesFor(null), NO_ROLES);
@@ -250,13 +250,25 @@ describe('the Overtime beta participant — invited to ANSWER, never to look', (
         // wrong first time: `admin` looked like an obvious inclusion and is in fact `role: null` —
         // the staff self-service portal every named member uses — so the assertion failed on
         // correct code. A derived list cannot make that mistake.
+        //
+        // The property is that the LIST changes nothing, so each page is decided twice — with the member on the list and
+        // with them taken off — and the two must agree. Asserting 'forbidden' outright stopped being the property at v25.60,
+        // when the new link page opened to every colleague on a normal CEA contract: the stand-in is one, and reaches that
+        // page as a colleague, not as an invitee.
         const gated = Object.entries(PAGE_POLICIES)
             .filter(([name, p]) => name !== 'overtime' && p.role && p.role.length)
             .map(([name]) => name);
         assert.ok(gated.length >= 2, `expected other role-gated pages, found ${gated.join(',')}`);
+        const decide = (/** @type {string} */ page) => requirePage({ status: 'named', member: beta }, page).decision;
+        const listed = CONFIG.OVERTIME_BETA;
         for (const page of gated) {
-            assert.equal(requirePage({ status: 'named', member: beta }, page).decision, 'forbidden', page);
+            const onTheList = decide(page);
+            CONFIG.OVERTIME_BETA = listed.filter(n => n !== beta);
+            let offTheList;
+            try { offTheList = decide(page); } finally { CONFIG.OVERTIME_BETA = listed; }
+            assert.equal(onTheList, offTheList, `${page}: the Overtime beta list changed the decision`);
         }
+        assert.ok(gated.some(page => decide(page) === 'forbidden'), 'no role-gated page refuses the stand-in, so the check above proves nothing');
     });
 });
 

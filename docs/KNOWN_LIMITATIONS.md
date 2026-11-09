@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v25.50 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.60 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -1483,6 +1483,7 @@ run takes it back.
 - **Its PDFs are served by the GitHub Pages mirror** (`PACK_BASE` in `newlink-config.js`), because Firebase Hosting
   serves nothing under `docs/`. Retiring the mirror breaks every pack link on the page; move the files into a served
   folder first.
-- **It is a preview — the admin and `CONFIG.NEWLINK_PREVIEW` — until its audience gate exists.** `PHASE` has one value, and `newlink-config.test.mjs`
-  refuses another until `auth-policy.js` and `nav-panel.js` can admit the colleagues it is for
-  (OPERATIONS_REFERENCE.md → "The new link page").
+- **Its audience is written twice.** `newlink-config.js` → `audienceNames()` says who the page is for, and
+  `auth-policy.js` → `newlinkAudience` is the gate (open since v25.60), because `newlink-boundary.test.mjs` keeps
+  the page's modules out of the one every roster page loads. `newlink-config.test.mjs` holds the two equal for every
+  name, so setting `AUDIENCE` to the 26 means changing the role with it (OPERATIONS_REFERENCE.md → "The new link page").

@@ -42,6 +42,7 @@ its grid, and FIX= checks that grid against the model.
        CLOSE_APART=1|2|3 (8 Nov 2026: no two closing weeks side by side)  NEAR=<rota.json> NEAR_CAP= (8 Nov 2026: the objective
        held at NEAR_CAP and the fewest cells moved from that rota asked for) — both below, for Balanced V10, Clockface and
        Short Working
+       SUN_ALL= SUN_SOME= OBJ=sunmax|sunmin (9 Nov 2026: the rostered Sundays a stretch 14 days' leave buys gives up — below)
   e.g. HINT=closing-time.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py results/closing-time-table.json /tmp/ct.json 1200
 
 MIXED WEEKS (6 Nov 2026, owner: Balanced V6 made again "without losing anything"). Every rota above has a week all earlies
@@ -435,6 +436,28 @@ NEAR = os.environ.get('NEAR')
 def objective(e, minimise=True):
     if NEAR: M.Add(e <= env('NEAR_CAP', 0)) if minimise else M.Add(e >= env('NEAR_CAP', 0))
     else: (M.Minimize if minimise else M.Maximize)(e)
+# SUNDAYS GIVEN UP IN THE BEST STRETCH (9 Nov 2026, of Balanced V10: "there are a lot of Sundays in the 14 days AL for 30
+# days off period. Is that avoidable?"). A rostered Sunday duty costs no leave, being overtime, so the LV_BEST days that 14
+# days' leave buys can run through rostered Sundays, and the person gives each one up. Cover-week Sundays are not counted.
+# SUN_ALL=n: every such stretch gives up at most n. SUN_SOME=n: at least one does. OBJ=sunmax and OBJ=sunmin climb the most
+# and the fewest down. All of it is built only when one of the four is asked for, so every command above keeps the model it
+# had (README.md -> "Balanced V10's Sundays in its 30 days off").
+SUNDAYS = bool(os.environ.get('SUN_ALL') or os.environ.get('SUN_SOME') or os.environ.get('OBJ') in ('sunmax', 'sunmin'))
+def sund(s0, ln):
+    return sum(on[seq[(s0 + j) % n]] for j in range(ln) if seq[(s0 + j) % n][1] == 'sun' and seq[(s0 + j) % n][0] in WORK)
+if SUNDAYS:
+    sunmax = M.NewIntVar(0, 10, 'sunmax')
+    for s0 in range(n):
+        q = M.NewBoolVar(f'qsun_{s0}')   # q: the stretch from s0 costs 15 or more, so it is not one that 14 days buy
+        M.Add(cost(s0, LVB) >= 15).OnlyEnforceIf(q)
+        M.Add(sund(s0, LVB) <= sunmax).OnlyEnforceIf(q.Not())
+    if os.environ.get('SUN_ALL'): M.Add(sunmax <= int(os.environ['SUN_ALL']))
+    if os.environ.get('SUN_SOME'):
+        for s0 in range(n): M.Add(sund(s0, LVB) <= int(os.environ['SUN_SOME'])).OnlyEnforceIf(bb[s0])
+    sunmin = M.NewIntVar(0, 10, 'sunmin'); sel = [M.NewBoolVar(f'selsun_{s0}') for s0 in range(n)]
+    for s0 in range(n):
+        M.Add(cost(s0, LVB) <= 14).OnlyEnforceIf(sel[s0]); M.Add(sund(s0, LVB) <= sunmin).OnlyEnforceIf(sel[s0])
+    M.AddBoolOr(sel)
 OBJ, LG = os.environ.get('OBJ', 'one'), {}
 if OBJ == 'league':
     if os.environ.get('MIXED') is not None:   # a mixed week is never one shift time on the sheets, whatever its weekdays
@@ -458,6 +481,8 @@ elif OBJ == 'four': objective(four)        # the leave four full weeks from a Su
 elif OBJ == 'best': objective(best29)      # the leave the cheapest 29 days cost (14 is a best stretch of 29)
 elif OBJ == 'rest': objective(sum(tight))  # the rests under REST_TO (default 15h)
 elif OBJ == 'iso': objective(sum(s.values()))   # the single rest days (7 Nov 2026, climbing below ISO)
+elif OBJ == 'sunmax': objective(sunmax)   # the most rostered Sundays any stretch 14 days buy gives up (SUNDAYS above)
+elif OBJ == 'sunmin': objective(sunmin)   # the fewest that some such stretch gives up
 elif OBJ == 'gentle': objective(sum(co) * 1000000 + sum(big) * 100000 + sum(oth) * (10000 if env('GENTLE_SHARED', 1) else 0) + stepSum)   # see GENTLE above
 else: objective(one * 100000 - stepSum, minimise=False)   # 'both': the most one-turn weeks, then the smallest step
 if NEAR:
@@ -469,6 +494,9 @@ S.parameters.max_time_in_seconds = LIMIT
 if os.environ.get('LOG'): S.parameters.log_search_progress = True
 r = S.Solve(M)
 print('heavy', S.Value(heavyMax) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'four', S.Value(four) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'best29cost', S.Value(best29) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'tight', S.Value(sum(tight)) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None)
+if SUNDAYS and r in (cp_model.OPTIMAL, cp_model.FEASIBLE):   # read from the rota found, not from sunmax and sunmin, which
+    got = [S.Value(sund(s0, LVB)) for s0 in range(n) if S.Value(cost(s0, LVB)) <= 14]   # only bound what they are not asked for
+    print(f'rostered Sundays given up in the {LVB} days 14 days buy: most {max(got)}, fewest {min(got)}')
 print('step', round(S.Value(stepSum) / 20 / len(pairs), 2) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None, 'FF17 b-f', (S.Value(sum(bw)) - S.Value(sum(fw))) if r in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None)
 if OBJ == 'gentle' and r in (cp_model.OPTIMAL, cp_model.FEASIBLE): print('gentle:', '/'.join(GENTLE_STARTS), 'starts side by side', sum(S.Value(v) for v in co), 'moves over GENTLE', sum(S.Value(v) for v in big), 'other shared starts', sum(S.Value(v) for v in oth) if env('GENTLE_SHARED', 1) else 'not counted (GENTLE_SHARED=0)')
 if LG and r in (cp_model.OPTIMAL, cp_model.FEASIBLE): print('league:', ' '.join(f'{k} {S.Value(v) if not isinstance(v, int) else v}' for k, v in LG.items()))

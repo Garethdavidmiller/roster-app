@@ -1,24 +1,35 @@
 // @ts-check
 /**
- * newlink.spec.js — the new link page (newlink.html): the three shortlisted proposals, presented evenly, to the
- * admin while it is a preview.
+ * newlink.spec.js — the new link page (newlink.html): the three shortlisted proposals, presented evenly, to every colleague
+ * on a normal CEA contract and the managers (open since v25.60; before that, the admin's and S. Silva's preview).
  *
- * What only a browser can show: that the page REACHES its admin and turns everybody else away, that the two choices on it
+ * What only a browser can show: that the page REACHES its audience and turns everybody else away, that the two choices on it
  * redraw what they say they do, and that a proposal's weeks are drawn as a proposal. The words and figures themselves
  * are pinned in Node (newlink-render.test.mjs, newlink-data.test.mjs); this drives the real page through them.
  */
 import { test, expect, withLinksDesigners } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
 import { CHANGES, PACK } from '../newlink-data.js';
+import { CONFIG, teamMembers } from '../roster-data.js';
+
+/**
+ * Somebody on the roster who fits, found rather than named so a leaver cannot break a test, and never the admin or a named
+ * previewer, who reach the page by their own lists. @param {string} what @param {(m: any) => boolean} fits @returns {string}
+ */
+function someone(what, fits) {
+    const m = teamMembers.find(x => !x.hidden && !CONFIG.ADMIN_NAMES.includes(x.name) && !CONFIG.NEWLINK_PREVIEW.includes(x.name) && fits(x));
+    if (!m) throw new Error(`the roster has no ${what}`);
+    return m.name;
+}
 
 test.describe('new link', () => {
-    test('the admin sees the preview, the three proposals A to Z, and no recommendation anywhere', async ({ page }) => {
+    test('the admin sees the page, the three proposals A to Z, and no recommendation anywhere', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
 
         // NO PREVIEW BANNER (owner, 8 Nov 2026: "Remove the preview banner as it will be going live soon"): the admin sees
-        // exactly what colleagues will. Who it will reach is newlink-config.js → AUDIENCE, held to the roster in Node
+        // exactly what colleagues do. Who it reaches is auth-policy.js → `newlinkAudience`, held to the roster in Node
         await expect(page.locator('.nl-name-title').first()).toBeVisible();
         await expect(page.locator('#nlPreview, .nl-preview')).toHaveCount(0);
         await expect(page.locator('body')).not.toContainText(/Preview —|Who it would reach/);
@@ -195,14 +206,45 @@ test.describe('new link', () => {
         }
     });
 
-    test('a member who is neither the admin nor a previewer is sent back to the roster, and never sees the pill', async ({ page }) => {
-        await withLinksDesigners(page, ['G. Miller', 'M. Robson']);   // a list of its own: the real one is the admin alone
-        await seedSession(page, 'M. Robson');   // a Links designer: not enough — only the admin and CONFIG.NEWLINK_PREVIEW
-        await page.goto('/newlink.html');
-        await expect(page).toHaveURL(/\/$|\/index\.html$/);
-        await page.locator('#navMenuBtn').click();
-        await expect(page.locator('.nav-panel-pill--newlink')).toHaveCount(0);
-    });
+    // WHO IT IS NOT FOR (owner, 8 Nov 2026: "This link will only apply to people with the normal CEA contract and NOT the
+    // bilingual contract who will still have their own links"), nor a CES or a Dispatcher, who have links of their own. The
+    // bilingual contract is ALSO made a Links designer, on a designer list of its own (the real one is the admin alone),
+    // because being a designer must not be a way in either: the gate is the contract, not the Links role.
+    for (const [who, fits, designer] of /** @type {const} */ ([
+        ['a CEA bilingual contract', (/** @type {any} */ m) => m.role === 'CEA' && m.bilingualContract, true],
+        ['a CES', (/** @type {any} */ m) => m.role === 'CES', false],
+        ['a Dispatcher', (/** @type {any} */ m) => m.role === 'Dispatcher', false],
+    ])) {
+        test(`${who} is sent back to the roster, and never sees the pill`, async ({ page }) => {
+            const member = someone(who, fits);
+            if (designer) await withLinksDesigners(page, ['G. Miller', member]);
+            await seedSession(page, member);
+            await page.goto('/newlink.html');
+            await expect(page).toHaveURL(/\/$|\/index\.html$/);
+            await page.locator('#navMenuBtn').click();
+            await expect(page.locator('.nav-panel-pill--newlink')).toHaveCount(0);
+        });
+    }
+
+    // WHO IT IS FOR, since v25.60 (owner, 9 Nov 2026: "send the new links section live for everyone with a cea contract and
+    // the managers"): a colleague on a normal CEA contract, in no list of the page's own, and a manager, each from the drawer.
+    for (const [who, member] of [
+        ['a colleague on a normal CEA contract', someone('normal CEA contract', m => m.role === 'CEA' && !m.bilingualContract)],
+        ['a manager', CONFIG.MANAGER_NAMES[0]],
+    ]) {
+        test(`${who} reaches it from the drawer`, async ({ page }) => {
+            const errors = collectFatalErrors(page);
+            await seedSession(page, member);
+            await page.goto('/admin.html');
+            await page.locator('#navMenuBtn').click();
+            const pill = page.locator('.nav-panel-pill--newlink');
+            await expect(pill).toBeVisible();
+            await pill.click();
+            await expect(page).toHaveURL(/newlink\.html$/);
+            await expect(page.locator('.nl-name-title')).toHaveText(['Balanced V6', 'Level Crossing', 'Middle Ground']);
+            expect(errors).toEqual([]);
+        });
+    }
 
     test('a name tile opens that proposal\'s weeks, and the two logos do what they say', async ({ page }) => {
         const errors = collectFatalErrors(page);
@@ -287,9 +329,9 @@ test.describe('new link', () => {
         await expect(page.locator('.nl-name-title').first()).toHaveText('Balanced V6');
     });
 
-    // S. Silva is the new link's contact (newlink-config.js → CONTACT), and may see the preview before colleagues do
-    // (owner, 4 Nov 2026: "open up the new links page to S. Silva"; CONFIG.NEWLINK_PREVIEW).
-    test('S. Silva reaches it from the drawer too, and sees what colleagues will, with no preview banner', async ({ page }) => {
+    // S. Silva is the new link's contact (newlink-config.js → CONTACT), and saw the page before colleagues did, in its
+    // preview (owner, 4 Nov 2026: "open up the new links page to S. Silva"; CONFIG.NEWLINK_PREVIEW).
+    test('S. Silva reaches it from the drawer too, and sees what colleagues do, with no preview banner', async ({ page }) => {
         await seedSession(page, 'S. Silva');
         await page.goto('/admin.html');
         await page.locator('#navMenuBtn').click();

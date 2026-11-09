@@ -353,6 +353,12 @@ export const PACK = deepFreeze([
     },
     {
         "design": null,
+        "label": "The shortlist at a glance — all three beside today, on one page",
+        "path": "links-26-shortlist-at-a-glance.pdf",
+        "pages": 1
+    },
+    {
+        "design": null,
         "label": "The rules every proposal is judged against",
         "path": "links-26-rules.pdf",
         "pages": 2

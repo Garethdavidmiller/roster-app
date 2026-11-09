@@ -50,7 +50,7 @@ keeping if an unrun check looks different from a passed one.
 ## B · Current iPhone — the engine staff meet next
 
 - [ ] **Every page loads past the splash**: Calendar, Admin, Pay Calculator, Settings, Operations,
-      Links, Trains, New link (the admin, or a name in `CONFIG.NEWLINK_PREVIEW`) — and Overtime,
+      Links, Trains, New link (a normal CEA contract, a manager, the admin, or a name in `CONFIG.NEWLINK_PREVIEW`) — and Overtime,
       which is paused and should show its paused note rather than a form
       (`OVERTIME_AVAILABILITY.md` → Paused). A stuck splash is the exact failure the hourly currency
       check answers "yes" to, so it has to be looked at.
