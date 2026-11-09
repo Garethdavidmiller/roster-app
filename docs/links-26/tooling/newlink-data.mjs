@@ -157,7 +157,9 @@ claim('the swap rows are left unranked, as the notes say', GROUPS[2].rows.every(
 claim('the no-overtime rows are left unranked, as the notes say', GROUPS.find(g => /no overtime at all/.test(g.who)).rows.every(r => !r.better));
 
 // ── THE FULL PACK — what a colleague is handed, nothing more ──────────────────────────────────────────────────────────
-// Not the shortlist sheet or the one-page sheet, whose comparison this page already is, and not the managers' decks. Page
+// Not the shortlist sheet or the What it means sheet, whose comparison this page already is, and not the managers' decks.
+// THE SHORTLIST AT A GLANCE IS ON IT (owner, 9 Nov 2026: "add the comparison sheet to the new links section (as you have
+// with the proposals and presentations)"): one page of all three beside today, first of the files for all three. Page
 // counts are read from the files, so a rebuilt pack that adds a page fails --check until this is run again.
 const pages = rel => (readFileSync(DIR + rel).toString('latin1').match(/\/Type\s*\/Page(?![s\w])/g) ?? []).length;
 // a 30-day link's sheet is in 30-days-off/, a Balanced design's in its balanced/ subfolder (all three shortlisted since 8 Nov 2026),
@@ -173,6 +175,7 @@ const PACK = [
     ...(existsSync(DIR + deckOf(name)) ? [{ design: name, label: 'The presentation', path: deckOf(name) }] : []),
     { design: name, label: 'The proposal sheet — every week on page 3', path: sheetOf(name) },
   ]),
+  { design: null, label: 'The shortlist at a glance — all three beside today, on one page', path: 'links-26-shortlist-at-a-glance.pdf' },
   { design: null, label: 'The rules every proposal is judged against', path: 'links-26-rules.pdf' },
 ].map(f => ({ ...f, pages: pages(f.path) }));
 claim('every file in the pack has pages', PACK.every(f => f.pages > 0));

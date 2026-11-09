@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: November 2026 — v25.50 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.60 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -102,12 +102,11 @@ the link follows, and today's link carries on until then; 8 Nov 2026: the day is
 normal CEA contract; those on a CEA bilingual contract keep their own links (owner, 8 Nov 2026). It is 26 weeks with five cover weeks
 (`docs/links-26/RULES.md`), and the shortlist is three — **Balanced V6**, **Level Crossing** and **Middle Ground**, A to
 Z, with no recommendation (owner, 8 Nov 2026, drawn for no two closing weeks side by side) — built into the Links designer read-only (`links-proposals.js`) and drawn
-in the pack (`docs/links-26/`). The new link page (`newlink.html`) presents them evenly to colleagues, as a
-**preview** for the admin and S. Silva for now.
+in the pack (`docs/links-26/`). The new link page (`newlink.html`) presents them evenly to everyone on the normal CEA
+contract and the managers — **open since v25.60** (owner, 9 Nov 2026).
 
-What remains is a decision, not code — S. Silva's, as the one leading the change, and then the area manager's review (the plan's dashboard) — a controlled source for the company hard
-limits, and then — if colleagues are to see the page — its audience gate (OPERATIONS_REFERENCE.md → "The new link
-page"). The readiness dashboard at the top of the plan is authoritative.
+What remains is a decision, not code — S. Silva's, as the one leading the change, and then the area manager's review (the plan's dashboard) — and a controlled source for the company hard
+limits. The readiness dashboard at the top of the plan is authoritative.
 
 ### Roster import — let the PDF's own grid decide the day
 **Status:** Phases 1 and 2 shipped · phase 3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`, `functions/roster-prompt.js` · **Contract:** `.claude/rules/roster-import.md`

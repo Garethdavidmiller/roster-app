@@ -27,7 +27,7 @@
  * `guardNamedSession` (page-session.js) for the B1 enforcement decision — behaviour-preserving (CLIENT UX only; Firestore
  * Rules + Functions claim checks remain the real boundary).
  */
-import { CONFIG } from './roster-data.js';
+import { CONFIG, teamMembers } from './roster-data.js';
 
 /** @typedef {import('./auth-state-core.js').AuthState} AuthState */
 /** @typedef {{ requireNamed?: boolean, anonymousOk?: boolean, soft?: boolean, role?: string[]|null, staffPin?: boolean }} PagePolicy */
@@ -75,11 +75,12 @@ export const PAGE_POLICIES = Object.freeze({
     // station PIN reads it too since v24.84 (owner, 22 Oct 2026: "the station pin staff should be able
     // to view the trains page"), because the people asked about the timetable are at the station.
     trains:     { requireNamed: true,  role: null, staffPin: true },
-    // The new link (v25.06; the December link until v25.10): the admin's, and the named previewers' (CONFIG.NEWLINK_PREVIEW:
-    // S. Silva, its contact, since v25.33), while it is a preview (newlink-config.js → PHASE). Opening it to the colleagues
-    // on the new link needs a role for them here and the matching flag on its pill — never `staffPin` (owner, 2 Nov 2026:
-    // "No, signed-in only").
-    newlink:    { requireNamed: true,  role: ['admin', 'newlinkPreview'] },
+    // The new link (v25.06; the December link until v25.10): a preview of the admin's and the named previewers' until v25.60
+    // (CONFIG.NEWLINK_PREVIEW: S. Silva, its contact, since v25.33). OPEN since v25.60 (owner, 9 Nov 2026: "send the new
+    // links section live for everyone with a cea contract and the managers"): `newlinkAudience` — every colleague on a
+    // normal CEA contract, and the managers. newlink-config.js → PHASE says 'open' with it, and newlink-config.test.mjs
+    // fails if the two part. Never `staffPin` (owner, 2 Nov 2026: "No, signed-in only").
+    newlink:    { requireNamed: true,  role: ['admin', 'newlinkPreview', 'newlinkAudience'] },
 });
 
 /**
@@ -104,7 +105,7 @@ function decide(/** @type {AuthDecision['decision']} */ decision, /** @type {str
  *
  * @param {{ status?: string, member?: string|null }} snapshot - from getAuthSnapshot()
  * @param {PagePolicy} policy
- * @param {{ admin?: boolean, manager?: boolean, designer?: boolean, overtimeBeta?: boolean, newlinkPreview?: boolean }} [roles]
+ * @param {{ admin?: boolean, manager?: boolean, designer?: boolean, overtimeBeta?: boolean, newlinkPreview?: boolean, newlinkAudience?: boolean }} [roles]
  * @returns {AuthDecision}
  */
 export function requirePageAuth(snapshot, policy, roles = {}) {
@@ -154,11 +155,17 @@ export function requirePageAuth(snapshot, policy, roles = {}) {
  * Glue: derive a member's role flags from CONFIG (the role source of truth). Impure only in that
  * it reads CONFIG — deterministic and side-effect-free.
  * @param {string|null|undefined} member
- * @returns {{ admin: boolean, manager: boolean, designer: boolean, overtimeBeta: boolean, newlinkPreview: boolean }}
+ * @returns {{ admin: boolean, manager: boolean, designer: boolean, overtimeBeta: boolean, newlinkPreview: boolean, newlinkAudience: boolean }}
  */
 export function rolesFor(member) {
     const m = member || null;
     return {
+        // Not a claim either: who the New link page is for since it opened (v25.60, owner, 9 Nov 2026) — every colleague on
+        // a normal CEA contract, and the managers. The CONTRACT, not the line, and never a CEA bilingual contract, whose
+        // holders keep their own links (owner, 8 Nov 2026). Spelt out here rather than imported: newlink-config.js →
+        // audienceNames() is the page's own copy, and newlink-boundary.test.mjs keeps the page's modules out of this one,
+        // which every roster page loads. newlink-config.test.mjs holds the two to one answer for every name on the roster.
+        newlinkAudience: !!m && (isNormalCeaContract(m) || (CONFIG.MANAGER_NAMES || []).includes(m)),
         // NOT a claim, unlike the three below — an invitation to submit one's own availability
         // during the restricted beta. It grants no read of anybody else's, which is why it is a
         // separate flag rather than a widening of `manager`.
@@ -219,7 +226,16 @@ export function canOpenOvertime(member) {
 }
 
 /**
- * May this member open the New link page — the admin, or a named previewer (CONFIG.NEWLINK_PREVIEW)?
+ * Is this member, by the roster, on a normal CEA contract — the colleagues the new link is for? A current member (not a
+ * leaver, not a manager's row) whose role is CEA and whose contract is not the bilingual one.
+ * @param {string} member
+ */
+function isNormalCeaContract(member) {
+    return teamMembers.some(t => t.name === member && t.role === 'CEA' && !t.bilingualContract && !t.hidden && !t.managerOnly);
+}
+/**
+ * May this member open the New link page — the admin, a named previewer (CONFIG.NEWLINK_PREVIEW), or, since it opened
+ * (v25.60), a colleague on a normal CEA contract or a manager?
  *
  * ONE declaration, like `canOpenOvertime`, for the same reason: every page draws the drawer, and the
  * pill must be offered from all of them (page-contract-parity fails a page that does not pass it). It
@@ -229,7 +245,7 @@ export function canOpenOvertime(member) {
  */
 export function canOpenNewlink(member) {
     const r = rolesFor(member);
-    return r.admin || r.newlinkPreview;
+    return r.admin || r.newlinkPreview || r.newlinkAudience;
 }
 
 /**

@@ -194,8 +194,8 @@ const PUBLIC_CONFIG_KEYS = /** @type {const} */ ({
     LINKS_DESIGNERS:                  'Who may open the Links workspace. Same standing: the '
         + '`linksDesigner` claim is set server-side and is the control.',
     OVERTIME_ENABLED:                 'Whether the Overtime page is open. A switch.',
-    NEWLINK_PREVIEW:                  'Who may open the New link preview. Page access only, over files '
-        + 'that are public anyway.',
+    NEWLINK_PREVIEW:                  'Who may open the New link besides its audience (its preview until '
+        + 'v25.60). Page access only, over files that are public anyway.',
     OVERTIME_BETA:                    'Who answers the Overtime beta. The server keeps its own copy and '
         + 'decides from that.',
     MANAGER_NAMES:                    'Who holds the manager claim. Same standing as ADMIN_NAMES.',

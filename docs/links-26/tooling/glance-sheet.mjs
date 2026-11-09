@@ -26,6 +26,9 @@ import { TC, C, BV, LC, MG, RATE, H, Hmax, first, hm, perYear, mins, claim, tidy
 import { leaveRuns } from './leave.mjs';
 import { folderStats, h55Worst, assess } from './report-data.mjs';
 import { longDates } from './link.mjs';
+// WHO TO ASK (owner, 9 Nov 2026: "Yes", to "Questions: Sara Silva" on this sheet): the page's and the decks' own setting, so
+// the three cannot name different people
+import { CONTACT, CONTACT_ROLE } from '../../../newlink-config.js';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const OUT = fileURLToPath(new URL('../links-26-shortlist-at-a-glance.pdf', import.meta.url));
@@ -298,7 +301,7 @@ ${tbody}
   <div class="cards">${CARDS.map(card).join('')}</div>
 
   <div class="notes"><p><b>How it is counted.</b> Over 52 weeks: the 26-week links worked through twice, today’s 20-week link scaled to match. <b>Cover weeks</b> have no set duties: four days, Monday to Saturday, placed later by the roster office. “Cover weeks aside” leaves them out; “up to” and “if a cover week falls badly” take their worst placing, at 8 hours a duty. <b>Leave</b> costs a day for each working day Monday to Saturday; Sunday is overtime, so a rostered Sunday inside your leave is overtime lost. More: the shortlist sheet, “What it means if you…” and each proposal sheet.</p><p><b>Avoidable fatigue warnings:</b> what the Office of Rail and Road’s good-practice guidance asks to be looked at, such as over 55 hours in seven days; not a pass or fail. Two that every link has are left out: starts before 07:00 and a weekly rotation. <b>Fit to the trains:</b> how closely the staff on duty follow the trains, hour by hour; 0 is exact. <b>Pay</b> is gross, at £${RATE.toFixed(2)} an hour, against today. Its two rows are two different people, never added together: with no overtime, two more Saturdays at a premium; working your Sundays, fewer and shorter Sundays as well.</p></div>
-  <div class="foot"><span>Page 1 of 1 — The shortlist at a glance</span><span><b>At a glance</b> · ${C.map(c => `<span class="nw">${esc(c.name)}</span>`).join(', ').replace(/, ([^,]*)$/, ' and $1')} · Marylebone Roster — Links designer</span></div>
+  <div class="foot"><span><b>Questions:</b> ${esc(CONTACT)}, ${esc(CONTACT_ROLE)}, who is leading the change</span><span><b>At a glance</b> · ${C.map(c => `<span class="nw">${esc(c.name)}</span>`).join(', ').replace(/, ([^,]*)$/, ' and $1')} · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;
 const tidy = h => h.replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>|<svg[\s\S]*?<\/svg>)|(?<=>)([^<]+)(?=<)/g, (mm, keep, txt) => keep ?? tidyText(txt));

@@ -90,8 +90,10 @@ test('every pack file is a PDF the repository holds, under docs/links-26', () =>
         assert.ok(existsSync(here(`./docs/links-26/${f.path}`)), `${f.path} is not in docs/links-26`);
         assert.ok(f.pages > 0, `${f.path}: its pages are counted`);
     }
-    // what a colleague is handed and nothing more: no shortlist sheet (it recommends), no managers' deck
-    assert.ok(PACK.every(f => !/shortlist|for-managers|what-it-means/.test(f.path)), 'the pack the page offers is the colleague pack');
+    // what a colleague is handed and nothing more: no two-page shortlist sheet (it recommended, once), no managers' deck, and
+    // not the What it means sheet, whose rows the page draws itself. The one-page comparison IS on it, by the owner's word
+    // (9 Nov 2026: "add the comparison sheet to the new links section"), so the rule names the files it keeps out exactly
+    assert.ok(PACK.every(f => !/(^|\/)links-26-shortlist\.pdf$|for-managers|what-it-means/.test(f.path)), 'the pack the page offers is the colleague pack');
 });
 
 test('the full pack card names presentations only while the pack lists one (8 Nov 2026)', () => {
@@ -105,4 +107,11 @@ test('the full pack card names presentations only while the pack lists one (8 No
     const decks = PACK.some(f => f.path.startsWith('presentations/'));
     assert.equal(/presentation/i.test(hint), decks,
         `the hint "${hint}" ${decks ? 'leaves out the presentations the list holds' : 'promises presentations the list does not hold'}`);
+    // THE ONE-PAGE COMPARISON, THE SAME WAY (owner, 9 Nov 2026: "add the comparison sheet to the new links section"): on the
+    // list for all three, and named by the hint exactly while the list holds it
+    const glance = PACK.filter(f => f.path === 'links-26-shortlist-at-a-glance.pdf');
+    assert.equal(glance.length, 1, 'the shortlist at a glance is on the pack list, once');
+    assert.equal(glance[0].design, null, 'for all three, not under one design');
+    assert.equal(glance[0].pages, 1, 'it is one page');
+    assert.match(hint, /comparison/i, `the hint "${hint}" does not mention the one-page comparison the list holds`);
 });

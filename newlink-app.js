@@ -19,8 +19,9 @@
  *
  * ── WHO IT IS FOR ──────────────────────────────────────────────────────────────────────────────
  *
- * The admin and the named previewers (CONFIG.NEWLINK_PREVIEW, v25.33) while `PHASE` is 'preview' (auth-policy.js `newlink`,
- * nav-panel.js `newlinkAudienceOnly`, both read through `canOpenNewlink`). The sign-in is the
+ * Every colleague on a normal CEA contract and the managers, since `PHASE` became 'open' (v25.60, owner, 9 Nov 2026), with
+ * the admin and the named previewers (CONFIG.NEWLINK_PREVIEW, v25.33), who had it alone while it was a preview (auth-policy.js
+ * `newlink`, nav-panel.js `newlinkAudienceOnly`, both read through `canOpenNewlink`). The sign-in is the
  * app's ordinary front door rather than a protection — the proposals are public files — and the station PIN never reads
  * this page (owner: "No, signed-in only"), so it signs out on arrival like every page that does not ask for it.
  */

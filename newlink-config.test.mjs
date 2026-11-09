@@ -3,11 +3,13 @@
  * newlink-config.test.mjs — the new link page's settings, and the one switch that must not be flipped alone.
  * Run: node --test newlink-config.test.mjs   (part of `npm run test:hygiene`)
  *
- * `PHASE` is the page's lifecycle switch, and only 'preview' is built: the admin and the named previewers (CONFIG.NEWLINK_PREVIEW,
- * S. Silva since v25.33). Two failures are possible and
- * both are silent in the app — a preview leaking to members because the policy was widened ahead of the switch, or the
- * switch flipped to a phase whose gate does not exist, so the page tells colleagues it is open while nobody but the
- * admin can reach it. This file holds the switch, the policy and the pill to one story.
+ * `PHASE` is the page's lifecycle switch: 'preview' until v25.59 (the admin and the named previewers, CONFIG.NEWLINK_PREVIEW,
+ * S. Silva since v25.33), 'open' since v25.60 (owner, 9 Nov 2026: "send the new links section live for everyone with a cea
+ * contract and the managers"). Two failures are possible and both are silent in the app — the policy widened ahead of the
+ * switch, or the switch flipped to a phase whose gate does not exist, so the page tells colleagues it is open while nobody
+ * but the admin can reach it. And since the gate's audience is written in auth-policy.js (which may not import this file),
+ * a third: the two copies of who the page is for drifting apart. This file holds the switch, the policy, the pill and the
+ * two copies to one story.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,29 +18,47 @@ import * as config from './newlink-config.js';
 import { PHASE, CLOSES, STARTS, TIMETABLE_STARTS, CONTACT, CONTACT_ROLE, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
 import { CHANGE_DATE } from './trains-data.js';
 import { closesWords, startsWords } from './newlink-render.js';
-import { PAGE_POLICIES, requirePage, admitsStaffPin, canOpenNewlink } from './auth-policy.js';
+import { PAGE_POLICIES, requirePage, admitsStaffPin, canOpenNewlink, rolesFor } from './auth-policy.js';
 import { teamMembers, CONFIG } from './roster-data.js';
 
-test('the preview is the admin\'s and the named previewers\' — the switch, the policy and the pill agree', () => {
-    assert.equal(PHASE, 'preview',
-        'only the preview is built. Opening the page needs its audience gate first — a role in auth-policy.js and a pill '
-        + 'flag in nav-panel.js (newlink-config.js header) — and then this test widens with it.');
-    assert.deepEqual(PAGE_POLICIES.newlink.role, ['admin', 'newlinkPreview']);
+test('the page is open — the switch, the policy and the pill agree', () => {
+    // 'open' exactly while the policy admits the audience: the switch and its gate move together or this fails
+    assert.equal(PHASE, 'open', 'open since v25.60 (owner, 9 Nov 2026)');
+    assert.equal(PAGE_POLICIES.newlink.role.includes('newlinkAudience'), PHASE === 'open', 'the switch and the gate have parted');
+    assert.deepEqual(PAGE_POLICIES.newlink.role, ['admin', 'newlinkPreview', 'newlinkAudience']);
     assert.equal(admitsStaffPin('newlink'), false, 'never the station PIN (owner, 2 Nov 2026: "No, signed-in only")');
     const nav = readFileSync(new URL('./nav-panel.js', import.meta.url), 'utf8');
     assert.match(nav, /\{\s*id:\s*'newlink',[^}]*newlinkAudienceOnly:\s*true/, 'the pill has its own gate, read through canOpenNewlink');
 
-    // The decision itself, through the REAL lists (requirePage reads CONFIG), not roles made up for the test: the admin
-    // and S. Silva in; everybody else out — a manager included. That a Links designer is not enough is the role list
-    // above (no `designer` in it): the real designer list has been the admin alone since 9 Nov 2026, so no real name can
-    // show it here, and e2e/newlink.spec.js shows it with a designer list of its own.
+    // The decision itself, through the REAL lists and the real roster (requirePage reads both), not roles made up for the
+    // test. The examples are found on the roster rather than named, so a leaver cannot break the test, and each is asserted
+    // to exist, so a missing one cannot quietly pass it.
     const decide = (/** @type {string} */ member) => requirePage({ status: 'named', member }, 'newlink').decision;
-    assert.equal(decide('G. Miller'), 'allow');
+    const someone = (/** @type {string} */ what, /** @type {(m: any) => boolean} */ f) => {
+        const m = teamMembers.find(x => !x.hidden && !CONFIG.ADMIN_NAMES.includes(x.name) && !CONFIG.NEWLINK_PREVIEW.includes(x.name) && f(x));
+        assert.ok(m, `the roster has ${what}`); return /** @type {string} */ (m.name); };
+    assert.equal(decide('G. Miller'), 'allow', 'the admin');
     assert.equal(decide('S. Silva'), 'allow', 'the new link\'s contact (owner, 4 Nov 2026: "open up the new links page to S. Silva")');
-    assert.equal(decide('M. Robson'), 'forbidden', 'a former Links designer, in neither list');
-    assert.equal(decide('D. Watts'), 'forbidden', 'nor a manager');
-    assert.equal(decide('T. Bibi'), 'forbidden');
+    assert.equal(decide(someone('a normal CEA contract', m => m.role === 'CEA' && !m.bilingualContract)), 'allow', 'everyone with a CEA contract');
+    assert.equal(decide(CONFIG.MANAGER_NAMES[0]), 'allow', 'and the managers (owner, 9 Nov 2026)');
+    assert.equal(decide(someone('a CEA bilingual contract', m => m.role === 'CEA' && m.bilingualContract)), 'forbidden',
+        'a CEA bilingual contract keeps its own links (owner, 8 Nov 2026)');
+    assert.equal(decide(someone('a CES', m => m.role === 'CES')), 'forbidden', 'not a CES');
+    assert.equal(decide(someone('a Dispatcher', m => m.role === 'Dispatcher')), 'forbidden', 'nor a Dispatcher');
+    const leaver = teamMembers.find(m => m.hidden && !m.managerOnly && m.role === 'CEA' && !m.bilingualContract);
+    if (leaver) assert.equal(decide(leaver.name), 'forbidden', `${leaver.name}, a leaver, is not on the new link`);
     assert.equal(requirePage({ status: 'signedOut', member: null }, 'newlink').decision, 'login');
+});
+
+test('the gate\'s audience is the page\'s own, and the managers — for every name on the roster', () => {
+    // auth-policy.js spells the audience out, because newlink-boundary.test.mjs keeps this page's modules out of the one every
+    // roster page loads. Two copies of one answer, held together here: AUDIENCE narrowed to the 26, a contract changed on the
+    // roster, or a manager added, and either both move or this fails
+    const audience = new Set([...audienceNames(), ...CONFIG.MANAGER_NAMES]);
+    const names = [...new Set([...teamMembers.map(m => m.name), ...CONFIG.ADMIN_NAMES, ...CONFIG.MANAGER_NAMES, ...CONFIG.NEWLINK_PREVIEW])];
+    const disagree = names.filter(n => rolesFor(n).newlinkAudience !== audience.has(n));
+    assert.deepEqual(disagree, [], 'auth-policy.js `newlinkAudience` and newlink-config.js `audienceNames()` with the managers disagree');
+    assert.ok(audience.size >= 20, `the audience reads as ${audience.size} people`);
 });
 
 test('the pill is offered to exactly the people the page admits — every name on the roster', () => {

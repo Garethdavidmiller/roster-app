@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '25.59';
+export const APP_VERSION = '25.60';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -61,9 +61,11 @@ export const CONFIG = {
     // already made age out by themselves. The code and its tests stay live while it is off, which is
     // what keeps it ready: OVERTIME_AVAILABILITY.md → "Paused" is the way back.
     OVERTIME_ENABLED:                 false,
-    // Who besides the admin may open the New link page while it is a PREVIEW (newlink-config.js → PHASE): S. Silva, the RMT
-    // rep who leads the change (owner, 4 Nov 2026). Page access only — the page reads nothing from the server and shows only public
-    // files — so it needs no claim and no generated server copy. auth-policy.js → `canOpenNewlink` reads it.
+    // Who besides the admin could open the New link page while it was a PREVIEW (newlink-config.js → PHASE): S. Silva, the RMT
+    // rep who leads the change (owner, 4 Nov 2026). Open since v25.60 to every colleague on a normal CEA contract and the
+    // managers (auth-policy.js → `newlinkAudience`); this list keeps her in whatever the audience becomes. Page access only — the
+    // page reads nothing from the server and shows only public files — so it needs no claim and no generated server copy.
+    // auth-policy.js → `canOpenNewlink` reads it.
     NEWLINK_PREVIEW:                  ['S. Silva'],
     OVERTIME_BETA:                    /** @type {string[]} */ ([]),                           // CEA beta participants (none since 7 Oct 2026 — T. Bibi and J. Sumaili withdrawn, owner request) — availability only, no reviewer access
     MANAGER_NAMES:                    ['D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft', 'N. Sobers'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)

@@ -126,7 +126,7 @@ removed on 7 Nov 2026):
 | `links-26-shortlist.pdf` | the three shortlisted designs (Balanced V6, Level Crossing and Middle Ground, A to Z, since 8 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z folder by folder, on one page when it fits — fifteen rows since 9 Nov 2026 — and otherwise on two, split at the folders (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
-| `links-26-shortlist-at-a-glance.pdf` | "The shortlist at a glance": the three shortlisted designs beside today's link on one A4 page — what all three give and cost against today, the measures where they differ, and each one's edge and cost as the shortlist sheet gives them (26 lines only; `tooling/glance-sheet.mjs`, since 9 Nov 2026, audited the same day; not in the zip) |
+| `links-26-shortlist-at-a-glance.pdf` | "The shortlist at a glance": the three shortlisted designs beside today's link on one A4 page — what all three give and cost against today, the measures where they differ, and each one's edge and cost as the shortlist sheet gives them (26 lines only; `tooling/glance-sheet.mjs`, since 9 Nov 2026, audited the same day; in the zip and on the New link page since that evening) |
 | `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary; since 7 Nov 2026 the Balanced designs, five since Balanced V5 was discarded on 9 Nov 2026, are in its subfolder `30-days-off/balanced/` (owner: "Put all the Balanced proposals in their own subfolder"), *Balanced* in the zip |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: Balanced V6's, Level Crossing's and Middle Ground's, the shortlist's since 8 Nov 2026 and the only ones in the zip; Short Run's, made for the shortlists before then and out of the zip since (In Step's, made with them, were deleted with it on 8 Nov 2026; Common Ground's and Even Step's went with the two designs on 9 Nov 2026, their PowerPoints kept in `tooling/deck-template/` as the decks the ones in use are built from); and Balanced V10's, Clockface's and Short Working's, drawn on 8 Nov 2026 beside the shortlist, not in the zip either |
@@ -7587,8 +7587,8 @@ Sundays instead of rostered ones makes it accept the grid, which shows the count
 **The ask.** "Can you create a one page highly polished comparison at a glance sheet between the 3 proposals and today's
 roster" (owner, 9 Nov 2026). `links-26-shortlist-at-a-glance.pdf`, built by `tooling/glance-sheet.mjs`, puts Balanced V6,
 Level Crossing and Middle Ground, A to Z, beside today's link on one A4 page. It tells the shortlist sheet's story for
-someone with a minute; it is not a second copy of that sheet's tables. It is not in the zip, and nothing in the pack
-changed.
+someone with a minute; it is not a second copy of that sheet's tables. It was not in the zip at first; it joined the
+pack and the New link page the same day (below).
 
 **What is on it.**
 - **Whichever is chosen**, in three panels:
@@ -7650,7 +7650,7 @@ pack. Every finding was checked against the code and the figures before anything
   - a cross in place of ▲: ▲ is the pack's cost mark in every deck;
   - a size threshold for bold: the pack's tables have none;
   - dropping the fingerprints: they match a printout to its exact rota;
-  - a contact line: no sheet in the pack has one; the read-me and the decks do.
+  - a contact line: no sheet in the pack had one, and the read-me and the decks do. The owner then asked for it (below).
 
 **Nothing on it is typed.**
 - Every panel line is asserted on all three.
@@ -7674,6 +7674,26 @@ After it, four more:
 
 **Run it** after `what-it-means-sheet.mjs`, with Playwright's Chromium: `node docs/links-26/tooling/glance-sheet.mjs`.
 
+**Into the pack, and onto the page (9 Nov 2026).** The owner answered the audit's four questions: "1. Yes 2. No 3. No
+4. Yes".
+1. **Yes — the sheet goes in the pack.**
+   - `pack.py` puts it in *1 Summary*, and the read-me opens *Where to start* with it ("One minute").
+   - The read-me check refuses a pack whose sheet is older than the colleague presentations, as it already did for the
+     What it means sheet.
+   - The New link page lists it among the pack's files, with no design of its own ("a one-page comparison" in the hint).
+     `newlink-data.test.mjs` holds it there once, one page long.
+2. **No — no Balanced V10 version.**
+3. **No — V6's 33 days are not mentioned.**
+4. **Yes — "Questions: Sara Silva, the RMT rep, who is leading the change"** in the footer. It is built from
+   `newlink-config.js`'s `CONTACT` and `CONTACT_ROLE`, as the read-me and the decks are, so a change of contact reaches it
+   too. The page still fits, with 16px to spare.
+
+**The page opened the same day** (owner: "send the new links section live for everyone with a cea contract and the
+managers"), from v25.60.
+- **Who it reaches:** every colleague on a normal CEA contract, and the managers. A CEA bilingual contract keeps its own
+  links (owner, 8 Nov 2026), so it is not on it; nor are CES or Dispatchers.
+- **How it works:** the gate and its reasons are OPERATIONS_REFERENCE.md → "The new link page".
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
@@ -7692,7 +7712,8 @@ The weighted league scores weekends as a share of weeks for the same reason. The
 repository ignores `*.zip`, so run the script and send the file). It is laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:
 1. a *Read me first* note;
-2. the one-page summary, the two-page shortlist sheet and the one-page "What it means if you…" sheet;
+2. the one-page summary, the two-page shortlist sheet, the one-page "What it means if you…" sheet and, since 9 Nov 2026,
+   the one-page "The shortlist at a glance";
 3. the rules;
 4. the presentations of the shortlisted designs (Balanced V6's, Level Crossing's and Middle Ground's since 8 Nov 2026: *The shortlist's presentations*);
 5. every proposal sheet;
