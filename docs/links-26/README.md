@@ -7523,6 +7523,63 @@ the other designs' sheet, and its name out of `pack.py`'s `DELETED`; a base also
 **Outside the repository.** Zips sent before this change hold the four; the one sent with it does not. The rules document
 for Sara Silva, in Claude Docs, uses Even Step's duty tables as its worked example; it was not changed.
 
+## Balanced V10's Sundays in its 30 days off (9 Nov 2026)
+
+**The ask.** "Balanced v10 is great, but there are a lot of Sundays in the 14 days AL for 30 days off period. Is that
+avoidable?", then "If it is do a v11 … reducing the amount of lost sunday rostered overtime in that period would be
+preferable, but only if possible" (owner, 9 Nov 2026). **No Balanced V11 was made:** nothing found keeps everything Balanced
+V10 has. Nothing in the pack changed.
+
+**What V10 gives up.** A Sunday duty is overtime, so it costs no leave. A stretch that 14 days' leave buys therefore runs
+through the rostered Sundays inside it, and the person gives each one up. V10 has two 30-day stretches, from week 4's
+Saturday and from week 5's Sunday. Each holds five Sundays: three rostered duties, one rest day and one cover-week Sunday.
+Today's link has one, from week 14's Tuesday, with four Sundays: two rostered, one rest day, one cover-week Sunday.
+
+| Days off that 14 days' leave buys, giving up | any number of Sundays | 2 at most | 1 at most | none |
+|---|---|---|---|---|
+| Today's link | 30 | 30 | 28 | 25 |
+| Balanced V10 | 30 | 29 | 28 | 25 |
+
+So on V10 someone who keeps a third Sunday has 29 days off, not 30. Giving up one Sunday or none, V10 matches today.
+
+**Why: four weeks off for 13 days.** V10's four weeks off, Sunday to Saturday, cost 13 days' leave, a day less than today's
+14, and that day is paid for with the same Sundays.
+- A cover week costs four days' leave. A working week costs at least three, and exactly three only when it has four duties
+  and one of them is the Sunday.
+- So four weeks for 13 are a cover week and three such weeks, which means three rostered Sundays.
+- The 30-day stretches around those four weeks give up all three.
+
+The solver proves it on the leave rules alone: `LV_FOUR=13` with `SUN_ALL=2` is infeasible in 32 s.
+
+**What was tried for a V11.** The aim: keep V10's four weeks for 13, and add a second 30-day stretch that gives up two
+Sundays at most, with every other figure at V10's own level.
+- **On the leave rules alone it exists.** With weeks 2–10 laid again on V10's other weeks, two Sundays is reached and proved
+  the least there.
+- **With every V10 floor, none was found.**
+  - Week 9 freed together with any one other week: infeasible for all 20 other weeks, both with V10's 6 single rest days and
+    with 7. That is 40 runs, each settled in seconds.
+  - Weeks 2–10 laid again: it needs 8 single rest days, or V10's two caps on the hours in seven days (51 hours) both lifted
+    past 53. With 8 single rest days, 18 weeks on one shift time was not found in 5 minutes.
+  - The whole rota, starting from V10: nothing in 15 minutes. With only the leave, single-rest-day and hours rules: nothing
+    in 7, and not proved impossible either.
+- **Giving up four weeks for 13**, back to 14 as today, does not obviously help. On the leave rules alone, every 30-day
+  stretch could then give up one Sunday at most. With V10's other floors, nothing was found: 15 minutes on the whole rota
+  from V10, and two 3-minute runs on weeks 2–10 and 4–13.
+
+**The commands.** Run from `tooling/`. F is Balanced V10's floors, as in `exact-rota.py`'s header; LEAVE keeps the leave rules
+and loosens the rest:
+```
+F="H55=3060 H7=3060 LV_BEST=30 BEST_LEN=30 LV_FOUR=13 LV_WORST=20 FF11_FIXED=9 FF11_WORST=12 ISO=6 HEAVY=2550 LIGHT=1440 REST=860 GAP=5 FF17=0 ONE_MIN=18 CLOSE_APART=2"
+LEAVE="LV_BEST=30 BEST_LEN=30 LV_FOUR=13 LV_WORST=20 REST=0 HEAVY=9999 H7=9999 FF11_FIXED=30 FF11_WORST=30 ISO=99 GAP=26 FF17=99 BLOCK=21"
+env $F FIX=results/balanced-v10.json OBJ=sunmax python3 exact-rota.py results/balanced-v7-table.json out.json   # most 3, fewest 3
+env $LEAVE SUN_ALL=2 OBJ=sunmax python3 exact-rota.py results/balanced-v7-table.json out.json 240                # infeasible
+env $F SKELETON=results/balanced-v10.json SKELETON_FREE=9,2 SUN_SOME=2 OBJ=sunmin python3 exact-rota.py results/balanced-v7-table.json out.json 60
+```
+The last is infeasible, and so is every other line in place of 2. `exact-rota.py` gained `SUN_ALL=`, `SUN_SOME=` and
+`OBJ=sunmax|sunmin` for this. They are built only when asked for, so every recorded command keeps its model: V10's own
+`FIX=` check is still optimal at 338585. `FIX=` with `SUN_SOME=2` refuses V10's grid. A mutation that counts cover-week
+Sundays instead of rostered ones makes it accept the grid, which shows the count is the rostered Sundays.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
