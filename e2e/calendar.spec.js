@@ -1581,12 +1581,18 @@ test('New link notice: a colleague the page is for is told, and its link takes t
     const notice = page.locator('#newlinkNoticeLb');
     await expect(notice, 'on a desk there is no install notice to wait for, and on a phone the seeders answered it')
         .toHaveClass(/\bopen\b/, { timeout: 15_000 });
-    await expect(page.locator('#newlinkNoticeContent .lightbox-app-name')).toHaveText('Three proposals for the new link');
+    await expect(page.locator('#newlinkNoticeContent .lightbox-app-name')).toHaveText('See the three proposals for the new link');
+    // The flag is read AS THE LINK IS PRESSED, not on the page it opens: the init scripts run again on that navigation,
+    // and the one that re-enabled this notice for the test clears the flag — in whichever order they happen to run.
+    // A document listener bubbles after the link's own, and sessionStorage survives the navigation untouched.
+    await page.evaluate(() => document.addEventListener('click', () => {
+        sessionStorage.setItem('__newlinkDoneAtClick', localStorage.getItem('myb_notice_newlink_2026_done') ?? 'unset');
+    }));
     await page.locator('#newlinkNoticeGo').click();
     await expect(page).toHaveURL(/\/newlink\.html$/);
     await expect(page.locator('.nl-name-title').first(), 'the page let them in — the notice told somebody it is for')
         .toBeVisible({ timeout: 15_000 });
-    expect(await page.evaluate(() => localStorage.getItem('myb_notice_newlink_2026_done')), 'the link marks it done').toBe('1');
+    expect(await page.evaluate(() => sessionStorage.getItem('__newlinkDoneAtClick')), 'the link marks it done as it is pressed').toBe('1');
     const filed = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_app_notices') || '[]')
         .filter((/** @type {any} */ n) => n.id === 'newlink-2026').map((/** @type {any} */ n) => n.section));
     expect(filed, 'archived on open, under its own section').toEqual(['New link']);

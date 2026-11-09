@@ -458,11 +458,10 @@ export function initCalendarNotices({ after } = {}) {
             closeBtn: /** @type {HTMLElement} */ (document.getElementById('newlinkNoticeClose')),
             onOpen() {
                 archiveNotice({
-                    id: NOTICE_ID, title: 'Three proposals for the new link', section: 'New link',
+                    id: NOTICE_ID, title: 'See the three proposals for the new link', section: 'New link',
                     date: NOTICE_DATE,
-                    body: 'The new link starts in January 2027, and the three proposals on the shortlist are on the New link '
-                        + 'page — week by week, what each would mean for you, and who to tell if something worries you. '
-                        + 'Nothing is decided yet. Open it from the menu: ☰ then 🔁 New link.',
+                    body: 'The three proposals for the new link, which starts in January 2027, are on the New link page. '
+                        + 'Nothing is decided yet — open it from the menu: ☰\u00a0then 🔁\u00a0New\u00a0link.',   // the route never breaks
                 });
             },
             onClose() { markDone(); },
