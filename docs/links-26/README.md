@@ -126,6 +126,7 @@ removed on 7 Nov 2026):
 | `links-26-shortlist.pdf` | the three shortlisted designs (Balanced V6, Level Crossing and Middle Ground, A to Z, since 8 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z folder by folder, on one page when it fits — fifteen rows since 9 Nov 2026 — and otherwise on two, split at the folders (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
+| `links-26-shortlist-at-a-glance.pdf` | "The shortlist at a glance": the three shortlisted designs beside today's link on one A4 page — what all three give and cost against today, the twenty measures where they differ, and each one's edge and cost (26 lines only; `tooling/glance-sheet.mjs`, since 9 Nov 2026; not in the zip) |
 | `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary; since 7 Nov 2026 the Balanced designs, five since Balanced V5 was discarded on 9 Nov 2026, are in its subfolder `30-days-off/balanced/` (owner: "Put all the Balanced proposals in their own subfolder"), *Balanced* in the zip |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: Balanced V6's, Level Crossing's and Middle Ground's, the shortlist's since 8 Nov 2026 and the only ones in the zip; Short Run's, made for the shortlists before then and out of the zip since (In Step's, made with them, were deleted with it on 8 Nov 2026; Common Ground's and Even Step's went with the two designs on 9 Nov 2026, their PowerPoints kept in `tooling/deck-template/` as the decks the ones in use are built from); and Balanced V10's, Clockface's and Short Working's, drawn on 8 Nov 2026 beside the shortlist, not in the zip either |
@@ -198,6 +199,7 @@ with that folder on 7 Nov 2026; two of its modules live on in `tooling/reference
 | | `what-it-means-sheet.mjs` | the one-page "What it means if you…" sheet (`../links-26-what-it-means.pdf`). It lays out and prints `what-it-means-data.mjs`, which reads the colleague decks' slide 5 and its notes back, so it runs after `deck-polish.py` and before `pack.py` (step 4) |
 | | `what-it-means-data.mjs` | the sheet's figures and asserted sentences, split out of it unchanged (2 Nov 2026) so the app's New link page reads the same ones; imported, never run |
 | | `newlink-data.mjs` | writes the app's `newlink-data.js` — the New link page's figures, sentences and pack list — from `what-it-means-data.mjs`; `--check` is what `newlink-data.test.mjs` runs. After `what-it-means-sheet.mjs` (step 4) |
+| | `glance-sheet.mjs` | the one-page "The shortlist at a glance" (`../links-26-shortlist-at-a-glance.pdf`, 9 Nov 2026), from `what-it-means-data.mjs` and the grids; every line on it is asserted. After `what-it-means-sheet.mjs` (step 4) |
 | 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`) → `common-ground-decks.py` → `deck-marks.py`; `shortlist-decks.py`; `relay-decks.py`; `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; Common Ground's, rewritten from Even Step's finished pair; the ✓ and ▲ beside every green and amber figure, run last (5 Nov 2026); the shortlist's of 8 Nov 2026, rewritten from Common Ground's finished pair and marked as they are built; Clockface's and Short Working's, rewritten the same way from Even Step's and Short Run's; the checker that reads every deck row back against the sheets and refuses an unmarked colour; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks, and reads the league's leader and its lead for the read-me as the shortlist sheet does (8 Nov 2026) |
 | league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them; `FAM_SUNDAY=1` for the main league with the Sunday duties counted in familiar shift times, as it was read before 3 Nov; `EXTRA=Name=<grid.json>;…` scores a candidate beside the pack's proposals, inside the range and ranked, before anything is rendered, since "Set Fair") — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
@@ -7579,6 +7581,53 @@ The last is infeasible, and so is every other line in place of 2. `exact-rota.py
 `OBJ=sunmax|sunmin` for this. They are built only when asked for, so every recorded command keeps its model: V10's own
 `FIX=` check is still optimal at 338585. `FIX=` with `SUN_SOME=2` refuses V10's grid. A mutation that counts cover-week
 Sundays instead of rostered ones makes it accept the grid, which shows the count is the rostered Sundays.
+
+## The shortlist at a glance (9 Nov 2026)
+
+**The ask.** "Can you create a one page highly polished comparison at a glance sheet between the 3 proposals and today's
+roster" (owner, 9 Nov 2026). `links-26-shortlist-at-a-glance.pdf`, built by `tooling/glance-sheet.mjs`, puts Balanced V6,
+Level Crossing and Middle Ground, A to Z, beside today's link on one A4 page. It tells the shortlist sheet's story for
+someone with a minute; it is not a second copy of that sheet's tables. It is not in the zip, and nothing in the pack
+changed.
+
+**What is on it.**
+- **Whichever is chosen**, in three panels:
+  - better than today: all nine December staffing rules met (today four), three on the floor at all times, a shorter
+    weekday closing shift, and fewer fatigue warnings and days in a row on the set duties;
+  - as today: 30 days off for 14 days' leave, 14 days' leave for four weeks off, and the 35-hour week;
+  - worse than today: more Saturdays at work, and more finishes at 22:00 and at 23:00 or later.
+- **Where they differ:** twenty rows in four bands (leave and time off; your shifts; if a cover week falls badly; trains
+  and pay), with today's figure for scale. Green is better than today and amber worse. Bold navy marks the clear best of
+  the three, and only where the pack ranks a row: never the two pay rows, and never the 06:20 starts, which some
+  colleagues prefer and some do not.
+- **Each one's edge, and its cost:** a sentence each, with its code and fingerprint, so a printout can be matched to the
+  proposal sheet.
+
+**Where the figures come from.** They are `what-it-means-data.mjs`'s, which are `deck-check.mjs`'s and the grids'. So the
+page cannot quote a figure that the What it means sheet, the decks or the New link page do not. Two are counted here,
+from the grids:
+- breaks of three days or more a year;
+- the rostered Sundays inside the best stretch that 14 days' leave buys, by `leave.mjs`'s walk. A cover week's Sunday is
+  not rostered. Balanced V6 has 1; Level Crossing, Middle Ground and today's link have 2 each.
+
+Checked against `links-26-shortlist.pdf` and `links-26-what-it-means.pdf` with `pdftotext`: every figure the sheets share
+matches.
+
+**Nothing on it is typed.**
+- Every panel line is asserted the same on all three.
+- Every row under *Where they differ* is asserted to differ among the three.
+- Every edge and cost sentence is asserted against the figures.
+- A row's colour comes from its direction.
+- The page refuses to print if anything runs into the footer, or a figure is wider than its cell.
+
+Three mutations (`scripts/mutate.mjs`) each stopped it:
+- the check behind Balanced V6's "fewest Sundays" pointed at Level Crossing: "the sheet says "Balanced V6's edge and
+  cost", and the figures no longer do";
+- the Saturdays cost inverted: "the sheet says "28 Saturdays at work: a cost against today, on all three", and the
+  figures no longer do";
+- the page made 14 mm shorter: "content runs into the footer or off the page by 37px".
+
+**Run it** after `what-it-means-sheet.mjs`, with Playwright's Chromium: `node docs/links-26/tooling/glance-sheet.mjs`.
 
 ## Notes for the whole set
 
