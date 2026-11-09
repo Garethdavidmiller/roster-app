@@ -609,10 +609,10 @@ notice HTML stays in `index.html`; which notices are wired and live: the new-not
   auto-open, and opens through `openNoticeIfClear`, never `open()`.
 - **Every notice declares an audience**, checked after access by `_openWhenAudienceAllows(lb, audience,
   alsoWhen?, whenDecided?)` against `noticeAudienceAllows`; a refused notice is left unflagged. `alsoWhen`
-  adds a condition only knowable then (whose Pay Calculator this is — `gradeForRole`); `whenDecided` stands
+  adds a condition only knowable then (whose Pay Calculator this is — `gradeForRole`; whether the New link page would let them in — `canOpenNewlink`, auth-policy.js); `whenDecided` stands
   a competing strip down (`yieldToInstallNotice`).
 - Each notice is its own IIFE: an early `return` in a plain block would leave the function and silence
-  every later notice. The order comes from `FOLLOWS` flags read at wiring time, so two notices never open on one load. A notice
+  every later notice. The order comes from `FOLLOWS` flags read at wiring time, so two notices never open on one load; `FOLLOWS_PAY` and `FOLLOWS_INSTALL` wait only where that earlier notice is this member's or this device's to get. A notice
   with a `STARTS` date is left unflagged before it, and an end is a DATE (`isNoticeExpired(day, 1)`), not a
   count from posting.
 - No live notice declares `'signed-out'`, so the positive direction of the audience gate rests on a
@@ -1846,7 +1846,7 @@ The App Notices archive's rules: what a seen notice leaves behind, for how long,
 - `readArchivedNotices()` → the archive, newest first; never throws — unreadable storage or a non-list reads as empty.
 - **The documents** (`_openLatestDoc`): refused at once when `canReadDocuments()` says no, before the blank tab opens; otherwise the tab opens on the gesture and is filled through `resolveDocumentOpenUrl`. When no tab comes back (a pop-up blocker, an iOS home-screen app) the tap hands over to the Calendar's in-app viewer through a hidden drawer link, so the unsaved-work question still runs.
 - **The bell** reads `peekNotifState()` on every open (no Firestore write); the push logic is `notif.js`. A labelled full-width row has been tried and reverted twice (CLAUDE.md).
-- **The drawer's two lightboxes** (Coming soon, App Notices) share the drawer's history entry, so they hand-roll `createLightbox`'s promises: a fallback beside `transitionend`, a close that runs ONCE, focus back to the burger, and key handlers that stand down under a higher `.lb-overlay` (`_overlayAbove`). `closePanelForNavigation()` closes the drawer without `history.back()` when a link navigates.
+- **The drawer's two lightboxes** (Coming soon, App Notices) share the drawer's history entry, so they hand-roll `createLightbox`'s promises: a fallback beside `transitionend`, a close that runs ONCE, focus back to the burger, and key handlers that stand down under a higher `.lb-overlay` (`_overlayAbove`). App Notices' Tab cycles TWO stops, the ✕ and `#navNoticesList` (it scrolls under a still heading, so the keyboard must reach it — v25.61). `closePanelForNavigation()` closes the drawer without `history.back()` when a link navigates.
 - Adding a guide is one `NAV_GUIDES` entry with an `openId`, plus that id in the `firestore.rules` analytics allowlist and in `OPEN_META` (`firestore-contract-parity.test.mjs` checks all three). Adding a live document is one `links` entry in `NAV_INFORMATION`; `comingSoon: true` renders a button that opens `#navComingSoonLightbox`.
 
 ### `notif.js`

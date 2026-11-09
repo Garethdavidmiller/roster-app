@@ -292,6 +292,28 @@
         </div>
     </div>
 
+    <!-- One-time notice: the New link page and its three proposals (v25.61; calendar-notices.js).
+         Offered 9 November to 5 December 2026, only to the members who can open that page. Its words say
+         what the page says and no more — calendar-notices.test.mjs holds the two together. -->
+    <div id="newlinkNoticeLb" class="lb-overlay" role="dialog" aria-label="Three proposals for the new link" aria-modal="true">
+        <div id="newlinkNoticeContent" class="lb-content notice-lb-content">
+            <button id="newlinkNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="notice-head">
+                <div class="notice-badge notice-badge--newlink">🔁 New link</div>
+                <div class="lightbox-app-name">Three proposals for the new link</div>
+                <div class="notice-date">Posted 9 Nov 2026</div>
+            </div>
+            <div class="notice-main">
+                <p class="notice-body">The new link starts in <strong>January&nbsp;2027</strong>, and the three proposals on the shortlist are now on the <strong>New link</strong> page. Nothing is decided yet.</p>
+                <p class="notice-body">See each one week by week, what it would mean for you against today’s link, and who to tell if something worries you. You can open it any time from the menu: ☰&nbsp;then 🔁&nbsp;New link.</p>
+            </div>
+            <div class="notice-actions">
+                <a href="./newlink.html" id="newlinkNoticeGo" class="notice-cta">See the proposals &rarr;</a>
+                <button id="newlinkNoticeLater" class="notice-later" type="button">Not now</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Annual Leave lightbox — opened by tapping the 🏖️ AL button -->
     <div id="alLightbox" class="lb-overlay" role="dialog" aria-label="Annual Leave balance" aria-modal="true">
         <div id="alLightboxContent" class="lb-content">

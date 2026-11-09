@@ -65,6 +65,7 @@ there is none to inherit. `.notice-actions` is omitted entirely on a notice with
 | Operations page | `🔧 Ops` | `notice-badge--ops` (orange) — short, like the page badge: a notice lightbox is a narrow box on a phone, so the section pill wants the abbreviation. The nav-drawer pill spells it in full, because a drawer row has the width. |
 | Calendar page | `📅 Calendar` | `notice-badge--calendar` (gold) |
 | Trains page | `🚆 Trains` | `notice-badge--trains` (raspberry, white type — the Trains pill's colour; first used by `timetable-2026`, v24.82) |
+| New link page | `🔁 New link` | `notice-badge--newlink` (teal `--al`, white type — the New link pill's colour; first used by `newlink-2026`, v25.61) |
 | General / no specific page | `📣 General` | (no modifier — neutral white tint) |
 
 ## JS pattern — close-only notice (no CTA)
@@ -227,6 +228,20 @@ Notices on other pages need no audience: those pages already require a session.
   `whenDecided`, runs the moment the notice is decided — the install notice stands the install strip
   down then, rather than covering it 1500ms later.
 
+`newlink-2026` (v25.61) added three more:
+
+- **After the install notice, only where that one is this DEVICE's:** `const FOLLOWS_INSTALL =
+  '<its DONE_KEY>'`, read at wiring time, and `alsoWhen` accepts it OR `!installRoute()` — a desktop
+  or the installed app never gets the install notice, so waiting on its flag there reaches nobody at
+  a desk. The test matrix reads `FOLLOWS_INSTALL` like `FOLLOWS_PAY`.
+- **A notice about a page goes only where the page would let them in — ask the page's OWN question**
+  (`canOpenNewlink`, the drawer pill's), at open time through `alsoWhen`. Never a list of the
+  notice's own: two lists of who a page is for drift. Block 11 drives it for every name on the roster.
+- **A section with two words** (`'New link'`) is a QUOTED key in `SECTION_MODS` (nav-panel.js), with
+  an `--on-navy-*` colour beside the others; block 10 reads both spellings.
+- **Wire it last if it should give way.** On a load where two are due, the first to ask for the
+  screen takes it; a notice placed last in `calendar-notices.js` comes back next load instead.
+
 ## Rules
 
 | Rule | Value |
@@ -279,6 +294,7 @@ and points here for the rest.
 | `ytd-figures-2026` | `index.html` | Make your pay estimates more accurate | 💷 Pay | 22 Oct 2026 | ended 31 Oct 2026, with the timetable notice | ⛔ **ended 31 Oct — inert**. Was `'members'`, only where the Pay Calculator prices (`gradeForRole`); came the load AFTER the timetable notice (`FOLLOWS`); its link counted as `ytd_2627` seen | One-time; `myb_notice_ytd_figures_2026_done` set on any dismissal, the link included |
 | `install-app-2026` | `index.html` | Put the roster on your home screen | 📣 General | 22 Oct 2026 | 90 days (~20 Jan 2027) | ✅ live — `'members'`, on a phone or tablet in a browser only (`installRoute`, install-prompt.js). Third in line, after the two above. On the Pages mirror it sends staff to myb-roster.web.app, never installing there. Answering it retires the install strip | One-time; `myb_notice_install_app_2026_done` set on any dismissal, its button and link included |
 | `timetable-soon-2026` | `index.html` | The new timetable starts on Sunday | 🚆 Trains | 6 Dec 2026 | ends 12 Dec 2026 | ⏳ **starts 6 Dec** — `'members'`; the first notice with a START date (`STARTS`; an early device is left unflagged, not dismissed). A push goes out on the Saturday evening too | One-time; `myb_notice_timetable_soon_2026_done` set on any dismissal |
+| `newlink-2026` | `index.html` | Three proposals for the new link | 🔁 New link | 9 Nov 2026 | ends 5 Dec 2026 (`LAST_DAY`) | ✅ live 9 Nov – 5 Dec — `'members'`, only where the New link page would let them in (`canOpenNewlink`, asked at open time); after the install notice where that one is the device's (`FOLLOWS_INSTALL`); wired LAST, so it gives way to anything else due. Gone before the final-week timetable notice takes the 6th | One-time; `myb_notice_newlink_2026_done` set on any dismissal, its link included |
 
 Retired early or replaced: `links-beta-2026` (replaced at v19.51 on a new key) and `sign-in-2026`
 (retired at v23.23 for being WRONG rather than old). Both stories, and the rule each one left, are in

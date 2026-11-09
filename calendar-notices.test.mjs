@@ -171,9 +171,11 @@ const PINNED_NOW = new Date(2026, 9, 22, 9, 0);   // after timetable-2026's post
  *  a further condition (`[,)]` — v24.86), and may FOLLOW another: it is wired only once that
  *  notice's done flag was set on an earlier load, and the matrix has to know which those are. It may
  *  also wait for the Year to Date notice only where that one is the member's to get (`followsPay`,
- *  v24.91) — the Pay Calculator's own test decides, as it does for that notice itself. */
+ *  v24.91) — the Pay Calculator's own test decides, as it does for that notice itself — or for the
+ *  install notice only where that one is this DEVICE's to get (`followsInstall`, v25.61). */
 const NOTICES = [...SOURCE.matchAll(/getElementById\('(\w+NoticeLb)'\)[\s\S]*?_openWhenAudienceAllows\(lb, '([a-z-]+)'[,)]/g)]
-    .map(m => ({ overlay: m[1], audience: m[2], follows: FOLLOWS_OF(m[1]), followsPay: FOLLOWS_PAY_OF(m[1]), starts: STARTS_OF(m[1]) }));
+    .map(m => ({ overlay: m[1], audience: m[2], follows: FOLLOWS_OF(m[1]), followsPay: FOLLOWS_PAY_OF(m[1]),
+                 followsInstall: FOLLOWS_INSTALL_OF(m[1]), starts: STARTS_OF(m[1]) }));
 
 /** The IIFE that declares a notice's overlay — its own scope, so a key read from it is that notice's.
  *  (This was an 800-character window before the overlay line, which is right until a notice with a
@@ -199,6 +201,12 @@ function FOLLOWS_OF(/** @type {string} */ overlay) {
 /** The done key of a notice this one waits for only where the Pay Calculator is the member's. */
 function FOLLOWS_PAY_OF(/** @type {string} */ overlay) {
     return /const FOLLOWS_PAY\s*=\s*'([^']+)'/.exec(IIFE_OF(overlay))?.[1] ?? null;
+}
+
+/** The done key of the install notice, which this one waits for only where that notice is this device's —
+ *  a phone or tablet in a browser (`installRoute()`), never a desktop or the installed app (v25.61). */
+function FOLLOWS_INSTALL_OF(/** @type {string} */ overlay) {
+    return /const FOLLOWS_INSTALL\s*=\s*'([^']+)'/.exec(IIFE_OF(overlay))?.[1] ?? null;
 }
 
 /** The local midnight a notice starts on (`const STARTS = new Date(y, m, d)`), as a time, or null for one
@@ -254,9 +262,12 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
      *  gives each access type. @param {'named'|'viewer'|'none'} accessType @param {Record<string, string>} [store] */
     function expectedFor(accessType, store = {}) {
         const session = accessType === 'named' ? { name: 'G. Miller' } : null;
+        // `followsInstall`: every row here runs on wire()'s default route, a phone browser, where the install notice
+        // IS this device's to get — so the wait always applies; block 11 has the desk and the installed app.
         return NOTICES.filter(n => noticeAudienceAllows(n.audience, accessType)
             && due(n) && !store[DONE_KEY_OF(n)] && (!n.follows || !!store[n.follows])
-            && (!n.followsPay || !!store[n.followsPay] || !payCalcFor(session))).map(n => n.overlay).sort();
+            && (!n.followsPay || !!store[n.followsPay] || !payCalcFor(session))
+            && (!n.followsInstall || !!store[n.followsInstall])).map(n => n.overlay).sort();
     }
 
     test('the matrix has notices to be about, and says what it can prove with them', () => {
@@ -292,10 +303,10 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
     test('at least one live notice follows another — or the rows below prove nothing', () => {
         assert.ok(NOTICES.some(n => n.follows), 'no live notice follows another');
     });
-    for (const f of NOTICES.filter(n => n.follows)) {
+    for (const f of NOTICES.filter(n => n.follows || n.followsInstall)) {
         for (const accessType of /** @type {const} */ (['named', 'viewer', 'none'])) {
             test(`${accessType}: ${f.overlay}, once the notices it waits for are done`, async () => {
-                const store = Object.fromEntries([f.follows, f.followsPay].filter(Boolean)
+                const store = Object.fromEntries([f.follows, f.followsPay, f.followsInstall].filter(Boolean)
                     .map(k => [/** @type {string} */ (k), '1']));
                 const shown = await shownTo(accessType, store);
                 assert.deepEqual(shown, expectedFor(accessType, store));
@@ -1069,9 +1080,213 @@ describe('10 · every section a notice archives under has its colour in App Noti
     });
     test('each one (bar "General", deliberately neutral) has a SECTION_MODS entry and a colour', () => {
         const missing = [...sections].filter(s => s !== 'General').filter(s => {
-            const mod = new RegExp(`\\b${s}:\\s*'([a-z]+)'`).exec(mods)?.[1];
+            // A one-word section is a bare key (`Pay:`); a two-word one is quoted (`'New link':`, v25.61).
+            const mod = new RegExp(`(?:\\b${s}|'${s}')\\s*:\\s*'([a-z]+)'`).exec(mods)?.[1];
             return !mod || !new RegExp(`\\.notices-item-section--${mod}\\s*\\{[^}]*color:`).test(css);
         });
         assert.deepEqual(missing, [], `App Notices would show ${missing.join(', ')} in the neutral grey`);
+    });
+});
+
+describe('11 · the New link notice: only where the page would let them in, after the install notice, 9 Nov – 5 Dec (v25.61)', () => {
+    // Owner, 9 Nov 2026: "a third in sequence on calendar advertising the new links page with a description and link
+    // to that page, but only for those who can view that page." Organised by what a wrong answer costs. Shown to
+    // somebody the page turns away, it advertises a door that is shut to them — a CEA on a bilingual contract, whose
+    // links stay their own, or a Dispatcher. Waiting for the install notice where that notice is never coming, it
+    // reaches nobody at a desk or in the installed app — the managers it is partly for are mostly at a desk. Sharing a
+    // visit with another notice breaks the one-at-a-time the owner asked for. And flagged where it was refused, the
+    // device that should see it never does.
+    const NL     = /** @type {{ overlay: string, audience: string, follows: string|null, followsInstall: string|null, starts: number|null }} */ (NOTICES.find(n => n.overlay === 'newlinkNoticeLb'));
+    const INST   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
+    const TT     = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
+    const YTD    = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'ytdNoticeLb'));
+    const DONE   = DONE_KEY_OF(NL);
+    const IIFE   = IIFE_OF('newlinkNoticeLb');
+    const NOV_10 = new Date(2026, 10, 10, 9, 0).getTime();
+    const opened = () => /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === NL.overlay));
+
+    /** Somebody on the roster who fits — FOUND rather than named, so a leaver cannot quietly turn one case into
+     *  another (the test audit's lesson: S. Stewart's leaving made a manager case a second "not on the roster" one). */
+    function someone(/** @type {string} */ what, /** @type {(m: any) => boolean} */ fits) {
+        const m = teamMembers.find(x => !x.hidden && fits(x));
+        assert.ok(m, `the roster has no ${what}`);
+        return /** @type {any} */ (m).name;
+    }
+    const roles = (/** @type {string} */ n) => [...CONFIG.ADMIN_NAMES, ...(CONFIG.MANAGER_NAMES || []), ...(CONFIG.NEWLINK_PREVIEW || [])].includes(n);
+    const NORMAL_CEA = someone('CEA on a normal contract outside every role list', m => m.role === 'CEA' && !m.bilingualContract && !m.managerOnly && !roles(m.name));
+    const BILINGUAL  = someone('CEA on a bilingual contract', m => m.role === 'CEA' && m.bilingualContract && !roles(m.name));
+    const DISPATCHER = someone('Dispatcher', m => m.role === 'Dispatcher' && !roles(m.name));
+    const MANAGER    = /** @type {string} */ ((CONFIG.MANAGER_NAMES || [])[0]);
+
+    /** A colleague's desktop on 10 November: nothing to install there, so nothing to wait for. */
+    const DESK = { accessType: /** @type {const} */ ('named'), session: { name: NORMAL_CEA }, route: null,
+                   present: [NL.overlay, 'newlinkNoticeGo', 'newlinkNoticeLater'] };
+
+    test('in the matrix, members only, its own key, no snooze, 9 November to the end of 5 December, behind the REAL install key, and wired last', () => {
+        assert.ok(NL, 'found by the same pattern as every other notice');
+        assert.equal(NL.audience, 'members', 'the page is signed-in only, so the station PIN is never told about it');
+        assert.equal(DONE, 'myb_notice_newlink_2026_done');
+        assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
+        assert.equal(NL.starts, new Date(2026, 10, 9).getTime(), 'STARTS is its posting day, read from the source');
+        assert.match(IIFE, /Date\.now\(\) < STARTS\.getTime\(\)\) return;/, 'an early device is left unflagged, not dismissed');
+        assert.match(IIFE, /const LAST_DAY\s*=\s*'5 Dec 2026'/, 'gone before the final-week timetable notice takes the 6th');
+        assert.match(IIFE, /isNoticeExpired\(LAST_DAY, 1\)/, 'offered through the whole of the Saturday, gone on the Sunday');
+        assert.equal(NL.follows, null, 'it waits for nothing unconditionally — a desk never gets the install notice');
+        // Restated key: a rename on either side would leave this notice waiting for a flag nothing writes.
+        assert.equal(NL.followsInstall, DONE_KEY_OF(INST));
+        // The page's own question, asked of whoever is signed in when it OPENS — never a list of its own.
+        assert.match(IIFE, /canOpenNewlink\(getSession\(\)\?\.name\)/);
+        assert.match(SOURCE, /import \{ canOpenNewlink \} from '\.\/auth-policy\.js'/);
+        // LAST: on a load where anything else is due, that one takes the screen and this one comes back next time.
+        assert.equal(NOTICES[NOTICES.length - 1].overlay, NL.overlay, 'wired last, so it yields to every other notice');
+    });
+
+    test('before 10 November nothing in the matrix is about it — it gets its rows here instead', () => {
+        assert.equal(due(NL), false, 'the pinned clock (22 Oct) is before its posting day');
+        assert.equal(roles(NORMAL_CEA) || BILINGUAL === NORMAL_CEA, false, 'precondition: three different people, none on a role list');
+        assert.equal(rosterRole(DISPATCHER), 'Dispatcher');
+        assert.ok(MANAGER, 'precondition: the roster still names a manager');
+    });
+
+    test('on a colleague\'s desktop on 10 November it opens — and nothing is flagged yet', async () => {
+        mock.timers.setTime(NOV_10);
+        await wire(DESK);
+        await settleAccess();
+        assert.ok(opened());
+        assert.deepEqual(_writes, []);
+    });
+
+    test('it opens for EXACTLY the people the page lets in — every name on the roster, asked as the page asks', async () => {
+        // The entry point, not the helper: the real notice driven through the real gate, once per member, against the
+        // page's own answer. newlink-config.test.mjs holds canOpenNewlink to the page's door for the same names.
+        const { canOpenNewlink } = await import('./auth-policy.js');
+        const wrong = [];
+        for (const m of teamMembers.filter(x => !x.hidden)) {
+            mock.timers.setTime(NOV_10);
+            await wire({ ...DESK, session: { name: m.name } });
+            await settleAccess();
+            if (!!opened() !== canOpenNewlink(m.name)) wrong.push(`${m.name}: ${opened() ? 'told' : 'not told'}`);
+            if (!opened() && _writes.length) wrong.push(`${m.name}: refused AND flagged`);
+        }
+        assert.deepEqual(wrong, []);
+    });
+
+    test('not for a CEA on a bilingual contract, nor a Dispatcher — and NOT flagged for either', async () => {
+        for (const name of [BILINGUAL, DISPATCHER]) {
+            mock.timers.setTime(NOV_10);
+            await wire({ ...DESK, session: { name } });
+            await settleAccess();
+            assert.equal(opened(), undefined, `${name} is turned away by the page, so is not told about it`);
+            assert.deepEqual(_writes, [], `${name}'s device is left unflagged`);
+        }
+    });
+
+    test('a manager is told — the page is theirs too', async () => {
+        mock.timers.setTime(NOV_10);
+        await wire({ ...DESK, session: { name: MANAGER } });
+        await settleAccess();
+        assert.ok(opened(), `${MANAGER} is a manager, and the page opened to the managers at v25.60`);
+    });
+
+    test('on a phone browser it waits for the install notice — and is NOT flagged', async () => {
+        mock.timers.setTime(NOV_10);
+        await wire({ ...DESK, route: { how: 'menu', mirror: false } });
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, []);
+    });
+
+    test('on a phone browser, the load after the install notice was answered, it opens', async () => {
+        mock.timers.setTime(NOV_10);
+        await wire({ ...DESK, route: { how: 'ios', mirror: false }, store: { [DONE_KEY_OF(INST)]: '1' } });
+        await settleAccess();
+        assert.ok(opened());
+    });
+
+    test('NOT on the load the install notice is answered — that flag is read at wiring time', async () => {
+        mock.timers.setTime(NOV_10);
+        await wire({ ...DESK, route: { how: 'menu', mirror: false }, present: [...DESK.present, INST.overlay],
+                     store: { [DONE_KEY_OF(TT)]: '1', [DONE_KEY_OF(YTD)]: '1' } });
+        await settleAccess();
+        const install = /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === INST.overlay));
+        assert.ok(install, 'the install notice comes first');
+        assert.equal(opened(), undefined, 'and this one is not decided on that load');
+        install._cfg.onClose();                               // answered: its flag is written now…
+        mock.timers.tick(10_000);                             // …and nothing follows it up this visit
+        await drain();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, [[DONE_KEY_OF(INST), '1']], 'this notice is not flagged — it comes next time');
+    });
+
+    test('not on the shared PIN station — and not flagged there', async () => {
+        mock.timers.setTime(NOV_10);
+        await wire({ ...DESK, accessType: 'viewer', session: null });
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, []);
+    });
+
+    test('the evening before its posting day: not opened, and NOT flagged, so the same device sees it on the 9th', async () => {
+        mock.timers.setTime(new Date(2026, 10, 8, 21, 0).getTime());
+        await wire(DESK);
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes.filter(([k]) => k === DONE), []);
+    });
+
+    test('late on Saturday 5 December it is still offered', async () => {
+        mock.timers.setTime(new Date(2026, 11, 5, 23, 0).getTime());
+        await wire(DESK);
+        await settleAccess();
+        assert.ok(opened());
+    });
+
+    test('once expired, a device that never saw it is flagged and shown nothing', async () => {
+        mock.timers.setTime(new Date(2026, 11, 6, 9, 0).getTime());
+        await wire({ ...DESK, expired: true });
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.ok(_writes.some(([k, v]) => k === DONE && v === '1'), 'flagged done without being shown');
+    });
+
+    test('every dismissal marks it done, and it is archived on OPEN under its own section', async () => {
+        mock.timers.setTime(NOV_10);
+        await wire(DESK);
+        await settleAccess();
+        const lb = opened();
+        assert.ok(lb);
+        _listeners.get('newlinkNoticeGo:click')?.();
+        assert.deepEqual(_writes, [[DONE, '1']], 'the link marks it done before the page is left');
+        _writes = [];
+        lb._cfg.onClose();
+        assert.deepEqual(_writes, [[DONE, '1']], 'so does a close');
+        lb._cfg.onOpen();                                     // the harness records an open; the lightbox would run this itself
+        const filed = _archived.find(n => n.id === 'newlink-2026');
+        assert.ok(filed, 'archived on OPEN, before the link can take the member away');
+        assert.equal(filed.section, 'New link', 'filed under the page it is about — coloured in App Notices (block 10)');
+    });
+
+    test('its words say what the page says, and its menu route is the real pill', async () => {
+        // A notice that names a month, a number and a menu entry is three facts that can drift from the page. Each is
+        // read from where the page keeps it: the month from newlink-config.js (a test may import it; the Calendar may
+        // not — newlink-boundary.test.mjs), the number from the page's own heading, the route from the drawer's pill.
+        const here = new URL('.', import.meta.url);
+        const html = readFileSync(new URL('./index.html', here), 'utf8');
+        const block = html.slice(html.indexOf('id="newlinkNoticeLb"'), html.indexOf('<!--', html.indexOf('id="newlinkNoticeLb"')));
+        const text = block.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&rarr;/g, '→').replace(/\s+/g, ' ');
+        const { STARTS } = await import('./newlink-config.js');
+        const [y, mo] = String(STARTS).split('-').map(Number);
+        const month = new Date(y, mo - 1, 1).toLocaleString('en-GB', { month: 'long' });
+        assert.match(text, new RegExp(`starts in ${month} ${y}\\b`), `the page starts the link in ${month} ${y} (newlink-config.js → STARTS)`);
+        const page = readFileSync(new URL('./newlink.html', here), 'utf8');
+        assert.match(page, /<h2><span[^>]*>[^<]*<\/span> The new link: three proposals<\/h2>/, 'the page still heads itself "three proposals"');
+        assert.match(text, /the three proposals on the shortlist/);
+        const nav = readFileSync(new URL('./nav-panel.js', here), 'utf8');
+        const pill = /\{\s*id:\s*'newlink',\s*label:\s*'([^']+)',\s*url:\s*'([^']+)'/.exec(nav);
+        assert.ok(pill, 'the drawer still has a New link pill');
+        assert.ok(text.includes(`then ${pill[1]}`), `the menu route names the pill as the drawer labels it: ${pill[1]}`);
+        assert.ok(block.includes(`href="${pill[2]}"`), `the link goes where the pill goes: ${pill[2]}`);
+        assert.ok(block.includes(`<div class="notice-badge notice-badge--newlink">${pill[1]}</div>`), 'the badge is the pill, word for word');
+        assert.doesNotMatch(text, /\bvote|ballot|decide which|admin\b/i, 'it says nothing about how the choice is made, nor who builds the page');
     });
 });
