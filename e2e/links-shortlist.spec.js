@@ -11,7 +11,7 @@
  * A file of its own rather than more of pages.spec.js, which another session was editing (its Links
  * tests moved to links.spec.js on 3 Nov 2026); the helpers are the shared ones.
  */
-import { test, expect } from './fixtures.js';
+import { test, expect, withLinksDesigners } from './fixtures.js';
 import { seedSession, designOptions, proposalOptions, activeDesignName, openDesignSheet, sheetAction, clickDialogConfirm } from './helpers.js';
 import { PROPOSALS } from '../links-proposals.js';
 
@@ -103,6 +103,9 @@ test('links: cancelling Keep only the shortlist writes nothing and moves nothing
 });
 
 test('links: a designer who is not the admin is not offered Keep only the shortlist', async ({ page }) => {
+    // The real designer list has been the owner alone since 9 Nov 2026, so the seat this test needs — a designer with
+    // no admin claim — is given here rather than borrowed from CONFIG.LINKS_DESIGNERS.
+    await withLinksDesigners(page, ['G. Miller', 'S. Silva']);
     await openWith(page, 'S. Silva', twoOlder);
     await openDesignSheet(page);
     await expect(page.locator('#keepShortlistBtn')).toBeHidden();
