@@ -39,6 +39,9 @@ its grid, and FIX= checks that grid against the model.
        H55=<minutes> (7 Nov 2026: the 55-hour worst case held, cover weeks filled in as h55Worst fills them — below H7)
        MIXED=n BF= BW= (6 Nov 2026, Balanced V7: allow up to n weeks mixing earlies and lates — below)
        GENTLE_STARTS=15:45 GENTLE_SHARED=0 (7 Nov 2026, Level Crossing: OBJ=gentle on the closing weeks alone — below)
+       CLOSE_APART=1|2|3 (8 Nov 2026: no two closing weeks side by side)  NEAR=<rota.json> NEAR_CAP= (8 Nov 2026: the objective
+       held at NEAR_CAP and the fewest cells moved from that rota asked for) — both below, for Balanced V10, Clockface and
+       Short Working
   e.g. HINT=closing-time.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py results/closing-time-table.json /tmp/ct.json 1200
 
 MIXED WEEKS (6 Nov 2026, owner: Balanced V6 made again "without losing anything"). Every rota above has a week all earlies
@@ -64,9 +67,10 @@ under 14h 20m is forced, the Sunday 09:00-18:00 before a Monday 07:30. Its worke
 Saturday before, and there the only early week with the Monday off follows a 06:20 Saturday, both 08:00-16:30 Saturdays
 being needed before cover weeks. Freeing the early weeks' rest days (SKELETON_FREE) clears it; the whole model, every rest
 day free, then climbs from that grid, though from nothing it found no first rota in ten minutes. Each step's HINT= is the
-step before's output; F is the floors every step holds unless it says otherwise:
+step before's output; F is the floors every step holds unless it says otherwise. Short Openers' grid is the one kept in
+results/ when it was deleted on 8 Nov 2026 (README.md -> "Five designs deleted"); its cells are those it shipped with:
   F = H55=3300 LV_BEST=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2575 REST=860
-  1. F SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json REST=0 REST_TO=860 OBJ=rest                        60 s
+  1. F SKELETON=results/short-openers.json REST=0 REST_TO=860 OBJ=rest                                          60 s
   2. F SKELETON=(the same) SKELETON_FREE=4,5,12,13,14,22,23,24,25,26 OBJ=one                                  240 s
   3. the same, ONE_MIN=19 OBJ=step                                                                             300 s
   4, 5. F ONE_MIN=19 OBJ=step, no SKELETON, twice                                                              600 s each
@@ -81,7 +85,42 @@ Step 6's worst stretch of 20 with the 55-hour rule held is the one README.md sai
 stretch is 19, not 20"). FIX= checks both grids, V8 with step 7's floors and V9 with step 10's: feasible. README.md ->
 "Balanced V8 and Balanced V9", and "Balanced V8 and V9 searched again" for every run since step 9 (OBJ=league and
 OBJ=iso were added for them), all from V8 or V9 with these floors: none found more for V8, and none more for V9 than
-step 10."""
+step 10.
+
+BALANCED V10 (8 Nov 2026, owner: "Do your suggestion with Balanced v8 to create Balanced v10"): Balanced V8's duties and rest
+days, every one, and its early and late weeks, with only which week works which shift time chosen again, so that no two
+closing weeks sit side by side (README.md -> "Balanced V10"). Every floor is V8's own:
+  F = H55=3060 H7=3060 LV_BEST=30 BEST_LEN=30 LV_FOUR=13 LV_WORST=20 FF11_FIXED=9 FF11_WORST=12 ISO=6 HEAVY=2550 LIGHT=1440
+      REST=860 GAP=5 FF17=0 SKELETON=results/balanced-v8.json FAMILY=1 ONE_MIN=18 CLOSE_APART=2
+      OBJ=gentle GENTLE_STARTS=15:45 GENTLE_SHARED=0 WORKERS=2, on results/balanced-v7-table.json
+  1. F HINT=results/balanced-v8.json: optimal at 338585                                                          20 s
+  2. F NEAR=results/balanced-v8.json NEAR_CAP=338585 HINT=<step 1's>: Balanced V10 (results/balanced-v10.json, e745f804),
+     31 cells from V8, optimal, and the same grid on a second run                                                13 s
+With ONE_MIN=19 it is infeasible, on CLOSE_APART=2 and on CLOSE_APART=3 alike, so 18 weeks of 21 on one shift time is the
+most V8's early and late weeks allow with no two closing weeks together. FIX= checks Balanced V10 with F (feasible, at the
+optimum) and refuses Balanced V8's own grid, whose closing weeks 2, 3 and 4 sit together.
+
+CLOCKFACE AND SHORT WORKING (8 Nov 2026, the owner naming the two re-lays of "The shortlist redrawn for closing weeks apart":
+"Clockface, Short Working"): Even Step's and Short Run's duties and rest days, every one, and their early and late weeks,
+with only which week works which shift time chosen again, so that no two closing weeks sit side by side (README.md ->
+"Clockface and Short Working"). Each is laid on its parent's own duties as its grid has had them since the Saturday office
+closed at 22:30 (results/clockface-table.json, results/short-working-table.json), every floor at its parent's own level:
+  C = H55=3405 H7=3010 LV_BEST=28 LV_FOUR=15 LV_WORST=20 FF11_FIXED=9 FF11_WORST=12 ISO=4 HEAVY=2520 LIGHT=1530 REST=875
+      GAP=5 BLOCK=5 FF17=-3 SKELETON=even-step.json FAMILY=1 ONE_MIN=18 CLOSE_APART=2
+      OBJ=gentle GENTLE_STARTS=15:45 GENTLE_SHARED=0 WORKERS=2, on results/clockface-table.json
+  1. C HINT=even-step.json: optimal at 330110                                                                     11 s
+  2. C NEAR=even-step.json NEAR_CAP=330110: Clockface (results/clockface.json, 62abf5eb), 16 cells from Even Step,
+     optimal, and the same grid on a second run                                                                   1 s
+  W = H55=3410 H7=3100 LV_BEST=28 LV_FOUR=15 LV_WORST=20 FF11_FIXED=9 FF11_WORST=12 ISO=4 HEAVY=2550 LIGHT=1470 REST=860
+      GAP=5 BLOCK=5 FF17=0 SKELETON=short-run.json FAMILY=1 ONE_MIN=19 CLOSE_APART=2
+      OBJ=gentle GENTLE_STARTS=15:45 GENTLE_SHARED=0 WORKERS=2, on results/short-working-table.json
+  1. W HINT=short-run.json: optimal at 327825                                                                      3 s
+  2. W NEAR=short-run.json NEAR_CAP=327825: Short Working (results/short-working.json, be95ed62), 32 cells from Short
+     Run, optimal, and the same grid on a second run                                                              2 s
+C with ONE_MIN=19 is infeasible, so 18 weeks of 21 on one shift time is the most Even Step's weeks allow with no two closing
+weeks together. W with ONE_MIN=20 is infeasible, with CLOSE_APART=2 and without it, so Short Working's 19 is the most Short
+Run's weeks allow at its floors. FIX= checks each grid with its model (feasible, at the optimum) and refuses each parent's:
+Even Step's closing weeks 13 and 14 sit together, as do Short Run's 24, 25 and 26."""
 import sys, json, os
 from ortools.sat.python import cp_model
 TABLE, OUT = sys.argv[1], sys.argv[2]; LIMIT = float(sys.argv[3]) if len(sys.argv) > 3 else 600
@@ -272,6 +311,41 @@ for k in WORK:
                 if t2 != t: M.AddBoolOr([x[(k, d, t2)].Not(), u[(k, t)].Not()])
 one = sum(u.values())
 if os.environ.get('ONE_MIN'): M.Add(one >= int(os.environ['ONE_MIN']))
+# CLOSE_APART= (8 Nov 2026, Balanced V10; first run on a copy of this script for Even Step's and Short Run's layouts the
+# same day, README.md -> "The shortlist redrawn for closing weeks apart", which are Clockface and Short Working): no two
+# closing weeks side by side, where a cover week between two weeks breaks the pair. CLOSE_APART=2, the one the pack's
+# layouts were drawn with, is the strictest: no two neighbouring working weeks may both have a weekday duty ending 23:55 at
+# all. CLOSE_APART=1 reads a closing week as a week whose most common Monday-to-Friday duty ends 23:55, a tie counted as
+# closing; CLOSE_APART=3 as the sheets' first reading does, a tie going to the duty worked first in the week. closing.mjs's
+# three-or-more reading is implied by all three.
+cq = {}
+if os.environ.get('CLOSE_APART'):
+    mode = int(os.environ['CLOSE_APART'])
+    wkT = sorted({t for d in WKD for t in TYPES[d]})
+    for k in WORK:
+        c = sum(x[(k, d, t)] for d in WKD for t in TYPES[d] if t.endswith('-23:55'))
+        cq[k] = M.NewBoolVar(f'cq_{k}')
+        if mode == 2:
+            for d in WKD:
+                for t in TYPES[d]:
+                    if t.endswith('-23:55'): M.AddImplication(x[(k, d, t)], cq[k])
+        else:
+            gs = []
+            for t in wkT:
+                if t.endswith('-23:55'): continue
+                nt = sum(x[(k, d, t)] for d in WKD if t in TYPES[d])
+                g = M.NewBoolVar(f'cg_{k}_{t}'); M.Add(nt >= c + 1).OnlyEnforceIf(g); gs.append(g)
+                if mode == 3:   # the sheets' first reading: a tie goes to the duty worked first in the week (Monday to Friday)
+                    g2 = M.NewBoolVar(f'cg2_{k}_{t}'); M.Add(nt == c).OnlyEnforceIf(g2); gs.append(g2)
+                    hs = []
+                    for i, d in enumerate(WKD):
+                        if t not in TYPES[d]: continue
+                        h = M.NewBoolVar(f'ch_{k}_{t}_{d}'); M.AddImplication(h, x[(k, d, t)])
+                        M.Add(sum(x[(k, d2, t2)] for d2 in WKD[:i + 1] for t2 in TYPES[d2] if t2.endswith('-23:55')) == 0).OnlyEnforceIf(h); hs.append(h)
+                    M.AddBoolOr(hs + [g2.Not()])   # t's first duty comes before the week's first closer
+            M.AddBoolOr(gs + [cq[k]])   # not a closing week only if some other duty is more common (or, mode 3, ties and comes first)
+    cpairs = [(a, a % L + 1) for a in range(1, L + 1) if a in WORK and (a % L + 1) in WORK]
+    for a, b in cpairs: M.AddBoolOr([cq[a].Not(), cq[b].Not()])
 def rota(fn):
     F = json.load(open(fn)); return F.get('patterns', F)
 if os.environ.get('FIX'):
@@ -350,7 +424,17 @@ if os.environ.get('OBJ') == 'gentle':
 # the sheets count it, Monday to Friday one time and every duty one kind (W_ONE, each, up to ONE_CAP) and a week mixing
 # earlies and lates (W_MIXED, each). The defaults are the main league's slopes on 7 Nov 2026 (league.mjs, REF_IN_RANGE=1,
 # with Balanced V8 and V9 in the pack); a figure past the edge of its range earns nothing more there, so the sheets and the
-# league still judge whatever this finds
+# league still judge whatever this finds. THESE ARE THE 31 OCT LEAGUE'S SLOPES (LEAGUE=31oct in league.mjs since 8 Nov 2026,
+# when the main league began counting the closing weeks): for the main league, OBJ=gentle with GENTLE_STARTS=15:45 keeps
+# the closing weeks apart, as Level Crossing and Middle Ground were laid
+# NEAR=<rota.json> NEAR_CAP=<n> (8 Nov 2026, Balanced V10): the objective OBJ names is HELD at NEAR_CAP or better (its optimum,
+# from a run before with the same floors), and among the layouts that hold it the fewest cells different from NEAR are asked
+# for: the same answer, laid nearest the rota it came from. A rest day is a cell like any duty. The solver's printed
+# objective is then the count of cells moved
+NEAR = os.environ.get('NEAR')
+def objective(e, minimise=True):
+    if NEAR: M.Add(e <= env('NEAR_CAP', 0)) if minimise else M.Add(e >= env('NEAR_CAP', 0))
+    else: (M.Minimize if minimise else M.Maximize)(e)
 OBJ, LG = os.environ.get('OBJ', 'one'), {}
 if OBJ == 'league':
     if os.environ.get('MIXED') is not None:   # a mixed week is never one shift time on the sheets, whatever its weekdays
@@ -363,19 +447,23 @@ if OBJ == 'league':
     r875 = M.NewBoolVar('restTop'); M.Add(sum(tight) == 0).OnlyEnforceIf(r875)
     LG = dict(iso=sum(s.values()), heavy=heavyMax, restTop=r875, one=oneC, mixed=mixedN)
     per = 20 * len(pairs)   # stepSum is 20 x the sum of the moves; gentleMean = stepSum / per
-    M.Minimize(per * (env('W_ISO', 416140) * LG['iso'] + env('W_HEAVY', 16848) * heavyMax - env('W_REST', 333560) * r875
+    objective(per * (env('W_ISO', 416140) * LG['iso'] + env('W_HEAVY', 16848) * heavyMax - env('W_REST', 333560) * r875
                       - env('W_ONE', 385800) * oneC + env('W_MIXED', 403120) * mixedN) + env('W_STEP', 14854) * stepSum)
-if OBJ == 'one': M.Maximize(one)
+if OBJ == 'one': objective(one, minimise=False)
 elif OBJ == 'league': pass                   # set above
-elif OBJ == 'step': M.Minimize(stepSum)
-elif OBJ == 'chg': M.Minimize(sum(z))   # the fewest visible switches, so a one-switch layout can be climbed to
-elif OBJ == 'heavy': M.Minimize(heavyMax)   # the heaviest Monday-to-Saturday week
-elif OBJ == 'four': M.Minimize(four)        # the leave four full weeks from a Sunday cost
-elif OBJ == 'best': M.Minimize(best29)      # the leave the cheapest 29 days cost (14 is a best stretch of 29)
-elif OBJ == 'rest': M.Minimize(sum(tight))  # the rests under REST_TO (default 15h)
-elif OBJ == 'iso': M.Minimize(sum(s.values()))   # the single rest days (7 Nov 2026, climbing below ISO)
-elif OBJ == 'gentle': M.Minimize(sum(co) * 1000000 + sum(big) * 100000 + sum(oth) * (10000 if env('GENTLE_SHARED', 1) else 0) + stepSum)   # see GENTLE above
-else: M.Maximize(one * 100000 - stepSum)   # 'both': the most one-turn weeks, then the smallest step
+elif OBJ == 'step': objective(stepSum)
+elif OBJ == 'chg': objective(sum(z))   # the fewest visible switches, so a one-switch layout can be climbed to
+elif OBJ == 'heavy': objective(heavyMax)   # the heaviest Monday-to-Saturday week
+elif OBJ == 'four': objective(four)        # the leave four full weeks from a Sunday cost
+elif OBJ == 'best': objective(best29)      # the leave the cheapest 29 days cost (14 is a best stretch of 29)
+elif OBJ == 'rest': objective(sum(tight))  # the rests under REST_TO (default 15h)
+elif OBJ == 'iso': objective(sum(s.values()))   # the single rest days (7 Nov 2026, climbing below ISO)
+elif OBJ == 'gentle': objective(sum(co) * 1000000 + sum(big) * 100000 + sum(oth) * (10000 if env('GENTLE_SHARED', 1) else 0) + stepSum)   # see GENTLE above
+else: objective(one * 100000 - stepSum, minimise=False)   # 'both': the most one-turn weeks, then the smallest step
+if NEAR:
+    NR = rota(NEAR)
+    M.Minimize(sum(on[(k, d)] if NR[str(k)][d] == 'RD' else (1 - x[(k, d, NR[str(k)][d])]) if NR[str(k)][d] in TYPES[d] else 1
+                   for k in WORK for d in DAYS))
 S = cp_model.CpSolver(); S.parameters.num_workers = env('WORKERS', 4)
 S.parameters.max_time_in_seconds = LIMIT
 if os.environ.get('LOG'): S.parameters.log_search_progress = True

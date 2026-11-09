@@ -787,11 +787,25 @@ ${meta.page9 ?? `<section class="page">
       // PAGE 1 FITS A LONG CONCERNS LIST (4 Nov 2026). Quarter Past's twelve concerns ran the cover 56px onto a second sheet.
       // The same two-step tightening as page 3 (plain.mjs says what each step does), and only on a cover the two checks below
       // would refuse — taller than a page, or a line under its footer — so a cover that fits is never touched.
+      // THE FOOTER'S FLOOR, AND WHAT A STEP DID NOT NEED GIVEN BACK (whole-pack polish, 9 Nov 2026). This page alone measured
+      // "over" at the footer rule itself, where pages 5 and 8 keep 8px: Balanced V8's and V10's staff boxes ended ON the rule,
+      // so their corners read as cut off. It keeps 12px now. And a step that freed more than it needed kept it all: Balanced
+      // V6 and V9 took the spacing and the tighter line height together and ended 12-17mm above the footer, the emptiest of
+      // the 22. Spacing now comes first on its own (p1-snug, plain.mjs), and whatever room is left beyond 24px goes back to
+      // the gaps above the page's sections, never more than 8px each, the way an unstepped page shares its spare room.
       for (const sec of document.querySelectorAll('section.page.cover.plain')) {
         const foot = sec.querySelector(':scope > .foot'); if (!foot) continue;
         const kids = () => [...sec.children].filter(e => e !== foot && getComputedStyle(e).position !== 'absolute');
-        const over = () => sec.getBoundingClientRect().height > 1033 || Math.max(...kids().map(e => e.getBoundingClientRect().bottom)) > foot.getBoundingClientRect().top;
-        for (const step of ['p1-tight', 'p1-tighter']) { if (!over()) break; sec.classList.add(step); }
+        const bottom = () => Math.max(...kids().map(e => e.getBoundingClientRect().bottom));
+        const over = () => sec.getBoundingClientRect().height > 1033 || bottom() > foot.getBoundingClientRect().top - 12;
+        let stepped = false;
+        for (const step of ['p1-snug', 'p1-tight', 'p1-tighter']) { if (!over()) break; sec.classList.add(step); stepped = true; }
+        if (stepped) {
+          const blocks = [...sec.querySelectorAll(':scope > .pbottom, :scope > h2.psec')];
+          const spare = foot.getBoundingClientRect().top - 24 - bottom();
+          if (spare > 0 && blocks.length) { const each = Math.min(8, spare / blocks.length);
+            for (const b of blocks) b.style.setProperty('margin-top', `${parseFloat(getComputedStyle(b).marginTop) + each}px`, 'important'); }
+        }
       }
       // PAGE 8 FITS THE OFFICE NOTE (4 Nov 2026). A rota that does not mark its office duties on every day carries one more
       // sentence on the ticket-office card, and Well Kept's right-hand column ran 15px under the footer. The same two steps
@@ -829,6 +843,12 @@ ${meta.page9 ?? `<section class="page">
       return [i + 1, Math.round(Math.max(...kids.map(e => e.getBoundingClientRect().bottom)) - foot.getBoundingClientRect().top)];
     }).filter(x => x && x[1] > 0));
     if (under.length) throw new Error(`${out}: text runs into the page's footer (page, px under it): ${JSON.stringify(under)}`);
+    // AND PAGE 1 CLEARS IT (whole-pack polish, 9 Nov 2026): the check above passed Balanced V8's and V10's staff boxes ending
+    // exactly on the footer rule. Page 1 is fitted to 12px above it; anything nearer than 8px is refused.
+    const p1gap = await pg.evaluate(() => { const s = document.querySelector('section.page.cover.plain'); const foot = s?.querySelector(':scope > .foot');
+      if (!foot) return null; const kids = [...s.children].filter(e => e !== foot && getComputedStyle(e).position !== 'absolute');
+      return Math.round(foot.getBoundingClientRect().top - Math.max(...kids.map(e => e.getBoundingClientRect().bottom))); });
+    if (p1gap !== null && p1gap < 8) throw new Error(`${out}: page 1 ends ${p1gap}px above its footer rule; it keeps at least 8px`);
     // NOTHING WIDER THAN THE PAGE, CHECKED (pack polish, 1 Nov 2026). The stylesheet's rule above .print-grid says why: Chromium
     // prints a document that overflows the page width shrunk to fit, every page of it. Nothing checked the rule, and a table
     // whose fixed columns let one cell's words run past its edge shrank all eight pages and left a stray line under every

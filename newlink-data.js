@@ -75,6 +75,15 @@ export const PERSONAS = deepFreeze([
                 ]
             },
             {
+                "label": "Starting at 06:20, the open, a year",
+                "cells": [
+                    { "text": "62", "best": false },
+                    { "text": "50", "best": false },
+                    { "text": "58", "best": true },
+                    { "text": "48", "best": false }
+                ]
+            },
+            {
                 "label": "Average early",
                 "cells": [
                     { "text": "7h\u00a059m", "best": false },
