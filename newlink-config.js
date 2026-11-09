@@ -56,8 +56,8 @@ export const TIMETABLE_STARTS = '2026-12-13';
  * Who colleagues go to about the new link (owner, 2 Nov 2026: "Sara Silva (S. Silva) is the primary contact for it not me"),
  * named in full (owner, 8 Nov 2026: "Where it says tell S. Silva. Can you make that Sara Silva"). Every line that names a
  * person is built from this one, here and in the pack's read-me and presentations (pack.py and the deck builders read it).
- * On the roster, and in every list that holds her identity (CONFIG.NEWLINK_PREVIEW, CONFIG.LINKS_DESIGNERS), she stays
- * S. Silva: newlink-config.test.mjs holds this name to that member.
+ * On the roster, and in every list that holds her identity (CONFIG.NEWLINK_PREVIEW), she stays S. Silva:
+ * newlink-config.test.mjs holds this name to that member.
  */
 export const CONTACT = 'Sara Silva';
 

@@ -13,7 +13,11 @@ import { CONFIG } from './roster-data.js';
 // changes). A synthetic name guaranteed to hold NO role.
 const ADMIN     = CONFIG.ADMIN_NAMES[0];
 const MANAGER   = CONFIG.MANAGER_NAMES[0];
-const DESIGNER  = CONFIG.LINKS_DESIGNERS.find(n => !CONFIG.ADMIN_NAMES.includes(n));   // a non-admin designer
+// The Links designers. The admin alone since 9 Nov 2026 (owner: "hide the link designer page from everyone apart from
+// me"), so no real name is a designer and nothing else any more: the designer rows below run over the whole list, and
+// the designer-but-not-admin seat is held by claimsForTier (roster-parse-helpers.test.mjs) and by the browser specs,
+// which give themselves a designer list of their own (e2e/fixtures.js → withLinksDesigners).
+const DESIGNERS = CONFIG.LINKS_DESIGNERS;
 const PLAIN     = 'Z. Nobody';   // in no role list
 
 const ROLES = { admin: { admin: true }, manager: { manager: true }, designer: { designer: true }, none: {} };
@@ -25,9 +29,12 @@ describe('rolesFor (real CONFIG)', () => {
         const r = rolesFor(MANAGER);
         assert.equal(r.manager, true); assert.equal(r.admin, false);
     });
-    test('designer name → designer true, admin/manager false', () => {
-        const r = rolesFor(DESIGNER);
-        assert.equal(r.designer, true); assert.equal(r.admin, false); assert.equal(r.manager, false);
+    test('designer follows LINKS_DESIGNERS: every name on it, and nobody outside it', () => {
+        assert.ok(DESIGNERS.length > 0, 'somebody can open the Links workspace');
+        for (const n of DESIGNERS) assert.equal(rolesFor(n).designer, true, `${n} is on the list`);
+        assert.ok(!DESIGNERS.includes(MANAGER), 'premise: the manager below is not a designer');
+        assert.equal(rolesFor(MANAGER).designer, false, 'a manager is not thereby a designer');
+        assert.equal(rolesFor(PLAIN).designer, false);
     });
     // deepEqual, not a per-flag check: the SHAPE is the contract. `requirePageAuth` reads
     // `roles[r]` for each name in a page's role list, so a flag that quietly stops being returned
@@ -87,9 +94,10 @@ describe('requirePage — convenience over real CONFIG', () => {
         assert.equal(requirePage(snap('named', MANAGER), 'operations').decision, 'forbidden');
         assert.equal(requirePage(snap('named', PLAIN),   'operations').decision, 'forbidden');
     });
-    test('links: designer → allow, non-designer → forbidden', () => {
-        assert.equal(requirePage(snap('named', DESIGNER), 'links').decision, 'allow');
-        assert.equal(requirePage(snap('named', MANAGER),  'links').decision, 'forbidden');
+    test('links: every designer → allow, a non-designer → forbidden', () => {
+        for (const n of DESIGNERS) assert.equal(requirePage(snap('named', n), 'links').decision, 'allow', n);
+        assert.equal(requirePage(snap('named', MANAGER), 'links').decision, 'forbidden');
+        assert.equal(requirePage(snap('named', PLAIN),   'links').decision, 'forbidden');
     });
     test('admin / settings: any named user → allow', () => {
         assert.equal(requirePage(snap('named', PLAIN), 'admin').decision, 'allow');
