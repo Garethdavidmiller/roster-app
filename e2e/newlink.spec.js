@@ -48,7 +48,7 @@ test.describe('new link', () => {
     // a browser can show is that the page hands it the real date — before this it had no date logic at all, and once the
     // link's start had come it would still have said the link "starts on" it.
     for (const [day, says, never] of /** @type {[string, RegExp|null, RegExp][]} */ ([
-        ['2026-12-20T09:00:00Z', /The new link starts in January\s2027\. The new timetable started in December, and today’s link carries on until then\./, /comes first/],
+        ['2026-12-20T09:00:00Z', /The new link starts in January\s2027, and today’s link carries on until then\. The new timetable started in December\./, /comes first/],
         ['2027-01-04T09:00:00Z', null, /starts (on|in)|carries on until then/],
     ])) {
         test(`the status line on ${day.slice(0, 10)} speaks of the dates as they then are`, async ({ page }) => {
@@ -74,7 +74,7 @@ test.describe('new link', () => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
         const status = page.locator('#nlStatus');
-        await expect(status).toContainText('The new timetable started in December, and today’s link carries on until then.');
+        await expect(status).toContainText('today’s link carries on until then. The new timetable started in December.');
 
         // The same day: nothing is redrawn, so the tile with focus still has it.
         await status.locator('.nl-name').first().focus();
@@ -193,6 +193,48 @@ test.describe('new link', () => {
             expect(icons.length, 'the seven ways of working').toBe(7);
             expect(new Set(icons).size, `at ${width}px the seven icons share one line: ${icons}`).toBe(1);
         }
+    });
+
+    // A FIGURE NEVER RUNS INTO THE NEXT COLUMN (bug check, 9 Nov 2026). "£140 more" is held together by a no-break space, so
+    // at 320px — or on a phone with its text made larger, which multiplies every size and leaves the width alone — it could
+    // not wrap, and ran 7px into "£130 more". Since figureText (newlink-render.js) each held run is one inline-block that
+    // takes a line of its own, whole, and wraps inside itself only when even that line is too narrow. Both halves are
+    // pinned: no figure leaves its cell at 320px or at 1.3 times the text, and at 375px, where every run fits, none is split.
+    // The text is enlarged ONCE per element, as Android does: helpers.js's scaleText reads each size after its parent has
+    // been enlarged, so inherited text is multiplied again at every level (14px became 49px at 1.15 on this page).
+    test('a figure never runs into the next column, and keeps its words together where they fit', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        const open = async (/** @type {number} */ width) => {
+            await page.setViewportSize({ width, height: 900 });
+            await page.goto('/newlink.html');
+            await expect(page.locator('.nl-name-title')).toHaveCount(3);
+            await page.locator('[data-persona="all"]').click();
+            await expect(page.locator('#nlPersonaPanel .nl-persona')).toHaveCount(6);
+        };
+        const scaleOnce = (/** @type {number} */ k) => page.evaluate(m => {
+            const els = [...document.querySelectorAll('*')], px = els.map(e => parseFloat(getComputedStyle(e).fontSize));
+            els.forEach((e, i) => { if (px[i]) /** @type {HTMLElement} */ (e).style.fontSize = `${px[i] * m}px`; });
+        }, k);
+        const spills = () => page.locator('#nlPersonaPanel .nl-fig-row td').evaluateAll(cells => cells.flatMap(td => {
+            const rects = [], walk = document.createTreeWalker(td, NodeFilter.SHOW_TEXT);
+            for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+                if (!n.textContent?.trim() || n.parentElement?.closest('.visually-hidden')) continue;
+                const r = document.createRange(); r.selectNodeContents(n); rects.push(...r.getClientRects());
+            }
+            const box = td.getBoundingClientRect();
+            const out = Math.max(0, ...rects.map(r => Math.max(box.left - r.left, r.right - box.right)));
+            return out > 1 ? [`"${td.textContent?.trim()}" leaves its cell by ${out.toFixed(1)}px`] : [];
+        }));
+        await open(320);
+        expect(await spills(), 'at 320px').toEqual([]);
+        await open(375);
+        await scaleOnce(1.3);
+        expect(await spills(), 'at 375px with the text 1.3 times larger').toEqual([]);
+        await open(375);
+        const runs = page.locator('#nlPersonaPanel .nl-nb');
+        expect(await runs.count(), 'premise: the figures hold runs of words together').toBeGreaterThan(10);
+        expect(await runs.evaluateAll(els => els.filter(e => e.getClientRects().length > 1).map(e => e.textContent)),
+            'at 375px every held run fits on one line, so none is split').toEqual([]);
     });
 
     test('the pack opens each PDF in a new tab from where docs/ is served', async ({ page }) => {

@@ -11,7 +11,7 @@
  *
  *  1. EVENLY. The three proposals appear A to Z everywhere, in the same colour, and nothing here names a recommendation
  *     (owner, 2 Nov 2026: "No, three evenly"). The one mark that singles a design out is the sheet's own — bold green on
- *     the clear best of the three FOR ONE KIND OF COLLEAGUE, row by row — and it lands on each of the three somewhere.
+ *     the best of the three FOR ONE KIND OF COLLEAGUE, row by row — and it lands on each of the three somewhere.
  *  2. NOT YOUR ROSTER. A proposal's weeks are labelled as a proposal wherever they are drawn, numbered by week rather than
  *     dated, and framed unlike any roster surface — so a screenshot of one cannot be mistaken for a roster.
  *  3. TEACH IN PLACE (CLAUDE.md → "Plain English that TEACHES"). Each figure is a row a colleague can read without the
@@ -102,7 +102,10 @@ export function renderStatus({ proposals, closes, starts = null, timetable = nul
     const timetableLine = reached(timetable) ? 'The new timetable started in December' : 'The new timetable comes first, in December';
     // The two words after the preposition stay together (a no-break space): "18 January", "January 2027". At 390px the
     // line broke after the "1" of "1 January" and left it stranded.
-    const when = from && !reached(starts) ? ` The new link starts ${esc(from).replace(/^(in|on) (\S+) /, '$1 $2\u00a0')}. ${timetableLine}, and today’s link carries on until then.` : '';
+    // "UNTIL THEN" SITS BESIDE THE START IT MEANS (the bug check, 9 Nov 2026). It closed the timetable's sentence — "The new
+    // timetable comes first, in December, and today's link carries on until then" — where the nearest "then" is December, so
+    // it could be read as today's link ending with the timetable. It belongs to the link's start, in the link's sentence.
+    const when = from && !reached(starts) ? ` The new link starts ${esc(from).replace(/^(in|on) (\S+) /, '$1 $2\u00a0')}, and today’s link carries on until then. ${timetableLine}.` : '';
     return `<p class="nl-callout"><strong>Nothing is decided.</strong>${when}
         These are the three proposals on the shortlist, in alphabetical order.</p>
     <ul class="nl-names" aria-label="The three proposals">${tiles}</ul>
@@ -152,6 +155,18 @@ export function renderCommon({ gains, costs }) {
 export const ifYou = (who) => `If you ${who.replace(/^…/, '')}`;
 
 /**
+ * A figure's words, escaped, with each run its no-break spaces hold together ("£140 more", "8h 06m") kept as ONE unit that
+ * can still fit a narrow cell (bug check, 9 Nov 2026). The no-break spaces keep "£140" and "more" on one line wherever they
+ * fit, but a no-break space is never a place to break: at 320px, or with a phone's text made larger, "£140 more" ran into
+ * the next column. As an inline-block (newlink.css → .nl-nb) the run moves to a line of its own, whole, when it can, and
+ * wraps inside itself only when even that line is too narrow. Wherever it fits, nothing changes.
+ * @param {string} text
+ */
+function figureText(text) {
+    return String(text).split(' ').map(w => w.includes('\u00a0') ? `<span class="nl-nb">${esc(w.replace(/\u00a0/g, ' '))}</span>` : esc(w)).join(' ');
+}
+
+/**
  * One kind of colleague's figures: today and the three proposals, a row per measure. Each row's label sits on its own
  * line above its four figures, so a phone never has to squeeze a label and four figures onto one line — and every figure
  * is tied to its label and its column by `headers`, so a screen reader reads "Average early, Middle Ground, 8h 09m".
@@ -164,7 +179,7 @@ export function renderFigures(p, columns) {
         const rid = `nl-${p.id}-r${ri}`;
         const cells = r.cells.map((c, i) => {
             const cls = [i === 0 ? 'nl-today' : '', c.best ? 'nl-best' : ''].filter(Boolean).join(' ');
-            const text = c.best ? `<b>${esc(c.text)}</b><span class="visually-hidden">, the best of the three</span>` : esc(c.text);
+            const text = c.best ? `<b>${figureText(c.text)}</b><span class="visually-hidden">, the best of the three</span>` : figureText(c.text);
             return `<td headers="${rid} ${col(i)}"${cls ? ` class="${cls}"` : ''}>${text}</td>`;
         }).join('');
         return `<tbody><tr class="nl-fig-label"><th colspan="${columns.length}" scope="rowgroup" id="${rid}">${esc(r.label)}</th></tr><tr class="nl-fig-row">${cells}</tr></tbody>`;

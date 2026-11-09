@@ -224,8 +224,11 @@ test('the status says when the new link starts, apart from the timetable, and wh
     assert.equal(startsWords('2027-01-18'), 'on 18 January 2027', 'a day, once one is set');
     for (const bad of [null, undefined, '', '2027-02-30', '1 Jan', '2027-1-1', '2027-1', '2027-13', '2027-00']) assert.equal(startsWords(bad), null, String(bad));
     const html = renderStatus({ proposals: PROPOSALS, closes: null, starts: '2027-01' });
-    assert.match(html, /The new link starts in January\u00a02027\. The new timetable comes first, in December, and today’s link carries on until then\./, 'the month and the year held together');
-    assert.match(renderStatus({ proposals: PROPOSALS, closes: null, starts: '2027-01-18' }), /The new link starts on 18\u00a0January 2027\./, 'and a day held to its month');
+    assert.match(html, /The new link starts in January\u00a02027, and today’s link carries on until then\. The new timetable comes first, in December\./, 'the month and the year held together');
+    // "until then" closes the LINK's sentence (the bug check, 9 Nov 2026): after the timetable's December it read as today's
+    // link ending with the timetable
+    assert.doesNotMatch(html, /December, and today’s link carries on until then/, 'until then is the link’s start, not the timetable’s');
+    assert.match(renderStatus({ proposals: PROPOSALS, closes: null, starts: '2027-01-18' }), /The new link starts on 18\u00a0January 2027, and today’s link carries on until then\./, 'and a day held to its month');
     assert.doesNotMatch(html, /link changes in December/, 'the link does not change with the timetable');
     // An unreadable date says nothing rather than something untrue.
     assert.doesNotMatch(renderStatus({ proposals: PROPOSALS, closes: null, starts: 'soon' }), /starts (on|in)/);
@@ -235,9 +238,9 @@ test('the status says when the new link starts, apart from the timetable, and wh
 // have said the link "starts on" it and that the timetable "comes first, in December".
 test('the status line keeps its tense as the dates pass, and says nothing once the link may have started', () => {
     const at = (/** @type {string} */ today, starts = '2027-01') => renderStatus({ proposals: PROPOSALS, closes: null, starts, timetable: '2026-12-13', today });
-    assert.match(at('2026-11-07'), /The new timetable comes first, in December, and today’s link carries on until then\./);
+    assert.match(at('2026-11-07'), /today’s link carries on until then\. The new timetable comes first, in December\./);
     assert.match(at('2026-12-12'), /comes first, in December/, 'the day before the timetable change');
-    assert.match(at('2026-12-13'), /The new link starts in January\u00a02027\. The new timetable started in December, and today’s link carries on until then\./);
+    assert.match(at('2026-12-13'), /The new link starts in January\u00a02027, and today’s link carries on until then\. The new timetable started in December\./);
     assert.match(at('2026-12-31'), /started in December/);
     // A MONTH IS REACHED ON ITS FIRST DAY: the day is not known, so from 1 January the line could already be untrue
     for (const today of ['2027-01-01', '2027-01-20', '2027-03-15']) {
@@ -246,6 +249,6 @@ test('the status line keeps its tense as the dates pass, and says nothing once t
         assert.match(at(today), /Nothing is decided\./, 'and the rest of the status is unchanged');
     }
     // A DAY, once one is set, is reached on that day and not before
-    assert.match(at('2027-01-17', '2027-01-18'), /The new link starts on 18\u00a0January 2027\./);
+    assert.match(at('2027-01-17', '2027-01-18'), /The new link starts on 18\u00a0January 2027,/);
     assert.doesNotMatch(at('2027-01-18', '2027-01-18'), /starts on/);
 });

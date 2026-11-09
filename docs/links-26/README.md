@@ -7694,6 +7694,22 @@ managers"), from v25.60.
   links (owner, 8 Nov 2026), so it is not on it; nor are CES or Dispatchers.
 - **How it works:** the gate and its reasons are OPERATIONS_REFERENCE.md → "The new link page".
 
+**The page's bug check (9 Nov 2026, v25.61)** (owner: "Can you bug and regression check the new links page please").
+The gate, the pack's files on both origins, the service worker, the accessibility scans and the usage rule were sound.
+Four things were fixed:
+1. **Figures ran into the next column** at 320px, or with a phone's text made larger: "about £140 more" overlapped
+   "about £130 more" by 7px. A no-break space holds "£140 more" together but is never a place to break, so each held run
+   is now one unit that takes a line of its own (`newlink-render.js` → `figureText`). Where it fits, nothing moves.
+   `e2e/newlink.spec.js` measures every cell at 320px and at 1.3 times the text.
+2. **Two figures lost their cover-week qualifier.** These were the shortest rest ("At least 14h 20m between shifts") and
+   Balanced V6's runs ("three weeks at most", beside its own cell's "3 (up to 5)"). The days-in-a-row line now says what
+   the What it means sheet already said: if a cover week falls badly, Balanced V6 can make 10 in a row, one more than
+   today's worst. A bare set-shift figure flatters whichever design a cover week hurts most.
+3. **"Until then" pointed at December.** It closed the timetable's sentence, so it could be read as today's link ending
+   with the timetable. It now sits in the link's own sentence.
+4. **"The clear best" became "the best".** The marks keep no margin: 8h 06m is marked beside 8h 07m. The What it means
+   sheet's key still says "clear", and that PDF is left as it is.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

@@ -13,7 +13,7 @@
  * PUBLIC, like every file in this repository: it holds the proposals' published figures and nothing about any person.
  */
 
-/** @typedef {{ text: string, best: boolean }} Cell  one figure; `best`: the clear best of the three for that person */
+/** @typedef {{ text: string, best: boolean }} Cell  one figure; `best`: the best of the three for that person, however small the lead */
 /** @typedef {{ label: string, cells: Cell[] }} Row  cells in COLUMNS order */
 /** @typedef {{ id: string, icon: string, chip: string, who: string, gist: string, rows: Row[] }} Persona */
 /** @typedef {{ design: string|null, label: string, path: string, pages: number }} PackFile  path is under docs/links-26/ */
@@ -32,7 +32,7 @@ export const CHANGES = deepFreeze([
     "The shortlist is new: Balanced\u00a0V6, Level\u00a0Crossing and Middle\u00a0Ground. Short\u00a0Run is no longer on it.",
     "All three keep closing weeks apart: a week of closing shifts is never followed by another, cover weeks aside. On Short\u00a0Run three closing weeks fall together.",
     "All three keep today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Short\u00a0Run four weeks off take 15, and 14 days buy 28 at best.",
-    "Level\u00a0Crossing and Middle\u00a0Ground keep 18\u00a0of\u00a021 weeks on one shift time, as Short\u00a0Run does. Balanced\u00a0V6 has 7, with more weeks mixing start times, and its runs of earlies or of lates are three weeks at most.",
+    "Level\u00a0Crossing and Middle\u00a0Ground keep 18\u00a0of\u00a021 weeks on one shift time, as Short\u00a0Run does. Balanced\u00a0V6 has 7, with more weeks mixing start times, and its runs of earlies or of lates are three weeks at most, or five if a cover week falls badly.",
     "All three keep a shift finishing at 13:45 on every weekday of the rota. Short\u00a0Run has none.",
     "On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10."
 ]);
@@ -41,9 +41,9 @@ export const CHANGES = deepFreeze([
 export const GAINS = deepFreeze([
     "The same 35-hour week, so the same basic pay.",
     "12\u00a0to\u00a014 full weekends off a year (today\u00a010).",
-    "At most 5 days in a row, cover weeks aside (today\u00a07).",
+    "At most 5 days in a row, cover weeks aside (today\u00a07). If a cover week falls badly, Balanced\u00a0V6 can make 10 in a row, one more than today’s worst.",
     "Every closing shift 15 minutes to an hour shorter.",
-    "At least 14h\u00a020m between shifts (today\u00a012h\u00a030m).",
+    "At least 14h\u00a020m between shifts, cover weeks aside (today\u00a012h\u00a030m).",
     "No avoidable fatigue warnings on the set shifts (today\u00a04)."
 ]);
 
@@ -309,7 +309,7 @@ export const NOTES = deepFreeze([
     "One person, over a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.",
     "Pounds are gross, before tax, at the CEA rate of £21.49 an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.",
     "A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.",
-    "Bold green marks the clear best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year.",
+    "Bold green marks the best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year.",
     "“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail."
 ]);
 

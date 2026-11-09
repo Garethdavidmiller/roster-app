@@ -267,6 +267,10 @@ body {
     line-height: 1.3;
 }
 .nl-fig tbody:last-child .nl-fig-row td { border-bottom: none; }
+/* A run of words a figure holds together ("£140 more", "+34h 40m"): one unit that takes a line of its own whole, and wraps
+   inside itself only when even that line is too narrow — at 320px, or with a phone's text made larger, it ran into the next
+   column (newlink-render.js → figureText). Where it fits, it draws exactly as plain text. */
+.nl-fig .nl-nb { display: inline-block; }
 .nl-fig td.nl-today { color: var(--text-light); font-weight: 500; }
 .nl-fig .nl-best b {
     display: inline-block;
