@@ -34,15 +34,15 @@ import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.
 // open return, short openers and second look from the pack and repo"): their straps, families and first dates went with
 // them (regenerate.mjs, RETIRED_CODES; README.md → "Five designs deleted").
 export const STRAPS = {
+  // 9 NOV 2026 — COMMON GROUND, CROSSOVER, EVEN STEP AND BALANCED V5 DISCARDED (owner: "Discard those three and balanced v5
+  // now please, very carefully"): their straps, families and first dates went with them. Their grids stay in the tooling as
+  // BASES (below), because designs still in the pack were laid from them (README.md → "Four designs discarded").
   'SE-26-F1': ['Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time', 'search'],
   'SR-26-F1': ['No run over five days outside the cover weeks, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time', 'search'],
   'LB-26-F1': ['Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week', 'search'],
   // 26 Oct 2026: today's link on 26 lines (README.md → "Today's link on 26 lines")
   'HG-26-T1': ['Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, and the ticket office’s new Saturday late, with a 13:35 finish every weekday and Saturday closing as today', 'search'],
   'CT-26-T2': ['A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
-  // 31 Oct 2026: In Step's weeks with no duty over 8h 30m from Monday to Saturday (README.md → "Even Step"); In Step, which
-  // was Closing Time's weeks with the times searched again, was deleted on 8 Nov 2026
-  'ES-26-T5': ['No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday', 'search'],
   // 3 Nov 2026: the owner's question — the link with today's shift times given no weight in the league (README.md → "Clean
   // Slate and Next Step"). Neither is shortlisted; Next Step is Even Step with Clean Slate's three weekday changes
   'CS-26-N2': ['Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday', 'search'],
@@ -54,10 +54,6 @@ export const STRAPS = {
   // individual names"). Not shortlisted. Open Return and Short Openers, drawn the same day from Quarter Past's duties, were
   // deleted on 8 Nov 2026 (README.md → "Five designs deleted")
   'GT-26-T7': ['No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today', 'search'],
-  // 4 Nov 2026: today's link taken to 26 weeks on the owner's brief — openers finishing 13:45 or 14:20, closers from 15:45,
-  // nothing over 8h 30m on a weekday or 9h at the weekend, an even Sunday, 30 days off for 14 days' leave (README.md →
-  // "Common Ground"). Shortlisted on 5 Nov 2026, as the 30-day example, and off the shortlist since 8 Nov 2026 (below)
-  'CG-26-T8': ['Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 5 Nov 2026: Common Ground's weeks with the shift times varied from week to week, so no two closing weeks and no two 06:20
   // weeks fall together (README.md → "Middle Ground"). Shortlisted on 8 Nov 2026 (below). ITS STRAP SAYS THE CLOSING WEEKS ONLY
   // (owner, 8 Nov 2026, agreeing): the 06:20 half held only when week 20, two 06:20 starts and two 07:00s, was read as a 07:00
@@ -66,19 +62,12 @@ export const STRAPS = {
   // proposals"); regenerate.mjs refuses one that does
   'MG-26-T8': ['Seven of today’s shift times, varied from week to week so that no two closing weeks fall together, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 6 NOV 2026 (owner: "Balanced v5 and Relief Point need adding to the pack, but can you rename Relief Point as Balanced v6"):
-  // its author's one-page Marylebone Balanced 26, version 5, and the owner's 15-minute handover drawn from it (README.md →
-  // "Balanced V5 and Balanced V6 join the pack"). Each says what it is, naming no other design. Balanced V6 shortlisted on 8 Nov 2026 (below)
-  'MB-26-V5': ['Early weeks built from 06:20 and 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today', 'search'],
+  // its author's one-page Marylebone Balanced 26, version 5 (discarded 9 Nov 2026), and the owner's 15-minute handover drawn from it (README.md →
+  // "Balanced V5 and Balanced V6 join the pack"). It says what it is, naming no other design. Balanced V6 shortlisted on 8 Nov 2026 (below)
   'MB-26-V6': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 6 NOV 2026 (owner, asking for Balanced V6 made again "without losing anything", then "Add v7 please"): Balanced V6's duties
   // laid again on Grand Tour's rest days (README.md → "Balanced V7"). Its headline says what it is and names no other design
   'MB-26-V7': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, no six-day weeks, and 14 days’ leave buys 30 days off, as today', 'search'],
-  // 7 NOV 2026 (owner: keep the 13:45s and make the 13:35s 13:45 too, closers from 15:45 on a weekday, 30 days off for 14 days'
-  // leave, every rule and fatigue factor, the fewest shift times, competitive in the league; then "give hb a new name and put that
-  // into the pack. Delete set fair as it would not work": Set Fair's three weekday 07:15-15:45s left as the 15:45 closers came
-  // on). Two weekday earlies stay until 16:00, the closers' first 15 minutes. Drawn as Safe Hands (SH-26-T10), renamed the same
-  // day for a railway name (owner: "Needs a better name", "Use railway names in future"): README.md → "Crossover"
-  'CO-26-T10': ['Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 7 NOV 2026, LATER (owner, of Crossover: "people don't want to do several weeks of closes", then "Do it"): Crossover's duties
   // and rest days with its weeks chosen again, so that no two closing weeks fall side by side. NO STRAP NAMES ANOTHER DESIGN, so
   // this one says what it has, not whose weeks it re-lays: README.md → "Level Crossing". Shortlisted on 8 Nov 2026 (below)
@@ -123,19 +112,34 @@ if (SHORTLIST.join() !== [...SHORTLIST].sort((a, b) => a.localeCompare(b, 'en-GB
 /** The day the shortlist above was drawn, for the sheets and the read-me that say when — after every design in the pack. */
 export const SHORTLIST_DATE = '8 Nov 2026';
 /** Designs off the shortlist whose presentations the pack still ships. In Step's from 5 Nov 2026 (owner: "keep the other
- *  presentations in the pack, just not the shortlist"); NONE SINCE 8 NOV 2026. The six in presentations/ from before that
- *  day (eight until In Step's were deleted with it, the same day) each say they present a shortlisted link, so the zip
- *  leaves them out (pack.py); they stay in the repository, unchanged, and deck-check.mjs still holds their figures to the
+ *  presentations in the pack, just not the shortlist"); NONE SINCE 8 NOV 2026. Short Run's two in presentations/ from
+ *  before that day (eight until In Step's were deleted with it, the same day; six until Common Ground's and Even Step's went
+ *  to deck-template/ when those designs were discarded on 9 Nov 2026, BASES below) say they present a shortlisted link, so the
+ *  zip leaves them out (pack.py); they stay in the repository, unchanged, and deck-check.mjs still holds their figures to the
  *  grids. The three shortlisted that day had their own drawn later the
  *  same day, from Common Ground's (shortlist-decks.py), and the zip carries those. */
 export const DECKS_KEPT = [];
 if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is both shortlisted and kept off it: ${DECKS_KEPT}`);
+/** BASES (9 Nov 2026, when Common Ground, Crossover, Even Step and Balanced V5 were discarded: README.md → "Four designs
+ *  discarded"). Designs out of the pack that the deck builders still start from by name. Common Ground's finished pair is
+ *  where shortlist-decks.py starts every shortlisted design's presentations (and Middle Ground's weeks were laid from its
+ *  grid); Even Step's is where relay-decks.py starts Clockface's (Clockface's weeks were laid from its grid). Their grids stay
+ *  in the tooling, their presentations in deck-template/ beside Second Nature's, and deck-check.mjs --print still gives their
+ *  figures. A base is never rendered, shipped, scored, listed on a sheet or named in the read-me; regenerate.mjs holds each
+ *  grid to its fingerprint and each code to RETIRED_CODES. Crossover's and Balanced V5's grids stay as well, as Short Openers'
+ *  does, because Level Crossing and Balanced V6 were drawn from them, but no builder needs them by name, so they are not here.
+ *  Each entry is written name, code, fp: deck-polish.py reads them so, beside regenerate.mjs's entries. */
+export const BASES = [
+  { name: 'Common Ground', code: 'CG-26-T8', fp: '03af96b2', file: 'common-ground.json' },
+  { name: 'Even Step', code: 'ES-26-T5', fp: 'fb7a3988', file: 'even-step.json' },
+];
+if (BASES.some(b => SHORTLIST.includes(b.name) || DECKS_KEPT.includes(b.name))) throw new Error(`a base is out of the pack, never on the shortlist: ${BASES.map(b => b.name)}`);
 // NO RECOMMENDATION SINCE 5 NOV 2026. RECOMMENDED named the one the shortlist sheet argued for — Short Run from 3 Oct 2026,
 // In Step from 30 Oct, Even Step from 31 Oct (README.md has each) — and was retired with the marks; it is gone rather than
 // left null, so any script still reading it fails loudly instead of quietly recommending nothing.
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
-export const FAMILY = { SE: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', GT: 'Home Grown', CG: 'Home Grown', MG: 'Home Grown', MB: 'Marylebone Balanced', CO: 'Home Grown', LC: 'Home Grown', CF: 'Home Grown', SWK: 'Second Nature' };
-export const FIRST = { 'SE-26-F1': '2 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'CG-26-T8': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026', 'MB-26-V5': '5 Nov 2026', 'MB-26-V6': '5 Nov 2026', 'MB-26-V7': '6 Nov 2026', 'CO-26-T10': '7 Nov 2026', 'LC-26-T10': '7 Nov 2026', 'MB-26-V8': '7 Nov 2026', 'MB-26-V9': '7 Nov 2026', 'MB-26-V10': '8 Nov 2026', 'CF-26-T5': '8 Nov 2026', 'SWK-26-F1': '8 Nov 2026' };
+export const FAMILY = { SE: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', GT: 'Home Grown', MG: 'Home Grown', MB: 'Marylebone Balanced', LC: 'Home Grown', CF: 'Home Grown', SWK: 'Second Nature' };
+export const FIRST = { 'SE-26-F1': '2 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026', 'FS-26-T7': '4 Nov 2026', 'GT-26-T7': '4 Nov 2026', 'MG-26-T8': '5 Nov 2026', 'MB-26-V6': '5 Nov 2026', 'MB-26-V7': '6 Nov 2026', 'LC-26-T10': '7 Nov 2026', 'MB-26-V8': '7 Nov 2026', 'MB-26-V9': '7 Nov 2026', 'MB-26-V10': '8 Nov 2026', 'CF-26-T5': '8 Nov 2026', 'SWK-26-F1': '8 Nov 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a

@@ -18,7 +18,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { DAYS } from '../../../links-design.js';
-import { STRAPS } from './fresh.mjs';
+import { STRAPS, BASES } from './fresh.mjs';
 import { PACK_DIRS, today, weekdayFloorFit } from './report-data.mjs';
 
 const fingerprint = p => createHash('sha256')
@@ -50,8 +50,15 @@ export const SUPPLIED = [
     // keel, open return, short openers and second look from the pack and repo"). Their sheets, import files, grids, metas and
     // duty tables are gone, with In Step's presentations, table H1 and the outside reviewer's second folder, which only Even
     // Keel still used; pack.py refuses their names, and RETIRED_CODES (below) their codes (README.md → "Five designs deleted").
-    // Short Openers' grid alone stays, in results/ and out of the pack, because two designs that stay were laid from its rest
-    // days: Crossover, and Balanced V8 (exact-rota.py's first step for it).
+    // Short Openers' grid alone stays, in results/ and out of the pack, because designs were laid from its rest days:
+    // Crossover, whose rest days Level Crossing keeps (Crossover itself was discarded on 9 Nov 2026, below), and Balanced V8
+    // (exact-rota.py's first step for it).
+    // COMMON GROUND, CROSSOVER, EVEN STEP AND BALANCED V5, DISCARDED ON 9 NOV 2026 (owner: "Discard those three and balanced
+    // v5 now please, very carefully"). Their sheets, import files and shipped grids are gone, with Common Ground's and Even
+    // Step's PDF presentations; pack.py refuses their names, and RETIRED_CODES (below) their codes (README.md → "Four designs
+    // discarded"). Their grids stay in the tooling, out of the pack, because designs that stay were laid from them: Middle
+    // Ground from Common Ground's, Level Crossing from Crossover's, Clockface from Even Step's and Balanced V6 from Balanced
+    // V5's. Common Ground and Even Step are fresh.mjs BASES as well, the deck builders' starting points, checked below.
     // Second Edition (2 Oct 2026): the owner asked for a roster stronger than any so far, at 219 days. Same duty table as
     // Second Nature; the weeks were built from a rest-day SKELETON (skeleton.mjs) that carries every rule a finished rota
     // must meet, then the times were searched. Weekends at most five apart, four single rest days, no mixed week, 18 of 21
@@ -79,11 +86,6 @@ export const SUPPLIED = [
     // (factors-like.mjs). README.md → "Today's link on 26 lines".
     { file: 'home-grown.json',             name: 'Home Grown',     code: 'HG-26-T1',   fp: '021e6f03', strap: 'Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, and the ticket office’s new Saturday late, with a 13:35 finish every weekday and Saturday closing as today' },
     { file: 'closing-time.json',           name: 'Closing Time',   code: 'CT-26-T2',   fp: 'd6c56b87', strap: 'A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties' },
-    // Even Step (31 Oct 2026): the owner's one reservation about In Step (deleted 8 Nov 2026, above) was the length of its
-    // main early shift. The same
-    // weeks (Closing Time's rest days and early and late weeks) with every duty Monday to Saturday 8h 30m or less, every
-    // early one of today's times and every closer still 15:45; the lates take the half hour. README.md → "Even Step".
-    { file: 'even-step.json',              name: 'Even Step',      code: 'ES-26-T5',   fp: 'fb7a3988', strap: 'No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday' },
     // Clean Slate (3 Nov 2026): the owner's question — the link if today's shift times carried no weight in the league, every
     // other rule applying, with the weekday rules closers from 15:45, nothing over 9 hours, openers at most 8h 30m, and one
     // 13:45 a weekday. Searched afresh and laid on Home Grown's weeks: nothing over 8h 30m Monday to Saturday, 19 weeks on one
@@ -111,10 +113,6 @@ export const SUPPLIED = [
     // WELL KEPT TAKEN OUT, 5 NOV 2026 (owner: "Remove well kept"): Same Again Tidy, WK-26-S2 · 1db1381a, in the 30-day folder
     // from the evening of 4 Nov, and DELETED on 6 Nov 2026 with Same Again, its untidied first version (above).
     { file: 'results/fair-share-leave30.json',   name: 'Grand Tour',           code: 'GT-26-T7',  fp: 'd9b82d23', dir: '30-days-off', strap: 'No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today' },
-    // 4 Nov 2026: Common Ground is today's link taken to 26 weeks on the owner's brief, its weeks the 30-for-14 grid found on
-    // Fair Share's duties (README.md → "Common Ground"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
-    // with the other four (owner, the same evening: "add any other 30 days off proposals to the subfolder")
-    { file: 'common-ground.json',          name: 'Common Ground',  code: 'CG-26-T8',   fp: '03af96b2', dir: '30-days-off', strap: 'Seven of today’s shift times, a 13:45 finish every weekday, nothing over 8h 30m, and 14 days’ leave buys 30 days off, as today' },
     // 5 Nov 2026: Middle Ground is Common Ground's weeks with the shift times varied from week to week (README.md → "Middle
     // Ground"). Its rest days are Common Ground's, so it buys 30 days off for 14 days' leave too and ships into 30-days-off/
     { file: 'middle-ground.json',          name: 'Middle Ground',  code: 'MG-26-T8',   fp: '20668ac9', dir: '30-days-off', strap: 'Seven of today’s shift times, varied from week to week so that no two closing weeks fall together, and 14 days’ leave buys 30 days off, as today' },
@@ -122,23 +120,12 @@ export const SUPPLIED = [
     // Balanced V5 is its author's one-page Marylebone Balanced 26, version 5, read cell by cell; Balanced V6 (drawn as Relief Point,
     // RP-26-V5) is the owner's 15-minute weekday handover drawn from it. Both buy 30 days off for 14 days' leave, and both finish
     // the Saturday office lates at 22:30 as drawn, so the 6 Nov correction changed neither (README.md → "Balanced V5 and Balanced
-    // V6 join the pack")
-    { file: 'results/balanced-v5.json',        name: 'Balanced V5',          code: 'MB-26-V5',  fp: 'ded4a15f', dir: '30-days-off/balanced', strap: 'Early weeks built from 06:20 and 08:00 starts, a 15:45 closer every weekday, and 14 days’ leave buys 30 days off, as today' },
+    // V6 join the pack"). Balanced V5 was discarded on 9 Nov 2026 (above); its grid stays in results/, Balanced V6's starting point
     { file: 'results/balanced-v6.json',        name: 'Balanced V6',          code: 'MB-26-V6',  fp: '1818a1c2', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today' },
     // 6 Nov 2026 (owner: Balanced V6 made again "without losing anything", then "Add v7 please"): Balanced V7 is Balanced V6's
     // duties, every one, laid again by exact-rota.py (MIXED) on Grand Tour's rest days, so it keeps V6's handover, closers, early
     // finishes and leave, with no six-day weeks and at most 7 days in a row however the cover weeks fall (README.md → "Balanced V7")
     { file: 'results/balanced-v7.json',        name: 'Balanced V7',          code: 'MB-26-V7',  fp: '75e9e7f3', dir: '30-days-off/balanced', strap: 'A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, no six-day weeks, and 14 days’ leave buys 30 days off, as today' },
-    // 7 Nov 2026 (owner: "create a proposal that keeps the 1345 finishes and converts all the 1335 finishes to 1345 too … all
-    // closers on a 1545 start on a weekday … 30 days off for 14 days AL … all the rules, fatigue rules, minimise numbers of shift
-    // times and be competitive with the best proposals in the league table"; then "give hb a new name and put that into the
-    // pack. Delete set fair as it would not work"; then "Needs a better name" and "Use railway names in future"): Crossover, drawn
-    // as Safe Hands the same day, two 13:45s every weekday, and no weekday early finishing between 15:00 and 16:00, so two are
-    // still on for the 15:45 closers' first 15 minutes. Set Fair, drawn first the same day, had three 07:15-15:45s leaving as the
-    // closers came on, and was deleted. Laid on Short Openers' rest days (results/short-openers.json, kept for it when Short
-    // Openers was deleted on 8 Nov 2026) with the 55-hour worst case held (README.md →
-    // "Crossover"). It buys 30 days off for 14 days' leave, so it ships into 30-days-off/
-    { file: 'crossover.json',              name: 'Crossover',            code: 'CO-26-T10', fp: '6596c0d9', dir: '30-days-off', strap: 'Two 13:45 finishes every weekday, a 15-minute handover from two 07:30\u2060–\u206016:00s to the three 15:45 closers, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today' },
     // 7 Nov 2026 (owner, of Crossover: "Middle ground is a reworking of common ground to make it a gentle change between weeks.
     // As people don't want to do several weeks of closes. How possible is it to do the same to crossover?", then "Do it"):
     // Level Crossing is Crossover's duties and rest days, its weeks chosen again so that no two closing weeks fall side by side,
@@ -162,7 +149,8 @@ export const SUPPLIED = [
     // Even Step's and Short Run's duties and rest days, every one, and their early and late weeks, with only which week works
     // which shift time chosen again by exact-rota.py (CLOSE_APART=2, then NEAR= for the fewest cells moved) so that no two
     // closing weeks sit side by side. Clockface keeps Even Step's 18 weeks of 21 on one shift time; Short Working has 19, one
-    // more than Short Run. Neither buys 30 days off for 14 days' leave, so both ship into proposals/, beside their parents
+    // more than Short Run. Neither buys 30 days off for 14 days' leave, so both ship into proposals/, beside Short Run (Even Step
+    // was discarded on 9 Nov 2026, above)
     // (README.md → "Clockface and Short Working"). Short Working's code is SWK, not SW: SW-26-F1 was Second Wind's (RETIRED_CODES)
     { file: 'results/clockface.json',          name: 'Clockface',            code: 'CF-26-T5',  fp: '62abf5eb', strap: 'No shift over 8h 30m and every early one of today’s times, Monday to Saturday, a 13:45 finish every weekday, and never two closing weeks in a row' },
     { file: 'results/short-working.json',      name: 'Short Working',        code: 'SWK-26-F1', fp: 'be95ed62', strap: 'No run over five days outside the cover weeks, weekends never more than five weeks apart, 19 of 21 weeks on one shift time, and never two closing weeks in a row' },
@@ -182,6 +170,7 @@ export const RETIRED_CODES = {
     'QP-26-EXT': 'Quarter Past', 'QR-26-EXT': 'Quarter Past Relaid', 'RP-26-V5': 'Relief Point', 'SF-26-T9': 'Set Fair',
     'SH-26-T10': 'Safe Hands', 'BW-26-T3': 'Both Ways', 'FT-26-H1': 'Fine Tune',
     'SL-26-G3': 'Second Look', 'EK-26-H1': 'Even Keel', 'IS-26-T4': 'In Step', 'OR-26-EXT': 'Open Return', 'SO-26-EXT': 'Short Openers',
+    'CG-26-T8': 'Common Ground', 'CO-26-T10': 'Crossover', 'ES-26-T5': 'Even Step', 'MB-26-V5': 'Balanced V5',   // discarded 9 Nov 2026
     'SGR-26-C1': 'Second Gear Refined C1', 'SGR-26-C2': 'Second Gear Refined C2', 'FDF-26-C1': 'Five-Day Flow',
 };
 
@@ -290,6 +279,17 @@ for (const t of SEARCHED) {
     const pdf = readdirSync('.').find(f => f.endsWith(`-${t.fp}.pdf`)); if (!pdf) throw new Error(`${t.proposal}: no PDF ending -${t.fp}.pdf was written — did the pick change?`);
     shipFiles(pdf.slice(0, -`-${t.fp}.pdf`.length), t.fp, 'proposal.json', 'proposal-import.txt');
     done++;
+}
+// THE BASES (9 Nov 2026, fresh.mjs): designs out of the pack that the deck builders still start from by name. Each grid is held
+// to its fingerprint, so a base cannot drift under the presentations drawn from it; each code is retired under its own name, so
+// it is never given again; and none is an entry above, so a base is never rendered, shipped, scored or listed on a sheet
+if (!only) for (const b of BASES) {
+    if (!existsSync(b.file)) { console.log(`FAIL base ${b.name}: ${b.file} is gone, and a deck builder starts from it (fresh.mjs BASES)`); failed++; continue; }
+    const got = fingerprint((j => j.patterns ?? j)(JSON.parse(readFileSync(b.file, 'utf8'))));
+    if (got !== b.fp) { console.log(`FAIL base ${b.name}: ${b.file} fingerprints ${got}, expected ${b.fp}`); failed++; continue; }
+    if (RETIRED_CODES[b.code] !== b.name) { console.log(`FAIL base ${b.name}: ${b.code} is not retired as ${b.name}'s (RETIRED_CODES); a base is out of the pack for good`); failed++; continue; }
+    if (SUPPLIED.some(x => x.code === b.code || x.name === b.name)) { console.log(`FAIL base ${b.name}: it is an entry above as well; a base is never shipped`); failed++; continue; }
+    console.log(`ok   base ${b.name}  ${b.code} ${b.fp} (${b.file}, out of the pack)`);
 }
 // NOTHING IN THE PACK'S FOLDERS THAT NO ENTRY SHIPS (4 Nov 2026). A rename or a move leaves the old name's three files
 // behind, and everything that reads the folders would count them as one more design: a renamed design twice in the

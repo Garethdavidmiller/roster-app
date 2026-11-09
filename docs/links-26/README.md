@@ -48,7 +48,8 @@ recommendation back. Sections dated before then speak of the shortlist and the r
 shortlist drawn again* and *The whole pack reviewed* say what changed.
 
 **The shortlist was drawn again on 8 Nov 2026**, for a new design target, no two closing weeks side by side: Balanced V6,
-Level Crossing and Middle Ground, A to Z, all three in `30-days-off/`. Common Ground, Even Step and Short Run left it. The
+Level Crossing and Middle Ground, A to Z, all three in `30-days-off/`. Common Ground, Even Step and Short Run left it (the
+first two were discarded on 9 Nov 2026). The
 three's presentations were drawn the same day, and the zip carries only theirs: the earlier decks each name the shortlist of
 5 Nov as the current one. Sections dated before then speak of the shortlist of their day; *The shortlist redrawn for closing
 weeks apart*, near the end, says what changed.
@@ -96,6 +97,13 @@ fewest days off at best for 14 days' leave, In Step the most long earlies and th
 shortest closing shift on average — so every other score moved: in the main league Level Crossing is now first and Clockface
 second, and the designs with 20 long earlies a year fell furthest. *Five designs deleted*, near the end, has the tables.
 
+**League places and scores dated before 9 Nov 2026 count Common Ground, Crossover, Even Step and Balanced V5**, discarded
+then (owner: "Discard those three and balanced v5 now please, very carefully"). In the league as weighted until 8 Nov none
+of them set an end of a range, so no score moved and every place below them rose. In the main league Crossover had set the
+far end of two closing-weeks measures, one of them with Common Ground, so the designs with closing weeks together scored up
+to 2.4 less: Level Crossing is still first, by 0.4 points rather than 0.5, Clockface second and Middle Ground third. *Four
+designs discarded*, near the end, has the tables.
+
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
 So a rebuild adds nothing about who decides, votes or recommends — the process is recorded in
@@ -116,12 +124,12 @@ removed on 7 Nov 2026):
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
 | `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
 | `links-26-shortlist.pdf` | the three shortlisted designs (Balanced V6, Level Crossing and Middle Ground, A to Z, since 8 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
-| `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z folder by folder, on one page when it fits — nineteen rows since 8 Nov 2026 — and otherwise on two, split at the folders (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
+| `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z folder by folder, on one page when it fits — fifteen rows since 9 Nov 2026 — and otherwise on two, split at the folders (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
-| `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary; since 7 Nov 2026 the Balanced designs, six since Balanced V10, are in its subfolder `30-days-off/balanced/` (owner: "Put all the Balanced proposals in their own subfolder"), *Balanced* in the zip |
+| `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary; since 7 Nov 2026 the Balanced designs, five since Balanced V5 was discarded on 9 Nov 2026, are in its subfolder `30-days-off/balanced/` (owner: "Put all the Balanced proposals in their own subfolder"), *Balanced* in the zip |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
-| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: Balanced V6's, Level Crossing's and Middle Ground's, the shortlist's since 8 Nov 2026 and the only ones in the zip; Common Ground's, Even Step's and Short Run's, made for the shortlists before then and out of the zip since (In Step's, made with them, were deleted with it on 8 Nov 2026); and Balanced V10's, Clockface's and Short Working's, drawn on 8 Nov 2026 beside the shortlist, not in the zip either |
-| `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs, and `tooling/reference-24/` the few 24-line files they still read (since 7 Nov 2026) |
+| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: Balanced V6's, Level Crossing's and Middle Ground's, the shortlist's since 8 Nov 2026 and the only ones in the zip; Short Run's, made for the shortlists before then and out of the zip since (In Step's, made with them, were deleted with it on 8 Nov 2026; Common Ground's and Even Step's went with the two designs on 9 Nov 2026, their PowerPoints kept in `tooling/deck-template/` as the decks the ones in use are built from); and Balanced V10's, Clockface's and Short Working's, drawn on 8 Nov 2026 beside the shortlist, not in the zip either |
+| `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs, `tooling/reference-24/` the few 24-line files they still read (since 7 Nov 2026), and `tooling/deck-template/` the finished decks the presentations in use are built from (Common Ground's and Even Step's since 9 Nov 2026) |
 | `RULES.md` | the rules in prose, with their sources and the open questions (26 lines only) |
 | `README.md` | this record — the repository's working record, not part of the pack (left out of the zip since 5 Nov 2026, owner) |
 
@@ -1981,7 +1989,13 @@ avoidable fatigue warning" beside the summary's "up to 1"), the two deck builder
 rota", and the notes to the fatigue slides say what the 1 is, refused if it is ever anything but the 55-hour week) and
 `pack.py`; every sheet, all four decks and the pack re-rendered.
 
-## Even Step — In Step's weeks, nothing over 8h 30m Monday to Saturday, recommended (31 Oct 2026)
+## Even Step — In Step's weeks, nothing over 8h 30m Monday to Saturday, recommended (31 Oct 2026; discarded 9 Nov 2026)
+
+**Discarded on 9 Nov 2026** (owner: *"Discard those three and balanced v5 now please, very carefully"*; *Four designs discarded*, below). Its sheet, import file and JSON are no longer in the pack or the
+repository, nor are its two presentations' PDFs. Its grid stays in the tooling, `tooling/even-step.json` with its meta and
+its duty table (`results/even-step-table.json`), and its two PowerPoints are in `tooling/deck-template/`: Clockface is its
+duties and rest days in new weeks, and `relay-decks.py` builds Clockface's presentations from Even Step's (`fresh.mjs` →
+`BASES`). The file names below are the record of how it was made.
 
 **The question** (owner, 31 Oct 2026): "The only unpopular thing I see about instep is the length of the main early
 shift. I will find that hard to sell to colleagues. What are the possible solutions? Deep think". Three answers were
@@ -3865,7 +3879,14 @@ the order is the same down to 12th; below that, Second Look is 13th, Long Break 
 agreeing; and the pack zip builds. The decks, *What it means if you…* and the New link page do not name Quarter Past or
 Well Kept, and are unchanged.
 
-## Common Ground — today's link taken to 26 weeks, on the owner's brief (4 Nov 2026)
+## Common Ground — today's link taken to 26 weeks, on the owner's brief (4 Nov 2026; discarded 9 Nov 2026)
+
+**Discarded on 9 Nov 2026** (owner: *"Discard those three and balanced v5 now please, very carefully"*; *Four designs discarded*, below). Its sheet, import file and JSON are no longer in the pack or the
+repository, nor are its two presentations' PDFs. Its grid stays in the tooling, `tooling/common-ground.json` with its meta,
+and so does its duty table, `results/common-ground-table.json`, which is Middle Ground's (table T8): Middle Ground is its
+duties and rest days in new weeks, and `closing.mjs` pins four closing weeks in a row on it. Its two PowerPoints are in
+`tooling/deck-template/`, where `shortlist-decks.py` starts the shortlist's and Balanced V10's presentations (`fresh.mjs` →
+`BASES`).
 
 **The brief** (owner, 4 Nov 2026): *"Can you take the original 20 week roster and expand it to 26 weeks. Eliminate the
 13.35 finish on Monday to Friday. Start the closing shifts at 1600. Keep the 13.45 and 14.20 shifts as the opening shift
@@ -4008,7 +4029,7 @@ above keep the scores of their day.
 - **The read-me** names the four that came after the shortlist and says what Common Ground is.
 - **Not changed:** the decks, "What it means if you…", the New link page and the Links designer's built-in examples.
 
-## Common Ground joins the 30-day folder (4 Nov 2026)
+## Common Ground joins the 30-day folder (4 Nov 2026; discarded 9 Nov 2026)
 
 **What happened.** Common Ground (the section above) was drawn up in another session and merged to `main` (#1690) at
 21:00, while this branch was taking Quarter Past out. `main` did not yet have this branch's 30-day folder, or the four
@@ -4161,6 +4182,9 @@ spare.
 
 *Superseded the same day: Common Ground joined the shortlist, its decks moved into `presentations/` and the folder below
 went (next section, "The shortlist drawn again"). This section is how they were first built and reviewed.*
+
+*Since 9 Nov 2026, when Common Ground was discarded, its two PowerPoints are in `tooling/deck-template/`, still the source
+of the shortlist's decks, and its PDFs are gone (Four designs discarded, below).*
 
 **The request** (owner, 5 Nov 2026): *"Then create presentations for common ground. Do we have a presentation for Even
 step?"* Even Step has both of its decks in `presentations/`, built on 3 Nov. Asked where Common Ground's should go, the
@@ -4370,6 +4394,9 @@ without it.
 
 ## Middle Ground — the shift times varied from week to week (5 Nov 2026)
 
+*Common Ground, which it was drawn from, was discarded on 9 Nov 2026 (Four designs discarded, below). Middle Ground is
+unchanged; its managers' deck no longer opens its notes on Common Ground.*
+
 **The ask** (owner, 5 Nov 2026, of Common Ground): *"I like common ground but there are too many early and late weeks in
 a row, which makes it more difficult to swap with colleagues"*; *"Can we make it as good but solve that issue"*; and
 *"or another way keep the weeks but rather than all closers bunched together and openers bunch together, make it gently
@@ -4489,7 +4516,11 @@ drawn.
 **Checked:** `regenerate.mjs --check` (19 fingerprints, every headline equal to `fresh.mjs`'s and naming no other design),
 `check.mjs`, `newlink-data.mjs --check`, the shortlist sheet's claims, `pack.py`'s checks, and `npm test`.
 
-## Balanced V5 — a one-page roster, read and given its sheet (5 Nov 2026)
+## Balanced V5 — a one-page roster, read and given its sheet (5 Nov 2026; discarded 9 Nov 2026)
+
+**Discarded on 9 Nov 2026** (owner: *"Discard those three and balanced v5 now please, very carefully"*; *Four designs discarded*, below). Its sheet, import file and JSON are no longer in the pack or the
+repository. Its grid stays, `tooling/results/balanced-v5.json` with its meta, out of the pack: Balanced V6 is its weeks with
+the three weekday 08:00–16:30s at 07:30–16:00, and Balanced V7 to V10 keep V6's duties.
 
 Owner, uploading a one-page A3 PDF headed *Marylebone Balanced 26 / Version 5* ("Grouped 06:20 and 08:00 starts |
 Same-day exchanges | MB26-V1 remains favourite"): *"Please turn this into a proposal sheet"*.
@@ -4523,6 +4554,9 @@ is not in the pack, the summary or the league; the sheet was rendered on its own
 - a weekday fit to the trains of 50.4, about today's 52.0, where the shortlist's is 29.1 to 32.7.
 
 ## Relief Point — Balanced V5 with a 15-minute handover (5 Nov 2026)
+
+*Balanced V5 was discarded on 9 Nov 2026 (Four designs discarded, below). Relief Point, as Balanced V6, is unchanged; the
+read-me and its managers' deck now say what it has, the handover, rather than what it took from Balanced V5.*
 
 Owner, after going through Balanced V5's weekday fit hour by hour: *"Create another proposal with the 7.30 to 1600
 change on weekdays. This allows 15 minutes for a handover. Give the proposal a new name"*.
@@ -4718,7 +4752,7 @@ Balanced V6 join the pack*, below.
 shortlist-sheet.mjs`; the deck chain; then `node what-it-means-sheet.mjs` and `node newlink-data.mjs`; and
 `python3 docs/links-26/tooling/pack.py` from the repository root.
 
-## Balanced V5 and Balanced V6 join the pack (6 Nov 2026)
+## Balanced V5 and Balanced V6 join the pack (6 Nov 2026; Balanced V5 discarded 9 Nov 2026)
 
 **The ask** (owner, 6 Nov 2026): *"Balanced v5 and Relief Point need adding to the pack, but can you rename Relief Point
 as Balanced v6"*. Both were outside the pack (*Balanced V5 — a one-page roster, read and given its sheet* and *Relief
@@ -5566,7 +5600,12 @@ each below it moved down one place. The tables in the sections above keep the sc
 - `newlink-data.mjs --check`: current;
 - the shortlist sheet's claims all hold.
 
-## Crossover — two 13:45s every weekday, and a handover to the closers (7 Nov 2026)
+## Crossover — two 13:45s every weekday, and a handover to the closers (7 Nov 2026; discarded 9 Nov 2026)
+
+**Discarded on 9 Nov 2026** (owner: *"Discard those three and balanced v5 now please, very carefully"*; *Four designs discarded*, below). Its sheet, import file and JSON are no longer in the pack or the
+repository. Its grid stays, `tooling/crossover.json` with its meta, and so does its duty table, `results/crossover-table.json`,
+which is Level Crossing's (table T10): Level Crossing is its duties and rest days in new weeks, and `closing.mjs` pins four
+closing weeks in a row on it. Its code, `CO-26-T10`, and its first name, Safe Hands, stay retired.
 
 **The ask** (owner, 7 Nov 2026, of Set Fair): *"I'm only slightly concerned that the 7.15 shift people will be getting
 ready to leave for 1545. Before their 1545 start replacements are fully ready. How does changing that affect the league
@@ -5726,6 +5765,9 @@ FIX=crossover.json SKELETON=../30-days-off/Short-Openers-SO-26-EXT.json H55=3300
 - in the league, no other design's score moved.
 
 ## Level Crossing — Crossover's closing weeks kept apart (7 Nov 2026)
+
+*Crossover was discarded on 9 Nov 2026 (Four designs discarded, below). Level Crossing is unchanged; the read-me and its
+managers' deck now say what it has, the two 13:45s and the handover, rather than what it took from Crossover.*
 
 **The ask** (owner, 7 Nov 2026): *"Middle ground is a reworking of common ground to make it a gentle change between weeks.
 As people don't want to do several weeks of closes. How possible is it to do the same to crossover?"*; then, shown what
@@ -7040,6 +7082,10 @@ from Common Ground's finished pair, and set beside the shortlist (`BESIDE`):
 
 ## Clockface and Short Working — Even Step's and Short Run's weeks laid again with their closing weeks apart (8 Nov 2026)
 
+*Even Step was discarded on 9 Nov 2026 (Four designs discarded, below). Clockface is unchanged; its row on the sheet of the
+other designs, the read-me and its managers' deck now say what it has rather than what it took from Even Step, and
+`relay-decks.py` still builds its presentations from Even Step's (`fresh.mjs` → `BASES`).*
+
 **The ask.** Step 2 of *The shortlist redrawn for closing weeks apart*, above, laid Even Step and Short Run again with their
 closing weeks apart and put neither in the pack. The owner then named them, "Clockface, Short Working", taking Short Run's
 layout B, and asked for "the presentations for non shortlisted designs where they exist, to match the updated designs". With
@@ -7342,6 +7388,140 @@ paragraph ends on one word alone.
 - the decks' secondary grey (5.0:1 on the pale tiles, which passes AA) and slide 10's picture margin stay;
 - page 7 keeps its own key against the guidance; page 1 keeps its breathing space; Clean Slate keeps its five-wide cards;
   the cover meta line and closing sign-off keep their different jobs.
+
+## Four designs discarded (9 Nov 2026)
+
+**The ask** (owner, 9 Nov 2026), after asking which proposals could be discarded now, the Balanced series aside, and then
+adding Balanced V5: *"Discard those three and balanced v5 now please, very carefully"*. The three were Common Ground,
+Crossover and Even Step. Each has a design in the pack drawn from it — Middle Ground, Level Crossing and Clockface — with
+the same duties and rest days laid in new weeks so that no two closing weeks come together. On the main league each of
+those is level with it on rest, leave, fit and duties, ahead on the closing weeks by 4.3 to 10.9 points and behind on the
+earlies by 0.04 to 0.89, and 4.2 to 10.2 points ahead in all. Balanced V5 was last on both leagues; Balanced V6 is its
+weeks with a handover. The choice is the owner's; none of the four was on the shortlist of 8 Nov.
+
+| Design | Code · fingerprint | What it was | Main league before, of 22 | Files |
+|---|---|---|---|---|
+| Common Ground | `CG-26-T8` · `03af96b2` | today's link taken to 26 weeks on the owner's brief, 4 Nov 2026, in `30-days-off/`; on the shortlist 5 to 8 Nov | 12th, 69.7 | its sheet, import file and JSON deleted, and its two presentations' PDFs; its two PowerPoints moved to `tooling/deck-template/` |
+| Crossover | `CO-26-T10` · `6596c0d9` | two 13:45s every weekday and a handover to the three 15:45 closers, 7 Nov 2026, in `30-days-off/` (drawn as Safe Hands) | 17th, 68.5 | its sheet, import file and JSON deleted |
+| Even Step | `ES-26-T5` · `fb7a3988` | In Step's weeks with nothing over 8h 30m Monday to Saturday, 31 Oct 2026, in `proposals/`; on the shortlist 31 Oct to 8 Nov, recommended until 5 Nov | 8th, 74.0 | its sheet, import file and JSON deleted, and its two presentations' PDFs; its two PowerPoints moved to `tooling/deck-template/` |
+| Balanced V5 | `MB-26-V5` · `ded4a15f` | a one-page roster drawn up outside the app, 5 Nov 2026, in `30-days-off/balanced/`: weeks of 06:20 starts and weeks of 08:00 starts | 22nd, 48.4 | its sheet, import file and JSON deleted |
+
+Sixteen tracked files deleted, and four moved byte for byte. In the league as weighted until 8 Nov they were 1st (Crossover,
+87.5), 3rd (Common Ground, 86.9), 5th (Even Step, 86.6) and 22nd (Balanced V5, 53.7) of 22.
+
+**What stays, and why.**
+- **Two bases** — new, `fresh.mjs` → `BASES`: designs out of the pack that a deck builder still starts from by name.
+  `shortlist-decks.py` builds the shortlist's and Balanced V10's presentations from Common Ground's finished decks, and
+  `relay-decks.py` builds Clockface's from Even Step's. Their four PowerPoints moved, unchanged, to `tooling/deck-template/`,
+  beside Second Nature's, and their grids are `tooling/common-ground.json` and `tooling/even-step.json`, with their duty
+  tables in `results/`. `regenerate.mjs --check` holds each base: its grid's fingerprint, its code retired as its own, and
+  never an entry in `SUPPLIED`, so a base is never rendered, shipped, scored or listed on a sheet. `deck-polish.py` reads the
+  bases' codes with the pack's, and `deck-check.mjs --print` gives their figures, which the builders hold every kept
+  sentence to. The folder was ignored by git as a whole, for Second Nature's decks, which are built there; it now ignores
+  those by name, so a base in it is tracked like any other file and one added later cannot be left out of a commit.
+- **Crossover's grid**, `tooling/crossover.json`, and **Balanced V5's**, `tooling/results/balanced-v5.json`, each with its
+  meta, out of the pack. Level Crossing is Crossover's duties and rest days in new weeks, and `closing.mjs` pins four closing
+  weeks in a row on Crossover's and Common Ground's grids; Balanced V6 is Balanced V5's weeks with a handover, and V7 to V10
+  keep V6's duties. Each meta says why it stays (`kept`). Crossover's duty table is Level Crossing's (T10), Common Ground's
+  Middle Ground's (T8).
+- **Short Run's presentations**, in `presentations/` and out of the zip: made for the shortlist of 5 Nov, they name Common
+  Ground and Even Step as its other two, true of their day, and they are where `relay-decks.py` starts Short Working's.
+- **Their codes**, in `regenerate.mjs` → `RETIRED_CODES`, so none can be given to another design.
+- **The deck builders before the shortlist's** (`common-ground-decks.py`, `even-step-decks.py`, `short-run-decks.py`,
+  `in-step-decks.py`) and the tooling's comments that name the four: the record of how things were made.
+- **The app**, which names Common Ground and Even Step only in history comments (`links-proposals.js`, two stylesheets and
+  two tests) and in a made-up design name in one test: true of their day, and a change to a served file would start a
+  Hosting deploy for nothing anyone sees. **The app does not change**, and there is no version bump.
+- **This README's sections** about them, each marked discarded with a note under its heading, and notes under those of
+  Middle Ground, Relief Point, Level Crossing and Clockface; the 30-day folder's README says the same for the three from it.
+
+**The league.** In the league as weighted until 8 Nov (`LEAGUE=31oct`) none of the four set an end of any range it reads,
+so no score moved, and every place below each of them rose. In the main league (`REF_IN_RANGE=1 node league.mjs`) two
+ranges changed, both closing-weeks measures where Crossover set the far end:
+
+| Measure | Range before | Range after | The end set by |
+|---|---|---|---|
+| Closing weeks in a row, at most | 1 to 4 | 1 to 3 | Crossover and Common Ground |
+| Closes in any 21 days, at most | 6 to 16 | 6 to 15 | Crossover |
+
+So a design with closing weeks together scores less on them, by up to 2.4 points; one with none together moves by two
+tenths at most. The main league now:
+
+| Place | Design | Score | Before, of 22 |
+|---|---|---|---|
+| 1st | Level Crossing | 78.7 | 1st, 78.7 |
+| 2nd | Clockface | 78.2 | 2nd, 78.2 |
+| 3rd | Middle Ground | 77.7 | 3rd, 77.8 |
+| 4th | Balanced V10 | 77.4 | 4th, 77.5 |
+| 5th | Next Step | 73.4 | 6th, 74.6 |
+| 6th | Grand Tour | 73.3 | 5th, 75.6 |
+| 7th | Fair Share | 73.1 | 7th, 74.3 |
+| 8th | Short Working | 72.1 | 10th, 72.1 |
+| 9th | Clean Slate | 72.0 | 9th, 73.1 |
+| 10th | Balanced V8 | 68.1 | 11th, 70.5 |
+| 11th | Long Break | 68.0 | 15th, 69.2 |
+| 12th | Home Grown | 67.9 | 14th, 69.2 |
+| 13th | Balanced V9 | 66.9 | 13th, 69.2 |
+| 14th | Second Edition | 66.8 | 18th, 68.0 |
+| 15th | Closing Time | 66.7 | 16th, 69.0 |
+| 16th | Short Run | 63.2 | 19th, 65.4 |
+| 17th | Balanced V7 | 59.6 | 20th, 61.9 |
+| 18th | Balanced V6 | 51.8 | 21st, 51.9 |
+
+Today's link stays at 41.8; Familiar Nine, three closing weeks together, falls from 56.4 to 54.1. In the league as weighted
+until 8 Nov every score is as it was: Level Crossing 87.1, Next Step 86.7, Clockface and Closing Time 86.6 at the top,
+Balanced V6 56.4 last. The read-me's league sentence, read from `league.mjs`, now says Level Crossing is first by 0.4 points,
+not 0.5: its 7 closes in any 21 days score a little less now the range ends at 15, and Clockface, with the fewest, 6, scores
+the same (78.724 and 78.248 before, 78.683 and 78.248 after).
+
+**The pack.** 18 designs: ten in `proposals/` and eight in `30-days-off/`, five of them in `balanced/`. The zip holds 55
+files, from 63: the four sheets and their four import files (Common Ground's and Even Step's presentations were not in the
+zip).
+- **The read-me** (`pack.py`) names none of the four and refuses them (`DELETED`; a mutation putting "Crossover" back in a
+  sentence stops the build), and it refuses any presentation it ships that names one, in slides or notes, however its
+  spaces are written (a mutation shipping Short Run's decks stops the build, naming Common Ground and Even Step). Its history
+  says what each design still here has on its own terms: Next Step is laid on Home Grown's weeks, with no shift over 8h 30m
+  Monday to Saturday and a 13:45 finish every weekday; Level Crossing has the two 13:45s and the handover that were described
+  as Crossover's; Clockface has the clauses that were Even Step's. Each clause is held to its grid, and so are the weeks on
+  one shift time the late paragraph types, read from `deck-check.mjs --print` (a mutation of Clockface's closer clause stops
+  the build). The shortlists of 31 Oct and 5 Nov are said without the designs that left, the second as one that "included
+  Short Run", and the 8 Nov paragraph sets the three beside Short Run's three closing weeks together, the shortlist sheet's
+  claim, which `pack.py` holds. `AFTER_31_OCT_SET`, `AFTER_5_NOV_SET`, `THIRTY_SET` and `AT_2230` lost the four.
+- **The sheet of the other designs** has fifteen rows, on one page. Its lead names Balanced V10, Clockface and Short Working
+  as the designs that keep closing weeks apart; Clockface's row says what it has without Even Step; Next Step's row is set
+  against Clockface, which has Even Step's duties, so its figures, "70 a year each, not 60" among them, are as they were.
+- **The shortlist sheet** says "the other fifteen"; its page 1 is unchanged, pixel for pixel. Its claims that named the four
+  went with them, and the closing-weeks claim reads "Short Run, Balanced V8 and Balanced V9: three closing weeks together".
+- **The summary** has 18 rows and prints at full size, its rows set dense; at 22 rows it printed at 81%.
+- **The presentations.** The managers' decks of Balanced V6, Level Crossing, Middle Ground and Clockface lost the opening of
+  slide 7's notes, which set each beside the design it was drawn from, and Clockface's its two sentences against Even Step;
+  Balanced V6's and Level Crossing's notes now open on what each has, the handover and the two 13:45s. Their slides are
+  unchanged, so their PDFs, which carry no notes, were kept. Every other deck came out identical but for the chart
+  workbook's save time, and the committed files were kept. `shortlist-decks.py` and `relay-decks.py` now refuse a design
+  out of the pack for good named anywhere in a deck, one-word names and no-break spaces included (`deck-polish.py` →
+  `RETIRED`, read from `RETIRED_CODES`): their own check looked only for two-word names with an ordinary space, and a
+  mutation proved it — with the new check removed, a note naming "Crossover" was written into Middle Ground's managers'
+  deck; with it in place the build stops.
+- **Unchanged:** the 18 proposal sheets (rendered again, pixel-identical, so the committed files were kept), the rules
+  sheet and the "What it means if you…" sheet (the same, rebuilt and checked against the decks).
+- **`RULES.md`** (in the zip as the technical notes) gives the app's release history without naming Common Ground or Even
+  Step: "v25.36 changed one of the three".
+
+**Checks.** `regenerate.mjs --check`, 18 proposals and both bases; `check.mjs`, everything agrees; `leave.mjs --check`,
+`newlink-data.mjs --check` and `closing.mjs --check`, ok; `deck-check.mjs`, 378 rows agree, from 486 (Common Ground's and
+Even Step's decks); `pack.py`, 55 files; `npm test`, 2,561 pass. Mutated with `scripts/mutate.mjs`, each check fails as it
+should: a base's fingerprint changed, and its code retired under another name (`regenerate.mjs --check`); a read-me sentence
+naming Crossover, Clockface's closer clause, and Short Run's decks shipped (`pack.py`); a deck note naming Crossover
+(`shortlist-decks.py`); and Even Step treated as still in the pack (`relay-decks.py`, which then wants Clockface's notes to
+set it beside Even Step).
+
+**Getting back.** `git checkout 09b2c3d0 -- <path>` restores any of the files from main (`0b184609` on this branch). To put
+a design back in the pack: its files, its `SUPPLIED` entry, its strap, family and date in `fresh.mjs`, its row and claims on
+the other designs' sheet, and its name out of `pack.py`'s `DELETED`; a base also leaves `BASES`, and its decks go back to
+`presentations/`.
+
+**Outside the repository.** Zips sent before this change hold the four; the one sent with it does not. The rules document
+for Sara Silva, in Claude Docs, uses Even Step's duty tables as its worked example; it was not changed.
 
 ## Notes for the whole set
 

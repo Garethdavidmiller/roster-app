@@ -47,8 +47,10 @@ for name, code, fp in proposals:
     # ONLY THE SHORTLIST'S DECKS, AND THOSE KEPT (8 Nov 2026): the six in presentations/ from before that day (eight until In
     # Step's were deleted with it, the same day) were last rebuilt for the shortlist of 5 Nov 2026 and each names it as the
     # shortlist, so none of them ships. The three shortlisted on 8 Nov had none that morning, and the zip carried no
-    # presentations; theirs were drawn later the same day, from Common Ground's (shortlist-decks.py), and ship. The six stay
-    # in the repository, unchanged, and deck-check.mjs still holds their figures to the grids
+    # presentations; theirs were drawn later the same day, from Common Ground's (shortlist-decks.py), and ship. The six stayed
+    # in the repository, unchanged, and deck-check.mjs held their figures to the grids. Since 9 Nov 2026 two of them: Common
+    # Ground's and Even Step's four files went with the two designs, the PowerPoints kept in tooling/deck-template/ as the
+    # bases the shortlist's and Clockface's decks are built from (fresh.mjs -> BASES); Short Run's stay, as Short Working's base
     for who in ('colleagues', 'managers') if name in SHORTLIST + DECKS_KEPT else ():
         for ext in ('pptx', 'pdf'):
             src = f"{ROOT}/presentations/{name.replace(' ', '-')}-for-{who}.{ext}"
@@ -111,7 +113,8 @@ SHEET = open(f'{ROOT}/tooling/shortlist-sheet.mjs', encoding='utf-8').read()
 # WHEN THE NEW LINK STARTS, the month alone (owner, 8 Nov 2026): link.mjs states it for the sheets, the read-me and the decks
 LINK_STARTS = re.search(r"^export const LINK_STARTS = '([^']+)';$", open(f'{ROOT}/tooling/link.mjs', encoding='utf-8').read(), re.M).group(1)
 # THE SHORTLIST OF 8 NOV 2026: each one's choice and its price, the target the three were drawn for, and the closing weeks of
-# the three that left, which the 8 Nov paragraph names — the last two are the sheet's claims, so the sheet still asserts them
+# Short Run, which the 8 Nov paragraph names — the last is the sheet's claim, so the sheet still asserts it. Until 9 Nov 2026
+# the paragraph named the closing weeks of all three that left; Common Ground and Even Step were discarded that day (DELETED)
 for said in ['is the one to choose for something different',
              '<b>Choose Balanced V6</b> if the shortest runs of earlies or of lates, and the most long breaks, matter most',
              'weeks on one shift time, a ${hm(Math.round(BF.step))} change of start', 'fatigue warnings if a cover week falls badly',
@@ -120,8 +123,7 @@ for said in ['is the one to choose for something different',
              '<b>Choose Middle Ground</b> if no shift over 8h&nbsp;30m and the closest Saturday fit matter most',
              'for the fewest early finishes, four at the open every day and the least Sunday overtime pay',
              'for a new design target: no two closing weeks side by side, changes between earlies and lates placed at useful rest breaks, and weeks on one shift time still important',
-             "claim('Common Ground and Crossover: four closing weeks together;",
-             "claim('Even Step: two closing weeks side by side; Short Run, Balanced V8 and Balanced V9 three together'"]:
+             "claim('Short Run, Balanced V8 and Balanced V9: three closing weeks together'"]:
     if said not in SHEET: raise SystemExit(f'pack: the read-me repeats the shortlist sheet, which no longer says "{said}"')
 PAGE = open('newlink-data.js', encoding='utf-8').read().replace('\\u00a0', ' ')
 for said in ['All three keep today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best',
@@ -202,8 +204,11 @@ AFTER_31_OCT = sorted(n for n, c, _ in proposals if _day(c) > datetime.datetime(
 # Clockface and Short Working joined the same day (owner, naming the two re-lays of Even Step and Short Run: "Clockface, Short
 # Working"): each its parent's duties and rest days with its weeks chosen again, no two closing weeks side by side. Neither buys
 # 30 days off for 14 days' leave, so both are in the proposals folder, and the same late paragraph says what each has
-AFTER_31_OCT_SET = ['Balanced V10', 'Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Clean Slate', 'Clockface', 'Common Ground', 'Crossover', 'Fair Share', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Next Step', 'Short Working']
-AFTER_5_NOV_SET = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Crossover', 'Level Crossing', 'Middle Ground']
+# Common Ground, Crossover, Even Step and Balanced V5 were discarded on 9 Nov 2026 (owner: "Discard those three and balanced v5
+# now please, very carefully"; DELETED, below). The paragraphs name none of them: Next Step, Level Crossing and Clockface, each
+# described until then by what it took from one of the four, are described on their own terms, checked on their grids below
+AFTER_31_OCT_SET = ['Balanced V10', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Clean Slate', 'Clockface', 'Fair Share', 'Grand Tour', 'Level Crossing', 'Middle Ground', 'Next Step', 'Short Working']
+AFTER_5_NOV_SET = ['Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Level Crossing', 'Middle Ground']
 if AFTER_5_NOV != AFTER_5_NOV_SET:
     raise SystemExit(f'pack: the read-me describes {", ".join(AFTER_5_NOV_SET)} as the designs after the shortlist of 5 November; they are {AFTER_5_NOV}')
 LATE_SET = ['Balanced V10', 'Clockface', 'Short Working']   # the paragraph after the 8 Nov one names these as drawn after that shortlist, none of them on it
@@ -224,10 +229,23 @@ DELETED = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear', 'Quiet
            'Both Ways', 'Fine Tune',   # 7 Nov 2026 (owner: "Please cut both ways and fine tune from the links 26 pack"): of the
            # 21 outside Balanced V5-V7, the lowest and fourth-lowest average place over the league's ten readings, and alone
            # best at none of its twenty measures (README.md -> "Both Ways and Fine Tune deleted")
-           'Second Look', 'Even Keel', 'In Step', 'Open Return', 'Short Openers']   # 8 Nov 2026 (owner: "Delete in step, even
+           'Second Look', 'Even Keel', 'In Step', 'Open Return', 'Short Openers',   # 8 Nov 2026 (owner: "Delete in step, even
            # keel, open return, short openers and second look from the pack and repo"; README.md -> "Five designs deleted")
+           'Common Ground', 'Crossover', 'Even Step', 'Balanced V5']   # 9 Nov 2026 (owner: "Discard those three and balanced v5
+           # now please, very carefully"; README.md -> "Four designs discarded"): out of the pack for good, their grids kept in the
+           # tooling because other designs' decks and checks are built from them (fresh.mjs -> BASES)
 if any(n in names.split(', ') for n in DELETED):
-    raise SystemExit(f'pack: {DELETED} were deleted (6, 7 and 8 Nov 2026); regenerate.mjs SUPPLIED lists one of them')
+    raise SystemExit(f'pack: {DELETED} were deleted or discarded (6 to 9 Nov 2026); regenerate.mjs SUPPLIED lists one of them')
+# NOR DOES A PRESENTATION IT SHIPS (9 Nov 2026): every part of each PowerPoint, slides and notes, read whole across its runs
+# with its spaces made plain, so a one-word name or a no-break space is seen. The builders refuse the same (deck-polish.py
+# RETIRED); this holds the files actually zipped, whoever built them. The PDFs are exported from these slides
+import html
+for src, dst in files:
+    if dst.startswith('3 Presentations/') and src.endswith('.pptx'):
+        with zipfile.ZipFile(src) as z:
+            said = sorted({n for p in z.namelist() if p.endswith('.xml') for n in DELETED if n in ' '.join(
+                html.unescape(re.sub(r'<[^>]+>', ' ', z.read(p).decode('utf-8'))).replace('\u00a0', ' ').replace('\u2060', '').split())})
+        if said: raise SystemExit(f'pack: {os.path.basename(src)} names {said}, deleted or discarded; rebuild it without them')
 # RENAMED (7 Nov 2026): a design's old name, and the name it has now. The owner saw Safe Hands on a sheet before it was renamed
 # Crossover, so the old name is refused in SUPPLIED and in the read-me, as a deleted one is, and so are the old names of the
 # other designs renamed in the pack (Same Again Tidy, Well Kept's, is refused already, by DELETED's 'Same Again').
@@ -236,7 +254,7 @@ RENAMED = {'Quarter Past Relaid': 'Open Return', 'Relief Point': 'Balanced V6', 
 if any(n in names.split(', ') for n in RENAMED):
     raise SystemExit(f'pack: regenerate.mjs SUPPLIED lists an old name; {", ".join(f"{o} is {n}" for o, n in RENAMED.items())}')
 # THE 30-DAY FOLDER, NAMED IN FULL (4 Nov 2026): the paragraph lists what is in it, so the list is the folder's, read from SUPPLIED
-THIRTY_SET = ['Balanced V10', 'Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Common Ground', 'Crossover', 'Grand Tour', 'Level Crossing', 'Middle Ground']
+THIRTY_SET = ['Balanced V10', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Grand Tour', 'Level Crossing', 'Middle Ground']
 THIRTY_IN = sorted(n for n, c, _ in proposals if in30(DIR_OF[c]))
 if THIRTY_IN != THIRTY_SET:
     raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
@@ -318,8 +336,8 @@ names_in = {n for n, _, _ in proposals}
 # THE OTHER DESIGNS' SHEET'S PAGES, READ (8 Nov 2026): it went to two pages for Clockface and Short Working, and the read-me
 # called it one page in two places; its pages are counted from the PDF, as the summary's one page is printed and counted
 OTHER_PAGES = len(re.findall(rb'/Type\s*/Page(?!s)', open(f'{ROOT}/links-26-other-designs.pdf', 'rb').read()))
-AT_2230 = ['Balanced V5', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Balanced V10', 'Clockface', 'Crossover', 'Level Crossing', 'Short Working']   # the read-me's
-if not set(AT_2230) <= names_in:   # 22:30 paragraph names these ten as drawn with it, and counts the rest
+AT_2230 = ['Balanced V6', 'Balanced V7', 'Balanced V8', 'Balanced V9', 'Balanced V10', 'Clockface', 'Level Crossing', 'Short Working']   # the read-me's
+if not set(AT_2230) <= names_in:   # 22:30 paragraph names these eight as drawn with it, and counts the rest
     raise SystemExit(f'pack: the read-me says {AT_2230} were drawn with the 22:30 office; the pack has {sorted(set(AT_2230) & names_in)}')
 # THE LEAGUE'S LEADER AND ITS LEAD, READ (8 Nov 2026, the pack audit). The 22:30 paragraph ended "since 7 November 2026
 # Crossover is, by 0.4 points", typed, while the shortlist sheet reads the same two facts from league.mjs. Its claim held
@@ -339,25 +357,42 @@ _ranked = [r for r in _league['proposals'] if r['gate']]   # league.mjs lists a 
 if len(_ranked) < 2 or any(r['gate'] for r in _league['proposals'][len(_ranked):]):
     raise SystemExit('pack: league.mjs did not list the designs that pass its gates first')
 LEADER, LEAD, SECOND = _ranked[0]['name'], f"{_ranked[0]['total'] - _ranked[1]['total']:.1f}", _ranked[1]['name']
-# THE EVEN STEP SENTENCE, CHECKED (8 Nov 2026): the history says what Even Step keeps of Closing Time and what it changed,
-# since In Step, the design between them, was deleted. Each clause is held to the two grids and today's link, so a grid that
-# moved would stop the build rather than leave the read-me describing a design that is no longer there
-if {'Even Step', 'Closing Time'} <= names_in:
-    _g = lambda n: (lambda j: j.get('patterns', j))(json.load(open(f"{ROOT}/{DIR_OF[dict((x, c) for x, c, _ in proposals)[n]]}/{n.replace(' ', '-')}-{dict((x, c) for x, c, _ in proposals)[n]}.json", encoding='utf-8')))
-    ES, CT = _g('Even Step'), _g('Closing Time')
-    TODAY_T = json.loads(subprocess.check_output(['node', '-e', "import('./report-data.mjs').then(m => process.stdout.write(JSON.stringify(m.today().patterns)))"], cwd=f'{ROOT}/tooling', text=True))
-    _t = lambda v: bool(re.fullmatch(r'\d\d:\d\d-\d\d:\d\d', v or ''))
-    _m = lambda v: (int(v[6:8]) * 60 + int(v[9:]) - int(v[:2]) * 60 - int(v[3:5])) % 1440
-    _kind = lambda v: v if not _t(v) else ('E' if int(v[:2]) < 11 else 'L')
-    _MS, _WK = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat'), ('mon', 'tue', 'wed', 'thu', 'fri')
-    _today = {r[d] for r in TODAY_T.values() for d in r if _t(r[d])}
-    _closers = lambda p: {r[d][:5] for r in p.values() for d in _MS if _t(r[d]) and r[d][6:] == '23:55'}
-    _ok = {'Closing Time\'s weeks': all(_kind(ES[k][d]) == _kind(CT[k][d]) for k in CT for d in CT[k]),
-           'no shift over 8h 30m Monday to Saturday': all(_m(r[d]) <= 510 for r in ES.values() for d in _MS if _t(r[d])),
-           'every early one of today\'s times': all(r[d] in _today for r in ES.values() for d in _MS if _t(r[d]) and int(r[d][:2]) < 11),
-           'a 13:45 finish every weekday': all(any(_t(r[d]) and r[d][6:] == '13:45' for r in ES.values()) for d in _WK),
-           'the closer at 15:45 instead of 16:00': _closers(ES) == {'15:45'} and _closers(CT) == {'16:00'}}
-    if not all(_ok.values()): raise SystemExit(f'pack: the read-me says Even Step has {[k for k, v in _ok.items() if not v]}, and its grid does not')
+# WHAT EACH DESIGN HAS, CHECKED (8 Nov 2026, for Even Step's sentence; since 9 Nov 2026 for Next Step's, Level Crossing's and
+# Clockface's). The history said what Even Step kept of Closing Time and what it changed, since In Step, the design between
+# them, was deleted; Even Step was discarded on 9 Nov 2026, with Crossover, so Next Step, Level Crossing and Clockface, each
+# described until then by what it took from one of the two, are described on their own terms. Each clause is held to the
+# grids and today's link, so a grid that moved would stop the build rather than leave the read-me describing a design that
+# is no longer there
+_code = {x: c for x, c, _ in proposals}
+_g = lambda n: (lambda j: j.get('patterns', j))(json.load(open(f"{ROOT}/{DIR_OF[_code[n]]}/{n.replace(' ', '-')}-{_code[n]}.json", encoding='utf-8')))
+TODAY_T = json.loads(subprocess.check_output(['node', '-e', "import('./report-data.mjs').then(m => process.stdout.write(JSON.stringify(m.today().patterns)))"], cwd=f'{ROOT}/tooling', text=True))
+_t = lambda v: bool(re.fullmatch(r'\d\d:\d\d-\d\d:\d\d', v or ''))
+_m = lambda v: (int(v[6:8]) * 60 + int(v[9:]) - int(v[:2]) * 60 - int(v[3:5])) % 1440
+_kind = lambda v: v if not _t(v) else ('E' if int(v[:2]) < 11 else 'L')
+_MS, _WK = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat'), ('mon', 'tue', 'wed', 'thu', 'fri')
+_today = {r[d] for r in TODAY_T.values() for d in r if _t(r[d])}
+_closers = lambda p, days=_MS: {r[d][:5] for r in p.values() for d in days if _t(r[d]) and r[d][6:] == '23:55'}
+_ends = lambda p, d, at: sum(1 for r in p.values() if _t(r[d]) and r[d][6:] == at)   # finishes at one time on one day
+_short = lambda p: all(_m(r[d]) <= 510 for r in p.values() for d in _MS if _t(r[d]))   # no shift over 8h 30m Monday to Saturday
+NS_G, HG_G, LC_G, CF_G = _g('Next Step'), _g('Home Grown'), _g('Level Crossing'), _g('Clockface')
+# the weeks on one shift time the late paragraph types, read as the decks read them (deck-check.mjs --print)
+_one = {n: f['oneTurn'] for n, f in json.loads(subprocess.check_output(['node', 'deck-check.mjs', '--print'], cwd=f'{ROOT}/tooling', text=True)).items()}
+_ok = {'Next Step: laid on Home Grown\'s weeks': all(_kind(NS_G[k][d]) == _kind(HG_G[k][d]) for k in HG_G for d in HG_G[k]),
+       'Next Step: no shift over 8h 30m Monday to Saturday': _short(NS_G),
+       'Next Step: a 13:45 finish every weekday': all(_ends(NS_G, d, '13:45') > 0 for d in _WK),
+       'Level Crossing: two 13:45 finishes every weekday, where today has a 13:35 and a 13:45':
+           all(_ends(LC_G, d, '13:45') == 2 and _ends(TODAY_T, d, '13:35') == 1 and _ends(TODAY_T, d, '13:45') == 1 for d in _WK),
+       'Level Crossing: every weekday closer at 15:45': _closers(LC_G, _WK) == {'15:45'},
+       'Level Crossing: two earlies on until 16:00 every weekday, the 15:45 closers\' first 15 minutes':
+           all(sum(1 for r in LC_G.values() if _t(r[d]) and int(r[d][:2]) < 11 and r[d][6:] == '16:00') == 2 for d in _WK),
+       'Clockface: no shift over 8h 30m Monday to Saturday': _short(CF_G),
+       'Clockface: every early Monday to Saturday one of today\'s times': all(r[d] in _today for r in CF_G.values() for d in _MS if _t(r[d]) and int(r[d][:2]) < 11),
+       'Clockface: a 13:45 finish every weekday': all(_ends(CF_G, d, '13:45') > 0 for d in _WK),
+       'Clockface: the closers at 15:45 Monday to Saturday': _closers(CF_G) == {'15:45'},
+       'Balanced V10 and Clockface: 18 of 21 weeks on one shift time; Short Working 19, Short Run 18':
+           [_one.get(n) for n in ('Balanced V10', 'Clockface', 'Short Working', 'Short Run')] == ['18 of 21', '18 of 21', '19 of 21', '18 of 21'],
+       'Clockface and Short Working: in 4 Proposal sheets': all(DIR_OF[_code[n]] == 'proposals' for n in ('Clockface', 'Short Working'))}
+if not all(_ok.values()): raise SystemExit(f'pack: the read-me says {[k for k, v in _ok.items() if not v]}, and the grids do not')
 readme = '\n'.join([
     'NEW CEA LINK PROPOSALS - 26 LINES',
     '=' * len('NEW CEA LINK PROPOSALS - 26 LINES'),
@@ -467,60 +502,53 @@ readme = '\n'.join([
             'October, was shortlisted on 30 October until the shortlist was cut to two the same day; Home Grown '
             'was never on it.'), '']
       if {'Home Grown', 'Closing Time'} <= names_in else []),
-    # EVEN STEP ON ITS OWN TERMS (8 Nov 2026): its paragraph followed In Step's and answered it, and In Step was deleted that
-    # day, so it says what Even Step keeps of Closing Time, which In Step's weeks were: checked on the two grids below
-    *([para('Even Step (31 October 2026) keeps Closing Time\'s weeks - the same rest days, weekends and early and late '
-            'weeks - with every shift time chosen again: no shift over 8h 30m Monday to Saturday, every early one of '
-            'today\'s times, a 13:45 finish every weekday, and the closer at 15:45 instead of 16:00. It joined the '
-            'shortlist the same day.'), '']
-      if {'Even Step', 'Closing Time'} <= names_in else []),
-    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share, Grand Tour and '
-            'Common Ground (4 November 2026) came after the shortlist of 31 October. Clean Slate '
-            'chooses every shift time afresh for the trains, with no shift over 8h 30m Monday to Saturday, one 13:45 '
-            'finish and a closer from 15:45 every weekday. Next Step has Even Step\'s shift times with three weekday ones '
-            'retimed for the trains, laid on Home Grown\'s weeks, still with no shift over 8h 30m Monday to Saturday. Fair '
-            'Share is Next Step with an even Sunday: '
-            'every Sunday duty is 8h 10m or 8h 15m, so a Sunday early and a Sunday late pay within a few pounds, and no '
-            'shift is over 8h 30m on any day. Grand Tour and Common Ground are links where '
-            '14 days\' leave buys 30 days off, and four weeks off take 14, as today; their sheets and import files have a '
-            'folder of their own, 30 days off. Grand Tour keeps '
-            'Fair Share\'s shift times in new weeks. Common Ground was drawn on the brief of today\'s link taken to 26 '
-            'weeks, and is laid on Grand Tour\'s weeks: today\'s shift times kept where the rules allow, a 13:45 finish '
-            'every weekday, closers from 15:45 Monday to Saturday, nothing over 8h 30m on any day, and Sunday duties of 8h to '
-            '8h 30m.'), '']
+    # EVEN STEP, THE SHORTLIST OF 31 OCT 2026 (8 Nov 2026; 9 Nov 2026): Even Step's paragraph said what it kept of Closing Time
+    # and that it joined the shortlist on 31 October; it was discarded on 9 Nov 2026, so the next paragraph says the shortlist
+    # was drawn again that day, and names nothing it held. Next Step is said on its own terms, checked on its grid above
+    *([para('Clean Slate and Next Step (3 November 2026) and Fair Share and Grand Tour (4 November 2026) came after the '
+            'shortlist was drawn again on 31 October. Clean Slate chooses every shift time afresh for the trains, with no '
+            'shift over 8h 30m Monday to Saturday, one 13:45 finish and a closer from 15:45 every weekday. Next Step is laid '
+            'on Home Grown\'s weeks, with no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday. Fair '
+            'Share is Next Step with an even Sunday: every Sunday duty is 8h 10m or 8h 15m, so a Sunday early and a Sunday '
+            'late pay within a few pounds, and no shift is over 8h 30m on any day. Grand Tour is a link where 14 days\' '
+            'leave buys 30 days off, and four weeks off take 14, as today; it keeps Fair Share\'s shift times in new weeks. '
+            'Every link that buys 30 days off for 14 days\' leave is in one folder, 30 days off.'), '']
       if AFTER_31_OCT else []),
-    para('On 5 November 2026 the shortlist was drawn again, after every design then in the pack, and listed A to Z: Common '
-         'Ground, as the example of the links that keep today\'s leave; Even Step, then first in the pack\'s league; and '
-         'Short Run, which colleagues had already seen.'),
+    # THE SHORTLIST OF 5 NOV 2026, ITS ONE STILL IN THE PACK (9 Nov 2026): it was Common Ground, Even Step and Short Run, and the
+    # first two were discarded that day, so the sentence names Short Run and claims nothing about the other two
+    para('On 5 November 2026 the shortlist was drawn again, after every design then in the pack.'
+         + (' It included Short Run, which colleagues had already seen.' if 'Short Run' in names_in else '')),
     '',
     # described on its own terms, as its headline is (owner, 5 Nov 2026: "the proposal description headlines should not
     # reference other proposals")
-    *([para('Middle Ground, Balanced V5 and Balanced V6 (5 November 2026), Balanced V7 (6 November 2026), and Crossover, '
-            'Level Crossing, Balanced V8 and Balanced V9 (7 November 2026) came after it. Middle Ground has seven of today\'s shift times, varied from week to week so '
-            'that no two closing weeks fall together. Balanced V5, a one-page roster drawn up outside '
-            'the app, has weeks of 06:20 starts and weeks of 08:00 starts and a 15:45 closer every weekday. Balanced V6 has a '
-            '15-minute handover every weekday, from three 07:30-16:00s to the three 15:45 closers. Balanced V7 has Balanced '
-            'V6\'s duties, every one, laid in new weeks, with no six-day weeks. Crossover keeps two 13:45 finishes every '
-            'weekday, where today has a 13:35 and a 13:45, and every weekday closer at 15:45, with two earlies on until '
-            '16:00, the closers\' first 15 minutes; no fatigue warning is present in any cover-week placement tested. Level '
-            'Crossing has the same shift times and the same handover, laid in different weeks so that no two closing weeks '
-            'come in a row. Balanced V8 and Balanced V9 have Balanced V7\'s duties again, every one, in new weeks: no '
+    # LEVEL CROSSING ON ITS OWN TERMS (9 Nov 2026): it was "the same shift times and the same handover" as Crossover, laid
+    # in different weeks; Crossover was discarded that day, so the clauses that described both describe Level Crossing,
+    # checked on its grid above. The counts are AFTER_5_NOV's, which is held to AFTER_5_NOV_SET
+    *([para('Middle Ground and Balanced V6 (5 November 2026), Balanced V7 (6 November 2026), and Level Crossing, Balanced V8 '
+            'and Balanced V9 (7 November 2026) came after it. Middle Ground has seven of today\'s shift times, varied from '
+            'week to week so that no two closing weeks fall together. Balanced V6 has a 15-minute handover every weekday, '
+            'from three 07:30-16:00s to the three 15:45 closers. Balanced V7 has Balanced V6\'s duties, every one, laid in '
+            'new weeks, with no six-day weeks. Level Crossing keeps two 13:45 finishes every weekday, where today has a '
+            '13:35 and a 13:45, and every weekday closer at 15:45, with two earlies on until 16:00, the closers\' first 15 '
+            'minutes, laid so that no two closing weeks come in a row; no fatigue warning is present in any cover-week '
+            'placement tested. Balanced V8 and Balanced V9 have Balanced V7\'s duties again, every one, in new weeks: no '
             'fatigue warning is present in any cover-week placement tested, and four full weeks off take 13 days\' leave. '
             'Balanced V8 has 19 of its 21 working weeks on one shift time and no week mixing earlies and lates; Balanced V9 '
             'has no more than three early or three late weeks in a row outside the cover weeks, with two weeks mixing them. '
-            'All eight buy 30 days off for 14 days\' leave too, and are in the folder 30 days off, the five Balanced designs in its '
-            'subfolder Balanced.'), '']
+            f'All {WORDS[len(AFTER_5_NOV)]} buy 30 days off for 14 days\' leave too, and are in the folder 30 days off, the '
+            f'{WORDS[sum(n.startswith("Balanced ") for n in AFTER_5_NOV)]} Balanced designs in its subfolder Balanced.'), '']
       if AFTER_5_NOV else []),
     # THE 22:30 OFFICE (6 Nov 2026; README.md -> "The Saturday ticket office to 22:30"): what it changed, said once, for a reader
     # holding a printout from before it, whose fingerprints no longer match. THE COUNT IS READ SINCE 7 NOV 2026: it said "the
     # nineteen already in the pack", true on 6 Nov, until Both Ways and Fine Tune were deleted and a reader counting found 17
+    # SINCE 9 NOV 2026 it names none of the four discarded that day: Balanced V5 and Crossover finished the Saturday lates at
+    # 22:30 as drawn, and Common Ground, which the paragraph said was first in the league on 6 Nov, was discarded with them
     para('On 6 November 2026 the rules were corrected: the ticket office shuts at 22:10 on a Saturday and takes 20 minutes '
          'to cash up, so on every link here its two Saturday lates finish at 22:30, where today\'s finish at 22:00. Balanced '
-         'V5, Balanced V6 and Balanced V7 already finished them at 22:30, as Crossover, Level Crossing, Balanced V8, '
-         'Balanced V9, Balanced V10, Clockface and Short Working, drawn since, do. On the other '
+         'V6 and Balanced V7 already finished them at 22:30, as Level Crossing, Balanced V8, Balanced V9, Balanced V10, '
+         'Clockface and Short Working, drawn since, do. On the other '
          f'{WORDS[len(names_in - set(AT_2230))]} that hour comes off other Saturday lates, so the hours and the contract are '
-         'as they were; every sheet and presentation was redrawn, and their fingerprints changed. Common Ground was then '
-         'first in the pack\'s league, just over half a point ahead of the next.'),
+         'as they were; every sheet and presentation was redrawn, and their fingerprints changed.'),
     '',
     # the league's reweighting is a paragraph of its own, not the tail of the 22:30 one (whole-pack polish, 9 Nov 2026)
     para('On 8 November 2026 the league was weighted '
@@ -532,21 +560,24 @@ readme = '\n'.join([
     para(f'On {SHORTLIST_DATE.replace("Nov", "November")} the shortlist was drawn again, after every design then in the pack, '
          'for a new design target: no two closing weeks side by side, changes between earlies and lates placed at useful '
          'rest breaks, and weeks on one shift time still important. Balanced V6, Level Crossing and Middle Ground keep '
-         'closing weeks apart, where Common Ground, Even Step and Short Run each put two or more side by side, and all '
-         'three keep today\'s leave. The presentations drawn for the earlier shortlists are left out of the pack, since each '
+         'closing weeks apart, where Short Run, on the shortlist before them, puts three closing weeks side by side, and '
+         'all three keep today\'s leave. The presentations drawn for the earlier shortlists are left out of the pack, since each '
          'says its link is shortlisted; the three were given their own the same day. A sheet, '
          'links-26-other-designs.pdf, sets every other design beside the three.'),
     '',
     # BALANCED V10, CLOCKFACE AND SHORT WORKING (8 Nov 2026), drawn after that shortlist and none on it: what each has, in
-    # its own paragraph
+    # its own paragraph. Clockface was "Even Step laid again the same way" until Even Step was discarded on 9 Nov 2026; its
+    # sentence says what it has, Even Step's strap's clauses, checked on its grid above, as are the weeks on one shift time
     *([para('Balanced V10, Clockface and Short Working (8 November 2026) came after it. Balanced V10 has Balanced V8\'s '
             'duties and rest days, every one, laid in new weeks so that no two closing weeks come in a row, with 18 of its 21 '
             'working weeks on one shift time; no fatigue warning is present in any cover-week placement tested, and four full '
             'weeks off take 13 days\' leave. It buys 30 days off for 14 days\' leave too, and is in the subfolder Balanced. '
-            'Clockface and Short Working are Even Step and Short Run laid again the same way: each keeps every one of its '
-            'parent\'s duties and rest days, in new weeks, so that no two closing weeks come in a row. Clockface keeps Even Step\'s 18 of 21 '
-            'working weeks on one shift time; Short Working has 19, where Short Run has 18. Both sit beside them in 4 Proposal '
-            'sheets. None of the three is on the shortlist.'), '']
+            'Clockface has no shift over 8h 30m and every early one of today\'s times, Monday to Saturday, a 13:45 finish '
+            'every weekday, and its closers at 15:45 Monday to Saturday, laid so that no two closing weeks come in a row, '
+            'with 18 of its 21 working weeks on one shift time. Short Working has Short Run\'s duties and rest days, every '
+            'one, laid in new weeks so that no two closing weeks come in a row, with 19 of its 21 working weeks on one shift '
+            'time, where Short Run has 18. Clockface and Short Working are in 4 Proposal sheets. None of the three is on the '
+            'shortlist.'), '']
       if LATE else []),
     'HOW THE FIGURES ARE WORKED OUT',
     para('Every figure in the summary, the shortlist sheet, the sheet of the other designs, the "What it means if you..." '
@@ -562,7 +593,7 @@ readme = '\n'.join([
 ])
 assert all(len(l) <= W for l in readme.split('\n')), [l for l in readme.split('\n') if len(l) > W]
 _named = [n for n in DELETED if n in ' '.join(readme.split())]
-if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6, 7 or 8 Nov 2026 (README.md -> "Nine designs deleted", "Crossover", "Both Ways and Fine Tune deleted", "Five designs deleted")')
+if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6, 7 or 8 Nov 2026 or discarded on 9 Nov 2026 (README.md -> "Nine designs deleted", "Crossover", "Both Ways and Fine Tune deleted", "Five designs deleted", "Four designs discarded")')
 _old = [n for n in RENAMED if n in ' '.join(readme.split())]
 if _old: raise SystemExit(f'pack: the read-me names {_old}, the old name of {[RENAMED[n] for n in _old]}')
 # PLAIN ASCII: it opens in Notepad, and an older one reads a file with no byte-order mark in the PC's own code page

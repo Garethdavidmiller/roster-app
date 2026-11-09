@@ -1,5 +1,6 @@
 {
  "date": "31 October 2026",
+ "kept": "Even Step was discarded on 9 Nov 2026 (README.md → \"Four designs discarded\"). This grid stays, out of the pack, because Clockface's weeks were laid from it (results/clockface.meta.json; exact-rota.py with SKELETON=even-step.json), and because it is a base (fresh.mjs BASES): its finished presentations, in deck-template/, are where relay-decks.py starts Clockface's. Its duty table, results/even-step-table.json, stays with it.",
  "identity": {
   "table": "T5 — In Step's table with no duty over 8h 30m Monday to Saturday: 06:20-15:15 x2 becomes 06:20-14:50, 07:00-15:45 x2 becomes 07:15-15:45, the floor's 14:30-22:30 x2 becomes 14:00-22:30, 12:00-20:00 becomes 12:15-20:30, and Saturday's 06:20-13:35 becomes 06:20-14:00; closers 15:45-23:55 Monday to Saturday, five on at every opening Monday to Saturday, a 13:45 every weekday, and In Step's Sunday (results/even-step-table.json)",
   "seed": "In Step's weeks: Closing Time's rest days and its early and late weeks (closing-time.json, 77a235bc), held while exact-rota.py (OR-Tools CP-SAT) chose every time: the most weeks on one shift time, then the smallest week-to-week step with those held (SKELETON=closing-time.json FAMILY=1; README.md -> \"Even Step\")",

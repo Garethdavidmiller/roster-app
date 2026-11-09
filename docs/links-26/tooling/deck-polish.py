@@ -38,7 +38,20 @@ if list(SHORTLIST) != sorted(SHORTLIST): raise SystemExit(f'deck-polish: the sho
 NEWLINK = open(os.path.join(TOOL, '..', '..', '..', 'newlink-config.js'), encoding='utf-8').read()
 CONTACT = re.search(r"export const CONTACT = '([^']+)'", NEWLINK).group(1)
 CONTACT_ROLE = re.search(r"export const CONTACT_ROLE = '([^']+)'", NEWLINK).group(1)
-IDS = {n: (c, f) for n, c, f in re.findall(r"name: '([^']+)',\s*code: '([^']+)',\s*fp: '([0-9a-f]{8})'", open(os.path.join(TOOL, 'regenerate.mjs'), encoding='utf-8').read())}
+# Every design's code and fingerprint: regenerate.mjs's entries, and since 9 Nov 2026 fresh.mjs's BASES, the designs out of the
+# pack that a builder still starts from by name (Common Ground for shortlist-decks.py, Even Step for relay-decks.py)
+_ID = r"name: '([^']+)',\s*code: '([^']+)',\s*fp: '([0-9a-f]{8})'"
+IDS = {n: (c, f) for src in ('regenerate.mjs', 'fresh.mjs') for n, c, f in re.findall(_ID, open(os.path.join(TOOL, src), encoding='utf-8').read())}
+# where each base's grid is, in the tooling, for a builder that no longer finds it shipped in the pack's folders
+BASE_GRIDS = dict(re.findall(r"name: '([^']+)',\s*code: '[^']+',\s*fp: '[0-9a-f]{8}',\s*file: '([^']+)'", open(os.path.join(TOOL, 'fresh.mjs'), encoding='utf-8').read()))
+# and where each base's finished presentations are, beside Second Nature's (second-nature-decks.py's OUT)
+BASE_DECKS = os.path.join(TOOL, 'deck-template')
+# THE DESIGNS OUT OF THE PACK FOR GOOD (9 Nov 2026): every name in regenerate.mjs's RETIRED_CODES — deleted, discarded, or an old
+# name renamed away. A deck built from a base names none of them, however its spaces are written (shortlist-decks.py and
+# relay-decks.py, after the rename). Their own "another design named" checks look for two-word names with an ordinary space,
+# so a one-word name (Crossover) or a no-break space went unseen; pack.py holds the decks it ships to its own list, DELETED
+RETIRED = sorted(set(re.findall(r"'[A-Z0-9]+-26-[A-Z0-9]+': '([^']+)'", re.search(r'export const RETIRED_CODES = \{([^}]*)\}', open(os.path.join(TOOL, 'regenerate.mjs'), encoding='utf-8').read()).group(1))))
+if len(RETIRED) < 27: raise SystemExit(f'deck-polish: {len(RETIRED)} retired names read from regenerate.mjs RETIRED_CODES, where there are 27 or more; its pattern no longer matches')
 ALL = 'both' if len(SHORTLIST) == 2 else f"all {'zero one two three four five six'.split()[len(SHORTLIST)]}"   # "both", "all four"
 # DECKS FOR A DESIGN OFF THE SHORTLIST, made because the owner asked (30 Oct 2026: "Create presentations for instep"). Its
 # manager "Why" slide says what it shares with the shortlisted links instead of speaking as one of them, and every line it
