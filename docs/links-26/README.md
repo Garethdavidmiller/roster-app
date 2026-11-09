@@ -126,7 +126,7 @@ removed on 7 Nov 2026):
 | `links-26-shortlist.pdf` | the three shortlisted designs (Balanced V6, Level Crossing and Middle Ground, A to Z, since 8 Nov 2026) against each other and today, each with its edge and its costs and none recommended, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `links-26-other-designs.pdf` | every design off the shortlist beside the three: what each has and what it pays, A to Z folder by folder, on one page when it fits — fifteen rows since 9 Nov 2026 — and otherwise on two, split at the folders (26 lines only; written with the shortlist sheet by `tooling/shortlist-sheet.mjs`, since 7 Nov 2026, when it left the shortlist's page 2) |
 | `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
-| `links-26-shortlist-at-a-glance.pdf` | "The shortlist at a glance": the three shortlisted designs beside today's link on one A4 page — what all three give and cost against today, the twenty measures where they differ, and each one's edge and cost (26 lines only; `tooling/glance-sheet.mjs`, since 9 Nov 2026; not in the zip) |
+| `links-26-shortlist-at-a-glance.pdf` | "The shortlist at a glance": the three shortlisted designs beside today's link on one A4 page — what all three give and cost against today, the measures where they differ, and each one's edge and cost as the shortlist sheet gives them (26 lines only; `tooling/glance-sheet.mjs`, since 9 Nov 2026, audited the same day; not in the zip) |
 | `30-days-off/` | links-26 only, since 4 Nov 2026: the proposals where 14 days' leave buys 30 days off, as today, laid out as `proposals/` is, with a README of their own; still part of the pack, the league and the summary; since 7 Nov 2026 the Balanced designs, five since Balanced V5 was discarded on 9 Nov 2026, are in its subfolder `30-days-off/balanced/` (owner: "Put all the Balanced proposals in their own subfolder"), *Balanced* in the zip |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf`: Balanced V6's, Level Crossing's and Middle Ground's, the shortlist's since 8 Nov 2026 and the only ones in the zip; Short Run's, made for the shortlists before then and out of the zip since (In Step's, made with them, were deleted with it on 8 Nov 2026; Common Ground's and Even Step's went with the two designs on 9 Nov 2026, their PowerPoints kept in `tooling/deck-template/` as the decks the ones in use are built from); and Balanced V10's, Clockface's and Short Working's, drawn on 8 Nov 2026 beside the shortlist, not in the zip either |
@@ -7592,40 +7592,85 @@ changed.
 
 **What is on it.**
 - **Whichever is chosen**, in three panels:
-  - better than today: all nine December staffing rules met (today four), three on the floor at all times, a shorter
-    weekday closing shift, and fewer fatigue warnings and days in a row on the set duties;
-  - as today: 30 days off for 14 days' leave, 14 days' leave for four weeks off, and the 35-hour week;
+  - better than today, cover weeks aside: all nine of the December timetable's staffing rules met (today four), three on
+    the floor at all times, a shorter weekday closing shift, no avoidable fatigue warning, five days in a row at most, and
+    at least 14h 20m between shifts;
+  - as today: 30 days off in a row for 14 days' leave at best, 14 days' leave for four full weeks off, and the 35-hour week;
   - worse than today: more Saturdays at work, and more finishes at 22:00 and at 23:00 or later.
-- **Where they differ:** twenty rows in four bands (leave and time off; your shifts; if a cover week falls badly; trains
-  and pay), with today's figure for scale. Green is better than today and amber worse. Bold navy marks the clear best of
-  the three, and only where the pack ranks a row: never the two pay rows, and never the 06:20 starts, which some
-  colleagues prefer and some do not.
-- **Each one's edge, and its cost:** a sentence each, with its code and fingerprint, so a printout can be matched to the
-  proposal sheet.
+- **Where they differ:** nineteen rows in four bands (leave and time off; your shifts; if a cover week falls badly; trains
+  and pay), with today's figure for scale. ✓ and green are better than today, ▲ and amber worse, and no mark is as today or
+  a matter of taste. Bold marks the best of the three on each figure, ties included, as the shortlist sheet's table does;
+  never on the two pay rows or the 06:20 starts.
+- **Each one's edge, and its cost:** the shortlist sheet's, by its rule, with each design's code and fingerprint, so a
+  printout can be matched to its proposal sheet.
 
 **Where the figures come from.** They are `what-it-means-data.mjs`'s, which are `deck-check.mjs`'s and the grids'. So the
-page cannot quote a figure that the What it means sheet, the decks or the New link page do not. Two are counted here,
-from the grids:
-- breaks of three days or more a year;
-- the rostered Sundays inside the best stretch that 14 days' leave buys, by `leave.mjs`'s walk. A cover week's Sunday is
-  not rostered. Balanced V6 has 1; Level Crossing, Middle Ground and today's link have 2 each.
+page cannot quote a figure that the What it means sheet, the decks or the New link page do not. Counted here from the
+grids, each with the pack's own function or the shortlist sheet's own count:
+- the rostered Sundays inside the best stretch that 14 days' leave buys, by `leave.mjs`'s walk (a cover week's Sunday is
+  not rostered): Balanced V6 1; Level Crossing, Middle Ground and today 2;
+- the worst seven days, by `report-data.mjs`'s `h55Worst`: today 60h 45m, Balanced V6 58h 35m, Level Crossing 50h 30m,
+  Middle Ground 57h 00m;
+- the shifts over 8h 30m Monday to Saturday, the weeks on one shift time a year and the weeks mixing earlies and lates,
+  as the shortlist sheet counts them.
 
-Checked against `links-26-shortlist.pdf` and `links-26-what-it-means.pdf` with `pdftotext`: every figure the sheets share
-matches.
+**Audited the same day** (owner: "Once done please audit it for clarity, comparability and improvements"). There were two
+independent reads: a colleague's, of the page alone, and a comparability audit against the code and the rest of the
+pack. Every finding was checked against the code and the figures before anything changed.
+- **One figure was wrong.** The row "55 hours or more in seven days" printed today as "never".
+  - The row read the decks' `h55`, which is filled only where a cover week adds the 55-hour week. Today's set duties
+    already have one, 60h 45m (week 4's Saturday, then week 5's Sunday to Friday), so its cell was blank.
+  - That made Balanced V6 and Middle Ground look worse than today, when both are better.
+  - The row is now "Most hours in any seven days": every column's worst seven days. A claim refuses a worst week below
+    the set duties' own.
+- **The pay rows read as two parts of one pay.** The Sundays figure is the Saturday premium and the Sunday overtime
+  together, as the What it means sheet labels it, so adding the two rows counted the Saturdays twice. They are now "Your
+  pay, working your share of Sundays" and "Your pay, working no overtime at all", and the notes say they are two
+  different people.
+- **Bold followed a rule of its own.** It marked only an untied best. So three ties that Balanced V6 trails went
+  unmarked, while its own leads were bold. It now marks as the shortlist sheet's table does: every design at the best
+  value, figure by figure.
+- **The edge and cost sentences chose their own items.**
+  - Balanced V6's card listed three of the seven costs the shortlist sheet gives it.
+  - Middle Ground's claimed two edges the 5% rule does not support: its leave worst case (20 against 19) and its shortest
+    Sundays (2%).
+  - The cards now follow the shortlist sheet, by its rule, with "of the three" where a design outside the shortlist does
+    better.
+- **Labels had dropped the pack's qualifiers.**
+  - "At best", "Sunday to Saturday", "avoidable", "three or four days" and "however a cover week falls" are back.
+  - "7 of 16" against "7 of 21" is now weeks a year (18, 14, 36, 36), as the shortlist sheet's page 2 counts them.
+  - Each label carries its own basis, and the table is headed "Measure".
+- **Terms are defined in the notes:** cover weeks; avoidable fatigue warnings (the Office of Rail and Road, and the two
+  standing factors left out); the fit to the trains; the pay rate, £21.49 an hour.
+- **Added:**
+  - new shift times (8, 6 and 6);
+  - shifts over 8h 30m, Monday to Saturday (today 31; then 8, 6 and none), in place of "Longest shift". Its 10-minute
+    difference hid a count falling from 31 to none.
+- **Declined, with the reason:**
+  - a cross in place of ▲: ▲ is the pack's cost mark in every deck;
+  - a size threshold for bold: the pack's tables have none;
+  - dropping the fingerprints: they match a printout to its exact rota;
+  - a contact line: no sheet in the pack has one; the read-me and the decks do.
 
 **Nothing on it is typed.**
-- Every panel line is asserted the same on all three.
+- Every panel line is asserted on all three.
 - Every row under *Where they differ* is asserted to differ among the three.
-- Every edge and cost sentence is asserted against the figures.
+- Every edge and cost sentence is asserted by the shortlist sheet's rule.
 - A row's colour comes from its direction.
-- The page refuses to print if anything runs into the footer, or a figure is wider than its cell.
+- The page refuses to print if anything runs into the footer, a figure is wider than its cell, or a measure's name runs
+  onto a second line.
 
-Three mutations (`scripts/mutate.mjs`) each stopped it:
-- the check behind Balanced V6's "fewest Sundays" pointed at Level Crossing: "the sheet says "Balanced V6's edge and
-  cost", and the figures no longer do";
-- the Saturdays cost inverted: "the sheet says "28 Saturdays at work: a cost against today, on all three", and the
-  figures no longer do";
-- the page made 14 mm shorter: "content runs into the footer or off the page by 37px".
+Mutations (`scripts/mutate.mjs`) stopped it each time. Before the audit there were three:
+- the Sundays edge pointed at Level Crossing;
+- the Saturdays cost inverted;
+- the page made 14 mm shorter.
+
+After it, four more:
+- the worst week counted only where the decks fill it, as the first print did: "the worst seven days are never fewer than
+  the set duties' own";
+- bold for an untied best only: "a tie at the top is bold for every design tied";
+- the 5% rule loosened to a strict comparison: the shared rest line's claim;
+- a measure's name too long for its line: "measure names wrapping onto a second line".
 
 **Run it** after `what-it-means-sheet.mjs`, with Playwright's Chromium: `node docs/links-26/tooling/glance-sheet.mjs`.
 
