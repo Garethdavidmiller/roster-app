@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '25.57';
+export const APP_VERSION = '25.59';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -42,7 +42,11 @@ export const CONFIG = {
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
     ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access (roster upload, huddle upload, auth setup) — add names here to grant full admin rights
-    LINKS_DESIGNERS:                  ['G. Miller', 'S. Silva', 'M. Robson'],     // Names with access to the Links design workspace
+    // Names with access to the Links design workspace. The owner alone since 9 Nov 2026 ("hide the link designer page
+    // from everyone apart from me"): S. Silva and M. Robson came off, and keep nothing but what any member has. Their
+    // saved designs stay. Regenerate (`npm run generate:roster-members`) with any change here, and run Operations →
+    // Set up accounts after the deploy: the server's `linksDesigner` claim is what lets a design be SAVED.
+    LINKS_DESIGNERS:                  ['G. Miller'],
     // Ordinary members invited into the restricted Overtime beta — they SUBMIT availability and
     // review nothing. Reviewing is the `admin`/`manager` claim and stays separate on purpose: this
     // list must never become a way to see colleagues' declarations. Add a name here AND run

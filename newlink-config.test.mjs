@@ -29,11 +29,13 @@ test('the preview is the admin\'s and the named previewers\' — the switch, the
     assert.match(nav, /\{\s*id:\s*'newlink',[^}]*newlinkAudienceOnly:\s*true/, 'the pill has its own gate, read through canOpenNewlink');
 
     // The decision itself, through the REAL lists (requirePage reads CONFIG), not roles made up for the test: the admin
-    // and S. Silva in; everybody else out — a Links designer and a manager included.
+    // and S. Silva in; everybody else out — a manager included. That a Links designer is not enough is the role list
+    // above (no `designer` in it): the real designer list has been the admin alone since 9 Nov 2026, so no real name can
+    // show it here, and e2e/newlink.spec.js shows it with a designer list of its own.
     const decide = (/** @type {string} */ member) => requirePage({ status: 'named', member }, 'newlink').decision;
     assert.equal(decide('G. Miller'), 'allow');
     assert.equal(decide('S. Silva'), 'allow', 'the new link\'s contact (owner, 4 Nov 2026: "open up the new links page to S. Silva")');
-    assert.equal(decide('M. Robson'), 'forbidden', 'a Links designer is not enough');
+    assert.equal(decide('M. Robson'), 'forbidden', 'a former Links designer, in neither list');
     assert.equal(decide('D. Watts'), 'forbidden', 'nor a manager');
     assert.equal(decide('T. Bibi'), 'forbidden');
     assert.equal(requirePage({ status: 'signedOut', member: null }, 'newlink').decision, 'login');

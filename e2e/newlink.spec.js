@@ -7,7 +7,7 @@
  * redraw what they say they do, and that a proposal's weeks are drawn as a proposal. The words and figures themselves
  * are pinned in Node (newlink-render.test.mjs, newlink-data.test.mjs); this drives the real page through them.
  */
-import { test, expect } from './fixtures.js';
+import { test, expect, withLinksDesigners } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
 import { CHANGES, PACK } from '../newlink-data.js';
 
@@ -196,6 +196,7 @@ test.describe('new link', () => {
     });
 
     test('a member who is neither the admin nor a previewer is sent back to the roster, and never sees the pill', async ({ page }) => {
+        await withLinksDesigners(page, ['G. Miller', 'M. Robson']);   // a list of its own: the real one is the admin alone
         await seedSession(page, 'M. Robson');   // a Links designer: not enough — only the admin and CONFIG.NEWLINK_PREVIEW
         await page.goto('/newlink.html');
         await expect(page).toHaveURL(/\/$|\/index\.html$/);

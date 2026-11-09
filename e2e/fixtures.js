@@ -627,4 +627,18 @@ export async function forcePasswordSet(page) {
         /FORCE_PASSWORD_SET:\s*(?:true|false)/, 'FORCE_PASSWORD_SET: true');
 }
 
+/**
+ * Give one test its own Links designers (CONFIG.LINKS_DESIGNERS). The real list has been the admin alone since 9 Nov
+ * 2026 (owner: "hide the link designer page from everyone apart from me"), and the admin can overwrite anybody's work —
+ * so the rules that bind an ORDINARY designer (whose saved set they may not overwrite, whose draft a second designer on
+ * the same phone must never be offered) have no real seat to be tested from. Call BEFORE page.goto(). A pattern that
+ * stops matching changes nothing, and the test then fails at the page's own door rather than passing quietly.
+ * @param {import('@playwright/test').Page} page
+ * @param {string[]} names
+ */
+export async function withLinksDesigners(page, names) {
+    _setConfigOverride(page, 'LINKS_DESIGNERS',
+        /LINKS_DESIGNERS:\s*\[[^\]]*\]/, `LINKS_DESIGNERS: ${JSON.stringify(names)}`);
+}
+
 export { expect };
