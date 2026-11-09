@@ -81,8 +81,10 @@ if not SHORTLIST or any(s not in names.split(', ') for s in SHORTLIST): raise Sy
 # leftover of the managers' ask (removed the same day), and it read as if a link had already been picked. ONLY THE DECKS
 # THE ZIP HOLDS: on the morning of 8 Nov 2026 the three shortlisted that day had none, and the route ran through the sheets
 # until theirs were drawn, later the same day
-MANAGERS = [d for _, d in files if d.startswith('3 Presentations/') and d.endswith('-for-managers.pdf')]
-COLLEAGUES = [d for _, d in files if d.startswith('3 Presentations/') and d.endswith('-for-colleagues.pdf')]
+# A TO Z AS SAID (whole-pack polish, 9 Nov 2026): the lists followed the pack's folder order, so the read-me promised the
+# presentations A to Z and listed Middle Ground first, the proposals folder's one, then Balanced V6 and Level Crossing
+MANAGERS = sorted(d for _, d in files if d.startswith('3 Presentations/') and d.endswith('-for-managers.pdf'))
+COLLEAGUES = sorted(d for _, d in files if d.startswith('3 Presentations/') and d.endswith('-for-colleagues.pdf'))
 WHAT_IT_MEANS = '1 Summary/links-26-what-it-means.pdf'   # 1 Nov 2026
 for path in MANAGERS + COLLEAGUES + [WHAT_IT_MEANS]:
     if not any(dst == path for _, dst in files): raise SystemExit(f'pack: the read-me points at {path}, which the pack does not hold')
@@ -282,7 +284,10 @@ def whole(t):
     t = re.sub(r'\bapp version (?=\d)', 'app\x00version\x00', t)
     t = re.sub(r'\b\d{1,2}h \d{2}m\b', lambda m: m.group(0).replace(' ', '\x00'), t)   # nor a duration (4 Nov 2026: "8h / 10m")
     return t.replace(' - ', '\x00- ')
-para = lambda t: textwrap.fill(whole(' '.join(t.split())), W, break_on_hyphens=False).replace('\x00', ' ')
+# NO RUNT (whole-pack polish, 9 Nov 2026): a paragraph's last word never stands alone on its line, as "full.", "breaks,"
+# and "instead." did; it is tied to the word before it, when it is short enough that the two move down together
+runt = lambda t: re.sub(r' (?=\S{1,12}$)', '\x00', t)
+para = lambda t: textwrap.fill(runt(whole(' '.join(t.split()))), W, break_on_hyphens=False).replace('\x00', ' ')
 # A LABEL TOO LONG FOR ITS COLUMN HAS A LINE OF ITS OWN (8 Nov 2026, the pack audit). A format width pads a short label and
 # never cuts a long one, so when item 5 took its folder's full name on 6 Nov, "5 Import files for the Links page" ran
 # straight into its text: "5 Import files for the Links pageEach proposal as text...". Every label is kept, and the read-me
@@ -290,7 +295,7 @@ para = lambda t: textwrap.fill(whole(' '.join(t.split())), W, break_on_hyphens=F
 LABELS = []
 def item(label, text, hang=21):
     LABELS.append(label)
-    body = whole(' '.join(text.split()))
+    body = runt(whole(' '.join(text.split())))
     if len(label) > hang - 3:   # at least one space between the label and the text, as every other label has
         return f'  {label}\n' + textwrap.fill(body, W, initial_indent=' ' * hang, subsequent_indent=' ' * hang,
                                               break_on_hyphens=False).replace('\x00', ' ')
@@ -371,8 +376,11 @@ readme = '\n'.join([
     para(f'{WORDS[len(proposals)].capitalize()} candidate links are in this pack, and {WORDS[len(SHORTLIST)]} are shortlisted. They '
          'are listed A to Z, and none is recommended: each is the one to choose for something different.'
          + (f' {LATE_WORDS} came after the shortlist; see how the shortlist came about, below.' if LATE else '')),
+    # A BLANK LINE BETWEEN PARAGRAPHS, AND AROUND THE LIST (whole-pack polish, 9 Nov 2026): in Notepad the four ran together
+    '',
     para('All three keep closing weeks apart: a week of closing shifts is never followed by another, cover weeks aside. All '
          'three keep today\'s leave too: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best.'),
+    '',
     item('Balanced V6', 'If the shortest runs of earlies or of lates, and the most long breaks, matter most. The price: 7 of its 21 weeks on one shift '
          'time, where the other two have 18, a larger change of start from week to week, more single rest days, and more '
          'fatigue warnings if a cover week falls badly.'),
@@ -380,6 +388,7 @@ readme = '\n'.join([
          'at 06:20 matter most. The price: the fewest long breaks of the three.'),
     item('Middle Ground', 'If no shift over 8h 30m and the closest Saturday fit matter most. The price: the fewest early '
          'finishes, four at the open every day, and the least Sunday overtime pay.'),
+    '',
     para('Pages 1 and 2 of the shortlist sheet set out each one\'s edge and its costs in full.'),
     '',
     'WHAT IS ASKED',
@@ -511,7 +520,10 @@ readme = '\n'.join([
          'Balanced V9, Balanced V10, Clockface and Short Working, drawn since, do. On the other '
          f'{WORDS[len(names_in - set(AT_2230))]} that hour comes off other Saturday lates, so the hours and the contract are '
          'as they were; every sheet and presentation was redrawn, and their fingerprints changed. Common Ground was then '
-         'first in the pack\'s league, just over half a point ahead of the next. On 8 November 2026 the league was weighted '
+         'first in the pack\'s league, just over half a point ahead of the next.'),
+    '',
+    # the league's reweighting is a paragraph of its own, not the tail of the 22:30 one (whole-pack polish, 9 Nov 2026)
+    para('On 8 November 2026 the league was weighted '
          'again for the design target set that day, counting the closing weeks and the changes between earlies and lates: '
          f'{LEADER} is first on it, by {LEAD} points, and {SECOND} second.'),
     '',

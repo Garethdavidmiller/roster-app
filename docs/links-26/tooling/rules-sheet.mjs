@@ -93,7 +93,7 @@ const ffStatus = r => { const f = fixedT(r), a = one(f), w = one(r); return a ==
 const ffTitle = r => r.code === 'FF2' ? 'Early shift starting 05:00 to 06:59' : esc(r.title);
 const ffRows = live.map(r => `<tr><td class="ff-code">${esc(r.code)}</td><td>${ffTitle(r)}${r.confirm ? ' <span class="conf">definition to confirm</span>' : ''}</td><td class="fam">${esc(r.family)}</td><td class="num">${ffStatus(r)}</td></tr>`).join('');
 
-const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>December 2026 Rules</title>
+const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The December 2026 rules — the new CEA link</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }
@@ -106,7 +106,9 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast .eyebrow { color: var(--accent-gold); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
 .mast h1 { margin: 2px 0; font-size: 22px; font-weight: 800; color: white; letter-spacing: -.2px; }
 .mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; text-wrap: balance; }
-ul.rnotes { font-size: 9px; line-height: 1.38; margin: 4px 0 0; padding: 0; list-style: none; } ul.rnotes li { display: inline; } ul.rnotes li + li { margin-left: .55em; }   /* run in, each under its bold label: a list or two columns took 33px the page does not have */
+ul.rnotes { font-size: 9px; line-height: 1.38; margin: 4px 0 0; padding: 0; list-style: none; } ul.rnotes li { display: inline; } ul.rnotes li + li { margin-left: .28em; }   /* run in, each under its bold label: a list or two columns took 33px the page does not have.
+   One word space between notes, not two: the bold label marks where each begins, and the wider gap read as a double space
+   typed in error (whole-pack polish, 9 Nov 2026) */
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
 h2 { font-size: 13.5px; color: var(--primary-blue); margin: 9px 0 3px; font-weight: 800; }
 h2 .tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; padding: 1px 7px; border-radius: 8px; margin-left: 8px; vertical-align: 2px; }

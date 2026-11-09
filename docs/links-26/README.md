@@ -7273,6 +7273,76 @@ only a code given to another design.
 
 **Outside the repository.** Zips sent before this change hold the five; the one sent with it does not.
 
+## The whole pack polished from screenshots (9 Nov 2026)
+
+The owner asked for an aesthetic polish and consistency pass over the whole pack, from screenshots, checking every
+surface. Every page of every sheet, every slide of the six shortlisted decks (and Balanced V10's two), the read-me and the
+import files were rendered to images and read by seven independent reviews. Each finding was checked against its crop
+before anything changed, and each was fixed in the tooling or declined with a reason. No rota changed: every fingerprint
+is as it was, and no figure moved.
+
+**The proposal sheets.**
+- **Dates.** The sheets printed "Prepared 8 Nov 2026": `longDates` (`link.mjs`) matched a typed space but not the
+  `&nbsp;` the plain edition writes. It now reads both, and refuses a sheet that still holds a short date.
+- **Page 1 fits by steps, with a floor.** Balanced V8's and V10's staff boxes ended on the footer rule. The page now
+  tightens in three steps only when it must, gives back what it does not need, and is refused if it ends less than 8px above
+  its footer (`render.mjs`).
+- **Keep-together rules**, so a figure keeps what it belongs to: "about 12", "30 days off", "(today 7)", "up to 5 (today
+  7)", "218.6 contracted days a year", "December 2026", "day-on-day-off", "a perfect match" and a dozen more. A cell, list
+  item or paragraph no longer ends on one short word. Tile 4's triples stack, one per line.
+- **Colour says one thing.** Balanced V5's "Partly" (the train fit closer on some days, none worse) was green like "Yes";
+  it is unshaded. Page 7's present marks were mixed with black, darker than the body text; they wear the key's amber now,
+  and a present cell is tinted as page 2 tints the cells it asks a reader to look at. Page 6 gained a key: ✓ met · ✕ not
+  met, against the rule rather than against today. On page 3, "one-turn weeks" lost the cover weeks' olive.
+- **Alignment.** Page 5's score box hangs its ✓, so the proposal's figures sit under today's. Page 4's shift-time table fits
+  its column on every sheet (it ran 12px into the side card). Page 5's weekday heat map is set in the Saturday and Sunday
+  tables' type; it was 7 to 13% smaller, with room to spare on every sheet.
+- **Pages 7 and 8.** Page 7's notes are in two columns, as page 5's are. Page 8's three box headings are all navy (only
+  "Firm" was green), their lists start level, and a hairline sets the closing note apart from the column above it.
+- **Words.** Page 6's column says "Proposed", as page 7's does; page 4's cards say "Early" and "Late", as its table does;
+  *Managing rail staff fatigue* is in italics, as *Fatigue Factors* is; "multiplied by 10,000. 0 would be" (which read as
+  10,000.0) became "multiplied by 10,000. Lower is closer; 0 would be a perfect match."
+
+**The summary, shortlist, other designs, what-it-means and rules sheets.**
+- **The best of three is bold navy, not green.** Green says better than today everywhere else in the pack, and Balanced
+  V6's "3 · 5" wore it beside today's 2 · 3. The summary's ★ is navy too, and its footnote now names its one colour.
+- **Spacing and breaks.** The summary's table and the other designs' lead sat 1mm under their mastheads; the shortlist's
+  ✓ list hangs its lines; "7 of 21 / weeks", "Level / Crossing", "side / by side", "three- / and four-day" and "8- / hour"
+  no longer split; the rules sheet's run-in notes have one space between them, not what read as two.
+- **The summary's §** is raised, as its † and * are. The rules PDF is titled "The December 2026 rules — the new CEA link",
+  as its siblings are titled.
+- **`RULES.md`** gives every month in full, writes "35h", and marks its changed rules "CHANGED" without the ▲, which means
+  worse than today everywhere else.
+
+**The decks** (`shortlist-decks.py`; all eight rebuilt, `deck-check.mjs` 486 rows agree).
+- **The managers' slide 7.** "This one adds" wore a green ✓ and "This one costs" an amber ▲, the pack's marks for better and
+  worse than today, though both compare the design with the other two: Middle Ground's cost line wore a ▲ for "four at the
+  open every day", which slide 3 ticks as better than today. They are a navy + and − now. The shared lines keep their ✓.
+- **Marks a projector can show.** Slide 7's marks are 15pt in their circles (12 before) and slide 9's ticks 18pt (15).
+- **One way of writing a shift's length:** "no shift over 9h 00m" and "09:00–18:00, 9h 00m", as slide 6 and the sheets.
+- **Breaks:** "on weekdays and Saturdays" (Middle Ground's slide 8) and "a 12:00 late" (Balanced V6's and V10's slide 13)
+  move down whole.
+- **The files say who made them.** Every deck's properties gave its author, last editor and company as "PptxGenJS", the
+  library the first deck was drawn with, and the exported PDFs carried the same author; they now say Marylebone Roster —
+  Links designer. The dates are kept.
+
+**The read-me.** The presentations are listed A to Z, as it says they are (they followed the folders' order). The
+shortlist's paragraphs and list have blank lines between them, the league's reweighting is a paragraph of its own, and no
+paragraph ends on one word alone.
+
+**Declined, with the reason:**
+- page 2's closing-shift row stays a little smaller, and a "·" may end a line: the pack's 1 October convention, which the
+  decks' slide 14 follows too (a wider column was tried there: the line is 2.85in as set, and broke inside "8h 10m");
+- page 4's narrow shape card keeps "Today", as page 2's column does; "Today's link" wraps there;
+- the what-it-means sheet marks a row's best on the fixed duties' figure, so a tie there is a tie: the New link page reads
+  the same rule, and changing it would be a change to the app;
+- the read-me's "5 Import files for the Links page" keeps a line of its own: every label is its folder's full name (the
+  8 November audit), and the import files stay machine-read text;
+- a deck table cell cannot hang its mark, so the decks' figure columns stay centred with their marks;
+- the decks' secondary grey (5.0:1 on the pale tiles, which passes AA) and slide 10's picture margin stay;
+- page 7 keeps its own key against the guidance; page 1 keeps its breathing space; Clean Slate keeps its five-wide cards;
+  the cover meta line and closing sign-off keep their different jobs.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

@@ -543,17 +543,17 @@ def colleagues(d):
         first_t = runs_of(s.x[slice(*spans(s.x)[i])])[0]
         s.paras(i, first_t, [(0, t) for t in part])
     lines = {'Middle Ground': ['Closers start later: 30 minutes on weekdays, an hour on Saturdays, 45 minutes on Sundays',
-                               'A new early, 07:00–15:30, on weekdays and Saturdays',
+                               'A new early, 07:00–15:30, on\u00a0weekdays\u00a0and\u00a0Saturdays',   # moves down whole: "Saturdays" stood alone on the card's second line (whole-pack polish, 9 Nov 2026)
                                'Weekends: the ticket-office late, 14:30–22:30',
                                'On Sundays: 07:15–15:30 and 09:00–17:30'],
              'Level Crossing': ['Closers start later: 30 minutes on weekdays and Saturdays, 45 minutes on Sundays',
                                 'Weekdays: two 07:30–16:00s, a 15-minute handover to the closers',
                                 'Weekends: the ticket-office late, 14:30–22:30; on Saturdays a 06:20–14:45',
-                                'On Sundays: 09:00–18:00, 9 hours'],
+                                'On Sundays: 09:00–18:00, 9h\u00a000m'],
              'Balanced V6': ['Closers start later: 30 minutes on weekdays, 15 or 30 on Saturdays, 45 on Sundays',
                              'Weekdays: three 07:30–16:00s handing over to the closers, and a 12:00–20:30',
                              'Weekends: the ticket-office late, 14:30–22:30; on Saturdays a 06:20–15:00',
-                             'On Sundays: 09:00–18:00, 9 hours']}[DN]
+                             'On Sundays: 09:00–18:00, 9h\u00a000m']}[DN]
     named = {t for ln in lines for t in re.findall(r'\d\d:\d\d–\d\d:\d\d', ln)}
     cls = {t for t in NEW if t[6:] in ('23:55', '23:25')}
     check(f'slide 8’s lines name every new time but the closers, and nothing else ({sorted(named)})', named <= {dash(t) for t in NEW} and {dash(t) for t in set(NEW) - cls} <= named)
@@ -765,7 +765,7 @@ def colleagues_rest(d):
                                      f'{eo} a year each finish before 14:00 (today {eo_t}).')],
                  'Balanced V6': [('Six new shift times to learn', 'Eight new shift times to learn',
                                   'Three shorter versions of today’s lates, a new 07:00 early and two Sunday earlies.',
-                                  'Three later closers, a 07:30 handover, a 12:00 late and three weekend times.'),
+                                  'Three later closers, a 07:30 handover, a\u00a012:00\u00a0late and three weekend times.'),   # one phrase: "a 12:00 / late" split, then "a" was left at a line end (whole-pack polish, 9 Nov 2026)
                                  ('Earlies or lates in longer runs', 'Earlies or lates in longer runs',
                                   'Up to 5 weeks of one kind, 7 if the cover weeks go the same way (today 2, up to 3).',
                                   f'Up to {F["block"]} weeks of one kind, {F["blockUpTo"]} if the cover weeks go the same way (today {T["block"]}, up to {T["blockUpTo"]}).'),
@@ -777,7 +777,7 @@ def colleagues_rest(d):
                                   f'{eo} a year each finish before 14:00 (today {eo_t}); {lb} breaks a year of 3 days or more (today {lb_t}).')],
                  'Balanced V10': [('Six new shift times to learn', 'Eight new shift times to learn',
                                   'Three shorter versions of today’s lates, a new 07:00 early and two Sunday earlies.',
-                                  'Three later closers, a 07:30 handover, a 12:00 late and three weekend times.'),
+                                  'Three later closers, a 07:30 handover, a\u00a012:00\u00a0late and three weekend times.'),   # one phrase: "a 12:00 / late" split, then "a" was left at a line end (whole-pack polish, 9 Nov 2026)
                                  ('Earlies or lates in longer runs', 'Earlies or lates in longer runs',
                                   'Up to 5 weeks of one kind, 7 if the cover weeks go the same way (today 2, up to 3).',
                                   f'Up to {F["block"]} weeks of one kind, {F["blockUpTo"]} if the cover weeks go the same way (today {T["block"]}, up to {T["blockUpTo"]}).'),
@@ -825,7 +825,9 @@ def colleagues_rest(d):
         if B[k] != F[k]: dp.replace_run(p14, B[k], F[k], after=label)
     if '–' in F['closerSat']:
         # "8h 10m · 8h 40m–8h 55m · 8h 10m" is 2.5in in bold 12pt and its cell 2.4in, so its row takes two lines; the eleven
-        # rows go from 0.27in to 0.25in so the table still ends 0.2in above the bar
+        # rows go from 0.27in to 0.25in so the table still ends 0.2in above the bar. It breaks after a "·", the pack's way
+        # (1 Oct 2026: a separator dot ends a line). A wider column was tried and refused (whole-pack polish, 9 Nov 2026): the
+        # line is 2.85in as LibreOffice sets it, the label column cannot give that much, and at 2.7in it broke inside "8h 10m"
         x14 = open(p14, encoding='utf-8').read()
         if x14.count('<a:tr h="246888">') != 11: raise SystemExit('slide 14: the table no longer has eleven rows of 0.27in')
         open(p14, 'w', encoding='utf-8').write(x14.replace('<a:tr h="246888">', '<a:tr h="228600">'))
@@ -1056,11 +1058,27 @@ def managers(d):
         put(s, 'All three: all 9 December rules; no avoidable fatigue warning, cover weeks aside', 'As all three: all 9 December rules; no avoidable fatigue warning, cover weeks aside')
     for old, new in ((f'All three: {B["weekendsYear"]} full weekends off a year each (today {T["weekendsYear"]}), at most 5 weeks apart', f'{as_}: no two closing weeks in a row, cover weeks aside'),
                      ('All three: no shift over 9 hours, and every closing shift shorter', f'{as_}: 30 days off for 14 days’ leave, as today' if BES else 'All three: today’s leave — 30 days off for 14 days’ leave, four weeks off for 14'),
-                     (f'All three: fewer shift times than today’s {T["times"]} — here {tn(B)[0]}, {tn(B)[1]} worked today', f'{as_}: no shift over 9 hours, and every closing shift shorter'),
+                     (f'All three: fewer shift times than today’s {T["times"]} — here {tn(B)[0]}, {tn(B)[1]} worked today', f'{as_}: no shift over 9h\u00a000m, and every closing shift shorter'),   # a shift's length as slide 6 and the sheets write it (whole-pack polish, 9 Nov 2026)
                      ('This one adds: today’s leave, 30 days off for 14, and nothing over 8h 30m, any day', st['adds']),
                      ('This one costs: 12 single rest days a year, where today has 10 and the other two 8', st['costs'])):
         put(s, old, new)
     shape_of(s, f'{as_}: all 9 December rules; no avoidable fatigue warning, cover weeks aside')
+    # THE TWO LINES AGAINST THE OTHER TWO WEAR NEITHER ✓ NOR ▲ (whole-pack polish, 9 Nov 2026). Green and amber say better and
+    # worse than TODAY everywhere in the pack, and these two lines compare this design with the other two: Middle Ground's
+    # "This one costs: … four at the open every day" wore an amber ▲ while slide 3 ticks its 4 · 4 · 4 at the open as better
+    # than today. They are a navy + and − now, navy being the deck's colour for a fact; the shared lines above, each better
+    # than today, keep their green ✓. And every mark is drawn at 15pt in its 23pt circle, not 12: the tick was half the
+    # circle's width and read as a speck on a projector
+    for lead, was, now, colour in (('This one adds', '✓', '+', GREEN), ('This one costs', '▲', '−', AMBER)):
+        hit = [i for i, (a, b) in enumerate(spans(s.x)) if (runs_of(s.x[a:b]) or [''])[0].startswith(lead)]
+        if len(hit) != 1: raise SystemExit(f'{NAME}: slide 7 has {len(hit)} “{lead}” lines')
+        mark, ell = hit[0] - 1, hit[0] - 2
+        if runs_of(s.x[slice(*spans(s.x)[mark])]) != [was] or 'prst="ellipse"' not in s.x[slice(*spans(s.x)[ell])]:
+            raise SystemExit(f'{NAME}: slide 7’s “{lead}” line has lost its circle or its {was}')
+        s.text(mark, was, now); s.sub(ell, colour, NAVY, 2)
+    marks7 = [i for i, (a, b) in enumerate(spans(s.x)) if runs_of(s.x[a:b]) in (['✓'], ['+'], ['−'])]
+    if len(marks7) != 6: raise SystemExit(f'{NAME}: slide 7 has {len(marks7)} marks in circles, not six')
+    for i in marks7: s.sub(i, 'sz="1200"', 'sz="1500"', 2)
     if BES: put(s, 'What all three cost: more late finishes and two more Saturdays a year.', 'What it costs, as all three do: more late finishes and two more Saturdays a year.')
     else: shape_of(s, 'What all three cost: more late finishes and two more Saturdays a year.')
     s.save()
@@ -1080,6 +1098,12 @@ def managers(d):
     put(s, 'Expect late finishes and single rest days first — the colleague presentation answers both.', st['worry_bar'])
     s.save()
     notes(d, 8, 'Figures are per person, a year', notice_notes(pounds))
+    # SLIDE 9: the checklist's ticks at the same share of their circles as slide 7's, 18pt in 28.8pt, not 15 (whole-pack polish)
+    s = S(9)
+    ticks9 = [i for i, (a, b) in enumerate(spans(s.x)) if runs_of(s.x[a:b]) == ['✓']]
+    if len(ticks9) != 3: raise SystemExit(f'{NAME}: slide 9 has {len(ticks9)} ticks in circles, not three')
+    for i in ticks9: s.sub(i, 'sz="1500"', 'sz="1800"', 2)
+    s.save()
 
 # ── building one deck ───────────────────────────────────────────────────────────────────────────────────────────────────
 # Common Ground's text that must not survive into a design it is not true of, each with the designs it IS true of. Matched with
@@ -1170,6 +1194,19 @@ def build(who):
         for f in os.listdir(f'{d}/ppt/slides'):
             if f.endswith('.xml'):
                 p_ = f'{d}/ppt/slides/{f}'; y, _ = dm.mark(open(p_, encoding='utf-8').read()); open(p_, 'w', encoding='utf-8').write(y)
+        # THE FILE SAYS WHO MADE IT (whole-pack polish, 9 Nov 2026): File > Info gave every deck's author, last editor and company
+        # as "PptxGenJS", the library the first deck was drawn with, and its subject as "PptxGenJS Presentation"; the PDFs
+        # exported from them carried the same author. The dates stay as they are
+        for part, subs in (('docProps/core.xml', ((r'<dc:subject>[^<]*</dc:subject>', f'<dc:subject>The new CEA link, for {who}</dc:subject>'),
+                                                  (r'<dc:creator>[^<]*</dc:creator>', '<dc:creator>Marylebone Roster — Links designer</dc:creator>'),
+                                                  (r'<cp:lastModifiedBy>[^<]*</cp:lastModifiedBy>', '<cp:lastModifiedBy>Marylebone Roster — Links designer</cp:lastModifiedBy>'))),
+                           ('docProps/app.xml', ((r'<Company>[^<]*</Company>', '<Company>Marylebone Roster</Company>'),))):
+            x_ = open(f'{d}/{part}', encoding='utf-8').read()
+            for rx, new in subs:
+                x_, n_ = re.subn(rx, new, x_)
+                if n_ != 1: raise SystemExit(f'{out}: {part} holds {n_} of {rx}')
+            if 'PptxGenJS' in x_: raise SystemExit(f'{out}: {part} still names PptxGenJS')
+            open(f'{d}/{part}', 'w', encoding='utf-8').write(x_)
         names = zipfile.ZipFile(src).namelist()
         extra = sorted(os.path.relpath(os.path.join(r, f), d) for r, _, fs in os.walk(d) for f in fs if os.path.relpath(os.path.join(r, f), d) not in names)
         if extra: raise SystemExit(f'{out}: parts {BASE}’s deck does not have: {extra}')

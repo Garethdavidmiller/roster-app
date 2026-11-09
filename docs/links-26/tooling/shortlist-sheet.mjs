@@ -644,12 +644,16 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
 h2 { font-size: 14px; color: var(--primary-blue); margin: 6px 0 2px; font-weight: 800; } h2 .note { font-size: 10.4px; font-weight: 400; color: var(--text-mid); margin-left: 6px; }
 p { margin: 3px 0 6px; } .muted { color: var(--text-mid); } .lead { font-size: 11.6px; }
+/* a lead straight under the masthead sat 3px below its gold rule, half what the other sheets leave (whole-pack polish, 9 Nov 2026) */
+.mast + p.lead { margin-top: 8px; }
 table.t { border-collapse: collapse; width: 100%; font-size: 10.2px; line-height: 1.28; }
 table.t th, table.t td { padding: 1.5px 7px 2px; border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: top; }
 table.t th { background: var(--surface-sunken); color: var(--text-mid); font-size: 9.2px; text-transform: uppercase; letter-spacing: .3px; }
 table.t th.num, table.t td.num { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; } table.t th.num { white-space: normal; }   /* a design's name may wrap; its figures never do */
 table.t td.today { color: var(--text-light); }
-table.t td.best, table.t .bestv { font-weight: 800; color: color-mix(in srgb, var(--success-green) 80%, black); }
+/* THE BETTER OF THE THREE IS BOLD NAVY, NOT GREEN (whole-pack polish, 9 Nov 2026): green, on every other page of the pack,
+   says better than today, and Balanced V6's "3 · 5" wore it beside today's 2 · 3 — the best of three, and worse than today */
+table.t td.best, table.t .bestv { font-weight: 800; color: var(--primary-blue); }
 table.t td.all { color: var(--text-mid); }
 /* THE OTHER DESIGNS' SHEET (7 Nov 2026): a page of its own, so a row may take two lines and has and pays sit in columns. Page
    2's one-line table, and the pixels each of its rows gave up to stay on the page, went with it */
@@ -679,7 +683,9 @@ table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surfa
    above it (7px before) and a bullet a pixel between it and the next (2px before), 12px on page 2. The type, the table and the
    column widths are unchanged */
 ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height: 1.36; } ul.list li { margin: 1px 0; }
-.shared { column-count: 2; column-gap: 20px; font-size: 10.5px; line-height: 1.38; margin: 5px 0 3px; } .shared div { break-inside: avoid; margin-bottom: 3px; } .shared div::before { content: '✓ '; color: var(--success-green); font-weight: 800; }   /* columns, not a grid: a grid row took the taller item's height and left a blank line under the shorter (5 Nov 2026) */
+.shared { column-count: 2; column-gap: 20px; font-size: 10.5px; line-height: 1.38; margin: 5px 0 3px; } .shared div { break-inside: avoid; margin-bottom: 3px; } .shared div::before { content: '✓'; display: inline-block; width: 1.15em; text-indent: 0; color: var(--success-green); font-weight: 800; }
+/* each line hangs under its words, not under its ✓, as every other marked list in the pack (whole-pack polish, 9 Nov 2026) */
+.shared div { padding-left: 1.15em; text-indent: -1.15em; }   /* columns, not a grid: a grid row took the taller item's height and left a blank line under the shorter (5 Nov 2026) */
 .foot { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8.5px; color: var(--text-light); border-top: 1px solid var(--border-light); padding-top: 4px; }
 .foot b { color: var(--primary-blue); }
 /* four designs and a date no longer fit beside the page line, so the footer wraps — between its items, never inside a
@@ -705,7 +711,7 @@ ${STYLE}</head><body>
     <div>Every closing shift <b>shorter, by ${dur(Math.min(...cuts))} to ${dur(Math.max(...cuts))}</b> — the weekday’s and Sunday’s ${hm(wkCloser)} on ${both} (today ${hm(TF.closers[0])} and ${hm(TF.closers[2])}); no shift over ${hm(longest)}</div>
   </div>
 
-  <h2>Where they differ<span class="note">the better of the ${N} on each line in bold green; today for scale, not ranked</span></h2>
+  <h2>Where they differ<span class="note">the better of the ${N} on each line in bold; today for scale, not ranked</span></h2>
   <table class="t cmp"><thead><tr><th>Measure</th><th class="num today">Today</th>${D.map(d => `<th class="num">${esc(d.name)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table>
 
   <h2>Each one’s edge</h2>
@@ -762,7 +768,12 @@ const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace
   // a figure keeps what it belongs to, as on the sheets (pack polish, 1 Nov 2026): "18 of / 21", "40 / a year", "(30 / on a Sunday)"
   .replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt
     .replace(/\b(\d+) (to|in|of) (\d+)\b/g, '$1\u00a0$2\u00a0$3').replace(/\b(\d+) a year\b/g, '$1\u00a0a\u00a0year')
-    .replace(/\b(today|Sun|Sat) (?=\d)/g, '$1\u00a0'));
+    .replace(/\b(today|Sun|Sat) (?=\d)/g, '$1\u00a0')
+    // and the rest of the pack's keep-together rules (whole-pack polish, 9 Nov 2026): "7 of 21 / weeks", "Level / Crossing" and
+    // "side / by side." each split on a line end here
+    .replace(/\b(\d+\u00a0(?:to|in|of)\u00a0\d+) (weeks?|days?|lines?)\b/g, '$1\u00a0$2')
+    .replace(/\b(Even|In|Short|Long|Common|Middle|Level|Balanced|Grand|Next|Home|Clean|Closing|Second|Fair) (Step|Run|Break|Ground|Crossing|V\d+|Tour|Grown|Slate|Time|Edition|Share|Working)\b/g, '$1\u00a0$2')
+    .replace(/\bside by side\b/g, 'side\u00a0by\u00a0side').replace(/\bin a row\b/g, 'in\u00a0a\u00a0row'));
 // THE OTHER DESIGNS' SHEET (7 Nov 2026): page 2's table, one row per design or pair, each row's words either side of its
 // "but" now in a column of its own. The rows are typed; the NAMED and pays() claims above pin what each keeps and pays against
 // the three, and the figures in them are read. SINCE 8 NOV 2026 against Balanced V6, Level Crossing and Middle Ground: the three
