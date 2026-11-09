@@ -814,6 +814,8 @@ between the designers in Firestore (`linkTargetSets`), because the promise they 
   never says there are no setups when it could not find out.
 - Rules: `links-target-sets.js`; the panel: `links-generator-targets.js`. The e2e seat is M. Robson,
   deliberately — the admin's override is real, so ownership must be tested from a seat without one.
+  The real designer list has been the owner alone since 9 Nov 2026, so the spec gives that seat a
+  list of its own (`withLinksDesigners`, `e2e/fixtures.js`).
 
 ### The two constructions
 

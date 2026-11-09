@@ -4,7 +4,7 @@
  * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
-import { test, expect } from './fixtures.js';
+import { test, expect, withLinksDesigners } from './fixtures.js';
 import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, isTouchProject, waitForReadsToLand } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
@@ -1373,6 +1373,8 @@ const TARGET_SET_ROWS = [
 // design bin grants). An ownership feature has to be tested from a seat with no override.
 async function openLinksWithTargetSets(page) {
     await page.setViewportSize({ width: 1024, height: 1000 });
+    // M. Robson is not a designer on the real list since 9 Nov 2026 (the owner alone), so this seat is given one of its own.
+    await withLinksDesigners(page, ['G. Miller', 'M. Robson']);
     await seedSession(page, 'M. Robson');
     await page.addInitScript((rows) => {
         localStorage.setItem('myb_links_welcome_seen', '1');
@@ -3557,6 +3559,8 @@ test('links: Discard deletes the kept work and leaves the saved design as it was
 });
 
 test('links: another designer signing in on the same phone is offered nothing', async ({ page }) => {
+    // Two designers on one phone: the real list has been the owner alone since 9 Nov 2026, so the test brings its own.
+    await withLinksDesigners(page, ['G. Miller', 'S. Silva']);
     await editWindowAndHide(page);
     await seedSession(page, 'S. Silva');   // a later init script: this reload is S. Silva's
     await reloadPastLeaveSite(page);

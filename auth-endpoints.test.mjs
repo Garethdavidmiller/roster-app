@@ -98,7 +98,7 @@ const ADMIN    = 'G. Miller';
 const MEMBER   = 'L. Springer';        // on the roster, and not the admin
 const MEMBER2  = 'A. Hared';           // a SECOND ordinary member, for the coalescing cases
 const MANAGER  = 'D. Watts';           // roles.manager in roster-members.json
-const DESIGNER = 'M. Robson';          // roles.designer, and NOT an admin
+const DESIGNER = 'M. Robson';          // NOT an admin; a Links designer until 9 Nov 2026 — see withDesigners
 const ADMIN_UID = 'uid_admin_gm';
 const emailFor = (n) => `${n[0].toLowerCase()}.${n.split('. ')[1].toLowerCase()}@myb-roster.local`;
 const uidFor   = (n) => `uid_${n.replace(/\W/g, '')}`;
@@ -789,11 +789,29 @@ describe('setupRosterAuth stamps claims from the SERVER roster, never the reques
             'and the real admin keeps admin — the body could not demote them either');
     });
 
+    // The real designer list has been the admin alone since 9 Nov 2026 (owner: "hide the link designer page from
+    // everyone apart from me"), so a designer who is NOT the admin exists only in a list made for the test.
+    const REAL_ROSTER = require('./functions/roster-members.json');
+    const withDesigners = (/** @type {string[]} */ designer) => ({ ...REAL_ROSTER, roles: { ...REAL_ROSTER.roles, designer } });
+
     test('the manager and designer tiers come from the server lists too', async () => {
-        const { eps, authOps } = build();
+        const { eps, authOps } = build({ rosterJson: withDesigners([ADMIN, DESIGNER]) });
         await call(eps.setupRosterAuth, asAdmin({}));
         assert.deepEqual(claimFor(authOps, MANAGER), { manager: true, name: MANAGER, member: MANAGER });
         assert.deepEqual(claimFor(authOps, DESIGNER), { name: DESIGNER, member: DESIGNER, linksDesigner: true });
+    });
+
+    // TAKING A DESIGNER OFF THE LIST TAKES THE CLAIM AWAY, ON THE NEXT RUN. The client list hides the page; what stops a
+    // former designer SAVING a design is this claim going, and it goes only because the handler stamps the claims it
+    // computes rather than adding to the ones an account already has. So the account starts WITH the claim: a handler
+    // that merged would leave it there, and this fails.
+    test('a designer taken off the server list loses linksDesigner the next time it runs', async () => {
+        const former = { uid: uidFor(DESIGNER), email: emailFor(DESIGNER), displayName: DESIGNER, disabled: false,
+            customClaims: { name: DESIGNER, member: DESIGNER, linksDesigner: true } };
+        const { eps, authOps } = build({ existingUsers: [former], rosterJson: withDesigners([ADMIN]) });
+        await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(claimFor(authOps, DESIGNER), { name: DESIGNER, member: DESIGNER });
+        assert.equal(claimFor(authOps, ADMIN)?.linksDesigner, true, 'and the one name left keeps it');
     });
 
     test('every provisioned account is given a name claim', async () => {

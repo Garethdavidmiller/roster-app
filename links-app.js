@@ -2262,7 +2262,7 @@ export function init() {
         if (about) { openAboutLightbox = about.open; closeAboutLightbox = about.close; }
 
         // The 🔧 Operations shortcut in the About panel is admin-only: operations.html
-        // redirects a non-admin designer (e.g. S. Silva) straight to admin.html, so
+        // redirects a non-admin designer straight to admin.html, so
         // showing them the link is a dead end. Reveal it only for admins, and route it
         // through the unsaved-changes guard (the capture-phase guard above only covers
         // nav-drawer links, and mobile browsers suppress the beforeunload dialog).
