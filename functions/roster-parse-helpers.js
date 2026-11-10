@@ -1096,7 +1096,11 @@ function computeOrphanLabels(users, activeEmails) {
             user.email.endsWith('@myb-roster.local') &&
             !activeEmails.has(user.email) &&
             !user.disabled) {
-            out.push({ uid: user.uid, label: user.displayName || user.email });
+            // Its display name only when the ADDRESS was made from it: the holder can set any name,
+            // and a leaver renamed after a current member was listed as that member (functions-core lead).
+            const own = typeof user.displayName === 'string' && user.displayName.trim() !== ''
+                && nameToEmail(user.displayName.trim()).toLowerCase() === user.email.toLowerCase();
+            out.push({ uid: user.uid, label: own ? user.displayName : user.email });
         }
     }
     return out;

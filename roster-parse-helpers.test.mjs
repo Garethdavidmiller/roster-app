@@ -1688,8 +1688,22 @@ describe('claimsForTier', () => {
 describe('computeOrphanLabels', () => {
     const active = new Set(['g.miller@myb-roster.local', 'a.staff@myb-roster.local']);
     test('flags a @myb-roster.local account not in the active set', () => {
-        const users = [{ uid: 'u1', email: 'leaver@myb-roster.local', displayName: 'B. Gone' }];
+        const users = [{ uid: 'u1', email: 'b.gone@myb-roster.local', displayName: 'B. Gone' }];
         assert.deepEqual(computeOrphanLabels(users, active), [{ uid: 'u1', label: 'B. Gone' }]);
+    });
+    test('a display name is shown only when the account\'s address was made from it — its holder can set any', () => {
+        // A leaver renamed after a current member was listed under that member's name in the disable
+        // preview and the audit (cross-area lead, Nov 2026). The address is the one label it cannot choose.
+        const users = [
+            { uid: 'u1', email: 'x.gone@myb-roster.local', displayName: 'G. Miller' },
+            { uid: 'u2', email: 'y.gone@myb-roster.local', displayName: '   ' },
+            { uid: 'u3', email: 'z.gone@myb-roster.local', displayName: 'Z. Gone' },
+        ];
+        assert.deepEqual(computeOrphanLabels(users, active), [
+            { uid: 'u1', label: 'x.gone@myb-roster.local' },
+            { uid: 'u2', label: 'y.gone@myb-roster.local' },
+            { uid: 'u3', label: 'Z. Gone' },
+        ]);
     });
     test('never flags an active member, an already-disabled account, a non-@myb-roster email, or an email-less account', () => {
         const users = [
@@ -2666,6 +2680,14 @@ describe('summariseAccountGaps', () => {
             const gaps = summariseAccountGaps(users, CFG);
             assert.deepEqual(gaps.setUp, []);
             assert.deepEqual(gaps.leavers, ['B. Khalil']);
+        });
+
+        test('a leaver who renamed the account after a current member is listed by its address', () => {
+            const users = [...allGood(), {
+                email: 'b.khalil@myb-roster.local', displayName: 'G. Miller', disabled: false, customClaims: {},
+            }];
+            assert.deepEqual(summariseAccountGaps(users, CFG).leavers, ['b.khalil@myb-roster.local'],
+                'a name the account chose for itself, beside a current member\'s, would be read as that member');
         });
 
         test('several gaps of different kinds are all reported', () => {
