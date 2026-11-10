@@ -121,7 +121,10 @@ test('they read the WHOLE pair, so a malformed cell is not a time (whole-app fix
     // an end at the back read as a duty whatever lay between — and that middle then reached the Design
     // checks card as markup (links-analysis-4). Read whole, it is not a time, so it falls to 'night':
     // the grid footer's visible "something here is wrong" count, out of the coverage and the turnarounds.
-    for (const bad of ['15:25-<img src=x>-23:55', '06:20-xx-14:20', '25:00-26:00', '07:75-15:30', '06:20-14:20 RDW', ' 06:20-14:20']) {
+    // One case per END of the pair and per half of each end, so loosening any one of the four is seen;
+    // `24:00` is refused as it is everywhere else in the app (clock-input.js) — midnight is `00:00`.
+    for (const bad of ['15:25-<img src=x>-23:55', '06:20-xx-14:20', '25:00-14:00', '07:75-15:30', '06:00-25:00',
+        '06:20-14:75', '16:00-24:00', '06:20-14:20 RDW', ' 06:20-14:20']) {
         assert.equal(startMinutes(bad), null, bad);
         assert.equal(endMinutes(bad), null, bad);
         assert.equal(classifyShift(bad), 'night', bad);

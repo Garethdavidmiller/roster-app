@@ -359,7 +359,7 @@ export function normaliseCustomShift(raw) {
  * The app itself only ever writes padded values (`normaliseCustomShift` pads; roster-derived options
  * are already padded), so this is reachable through legacy/imported data — including the
  * `combined-28` migration, which copies patterns verbatim. Normalising ON LOAD is deliberately
- * preferred to loosening the two regexes: loosening leaves two representations circulating forever
+ * preferred to loosening `TIME_PAIR`: loosening leaves two representations circulating forever
  * and every future reader has to know about both. One canonical form has no such tail.
  *
  * @param {any} shift
@@ -375,39 +375,23 @@ export function canonicaliseShift(shift) {
 }
 
 /**
- * Canonicalise every cell of a design's patterns. Pure — returns a new object, mutates nothing.
- *
- * A cell that is neither a string nor absent — a number, an object, only ever from a hand-written
- * document — becomes its STRING form here (whole-app fix, Nov 2026). Passed through, the grid's label
- * called a string method on it and threw, so one such cell left no grid at all; as a string it is not
- * a time, so it reads as 'night', the visible flag. `canonicaliseShift` itself still passes it through.
+ * Canonicalise every cell of a design's patterns. Pure — returns a new object, mutates nothing. A cell
+ * that is not a string becomes its string form, which reads as 'night'; passed through, the grid threw.
  * @param {any} patterns - { "1".."N": { sun..sat } }
  * @returns {Record<string, any>}
  */
 export function normalisePatterns(patterns) {
-    /** @type {Record<string, any>} */
-    const out = {};
+    const out = /** @type {Record<string, any>} */ ({});
     for (const [pos, row] of Object.entries(patterns || {})) {
         if (!row || typeof row !== 'object') continue;
-        /** @type {Record<string, any>} */
-        const p = {};
-        for (const d of DAYS) {
-            if (!(d in /** @type {any} */ (row))) continue;
-            const v = /** @type {any} */ (row)[d];
-            p[d] = canonicaliseShift(v === null || v === undefined || typeof v === 'string' ? v : String(v));
-        }
+        const p = /** @type {Record<string, any>} */ ({}), r = /** @type {any} */ (row);
+        for (const d of DAYS) if (d in r) p[d] = canonicaliseShift(r[d] == null ? r[d] : String(r[d]));
         out[pos] = p;
     }
     return out;
 }
 
-/**
- * A timed shift, read WHOLE: a real hour and minute at both ends and nothing else (whole-app fix,
- * Nov 2026). The two readers below each anchored one END and range-checked nothing, so a cell with a
- * start at the front and an end at the back passed as a duty whatever lay between, and that middle
- * reached the Design checks card. A midnight finish is written `00:00`, never `24:00`.
- */
-const TIME_PAIR = /^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-3]):([0-5]\d)$/;
+const TIME_PAIR = /^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-3]):([0-5]\d)$/;   // read WHOLE: real times at both ends, nothing between; midnight is `00:00`
 
 /** Start of a timed shift in minutes since midnight, or null for anything that is not one (RD, SPARE, a malformed cell). */
 export function startMinutes(/** @type {any} */ shift) {
@@ -1452,9 +1436,6 @@ function _restChecked(patterns, mode, waves, lines, requireRest) {
  */
 export function runDesignChecks(patterns, rotatingLines = ROTATING_LINES) {
     const shiftAt = (/** @type {any} */ w, /** @type {any} */ d) => /** @type {Record<string, any>} */ (patterns)[String(w)]?.[d] ?? 'RD';
-    // The module's ONE reading of rest (`isRest`): this private copy counted an empty cell as worked
-    // while the run and balance rows below read it as rest (whole-app fix, Nov 2026).
-    const isWorked = (/** @type {any} */ s) => !isRest(s);
 
     // One person's journey through the whole rotation, day by day.
     const seq = [];
@@ -1469,14 +1450,14 @@ export function runDesignChecks(patterns, rotatingLines = ROTATING_LINES) {
     // a "vacant" one. The link can't be authorised until all of them are filled.
     const unfilledLines = [];
     for (let w = 1; w <= rotatingLines; w++) {
-        if (DAYS.every(d => !isWorked(shiftAt(w, d)))) unfilledLines.push(w);
+        if (DAYS.every(d => isRest(shiftAt(w, d)))) unfilledLines.push(w);
     }
 
     // Full weekends off: Sat of week w + Sun of week w+1 both rest days.
     let weekendsOff = 0;
     for (let w = 1; w <= rotatingLines; w++) {
         const nextW = (w % rotatingLines) + 1;
-        if (!isWorked(shiftAt(w, 'sat')) && !isWorked(shiftAt(nextW, 'sun'))) weekendsOff++;
+        if (isRest(shiftAt(w, 'sat')) && isRest(shiftAt(nextW, 'sun'))) weekendsOff++;
     }
 
     // Short turnarounds: under MIN_REST_MINUTES from one timed shift's end to the next's start
