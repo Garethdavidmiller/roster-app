@@ -166,15 +166,24 @@ describe('restoreViewedMonth', () => {
 // ── persistViewedMonth ────────────────────────────────────────────────────────
 
 describe('persistViewedMonth', () => {
-    test('writes current display position to localStorage', () => {
+    // ON A PINNED CLOCK, because the rule now compares against TODAY: on the real clock a fixed month
+    // below becomes the current one some day, and the case silently changes meaning.
+    /** @param {Date} now @param {() => void} fn */
+    function at(now, fn) {
+        mock.timers.enable({ apis: ['Date'], now });
+        try { fn(); } finally { mock.timers.reset(); }
+    }
+    const MID_JULY_2026 = new Date(2026, 6, 15, 12);
+
+    test('writes current display position to localStorage', () => at(MID_JULY_2026, () => {
         setDisplayMonth(8);
         setDisplayYear(2027);
         persistViewedMonth();
         assert.equal(store.get('myb_roster_month'), '8');
         assert.equal(store.get('myb_roster_year'),  '2027');
-    });
+    }));
 
-    test('overwrites a previous stored position', () => {
+    test('overwrites a previous stored position', () => at(MID_JULY_2026, () => {
         setDisplayMonth(0);
         setDisplayYear(2026);
         persistViewedMonth();
@@ -183,6 +192,54 @@ describe('persistViewedMonth', () => {
         persistViewedMonth();
         assert.equal(store.get('myb_roster_month'), '11');
         assert.equal(store.get('myb_roster_year'),  '2028');
+    }));
+
+    // cal-data-1 (10 Nov 2026). Every render saves, so a member who simply had TODAY's month open
+    // saved it — and once that month ended it was a past month like any other, restored on every
+    // launch until somebody navigated. Today's month is the default, so it is cleared, not stored.
+    test('the CURRENT month is not stored — it clears a month stored before it', () => at(MID_JULY_2026, () => {
+        setDisplayMonth(3); setDisplayYear(2026);   // April, browsed back to: stored
+        persistViewedMonth();
+        assert.equal(store.get('myb_roster_month'), '3', 'precondition: a browsed month is stored');
+        setDisplayMonth(6); setDisplayYear(2026);   // back on July — today's month
+        persistViewedMonth();
+        assert.equal(store.get('myb_roster_month'), undefined, 'today\'s month was stored, so it would be restored after it ended');
+        assert.equal(store.get('myb_roster_year'),  undefined);
+    }));
+});
+
+// ── The month on screen when it was current, once it has ended (cal-data-1) ─────────────────────
+//
+// The two halves above joined: a render saves, the next LAUNCH restores. Each launch below is a
+// fresh import on its own pinned clock, rendering (saving) once, as `renderCalendar` does.
+describe('a launch after the month on screen has ended', () => {
+    /** Open the Calendar at `now`: a fresh module, one render's save. @returns {Promise<string>} "month/year" opened on */
+    async function launchAt(/** @type {Date} */ now, /** @type {string} */ tag, /** @type {((m: any) => void)|null} */ navigate = null) {
+        mock.timers.enable({ apis: ['Date'], now });
+        try {
+            const m = await import('./calendar-state.js?launch=' + tag);
+            const opened = `${m.getDisplayMonth()}/${m.getDisplayYear()}`;
+            navigate?.(m);
+            m.persistViewedMonth();
+            return opened;
+        } finally { mock.timers.reset(); }
+    }
+
+    test('open on 30 November, then on 1 December: December — and every launch after it', async () => {
+        store.clear();
+        assert.equal(await launchAt(new Date(2026, 10, 30, 21), 'nov-30'), '10/2026');
+        assert.equal(await launchAt(new Date(2026, 11, 1, 5, 30), 'dec-1'), '11/2026',
+            'the Calendar opened on November on 1 December — the month that was current when it was last drawn');
+        assert.equal(await launchAt(new Date(2026, 11, 2, 5, 30), 'dec-2'), '11/2026');
+        assert.equal(await launchAt(new Date(2027, 0, 1, 5, 30), 'jan-1'), '0/2027', 'and across the year end');
+    });
+
+    test('a month the member BROWSED back to is still the one restored', async () => {
+        // The other direction, and the decision the restore cases above pin: dropping a past month
+        // the member chose costs them a swipe, so the fix must not drop it with today's.
+        store.clear();
+        await launchAt(new Date(2026, 10, 15, 12), 'browse', m => { m.setDisplayMonth(9); m.setDisplayYear(2026); });
+        assert.equal(await launchAt(new Date(2026, 11, 1, 5, 30), 'browse-next'), '9/2026');
     });
 });
 
@@ -322,5 +379,33 @@ describe('watchLocalDate', () => {
         r.set('2026-09-27T00:00:01'); r.fireTimer();
         assert.equal(calls, 1);
         assert.ok(r.timer(), 'the timer re-arms for the following midnight');
+    });
+
+    // cal-data-1 (10 Nov 2026): the repaint kept the MONTH, so a page on November at midnight on the
+    // 30th — or a phone resumed on 1 December — showed November with no today in it, and saved it.
+    test('across a month end, a display on the month that was current moves to the new one BEFORE the repaint', () => {
+        const r = rig('2026-11-30T23:59:00');
+        setDisplayMonth(10); setDisplayYear(2026);
+        /** @type {number[]|null} */ let drawn = null;
+        watchLocalDate(() => { drawn = [getDisplayMonth(), getDisplayYear()]; }, r.env);
+        r.set('2026-12-01T00:00:01'); r.fireTimer();
+        assert.deepEqual(drawn, [11, 2026], 'the repaint drew November on 1 December');
+    });
+
+    test('…and a phone resumed the next morning, across the year end', () => {
+        const r = rig('2026-12-31T22:00:00');
+        setDisplayMonth(11); setDisplayYear(2026);
+        watchLocalDate(() => {}, r.env);
+        r.set('2027-01-01T07:30:00'); r.resume();
+        assert.deepEqual([getDisplayMonth(), getDisplayYear()], [0, 2027]);
+    });
+
+    test('a month the member browsed to is left where it is', () => {
+        const r = rig('2026-11-30T22:00:00');
+        setDisplayMonth(9); setDisplayYear(2026);   // October, browsed back to
+        watchLocalDate(() => {}, r.env);
+        r.set('2026-12-01T07:30:00'); r.resume();
+        assert.deepEqual([getDisplayMonth(), getDisplayYear()], [9, 2026],
+            'the date turning took the member off a month they had chosen');
     });
 });
