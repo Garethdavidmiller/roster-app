@@ -70,8 +70,10 @@
  *    and `applyShift` fires once per cell during a paint drag, so an unconditional rebuild would
  *    tear down and re-create every row dozens of times a second — and would destroy the row under
  *    a reader's finger while the sheet is open. The signature compares ids, names, saved-dates and
- *    the active id — the same shape the brush bar uses for the same reason. The click handler is
- *    DELEGATED to the list for the same reason: a rebuild can then never orphan a listener.
+ *    the active id — the same shape the brush bar uses for the same reason — and, for an open
+ *    PROPOSAL only, whether it has been edited: its row is the one whose words follow `dirty`, and
+ *    that flips once per edit session, not once per cell. The click handler is DELEGATED to the
+ *    list for the same reason: a rebuild can then never orphan a listener.
  *
  * What it deliberately does NOT own: the decision to save, the conflict protocol, naming validation
  * (`links-design-naming.js`), compare mode, the bin. Every handle is injected; the module reaches for
@@ -394,7 +396,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
 
         // ── the picker list (rebuilt only on a content change — rule 4) ──
         if (els.pickList) {
-            const sig = JSON.stringify([saved, activeId, open, proposalId, proposals.map(d => d.id), groups.map(g => [g.label, g.designs.map(d => [d.id, d.name, lastSaveTime(d)?.getTime() ?? 0])])]);
+            const sig = JSON.stringify([saved, activeId, open, proposalId, isProposal && dirty, proposals.map(d => d.id), groups.map(g => [g.label, g.designs.map(d => [d.id, d.name, lastSaveTime(d)?.getTime() ?? 0])])]);
             if (sig !== pickSignature) {
                 pickSignature = sig;
                 els.pickList.textContent = '';

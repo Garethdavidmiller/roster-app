@@ -567,6 +567,20 @@ describe('render — a built-in proposal', () => {
         assert.equal(els.pickerSub.textContent, '3 shortlisted · 2 saved designs', 'both counts, neither folded into the other');
     });
 
+    test('the open proposal\'s row follows its edits — the one row whose words depend on `dirty`', () => {
+        // Rule 4 keeps a dirty flip from rebuilding the list, and that was right while no row's words
+        // depended on it. The open PROPOSAL's does, so a list built clean went on saying "read-only"
+        // under a masthead saying "Copy of a proposal · Unsaved changes" (whole-app fix, Nov 2026).
+        const { els, h } = harness();
+        const base = { designs: DESIGNS, activeId: null, design: { name: PROPS[0].name }, currentUser: ME, now: NOW,
+                       proposals: PROPS, proposalId: PROPS[0].id };
+        h.render({ ...base, dirty: false });
+        h.render({ ...base, dirty: true });
+        assert.equal(rowMeta(allRows(els.pickList)[0]), 'Open · edited, not saved');
+        h.render({ ...base, dirty: false });   // the edit undone
+        assert.equal(rowMeta(allRows(els.pickList)[0]), 'LC-26-T10 · 32241e32 · read-only');
+    });
+
     test('a saved design open: the proposals are listed, none of them ticked', () => {
         const { els, h } = harness();
         h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW,
