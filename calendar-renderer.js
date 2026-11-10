@@ -208,12 +208,8 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
         if (firstWeekNum === lastWeekNum) {
             weekDisplay = `${weekPrefix} ${firstWeekNum}`;
         } else {
-            // Build plural: append 's' to the last word of the prefix
-            // "CEA Week" → "CEA Weeks", "BL Week" → "BL Weeks"
-            const lastSpaceIdx = weekPrefix.lastIndexOf(' ');
-            const pluralPrefix = lastSpaceIdx !== -1
-                ? weekPrefix.slice(0, lastSpaceIdx + 1) + weekPrefix.slice(lastSpaceIdx + 1) + 's'
-                : weekPrefix + 's';
+            // Plural: the prefix ends in "Week" — "CEA Week" → "CEA Weeks", "BL Week" → "BL Weeks"
+            const pluralPrefix = weekPrefix + 's';
             // En-dash for the range (v18.19) — matches the Team Week View's "19–25 July" strip;
             // the ASCII hyphen was the app's one range rendered with the wrong dash.
             weekDisplay = `${pluralPrefix} ${firstWeekNum}–${lastWeekNum}`;

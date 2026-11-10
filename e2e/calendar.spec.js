@@ -488,6 +488,56 @@ test('calendar: the legend follows the grid across a SWIPE, in both directions',
     await expect(page.locator('.legend')).toBeVisible();
 });
 
+// ── A READ TEAM VIEW STARTED, LANDING DURING A SWIPE ONTO ITS MONTH (10 Nov 2026, cal-ui-5) ─────────
+// The incoming month is built at pointerdown as "Checking this month". When its read — started by Team
+// View, then left — landed mid-gesture, its only waiter was Team View's repaint, which does nothing once
+// Team View is closed, and the commit found the month settled and asked for nothing: the live month sat
+// on the wait panel although it had been read. Every waiter must repaint whatever surface is live.
+test('calendar: a month read by Team View that lands mid-swipe is drawn when the swipe commits', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse drag drives the gesture here');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));   // first read: Aug–Oct
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('.month-year')).toHaveText('October 2026');
+    await page.evaluate(() => { (/** @type {any} */ (window).__E2E ??= {}).docsHeld = true; });
+    await page.locator('#teamViewBtn').click();                       // opens on 27 Sep – 3 Oct
+    for (let i = 0; i < 5; i++) await page.locator('#tvNextWeek').click();
+    await expect(page.locator('#tvWeekJump')).toHaveText('1–7 Nov 2026');
+    await expect(page.locator('.tv-pending'), 'premise: November is being read, for Team View').toBeVisible();
+    await page.locator('#teamViewBtn').click();                       // back to October
+    await expect(page.locator('.month-year')).toHaveText('October 2026');
+
+    const live = '#calendarDisplay > .calendar-container:not(.carousel-panel)';
+    for (let attempt = 0; ; attempt++) {
+        expect(attempt, 'the drag never took hold in four attempts').toBeLessThan(4);
+        const box = /** @type {any} */ (await page.locator('#calendarDisplay').boundingBox());
+        const y = box.y + box.height / 2;
+        await page.mouse.move(box.x + box.width - 20, y);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width - 90, y, { steps: 6 });
+        const dragging = await page.waitForFunction((sel) => /translate3d\(-/.test(
+            /** @type {HTMLElement|null} */ (document.querySelector(sel))?.style.transform || ''), live, { timeout: 2000 })
+            .then(() => true, () => false);
+        if (!dragging) { await page.mouse.up(); continue; }
+        await expect(page.locator('#calendarDisplay > .carousel-panel').last(), 'premise: November built while unread')
+            .toHaveAttribute('data-override-state', 'loading');
+        // The read lands NOW, mid-gesture.
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+        await expect.poll(() => page.evaluate(() => {
+            const e = /** @type {any} */ (window).__E2E; return (e.docReadsSettled || 0) >= (e.docReads || 0);
+        })).toBe(true);
+        await page.mouse.move(box.x + 20, y, { steps: 6 });
+        await page.mouse.up();
+        break;
+    }
+    await page.waitForFunction(() => document.querySelectorAll('.month-year').length === 1
+        && document.querySelector('.month-year')?.textContent === 'November 2026', null, { timeout: 10000 });
+    await expect(page.locator(live), 'the month that was read is drawn, not left waiting')
+        .toHaveAttribute('data-override-state', 'render');
+});
+
 // A BALANCED LEGEND AT 1024px (polish round 2). As a flex row the keys wrapped greedily, so a busy
 // month — RDW, leave, an absence and an Other day on top of the fixed keys — put "✂️ Pay cut-off" and
 // "💷 Payday" alone on a second line (measured: 10 keys over 2). The four conditional keys are
@@ -915,6 +965,82 @@ test('calendar: first-run pick survives a failed localStorage write (iOS private
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await expect(page.locator('.first-run-prompt')).toHaveCount(0);
     expect(errors, 'Uncaught JS exceptions in private-mode first-run').toHaveLength(0);
+});
+
+// ── A FIRST RUN THAT GOES INTO TEAM VIEW, OR OPENS THE LEAVE PANEL (10 Nov 2026, cal-ui-3) ─────────
+// A station PC on the staff PIN where nobody has picked a name. Team View handles that state on purpose
+// (no "my row"), so its controls must work there; and the leave panel and the colour key must give the
+// first-run answer the grid gives — nobody's figures, no key to a grid that is not there.
+test('calendar: on a first run, Team View still answers 📍 and the ← → T keys', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    const label = page.locator('#tvWeekJump');
+    await expect(label).toBeVisible();
+    const thisWeek = await label.innerText();
+    await page.keyboard.press('ArrowRight');
+    await expect(label, '→ moves a week, as the Team View help says').not.toHaveText(thisWeek);
+    await page.keyboard.press('t');
+    await expect(label, 'T comes back to this week').toHaveText(thisWeek);
+    await page.locator('#tvNextWeek').click();
+    await expect(label).not.toHaveText(thisWeek);
+    await page.locator('#todayBtn').click();
+    await expect(label, '📍 comes back to this week').toHaveText(thisWeek);
+});
+
+test('calendar: on a first run, the leave panel shows nobody\'s leave and asks for a name', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLightbox')).toBeVisible();
+    await expect(page.locator('#alLbWho'), 'nobody has been chosen, so the panel names nobody').toBeHidden();
+    await expect(page.locator('#alLbTaken')).toHaveText('—');
+    await expect(page.locator('#alLbError')).toHaveText(/Choose your name/);
+    await expect(page.locator('#alLightbox')).toHaveAttribute('aria-label', 'Annual Leave balance');
+});
+
+test('calendar: on a first run, leaving Team View does not put the colour key under the prompt', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await expect(page.locator('.legend'), 'premise: no key beside the prompt').toBeHidden();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#tvWeekJump')).toBeVisible();
+    await page.locator('#teamViewBtn').click();   // back to Month
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await expect(page.locator('.legend')).toBeHidden();
+});
+
+test('calendar: Team View opens on the grade of the name picked after a first run', async ({ page }) => {
+    const ces = teamMembers.find(m => !m.hidden && m.role === 'CES');
+    expect(ces, 'premise: the roster has a CES').toBeTruthy();
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#gradeTab-CEA'), 'nobody chosen yet: the first grade').toHaveAttribute('aria-selected', 'true');
+    await page.locator('#teamViewBtn').click();
+    await page.locator('#teamMemberSelect').selectOption({ label: ces.name });
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#gradeTab-CES')).toHaveAttribute('aria-selected', 'true');
+    // …and a tab the reader CHOOSES stays chosen when the view is opened again.
+    await page.locator('#gradeTab-Dispatcher').click();
+    await page.locator('#teamViewBtn').click();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#gradeTab-Dispatcher')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('calendar: a first visit does not use up the swipe hint over the choose-your-name prompt', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the hint is touch-only');
+    test.setTimeout(30_000);
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.waitForTimeout(6_500);
+    await expect(page.locator('#swipeHint'), 'there is no month to swipe under the prompt').toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('myb_swipe_hint_seen'))).toBeNull();
+    await page.locator('#teamMemberSelect').selectOption({ index: 1 });
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('#swipeHint'), 'shown once there is a month to swipe').toBeVisible();
 });
 
 test('calendar: a removed saved member falls back to the calendar + stale banner, NOT the first-run prompt', async ({ page }) => {
@@ -2719,6 +2845,77 @@ test('calendar: a refused Enter opens the day panel rather than doing nothing', 
     }
 });
 
+// ── KEYBOARD FOCUS SURVIVES A GRID REBUILT UNDER IT (10 Nov 2026, cal-ui-4) ─────────────────────────
+// Every re-render wipes #calendarDisplay. With focus dropped to <body>, PageUp/PageDown do nothing and
+// ← → change the MONTH instead of the day, so each of these left a keyboard user stranded.
+/** Which day cell holds focus, by its date words — or what does, when no day cell does. */
+const focusedDay = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => {
+    const a = /** @type {HTMLElement|null} */ (document.activeElement);
+    return a?.classList.contains('calendar-day') && a.closest('#calendarDisplay') ? a.dataset.detailDay : `not a day: ${a?.tagName}`;
+});
+
+test('calendar: PageDown onto a month still loading keeps focus for the grid that follows', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard route');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { (/** @type {any} */ (window).__E2E ??= {}).docsHeld = true; });   // new months wait
+    await page.locator('.calendar-day.today').focus();
+    await page.keyboard.press('PageDown');   // October: inside the first read, drawn at once
+    await expect(page.locator('.month-year')).toHaveText('October 2026');
+    await page.keyboard.press('PageDown');   // November: not read yet
+    await expect(page.locator('.calendar-pending')).toBeVisible();
+    await page.evaluate(() => { (/** @type {any} */ (window).__E2E ??= {}).docsHeld = false; });
+    await expect(page.locator('#calendarDisplay .calendar-day').first()).toBeVisible();
+    expect(await focusedDay(page), 'the grid that arrived must take the focus back').toMatch(/November 2026$/);
+    await page.keyboard.press('PageDown');
+    await expect(page.locator('.month-year'), 'and PageDown still pages').toHaveText('December 2026');
+});
+
+test('calendar: closing the day panel after the grid was redrawn behind it returns focus to that day', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard route');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        // The month is painted from the cache while the first server read is held open.
+        w.__E2E.cacheDocs = w.__E2E.docs = [{ id: 'c1', memberName: 'G. Miller', date: '2026-09-18', type: 'annual_leave', value: 'AL', note: '' }];
+        w.__E2E.docsHeld = true;
+    });
+    await page.goto('/');
+    const shown = page.locator('#calendarDisplay > .calendar-container');
+    await expect(shown).toHaveAttribute('data-override-state', 'stale');
+    const cell = page.locator('#calendarDisplay .calendar-day:not(.other-month):not(.payday):not(.cutoff)').nth(9);
+    const day = await cell.getAttribute('data-detail-day');
+    await cell.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#dayDetailLightbox')).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });   // the read lands
+    await expect(shown, 'premise: the grid behind the panel was rebuilt').toHaveAttribute('data-override-state', 'render');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#dayDetailLightbox')).toBeHidden();
+    expect(await focusedDay(page)).toBe(day);
+});
+
+test('calendar: T in Team View keeps focus on the control it was pressed from', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard route');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/');
+    await page.locator('#teamViewBtn').click();
+    await page.locator('#tvNextWeek').click();   // a week away, so T has somewhere to go
+    await expect(page.locator('#tvNextWeek')).toBeFocused();
+    await page.keyboard.press('t');
+    await expect(page.locator('.tv-week-status--now'), 'premise: back on this week').toBeVisible();
+    await expect(page.locator('#tvNextWeek'), 'the rebuilt Next still has the focus').toBeFocused();
+    // "↩ Back to this week" is not drawn on this week, so focus moves to Next, as its own click does.
+    await page.locator('#tvNextWeek').click();
+    await page.locator('#tvToday').focus();
+    await page.keyboard.press('t');
+    await expect(page.locator('#tvNextWeek')).toBeFocused();
+});
+
 test('calendar: a PIN-unlocked screen cannot click through to the calculator', async ({ page }) => {
     // THE STATION PC — and deliberately the HARD version of it: a stale local session naming the
     // very member on screen (reachable — an iOS ITP eviction drops the Firebase user while the
@@ -3259,6 +3456,45 @@ test('calendar: the leave panel refuses a balance served from the offline cache'
     await page.locator('#alBtn').click();
     await expect(page.locator('#alLbError')).toBeVisible();
     await expect(page.locator('#alLbTaken')).toHaveText('—');
+});
+
+// …AND A BALANCE THIS DEVICE SAVED EARLIER IS LABELLED AS ONE until a read confirms it (10 Nov 2026,
+// cal-ui-2). The saved copy has no age limit: the member who reads "6 left" from a copy saved before
+// three more days were recorded must be told it was not checked — the month grid's words for the same
+// state (CALENDAR_DATA.md 18) — rather than shown it as current, and the figures stay.
+/** Seed a saved balance for G. Miller's 2026 that no read would produce: 20 taken, 6 booked, of 32. */
+const seedSavedBalance = (/** @type {import('@playwright/test').Page} */ page) => page.addInitScript(() => {
+    localStorage.setItem('myb_al_stats_G. Miller|2026', JSON.stringify(
+        { taken: 20, booked: 6, entitlement: 32, breakdown: null, carry: null, christmas: null }));
+});
+
+test('calendar: the leave panel labels a saved balance it could not check, and keeps it', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await seedSavedBalance(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbError')).toHaveText('Saved copy — couldn\'t check for changes');
+    await expect(page.locator('#alLbError')).toBeVisible();
+    await expect(page.locator('#alLbTaken'), 'the saved figures stay').toHaveText('20');
+    await expect(page.locator('#alLbRemaining')).toHaveText('6');
+});
+
+test('calendar: the leave panel says a saved balance is being checked, and drops that once it is', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await seedSavedBalance(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbTaken')).toHaveText('20');
+    await expect(page.locator('#alLbError')).toHaveText('Saved copy — checking for changes…');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await expect(page.locator('#alLbTaken'), 'the server\'s answer replaces the copy').toHaveText('0');
+    await expect(page.locator('#alLbError')).toBeHidden();
 });
 
 // ── THE LEAVE PANEL'S YEAR AND ITS SECOND ROUTE (v24.46, owner) ─────────────────────────────────
