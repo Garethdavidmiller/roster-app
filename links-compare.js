@@ -126,7 +126,16 @@ export function initLinksCompare(deps) {
             return;
         }
         const other = getDesigns().find(x => x.id === compareDesignId);
-        if (!other) { wrap.classList.remove('compare-mode-active'); return; }
+        // THE COMPARED DESIGN HAS GONE (whole-app review, Nov 2026) — binned from another device, or
+        // passed over by Keep only the shortlist, and this page re-read its lists. Hiding the two
+        // columns and leaving compare mode ON left `body.links-compare-on` hiding the main grid too,
+        // so no grid was on screen at all. Leave compare mode properly, as "Stop comparing" does.
+        if (!other) {
+            wrap.classList.remove('compare-mode-active');
+            dearmBrush(); resetCompare();
+            renderDesignPicker(); renderGrid(); renderBrushBar();
+            return;
+        }
 
         const headA = document.getElementById('compareHeadA');
         const headB = document.getElementById('compareHeadB');

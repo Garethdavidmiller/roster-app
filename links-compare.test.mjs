@@ -105,6 +105,25 @@ test('toggle with >=2 designs enters compare + auto-picks a non-active id; toggl
     assert.equal(c.getCompareId(), null);
 });
 
+test('the compared design leaving the list ends compare mode, so the main grid comes back', () => {
+    // Whole-app review, Nov 2026: binned from another device, then this page re-read its lists and
+    // called renderCompare alone. The columns were hidden and compare mode left ON, so the
+    // coordinator's `body.links-compare-on` went on hiding the main grid: no grid on screen.
+    resetDom();
+    let list = [{ id: 'a', name: 'A', patterns: fullPatterns() }, { id: 'b', name: 'B', patterns: fullPatterns('12:00-19:00') }];
+    const { deps, calls } = makeDeps({ getDesigns: () => list });
+    const c = initLinksCompare(deps);
+    c.toggleCompareMode();
+    assert.equal(c.getCompareId(), 'b', 'premise: comparing with B');
+    const grids = calls.renderGrid;
+    list = list.filter(d => d.id !== 'b');
+    c.renderCompare();
+    assert.equal(c.isCompareMode(), false, 'compare mode is left');
+    assert.equal(c.getCompareId(), null);
+    assert.equal(els.compareGridsWrap.classList.contains('compare-mode-active'), false);
+    assert.ok(calls.renderGrid > grids, 'the grid is re-rendered, which is what clears the body class');
+});
+
 test('toggle is a no-op with <2 designs', () => {
     const { deps } = makeDeps({ getDesigns: () => [{ id: 'a', name: 'A', patterns: fullPatterns() }] });
     const c = initLinksCompare(deps);
