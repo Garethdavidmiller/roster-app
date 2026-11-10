@@ -688,6 +688,47 @@ test('no team-view name is truncated on paper @print', async ({ page }) => {
     expect(clipped.map(c => c.name), 'these names would print with an ellipsis and no way to read the rest').toEqual([]);
 });
 
+// ── EVERY PRINTED CELL WEARS ITS KEY'S EDGE (owner, 10 Nov 2026) ────────────────────────────────────
+// The print rules repaint every cell's edge grey, then give each kind its own back — and four (Early,
+// Late, Spare, RDW) had nothing putting theirs back, so on paper they had grey edges beside a printed
+// key showing coloured ones. Built from the real stylesheet under print media, one cell and one swatch
+// per kind, so a month that happens to hold no Spare day cannot let a missing rule pass.
+test('every kind of printed day cell has the edge its swatch in the printed key shows @print', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const edges = await inPrint(page, () => {
+        const KINDS = /** @type {const} */ ([
+            ['rest', 'rest-day'], ['early', 'early-shift'], ['late', 'late-shift'], ['night', 'night-shift'],
+            ['spare', 'spare-day'], ['rdw', 'rdw-day'], ['al', 'al-day'], ['sick', 'sick-day'], ['other', 'other-day'],
+        ]);
+        const host = /** @type {Element} */ (document.querySelector('#calendarDisplay'));
+        const plain = document.createElement('div');
+        plain.className = 'calendar-day';
+        host.append(plain);
+        const grey = getComputedStyle(plain).borderTopColor;
+        plain.remove();
+        return { grey, kinds: KINDS.map(([swatch, cellClass]) => {
+            const cell = document.createElement('div');
+            cell.className = `calendar-day ${cellClass}`;
+            const key = document.createElement('span');
+            key.className = `legend-color ${swatch}`;
+            host.append(cell, key);
+            const out = { kind: cellClass, cell: getComputedStyle(cell).borderTopColor, key: getComputedStyle(key).borderTopColor };
+            cell.remove(); key.remove();
+            return out;
+        }) };
+    });
+    for (const k of edges.kinds) {
+        expect(k.cell, `${k.kind} prints a grey edge beside a coloured swatch`).not.toBe(edges.grey);
+        expect(k.cell, `${k.kind}'s printed edge is not its swatch's`).toBe(k.key);
+    }
+});
+
 // The printed header names ONE member ("Team Member: <selected>"), which is right for a personal
 // calendar and wrong for Team View, where the sheet is a whole grade.
 test('a printed Team View is not headed with one member\'s name @print', async ({ page }) => {
