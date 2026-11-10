@@ -641,6 +641,23 @@ describe('buildSafeEntries', () => {
             assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30', 'the first row stands');
         } finally { console.warn = warn; }
     });
+    test('an EMPTY first row does not stand in front of the member\'s real one (import-server-5)', () => {
+        // A real Dispatch sheet prints an empty placeholder above the same member's real row. Kept
+        // first, it made the week six "no cell was read" questions and dropped the real one.
+        const EMPTY = { memberName: 'G. Miller', Sun: 'BLANK', Mon: 'BLANK', Tue: 'BLANK', Wed: 'BLANK', Thu: 'BLANK', Fri: 'BLANK', Sat: 'BLANK' };
+        const REAL  = { memberName: 'G. Miller', Sun: 'BLANK', Mon: '05:30-11:30', Tue: '05:30-11:30', Wed: 'RD', Thu: '05:30-11:30', Fri: 'RD', Sat: 'RD' };
+        const warn = console.warn; console.warn = () => {};
+        try {
+            for (const rows of [[EMPTY, REAL], [REAL, EMPTY], [{ ...EMPTY, Mon: '-', Tue: 'EMPTY' }, REAL]]) {
+                const entries = buildSafeEntries(rows, HEADERS, DATES);
+                assert.equal(entries.length, 1, 'one member, one row');
+                assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30', 'the row that says something stands');
+            }
+            const neither = buildSafeEntries([EMPTY, { ...EMPTY }], HEADERS, DATES);
+            assert.equal(neither.length, 1, 'two rows that say nothing are still one');
+            assert.match(neither[0].shifts['2026-03-30'], /^UNKNOWN\|no Monday cell was read/);
+        } finally { console.warn = warn; }
+    });
 
     // ── "NA" AND "NS" ARE REST DAYS, ON EVERY DAY (v25.38) ──────────────────────────────────────
     //

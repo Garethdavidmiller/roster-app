@@ -1075,6 +1075,34 @@ describe('parseRosterPDF — a correctly read week comes back on its own days', 
     }
 });
 
+// ── A NAME GIVEN TWICE, THE EMPTY ROW FIRST (import-server-5, whole-app fix, Nov 2026) ──────────
+//
+// A real Dispatch sheet prints an EMPTY placeholder row above the same member's real row. A model
+// matching both to the one name returned the placeholder first, and the response carried six "no
+// cell was read" questions for a member whose week was on the page. The name comes from the
+// generated roster, so the case tracks the roster rather than going stale with one person.
+describe('parseRosterPDF — an empty duplicate row never stands in front of the real one', () => {
+    const DISPATCHER = require('./functions/roster-members.json').dispatcher[0];
+    test('the member\'s real week arrives, once', async () => {
+        const empty = { memberName: DISPATCHER, ...Object.fromEntries(DAY_HEADERS.map(h => [h, 'BLANK'])) };
+        const real  = { memberName: DISPATCHER, Sun: 'BLANK', Mon: '06:00-14:00', Tue: '06:00-14:00', Wed: 'RD',
+            Thu: 'RD', Fri: '14:00-22:00', Sat: '14:00-22:00' };
+        const warn = console.warn; console.warn = () => {};
+        let out;
+        try {
+            build({ aiReply: JSON.stringify({ columnHeaders: DAY_HEADERS, parsed: [empty, real] }) });
+            const req = rosterRequest();
+            req.headers['x-roster-type'] = 'dispatcher';
+            out = await call(index.parseRosterPDF, req);
+        } finally { console.warn = warn; }
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        const rows = out.body.parsed.filter((/** @type {any} */ e) => e.memberName === DISPATCHER);
+        assert.equal(rows.length, 1, 'one member, one row');
+        assert.deepEqual(out.body.dates.slice(1).map((/** @type {string} */ d) => rows[0].shifts[d]),
+            ['06:00-14:00', '06:00-14:00', 'RD', 'RD', '14:00-22:00', '14:00-22:00']);
+    });
+});
+
 
 // ── A MEETING, AND "NOT AVAILABLE", THROUGH THE WHOLE HANDLER (v25.38) ──────────────────────────
 //

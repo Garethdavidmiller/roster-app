@@ -44,7 +44,7 @@
 
 'use strict';
 
-const { BLANK_CELL_TOKEN, normaliseShift } = require('./roster-parse-helpers');
+const { BLANK_CELL_TOKEN, normaliseShift, memberRows } = require('./roster-parse-helpers');
 const { matchGeometryRow } = require('./roster-geometry');
 const { isBlankReading } = require('./cell-day-rules');
 
@@ -302,13 +302,9 @@ function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dat
     /** @type {Array<{ memberName: string, dates: string[] }>} */
     const sent = [];
     if (!Array.isArray(dates) || dates.length < 7) return sent;
-    /** @type {Map<string, any>} */
-    const replyFor = new Map();
-    for (const e of parsedMembers || []) {
-        if (!e || typeof e !== 'object' || typeof e.memberName !== 'string') continue;
-        const name = e.memberName.trim();
-        if (!replyFor.has(name)) replyFor.set(name, e);   // buildSafeEntries keeps the first, too
-    }
+    // The row buildSafeEntries kept, by its own rule — a different pick would judge one row's cells
+    // against another row's reply.
+    const replyFor = memberRows(parsedMembers);
     const cellsFor = new Map((cellRows || []).map(r => [r.memberName, r.cells]));
     for (const entry of safeEntries) {
         const reply = replyFor.get(entry.memberName);

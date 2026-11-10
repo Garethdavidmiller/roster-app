@@ -368,6 +368,25 @@ function mapColumnHeadersToDates(columnHeaders, dates) {
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /**
+ * The row that speaks for each member: the FIRST THAT SAYS ANYTHING (import-server-5). A real
+ * Dispatch sheet prints an EMPTY placeholder above the same member's real row, and the grid matcher
+ * already breaks that tie this way (`soleOccupied`, roster-geometry.js, v24.03): an empty row states
+ * nothing, so it stands only when no row for the name says anything. Two that do keep the first.
+ * @param {any[]} parsedMembers  the model's rows
+ * @returns {Map<string, any>}   trimmed memberName → the row that stands
+ */
+function memberRows(parsedMembers) {
+    const says = (/** @type {any} */ e) => Object.keys(e).some(k => headerToDayIndex(k) !== undefined && !isBlankReading(e[k]));
+    const out = new Map();
+    for (const e of Array.isArray(parsedMembers) ? parsedMembers : []) {
+        if (!e || typeof e !== 'object' || typeof e.memberName !== 'string' || !e.memberName.trim()) continue;
+        const kept = out.get(e.memberName.trim());
+        if (!kept || (!says(kept) && says(e))) out.set(e.memberName.trim(), e);
+    }
+    return out;
+}
+
+/**
  * Build safe shift entries from AI parsed output.
  *
  * The AI returns each member as an object with day-name keys.
@@ -382,7 +401,7 @@ const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
  */
 function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
-    const seenMembers = new Set();
+    const standing = memberRows(parsedMembers);
     for (const entry of parsedMembers) {
         // Guard against a non-object array element (e.g. the AI returns `"parsed": [null]`):
         // `entry.memberName` on null throws a TypeError, and this runs OUTSIDE the AI-call
@@ -392,12 +411,12 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         // Skip a repeated member (e.g. a two-page roster that lists someone on both pages, or an AI
         // hallucinated duplicate). Two rows for the same member would render duplicate review rows and,
         // on save, write the same date/member override doc twice with nondeterministic last-write-wins.
+        // Which one stands is `memberRows`' rule: the first that says anything.
         const memberKey = entry.memberName.trim();
-        if (seenMembers.has(memberKey)) {
-            console.warn(`[parseRosterPDF] Duplicate member "${memberKey}" in AI output — keeping the first, skipping the repeat`);
+        if (standing.get(memberKey) !== entry) {
+            console.warn(`[parseRosterPDF] Duplicate member "${memberKey}" in AI output — kept the first row that says anything, skipped this one`);
             continue;
         }
-        seenMembers.add(memberKey);
 
         // ── SUNDAY IS THE ONE COLUMN WHOSE BLANK IS AN ANSWER (v22.19) ──────────────────────────
         //
@@ -1346,6 +1365,7 @@ module.exports = {
     HEADER_TO_INDEX,
     headerToDayIndex,
     mapColumnHeadersToDates,
+    memberRows,
     buildSafeEntries,
     BLANK_CELL_TOKEN,
     isPhysicallyBlank,

@@ -281,6 +281,20 @@ describe('reviewBlankReadsOfFilledCells — the grid says what an empty read mis
         assert.match(safe[0].shifts[dates[3]], /^UNKNOWN\|no Wednesday cell was read/);
     });
 
+    test('it judges the reply buildSafeEntries KEPT — an empty duplicate in front changes nothing', () => {
+        // import-server-5: the first row that says anything stands, in both places. Were this pass to
+        // keep the empty row instead, every filled cell would read as an empty read of it.
+        const parsed = [reply({ Sunday: 'BLANK', Monday: 'BLANK', Tuesday: 'BLANK', Wednesday: 'BLANK',
+            Thursday: 'BLANK', Friday: 'BLANK', Saturday: 'BLANK' }), reply({ Sunday: '08:00-16:00', ...WEEK })];
+        const warn = console.warn; console.warn = () => {};
+        try {
+            const safe = buildSafeEntries(parsed, DAY_LABELS, dates);
+            const sent = reviewBlankReadsOfFilledCells(safe, parsed, [{ memberName: 'G. Miller', cells: CELLS }], dates);
+            assert.deepEqual(sent, []);
+            assert.equal(safe[0].shifts[SUN], '08:00-16:00');
+        } finally { console.warn = warn; }
+    });
+
     // WHAT THE PASS WRITES TO THE FUNCTIONS LOG (import-server-6, -8), which keeps what it is given.
     /** Run `fn` with console.warn captured; returns the lines. @param {() => void} fn */
     const captureWarn = (fn) => {
