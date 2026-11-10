@@ -414,18 +414,21 @@ export function raiseByPercent(oldVal, pct) {
  * amounts); no user-entered text passes through, so no escaping is needed.
  *
  * @param {{ label: string, fromDate: Date|null, payday: Date|null, pNum: number, amount: number,
- *           state: 'computed'|'manual'|'manual-empty'|'no-figures'|'empty-window',
+ *           state: 'computed'|'manual'|'manual-empty'|'no-figures'|'needs-rate'|'empty-window'|'joined-after',
  *           now?: Date }} o
  *   state — which sentence-2 to append: 'computed' (rate×hours estimate → "roughly £X"),
  *   'manual' (figure typed from the payslip → exact), 'manual-empty' (prompt for the figure),
- *   'no-figures' (compute mode with no rates yet → award facts only), 'empty-window' (no periods
- *   accrued). `now` is injectable for tests; defaults to the real clock.
+ *   'no-figures' (compute mode with no rates yet → award facts only), 'needs-rate' (an hourly rate
+ *   is missing, so no figure), 'empty-window' (no periods accrued), 'joined-after' (the member
+ *   started after the whole window — the payslip is "the", not "your", and nothing is "yet").
+ *   `now` is injectable for tests; defaults to the real clock.
  * @returns {string}
  */
 export function bpStoryHtml(o) {
   const apr  = `1 April ${String(o.label).slice(0, 4)}`;
   const past = !!(o.payday && o.payday < (o.now || new Date()));
-  const slip = o.payday ? `your <strong>${fdLong(o.payday)} payslip</strong> (P${o.pNum})` : 'one payslip';
+  const whose = o.state === 'joined-after' ? 'the' : 'your';
+  const slip = o.payday ? `${whose} <strong>${fdLong(o.payday)} payslip</strong> (P${o.pNum})` : 'one payslip';
   let s1;
   if (o.fromDate) {
     s1 = past
@@ -440,7 +443,9 @@ export function bpStoryHtml(o) {
     ? ` Yours was <span class="bp-story-amt">${fmt(o.amount)}</span>, from your payslip.`
     : ` You've entered <span class="bp-story-amt">${fmt(o.amount)}</span> as your figure.`;
   else if (o.state === 'manual-empty') s2 = ' Enter your figure from that payslip below.';
+  else if (o.state === 'needs-rate')   s2 = ' Fill in both hourly rates below to work yours out.';
   else if (o.state === 'empty-window') s2 = ' Nothing to backdate for you yet.';
+  else if (o.state === 'joined-after') s2 = ' You started after the period it covers, so there is nothing to backdate for you.';
   return s1 + s2;   // 'no-figures' → the award facts alone
 }
 
@@ -589,7 +594,7 @@ export function calcBackPay() {
   // The story strip at the top of the card — award shape + this member's figure, ahead of the
   // controls (v18.39). Written on EVERY exit path below so it can never show a stale £.
   const _storyEl = /** @type {HTMLElement|null} */ (document.getElementById('bpAwardScope'));
-  const _story = /** @param {'computed'|'manual'|'manual-empty'|'no-figures'|'empty-window'} state
+  const _story = /** @param {'computed'|'manual'|'manual-empty'|'no-figures'|'needs-rate'|'empty-window'|'joined-after'} state
                      @param {number} [amount] */ (state, amount = 0) => {
     if (_storyEl) _storyEl.innerHTML = bpStoryHtml({
       label: awardTy?.label || '', fromDate: _awardFromDate, payday: bpP?.payday || null,
@@ -670,6 +675,22 @@ export function calcBackPay() {
     return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false, bpIncluded };
   }
 
+  // An hourly rate is MISSING: a box with no figure on record that nobody has typed — the CES 2025/26
+  // award's old rate. The London Allowance arrears alone are a sliver of a lump (£56.10 there), and
+  // they were presented as "Yours is roughly" and offered for a take-home. No total, and the card
+  // says what it needs (paycalc-2-5; invariant 1). A swapped pair is not this: #bpOrderWarn says so.
+  if (!(oldRate > 0) || !(newRate > 0)) {
+    _story('needs-rate');
+    rowsEl.innerHTML = '';
+    _resetBreakdown(rowsEl, breakdownBtn);
+    totalEl.style.display = 'none';
+    if (periodWrap) periodWrap.style.display = 'none';
+    noticeEl.style.display = 'block';
+    setStatus(noticeEl, 'ℹ️ Fill in both hourly rates above to work out your lump sum — the London Allowance part alone would leave out most of it.');
+    _surfaceCorruptReset(noticeEl, awardTy?.label);
+    return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false, bpIncluded };
+  }
+
   const rateDiff   = hasRate   ? newRate   - oldRate   : 0;
   const londonDiff = hasLondon ? newLondon - oldLondon : 0;
   const periods    = getPeriods();
@@ -700,6 +721,9 @@ export function calcBackPay() {
   // rate-diff (a normal week is owed the rise regardless), but any PREMIUM arrears they carried are
   // missing — so they're NAMED in the notice instead of the count being silently optimistic.
   const _basicOnly = /** @type {Date[]} */ ([]);
+  // The window's payslips, and those the member was employed for: none of them means they joined
+  // after the period the award covers, which is its own state, not "nothing … yet" (paycalc-2-17).
+  let _inWindow = 0, _employedInWindow = 0;
   periods.forEach(/** @param {any} p */ p => {
     try {
       if (fromPNum && p.num < fromPNum) return;
@@ -710,6 +734,8 @@ export function calcBackPay() {
       // Skip periods already paid at the new rate (a settled award's mid-year application date) — they
       // owe no arrears. Without this the accrual would double-count a historic award viewed at a late period.
       if (_awardFrom && p.payday >= _awardFrom) return;
+      _inWindow++;
+      if (getProRateFactor(p) > 0) _employedInWindow++;
       const parsed = readSavedPeriod(p.num);
       // Include EVERY period in the award window — even one never opened in the app. A normal
       // contracted week is owed the rise whether worked or paid at contracted rate on leave/sick
@@ -816,16 +842,21 @@ export function calcBackPay() {
     // taller/shorter than the content the height was measured against).
     if (rowsEl.classList.contains('open')) rowsEl.style.maxHeight = `${rowsEl.scrollHeight}px`;
   } else {
-    _story('empty-window');
+    // A member who started after the whole window owes nothing and is owed nothing: say THAT, and
+    // never "your … payslip" or "yet" — they had no such payslip, and nothing is coming.
+    const _joinedAfter = _inWindow > 0 && _employedInWindow === 0;
+    _story(_joinedAfter ? 'joined-after' : 'empty-window');
     totalEl.style.display = 'none';
     if (periodWrap) periodWrap.style.display = 'none';
     // Explain the empty state in the (visible) notice element. The old message lived inside the
     // collapsed breakdown panel — max-height:0 with its toggle hidden — so it was never actually
     // visible; and its text ("Enter hours for each period first") was stale anyway, since unvisited
     // periods now accrue contracted arrears. This state means the award window itself is empty
-    // (e.g. the paid-in payslip is at/before April, or every window period pre-dates a joiner's start).
+    // (e.g. the paid-in payslip is at/before April).
     noticeEl.style.display = 'block';
-    setStatus(noticeEl, 'ℹ️ Nothing to backdate yet — there are no paid periods between April and the selected payslip.');
+    setStatus(noticeEl, _joinedAfter
+      ? 'ℹ️ You started after the period this award covers, so there is nothing to backdate for you.'
+      : 'ℹ️ Nothing to backdate yet — there are no paid periods between April and the selected payslip.');
     rowsEl.innerHTML = '';
     _resetBreakdown(rowsEl, breakdownBtn);
   }

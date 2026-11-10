@@ -663,6 +663,26 @@ describe('a grade change never prices one grade\'s figure in another\'s box', ()
         } finally { setGrade('cea'); }
     });
 
+    test('with the old rate missing, there is NO total — never the London Allowance alone as "yours" (paycalc-2-5)', () => {
+        try {
+            openCard({ viewed: VIEW_25, mode: 'compute' });   // (it stores CEA, so the grade is set after)
+            setGrade('ces');
+            els.oldRate.value = '';                           // not on record for CES 2025/26, not typed yet
+            const out = calcBackPay();
+            assert.equal(awardRatesFor('ces', '2025/26')?.pre, null, 'precondition: the old rate is not on record');
+            assert.equal(out.bpAmount, 0, 'the London arrears alone were offered as the lump');
+            assert.equal(els.backPayTotal.style.display, 'none');
+            assert.doesNotMatch(els.bpAwardScope.innerHTML, /Yours is roughly/);
+            assert.match(els.bpAwardScope.innerHTML, /Fill in both hourly rates below to work yours out/);
+            assert.match(els.backPayNotice.textContent, /London Allowance part alone would leave out most of it/);
+
+            els.oldRate.value = '21.09';                      // …and the box can be completed by hand
+            const typed = calcBackPay();
+            assert.ok(typed.bpAmount > 100, 'a completed pair prices the whole lump');
+            assert.match(els.bpAwardScope.innerHTML, /Yours is roughly/);
+        } finally { setGrade('cea'); }
+    });
+
     test('a CES member\'s own typed old rate survives a reload', () => {
         try {
             openCard({ viewed: VIEW_25 });
@@ -673,5 +693,29 @@ describe('a grade change never prices one grade\'s figure in another\'s box', ()
             calcBackPay();
             assert.equal(els.oldRate.value, '21.09');
         } finally { setGrade('cea'); }
+    });
+});
+
+// ── A MEMBER WHO STARTED AFTER THE AWARD'S WINDOW (paycalc-2-17) ────────────────────────────────
+describe('a member who started after the award\'s window is told so, not "your payslip … yet"', () => {
+    test('every window payslip before their start: the joined-after state', () => {
+        openCard();
+        _members.push({ name: 'Z. Member', role: 'CEA', startDate: new Date(AWARD_FROM.getTime() + 23 * 864e5) });
+        const out = calcBackPay();
+        assert.equal(out.bpAmount, 0);
+        const story = els.bpAwardScope.innerHTML;
+        assert.match(story, /paid from the <strong>/, 'they had no such payslip — it is "the", not "your"');
+        assert.doesNotMatch(story, /your <strong>/);
+        assert.match(story, /You started after the period it covers, so there is nothing to backdate for you\./);
+        assert.doesNotMatch(story, /\byet\b/, '"yet" promises a lump that will never come');
+        assert.match(els.backPayNotice.textContent, /You started after the period this award covers/);
+    });
+
+    test('a member who started INSIDE the window is priced as usual (the control)', () => {
+        openCard();
+        _members.push({ name: 'Z. Member', role: 'CEA', startDate: new Date(WINDOW[2].start.getTime() + 2 * 864e5) });
+        const out = calcBackPay();
+        assert.ok(out.bpAmount > 0);
+        assert.match(els.bpAwardScope.innerHTML, /your <strong>.*Yours is roughly/s);
     });
 });
