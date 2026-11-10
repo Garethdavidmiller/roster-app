@@ -560,6 +560,14 @@ export function init() {
     function initDesignPicker() {
         const $ = (/** @type {string} */ id) => document.getElementById(id);
         const onRename = () => { if (activeDesignId) renameDesign(activeDesignId); };
+        // ONE ACTION PER OPENING OF ··· MORE (links-app-11). A row stays tappable through the sheet's
+        // fade, and each tap closes the sheet and runs its action after the fade — so a double tap ran
+        // it twice: two Delete confirms stacked (and, both answered, the design filed in the bin
+        // twice), two New prompts, Compare on and straight back off. select-sheet.js met the same
+        // hazard and answers it the same way. Re-armed each time the sheet opens.
+        let sheetSpent = false;
+        $('designMoreBtn')?.addEventListener('click', () => { sheetSpent = false; });
+        const once = (/** @type {() => any} */ run) => () => { if (sheetSpent) return; sheetSpent = true; run(); };
         header = createDesignHeader({
             pickList: $('designPickList'), pickerSub: $('designPickerSub'), pickerButton: /** @type {HTMLButtonElement|null} */ ($('designPickerBtn')),
             faceName: $('designFaceName'), eyebrow: $('designEyebrow'), count: $('designCount'),
@@ -578,8 +586,8 @@ export function init() {
             sheet:  { overlay: $('designMoreLb'),   content: $('designMoreContent'),   closeBtn: $('designMoreClose'),   initialFocus: $('dupDesignBtn'), create: createLightbox },
             picker: { overlay: $('designPickerLb'), content: $('designPickerContent'), closeBtn: $('designPickerClose'), create: createLightbox },
             sheetActions: [
-                [$('dupDesignBtn'), duplicateDesign], [$('designRenameMenuBtn'), onRename], [$('compareBtn'), compare.toggleCompareMode],
-                [$('newDesignBtn'), createDesign], [$('importDesignBtn'), () => library?.openImport()], [$('designDeleteBtn'), () => { if (activeDesignId) deleteDesign(activeDesignId); }],
+                [$('dupDesignBtn'), once(duplicateDesign)], [$('designRenameMenuBtn'), once(onRename)], [$('compareBtn'), once(compare.toggleCompareMode)],
+                [$('newDesignBtn'), once(createDesign)], [$('importDesignBtn'), once(() => library?.openImport())], [$('designDeleteBtn'), once(() => { if (activeDesignId) deleteDesign(activeDesignId); })],
             ],
         });
         $('compareChips')?.addEventListener('click', e => {
@@ -662,10 +670,49 @@ export function init() {
 
 
     /** Surface a design create/rename/duplicate outcome (or a client-side validation error) on the
-     *  shared save-status line, so a rules rejection is never silent. @param {string} msg @param {'ok'|'err'} [kind] */
+     *  shared save-status line, so a rules rejection is never silent. `''` is the neutral voice: a write
+     *  under way, or one queued in this browser — neither a success nor a failure.
+     *  @param {string} msg @param {'ok'|'err'|''} [kind] */
     function _designActionStatus(msg, kind = 'err') {
         const status = document.getElementById('linksSaveStatus');
-        if (status) { status.textContent = msg; status.className = 'links-save-status ' + kind; }
+        if (status) { status.textContent = msg; status.className = 'links-save-status' + (kind ? ' ' + kind : ''); }
+    }
+
+    /** What a write QUEUED in this browser says — a save, a new design or a copy alike (links-app-4): it is
+     *  in the device's own queue, not on the server, so it never says "✓ Saved" (iPhone audit, Nov 2026:
+     *  "when you're back online" promised an upload a closed page cannot make). */
+    const QUEUED_SAVE = 'Saved in this browser — it uploads the next time Links is open here with a connection';
+
+    /** The open design's CONTENT, as one comparable string — so a write that lands late can tell whether
+     *  anything was edited while it was in flight (links-app-3). The name is left out: a rename is saved
+     *  as it is made, so a page renamed meanwhile has nothing unsaved to lose. */
+    const _contentKey = () => JSON.stringify(design ? [design.patterns, normaliseWindow(design.window)] : null);
+
+    /** The design New blank design or Save a copy as… is making, from the press until it lands: null when
+     *  none, '' while its questions are open, its name while the write is in flight (links-app-3). One at
+     *  a time — a second press passed the duplicate-name check before the first was in the list. */
+    let making = /** @type {string|null} */ (null);
+
+    /**
+     * A design New blank design or Save a copy as… made has LANDED (links-app-3). It joins the list either
+     * way, and it OPENS only if the page is where the press left it: the same design open, and nothing
+     * edited since. Opening it regardless replaced whatever had been done in the meantime and cleared
+     * `dirty` over it, unasked — on a phone whose signal was up but not answering, that was every edit
+     * between the press and the reply.
+     * @param {any} d the entry, already in `designs`
+     * @param {{ act: number, before: string, queued: boolean, made: string }} o  `made` names it in a sentence
+     */
+    function _openMade(d, { act, before, queued, made }) {
+        if (activation === act && _contentKey() === before) {
+            _activateDesign(d);
+            if (queued) _designActionStatus(QUEUED_SAVE, '');
+            return;
+        }
+        renderDesignPicker();
+        const why = activation !== act ? 'another design was opened meanwhile'
+            : 'the open design was edited meanwhile — those edits are still here, not saved';
+        _designActionStatus(`${made} is in the list${queued ? `, saved in this browser — it uploads the next time Links is open here with a connection` : ''}. `
+            + `It was not opened, because ${why}.`, queued ? '' : 'ok');
     }
 
     /** Decide a typed design name — length AND the ambiguous-duplicate rule (links-design-naming.js).
@@ -678,28 +725,35 @@ export function init() {
 
     /** Create a new blank design. */
     async function createDesign() {
-        // Ask about unsaved work FIRST (v19.38). This used to run after the name prompt, so you typed
-        // a name and were only then asked whether to abandon your changes — the decision that might
-        // cancel the whole action came last.
-        if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new' })) return;
-        const name = (await promptDialog({ title: 'New design', message: 'Name for this design (e.g. "Option A"):', placeholder: 'Option A', maxLength: MAX_DESIGN_NAME, confirmLabel: 'Create' }))?.trim();
-        if (!name) return;
-        if (_designNameRejected(name)) return;
+        if (making !== null) { if (making) _designActionStatus(`“${making}” is still being created — try again once it is in the list.`, ''); return; }
+        making = '';
         try {
+            // Ask about unsaved work FIRST (v19.38). This used to run after the name prompt, so you typed
+            // a name and were only then asked whether to abandon your changes — the decision that might
+            // cancel the whole action came last.
+            if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new' })) return;
+            const name = (await promptDialog({ title: 'New design', message: 'Name for this design (e.g. "Option A"):', placeholder: 'Option A', maxLength: MAX_DESIGN_NAME, confirmLabel: 'Create' }))?.trim();
+            if (!name) return;
+            if (_designNameRejected(name)) return;
+            making = name;
+            _designActionStatus(`Creating “${name}”…`, '');
+            const act = activation, before = _contentKey();
             // A blank design starts on the app default window — docPayload normalises it. The
             // store arms the baseline from the server, so the FIRST content-save is guarded;
             // without that a new design carried updatedAt:null, the guard read it as "nothing to
             // compare", and a concurrent edit was clobbered silently.
-            const { id: newId, updatedAt: createdTs, baseline: newBase } = await store.create(
+            const { id: newId, updatedAt: createdTs, baseline: newBase, queued } = await store.create(
                 docPayload({ name, patterns: {}, window: null },
                            { updatedBy: currentUser, updatedAt: serverTimestamp() }));
             const d = restoredEntryFrom({ id: newId, name, patterns: {}, window: null }, { updatedAt: createdTs, updatedBy: currentUser, revision: newBase.loadedRevision });
             designs.push(d);
             _sortDesigns();
-            _activateDesign(d);
+            _openMade(d, { act, before, queued: !!queued, made: `“${name}”` });
         } catch (err) {
             console.error('[Links] Create design failed:', err);
             _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t create the design — check your connection and try again.');
+        } finally {
+            making = null;
         }
     }
 
@@ -712,35 +766,44 @@ export function init() {
      *   original to "go back to its last save", so that confirm would describe a thing not there. */
     async function duplicateDesign(originalGone = false) {
         if (!activeDesignId || !design) return;
-        // The fifth path that can lose the working copy to start asking (v22.62; import the sixth).
-        // Its wording is deliberately NOT the others' "changes will be lost" — the copy is taken
-        // from the LIVE patterns, so the work goes INTO it and the original reverts to its last
-        // save. Full reasoning: `.claude/rules/links-design.md`. Asked before the name prompt, per
-        // `createDesign`: the decision that might cancel the action must not come last.
-        if (dirty && !originalGone && !await confirmDialog({
-            message: 'Your unsaved changes will go into the copy, and "' + (design.name || 'this design')
-                   + '" will go back to its last save. Duplicate anyway?',
-            confirmLabel: 'Duplicate',
-        })) return;
-        const name = (await promptDialog({ title: 'Duplicate design', message: 'Name for the duplicate:', defaultValue: proposeCopyName(design.name || 'Design', designs), maxLength: MAX_DESIGN_NAME, confirmLabel: 'Duplicate' }))?.trim();
-        if (!name) return;
-        if (_designNameRejected(name)) return;
-        const patterns = deepCopyPatterns(design.patterns);
-        // A duplicate inherits the window it was designed to. Copying the patterns alone would
-        // silently re-base the copy on the standard hours, which is the one thing a designer
-        // duplicating a moved-boundary proposal is least likely to notice.
-        const window = normaliseWindow(design.window);
+        if (making !== null) { if (making) _designActionStatus(`“${making}” is still being created — try again once it is in the list.`, ''); return; }
+        making = '';
         try {
-            const { id: dupId, updatedAt: dupTs, baseline: dupBase } = await store.create(
+            // The fifth path that can lose the working copy to start asking (v22.62; import the sixth).
+            // Its wording is deliberately NOT the others' "changes will be lost" — the copy is taken
+            // from the LIVE patterns, so the work goes INTO it and the original reverts to its last
+            // save. Full reasoning: `.claude/rules/links-design.md`. Asked before the name prompt, per
+            // `createDesign`: the decision that might cancel the action must not come last.
+            if (dirty && !originalGone && !await confirmDialog({
+                message: 'Your unsaved changes will go into the copy, and "' + (design.name || 'this design')
+                       + '" will go back to its last save. Duplicate anyway?',
+                confirmLabel: 'Duplicate',
+            })) return;
+            const name = (await promptDialog({ title: 'Duplicate design', message: 'Name for the duplicate:', defaultValue: proposeCopyName(design.name || 'Design', designs), maxLength: MAX_DESIGN_NAME, confirmLabel: 'Duplicate' }))?.trim();
+            if (!name) return;
+            if (_designNameRejected(name)) return;
+            if (!design) return;   // the dialogs await; the page is the same one, but the type checker cannot know that
+            making = name;
+            const patterns = deepCopyPatterns(design.patterns);
+            // A duplicate inherits the window it was designed to. Copying the patterns alone would
+            // silently re-base the copy on the standard hours, which is the one thing a designer
+            // duplicating a moved-boundary proposal is least likely to notice.
+            const window = normaliseWindow(design.window);
+            _designActionStatus(`Saving a copy as “${name}”…`, '');
+            const act = activation, before = _contentKey();
+            const { id: dupId, updatedAt: dupTs, baseline: dupBase, queued } = await store.create(
                 docPayload({ name, patterns, window },
                            { updatedBy: currentUser, updatedAt: serverTimestamp() }));
             const d = restoredEntryFrom({ id: dupId, name, patterns, window }, { updatedAt: dupTs, updatedBy: currentUser, revision: dupBase.loadedRevision });
             designs.push(d);
             _sortDesigns();
-            _activateDesign(d);
+            // The copy holds the design as it was at the press; opening it over later edits would drop them.
+            _openMade(d, { act, before, queued: !!queued, made: `The copy “${name}”` });
         } catch (err) {
             console.error('[Links] Duplicate design failed:', err);
             _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t duplicate the design — check your connection and try again.');
+        } finally {
+            making = null;
         }
     }
 
@@ -814,9 +877,17 @@ export function init() {
      * @param {any} id
      */
     async function deleteDesign(id) {
-        if (!canSoftDelete(designs.length)) return;
+        if (!canSoftDelete(designs.length) || deleting.has(id)) return;
         const d = designs.find(x => x.id === id);
         if (!d) return;
+        deleting.add(id);
+        try { await _deleteDesign(id, d); } finally { deleting.delete(id); }
+    }
+    /** Designs with a delete under way, from the press until it lands — one at a time per design, or a
+     *  second press filed the same design in Recently deleted twice. @type {Set<string>} */
+    const deleting = new Set();
+    /** @param {string} id @param {any} d its entry in `designs` */
+    async function _deleteDesign(id, d) {
         // ── UNSAVED WORK IS NOT IN THE BIN (v22.56, external review) ────────────────────────
         // Recently deleted holds the last SAVED version. Deleting the design you are editing
         // therefore threw away every change since that save — silently, because the dialog spoke
@@ -858,13 +929,19 @@ export function init() {
             danger: true,
         })) return;
         try {
+            // Said while it is under way, and checked again when it lands (whole-app fix, Nov 2026): a
+            // signal that is up but not answering holds the write, the designer carries on, and the
+            // landing used to open the next design over whatever they had done meanwhile.
+            _designActionStatus(`Deleting “${d.name}”…`, '');
+            const before = _contentKey();
             await store.softDelete(id, currentUser);
             designs = designs.filter(x => x.id !== id);
             // deletedAt is null until the server resolves it — deliberately kept as null rather
             // than stamped with a client clock, so the row reads "Deleted by X" until the real
             // time is known instead of showing a countdown built from an invented figure.
             library.addToBin(binEntryFrom(d, currentUser));
-            const newActive = (id === activeDesignId) ? designs[0] : null;
+            const wasOpen = id === activeDesignId;
+            const newActive = wasOpen && _contentKey() === before ? designs[0] : null;
             // Exit compare mode if the compare target was deleted, the delete drops below the 2
             // designs compare needs, OR the newly-promoted active design IS the current compare
             // target — otherwise a design would be compared against ITSELF (every cell "identical",
@@ -874,8 +951,14 @@ export function init() {
             if (id === cmpId || designs.length + PROPOSAL_ENTRIES.length < 2 || (newActive && newActive.id === cmpId) || !newActive) {
                 compare.resetCompare();
             }
-            if (newActive) _activateDesign(newActive);
-            else { renderDesignPicker(); renderGrid(); compare.renderCompare(); }
+            if (newActive) { _activateDesign(newActive); return; }
+            // Edited while its own delete was in flight: the design is in the bin, and the edits are kept
+            // as an unsaved NEW design rather than thrown away with it.
+            if (wasOpen && design) _openAsNew(design.patterns, design.window);
+            renderDesignPicker(); renderGrid(); renderBrushBar(); renderDesignChecks(); renderCoverageCard(); compare.renderCompare(); updateSaveBtn();
+            _designActionStatus(wasOpen
+                ? `“${d.name}” is in Recently deleted. What you changed while it was being deleted is still here, not saved — Save keeps it as a new design.`
+                : `“${d.name}” is in Recently deleted.`, wasOpen ? '' : 'ok');
         } catch (err) {
             console.error('[Links] Delete failed:', err);
             // Was console-only: a rules rejection or a dropped connection looked like the button
@@ -884,15 +967,23 @@ export function init() {
         }
     }
 
+    /** A switch is asking whether to drop unsaved work. A picker row stays tappable through the sheet's
+     *  fade, so a double tap asked twice, the second question stacked on the first (links-app-11). */
+    let switching = false;
     /**
      * Switch the active design. Warns if dirty.
      * @param {any} id
      */
     async function selectDesign(id) {
-        if (id === activeDesignId || (id === activeProposalId && !activeDesignId)) return;
+        if (switching || id === activeDesignId || (id === activeProposalId && !activeDesignId)) return;
         // A switch that does NOT happen must put the picker back — `change` has already moved the
         // select. Argued in links-design-header.js's render (v23.33).
-        if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })) { renderDesignPicker(); return; }
+        if (dirty) {
+            switching = true;
+            const ok = await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })
+                .finally(() => { switching = false; });
+            if (!ok) { renderDesignPicker(); return; }
+        }
         const d = designs.find(x => x.id === id) ?? PROPOSAL_ENTRIES.find(x => x.id === id);
         if (!d) { renderDesignPicker(); return; }
         // If selecting the current compare target, exit compare mode first
@@ -944,13 +1035,32 @@ export function init() {
      *  one, which Save names. @param {any} kept */
     function restoreDraft(kept) {
         const entry = [...designs, ...PROPOSAL_ENTRIES].find(x => x.id === kept.scope.design);
-        if (entry) _activateDesign(entry);
-        else { activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, ''); activation++; compare.resetCompare(); }
-        const own = entry ? design : null;   // the working copy `_activateDesign` has just made, or nothing
-        design = { id: own?.id ?? null, name: own?.name ?? '', patterns: normalisePatterns(kept.data.patterns), window: normaliseWindow(kept.data.window) };
-        if (entry && activeDesignId) ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = draftBaseline(kept.data.baseline));
-        dirty = true;
+        const patterns = normalisePatterns(kept.data.patterns), window = normaliseWindow(kept.data.window);
+        if (entry) {
+            _activateDesign(entry);
+            design = { id: design?.id ?? null, name: design?.name ?? '', patterns, window };   // on the copy `_activateDesign` just made
+            if (activeDesignId) ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = draftBaseline(kept.data.baseline));
+            dirty = true;
+        } else _openAsNew(patterns, window);
         renderDesignPicker(); renderGrid(); renderBrushBar(); renderDesignChecks(); renderCoverageCard(); compare.renderCompare(); updateSaveBtn();
+    }
+
+    /**
+     * Make the working copy a NEW, unsaved design holding `patterns` and `window` — no id, and no name
+     * until its first save. For work whose design is not in the list: a kept draft of a design never
+     * saved or since deleted, and an open design edited while its own delete was in flight. Nothing on
+     * the page may go on describing the design it came from: its "Last saved by" line and its remembered
+     * generator table both stayed behind on the draft's path (links-app-9). The caller renders.
+     * @param {any} patterns @param {any} window
+     */
+    function _openAsNew(patterns, window) {
+        activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, '');
+        activation++;
+        compare.resetCompare();
+        design = { id: null, name: '', patterns, window };
+        dirty = true;
+        updateLastSaved(null, null);
+        refreshGenTargetsForDesign();
     }
 
     // COMPARE MODE was extracted to links-compare.js (v17.71); wired via `compare` above.
@@ -1911,7 +2021,7 @@ export function init() {
             if (same) draftSlot.forget();   // saved — or queued in Firestore's own persistent queue: no copy to keep
             updateSaveBtn();
             // Queued is IN THIS BROWSER (iPhone audit, Nov 2026): "when you're back online" promised what a closed page cannot do.
-            const [said, lead] = queued ? ['Saved in this browser — it uploads the next time Links is open here with a connection', 'Saved in this browser'] : ['✓ Saved', '✓ Saved'];
+            const [said, lead] = queued ? [QUEUED_SAVE, 'Saved in this browser'] : ['✓ Saved', '✓ Saved'];
             if (status) { setStatus(status, same ? said : `${lead} — your later changes are not saved yet`); status.className = `links-save-status${queued ? '' : ' ok'}`; }
             updateLastSaved(currentUser, lastSaveTime(entry) ?? new Date());
         };

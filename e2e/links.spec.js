@@ -3632,6 +3632,103 @@ test('links re-review: an offline save says it is in this browser, not "✓ Save
     await context.setOffline(false);
 });
 
+// ── A design MADE while a write is in flight (whole-app fix, Nov 2026 — links-app-3) ─────────────────
+// A create resolves only when the server answers. With the signal up but not answering, Save a copy
+// as… and New blank design showed nothing, a second press passed the duplicate-name check (the first
+// was not in the list yet) and made two, and the landing opened the new design over whatever had been
+// done meanwhile, clearing `dirty` over it. The create is HELD here (addDocHold), as the slow server.
+test('links: Save a copy as… says it is saving, makes one copy per press, and a late landing keeps later edits', async ({ page }) => {
+    await openWindowDesign(page);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
+    const status = page.locator('#linksSaveStatus');
+    await sheetAction(page, 'dupDesignBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill('Copy A');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toHaveText('Saving a copy as “Copy A”…');
+
+    // A second press while it is in flight makes nothing more.
+    await sheetAction(page, 'dupDesignBtn');
+    await expect(status).toContainText('“Copy A” is still being created');
+    await expect(page.locator('.dialog-overlay'), 'no second name prompt').toHaveCount(0);
+
+    // The designer carries on, and edits the design in front of them.
+    await page.locator('#winMonSatEnd').fill('22:00');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+
+    // The copy lands: it joins the list, and does NOT open over the edit.
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseAddDoc());
+    await expect(status).toContainText('The copy “Copy A” is in the list');
+    await expect(status).toContainText('edited meanwhile');
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('22:00');
+    await expect(page.locator('#linksSaveBtn'), 'the edit is still unsaved work').toBeEnabled();
+    await expect(designOptions(page).filter({ hasText: 'Copy A' })).toHaveCount(1);
+    const added = () => page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => w.added).length);
+    expect(await added(), 'two presses, one copy').toBe(1);
+
+    // And a New blank design that nothing interrupts opens when it lands, as it always did.
+    await page.locator('#linksSaveBtn').click();
+    await expect(status).toHaveText('✓ Saved');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E._addDocGate = null; });   // hold the next create too
+    await sheetAction(page, 'newDesignBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill('Option N');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toHaveText('Creating “Option N”…');
+    await sheetAction(page, 'newDesignBtn');
+    await expect(status).toContainText('“Option N” is still being created');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseAddDoc());
+    await expect(activeDesignName(page)).toHaveText('Option N');
+    expect(await added()).toBe(2);
+});
+
+// A copy made OFFLINE is only in this browser's queue (links-app-4). It used to open as plain "Saved",
+// with nothing to say the server does not have it yet — unlike a Save in the same state.
+test('links: a copy made offline says it is saved in this browser, not "Saved"', async ({ page, context }) => {
+    await openWindowDesign(page);
+    await context.setOffline(true);
+    await sheetAction(page, 'dupDesignBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill('Offline copy');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    await expect(status).not.toHaveClass(/\bok\b/);
+    await context.setOffline(false);
+});
+
+// A row stays tappable through its sheet's fade, and each tap closes the sheet and runs the row after
+// the fade — so a DOUBLE TAP ran it twice (links-app-11): Compare on and straight back off, two Rename
+// prompts, and on a picker row two "unsaved changes" questions stacked.
+test('links: a double tap on a ··· More row runs it once, and on a picker row asks once', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    await openDesignSheet(page);
+    await page.locator('#compareBtn').dblclick();
+    await expect(page.locator('#compareBtn'), 'compare is ON — not on and straight back off').toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('body')).toHaveClass(/links-compare-on/);
+    await page.waitForTimeout(700);   // the second tap's run would land 500ms after it; prove it did not
+    await expect(page.locator('#compareBtn')).toHaveAttribute('aria-pressed', 'true');
+    await sheetAction(page, 'compareBtn');   // the sheet re-arms on the next opening
+    await expect(page.locator('#compareBtn')).toHaveAttribute('aria-pressed', 'false');
+
+    await openDesignSheet(page);
+    await page.locator('#designRenameMenuBtn').dblclick();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(1);
+    await page.waitForTimeout(700);
+    await expect(page.locator('.dialog-overlay'), 'one Rename prompt').toHaveCount(1);
+    await page.locator('.dialog-overlay .dialog-btn-cancel').click();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+
+    // A picker row, with unsaved work: one question.
+    await page.locator('#brushBar .brush-chip').nth(2).click();
+    await page.locator('.shift-cell-btn').first().click();
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+    await openDesignPicker(page);
+    await designOptions(page).filter({ hasText: 'Design B' }).dblclick();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(1);
+    await page.waitForTimeout(700);
+    await expect(page.locator('.dialog-overlay'), 'one switch question').toHaveCount(1);
+});
+
 test('links re-review: declining to replace your OWN other version is not worded as "theirs"', async ({ page }) => {
     await openWindowDesign(page);
     await page.evaluate(() => {   // this design was saved since, under this member's own name
@@ -3723,6 +3820,38 @@ test('links: Discard deletes the kept work and leaves the saved design as it was
     await expect(page.locator('#winMonSatEnd')).toHaveValue('23:55');
     await expect(page.locator('#linksSaveBtn'), 'nothing unsaved').toBeDisabled();
     expect(await page.evaluate((k) => localStorage.getItem(k), LINKS_DRAFT)).toBeNull();
+});
+
+// A draft of a design that was NEVER saved comes back as a new design (links-app-9). That path set the
+// ids and nothing else, so the sticky row went on reading "Last saved by S. Silva …" — the design the
+// load had opened a moment before — and the generator went on showing THAT design's remembered table.
+test('links: a never-saved draft restored as a new design names no saver, and shows its own targets', async ({ page }) => {
+    await seedContractTargets(page, { designIds: ['unsaved'] });   // the table a new design builds from: 5 cover weeks
+    await page.addInitScript(() => {
+        // Morning heavy's own remembered table, with a cover week more, so the two can be told apart.
+        localStorage.setItem('myb_links_gen_d1', JSON.stringify({ slots: [{ time: '06:20-14:20', weekday: 6, sat: 4, sun: 0 }], spareLines: 6 }));
+    });
+    await openWindowDesign(page);
+    await expect(page.locator('#linksLastSaved')).toContainText('Last saved by S. Silva');
+    // A shortlisted proposal open, Build makes a NEW design beside it — one nobody has saved.
+    await openDesignPicker(page);
+    await proposalOptions(page).first().click();
+    await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#designEyebrow')).toHaveText('New design');
+    await setVisibility(page, 'hidden');   // kept, as a design with no id
+    await reloadPastLeaveSite(page);
+
+    // The load opens Morning heavy first — its line, its table — and then offers the draft.
+    const offer = page.locator('.dialog-overlay.visible');
+    await expect(offer).toContainText('Restore your unsaved changes');
+    await expect(page.locator('#genSpareLines')).toHaveValue('6');
+    await offer.getByRole('button', { name: 'Restore' }).click();
+    await expect(page.locator('#designEyebrow')).toHaveText('New design');
+    await expect(page.locator('#linksLastSaved'), 'no "Last saved by" on a design nobody has saved').toHaveText('');
+    await expect(page.locator('#genSpareLines'), 'the new design\'s own targets').toHaveValue('5');
 });
 
 test('links: another designer signing in on the same phone is offered nothing', async ({ page }) => {
