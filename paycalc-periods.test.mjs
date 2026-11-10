@@ -1073,6 +1073,20 @@ describe('ytdUpdateFrom — when the take-home asks for the latest Year to Date 
         assert.equal(ask({ taxCode: 'NT' }), null, 'no tax to sharpen');
         assert.equal(ask({ taxCode: '1257L' }), oct23);
     });
+
+    test('quiet for a code the calculator does not recognise — the figures would make it worse', () => {
+        // Whole-app review, Nov 2026: "OT" typed for 0T is priced on the standard allowance, and the
+        // line went on asking for Year to Date figures, which with a wrong code sharpen nothing. The
+        // flag is computeTax's own, as calculate() hands it over.
+        const t = getThresholds(TY.label);
+        for (const code of ['OT', 'DO', '500K', '1182', 'SNT']) {
+            const { recognised } = computeTax(2400, code, t);
+            assert.equal(recognised, false, `premise: the engine does not know ${code}`);
+            assert.equal(ask({ taxCode: code, recognised }), null, code);
+        }
+        assert.equal(ask({ taxCode: '1257L', recognised: computeTax(2400, '1257L', t).recognised }), oct23,
+            'a known code still asks');
+    });
 });
 
 // ── THE YEAR TO DATE CARD'S OWN NOTE AND CHIP, AND THE SOURCE IT RECORDS ON LOAD ────────────────

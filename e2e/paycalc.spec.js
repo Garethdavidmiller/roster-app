@@ -221,6 +221,41 @@ test('paycalc: the payslip check is there while the payslip is in hand, and name
     expect(errors).toHaveLength(0);
 });
 
+// ── A CODE THE CALCULATOR DOES NOT RECOGNISE, SAID WHERE IT MATTERS (whole-app review, Nov 2026) ──
+// Priced on the standard 1257L allowance, and only the check line above said so — hidden until the
+// payslip's cut-off. The words are unit-tested; this pins calculate() handing computeTax's own flag to
+// the Income Tax row, the box's warning and the Year to Date line, on the payslip the page opens on.
+test('paycalc: an unrecognised tax code is named under Income Tax and the box, and the Year to Date line holds back', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));   // 20 Nov is next; 23 Oct is paid
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    const line = page.locator('#netYtdNudge');
+    await expect(line, 'premise: with 1257L the line asks for the figures').toBeVisible();
+
+    await page.locator('#taxCode').fill('OT');
+    await expect(page.locator('#summary')).toContainText("Tax code OT isn't one the calculator recognises");
+    await expect(line, 'with a wrong code the figures make the estimate worse').toBeHidden();
+    await expect(page.locator('#taxCodeWarn.show'), 'nothing flashes while the box is being typed in').toHaveCount(0);
+    await page.locator('#taxCode').blur();
+    const warn = page.locator('#taxCodeWarn');
+    await expect(warn).toBeVisible();
+    await expect(warn).toContainText('0T and D0 are written with a zero, not the letter O');
+
+    await page.locator('#taxCode').fill('0T');
+    await page.locator('#taxCode').blur();
+    await expect(warn).toBeHidden();
+    await expect(page.locator('#summary')).not.toContainText('recognises');
+    expect(errors).toHaveLength(0);
+});
+
 // A payday the calculator does not carry used to open the current payslip silently (whole-app review).
 test('paycalc: a link to a payday outside the calculator says so, and a covered one says nothing', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));

@@ -535,13 +535,17 @@ export function nextPeriod(onPeriodChange) {
  *    payslip's would undo the estimate the member is waiting on;
  *  - never on the tax year's first payslip, where Year to Date starts fresh;
  *  - never for a non-cumulative code (W1, M1, X) or NT, which the figures cannot change;
+ *  - never for a code the calculator does not recognise (`recognised` is computeTax's): it is priced
+ *    on the standard allowance, and Year to Date figures make a wrong code's estimate WORSE, which is
+ *    why the "Check against your payslip" line holds that advice back too;
  *  - never while the figures are IN USE (`inUse` is computeTax's `usingCumulative`, so a box holding
  *    something unreadable counts as not in use), nor when they come from this payslip or a later one;
  *  - and only once the payslip to copy from can be in the member's hand (from its cut-off).
- * @param {{ p: any, ty: { first: number }, src: number, inUse: boolean, taxCode: string, now?: Date }} a
+ * @param {{ p: any, ty: { first: number }, src: number, inUse: boolean, taxCode: string,
+ *           recognised?: boolean, now?: Date }} a
  * @returns {any} the period to copy the figures from, or null
  */
-export function ytdUpdateFrom({ p, ty, src, inUse, taxCode, now = new Date() }) {
+export function ytdUpdateFrom({ p, ty, src, inUse, taxCode, recognised = true, now = new Date() }) {
   const prevP = p ? getPeriods().find((/** @type {any} */ x) => x.num === p.num - 1) : null;
   if (!prevP) return null;
   if (p.num < _todayAt(now).today) return null;
@@ -551,6 +555,7 @@ export function ytdUpdateFrom({ p, ty, src, inUse, taxCode, now = new Date() }) 
   const code = String(taxCode ?? '').toUpperCase().replace(/\s+/g, '') || '1257L';
   if (/[WM]1$|X$/.test(code)) return null;
   if (code.replace(/^C/, '') === 'NT') return null;
+  if (recognised === false) return null;
   if (inUse || (src && src >= p.num)) return null;
   return payslipMayBeInHand(prevP, now) ? prevP : null;
 }

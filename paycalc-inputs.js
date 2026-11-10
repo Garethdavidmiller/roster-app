@@ -1,16 +1,20 @@
 // @ts-check
 // Pay-calculator form-field input helpers — extracted from paycalc-app.js (v18.60, review item 10:
 // "continue focused coordinator extraction"). These read/normalise the numbers a member types into
-// the hours & figures fields and own the live "= 7h 30m" decimal-conversion hint.
+// the hours & figures fields, own the live "= 7h 30m" decimal-conversion hint and the Tax Code box's
+// warning.
 //
-// They depend ONLY on the DOM (`document`) plus the pure number/format helpers imported below — NO
-// coordinator closure state — so they lift cleanly out of paycalc-app.js's init() and are
+// They depend ONLY on the DOM (`document`) plus the helpers imported below (pure, but for setStatus,
+// which only writes the element it is handed) — NO coordinator closure state — so they lift cleanly
+// out of paycalc-app.js's init() and are
 // unit-testable in Node against a fake `document` (paycalc-inputs.test.mjs). The event WIRING that
 // USES them (autoDecimalHours, onHhMm) stays in the coordinator, because it closes over
 // calculate()/autosave()/period state; it simply calls these primitives.
 
 import { parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
 import { clampMinute, decimalToHM } from './paycalc-format.js';
+import { taxCodeNotRecognised } from './paycalc-breakdown.js';
+import { setStatus } from './status-text.js';
 
 /** @param {string} id */
 export function numVal(id) {
@@ -137,6 +141,38 @@ export function decPreview(hId) {
     const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, false));
     if (hint) hint.hidden = true;
   }
+}
+
+/**
+ * The Tax Code box's own warning, for a code `computeTax` does not recognise (whole-app review,
+ * Nov 2026): said where the code is typed, as the Income Tax row says it under the figure. The words
+ * are `taxCodeNotRecognised`'s. Built on first need, as the box's markup has no slot for it, and
+ * named by the box's `aria-describedby`, so a screen reader hears it on returning to the box.
+ *
+ * HELD BACK WHILE THE BOX HAS FOCUS. Every code passes through unrecognised shapes on the way to a
+ * real one — "1257" before "1257L" — and a red line flashing at each keystroke is noise; the Income
+ * Tax row already follows live. It appears once the member leaves the box, which the coordinator
+ * recalculates on.
+ * @param {{ code: string, recognised: boolean }} s  `computeTax`'s `code` and `recognised`
+ * @returns {void}
+ */
+export function paintTaxCodeWarning({ code, recognised }) {
+    const input = document.getElementById('taxCode');
+    if (!input) return;
+    const show = !recognised && document.activeElement !== input;
+    let warn = document.getElementById('taxCodeWarn');
+    if (!warn) {
+        if (!show) return;
+        warn = document.createElement('div');
+        warn.id = 'taxCodeWarn';
+        warn.className = 'val-warn';
+        warn.setAttribute('role', 'status');
+        (input.closest('.field') ?? input.parentElement)?.append(warn);
+        input.setAttribute('aria-describedby', 'taxCodeWarn');
+    }
+    if (show) setStatus(warn, taxCodeNotRecognised(code).field);
+    else warn.textContent = '';
+    warn.classList.toggle('show', show);
 }
 
 /**

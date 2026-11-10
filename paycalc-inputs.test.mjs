@@ -3,7 +3,8 @@
 // `document`, so we install a minimal fake DOM. Part of test:hygiene.
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { numVal, numValOr, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap, decimalHoursText, commitFocusedField } from './paycalc-inputs.js';
+import { numVal, numValOr, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap, decimalHoursText, commitFocusedField,
+    paintTaxCodeWarning } from './paycalc-inputs.js';
 
 // ── Minimal fake DOM ───────────────────────────────────────────────────────────
 class FakeEl {
@@ -377,5 +378,87 @@ describe('commitFocusedField — let go of the field in hand, and only a field',
     test('nothing focused is not an error', () => {
         global.document = /** @type {any} */ ({ activeElement: null });
         assert.doesNotThrow(() => commitFocusedField());
+    });
+});
+
+// ── paintTaxCodeWarning (whole-app review, Nov 2026) ──────────────────────────────────────────────
+// A code computeTax does not recognise is priced on the standard 1257L allowance; until this, only the
+// "Check against your payslip" line said so. The box now says it too — and not while it is being
+// typed in, when every code is briefly unrecognised ("1257" on the way to "1257L").
+describe('paintTaxCodeWarning — an unrecognised tax code said under the box it was typed in', () => {
+    /** A node with just enough of the DOM for the painter and setStatus. */
+    class Node {
+        constructor(tag = 'div') {
+            this.tagName = tag.toUpperCase(); this.children = []; this.parentElement = null; this._attrs = {};
+            this.id = ''; this.className = ''; this._text = ''; this.ownerDocument = global.document;
+            const cls = new Set();
+            this.classList = { toggle: (c, on) => { if (on) cls.add(c); else cls.delete(c); }, contains: c => cls.has(c) };
+        }
+        get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
+        set textContent(v) { this._text = String(v); this.children = []; }
+        setAttribute(k, v) { this._attrs[k] = String(v); }
+        getAttribute(k) { return this._attrs[k] ?? null; }
+        appendChild(c) { c.parentElement = this; this.children.push(c); return c; }
+        append(c) { this.appendChild(c); }
+        closest(sel) { let n = this; while (n) { if (sel === '.field' && n.className === 'field') return n; n = n.parentElement; } return null; }
+    }
+    /** The Settings field: a `.field` holding the box. @param {boolean} focused */
+    function settingsField(focused) {
+        const nodes = /** @type {Record<string, any>} */ ({});
+        global.document = /** @type {any} */ ({
+            getElementById: (/** @type {string} */ id) => nodes[id] ?? null,
+            createElement: (/** @type {string} */ t) => { const n = new Node(t); n.ownerDocument = global.document; return n; },
+            createTextNode: (/** @type {string} */ s) => ({ textContent: s }),
+        });
+        const wrap = new Node('div'); wrap.className = 'field';
+        const input = new Node('input'); input.id = 'taxCode'; wrap.appendChild(input);
+        nodes.taxCode = input;
+        const realAppend = wrap.appendChild.bind(wrap);
+        wrap.appendChild = (/** @type {any} */ c) => { if (c.id) nodes[c.id] = c; return realAppend(c); };
+        /** @type {any} */ (global.document).activeElement = focused ? input : null;
+        return { wrap, input, warn: () => nodes.taxCodeWarn ?? null };
+    }
+
+    test('an unrecognised code, the box left: the warning is built, shown, and names the box', () => {
+        const f = settingsField(false);
+        paintTaxCodeWarning({ code: 'OT', recognised: false });
+        const w = f.warn();
+        assert.ok(w, 'the warning is built on first need');
+        assert.equal(w.parentElement, f.wrap, 'under the box, in its field');
+        assert.equal(w.classList.contains('show'), true);
+        assert.match(w.textContent, /doesn't recognise this tax code/);
+        assert.match(w.textContent, /standard 1257L allowance/);
+        assert.match(w.textContent, /zero, not the letter O/, 'the commonest slip is named');
+        assert.equal(w.children[0].getAttribute('aria-hidden'), 'true', 'the ⚠ is kept out of the announcement');
+        assert.equal(f.input.getAttribute('aria-describedby'), 'taxCodeWarn', 'a screen reader hears it on the box');
+    });
+
+    test('held back while the box has focus — every code is briefly unrecognised as it is typed', () => {
+        const f = settingsField(true);
+        paintTaxCodeWarning({ code: '1257', recognised: false });
+        assert.equal(f.warn(), null, 'nothing is built while typing');
+        /** @type {any} */ (global.document).activeElement = null;   // the box is left
+        paintTaxCodeWarning({ code: '1257', recognised: false });
+        assert.equal(f.warn()?.classList.contains('show'), true);
+        assert.match(f.warn().textContent, /ends in a letter/, 'a code of numbers alone is told what is missing');
+        /** @type {any} */ (global.document).activeElement = f.input;   // back in the box to fix it
+        paintTaxCodeWarning({ code: '1257', recognised: false });
+        assert.equal(f.warn().classList.contains('show'), false);
+        assert.equal(f.warn().textContent, '');
+    });
+
+    test('a recognised code shows nothing, and clears a warning already there', () => {
+        const f = settingsField(false);
+        paintTaxCodeWarning({ code: '1257L', recognised: true });
+        assert.equal(f.warn(), null, 'nothing to say, nothing built');
+        paintTaxCodeWarning({ code: 'OT', recognised: false });
+        paintTaxCodeWarning({ code: '0T', recognised: true });
+        assert.equal(f.warn().classList.contains('show'), false);
+        assert.equal(f.warn().textContent, '');
+    });
+
+    test('no Tax Code box on the page is not an error', () => {
+        global.document = /** @type {any} */ ({ getElementById: () => null, activeElement: null });
+        assert.doesNotThrow(() => paintTaxCodeWarning({ code: 'OT', recognised: false }));
     });
 });

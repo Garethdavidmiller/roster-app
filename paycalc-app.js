@@ -64,7 +64,7 @@ import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey,
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fdLong, fmt, decimalToHM, minutesFieldText } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
-import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField } from './paycalc-inputs.js';
+import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite } from './paycalc-form-data.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
 import { classifyPayKey } from './paycalc-inventory.js';
@@ -747,6 +747,7 @@ export function init() {
         sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
         { ytdPay: ytdP, ytdTax: ytdT, periodN },
       );
+      paintTaxCodeWarning({ code: taxCodeUsed, recognised: taxCodeKnown });   // a code priced on 1257L says so
 
       // NI and Student Loan (both on sacGross — salary sacrifice reduces all three bases)
       const ni = computeNI(sacGross, thresholds.ni);
@@ -846,6 +847,7 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = buildSummaryRows({
         _bpThisPeriod, _hppForPeriod, gross, grossWithBp, _bpIsEstimate, _hppIsEstimate,
         pension, sacGross, usingCumulative, tax, ni, slLines, net, taxRefund,
+        taxCode: taxCodeUsed, taxCodeRecognised: taxCodeKnown,
       });
 
       const bd = buildBreakdownRows({
@@ -876,7 +878,8 @@ export function init() {
       });
 
       // The Year to Date line under the £ (owner, 7 Nov 2026): the rule is ytdUpdateFrom, the words renderYtdLine.
-      renderYtdLine(_actual ? null : ytdUpdateFrom({ p: _curP, ty: _ty, src: _ytdSrc, inUse: usingCumulative, taxCode: taxCodeUsed }));
+      renderYtdLine(_actual ? null : ytdUpdateFrom({ p: _curP, ty: _ty, src: _ytdSrc, inUse: usingCumulative,
+        taxCode: taxCodeUsed, recognised: taxCodeKnown }));
 
       // The two OPT-IN MONEY BANNERS (paycalc-money-banner.js): one set of three states — included,
       // available but not added, nothing to say — right only while "available" never means "added".
@@ -1292,6 +1295,7 @@ export function init() {
     });
     // No #hourlyRate listener — the rate is read-only and grade-derived.
     /** @type {HTMLElement} */ (document.getElementById('taxCode')).addEventListener('input',     () => { saveSettings(); calculate(); });
+    document.getElementById('taxCode')?.addEventListener('blur', calculate);   // its warning waits for the box to be left
     /** @type {HTMLElement} */ (document.getElementById('studentLoan')).addEventListener('change', () => {
       // Clear the "not deducted this period" skip only when NO loan is active (plan none AND no PGL) —
       // a Postgraduate Loan on its own still uses the skip row.

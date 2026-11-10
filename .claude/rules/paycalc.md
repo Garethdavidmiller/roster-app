@@ -710,6 +710,7 @@ opens the card at `#ytdPay`. It is quiet:
 - on the tax year's first payslip, where Year to Date starts again;
 - for a W1/M1/X or NT code, which the figures cannot change — read exactly as `computeTax` reads the
   code, and cross-checked against `computeTax` over twenty codes in `paycalc-periods.test.mjs`;
+- for a code `computeTax` does not recognise (`recognised: false`), whose estimate they make worse;
 - while the figures are in use (`inUse` is `computeTax`'s `usingCumulative`, so one figure, or an
   unreadable one, is not in use) or come from this payslip or a later one;
 - until the payslip to copy from can be in hand (`payslipMayBeInHand`, from its cut-off);

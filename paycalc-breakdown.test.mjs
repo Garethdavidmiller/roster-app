@@ -6,7 +6,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fmtHrsMins, buildSummaryRows, buildLoanLines, buildBreakdownRows, buildActualCheck, buildProvChips, buildActualComparison,
-    buildBreakBar } from './paycalc-breakdown.js';
+    buildBreakBar, taxCodeNotRecognised } from './paycalc-breakdown.js';
 import { getThresholds } from './paycalc-calc.js';
 
 test('fmtHrsMins formats decimal hours as "Nh"/"Nh Mm"', () => {
@@ -108,6 +108,40 @@ test('buildSummaryRows: cumulative tax adds the "adjusted from payslip" note; sl
     const html = buildSummaryRows({ ...SUM_BASE, usingCumulative: true, slLines: sl });
     assert.ok(html.includes('adjusted from payslip'));
     assert.ok(html.includes(sl), 'pre-rendered slLines passed through unchanged');
+});
+
+// ── A TAX CODE THE CALCULATOR DOES NOT RECOGNISE (whole-app review, Nov 2026) ─────────────────────
+// computeTax prices it on the standard 1257L allowance and reports `recognised: false`. Only the
+// "Check against your payslip" line used to read that, and it is hidden until the payslip's cut-off:
+// "OT" typed for a payslip's 0T put the next-payslip estimate £241.80 high with nothing on screen.
+describe('an unrecognised tax code is said under Income Tax', () => {
+    test('the Income Tax row names the code, the allowance it fell back to, and where to fix it', () => {
+        const html = buildSummaryRows({ ...SUM_BASE, taxCode: 'OT', taxCodeRecognised: false });
+        const taxRow = html.split('\n').find(l => l.includes('Income Tax')) ?? '';
+        assert.match(taxRow, /Tax code <strong>OT<\/strong> isn't one the calculator recognises/);
+        assert.match(taxRow, /standard 1257L allowance — check it in Your Settings/);
+        assert.match(taxRow, /0T and D0 are written with a zero, not the letter O/);
+    });
+
+    test('a recognised code — or a caller that says nothing — adds no line', () => {
+        for (const extra of [{}, { taxCode: '1257L', taxCodeRecognised: true }]) {
+            assert.ok(!/recognises/.test(buildSummaryRows({ ...SUM_BASE, ...extra })), JSON.stringify(extra));
+        }
+    });
+
+    test('each hint fits its slip, and a code is quoted as the payslip prints it', () => {
+        assert.match(taxCodeNotRecognised('1182').row, /ends in a letter, like the L in 1257L/, 'numbers with no letter');
+        assert.match(taxCodeNotRecognised('DO').field, /zero, not the letter O/);
+        assert.ok(!/zero|ends in a letter/.test(taxCodeNotRecognised('500K').row), 'no hint that does not fit');
+        assert.match(taxCodeNotRecognised('OTM1').row, /<strong>OT M1<\/strong>/, 'the emergency suffix is its own word');
+    });
+
+    test('nothing typed into the box reaches the page as markup', () => {
+        const { row, field } = taxCodeNotRecognised('<img src=x onerror=1>');
+        assert.ok(!/<img/.test(row), 'described, never quoted');
+        assert.match(row, /The tax code in Your Settings isn't one the calculator recognises/);
+        assert.ok(!/<img/.test(field));
+    });
 });
 
 // ── buildLoanLines — a loan never shows an unexplained £0 ───────────────────────────────────────
