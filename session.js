@@ -4,21 +4,19 @@
  * importer pulls varies; grep the import rather than trusting a list here.
  *
  * Owns: session constants, localStorage session read/write/clear, the Firebase Auth sign-in
- *   lifecycle (ensureNamedSession → ensureFirebaseSession), the expired-identity teardown, the
- *   staff-PIN checks for pages that admit the PIN, and password derivation (getSurname).
+ *   lifecycle (ensureNamedSession → ensureFirebaseSession), the expired-identity teardown, and the
+ *   staff-PIN checks for pages that admit the PIN.
  * Does NOT own: the sign-in UI (login-overlay.js), what a page does when its session fails
- *   (page-session.js), page access (auth-policy.js), or Firestore writes.
- * Edit here for: session expiry, password derivation rule changes, Firebase Auth strategy.
- *
- * ⚠️ WARNING: changing getSurname will lock out every staff member. Any change
- *   must be accompanied by a password reset for all affected users.
+ *   (page-session.js), page access (auth-policy.js), Firestore writes, or how an account's email
+ *   and surname default are derived (auth-identity.js — its header carries the lock-out warning).
+ * Edit here for: session expiry, Firebase Auth strategy.
  */
 
-import { auth, authReady, currentUserAfterBoot, nameToEmail, normaliseSurname, signInWithEmailAndPassword, signOut as firebaseSignOut, restoreMemberPersistence, probeResetAtMs } from './firebase-client.js';
+import { auth, authReady, currentUserAfterBoot, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, restoreMemberPersistence, probeResetAtMs } from './firebase-client.js';
 // PURE, and imported rather than re-derived: `isViewerUser` decides whether an identity may be
 // PRESERVED across the expired-identity teardown, so a second local copy of that predicate is a
-// second place a bypass could be introduced. calendar-access-core.js imports nothing, so this adds
-// no cycle (asserted by import-graph.test.mjs).
+// second place a bypass could be introduced. calendar-access-core.js imports only the pure
+// auth-identity.js, so this adds no cycle (asserted by import-graph.test.mjs).
 import { isViewerUser } from './calendar-access-core.js';
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection, sessionPredatesReset } from './auth-identity.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -118,19 +116,6 @@ export const SESSION_VER = 2; // bump to force all existing sessions to re-login
 //
 // Removed rather than left at a longer value: a dormant policy with no effect is the kind of thing
 // that gets "restored" later by someone who assumes it was load-bearing.
-
-/**
- * Derive the login password from a staff member's display name.
- * Delegates to `normaliseSurname` (auth-identity.js) — the SINGLE source for the derivation
- * rules (surname extraction, multi-word join, lowercase, non-alpha strip). Do not re-document
- * or re-implement those rules here; a mismatch would lock members out. surname-parity.test.mjs
- * enforces this stays in sync with the functions-side duplicate.
- * @param {string} fullName - Display name exactly as stored in teamMembers, e.g. "G. Miller"
- * @returns {string} Lowercase password with all non-alpha characters removed
- */
-export function getSurname(fullName) {
-    return normaliseSurname(fullName);
-}
 
 /** @type {(value: any) => void} */
 let _sessionResolve;

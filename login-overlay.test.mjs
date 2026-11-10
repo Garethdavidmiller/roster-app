@@ -44,6 +44,10 @@ mock.module('./firebase-client.js', { namedExports: {
     },
     restoreMemberPersistence:   async () => 'indexeddb',
     probeResetAtMs:             async () => 0,
+    // password-force.js's, which the card imports for `withTimeout`; nothing here opens that overlay.
+    getPasswordStatus:          async () => null,
+    setOwnPassword:             async () => ({ statusRecorded: true }),
+    reauthenticateWithPassword: async () => {},
 } });
 mock.module('./notif.js', { namedExports: { releaseDevicePush: async () => {} } });
 const store = new Map();

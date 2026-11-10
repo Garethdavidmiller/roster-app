@@ -1,6 +1,6 @@
 /**
  * Unit tests for session.js: constants, getSession, saveSession, clearSession,
- * resolveSession/sessionReady, and getSurname.
+ * resolveSession/sessionReady, and the Firebase sign-in lifecycle.
  * Run with: node --experimental-test-module-mocks --test session.test.mjs
  *
  * firebase-client.js is mocked (CDN imports, Firebase Auth).
@@ -145,7 +145,7 @@ mock.module('./ls.js', {
 const {
     AUTH_KEY, SESSION_MS, SESSION_VER, AUTH_RESTORE_TIMEOUT_MS, restoreFirstAuthUser,
     sessionReady, resolveSession,
-    getSurname, getSession, saveSession, clearSession,
+    getSession, saveSession, clearSession,
     ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
     ensureNamedSession, isTransientAuthError, refreshClaimsIfStale, primeAuth,
     reconcileExpiredIdentity, shedCalendarViewer,
@@ -309,22 +309,6 @@ describe('sessionReady', () => {
     test('resolves with the value passed to resolveSession', async () => {
         resolveSession(true);
         assert.equal(await sessionReady, true);
-    });
-});
-
-// ── getSurname ────────────────────────────────────────────────────────────────
-
-describe('getSurname', () => {
-    test('returns the lowercase surname for a normal name', () => {
-        assert.equal(getSurname('G. Miller'), 'miller');
-    });
-
-    test('strips hyphens for a hyphenated surname', () => {
-        assert.equal(getSurname('C. Francisco-Charles'), 'franciscocharles');
-    });
-
-    test('joins a multi-word surname without spaces', () => {
-        assert.equal(getSurname('M. De Silva'), 'desilva');
     });
 });
 

@@ -7,13 +7,17 @@
  * Extracted from firebase-client.js (v16.50) so they are directly unit-testable: firebase-client.js
  * statically imports the Firebase SDK from the gstatic CDN, which cannot load in a Node test, so
  * anything defined there is only reachable behind a module mock. These functions have NO imports.
- * firebase-client.js re-exports both so existing importers (session.js's getSurname) are unaffected.
+ * firebase-client.js re-exports `normaliseSurname` and `nameToEmail`, so an importer may take them
+ * from either.
  *
  * A DELIBERATE duplicate of `normaliseSurname`'s core derivation lives in
  * `functions/roster-parse-helpers.js` (`nameToPassword`) — Cloud Functions are CommonJS and cannot
  * import a browser ES module, so unification would need a build step. `surname-parity.test.mjs`
- * asserts the two stay in sync (its source-equivalence check reads THIS file). If the derivation
- * ever changes, update BOTH places AND reset every staff member's password (see session.js).
+ * asserts the two stay in sync (its source-equivalence check reads THIS file).
+ *
+ * ⚠️ WARNING: changing this derivation locks out every staff member — it moves the email every
+ *   account is looked up by, and the surname default. Never change it without the other two copies
+ *   (AUTH_AND_SESSIONS.md 12) and a reset of every affected account.
  */
 
 /**

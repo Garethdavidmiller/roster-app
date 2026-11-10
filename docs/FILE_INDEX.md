@@ -381,7 +381,7 @@ roster-app/
 ├── sw-lifecycle.test.mjs ← the worker's UPDATE steps as the real script in a sandbox: install and activate never wait for the warm-up, a partial warm-up keeps the old cache, and offline a page comes from the NEWEST older copy. Part of test:hygiene
 ├── auth-init-parity.test.mjs ← Firebase Auth is initialised with `initializeAuth` and NO popup/redirect resolver, in getAuth's persistence order — the resolver put Google's script and an iframe on every iPhone boot. Source check; part of test:hygiene
 ├── splash-watchdog.test.mjs ← the RECOVERY CONDITION in splash-watchdog.js — the one code path that reports a fault nothing else can — sliced out by name and evaluated against its real source, with `resetApp` RUN against a fake registration list. Part of test:hygiene
-├── session.test.mjs        ← tests for constants, getSession, saveSession, clearSession, sessionReady/resolveSession, getSurname, refreshClaimsIfStale (--experimental-test-module-mocks)
+├── session.test.mjs        ← tests for constants, getSession, saveSession, clearSession, sessionReady/resolveSession, the sign-in lifecycle, refreshClaimsIfStale (--experimental-test-module-mocks)
 ├── login-overlay.test.mjs  ← tests for runNamedSignIn: the sign-in core commits the local session ONLY after auth resolves (timeout/throw/enforce-fail → no save), enforce on/off, transient-vs-persistent messages (--experimental-test-module-mocks)
 ├── auth-state-core.test.mjs ← tests for reduceAuthState (pure identity state machine; no mocks; part of test:hygiene)
 ├── auth-state.test.mjs     ← tests for the auth store: getAuthSnapshot/subscribeAuth/dispatchAuth, no-op/listener isolation (no mocks; part of test:hygiene). The session.js→store bridge is tested in session.test.mjs.

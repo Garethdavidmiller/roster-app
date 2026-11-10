@@ -705,9 +705,13 @@ export async function setOwnPassword(memberName, newPassword) {
 const RESET_PASSWORD_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/resetMemberPassword';
 
 /**
- * Reset a member's password to the surname default (admin break-glass). Requires the caller's admin
- * claim (enforced server-side). `revoke` signs the member out of their other devices — true for a
- * real reset, false for a Phase-2 migration nudge.
+ * Reset a member's password to the surname default (admin break-glass), and sign the member out of
+ * their other devices. Requires the caller's admin claim (enforced server-side).
+ *
+ * `revoke` is true unless a caller says otherwise, and none does: `revoke: false` was kept for a
+ * "Phase-2 migration nudge", which PASSWORD_DESIGN.md §7 records as doing nothing — the forced
+ * set-password overlay is the whole mechanism. The one caller (Operations) passes `true`, the default;
+ * once it stops passing anything, the option can go.
  * @param {string} memberName
  * @param {{ revoke?: boolean }} [opts]
  * @returns {Promise<any>} the function's JSON response

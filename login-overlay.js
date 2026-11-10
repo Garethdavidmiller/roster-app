@@ -38,6 +38,10 @@
 import { CONFIG, getMembersForGrade } from './roster-data.js';
 import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
 import { isCredentialRejection } from './auth-identity.js';
+// The one deadline helper (sessions-6 — this card kept a copy that differed only in the error's code).
+// Every page that loads this module statically already loads password-force.js statically, and the
+// Calendar loads this one on demand, so the import adds nothing to any page's start-up.
+import { withTimeout } from './password-force.js';
 import { lsGet, lsSet } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { lockBodyScroll, unlockBodyScroll, trapFocus, createLightbox } from './overlay.js';
@@ -59,18 +63,6 @@ const GRADE_KEY   = 'myb_login_grade';
  *  writing it as HTML carries nothing from outside. */
 const RESET_BTN_LABEL = '<span class="login-reset-clause">Can’t get in?</span> '
     + '<span class="login-reset-clause">Ask the admin to reset your password</span>';
-
-/** Resolve `promise`, or reject after `ms`, so a hung async step can't strand the login overlay.
- *  Clears the timer on either outcome. (The underlying promise keeps running — that is fine; a late
- *  success is simply ignored and benefits the next attempt.)
- *  @template T @param {Promise<T>} promise @param {number} ms @returns {Promise<T>} */
-function withTimeout(promise, ms) {
-    /** @type {any} */ let timer;
-    return /** @type {Promise<T>} */ (Promise.race([
-        promise,
-        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timed out')), ms); }),
-    ]).finally(() => clearTimeout(timer)));
-}
 
 /**
  * The DOM-free core of a sign-in attempt (exported for tests). Establishes the member's named
