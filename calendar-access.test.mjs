@@ -196,7 +196,7 @@ const {
 
 // The three cards live in calendar-lock-cards.js since v23.54. Imported AFTER calendar-access.js,
 // whose module scope wires their collaborators — a card reached before that would have no deps.
-const { showSignInPanel } = await import('./calendar-lock-cards.js');
+const { showSignInPanel, resetUnlockFailures } = await import('./calendar-lock-cards.js');
 // The slot, so a test can ask WHICH card is standing where the Calendar goes. Real, not mocked —
 // it touches only the fake DOM, and the whole point of asking is that the answer is the shipped one.
 const { lockCardId } = await import('./calendar-lock-slot.js');
@@ -1265,6 +1265,63 @@ describe('the cards themselves', () => {
         await form._listeners.get('submit')({ preventDefault() {} });
         assert.equal(input.value, '', 'the PIN was left in the field after a rejected attempt');
         assert.equal(getAccessType(), 'none');
+    });
+
+    // cal-data-7 (10 Nov 2026). `attemptBackoffMs` is unit-tested, and nothing pressed the card after a
+    // third failure: the field's input handler set the button from the digits alone, so retyping them
+    // lifted the delay at once — the helper was tested, the wiring was not.
+    describe('the delay after repeated failures', () => {
+        /** The PIN card up, every exchange refused, POSTs counted (the warm-up is a GET). The failure
+         *  count lives for the page load (a grant resets it), so a refusal in an earlier test would
+         *  make this one's third press the fourth. */
+        async function pinCard() {
+            resetUnlockFailures();
+            globalThis.window.location.hash = '#staff-pin';
+            await initCalendarAccess({ onGranted: () => {} });
+            const input = document.getElementById('calLockPin');
+            const form  = document.getElementById('calLockForm');
+            const submit = document.getElementById('calLockSubmit');
+            const card = { exchanges: 0, submit, answer: /** @type {any} */ (null),
+                type: (/** @type {string} */ v) => { input.value = v; input._listeners.get('input')(); },
+                press: () => form._listeners.get('submit')({ preventDefault() {} }) };
+            globalThis.fetch = async (/** @type {any} */ _u, /** @type {any} */ opts) => {
+                if (opts?.method !== 'POST') return { ok: false, status: 405, json: async () => ({}) };
+                card.exchanges++;
+                return card.answer ?? { ok: false, status: 401, json: async () => ({}) };
+            };
+            return card;
+        }
+
+        test('retyping the PIN does not lift it — and it ends when it says it does', async (t) => {
+            t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+            const card = await pinCard();
+            for (let i = 0; i < 3; i++) { card.type('0000'); await card.press(); }
+            assert.equal(card.exchanges, 3, 'premise: three refused attempts');
+            card.type('0000');
+            assert.equal(card.submit.disabled, true, 'four digits typed straight back in lifted the two-second delay');
+            await card.press();
+            assert.equal(card.exchanges, 3, 'a fourth attempt went out inside the delay');
+            t.mock.timers.tick(2000);
+            assert.equal(card.submit.disabled, false, 'the button stayed off after the delay ended');
+            await card.press();
+            assert.equal(card.exchanges, 4);
+        });
+
+        test('a delay\'s timer still pending does not re-enable the button during the next exchange', async (t) => {
+            t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+            const card = await pinCard();
+            for (let i = 0; i < 3; i++) { card.type('0000'); await card.press(); }
+            t.mock.timers.setTime(1_000_000 + 5000);   // the delay is over, its timer not yet run (a busy page)
+            card.type('0000');
+            /** @type {(v: any) => void} */ let land = () => {};
+            card.answer = new Promise(r => { land = r; });   // the fourth exchange is slow (a cold start)
+            const inFlight = card.press();
+            await Promise.resolve();
+            t.mock.timers.tick(0);                       // …and the old timer runs now
+            assert.equal(card.submit.disabled, true, 'the button came back on under "Unlocking…"');
+            land({ ok: false, status: 401, json: async () => ({}) });
+            await inFlight;
+        });
     });
 
     test('a SUCCESSFUL unlock clears it too — the field is emptied on every path', async () => {

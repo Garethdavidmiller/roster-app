@@ -197,20 +197,28 @@ export function showLockPanel() {
     }
 
     let _busy = false;
+    // When the progressive delay after repeated failures ends — ONE value both handlers read
+    // (cal-data-7, 10 Nov 2026). The delay used to live only in the button's `disabled`, and the field's
+    // input handler set that from the digits alone, so retyping the four digits lifted it at once and
+    // the delay never delayed anything.
+    let _heldUntil = 0;
+    const held = () => Date.now() < _heldUntil;
 
     // Digits only, always. Filtering on input rather than rejecting on submit means the field can
     // never hold something the member can see but the app will not accept.
     input.addEventListener('input', () => {
         const cleaned = normalisePin(input.value);
         if (cleaned !== input.value) input.value = cleaned;
-        submit.disabled = !isCompletePin(cleaned) || _busy;
+        submit.disabled = !isCompletePin(cleaned) || _busy || held();
         if (msg.textContent) say('', false);
     });
 
     form.addEventListener('submit', async e => {
         e.preventDefault();
         const pin = normalisePin(input.value);
-        if (!isCompletePin(pin) || _busy) return;
+        if (!isCompletePin(pin) || _busy || held()) return;
+        // A delay's timer still pending must not re-enable the button under "Unlocking…".
+        if (_backoffTimer) { clearTimeout(_backoffTimer); _backoffTimer = null; }
         _busy = true;
         submit.disabled = true;
         submit.textContent = 'Unlocking…';
@@ -229,14 +237,13 @@ export function showLockPanel() {
         say(result.message, true);
 
         const wait = attemptBackoffMs(_consecutiveFailures);
+        submit.disabled = true;   // the field is now empty, and a delay may follow
         if (wait > 0) {
-            submit.disabled = true;
+            _heldUntil = Date.now() + wait;
             _backoffTimer = setTimeout(() => {
                 _backoffTimer = null;
                 submit.disabled = !isCompletePin(normalisePin(input.value));
             }, wait);
-        } else {
-            submit.disabled = true;   // the field is now empty
         }
         // Focus goes back to the field on every failure — the member's next action is always to
         // retype, and leaving focus on a disabled button strands a keyboard user with nowhere to go.
