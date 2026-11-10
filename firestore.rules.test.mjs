@@ -806,15 +806,15 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
         await assertFails(getDocs(collection(anonDb(), 'linkDesigns')));
     });
     // READ tightened at v19.39. The old rule was `request.auth != null`, documented as "any
-    // authenticated session" — but calendar-app.js signs EVERY visitor in anonymously, so that
-    // included anyone who could open the app URL. These cases pin the new line: a signed-in member
-    // is in, a claim-less (anonymous-equivalent) session is out, admin is in without a name claim,
-    // and a designer whose token predates the linksDesigner claim can still LOAD — which is the
-    // whole reason the read is not simply narrowed to isLinksWriter().
+    // authenticated session" — but calendar-app.js then signed EVERY visitor in anonymously (until
+    // v24.34), so that included anyone who could open the app URL. These cases pin the new line: a
+    // signed-in member is in, a claim-less (anonymous-equivalent) session is out, admin is in without
+    // a name claim, and a designer whose token predates the linksDesigner claim can still LOAD — which
+    // is the whole reason the read is not simply narrowed to isLinksWriter().
     test('a NAMED member can READ', async () => {
         await assertSucceeds(getDocs(collection(namedDb('J. Davies'), 'linkDesigns')));
     });
-    test('a name-less authenticated session CANNOT READ (the calendar\'s anonymous session)', async () => {
+    test('a name-less authenticated session CANNOT READ (the Calendar\'s old anonymous session)', async () => {
         await assertFails(getDocs(collection(staffDb(), 'linkDesigns')));
     });
     test('a designer on a token with `name` but NOT yet linksDesigner can still READ (self-heal path)', async () => {
@@ -2258,8 +2258,8 @@ describe('analytics', () => {
     });
 
     test('anon (no Firebase session) cannot write', async () => {
-        // No session at all is refused before the shape is read. (Calendar visitors carried an
-        // anonymous session until v20.12; an anonymous token is refused too, since v24.56.)
+        // No session at all is refused before the shape is read. (The Calendar stopped signing its
+        // visitors in anonymously at v24.34; an anonymous token is refused too, since v24.56.)
         await assertFails(setDoc(doc(anonDb(), 'analytics', pvId()), VALID_PV()));
     });
 
