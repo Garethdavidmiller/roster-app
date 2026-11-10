@@ -54,6 +54,9 @@
 body {
     font-family: var(--font-sans);
     font-size: var(--type-body);
+    /* Every card page's text base. With none, text that sets no colour of its own was pure black,
+       which shared.css records as "a colour this app uses for text nowhere". */
+    color: var(--text-dark);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     /* The OPAQUE canvas every page's body paints (css-tokens / shared.css convention). This page
@@ -77,15 +80,17 @@ body {
     }
 }
 
+/* The header takes the column's cap at EVERY width (css-tokens.md → Desktop layout: the chrome and
+   the content share one width). Capped only from 768px, between 581 and 767px the burger and the
+   badge hung outside the cards, up to 94px each side. */
 .app { max-width: 560px; margin: 0 auto; }
+.app-header { max-width: 560px; margin-left: auto; margin-right: auto; }
 
 @media (min-width: 768px) {
-    .app        { max-width: 600px; }
-    .app-header { max-width: 600px; margin-left: auto; margin-right: auto; }
+    .app, .app-header { max-width: 600px; }
 }
 @media (min-width: 1024px) {
-    .app        { max-width: var(--content-max-width); }
-    .app-header { max-width: var(--content-max-width); }
+    .app, .app-header { max-width: var(--content-max-width); }
 
     /* Prose keeps its measure on both tabs (css-tokens.md: full-width prose is capped at
        ~64–72ch on desktop; forms, tables and grids take the full column). */

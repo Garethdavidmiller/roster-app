@@ -1293,6 +1293,28 @@ test.describe('overtime.css — print, focus and contrast', () => {
         expect(await look('.ot-copy-btn')).toEqual(await look('.ot-refresh-btn'));
     });
 
+    test('the header shares the column at every width, and no text on the page is pure black', async ({ page }) => {
+        // The header was capped only from 768px, so between 581 and 767px its burger and badge hung
+        // outside the cards (94px each side at 767). And the body set no colour, so any text that did
+        // not set its own was pure black — every other card page gives its body --text-dark.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        for (const w of [375, 600, 700, 767, 900]) {
+            await page.setViewportSize({ width: w, height: 800 });
+            await page.goto('/overtime.html');
+            await page.locator('.ot-day').first().waitFor();
+            const edges = await page.evaluate(() => [document.querySelector('.app-header'), document.querySelector('main.app')]
+                .map(e => { const r = /** @type {Element} */ (e).getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; }));
+            expect(edges[0], `the header's edges are the column's at ${w}px`).toEqual(edges[1]);
+        }
+        // The page's own header and content; the drawer is shared chrome with its own palette.
+        const black = await page.evaluate(() => [...document.querySelectorAll('.app-header *, main.app *')]
+            .filter(e => [...e.childNodes].some(n => n.nodeType === 3 && n.textContent?.trim()))
+            .filter(e => e.getClientRects().length && getComputedStyle(e).color === 'rgb(0, 0, 0)')
+            .map(e => `${e.tagName.toLowerCase()}.${e.className}`));
+        expect(black, 'text in pure black').toEqual([]);
+    });
+
     test('the call sheet uses the paper: no card inset, and not the phone column', async ({ page }) => {
         // A4's printable column (~703px at this page's margins) is under the 768px breakpoint, so the
         // phone layout's 560px cap held the sheet to four-fifths of the paper; and the "no inset" rule
