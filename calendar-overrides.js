@@ -4,8 +4,9 @@
  *
  * Owns: rosterOverridesCache, fetchedMonths, shiftTypesMonthCache,
  *   _initialFetchInProgress, monthKey, fetchOverridesForRange,
- *   ensureOverridesCached, getShiftTypesInMonth, and the record of the months this device has read
- *   whole (`_heldWhole`).
+ *   ensureOverridesCached, getShiftTypesInMonth, the read ticket (`issueReadTicket`,
+ *   `answerStillWanted` — the one rule for whether a read's answer is still wanted), and the record
+ *   of the months this device has read whole (`_heldWhole`).
  * Does NOT own: rendering (calendar-app.js / calendar-renderer.js),
  *   member selection (calendar-member.js).
  * Edit here for: Firestore override query, cache invalidation, duplicate resolution.
@@ -52,7 +53,7 @@ let _accessGranted = false;
 // Which grant a read was issued under (v24.56, auth review). A read refused under an EARLIER grant —
 // the PIN rotated, the viewer re-unlocked, and a slow read from the old token lands afterwards —
 // says nothing about the current one, and used to re-lock it: "access has expired" straight after a
-// correct PIN. Advanced on every grant; a refusal is believed only from a read of the current one.
+// correct PIN. Advanced on every grant. Read in ONE place, `answerStillWanted` (THE READ TICKET).
 let _accessGen = 0;
 
 /**
@@ -82,9 +83,6 @@ export function setOverrideAccess(granted) {
     // read failed, "As rostered" included. Access loss is what `forget` is for.
     else forgetKnowledge();
 }
-
-/** @returns {number} the current grant, for a reader that must ignore a refusal from an older one. */
-export function accessGeneration() { return _accessGen; }
 
 /** @returns {boolean} whether override reads are currently permitted. */
 export function hasOverrideAccess() { return _accessGranted; }
@@ -255,6 +253,52 @@ let _readSeq = 0;
 /** monthKey → the sequence number of the authoritative read that last wrote it. */
 const _monthOwner = new Map();
 
+// ── THE READ TICKET: one rule for "is this answer still wanted?" (10 Nov 2026) ───────────────────
+//
+// A read takes time, and the Calendar can change while it is out: access lost, or lost and given
+// back (a new grant), or a later read of the same month answered first. So every answer has to be
+// asked, when it LANDS, whether it is still wanted. Twelve places used to ask, each in its own words,
+// across three counters, an error code and a flag. The two bugs v25.63 fixed were both a place asking
+// half of it: a success that nothing checked against the grant, and a failure that could not
+// un-confirm a month.
+//
+// So every read takes a TICKET when it is ISSUED (`issueReadTicket`): the grant it was issued under,
+// and its place in the order reads were issued in. Whatever later handles the outcome (a success, a
+// failure, a time limit, a paint) asks `answerStillWanted` first. With ONE definition, no path can ask
+// half the question again. The ticket's place in the order serves the cache writes (WHO OWNS A MONTH'S
+// CACHE ENTRY, above). The first load's chip adds one question of its own: whether a newer attempt has
+// begun (calendar-initial-fetch.js → `standing`).
+
+/** @typedef {{ grant: number, seq: number }} ReadTicket */
+
+/**
+ * Take a ticket at the moment a read is issued (THE READ TICKET).
+ * @returns {ReadTicket}
+ */
+export function issueReadTicket() { return { grant: _accessGen, seq: ++_readSeq }; }
+
+/**
+ * Is the answer to the read holding this ticket still wanted? Only while the access it was issued
+ * under is still the access held: the same grant, and not shut since. Never for a failure the read
+ * itself reported as `READ_SUPERSEDED`.
+ *
+ * ONCE NO, ALWAYS NO. A shut is only undone by a new grant, and a new grant has a new number, so no
+ * later moment can turn a no back into a yes. That is what lets a catch, a timer or a late paint ask
+ * whenever it runs, and trust the answer.
+ *
+ * The "not shut since" half is what the failure paths were missing (10 Nov 2026). They compared the
+ * grant number alone, so a read that FAILED after access was shut, before anybody re-entered the PIN,
+ * was recorded against the locked Calendar: a failed month, or a "Couldn't update" chip, which the next
+ * grant then drew first. A SUCCESS there was already refused (`fetchOverridesForRange`).
+ * @param {ReadTicket} ticket
+ * @param {unknown} [err]  the read's failure, when it failed
+ * @returns {boolean}
+ */
+export function answerStillWanted(ticket, err) {
+    return _accessGranted && ticket.grant === _accessGen
+        && /** @type {any} */ (err)?.code !== READ_SUPERSEDED;
+}
+
 // ── THE MONTHS THIS DEVICE HAS READ WHOLE (cal-data-3, 10 Nov 2026) ──────────────────────────────
 //
 // An offline range read is answered from EVERY document the device's Firestore cache holds that
@@ -335,8 +379,12 @@ export function _monthSlices(startStr, endStr) {
  * Documents with missing required fields are skipped and logged.
  * @param {string} startStr - 'YYYY-MM-DD' inclusive start
  * @param {string} endStr   - 'YYYY-MM-DD' inclusive end
+ * @param {ReadTicket} [ticket] - the ticket the read is issued under (THE READ TICKET). Taken here, AT
+ *   ISSUE, unless the caller took it a moment before for its own questions — `ensureOverridesCached`
+ *   does, so its catch asks about the very read that failed. Never pass one taken earlier than that:
+ *   the order reads were STARTED in is what the month writes go by.
  */
-export async function fetchOverridesForRange(startStr, endStr) {
+export async function fetchOverridesForRange(startStr, endStr, ticket = issueReadTicket()) {
     // (Throws `SERVED_FROM_CACHE` when the server did not answer — see the branch below.)
     // THROWS, where the cache read below returns false. The difference is deliberate: this is the
     // AUTHORITATIVE read, so a caller that reaches it without access has a real ordering bug, and
@@ -344,9 +392,6 @@ export async function fetchOverridesForRange(startStr, endStr) {
     // resolving would leave the Calendar showing the base roster as though it were current — the one
     // outcome this whole feature exists to prevent.
     if (!_accessGranted) throw new Error('calendar-access-required');
-    // Taken at ISSUE, not on completion — the whole point is the order the reads were STARTED in.
-    const seq = ++_readSeq;
-    const gen = _accessGen;   // …and the grant it was started under, for the same reason (below)
     const q = query(
         collection(db, COLLECTIONS.overrides),
         where('date', '>=', startStr),
@@ -361,7 +406,7 @@ export async function fetchOverridesForRange(startStr, endStr) {
     // the new session never made. A refusal from an earlier grant was already ignored (v24.56); this
     // is the same rule for a success. THROWN, not returned, and before either branch below — the
     // cache-served one merges too — so no caller can go on to record a success: each stands down.
-    if (!_accessGranted || gen !== _accessGen) {
+    if (!answerStillWanted(ticket)) {
         throw Object.assign(new Error('Override read outlived the access it was issued under'), { code: READ_SUPERSEDED });
     }
     // ANSWERED BY THE CACHE, NOT THE SERVER (v24.48, external audit F1). With `persistentLocalCache`,
@@ -400,8 +445,8 @@ export async function fetchOverridesForRange(startStr, endStr) {
     let wrote = false;
     const slices = _monthSlices(startStr, endStr);
     for (const { key, from, to } of slices) {
-        if ((_monthOwner.get(key) || 0) > seq) continue;   // a newer read already owns this month
-        _monthOwner.set(key, seq);
+        if ((_monthOwner.get(key) || 0) > ticket.seq) continue;   // a read issued later already owns this month
+        _monthOwner.set(key, ticket.seq);
         reconcileRangeIntoCache(rosterOverridesCache, records.filter(r => r.date >= from && r.date <= to), from, to);
         wrote = true;
     }
@@ -450,7 +495,7 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr, monthsWi
     // false (paints nothing) rather than throwing, because "no access yet" is indistinguishable to
     // every caller from "no cache yet", which is already this function's normal empty state.
     if (!_accessGranted) return false;
-    const gen = _accessGen;
+    const ticket = issueReadTicket();
     try {
         const q = query(
             collection(db, COLLECTIONS.overrides),
@@ -461,7 +506,7 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr, monthsWi
         // …AND ASKED AGAIN WHEN THE ANSWER LANDS (10 Nov 2026). The line above guards the moment the
         // read is issued; the cache answers a moment later, and a Calendar locked in between must not
         // have yesterday's rows written into it behind the card. Same refusal, same reason.
-        if (!_accessGranted || gen !== _accessGen) return false;
+        if (!answerStillWanted(ticket)) return false;
         if (snapshot.empty) return false;
         const records = collectOverrideRecords(snapshot);
         // Skip any month a SERVER read has already written (v20.44). Additive merging cannot evict,
@@ -509,7 +554,6 @@ export async function ensureOverridesCached(year, month, renderFn) {
     // it returns BEFORE claiming the month, or a navigation made while locked would mark the month
     // fetched and the real read after unlocking would be skipped for the rest of the session.
     if (!_accessGranted) return;
-    const gen = _accessGen;
     const key = monthKey(year, month);
     if (fetchedMonths.has(key)) {
         // In flight: join it. Settled (or pre-claimed by the initial fetch, which repaints itself):
@@ -519,6 +563,9 @@ export async function ensureOverridesCached(year, month, renderFn) {
     }
     fetchedMonths.add(key);
     _recheckOwed.delete(key);   // this read IS the re-check
+    // The read's ticket (THE READ TICKET), taken as it is issued and handed to it, so the catch below
+    // asks about the very read that failed.
+    const ticket = issueReadTicket();
     // Which server answer this device held for the month when this read was issued (0: none). If it
     // is still the same one when the read fails, nothing newer has landed — see the catch.
     const ownerAtIssue = _monthOwner.get(key) || 0;
@@ -530,7 +577,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
     try {
         const startStr = formatISO(new Date(year, month, 1));
         const endStr   = formatISO(new Date(year, month + 1, 0));
-        await fetchOverridesForRange(startStr, endStr);
+        await fetchOverridesForRange(startStr, endStr, ticket);
         // The month is now KNOWN (v20.40). Recorded here rather than at the call site because this
         // is the one place that can tell a settled server read from a cache hit — and the whole
         // point of the readiness model is that those two are not the same claim.
@@ -538,10 +585,11 @@ export async function ensureOverridesCached(year, month, renderFn) {
         _settledAt.set(key, Date.now());
     } catch (err) {
         settle();
-        // Issued under an earlier grant, or answered after access had gone: it neither claims nor
-        // locks the current one, and it has nothing to report — `fetchOverridesForRange` committed
-        // none of it. The current grant's own render reads the month.
-        if (gen !== _accessGen || /** @type {any} */ (err)?.code === READ_SUPERSEDED) return;
+        // No longer wanted (THE READ TICKET): issued under an earlier grant, answered after access had
+        // gone, or failed after it had. It neither claims nor locks the current access, and it has
+        // nothing to report: nothing is recorded against a Calendar locked since. The grant that holds
+        // the Calendar now reads the month for itself.
+        if (!answerStillWanted(ticket, err)) return;
         fetchedMonths.delete(key);  // Allow retry on next navigation
         if (_monthOwner.has(key)) {
             // THIS DEVICE HOLDS THE SERVER'S EARLIER ANSWER FOR THE MONTH, AND THE RE-CHECK FAILED

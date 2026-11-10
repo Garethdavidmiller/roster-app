@@ -115,7 +115,7 @@ const {
     setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth,
     monthKey, _monthSlices, fetchOverridesForRange, fetchOverridesForRangeFromCache,
     ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess, releaseStaleMonths, oweRecheck, SERVED_FROM_CACHE,
-    READ_SUPERSEDED,
+    READ_SUPERSEDED, issueReadTicket, answerStillWanted, setOverrideAccessLostHandler,
 } = await import('./calendar-overrides.js');
 // The REAL knowledge module — this suite is where a read's outcome becomes a claim about a month.
 const { knowledgeOf, noteKnowledge, decideDisplay, forget: forgetKnowledge } = await import('./calendar-data-state.js');
@@ -935,6 +935,75 @@ describe('an answer belongs to the grant that asked for it', () => {
         _cacheReleases[0]();
         assert.equal(await cached, true);
         assert.equal(rosterOverridesCache.get('A. Smith|2068-03-10')?.value, 'AL');
+    });
+
+    // ── THE READ TICKET (10 Nov 2026): the one rule every outcome asks ─────────────────────────────
+    // calendar-initial-fetch.test.mjs restates this rule in its stand-in for this module, so these are
+    // what holds that restatement to the real thing.
+    test('the read ticket: wanted under the grant it was issued in, while access is held', () => {
+        const t = issueReadTicket();
+        assert.equal(answerStillWanted(t), true);
+        assert.equal(answerStillWanted(t, Object.assign(new Error('offline'), { code: 'unavailable' })), true,
+            'an ordinary failure is news about the access still held');
+    });
+
+    test('the read ticket: never for a failure the read itself reported as superseded', () => {
+        assert.equal(answerStillWanted(issueReadTicket(), { code: READ_SUPERSEDED }), false);
+    });
+
+    test('the read ticket: not once access is shut, before anybody is back in', () => {
+        // The half the failure paths were missing: they compared the grant number alone.
+        const t = issueReadTicket();
+        setOverrideAccess(false);
+        assert.equal(answerStillWanted(t), false);
+    });
+
+    test('the read ticket: once no, always no — a new grant revives no ticket from before it', () => {
+        const t = issueReadTicket();
+        setOverrideAccess(false); setOverrideAccess(true);
+        assert.equal(answerStillWanted(t), false, 'an old ticket came back to life with the new grant');
+        assert.equal(answerStillWanted(issueReadTicket()), true, 'while a ticket of the new grant is wanted');
+        const u = issueReadTicket();
+        setOverrideAccess(true);   // granted again with no shut between: still a new grant
+        assert.equal(answerStillWanted(u), false);
+    });
+
+    test('the read ticket: numbered in the order reads are issued', () => {
+        const a = issueReadTicket(), b = issueReadTicket();
+        assert.ok(b.seq > a.seq);
+    });
+
+    test('a month read that FAILS after a lock records nothing, repaints nothing and reports no second lock', async () => {
+        // Before the ticket the failure was checked against the grant number alone, so a read that failed
+        // after a lock (nobody yet back in, so the same grant) recorded a failed month against the locked
+        // Calendar, and the next grant drew "Couldn't check this month" while its own read was out.
+        const key = monthKey(2071, 2);
+        let lost = 0;
+        setOverrideAccessLostHandler(() => { lost++; });
+        try {
+            for (const err of [Object.assign(new Error('offline'), { code: 'unavailable' }),
+                               Object.assign(new Error('denied'), { code: 'permission-denied' })]) {
+                setOverrideAccess(true); forgetKnowledge();
+                _deferGetDocs = true; _releases.length = 0;
+                let paints = 0;
+                const a = ensureOverridesCached(2071, 2, () => { paints++; });
+                await _tick();
+                setOverrideAccess(false);                  // locked; nobody has re-entered the PIN
+                _releases[0](err); await a;
+                assert.equal(knowledgeOf(key), 'unknown', `${err.code}: a failed month was recorded against the locked Calendar`);
+                assert.equal(paints, 0, `${err.code}: a locked Calendar was asked to repaint`);
+            }
+            assert.equal(lost, 0, 'the lock had already been reported by whoever shut it');
+
+            // …and the next grant reads the month for itself.
+            _deferGetDocs = false; setOverrideAccess(true);
+            let paints = 0;
+            await ensureOverridesCached(2071, 2, () => { paints++; });
+            assert.equal(knowledgeOf(key), 'authoritative');
+            assert.equal(paints, 1);
+        } finally {
+            setOverrideAccessLostHandler(null);
+        }
     });
 });
 

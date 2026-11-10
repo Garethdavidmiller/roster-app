@@ -8,11 +8,13 @@
  * Edit here for: sync chip appearance, retry behaviour, initial fetch range.
  */
 
-import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, releaseStaleMonths, oweRecheck, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, accessGeneration, hasOverrideAccess, READ_SUPERSEDED } from './calendar-overrides.js';
+import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, releaseStaleMonths, oweRecheck, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, issueReadTicket, answerStillWanted, hasOverrideAccess } from './calendar-overrides.js';
 import { isAccessFailure } from './claim-retry.js';
 import { noteKnowledge, knowledgeOf } from './calendar-data-state.js';
 import { getDisplayMonth, getDisplayYear } from './calendar-state.js';
 import { formatISO } from './roster-data.js';
+
+/** @typedef {import('./calendar-overrides.js').ReadTicket} ReadTicket */
 
 /** The sync's own failure deadline — the point at which the chip says "Couldn't update" (v19.08).
  *  Phase 2's auth wait is bounded by the SAME value, deliberately: if we are going to declare the
@@ -118,13 +120,34 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     syncStatus.textContent = msg;
   }
 
-  // Generation counter — incremented by each doRetry() call so the original
-  // slow request can detect that a retry has superseded it and skip modifying
-  // the UI (otherwise a retry-success followed by a belated original-rejection
-  // would re-show the error chip even though the data loaded successfully).
-  let _fetchGen = 0;
-  const _origGen = ++_fetchGen;
-  const _grant = accessGeneration();   // a refusal from an earlier grant must not re-lock a newer one (v24.56)
+  // ── WHOSE OUTCOME IS IT? One answer for everything the first load does (10 Nov 2026) ─────────────
+  //
+  // The first load is a series of ATTEMPTS: the boot's read, then each retry the chip starts. Each
+  // takes a read ticket as it begins (calendar-overrides.js → THE READ TICKET), and whatever later acts
+  // on its outcome (its failure, a time limit, the cache's early paint) asks `standing` first. The read
+  // inside takes its own ticket when it is issued; that one decides the cache writes. Three answers,
+  // and they are handled differently on purpose:
+  //   'overtaken'  — a newer attempt has begun. The chip is ITS now: touch nothing. (Without this, a
+  //                  retry's success followed by the original's late failure re-showed the error chip
+  //                  over data that had loaded.)
+  //   'superseded' — the access this attempt began under has gone (`answerStillWanted`). The months
+  //                  belong to whoever holds the Calendar now: take the chip away and report nothing.
+  //                  A refusal from an earlier grant must never re-lock a newer one (v24.56).
+  //   'current'    — the outcome is the first load's to report.
+  // Whether the first load has already SUCCEEDED is a different question, `_dataLoaded`, asked where a
+  // retry could follow a success.
+  const _bootAttempt = issueReadTicket();
+  /** @type {ReadTicket} */ let _latestAttempt = _bootAttempt;
+
+  /**
+   * @param {ReadTicket} attempt
+   * @param {unknown} [err]  the attempt's failure, when it failed
+   * @returns {'overtaken'|'superseded'|'current'}
+   */
+  function standing(attempt, err) {
+    if (attempt !== _latestAttempt) return 'overtaken';
+    return answerStillWanted(attempt, err) ? 'current' : 'superseded';
+  }
 
   // Show "↻ Updating your shifts…" chip after 800 ms if Firestore hasn't responded yet.
   // Through setChipState like every other chip state (v25.06): a hand-built chip was the one state a
@@ -230,9 +253,36 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   /** @returns {HTMLButtonElement|null} */
   function currentChip() { return syncChip; }
 
+  /** Take the chip away: the RECORDED state as well as the node, or a header appearing later would
+   *  faithfully re-render a state that no longer applies (v19.10). */
+  function clearChip() {
+    setChipState(null);
+    if (syncChip) { syncChip.remove(); syncChip = null; }
+  }
+
+  // THE FIRST LOAD STANDS DOWN (`standing` → 'superseded'). The access it began under has gone, so its
+  // outcome is nobody's news: nothing is recorded, no claim is released, and the chip goes. The months
+  // are HANDED to whoever holds the Calendar now. That grant's own repaint ran while this load was still
+  // out, and the month grid does not read while the first load is in progress, so without this a
+  // re-unlocked Calendar sat on "Checking this month" until somebody navigated. So the flag comes down
+  // first, then the grid is drawn again. A Calendar still locked has nothing to draw and must not be
+  // made to read. ONE action for the load's failure, its retry's failure and both time limits (10 Nov
+  // 2026); before, each of the four did a different part of it.
+  function standDown() {
+    clearChip();
+    setInitialFetchInProgress(false);
+    if (calGrid) calGrid.classList.remove('calendar-fetching');
+    if (hasOverrideAccess()) { if (isTeamViewMode()) refetchTeamView(); else renderCalendar(); }
+  }
+
   // If Firestore takes more than 10 s, show an error state with a retry link.
   const timeoutTimer = setTimeout(() => {
     if (syncResolved) return;
+    // Not if the access this load began under has gone: "Couldn't update" and a failed month, recorded
+    // against a Calendar locked since, were the first things the next grant drew (`standing`).
+    const s = standing(_bootAttempt);
+    if (s === 'overtaken') return;
+    if (s === 'superseded') { standDown(); return; }
     setChipState({
       text: '⚠ Couldn\'t update — try again',
       className: 'sync-chip sync-chip-error',
@@ -250,8 +300,8 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
 
   async function doRetry() {
     if (!syncChip) return;
-    const _retryGen = ++_fetchGen; // supersede any older pending request
-    const _grant = accessGeneration();
+    const attempt = issueReadTicket();
+    _latestAttempt = attempt;   // overtakes every earlier attempt (`standing`)
     // Through setChipState, NOT a direct write: _chipState must stay the single source, or a
     // re-render landing mid-retry would repaint the error state still recorded underneath and tell
     // the user the sync had failed while it was in fact still running (v19.11).
@@ -259,11 +309,16 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
 
     // A TIME LIMIT ON "Retrying…" (owner, 10 Nov 2026). Past it the retry is reported as failed and
     // the control comes back, exactly as a failed read leaves it: the months released and owed a
-    // re-check, and "Couldn't update — try again" to press. Not if a later retry or a load has
-    // overtaken it, or the Calendar's access has changed since — those own the chip now. Focus goes
-    // back to the chip only if nothing else has it: ten seconds on, the member may have moved on.
+    // re-check, and "Couldn't update — try again" to press. Not if a load has landed, or a later retry
+    // has overtaken it: those own the chip now. And if the access it began under has gone, it stands
+    // down as a failure of the same retry would (`standDown`): "Retrying…" was left showing for a grant
+    // that nothing was retrying for. Focus goes back to the chip only if nothing else has it: ten
+    // seconds on, the member may have moved on.
     const retryLimit = setTimeout(() => {
-      if (_retryGen !== _fetchGen || _dataLoaded || _grant !== accessGeneration()) return;
+      if (_dataLoaded) return;
+      const s = standing(attempt);
+      if (s === 'overtaken') return;
+      if (s === 'superseded') { standDown(); return; }
       _initialMonthKeys.forEach(clearFetchedMonth);
       noteKnowledge(_initialMonthKeys, 'error');
       oweRecheck(_initialMonthKeys);
@@ -308,10 +363,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // the render's ensureOverridesCached must be able to top up an out-of-window display month.
       // Reachable here when the ORIGINAL fetch is still hung (its finally hasn't run) (v16.23).
       setInitialFetchInProgress(false);
-      // Clear the RECORDED state, not just the node — otherwise a header appearing later would
-      // faithfully re-render an error that no longer applies (v19.10).
-      setChipState(null);
-      if (syncChip) { syncChip.remove(); syncChip = null; }
+      clearChip();
       // A user-initiated retry succeeded — confirm it to screen readers, then clear.
       // (The initial silent fetch below stays silent so it isn't announced on every load.)
       announceSync('Shifts updated');
@@ -319,18 +371,18 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       if (isTeamViewMode()) renderTeamView(); else renderCalendar();
     } catch (err) {
       console.error('[Firestore] Retry failed:', err);
-      // Bail if a later retry superseded this one OR if a fetch has meanwhile actually LOADED the
+      const s = standing(attempt, err);
+      // Bail if a later retry overtook this one OR if a fetch has meanwhile actually LOADED the
       // cache (_dataLoaded — success only, NOT the settle-on-failure syncResolved): a failed retry
       // that follows an already-succeeded original must not un-mark the three months as fetched and
       // force a needless re-query. Using syncResolved here would have wrongly bailed on the ordinary
       // offline path (original failed → retry failed) and stranded the chip on "Retrying…" (v16.19).
-      if (_retryGen !== _fetchGen || _dataLoaded) return;
-      // Issued under an EARLIER grant (v24.57, review): it says nothing about the current one, and
-      // must not release the new grant's month claims, mark its months failed, or leave a retry chip
-      // on a calendar that is working. The grant's own reads own those months now. The same for an
-      // ANSWER that outlived its grant (`READ_SUPERSEDED`, 10 Nov 2026): the read was discarded, not
-      // failed, so there is nothing to report and no failure to record against a locked Calendar.
-      if (_grant !== accessGeneration() || /** @type {any} */ (err)?.code === READ_SUPERSEDED) { setChipState(null); if (syncChip) { syncChip.remove(); syncChip = null; } return; }
+      if (s === 'overtaken' || _dataLoaded) return;
+      // Begun under access that has gone (v24.57, review; `READ_SUPERSEDED` and a shut Calendar,
+      // 10 Nov 2026): it says nothing about the access held now, and must not release that grant's
+      // month claims, mark its months failed, or leave a retry chip on a calendar that is working or
+      // locked. The grant that holds the Calendar now reads those months itself.
+      if (s === 'superseded') { standDown(); return; }
       // Mirror the initial fetch's failure path: release the re-claimed months so a later
       // render/navigation can re-fetch them — otherwise a failed retry re-strands all three
       // for the session (the chip is a recovery path only while the calendar header exists).
@@ -339,8 +391,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // "try again" beside the unlock card would offer two competing recoveries, only one of
       // which can work.
       if (onAccessLost && isAccessFailure(err)) {
-        setChipState(null);
-        if (syncChip) { syncChip.remove(); syncChip = null; }
+        clearChip();
         onAccessLost();
         return;
       }
@@ -400,8 +451,9 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // the awaiting microtask), but nothing said so and moving either line would have made the
       // first paint say "Checking this month…" over data that was already in the cache.
       _resolveCacheSettled(!!_painted);
-      // Skip the paint if a retry has already superseded this load (same guard as the catch below).
-      if (_painted && _origGen === _fetchGen && !syncResolved) {
+      // Skip the paint if this load's outcome is no longer its own to show: a retry has overtaken it,
+      // or the access it began under has gone (`standing`, as the catch below asks).
+      if (_painted && standing(_bootAttempt) === 'current') {
         if (isTeamViewMode()) renderTeamView(); else renderCalendar();
       }
 
@@ -430,31 +482,19 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       setInitialFetchInProgress(false);
       if (isTeamViewMode()) renderTeamView(); else renderCalendar();
 
-      setChipState(null);   // see the retry path — a stale error must not be re-rendered later
-      if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
+      clearChip();   // the recorded state too: a stale error must not be re-rendered later
       announceSync('');
     } catch (err) {
       // Settle the first-paint signal on ANY failure path too — a boot waiting on it must never be
       // held by an error thrown before phase 1 got to answer. Resolving twice is a no-op.
       _resolveCacheSettled(false);
-      // A retry may have already succeeded while this original request was still
-      // in-flight — if so, the UI is already in a good state; don't clobber it.
-      if (_origGen !== _fetchGen) return;
+      const s = standing(_bootAttempt, err);
+      // A retry has begun since: it owns the chip, and may already have loaded — don't clobber it.
+      if (s === 'overtaken') return;
       syncResolved = true;
-      // From an earlier grant, or an answer that outlived its grant — stand down entirely, as the
-      // retry path above does (v24.57; `READ_SUPERSEDED`, 10 Nov 2026).
-      if (_grant !== accessGeneration() || /** @type {any} */ (err)?.code === READ_SUPERSEDED) {
-        setChipState(null);
-        if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
-        // …AND HAND THE MONTHS TO THE GRANT THAT NOW HOLDS THE CALENDAR. Its own repaint ran while this
-        // load was still out, and the month grid does not read while the first load is in progress —
-        // so with nothing here the re-unlocked Calendar sat on "Checking this month" until somebody
-        // navigated. Flag down first, for the reason given at the failure render below. Only where
-        // access is held: a Calendar still locked has nothing to draw and must not read.
-        setInitialFetchInProgress(false);
-        if (hasOverrideAccess()) { if (isTeamViewMode()) refetchTeamView(); else renderCalendar(); }
-        return;
-      }
+      // From an earlier grant, an answer that outlived its grant, or a failure after access went:
+      // stand down and hand the months over (v24.57; `READ_SUPERSEDED` and a shut Calendar, 10 Nov 2026).
+      if (s === 'superseded') { standDown(); return; }
       console.error('[Firestore] Initial override fetch failed', err);
       // Release the 3 pre-claimed months so ensureOverridesCached() can re-fetch them on a later
       // render/navigation. Without this they stay marked fetched forever and their overrides never
@@ -465,8 +505,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // Nothing is recorded against the months first (cal-data-6): a refusal says nothing about them,
       // and an `error` left across the lock was the first thing the next grant drew.
       if (onAccessLost && isAccessFailure(err)) {
-        setChipState(null);
-        if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
+        clearChip();
         onAccessLost();
         return;
       }
@@ -544,8 +583,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   // released, so navigating re-reads them), so the chip's claim is withdrawn rather than left standing.
   function dismissSyncError() {
     if (!_chipState?.className.includes('sync-chip-error')) return;
-    setChipState(null);
-    if (syncChip) { syncChip.remove(); syncChip = null; }
+    clearChip();
   }
 
   return { cacheSettled, dismissSyncError };

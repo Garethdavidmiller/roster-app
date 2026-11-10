@@ -254,6 +254,12 @@ Firebase Auth initialises — `CALENDAR_DATA.md` 10); phase 2 waits for `authRea
 - Chip: hidden → "↻ Updating your shifts…" after 800 ms → "⚠ Couldn't update — try again" at the
   timeout. A press says "↻ Retrying…" for at most `RETRY_TIMEOUT_MS`, then gives the control back. The owed state is `_chipState`, not the DOM, and a `MutationObserver` puts the chip back
   whenever a header rebuild takes it away (beside `setChipState`).
+- **Whose outcome is it** (`standing`, internal). The boot's read and each retry are ATTEMPTS, each
+  under a read ticket; before acting on an outcome (a failure, either time limit, the cache's early
+  paint) the first load asks: `'overtaken'` (a newer attempt began: touch nothing), `'superseded'` (the
+  access it began under has gone: `standDown` — the chip goes, nothing is recorded, and the months are
+  handed to whoever holds the Calendar now) or `'current'`. Whether a load has already SUCCEEDED
+  (`_dataLoaded`) is asked separately, where a retry could follow one.
 - Coming back into view, a bfcache restore and — while the page stays visible and holds access — every
   `STALE_MONTH_MS` release months older than that so they are re-read behind the grid
   (`releaseStaleMonths`, `CALENDAR_DATA.md` 18); a first load that failed over a saved copy owes those
@@ -369,8 +375,14 @@ The pure rules of Calendar access — no DOM, no Firebase, no storage — tested
 The Calendar's override cache and every read that fills it. The reasoning is beside each function;
 `CALENDAR_DATA.md` 3–6, 16, 18 and 20 are its invariants.
 - `rosterOverridesCache` — a `Map` keyed `"memberName|YYYY-MM-DD"`.
-- `fetchOverridesForRange(startStr, endStr)` — the authoritative server read. It reconciles each month
-  slice only where no NEWER read has written it (`_monthSlices`, a test seam). A snapshot the offline
+- **The read ticket — one rule for "is this answer still wanted?"** `issueReadTicket()` → `{ grant, seq }`,
+  taken as a read is issued; `answerStillWanted(ticket, err?)` — only while the access it was issued
+  under is still held (the same grant, not shut since), and never for a `READ_SUPERSEDED` failure. Once
+  no, always no. Every outcome asks it first: a success, a failure, a time limit, a paint (here and in
+  `calendar-initial-fetch.js`).
+- `fetchOverridesForRange(startStr, endStr, ticket?)` — the authoritative server read, under its own
+  ticket (`ensureOverridesCached` passes the one its month read was issued under). It reconciles each
+  month slice only where no read issued LATER has written it (`_monthSlices`, a test seam). A snapshot the offline
   cache answered is merged additively and thrown as `SERVED_FROM_CACHE` (carrying `painted`, true only
   for a month this device once read whole — the `myb_cal_whole_months` record), so the month is recorded
   `cached` or `error` and released. An answer that lands after the access it was
@@ -384,7 +396,8 @@ The Calendar's override cache and every read that fills it. The reasoning is bes
   records what is now known, and calls back EVERY waiter when it settles (a caller arriving mid-read
   joins). A failure repaints once per claim, or it would be a fetch↔render loop. A failed RE-check of a
   month this device holds the server's answer for keeps the grid as the labelled saved copy
-  (`noteCheckFailed`) — only where no other answer has landed since the read was issued.
+  (`noteCheckFailed`) — only where no other answer has landed since the read was issued. A failure the
+  ticket no longer wants (access gone since) records, repaints and reports nothing.
 - `getShiftTypesInMonth(member, year, month, snapshot?)` — the legend's set (SPARE, RDW, AL, SICK, OTHER)
   through the shared `resolveDayShift`; memoised, except for a month drawn from the stored copy.
 - `monthKey(year, month)` · `releaseStaleMonths(maxAgeMs, now?)` (releases settled months older than
@@ -397,8 +410,8 @@ The Calendar's override cache and every read that fills it. The reasoning is bes
 - **The access gate.** `setOverrideAccess(granted)` — a grant is a fresh start (every claim cleared, the
   generation advanced); revoking clears no claim but forgets what every month was known to be, so every
   route that loses access forgets in one place. `hasOverrideAccess()` · `setOverrideAccessLostHandler(fn)`
-  (injected, so this module never imports the access layer) · `accessGeneration()` (a refusal from an
-  earlier grant must not re-lock a newer one).
+  (injected, so this module never imports the access layer). The grant number itself is read only by
+  `answerStillWanted`; the `accessGeneration()` export it replaced went in v25.72.
 - This module's two reads are the cache's only writers, and both clear the month shift-type memo; a new
   writer must clear it too, or the legend goes stale.
 
