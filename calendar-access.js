@@ -85,11 +85,10 @@ const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCal
  *  on a working network is the more annoying of the two errors. */
 const UNLOCK_TIMEOUT_MS = 15000;
 
-/** The whole access decision's deadline — NOT a per-step one (v21.29). Everything `resolveAccess`
- *  waits for shares this budget, so a wedged auth layer costs it once rather than once per step.
- *  Past it the answer is `none`, which shows the unlock card, which is recoverable — and the
- *  late-identity watcher then corrects it the moment a real identity turns up. */
-// ACCESS_DECISION_BUDGET_MS is session.js's since v24.96 — one constant for this decision and holdsStaffPin's.
+// ACCESS_DECISION_BUDGET_MS — session.js's since v24.96, one constant for this decision and
+// holdsStaffPin's — is the WHOLE decision's deadline, not a per-step one (v21.29): everything
+// `resolveAccess` waits for shares it, so a wedged auth layer costs it once. Past it the answer is
+// `none`, a card, which is recoverable — and the late-identity watcher corrects it when an identity lands.
 
 /** @type {'named'|'viewer'|'none'} */
 let _accessType = 'none';
@@ -459,9 +458,11 @@ function setWorkspaceHidden(hidden) {
         if (!el) continue;
         // The `hidden` ATTRIBUTE, not a CSS class or opacity: it removes the element from the
         // accessibility tree as well as the page, so a screen reader cannot read out a Calendar the
-        // eye cannot see. There is nothing inside these nodes to hide while locked — the Calendar is
-        // never initialised — but a gate whose correctness depends on something else being empty is
-        // one refactor away from not being a gate.
+        // eye cannot see. But only where the stylesheet lets it: a `display` of the element's own
+        // outranks the attribute, so each element here needs a `[hidden]` rule beside that `display`
+        // (cal-docs-11 found the two prompt strips without one). And it is load-bearing: before the
+        // first grant these nodes are empty, but a re-lock (`handleAccessLost`) does not reload, so
+        // after one they hold the roster the grant drew.
         if (hidden) el.setAttribute('hidden', '');
         else el.removeAttribute('hidden');
     }

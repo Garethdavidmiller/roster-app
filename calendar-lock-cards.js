@@ -320,7 +320,7 @@ export async function showSignInPanel(notice = '') {
             // Who the PIN is FOR, said on the card that leads with the alternative to it — otherwise
             // a visiting colleague with no account reads a sign-in form and reasonably concludes the
             // app is not for them. "Visiting or agency staff": the audience the owner named.
-            hint: 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle and the guides.',
+            hint: 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular, the Marylebone Newsletter and the guides.',
             onSelect: () => showLockPanel(),
         },
     });
@@ -363,9 +363,7 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     _deps.setWorkspaceHidden(true);
     _deps.onAwaitingInput?.();   // the page now waits for the member to sign in again (perf-reporter.js)
 
-    // Same card, same ids for the button and the message channel, so both wear the styling the PIN
-    // card already established — including `#calLockSubmit:disabled`, which is exactly the resting
-    // look wanted while the silent attempt is in flight.
+    // Same card, and the same id for the button, so it wears the styling the PIN card established.
     const panel = mountLockCard({ labelledBy: 'calLockWho', html: `
         <div class="cal-lock-card">
             <img src="./icon-192.png" alt="" loading="eager">
@@ -409,7 +407,7 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
         // overlay pre-selects grade and name and lands on the password field. `presetName` is a
         // convenience the overlay is free to ignore — it never widens who may sign in.
         const open = (/** @type {typeof import('./login-overlay.js')} */ m) =>
-            m.initLoginOverlay({ pageLabel: 'the Calendar', onSuccess: () => window.location.reload(), presetName: name });
+            m.initLoginOverlay({ pageLabel: 'Calendar', onSuccess: () => window.location.reload(), presetName: name });
         if (_signInForm) { open(_signInForm); return; }   // inside the tap — see the block above
         /** @type {typeof import('./login-overlay.js')} */ let mod;
         // A failed load must not leave a dead button: say so and keep the button live. After a

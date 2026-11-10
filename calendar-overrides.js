@@ -413,16 +413,17 @@ export async function fetchOverridesForRange(startStr, endStr) {
 
 /**
  * Paint from the LOCAL Firestore cache — no network. This is phase 1 of the calendar's two-phase
- * initial load (AUTH_PLAN.md → E1): it lets the roster appear instantly on a returning device,
- * without putting a sign-in round-trip in front of data the device already holds.
+ * initial load (AUTH_PLAN.md → E1): it puts no sign-in round trip of its own in front of data the
+ * device already holds — though it cannot beat the stored user's `accounts:lookup`, behind which
+ * Firestore holds every operation (CALENDAR_DATA.md 10).
  *
  * **It is no longer "no auth", and that changed at v20.12.** Firestore rules are evaluated on the
  * SERVER, so a cache hit genuinely never consults them — which used to be stated here as a harmless
  * property of an open collection and became the feature's single biggest hole the moment override
- * reads required access. The read is now gated on `_accessGranted` (see the module header): the
+ * reads required access. The read is now gated on `_accessGranted` (THE ACCESS GATE, above): the
  * rules stop the NETWORK read, and that check stops this one. Phase 1 still runs before any network
- * or token work, so the instant-paint property survives; it simply runs after the access DECISION,
- * which on a returning member is a local one.
+ * read of its own; it simply runs after the access DECISION, which waits for Firebase to confirm the
+ * stored sign-in.
  *
  * **Merged additively — never authoritative.** A cache snapshot is a possibly-stale SUBSET, so an
  * absent key is not a delete. Only the server read (`fetchOverridesForRange`) may evict. See the

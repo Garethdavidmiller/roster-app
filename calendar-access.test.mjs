@@ -673,6 +673,11 @@ describe('initCalendarAccess', () => {
         assert.ok(!lastPanelHtml().includes('calLockPin'), 'the PIN field was on the front door');
         assert.match(m.alternative?.label || '', /staff PIN/i, 'no route to the PIN from the front door');
         assert.match(m.alternative?.hint || '', /agency/i, 'the card does not say who the PIN is for');
+        // …and what it opens: the roster and all three documents (CALENDAR_DATA.md 15), as the staff
+        // guide says. It named the Huddle alone, so a visitor read it as no route to the other two.
+        for (const doc of ['Daily Huddle', 'Weekly Retail Circular', 'Marylebone Newsletter']) {
+            assert.ok((m.alternative?.hint || '').includes(doc), `the PIN's hint does not say it opens the ${doc}`);
+        }
 
         // The alternative swaps the cards IN PLACE — one slot, no reload, no second panel.
         m.alternative.onSelect();
@@ -795,6 +800,9 @@ describe('initCalendarAccess', () => {
         assert.equal(loginMounts[0].presetName, 'G. Miller',
             'the overlay was opened without the name the card is already showing');
         assert.equal(loginMounts[0].host, undefined, 'the come-back sign-in is the modal, not inline');
+        // The label is the subtitle's prefix ("Calendar · Sign in"), a bare page name on every other
+        // page and on this page's own front door. "the Calendar" read "the Calendar · Sign in".
+        assert.equal(loginMounts[0].pageLabel, 'Calendar', 'the come-back form is not labelled as the Calendar\'s other forms are');
     });
 
     // cal-data-9 (10 Nov 2026). A grant takes the SLOT down, and the come-back card's form is not in

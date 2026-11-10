@@ -83,7 +83,6 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   ];
   addFetchedMonths(_initialMonthKeys);
 
-  /** @type {HTMLButtonElement|null} */
   /** @type {HTMLButtonElement|null} */ let syncChip = null;
   /** @type {any} */
   let syncStatus = null;
@@ -381,8 +380,8 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // BOUNDED by the sync's own failure deadline (v19.08). Waiting for a session is the point of
       // this phase, but waiting FOREVER is not: an unbounded await meant the IIFE could never
       // settle, so neither catch nor finally ran and the fetch state leaked permanently (see
-      // SYNC_TIMEOUT_MS). Past the deadline we read anyway — today that succeeds, and once reads
-      // require a session it fails into the catch below, which is the recoverable path.
+      // SYNC_TIMEOUT_MS). Past the deadline we read anyway: reads have needed Calendar access since
+      // v20.12, so one made without it fails into the catch below, which is the recoverable path.
       /** @type {ReturnType<typeof setTimeout>|undefined} */ let authWait;
       try {
         await Promise.race([authReady, new Promise(r => { authWait = setTimeout(r, SYNC_TIMEOUT_MS); })]);
