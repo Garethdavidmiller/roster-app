@@ -210,6 +210,42 @@ describe('setting your own password', () => {
     });
 });
 
+// A deadline belongs on the password change alone (settings-ops-2): the stamp is a Firestore write that
+// settles only when the server acknowledges it, and timed with the change it turned a changed password
+// into "we couldn't confirm" wherever commits were slow. The forced overlay times this call.
+describe('changing your own password, with the stamp left to finish on its own', () => {
+    test('resolves once the password has changed, while its stamp is still unacknowledged', async () => {
+        signIn({ uid: 'uid_springer' });
+        /** @type {(v?: any) => void} */ let acknowledge = () => {};
+        state.holdNext.set('passwordStatus/', new Promise((r) => { acknowledge = r; }));
+        // Raced, so a call that waits for the stamp FAILS here rather than hanging the file.
+        const out = await Promise.race([fc.changeOwnPassword(MEMBER, 'a-new-passphrase'),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('it waited for the stamp')), 1000))]);
+        assert.deepEqual(state.authOps.find((o) => o.op === 'updatePassword'), { op: 'updatePassword', uid: 'uid_springer', pw: 'a-new-passphrase' });
+        let settled = false;
+        out.stamp.then(() => { settled = true; });
+        await new Promise((r) => setImmediate(r));
+        assert.equal(settled, false, 'premise: the stamp is still on its way');
+        acknowledge();
+        assert.equal(await out.stamp, true, 'and it is recorded once acknowledged');
+        assert.deepEqual(writes('passwordStatus/').map((w) => w.data), [{ passwordSetAt: SERVER_TS }]);
+    });
+
+    test('a stamp that fails settles false — it never rejects, because the password changed', async () => {
+        signIn();
+        state.failNext.set('passwordStatus/', 'unavailable');
+        const out = await fc.changeOwnPassword(MEMBER, 'a-new-passphrase');
+        assert.equal(await out.stamp, false);
+    });
+
+    test('a password change that fails rejects, and starts no stamp', async () => {
+        signIn();
+        state.reauthRejects.set('update:a-new-passphrase', 'auth/requires-recent-login');
+        await assert.rejects(fc.changeOwnPassword(MEMBER, 'a-new-passphrase'), /requires-recent-login/);
+        assert.deepEqual(writes('passwordStatus/'), [], 'no passwordSetAt for a password that did not change');
+    });
+});
+
 describe('re-authentication before a password change', () => {
     test('a wrong-password on the typed text falls through to the surname candidate', async () => {
         signIn();

@@ -7,7 +7,7 @@
  *   `nav-panel.js` pattern) so the pages it runs on need no HTML of their own.
  * Does NOT own: the sign-in candidate ladder (session.js), the password rules
  *   (`validateNewPassword` in auth-identity.js — shared with the Settings card), the migration flag
- *   (`passwordStatus`, written by `setOwnPassword`), or the admin reset (a Cloud Function).
+ *   (`passwordStatus`, stamped by `changeOwnPassword`), or the admin reset (a Cloud Function).
  *
  * ── WHY IT IS SAFE TO BLOCK ───────────────────────────────────────────────────────────────────
  * Blocking a member is the whole point — a dismissible prompt is the Phase-1 nudge, which produced
@@ -65,7 +65,7 @@
 import { lsGet, lsDel } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
-import { getPasswordStatus, setOwnPassword, reauthenticateWithPassword } from './firebase-client.js';
+import { getPasswordStatus, changeOwnPassword, reauthenticateWithPassword } from './firebase-client.js';
 import { isPasswordMigrated, isCredentialRejection, validateNewPassword, MIN_PASSWORD_LENGTH } from './auth-identity.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
@@ -323,12 +323,15 @@ function _show(member) {
                 // free and "it did not happen" is a true statement about it.
                 if (!curWrap.hidden) await withTimeout(reauthenticateWithPassword(member, curEl.value), SAVE_TIMEOUT_MS);
                 // The WRITE is different — see settleOrTimeout. A deadline here means "we don't know",
-                // never "it failed".
-                const res = await settleOrTimeout(setOwnPassword(member, next), SAVE_TIMEOUT_MS);
+                // never "it failed". It times the password change ALONE (settings-ops-2): its
+                // migration stamp, a Firestore write that can be slow where the change was not, goes
+                // on in the background (`changeOwnPassword`), and waited for here it turned a changed
+                // password into "we couldn't confirm".
+                const res = await settleOrTimeout(changeOwnPassword(member, next), SAVE_TIMEOUT_MS);
                 if (res.status === 'pending') { onIndeterminate(res.settled); return; }
                 if (res.status === 'failed')  throw res.error;
                 // The password IS changed at this point. A missing migration stamp is a soft note
-                // (setOwnPassword's own contract), never a failure — do not re-prompt on it.
+                // (setOwnPassword's contract, in firebase-client.js), never a failure — do not re-prompt.
                 onWriteConfirmed();
             } catch (e) {
                 failures++;

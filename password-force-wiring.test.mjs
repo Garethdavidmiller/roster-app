@@ -30,12 +30,15 @@ let authStatus = 'named';
 /** By default the first save is refused as stale, so the overlay asks for the current password; later ones land. */
 mock.module('./firebase-client.js', { namedExports: {
     getPasswordStatus: async () => ({}),                       // not migrated — the overlay compels
-    setOwnPassword: async () => {
+    changeOwnPassword: async () => {
         setCalls++;
         if (setImpl) return setImpl();
         if (setCalls === 1) throw Object.assign(new Error('stale'), { code: 'auth/requires-recent-login' });
-        return { statusRecorded: true };
+        return { stamp: Promise.resolve(true) };
     },
+    // The call the overlay made until settings-ops-2: it waits for the migration stamp too, and a stamp
+    // the server has not acknowledged keeps it waiting — modelled as never settling.
+    setOwnPassword: () => new Promise(() => {}),
     reauthenticateWithPassword: async () => { reauthCalls++; },
 } });
 mock.module('./auth-state.js', { namedExports: { getAuthSnapshot: () => ({ status: authStatus }) } });
@@ -43,8 +46,10 @@ mock.module('./overlay.js', { namedExports: { lockBodyScroll() {}, unlockBodyScr
 mock.module('./ls.js', { namedExports: { lsGet: () => '1', lsDel(/** @type {string} */ k) { lsDeleted.push(k); } } });
 
 // ── A minimal fake DOM: exactly the elements the overlay looks up ──────────────────────────────────
+/** Every event the overlay dispatched on the document, by type — the host page's cue. @type {string[]} */
+const dispatched = [];
 /** @type {any} */
-const doc = { activeElement: null, dispatchEvent() {} };
+const doc = { activeElement: null, dispatchEvent(/** @type {any} */ ev) { dispatched.push(ev.type); } };
 /** @type {Record<string, any>} */
 const ids = {};
 function el(/** @type {string} */ id) {
@@ -94,7 +99,53 @@ function enter(/** @type {any} */ target) {
     return prevented;
 }
 
-beforeEach(() => { setCalls = 0; reauthCalls = 0; authStatus = 'named'; setImpl = null; lsDeleted.length = 0; freshDom(); });
+beforeEach(() => { setCalls = 0; reauthCalls = 0; authStatus = 'named'; setImpl = null; lsDeleted.length = 0; dispatched.length = 0; freshDom(); });
+
+/** Let promise chains and the overlay's handlers run (setImmediate, so a mocked setTimeout cannot hold it). */
+const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r)); };
+/** Open the overlay and wait for it to take focus. `done` resolves when it closes.
+ *  @returns {Promise<{ done: Promise<boolean> }>} */
+async function openOverlay() {
+    const done = initPasswordForce('G. Miller');
+    for (let i = 0; i < 40 && doc.activeElement !== ids.pwfNew; i++) await new Promise(r => setTimeout(r, 5));
+    assert.equal(doc.activeElement, ids.pwfNew, 'premise: the overlay is up');
+    return { done };
+}
+
+test('a password that HAS changed closes the overlay while its stamp is still on its way (settings-ops-2)', async () => {
+    // The 8-second deadline covered the migration stamp as well — a Firestore write that settles only
+    // when the server acknowledges it — so where commits were slow, a password that had changed read
+    // "We couldn't confirm whether your password was updated", with Save stuck on "Still saving…".
+    setImpl = async () => ({ stamp: new Promise(() => {}) });   // changed; the stamp is never acknowledged
+    const { done } = await openOverlay();
+    ids.pwfNew.value = ids.pwfConfirm.value = 'a-real-password-9';
+    enter(ids.pwfConfirm);
+    const closed = await Promise.race([done, new Promise(r => setTimeout(() => r('still open'), 300))]);
+    assert.equal(closed, true, 'the member was held on an overlay for a stamp, not for their password');
+    assert.ok(dispatched.includes('myb:password-set'), 'and the host page was told');
+    assert.equal(ids.pwfEscape.hidden, true, 'nothing went wrong, so no escape was offered');
+});
+
+test('after "Continue for now", a password change that lands late still tells the host page', async (t) => {
+    // The overlay is HIDDEN by the escape, not removed, so the late outcome still reaches the page —
+    // the Settings card re-reads the member's status on it. The member was already told to keep and
+    // try the new password, which is right under both outcomes.
+    /** @type {() => void} */ let land = () => {};
+    setImpl = () => new Promise(r => { land = () => r({ stamp: Promise.resolve(true) }); });
+    await openOverlay();
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    ids.pwfNew.value = ids.pwfConfirm.value = 'a-real-password-9';
+    enter(ids.pwfConfirm);
+    await flush();
+    t.mock.timers.tick(8000);                                   // SAVE_TIMEOUT_MS passes, the change still out
+    await flush();
+    assert.equal(ids.pwfEscape.hidden, false, 'premise: the outcome is unknown, so the escape is offered');
+    ids.pwfEscape.click();                                      // Continue for now
+    assert.deepEqual(dispatched, [], 'premise: nothing told yet');
+    land();
+    await flush();
+    assert.deepEqual(dispatched, ['myb:password-set']);
+});
 
 test('Enter in the revealed current-password field re-authenticates and saves', async () => {
     void initPasswordForce('G. Miller');                       // resolves only when the overlay closes

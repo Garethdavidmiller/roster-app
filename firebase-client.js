@@ -670,6 +670,30 @@ export async function reauthenticateWithPassword(memberName, typed) {
 }
 
 /**
+ * Change the signed-in member's OWN password, and START the `passwordSetAt` stamp without waiting
+ * for it. Resolves the moment the password HAS changed, which is where a caller's deadline belongs
+ * (settings-ops-2, Nov 2026): the stamp is a Firestore write that settles only when the server
+ * acknowledges it, and waited for inside an 8-second deadline it turned a password that had changed
+ * into "we couldn't confirm" wherever commits were slow. `stamp` settles `true` once recorded and
+ * `false` if not — it never rejects, because the password changed either way (`setOwnPassword`
+ * below says why a missing stamp is only a soft note). The forced set-password overlay uses this.
+ * @param {string} memberName
+ * @param {string} newPassword
+ * @returns {Promise<{ stamp: Promise<boolean> }>} rejects only if the password itself was not changed
+ */
+export async function changeOwnPassword(memberName, newPassword) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not signed in');
+    await updatePassword(user, newPassword);   // (A) the password is now genuinely changed
+    // (B) record migration — best-effort, must not undo (A), and never awaited here
+    const stamp = savePasswordSetAt(memberName).then(() => true, (e) => {
+        console.warn('[Auth] password changed, but passwordSetAt stamp failed:', e);
+        return false;
+    });
+    return { stamp };
+}
+
+/**
  * Set the signed-in member's OWN Firebase Auth password to a new value (after a fresh reauth), then
  * stamp `passwordSetAt`. Standard secure client flow — the server never sees the password.
  *
@@ -682,22 +706,17 @@ export async function reauthenticateWithPassword(memberName, typed) {
  * reported via `statusRecorded:false` — the password genuinely changed either way; only the
  * migration record (a monitoring signal, not a security control) is missing and self-heals on the
  * next successful set.
+ *
+ * It WAITS for the stamp, so a caller that puts a deadline on it is timing the stamp too — the Settings
+ * card does today (settings-ops-2); `changeOwnPassword` above is the half to put a deadline on.
  * @param {string} memberName
  * @param {string} newPassword
  * @returns {Promise<{ statusRecorded: boolean }>} `statusRecorded` is false when the password
  *   changed but the migration stamp did not persist.
  */
 export async function setOwnPassword(memberName, newPassword) {
-    const user = auth.currentUser;
-    if (!user) throw new Error('Not signed in');
-    await updatePassword(user, newPassword);   // (A) the password is now genuinely changed
-    try {
-        await savePasswordSetAt(memberName);   // (B) record migration — best-effort, must not undo (A)
-        return { statusRecorded: true };
-    } catch (e) {
-        console.warn('[Auth] password changed, but passwordSetAt stamp failed:', e);
-        return { statusRecorded: false };
-    }
+    const { stamp } = await changeOwnPassword(memberName, newPassword);
+    return { statusRecorded: await stamp };
 }
 
 /** Admin-only Cloud Function that resets a member's Firebase password back to their surname default
