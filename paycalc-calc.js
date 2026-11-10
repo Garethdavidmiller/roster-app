@@ -229,6 +229,44 @@ export const HPP_FRACTION = 4 / 52;
 
 // ── Pure helpers ───────────────────────────────────────────────────────────
 
+// ── TO THE PENNY, WHERE EACH FIGURE IS WORKED OUT (whole-app review, Nov 2026) ─────────────────────
+// Nothing was rounded until it was displayed, so the summary's rows could differ by a penny from the
+// take-home under them (£3,178.66 − £442.20 − £176.85 shown, £2,559.60 below). Payroll rounds each
+// deduction by a statutory rule, so the engine now does too, and the take-home is the shown rows'
+// difference (`takeHomePay`). Each helper first takes the figure to the nearest billionth of a pound,
+// which removes binary noise (58 × 0.08 is 58.000000000000004) without touching a real fraction, and
+// floors with a millionth-of-a-penny margin for the noise the scaling itself adds.
+const _clean = (/** @type {number} */ x) => Math.round(x * 1e9) / 1e9;
+/** Income tax, rounded DOWN to the penny — HMRC's PAYE tax-table routines: "to 4 decimal places of a
+ *  pound without applying any correction to the final place, and then finally round down the result
+ *  if necessary to the nearest multiple of 1p below" (truncating at the fourth place, then at the
+ *  second, is truncating at the second). @param {number} x */
+const taxPennies = x => Math.floor(_clean(x) * 100 + 1e-6) / 100;
+/** National Insurance to the penny — Social Security (Contributions) Regulations 2001, reg 12(1)(b):
+ *  "any amount of a halfpenny or less shall be disregarded", which HMRC's specification for payroll
+ *  software applies by the third decimal place alone: 5 or less rounds down, 6 or more rounds up.
+ *  @param {number} x */
+const niPennies = x => {
+  const tenths = Math.floor(_clean(x) * 1000 + 1e-6);   // tenths of a penny, the rest disregarded
+  return (tenths % 10 >= 6 ? Math.floor(tenths / 10) + 1 : Math.floor(tenths / 10)) / 100;
+};
+/** A figure to the penny exactly as `fmt` prints it (paycalc-format.js) — the same `toFixed(2)`,
+ *  so a row and the arithmetic under it cannot round apart. @param {number} x */
+const shownPennies = x => Number(x.toFixed(2));
+
+/**
+ * The summary's own arithmetic (whole-app review, Nov 2026): pay after the pension as its row shows
+ * it, and the take-home as that row less the deductions shown under it — so the rows a member adds up
+ * always come to the figure they are adding up to. Income tax and NI arrive in whole pennies (above),
+ * a student loan in whole pounds; tax and NI are still worked out on the unrounded pay.
+ * @param {{ gross: number, pension: number, tax: number, ni: number, sl: number }} d
+ * @returns {{ afterPension: number, net: number }}
+ */
+export function takeHomePay({ gross, pension, tax, ni, sl }) {
+  const afterPension = Math.max(0, shownPennies(shownPennies(gross) - shownPennies(pension)));
+  return { afterPension, net: shownPennies(afterPension - tax - ni - sl) };
+}
+
 /**
  * Apply progressive tax bands to a taxable amount.
  * @param {number} taxable - Already after personal allowance.
@@ -541,7 +579,7 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
   if (ytdPay != null && ytdTax != null && !isNonCum && periodN !== null) {
     const N = periodN;
     const cumGross = ytdPay + sacGross;
-    const cumTaxDue = taxOnAmount(cumGross, N);
+    const cumTaxDue = taxPennies(taxOnAmount(cumGross, N));   // the year's liability, to the penny below
     // An OVER-collected year (a new starter off an emergency code, a code raised mid-year) is
     // refunded by real cumulative PAYE. The estimate keeps the deduction at £0 — netting a refund
     // into take-home would let one mistyped Year to Date figure invent money — but REPORTS the
@@ -554,11 +592,11 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // on top, and the take-home read −£173.99. `payLimited` lets the result say the figures look wrong.
     const due = Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit);
     const payLeft = Math.max(0, sacGross - otherDeductions);
-    return { tax: Math.min(due, payLeft), usingCumulative: true, payLimited: due > payLeft,
+    return { tax: taxPennies(Math.min(due, payLeft)), usingCumulative: true, payLimited: due > payLeft,
              refund: Math.max(0, ytdTax - cumTaxDue), code: rawCode, recognised };
   }
 
-  return { tax: Math.min(taxOnAmount(sacGross, null), overridingLimit), usingCumulative: false, payLimited: false, refund: 0, code: rawCode, recognised };
+  return { tax: taxPennies(Math.min(taxOnAmount(sacGross, null), overridingLimit)), usingCumulative: false, payLimited: false, refund: 0, code: rawCode, recognised };
 }
 
 /**
@@ -570,8 +608,10 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
  */
 export function computeNI(sacGross, ni) {
   if (sacGross <= ni.pt) return 0;
-  return (Math.min(sacGross, ni.uel) - ni.pt) * ni.r8 +
-         Math.max(0, sacGross - ni.uel) * ni.r2;
+  // Each band to the penny on its own, then added — as HMRC's worked examples do (`niPennies`).
+  const main  = niPennies((Math.min(sacGross, ni.uel) - ni.pt) * ni.r8);
+  const upper = niPennies(Math.max(0, sacGross - ni.uel) * ni.r2);
+  return Math.round((main + upper) * 100) / 100;
 }
 
 /**

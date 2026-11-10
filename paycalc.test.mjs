@@ -4,11 +4,13 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { fmt } from './paycalc-format.js';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION, AWARD_RATES, awardRatesFor, getRateForPeriod, capHours,
   awardFromForYear, isPreAwardPeriod,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod, PENSION_STEPS,
+  takeHomePay,
 } from './paycalc-calc.js';
 // ── THE REAL PAYSLIP FIXTURE IS OPTIONAL, AND ITS ABSENCE IS LOUD (v23.71) ──────────────────────
 //
@@ -347,6 +349,23 @@ describe('computeNI', () => {
     const expected = (ni.uel - ni.pt) * 0.08 + (sacGross - ni.uel) * 0.02;
     approx(computeNI(sacGross, ni), expected, 'above UEL NI');
   });
+
+  // ── TO THE PENNY, BY THE REGULATION (whole-app review, Nov 2026) ──────────────────────────────
+  // Reg 12(1)(b): "any amount of a halfpenny or less shall be disregarded" — applied, in HMRC's
+  // specification for payroll software, by the third decimal place alone: 5 or less down, 6 or more up.
+  test('NI is whole pennies: a third decimal of 5 rounds DOWN, 6 rounds up — not ordinary rounding', () => {
+    assert.equal(computeNI(ni.pt + 1251.5625, ni), 100.12, '100.125 → 100.12 (a halfpenny is disregarded)');
+    assert.equal(computeNI(ni.pt + 1251.575, ni), 100.13, '100.126 → 100.13');
+    assert.equal(computeNI(ni.pt + 1251.5, ni), 100.12, 'already whole pennies → unchanged');
+    assert.equal(computeNI(3178.6566, ni), 176.85, 'the review\'s payslip: 176.8525 → 176.85');
+  });
+
+  test('NI above the UEL rounds each band on its own, then adds them', () => {
+    // 8% band: (3868 − 968) × 8% = 232.00 exactly. 2% band: 2% of 26.75 = 0.535 → 0.53, and 2% of
+    // 26.8125 = 0.53625 → 0.54 — so the upper band is rounded by the same rule, on its own.
+    assert.equal(computeNI(ni.uel + 26.75, ni), 232.53);
+    assert.equal(computeNI(ni.uel + 26.8125, ni), 232.54);
+  });
 });
 
 // ── computeSL ─────────────────────────────────────────────────────────────────
@@ -522,7 +541,8 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
   function runAppLines(/** @type {string} */ first, /** @type {string} */ last,
                        /** @type {Record<string, any>} */ inputs, /** @type {string[]} */ results) {
     const decl = (/** @type {string} */ name, /** @type {number} */ after) => {
-      const re = new RegExp(`const ${name}\\s*=`, 'g');
+      // `const name =`, or a destructuring that declares it: `const { …, name } =`.
+      const re = new RegExp(`const (?:${name}|\\{[^}]*\\b${name}\\b[^}]*\\})\\s*=`, 'g');
       re.lastIndex = after;
       return re.exec(APP_SRC)?.index ?? -1;
     };
@@ -546,7 +566,7 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
       computeSL, sacGross: SAC, thresholds: getThresholds('2026/27'),
       plan: 'none', pgLoan: false, slSkip: false, slPaidOff: false, ...over,
     }, ['slUnder', 'slPost', 'sl']);
-    return { ...r, net: runAppLines('net', 'net', { sacGross: SAC, tax: TAX, ni: NI, sl: r.sl }, ['net']).net };
+    return { ...r, net: runAppLines('net', 'net', { takeHomePay, grossWithBp: SAC, pension: 0, tax: TAX, ni: NI, sl: r.sl }, ['net']).net };
   };
 
   test('a plan AND a Postgraduate Loan: both come off take-home', () => {
@@ -578,6 +598,31 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
       runAppLines('sacGross', 'sacGross', { grossWithBp, pension }, ['sacGross']).sacGross;
     assert.equal(base(100, 200), 0, 'pension over pay');
     approx(base(3203.76, 151.86), 3051.90, 'an ordinary payslip is untouched');
+  });
+
+  // THE ROWS A MEMBER ADDS UP COME TO THE FIGURE UNDER THEM (whole-app review, Nov 2026). Nothing was
+  // rounded until shown, so "£3,178.66 − £442.20 − £176.85" sat over a take-home of £2,559.60 — on a
+  // quarter of ordinary payslips. NI and tax are now whole pennies by their statutory rules, and the
+  // take-home is the shown rows subtracted (`takeHomePay`, at calculate()'s own line).
+  test('the summary\'s rows add up to the take-home, to the penny, across a year of shapes', () => {
+    const pounds = (/** @type {string} */ s) => Number(s.replace(/[£,−]/g, ''));
+    let checked = 0;
+    for (const rate of [21.49, 20.74, 22.60]) for (let ot = 0; ot <= 24 * 60; ot += 7) for (const sat of [0, 440, 940]) {
+      const { gross } = computeGross({ effContr: 140, rate, satHrs: sat / 60, bhHrs: 0, bhOtHrs: 0, oHrs: ot / 60,
+        rHrs: 0, sHrs: (ot % 37) / 60, bHrs: 0, peerDays: 0, otherAdj: 0, london: 286.10 });
+      const pension = 151.86, sacGross = Math.max(0, gross - pension);
+      const tax = computeTax(sacGross, '1257L', T26).tax, ni = computeNI(sacGross, T26.ni), sl = computeSL(sacGross, 'plan2', T26.sl);
+      // calculate()'s own line, run as written: what it shows as pay after pension, and the take-home.
+      const { _shownAfterPension: afterPension, net } = runAppLines('net', 'net',
+        { takeHomePay, grossWithBp: gross, pension, tax, ni, sl }, ['net', '_shownAfterPension']);
+      const at = `rate ${rate}, overtime ${ot}m, Saturday ${sat}m`;
+      // In whole pennies, absolute (strict equality tells −0 from 0, which is no difference here).
+      assert.equal(Math.abs(Math.round((pounds(fmt(gross)) - pounds(fmt(pension)) - pounds(fmt(afterPension))) * 100)), 0, `total − pension, ${at}`);
+      assert.equal(Math.abs(Math.round((pounds(fmt(afterPension)) - pounds(fmt(tax)) - pounds(fmt(ni)) - pounds(fmt(sl)) - pounds(fmt(net))) * 100)), 0,
+        `pay after pension − deductions, ${at}`);
+      checked++;
+    }
+    assert.ok(checked > 600, `premise: a broad grid (${checked})`);
   });
 
   // THE STOP MUST OUTLIVE ITS PAYSLIP'S PLACE IN THE LIST (whole-app review, Nov 2026). A select set
@@ -919,6 +964,28 @@ describe('computeTax', () => {
       assert.equal(r.payLimited, true, 'and says the pay, not the year, set it');
       assert.ok(3142.84 - r.tax - other >= -0.005, 'so the take-home is never below £0');
     }
+  });
+
+  // ── TAX ROUNDED DOWN TO THE PENNY (whole-app review, Nov 2026) ─────────────────────────────────
+  // HMRC's PAYE tax-table routines: "to 4 decimal places … then finally round down the result if
+  // necessary to the nearest multiple of 1p below" — the overriding limit too.
+  test('income tax is whole pennies, rounded down — on every path', () => {
+    const pennies = (/** @type {number} */ x) => Math.abs(x * 100 - Math.round(x * 100)) < 1e-6;
+    for (const code of ['S1257L', 'SD0', 'K500', '1257L', 'BR', 'D1']) {
+      for (const pay of [3142.85, 3333.33, 2717.77, 4999.99]) {
+        const one = computeTax(pay, code, T26);
+        assert.ok(pennies(one.tax), `${code} on £${pay}: ${one.tax}`);
+        const cum = computeTax(pay, code, T26, { ytdPay: 8 * pay, ytdTax: 8 * one.tax, periodN: 9 });
+        assert.ok(pennies(cum.tax), `${code} on £${pay}, cumulative: ${cum.tax}`);
+      }
+    }
+    // Scottish bands have fractional per-period tops, so the tax has fractions of a penny: DOWN.
+    const sc = T26.scottishTax;
+    const raw = calcBandedTax(Math.floor(3333.33 - sc.pa), sc.bands);
+    assert.ok(!pennies(raw), `premise: the banded figure has a fraction of a penny (${raw})`);
+    assert.equal(computeTax(3333.33, 'S1257L', T26).tax, Math.floor(raw * 100) / 100);
+    approx(computeTax(3142.85, 'K500', T26, { ytdPay: 25000, ytdTax: 100, periodN: 9 }).tax, 1571.42,
+      'the K-code 50% limit, £1,571.425, to the penny below', 0.0001);
   });
 
   test('cumulative PAYE: an ordinary year, or a K code at its 50% limit, is not pay-limited', () => {

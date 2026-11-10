@@ -20,7 +20,7 @@ import { printedStamp, formatClock } from './date-format.js';
 import {
   GRADES, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL, getPensionForPeriod,
+  computeGross, computeTax, computeNI, computeSL, getPensionForPeriod, takeHomePay,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, requestPersistentStorage } from './ls.js';
@@ -800,7 +800,8 @@ export function init() {
       paintTaxCodeWarning({ code: taxCodeUsed, recognised: taxCodeKnown });   // a code priced on 1257L says so
       _updateYtdNote(_ty, _curP, _ytdSrc, usingCumulative, taxCodeUsed);     // "in use" is what computeTax did
 
-      const net = sacGross - tax - ni - sl;
+      // The take-home is the summary's rows subtracted, each to the penny as shown (takeHomePay).
+      const { afterPension: _shownAfterPension, net } = takeHomePay({ gross: grossWithBp, pension, tax, ni, sl });
 
       // The loan rows of the summary, which never leave a £0 unexplained — buildLoanLines says how.
       const _slPaidOffP = slPaidOff ? getPeriods().find(/** @param {any} x */ x => x.num === _slPaidOffFromP) : null;
@@ -861,7 +862,7 @@ export function init() {
       // The result markup is paycalc-breakdown.js's, whose fields are named as these locals.
       /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = buildSummaryRows({
         _bpThisPeriod, _hppForPeriod, gross, grossWithBp, _bpIsEstimate, _hppIsEstimate,
-        pension, sacGross, usingCumulative, tax, ni, slLines, net, taxRefund,
+        pension, sacGross: _shownAfterPension, usingCumulative, tax, ni, slLines, net, taxRefund,
         taxCode: taxCodeUsed, taxCodeRecognised: taxCodeKnown, taxPayLimited,
       });
 
