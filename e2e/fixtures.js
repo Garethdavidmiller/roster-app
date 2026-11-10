@@ -59,7 +59,19 @@ export const orderBy = () => marker('orderBy');
 export const limit = () => marker('limit');
 // doc(db, collection, id) captures its PATH (v18.97) so deleteDoc below can tell which row was
 // removed. Still an opaque object to every consumer; only the delete stub reads .path.
-export const doc = (...a) => ({ __stub: 'doc', path: a.slice(1).map(String).join('/') });
+// doc(collectionRef), with ONE argument, is an AUTO-ID reference, as the real one is (whole-app fix,
+// Nov 2026): it carries a fresh id from the same sequence addDoc uses, so a document named before it is
+// written has an identity, and a setDoc on it is recorded as a CREATE (see setDoc). The Links store
+// creates a design that way. It minted no id here, and a design made so had none.
+export const doc = (...a) => {
+  if (a.length === 1 && a[0] && a[0].__stub === 'collection') {
+    const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+    e2e.addDocSeq = (e2e.addDocSeq || 0) + 1;
+    const id = 'e2e-added-' + e2e.addDocSeq;
+    return { __stub: 'doc', path: a[0].path + '/' + id, id, autoId: true };
+  }
+  return { __stub: 'doc', path: a.slice(1).map(String).join('/') };
+};
 export const serverTimestamp = () => marker('ts');
 // writeBatch RECORDS its set() payloads (v19.35) rather than swallowing them. A test that can only
 // see the "Save N changes" counter is checking the outcome SUMMARY, not the write — and those are
@@ -328,6 +340,16 @@ export const setDoc = (/** @type {any} */ ref, /** @type {any} */ data, /** @typ
   // __E2E.failSetCode makes every setDoc REJECT with that code, unrecorded (v25.06) — the deleteDoc
   // seam's twin, for a set whose outcome is unknown (auth/signed-out-during-request).
   if (e2e.failSetCode) return Promise.reject(Object.assign(new Error('e2e set refused'), { code: e2e.failSetCode }));
+  // A set on an AUTO-ID reference (see doc) is a CREATE, recorded and held exactly as addDoc's is:
+  // added: true, and window.__E2E.addDocHold keeps it open until window.__E2E.releaseAddDoc().
+  if (ref && ref.autoId) {
+    e2e.setWrites.push({ path: ref.path, data, merge: !!(opts && opts.merge), added: true });
+    if (e2e.addDocHold) {
+      if (!e2e._addDocGate) e2e._addDocGate = new Promise(r => { e2e.releaseAddDoc = r; });
+      return e2e._addDocGate.then(() => undefined);
+    }
+    return Promise.resolve();
+  }
   e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: !!(opts && opts.merge) });
   return Promise.resolve();
 };

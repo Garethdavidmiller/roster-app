@@ -11,7 +11,7 @@
 
 import { CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
 import { printedStamp, formatClock, formatDayMonthYear } from './date-format.js';
-import { db, doc, getDoc, getDocFromCache, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
+import { db, doc, getDoc, getDocFromCache, setDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, archiveNotice } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -559,9 +559,15 @@ export function init() {
     let header = null;
     /** Both Save buttons — the masthead's and the sticky row's. One label, one state. */
     const _saveBtns = () => /** @type {HTMLButtonElement[]} */ (['linksSaveBtnTop', 'linksSaveBtn'].map(id => document.getElementById(id)).filter(Boolean));
+    /** The designs whose last write is only in THIS BROWSER's queue — a new design, a copy or a save made
+     *  offline, or one the server did not answer (links-app-4). The masthead's pill says "Saved in this
+     *  browser" for the open one, where "Saved" read as everybody having it. A save the server confirms
+     *  takes a design off it again; a reload starts from what the server holds. @type {Set<string>} */
+    const queuedIds = new Set();
     const _headerState = () => ({
         designs, activeId: activeDesignId, design, dirty, currentUser, saving: savingHere(),
         canDelete: canSoftDelete(designs.length), proposals: PROPOSAL_ENTRIES, proposalId: activeProposalId,
+        queued: !!activeDesignId && queuedIds.has(activeDesignId),
     });
 
     /** Wire the masthead + its two sheets (picker, ··· More), once. The More rows keep their ids. */
@@ -719,6 +725,7 @@ export function init() {
      * @param {{ act: number, before: string, queued: boolean, made: string }} o  `made` names it in a sentence
      */
     function _openMade(d, { act, before, queued, made }) {
+        if (queued) queuedIds.add(d.id);
         if (activation === act && _contentKey() === before) {
             _activateDesign(d);
             if (queued) _designActionStatus(QUEUED_SAVE, '');
@@ -2117,6 +2124,7 @@ export function init() {
         const landed = (/** @type {string} */ id, /** @type {any} */ base, /** @type {any} */ updatedAt, queued = false) => {
             const entry = designs.find(x => x.id === id);
             recordSave(entry, written, currentUser, updatedAt, base.loadedRevision);
+            if (queued) queuedIds.add(id); else queuedIds.delete(id);   // what the masthead's pill says (links-app-4)
             if (!here()) return;
             ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = base);
             const same = JSON.stringify([design?.patterns, normaliseWindow(design?.window)])
@@ -2310,7 +2318,7 @@ export function init() {
     // Firestore handle it needs is passed in, which is what makes the interleavings testable —
     // see links-design-store.js for why that mattered enough to extract.
     const store = createDesignStore({
-        db, doc, getDoc, setDoc, addDoc, getDocs, runTransaction,
+        db, doc, getDoc, setDoc, getDocs, runTransaction,
         serverTimestamp, deleteField, designsCol: DESIGNS_COL,
         withClaimRetry: writeWithClaimRetry,
         // The offline consult's own read (links-design-12): offline, plain getDoc rejects for a design

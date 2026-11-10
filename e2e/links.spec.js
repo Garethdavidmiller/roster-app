@@ -3994,6 +3994,8 @@ test('links re-review: an offline save says it is in this browser, not "✓ Save
     await expect(status).not.toContainText('back online');
     await expect(status).not.toContainText('✓');
     await expect(status).not.toHaveClass(/\bok\b/);
+    // The masthead's pill says it too, rather than "Saved today at …" off this device's clock (links-app-4).
+    await expect(page.locator('#designStatusLong')).toHaveText('Saved in this browser');
     await context.setOffline(false);
 });
 
@@ -4071,6 +4073,29 @@ test('links: Save a copy as… says it is saving, makes one copy per press, and 
     expect(await added()).toBe(2);
 });
 
+// A NEW DESIGN THE SERVER DOES NOT ANSWER (links-design-2's create half). Online — the browser says so —
+// with a server that never replies, New blank design said "Creating …" until the signal came back,
+// while the designer went on working. The store now names the document first and gives the create as
+// long as a slow save gets, then calls it queued: the design opens, saved in this browser. The page's
+// clock is a fake one here, so the bound itself is what is waited for, not eight real seconds.
+test('links: a new design the server does not answer opens, saved in this browser, instead of "Creating…" for ever', async ({ page }) => {
+    const { SLOW_SAVE_MS } = await import('../slow-save.js');
+    await page.clock.install();
+    await openWindowDesign(page);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });   // the server never answers
+    await sheetAction(page, 'newDesignBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill('Option N');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toHaveText('Creating “Option N”…');
+    await page.clock.fastForward(SLOW_SAVE_MS);
+    await expect(status).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    await expect(activeDesignName(page)).toHaveText('Option N');
+    await expect(page.locator('#designStatusLong')).toHaveText('Saved in this browser');
+    const made = await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => w.added));
+    expect(made.map((/** @type {any} */ w) => w.path), 'one create, named before it was written').toEqual([expect.stringMatching(/^linkDesigns\/e2e-added-\d+$/)]);
+});
+
 // A copy made OFFLINE is only in this browser's queue (links-app-4). It used to open as plain "Saved",
 // with nothing to say the server does not have it yet — unlike a Save in the same state.
 test('links: a copy made offline says it is saved in this browser, not "Saved"', async ({ page, context }) => {
@@ -4082,6 +4107,11 @@ test('links: a copy made offline says it is saved in this browser, not "Saved"',
     const status = page.locator('#linksSaveStatus');
     await expect(status).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
     await expect(status).not.toHaveClass(/\bok\b/);
+    // …and so does the masthead's pill, where it said "Saved" (links-app-4).
+    await expect(activeDesignName(page)).toHaveText('Offline copy');
+    await expect(page.locator('#designStatus')).toHaveClass(/dm-status--queued/);
+    await expect(page.locator('#designStatusLong')).toHaveText('Saved in this browser');
+    await expect(page.locator('#designStatusShort')).toHaveText('Saved here');
     await context.setOffline(false);
 });
 

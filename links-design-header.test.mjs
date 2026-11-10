@@ -131,6 +131,16 @@ describe('the status pill — lying about saved state is the expensive direction
         const s = statusCopy({ saved: true, dirty: false, updatedAt: null, now: NOW });
         assert.equal(s.long, 'Saved');
     });
+
+    // A WRITE ONLY IN THIS BROWSER'S QUEUE (links-app-4): made offline, or not answered by the server.
+    // "Saved" — or "Saved today at 14:32", read off this device's clock by `recordSave` — told the
+    // designer a colleague could already see it. It is neither a success nor a failure.
+    test('a write still in this browser\'s queue says so, whatever time this device recorded', () => {
+        const s = statusCopy({ saved: true, dirty: false, queued: true, updatedAt: at(NOW.getTime()), now: NOW });
+        assert.deepEqual(s, { tone: 'queued', long: 'Saved in this browser', short: 'Saved here' });
+        assert.equal(statusCopy({ saved: true, dirty: true, queued: true, now: NOW }).tone, 'dirty', 'later edits are still unsaved');
+        assert.equal(statusCopy({ saved: true, dirty: false, saving: true, queued: true }).tone, 'saving');
+    });
 });
 
 describe('who the badge names', () => {
@@ -270,6 +280,14 @@ describe('render — what the masthead SAYS', () => {
         assert.equal(els.count.textContent, '2 saved');
         // The face is aria-hidden, so the BUTTON has to carry the name a <select> announced for free.
         assert.match(els.pickerButton.attrs['aria-label'], /Option A/);
+    });
+    test('a design whose last write is only in this browser says so in the pill and the sheet, not "Saved"', () => {
+        const { els, h } = harness();
+        h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW, queued: true });
+        assert.equal(els.status.className, 'dm-status dm-status--queued');
+        assert.equal(els.statusLong.textContent, 'Saved in this browser');
+        assert.equal(els.statusShort.textContent, 'Saved here');
+        assert.equal(els.sheetSub.textContent, `Saved by ${ME} in this browser`);
     });
     // THE BUG (Sep 2026 polish): after a save whose read-back returned no stamp — every queued
     // offline save, and any failed read — the pill kept the PREVIOUS save's time ("Saved 24 Jun at

@@ -194,10 +194,15 @@ function sameDay(when, now) {
  * The status pill's words and tone. `long` is the desktop sentence, `short` the phone one — the
  * phone row has room for a dot and two words beside the badge and two buttons.
  *
- * @param {{ saved: boolean, dirty: boolean, saving?: boolean, updatedAt?: any, now?: Date, proposal?: boolean }} s
- * @returns {{ tone: 'saved'|'dirty'|'new'|'saving'|'proposal', long: string, short: string }}
+ * `queued` (links-app-4): the open design's last write is only in THIS BROWSER's queue — made offline,
+ * or not answered by the server — so nobody else has it yet. It is neither a success nor a failure,
+ * and its tone has no colour of its own: the pill's neutral base. Saying "Saved", or "Saved today at
+ * 14:20" off this device's clock, would tell the designer a colleague can already see it.
+ *
+ * @param {{ saved: boolean, dirty: boolean, saving?: boolean, updatedAt?: any, now?: Date, proposal?: boolean, queued?: boolean }} s
+ * @returns {{ tone: 'saved'|'dirty'|'new'|'saving'|'proposal'|'queued', long: string, short: string }}
  */
-export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now = new Date(), proposal = false }) {
+export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now = new Date(), proposal = false, queued = false }) {
     if (saving) return { tone: 'saving', long: 'Saving…', short: 'Saving…' };
     // A built-in proposal, untouched (v24.47): it is not "not saved" — there is nothing of yours to
     // lose. Once edited it is an unsaved working copy, and says so like any other.
@@ -205,6 +210,7 @@ export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now
                                : { tone: 'proposal', long: 'Read-only', short: 'Read-only' };
     if (!saved)  return { tone: 'new', long: 'Not saved yet', short: 'Not saved' };
     if (dirty)   return { tone: 'dirty', long: 'Unsaved changes', short: 'Unsaved' };
+    if (queued)  return { tone: 'queued', long: 'Saved in this browser', short: 'Saved here' };
     const when = toDate(updatedAt);
     if (!when) return { tone: 'saved', long: 'Saved', short: 'Saved' };
     const time = formatClock(when);   // the app's one 24-hour clock — the save row beside it uses it too
@@ -280,6 +286,7 @@ export function proposeNewDesignName(currentUser, existing = [], now = new Date(
  * @property {Date} [now]
  * @property {DesignEntry[]} [proposals]  built-in proposals (links-proposals.js), listed in their own group
  * @property {string|null} [proposalId]   the proposal whose working copy is open, while it has not been saved
+ * @property {boolean} [queued]  the open design's last write is only in this browser's queue (`statusCopy`)
  */
 
 /**
@@ -387,7 +394,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
     /** @param {HeaderState} state */
     function render(state) {
         const { designs, activeId, design, dirty, currentUser, saving = false, canDelete = true, now = new Date(),
-                proposals = [], proposalId = null } = state;
+                proposals = [], proposalId = null, queued = false } = state;
         const saved = !!activeId;
         const open  = !!design;
         const isProposal = !saved && open && !!proposalId;
@@ -493,7 +500,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
         }
         if (els.whoName) els.whoName.textContent = who.name;
         if (els.whoRole) els.whoRole.textContent = who.role;
-        const st = statusCopy({ saved, dirty, saving, updatedAt: lastSaveTime(entry), now, proposal: isProposal });
+        const st = statusCopy({ saved, dirty, saving, updatedAt: lastSaveTime(entry), now, proposal: isProposal, queued });
         if (els.status) {
             els.status.className = `dm-status dm-status--${st.tone}`;
             els.status.hidden = !open;
@@ -506,7 +513,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
         if (els.sheetSub) {
             // The LAST SAVE, read with dirty/saving off — the pill's own words ("Unsaved changes",
             // "Saving…") describe the working copy and read as nonsense after "Saved by".
-            const lastSave = statusCopy({ saved, dirty: false, saving: false, updatedAt: lastSaveTime(entry), now });
+            const lastSave = statusCopy({ saved, dirty: false, saving: false, updatedAt: lastSaveTime(entry), now, queued });
             els.sheetSub.textContent = !open ? 'Start a new design, import one, or restore one from Recently deleted.'
                 : isProposal ? 'A shortlisted proposal, built in. Change anything — saving makes your own copy.'
                 : !saved ? 'Not saved yet. Save it to give it a name.'
