@@ -348,6 +348,16 @@ describe('a conflict is shown, never blended', () => {
         assert.match(theirs.feedback(), /haven't overwritten it/);
     });
 
+    test('the conflict\'s one-line description counts available days by the rule, not by "not unavailable"', async () => {
+        // A mode this build cannot read (a newer server's) is not availability — `isAvailableAnswer`
+        // exists so nothing restates "any mode but unavailable" (overtime-ui-17, contracts-b lead).
+        const days = { ...answeredWeek('unavailable'), [DATES[3]]: { mode: 'some_future_mode' } };
+        submitResults = [{ ok: false, code: 'revision-conflict', data: { lastMutationId: 'somebody-else', currentRevision: 8, days } }];
+        const f = await mountForm();
+        await f.submit();
+        assert.match(f.feedback(), /available on 0 of 7 days/);
+    });
+
     test('showing the saved version REPLACES every day, and takes its revision with it', async () => {
         // Blending is the hazard the module header names, and it is invisible: a merged week is a
         // perfectly well-formed seven-day answer that neither the member nor the server ever made.

@@ -36,7 +36,7 @@ import { deadlineLabel } from './overtime-phase.js';
 export { deadlineLabel, phaseCopy, phaseChip, phaseTone, deadlineLines } from './overtime-phase.js';
 import { getShiftBadge, formatISO, isSunday } from './roster-data.js';
 import { releaseRequestLine } from './overtime-sunday-release.js';
-import { printedStamp, londonDate, londonClock } from './date-format.js';
+import { printedStamp, londonDate, londonClock, MONTH_ABB } from './date-format.js';
 
 // THE CLOCK LEFT THIS MODULE at v23.69 — the six decisions a member's own clock may make about a
 // deadline, as against the words this module puts a deadline into. Re-exported here so every
@@ -46,11 +46,6 @@ export {
     SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS, clockOffset, submitDisposition, shouldResyncClock,
     canRestoreNow,
 } from './overtime-clock.js';
-
-
-
-
-
 
 /**
  * Has this day been ANSWERED, or merely started?
@@ -186,7 +181,6 @@ export function sameAnswer(a, b) {
 // ── Words ───────────────────────────────────────────────────────────────────────────────────────
 
 const DAY_NAMES   = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /**
  * Parse "YYYY-MM-DD" into its parts without going near a timezone.
@@ -203,7 +197,7 @@ function parts(iso) {
  */
 export function shortDate(iso) {
     const p = parts(iso);
-    return `${DAY_NAMES[p.dow].slice(0, 3)} ${p.d} ${MONTH_SHORT[p.m - 1]}`;
+    return `${DAY_NAMES[p.dow].slice(0, 3)} ${p.d} ${MONTH_ABB[p.m - 1]}`;
 }
 
 /**
@@ -838,21 +832,6 @@ function stableStringify(v) {
     if (v === null || typeof v !== 'object') return JSON.stringify(v);
     if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
     return `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(',')}}`;
-}
-
-/**
- * A one-line summary of a whole week's answers, for a list row.
- * Counts rather than enumerates: seven answers do not fit on a phone row, and "available on 3 days"
- * is what a person actually wants from a summary.
- * @param {Record<string, any>} days
- */
-export function weekSummary(days) {
-    const values = Object.values(days || {});
-    if (!values.length) return 'No answers';
-    const available = values.filter(d => d && d.mode && d.mode !== 'unavailable').length;
-    if (available === 0) return 'Not available on any day';
-    if (available === values.length) return 'Available on every day';
-    return `Available on ${available} of ${values.length} days`;
 }
 
 /** The grades a sheet or a copied summary covers: "All grades" or "CES only". @param {string} grade */

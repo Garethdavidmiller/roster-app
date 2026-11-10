@@ -452,7 +452,7 @@ exists; one both-sides answer a day; an overnight duty withholds `after` and `be
 `offersFullTwelve` · `shiftSpanMinutes` · `sameAnswer` · `answerAnchorStale` · `submitFailureCopy`.
 *Answers:* `answerCopy` · `answerTone` · `isUnavailable` · `isAvailableAnswer` (not `!isUnavailable` —
 they differ on a missing day) · `rosterBadge` · `deriveHistory`. *Reviewer:* `rowStateCopy` ·
-`countsCopy` (never drops "no response") · `weekSummary` · `weekAvailabilitySummary` (the clipboard
+`countsCopy` (never drops "no response") · `weekAvailabilitySummary` (the clipboard
 text; every section named, an empty one says "nobody"; it states its grade scope and "as at", as the
 sheet does) · `gradeScopeLabel` (that scope line, shared with the printed sheet) · `reminderLine`
 (from what the send reached, where the server recorded it) · `putBackWindow` (until when a Stop

@@ -42,7 +42,7 @@ import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was 
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines, phaseChip, phaseTone,
     answerAnchorStale, submitDisposition, modesFor, offersFullTwelve, submitFailureCopy,
-    sameAnswer, receiptLine, unfinishedDates, reconcileVerdict, conflictIsOurs,
+    sameAnswer, receiptLine, unfinishedDates, reconcileVerdict, conflictIsOurs, isAvailableAnswer,
 } from './overtime-format.js';
 import { offersSundayRelease, SUNDAY_RELEASE_LABEL, SUNDAY_RELEASE_ASKED } from './overtime-sunday-release.js';
 import { withMode, withFullTwelve, withRelease } from './overtime-answer.js';
@@ -931,10 +931,11 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         feedback?.appendChild(btn);
     }
 
-    /** A one-line description of a stored week, for the conflict message. */
+    /** A one-line description of a stored week, for the conflict message — available by the RULE
+     *  (`isAvailableAnswer`), never "any mode but unavailable", which counts an unreadable mode. */
     /** @param {Record<string, any>} days */
     function summarise(days) {
-        const avail = Object.values(days).filter((/** @type {any} */ d) => d?.mode && d.mode !== 'unavailable').length;
+        const avail = Object.values(days).filter(isAvailableAnswer).length;
         return `available on ${avail} of ${Object.keys(days).length} days`;
     }
 

@@ -20,7 +20,7 @@ import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
     shortDate, longDate, weekLabel, weekSpan, printedLabel, rowStateCopy, rosterBadge,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, isAvailableAnswer,
-    weekSummary, asAtLine,
+    asAtLine,
     modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, receiptLine,
     declaredAgo, deriveHistory,
     dayUnfinished, unfinishedDates, reconcileVerdict, conflictIsOurs,
@@ -454,21 +454,6 @@ describe('isAvailableAnswer — the predicate a clerk rings people from', () => 
         }
         assert.equal(isAvailableAnswer({ mode: 'nope' }) || isUnavailable({ mode: 'nope' }), false,
             'an unreadable answer belongs to neither section, so it falls through to No response');
-    });
-});
-
-describe('week summaries', () => {
-    const week = (...modes) => Object.fromEntries(modes.map((m, i) => [`d${i}`, { mode: m }]));
-
-    test('all, none and some each read differently', () => {
-        assert.equal(weekSummary(week('all_day', 'all_day')), 'Available on every day');
-        assert.equal(weekSummary(week('unavailable', 'unavailable')), 'Not available on any day');
-        assert.equal(weekSummary(week('all_day', 'unavailable', 'after')), 'Available on 2 of 3 days');
-    });
-
-    test('an empty week says so rather than claiming nobody is available', () => {
-        assert.equal(weekSummary({}), 'No answers');
-        assert.equal(weekSummary(null), 'No answers');
     });
 });
 
