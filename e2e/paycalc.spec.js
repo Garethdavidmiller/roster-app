@@ -2479,6 +2479,50 @@ test('paycalc: a back-pay rate locked from the record reads as a fixed value, an
     expect(await page.locator('#newRateInput').evaluate(el => getComputedStyle(el).outlineStyle), 'and the ring still shows where you are').toBe('solid');
 });
 
+test('paycalc desktop: a hidden setup banner or privacy note leaves no gap behind it', async ({ page }, info) => {
+    // Rows 1 and 2 of the desktop grid belong to the setup banner and the first-visit privacy note,
+    // and an empty grid row still takes its row-gap. Only the note's was taken back, so a RETURNING
+    // member — both hidden, the normal state — had the workspace 20px under the header against the
+    // 4px of every other card page (pages.spec.js measures the first visit only, where both show).
+    test.skip(isTouchProject(info), 'the 1366px desktop grid');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    // [name, seed, which of banner / note the state shows] — all four combinations.
+    const states = /** @type {const} */ ([
+        ['first visit', {}, [true, true]],
+        // A payslip saved, the year's settings never confirmed. (A bare `…_setup` is no good here: a
+        // migration turns it into per-year confirmations, which hide the banner too.)
+        ['settings not yet confirmed', { myb_pc_gmiller_p57: JSON.stringify({ satH: 8 }) }, [true, false]],
+        ['no pay data yet', { myb_pc_gmiller_setup_2026_27: '1' }, [false, true]],
+        ['returning member', { myb_pc_gmiller_setup: '1', myb_pc_gmiller_setup_2026_27: '1' }, [false, false]],
+    ]);
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    for (const [name, seed, shows] of states) {
+        // This member's pay keys cleared, then exactly the state's — and the page loaded on them.
+        await page.evaluate(s => {
+            Object.keys(localStorage).filter(k => k.startsWith('myb_pc_gmiller_')).forEach(k => localStorage.removeItem(k));
+            for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v);
+        }, seed);
+        await page.reload();
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        expect([await page.locator('#setupBanner').isVisible(), await page.locator('#privacyNoteTop').isVisible()],
+            `${name}: the premise — which of the banner and the note it shows`).toEqual(shows);
+        const m = await page.evaluate(() => {
+            const header = /** @type {Element} */ (document.querySelector('.app-header')).getBoundingClientRect().bottom;
+            const shown = ['#setupBanner', '#privacyNoteTop', '.pc-work > :first-child']
+                .map(s => /** @type {HTMLElement} */ (document.querySelector(s)))
+                .filter(el => el.getClientRects().length)
+                .map(el => el.getBoundingClientRect());
+            return { top: Math.round(shown[0].top - header),
+                     steps: shown.slice(1).map((r, i) => Math.round(r.top - shown[i].bottom)) };
+        });
+        expect(m.top, `${name}: the first block sits 4px under the header`).toBe(4);
+        expect(m.steps.every(s => s === 16), `${name}: one 16px gap between the blocks, measured ${JSON.stringify(m.steps)}`).toBe(true);
+    }
+});
+
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
 // Each block below is one finding, proved where a member meets it: the page, not the helper.
 

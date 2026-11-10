@@ -563,8 +563,8 @@ padding. The bar is the **sole** keep-the-£-visible mechanism on every width.
 
 **Desktop card placement** — explicit grid-row placement (mobile DOM order is untouched — every rule
 lives inside `@media (min-width:1024px)`): rows 1–2 the banners and privacy note (cols 1–2 — the
-privacy note is FIRST-VISIT ONLY, and a rule in paycalc.css pulls the workspace up by one gap when it
-is hidden, because an empty grid row still takes its row-gap; the same line leads the `.disclaimer`
+privacy note is FIRST-VISIT ONLY, and paycalc.css pulls whatever follows a hidden banner or note up by
+one gap per hidden row, because an empty grid row still takes its row-gap; the same line leads the `.disclaimer`
 note at the foot of the page on every visit) · row 3 `.pc-work` (cols 1–2) and `.pc-side` (col 3) ·
 `.guide-footer-link` row 4 · `.disclaimer` row 5. `align-self:start` on the work cards and the
 sidebar, so an expanding accordion never stretches its neighbour. The occasional cards stack in the
