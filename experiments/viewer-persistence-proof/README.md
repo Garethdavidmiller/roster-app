@@ -27,10 +27,12 @@ survives the browser closing. The next person at the PC got the roster without t
 ## Running it
 
 ```bash
-# 1. The real production SDK, fetched once (the harness imports it from ./sdk/).
+# 1. The SDK the app ships — the version firebase-client.js loads — fetched once (the harness
+#    imports it from ./sdk/).
+SDK=$(grep -o 'firebasejs/[0-9.]*/' ../../firebase-client.js | head -1 | cut -d/ -f2)
 mkdir -p sdk && for f in firebase-app.js firebase-auth.js; do
-  curl -sS -o sdk/$f "https://www.gstatic.com/firebasejs/12.16.0/$f"; done
-sed -i 's#https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js#./firebase-app.js#g' \
+  curl -sS -o sdk/$f "https://www.gstatic.com/firebasejs/$SDK/$f"; done
+sed -i "s#https://www.gstatic.com/firebasejs/$SDK/firebase-app.js#./firebase-app.js#g" \
   sdk/firebase-auth.js
 
 # 2. Auth emulator (this directory's firebase.json declares it) + a static server.
@@ -43,7 +45,9 @@ BOOT=appBoot   node run.mjs   # the pre-fix boot shape
 BOOT=fixedBoot node run.mjs   # the shipped fix
 ```
 
-Keep the SDK version in step 1 in step with `firebase-client.js`.
+Step 1 fetches whatever `firebase-client.js` loads. **The results below were measured on SDK 12.16.0
+and have not been re-run since the app moved on** (it loads 13.1.0 on 10 November 2026): re-run, and
+re-date them, before leaning on them for a newer SDK.
 
 ## Results (Chromium, SDK 12.16.0, Auth emulator, persistent profile)
 

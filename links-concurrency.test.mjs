@@ -1,6 +1,6 @@
 /**
  * links-concurrency.test.mjs — the Links workspace's co-editing rules.
- * Run: node --test links-concurrency.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-concurrency.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THIS EXISTS. Three separate bugs have come out of this logic (v16.19, v16.23, v17.18) and
  * every one was a SILENT overwrite of a colleague's work — the loser of the race sees a successful

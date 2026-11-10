@@ -51,7 +51,7 @@
 </head>
 <body spellcheck="false">
 
-<!-- Lightbox — tap the header icon to open -->
+<!-- About lightbox — opened from the drawer's logo; the header icon goes back to the Calendar -->
 <div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About Marylebone Roster" aria-modal="true">
     <div id="iconLightboxContent" class="lb-content">
     <button id="iconLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
@@ -74,8 +74,8 @@
     </div>
 </div>
 
-<!-- Boot placeholder (v20.80). `.container` is `display:none` until `body.auth-ready`, and the
-     header lives INSIDE it — so until the module graph has loaded and run, this page is a blank
+<!-- Boot placeholder (v20.80). `.container` and the header are `display:none` until
+     `body.auth-ready` — so until the module graph has loaded and run, this page is a blank
      navy screen with nothing on it at all, not even the burger. Measured at 622ms locally on a
      fast disk with no network; on a phone it is seconds. A sibling of `.container`, so it is
      visible in exactly the window `.container` is not. Removed by CSS the moment `auth-ready`
@@ -84,17 +84,20 @@
     <span class="boot-spinner" aria-hidden="true"></span>
     <span class="boot-placeholder-text">Loading…</span>
 </div>
-<main class="container">
 
-    <header class="app-header">
-        <button type="button" class="btn-burger" id="navMenuBtn"
-                aria-label="Open navigation menu" aria-expanded="false">☰</button>
-        <div class="app-header-brand">
-            <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
-            <h1>Marylebone Roster</h1>
-        </div>
-        <span class="badge-page" id="opsBadge"><span class="badge-glyph" aria-hidden="true">🔧</span> <span class="badge-name-short">Ops</span><span class="badge-name-full">Operations</span></span>
-    </header>
+<!-- The header is <main>'s sibling, never inside it: inside, it is not the page's banner landmark
+     (whole-app check, Nov 2026). Its band, its gap and its hide until sign-in are operations.css's. -->
+<header class="app-header">
+    <button type="button" class="btn-burger" id="navMenuBtn"
+            aria-label="Open navigation menu" aria-expanded="false">☰</button>
+    <div class="app-header-brand">
+        <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
+        <h1>Marylebone Roster</h1>
+    </div>
+    <span class="badge-page" id="opsBadge"><span class="badge-glyph" aria-hidden="true">🔧</span> <span class="badge-name-short">Ops</span><span class="badge-name-full">Operations</span></span>
+</header>
+
+<main class="container">
 
     <!-- Needs attention (v22.03) — an INDEX of exceptional card states, rendered by
          operations-attention.js from what the cards themselves report. Hidden (absent, not empty)
@@ -130,7 +133,7 @@
                 <div class="huddle-row">
                     <input type="date" id="huddleDate" aria-label="Huddle date">
                     <label for="huddleFileInput" class="huddle-file-label">Choose file</label>
-                    <input type="file" id="huddleFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden-file" aria-label="Choose huddle PDF or Word document">
+                    <input type="file" id="huddleFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden-file" aria-label="Choose file — the Daily Huddle, PDF or Word">
                 </div>
                 <p id="huddleFileName" class="huddle-filename" aria-live="polite"></p>
                 <button type="button" id="huddleUploadBtn" class="huddle-upload-btn" disabled>Upload Huddle</button>
@@ -156,7 +159,7 @@
                 <div class="huddle-row">
                     <input type="date" id="circularDate" aria-label="Circular date">
                     <label for="circularFileInput" class="huddle-file-label">Choose file</label>
-                    <input type="file" id="circularFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden-file" aria-label="Choose Retail Circular PDF or Word document">
+                    <input type="file" id="circularFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden-file" aria-label="Choose file — the Weekly Retail Circular, PDF or Word">
                 </div>
                 <p id="circularFileName" class="huddle-filename" aria-live="polite"></p>
                 <button type="button" id="circularUploadBtn" class="huddle-upload-btn" disabled>Upload Circular</button>
@@ -182,7 +185,7 @@
                 <div class="huddle-row">
                     <input type="date" id="newsletterDate" aria-label="Newsletter date">
                     <label for="newsletterFileInput" class="huddle-file-label">Choose file</label>
-                    <input type="file" id="newsletterFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden-file" aria-label="Choose Newsletter PDF or Word document">
+                    <input type="file" id="newsletterFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden-file" aria-label="Choose file — the Marylebone Newsletter, PDF or Word">
                 </div>
                 <p id="newsletterFileName" class="huddle-filename" aria-live="polite"></p>
                 <button type="button" id="newsletterUploadBtn" class="huddle-upload-btn" disabled>Upload Newsletter</button>
@@ -219,7 +222,7 @@
                         </select>
                         <input type="date" id="rosterWeekEnding" aria-label="Week ending (always a Saturday)">
                         <label for="rosterFileInput" class="huddle-file-label">Choose PDF</label>
-                        <input type="file" id="rosterFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose roster PDF">
+                        <input type="file" id="rosterFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose PDF — the weekly roster">
                     </div>
                     <p id="rosterFileName" class="huddle-filename" aria-live="polite"></p>
                     <button type="button" id="rosterParseBtn" class="huddle-upload-btn" disabled>Read roster</button>
@@ -253,7 +256,7 @@
         <div class="card-header card-header-toggle" id="resetRequestsToggleHeader">
             <div>
                 <h2><span aria-hidden="true">🙋</span> Password Reset Requests</h2>
-                <span class="hint">Staff who tapped “ask the admin to reset my password” on the sign-in screen. Requests aren’t verified, so <strong>confirm with them before resetting</strong></span>
+                <span class="hint">Staff who tapped “Can’t get in?” on the sign-in screen to ask for a reset. Requests aren’t verified, so <strong>confirm with them before resetting</strong></span>
             </div>
             <div class="card-header-actions">
                 <span class="card-year-chip errorlog-count-chip" id="resetRequestsCountChip"></span>
@@ -382,7 +385,6 @@
         </div>
     </div>
 
-    <!-- ==================== STAFF LOGIN ACCOUNTS ==================== -->
     </section><!-- /ops-right-column -->
 
 </main>

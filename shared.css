@@ -7,10 +7,11 @@
 ::view-transition-old(root),
 ::view-transition-new(root) {
     animation-duration: var(--dur-med);
-    animation-timing-function: ease;
+    animation-timing-function: var(--ease-standard);
 }
-/* The app neutralises motion everywhere else under reduced-motion; the page crossfade
-   was the last escapee. Kill the animation so navigations cut instantly. */
+/* Everything that moves in this file stands still under reduced motion, each component's rule beside it
+   (a page answers for its own). The page crossfade escaped once, as the logo's grow and the turning
+   arrows did until Nov 2026. Kill the animation so navigations cut instantly. */
 @media (prefers-reduced-motion: reduce) {
     ::view-transition-group(*),
     ::view-transition-old(root),
@@ -39,10 +40,11 @@
 
 /* ============================================================
    CSS CUSTOM PROPERTIES
-   All CSS variables for the entire app live here — both pages
-   read them. Variables only used by one page are commented to
-   make that clear, but keeping them all here means colour or
-   spacing changes only ever need one edit.
+   The app's tokens — every app page reads them. A token one
+   page alone needs lives in that page's own stylesheet (the
+   page-identity trio, Links' design colours); anything two
+   pages share lives here, so a colour or spacing change is one
+   edit.
    ============================================================ */
 :root {
     /* THE APP'S ONE DOWNWARD CHEVRON — the mark that says "this opens a picker" (v23.69).
@@ -371,9 +373,10 @@
     --radius-field:  var(--radius-button);
     --radius:       12px;   /* the app's common discrete-CARD corner (day-row, override/error/usage rows) — was hardcoded in ~8 places */
     --radius-xl:    20px;   /* large lightbox/panel cards (v17.72 — was a hardcoded 20px in ~20 places) */
-    /* The app has TWO overlay families and they carry different corners on purpose: compact white
-       DIALOGS (month-jump, team info, login, work-email check, Tips, confirm/prompt) at --radius-xl,
-       and full navy GLASS SHEETS (About, notices, day detail, AL) at 24px. The six glass panels each
+    /* The app has TWO overlay families and they carry different corners on purpose: compact DIALOGS at
+       --radius-xl — white ones (month-jump, login, Tips, confirm/prompt, the Calendar's
+       Circular/Newsletter viewer) and the Calendar's see-through team info — and full navy GLASS SHEETS
+       (About, notices, day detail, AL) at 24px. The six glass panels each
        restated `border-radius: 24px`, so that rule lived nowhere — naming it fixed that (v18.87).
        CORRECTION (v18.90): that pass documented two families while the code actually had three —
        four white panels (login/work-email/Tips/dialog) were on --radius-lg, i.e. the CARD radius,
@@ -508,8 +511,9 @@
                              the save toast and slow-save notice 7500, the AL confirm bar 7600), which
                              at 300 covered its footer and with it Sign out (v24.52); below every
                              lightbox, dialog and sheet, which the drawer itself opens */
-    --z-lightbox: 8000;   /* .lb-overlay base (About / Tips / dialogs / pickers) */
-    --z-notice:   8500;   /* one-time notice lightboxes — above the lightbox base, below login */
+    --z-lightbox: 8000;   /* .lb-overlay base (About, Tips, dialogs, the date picker, one-time notices);
+                             a confirm dialog opened over a higher layer lifts above it (overlay.js) */
+    --z-notice:   8500;   /* above that, below login: the Huddle viewer, Pay's help sheet and YTD notice */
     --z-login:    9000;   /* login overlay — must sit above content and notices */
     --z-picker:   9100;   /* the app's own select sheet — see .picker-sheet-overlay below */
     --z-splash:   9999;   /* splash-watchdog recovery panel + hover tooltip (top of everything) */
@@ -554,6 +558,11 @@
     scrollbar-width: thin;
     scrollbar-color: var(--border-mid) transparent;
 }
+
+/* A form control does not inherit the page's typeface: the browser gives it its own (Arial on Windows),
+   so every control without a font rule — the burger, the date picker's arrows, the prompt's field, Pay's
+   hours fields — was not Inter (whole-app review, Nov 2026). A class naming a face of its own still wins. */
+button, input, select, textarea { font-family: inherit; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -797,6 +806,16 @@ input[type="checkbox"]:disabled:indeterminate { background-color: var(--check-fi
         outline: 2px solid Highlight;
         outline-offset: -2px;
     }
+    /* …and STILL SHOWS FOCUS (whole-app review, Nov 2026). The ring above out-ranks the focus fallback and the
+       theme drops box-shadows, so a focused chosen control looked unfocused. Focused, it draws a DOUBLE line:
+       the chosen ring inside, a focus ring outside — both states at once. */
+    :is(button, a, [role="button"], [role="tab"], [role="radio"], [role="option"]):is(
+        [aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], [aria-current="true"],
+        .active, .is-active, .is-on, .is-chosen, .is-current):focus-visible,
+    [aria-current="page"]:focus-visible {
+        outline: 6px double Highlight;
+        outline-offset: -2px;
+    }
 }
 
 /* ============================================================
@@ -905,42 +924,56 @@ html {
 :where(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
 p { text-wrap: pretty; }
 
-/* Focus-visible safety net (v14.54): a zero-specificity fallback so any
-   interactive element lacking its own focus rule still shows a visible ring.
-   :where() = 0 specificity, so every existing component focus style overrides
-   this — it can only ADD a ring where one is missing, never weaken one. Form
-   fields are excluded (they use the brighten-to-white + glow focus system). */
+/* Focus-visible safety net (v14.54): a ring for any interactive element without a focus rule of its own.
+   Its weight is (0,1,0), NOT zero — the `:focus-visible` sits outside the `:where()` — so a component's
+   `.x:focus-visible` (0,2,0) beats it, but a later single-class rule setting `outline` on the component
+   itself ties it and wins on order, and that component needs a focus rule of its own (Links' paint chips,
+   Nov 2026). Form fields are excluded (they use the brighten-to-white + glow focus system). */
 :where(a, button, [role="button"], [tabindex="0"]):focus-visible {
     /* Navy, not gold: this fallback fires mostly on LIGHT surfaces (cards/prose), where gold
        (~1.5:1 on white) falls below the 3:1 focus-indicator floor. Navy-drawer elements have
-       their own gold rules (they win over this zero-specificity :where), so gold stays where
-       it's high-contrast (on navy) and light surfaces get a visible navy ring. */
+       their own gold rules (at (0,2,0) they out-rank this), so gold stays where it's
+       high-contrast (on navy) and light surfaces get a visible navy ring. */
     outline: var(--focus-outline);
     outline-offset: 2px;
 }
 
-/* Safe-area padding — keeps content clear of the iOS notch and home indicator.
-   Uses 16px as the minimum fallback. Individual pages override with 20px in their
-   own <style> block; the cascade ensures page-specific values always win. */
+/* THE PAGE GUTTER, with the safe-area insets (notch, home indicator). It was a 16px fallback no page used —
+   each card page restates its own 20px later in the cascade — so it decided nothing (whole-app review, Nov
+   2026). These are the card pages' values: a page that forgets its own gets the right one, and the copies
+   can go. The Calendar's full-bleed page keeps its own. */
 body {
-    padding-top:    max(16px, env(safe-area-inset-top));
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
-    padding-left:   max(clamp(16px, 2.5vw, 40px), env(safe-area-inset-left));
-    padding-right:  max(clamp(16px, 2.5vw, 40px), env(safe-area-inset-right));
+    padding-top:    max(20px, env(safe-area-inset-top));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
+    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+}
+@media (max-width: 768px) {
+    body {
+        padding-left:  max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+    }
 }
 
-/* Screen-reader-only text — shared utility (v16.73; the Calendar's older copy in index.css is
-   gone). Standard clip pattern: rendered for AT, invisible on screen. */
-.visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+/* Screen-reader-only text — THE shared utility (v16.73): read out, never seen. `.sr-only` is the same
+   job under a second name, so one rule (new markup takes `.visually-hidden`). Every declaration is
+   `!important`, for `.fieldpick-native`'s reason below: an element rule out-ranks a class — Admin's
+   `input[type="text"] { width: 100% … }` gave the sign-in card's hidden username a full-width box, and
+   the sign-in sheet scrolled sideways (whole-app review, Nov 2026). */
+.visually-hidden,
+.sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    border: 0 !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
 }
 /* A HIDDEN USERNAME IS STILL A FIELD (iPhone audit, 7 Nov 2026). The sign-in card, the forced
    password overlay and the Settings password card each carry one for the password manager
@@ -964,7 +997,7 @@ input.visually-hidden[autocomplete="username"] { font-size: var(--type-medium); 
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transition: opacity var(--dur-base) var(--ease-standard);
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     cursor: pointer;
@@ -983,6 +1016,19 @@ body.lb-open {
     overflow: hidden;
 }
 body.lb-open #stickyTotal { display: none !important; }
+/* PAPER HAS NO SCROLL TO LOCK (whole-app review, Nov 2026). Printing with a lightbox, the drawer or the
+   Huddle viewer open laid out ONE sheet — a fixed body is one viewport tall, shifted by the scroll — and
+   Trains printed its Tips panel over it. On paper the body flows and lightboxes go. NOT under a sign-in
+   sheet, whose card prints ALONE: every other body child leaves the paper, as the page it holds back sat
+   under the card, unseen but in the PDF's text (a member's name, Pay's figures; 10 Nov 2026). A page's
+   notice is the body's `::before`, so it prints. (No `:has()`: both rules drop, and the lock stays.) */
+@media print {
+    body.lb-open:not(:has(#loginOverlay.visible:not(.login-overlay--inline), #pwForceOverlay.visible)) {
+        position: static; top: auto; left: auto; right: auto; width: auto; overflow: visible;
+    }
+    .lb-overlay { display: none !important; }
+    body:has(#loginOverlay.visible:not(.login-overlay--inline), #pwForceOverlay.visible) > :not(#loginOverlay):not(#pwForceOverlay) { display: none !important; }
+}
 
 /* Content panel — structural positioning and open animation.    */
 /* Theme: colours, padding, border-radius, width stay in ID.     */
@@ -990,7 +1036,7 @@ body.lb-open #stickyTotal { display: none !important; }
     position: relative;
     cursor: default;
     transform: scale(0.88);
-    transition: transform 0.25s var(--ease-spring);
+    transition: transform var(--dur-slow) var(--ease-spring);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
@@ -1041,7 +1087,7 @@ body.lb-open #stickyTotal { display: none !important; }
     line-height: 1;
     cursor: pointer;
     padding: 6px;
-    transition: color var(--dur-med) ease;
+    transition: color var(--dur-med) var(--ease-standard);
     touch-action: manipulation;
     min-width: 44px;
     min-height: 44px;
@@ -1486,9 +1532,12 @@ button.lightbox-bug-link {
    right — until the login overlay OPENS one. The sign-in grade/name pickers then rendered BEHIND
    the card that opened them: the rows were painted, `elementFromPoint` at a row's centre returned
    `.login-app-name`, and the member could see names they could not tap.
-   Nothing else lives between 9000 and `--z-splash` (9999), so raising the sheet costs no other
-   surface. Caught by the e2e that clicks a real row rather than by the three tests that only read
-   the trigger's label — the label was right the whole time. */
+   No other FIXED layer lives between 9000 and `--z-splash` (9999), so raising the sheet costs no
+   other surface. Caught by the e2e that clicks a real row rather than by the three tests that only
+   read the trigger's label — the label was right the whole time.
+   ONE THING ENTERS THAT RANGE, AT RUN TIME: a confirm dialog raised over a higher layer (a notification's
+   question while this sheet or the sign-in card is up) is lifted one above the highest layer on screen
+   (overlay.js → `_openDialog`) — it holds the keyboard, so it must paint on top. */
 .picker-sheet-overlay { z-index: var(--z-picker); }
 /* A SHEET WITH A SEARCH BOX SITS AT THE TOP OF THE SCREEN (iPhone audit, 7 Nov 2026). Centred, the
    panel re-centred on every keystroke that shortened the list, so the box and its matches slid DOWN
@@ -1560,7 +1609,9 @@ button.lightbox-bug-link {
 }
 .picker-search-input::placeholder { color: var(--text-light); }
 .picker-search-input:focus { background-color: white; border-color: var(--primary-blue); }
-.picker-search-input:focus-visible { outline: var(--focus-outline); outline-offset: 1px; }
+/* The field's ring as well as its outline — it borrowed one from Admin's and Operations' field rules, as the
+   sign-in card's fields did (see `.login-field`'s focus rule). */
+.picker-search-input:focus-visible { outline: var(--focus-outline); outline-offset: 1px; box-shadow: var(--focus-ring); }
 /* The OS clear button, suppressed exactly as `.nav-gs-input` does — `type="search"` is kept for
    the iOS keyboard's Search key, not for the widget the engine draws with it. */
 .picker-search-input::-webkit-search-cancel-button,
@@ -1623,7 +1674,7 @@ button.lightbox-bug-link {
     text-align: left;
     cursor: pointer;
     box-sizing: border-box;
-    transition: border-color 0.12s, background-color 0.12s;
+    transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 .date-trigger::after { content: "📅"; font-size: var(--type-button); line-height: 1; flex: 0 0 auto; }
 .date-trigger--empty { color: var(--text-light); }
@@ -1642,7 +1693,7 @@ button.lightbox-bug-link {
     background: var(--surface);
     border-radius: var(--radius-xl);
     padding: 20px;
-    width: min(340px, calc(100vw - 40px));
+    width: min(var(--modal-standard), var(--modal-cap));   /* the one idiom (css-tokens.md → Overlay sizing) */
     max-height: 88vh;
     max-height: 88dvh;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
@@ -1725,13 +1776,13 @@ button.lightbox-bug-link {
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
    Card layout: .notice-lb-content (below) — use class="lb-content notice-lb-content".
    Badge uses .notice-badge + page modifier (not .lightbox-badge — which is the About lightbox badge).
-   Title uses .lightbox-app-name (scoped to 17px inside .notice-lb-content context).
+   Title uses .lightbox-app-name (scoped to --type-large, 18px, inside .notice-lb-content).
    All per-notice visual needs met here — do NOT add page-specific overrides. ── */
 
 /* Page-identity badge — coloured to match the page's nav pill.
    Use class="notice-badge notice-badge--[page]" on every notice lightbox.
-   Modifier classes: --pay (green) · --links (purple) · --settings (indigo)
-                     --ops (orange) · --calendar (gold) · --trains (raspberry) · no modifier = neutral */
+   Modifier classes: --pay (green) · --links (purple) · --settings (indigo) · --ops (orange)
+                     --calendar (gold) · --trains (raspberry) · --newlink (teal) · no modifier = neutral */
 .notice-badge {
     display: inline-flex;
     align-items: center;
@@ -2028,6 +2079,9 @@ button.lightbox-bug-link {
     .touch-only { display: revert; }
     .lightbox-tip.touch-only { display: flex; justify-content: center; }
 }
+/* `revert` rolls back past the `hidden` attribute (a presentational hint), so a touch-only line the code had
+   hidden showed anyway; the Calendar's and Trains' swipe hints each carried a page rule for it. */
+.touch-only[hidden] { display: none; }
 
 .lightbox-tip-key {
     font-size: var(--type-badge);
@@ -2130,6 +2184,12 @@ button.lightbox-bug-link {
     .app-icon:hover { transform: scale(1.12); }
 }
 .app-icon:active { transform: scale(var(--press-scale)); }
+/* Reduced motion: the grow is decoration that exists to move, so it goes rather than snapping; the press is
+   already neutral through `--press-scale`. */
+@media (prefers-reduced-motion: reduce) {
+    .app-header img, .app-icon { transition: none; }   /* both selectors: `.app-header img` out-ranks the class */
+    .app-icon:hover { transform: none; }
+}
 
 .app-header h1 {
     font-size: var(--type-large);
@@ -2192,13 +2252,6 @@ button.lightbox-bug-link {
     .badge-name-full  { display: inline; }
 }
 
-@media (max-width: 768px) {
-    body {
-        padding-left:  max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
-    }
-}
-
 @media (max-width: 480px) {
     .app-header {
         padding: 10px 12px;
@@ -2232,7 +2285,8 @@ button.lightbox-bug-link {
 /* ---- Utility ---- */
 .hidden { display: none !important; }
 
-/* ---- Help button (? circle on card headers) — used across all pages ---- */
+/* ---- Help button (the ? circle on the Pay Calculator's cards — paycalc.html and paycalc-lightboxes.js; the
+   other card pages use `.btn-card-tips`, the same size) ---- */
 .help-btn {
     width: 24px; height: 24px; border-radius: 50%;
     background: var(--bg-faint); border: 1.5px solid var(--border-mid);
@@ -2249,7 +2303,7 @@ button.lightbox-bug-link {
     inset: -12px;
 }
 .help-btn:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
-.help-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary-blue) 25%, transparent); } /* navy ring — the ? button sits on light card headers, where gold (~1.5:1) was near-invisible */
+.help-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring); } /* navy ring — the ? button sits on light card headers, where gold (~1.5:1) was near-invisible */
 @media (hover: hover) and (pointer: fine) {
     .help-btn:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
 }
@@ -2286,10 +2340,14 @@ button.lightbox-bug-link {
    made this look finished. */
 .badge-unknown { background: white; color: var(--warning-amber); border: 2px dashed var(--warning-amber); }
 
-/* Badge colour enforcement for print — keeps colours when browser strips backgrounds.
-   badge-night keeps its screen style (white bg + dark border) — it reads better on
-   black-and-white printers than an all-dark filled badge. */
+/* BADGE COLOURS ON PAPER. Printing without "Background graphics" (Chrome's default) drops the fill and keeps
+   the white word, which vanishes on white paper; `!important` cannot stop that, only `print-color-adjust:
+   exact` can — set here on the badges, not trusted to each page's `*` rule (Overtime's sheet has none;
+   whole-app review, Nov 2026). badge-night keeps its screen style (white bg + dark border) — it reads better
+   on black-and-white printers than an all-dark filled badge. */
 @media print {
+    .badge-rest, .badge-early, .badge-late, .badge-night, .badge-spare, .badge-rdw, .badge-al,
+    .badge-sick, .badge-other, .badge-unknown { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .badge-rest  { background: var(--charcoal)  !important; color: white !important; }
     .badge-early { background: var(--early-badge) !important; color: white !important; }
     .badge-late  { background: var(--blue-sky)  !important; color: white !important; }
@@ -2346,7 +2404,7 @@ button.lightbox-bug-link {
     z-index: var(--z-drawer);
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.25s var(--ease-standard), visibility 0.25s;
+    transition: opacity var(--dur-slow) var(--ease-standard), visibility var(--dur-slow);
 }
 .nav-panel-overlay.open {
     opacity: 1;
@@ -2382,7 +2440,7 @@ button.lightbox-bug-link {
        so it stays visible through the slide-out, then hides — same pattern as
        .nav-panel-overlay. */
     visibility: hidden;
-    transition: transform 0.25s var(--ease-standard), visibility 0.25s;
+    transition: transform var(--dur-slow) var(--ease-standard), visibility var(--dur-slow);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -2568,10 +2626,7 @@ button.lightbox-bug-link {
     .nav-panel-pill--newlink:hover    { background: var(--al-hover); }
     .nav-panel-pill--links:hover      { background: color-mix(in oklch, var(--purple) 91%, black); }
     .nav-panel-pill--settings:hover   { background: var(--indigo-hover); }
-}
-/* The one pill hover gated on `hover` alone, without its siblings' `pointer: fine` — as it shipped. */
-@media (hover: hover) {
-    .nav-panel-pill--overtime:hover { background: color-mix(in oklch, var(--ot) 91%, black); }
+    .nav-panel-pill--overtime:hover   { background: color-mix(in oklch, var(--ot) 91%, black); }
 }
 
 /* The collapsed Reference count (v20.06) — quiet-status tier (600), the weight css-tokens.md
@@ -2660,7 +2715,7 @@ button.lightbox-bug-link {
 .nav-panel-guides-arrow {
     font-size: var(--type-body);
     color: var(--accent-gold-dark);
-    transition: transform 0.2s;
+    transition: transform var(--dur-base) var(--ease-standard);
     line-height: 1;
 }
 /* KEYED ON `aria-expanded`, NEVER ON AN `.open` CLASS: a second copy of the state once left the arrow
@@ -2693,7 +2748,7 @@ button.lightbox-bug-link {
     text-decoration: none;
     color: var(--nav-text);
     font-size: var(--type-body);
-    transition: background 0.1s;
+    transition: background var(--dur-fast) var(--ease-standard);
 }
 /* `display: flex` above beats the UA's [hidden] rule, so a hidden drawer link still rendered — the
    document hand-off link nav-panel.js builds showed as an empty, focusable, unnamed row under the
@@ -2831,6 +2886,9 @@ button.nav-panel-link--notices {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
 }
+/* `display: flex` beats the UA's `[hidden]`, so an EMPTY archive's list stayed: a 0px box taking the gap
+   twice, still read out as an empty group (whole-app review, Nov 2026). */
+.nav-notices-list[hidden] { display: none; }
 .notices-item {
     background: rgba(255, 255, 255, 0.07);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -2884,7 +2942,8 @@ button.nav-panel-link--notices {
     .nav-panel, .nav-panel-overlay, .btn-burger { display: none !important; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .nav-panel, .nav-panel-overlay { transition: none; }
+    /* The Reference arrow still turns over to say the section is open — it just does not swing there. */
+    .nav-panel, .nav-panel-overlay, .nav-panel-guides-arrow { transition: none; }
 }
 
 /* Nav panel footer — member name + bell + sign-out; only rendered when a session exists */
@@ -3183,7 +3242,7 @@ button.nav-panel-link--notices {
     -webkit-appearance: none;
     appearance: none;
     font-family: inherit;
-    transition: border-color 0.12s, background-color 0.12s;
+    transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 .login-field select,
 .login-field .fieldpick {
@@ -3195,12 +3254,15 @@ button.nav-panel-link--notices {
     text-align: center;
     text-align-last: center;
 }
+/* …and the 4px ring every field wears: without it here the card borrowed one from Admin's and Operations'
+   field rules and had none on the seven other pages (whole-app review, Nov 2026). */
 .login-field select:focus-visible,
 .login-field .fieldpick:focus-visible,
 .login-field input:not([type="checkbox"]):not([type="radio"]):focus-visible {
     border-color: var(--primary-blue);
     outline: var(--focus-outline);
     outline-offset: 2px;
+    box-shadow: var(--focus-ring);
     background-color: white;       /* brighten to white on focus — matches the app's fields */
 }
 .login-error {
@@ -3267,7 +3329,7 @@ button.nav-panel-link--notices {
     color: var(--text-light);
     text-decoration: none;
     display: inline-block;
-    transition: color 0.12s;
+    transition: color var(--dur-fast) var(--ease-standard);
 }
 @media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
 /* While a sign-in is genuinely in flight the Back link is inert — leaving mid-submit is the
@@ -3361,9 +3423,10 @@ button.login-back:focus-visible { outline: var(--focus-outline); outline-offset:
 
 
 /* ── Boot placeholder ────────────────────────────────────────────────────────────────────────────
-   admin / operations / links hide `.container` until `body.auth-ready`, and their header is inside
-   it — so before their JS runs those pages are blank navy with nothing on them, not even a burger.
-   This is what sits in that window. Pure CSS in both directions: shown by default, removed the
+   Admin, Operations and Links hide `.container`, and their header with it, until `body.auth-ready` —
+   so before their JS runs those pages are blank navy with nothing on them, not even a burger.
+   Trains hides its cards the same way (trains.css, `#trainsMain`) under a header that shows. This is
+   what sits in that window. Pure CSS in both directions: shown by default, removed the
    instant the class lands, so a coordinator that never finishes cannot strand it and no module has
    to remember to clear it. Deliberately plain — it is scaffolding, not a screen. */
 .boot-placeholder {
@@ -3390,7 +3453,8 @@ body.auth-ready .boot-placeholder { display: none; }
 @keyframes boot-spin { to { transform: rotate(360deg); } }
 /* Without the spin there is still a ring and the word beside it — the state is legible either way. */
 @media (prefers-reduced-motion: reduce) { .boot-spinner { animation: none; } }
-/* Never on paper: a printed page is not loading, and these three pages restrict printing anyway. */
+/* Never on paper: a printed page is not loading — Trains prints its timetable, and a "Loading…" line
+   above it would be the one thing on the sheet that is not true. */
 @media print { .boot-placeholder { display: none !important; } }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -3506,10 +3570,12 @@ body.auth-ready .boot-placeholder { display: none; }
 }
 .card-toggle-arrow {
     font-size: var(--type-micro); color: var(--text-light);
-    transition: transform 0.25s; flex-shrink: 0;
+    transition: transform var(--dur-slow) var(--ease-standard); flex-shrink: 0;
     padding: 3px 0 0 12px; line-height: 1.5;
 }
 .card-header-toggle.open .card-toggle-arrow { transform: rotate(180deg); }
+/* Reduced motion: the arrows still turn over to say open or shut — they do not swing there. */
+@media (prefers-reduced-motion: reduce) { .collapse-chevron, .card-toggle-arrow { transition: none; } }
 
 /* Non-collapsible variant: same row layout without the toggle affordance. */
 .card-header--row {
@@ -3545,6 +3611,10 @@ body.auth-ready .boot-placeholder { display: none; }
     line-height: 1.55;
     margin-bottom: 12px;
 }
+/* A link in prose — an explainer or a Tips panel. Nothing styled one, so Trains' two journey-planner links
+   were the browser's own blue, purple once followed (Nov 2026). Navy at 600, as the guides' links are. */
+#tipsLightboxContent a, .card-explainer a { color: var(--primary-blue); font-weight: 600; text-underline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { #tipsLightboxContent a:hover, .card-explainer a:hover { text-decoration-thickness: 2px; } }
 
 /* Uppercase micro field label (GRADE, TAX CODE, …) — the app's field-label convention. */
 .field-eyebrow {
@@ -3619,17 +3689,17 @@ body.auth-ready .boot-placeholder { display: none; }
     -webkit-tap-highlight-color: transparent;
     box-sizing: border-box;
 }
-.btn-action:active           { transform: scale(var(--press-scale)); }
+.btn-action:active:not(:disabled) { transform: scale(var(--press-scale)); }
 .btn-action + .btn-action    { margin-top: 8px; }
 .btn-primary                 { background: var(--primary-blue); color: white; }
-.btn-primary:active          { background: var(--primary-blue-dark); }
+.btn-primary:active:not(:disabled) { background: var(--primary-blue-dark); }
 @media (hover: hover) and (pointer: fine) {
-    .btn-primary:hover       { background: var(--primary-blue-dark); }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-blue-dark); }
 }
 .btn-secondary               { background: white; color: var(--primary-blue); border-color: var(--border-mid); }
-.btn-secondary:active        { background: var(--bg-light); }
+.btn-secondary:active:not(:disabled) { background: var(--bg-light); }
 @media (hover: hover) and (pointer: fine) {
-    .btn-secondary:hover     { background: var(--bg-light); }
+    .btn-secondary:hover:not(:disabled) { background: var(--bg-light); }
 }
 
 /* ── Save / primary-action button (admin, operations, links pages) ─ */
@@ -3704,6 +3774,9 @@ body.auth-ready .boot-placeholder { display: none; }
     font-weight: 800;
     color: var(--primary-blue);
     margin-bottom: 16px;
+    /* Clear of the ✕, as `.picker-head` is: the 44px `.lb-close` at `right: 14px` takes the panel's last 58px,
+       and 28px of padding + 32 = 60. "🙋 Password Reset Requests" ran 8px under it at 360px (Nov 2026). */
+    padding-right: 32px;
 }
 .tips-lb-section {
     font-size: var(--type-badge);
@@ -3741,20 +3814,11 @@ body.auth-ready .boot-placeholder { display: none; }
     border-radius: 8px;
     margin-top: 1px;
 }
-#tipsLightboxClose { color: rgba(0,0,0,0.35); }
+/* The panel's only visible way out: `--text-light` (6.0:1), as the date picker's ✕. It was black at 35%,
+   2.43:1 — under both floors, and only a mouse's hover lifted it (whole-app review, Nov 2026). */
+#tipsLightboxClose { color: var(--text-light); }
 @media (hover: hover) and (pointer: fine) {
-    #tipsLightboxClose:hover { color: rgba(0,0,0,0.7); }
-}
-
-/* Visually-hidden but readable by screen readers. */
-.sr-only {
-    position: absolute;
-    width: 1px; height: 1px;
-    padding: 0; margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
+    #tipsLightboxClose:hover { color: var(--text-dark); }
 }
 
 /* ---- Waiting for signal (v24.21, slow-save.js; moved here from admin.css at v24.23) ----

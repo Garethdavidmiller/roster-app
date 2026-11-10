@@ -1,6 +1,6 @@
 /**
  * Unit tests for calendar-doc-viewer.js — the #circular / #newsletter notification viewer.
- * Run: node --experimental-test-module-mocks --test calendar-doc-viewer.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-doc-viewer.test.mjs
  *
  * WHY THIS FILE EXISTS. v19.01 gave this path a PLAIN `await authReady`, with a comment arguing the
  * visible "Loading…" made an unbounded wait acceptable. It does not: a loading state says something
@@ -22,12 +22,20 @@ let _circularImpl = () => Promise.resolve(null);
 // The stub must honour onClose — that callback is what invalidates an in-flight open (v19.13),
 // so a stub that swallows it would make the close tests below pass against broken code.
 let _lbClose = () => {};
+/** Every history step the viewer took, and the pop interceptors it registered (cal-docs-8). */
+let _historyCalls = [];
+let _interceptors = [];
 mock.module('./overlay.js', {
     namedExports: {
+        // onOpen and afterClose run as the real lifecycle runs them: before the overlay shows, and
+        // once a close has landed — the paint-order raise (cal-docs-6) lives in that pair.
         createLightbox: (cfg) => {
-            _lbClose = () => { cfg?.onClose?.(); };
-            return { open() {}, close() { _lbClose(); } };
+            _lbClose = () => { cfg?.onClose?.(); cfg?.afterClose?.(); };
+            return { open() { cfg?.onOpen?.(); }, close() { _lbClose(); } };
         },
+        registerPopInterceptor: (fn) => { _interceptors.push(fn); },
+        suppressNextPop: () => { _historyCalls.push('suppress'); },
+        whenHistorySettled: (fn) => fn(),
     },
 });
 // The short-lived-url fetch (v24.19). Swapped per test; `null` is the state the app SHIPS in
@@ -58,20 +66,35 @@ const { initDocViewer } = await import('./calendar-doc-viewer.js');
 
 // ── Minimal fake DOM ──────────────────────────────────────────────────────────
 function makeEl() {
-    const kids = [], listeners = {};
+    const kids = [], listeners = {}, attrs = {};
+    let text = '';
     const el = {
-        _children: kids, textContent: '', className: '', type: '',
-        appendChild(c) { kids.push(c); return c; },
+        _children: kids, _attrs: attrs, _parent: null, className: '', type: '', style: {},
+        // Setting the text replaces the children, as it does in a browser.
+        get textContent() { return text + kids.map(c => (typeof c === 'string' ? c : c.textContent)).join(''); },
+        set textContent(v) { text = v; kids.length = 0; },
+        get children() { return kids.filter(c => typeof c !== 'string'); },
+        appendChild(c) { kids.push(c); c._parent = el; return c; },
+        append(...parts) { kids.push(...parts); },
+        remove() { const at = el._parent?._children.indexOf(el) ?? -1; if (at >= 0) el._parent._children.splice(at, 1); el._parent = null; },
         addEventListener(e, fn) { (listeners[e] ||= []).push(fn); },
-        setAttribute() {}, focus() {},
+        setAttribute(k, v) { attrs[k] = v; }, focus() {},
+        classList: { contains: () => false },
         _fire(e) { (listeners[e] || []).forEach(fn => fn()); },
     };
     return el;
 }
 let _els;
+/** The page's `pagehide`/`pageshow`/`hashchange` listeners, by type. */
+let _winListeners;
+/** A stand-in sessionStorage, so the carried tap (cal-docs-1) can be read and written. */
+let _tabStore;
 function setupDOM() {
     _els = { docViewer: makeEl(), docViewerContent: makeEl(), docViewerTitle: makeEl(),
-             docViewerBody: makeEl(), docViewerClose: makeEl() };
+             docViewerStatus: makeEl(), docViewerBody: makeEl(), docViewerClose: makeEl() };
+    _els.docViewerBody.appendChild(_els.docViewerStatus);   // the status line starts inside the body (index.html)
+    _winListeners = {};
+    _tabStore = new Map();
     global.document = {
         getElementById: id => _els[id] ?? null,
         createElement:  () => makeEl(),
@@ -79,16 +102,26 @@ function setupDOM() {
     };
     global.window = {
         location: { hash: '', pathname: '/', search: '' },
-        addEventListener() {},
+        addEventListener(t, fn) { (_winListeners[t] ||= []).push(fn); },
         open() { return null; },
     };
-    global.history = { replaceState() {} };   // bare global in browsers, as handleHash uses it
+    // bare globals in browsers, as the module uses them
+    global.history = { replaceState() { _historyCalls.push('replace'); }, back() { _historyCalls.push('back'); } };
+    global.sessionStorage = {
+        getItem: k => (_tabStore.has(k) ? _tabStore.get(k) : null),
+        setItem: (k, v) => { _tabStore.set(k, String(v)); },
+        removeItem: k => { _tabStore.delete(k); },
+    };
 }
 const flush = async (n = 8) => { for (let i = 0; i < n; i++) await Promise.resolve(); };
-/** Text of everything currently rendered into the viewer body. */
-const bodyText = () => _els.docViewerBody._children.map(c => c.textContent).join(' | ');
+/** Text of everything currently in the viewer body — its status line first, then any button. */
+const bodyText = () => _els.docViewerBody._children.map(c => c.textContent).filter(Boolean).join(' | ');
 
-beforeEach(() => { _circularImpl = () => Promise.resolve(null); _signedImpl = () => Promise.resolve(null); setupDOM(); });
+beforeEach(() => {
+    _circularImpl = () => Promise.resolve(null); _signedImpl = () => Promise.resolve(null);
+    _historyCalls = []; _interceptors = [];
+    setupDOM();
+});
 
 describe('doc viewer — THE DOCUMENT GATE (v23.17): a locked tap reads nothing, and the unlock finishes it', () => {
     test('while locked: the message, and NO fetch — cached or live', async () => {
@@ -218,7 +251,7 @@ describe('doc viewer — a COLD deep link waits for the access decision before c
             docAccess: { has: () => false, onChange: () => () => {} } });
         await flush();
         _lbClose();
-        _els.docViewerBody._children.length = 0;
+        _els.docViewerStatus.textContent = '';
         decide(); await flush();
         assert.equal(bodyText(), '', 'the decision wrote into a viewer the reader had closed');
     });
@@ -464,5 +497,146 @@ describe('doc viewer — which URL the member actually opens (v24.19)', () => {
         assert.equal(fetched, 1,
             'nothing was minted while the viewer loaded, so the click handler must be doing it — '
             + 'which spends the user gesture and gets the open pop-up-blocked');
+    });
+});
+
+// ── THE WHOLE-APP REVIEW'S FINDINGS (10 Nov 2026) ───────────────────────────────────────────────────
+const HELD = 'myb_held_doc_tap';
+/** The document gate, as calendar-doc-access.js presents it, with a lever to move it. */
+function gateOf(open) {
+    let isOpen = open; const subs = [];
+    return { has: () => isOpen, onChange: fn => { subs.push(fn); return () => {}; }, set(v) { isOpen = v; subs.forEach(fn => fn(v)); } };
+}
+
+describe('cal-docs-1 · a tap the lock is holding survives the sign-in\'s reload', () => {
+    test('written down as the page unloads; the reloaded page reads it once, and the grant finishes it', async () => {
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve(), docAccess: gateOf(false) });
+        await flush();
+        assert.match(bodyText(), /Enter the staff PIN, or sign in/);
+        _winListeners.pagehide.forEach(fn => fn());              // the sign-in reloads the page
+        assert.match(_tabStore.get(HELD) ?? '', /^\d+\|circular$/, 'the held tap was not written down');
+
+        const kept = new Map(_tabStore);                          // the reloaded page: nothing else survives
+        setupDOM(); _tabStore = kept;
+        let fetched = 0;
+        _circularImpl = () => { fetched++; return Promise.resolve(null); };
+        const gate = gateOf(false);
+        initDocViewer({ authReady: Promise.resolve(), docAccess: gate });
+        await flush();
+        assert.equal(_tabStore.has(HELD), false, 'a record is good for one load');
+        assert.equal(fetched, 0, 'still undecided: no read, cached or live');
+        gate.set(true);                                           // the sign-in's grant
+        await flush();
+        assert.equal(fetched, 1, 'the member signed in and the document they tapped for never came');
+        assert.match(bodyText(), /No Weekly Retail Circular has been uploaded yet/);
+    });
+
+    test('an open Calendar writes nothing; a record older than a minute is not read; a bfcache restore drops one', async () => {
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve(), docAccess: gateOf(true) });
+        await flush();
+        _winListeners.pagehide.forEach(fn => fn());
+        assert.equal(_tabStore.has(HELD), false, 'a tap answered on an open Calendar was carried');
+
+        setupDOM();
+        _tabStore.set(HELD, `${Date.now() - 61_000}|circular`);
+        let fetched = 0;
+        _circularImpl = () => { fetched++; return Promise.resolve(null); };
+        initDocViewer({ authReady: Promise.resolve(), docAccess: gateOf(true) });
+        await flush();
+        assert.equal(fetched, 0, 'a tap from an earlier visit opened the document');
+
+        setupDOM();
+        global.window.location.hash = '#newsletter';
+        initDocViewer({ authReady: Promise.resolve(), docAccess: gateOf(false) });
+        await flush();
+        _winListeners.pagehide.forEach(fn => fn());
+        assert.ok(_tabStore.has(HELD), 'guard: the locked tap was written down');
+        _winListeners.pageshow.forEach(fn => fn({ persisted: true }));
+        assert.equal(_tabStore.has(HELD), false, 'back from the back/forward cache the page\'s memory is current');
+    });
+});
+
+describe('cal-docs-8 · a tap leaves no dead history entry, and is not a Back press', () => {
+    test('a tap on an open page takes its own entry back off; a cold deep link\'s is rewritten in place', async () => {
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        assert.deepEqual(_historyCalls, [], 'nothing to consume on a page opened with no hash');
+        global.window.location.hash = '#newsletter';
+        _winListeners.hashchange.forEach(fn => fn());
+        assert.deepEqual(_historyCalls, ['back', 'suppress'], 'the tap\'s entry was rewritten into a dead copy of the page');
+
+        setupDOM(); _historyCalls = [];
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        assert.deepEqual(_historyCalls, ['replace'], 'stepping back from a cold open would leave the app');
+    });
+
+    test('the tap\'s own popstate is claimed, so it closes nothing — and only the two document hashes', () => {
+        initDocViewer({ authReady: Promise.resolve() });
+        assert.equal(_interceptors.length, 1);
+        for (const [hash, claimed] of [['#circular', true], ['#newsletter', true], ['', false], ['#huddle', false], ['#staff-pin', false]]) {
+            global.window.location.hash = hash;
+            assert.equal(_interceptors[0](), claimed, `popstate at "${hash}"`);
+        }
+    });
+});
+
+describe('cal-docs-6 · opened over the Huddle viewer, it is drawn over it', () => {
+    test('raised above the Huddle viewer\'s band for that open, and back in its own once closed', async () => {
+        _els.huddleViewer = { classList: { contains: c => c === 'visible' } };
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        assert.equal(_els.docViewer.style.zIndex, 'calc(var(--z-notice) + 1)',
+            'opened under the Huddle viewer while on top of the overlay stack — the tap seems to do nothing');
+        _lbClose();
+        assert.equal(_els.docViewer.style.zIndex, '');
+    });
+
+    test('with no Huddle viewer up it stays in the lightbox band', async () => {
+        _els.huddleViewer = { classList: { contains: () => false } };
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        assert.ok(!_els.docViewer.style.zIndex, 'raised over nothing');
+    });
+});
+
+describe('cal-docs-16 · the dialog is named for its document, and its outcome is spoken', () => {
+    test('the title names it, the emoji hidden from that name; every message is in the ONE status line', async () => {
+        global.window.location.hash = '#newsletter';
+        const gate = gateOf(false);
+        initDocViewer({ authReady: Promise.resolve(), docAccess: gate });
+        await flush();
+        const [glyph, words] = _els.docViewerTitle._children;
+        assert.equal(glyph._attrs['aria-hidden'], 'true', 'the emoji would be read out as part of the dialog\'s name');
+        assert.equal(words, 'Marylebone Newsletter');
+        assert.match(_els.docViewerStatus.textContent, /Enter the staff PIN, or sign in, to read the Marylebone Newsletter/);
+        assert.deepEqual(_els.docViewerBody._children, [_els.docViewerStatus], 'a message outside the status line is not spoken');
+        gate.set(true);
+        await flush();
+        assert.equal(_els.docViewerStatus.textContent, 'No Marylebone Newsletter has been uploaded yet.');
+    });
+
+    test('a document ready to open clears the line: its button takes focus and speaks for itself', async () => {
+        _circularImpl = () => Promise.resolve({ fileType: 'pdf',
+            storageUrl: 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/circulars%2Fx.pdf?token=perm' });
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        assert.equal(_els.docViewerStatus.textContent, '', '"Loading…" was left standing beside the Open button');
+        assert.match(_els.docViewerBody._children.map(c => c.textContent).join(''), /Open Weekly Retail Circular/);
+    });
+
+    test('in the markup: named by the title, not "Document"; the status line is a live region', async () => {
+        const { readFileSync } = await import('node:fs');
+        const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+        const dialog = html.match(/<div id="docViewer"[^>]*>/)?.[0] ?? '';
+        assert.match(dialog, /aria-labelledby="docViewerTitle"/);
+        assert.doesNotMatch(dialog, /aria-label="/, 'an aria-label would name it "Document" again, whichever was open');
+        assert.match(html, /<div id="docViewerBody"[^>]*><p id="docViewerStatus"[^>]*role="status"/,
+            'the status line is the body\'s first child, so its words sit where the messages always were');
     });
 });

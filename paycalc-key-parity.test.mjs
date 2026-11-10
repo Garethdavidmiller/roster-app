@@ -1,6 +1,6 @@
 /**
  * Static guard: every paycalc localStorage key stays compatible with per-member isolation AND with
- * the backup format. Run: node --test paycalc-key-parity.test.mjs   (part of `npm run test:hygiene`)
+ * the backup format. Run: node scripts/run-tests.mjs paycalc-key-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THIS EXISTS — the owner's question, Jul 2026: "the pay data function probably needs to be
  * checked every time a significant pay calculator change happens?" Yes — and a habit someone has to

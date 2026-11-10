@@ -82,7 +82,8 @@ export function buildSaveReceipt({ toSave, removed, memberName, formatDate, desc
     // …AND "NOTHING WAS WRITTEN" IS NOT THE SAME FACT AS "THIS DAY HAS NO LEAVE" (v23.93, external
     // review of v23.92). A rest day answered "free" may already hold a leave document — every one
     // the week grid wrote before v23.88 does — and answering the question does not remove it, which
-    // is correct: removal belongs to the untick path, not to answering a question. But the Calendar
+    // is correct: removal is selecting AL on the day again (an untick never deletes since the owner's
+    // decision of 10 Nov 2026), not answering a question. But the Calendar
     // will still show 🏖️ AL on that day, so reporting it in the same words as an empty day told the
     // manager the opposite of what they were about to see. The line names what remains and how to
     // clear it, because the receipt is the last thing read before the grid is trusted.
@@ -96,10 +97,10 @@ export function buildSaveReceipt({ toSave, removed, memberName, formatDate, desc
             date,
             text: xmas
                 ? (kept.has(date)
-                    ? `${formatDate(date)} — ${xmas}; the leave already recorded here was left as it is and is never counted (untick the day to remove it)`
+                    ? `${formatDate(date)} — ${xmas}; the leave already recorded here was left as it is and is never counted (select AL on the day again to remove it)`
                     : `${formatDate(date)} — ${xmas}, never counted: nothing to record`)
                 : kept.has(date)
-                ? `${formatDate(date)} — rest day; the leave already recorded here was left as it is (untick the day to remove it)`
+                ? `${formatDate(date)} — rest day; the leave already recorded here was left as it is (select AL on the day again to remove it)`
                 : `${formatDate(date)} — rest day, no leave recorded`,
         });
     });

@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * newlink-boundary.test.mjs — a proposal never reaches a roster surface.
- * Run: node --test newlink-boundary.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs newlink-boundary.test.mjs   (part of `npm run test:hygiene`)
  *
  * The new link page shows three PROPOSED rotas to the colleagues who would work one of them. The design's first
  * risk was always confusion: a proposal's week read as somebody's real roster. The page guards its own side — a flag on

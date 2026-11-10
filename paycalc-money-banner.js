@@ -35,14 +35,19 @@ import { fmt } from './paycalc-format.js';
  * between the two sentences — never the availability, which is only whether there is anything to
  * offer.
  *
+ * The note says how to sharpen a lump WORKED OUT from hours, so it is empty for one the member typed
+ * from the payslip (`fromPayslip`, the card's "Enter the amount from your payslip"): hours change
+ * nothing there, and the payslip's own figure has nothing left to sharpen.
+ *
  * @param {object} s
  * @param {number} s.thisPeriod   the lump actually added to this estimate (0 = opted out)
  * @param {number} s.amount       the lump available on this payslip
  * @param {boolean} s.isEstimate  the award is not yet confirmed
  * @param {string} s.aprilYear    the tax year the award backdates to, e.g. "2026"
+ * @param {boolean} [s.fromPayslip]  the lump was typed from the payslip rather than worked out
  * @returns {{ text: string, note: string }}
  */
-export function backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear }) {
+export function backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear, fromPayslip = false }) {
     return {
         text: thisPeriod > 0
             ? `✓ Includes ${isEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(thisPeriod)}`
@@ -51,7 +56,7 @@ export function backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear })
             : isEstimate
                 ? `ℹ️ Estimated back pay lump sum of ${fmt(amount)} could land on this payslip — not added to this estimate`
                 : `ℹ️ Your back pay lump sum of ${fmt(amount)} will land on this payslip — not added to this estimate`,
-        note: `For the best estimate, fill in your hours on each payslip back to 1 April ${aprilYear}.`,
+        note: fromPayslip ? '' : `For the best estimate, fill in your hours on each payslip back to 1 April ${aprilYear}.`,
     };
 }
 
@@ -59,6 +64,11 @@ export function backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear })
  * The HPP banner's words. Same two sentences, and one difference that is deliberate: the note
  * appears ONLY when the member has opted in to a figure that is still an estimate, because that is
  * the only state where there is something for them to do when the payslip arrives.
+ *
+ * A CONFIRMED premium is never hedged. It is the figure the member copied off this very payslip
+ * (the HPP card's box asks for the Holiday Pay Premium line on the January payslip, and this banner
+ * shows only on that payslip), so it IS on this payslip — "could land" undersold a fact the member
+ * had just read, where back pay's confirmed award already says it "will land".
  *
  * @param {object} s
  * @param {number} s.forPeriod    the premium actually added to this estimate (0 = opted out)
@@ -70,7 +80,9 @@ export function hppBannerCopy({ forPeriod, amount, isEstimate }) {
     return {
         text: forPeriod > 0
             ? `✓ Includes ${isEstimate ? 'estimated ' : ''}Holiday Pay Premium of ${fmt(amount)}`
-            : `ℹ️ ${isEstimate ? 'Estimated' : 'A'} Holiday Pay Premium of ${fmt(amount)} could land on this payslip — not added to this estimate`,
+            : isEstimate
+                ? `ℹ️ Estimated Holiday Pay Premium of ${fmt(amount)} could land on this payslip — not added to this estimate`
+                : `ℹ️ Your Holiday Pay Premium of ${fmt(amount)} is on this payslip — not added to this estimate`,
         note: (forPeriod > 0 && isEstimate)
             ? 'When your payslip arrives, enter the confirmed Holiday Pay Premium on the HPP card to replace this estimate.'
             : '',

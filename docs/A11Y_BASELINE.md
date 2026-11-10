@@ -17,6 +17,21 @@ whether a live region interrupts something the user was in the middle of, and wh
 usable by ear at all. It needs a person and a device, not a test run, which is why it is stated here
 as outstanding rather than tracked as a defect.
 
+**What the pass must listen for, by name (Nov 2026 review).** A live region held at `display: none`
+is not in the accessibility tree, and screen readers differ on whether it speaks when it is switched
+on. axe cannot tell: it checks that a live region exists, not that anybody heard it.
+
+- **The sign-in and set-password error boxes.** `.login-error` stays hidden until it gains
+  `.visible`, and both pages write the message before the class goes on (`showError` in
+  `login-overlay.js`, `setError` in `password-force.js`). On an iPhone and on an Android phone, type
+  a wrong password and confirm that "Password not recognised…" is read out. If it is not, keep the box
+  rendered and change only its text. The Calendar PIN card already shows its box first and writes
+  second, and its `say` in `calendar-lock-cards.js` explains why.
+- **Admin's and Operations' status lines.** `.feedback`, `.list-feedback`, `.huddle-filename` and
+  `#authSetupResult` are live regions held at `display: none` until a class shows them. Listen for
+  one of each: a Change a Shift save, a deletion from Saved Changes, a chosen upload file and the
+  result of Set up accounts.
+
 ## Current status — ✅ GREEN + BLOCKING
 
 Every state the spec drives passes on both projects (Desktop Chrome + Pixel 5), and the gate is part
@@ -144,6 +159,30 @@ The general lesson, and it applies to every page in `axe.spec.js`: **a green a11
 about the state that was scanned, not about the page.** If a surface only appears under a condition —
 a bank holiday, an error, a populated list — the gate is silent on it until something puts it there.
 
+### Admin and Operations, five reader-facing contrasts and a clipped ring — `color-contrast` / focus — ✅ FIXED (Nov 2026)
+
+Found by the November 2026 review, each measured on its own background:
+
+- **Admin's "AL left" chip at 1–5 days** was `--accent-gold-dark`, 1.69:1. It now uses the AL
+  banner's own `--al-low`, 6.28:1.
+- **Admin's "⚠ Removing" badge** on an unticked saved day was white on `--orange`, 2.16:1. It is
+  white on `--orange-deep` now, 5.24:1.
+- **The AL banner's entitlement note** ("Includes 1 day in lieu for working Boxing Day") was faded
+  with `opacity`, 3.47:1. It is unfaded now, 5.97:1, and quieter by its size instead.
+- **Operations' Staff Login Accounts leaver line** was `--error-red` on its own tint, 4.36:1. It is
+  `--error-text` now, 6.63:1. The remedy under it was faded on top, 3.62:1, and is unfaded now.
+- **The App Speed and Usage month toggle** drew its focus ring outside the button, where the pill's
+  `overflow: hidden` cut it away. The ring is drawn inside the button now (`outline-offset: -2px`).
+
+None was reachable by the scan: each needs a state no axe test drives. Each now has its own e2e test,
+in `e2e/admin.spec.js` or `e2e/operations.spec.js`. It is the BH badges' lesson again.
+
+### Leave panel "Remaining" label — `color-contrast` (SERIOUS), phone layout — ✅ FIXED (10 Nov 2026)
+
+White at 0.6 on the glass measured 4.14:1 for its 10px text; the desktop scan could only call it
+obscured. `.al-lb-lbl` takes `--on-navy-muted` (0.70) now: 5.0:1. Found by the new scan of the
+Calendar's glass panels, which is why that scan exists.
+
 ## The surface the gate could not reach — the roster review table
 
 The section above states the rule; this is the largest thing it had been hiding. The gate scans
@@ -247,6 +286,11 @@ six Other flavours with their three time slots, an unrecognised value and both p
 members through the real renderer, and holds each cell's name to what it prints, with axe's word
 rule restated small. Mutation-checked: the old name order fails it on every cell.
 
+**And Operations' Account status buttons (Nov 2026 review).** “Set email” was named “Set work email
+for …”, and Cancel, Confirm?, Removing…, Resetting…, Retry and the Reset ✓ receipt kept the name of
+the state before. One helper now sets the words and the name together, the name leading with the
+words; `e2e/operations.spec.js` scans the card with axe's rule in every state.
+
 ## Guarded by convention, not by the gate
 
 - **`aria-expanded` must follow a programmatically-opened card — ✅ RESOLVED.** A few coordinators
@@ -272,8 +316,9 @@ entry or a page `exclude` in `axe.spec.js` **with a one-line reason**, and recor
 4. ~~Make it block (`test:e2e` includes `@a11y`)~~ ✅
 5. ~~Wire more rendered STATES per page beyond the one settled snapshot~~ ✅ — forced transient
 states (sync-chip, active pills); **open-overlay states (H2): the login overlay, the nav drawer
-open, and the About lightbox open** — each a full interactive surface (focus trap, buttons, headings)
-the settled scans can't reach. All axe-clean.
+open, and the About lightbox open**; and since 10 Nov 2026 the Calendar's day, leave and Team View
+help panels, and Operations with every card open — each a full interactive surface (focus trap,
+buttons, headings) the settled scans can't reach. All axe-clean.
 
 **CI gate — ✅ in place.** The axe `@a11y` spec runs as part of `npm run test:e2e`, and the `smoke`
 job in `.github/workflows/e2e.yml` runs it on every branch/PR, one job per Playwright project — so a

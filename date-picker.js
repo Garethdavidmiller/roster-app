@@ -93,7 +93,9 @@ let _picker = null;
  * @param {{ title?: string, week?: boolean }} [opts]
  */
 export function openDatePicker(input, opts = {}) {
-    if (!input) return;
+    // A DISABLED field is not changed, whoever asks — the roster read locks its week this way, and the
+    // field is hidden behind a trigger the lock cannot reach on its own (`initDatePickers` mirrors it).
+    if (!input || input.disabled) return;
     const picker = _ensurePicker();
     if (!picker) return;
     // Ask the consumer to refresh `min`/`max` FIRST — `onOpen` reads them off the input, so
@@ -235,13 +237,19 @@ function _ensurePicker() {
     /** @param {string} iso */
     function _select(iso) {
         if (!_input || _outOfBounds(iso)) return;
-        _input.value = iso;
+        const input = _input;
+        input.value = iso;
+        // CLOSE FIRST, THEN ANNOUNCE — both inside the tap. The close retires the open dialog's focus
+        // guard and hands focus back to the control that opened it, so a consumer that moves focus in
+        // its `change` handler keeps it: Team View focuses its rebuilt week label, Admin its
+        // unsaved-changes banner. Announced while the picker was still open, the guard pulled that
+        // focus back into the closing picker, and it fell to <body> when the picker hid.
+        lb.close();
         // input THEN change: doc-upload's "touched" guard listens to both; the roster card's
         // Saturday-snap listens to change and may REWRITE the value — the per-input change
         // listener below re-reads the final value into the trigger, so the snap shows through.
-        _input.dispatchEvent(new Event('input',  { bubbles: true }));
-        _input.dispatchEvent(new Event('change', { bubbles: true }));
-        lb.close();
+        input.dispatchEvent(new Event('input',  { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     /** Week mode: band the week the pointer or focus is on. '' clears it. @param {string} wk */
@@ -343,12 +351,13 @@ export function initDatePickers(inputIds) {
         trigger.className = 'date-trigger';
         const label = input.getAttribute('aria-label') || 'Date';
 
-        /** Reflect the input's CURRENT value into the trigger (post any consumer normalisation). */
+        /** Reflect the input's CURRENT value — and whether it may be changed — into the trigger. */
         const _sync = () => {
             const v = input.value;
             trigger.textContent = v ? formatLabel(v) : 'Choose date';
             trigger.classList.toggle('date-trigger--empty', !v);
             trigger.setAttribute('aria-label', `${label}: ${v ? formatLabel(v) : 'no date chosen'}. Change.`);
+            trigger.disabled = input.disabled;
         };
 
         input.style.display = 'none';
@@ -363,5 +372,11 @@ export function initDatePickers(inputIds) {
         // doc-upload.js fires this when it re-defaults an untouched date programmatically (which
         // emits no 'change') — resync so the trigger label can't go stale (v17.41).
         input.addEventListener('date-refreshed', _sync);
+        // A form that locks the field — the roster read disables its week until the read is over —
+        // fires no event either, and the field is hidden, so the trigger is what the lock must reach.
+        // An observer, as select-sheet.js keeps its trigger in step with a disabled select.
+        if (typeof MutationObserver === 'function') {
+            new MutationObserver(_sync).observe(input, { attributes: true, attributeFilter: ['disabled'] });
+        }
     }
 }

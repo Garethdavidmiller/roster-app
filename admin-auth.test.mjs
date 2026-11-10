@@ -1,6 +1,6 @@
 /**
  * admin-auth.test.mjs — the provisioning audit AS THE CARD RUNS IT.
- * Run with: node --experimental-test-module-mocks --test admin-auth.test.mjs   (part of `test:unit`)
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs admin-auth.test.mjs   (part of `test:unit`)
  *
  * ── WHY THE CARD AND NOT THE RULE ───────────────────────────────────────────────────────────────
  *
@@ -23,10 +23,12 @@
  * and finds they are not stops reading the block, and then the real one goes past too.
  *
  * NOT COVERED HERE: the Set up accounts button itself. It is a write, it is well covered
- * server-side, and this file is about the read that was added beside it.
+ * server-side, and this file is about the read that was added beside it — the button is pressed
+ * here only for the re-audit it runs afterwards.
  */
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 // ── A DOM, just enough ──────────────────────────────────────────────────────────────────────────
 function makeEl(tag = 'div', id = '') {
@@ -81,9 +83,12 @@ global.document = /** @type {any} */ ({
 /** @type {any} */ let _next;
 let _calls = 0;
 
+/** What setupRosterAuth answers when the button is pressed, or an Error for the request to throw. */
+/** @type {any} */ let _setupReply = new Error('unused');
+
 mock.module('./firebase-client.js', {
     namedExports: {
-        auth: { currentUser: { uid: 'admin' } },
+        auth: { currentUser: { uid: 'admin', getIdTokenResult: async () => ({ token: 't', claims: { admin: true } }) } },
         getAccountSetupGaps: async () => {
             _calls += 1;
             if (_next instanceof Error) throw _next;
@@ -102,12 +107,22 @@ mock.module('./roster-data.js', {
     namedExports: { escapeHtml: (/** @type {string} */ s) => String(s) },
 });
 mock.module('./fetch-timeout.js', {
-    namedExports: { fetchWithTimeout: async () => { throw new Error('unused'); }, isFetchTimeout: () => false },
+    namedExports: {
+        fetchWithTimeout: async () => {
+            if (_setupReply instanceof Error) throw _setupReply;
+            return { ok: true, json: async () => _setupReply, text: async () => '' };
+        },
+        isFetchTimeout: () => false,
+    },
 });
 
 const { initAuthSetup } = await import('./admin-auth.js');
 
-/** Build the card, run init, and let the audit's promise chain settle. */
+/** Let the audit's promise chain settle: sessionReady → loadGaps, then the awaited read inside it. */
+async function drain() { for (let i = 0; i < 10; i++) await Promise.resolve(); }
+
+/** Build the card, run init, and let the audit's promise chain settle. `withdrawals` counts the
+ *  `onWithdraw` calls — one entry per call. */
 async function wire(response) {
     els = {
         authSetupCard:    makeEl('div', 'authSetupCard'),
@@ -118,10 +133,10 @@ async function wire(response) {
     };
     _next = response;
     /** @type {any[]} */ const reported = [];
-    initAuthSetup({ currentIsAdmin: true, onAttention: (c) => reported.push(c) });
-    // Two microtask drains: sessionReady → loadGaps, then the awaited read inside it.
-    for (let i = 0; i < 6; i++) await Promise.resolve();
-    return { reported, gaps: els.authSetupGaps };
+    /** @type {true[]} */ const withdrawals = [];
+    initAuthSetup({ currentIsAdmin: true, onAttention: (c) => reported.push(c), onWithdraw: () => withdrawals.push(true) });
+    await drain();
+    return { reported, withdrawals, gaps: els.authSetupGaps };
 }
 
 const CLEAN   = { setUp: [], leavers: [] };
@@ -233,15 +248,85 @@ describe('the retry', () => {
         assert.equal(_calls, 1);
         _next = CLEAN;
         await retry.fire('click');
-        for (let i = 0; i < 6; i++) await Promise.resolve();
+        await drain();
         assert.equal(_calls, 2);
         assert.match(gaps.textContent, /Everyone on the roster has a login/);
     });
 });
 
+// ── A CHECK THAT CANNOT ANSWER TAKES BACK WHAT AN EARLIER ONE TOLD THE STRIP (settings-ops-6) ────
+// Reporting nothing on a failure keeps a zero from being invented; it does not take back a count
+// the strip already shows. The strip read "Leavers still active 2" while the card beneath it, after
+// the re-audit that follows a run had failed, said it could not tell.
+describe('a check that cannot answer takes back what an earlier one told the strip', () => {
+    /** Answer the load with GAPPY, then press Set up accounts with the re-audit answering `after`. */
+    async function runThenReaudit(/** @type {any} */ after) {
+        const w = await wire(GAPPY);
+        assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1 }], 'premise: the load answered');
+        assert.equal(w.withdrawals.length, 0, 'premise: an answer withdraws nothing');
+        _setupReply = { created: [], skipped: [] };
+        _next = after;
+        await els.authSetupBtn.fire('click');
+        await drain();
+        assert.equal(_calls, 2, 'premise: the run re-audited');
+        return w;
+    }
+
+    for (const [what, after] of /** @type {[string, any][]} */ ([
+        ['fails', new Error('timeout')],
+        ['is refused', REFUSED],
+        ['cannot be read', {}],
+    ])) {
+        test(`a re-audit after a run that ${what} withdraws the counts`, async () => {
+            const w = await runThenReaudit(after);
+            assert.match(w.gaps.textContent, /Couldn’t check/);
+            assert.equal(w.withdrawals.length, 1,
+                'the strip would go on stating two leavers beside a card that says it cannot tell');
+            assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1 }], 'and nothing is reported in their place');
+        });
+    }
+
+    test('a re-audit that answers reports its counts, and withdraws nothing', async () => {
+        const w = await runThenReaudit(CLEAN);
+        assert.equal(w.withdrawals.length, 0);
+        assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1 }, { setUp: 0, leavers: 0 }]);
+    });
+
+    test('a Retry that fails again withdraws again', async () => {
+        const w = await wire(new Error('offline'));
+        assert.equal(w.withdrawals.length, 1, 'the first load could not answer either');
+        const retry = w.gaps.find((/** @type {any} */ e) => e.className === 'auth-gap-retry');
+        await retry.fire('click');
+        await drain();
+        assert.equal(w.withdrawals.length, 2);
+        assert.deepEqual(w.reported, []);
+    });
+});
+
+// ── THE CLASSES IT WRITES ARE CLASSES THAT ARE STYLED (whole-app check, 10 Nov 2026) ─────────────
+// `auth-gaps--warn` was toggled on every load and `auth-gap-line--setup` stamped on every set-up
+// line; no rule in operations.css — the page that shows the card — reads either. A class nothing
+// styles tells the next reader there is a warn state to look for, and there is not.
+test('every class the block writes is one operations.css styles', async () => {
+    const css = readFileSync(new URL('./operations.css', import.meta.url), 'utf8');
+    /** @type {Set<string>} */ const seen = new Set();
+    const walk = (/** @type {any} */ el) => {
+        if (typeof el === 'string') return;
+        for (const c of String(el.className || '').split(/\s+/).filter(Boolean)) seen.add(c);
+        for (const c of el.classList._s) seen.add(c);
+        el.children.forEach(walk);
+    };
+    for (const answer of [GAPPY, CLEAN, REFUSED, new Error('offline')]) walk((await wire(answer)).gaps);
+    for (const c of ['auth-gap-line', 'auth-gap-line--leaver', 'auth-gap-fix', 'auth-gap-ok', 'auth-gap-unknown', 'auth-gap-retry']) {
+        assert.ok(seen.has(c), `premise: ${c} was rendered`);
+    }
+    const unstyled = [...seen].filter(c => !new RegExp(`\\.${c}(?![\\w-])`).test(css));
+    assert.deepEqual(unstyled, [], 'a class with no rule behind it');
+});
+
 test('a page without the block still initialises', async () => {
-    // admin.html has the card's siblings but not this element; a hard requirement would take the
-    // whole Staff Login Accounts card down with it.
+    // A page carrying the card without this element (as one once did) still gets a working button;
+    // a hard requirement would take the whole Staff Login Accounts card down with it.
     els = {
         authSetupCard:    makeEl('div', 'authSetupCard'),
         authSetupBtn:     makeEl('button', 'authSetupBtn'),

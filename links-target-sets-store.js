@@ -55,8 +55,9 @@ import { targetSetFromDoc, sortTargetSets } from './links-target-sets.js';
 export function createTargetSetStore({ db, doc, getDocs, runTransaction, writeWithClaimRetry, setsCol, collectionPath }) {
     return {
         /**
-         * Every set, or the fact that we could not find out.
-         * @returns {Promise<{ status: 'ready'|'error', sets: Array<any> }>}
+         * Every set, or the fact that we could not find out. `fromCache` says the answer came from this
+         * device's cache rather than the server.
+         * @returns {Promise<{ status: 'ready'|'error', sets: Array<any>, fromCache?: boolean }>}
          */
         async list() {
             try {
@@ -67,8 +68,17 @@ export function createTargetSetStore({ db, doc, getDocs, runTransaction, writeWi
                     const set = targetSetFromDoc(d.id, d.data());
                     if (set) rows.push(set);   // a corrupt document is skipped whole, never half-loaded
                 });
-                return { status: 'ready', sets: sortTargetSets(rows) };
-            } catch {
+                // AN EMPTY ANSWER FROM THE CACHE IS NOT AN EMPTY COLLECTION (rule 1; whole-app fix, Nov
+                // 2026). A query the SDK cannot take to the server does not fail — it RESOLVES from the
+                // local cache, which holds nothing in a browser that has never read the collection, so
+                // the picker said "No staffing setups saved yet" about setups it could not see. A cached
+                // list WITH rows is stale at worst and never claims there are none, so it is kept.
+                const fromCache = !!snap.metadata?.fromCache;
+                if (fromCache && !rows.length) return { status: 'error', sets: [], fromCache };
+                return { status: 'ready', sets: sortTargetSets(rows), fromCache };
+            } catch (err) {
+                // Logged, because a rules refusal and a dropped connection otherwise leave no trace.
+                console.error('[Links] Reading the staffing setups failed:', err);
                 return { status: 'error', sets: [] };
             }
         },

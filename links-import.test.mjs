@@ -1,6 +1,6 @@
 /**
  * links-import.test.mjs — the design importer, which is a TRUST BOUNDARY.
- * Run: node --test links-import.test.mjs   (no mocks; part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-import.test.mjs   (no mocks; part of `npm run test:hygiene`)
  *
  * ORGANISED BY THE FAILURE, not by the function. Text pasted from outside is a claim about a
  * design, and the question this suite asks of every case is which of two things happened to a
@@ -19,6 +19,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCell, parseGrid, parseDesignImport, summariseImport } from './links-import.js';
 import { ROTATING_LINES, normalisePatterns } from './links-design.js';
+import { MAX_DESIGN_NAME } from './links-design-naming.js';
 
 /** A full seven-column row as a tab-separated line. */
 const line = (...cells) => cells.join('\t');
@@ -107,6 +108,66 @@ describe('a pasted grid — where a paste loses a COLUMN', () => {
         assert.deepEqual(r.patterns['1'].sat, 'RD');
     });
 
+    // ── A WEEK WITH NOTHING IN IT (whole-app fix, Nov 2026) ─────────────────────────────────────
+    // A spreadsheet copies a row whose every cell is empty as a line of tabs. It was filtered out as
+    // a blank line before the rows were counted, so in an UNNUMBERED paste every later week was
+    // imported one line early — the sheet's week 3 on line 2 — and nothing said so. The design saved
+    // was not the one on the sheet, and every rule measured BETWEEN lines (the turnaround across the
+    // week boundary, weekends off, the longest run) then described a rotation nobody proposed.
+    const sheet = (/** @type {string} */ empty) => [week('06:20-14:20'), empty, week('14:00-22:00'), week('SP')].join('\n');
+
+    test('an empty week keeps its place — the weeks after it do not move up a line', () => {
+        const r = parseGrid(sheet('\t\t\t\t\t\t'), { lines: 4 });
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.deepEqual(Object.keys(r.patterns), ['1', '2', '3', '4']);
+        assert.deepEqual(Object.values(r.patterns['2']), Array(7).fill('RD'), 'the empty week is all rest days');
+        assert.equal(r.patterns['3'].mon, '14:00-22:00', 'the sheet\'s week 3 is on line 3, not line 2');
+        assert.equal(r.patterns['4'].mon, 'SPARE');
+    });
+
+    test('…the same as the same sheet pasted with commas, and through the entry point the panel calls', () => {
+        const csv = parseGrid(sheet(',,,,,,').replaceAll('\t', ','), { lines: 4 });
+        const ui = parseDesignImport(sheet('\t\t\t\t\t\t'), { lines: 4 });
+        assert.equal(ui.ok, true, ui.ok ? '' : ui.error);
+        assert.deepEqual(/** @type {any} */ (ui).patterns, /** @type {any} */ (csv).patterns);
+    });
+
+    test('…whatever its width: an empty week copied WITH its hours column is still one empty week', () => {
+        // The days plus an hours total, unnumbered: the empty week's hours cell is empty too, so the
+        // row is eight empty cells. With every cell empty there is no duty a lost column could move.
+        const r = parseGrid([line(...Array(7).fill('SP'), '35'), '\t\t\t\t\t\t\t', line(...Array(7).fill('RD'), '0')].join('\n'), { lines: 3 });
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.deepEqual(Object.keys(/** @type {any} */ (r).patterns), ['1', '2', '3']);
+    });
+
+    test('…and the line it lands on is NAMED before the save, so a stray empty row can still be taken out', () => {
+        const one = parseGrid(sheet('\t\t\t\t\t\t'), { lines: 4 });
+        assert.ok(one.ok && one.warnings.some(w => /^Line 2 is empty in the paste/.test(w)), JSON.stringify(one));
+        const two = parseGrid([week('RD'), '\t\t\t\t\t\t', week('SP'), '\t\t\t\t\t\t', week('SP'), '\t\t\t\t\t\t', week('SP')].join('\n'), { lines: 7 });
+        assert.ok(two.ok && two.warnings.some(w => /^Lines 2, 4 and 6 are empty in the paste/.test(w)), JSON.stringify(two));
+    });
+
+    test('an empty row is a week only where the weeks around it pin its place', () => {
+        // AFTER the last week it moves nothing: a selection run past the end is neither counted as
+        // weeks nor refused as too many of them.
+        const tail = parseGrid([week('RD'), week('SP'), ...Array(ROTATING_LINES).fill('\t\t\t\t\t\t')].join('\n'));
+        assert.equal(tail.ok, true, tail.ok ? '' : tail.error);
+        assert.deepEqual(Object.keys(/** @type {any} */ (tail).patterns), ['1', '2']);
+        // BEFORE a row of day names it is a spacer above the table, not week 1.
+        const above = parseGrid(['\t\t\t\t\t\t', 'SUN\tMON\tTUE\tWED\tTHU\tFRI\tSAT', week('SP')].join('\n'));
+        assert.equal(above.ok, true, above.ok ? '' : above.error);
+        assert.equal(/** @type {any} */ (above).patterns['1'].mon, 'SPARE');
+        // A line with no cells at all still carries nothing.
+        const gap = parseGrid([week('SP'), '', '   ', week('RD')].join('\n'));
+        assert.deepEqual(Object.keys(/** @type {any} */ (gap).patterns), ['1', '2']);
+    });
+
+    test('in a NUMBERED paste an empty row says nothing, and is not "an unnumbered row"', () => {
+        const r = parseGrid([line('1', ...Array(7).fill('SP')), '\t\t\t\t\t\t\t', line('3', ...Array(7).fill('RD'))].join('\n'));
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.deepEqual(Object.keys(/** @type {any} */ (r).patterns), ['1', '3'], 'each row is where its own number puts it');
+    });
+
     test('a day-name header row is dropped, not parsed as a week', () => {
         const r = parseGrid(['WK\tSUN\tMON\tTUE\tWED\tTHU\tFRI\tSAT\tHRS', line('1', ...Array(7).fill('RD'), '0')].join('\n'));
         assert.equal(r.ok, true, r.ok ? '' : r.error);
@@ -188,6 +249,14 @@ describe('the app\'s own JSON', () => {
         assert.equal(r.name, 'Option A');
         assert.equal(r.patterns['1'].mon, '06:20-14:20');
         assert.equal(r.patterns['1'].tue, 'SPARE');
+    });
+
+    test('its name is held to the one limit every other way a design is named uses', () => {
+        // The import's cap was a second literal of MAX_DESIGN_NAME, tied to it by nothing (whole-app
+        // fix, Nov 2026): a change to the design limit would have left imports on the old one.
+        const r = parseDesignImport(JSON.stringify({ ...good, name: 'x'.repeat(MAX_DESIGN_NAME + 20) }));
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.equal(r.name.length, MAX_DESIGN_NAME);
     });
 
     // Whole-app review, Oct 2026: a night start or a past-midnight finish imported silently, and the

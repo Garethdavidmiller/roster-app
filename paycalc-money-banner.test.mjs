@@ -1,6 +1,6 @@
 /**
  * paycalc-money-banner.test.mjs — a banner may only say "Includes" when the sum is actually in it.
- * Run: node --test paycalc-money-banner.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs paycalc-money-banner.test.mjs   (part of `npm run test:hygiene`)
  *
  * @nodeps-safe — runs on a bare checkout with nothing installed.
  *
@@ -48,7 +48,7 @@ describe('overstating — a sum claimed to be in a figure that does not contain 
         // total. Both sentences have to carry that, and neither may lead with the tick.
         for (const c of [BP({ amount: 1240 }), HPP({ amount: 480 })]) {
             assert.match(c.text, /^ℹ️/);
-            assert.match(c.text, /could land on this payslip|will land on this payslip/);
+            assert.match(c.text, /could land on this payslip|will land on this payslip|is on this payslip/);
         }
     });
 
@@ -96,15 +96,29 @@ describe('dropping the hedge — an unconfirmed figure reading as settled', () =
 
     test('HPP hedges an unconfirmed premium on both sentences', () => {
         assert.match(HPP({ isEstimate: true, forPeriod: 480 }).text, /estimated Holiday Pay Premium/);
-        assert.match(HPP({ isEstimate: true }).text, /^ℹ️ Estimated Holiday Pay Premium/);
-        assert.match(HPP({ isEstimate: false }).text, /^ℹ️ A Holiday Pay Premium/);
+        assert.match(HPP({ isEstimate: true }).text, /^ℹ️ Estimated Holiday Pay Premium .* could land on this payslip/);
+    });
+
+    test('…and never hedges a CONFIRMED premium, which the member read off this very payslip', () => {
+        // A confirmed figure is the Holiday Pay Premium line the HPP card asked them to copy from this
+        // January payslip. "Could land" undersold what they had just read (whole-app check, 10 Nov 2026).
+        const c = HPP({ isEstimate: false });
+        assert.equal(c.text, 'ℹ️ Your Holiday Pay Premium of £480.00 is on this payslip — not added to this estimate');
+        assert.doesNotMatch(c.text, /could land|Estimated/);
     });
 });
 
 describe('the notes, which differ on purpose', () => {
-    test('back pay always explains how to improve the estimate', () => {
+    test('back pay always explains how to improve a lump worked out from hours', () => {
         assert.match(BP().note, /back to 1 April 2026\.$/);
         assert.match(BP({ thisPeriod: 1240 }).note, /back to 1 April 2026\.$/);
+        assert.match(BP({ fromPayslip: false }).note, /fill in your hours/);
+    });
+
+    test('…and says nothing of hours for a lump typed from the payslip, which hours cannot change', () => {
+        // Whole-app check, 10 Nov 2026: the payslip's own figure has nothing left to sharpen.
+        assert.equal(BP({ fromPayslip: true }).note, '');
+        assert.equal(BP({ fromPayslip: true, thisPeriod: 1240 }).note, '');
     });
 
     test('HPP prompts only where there is something to do', () => {

@@ -1,6 +1,6 @@
 /**
  * Static hygiene guard for the CI workflows.
- * Run: node --test workflow-hygiene.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs workflow-hygiene.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THIS FILE EXISTS. `workflow-lint.yml` validates every workflow's YAML and enforces
  * `timeout-minutes` on every job — but it cannot guard its OWN toolchain, and it only runs when
@@ -978,11 +978,11 @@ describe('the Pages mirror publishes only a release this repository made', () =>
         assert.deepEqual(r.outputs, { sha: B, go: 'true' }, `a re-run put the mirror back on an older release:\n${r.out}`);
     });
 
-    test('while Pages still builds from the branch, nothing is published and main is not asked', () => {
+    test('while Pages builds from the branch, nothing is published and main is not asked', () => {
         const r = plan(finished({ RUN_SHA: A }), { build_type: 'legacy' });
         assert.equal(r.status, 0, r.out);
         assert.deepEqual(r.outputs, { go: 'false' }, r.out);
-        assert.ok(!r.calls.some(c => c.includes('/compare/')), 'the inert workflow must not gain a new way to fail');
+        assert.ok(!r.calls.some(c => c.includes('/compare/')), 'standing down must not gain a new way to fail');
     });
 });
 
@@ -1570,8 +1570,9 @@ describe('every workflow that installs also caches the install', () => {
 
 // ── THE LOCAL TEST SERVER NEVER PICKS A PORT THE BROWSER REFUSES (3 Nov 2026) ──────────────────────
 //
-// e2e/dev-server.mjs gives each checkout its own port, base + (path hash % SPREAD), so two worktrees
-// never adopt each other's server. Chromium refuses port 4045 outright (net::ERR_UNSAFE_PORT, before
+// e2e/dev-server.mjs derives each checkout's port, base + (path hash % SPREAD), so two worktrees USUALLY
+// get two ports; when they do not, e2e/server-identity.mjs refuses the other checkout's server
+// (server-identity.test.mjs). Chromium refuses port 4045 outright (net::ERR_UNSAFE_PORT, before
 // any request) and 4001 + 44 is 4045: one checkout path in 120 failed EVERY browser test with an error
 // naming no file of ours, and nothing guarded it. These read the bases from the configs and try every
 // value the hash can take, so no future base, spread or refused port escapes them by not being listed.
@@ -1601,7 +1602,7 @@ describe('the local test server never picks a port the browser refuses', () => {
             if (a >= b) continue;
             const shared = [...reach.get(a)].filter(p => reach.get(b).has(p));
             assert.deepEqual(shared.slice(0, 5), [],
-                `bases ${a} and ${b} can both derive port${shared.length > 1 ? 's' : ''} ${shared.slice(0, 5).join(', ')}${shared.length > 5 ? ` (${shared.length} in all)` : ''}: two checkouts' servers on one port adopt each other's files`);
+                `bases ${a} and ${b} can both derive port${shared.length > 1 ? 's' : ''} ${shared.slice(0, 5).join(', ')}${shared.length > 5 ? ` (${shared.length} in all)` : ''}: two checkouts' servers on one port collide, and one of the two runs is refused`);
         }
     });
 
@@ -1616,8 +1617,8 @@ describe('the local test server never picks a port the browser refuses', () => {
     });
 
     test('only a refused port moves, and never onto a port another checkout uses', () => {
-        // Moving to the NEXT port would land on another checkout's, and two checkouts on one port adopt
-        // each other's server — the silent wrong-bytes failure the module exists to prevent.
+        // Moving to the NEXT port would land on another checkout's, and two checkouts on one port is a
+        // collision — refused now by server-identity.mjs, but still a lost run for whoever came second.
         const unmoved = new Set();
         const moved = new Set();
         for (const base of bases) {
@@ -1645,7 +1646,9 @@ describe('the local test server never picks a port the browser refuses', () => {
         mkdirSync(dir);
         const was = process.cwd();
         const ci = process.env.CI;
+        const pinned = process.env.E2E_DEV_PORT;
         delete process.env.CI;   // CI keeps the base port by design; this is the local derivation
+        delete process.env.E2E_DEV_PORT;   // a pin would pass these checks without deriving anything
         try {
             process.chdir(dir);
             const port = devServerPort(4001);
@@ -1656,6 +1659,7 @@ describe('the local test server never picks a port the browser refuses', () => {
         } finally {
             process.chdir(was);
             if (ci !== undefined) process.env.CI = ci;
+            if (pinned !== undefined) process.env.E2E_DEV_PORT = pinned;
             rmSync(parent, { recursive: true, force: true });
         }
     });
@@ -2045,6 +2049,18 @@ describe('the live check looks twice before it reports', () => {
         const set = (/^\s*LIVE_REQUIRE_DIRECT:\s*'([^']*)'\s*$/m.exec(body) || [])[1];
         assert.equal(set, wanted,
             `the site step must set LIVE_REQUIRE_DIRECT: '${wanted}' in its own env (found ${set === undefined ? 'nothing' : `'${set}'`}); anything else lets a relayed pass through on a schedule`);
+    });
+
+    test('the direct probe takes any HTTP answer as a connection — the page checks judge the status', () => {
+        // workflows-9 (10 Nov 2026 review): anything but a 200 from web.app's robots.txt read as "could
+        // not reach the internet", so web.app answering 404 or 5xx for everything — the outage this check
+        // exists for — failed all six tests on that assertion before any page opened, the mirror among
+        // them. Only a navigation that THROWS is no connection; an HTTP error is an answer to judge.
+        const spec = readFileSync('e2e/live.spec.js', 'utf8');
+        const probe = spec.slice(spec.indexOf('async function canReachDirectly'), spec.indexOf('function curlFetch'));
+        assert.ok(probe.includes('probe.goto('), 'the direct probe was not found in e2e/live.spec.js');
+        assert.doesNotMatch(probe, /\.status\(\)/,
+            'the probe judges the answer\'s status, so an error page from web.app reads as "no connection"');
     });
 
     test('only a failure of the site check itself reaches the issue', () => {

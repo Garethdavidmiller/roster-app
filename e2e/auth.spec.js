@@ -156,9 +156,14 @@ test('login overlay: CONTROL — a failed sign-in as the SAME member keeps their
     expect(await storedName(page), 'one mistyped password wiped the session that would sign them back in').toBe('G. Miller');
 });
 
+// The third row is sessions-2 (Nov 2026): every failure that was neither a connection problem nor a
+// rate limit used to be dressed as a wrong password — "Password not recognised", counted, and the reset
+// link pushed — although a site missing from the API key's allowed referrers (the May 2026 outage), a
+// disabled account or sign-in switched off is nothing a reset can fix.
 for (const [kind, code, locks] of /** @type {[string, string|undefined, boolean][]} */ ([
     ['a wrong password', undefined, true],
     ['a connection failure', 'auth/network-request-failed', false],
+    ['a refusal that is not about the password', 'auth/requests-from-referer-http://localhost-are-blocked.', false],
 ])) {
     test(`login overlay: three failures from ${kind} ${locks ? 'lock' : 'never lock'} the button for 30 seconds`, async ({ page }) => {
         await page.addInitScript((c) => { /** @type {any} */ (window).__E2E = { failSignIn: true, ...(c ? { failSignInCode: c } : {}) }; }, code);
@@ -169,12 +174,17 @@ for (const [kind, code, locks] of /** @type {[string, string|undefined, boolean]
             await expect(page.locator('#loginError')).toBeVisible();
             if (i < 3) await expect(submit).toHaveText('Sign in →');
         }
+        const reset = page.locator('#loginResetRequest');
         if (locks) {
             await expect(submit).toHaveText('Try again in 30s');
             await expect(submit).toBeDisabled();
+            await expect(reset, 'repeated wrong passwords point at the reset route').toHaveClass(/login-reset-request--prompted/);
         } else {
-            await expect(submit, 'a member on weak signal was locked out for having no connection').toHaveText('Sign in →');
+            await expect(submit, 'a member was locked out for a failure no password could fix').toHaveText('Sign in →');
             await expect(submit).toBeEnabled();
+            await expect(reset, 'only a wrong password points at a reset').not.toHaveClass(/login-reset-request--prompted/);
+            await expect(page.locator('#loginError')).not.toContainText('Password not recognised');
+            await expect(page.locator('#loginPassword'), 'the typed password is kept for the retry').not.toHaveValue('');
         }
     });
 }
@@ -435,10 +445,10 @@ test('forced password overlay: rejects a short or mismatched password and stays 
 // offers a way out, so after repeated auth-layer failures an escape appears and genuinely closes it.
 //
 // The hermetic stub makes this easy to drive: `getAuth()` returns `{ currentUser: null }` by default,
-// so setOwnPassword rejects with 'Not signed in' every time. The HAPPY path needs the opt-in signed-in
+// so changeOwnPassword rejects with 'Not signed in' every time. The HAPPY path needs the opt-in signed-in
 // user (window.__E2E.authUser, plus authUserEmail where re-authentication runs) — e2e/settings.spec.js
 // drives it on both password surfaces. The password RULES are unit-tested (auth-identity.test.mjs) and
-// the write path is the same setOwnPassword the shipped Settings card uses.
+// the write path is the same changeOwnPassword the shipped Settings card uses.
 test('forced password overlay: offers a way out after repeated save failures', async ({ page }) => {
     await forcePasswordSet(page);
     await page.goto('/settings.html');
@@ -721,6 +731,129 @@ async function failTwice(page, name) {
     await expect(page.locator('#loginResetRequest')).toHaveClass(/login-reset-request--prompted/);
 }
 
+// ── A NEW PERSON IN THE CARD INHERITS NOTHING OF THE LAST ONE'S (sessions-3, Nov 2026) ────────────
+// The grade and name handlers exist to clear the previous person's state, and three pieces survived
+// them: a reset request still on its way, the failure streak, and a password left showing.
+
+for (const outcome of /** @type {const} */ (['sent', 'failed'])) {
+    test(`reset request link: a send that ${outcome === 'sent' ? 'lands' : 'fails'} after the name changed is not reported under the new name`, async ({ page }) => {
+        // The wrong name was selected when "Ask the admin" was tapped; the right one is picked while
+        // the request is still on its way (a cold start takes seconds). Its outcome must not land under
+        // the new name, which has filed nothing — and that person must be left a control to file with.
+        /** @type {any[]} */
+        const posted = [];
+        /** @type {null | ((v?: any) => void)} */
+        let releaseFirst = null;
+        await page.route('**/requestPasswordReset', async route => {
+            posted.push(JSON.parse(route.request().postData() || '{}'));
+            if (posted.length === 1) {
+                await new Promise(r => { releaseFirst = r; });   // held until the name has changed
+                if (outcome === 'failed') return route.abort();
+            }
+            await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+        });
+        await page.goto('/settings.html');
+        await signInThroughOverlay(page, 'G. Miller', { submit: false });
+        const btn = page.locator('#loginResetRequest');
+        await btn.click();
+        await expect(btn).toHaveText('Sending…');
+        await page.locator('#loginName').selectOption('L. Springer');
+        await expect(btn, 'the change of name puts the control back to rest').toContainText('Ask the admin');
+        await expect.poll(() => releaseFirst !== null).toBe(true);
+        const landed = page.waitForEvent(outcome === 'sent' ? 'requestfinished' : 'requestfailed',
+            r => r.url().includes('requestPasswordReset'));
+        /** @type {any} */ (releaseFirst)();
+        await landed;
+        await page.evaluate(() => new Promise(r => setTimeout(r, 200)));   // the handler runs after the response
+        await expect(page.locator('#loginResetStatus'), 'G. Miller\'s outcome reported under L. Springer').toBeEmpty();
+        await expect(btn).toBeVisible();
+        await expect(btn).toBeEnabled();
+        await btn.click();
+        await expect(page.locator('#loginResetStatus')).toContainText('Request sent');
+        expect(posted).toEqual([{ member: 'G. Miller' }, { member: 'L. Springer' }]);
+    });
+}
+
+test('reset request link: a stale send that lands while the new name\'s is on its way leaves that one alone', async ({ page }) => {
+    // The other order: the person now named has tapped too, and their request is still out when the
+    // first one lands. Restoring the control then would re-enable it mid-send and drop "Sending…".
+    /** @type {Array<(v?: any) => void>} */
+    const held = [];
+    await page.route('**/requestPasswordReset', async route => {
+        await new Promise(r => { held.push(r); });
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller', { submit: false });
+    const btn = page.locator('#loginResetRequest');
+    await btn.click();
+    await expect.poll(() => held.length).toBe(1);
+    await page.locator('#loginName').selectOption('L. Springer');
+    await btn.click();
+    await expect.poll(() => held.length).toBe(2);
+    await expect(btn).toHaveText('Sending…');
+    const firstLanded = page.waitForEvent('requestfinished', r => (r.postData() || '').includes('G. Miller'));
+    held[0]();
+    await firstLanded;
+    await page.evaluate(() => new Promise(r => setTimeout(r, 200)));
+    await expect(btn, 'the stale send restored the control under the live one').toHaveText('Sending…');
+    await expect(btn).toBeDisabled();
+    await expect(page.locator('#loginResetStatus')).toBeEmpty();
+    held[1]();
+    await expect(page.locator('#loginResetStatus')).toContainText('Request sent');
+});
+
+test('login overlay: a new name starts a new failure streak', async ({ page }) => {
+    // The reset link is raised from a person's SECOND failure (v18.94) and the button locks on the
+    // third — counted per person, or a newcomer's first mistake is somebody else's third.
+    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });   // → auth/invalid-credential
+    await page.goto('/settings.html');
+    await failTwice(page, 'G. Miller');
+    await page.locator('#loginName').selectOption('L. Springer');
+    await page.locator('#loginPassword').fill('springer-typo');
+    await page.locator('#loginSubmit').click();
+    await expect(page.locator('#loginError')).toBeVisible();
+    const submit = page.locator('#loginSubmit');
+    await expect(submit, 'a newcomer\'s first mistake was counted as the third').toHaveText('Sign in →');
+    await expect(submit).toBeEnabled();
+    await expect(page.locator('#loginResetRequest'), 'a first failure is the mistype case').not.toHaveClass(/login-reset-request--prompted/);
+});
+
+test('login overlay: a password left showing is masked again when the person in the card changes', async ({ page }) => {
+    // At a shared PC the next person would otherwise type their own password in clear. Both handlers:
+    // a new name, and a new grade.
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller', { submit: false });
+    const pw = page.locator('#loginPassword');
+    const toggle = page.locator('#loginPwToggle');
+    await toggle.click();
+    await expect(pw).toHaveAttribute('type', 'text');
+    await page.locator('#loginName').selectOption('L. Springer');
+    await expect(pw, 'a new name').toHaveAttribute('type', 'password');
+    await expect(toggle).toHaveText('Show');
+    await expect(toggle).toHaveAccessibleName('Show password');
+
+    await toggle.click();
+    await expect(pw).toHaveAttribute('type', 'text');
+    const grades = await page.locator('#loginGrade option').evaluateAll(opts => opts.map(o => /** @type {HTMLOptionElement} */ (o).value).filter(Boolean));
+    const current = await page.locator('#loginGrade').inputValue();
+    await page.locator('#loginGrade').selectOption(/** @type {string} */ (grades.find(g => g !== current)));
+    await expect(pw, 'a new grade').toHaveAttribute('type', 'password');
+});
+
+test('login overlay: Show is a plain button that names what it will do — never a toggle as well (sessions-5)', async ({ page }) => {
+    // With `aria-pressed` beside the changing name, a screen reader read "Hide password, pressed": a
+    // toggle's label must not change with its state (WAI-ARIA APG, Button), and this one's visible
+    // "Show"/"Hide" has to stay in its name — so the pressed state is what goes.
+    await page.goto('/settings.html');
+    const toggle = page.locator('#loginPwToggle');
+    await expect(toggle).toHaveAccessibleName('Show password');
+    await toggle.click();
+    await expect(page.locator('#loginPassword')).toHaveAttribute('type', 'text');
+    await expect(toggle).toHaveAccessibleName('Hide password');
+    await expect(toggle).not.toHaveAttribute('aria-pressed');
+});
+
 // ── The login overlay must look the SAME on every page (v18.95) ────────────────────────────
 // login-overlay.js injects one card and shared.css styles it, so every protected page should
 // render an identical sign-in. Nothing asserted that, and it broke immediately: a page-local
@@ -773,6 +906,79 @@ test('login overlay geometry is identical across every page that shows it', asyn
     for (const url of PAGES.slice(1)) {
         expect(await measure(url), `login overlay on ${url} differs from ${PAGES[0]}`).toEqual(baseline);
     }
+});
+
+// ── A HIDDEN FIELD STAYS HIDDEN, WHATEVER A PAGE STYLES BY ELEMENT (whole-app review, Nov 2026) ─────
+// Both sign-in cards carry a username field for the password manager, `.visually-hidden`. Admin's and
+// Operations' own `input[type="text"] { width: 100%; padding; border }` out-ranked that utility, so on
+// those two pages the field was a full-width box inside the fixed sheet and the whole sign-in screen
+// scrolled sideways: 562px of scroll on a 375px phone, 1,919 in a 1,280 window. Pinned against that
+// kind of rule itself, injected on every page, so the guard holds whichever page happens to carry one.
+test('the sign-in screens never scroll sideways, whatever a page styles its fields by element', async ({ page }) => {
+    // Before the first page, as its contract says: WebKit serves a later page the roster-data.js it already holds,
+    // past the route that turns the setting on, so a call after the loop left mobile-safari with no set-password
+    // card to measure (10 Nov 2026). The loop below never signs in, so the setting changes nothing there.
+    await forcePasswordSet(page);
+    const BY_ELEMENT = 'input, input[type="text"] { width: 100%; min-height: 44px; padding: 8px 10px; border: 2px solid; }';
+    const PAGES = APP_PAGES.filter(p => p.file !== 'index.html'
+        && (p.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true)).map(p => p.url);
+    /** @param {string} sheet */
+    const measure = (sheet) => page.evaluate((sel) => {
+        const ov = /** @type {HTMLElement} */ (document.querySelector(sel));
+        const r = /** @type {HTMLElement} */ (ov.querySelector('input.visually-hidden')).getBoundingClientRect();
+        return { scroll: ov.scrollWidth - ov.clientWidth, field: [Math.round(r.width), Math.round(r.height)] };
+    }, sheet);
+    for (const width of [375, 1280]) {
+        await page.setViewportSize({ width, height: 800 });
+        for (const url of PAGES) {
+            await page.goto(url);
+            await page.locator('#loginOverlay.visible').waitFor();
+            await page.addStyleTag({ content: BY_ELEMENT });
+            expect(await measure('#loginOverlay'), `${url} at ${width}px: the sign-in sheet scrolls, or its hidden field has a box`)
+                .toEqual({ scroll: 0, field: [1, 1] });
+        }
+    }
+    // The forced set-password card carries the same field.
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#pwForceOverlay')).toBeVisible();
+    await page.addStyleTag({ content: BY_ELEMENT });
+    expect(await measure('#pwForceOverlay'), 'the set-password sheet scrolls, or its hidden field has a box').toEqual({ scroll: 0, field: [1, 1] });
+});
+
+// ── ONE CARD, ONE FOCUS LOOK (whole-app review, Nov 2026) ───────────────────────────────────────────
+// The sign-in card's fields and the picker sheet's search box are styled in shared.css so that every page
+// draws them the same, and their focus rules had no `--focus-ring`: they wore the 4px field ring only on
+// Admin and Operations, borrowed from those pages' own field rules, and none on the other seven. A focus
+// state is in no screenshot, so it is read off the focused field, on every page that shows the card.
+test('a focused sign-in field, and the picker\'s search box, wear the field ring on every page', async ({ page }) => {
+    const PAGES = APP_PAGES.filter(p => p.file !== 'index.html'
+        && (p.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true)).map(p => p.url);
+    const ringOf = () => page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.boxShadow = 'var(--focus-ring)';
+        document.body.append(probe);
+        const ring = getComputedStyle(probe).boxShadow;
+        probe.remove();
+        return ring;
+    });
+    for (const url of PAGES) {
+        await page.goto(url);
+        await page.locator('#loginOverlay.visible').waitFor();
+        const ring = await ringOf();
+        expect(ring, 'premise: the token resolves to a ring').not.toBe('none');
+        await page.locator('#loginPassword').focus();
+        expect(await page.locator('#loginPassword').evaluate(el => getComputedStyle(el).boxShadow), `${url}: the focused password field`).toBe(ring);
+    }
+    // The search box, on a page whose own stylesheet styles no field — the case that had no ring to borrow.
+    await page.goto('/settings.html');
+    await page.locator('#loginGradeTrigger').waitFor();
+    await page.locator('#loginGrade').selectOption('CEA');
+    await page.locator('#loginNameTrigger').click();
+    const search = page.locator('.picker-search-input');
+    await expect(search, 'premise: the CEA list is long enough to offer a filter').toBeVisible();
+    await search.focus();
+    expect(await search.evaluate(el => getComputedStyle(el).boxShadow), 'the picker\'s focused search box').toBe(await ringOf());
 });
 
 // ── A SHORT LAPTOP WINDOW SHOWS THE WAY IN (desktop audit, Nov 2026) ────────────────────────────────
@@ -948,6 +1154,19 @@ test.describe('sign-in pickers', () => {
 
         await page.locator('#loginGrade').selectOption({ index: 1 });
         await expect.poll(focused, { timeout: 3000 }).toBe('loginNameTrigger');
+    });
+
+    // THE TRAP'S ENDS ARE REAL TAB STOPS (shared-ui-1). It counted the hidden username field — there
+    // for the password manager, `tabindex="-1"` — as its FIRST stop, so Shift+Tab from Grade walked out
+    // to the page behind the card, and Tab from the last control landed on a field nobody can see.
+    test('Tab and Shift+Tab wrap inside the card, between its first and last real controls', async ({ page }) => {
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await expect(page.locator('#loginGradeTrigger')).toBeFocused();
+        await page.keyboard.press('Shift+Tab');
+        await expect(page.locator('#loginOverlay .login-back'), 'Shift+Tab from the first control wraps to the last').toBeFocused();
+        await page.keyboard.press('Tab');
+        await expect(page.locator('#loginGradeTrigger'), 'and Tab from the last wraps to the first').toBeFocused();
     });
 
     // The field's own label is a tap target. It named the hidden select, so a tap focused a control

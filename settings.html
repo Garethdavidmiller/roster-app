@@ -99,9 +99,9 @@
         <ul class="settings-summary-items" id="settingsSummaryItems"></ul>
     </div>
 
-    <!-- Two column WRAPPERS, not two columns' worth of grid placement (v20.72). They are
-         `display: contents` below 1024px, so the mobile page is exactly the stack it was and this
-         markup costs nothing there. On desktop they become the flex columns the app already uses on
+    <!-- Two column WRAPPERS, not two columns' worth of grid placement (v20.72). Below 1024px they are
+         plain blocks (no rule styles them there), so the mobile page is the same single stack of
+         cards. On desktop they become the flex columns the app already uses on
          admin and paycalc — and the wrapper is the part that matters: placing four cards into grid
          cells individually lets the taller column's overflow be distributed into the OTHER column's
          row gaps, which is the paycalc void v18.47 had to unpick. One card per column per row can
@@ -307,10 +307,13 @@
                  its own storage, so the member signs in there once, and Pay Calculator figures saved in
                  the browser stay behind — the first step carries them across, and is shown only where
                  this device holds some (the Pay Calculator Data card's own count, settings-app.js).
-                 Share is under ••• on iOS 26, and an email or chat app has no Add to Home Screen. -->
+                 Share is under ••• on iOS 26, and an email or chat app has no Add to Home Screen.
+                 ON THE PAGES MIRROR (Nov 2026 review) the steps start at the main address, which is where
+                 the app is added from — never from the mirror (installNeed, settings-status.js). -->
             <ol class="install-steps" id="installSteps" hidden>
                 <li id="installStepPay" hidden>Copy your Pay Calculator figures first, with 💾&nbsp;<strong>Move Your Pay Data</strong> on the Pay page — the Home Screen app starts without them.</li>
-                <li>Opened this from an email or a chat? Open it in <strong>Safari</strong> first — those apps cannot add it.</li>
+                <li id="installStepSafari">Opened this from an email or a chat? Open it in <strong>Safari</strong> first — those apps cannot add it.</li>
+                <li id="installStepMain" hidden>Open the app’s main address, <a href="https://myb-roster.web.app/">myb-roster.web.app</a>, in <strong>Safari</strong> — the app is added from there, not from this address.</li>
                 <li>Tap your browser’s <strong>Share</strong> button — on iOS 26 or later it is under <strong>•••</strong>.</li>
                 <li>Choose <strong>Add to Home Screen</strong>.</li>
                 <li>Open the roster from your Home Screen from now on, and sign in there once.</li>

@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * dependency-pin-parity.test.mjs — a library the app loads TWICE must be the same version twice.
- * Run: node --test dependency-pin-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs dependency-pin-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * Two libraries in this repo are pinned in more than one place, in files that cannot read one
  * another, and until the v24.28 review nothing made the copies agree:
@@ -26,6 +26,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 const json = (/** @type {string} */ f) => JSON.parse(read(f));
@@ -135,5 +136,37 @@ describe('firebase — the rules tests run the SDK the app loads', () => {
     test('dependabot leaves it alone, as it does the other hand-moved pins', () => {
         assert.match(read('./.github/dependabot.yml'), /^\s*- dependency-name: "firebase"\s*$/m,
             '.github/dependabot.yml must ignore firebase: a bot bump would move the test SDK off the app\'s');
+    });
+});
+
+describe('DOMPurify — the vendored sanitiser is the release it says it is', () => {
+    // The sanitiser between a converted Word Huddle and `innerHTML` (calendar-huddle-viewer.js), and
+    // the one third-party runtime library nothing pinned: its version is written by hand in four
+    // places and its bytes were checked by nothing, so an upgrade that missed one, a format-on-save
+    // pass over the bundle or a stray edit left every suite green (whole-app check, 10 November 2026).
+    // Upgrading is the recipe in generate-sri.mjs's header; it ends by recording both values here.
+    const PURIFY = {
+        version: '3.4.17',
+        sha256: '9b8d820485aca9a2a048c1f0837837e20f75f00cf45f5aca6261d4f24dc82abf',
+    };
+    const src = read('./purify.es.mjs');
+    const v = PURIFY.version.replace(/\./g, '\\.');
+
+    test('the banner, the version property, the viewer and the file index all name one version', () => {
+        const [first, banner] = src.split('\n');
+        assert.match(first, /^\/\/ @ts-nocheck/, 'the local first line is gone — put it back (generate-sri.mjs says why)');
+        assert.match(banner, new RegExp(`@license DOMPurify ${v} `), 'the bundle\'s banner names another version');
+        assert.match(src, new RegExp(`DOMPurify\\.version = "${v}";`), 'DOMPurify.version names another version');
+        assert.match(read('./calendar-huddle-viewer.js'), new RegExp(`purify\\.es\\.mjs \\(v${v}\\)`),
+            'calendar-huddle-viewer.js names another DOMPurify version');
+        assert.ok(read('./docs/FILE_INDEX.md').includes(`DOMPurify v${PURIFY.version}`),
+            'docs/FILE_INDEX.md names another DOMPurify version');
+    });
+
+    test('and its bytes are exactly the recorded release', () => {
+        const sha = createHash('sha256').update(readFileSync(new URL('./purify.es.mjs', import.meta.url))).digest('hex');
+        assert.equal(sha, PURIFY.sha256,
+            'purify.es.mjs is not the file recorded here. If this is an UPGRADE, follow generate-sri.mjs\'s '
+            + 'recipe and record the new version and sha256 above; if it is not, the sanitiser was edited.');
     });
 });

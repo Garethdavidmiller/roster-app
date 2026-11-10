@@ -146,7 +146,8 @@ describe('over-reporting', () => {
         // level would pass with the timeline unchecked or the amount wrongly parsed.
         const tails = ['p16', 'snap_16', 'bp_state_2026_27', 'actuals', 'pension_timeline',
                        'code', 'rate', 'grade', 'hpp_est_2026_27', 'ytd_tax_2026_27',
-                       'pension', 'pension_optout', 'setup_2026_27'];
+                       'pension', 'pension_optout', 'setup_2026_27',
+                       'hpp_mode_2026_27', 'hpp_inc_2026_27', 'hpp_actual_2026_27'];
         const entries = Object.fromEntries(tails.map(t => [k(t), 'definitely not json']));
         const flagged = new Set(damagedEntries(entries, P).map(d => d.tail));
         const declared = tails.filter(t => classifyPayKey(t).structured);
@@ -155,6 +156,21 @@ describe('over-reporting', () => {
         // …and the table itself must be right about the mixed kind, or the line above is circular.
         assert.equal(classifyPayKey('pension_timeline').structured, true, 'a JSON timeline must be checked');
         assert.equal(classifyPayKey('pension').structured, false, 'a pension AMOUNT is not JSON');
+        // `hpp` is mixed too (paycalc-3-9): the estimate, the actual and the tick are scalars, but
+        // `hpp_mode_<year>` is the JSON blob `saveHppState` writes — the mode and the member's own typed
+        // premium. Undeclared, a truncated one restored silently: the typed figure gone, nothing said.
+        assert.equal(classifyPayKey('hpp_mode_2026_27').structured, true, 'the amount-source blob must be checked');
+        assert.equal(classifyPayKey('hpp_est_2026_27').structured, false, 'an HPP estimate is a plain figure');
+    });
+
+    test('a structured entry that parses to nothing its reader can use is named too', () => {
+        // `null` and bare numbers are valid JSON, so a parse alone lets them through — and a reader
+        // that expects an object cannot use them: `JSON.parse('null').mode` throws (paycalc-2-7). No
+        // structured key this app writes holds anything but an object or a list.
+        const entries = { [k('hpp_mode_2026_27')]: 'null', [k('p16')]: '5', [k('snap_16')]: '"x"',
+                          [k('hpp_mode_2025_26')]: '{"mode":"exact","exact":"320.00"}', [k('pension_timeline')]: '[]' };
+        assert.deepEqual(damagedEntries(entries, P).map(d => d.label).sort(),
+            ['Holiday Pay Premium 2026/27', 'payslip 16', 'roster-suggested figures for payslip 16']);
     });
 
     test('setup_years_migrated is not a tax year, and ytd_pay is not ytd_pay_2026_27', () => {

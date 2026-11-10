@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * newlink-render.test.mjs — every surface the new link page can show, built in Node.
- * Run: node --test newlink-render.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs newlink-render.test.mjs   (part of `npm run test:hygiene`)
  *
  * The page's three rules (newlink-render.js header) are properties of its HTML, so they are tested on the HTML the real
  * builders produce from the real data: EVENLY (A to Z, no recommendation, in every state), NOT YOUR ROSTER (each
@@ -14,10 +14,11 @@ import { readFileSync } from 'node:fs';
 import {
     closesWords, dutyKind, designName, ifYou, renderStatus, renderList, renderCommon, renderFigures,
     renderPersonas, renderPersonaChips, renderWeeks, renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, figuresKey,
+    statusPhase, statusHint,
 } from './newlink-render.js';
 import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
-import { HAVE_YOUR_SAY } from './newlink-config.js';
+import { HAVE_YOUR_SAY, CONTACT } from './newlink-config.js';
 
 const count = (/** @type {string} */ s, /** @type {RegExp} */ re) => (s.match(re) || []).length;
 
@@ -67,6 +68,11 @@ const colleagueStates = () => {
     return [
         renderStatus({ proposals: PROPOSALS, closes: null }),
         renderStatus({ proposals: PROPOSALS, closes: '2026-11-27', starts: '2027-01-01', timetable: '2026-12-13', today: '2026-12-20' }),
+        // the two states the owner added on 10 Nov 2026: a design chosen, before and after the start, and the start come with none
+        ...PROPOSALS.map(p => renderStatus({ proposals: PROPOSALS, closes: null, starts: '2027-01', timetable: '2026-12-13', today: '2026-12-20', chosen: designName(p), contact: CONTACT })),
+        renderStatus({ proposals: PROPOSALS, closes: null, starts: '2027-01', timetable: '2026-12-13', today: '2027-02-01', chosen: designName(PROPOSALS[0]), contact: CONTACT }),
+        renderStatus({ proposals: PROPOSALS, closes: null, starts: '2027-01', timetable: '2026-12-13', today: '2027-01-01', contact: CONTACT }),
+        statusHint('open'), statusHint('decided'), statusHint('waiting'),
         renderList(CHANGES), renderCommon({ gains: GAINS, costs: COSTS }), renderList(NOTES), renderList(HAVE_YOUR_SAY),
         renderPersonas(PERSONAS, COLUMNS, null), renderPersonas(PERSONAS, COLUMNS, 'all'),
         ...PERSONAS.map(p => renderPersonas(PERSONAS, COLUMNS, p.id)),
@@ -281,9 +287,87 @@ test('the status line keeps its tense as the dates pass, and says nothing once t
     for (const today of ['2027-01-01', '2027-01-20', '2027-03-15']) {
         assert.doesNotMatch(at(today), /starts (on|in)|carries on until then|comes first|started in December/,
             `on ${today} the line still speaks of a start that may have come`);
-        assert.match(at(today), /Nothing is decided\./, 'and the rest of the status is unchanged');
+        // …and with nothing chosen by then, the page no longer says nothing is decided (owner, 10 Nov 2026 — the tests below)
+        assert.doesNotMatch(at(today), /Nothing is decided/, `on ${today} the page still says nothing is decided`);
     }
     // A DAY, once one is set, is reached on that day and not before
     assert.match(at('2027-01-17', '2027-01-18'), /The new link starts on 18\u00a0January 2027,/);
     assert.doesNotMatch(at('2027-01-18', '2027-01-18'), /starts on/);
+});
+
+// \u2500\u2500 THE DECIDED STATE, AND THE SAFETY NET (owner, 10 Nov 2026) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// "Add a 'decided' state." Until then the page had no state for a choice made or a link begun: from 1 January it dropped
+// its start sentence and went on saying "Nothing is decided \u2026 Have your say by a date to be agreed" for good.
+const SAY = /Have your say|data-open-card="nlSay"|a date to be agreed/;
+const state = (/** @type {Record<string, any>} */ o) => renderStatus({ proposals: PROPOSALS, closes: null, starts: '2027-01', timetable: '2026-12-13', contact: CONTACT, ...o });
+
+test('statusPhase: a design on the shortlist decides it; before the start nothing chosen is open; from the start, the page waits', () => {
+    const at = (/** @type {string|null} */ today, /** @type {string|null} */ chosen = null, starts = '2027-01') => statusPhase({ proposals: PROPOSALS, chosen, starts, today });
+    for (const p of PROPOSALS) assert.deepEqual(at('2026-12-01', designName(p)), { phase: 'decided', chosen: p }, `${designName(p)}, before the start`);
+    assert.equal(at('2027-03-01', 'Middle Ground').phase, 'decided', 'and after it \u2014 a decision does not lapse');
+    // THE SAFETY NET, ON EACH SIDE OF MIDNIGHT: the last day of December is open, the first of January waits
+    assert.equal(at('2026-12-31').phase, 'open');
+    assert.equal(at('2027-01-01').phase, 'waiting');
+    assert.equal(at('2027-01-17', null, '2027-01-18').phase, 'open', 'a day, once set, is reached on that day');
+    assert.equal(at('2027-01-18', null, '2027-01-18').phase, 'waiting');
+    assert.equal(at(null).phase, 'open', 'no day given: nothing has come');
+    assert.equal(at('2027-06-01', null, 'soon').phase, 'open', 'a start that cannot be read is never reached');
+});
+
+test('a name that is not on the shortlist is refused: never shown as chosen, the page goes on as though none were', () => {
+    for (const chosen of ['Short Run', 'middle ground', 'Middle Ground \u2014 Dec 2026', 'MG-26-T8', 'proposal:MG-26-T8', ' Middle Ground', '']) {
+        assert.equal(statusPhase({ proposals: PROPOSALS, chosen, starts: '2027-01', today: '2026-12-01' }).phase, 'open', JSON.stringify(chosen));
+        const html = state({ chosen, today: '2026-12-01' });
+        assert.doesNotMatch(html, /has been chosen/, `${JSON.stringify(chosen)} is announced as chosen`);
+        assert.match(html, /Nothing is decided\./);
+    }
+    // and from the start, a refused name waits like no name at all
+    assert.equal(statusPhase({ proposals: PROPOSALS, chosen: 'Short Run', starts: '2027-01', today: '2027-01-01' }).phase, 'waiting');
+});
+
+test('decided: the design is named as chosen, the start is said, and no view is asked for', () => {
+    const before = state({ chosen: 'Middle Ground', today: '2026-12-20' });
+    assert.match(before, /<strong>Middle Ground has been chosen\.<\/strong> The new link starts in January\u00a02027, and today\u2019s link carries on until then\. The new timetable started in December\./);
+    assert.match(before, /These were the three on the shortlist, in alphabetical order\./);
+    assert.doesNotMatch(before, SAY, 'no Have your say, and no closing date');
+    assert.doesNotMatch(before, /Nothing is decided/);
+    assert.match(before, /<p class="nl-lead">Nothing on this page changes your roster\.<\/p>/, 'the last line ends cleanly');
+    // a closing date still to come asks for nothing once the design is chosen
+    assert.doesNotMatch(state({ chosen: 'Middle Ground', today: '2026-11-20', closes: '2026-11-27' }), SAY);
+    // the start, once it has come: "starts" through a month whose day is not known, "started" after it, or from a set day
+    assert.match(state({ chosen: 'Level Crossing', today: '2027-01-01' }), /<strong>Level Crossing has been chosen\.<\/strong> The new link starts in January\u00a02027\.\s/);
+    assert.match(state({ chosen: 'Level Crossing', today: '2027-01-31' }), /The new link starts in January\u00a02027\.\s/);
+    assert.match(state({ chosen: 'Level Crossing', today: '2027-02-01' }), /The new link started in January\u00a02027\.\s/);
+    assert.match(state({ chosen: 'Balanced V6', today: '2027-01-17', starts: '2027-01-18' }), /The new link starts on 18\u00a0January 2027, and today\u2019s link carries on until then\./);
+    assert.match(state({ chosen: 'Balanced V6', today: '2027-01-18', starts: '2027-01-18' }), /The new link started on 18\u00a0January 2027\.\s/);
+    assert.match(state({ chosen: 'Balanced V6', today: '2027-12-01', starts: '2027-12' }), /The new link starts in December\u00a02027\.\s/, 'December rolls into the next year');
+    assert.match(state({ chosen: 'Balanced V6', today: '2028-01-01', starts: '2027-12' }), /The new link started in December\u00a02027\.\s/);
+    assert.doesNotMatch(state({ chosen: 'Balanced V6', today: '2027-06-01', starts: 'soon' }), /The new link start/, 'an unreadable start says nothing');
+});
+
+test('waiting: from the start with nothing chosen, the page says who will confirm the outcome \u2014 and claims nothing else', () => {
+    for (const today of ['2027-01-01', '2027-02-14']) {
+        const html = state({ today });
+        assert.match(html, new RegExp(`<strong>The outcome will be confirmed by ${CONTACT}\\.</strong>`));
+        assert.doesNotMatch(html, /Nothing is decided/, `on ${today} it says nothing is decided`);
+        assert.doesNotMatch(html, SAY, `on ${today} it still asks for views`);
+        assert.doesNotMatch(html, /has been chosen|starts (on|in)|started (on|in)/, 'it neither invents a decision nor guesses at the start');
+        assert.match(html, /These are the three proposals on the shortlist, in alphabetical order\./);
+    }
+    // the day before, the page is as it was
+    const eve = state({ today: '2026-12-31' });
+    assert.match(eve, /Nothing is decided\./);
+    assert.match(eve, /Have your say<\/button> by <strong>a date to be agreed<\/strong>/);
+    // with no contact given, nobody is named and nothing is broken
+    assert.match(state({ today: '2027-01-01', contact: '' }), /<strong>The outcome is still to be confirmed\.<\/strong>/);
+});
+
+test('the status card\'s hint says "for discussion" only while the page is open', () => {
+    assert.equal(statusHint('open'), 'For discussion, not a decision');
+    assert.equal(statusHint('decided'), '');
+    assert.equal(statusHint('waiting'), '');
+    // and the page carries no copy of it to show before the script has decided
+    const html = readFileSync(new URL('./newlink.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+    assert.match(html, /<span class="hint" id="nlStatusHint"><\/span>/);
+    assert.doesNotMatch(html, /For discussion/);
 });

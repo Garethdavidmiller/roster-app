@@ -3,7 +3,8 @@
 // `document`, so we install a minimal fake DOM. Part of test:hygiene.
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { numVal, numValOr, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap, decimalHoursText, commitFocusedField } from './paycalc-inputs.js';
+import { numVal, numValOr, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap, decimalHoursText, commitFocusedField,
+    paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
 
 // ── Minimal fake DOM ───────────────────────────────────────────────────────────
 class FakeEl {
@@ -86,6 +87,28 @@ test('hhmmDec / hmPair read a decimal hours value the way the blur split will', 
   assert.equal(hhmmDec('h', 'm'), 0, 'hours can never be negative');
   installDom({ h: field('8'), m: field('45') });
   assert.deepEqual(hmPair('h', 'm'), { h: 8, m: 45 }, 'no decimal → the two fields as typed');
+});
+
+// A desk keyboard can type a clock time into the hours box, and parseInt stopped at the colon: "7:30"
+// was priced and saved as 7h while the box went on reading 7:30 (whole-app review, Nov 2026).
+test('an hours box holding a clock time reads as hours and minutes — priced, previewed and split alike', () => {
+  for (const [typed, want] of [['7:30', { h: 7, m: 30 }], [' 7:30 ', { h: 7, m: 30 }], ['7:5', { h: 7, m: 5 }],
+                               [':30', { h: 0, m: 30 }], ['7:', { h: 7, m: 0 }], ['7:75', { h: 7, m: 59 }]]) {
+    assert.deepEqual(hoursTextToHM(typed), want, JSON.stringify(typed));
+  }
+  for (const typed of ['', '7', ':', 'abc']) assert.equal(hoursTextToHM(typed), null, `${JSON.stringify(typed)} is not more than whole hours`);
+  assert.deepEqual(hoursTextToHM('7.5'), { h: 7, m: 30 }, 'the decimal reading is the same reader');
+  assert.deepEqual(hoursTextToHM('7,5'), { h: 7, m: 30 }, 'and the decimal comma');
+  installDom({ h: field('7:30'), m: field('15') });
+  assert.deepEqual(hmPair('h', 'm'), { h: 7, m: 30 }, 'the minutes box is replaced, as the blur split will');
+  assert.equal(hhmmDec('h', 'm'), 7.5);
+  const hint = new FakeEl('div');
+  const col = new FakeEl('div'); const wrap = new FakeEl('div'); wrap.className = 'hhmm-wrap';
+  const h = field('7:30'); col.appendChild(wrap); wrap.appendChild(h); col.appendChild(hint); hint.className = 'hhmm-dec-hint';
+  installDom({ h });
+  decPreview('h');
+  assert.equal(hint.textContent, '= 7h 30m', 'the live preview shows it before the split');
+  assert.equal(hint.hidden, false);
 });
 
 // ── clampMins (rewrites only when out of range) ──────────────────────────────────
@@ -172,6 +195,18 @@ describe('decimalHoursText — the converter card reads what the member typed', 
     assert.equal(decimalHoursText('abc'), '–');
     assert.equal(decimalHoursText('-2'), '–', 'hours are never negative');
     assert.equal(decimalHoursText('0'), '0 mins', 'a typed zero is still an answer');
+  });
+  test('a clock time is already hours and minutes, and a half-read number answers nothing', () => {
+    // The parser stops at the first character it cannot use: "7:30" answered "7 hrs" and "1e3"
+    // answered "1000 hrs" (whole-app check, 10 Nov 2026).
+    assert.equal(decimalHoursText('7:30'), '7 hrs 30 mins');
+    assert.equal(decimalHoursText(':45'), '45 mins');
+    assert.equal(decimalHoursText('7:05'), '7 hrs 5 mins');
+    assert.equal(decimalHoursText('7:75'), '–', 'no clock reads 75 minutes');
+    assert.equal(decimalHoursText('1e3'), '–', 'not "1000 hrs"');
+    assert.equal(decimalHoursText('7.5h'), '–');
+    assert.equal(decimalHoursText('.5'), '30 mins', 'a leading point is still a number');
+    assert.equal(decimalHoursText(' 7.5 '), '7 hrs 30 mins', 'spaces around it are not');
   });
 });
 
@@ -377,5 +412,87 @@ describe('commitFocusedField — let go of the field in hand, and only a field',
     test('nothing focused is not an error', () => {
         global.document = /** @type {any} */ ({ activeElement: null });
         assert.doesNotThrow(() => commitFocusedField());
+    });
+});
+
+// ── paintTaxCodeWarning (whole-app review, Nov 2026) ──────────────────────────────────────────────
+// A code computeTax does not recognise is priced on the standard 1257L allowance; until this, only the
+// "Check against your payslip" line said so. The box now says it too — and not while it is being
+// typed in, when every code is briefly unrecognised ("1257" on the way to "1257L").
+describe('paintTaxCodeWarning — an unrecognised tax code said under the box it was typed in', () => {
+    /** A node with just enough of the DOM for the painter and setStatus. */
+    class Node {
+        constructor(tag = 'div') {
+            this.tagName = tag.toUpperCase(); this.children = []; this.parentElement = null; this._attrs = {};
+            this.id = ''; this.className = ''; this._text = ''; this.ownerDocument = global.document;
+            const cls = new Set();
+            this.classList = { toggle: (c, on) => { if (on) cls.add(c); else cls.delete(c); }, contains: c => cls.has(c) };
+        }
+        get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
+        set textContent(v) { this._text = String(v); this.children = []; }
+        setAttribute(k, v) { this._attrs[k] = String(v); }
+        getAttribute(k) { return this._attrs[k] ?? null; }
+        appendChild(c) { c.parentElement = this; this.children.push(c); return c; }
+        append(c) { this.appendChild(c); }
+        closest(sel) { let n = this; while (n) { if (sel === '.field' && n.className === 'field') return n; n = n.parentElement; } return null; }
+    }
+    /** The Settings field: a `.field` holding the box. @param {boolean} focused */
+    function settingsField(focused) {
+        const nodes = /** @type {Record<string, any>} */ ({});
+        global.document = /** @type {any} */ ({
+            getElementById: (/** @type {string} */ id) => nodes[id] ?? null,
+            createElement: (/** @type {string} */ t) => { const n = new Node(t); n.ownerDocument = global.document; return n; },
+            createTextNode: (/** @type {string} */ s) => ({ textContent: s }),
+        });
+        const wrap = new Node('div'); wrap.className = 'field';
+        const input = new Node('input'); input.id = 'taxCode'; wrap.appendChild(input);
+        nodes.taxCode = input;
+        const realAppend = wrap.appendChild.bind(wrap);
+        wrap.appendChild = (/** @type {any} */ c) => { if (c.id) nodes[c.id] = c; return realAppend(c); };
+        /** @type {any} */ (global.document).activeElement = focused ? input : null;
+        return { wrap, input, warn: () => nodes.taxCodeWarn ?? null };
+    }
+
+    test('an unrecognised code, the box left: the warning is built, shown, and names the box', () => {
+        const f = settingsField(false);
+        paintTaxCodeWarning({ code: 'OT', recognised: false });
+        const w = f.warn();
+        assert.ok(w, 'the warning is built on first need');
+        assert.equal(w.parentElement, f.wrap, 'under the box, in its field');
+        assert.equal(w.classList.contains('show'), true);
+        assert.match(w.textContent, /doesn't recognise this tax code/);
+        assert.match(w.textContent, /standard 1257L allowance/);
+        assert.match(w.textContent, /zero, not the letter O/, 'the commonest slip is named');
+        assert.equal(w.children[0].getAttribute('aria-hidden'), 'true', 'the ⚠ is kept out of the announcement');
+        assert.equal(f.input.getAttribute('aria-describedby'), 'taxCodeWarn', 'a screen reader hears it on the box');
+    });
+
+    test('held back while the box has focus — every code is briefly unrecognised as it is typed', () => {
+        const f = settingsField(true);
+        paintTaxCodeWarning({ code: '1257', recognised: false });
+        assert.equal(f.warn(), null, 'nothing is built while typing');
+        /** @type {any} */ (global.document).activeElement = null;   // the box is left
+        paintTaxCodeWarning({ code: '1257', recognised: false });
+        assert.equal(f.warn()?.classList.contains('show'), true);
+        assert.match(f.warn().textContent, /ends in a letter/, 'a code of numbers alone is told what is missing');
+        /** @type {any} */ (global.document).activeElement = f.input;   // back in the box to fix it
+        paintTaxCodeWarning({ code: '1257', recognised: false });
+        assert.equal(f.warn().classList.contains('show'), false);
+        assert.equal(f.warn().textContent, '');
+    });
+
+    test('a recognised code shows nothing, and clears a warning already there', () => {
+        const f = settingsField(false);
+        paintTaxCodeWarning({ code: '1257L', recognised: true });
+        assert.equal(f.warn(), null, 'nothing to say, nothing built');
+        paintTaxCodeWarning({ code: 'OT', recognised: false });
+        paintTaxCodeWarning({ code: '0T', recognised: true });
+        assert.equal(f.warn().classList.contains('show'), false);
+        assert.equal(f.warn().textContent, '');
+    });
+
+    test('no Tax Code box on the page is not an error', () => {
+        global.document = /** @type {any} */ ({ getElementById: () => null, activeElement: null });
+        assert.doesNotThrow(() => paintTaxCodeWarning({ code: 'OT', recognised: false }));
     });
 });

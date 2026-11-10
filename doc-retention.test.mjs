@@ -1,7 +1,7 @@
 /**
  * doc-retention.test.mjs — the six-month sweep, driven against fakes (v21.86).
  *
- * Run: node --test doc-retention.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs doc-retention.test.mjs   (part of `npm run test:hygiene`)
  *
  * This is the only destructive operation the browser performs on shared data and it had no tests
  * for nineteen versions, because it lived inside `firebase-client.js` — a module that imports the

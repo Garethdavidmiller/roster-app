@@ -269,4 +269,50 @@ test.describe('Windows High Contrast — a chosen control shows its choice', () 
         }
         await expectRings(page, pairs);
     });
+
+    // A CHOSEN CONTROL STILL SHOWS WHERE THE KEYBOARD IS (whole-app review, Nov 2026). The chosen ring out-ranked
+    // the app's focus fallback, and the theme removes every box-shadow, so on a chosen control the only change
+    // focus made was the browser's own: it repaints a focused button's border in Highlight — beside a ring
+    // already in Highlight. Pay's tax-year tab has no focus rule of its own, so it is the plain case.
+    // WHAT IS COUNTED is the band OUTSIDE the control's box, where a focus ring goes and that border cannot
+    // reach; counted inside, the border alone passed the old CSS. Its unchosen neighbour is the premise: if
+    // THAT did not change, focus never landed. Every running transition is waited out before each picture —
+    // the tab eases its colours, and switching the theme starts that ease.
+    test('Pay: a chosen tab that takes keyboard focus shows it', async ({ page }) => {
+        const settled = () => page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => {}))));
+        await seedSession(page, 'G. Miller');
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.goto('/paycalc.html');
+        const chosen = page.locator('.ty-tab.active').first();
+        await expect(chosen).toBeVisible();
+        await page.emulateMedia({ forcedColors: 'active' });
+        expect(await page.evaluate(() => matchMedia('(forced-colors: active)').matches),
+            'the emulation did not take — this test would pass by not testing').toBe(true);
+        for (const [name, loc] of /** @type {Array<[string, import('@playwright/test').Locator]>} */ ([
+            ['the chosen tab', chosen], ['premise: an unchosen tab', page.locator('.ty-tab:not(.active)').first()],
+        ])) {
+            await stillPage(page);
+            await settled();
+            const b = /** @type {{ x: number, y: number, width: number, height: number }} */ (await loc.boundingBox());
+            const clip = { x: b.x - 8, y: b.y - 8, width: b.width + 16, height: b.height + 16 };
+            // `scale: 'css'`: one image pixel per CSS pixel, so the band below is measured in the units it is
+            // written in. A device picture is 2.75× on the phone project, which put the whole ring inside
+            // the "box" and counted 0 px of it, whatever the CSS drew.
+            const rest = decodePNG(await page.screenshot({ clip, scale: 'css' }));
+            await page.keyboard.press('Shift');   // keyboard modality, so a scripted focus matches :focus-visible
+            await loc.focus();
+            expect(await loc.evaluate(el => el.matches(':focus-visible')), `${name}: premise — the focus is a keyboard's`).toBe(true);
+            await settled();
+            const focused = decodePNG(await page.screenshot({ clip, scale: 'css' }));
+            // The clip puts the control's box at 8px in from each edge; a pixel ≥1px outside that box is the ring's band.
+            const outside = (/** @type {number} */ x, /** @type {number} */ y) => x < 7 || y < 7 || x > rest.w - 8 || y > rest.h - 8;
+            let changed = 0;
+            for (let i = 0; i < rest.px.length; i += rest.bpp) {
+                const k = i / rest.bpp;
+                if (outside(k % rest.w, Math.floor(k / rest.w)) && [0, 1, 2].some(c => Math.abs(rest.px[i + c] - focused.px[i + c]) > 8)) changed++;
+            }
+            expect(changed, `${name}: focusing it drew ${changed} px of ring under forced colours — nothing shows where the keyboard is`)
+                .toBeGreaterThan(40);
+        }
+    });
 });

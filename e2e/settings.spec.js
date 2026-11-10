@@ -154,6 +154,37 @@ for (const [label, payKeys, payStep] of [['with pay figures, the first step carr
     });
 }
 
+// ── THE PAGES MIRROR (Nov 2026 review) ──────────────────────────────────────────────────────────
+// The app is never installed FROM the mirror, so an iPhone there reported nothing to finish — and with
+// notifications "not available" the summary said "✓ You're all set" to a phone that can never receive
+// one. It is a to-do there too, and the steps start at the main address. The mirror is the host the
+// page tests for (`github.io`); this serves the page as if it were there, LOUD if that test moves.
+async function asMirror(page) {
+    for (const file of ['settings-app.js', 'huddle.js']) {
+        await page.route(`**/${file}`, async route => {
+            const res = await route.fetch();
+            const src = await res.text();
+            const host = '/github\\.io$/i.test(window.location.hostname)';
+            if (!src.includes(host)) throw new Error(`${file}: the mirror test moved — update asMirror`);
+            await route.fulfill({ response: res, contentType: 'text/javascript', body: src.replaceAll(host, 'true') });
+        });
+    }
+}
+
+test('settings: an iPhone on the Pages mirror is sent to the main address to install, not told it is all set', async ({ page }) => {
+    await asMirror(page);
+    await openSettings(page, { configured: true, iphone: true });
+    await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'todo');
+    await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the app to your Home Screen']);
+    await expect(page.locator('#deviceCard')).toBeVisible();
+    await expect(page.locator('#installBtn')).toBeHidden();
+    const main = page.locator('#installStepMain');
+    await expect(main).toBeVisible();
+    await expect(main.locator('a')).toHaveAttribute('href', 'https://myb-roster.web.app/');
+    await expect(page.locator('#installStepSafari'), 'the step for opening THIS address gives way to it').toBeHidden();
+    await expect(page.locator('#installSteps li:visible').last()).toContainText('sign in there once');
+});
+
 test('settings: a saved work email says so before it offers to remove it', async ({ page }) => {
     // Polish round 2 (owner-approved): "Remove saved email" sat ABOVE "✓ Saved — last updated", so
     // the card offered to undo the save before confirming it. The confirmation answers the Save
@@ -370,6 +401,26 @@ test('settings: the password card is a real form under the member\'s name — Ne
     expect(await submits(page), 'exactly one submit, once the write was confirmed, and it was cancelled').toEqual([true]);
     expect(new URL(page.url()).pathname, 'the form never goes anywhere').toBe('/settings.html');
 });
+
+// ── THE FIRST SAVE KEEPS THE KEYBOARD'S PLACE (Nov 2026 review) ─────────────────────────────────
+// A member on the surname default saves their first password and the form folds away behind "Change
+// password" — with focus inside it, on Confirm after Done, or on Save. Focus fell to the page, so a
+// keyboard or screen-reader user was put back at the top of it. It lands on Change password.
+for (const [how, save] of /** @type {const} */ ([['Done on the keyboard', 'enter'], ['the Save button', 'click']])) {
+    test(`settings: a first password saved with ${how} leaves focus on Change password`, async ({ page }) => {
+        await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+            authUser: true, authUserEmail: 'g.miller@myb-roster.local' }; });
+        await openSettings(page, { configured: false, noPush: true });
+        await page.locator('#pwCurrent').fill('miller');
+        await page.locator('#pwNew').fill('a-real-password-9');
+        await page.locator('#pwConfirm').fill('a-real-password-9');
+        if (save === 'enter') await page.locator('#pwConfirm').press('Enter');
+        else await page.locator('#pwSaveBtn').click();
+        await expect(page.locator('#pwFeedback')).toContainText('Password updated');
+        await expect(page.locator('#pwForm'), 'premise: the first save folds the form away').toBeHidden();
+        await expect(page.locator('#pwChangeBtn')).toBeFocused();
+    });
+}
 
 test('settings: a password change the SERVER refuses is never submitted to the password manager', async ({ page }) => {
     // No Firebase user: the stub refuses the re-authentication, as a wrong current password would.
@@ -657,6 +708,79 @@ test('settings (signed in): card "?" button opens the Tips lightbox, not the car
     expect(errors, 'Uncaught JS exceptions on signed-in settings.html').toHaveLength(0);
 });
 
+// ── WIRED BEFORE THE SIGN-IN DECISION (Nov 2026 review) ─────────────────────────────────────────
+// The service worker, the error reporter, the forced password overlay and the ? panels were wired
+// AFTER initAuthorised(), which has no try/catch on the signed-in path — so one card whose wiring threw
+// took all four with it, including the reporter that would have told the admin. A card's wiring is
+// made to throw here (a source patch, LOUD if its anchor moves), and each of the four must still run.
+test('settings (signed in): a card whose wiring throws takes nothing else down with it', async ({ page }) => {
+    await forcePasswordSet(page);
+    await page.route('**/settings-app.js', async route => {
+        const res = await route.fetch();
+        const anchor = '    function initApp() {\n';
+        const src = await res.text();
+        if (!src.includes(anchor)) throw new Error('settings-app.js: the initApp() anchor moved — update this test');
+        await route.fulfill({ response: res, contentType: 'text/javascript',
+            body: src.replace(anchor, `${anchor}        throw new Error('e2e: a card’s wiring threw');\n`) });
+    });
+    await page.addInitScript(() => {
+        // A fresh sign-in (its one-shot marker) by a member still on the surname default, with a named
+        // Firebase identity — the three things the forced overlay asks for (password-force.js).
+        localStorage.setItem('myb_pw_force_pending_G. Miller', '1');
+        /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, authUser: true, authUserEmail: 'g.miller@myb-roster.local' };
+        const sw = navigator.serviceWorker;
+        if (!sw) return;
+        const ask = sw.getRegistration.bind(sw);
+        sw.getRegistration = (...a) => { /** @type {any} */ (window).__swAsked = true; return ask(...a); };
+    });
+    const thrown = [];
+    page.on('pageerror', e => thrown.push(e.message));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    await expect.poll(() => thrown.some(m => m.includes('a card’s wiring threw')), { message: 'premise: the wiring threw' }).toBe(true);
+
+    await expect(page.locator('#pwForceOverlay'), 'the forced password overlay still compels').toBeVisible();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__swAsked === true), 'the service worker is still registered').toBe(true);
+    // The reporter is listening: a later failure reaches the Error Log.
+    await page.evaluate(() => { Promise.reject(new Error('e2e: a later failure')); });
+    await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
+        .some((/** @type {any} */ w) => /clientErrors/.test(w.path) && w.data?.message === 'e2e: a later failure')),
+    { message: 'the error reporter is still running' }).toBe(true);
+    // And the ? panels open (behind the mandatory overlay, so through the button's own handler).
+    await page.locator('.btn-card-tips[data-card="work-email"]').dispatchEvent('click');
+    await expect(page.locator('#tipsLbTitle')).toHaveText('Work Email');
+});
+
+// THE TIPS ✕ IS READ AS TEXT (whole-app review, Nov 2026). It is the panel's only visible way out, and it was
+// black at 35% on white — 2.43:1, under the 3:1 a control's own glyph needs as well as the text floor — with
+// only a mouse's hover ever lifting it. Shared by the six pages with a Tips panel; measured as painted: the
+// ✕'s colour laid over the panel's own, on a canvas, so a translucent colour is judged by what it shows.
+test('settings: the Tips panel\'s ✕ clears the text contrast floor on its panel', async ({ page }) => {
+    await seedSession(page);
+    await page.goto('/settings.html');
+    await page.locator('.btn-card-tips[data-card="work-email"]').click();
+    await expect(page.locator('#tipsLightbox')).toBeVisible();
+    const ratio = await page.evaluate(() => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string[]} layers */
+        const paint = (...layers) => {
+            ctx.clearRect(0, 0, 1, 1);
+            for (const c of layers) { ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); }
+            return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+        };
+        /** @param {number[]} rgb */
+        const lum = (rgb) => {
+            const [r, g, b] = rgb.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const panel = getComputedStyle(/** @type {HTMLElement} */ (document.getElementById('tipsLightboxContent'))).backgroundColor;
+        const glyph = getComputedStyle(/** @type {HTMLElement} */ (document.getElementById('tipsLightboxClose'))).color;
+        const [hi, lo] = [lum(paint(panel, glyph)), lum(paint(panel))].sort((x, y) => y - x);
+        return (hi + 0.05) / (lo + 0.05);
+    });
+    expect(ratio, `the ✕ is ${ratio.toFixed(2)}:1 on its panel`).toBeGreaterThanOrEqual(4.5);
+});
+
 // ── SETTINGS: Password card reveal toggle (v18.95) ─────────────────────────────────────────────
 // The login overlay and the forced overlay both offer a reveal; this card asked for an 8+ character
 // password TWICE with no way to see either, which is where a mistyped password comes from.
@@ -750,6 +874,44 @@ test('settings: on a desktop the Work Email explainer keeps a reading measure', 
     });
     expect(m.room - m.cap, 'the column is wider than the measure, so the cap is what holds the line').toBeGreaterThan(40);
     expect(m.width).toBeLessThanOrEqual(m.cap + 1);
+});
+
+// The header shares the cards' column at EVERY width (whole-app review, Nov 2026). It was capped only from
+// 768px, so between 581 and 767 — a phone on its side, a foldable, a narrow window — it spanned the window
+// while the cards sat in a 560px column: at 700px the burger 60px left of them, the badge 60px right.
+test('settings: the header spans the cards\' column at every width, a phone on its side included', async ({ page }) => {
+    await seedSession(page);
+    for (const width of [375, 600, 700, 767, 768, 1024, 1366]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/settings.html');
+        await page.locator('.app .card').first().waitFor();
+        const m = await page.evaluate(() => {
+            const edges = (/** @type {string} */ sel) => {
+                const r = /** @type {HTMLElement} */ (document.querySelector(sel)).getBoundingClientRect();
+                return [Math.round(r.left), Math.round(r.right)];
+            };
+            return { header: edges('.app-header'), column: edges('.app') };
+        });
+        expect(m.header, `at ${width}px the header spans ${m.header}, the cards ${m.column}`).toEqual(m.column);
+    }
+});
+
+// The page gutter has ONE home now, shared.css (whole-app review, Nov 2026): every card page restated it, and Settings
+// no longer does. The card pages' values — 20px above, 10px below, 10px a side on a phone, 3vw from 769px — read off
+// Settings, the page that relies on the shared rule, so losing that rule cannot pass unseen.
+test('settings: the page keeps its gutter, from the shared rule', async ({ page }) => {
+    await seedSession(page);
+    for (const [width, side] of [[375, 10], [768, 10], [1280, 38.4]]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/settings.html');
+        const gutter = await page.evaluate(() => {
+            const s = getComputedStyle(document.body);
+            return [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].map(parseFloat);
+        });
+        // As numbers, to the hundredth: WebKit writes 3vw at 1280px as "38.400002px", Chromium as "38.4px".
+        ['top', 'right', 'bottom', 'left'].forEach((edge, i) =>
+            expect(gutter[i], `the ${edge} gutter at ${width}px`).toBeCloseTo([20, side, 10, side][i], 2));
+    }
 });
 
 // SET2 — "You'll get: …" was one run joined with " · ", so a line could end "· Pay" and the next start

@@ -11,8 +11,10 @@
  *
  * DOMPurify is self-hosted at ./purify.es.mjs — it is NOT managed here.
  * To upgrade DOMPurify: `npm pack dompurify@<ver>`, extract
- * package/dist/purify.es.mjs, replace this file, update the version comment
- * in calendar-huddle-viewer.js.
+ * package/dist/purify.es.mjs over ./purify.es.mjs, put back its first line
+ * (`// @ts-nocheck …`), update the version in calendar-huddle-viewer.js and
+ * docs/FILE_INDEX.md, then record the new version and sha256 in PURIFY in
+ * dependency-pin-parity.test.mjs — which fails until all of them agree.
  *
  * Requires Node 18+ (global fetch, node:crypto).
  *

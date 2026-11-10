@@ -84,7 +84,8 @@ test('every root .html and .css file is precached (offline availability, non-JS 
     //
     // IMPORTANT: the precache set is CORE_ASSETS + SUPPLEMENTARY_ASSETS ONLY — deliberately NOT
     // NETWORK_FIRST_FILES. The warm-up (warmCacheAndSweepOld) fetches CORE/SUPPLEMENTARY/FONT/ICON/SDK
-    // but NEVER NETWORK_FIRST_FILES (which is purely the stale-while-revalidate MATCH set). A file
+    // but NEVER NETWORK_FIRST_FILES (which is purely a MATCH set: the managed files served from the
+    // version's cache and never re-fetched once there — the name is history). A file
     // listed only in NETWORK_FIRST_FILES is served-from-cache-if-present but never PRECACHED, so it is
     // unavailable on a device that installs and goes offline before ever visiting it. Including
     // NETWORK_FIRST_FILES here (the pre-fix bug) made that regression pass CI. (Mirrors the JS test's
@@ -108,7 +109,7 @@ test('purify.es.mjs is network-first AND precached (the .mjs runtime asset the .
     const arrayOf = (name) => swArray(sw, name);
     const inList = (list, f) => list.includes(`'${f}'`) || list.includes(`"${f}"`) || list.includes(`'./${f}'`) || list.includes(`"./${f}"`);
     const F = 'purify.es.mjs';
-    assert.ok(inList(arrayOf('NETWORK_FIRST_FILES'), F), 'purify.es.mjs must be in NETWORK_FIRST_FILES (served stale-while-revalidate)');
+    assert.ok(inList(arrayOf('NETWORK_FIRST_FILES'), F), 'purify.es.mjs must be in NETWORK_FIRST_FILES (served from the version cache, never re-fetched once there)');
     assert.ok(inList(arrayOf('CORE_ASSETS') + arrayOf('SUPPLEMENTARY_ASSETS'), F), 'purify.es.mjs must be precached (offline DOCX sanitising)');
 });
 
@@ -150,6 +151,25 @@ test('every NOTIFICATION_FEATURES hashPath page is in the SW SAFE_NOTIFICATION_P
         .filter(({ page }) => !safe.includes(page));
     assert.deepEqual(missingCallSites.map(x => `functions/${x.f}: ${x.u} → page '${x.page}'`), [],
         'notification deep-link urls in functions/*.js whose page is not in SW SAFE_NOTIFICATION_PAGES');
+});
+
+test('SAFE_NOTIFICATION_PAGES matches the documented deep links ENTRY FOR ENTRY', () => {
+    // `.claude/rules/notifications.md` → "Deep link": "This list and SAFE_NOTIFICATION_PAGES must match,
+    // entry for entry. A security allowlist is audited against its documentation, so an allowlisted page
+    // this list does not explain is the wrong way round." The test above covers one direction (every
+    // sender's page is allowed); this is the other — nothing allowed that the document does not explain.
+    // `index.html` was exactly that, on the list unexplained, until Nov 2026.
+    const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
+    const safe = (sw.match(/const SAFE_NOTIFICATION_PAGES\s*=\s*\[([^\]]*)\]/)?.[1] ?? '')
+        .split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''));
+    const doc = readFileSync(join(ROOT, '.claude', 'rules', 'notifications.md'), 'utf8');
+    const section = doc.split(/^## Deep link\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+    const documented = section.split('\n').filter(l => /^- .*→/.test(l))
+        .map(l => /`([^`]+)`/.exec(l.slice(l.indexOf('→')))?.[1] ?? '?')
+        .map(link => link.split(/[?#]/)[0]);
+    assert.ok(documented.length >= 5, `the "Deep link" list was not read (${documented.length} entries) — this checks nothing`);
+    assert.deepEqual([...new Set(safe)].sort(), [...new Set(documented)].sort(),
+        'SAFE_NOTIFICATION_PAGES and the documented deep links differ — allow only what the document explains');
 });
 
 test('the push notification names the BADGE asset, the ICON asset, and re-bases both onto SW scope', () => {
@@ -352,6 +372,22 @@ test('APP_VERSION matches in the 2 runtime bump locations', () => {
         sw.includes(`APP_VERSION = '${version}'`),
         `service-worker.js APP_VERSION const is not '${version}'`
     );
+});
+
+// EXACTLY TWO DECIMALS (tooling-4, whole-app review, Nov 2026). The worker orders its caches by integer
+// segment (`isOlderVersion`, `_appCacheVersion`: 25.7 is 25.07) and CI and the pre-commit hook by
+// hundredths (25.7 is 25.70). They agree on every NN.NN and on nothing else — and the bump script
+// accepts any digits.digits, so `25.7` after 25.69 would have each half read it differently: the 25.69
+// worker would think the new release OLDER and could sweep its cache. A release must not carry one.
+const isReleaseVersion = (/** @type {string} */ v) => /^\d+\.\d{2}$/.test(v);
+test('APP_VERSION is NN.NN — the one shape the worker and CI order alike', () => {
+    for (const [v, ok] of [['25.64', true], ['26.00', true], ['25.7', false], ['25.640', false], ['25', false]]) {
+        assert.equal(isReleaseVersion(v), ok, `the shape check is wrong about ${v}`);
+    }
+    const version = readFileSync(join(ROOT, 'roster-data.js'), 'utf8').match(/export const APP_VERSION = '([^']+)'/)?.[1] ?? '';
+    assert.ok(isReleaseVersion(version),
+        `APP_VERSION '${version}' is not two decimals (NN.NN). The service worker orders versions by integer `
+        + 'segment and CI by hundredths, and the two agree only on NN.NN — bump to the next NN.NN instead.');
 });
 
 // The cross-version cache fallback must prefer the NEWEST older cache, not the arbitrary

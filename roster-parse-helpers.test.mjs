@@ -2,7 +2,7 @@
  * Unit tests for functions/roster-parse-helpers.js
  *
  * Pure functions only — no Firebase, no secrets, no HTTP.
- * Run: node --test roster-parse-helpers.test.mjs
+ * Run: node scripts/run-tests.mjs roster-parse-helpers.test.mjs
  *
  * @nodeps-safe — runs on a bare checkout with nothing installed. It is listed in `test:functions`
  * only for convenience (it is about a `functions/` module), and `scripts/test-nodeps.mjs` reads
@@ -47,7 +47,7 @@ const {
     shouldNotifyAdmin,
     summariseSignIns,} = require('./functions/roster-parse-helpers.js');
 const { applySundayScanCorrections, settleDisputedSundays } = require('./functions/roster-sunday-repair.js');
-const { blankCellMeaning } = require('./functions/cell-day-rules.js');
+const { blankCellMeaning, isBlankReading } = require('./functions/cell-day-rules.js');
 const { applyGeometryWitness } = require('./functions/roster-geometry.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
@@ -370,6 +370,19 @@ describe('normaliseShift', () => {
     test('UNKNOWN sentinel strips pipe chars from the raw text (so PREFIX|value stays decodable)', () => {
         assert.equal(normaliseShift('A|B|C'), 'UNKNOWN|A B C');
     });
+    test('it says what it did to a cell, unless the caller only classifies one (import-server-8)', () => {
+        const lines = [];
+        const real = console.warn;
+        console.warn = (...a) => lines.push(a.join(' '));
+        try {
+            normaliseShift('06:00-14:00 | CEA 1');
+            normaliseShift('TBC');
+            assert.equal(lines.length, 2, 'the model\'s answers keep both diagnostics');
+            assert.equal(normaliseShift('06:00-14:00 | CEA 1', { quiet: true }), '06:00-14:00', 'quiet answers the same');
+            assert.equal(normaliseShift('TBC', { quiet: true }), 'UNKNOWN|TBC');
+            assert.equal(lines.length, 2, 'and logs nothing');
+        } finally { console.warn = real; }
+    });
 });
 
 // ── functions/roster-other-days.js — the server's half of the Other-family grammar (v25.38) ─────
@@ -626,6 +639,23 @@ describe('buildSafeEntries', () => {
             ], HEADERS, DATES);
             assert.equal(entries.length, 1, 'one member, one row');
             assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30', 'the first row stands');
+        } finally { console.warn = warn; }
+    });
+    test('an EMPTY first row does not stand in front of the member\'s real one (import-server-5)', () => {
+        // A real Dispatch sheet prints an empty placeholder above the same member's real row. Kept
+        // first, it made the week six "no cell was read" questions and dropped the real one.
+        const EMPTY = { memberName: 'G. Miller', Sun: 'BLANK', Mon: 'BLANK', Tue: 'BLANK', Wed: 'BLANK', Thu: 'BLANK', Fri: 'BLANK', Sat: 'BLANK' };
+        const REAL  = { memberName: 'G. Miller', Sun: 'BLANK', Mon: '05:30-11:30', Tue: '05:30-11:30', Wed: 'RD', Thu: '05:30-11:30', Fri: 'RD', Sat: 'RD' };
+        const warn = console.warn; console.warn = () => {};
+        try {
+            for (const rows of [[EMPTY, REAL], [REAL, EMPTY], [{ ...EMPTY, Mon: '-', Tue: 'EMPTY' }, REAL]]) {
+                const entries = buildSafeEntries(rows, HEADERS, DATES);
+                assert.equal(entries.length, 1, 'one member, one row');
+                assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30', 'the row that says something stands');
+            }
+            const neither = buildSafeEntries([EMPTY, { ...EMPTY }], HEADERS, DATES);
+            assert.equal(neither.length, 1, 'two rows that say nothing are still one');
+            assert.match(neither[0].shifts['2026-03-30'], /^UNKNOWN\|no Monday cell was read/);
         } finally { console.warn = warn; }
     });
 
@@ -1028,6 +1058,66 @@ describe('Case A — a left-shifted row whose empty Saturday arrives as BLANK', 
         assert.deepEqual(week(safe[0]), before);
         assert.deepEqual(disputed, []);
     });
+
+    test('an empty trailing Saturday the row read wrote as "-" is the empty slot too', () => {
+        // One list of empty words for every read (import-server-1), so the drift signature does not
+        // depend on which of them the model chose for the cell it ran out of.
+        const safe = read({ ...DRIFTED, Sat: '-' });
+        quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES));
+        assert.deepEqual(week(safe[0]), TRUE_WEEK);
+    });
+});
+
+// ── A ROW READ THAT WAS RIGHT IS NEVER MOVED (import-server-1, whole-app fix, Nov 2026) ─────────
+//
+// The clean right-shift fires when the Sunday scan saw an empty cell and the Sunday slot holds
+// anything but a rest day. Two things put something there that the row read never claimed: the
+// cross-check's own question, when the COLUMN scan misread an empty Sunday as a shift; and an empty
+// Sunday the row read wrote as "-" or "EMPTY", words only the two scans counted as empty. Either way
+// a correctly read week with an empty Saturday moved a day right, and Save wrote it a day late —
+// measured over 16,384 synthetic weeks, 4,092 of 372,736 single wrong scan cells did that, 924 of
+// them with the PDF grid watching. These drive the handler's own sequence from the model's shape.
+describe('a correctly read week is never moved by the Sunday repair', () => {
+    const DATES = buildWeekDates('2026-11-14');
+    const HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const quiet = fn => { const w = console.warn; console.warn = () => {}; try { return fn(); } finally { console.warn = w; } };
+    /** Printed: Sunday and Saturday EMPTY, four worked days and a printed RD Wednesday. */
+    const ROW = { Sun: 'BLANK', Mon: '06:00-14:00', Tue: '07:00-15:00', Wed: 'RD', Thu: '08:00-16:00', Fri: '09:00-17:00', Sat: 'BLANK' };
+    const AS_PRINTED = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', blankCellMeaning(6, 'Saturday')];
+    /** buildSafeEntries → cross-check → Sunday repair, in index.js's order, with its picks passed. */
+    const run = (row, colSunday = 'BLANK') => quiet(() => {
+        const safe = buildSafeEntries([{ memberName: 'X. Test', ...row }], HEADERS, DATES);
+        const columnScan = Object.fromEntries(HEADERS.map(h => [h, { 'X. Test': h === 'Sun' ? colSunday : ROW[h] }]));
+        const { choices } = applyColumnScanCrossCheck(safe, columnScan, HEADERS, DATES);
+        const disputed = applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES, choices);
+        return { week: DATES.map(d => safe[0].shifts[d]), choices, disputed };
+    });
+
+    test('control: three reads that agree leave the week exactly as printed', () => {
+        assert.deepEqual(run(ROW).week, AS_PRINTED);
+    });
+
+    test('the COLUMN scan misread the empty Sunday as a shift: asked on the Sunday, the week not moved', () => {
+        const { week, choices, disputed } = run(ROW, '10:00-18:00');
+        assert.match(week[0], /^UNKNOWN\|Rest day or 10:00-18:00\? \(PDF unclear\)$/, 'asked, on the day it is about');
+        assert.deepEqual(week.slice(1), AS_PRINTED.slice(1), 'Monday to Saturday on their own days, not a day late');
+        assert.deepEqual(choices[`X. Test|${DATES[0]}`], ['RD', '10:00-18:00'], 'and the pick stays with its question');
+        assert.deepEqual(disputed, [], 'the row read made no Sunday claim to dispute');
+    });
+
+    for (const word of ['-', 'EMPTY', 'empty', ' - ']) {
+        test(`the row read wrote the empty Sunday as ${JSON.stringify(word)}: it is the empty cell it says`, () => {
+            assert.deepEqual(run({ ...ROW, Sun: word }).week, AS_PRINTED);
+        });
+    }
+
+    test('the words for an empty cell are one list for every read', () => {
+        for (const w of ['', 'BLANK', 'blank', 'EMPTY', '-', ' - ', undefined, null]) {
+            assert.equal(isBlankReading(w), true, `${JSON.stringify(w)} is an empty cell to the row read`);
+            if (w !== undefined && w !== null) assert.equal(normaliseScanValue(w), 'RD', `${JSON.stringify(w)} is one to the column scan`);
+        }
+        for (const w of ['RD', 'OFF', '--', 'AL', '06:00-14:00']) assert.equal(isBlankReading(w), false, `${w} is printed text`);
+    });
 });
 
 // ── isPayCutoffDay ────────────────────────────────────────────────────────────
@@ -1371,6 +1461,17 @@ describe('buildPushPayload', () => {
         assert.throws(() => buildPushPayload({ feature: 'pay', body: 'x', baseUrl: BASE }), /No headline/);
     });
 
+    test('a hash-path feature with no baseUrl throws — it never builds "undefined/#huddle" (import-server-8)', () => {
+        const hashed = Object.entries(NOTIFICATION_FEATURES).filter(([, f]) => f.hashPath).map(([k]) => k);
+        assert.ok(hashed.length >= 3, 'premise: the document features deep-link by hash path');
+        for (const feature of hashed) {
+            assert.throws(() => buildPushPayload({ feature, body: 'x' }), /No url for notification feature/, feature);
+            assert.throws(() => buildPushPayload({ feature, body: 'x', baseUrl: '' }), /No url/, `${feature}, empty base`);
+        }
+        assert.equal(buildPushPayload({ feature: 'timetable', body: 'x', url: `${BASE}/trains.html` }).url, `${BASE}/trains.html`,
+            'an explicit url still needs no base');
+    });
+
     test('enforces the length budgets: an over-long caller headline/body is clipped with an ellipsis', () => {
         const longHead = 'Payday Friday and a great many extra words that run well past the forty character title budget';
         const longBody = 'Open the Pay Calculator to estimate your pay for this period and also read a lot of additional text far beyond the eighty character body budget line';
@@ -1587,8 +1688,22 @@ describe('claimsForTier', () => {
 describe('computeOrphanLabels', () => {
     const active = new Set(['g.miller@myb-roster.local', 'a.staff@myb-roster.local']);
     test('flags a @myb-roster.local account not in the active set', () => {
-        const users = [{ uid: 'u1', email: 'leaver@myb-roster.local', displayName: 'B. Gone' }];
+        const users = [{ uid: 'u1', email: 'b.gone@myb-roster.local', displayName: 'B. Gone' }];
         assert.deepEqual(computeOrphanLabels(users, active), [{ uid: 'u1', label: 'B. Gone' }]);
+    });
+    test('a display name is shown only when the account\'s address was made from it — its holder can set any', () => {
+        // A leaver renamed after a current member was listed under that member's name in the disable
+        // preview and the audit (cross-area lead, Nov 2026). The address is the one label it cannot choose.
+        const users = [
+            { uid: 'u1', email: 'x.gone@myb-roster.local', displayName: 'G. Miller' },
+            { uid: 'u2', email: 'y.gone@myb-roster.local', displayName: '   ' },
+            { uid: 'u3', email: 'z.gone@myb-roster.local', displayName: 'Z. Gone' },
+        ];
+        assert.deepEqual(computeOrphanLabels(users, active), [
+            { uid: 'u1', label: 'x.gone@myb-roster.local' },
+            { uid: 'u2', label: 'y.gone@myb-roster.local' },
+            { uid: 'u3', label: 'Z. Gone' },
+        ]);
     });
     test('never flags an active member, an already-disabled account, a non-@myb-roster email, or an email-less account', () => {
         const users = [
@@ -1652,9 +1767,16 @@ describe('applyColumnScanCrossCheck', () => {
     /** Build a columnScan where this member's column values are the 7 given (raw scan grammar). */
     const scanOf = vals => Object.fromEntries(HEADERS.map((h, i) => [h, { 'G. Miller': vals[i] }]));
 
-    // The TRUE week used throughout: blank Wednesday mid-week (the cell the row read drops).
-    const TRUE_ROW  = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', 'RD'];
-    const TRUE_SCAN = ['blank', '06:00-14:00', '07:00-15:00', 'blank', '08:00-16:00', '09:00-17:00', 'blank'];
+    // The TRUE week used throughout, as an honest row read gives it since v22.25: an EMPTY Sunday (a
+    // rest day) and an EMPTY Wednesday (the unread-cell question) — the cell a drifting row read drops
+    // — with the other days off PRINTED. Until Nov 2026 these fixtures wrote both empty cells as RD,
+    // the shape from before the BLANK token, which is how a repair writing the dropped Wednesday as a
+    // rest day passed for correct (import-server-4).
+    const TRUE_ROW  = ['RD', '06:00-14:00', '07:00-15:00', blankCellMeaning(3, 'Wednesday'), '08:00-16:00', '09:00-17:00', 'RD'];
+    const TRUE_SCAN = ['blank', '06:00-14:00', '07:00-15:00', 'blank', '08:00-16:00', '09:00-17:00', 'RD'];
+    // The row read that dropped the empty Wednesday: Thursday on, one day left, and the slot it ran out
+    // of reported empty — the Saturday question.
+    const DRIFTED   = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', blankCellMeaning(6, 'Saturday')];
 
     test('full agreement → row untouched', () => {
         const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(TRUE_ROW) }];
@@ -1662,21 +1784,67 @@ describe('applyColumnScanCrossCheck', () => {
         assert.deepEqual(entries[0].shifts, shiftsOf(TRUE_ROW));
     });
 
-    test('mid-week LEFT drift (blank Wednesday dropped) is repaired to the column scan', () => {
-        // The row read skipped the blank Wed: Thu/Fri values slid one day left, Sat empty.
-        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
-        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+    test('mid-week LEFT drift (blank Wednesday dropped) is repaired to the honest read — the dropped cell a question', () => {
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(DRIFTED) }];
         applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
         assert.deepEqual(entries[0].shifts, shiftsOf(TRUE_ROW),
-            'the right-shift repair must restore the true week');
+            'the right-shift repair must restore the true week, its empty Wednesday a question and not a rest day');
     });
 
     test('RIGHT drift is repaired too (the direction the Sunday pass never caught)', () => {
-        // Row misaligned right: every value one day late; Sunday slot shows RD, Monday shows nothing… build it:
+        // A ghost Monday pushed every value a day late. The true Saturday is EMPTY, so the vacated
+        // Saturday is the question an honest read gives — never the rest day the scan's "blank" became.
+        const honest  = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', blankCellMeaning(6, 'Saturday')];
+        const scan    = ['blank', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', 'blank'];
         const drifted = ['RD', 'RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00'];
         const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
-        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
-        assert.deepEqual(entries[0].shifts, shiftsOf(TRUE_ROW));
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.deepEqual(entries[0].shifts, shiftsOf(honest));
+    });
+
+    // THE VACATED SLOT (import-server-4). A repair leaves one cell with no row reading at all — the
+    // dropped one, or the Saturday a ghost cell pushed off the end — and fills it from the column scan,
+    // whose "blank" is already RD by then. A scan blank is not a printed rest day, so Monday to Saturday
+    // the slot takes the question an honest read of an empty cell gives; a printed code stays what it says.
+    for (const blank of ['blank', 'BLANK', '-', 'EMPTY', '']) {
+        test(`a dropped weekday the scan read as ${JSON.stringify(blank)} comes back as the question, not a rest day`, () => {
+            const scan = [...TRUE_SCAN]; scan[3] = blank;
+            const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(DRIFTED) }];
+            applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+            assert.match(entries[0].shifts[DATES[3]], /^UNKNOWN\|no Wednesday cell was read/);
+            assert.equal(entries[0].shifts[DATES[4]], '08:00-16:00', 'and the rest of the week is realigned');
+        });
+    }
+
+    test('a dropped weekday the scan read as a PRINTED rest code stays a rest day', () => {
+        for (const printed of ['RD', 'OFF', 'NA', 'NS']) {
+            const scan = [...TRUE_SCAN]; scan[3] = printed;
+            const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(DRIFTED) }];
+            applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+            assert.equal(entries[0].shifts[DATES[3]], 'RD', `a Wednesday printed ${printed}`);
+        }
+    });
+
+    test('the ghost-cell repair\'s vacated Saturday: a question when the scan saw it empty, a rest day when printed', () => {
+        const drifted = ['RD', 'RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00'];
+        const satAfter = (/** @type {string} */ sat) => {
+            const scan = ['blank', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', sat];
+            const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+            applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+            return entries[0].shifts[DATES[6]];
+        };
+        assert.match(satAfter('BLANK'), /^UNKNOWN\|no Saturday cell was read/);
+        assert.equal(satAfter('RD'), 'RD');
+    });
+
+    test('a dropped SUNDAY is the rest day a blank Sunday is — the vacated slot follows the day rule', () => {
+        // The classic full-row drift with a worked Saturday, so the cross-check itself can realign it.
+        const honest  = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', '10:00-18:00'];
+        const scan    = ['BLANK', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', '10:00-18:00'];
+        const drifted = ['06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', '10:00-18:00', blankCellMeaning(6, 'Saturday')];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.deepEqual(entries[0].shifts, shiftsOf(honest));
     });
 
     test('an isolated single-cell disagreement is flagged UNREADABLE, not repaired or overwritten', () => {
@@ -1701,7 +1869,7 @@ describe('applyColumnScanCrossCheck', () => {
     });
 
     test('fail-open: no columnScan / missing member / unreadable scan values → row untouched', () => {
-        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
+        const drifted = DRIFTED;
         const a = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
         applyColumnScanCrossCheck(a, undefined, HEADERS, DATES);
         assert.deepEqual(a[0].shifts, shiftsOf(drifted));
@@ -1716,8 +1884,7 @@ describe('applyColumnScanCrossCheck', () => {
     });
 
     test('too few signalled days (<5) never auto-repairs — flags instead (conservative)', () => {
-        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
-        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(DRIFTED) }];
         // Only 3 columns carry a signal for this member.
         const partial = { 'Wed': { 'G. Miller': 'blank' }, 'Thu': { 'G. Miller': '08:00-16:00' }, 'Fri': { 'G. Miller': '09:00-17:00' } };
         applyColumnScanCrossCheck(entries, partial, HEADERS, DATES);
@@ -1732,11 +1899,14 @@ describe('applyColumnScanCrossCheck', () => {
     // thresholds left every suite green.
     test('ONE disagreement on a Saturday is a question — never silently "repaired" to a rest day', () => {
         // Saturday is the one place a lone disagreement CAN verify as a shift (nothing follows it), so
-        // with the "two" lowered to one, a worked Saturday the scan read as blank is rewritten to RD —
-        // a MATCH where the base Saturday is a rest day, so nothing at all appears in the review.
-        const row = [...TRUE_ROW]; row[6] = '10:00-18:00';
+        // with the "two" lowered to one, a worked Saturday the scan read as blank is rewritten — once to
+        // RD, a MATCH on a rest-day base that the review never shows, and since import-server-4 to the
+        // unread-cell question — and either way the shift that was read is gone. The week has no unread
+        // cell of its own, because a question agrees with nothing and would stop any repair verifying.
+        const row  = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', '10:00-18:00'];
+        const scan = ['blank', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', 'blank'];
         const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
-        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
         const sat = entries[0].shifts[DATES[6]];
         assert.ok(sat.startsWith('UNKNOWN|'), `a worked Saturday was resolved without asking: "${sat}"`);
         assert.ok(sat.includes('10:00-18:00'), 'the admin must see the shift that was read');
@@ -1745,12 +1915,13 @@ describe('applyColumnScanCrossCheck', () => {
     test('FOUR signalled days are still too few to repair, even when a shift would verify', () => {
         // Under a floor of four this exact read IS repaired (the suffix shift from Wednesday agrees on
         // all four columns), which is how the boundary shows: five is the line, four is under it.
-        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
-        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        // A repaired Wednesday is a question too since import-server-4, so the assertion names the
+        // DISAGREEMENT question, which only flagging writes.
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(DRIFTED) }];
         const four = { 'Wed': { 'G. Miller': 'blank' }, 'Thu': { 'G. Miller': '08:00-16:00' },
                        'Fri': { 'G. Miller': '09:00-17:00' }, 'Sat': { 'G. Miller': 'blank' } };
         applyColumnScanCrossCheck(entries, four, HEADERS, DATES);
-        assert.ok(entries[0].shifts[DATES[3]].startsWith('UNKNOWN|'), 'Wed must be flagged, not repaired to RD');
+        assert.match(entries[0].shifts[DATES[3]], /^UNKNOWN\|08:00-16:00 or Rest day\?/, 'Wed must be flagged, not repaired');
         assert.ok(entries[0].shifts[DATES[4]].startsWith('UNKNOWN|'), 'Thu must be flagged too');
     });
 
@@ -2388,13 +2559,25 @@ describe('a physically blank weekday never becomes a rest day', () => {
     test('isPhysicallyBlank treats "never mentioned" and "reported empty" as one fact', () => {
         // The two ways nothing arrives. Before the BLANK token they could not be told apart, which
         // is precisely why the day rule sat dead for six versions.
-        for (const v of [undefined, null, '', '   ', 'BLANK', 'blank', ' Blank ']) {
+        for (const v of [undefined, null, '', '   ', 'BLANK', 'blank', ' Blank ', 'EMPTY', 'empty']) {
             assert.equal(isPhysicallyBlank(v), true, `expected ${JSON.stringify(v)} to read as empty`);
         }
         for (const v of ['RD', 'AL', '06:00-14:00', 'SPARE', 'OFF']) {
             assert.equal(isPhysicallyBlank(v), false,
                 `${v} is printed text — treating it as empty would send real data to review`);
         }
+    });
+
+    test('a lone dash MEANS an empty cell, and is still ink in it (import-server-1, re-review R-A1)', () => {
+        // The vocabulary calls a dash-only cell blank, so the row read gives it the day's blank
+        // meaning; the PDF grid sees it as occupied, so a reading weighed against the grid does not.
+        assert.equal(isBlankReading(' - '), true);
+        assert.equal(isPhysicallyBlank(' - '), false);
+        const s = buildSafeEntries([{ memberName: 'S. Horsman', Sun: '-', Mon: '-', Tue: 'EMPTY', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' }],
+            HEADERS, DATES)[0].shifts;
+        assert.equal(s[SUN], 'RD', 'a dashed Sunday is the rest day a blank Sunday is');
+        assert.match(s[DATES[1]], /^UNKNOWN\|no Monday cell was read/, 'a dashed Monday is the question a blank Monday is');
+        assert.match(s[DATES[2]], /^UNKNOWN\|no Tuesday cell was read/, 'and so is one the model called EMPTY');
     });
 });
 
@@ -2497,6 +2680,14 @@ describe('summariseAccountGaps', () => {
             const gaps = summariseAccountGaps(users, CFG);
             assert.deepEqual(gaps.setUp, []);
             assert.deepEqual(gaps.leavers, ['B. Khalil']);
+        });
+
+        test('a leaver who renamed the account after a current member is listed by its address', () => {
+            const users = [...allGood(), {
+                email: 'b.khalil@myb-roster.local', displayName: 'G. Miller', disabled: false, customClaims: {},
+            }];
+            assert.deepEqual(summariseAccountGaps(users, CFG).leavers, ['b.khalil@myb-roster.local'],
+                'a name the account chose for itself, beside a current member\'s, would be read as that member');
         });
 
         test('several gaps of different kinds are all reported', () => {

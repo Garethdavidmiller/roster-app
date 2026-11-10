@@ -1,6 +1,6 @@
 /**
  * admin-al-week-save.test.mjs — what one week-grid save does about the leave in it.
- * Run: node --test admin-al-week-save.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs admin-al-week-save.test.mjs   (part of `npm run test:hygiene`)
  *
  * The sequence this pins used to live inside `admin-app.js`'s Save handler, where it could only be
  * reached through a browser. The decisions in it are not DOM decisions — they are about somebody's
@@ -323,7 +323,10 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
         const line = receipt.lines.find(l => l.includes(SAT));
         assert.ok(line, 'the day must still be named');
         assert.match(line, /left as it is/, 'the receipt must not imply the day is now clear');
-        assert.match(line, /untick/, 'and must say how to remove what remains');
+        // …by the control that removes it: since 10 Nov 2026 an untick never deletes (owner), so "untick"
+        // would send the admin to a control that leaves the leave exactly where it is.
+        assert.match(line, /select AL on the day again to remove it/, 'and must say how to remove what remains');
+        assert.doesNotMatch(line, /untick/, 'an untick no longer removes anything');
         assert.doesNotMatch(line, /no leave recorded/,
             'that is the wording for an EMPTY day — using it here contradicts the Calendar');
     });

@@ -3,7 +3,8 @@
  * roster-cell-rules.js — what a parsed roster cell MEANS as an override.
  *
  * Owns: the two rules that stand between "the PDF said X" and "we wrote Y" — the per-cell guards
- *   (`normaliseCellValue`) and the value-to-override-type mapping (`shiftValueToOverrideType`).
+ *   (`normaliseCellValue`) and the value-to-override-type mapping (`shiftValueToOverrideType`) — and
+ *   the `RDW|` / `UNKNOWN|` review encodings every import module reads.
  * Does NOT own: the parse, the review states, the renderer, or any write.
  * Edit here for: a guard, or a new override type the import can produce.
  * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
@@ -30,9 +31,24 @@
 import { isSunday } from './roster-data.js';
 import { sundaySafeValue, isOtherValue } from './override-utils.js';
 
-const RDW_PREFIX   = 'RDW|';
-const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
-const stripRdw     = /** @param {any} v */ v => v.slice(RDW_PREFIX.length);
+// ── THE TWO REVIEW-ONLY ENCODINGS, DEFINED ONCE (whole-app fix, Nov 2026) ─────────────────────────
+// They were written out in this module, in roster-alignment.js and in roster-review-states.js, whose
+// comment said a second copy was what it avoided. This module is the one all three can import
+// without a cycle; roster-review-states.js re-exports them for the renderer and its tests.
+
+/** The review's internal marker for "this worked time is rest-day working". The value SAVED to
+ *  Firestore is the bare time — the RDW-ness lives in the override's `type` — so this prefix
+ *  exists only between the parse and the save. */
+export const RDW_PREFIX     = 'RDW|';
+export const isRdwEncoded   = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
+export const stripRdw       = /** @param {any} v */ v => v.slice(RDW_PREFIX.length);
+
+/** UNKNOWN|<raw> — a value the AI returned that `normaliseShift` (server) could not recognise as a
+ *  shift. Surfaced in review as an UNREADABLE cell so a garbled real shift isn't silently dropped;
+ *  never written to Firestore (roster-review-states.js, rule 3). Mirrors the RDW encoding. */
+export const UNKNOWN_PREFIX   = 'UNKNOWN|';
+export const isUnknownEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(UNKNOWN_PREFIX);
+export const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFIX.length);
 
 /**
  * Normalise one parsed cell value into the pair the review table compares and saves.
@@ -100,12 +116,18 @@ export function normaliseCellValue(rawShift, baseShift, date) {
  * Module-scope + exported (v15.34) so the classification is unit-testable —
  * it is pure (uses only isSunday and the module's value helpers).
  *
+ * The base shift is NOT a parameter (whole-app fix, Nov 2026): it was passed by every caller and read
+ * by none. A caller still passing it would hand a shift where the date belongs and silently lose the
+ * Sunday rule, so anything that is not an ISO date there is refused loudly instead.
+ *
  * @param {string} value     - e.g. "05:30-11:30", "SPARE", "AL", "SICK", "RD", "TRG RDW"
- * @param {string} baseShift - the base roster shift for that day (e.g. "RD", "06:00-12:00")
  * @param {string|null} date - ISO date string "YYYY-MM-DD" — used to detect Sunday
  * @returns {string}  override type
  */
-export function shiftValueToOverrideType(value, baseShift, date = null) {
+export function shiftValueToOverrideType(value, date = null) {
+    if (date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+        throw new TypeError(`shiftValueToOverrideType: "${date}" is not an ISO date — the base shift is no longer an argument`);
+    }
     // Layer 4 of the Sunday rule — the transformation is `sundaySafeValue` (override-utils.js).
     // A value it rewrites to RD becomes a correction rather than the type it claimed to be.
     const isSun = date !== null && isSunday(date);

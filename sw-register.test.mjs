@@ -39,11 +39,12 @@ function makeHarness({ controlled = false, waiting = false, hasRegistration = co
     /** @type {Record<string, Function[]>} */
     const swListeners = {};
     const posted = /** @type {any[]} */ ([]);
+    const state = { reloads: 0, updates: 0 };
     const registration = {
         waiting: waiting ? { postMessage: (/** @type {any} */ m) => posted.push(m) } : null,
         installing: null,
         addEventListener: () => {},
-        update: () => Promise.resolve(),
+        update: () => { state.updates++; return Promise.resolve(); },
     };
     /** @type {(() => void)|null} */
     let _resolveRegister = null;
@@ -57,15 +58,17 @@ function makeHarness({ controlled = false, waiting = false, hasRegistration = co
             (swListeners[type] = swListeners[type] || []).push(fn);
         },
     };
-    const state = { reloads: 0 };
-
     // navigator exists as a real global in Node 21+ — replace via defineProperty.
     Object.defineProperty(globalThis, 'navigator', {
         value: { serviceWorker: container }, configurable: true, writable: true,
     });
+    /** @type {Record<string, Function[]>} */
+    const winListeners = {};
     globalThis.window = /** @type {any} */ ({
         location: { reload: () => { state.reloads++; } },
-        addEventListener: () => {},
+        addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => {
+            (winListeners[t] = winListeners[t] || []).push(fn);
+        },
     });
     /** @type {Record<string, Function[]>} */
     const docListeners = {};
@@ -103,6 +106,7 @@ function makeHarness({ controlled = false, waiting = false, hasRegistration = co
         store,
         fireControllerChange() { (swListeners['controllerchange'] || []).forEach(fn => fn()); },
         docListeners,
+        winListeners,
         /** Background/foreground the fake page, firing visibilitychange like a browser does. */
         setVisibility(/** @type {'visible'|'hidden'} */ v) {
             globalThis.document.visibilityState = v;
@@ -257,6 +261,40 @@ test('register() failure then re-invocation does NOT stack a second controllerch
         await h.flush();
         assert.equal((h.swListeners['controllerchange'] || []).length, 1,
             'the retry must NOT attach a second controllerchange listener (would double-fire beforeReload)');
+    } finally { h.restore(); }
+});
+
+test('register() failure then re-invocation does NOT stack a second notification-tap listener', async () => {
+    // The `message` listener that answers a notification tap is attached before register() as well, so
+    // the same retry stacked a second one: one "are you busy?" got two answers, and one "open later"
+    // raised two "Open it anyway?" dialogs, so cancelling one left the other on screen.
+    const h = makeHarness({ controlled: true, failRegister: true });
+    try {
+        registerServiceWorker({ isBusy: () => true });   // register() rejects → _registered resets
+        await h.flush();
+        registerServiceWorker({ isBusy: () => true });   // the in-place sign-in retries it
+        await h.flush();
+        assert.equal((h.swListeners.message || []).length, 1, 'one listener for the page\'s life');
+        const replies = /** @type {any[]} */ ([]);
+        const port = { postMessage: (/** @type {any} */ m) => replies.push(m) };
+        (h.swListeners.message || []).forEach(fn => fn({ data: { type: 'myb-busy?' }, ports: [port] }));
+        assert.deepEqual(replies, [{ busy: true }], 'one question, one answer');
+    } finally { h.restore(); }
+});
+
+test('bfcache: a RESTORE checks for an update at once; an ordinary load does not ask twice', async () => {
+    // `pageshow` fires at the end of every load as well as on a restore. The navigation behind an
+    // ordinary load has already made the browser check (web.dev, "The service worker lifecycle"), so
+    // the handler's own check belongs to a restore alone, which no navigation precedes.
+    const h = makeHarness({ controlled: true });
+    try {
+        registerServiceWorker({ bfcache: true });
+        await h.flush();
+        const before = h.state.updates;
+        (h.winListeners.pageshow || []).forEach(fn => fn({ persisted: false }));
+        assert.equal(h.state.updates - before, 0, 'an ordinary load is not a restore');
+        (h.winListeners.pageshow || []).forEach(fn => fn({ persisted: true }));
+        assert.equal(h.state.updates - before, 1, 'a page back from the bfcache has missed its checks');
     } finally { h.restore(); }
 });
 

@@ -1,5 +1,5 @@
 // Unit tests for perf-stats.js — the pure latency maths (Project 0 instrumentation).
-// Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
+// Run with: node scripts/run-tests.mjs perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, EARLY_ROSTER, summariseEarlyRoster, EARLY_ROSTER_FROM, earlyRosterShareLabel, shareLabel, compactPct, UPDATE_OPENS, UPDATE_OPENS_FROM, summariseUpdateOpens, CLEAN_TIMINGS_FROM, shareMeasuredBefore, perfRecordFullness, createPerfBatcher } from './perf-stats.js';
@@ -106,6 +106,32 @@ describe('summarisePerf', () => {
         const r = summarisePerf(s, { metric: 'domReady' });
         assert.deepEqual(r.byPage.map(p => p.page), ['calendar', 'guide-staff']);
         assert.equal(r.total, 6);
+    });
+
+    test('a page id named after an inherited property is nobody\'s page — no write to Object, no orphan count', () => {
+        // `constructor` passes the token test. It landed on the Object function (`Object.ok = NaN`) and
+        // was counted in the headline total with no row of its own; the card looks ids up in a plain
+        // object, where it would find `Object` again.
+        const s = samplesFrom([['calendar', 'domReady', 'lt500ms', 2], ['constructor', 'domReady', '1-3s', 5]]);
+        const r = summarisePerf(s, { metric: 'domReady' });
+        assert.equal(/** @type {any} */ (Object).ok, undefined, 'the Object function must be untouched');
+        assert.deepEqual(r.byPage.map(p => p.page), ['calendar']);
+        assert.equal(r.total, 2, 'the headline counts what the rows show');
+    });
+
+    test('a written `constructor` BUCKET counts in no band and so in no total (own-key bucket table)', () => {
+        // The bucket table was a plain object, so `constructor` found the inherited Object function —
+        // truthy — and the open was counted in the total while landing in none of the three bands.
+        const bogus = (/** @type {string} */ metric) => `14_89|calendar|${metric}|constructor|browser|4g`;
+        const s = { ...samplesFrom([['calendar', 'domReady', 'lt500ms', 3]]), [bogus('domReady')]: 9 };
+        const r = summarisePerf(s, { metric: 'domReady' });
+        assert.equal(r.total, r.overall.quick + r.overall.ok + r.overall.slow, 'the total is the sum of its bands');
+        assert.equal(r.total, 3);
+        // …and the same table answers the other readers: the share before a release, the closer-look rows.
+        assert.equal(shareMeasuredBefore({ [bogus('domReady')]: 50, '25_00|calendar|domReady|lt500ms|browser|4g': 50 }, '24_98'), 0);
+        const upd = summariseUpdateOpens({ [`${UPDATE_OPENS_FROM.replace('.', '_')}|calendar|readyUpdate|constructor|browser|4g`]: 9,
+            [`${UPDATE_OPENS_FROM.replace('.', '_')}|calendar|readyUpdate|1-3s|browser|4g`]: 4 }, { page: 'calendar' });
+        assert.equal(upd.total, 4);
     });
 });
 

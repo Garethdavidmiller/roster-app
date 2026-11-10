@@ -31,7 +31,8 @@
     <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
     <!--
       Module preload (v21.75 load-speed pass). links.html carries the DEEPEST static graph in the
-      app — links-boot → links-app → 46 modules — and without these hints the browser
+      app — links-boot → links-app → every module below, the whole static graph (counted by
+      sw-asset-check.test.mjs, which holds this list to it, not written here) — and without these hints the browser
       discovers them in a WATERFALL: parse a file, THEN fetch what it imports. Measured on a
       throttled phone (4× CPU, 40ms RTT) that was 8–9 sequential discovery rounds; with the hints
       it is one, worth ~120ms on a cold load and repeatable across runs. modulepreload only
@@ -162,10 +163,6 @@
     </div>
 </div>
 
-<!-- First-visit notice — shown once, never again after close. Replaced the v12.33 BETA notice at
-     v19.51: the beta marker was removed at v19.50, so its first paragraph ("this is an early beta,
-     the finished version will look quite different") described a page that no longer exists. Only
-     the paragraph that was still true survived. -->
 <!-- Import a design pasted from a spreadsheet or a transcribed sheet (v20.97).
      Two steps on purpose: Check it reports what WOULD be saved, and only then does Save appear.
      A paste is somebody else's proposal and the reader has not seen it as a grid yet. -->
@@ -274,8 +271,8 @@
     </div>
 </div>
 
-<!-- Boot placeholder (v20.80). `.container` is `display:none` until `body.auth-ready`, and the
-     header lives INSIDE it — so until the module graph has loaded and run, this page is a blank
+<!-- Boot placeholder (v20.80). `.container` and the header are `display:none` until
+     `body.auth-ready` — so until the module graph has loaded and run, this page is a blank
      navy screen with nothing on it at all, not even the burger. Measured at 622ms locally on a
      fast disk with no network; on a phone it is seconds. A sibling of `.container`, so it is
      visible in exactly the window `.container` is not. Removed by CSS the moment `auth-ready`
@@ -284,20 +281,22 @@
     <span class="boot-spinner" aria-hidden="true"></span>
     <span class="boot-placeholder-text">Loading…</span>
 </div>
+
+<!-- The header is <main>'s sibling, never inside it: inside, it is not the page's banner landmark
+     (whole-app check, Nov 2026). Its band, its gap and its hide until sign-in are links.css's. -->
+<header class="app-header">
+    <button type="button" class="btn-burger" id="navMenuBtn"
+            aria-label="Open navigation menu" aria-expanded="false">☰</button>
+    <div class="app-header-brand">
+        <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
+        <h1>Marylebone Roster</h1>
+    </div>
+    <div class="header-end">
+        <span class="badge-page" id="linksBadge"><span class="badge-glyph" aria-hidden="true">🔗</span> Links</span>
+    </div>
+</header>
+
 <main class="container">
-
-    <header class="app-header">
-        <button type="button" class="btn-burger" id="navMenuBtn"
-                aria-label="Open navigation menu" aria-expanded="false">☰</button>
-        <div class="app-header-brand">
-            <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
-            <h1>Marylebone Roster</h1>
-        </div>
-        <div class="header-end">
-            <span class="badge-page" id="linksBadge"><span class="badge-glyph" aria-hidden="true">🔗</span> Links</span>
-        </div>
-    </header>
-
 
     <!-- ==================== LINK DESIGN GRID ==================== -->
     <div class="card" id="linksGridCard">
@@ -332,7 +331,7 @@
                 <div id="designPickerWrap" class="design-picker-wrap">
                     <div class="design-masthead" id="designMasthead">
                         <div class="dm-title">
-                            <button type="button" class="dm-picker" id="designPickerBtn" aria-haspopup="dialog" aria-label="Choose which design to edit">
+                            <button type="button" class="dm-picker" id="designPickerBtn" aria-haspopup="dialog" aria-label="Choose which design to edit" disabled>
                                 <span class="dm-eyebrow" aria-hidden="true"><span id="designEyebrow">Editing</span> <span class="dm-count" id="designCount"></span></span>
                                 <span class="dm-face" aria-hidden="true"><span class="dm-face-name" id="designFaceName"></span><span class="dm-chev"></span></span>
                             </button>
@@ -349,7 +348,7 @@
                             </div>
                             <div class="dm-actions">
                                 <button type="button" id="linksSaveBtnTop" class="btn-save dm-save" disabled>Save</button>
-                                <button type="button" id="designMoreBtn" class="dm-more" aria-label="More actions for this design" aria-haspopup="dialog">···</button>
+                                <button type="button" id="designMoreBtn" class="dm-more" aria-label="More actions for this design" aria-haspopup="dialog" disabled>···</button>
                             </div>
                         </div>
                     </div>
@@ -361,16 +360,21 @@
                     </div>
                 </div>
 
-                <!-- Empty state: shown before any design is loaded or created -->
+                <!-- Empty state: shown before any design is loaded or created. WRITTEN AS THE LOADING
+                     STATE, with no actions: the page is on screen from auth-ready and the designs land
+                     later, replacing whatever was made meanwhile. `renderGrid` writes the other three
+                     states (no designs, the previous length's designs moved to the bin, a failed load)
+                     and reads these words back for a retry, so they live here once. -->
                 <div id="linksEmptyState" class="links-empty-state">
                     <span class="links-empty-icon" aria-hidden="true">🔗</span>
-                    <p class="links-empty-title">No designs yet</p>
-                    <p class="links-empty-msg" id="linksEmptyMsg">Build a rotating pattern from staffing targets with the Auto-generate card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap"><span class="js-rotating-lines">26</span>-line</span> grid.</p>
-                    <div class="links-empty-actions">
+                    <p class="links-empty-title">Loading your designs…</p>
+                    <p class="links-empty-msg" id="linksEmptyMsg">Reading the saved designs. Starting or building a new one waits until the list is in, so nothing is made twice.</p>
+                    <div class="links-empty-actions" style="display:none">
                         <button type="button" class="btn-save" id="linksEmptyGenerate">Go to Auto-generate</button>
                         <button type="button" class="btn-text-link" id="linksEmptyProposals">Open a shortlisted proposal</button>
                         <button type="button" class="btn-text-link" id="linksEmptyNew">Start with a blank grid</button>
                     </div>
+                    <button type="button" class="btn-save" id="linksEmptyRetry" style="display:none">Try again</button>
                 </div>
 
                 <!-- A design saved against a LONGER rotation than the current one (v19.98). Written
@@ -378,8 +382,10 @@
                      left in the data rather than trimmed on load or on save. -->
                 <p id="linksOverLengthNotice" class="links-overlength-notice" role="status" style="display:none"></p>
 
-                <!-- Paint-mode brush bar — arm a shift then single-click cells to fill -->
-                <div id="brushBar" class="brush-bar" style="display:none" aria-label="Paint mode: select a shift to paint cells"></div>
+                <!-- Paint-mode brush bar — arm a shift then single-click cells to fill. A GROUP, so its label
+                     is announced: on a plain div an aria-label names nothing, and the chips arrived as a
+                     run of unrelated buttons (links-app-16; the compare chips above are the same idiom). -->
+                <div id="brushBar" class="brush-bar" style="display:none" role="group" aria-label="Paint mode: select a shift to paint cells"></div>
 
                 <!-- Single-design grid (hidden in compare mode) -->
                 <div class="links-grid-wrapper" id="linksGridWrapper" style="display:none">
@@ -413,14 +419,14 @@
                     </table>
                     <!-- What the three total-cell styles MEAN (v23.50). These were `title` tooltips on the
                          cells — a hover surface, so a designer on a phone never saw them. -->
-                    <p class="tot-legend"><span class="lg-assumed">Italic</span> — a cover week, counted as the contracted week &middot; <span class="lg-same">Muted</span> — the same in both hour columns, no Sunday duty &middot; <span class="lg-uncertain">Orange</span> — some duty times couldn’t be read, so the total is a floor</p>
+                    <p class="tot-legend"><span class="lg-assumed">Italic</span> — a cover week, counted as the contracted week &middot; <span class="lg-same">Muted</span> — the same in both hour columns, no Sunday duty &middot; <span class="lg-uncertain">Orange</span> — some duty times couldn’t be read, so the total is a floor, marked “+”</p>
                 </div>
 
                 <!-- Compare mode: two read-only grids with diff highlighting -->
                 <div id="compareGridsWrap" class="compare-grids-wrap">
                     <!-- THE DIFFERENCE, BEFORE THE EVIDENCE FOR IT (v22.60). Two grids with gold
-                         outlines is a picture of the difference; reading it means holding 336 cells
-                         in your head. Filled by `renderCompare`; the grids below are unchanged. -->
+                         outlines is a picture of the difference; reading it means holding every cell
+                         of both grids in your head. Filled by `renderCompare`; the grids below are unchanged. -->
                     <div id="compareSummary" class="compare-summary" role="status"></div>
                     <!-- OUTSIDE the summary, and not by accident: `#compareSummary` is a live
                          region, so a control inside it has its label re-announced on every render.
@@ -582,14 +588,14 @@
                     <div class="gen-actions">
                         <button class="btn-text-link" id="genAddSlotBtn" type="button">+ Add another shift</button>
                         <!-- TWO RESETS, AND THEY ANSWER DIFFERENT QUESTIONS (v21.00). The default is
-                             a table DESIGNED against the December 2026 service — it pays the
-                             contracted week exactly, so Generate works the moment the card opens.
-                             LABELLED "demand-based" since v21.06: it read "December 2026 default",
-                             which names the TIMETABLE it was built against, and the owner could not
-                             tell from it whether the button loaded the demand-designed table or
+                             a duty table that pays the contracted week exactly — Short Run's, from
+                             the pack (links-default-targets.js) — so Generate works the moment the
+                             card opens. Its label says what ARRIVES, the staffing: an earlier one,
+                             "December 2026 default", named the TIMETABLE it was built against, and
+                             the owner could not tell from it whether the button loaded that table or
                              something else. A label on a reset has to say what arrives.
                              The roster seed MEASURES what is worked today, which is the right
-                             comparison to reach for and cannot pay a 26-line rotation, so it will
+                             comparison to reach for and cannot pay a ROTATING_LINES rotation, so it will
                              be refused with the gap named. Neither label says "reset targets"
                              without saying to WHAT: with two of them, that word alone is the one
                              thing a designer cannot act on. -->
@@ -649,19 +655,19 @@
                              prices. This one is applied on their behalf, silently, and a card whose whole
                              argument is "the result says what each cost" cannot then have an unnamed term
                              moving rows for reasons nobody can see. One sentence is the whole fix. -->
-                        <p class="gen-obj-note">These change the order of the lines, never the cover. They compete with each other — turning one on can make another slightly worse, and the result says what each one cost. Two things are not optional: cover weeks stay evenly spaced around the rotation, because two side by side run into one long stretch; and no order is used that leaves less than 12 hours between a Saturday finish and the next line’s Sunday start.</p>
+                        <p class="gen-obj-note">These change the order of the lines, never the cover. They compete with each other — turning one on can make another slightly worse, and the result says what each one cost. Two things are not optional: cover weeks stay evenly spaced around the rotation, because two side by side run into one long stretch; and no order is used that leaves less than <span class="js-min-rest-hours">12</span> hours between a Saturday finish and the next line’s Sunday start.</p>
                         <!-- Variety leads the list, and is the one that must stay ON unless you mean
                              it. "Gentle" taken to its limit IS a block — the smallest possible
                              week-to-week step is no step at all — so with variety off the reorder
                              produces months on the same shift. Measured: 11 weeks against the live
                              roster's 3. -->
-                        <label class="gen-obj"><input type="checkbox" id="objVariety" checked><span class="gen-obj-text"><span class="gen-obj-title">Vary the shift type</span><span class="gen-obj-num">at most <span class="gen-obj-numctl"><input type="number" id="objBlockTarget" class="gen-input gen-input-inline" min="1" max="14" value="3"> weeks</span></span><span class="gen-obj-hint">Stops long blocks of earlies or lates — the live roster's longest is 3</span></span></label>
+                        <label class="gen-obj"><input type="checkbox" id="objVariety" checked><span class="gen-obj-text"><span class="gen-obj-title">Vary the shift type</span><span class="gen-obj-num">at most <span class="gen-obj-numctl"><input type="number" id="objBlockTarget" class="gen-input gen-input-inline" min="1" max="14" value="3" aria-label="Vary the shift type: at most this many weeks in a row"> weeks</span></span><span class="gen-obj-hint">Stops long blocks of earlies or lates — the live roster's longest is 3</span></span></label>
                         <!-- The run cap (v20.02). Sits directly under "Vary the shift type" because the
                              two are the design's hard shape constraints; the three below are the
                              comforts arranged inside them. A spare week counts as FOUR worked days
                              here, not seven — you are marked spare all week because you are cover,
                              but four is what you work (plus possibly an RDW Sunday on top). -->
-                        <label class="gen-obj"><input type="checkbox" id="objMaxRun" checked><span class="gen-obj-text"><span class="gen-obj-title">Most shifts in a row</span><span class="gen-obj-num">at most <span class="gen-obj-numctl"><input type="number" id="objMaxRunTarget" class="gen-input gen-input-inline" min="1" max="14" value="6"> days</span></span><span class="gen-obj-hint">Consecutive working days, counted across the line boundary. A spare week counts as 4</span></span></label>
+                        <label class="gen-obj"><input type="checkbox" id="objMaxRun" checked><span class="gen-obj-text"><span class="gen-obj-title">Most shifts in a row</span><span class="gen-obj-num">at most <span class="gen-obj-numctl"><input type="number" id="objMaxRunTarget" class="gen-input gen-input-inline" min="1" max="14" value="6" aria-label="Most shifts in a row: at most this many days"> days</span></span><span class="gen-obj-hint">Consecutive working days, counted across the line boundary. A spare week counts as 4</span></span></label>
                         <label class="gen-obj"><input type="checkbox" id="objGentle" checked><span class="gen-obj-text"><span class="gen-obj-title">Gentle week-to-week change</span><span class="gen-obj-hint">Keeps your working day from jumping when you move line</span></span></label>
                         <label class="gen-obj"><input type="checkbox" id="objWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Full weekends off</span><span class="gen-obj-hint">Saturday rest followed by Sunday rest</span></span></label>
                         <!-- "of N" is ONE span (v19.98). `.gen-obj-numctl` is inline-flex with a 6px
@@ -669,7 +675,7 @@
                              phrase elsewhere on the card. The comment lives OUT here, not between the
                              input and the span: `e2e/pages.spec.js`'s clause test measures the tail by
                              `input.nextSibling`, and a comment node there is not what renders. -->
-                        <label class="gen-obj"><input type="checkbox" id="objLongWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Long weekends</span><span class="gen-obj-num">at least <span class="gen-obj-numctl"><input type="number" id="objLongTarget" class="gen-input gen-input-inline" min="0" max="26" value="4"><span>of <span class="js-rotating-lines">26</span></span></span></span><span class="gen-obj-hint">Three or four days off across the week boundary</span></span></label>
+                        <label class="gen-obj"><input type="checkbox" id="objLongWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Long weekends</span><span class="gen-obj-num">at least <span class="gen-obj-numctl"><input type="number" id="objLongTarget" class="gen-input gen-input-inline" min="0" max="26" value="4" aria-label="Long weekends: at least this many across the rotation"><span>of <span class="js-rotating-lines">26</span></span></span></span><span class="gen-obj-hint">Three or four days off across the week boundary</span></span></label>
                     </fieldset>
                     <div id="genError" class="gen-error" aria-live="polite"></div>
                     <button type="button" class="btn-action btn-primary" id="genApplyBtn"><!--

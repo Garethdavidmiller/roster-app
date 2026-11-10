@@ -8,9 +8,10 @@
  * file of 10,599 lines. Those now live in admin.spec.js, links.spec.js,
  * operations.spec.js, settings.spec.js and guides.spec.js, moved test for test and unchanged.
  */
-import { test, expect } from './fixtures.js';
-import { seedSession, seedMember, seedMemberSession, isTouchProject, scaleText, tooWide, waitForPageSettled } from './helpers.js';
-import { teamMembers } from '../roster-data.js';
+import { test, expect, forcePasswordSet } from './fixtures.js';
+import { seedSession, seedMember, seedMemberSession, isTouchProject, scaleText, tooWide, waitForPageSettled, signInThroughOverlay,
+    openRosterReview, stubUsageReads, stubPerfReads, clickInView } from './helpers.js';
+import { teamMembers, CONFIG } from '../roster-data.js';
 import { APP_PAGES as APP_PAGES_LIST } from '../scripts/app-pages.mjs';
 
 test('a card title\'s emoji sits inside its title, on its first line, and a wrapped title hangs from it', async ({ page }) => {
@@ -91,9 +92,11 @@ for (const [label, url, appJs] of [
     ['links', '/links.html', 'links'],
 ]) {
     test(`${label}: a boot placeholder stands in for the blank page, and goes when the page is ready`, async ({ page }) => {
-        // These three hide `.container` until `body.auth-ready`, and their HEADER is inside it — so
+        // These three hide `.container` until `body.auth-ready`, and their HEADER with it — so
         // until the module graph has loaded and run there is nothing on the page at all, not even a
         // burger. Measured at 622ms locally on a fast disk with no network; on a phone it is seconds.
+        // The header is <main>'s sibling since the whole-app check (Nov 2026, the banner landmark),
+        // so its hide is a rule of its own now, and asserted on its own.
         //
         // Aborting the coordinator is how the window is held open: the placeholder's whole contract
         // is that it survives a page whose JS never arrives, which is exactly the case that has no
@@ -103,6 +106,7 @@ for (const [label, url, appJs] of [
         await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => {});
         await expect(page.locator('#bootPlaceholder')).toBeVisible();
         await expect(page.locator('.container')).toBeHidden();
+        await expect(page.locator('.app-header'), 'the header waits for sign-in with the page').toBeHidden();
     });
 
     test(`${label}: the placeholder is gone once the page is signed in`, async ({ page }) => {
@@ -112,6 +116,28 @@ for (const [label, url, appJs] of [
         await page.goto(url);
         await expect(page.locator('.container')).toBeVisible({ timeout: 15000 });
         await expect(page.locator('#bootPlaceholder')).toBeHidden();
+        await expect(page.locator('.app-header'), 'the header arrives with the page').toBeVisible();
+    });
+
+    test(`${label}: the header spans the page's band at every width, as it did inside it`, async ({ page }) => {
+        // Inside `.container` the header WAS a grid item, so it could not leave the band; as <main>'s
+        // sibling only its own max-width and auto margins keep it there (settings.spec.js asks the same
+        // of Settings). Either side of every breakpoint, and past the 1100px cap.
+        await seedSession(page);
+        await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
+        await page.goto(url);
+        await expect(page.locator('.container')).toBeVisible({ timeout: 15000 });
+        for (const width of [375, 767, 768, 1023, 1024, 1280, 1920]) {
+            await page.setViewportSize({ width, height: 800 });
+            const m = await page.evaluate(() => {
+                const edges = (/** @type {string} */ sel) => {
+                    const r = /** @type {HTMLElement} */ (document.querySelector(sel)).getBoundingClientRect();
+                    return [Math.round(r.left), Math.round(r.right)];
+                };
+                return { header: edges('.app-header'), band: edges('main.container') };
+            });
+            expect(m.header, `at ${width}px the header spans ${m.header}, the page ${m.band}`).toEqual(m.band);
+        }
     });
 }
 
@@ -201,8 +227,8 @@ test('confirmDialog → promptDialog: Back closes the prompt and stays on the pa
         })();
     });
     await expect(page.locator('.dialog-overlay.open .dialog-btn-confirm')).toBeVisible();
-    // A DOM click, not a pointer one: signed out, the login overlay sits over the page. The handler
-    // under test is the same either way.
+    // A DOM click. Signed out, the login overlay is up — the dialog opens above it now ("asked over a
+    // higher layer", below), so a pointer would reach it too — and the handler under test is the same.
     await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.dialog-overlay.open .dialog-btn-confirm')).click());
     await expect(page.locator('.dialog-overlay.open .dialog-input')).toBeVisible();
     await page.waitForTimeout(600);   // every traversal has landed; what remains is the steady state
@@ -211,6 +237,99 @@ test('confirmDialog → promptDialog: Back closes the prompt and stays on the pa
     await expect(page.locator('.dialog-overlay.open .dialog-input')).toBeHidden();
     await expect(page).toHaveURL(/links\.html/);
     expect(await page.evaluate(() => /** @type {any} */ (window).__chain), 'Back is a cancel').toBe(null);
+});
+
+// A DRAG THAT ENDS ON THE BACKDROP IS NOT A TAP ON IT (shared-ui-8). Selecting a prompt's pre-filled
+// text with the mouse and letting go just outside the card makes a `click` on the overlay — the nearest
+// element the press and the release share — and the backdrop rule took that for a tap: the prompt
+// closed as Cancel and the typing was gone. A press AND release on the backdrop still closes it.
+test('promptDialog: a text selection dragged out onto the backdrop does not close it; a backdrop tap does', async ({ page }) => {
+    await seedMemberSession(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible({ timeout: 20_000 });
+    const openPrompt = () => page.evaluate(async () => {
+        const { promptDialog } = await import('/overlay.js');
+        /** @type {any} */ (window).__answer = promptDialog({ message: 'Rename this design', defaultValue: 'Balanced V6 — copy' });
+    });
+    await openPrompt();
+    const input = page.locator('.dialog-overlay.open .dialog-input');
+    await expect(input).toBeVisible();
+    await expect.poll(() => page.locator('.dialog-overlay.open .dialog-lb-content').evaluate(el => getComputedStyle(el).transform),
+        { timeout: 5000 }).toBe('matrix(1, 0, 0, 1, 0, 0)');   // the open's scale has landed
+    const field = /** @type {{ x: number, y: number, width: number, height: number }} */ (await input.boundingBox());
+    const card = /** @type {{ x: number, y: number, width: number, height: number }} */ (
+        await page.locator('.dialog-overlay.open .dialog-lb-content').boundingBox());
+    const y = field.y + field.height / 2;
+    // Halfway from the screen's edge to the card's: on the backdrop at every width. A fixed 24px out was
+    // off the screen on a phone, where the card is 90vw and leaves 20px a side — the drag then ended on
+    // nothing and passed without testing anything, and the tap closed nothing.
+    const x = card.x / 2;
+    expect(await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.matches('.dialog-overlay.open') ?? false, [x, y]),
+        'premise: the point the drag ends on, and the tap lands on, is the backdrop').toBe(true);
+    await page.mouse.move(field.x + field.width - 6, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y, { steps: 6 });               // out past the card's edge, onto the backdrop
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    await expect(input, 'the prompt closed under a text selection').toBeVisible();
+
+    await page.mouse.click(x, y);                            // a real tap on the backdrop
+    await expect(page.locator('.dialog-overlay.open')).toHaveCount(0);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__answer), 'a backdrop tap is still a Cancel').toBe(null);
+});
+
+// A DIALOG OPENS ON TOP OF WHATEVER IS SHOWING (routed from the pwa audit, 10 Nov 2026). Its layer was
+// the lightbox base, but a notification tapped while a page holds unsaved work asks its question over
+// whatever is up (sw-register.js) — the sign-in card a lost session mounted, or the picker sheet open on
+// that card, both higher. The question painted BENEATH them while holding the keyboard: focus on "Open
+// it", Tab trapped inside, Escape its own — so Enter answered a question nobody could see.
+test.describe('confirmDialog: asked over a higher layer, it paints on top of it', () => {
+    /** Ask the question a notification tap asks; true when its confirm button is what is painted at its
+     *  own centre. @param {import('@playwright/test').Page} page */
+    const askOnTop = async (page) => {
+        await page.evaluate(async () => {
+            const { confirmDialog } = await import('/overlay.js');
+            /** @type {any} */ (window).__answer = confirmDialog({
+                message: 'A notification asked to open another page, but this one has unsaved changes or a save still on its way. Open it anyway?',
+                confirmLabel: 'Open it', danger: true,
+            });
+        });
+        const dialog = page.locator('.dialog-overlay.open');
+        await expect(dialog.locator('.dialog-btn-confirm'), 'the question holds the keyboard').toBeFocused();
+        await expect.poll(() => dialog.locator('.dialog-lb-content').evaluate(el => getComputedStyle(el).transform),
+            { timeout: 5000 }).toBe('matrix(1, 0, 0, 1, 0, 0)');   // the open's scale has landed
+        return dialog.locator('.dialog-btn-confirm').evaluate(b => {
+            const r = b.getBoundingClientRect();
+            return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === b;
+        });
+    };
+    const answer = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => /** @type {any} */ (window).__answer);
+
+    test('over the sign-in card: on top, and a tap answers it', async ({ page }) => {
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await expect(page.locator('#loginOverlay')).toBeVisible();
+        expect(await askOnTop(page), 'the question opened UNDER the sign-in card it was asked over').toBe(true);
+        await page.locator('.dialog-overlay.open .dialog-btn-confirm').click();
+        expect(await answer(page)).toBe(true);
+        await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+        await expect(page.locator('#loginOverlay')).toBeVisible();
+    });
+
+    test('over the picker sheet the card opened: on top, and the sheet waits beneath it', async ({ page }) => {
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await page.locator('#loginGradeTrigger').click();
+        const sheet = page.locator('.picker-sheet-overlay.open');
+        await expect(sheet).toBeVisible();
+        expect(await askOnTop(page), 'the question opened UNDER the picker sheet it was asked over').toBe(true);
+        await page.locator('.dialog-overlay.open .dialog-btn-cancel').click();
+        expect(await answer(page)).toBe(false);
+        await expect(sheet, 'answering the question closed the sheet beneath it').toBeVisible();
+        await page.keyboard.press('Escape');                // the sheet, the top again, is the next to go
+        await expect(sheet).toBeHidden();
+        await expect(page.locator('#loginOverlay')).toBeVisible();
+    });
 });
 
 // Same race, from the drawer: the brand button closes the drawer (a `history.back()`) and opens
@@ -230,6 +349,49 @@ test('drawer brand → About: Back closes About and stays on the page', async ({
 
     await page.evaluate(() => history.back());
     await expect(about).toBeHidden();
+    await expect(page).toHaveURL(/admin\.html/);
+});
+
+// A DIALOG OVER APP NOTICES ANSWERS ITS OWN CANCEL AND ITS OWN BACK (shared-ui-6). App Notices shares the
+// drawer's history entry, and while it was open the drawer took EVERY popstate for its own: the echo of a
+// dialog's Cancel closed App Notices underneath and stranded the drawer's entry, and a hardware Back
+// closed App Notices while the dialog on top of it stayed. A dialog can arrive by itself — the app-update
+// question, the unsaved-work offer — so this one is opened the way those are.
+test('drawer: a dialog over App Notices answers its own Cancel and Back, and App Notices waits for its own', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const notices = page.locator('#navNoticesLightbox');
+    const dialog = page.locator('.dialog-overlay.open');
+    const noticesThenDialog = async () => {
+        await page.locator('#navMenuBtn').click();
+        const toggle = page.locator('#navGuidesToggle');
+        if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+        await page.locator('.nav-panel-link--notices').click();
+        await expect(notices).toHaveClass(/\bopen\b/);
+        await page.evaluate(async () => {
+            const { confirmDialog } = await import('/overlay.js');
+            /** @type {any} */ (window).__answer = confirmDialog({ message: 'A new version is ready. Reload now?' });
+        });
+        await expect(dialog).toBeVisible();
+    };
+
+    await noticesThenDialog();
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(dialog).toBeHidden();
+    await page.waitForTimeout(600);   // the dialog's Back echo has landed
+    await expect(notices, 'the dialog\'s Cancel closed App Notices underneath').toHaveClass(/\bopen\b/);
+    await page.evaluate(() => history.back());
+    await expect(notices, 'App Notices still holds the drawer\'s entry, so Back closes it').not.toHaveClass(/\bopen\b/);
+    await expect(page).toHaveURL(/admin\.html/);
+
+    await noticesThenDialog();
+    await page.evaluate(() => history.back());
+    await expect(dialog, 'Back left the dialog on screen').toBeHidden();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__answer), 'Back is the dialog\'s Cancel').toBe(false);
+    await expect(notices, 'and closed App Notices beneath it instead').toHaveClass(/\bopen\b/);
+    await page.evaluate(() => history.back());
+    await expect(notices).not.toHaveClass(/\bopen\b/);
     await expect(page).toHaveURL(/admin\.html/);
 });
 
@@ -272,6 +434,114 @@ test('drawer: the body fades at the fold only while there is more below it', asy
     await expect(page.locator('#navPanel')).toHaveClass(/\bopen\b/);
     await page.waitForTimeout(100);   // two frames for the first measure
     await expect(body, 'a drawer that fits wears no fade').not.toHaveClass(/\bhas-more\b/);
+});
+
+// ── A PAGE'S FIELD RULES STAY ON THE PAGE (css-admin-ops-1 and -5, Nov 2026) ────────────────────────
+// Admin and Operations style their fields BY ELEMENT, and those rules were unscoped, so they reached
+// the shared surfaces every page hosts and out-ranked those surfaces' own rules. Focused, the drawer's
+// guide search turned white under its white text — a search typed blind — and the drawer search had
+// only ever been driven on the Calendar. Both rules are scoped to `.container` now; these two tests
+// hold every card page to one drawer box and one sign-in screen.
+test('drawer: the guide search box looks the same on every card page while it is typed in', async ({ page }) => {
+    test.setTimeout(90_000);
+    await seedSession(page, 'G. Miller');
+    /** @type {Record<string, string>} */
+    const looks = {};
+    for (const p of APP_PAGES_LIST.filter(x => x.cards)) {
+        await page.goto(p.url);
+        await waitForPageSettled(page);
+        await page.locator('#navMenuBtn').click();
+        const input = page.locator('#navGuideSearchInput');
+        await expect(input, `${p.file}: the drawer's search box`).toBeVisible();
+        await input.click();
+        await input.pressSequentially('rail');
+        const look = await input.evaluate(el => {
+            const c = getComputedStyle(el);
+            return { text: c.color, fill: c.backgroundColor, ring: `${c.outlineColor} ${c.outlineStyle}` };
+        });
+        expect(look.text, `${p.file}: what is typed is drawn in the colour of the box it is typed into`).not.toBe(look.fill);
+        looks[p.file] = JSON.stringify(look);
+    }
+    const [first, ...rest] = Object.entries(looks);
+    for (const [file, look] of rest) expect(look, `${file}'s drawer search differs from ${first[0]}'s`).toBe(first[1]);
+});
+
+// …and the sign-in card's hidden username field (the password manager's) took the page's
+// `input[type="text"] { width: 100% }` — 100% of the fixed overlay, from the card's middle — so the
+// sign-in screen, and the set-password screen after it, could be dragged half a screen sideways. The
+// overflow is inside a fixed overlay, so no document-width check could see it.
+test('the sign-in and set-password screens never scroll sideways, on any page', async ({ page }) => {
+    test.setTimeout(90_000);
+    // BEFORE the first page, as forcePasswordSet's contract says: WebKit serves a later page the roster-data.js
+    // it already holds, past the route that turns the setting on, so a call after the first loop never reached
+    // the set-password half there (10 Nov 2026). Nothing in the first loop signs in, so it changes nothing there.
+    await forcePasswordSet(page);
+    await page.setViewportSize({ width: 375, height: 800 });
+    const sideways = (/** @type {string} */ id) => page.locator(id).evaluate(el => el.scrollWidth - el.clientWidth);
+    for (const p of APP_PAGES_LIST.filter(x => x.cards && (x.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true))) {
+        await page.goto(p.url);
+        await page.locator('#loginOverlay.visible').waitFor();
+        expect(await sideways('#loginOverlay'), `${p.file}: the sign-in screen scrolls sideways`).toBeLessThanOrEqual(0);
+    }
+    for (const url of ['/admin.html', '/operations.html']) {
+        await page.goto(url);
+        await page.evaluate(() => localStorage.clear());   // the first page's sign-in must not carry over
+        await page.goto(url);
+        await signInThroughOverlay(page, 'G. Miller');
+        await expect(page.locator('#pwForceOverlay')).toBeVisible();
+        expect(await sideways('#pwForceOverlay'), `${url}: the set-password screen scrolls sideways`).toBeLessThanOrEqual(0);
+    }
+});
+
+// ── EVERY CONTROL A PAGE STYLES IS SET IN INTER (css-admin-ops-9, Nov 2026) ───────────────────────────
+// A <button> or an <input> does not inherit the page's font — the browser gives it the platform's — so
+// each rule that styles one has to say `font-family: inherit`, and on Admin and Operations eighteen did
+// not: "Upload Huddle", the review's ticks and choices, Reset, Set email, Mon–Fri, the month toggle were
+// Arial on the station PC beside Inter. The baselines were drawn with the wrong font in them, and
+// nothing read a control's font. This reads every control carrying a class the page's OWN stylesheet
+// styles, with the surfaces that build controls on demand opened first.
+test('every control Admin and Operations style is set in Inter', async ({ page }) => {
+    test.setTimeout(90_000);
+    const offInter = (/** @type {string} */ sheet) => page.evaluate((file) => {
+        /** @type {Set<string>} */
+        const own = new Set();
+        /** @param {CSSRuleList} rules */
+        const walk = (rules) => {
+            for (const r of /** @type {any} */ (rules)) {
+                if (r.selectorText) for (const m of r.selectorText.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)) own.add(m[1]);
+                if (r.cssRules) walk(r.cssRules);
+            }
+        };
+        for (const s of document.styleSheets) if ((s.href || '').endsWith('/' + file)) walk(s.cssRules);
+        const off = new Set();
+        for (const el of document.querySelectorAll('button, input, select, textarea')) {
+            if (el.matches('input[type="checkbox"], input[type="radio"], input[type="file"]')) continue;
+            if (![...el.classList].some(c => own.has(c))) continue;
+            if (!/^"?Inter\b/.test(getComputedStyle(el).fontFamily)) off.add(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`);
+        }
+        return { read: own.size, off: [...off] };
+    }, sheet);
+
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const admin = await offInter('admin.css');
+    expect(admin.read, 'premise: admin.css was read').toBeGreaterThan(100);
+    expect(admin.off, 'Admin controls drawn in the platform font').toEqual([]);
+
+    await stubUsageReads(page, {});
+    await stubPerfReads(page, {});
+    await openRosterReview(page);   // the review's ticks, choices and skip-all
+    await page.evaluate(() => {
+        for (const id of ['accountStatusBody', 'usageBody', 'pageSpeedBody']) document.getElementById(id)?.classList.add('open');
+        for (const id of ['usageToggleHeader', 'pageSpeedToggleHeader']) document.getElementById(id)?.click();
+    });
+    await page.locator('.acct-row .email-set-btn').first().click();   // the email form, built on demand
+    await expect(page.locator('.email-set-input')).toBeVisible();
+    await expect(page.locator('.speed-toggle-btn').first(), 'premise: a month toggle is drawn').toBeAttached();
+    const ops = await offInter('operations.css');
+    expect(ops.read, 'premise: operations.css was read').toBeGreaterThan(100);
+    expect(ops.off, 'Operations controls drawn in the platform font').toEqual([]);
 });
 
 // ── THE FIRST CARD SITS THE SAME DISTANCE UNDER THE HEADER ON EVERY PAGE (desktop audit, Nov 2026) ─
@@ -385,6 +655,27 @@ test('header: the burger and the sub-page logo answer a mouse', async ({ page },
     await logo.hover();
     await expect.poll(() => logo.evaluate(el => getComputedStyle(el).transform), { message: 'the logo grows on hover, as the Calendar\'s does' })
         .toBe('matrix(1.12, 0, 0, 1.12, 0, 0)');
+});
+
+// …AND UNDER REDUCED MOTION NOTHING IN THE SHARED CHROME SWINGS OR GROWS (whole-app review, Nov 2026). shared.css says
+// motion is neutralised everywhere, and three still moved: the logo's hover grow, every card's chevron and the drawer's
+// Reference arrow, each turning through 180° on its way to saying open or shut. The arrows still turn — that is the
+// state — they just do not swing there; the grow, being only movement, goes.
+test('header and cards: with reduced motion on, the logo does not grow and the arrows do not swing', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a hover is a fine pointer\'s');
+    await seedSession(page, 'G. Miller');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/settings.html');
+    const logo = page.locator('#appIcon');
+    await logo.hover();
+    expect(await logo.evaluate(el => getComputedStyle(el).transform), 'the logo under a mouse').toBe('none');
+    await page.locator('#navMenuBtn').click();
+    const moving = await page.evaluate(() => [...document.querySelectorAll('.app-icon, .collapse-chevron, .nav-panel-guides-arrow')]
+        .filter(el => getComputedStyle(el).transitionDuration.split(',').some(d => parseFloat(d) > 0))
+        .map(el => el.id || el.className));
+    expect(moving, 'still easing under reduced motion').toEqual([]);
+    expect(await page.locator('.collapse-chevron').count(), 'premise: the page has card chevrons to check').toBeGreaterThan(0);
 });
 
 // ── KEYBOARD FOCUS ON THE NAVY SURFACES THE SHARED CODE DRAWS (desktop audit, Nov 2026) ──────────
@@ -513,6 +804,128 @@ test('App Notices: a long archive is reached and scrolled from the keyboard, wit
     await expect(page.locator('#navNoticesClose'), 'and Tab goes round to the ✕ — the panel keeps focus').toBeFocused();
     await page.keyboard.press('Shift+Tab');
     await expect(list, 'Shift+Tab comes back to the list').toBeFocused();
+});
+
+// AN EMPTY ARCHIVE IS ITS MESSAGE AND NOTHING ELSE (whole-app review, Nov 2026). nav-panel.js hides the list when
+// there is nothing archived, and `display: flex` beat the `hidden` attribute, so the list stayed: a 0px box that took
+// the column's gap a second time and was still read out as an empty "Notices you've read" group. Playwright's own
+// `toBeHidden()` cannot see this — a box 0px tall already counts as hidden — so the box and the role are asked.
+test('App Notices: an empty archive shows its message, with no empty list left in the panel', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.removeItem('myb_app_notices'));
+    await page.goto('/settings.html');
+    await page.locator('#navMenuBtn').click();
+    const toggle = page.locator('#navGuidesToggle');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    await page.locator('.nav-panel-link--notices').click();
+    await expect(page.locator('#navNoticesLightbox')).toBeVisible();
+    await expect(page.locator('#navNoticesEmpty'), 'the empty archive says so').toBeVisible();
+    // Layout offsets, not client rects: the panel is still scaling in from 0.88, and a rect would read the gap short.
+    const m = await page.evaluate(() => {
+        const list = /** @type {HTMLElement} */ (document.getElementById('navNoticesList'));
+        const panel = /** @type {HTMLElement} */ (document.getElementById('navNoticesContent'));
+        const heading = /** @type {HTMLElement} */ (panel.querySelector(':scope > .nav-cs-title'));
+        const message = /** @type {HTMLElement} */ (document.getElementById('navNoticesEmpty'));
+        return { hidden: list.hidden, boxes: list.getClientRects().length, gap: parseFloat(getComputedStyle(panel).rowGap),
+                 under: message.offsetTop - (heading.offsetTop + heading.offsetHeight) };
+    });
+    expect(m.hidden, 'premise: nav-panel.js hides the list of an empty archive').toBe(true);
+    expect(m.boxes, 'the hidden list is still laid out').toBe(0);
+    expect(Math.round(m.under), 'the message sits one gap under the heading, not two').toBe(m.gap);
+    await expect(page.getByRole('group', { name: /Notices you.ve read on this device/ }),
+        'an empty group is still offered to a screen reader').toHaveCount(0);
+});
+
+// …and the other half of the same rule: a list that is NOT hidden is still drawn, so the companion above can only ever
+// take an empty archive's list away.
+test('App Notices: an archive with a notice in it lists it', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify([{
+        id: 'e2e-filled', title: 'A notice you have read', section: 'Calendar', date: '2026-11-01',
+        body: 'Its words.', archivedAt: new Date().toISOString(),
+    }])));
+    await page.goto('/settings.html');
+    await page.locator('#navMenuBtn').click();
+    const toggle = page.locator('#navGuidesToggle');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    await page.locator('.nav-panel-link--notices').click();
+    await expect(page.locator('#navNoticesLightbox')).toBeVisible();
+    await expect(page.locator('#navNoticesList .notices-item'), 'the read notice is listed').toHaveCount(1);
+    await expect(page.locator('#navNoticesList .notices-item-title')).toHaveText('A notice you have read');
+    await expect(page.locator('#navNoticesList'), 'the list is drawn').toBeVisible();
+    await expect(page.locator('#navNoticesEmpty'), 'no "nothing here" beside a notice').toBeHidden();
+});
+
+// A TIPS TITLE STAYS CLEAR OF ITS ✕ (whole-app review, Nov 2026). The picker sheet's head reserves room for its ✕ and
+// the Tips panel's title did not: "🙋 Password Reset Requests" ran 8px under the glyph at 360px. Every line of the
+// title is measured, because the ✕ sits beside the first and a wrapped second line still reaches its target.
+test('Tips: a long panel title stays clear of the panel\'s ✕ on a small phone', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await seedSession(page, 'G. Miller');   // admin — Operations lets them in
+    await page.goto('/operations.html');
+    await page.locator('.btn-card-tips[data-card="reset-requests"]').click();
+    await expect(page.locator('#tipsLbTitle')).toHaveText(/Password Reset Requests/);
+    const m = await page.evaluate(() => {
+        const range = document.createRange();
+        range.selectNodeContents(/** @type {HTMLElement} */ (document.getElementById('tipsLbTitle')));
+        const lines = [...range.getClientRects()];
+        return { textRight: Math.max(...lines.map(r => r.right)), closeLeft: /** @type {HTMLElement} */ (document.getElementById('tipsLightboxClose')).getBoundingClientRect().left };
+    });
+    expect(m.textRight, `the title's text ends at ${m.textRight}, the ✕'s target starts at ${m.closeLeft}`).toBeLessThanOrEqual(m.closeLeft);
+});
+
+// A HIDDEN TOUCH-ONLY LINE STAYS HIDDEN ON A TOUCH SCREEN (whole-app review, Nov 2026). `.touch-only` shows itself on a
+// coarse pointer with `display: revert`, which rolls back past the `hidden` attribute, so the Calendar's and Trains'
+// swipe hints each needed a rule in their own page to stay hidden. The shared utility honours `hidden` itself now.
+test.describe('touch-only on a touch screen', () => {
+    test.use({ hasTouch: true });
+    test('a touch-only line the code has hidden stays hidden, and one it has not shows', async ({ page }) => {
+        await page.goto('/settings.html');
+        expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), 'premise: a coarse pointer').toBe(true);
+        const shown = await page.evaluate(() => [true, false].map(hidden => {
+            const line = document.createElement('p');
+            line.className = 'touch-only';
+            line.hidden = hidden;
+            line.textContent = 'Swipe the table sideways';
+            document.body.append(line);
+            return getComputedStyle(line).display;
+        }));
+        expect(shown, 'the hidden line, then the shown one').toEqual(['none', 'block']);
+    });
+});
+
+// A LINK IN PROSE IS THE APP'S LINK (whole-app review, Nov 2026). Nothing styled a link in a Tips panel or in a
+// card's explainer, so Trains' two journey-planner links were the browser's own blue, and purple once followed:
+// the one in its Tips today, and the one in the line that says both timetables have ended, from 16 May 2027. Each
+// is read in its own state, so each has its own clock.
+test.describe('a link in a Tips panel or a card explainer', () => {
+    const navy = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => {
+        const probe = document.body.appendChild(document.createElement('span'));
+        probe.style.color = 'var(--primary-blue)';
+        const c = getComputedStyle(probe).color;
+        probe.remove();
+        return c;
+    });
+    const look = (/** @type {import('@playwright/test').Locator} */ link) => link.evaluate(a => {
+        const s = getComputedStyle(a);
+        return { colour: s.color, weight: s.fontWeight };
+    });
+    for (const { when, at, open, link } of [
+        { when: 'in Trains\' Tips', at: '2026-11-10T09:00:00Z', open: '.btn-card-tips[data-card="overview"]', link: '#tipsLightboxContent a' },
+        { when: 'once both timetables have ended', at: '2027-05-20T09:00:00Z', open: null, link: '#trEnded a' },
+    ]) {
+        test(`wears the app's navy, not the browser's blue — ${when}`, async ({ page }) => {
+            await page.clock.setFixedTime(new Date(at));
+            await seedSession(page, 'G. Miller');
+            await page.goto('/trains.html');
+            if (open) await page.locator(open).click();
+            const a = page.locator(link, { hasText: 'the journey planner' });
+            await expect(a).toBeVisible();
+            expect(await look(a)).toEqual({ colour: await navy(page), weight: '600' });
+        });
+    }
 });
 
 // A SIGNED-OUT VISIT STILL TAKES AN UPDATE (whole-app review, Oct 2026). Pay, Trains and Overtime
@@ -685,6 +1098,45 @@ test('every page renders in Inter, not a browser default', async ({ page }) => {
     expect(wrong, 'pages not rendering in the app typeface').toEqual([]);
 });
 
+// ── …AND SO DOES EVERY CONTROL ON IT (whole-app review, Nov 2026) ──────────────────────────────────────
+// A form control does not inherit the page's typeface: the browser gives `button`, `input`, `select` and
+// `textarea` a font of their own, so every control without a `font-family` rule of its own was drawn in
+// Arial — the burger on all nine pages, Pay's hours fields and its Clear and ± buttons, the date picker's
+// arrows, the prompt dialog's field, the FIP finder's clear ✕. Asked of every control a page holds, shown
+// or not, and of the two that are built only when opened. A box that names a face on purpose (the
+// monospace paste boxes) is not a browser default, and is the one face allowed besides Inter.
+test('every control on every page and guide is set in Inter, not the browser\'s control font', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    const census = () => page.evaluate(() => [...document.querySelectorAll('button, input, select, textarea')]
+        .filter(el => !['checkbox', 'radio', 'hidden'].includes(el.getAttribute('type') ?? ''))
+        .map(el => ({ el, face: getComputedStyle(el).fontFamily }))
+        .filter(({ face }) => !/^"?Inter\b/.test(face) && !/^ui-monospace\b/.test(face))
+        .map(({ el, face }) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''} → ${face.split(',')[0]}`));
+    /** @type {string[]} */
+    const wrong = [];
+    const GUIDES = ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide'].map(g => `/${g}.html`);
+    for (const url of [...APP_URLS, ...GUIDES]) {
+        await page.goto(url);
+        if (APP_URLS.includes(url)) await waitForPageSettled(page);
+        wrong.push(...(await census()).map(c => `${url} ${c}`));
+    }
+    // Built on demand: the date picker (Admin's week label opens it) and the prompt dialog.
+    await page.goto('/admin.html');
+    await waitForPageSettled(page);
+    await page.locator('#weekNavLabel').click();
+    await expect(page.locator('.dp-content')).toBeVisible();
+    wrong.push(...(await census()).map(c => `the date picker ${c}`));
+    await page.goto('/links.html');
+    await page.evaluate(async () => {
+        const { promptDialog } = await import('/overlay.js');
+        promptDialog({ title: 'Name', message: 'Name?', defaultValue: 'seed' });
+    });
+    await expect(page.locator('.dialog-overlay .dialog-input')).toBeVisible();
+    wrong.push(...(await census()).map(c => `the prompt dialog ${c}`));
+    expect(wrong, 'controls in the browser\'s own font').toEqual([]);
+});
+
 // ── No focusable field may sit under 16px on a touch device (v19.61) ─────────────────────────────
 // iOS force-zooms the page when you focus a field smaller than 16px, and the app has said "never go
 // below 16px on a focusable field" in css-tokens.md since v11.77 — with NOTHING enforcing it.
@@ -759,6 +1211,90 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
     }
 });
 
+// ── EVERY FIELD WEARS THE FIELD RING WHEN FOCUSED (whole-app check, 10 Nov 2026) ─────────────────
+// css-tokens.md: "Every focusable field carries `--focus-ring`, including inputs inside modals." No
+// test held that sentence for the page's own fields, and the sign-in fields and the picker's search box
+// wore the ring only on Admin and Operations, borrowed from those pages' field rules (those two are
+// pinned by e2e/auth.spec.js → "a focused sign-in field, and the picker's search box, wear the field
+// ring on every page"). A static reading cannot answer it — a page rule that sets only the outline
+// correctly leaves the glow to a wider one — so the focused field's COMPUTED shadow is read, on every
+// page, with every card opened as a reader opens it.
+// One field is left out by name, the drawer's guide search. The drawer stays shut through the sweep, so
+// the box cannot take focus (a shut drawer is `visibility: hidden`, and the sweep reports a field it
+// could not focus); opened, it is the one field that does not wear the ring, by decision — on the navy
+// drawer it wears the gold outline drawn for a dark surface (shared.css).
+const RING_EXEMPT = { '.nav-gs-input': 'shut, it cannot take focus; open, it wears the gold outline drawn for the navy drawer, not the light-surface glow' };
+test('every focusable field wears the field ring when focused @a11y', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard');
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+    });
+    for (const url of APP_URLS) {
+        await page.goto(url);
+        await waitForPageSettled(page);
+        if (url === '/paycalc.html') {
+            // Pay's payslip check is on screen only for a payslip that can be in hand, and calculate()
+            // re-hides it on every run for one that cannot — focusing the fields above it runs one — so
+            // forcing it open (the 16px sweep can, measuring in one task) would hide it again mid-sweep.
+            // A PAID payslip instead, as a member checking one has, and the two disclosures that are not
+            // cards opened by their own buttons.
+            await page.locator('#periodSelect').selectOption({ index: 1 });
+            await expect(page.locator('#checkActualWrap')).toBeVisible();
+            for (const btn of ['#hoursShowMore', '#actualMoreBtn']) {
+                const b = page.locator(btn);
+                if (await b.getAttribute('aria-expanded') !== 'true') await clickInView(b);
+                await expect(b).toHaveAttribute('aria-expanded', 'true');
+            }
+        }
+        // Opened through each card's own control (Pay's are `.content-card`s with an arrow), so a body
+        // that is hidden by more than its class is open too, and its fields can take focus.
+        for (const id of await page.locator('.card-collapsible-body, .collapsible-body').evaluateAll(els => els.map(e => e.id))) {
+            const body = page.locator(`#${id}`);
+            if (await body.evaluate(el => el.classList.contains('open'))) continue;
+            await body.evaluate(el => {
+                const card = el.closest('.card, .content-card');
+                /** @type {HTMLElement|null|undefined} */ (card?.querySelector('.card-toggle-arrow') ?? card?.querySelector('.card-header-toggle'))?.click();
+            });
+        }
+        // The ring is drawn on `:focus-visible`, and a script's focus() answers it the way the last
+        // interaction did: after Pay's clicks above, a focused BUTTON (every `.fieldpick` trigger) is a
+        // mouse user's and shows nothing. One Tab makes this a keyboard user's sweep — the reader the
+        // ring is for.
+        await page.keyboard.press('Tab');
+        const own = await ownElements(page, TEXT_FIELDS);
+        const seen = await page.evaluate(async (exempt) => {
+            const probe = document.body.appendChild(document.createElement('div'));
+            probe.style.boxShadow = 'var(--focus-ring)';
+            const ring = getComputedStyle(probe).boxShadow;
+            probe.remove();
+            const fields = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('input, select, textarea, .fieldpick')]).filter(el => {
+                const t = /** @type {any} */ (el).type;
+                return !['checkbox', 'radio', 'hidden', 'file'].includes(t) && el.getClientRects().length
+                    && !(/** @type {any} */ (el).disabled) && el.tabIndex >= 0
+                    && getComputedStyle(el).pointerEvents !== 'none'          // an enhanced select's value holder
+                    && !Object.keys(exempt).some(sel => el.matches(sel));
+            });
+            const bad = [];
+            for (const el of fields) {
+                el.focus();
+                const name = `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : '.' + String(el.className).split(' ')[0]}`;
+                if (document.activeElement !== el) { bad.push(`${name}: could not be focused, so it was not measured`); continue; }
+                await Promise.all(el.getAnimations().map(a => a.finished.catch(() => {})));
+                if (!getComputedStyle(el).boxShadow.includes(ring)) bad.push(`${name}: no --focus-ring`);
+                el.blur();
+            }
+            return { measured: fields.length, bad };
+        }, RING_EXEMPT);
+        expect(own.held === 0 || seen.measured > 0,
+            `${url} holds ${own.held} fields of its own and none was focused — the page was not laid out, so this proves nothing`).toBe(true);
+        expect(seen.bad, `${url}: focused fields without the field ring`).toEqual([]);
+    }
+});
+
 /**
  * THE PRE-EXISTING FAILURES THE v23.35 WIDENING FOUND, RECORDED RATHER THAN HIDDEN.
  *
@@ -828,6 +1364,12 @@ const KNOWN_SMALL = {
 // would fail a control that is comfortably operable. What that bargain requires is that the row
 // ACTUALLY clears 44px, which is the half Settings was missing — its `.pw-show-row` had no height
 // of its own, so the label rescued nothing.
+//
+// A `<summary>` IS A CONTROL TOO (whole-app check, 10 Nov 2026): it is the button that opens its
+// `<details>`, and the selector never named it, so no fold in the app was measured. The walk reaches
+// the Links check card's quiet fold; the others — Trains' "Train by train", Links' compare fold,
+// Admin's save receipt, Operations' stack trace — appear only after a choice, a save or an error
+// that this walk does not make.
 test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
     test.skip(info.project.name !== 'mobile-chrome', 'a thumb, not a mouse');
     // It walks every control on several pages, so it needs ~32s on an idle runner — right on the
@@ -869,7 +1411,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
         // No wait after opening: `.open` is `display: block`, nothing animates (the 16px sweep above).
         await page.evaluate(() => document.querySelectorAll('.card-collapsible-body')
             .forEach(el => el.classList.add('open')));
-        const own = await ownElements(page, 'button, select, [role=button], input[type=checkbox], input[type=radio]');
+        const own = await ownElements(page, 'button, select, summary, [role=button], input[type=checkbox], input[type=radio]');
         expect(own.held === 0 || own.withBox > 0,
             `${url} holds ${own.held} controls of its own and none had a box — the page was not laid out, so this proves nothing`).toBe(true);
         const scan = () => page.evaluate(() => {
@@ -919,7 +1461,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
             const target = (el) => (/^(checkbox|radio)$/.test(el.type)
                 && el.closest('label')) || el;
             document.querySelectorAll(
-                'button, select, [role=button], input[type=checkbox], input[type=radio]'
+                'button, select, summary, [role=button], input[type=checkbox], input[type=radio]'
             ).forEach(node => {
                 const el = target(node);
                 const r = el.getBoundingClientRect();

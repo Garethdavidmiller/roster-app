@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * links-grid-input.test.mjs — the design grid's keyboard rule, and a mouse stroke's bookkeeping.
- * Run: node --test links-grid-input.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-grid-input.test.mjs   (part of `npm run test:hygiene`)
  *
  * The browser half — focus really landing on a cell, a real drag across real buttons, a phone's tap —
  * is e2e/links.spec.js. What can be pinned without one is here: which cell a key reaches, that the

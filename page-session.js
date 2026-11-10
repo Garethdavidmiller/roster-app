@@ -110,6 +110,20 @@ function leavesPage(link) {
 }
 
 /**
+ * Does this click send the link somewhere else rather than this tab — a new tab (Ctrl, or Cmd on a
+ * Mac), a new window (Shift), a download (Alt), or a button other than the main one? Then it leaves
+ * the page where it is, so there is nothing to ask; and "Leave" could not honour it anyway, because
+ * the re-click carries no modifier and navigated THIS tab (routed from shared-ui, Nov 2026). The same
+ * test as the drawer's own `plainClick`. A click with no `button` at all — an event built in code —
+ * counts as the main button, so it is still asked about.
+ * @param {MouseEvent} e
+ * @returns {boolean}
+ */
+function opensElsewhere(e) {
+    return (e.button ?? 0) !== 0 || !!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey);
+}
+
+/**
  * Ask before a DRAWER or ABOUT-PANEL LINK leaves the page with unsaved work (whole-app review, Oct
  * 2026; the About panel joined in the iPhone audit, Nov 2026). The browser's own unload prompt was the
  * only guard on those exits, and a phone never shows it, so a drawer pill discarded staged edits
@@ -121,7 +135,7 @@ function leavesPage(link) {
 export function askBeforeLeavingByDrawer(isDirty) {
     let passing = false;
     document.addEventListener('click', (e) => {
-        if (passing || !isDirty()) return;
+        if (passing || !isDirty() || opensElsewhere(e)) return;
         const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target)?.closest?.('a[href]'));
         if (!link || !LEAVING_ZONES.some(zone => link.closest(zone)) || !leavesPage(link)) return;
         e.preventDefault();

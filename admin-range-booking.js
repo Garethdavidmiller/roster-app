@@ -6,18 +6,35 @@
 // pre-save check, which boxes refresh) are passed in as config/hooks; admin-al.js and
 // admin-sick.js are thin wrappers over this factory (they keep their own public exports).
 //
-// Owns: element lookup by prefix, dropdown population (incl. the iOS optgroup fix),
+// Owns: element lookup by prefix, dropdown population (the remembered member set through its options),
 //   the shared preview guard chain (no member / no dates / bad range), rest-day counting
 //   via isWorkingDate, the change-listener wiring, and the whole save→feedback→refresh flow
 //   incl. the session-expired vs generic error split.
 // Does NOT own: the AL entitlement maths, the AL confirm-bar flag, or the spare-shift warning —
 //   admin-al.js injects them via the preSave / renderReady / project / swapQuestion hooks (the
 //   maths itself is admin-al-projection.js and admin-al-spare-note.js).
+//
+// ── ONE PICTURE OF THE MEMBER, AND THE SAVE ACTS ON THE ONE ON SCREEN NOW ──────────────────────
+//
+// What a save will do is decided by `_plan` — the record as it stands, and the answers given — and
+// the preview draws it. The Save click decides AGAIN, at the click, and refuses on two answers the
+// preview may not have had (whole-app check, 10 Nov 2026):
+//   · the member's records are not read yet (or the read failed). The over-allowance check, the
+//     swap answers and the receipt were decided from the cache as it stood, while the write waited
+//     for the read and decided again from what arrived — one save, two pictures of the member. The
+//     week grid refuses in the same state, in the same words.
+//   · a rest day needs the question and has not got it — the record changed under a drawn preview
+//     (a period deleted from the list below). It was left out of the save without a word; the rule
+//     is "ask, and refuse to save unanswered" (.claude/rules/admin.md), so the question is redrawn.
 
 import { teamMembers } from './roster-data.js';
-import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate, isSaveInFlight, setSaveInFlight } from './admin-overrides.js';
+import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate, isSaveInFlight, setSaveInFlight,
+         hasOverrideAuthorityFor } from './admin-overrides.js';
+import { loadFailedFor } from './admin-override-store.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
+import { rangeSundayCorrections } from './admin-al-projection.js';
+import { holdFeedback, fadeFeedback } from './admin-booked-periods.js';
 
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim-retry.js';
@@ -38,7 +55,10 @@ import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim
  * @param {string}            cfg.logLabel        console.error prefix ('AL' | 'Sick').
  * @param {(dates: string[]) => (string|null)} cfg.validateRange  Range-length rule → error msg or null.
  * @param {(ctx: { member: string, dates: string[], memberObj: any, memberOvByDate: Map<string, any>|null,
- *   rangeStr: string, workDays: number, restCount: number, projection?: any }) => string} cfg.renderReady  Ready-state innerHTML.
+ *   rangeStr: string, workDays: number, restCount: number, projection?: any, sundays?: string[],
+ *   sundayNote?: string }) => string} cfg.renderReady  Ready-state innerHTML. `sundays` are the Sundays
+ *   this save will set as rest days (`rangeSundayCorrections`) — counted in `restCount`/`skipped`, but
+ *   not skipped — and `sundayNote` says so in words, or is '' when there are none.
  * @param {(workingCount: number, member: string) => string} cfg.successFeedback  Inline ✓ feedback text.
  * @param {(workingCount: number, member: string) => string} cfg.successToast     Bottom-toast text.
  * @param {() => (string|null)} cfg.getCurrentUser  Live getter for the logged-in user name.
@@ -89,11 +109,8 @@ export function createRangeBookingSection(cfg) {
      *  would otherwise carry the previous member's answer into the new member's booking. */
     let swapAnswersFor = '';
 
-    /** @type {any} */
-    let feedbackTimer = null;
-
     cfg.populateMemberDropdown(cfg.memberSelect);
-    // iOS Safari ignores select.value on optgroup-nested options — set option.selected directly.
+    // Through the options, not `.value`: a remembered member no longer listed leaves the dropdown as it was, where `.value` would empty it. (WebKit honours `.value` with <optgroup>s — measured 10 Nov 2026.)
     if (cfg.lastMember) {
         for (const o of cfg.memberSelect.options) if (o.value === cfg.lastMember) { o.selected = true; break; }
     }
@@ -110,6 +127,18 @@ export function createRangeBookingSection(cfg) {
     /** True while this card's save is waiting on the server (v24.26). */
     let saving = false;
 
+    /**
+     * Every write to this card's feedback line goes through here, so a fade started for an earlier
+     * message can never hide a later one — an error, or a receipt meant never to time out. The fade
+     * is the line's own (`holdFeedback`), shared with the list below that reports its deletes on it.
+     * @param {''|'success'|'error'} kind @param {string} [text]
+     */
+    function _say(kind, text) {
+        holdFeedback(feedbackEl);
+        feedbackEl.className = kind ? `feedback ${kind}` : 'feedback';
+        if (text !== undefined) setStatus(feedbackEl, text);
+    }
+
     function _setEmpty(/** @type {string} */ msg) {
         previewEl.className = cfg.previewClass + ' empty';
         previewEl.textContent = msg;
@@ -119,6 +148,38 @@ export function createRangeBookingSection(cfg) {
         previewEl.className = cfg.previewClass + ' error';
         previewEl.textContent = msg;
         saveBtn.disabled = true;
+    }
+
+    /**
+     * What a save of `dates` for `member` would do NOW — the one computation the preview draws and
+     * the Save click checks (header). It also settles the swap answers: a new member drops them, and
+     * an answer for a day that no longer needs the question is forgotten.
+     * @param {string} member @param {string[]} dates
+     */
+    function _plan(member, dates) {
+        // Count rest days (RD/OFF, and always Sundays) in the range to warn the user.
+        // isWorkingDate is the single source that matches what the booking actually writes.
+        const memberObj = teamMembers.find(m => m.name === member);
+        /** @type {Map<string, any>|null} */
+        const ovByDate = memberObj ? buildMemberDateMap(memberObj.name) : null;
+        let restCount = 0;
+        if (memberObj && ovByDate) dates.forEach(d => { if (!isWorkingDate(memberObj, d, ovByDate)) restCount++; });
+        const workDays = dates.length - restCount;
+        // Asked ONLY when the range actually contains such a day (the owner's rule 1) — no rest days,
+        // no block. Resolved BEFORE the projection (v23.79): nothing may call a date skipped when
+        // Save is going to record it, so the answers are settled first.
+        if (member !== swapAnswersFor) { resetSwapAnswers(); swapAnswersFor = member; }
+        const pending = cfg.swapQuestion ? cfg.swapQuestion({ dates, memberObj, ovByDate }) : [];
+        for (const d of [...swapAnswers.keys()]) if (!pending.includes(d)) swapAnswers.delete(d);
+        const projection = cfg.project ? cfg.project({ member, dates, memberObj, ovByDate, swapAnswers }) : null;
+        /** @type {string[]} the rest days still waiting for their answer */
+        const open = projection?.unanswered ?? pending.filter(d => !swapAnswers.has(d));
+        // With a projection, "anything to write?" is ITS answer: a rest day holding an absence passes
+        // `isWorkingDate` but, answered "free", writes nothing (review A2).
+        const toWrite = projection ? projection.counts.writing : workDays + pending.filter(d => swapAnswers.get(d) === true).length;
+        // The worked Sundays the writer sets as rest days — only ever alongside a day of the booking.
+        const sundays = toWrite > 0 ? rangeSundayCorrections({ dates, memberObj, ovByDate }) : [];
+        return { memberObj, ovByDate, restCount, workDays, pending, projection, open, toWrite, sundays };
     }
 
     function updatePreview() {
@@ -136,55 +197,21 @@ export function createRangeBookingSection(cfg) {
         const toDisp   = formatDisplay(dates[dates.length - 1]);
         const rangeStr = dates.length === 1 ? fromDisp : `${fromDisp} – ${toDisp}`;
 
-        // Count rest days (RD/OFF, and always Sundays) in the range to warn the user.
-        // isWorkingDate is the single source that matches what the booking actually writes.
-        const memberObj = teamMembers.find(m => m.name === member);
-        let restCount = 0;
-        /** @type {Map<string, any>|null} */
-        let memberOvByDate = null;
-        if (memberObj) {
-            const ovMap = buildMemberDateMap(memberObj.name);
-            memberOvByDate = ovMap;
-            dates.forEach(dateStr => { if (!isWorkingDate(memberObj, dateStr, ovMap)) restCount++; });
-        }
-        const workDays = dates.length - restCount;
-
-        // ── THE SWAPPED-DAY QUESTION ───────────────────────────────────────────────────────────
-        // Asked ONLY when the range actually contains such a day (the owner's rule 1) — no rest
-        // days, no block, and the section behaves exactly as it did before v23.75.
-        //
-        // RESOLVED BEFORE THE PREVIEW IS RENDERED (v23.79). It used to run after, so `renderReady`
-        // described the range from the STORED state alone and could say "1 rest day skipped" about a
-        // day the admin had just declared swapped — a day Save was about to count. Nothing may call
-        // a date skipped when it is going to be recorded, so the answers are settled first and the
-        // projection built from them is what the preview is given.
-        if (member !== swapAnswersFor) { resetSwapAnswers(); swapAnswersFor = member; }
-        const pending = cfg.swapQuestion
-            ? cfg.swapQuestion({ dates, memberObj, ovByDate: memberOvByDate })
-            : [];
-        for (const d of [...swapAnswers.keys()]) if (!pending.includes(d)) swapAnswers.delete(d);
-
-        const projection = cfg.project
-            ? cfg.project({ member, dates, memberObj, ovByDate: memberOvByDate, swapAnswers })
-            : null;
-
+        const p = _plan(member, dates);
+        const n = p.sundays.length;
         previewEl.className = cfg.previewClass + ' ready';
         previewEl.innerHTML = cfg.renderReady({
-            member, dates, memberObj, memberOvByDate, rangeStr, workDays, restCount, projection,
+            member, dates, memberObj: p.memberObj, memberOvByDate: p.ovByDate, rangeStr,
+            workDays: p.workDays, restCount: p.restCount, projection: p.projection, sundays: p.sundays,
+            sundayNote: n ? (n === 1 ? '1 Sunday set as a rest day' : `${n} Sundays set as rest days`) : '',
         });
-        if (pending.length) previewEl.insertAdjacentHTML('beforeend', _swapBlock(pending));
+        if (p.pending.length) previewEl.insertAdjacentHTML('beforeend', _swapBlock(p.pending));
 
-        const answered = pending.filter(d => swapAnswers.has(d)).length;
-        const swapDays = pending.filter(d => swapAnswers.get(d) === true).length;
-        // Unanswered blocks the save outright (rule 2). Otherwise the old rule stands, with the
-        // declared swaps counting towards "is there anything to write?".
+        // Unanswered blocks the save outright (rule 2); otherwise "is there anything to write?".
         // `saving` first (v24.26): this runs on a swap answer, a date change and admin-app's
         // _refreshAlPreview, so while a held save waits it would re-arm Save from the form alone — and
         // the held save's new documents are not in the cache yet, so a second tap books every day again.
-        // With a projection, "anything to write?" is ITS answer: a rest day holding an absence passes
-        // `isWorkingDate` but, answered "free", writes nothing (review A2).
-        const toWrite = projection ? projection.counts.writing : workDays + swapDays;
-        saveBtn.disabled = saving || answered < pending.length || toWrite === 0;
+        saveBtn.disabled = saving || p.open.length > 0 || p.toWrite === 0;
     }
 
     /**
@@ -212,29 +239,28 @@ export function createRangeBookingSection(cfg) {
     }
 
     /**
-     * The days this save deliberately LEAVES ALONE — rest days answered "Rest day — free" — and the
-     * subset that already holds leave (polish round 2). .claude/rules/admin.md → "AL on a rest day is ASKED
-     * about": the receipt names the days it left alone, on BOTH surfaces, because a save may not do
-     * nothing silently. The week grid did (v23.88/v23.93); this card said only "Recorded N days".
+     * The days this save changes or leaves alone that its headline does not say, as receipt lines:
+     * rest days answered "Rest day — free" (.claude/rules/admin.md → "AL on a rest day is ASKED
+     * about": the receipt names the days it left alone, on BOTH surfaces) — named differently when
+     * leave already stands on one — and the worked Sundays set as rest days (whole-app check: the
+     * preview called those "skipped" and the receipt said nothing).
      *
-     * Read from the SAME projection the preview and the write use (`cfg.project`, which is
-     * `projectAlBooking`), so the list cannot disagree with what `recordRangeOverrides` skipped.
-     * Captured BEFORE the write, because a day it names as already holding leave is a fact about
-     * the record the save found. A card with no projection (Absence) leaves nothing alone this way.
-     * @param {string} member @param {string[]} dates
-     * @returns {string[]} the receipt lines, in date order — empty when nothing was left alone
+     * Read from the SAME plan the click checked, so it cannot disagree with what the write does.
+     * Built BEFORE the write, because a day named as already holding leave is a fact about the
+     * record the save found. The Sundays are confirmed against the writer's own count afterwards.
+     * @param {string} member @param {ReturnType<typeof _plan>} plan
+     * @returns {{ leftAlone: string[], sundays: string[] }} receipt lines, each in date order
      */
-    function _leftAloneLines(member, dates) {
-        if (!cfg.project) return [];
-        const ovByDate = buildMemberDateMap(member);
-        const proj = cfg.project({ member, dates, memberObj: teamMembers.find(m => m.name === member),
-                                   ovByDate, swapAnswers });
-        const skipped = proj?.answeredFree ?? [];
-        if (!skipped.length) return [];
-        const keptLeave = skipped.filter(/** @param {string} d */ d => ovByDate?.get(d)?.type === 'annual_leave');
+    function _receipt(member, plan) {
+        const skipped = plan.projection?.answeredFree ?? [];
+        const keptLeave = skipped.filter(/** @param {string} d */ d => plan.ovByDate?.get(d)?.type === 'annual_leave');
         // The week grid's own wording, from its own builder — never a second copy of it here.
-        return buildSaveReceipt({ toSave: [], removed: [], memberName: member, formatDate: formatDisplay,
-                                  skipped, keptLeave, describe: () => '' }).lines;
+        const lines = (/** @type {any} */ args) => buildSaveReceipt({ toSave: [], removed: [], memberName: member,
+            formatDate: formatDisplay, describe: () => 'Sunday, set as a rest day', ...args }).lines;
+        return {
+            leftAlone: skipped.length ? lines({ skipped, keptLeave }) : [],
+            sundays: plan.sundays.length ? lines({ toSave: plan.sundays.map(date => ({ date, type: 'correction', value: 'RD' })) }) : [],
+        };
     }
 
     /**
@@ -307,12 +333,31 @@ export function createRangeBookingSection(cfg) {
         const dates  = getDates();
         if (!member || !dates || !dates.length) return;
 
+        // NOT ON A RECORD THAT HAS NOT BEEN READ (header) — the week grid's refusal, in its words.
+        if (!hasOverrideAuthorityFor(member)) {
+            _say('error', globalThis.navigator?.onLine === false
+                ? "⚠ You're offline, so this member's saved changes can't be checked — reconnect, then try again."
+                : loadFailedFor(member)
+                    ? "⚠ Couldn't load this member's saved changes — reload the page before recording this."
+                    : "⚠ Still loading this member's saved changes — try again in a moment.");
+            return;
+        }
+        // THE SAVE ACTS ON THIS MOMENT'S PLAN, NOT THE PREVIEW'S (header): a rest day that now needs
+        // the question is asked, by redrawing the preview, and named — never silently left out.
+        const plan = _plan(member, dates);
+        if (plan.open.length) {
+            updatePreview();
+            _say('error', '⚠ ' + plan.open.map(/** @param {string} d */ d =>
+                `${formatDisplay(d)}: say whether this rest day was a swapped working day`).join(' · '));
+            return;
+        }
+
         // `swapAnswers` goes WITH the dates (v23.79). The over-entitlement check has to project what
         // this save will do, and until the write runs a declared swap exists nowhere else — the
         // override map still says REST, so a check built on it alone warns about the wrong number of
         // days. Passed as a copy: the check must not be able to edit the admin's answers.
         if (cfg.preSave && cfg.preSave({
-            member, dates, memberObj: teamMembers.find(m => m.name === member),
+            member, dates, memberObj: plan.memberObj,
             swapAnswers: new Map(swapAnswers),
         })) return;
 
@@ -320,54 +365,57 @@ export function createRangeBookingSection(cfg) {
         // day's existing record and each replace it; run together, both deleted the old document and
         // each wrote a new one, leaving two for the day. The grid's in-flight flag is the shared lock.
         if (isSaveInFlight()) {
-            feedbackEl.className = 'feedback error';
-            setStatus(feedbackEl, '⚠ Another change is still saving — try again when it has finished.');
+            _say('error', '⚠ Another change is still saving — try again when it has finished.');
             return;
         }
-        feedbackEl.className = 'feedback';
+        _say('');
         saving = true;
         setSaveInFlight(true);
         saveBtn.disabled    = true;
         saveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
 
-        // Before the write: see `_leftAloneLines`.
-        const leftAlone = _leftAloneLines(member, dates);
+        // Before the write: see `_receipt`.
+        const receipt = _receipt(member, plan);
 
         try {
-            const { workingCount } = await recordRangeOverrides({
+            const { workingCount, sundayCount } = await recordRangeOverrides({
                 type: cfg.overrideType, value: cfg.overrideValue, memberName: member, dates, changedBy: cfg.getCurrentUser() ?? '',
                 swappedDates: [...swapAnswers].filter(([, yes]) => yes).map(([d]) => d),
             });
 
             if (!workingCount) {
-                feedbackEl.className = 'feedback error';
-                setStatus(feedbackEl, '⚠ No working days in that range — nothing to record.');
+                _say('error', '⚠ No working days in that range — nothing to record.');
                 feedbackEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 return;
             }
 
-            feedbackEl.className = 'feedback success';
+            // The Sundays are named only when the writer set exactly those — the count it returns is
+            // the one fact about them that comes back, and a receipt may not name a day it did not change.
+            const sundays = sundayCount === plan.sundays.length ? receipt.sundays
+                : sundayCount ? [`${sundayCount === 1 ? '1 Sunday' : `${sundayCount} Sundays`} in the range set as ${sundayCount === 1 ? 'a rest day' : 'rest days'}`] : [];
+            const lines = [...receipt.leftAlone, ...sundays];
+            _say('success');
             // Through setStatus even though the string arrives from a CONFIG CALL — `successFeedback`
             // returns '✓ Recorded …', which no regex in status-glyph-parity can see (v21.94).
-            _showSaved(cfg.successFeedback(workingCount, member), member, leftAlone);
-            clearTimeout(feedbackTimer);
+            _showSaved(cfg.successFeedback(workingCount, member), member, lines);
             // A receipt that names days does not time out — the week grid's rule (v21.38): a manager
             // checking it against a paper request can outlast any number picked here.
-            if (!leftAlone.length) feedbackTimer = setTimeout(() => { feedbackEl.className = 'feedback'; }, 7000);
+            if (!lines.length) fadeFeedback(feedbackEl, 'feedback', 7000);
             // The form resets and Change-a-Shift scrolls into view below, so also fire
             // the bottom toast — confirmation must be visible regardless of scroll.
             cfg.showSuccess?.(cfg.successToast(workingCount, member));
 
-            picker.reset();
+            // The range clears; the MONTH stays (owner's decided default, 10 Nov 2026). Moving the
+            // picker back to today crossed a year after a next-year booking, and the banner above
+            // switched to this year's figures beside "✓ Recorded" — it now keeps the year just booked.
+            picker.reset({ keepView: true });
             updatePreview();
             cfg.afterSave?.();
             // Jump the Change a Shift section to show what was just recorded.
             cfg.showInChangeAShift?.(member, dates[0]);
         } catch (err) {
             console.error(`[Admin] ${cfg.logLabel} save failed:`, err);
-            clearTimeout(feedbackTimer);
-            feedbackEl.className = 'feedback error';
-            setStatus(feedbackEl, unconfirmedWriteLine(err, 'this booking', 'Saved Changes')
+            _say('error', unconfirmedWriteLine(err, 'this booking', 'Saved Changes')
                 // Signed out while a chunk waited (claim-retry.js): held for that account, and
                 // earlier chunks may have landed — the same check either way (v24.37). Or refused
                 // because an earlier write on this page is unconfirmed (v24.39).
@@ -383,7 +431,9 @@ export function createRangeBookingSection(cfg) {
                     ? "⚠ Couldn't load saved changes — reload the page before recording this."
                     : (/** @type {any} */ (err)).message === 'auth/session-expired'
                         ? "⚠ You've been signed out — please sign in again."
-                        : "⚠ Couldn't save — check your connection and try again.");
+                        // Everything else is the week grid's own wording (whole-app check): a refused
+                        // write (`permission-denied`) is a sign-in problem, not the connection.
+                        : '⚠ ' + saveFailureMessage(err));
         } finally {
             // Restore the button LABEL only — let updatePreview() govern the disabled state. On the
             // SUCCESS path picker.reset() has already cleared the range and updatePreview() disabled

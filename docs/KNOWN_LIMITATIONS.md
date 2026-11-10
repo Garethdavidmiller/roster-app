@@ -32,8 +32,9 @@ is in `ROADMAP_HISTORY.md`). These it left, each for a decision rather than a de
 - **Two twins kept apart on purpose.** `withTimeout` (`login-overlay.js`, `password-force.js`):
   login's copy ignores the error and the other's callers read its `myb/timeout` code, and sharing
   one would pull the Firebase module graph into the sign-in overlay's unit tests or need a new
-  module, for six lines. `adjustScrollOffsets` is one idea with a different target per guide
-  (`railcard-guide.js`, `rangers-guide.js`), in classic scripts with no shared module.
+  module, for six lines. `railcard-guide.js` and `rangers-guide.js` are one script twice — chip bar,
+  scrollspy, sticky offsets and deep-link landing, identical but for comments — in classic scripts with
+  no shared module; `fip-guide.js` carries the same blocks beside its finder.
 - **Typed colours.** The coloured `rgb()`/`rgba()` literals left in the app sheets — nearly all one
   navy shadow tint — are a ratchet that may only go down (`RGB_BASELINE` in
   `css-hex-parity.test.mjs`). The guide sheets keep their own palette guard.
@@ -73,8 +74,9 @@ to name the test. Staff stay on the previous release meanwhile.
 - **A failed deploy is announced, not repaired.** Every deploy workflow opens or comments on a
   `deploy-failure` issue through `.github/actions/report-deploy-failure`, whose header says why an
   issue, why repeated failures comment rather than open another, and why it never fails the job. The
-  reporter is a separate job (`needs: deploy` with a job-level `if: failure() ||
-  contains(needs.*.result, 'cancelled')`), so it fires whatever killed the deploy, setup included — and
+  reporter is a separate job that needs the deploy job (the mirror's needs its plan job too), with a
+  job-level `if: failure() || contains(needs.*.result, 'cancelled')`, so it fires whatever killed the
+  deploy, setup included — and
   when the deploy runs out of time, which ends a job cancelled rather than failed (until 10 Nov 2026 a
   timeout told nobody); `workflow-hygiene.test.mjs` holds that shape, because the
   triggering condition is an outage and cannot be reproduced on demand. **The irreducible tail:** the
@@ -428,6 +430,20 @@ classification in `AUTH_PLAN.md` §2. What still holds:
   field in a doc that never names anybody passes it, and so does a name beside something neither
   vocabulary lists.
 
+### A row comment that said too much about a colleague remains in git HISTORY
+
+From v22.41 until the whole-app fix (10 November 2026), the comment over one row of the world-readable
+member table (`roster-data.js`, then `roster-member-data.js`) said more about that colleague than
+their roster move, and `docs/MAINTENANCE_CALENDAR.md` said it again. No file in the tree carries it
+now. What still holds:
+
+- **Git history keeps it, as it keeps the two exposures above — and so does one commit's SUBJECT
+  line**, which every list of the repository's commits shows and no file edit reaches. Rewriting
+  history, or that subject, is the owner's call and has not been taken.
+- **The guard that now exists reads only the member table.** `roster-data.test.mjs` fails on a
+  comment there about a person's circumstances, wherever the name sits. `payroll-anonymity.test.mjs`
+  matches a name and a term on ONE line, which is how this one passed it.
+
 ### Admin/manager password is surname-derived (F-SEC-1) — the owner chose leave-as-is
 
 Every account's Firebase Auth password defaults to the member's surname (lowercased, non-alpha
@@ -575,10 +591,12 @@ allowlist must include:
 - `myb-roster.web.app/*`
 - `garethdavidmiller.github.io/*`
 
-**A missing domain fails silently:** every Firebase Auth call from it is refused
+**A missing domain fails without naming the cause:** every Firebase Auth call from it is refused
 (`auth/requests-from-referer-...-are-blocked`), so every Firestore write fails for every user on that
-domain, with no visible error in the app UI — which is what happened in May 2026, when the domain most
-staff use was left out. If a custom domain is ever added, add it to the allowlist in the same change.
+domain. Nothing in the app says why: a typed sign-in says only "Couldn’t sign you in. Try again — if it
+keeps happening, ask the admin." This is what happened in May 2026, when the domain most staff use was
+left out, and then the app showed no error at all. If a custom domain is ever added, add it to the
+allowlist in the same change.
 CLAUDE.md carries the same rule.
 
 **Tasks #2–#4** — per-member write isolation (shipped strict; the v10.94 outage post-mortem), the HPP
@@ -603,16 +621,20 @@ Check territory, or inherent platform behaviour, not bugs to patch:
   holds the list with each reason): none has been measured and none carries a tight visual baseline,
   so the one-line fix is available and not worth moving pixels for. A native control's box is the
   platform's, and the app stops depending on it only by not using it.
-- **Analytics dynamic-map value integrity.** `analytics/activeAccounts` and `analytics/perf_<month>`
-  hold date-keyed maps whose *values* Firestore rules cannot iterate or type-check, so an
-  authenticated session (a named member or the PIN viewer) could write forged counts. The rules
-  validate SHAPE and block key-removal (the destructive wipe), the `pv_` counts are int-checked, and
-  the App Speed card reads a value only when it is a whole number under a million (`perf-stats.js`).
-  A forged but PLAUSIBLE count is still indistinguishable from a real one — App Check territory, on
-  non-sensitive, admin-only aggregate counts.
+- **Analytics dynamic-map value integrity.** `analytics/activeAccounts`, `analytics/origins` and
+  `analytics/perf_<month>` hold maps whose keys and values Firestore rules cannot iterate or
+  type-check, so an authenticated session (a named member or the PIN viewer) could write forged
+  counts. The rules validate SHAPE and block key-removal (the destructive wipe), the `pv_` counts are
+  int-checked, and the App Speed card reads a value only when it is a whole number under a million
+  (`perf-stats.js`); the usage readers take a non-number as zero. A forged but PLAUSIBLE count is
+  still indistinguishable from a real one — App Check territory, on non-sensitive, admin-only
+  aggregate counts.
 - **`passwordSetAt` vs `resetAt` is a two-system stamp, not atomic.** A sub-second interleave of a
   member's self-set and an admin reset can momentarily misreport the "migrated" chip. It self-heals
-  on the next set/reset and stores no password material — a monitoring signal, not a control.
+  on the next set/reset and stores no password material. The chip is a monitoring signal, but
+  `resetAt` itself is a CONTROL: a device's silent sign-in is refused against it (AUTH_AND_SESSIONS.md
+  23), so every path that puts an account back on its surname default writes it FIRST, and changes
+  nothing if it cannot.
 - **An open Huddle viewer can hold a superseded link.** Two Power-Automate runs for one date send one
   push (a transaction closes the check-then-act race), and the push carries only `/#huddle`, so the
   viewer opens whatever Huddle is current at the tap. What remains is a viewer already OPEN, holding a
@@ -729,9 +751,10 @@ infrastructure.
 
 ### The pay-period grid ends on 12 Mar 2027 — extend it at the tax-year rollover, not before
 `CONFIG.LAST_OFFSET` (`paycalc-periods.js`) stops at the last 2026/27 payday. Extending it needs the
-2027/28 rows in `TAX_YEARS`, the thresholds tables, the Student Loan tables and the next award, and
-most of those are not published until early 2027 — adding a year now would mean guessing figures
-the calculator then presents as fact, which is the one thing `.claude/rules/paycalc.md` forbids. It
+2027/28 row in `TAX_YEARS`, the thresholds tables and the Student Loan tables, and most of those are
+not published until early 2027 — adding a year now would mean guessing figures the calculator then
+presents as fact, which is the one thing `.claude/rules/paycalc.md` forbids. The next pay award is not
+needed: the year is added without it, and the award's figures follow once it is announced. It
 is the existing "TAX YEAR ROLLOVER" step in `paycalc-periods.js`, due before the first 2027/28
 payday (~9 Apr 2027); `MAINTENANCE_CALENDAR.md` carries the date.
 
@@ -743,6 +766,12 @@ Chiltern may differ due to arrears, adjustments, and deductions not captured her
 The "Fill from calendar" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
 Standard weekday contracted hours are not pre-filled — staff enter those manually.
 The suggestion is advisory; staff should verify it against their actual payslip.
+
+### A backup made under a member's old name does not restore under the new one
+A backup is filed under the name it was made with, so after a member is renamed on the roster it is
+refused, and the member is told to contact the admin (`NOT_ON_ROSTER`, `paycalc-transfer.js`).
+Restoring it as theirs would need a former-name record on the member. Not built (owner, 10 Nov 2026:
+renames are rare), so a rename is handled by the admin when it happens.
 
 ### A back-pay lump on an un-entered payslip is left out of "This tax year so far"
 The year summary skips a paid payslip with no saved hours wholesale (it is listed under "Not entered
@@ -832,13 +861,23 @@ or deletes that day — "Two editors on one day", above.)
 ### Deleting an AL doc destroys the swap evidence it carried
 An AL written over a swapped-in day is the only surviving record of the swap (`replacedType` — the
 `shift` doc itself was deleted by the booking). Cancelling that leave via Saved Changes or the
-period delete removes the AL doc, and with it the record: the day reverts to base REST, and leave
-re-booked on it later would charge nothing. Not coded around, deliberately: the same deletion
+period delete removes the AL doc, and with it the record: the day reverts to base REST. Leave
+re-booked on it later is then asked about as any rest day is — was it a swapped working day? — so it
+costs a day only if the person booking still knows about the swap (`.claude/rules/admin.md` → "AL on a
+rest day is ASKED about"). Not coded around, deliberately: the same deletion
 makes the calendar visibly WRONG (the member is contracted to work a day now showing Rest), so
 the manager's natural next action — re-recording the shift — restores both the display and the
 evidence in one step. Restoring it automatically is impossible anyway: the shift's TIME was never
 preserved, only its type. If a cancelled-leave-on-swapped-day case ever recurs without the
 re-record, that is the signal to store more than the type.
+
+### A device that missed the ended-month release in November may open on November once in December
+The Calendar keeps the month on screen between visits, but since the whole-app fix (November 2026) it
+never stores the CURRENT month (`persistViewedMonth`, `calendar-state.js`). So a month that has ended
+is not brought back as though somebody had browsed to it. A device that did not open a release
+carrying that change during November may still hold a November stored by the release before. That
+month cannot be told from one browsed back to, so the Calendar opens on November until the member
+moves to another month. It cannot happen again after that.
 
 ---
 
@@ -854,6 +893,16 @@ pulls such focus back (`_guardFocus`, `overlay.js`); the nav drawer, its two lig
 viewer keep their own Tab traps and have no guard, so the arrows can leave the drawer's *Search the
 guides* box for a field behind it. Deferred because `nav-panel.js` is at its line cap; the device check
 is in `IPHONE_RELEASE_CHECKLIST.md` → B.
+
+### On an iPhone, reloading a guide opened at a heading goes back to that heading
+A guide opened at a `#heading` (a drawer search result, a card link) lands below the sticky header, and
+the guide scripts never pull back a reader who has since moved (guides-4, Nov 2026). A RELOAD is the
+exception on WebKit: Safari scrolls to the `#fragment` again itself, where Chromium restores the reader's
+place. The app moves nothing afterwards — `e2e/guides.spec.js` → "a deep link does not pull back a
+reader who has moved, or a reload" passes on both engines — so the "or a reload" half holds on Android
+and not on an iPhone. Countering it (taking over `history.scrollRestoration`) would mean the app
+fighting Safari's own reload behaviour on four pages for a rare gesture, so it is recorded rather than
+built (whole-app check, integration-e2e, 10 Nov 2026).
 
 ---
 
@@ -962,7 +1011,9 @@ web.app — `STAFF_SITE_URL`'s origin only supplies the path + hash.
 dropping one silently breaks all Firebase Auth on that origin (task #1 above).
 
 **Retiring github.io later** (optional, no deadline): confirm all staff have reinstalled from
-web.app, remove the github.io entry from the allowlist, and turn off Pages in repo Settings.
+web.app, remove the github.io entry from the allowlist, and turn off Pages in repo Settings. Delete
+`.github/workflows/deploy-mirror.yml` in the same change: it fails, by design, when it cannot read the
+Pages setting, so with Pages off every Hosting release would open a deploy-failure issue.
 **Two things depend on it first, and both are silent if forgotten:** Pay Calculator figures are
 stored per address, so staff must move them with 💾 Move Your Pay Data before they move
 (OPERATIONS_REFERENCE.md); and the New link page's PDFs are served from the mirror (`PACK_BASE` in
@@ -1086,10 +1137,42 @@ meet it.
 `experiments/roster-pdf-geometry`), blank Mon–Sat cells are 1 in 678 on CEA, none on Supervisors,
 and **48 in 324 (15%) on Dispatch**, across four people who appear on that sheet and work most of
 their week elsewhere — exactly the case the rule exists for, since writing RD across them would
-overwrite what their primary roster's import had just written. So a Dispatch import sends roughly a
+overwrite what their primary roster's import had just written. Their blank Sunday is not taken as an
+answer either: when every Monday-to-Saturday cell of a row is unread, the review treats the Sunday as
+unread too (`computeCellStates`; a decided default, November 2026). So a Dispatch import sends roughly a
 dozen rows to the review, each answerable in place. If that proves tiresome, the question to ask is
 whether a member blank Mon–Sat on a SECOND sheet should be skipped wholesale rather than cell by cell
 — a product decision, not a bug.
+
+### On the PDF path the Sunday scan outvotes the row read and the column scan
+
+When the row read and the column scan both read a shift in a Sunday cell, and the Sunday scan alone
+reads it empty, `applySundayScanCorrections` (`functions/roster-sunday-repair.js`) treats the row as
+slid. The documented order makes the Sunday scan the final authority on Sunday. If the Saturday was
+read empty, the week moves a day right; otherwise the Sunday is disputed, and the geometry witness or
+the review settles it.
+
+**Measured** over synthetic weeks (whole-app check, November 2026): of 53,248 single wrong Sunday-scan
+readings, 4,096 end with values on the wrong day. Where the geometry witness can read the PDF's grid,
+it refuses the row in 3,440 of those and misses 656.
+
+**Recorded rather than changed.** The order exists because a lazily copied column scan agrees with a
+drifted row, and on that row the Sunday scan is the only read that saw the empty cell. The geometry
+path asks for no scan, so none of this applies there.
+
+### The sheet's own week is checked only where its heading can be read
+
+`checkSheetWeek` (`functions/roster-week-heading.js`) reads the sheet's printed `Week Ending:
+DD/MM/YYYY` heading, in the layout measured on a real CEA sheet (owner, 10 November 2026). It refuses
+a sheet for another week before anything is written. Three cases go unchecked:
+
+- **The CES and Dispatcher sheets** have not been measured, so whether they print the heading is not
+  known.
+- **A scanned sheet** has no text layer to read.
+- **A grid read that never settles within its budget** reads nothing.
+
+In each case the upload goes on as it did before the check existed, and the Functions log says "the
+sheet's own week was not checked". A whole week out there is caught only by the admin.
 
 ### Cloud Function payday constant duplicated from `roster-data.js`
 `functions/roster-parse-helpers.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS`
@@ -1235,6 +1318,15 @@ not do, or cannot know:
   `max-height` and therefore a nested scrollbox around the primary editing path — a UX decision, not a
   tidy-up (`ROADMAP.md` → Links generator carries the open choice). Both states are pinned by an e2e
   that runs at both widths.
+- **From 768px to about 830px, at Android's largest text, the grid cuts off its last totals column.**
+  From 768px the grid's wrapper stops scrolling so that the day header can stick (`links.css`, the
+  768px block, holds the measurements). Below 1024px the per-line totals' names and the days note may
+  wrap, so the table fits its card at every width from 768px, at normal text and at 1.3× (`links grid:
+  from 769px the grid stays inside its card, and at 1.3x text nothing is cut off`, `e2e/links.spec.js`).
+  At 1.6× it does not. Android's Font size and Display size settings multiply, no width query can see
+  them, and the table then needs 754px, so between 768px and about 830px the card's clip cuts the last
+  totals column off with no scroll to reach it. **Accepted: the owner kept the sticky day header**
+  (10 November 2026) over restoring the scroll container, which would lose it at those widths.
 - **Coverage heat map counts pattern positions, not a named headcount.** Every position in the
   rotation is counted, including any line not yet designed. The design is patterns-only, so there is
   no distinction between named and unnamed positions. The heat map colour scale is relative to the
@@ -1422,7 +1514,7 @@ appear in DevTools and the Operations Error Log.
 | `firebase-client.js` | Firestore persistence setup chain | Persistence is best-effort; the fallback to the memory cache is the documented Firebase pattern (it logs a `console.warn`) |
 | `analytics-client.js` | `getClientErrors` resolved-record cleanup | Expired resolved records are pruned fire-and-forget; individual delete failures are inconsequential |
 | `paycalc-app.js` | Firebase session failure before `initErrorReporter` | Error reporter is not yet initialised at this point; the silent fallback is the only safe option |
-| `sw-register.js` | `registration.update()` calls (hourly interval, visibility-change, pageshow) | SW update failures are not actionable — the existing SW stays active and the user experience is unaffected. Chrome also fires its own background update check that produces "Failed to update a ServiceWorker" unhandled rejections (suppressed by `shouldReport`); logging our own update attempts would add noise without benefit |
+| `sw-register.js` | `registration.update()` calls (hourly interval, visibility-change, a bfcache restore) | SW update failures are not actionable — the existing SW stays active and the user experience is unaffected. Chrome also fires its own background update check that produces "Failed to update a ServiceWorker" unhandled rejections (suppressed by `shouldReport`); logging our own update attempts would add noise without benefit |
 
 ## Time-boxed maintenance (deadlines, not bugs)
 

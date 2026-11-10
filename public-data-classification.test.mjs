@@ -1,6 +1,6 @@
 /**
  * public-data-classification.test.mjs — what may be shipped in a WORLD-READABLE file.
- * Run: node --test public-data-classification.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs public-data-classification.test.mjs   (part of `npm run test:hygiene`)
  *
  * @nodeps-safe — runs on a bare checkout with nothing installed.
  *

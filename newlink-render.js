@@ -79,11 +79,51 @@ export function startsWords(starts) {
 }
 
 /**
- * The status card's body: what the page is, the three names (one equal tile each, A to Z), and by when views are wanted.
- * `timetable` and `today` are 'YYYY-MM-DD'; with no `today` the line reads as it does before the timetable changes.
- * @param {{ proposals: ReadonlyArray<Proposal>, closes: string|null, starts?: string|null, timetable?: string|null, today?: string|null }} o
+ * Where the page's story is, from its settings and today (owner, 10 Nov 2026: "Add a 'decided' state"):
+ *   - 'decided' — `chosen` names one of the shortlist: the page says so and invites no more views;
+ *   - 'open'    — nothing chosen, and the link's start not yet come: "Nothing is decided", and "Have your say";
+ *   - 'waiting' — nothing chosen, and the start HAS come: the safety net the owner asked for. The page stops inviting views
+ *                 and stops saying nothing is decided, and says only who will confirm the outcome — never a decision of
+ *                 its own. A month ('YYYY-MM') is reached on its first day, as the status line reads it.
+ * A name that is not one of the shortlist is REFUSED — treated as nothing chosen — so a typo can never announce a design
+ * nobody chose (newlink-config.test.mjs fails on one before it ships). `today` is 'YYYY-MM-DD'; without it, nothing has come.
+ * @param {{ proposals: ReadonlyArray<Proposal>, chosen?: string|null, starts?: string|null, today?: string|null }} o
+ * @returns {{ phase: 'open'|'decided'|'waiting', chosen: Proposal|null }}
  */
-export function renderStatus({ proposals, closes, starts = null, timetable = null, today = null }) {
+export function statusPhase({ proposals, chosen = null, starts = null, today = null }) {
+    const picked = chosen ? proposals.find(p => designName(p) === chosen) ?? null : null;
+    if (picked) return { phase: 'decided', chosen: picked };
+    const begun = !!startsWords(starts) && !!today && today >= /** @type {string} */ (starts);
+    return { phase: begun ? 'waiting' : 'open', chosen: null };
+}
+
+/**
+ * The status card's hint, under its title, for a phase (`statusPhase`): "For discussion, not a decision" only while views
+ * are asked for. Once a design is chosen it is untrue, and once the start has come with none it claims what the page no
+ * longer may (owner, 10 Nov 2026) — so the hint is empty, and the card's own first line says where things stand.
+ * @param {'open'|'decided'|'waiting'} phase
+ */
+export const statusHint = (phase) => phase === 'open' ? 'For discussion, not a decision' : '';
+
+/**
+ * Whether the link's start is certainly behind us: a day from that day; a month, whose day is not known, only from the next
+ * month — during it the link "starts in January", which stays true however far into January it is read.
+ * @param {string} starts 'YYYY-MM' or 'YYYY-MM-DD' @param {string} today 'YYYY-MM-DD'
+ */
+function startIsPast(starts, today) {
+    const m = /^(\d{4})-(\d{2})$/.exec(starts);
+    if (!m) return today >= starts;
+    return today >= (+m[2] === 12 ? `${+m[1] + 1}-01` : `${m[1]}-${String(+m[2] + 1).padStart(2, '0')}`);
+}
+
+/**
+ * The status card's body: what the page is, the three names (one equal tile each, A to Z), and — while views are wanted — by
+ * when. `timetable` and `today` are 'YYYY-MM-DD'; with no `today` the line reads as it does before the timetable changes.
+ * `chosen` and `contact` are the settings `statusPhase` and the safety net read (newlink-config.js, CHOSEN and CONTACT).
+ * @param {{ proposals: ReadonlyArray<Proposal>, closes: string|null, starts?: string|null, timetable?: string|null, today?: string|null,
+ *   chosen?: string|null, contact?: string }} o
+ */
+export function renderStatus({ proposals, closes, starts = null, timetable = null, today = null, chosen = null, contact = '' }) {
     // Each tile LOOKS pressable — white, raised, the page's button recipe — so it is one: it opens that proposal's weeks
     // (the review, 2 Nov 2026: three raised tiles that did nothing broke the page's own rule that raised means pressable).
     // The name and nothing else: the sheet code told a colleague nothing and took a second line on a phone, so it lives on
@@ -105,15 +145,27 @@ export function renderStatus({ proposals, closes, starts = null, timetable = nul
     // "UNTIL THEN" SITS BESIDE THE START IT MEANS (the bug check, 9 Nov 2026). It closed the timetable's sentence — "The new
     // timetable comes first, in December, and today's link carries on until then" — where the nearest "then" is December, so
     // it could be read as today's link ending with the timetable. It belongs to the link's start, in the link's sentence.
-    const when = from && !reached(starts) ? ` The new link starts ${esc(from).replace(/^(in|on) (\S+) /, '$1 $2\u00a0')}, and today’s link carries on until then. ${timetableLine}.` : '';
+    const held = (/** @type {string} */ words) => esc(words).replace(/^(in|on) (\S+) /, '$1 $2\u00a0');
+    const when = from && !reached(starts) ? ` The new link starts ${held(from)}, and today’s link carries on until then. ${timetableLine}.` : '';
+    // THE THREE STATES (`statusPhase`). Once a design is CHOSEN the start is still said, because it is no longer a guess about
+    // a decision still to come: "starts" through a month whose day is not known, "started" once that month — or the day,
+    // when one is set — is past. With nothing chosen by the start, the page WAITS: it neither invents an outcome nor goes
+    // on saying nothing is decided, and only says who will confirm it (owner, 10 Nov 2026).
+    const { phase, chosen: picked } = statusPhase({ proposals, chosen, starts, today });
+    const began = phase === 'decided' && from && reached(starts) ? ` The new link ${startIsPast(/** @type {string} */ (starts), /** @type {string} */ (today)) ? 'started' : 'starts'} ${held(from)}.` : '';
+    const lead = phase === 'decided' ? `<strong>${esc(designName(/** @type {Proposal} */ (picked)))} has been chosen.</strong>${when}${began}
+        These were the three on the shortlist, in alphabetical order.`
+        : phase === 'waiting' ? `<strong>${contact ? `The outcome will be confirmed by ${esc(contact)}.` : 'The outcome is still to be confirmed.'}</strong>
+        These are the three proposals on the shortlist, in alphabetical order.`
+        : `<strong>Nothing is decided.</strong>${when}
+        These are the three proposals on the shortlist, in alphabetical order.`;
     // "BY" A DAY THAT HAS GONE IS UNTRUE (owner, 9 Nov 2026: "Yes" to hiding it once the date has passed). The closing date
     // is the last day for views, so the line shows on it and goes from the day after; with no date set — or one that cannot
-    // be read, which closesWords words the same way — it reads "a date to be agreed" and never goes. The Have your say card
-    // below carries no date, so it stays.
+    // be read, which closesWords words the same way — it reads "a date to be agreed" and never goes while the page is open.
+    // Outside 'open' views are not asked for at all, and the coordinator takes the Have your say card away with the line.
     const passed = closesWords(closes) !== closesWords(null) && !!today && today > /** @type {string} */ (closes);
-    const say = passed ? '' : ` <button type="button" class="nl-inline" data-open-card="nlSay">Have your say</button> by <strong>${esc(closesWords(closes))}</strong>.`;
-    return `<p class="nl-callout"><strong>Nothing is decided.</strong>${when}
-        These are the three proposals on the shortlist, in alphabetical order.</p>
+    const say = passed || phase !== 'open' ? '' : ` <button type="button" class="nl-inline" data-open-card="nlSay">Have your say</button> by <strong>${esc(closesWords(closes))}</strong>.`;
+    return `<p class="nl-callout">${lead}</p>
     <ul class="nl-names" aria-label="The three proposals">${tiles}</ul>
     ${weeksShape(proposals)}
     <p class="nl-lead">Nothing on this page changes your roster.${say}</p>`;

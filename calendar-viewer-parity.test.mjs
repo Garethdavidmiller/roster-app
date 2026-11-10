@@ -1,6 +1,6 @@
 /**
  * calendar-viewer-parity.test.mjs — the staff-PIN feature's two STATIC contracts.
- * Run: node --test calendar-viewer-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs calendar-viewer-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── CONTRACT A: the identity agrees across three languages ──────────────────────────────────────
  *

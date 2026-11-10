@@ -2,9 +2,10 @@
 /**
  * admin-week-row-state.js — WHAT A WEEK-GRID ROW LOOKS LIKE IN EACH OF ITS STATES.
  *
- * Owns: turning one `.day-row` on and off, and keeping the four things that depend on a row's
- *   current type in step with it — the RDW warning, the Spare submenu mode, the swapped-day
- *   question, and the overwrite badge. And, since the iPhone audit (Nov 2026), a row's staged state
+ * Owns: turning one `.day-row` on and off, drawing it from its saved record (`prefillRow`), and
+ *   keeping the four things that depend on a row's current type in step with it — the RDW warning,
+ *   the Spare submenu mode, the swapped-day question, and the overwrite badge. And, since the iPhone
+ *   audit (Nov 2026), a row's staged state
  *   AS DATA: `isStagedRow` (the one test of "is this row staged?") and the reading and putting back
  *   of a week's staged rows that a kept draft is made of (`readWeekDraft` / `applyWeekDraft`,
  *   unsaved-draft.js).
@@ -27,8 +28,8 @@
  * things is not a boundary; it is a cut made to create room, which is exactly what this extraction
  * was trying to avoid.
  *
- * This cluster needs NONE. It imports the shift-type table and the status helper and
- * nothing else — every function takes a row element and reads the DOM under it. That is what a
+ * This cluster needs NONE. It imports the shift-type table, the Other-day grammar and the status
+ * helper and nothing else — every function takes a row element and reads the DOM under it. That is what a
  * seam looks like: the functions here do not know the editor exists.
  *
  * Keep it that way. If something in here starts needing the editor's state or its injected
@@ -36,7 +37,24 @@
  */
 
 import { TYPES } from './admin-shift-types.js';
+import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { setStatus } from './status-text.js';
+
+/**
+ * A base shift as a manager reads it in the week grid's warning: an Other-family day by its full word
+ * ("Training", with its times if it has any), a spare day as "Spare", anything else — a time — as its
+ * value. The warning printed the raw code, so a manager ticking RDW on one of a trainee's days read
+ * "Originally rostered TRG this day" (6 Nov 2026 review), and on a spare week "SPARE" (7 Nov).
+ * `OTHER_FLAVOURS` is the one table of the Other words; "Spare" is the grid's own badge word.
+ * @param {string} baseShift
+ * @returns {string}
+ */
+export function rosteredWords(baseShift) {
+    const other = parseOtherValue(baseShift);
+    if (!other) return baseShift === 'SPARE' ? 'Spare' : baseShift;
+    const word = OTHER_FLAVOURS[other.flavour]?.full ?? other.flavour;
+    return other.time ? `${word} ${other.time}` : word;
+}
 
 /**
  * Show the "originally rostered" warning only when the RDW tick is ON for a day whose
@@ -145,7 +163,7 @@ export function _syncAlSwap(row) {
  * Sync a day-row's overwrite badge to its state, relative to the override it was loaded with:
  *   • prefilled-existing (loaded, untouched) → "✓ Saved"    — already recorded, no change staged
  *   • active with a type   (a change staged)  → "⚠ Updating" — will overwrite the saved one on Save
- *   • deactivated          (unticked)         → "⚠ Removing" — the saved override is deleted on Save
+ *   • deactivated          (type taken away)  → "⚠ Removing" — the saved override is deleted on Save
  * No-op on rows with no saved override (they have no .overwrite-badge).
  * @param {HTMLElement} row
  */
@@ -158,6 +176,51 @@ export function _syncOverwriteBadge(row) {
     setStatus(badge, row.classList.contains('prefilled-existing') ? '✓ Saved'
         : row.dataset.type ? '⚠ Updating'
         : '⚠ Removing');
+}
+
+/**
+ * Draw a row in the state its saved record puts it in — the record's type, Other flavour, RDW tick and
+ * times — marked as an untouched prefill, from a clean row, so it also puts back a row edited since.
+ * A Spare record shows as Other → Spare (v15.57: there is no top-level Spare pill), and an Other day is
+ * read through its grammar: a naive `value.split('-')` would shred 'TRG RDW 08:00-16:00'.
+ *
+ * UNTICKED (owner, 10 Nov 2026): a tick means the manager chose the day for "Apply to ticked days" on
+ * this visit, and a saved change is not that. A saved day opened ticked, so Apply re-typed it unasked,
+ * and the only way to leave it out — unticking — also staged its deletion.
+ * @param {HTMLElement} row
+ * @param {{ type: string, value?: string }} existing  the record that wins the day
+ */
+export function prefillRow(row, existing) {
+    const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
+    const pills    = row.querySelectorAll('.type-pill-btn');
+    const startEl  = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
+    const endEl    = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
+    const isSpare  = existing.type === 'spare_shift';
+    const meta     = TYPES[isSpare ? 'other' : existing.type];
+    _deactivateRow(row, checkbox, pills, startEl, endEl);
+    _activateRow(row, checkbox, pills, startEl, endEl, isSpare ? 'other' : existing.type);
+    if (checkbox) checkbox.checked = false;
+    const rdHint = /** @type {HTMLElement|null} */ (row.querySelector('.col-rd-hint'));
+    if (rdHint) rdHint.hidden = true;
+    row.classList.add('prefilled-existing');
+    _syncAlSwap(row);         // a saved, untouched row is not being booked — not asked
+    _syncOverwriteBadge(row); // loaded + untouched → "✓ Saved" (not "Updating")
+    const other   = existing.type === 'other' ? parseOtherValue(existing.value) : null;
+    const flavour = isSpare ? 'SPARE' : other?.flavour;
+    if (flavour) row.querySelectorAll('.other-flavour-btn').forEach(b => {
+        const on = /** @type {HTMLElement} */ (b).dataset.flavour === flavour;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', String(on));
+    });
+    if (isSpare) _syncOtherSpareMode(row);   // hides the RDW tick and the times: "No time needed"
+    if (other) {
+        const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
+        if (cb && !cb.disabled) cb.checked = other.rdw;
+        _syncOtherRdwWarn(row);
+    }
+    const time = other ? other.time
+        : meta && !meta.fixed && existing.value && existing.value.includes('-') ? existing.value : null;
+    if (time && startEl && endEl) [startEl.value, endEl.value] = time.split('-');
 }
 
 /**

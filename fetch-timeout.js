@@ -26,9 +26,12 @@
  * still making it happen. So the budget is the server's ceiling plus headroom, and it is chosen per
  * endpoint rather than shared:
  *
- *   requestPasswordReset  30s server → 35s      parseRosterPDF     120s server → 130s
+ *   requestPasswordReset  30s server → 35s      parseRosterPDF     120s server → 130s *
  *   resetMemberPassword   60s server → 65s      setupRosterAuth    120s server → 130s
  *   getSignInStats        60s server → 65s
+ *
+ *   * the roster upload keeps its own timer to this rule (`PARSE_ABORT_MS`, admin-roster-upload.js);
+ *     it does not call this module.
  *
  * That makes the bound long by UI standards, and that is the correct trade: it exists to end an
  * INFINITE wait, not to make a slow call feel fast.
@@ -78,8 +81,8 @@ function abortedError() {
  * `fetch`, with a deadline — and, since v20.56, with the caller's own `signal` honoured.
  *
  * @param {string} url
- * @param {RequestInit} [options] `options.signal`, when supplied, can cancel the request; the
- *   resulting error carries `FETCH_ABORTED_CODE`, never `FETCH_TIMEOUT_CODE`.
+ * @param {RequestInit} [options] `options.signal`, when supplied, can cancel the request — the
+ *   body read included; the resulting error carries `FETCH_ABORTED_CODE`, never `FETCH_TIMEOUT_CODE`.
  * @param {number} [timeoutMs] budget in ms — pick it from the endpoint's own `timeoutSeconds`
  * @returns {Promise<Response>} whose body reads (`json`/`text`/…) are bounded by the SAME deadline
  * @throws {Error} `.code === FETCH_TIMEOUT_CODE` when our budget expired, `FETCH_ABORTED_CODE` when
@@ -99,35 +102,41 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FE
     let timedOut = false;
     const onCallerAbort = () => { try { ctrl.abort(); } catch { /* noop */ } };
     if (callerSignal) callerSignal.addEventListener('abort', onCallerAbort);
-    const timer = setTimeout(() => { timedOut = true; try { ctrl.abort(); } catch { /* noop */ } }, timeoutMs);
+    const timer = setTimeout(() => { timedOut = true; try { ctrl.abort(); } catch { /* noop */ } release(); }, timeoutMs);
+    /** The request is over — read, failed or timed out: disarm the bound and stop listening. */
+    function release() {
+        clearTimeout(timer);
+        if (callerSignal) callerSignal.removeEventListener('abort', onCallerAbort);
+    }
+    // Three-way, and the ORDER is the policy: when the caller cancelled AND our budget expired, the
+    // timeout wins, because "go and check" is the safe direction to be wrong in. Ours did not fire,
+    // so an abort that reached us came from the caller's signal. Anything else — a network failure,
+    // a foreign abort we were never given — passes straight through.
+    const classify = (/** @type {any} */ err) => timedOut ? timeoutError(timeoutMs)
+        : (callerSignal && callerSignal.aborted) ? abortedError() : err;
     /** @type {Response} */
     let res;
     try {
         res = await fetch(url, { ...options, signal: ctrl.signal });
     } catch (err) {
-        clearTimeout(timer);
-        // Three-way, and the ORDER is the policy: when the caller cancelled AND our budget expired,
-        // the timeout wins, because "go and check" is the safe direction to be wrong in.
-        if (timedOut) throw timeoutError(timeoutMs);
-        // Ours did not fire, so an abort that reached us came from the caller's signal. Anything
-        // else — a network failure, a foreign abort we were never given — passes straight through.
-        if (callerSignal && callerSignal.aborted) throw abortedError();
-        throw err;
-    } finally {
-        if (callerSignal) callerSignal.removeEventListener('abort', onCallerAbort);
+        release();
+        throw classify(err);
     }
     // ── THE BODY IS INSIDE THE DEADLINE TOO (review, Sep 2026) ──────────────────────────────────
     // `fetch` resolves on HEADERS, and the bound used to be cleared there — so a body that stalled
     // after them left `r.json()` waiting for ever, the exact infinite wait this module ends. The
     // timer stays armed until the body has been read (aborting the request aborts its body), and a
     // body cut off by it rejects with OUR timeout code, so callers' copy stays right.
+    // …AND SO IS THE CALLER'S SIGNAL (Nov 2026). It was detached when the headers arrived, so a
+    // cancel during the body was ignored: the read carried on and resolved, and a request its
+    // caller had cancelled was reported as a success. It is now released with the timer.
     const reads = ['json', 'text', 'arrayBuffer', 'blob', 'formData'].filter(m => typeof (/** @type {any} */ (res))?.[m] === 'function');
-    if (!reads.length) { clearTimeout(timer); return res; }
+    if (!reads.length) { release(); return res; }
     for (const m of reads) {
         const read = (/** @type {any} */ (res))[m].bind(res);
         (/** @type {any} */ (res))[m] = () => read().then(
-            (/** @type {any} */ v) => { clearTimeout(timer); return v; },
-            (/** @type {any} */ err) => { clearTimeout(timer); throw timedOut ? timeoutError(timeoutMs) : err; });
+            (/** @type {any} */ v) => { release(); return v; },
+            (/** @type {any} */ err) => { release(); throw classify(err); });
     }
     return res;
 }

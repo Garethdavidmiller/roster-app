@@ -102,7 +102,7 @@ storagePath  Firebase Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf
              `getDocumentUrl` hands this path to the Admin Storage API, which would sign any object
 fileType     "pdf" | "docx" — the short form on both paths: browser writes are rule-constrained to
              ['pdf','docx'], and the Cloud Function ingest writes the same (`functions/documents.js`)
-uploadedAt   Firestore server timestamp
+uploadedAt   Firestore server timestamp — the rules require `== request.time` of a client write
 uploadedBy   Member name string (manual upload) or "power-automate" (Cloud Function ingest)
 htmlContent  Converted HTML string — present when a DOCX was uploaded/ingested; absent for PDFs. At most 250 KB (the rules cap it)
 ```
@@ -125,11 +125,11 @@ Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffCo
 ```
 memberName   Must match teamMembers[n].name exactly — used as the document ID
 passwordSetAt  Firestore server timestamp — the LAST time the member set their own password (Settings → Password). Written by the client (owner only).
-resetAt        Firestore server timestamp — the last time an admin RESET this member back to their surname default. Written ONLY by the resetMemberPassword Cloud Function (Admin SDK, bypasses rules).
+resetAt        Firestore server timestamp — the last time this member's account was put back on their surname default: an admin reset (resetMemberPassword), or Set up accounts taking back an account registered outside the app or re-enabling a disabled one (setupRosterAuth). Written only by those Cloud Functions (Admin SDK, bypasses rules), and always BEFORE the password changes.
 ```
 "Migrated" (has set their own password) = `passwordSetAt` present AND `passwordSetAt >= resetAt` (a later admin reset re-flags the account as surname-default). No password material is ever stored — only these two timestamps, which drive the Operations **Account status** table and the Settings status chip/nudge.
 Read: owner or admin. Create/update (client): only the owner, only the `passwordSetAt` key, and it must equal `request.time` (so a client can only stamp "I just set my password now" on its own doc). `resetAt` is un-writable by any client (only the Admin SDK sets it). Delete: denied for everyone.
-Written/read by: `savePasswordSetAt` / `getPasswordStatus` (owner) in `firebase-client.js` (called from `settings-app.js` after a successful password change), `getAllPasswordStatus` (admin, reads all) called from `operations-app.js` (Account status card), and the `resetMemberPassword` Cloud Function (writes `resetAt`).
+Written/read by: `savePasswordSetAt` / `getPasswordStatus` (owner) in `firebase-client.js` (called from `settings-app.js` after a successful password change), `getAllPasswordStatus` (admin, reads all) called from `operations-app.js` (Account status card), and the `resetMemberPassword` and `setupRosterAuth` Cloud Functions (write `resetAt`).
 
 **resetRequests** (PASSWORD_DESIGN.md, the request queue)
 ```
@@ -180,7 +180,7 @@ owner        Optional — the writer's Firebase Auth uid, stamped by `savePushSu
 ```
 Written by `savePushSubscription`, deleted by `deletePushSubscription` in `firebase-client.js`.
 Each document ID is a SHA-256 hash of the endpoint URL (first 20 hex chars). One doc per subscribed browser/device.
-Read by the push senders in `functions/push.js` (Admin SDK) — `fanOutPush` for the broadcasts, `sendTargetedPush` for a notice addressed to one person; a send that meets a 410/404 deletes that record server-side.
+Read by the push senders in `functions/push.js` (Admin SDK) — `fanOutPush` for the broadcasts, `sendTargetedPush` for a notice addressed to named members (one person, the Overtime participants, or the pay reminder's CEA and CES members); a send that meets a 410/404 deletes that record server-side.
 Client read: denied (`allow read: if false`) — no client may enumerate endpoints/keys. Create/update:
 a signed-in member or the admin (never an anonymous token or the staff-PIN viewer), shape-validated
 (`endpoint`, `keys.p256dh`, `keys.auth`, `subscribedAt`, and the optional `owner`). When `owner` is
@@ -190,11 +190,13 @@ AND `keys`, because a session that ends without a sign-out leaves the record own
 and the next one on that phone must be able to re-save it. A session can only ever claim a
 subscription its own browser holds. A legacy doc with NO `owner` may be claimed only with its
 `endpoint` unchanged, or anybody could repoint a colleague's record at another URL and silently end
-their notifications. **Delete (per-owner, A5 / F-SEC-5):** an authenticated session other than the PIN
-viewer may delete a doc **only if `resource.data.owner == request.auth.uid`**, OR the doc carries
-**no `owner`** (legacy docs — kept deletable so VAPID-rotation cleanup can't be locked out; orphans
-left by a uid change are swept server-side by `fanOutPush`'s 410/404 cleanup). An identity that merely
-knows a doc id cannot delete somebody else's subscription.
+their notifications. **Delete (per-owner, A5 / F-SEC-5):** a signed-in member or the admin
+(`isKnownIdentity` — never an anonymous token, and never the PIN viewer) may delete a doc **only if
+`resource.data.owner == request.auth.uid`**, OR the doc carries **no `owner`** (legacy docs — kept
+deletable so VAPID-rotation cleanup can't be locked out; orphans left by a uid change are swept
+server-side by `fanOutPush`'s 410/404 cleanup), OR the doc is **already gone** — a no-op, so a second
+sign-out is not read as a refusal that drops the browser subscription. An identity that merely knows a
+doc id cannot delete somebody else's subscription.
 Also deleted: on the drawer's Sign out and the Calendar's hand-over to the PIN (`releaseDevicePush`,
 `notif.js`), and for a confirmed leaver by `setupRosterAuth`'s sweep (`releasePushForOwner`,
 `functions/push.js`). Why each exists: `.claude/rules/notifications.md`.
@@ -232,7 +234,7 @@ resolvedAt   Firestore server timestamp — set when an admin resolves; retentio
 Write: a signed-in member, the admin, or the Calendar PIN viewer (`isKnownIdentity`); shape-validated by Firestore rules.
 Read/update/delete: admin only (`request.auth.token.admin == true`).
 Written by: `logClientError` (built in `analytics-client.js`, re-exported by `firebase-client.js`), called fire-and-forget from `error-reporter.js`.
-Read/resolved by: `getClientErrors` / `resolveClientError` (same home), called from the Error Log card (`operations-errors.js`). `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) a backlog of resolved records cannot hide them. It returns `{ errors, truncated }`: the unresolved query shows at most 100 with **no `orderBy`** (an `orderBy` would need the composite index this design deliberately avoids), so above that volume the shown 100 are arbitrary — not the newest. It fetches `100 + 1` and sets `truncated` only when the extra row returns (i.e. > 100 genuinely exist, not exactly 100), so the card shows a "showing the first 100" banner rather than silently hiding the rest (no silent caps). Prunes resolved records past `CLIENT_ERROR_RETENTION_MS` (`client-errors.js`) from `resolvedAt`.
+Read/resolved by: `getClientErrors` / `resolveClientError` (same home), called from the Error Log card (`operations-errors.js`). `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) a backlog of resolved records cannot hide them. It returns `{ errors, truncated }`: the unresolved query shows at most 100 with **no `orderBy`** (an `orderBy` would need the composite index this design deliberately avoids), so above that volume the shown 100 are arbitrary — not the newest. It fetches `100 + 1` and sets `truncated` only when the extra row returns (i.e. > 100 genuinely exist, not exactly 100), so the card shows a "showing the first 100" banner rather than silently hiding the rest (no silent caps). The resolved query is capped the same way (200 + 1, returned as `resolvedTruncated`). The prune does not ride on it: a third read asks for records whose `resolvedAt` is past `CLIENT_ERROR_RETENTION_MS` (`client-errors.js`) — a single-field range, auto-indexed — at most 200 per Error Log open, and deletes those.
 
 **analytics** — anonymous usage counters; **no member identity is ever stored**
 ```
@@ -243,8 +245,9 @@ Document  analytics/perf_<YYYY-MM> { month: "YYYY-MM", samples: { "<ver>|<page>|
 ```
 **Page ids and open ids.** `counts` takes one page id per app page and the **document/guide OPEN
 counters** — `huddle`, `circular`, `newsletter` and one `guide-*` id per `NAV_GUIDES` entry. The
-authoritative list is the `hasOnly` allowlist in `firestore.rules`; extend it when adding a page or a
-guide, because `firestore-contract-parity.test.mjs` checks it against the app both ways, so a missing
+authoritative list is `pvCountIds()` in `firestore.rules`, judged against the ids a write adds or
+changes — so an id can come off it as soon as no client writes it (the month's document keeps the old
+key, untouched, and it stops nothing); extend it when adding a page or a guide, because `firestore-contract-parity.test.mjs` checks it against the app both ways, so a missing
 id is a test failure rather than a silently dropped counter. A page id also needs an entry in
 `PAGE_META` (`operations-reports.js`), or BOTH reporting cards print the bare id and a generic 📄;
 `page-contract-parity.test.mjs` fails on either omission. Opens are incremented by
@@ -261,7 +264,7 @@ has no `openId`. The Operations Usage card renders them as a separate "Documents
 group under Page popularity.
 
 Uniqueness of "active accounts" is deduped **client-side** (localStorage flags keyed by member name, which never leave the device) so the server only ever receives increments — it stores *how many* accounts were active, never *which*. "Last 30 days" = sum of the `daily` buckets over the rolling window, and **each member-device holds ONE count there, on its latest active day** (`rollingMove`, usage-stats.js, whose header has the reasoning): an open on a new day writes `+1` on today and `-1` on the day the count sat on, in one merged write, so the sum counts everyone active in the window. The window sum and each address row are clamped at zero, because a lost `+1` leaves its `-1` behind until that day leaves the window. Counts are per member-device (multi-device users count more than once) — a usage trend, not an exact headcount. **The EXACT unique count sits beside it** and comes from a different source entirely: the `getSignInStats` Cloud Function reads Firebase Auth's own `lastSignInTime`, so uniqueness is a property of the data rather than something the app has to enforce — and nothing new is stored (no per-account record, no identity returned). It measures **sign-ins, not activity**: sessions last 60 days, so most page opens are session RESTORES. The 30-day sign-in window is therefore SHORTER than a session and no longer bounds active people in either direction — it misses anyone signed in 31–60 days ago who uses the app daily, as well as including anyone who signed in once and stopped. Do not describe it as bounding active people unless its window is derived from `SESSION_MS`. There is no month-over-month history either (only the LAST sign-in is stored). Both figures are shown, each labelled with what it measures — the exact one does not replace the trend. `neverSignedIn` is the actionable number: accounts provisioned by Set up accounts that have never been used.
-Write: a signed-in member, the admin, or the Calendar PIN viewer (`isKnownIdentity`) — an ANONYMOUS token is refused, because the anonymous provider is still enabled on the project and anyone holding the public API key could mint one. Nothing in the app signs in anonymously. The same identity is required to write `clientErrors` and `pushSubscriptions` (where the viewer stays excluded). Values aren't individually validatable (Firestore can't restrict to increment-only) — App Check is the eventual integrity control; the data is non-sensitive aggregate counts. On UPDATE a non-admin write may not remove an existing key (the anti-wipe guard); the moved count's `-1` relies on exactly that: it is an ordinary write the guard allows, because it removes no key (`firestore.rules.test.mjs` writes the real payload as a member and as the PIN viewer). No client delete.
+Write: a signed-in member, the admin, or the Calendar PIN viewer (`isKnownIdentity`) — an ANONYMOUS token is refused, because the anonymous provider is still enabled on the project and anyone holding the public API key could mint one. A `pv_`/`perf_` document is accepted only for the present month or one either side, by the server's UTC clock (the client names the month by its own clock), so no session can create documents for months nobody is in. Nothing in the app signs in anonymously. The same identity is required to write `clientErrors` and `pushSubscriptions` (where the viewer stays excluded). Values aren't individually validatable (Firestore can't restrict to increment-only) — App Check is the eventual integrity control; the data is non-sensitive aggregate counts. On UPDATE a non-admin write may not remove an existing key (the anti-wipe guard); the moved count's `-1` relies on exactly that: it is an ordinary write the guard allows, because it removes no key (`firestore.rules.test.mjs` writes the real payload as a member and as the PIN viewer). No client delete.
 Read: admin only (`request.auth.token.admin == true`).
 Written by: `recordPageView` / `recordActiveAccount` in `analytics-client.js`, called from `usage-reporter.js` (`recordUsage`) on every page. Read by: `getUsageStats` in `analytics-client.js`, which also prunes daily buckets older than `DAILY_RETENTION_DAYS` (usage-stats.js), called from the Usage card in `operations-usage.js`. Decision/aggregation maths is the pure `usage-stats.js` module.
 The `perf_<YYYY-MM>` doc holds anonymous page-load latency: `recordPageLatency(page, identity?)` in `perf-reporter.js` records the metrics above and calls `recordPerfSample` (analytics-client.js), batched into one merged write per open; key dimensions (version/page/metric/bucket/PWA mode/connection class) are non-identifying — no member, no raw ms. **Admin (developer) sessions are excluded** so figures reflect real staff. The Operations "App speed" card (`getPerfStats` → `initPageSpeedCard`, `operations-speed.js`) reads THIS month + LAST month and shows 🔑 Signing in, 📄 Opening pages (✨ First appears / 📦 Code loaded / ✅ Usable, then each page's three bars) and 🔍 A closer look at the busiest page — the stored copy before the sign-in check, the wait after a release, and Usable by app version and by how the page was opened. The maths is the pure `perf-stats.js`: `THIN_SAMPLE` governs the whole card, a value that is not a whole-number count is refused when read (any signed-in session writes the values), and the three percentages always add to 100. Versions roll up into ranges (`v20.10–v20.19`) for the reason in AI_MAP, and no range crosses v24.98, where the way of timing changed.
@@ -287,7 +290,7 @@ storagePath  Firebase Storage object path, e.g. "circulars/2026-06-25-lv9kab12.p
              absent on the oldest docs — pruneOldDocs falls back to "{collection}/{date}.{fileType}".
              Bound by the rules to its own collection, as for huddles
 fileType     "pdf" | "docx" (no inline HTML conversion — a PDF opens directly, a Word doc opens via Microsoft's Office Online viewer (`officeViewerUrl`, storage-utils.js) so it renders with images instead of downloading; rule-constrained to [pdf,docx])
-uploadedAt   Firestore server timestamp
+uploadedAt   Firestore server timestamp — the rules require `== request.time`; the retention sweep (`pruneOldDocs`) trusts it as its clock
 uploadedBy   Member name string
 ```
 Read: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the shared `calendarViewer` (matches the Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
@@ -303,7 +306,7 @@ storagePath  Firebase Storage object path, e.g. "newsletters/2026-06-25-lv9kab12
              absent on the oldest docs — pruneOldDocs falls back to "{collection}/{date}.{fileType}".
              Bound by the rules to its own collection, as for huddles
 fileType     "pdf" | "docx" (no inline HTML conversion — a PDF opens directly, a Word doc opens via Microsoft's Office Online viewer (`officeViewerUrl`, storage-utils.js) so it renders with images instead of downloading; rule-constrained to [pdf,docx])
-uploadedAt   Firestore server timestamp
+uploadedAt   Firestore server timestamp — the rules require `== request.time`; the retention sweep (`pruneOldDocs`) trusts it as its clock
 uploadedBy   Member name string
 ```
 Read: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the shared `calendarViewer` (matches the Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
@@ -352,8 +355,9 @@ about but not lose my set" (owner, Aug 2026) holds across devices. Read: named s
 (matches linkDesigns, same self-heal reasoning). Create: `linksDesigner` or admin, shape-validated,
 `createdBy == memberName()`. Update/delete: only the creator or the admin. The client's
 Save button asks the same question (`canOverwriteTargetSet`) but that copy only decides what is
-OFFERED — the rules are the protection. Read and written through `links-target-sets-store.js`, wired by
-`links-generator-targets.js` (the generator card's Saved sets row); rules covered case-for-case by
+OFFERED — the rules are the protection. Read, overwritten and deleted through `links-target-sets-store.js`
+(`list`, `writeIfUnchanged`); a NEW set is created directly by `links-generator-targets.js` (`addDoc`),
+which also wires the generator card's Saved sets row; rules covered case-for-case by
 `firestore.rules.test.mjs`. There is no bin behind a set the way there is behind a design: deleting
 one is final, which is why the confirm names it and is marked destructive.
 
@@ -375,6 +379,12 @@ overtimeWindows/{weekEnding}                       the window. Doc id = the week
                               after the send, two overlapping runs could both send). Idempotency
                               stamp: it protects the ONE morning against a re-run, and once noon
                               passes the phase moves and the question is closed. Server-written
+  reminderOutstanding         int — written AFTER that reminder's send: the participants it was for
+                              (not withdrawn, nothing submitted, and not sent the asked notice in
+                              the same run); 0 = nobody needed reminding. Absent = outcome not recorded
+  reminderAccepted            int — push subscriptions that accepted that reminder (`sendTargetedPush`'s
+                              count; 0 = it reached nobody: no account, no subscribed device, or the
+                              push failed). Absent = outcome not recorded
 
   /participants/{memberName}  the FROZEN population. Written once, at creation, never rewritten
     memberName · grade · rosterOrder · createdAt
@@ -395,10 +405,11 @@ overtimeWindows/{weekEnding}                       the window. Doc id = the week
                               written before this feature would vanish from the count
 
   /submissions/{memberName}   the HEAD — current answer only
-    currentRevision · days · firstAcceptedAt · updatedAt · lastMutationId · lastMutationSeenAt
-    schemaVersion
+    memberName · uid · currentRevision · days · firstAcceptedAt · updatedAt · lastMutationId
+    lastMutationSeenAt · schemaVersion
 
-    /revisions/{rev}          APPEND-ONLY history: revision · days · acceptedAt · mutationId · uid
+    /revisions/{rev}          APPEND-ONLY history: weekEnding · memberName · uid · revision · days
+                              acceptedAt · mutationId · schemaVersion
                               `acceptedAt` (and the head's updatedAt / firstAcceptedAt) is the instant
                               the server DECIDED the phase, not the later commit, so an answer
                               judged in time is never stamped late

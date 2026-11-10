@@ -19,7 +19,7 @@
  * sheet fires neither. The lightbox is a fake with a hand-held promise, because the moment being
  * tested is the gap between two events, and a real fade would close it before an assertion ran.
  *
- * Part of test:hygiene. Run: node --test select-sheet-pick.test.mjs
+ * Part of test:hygiene. Run: node scripts/run-tests.mjs select-sheet-pick.test.mjs
  */
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -119,6 +119,38 @@ const GROUPS = [{ label: '', options: [
     { value: 'a', label: 'A. Hared',  meta: '', disabled: false },
     { value: 'b', label: 'G. Miller', meta: '', disabled: false },
 ] }];
+
+// ── WHAT THE SEARCH BOX IS CALLED (whole-app check, Nov 2026) ────────────────────────────────────
+// A caller that can say what its list holds names the box itself; one that does not gets the rule's
+// own answer (`searchLabelFor`, select-sheet.test.mjs), never its question welded onto "Search".
+describe('the search box takes the caller\'s name for it, and the rule\'s otherwise', () => {
+    /** The sheet's search field, found by class. @returns {any} */
+    const searchBox = () => {
+        /** @param {any} n @returns {any} */
+        const find = (n) => n.classList?.contains('picker-search-input') ? n : (n.children ?? []).map(find).find(Boolean);
+        return find(body);
+    };
+    test('openOptionSheet: `searchLabel` wins; without it a question title gives "Search"', () => {
+        mod.openOptionSheet({ title: 'Which pay period?', searchLabel: 'Search pay periods', groups: GROUPS, createLightbox: fakeLightbox, onPick: () => {} });
+        assert.equal(searchBox().getAttribute('aria-label'), 'Search pay periods');
+        mod.openOptionSheet({ title: 'Which pay period?', groups: GROUPS, createLightbox: fakeLightbox, onPick: () => {} });
+        assert.equal(searchBox().getAttribute('aria-label'), 'Search', 'the previous sheet\'s name was kept, or the question was welded on');
+    });
+    test('enhanceSelect and initSelectSheets hand the caller\'s name through to the sheet', () => {
+        const option = { tagName: 'OPTION', value: 'p1', textContent: 'Period 1', dataset: {}, hidden: false, disabled: false };
+        const select = fakeEl('select');
+        Object.assign(select, { children: [option], options: [option], value: 'p1', selectedIndex: 0, labels: [], hidden: false, tabIndex: 0, id: 'periodSelect' });
+        body.appendChild(select);
+        /** @type {any} */ (global.document).getElementById = (/** @type {string} */ id) => (id === 'periodSelect' ? select : null);
+        try {
+            mod.initSelectSheets([{ id: 'periodSelect', title: 'Which pay period?', searchLabel: 'Search pay periods' }], { createLightbox: fakeLightbox });
+            const trigger = body.children.find((/** @type {any} */ c) => c.id === 'periodSelectTrigger');
+            assert.equal(trigger.disabled, false, 'premise: a trigger a member can press');
+            trigger._fire('click');
+            assert.equal(searchBox().getAttribute('aria-label'), 'Search pay periods');
+        } finally { delete (/** @type {any} */ (global.document)).getElementById; }
+    });
+});
 
 describe('too EARLY — the pick must wait for the close to land', () => {
     test('the pick is not reported while the close is still landing, and is reported once it has', async () => {

@@ -1,6 +1,6 @@
 /**
  * links-window.test.mjs — the operating window of a link design (LINKS_DEC2026_PLAN package 1).
- * Run: node --test links-window.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-window.test.mjs   (part of `npm run test:hygiene`)
  *
  * The weight here is on the two things that decide whether the feature helps or misleads:
  *  · `normaliseWindow` is the trust boundary for a stored value, and its fallback must never
@@ -44,9 +44,19 @@ describe('normaliseWindow — the trust boundary', () => {
             assert.deepEqual(normaliseWindow(v), { monSat: { ...DEFAULT_WINDOW.monSat }, sun: { ...DEFAULT_WINDOW.sun } });
         }
     });
-    test('a stored window is kept verbatim', () => {
+    test('a stored window keeps the times it was saved with', () => {
         const stored = { monSat: { start: '05:30', end: '23:55' }, sun: { start: '07:15', end: '23:55' } };
         assert.deepEqual(normaliseWindow(stored), stored);
+    });
+    test('a stored time comes back PADDED, so the standard window is never read as moved', () => {
+        // Every reader compares these as strings. Kept as typed, a stored "6:20" made the standard
+        // 06:20 read as a moved window — the masthead's "(moved)", compare's mismatch flag, and a
+        // printed sheet saying 6:20. Space-padded is the same value too (windowMinutes trims).
+        const unpadded = { monSat: { start: '6:20', end: '23:55' }, sun: { start: ' 7:15', end: '23:25 ' } };
+        assert.deepEqual(normaliseWindow(unpadded), { monSat: { ...DEFAULT_WINDOW.monSat }, sun: { ...DEFAULT_WINDOW.sun } });
+        assert.equal(isDefaultWindow(unpadded), true, 'the standard hours, stored unpadded, are the standard hours');
+        assert.equal(windowsDiffer(unpadded, DEFAULT_WINDOW), false);
+        assert.equal(formatWindow(unpadded), formatWindow(DEFAULT_WINDOW), 'the printed sheet states it in the one form');
     });
     test('rows fall back INDEPENDENTLY — a valid row survives a broken neighbour', () => {
         // The two rows are separate decisions. Discarding a good Sunday because Mon–Sat is corrupt

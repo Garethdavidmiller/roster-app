@@ -9,7 +9,7 @@
  */
 
 import { CONFIG } from './roster-data.js';
-import { lsGet, lsSet } from './ls.js';
+import { lsGet, lsSet, lsDel } from './ls.js';
 import { VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
 
 /** @type {number} */
@@ -19,7 +19,8 @@ let _year  = new Date().getFullYear();
 
 // Restore last-viewed month: a `?date=` the link named first, else localStorage (if valid, within app
 // bounds, and not a future month — staff should open on today's roster, not a month they previously
-// browsed ahead to).
+// browsed ahead to). Only a month the member moved AWAY from today to is ever stored — see
+// `persistViewedMonth` — so nothing stored means today.
 (function restoreViewedMonth() {
     // A LINK THAT NAMES A DATE WINS, a future month included (whole-app review, Oct 2026): the Pay
     // Calculator's "View these dates in your roster calendar" and Admin's Calendar pill both say which
@@ -88,6 +89,11 @@ export function addMonths(month, year, delta) {
  * resumed the next morning highlighted yesterday until the member navigated. It fires only when the
  * DATE changed, so an ordinary resume costs a string comparison, not a render.
  *
+ * A display on the month the old date fell in is moved to the new date's month FIRST, so the repaint
+ * draws today (cal-data-1, 10 Nov 2026). Across a month end that display was "now", and keeping it
+ * left a phone resumed on 1 December showing November with no today in it. A month the member had
+ * browsed to stays where it is.
+ *
  * @param {() => void} onChange
  * @param {{ doc?: Document, now?: () => Date, setTimer?: typeof setTimeout, clearTimer?: typeof clearTimeout }} [env] test seams
  * @returns {() => void} stop watching
@@ -98,13 +104,17 @@ export function watchLocalDate(onChange, env = {}) {
     const setTimer = env.setTimer ?? setTimeout;
     const clearTimer = env.clearTimer ?? clearTimeout;
     const dayOf = (/** @type {Date} */ d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    let last = dayOf(now());
+    let lastDate = now();
+    let last = dayOf(lastDate);
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     let timer;
     const check = () => {
-        const today = dayOf(now());
+        const date = now();
+        const today = dayOf(date);
         if (today === last) return;
+        if (_month === lastDate.getMonth() && _year === lastDate.getFullYear()) { _month = date.getMonth(); _year = date.getFullYear(); }
         last = today;
+        lastDate = date;
         try { onChange(); } catch (e) { console.error('[Calendar] date-change repaint failed', e); }
     };
     // Re-armed from every check: a timer in a backgrounded tab is throttled or frozen, so the resume
@@ -121,8 +131,22 @@ export function watchLocalDate(onChange, env = {}) {
     return () => { clearTimer(timer); doc.removeEventListener('visibilitychange', onVisibility); };
 }
 
-/** Persist current display position to localStorage after each navigation. */
+/**
+ * Persist the display position after each render, so the member returns to a month they moved to.
+ *
+ * The CURRENT month is not stored — it is cleared (cal-data-1, 10 Nov 2026). Every render saves, so a
+ * member who simply had today's month open saved it, and once that month ended the restore could not
+ * tell it from a month browsed back to: the Calendar opened on November on every launch in December
+ * until somebody navigated. With nothing stored the restore falls back to today, which is what a
+ * member reading "this month" meant.
+ */
 export function persistViewedMonth() {
+    const today = new Date();
+    if (_month === today.getMonth() && _year === today.getFullYear()) {
+        lsDel(VIEWED_MONTH);
+        lsDel(VIEWED_YEAR);
+        return;
+    }
     lsSet(VIEWED_MONTH, _month);
     lsSet(VIEWED_YEAR,  _year);
 }

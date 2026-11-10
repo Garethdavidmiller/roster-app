@@ -1,6 +1,6 @@
 /**
  * london-clock.test.mjs — WHAT THE SPLIT PUT AT RISK.
- * Run with: node --test london-clock.test.mjs   (no mocks; part of test:hygiene)
+ * Run with: node scripts/run-tests.mjs london-clock.test.mjs   (no mocks; part of test:hygiene)
  *
  * ── WHY THIS FILE IS SHORT, AND DELIBERATELY NOT A SECOND CLOCK SUITE ───────────────────────────
  *

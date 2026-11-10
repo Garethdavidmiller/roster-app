@@ -15,7 +15,7 @@
 // @ts-ignore
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, getDocFromCache, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported via `_getStorageSdk()` (handed to the shared
 // upload engine in documents-client.js, which is where the huddle/circular/newsletter sequence
 // lives since v21.90) — only
@@ -68,7 +68,10 @@ export {
     // Firestore rules are evaluated server-side — no rule evaluation either. That is what lets the
     // calendar paint before an auth SESSION exists (AUTH_PLAN.md → E1) — but not before Auth has
     // initialised, which for a stored user is after `accounts:lookup` (CALENDAR_DATA.md 10). REJECTS on a miss.
-    getDocs, getDocsFromCache, getDoc, onSnapshot,
+    // getDocFromCache is its single-document form, for the Links store's offline consult: offline,
+    // plain getDoc rejects for a document the cache KNOWS was deleted exactly as for one it never
+    // held, and this one tells them apart — a recorded deletion resolves as not existing, a miss REJECTS.
+    getDocs, getDocsFromCache, getDoc, getDocFromCache, onSnapshot,
     // writes
     addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction,
     // `deleteField` re-exported v19.41 for the Links soft-delete RESTORE: clearing deletedAt/
@@ -154,11 +157,11 @@ function _setMemberPersistence() {
 // PURE, and imported for the same reason session.js imports it: the question "is this identity the
 // shared Calendar viewer?" must have ONE answer, and the boot-persistence decision below is a place
 // where a second local copy of that predicate would be a second place a bypass could be introduced.
-// calendar-access-core.js imports nothing, so this adds no cycle (import-graph.test.mjs).
+// calendar-access-core.js imports only the pure auth-identity.js — no cycle (import-graph.test.mjs).
 import { isViewerUser } from './calendar-access-core.js';
 
 /** Resolve the FIRST auth emission (the persisted-user restore), bounded at 8s; null on timeout.
- *  Local: the shared `restoreFirstAuthUser` is in session.js, which imports THIS module (a cycle).
+ *  The app's one such subscription: session.js's `restoreFirstAuthUser` awaits it via `currentUserAfterBoot`.
  *  **It bounds the emission, NOT `authReady`** (measured, browser SDK build, Sep 2026): Auth's
  *  initialisation includes the stored user's `accounts:lookup`, and `setPersistence` queues behind
  *  it — so `authReady` settles when the lookup does, up to the SDK's 30s API timeout.
@@ -169,9 +172,8 @@ function _firstAuthUserAtBoot() {
         let unsub       = null;
         let settled     = false;
         let detachEarly = false;   // the listener fired before onAuthStateChanged returned
-        // Same TDZ-safe detach shape as session.js's restoreFirstAuthUser, for the same reason:
-        // Firebase does not emit synchronously, but a shape that would throw if it ever did does
-        // not belong on the one promise every page's boot awaits.
+        // A TDZ-safe detach: Firebase does not emit synchronously, but a shape that would throw if
+        // it ever did does not belong on the one promise every page's boot awaits.
         const detach = () => {
             if (unsub) { try { unsub(); } catch { /* already gone */ } unsub = null; }
             else detachEarly = true;
@@ -354,6 +356,14 @@ export async function withClaimRetry(fn) {
 /** withClaimRetry for WRITES, through `runGatedWrite` (claim-retry.js, v24.39): after an unconfirmed
  *  write no new one starts until reload. @template T @param {() => Promise<T>} fn @returns {Promise<T>} */
 export function writeWithClaimRetry(fn) { return runGatedWrite(() => withClaimRetry(fn)); }
+
+/** A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1) — for the admin reads below, which
+ *  Operations painted as current offline ("✓ No outstanding requests", "0/51"). analytics-client.js keeps the
+ *  same guard, with the argument and why it throws `unavailable`. @template T @param {T} snap @returns {T} */
+function refuseCachedRead(snap) {
+    if (/** @type {any} */ (snap)?.metadata?.fromCache) throw Object.assign(new Error('Read was served from the offline cache'), { code: 'unavailable' });
+    return snap;
+}
 
 /**
  * Run a Storage `uploadBytes`, self-healing a stale-claim `storage/unauthorized` once — the
@@ -559,7 +569,7 @@ export async function deleteStaffContact(memberName) {
  * @returns {Promise<Array<{memberName: string, workEmail: string}>>}
  */
 export async function getAllStaffContacts() {
-    const snap = await getDocs(collection(db, COLLECTIONS.staffContact));
+    const snap = refuseCachedRead(await getDocs(collection(db, COLLECTIONS.staffContact)));
     return snap.docs.map(/** @param {any} d */ d => d.data());
 }
 
@@ -633,8 +643,9 @@ export async function savePasswordSetAt(memberName) {
  * @returns {Promise<Array<{ memberName: string, resetAt?: any, passwordSetAt?: any }>>}
  */
 export async function getAllPasswordStatus() {
-    const snap = await getDocs(collection(db, COLLECTIONS.passwordStatus));
-    return snap.docs.map(/** @param {any} d */ d => ({ memberName: d.id, ...d.data() }));
+    const snap = refuseCachedRead(await getDocs(collection(db, COLLECTIONS.passwordStatus)));
+    // The id AFTER the spread, as in getResetRequests (v18.94): what the rules bind must win.
+    return snap.docs.map(/** @param {any} d */ d => ({ ...d.data(), memberName: d.id }));
 }
 
 /**
@@ -669,34 +680,27 @@ export async function reauthenticateWithPassword(memberName, typed) {
 }
 
 /**
- * Set the signed-in member's OWN Firebase Auth password to a new value (after a fresh reauth), then
- * stamp `passwordSetAt`. Standard secure client flow — the server never sees the password.
+ * Set the signed-in member's OWN password (after a fresh reauth) — the server never sees it — and
+ * START the `passwordSetAt` stamp without waiting. Resolves once the password HAS changed, the half a
+ * deadline belongs on (settings-ops-2): timed together, a slow commit read as "we couldn't confirm".
  *
- * Ordering matters: the `passwordSetAt` stamp is a SEPARATE Firestore write that can fail
- * independently of the (already-committed) password change (transient/`unavailable`, a
- * `permission-denied` surviving the claim retry, an offline queue rejection). If a stamp failure
- * were allowed to reject this function, the caller would surface "password change failed" — telling
- * the user to retry with a password that NO LONGER EXISTS and routing a Firestore error into the
- * "current password incorrect" branch, leaving them stuck. So a stamp failure is swallowed and
- * reported via `statusRecorded:false` — the password genuinely changed either way; only the
- * migration record (a monitoring signal, not a security control) is missing and self-heals on the
- * next successful set.
- * @param {string} memberName
- * @param {string} newPassword
- * @returns {Promise<{ statusRecorded: boolean }>} `statusRecorded` is false when the password
- *   changed but the migration stamp did not persist.
+ * Ordering matters: the stamp is a SEPARATE Firestore write that can fail on its own (transient /
+ * `unavailable`, a `permission-denied` surviving the claim retry, an offline queue rejection). Had
+ * that failed the change, the member would be told to retry with a password that NO LONGER EXISTS,
+ * and a Firestore error would read as "current password incorrect". So `stamp` settles false and
+ * never rejects: the password changed either way, and only the migration record (a monitoring
+ * signal, not a security control) is missing until the next successful set.
+ * @param {string} memberName @param {string} newPassword
+ * @returns {Promise<{ stamp: Promise<boolean> }>} rejects only if the password itself was not changed
  */
-export async function setOwnPassword(memberName, newPassword) {
+export async function changeOwnPassword(memberName, newPassword) {
     const user = auth.currentUser;
     if (!user) throw new Error('Not signed in');
     await updatePassword(user, newPassword);   // (A) the password is now genuinely changed
-    try {
-        await savePasswordSetAt(memberName);   // (B) record migration — best-effort, must not undo (A)
-        return { statusRecorded: true };
-    } catch (e) {
-        console.warn('[Auth] password changed, but passwordSetAt stamp failed:', e);
-        return { statusRecorded: false };
-    }
+    // (B) record migration — best-effort, must not undo (A), and never awaited here
+    const stamp = savePasswordSetAt(memberName).then(() => true,
+        (e) => { console.warn('[Auth] password changed, but passwordSetAt stamp failed:', e); return false; });
+    return { stamp };
 }
 
 /** Admin-only Cloud Function that resets a member's Firebase password back to their surname default
@@ -706,13 +710,11 @@ const RESET_PASSWORD_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/r
 
 /**
  * Reset a member's password to the surname default (admin break-glass). Requires the caller's admin
- * claim (enforced server-side). `revoke` signs the member out of their other devices — true for a
- * real reset, false for a Phase-2 migration nudge.
+ * claim (enforced server-side). A reset always signs the member out of their other devices.
  * @param {string} memberName
- * @param {{ revoke?: boolean }} [opts]
  * @returns {Promise<any>} the function's JSON response
  */
-export async function resetMemberPassword(memberName, { revoke = true } = {}) {
+export async function resetMemberPassword(memberName) {
     const user = auth.currentUser;
     if (!user) throw new Error('Not signed in');
     const { token } = await user.getIdTokenResult(/* forceRefresh */ true);
@@ -723,7 +725,7 @@ export async function resetMemberPassword(memberName, { revoke = true } = {}) {
         r = await fetchWithTimeout(RESET_PASSWORD_URL, {
             method:  'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ member: memberName, revoke }),
+            body:    JSON.stringify({ member: memberName }),
         }, 65_000);
         // Read INSIDE the try: the body shares the deadline, and a body cut off by it is a timeout too.
         if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
@@ -851,7 +853,7 @@ export async function requestPasswordReset(memberName) {
  * @returns {Promise<Array<{memberName: string, requestedAt?: any, count?: number, provisioned?: boolean}>>}
  */
 export async function getResetRequests() {
-    const snap = await getDocs(collection(db, COLLECTIONS.resetRequests));
+    const snap = refuseCachedRead(await getDocs(collection(db, COLLECTIONS.resetRequests)));
     return snap.docs
         // memberName AFTER the spread (v18.94): the doc ID is the thing the rules and the endpoint
         // actually bound, so it must win over a field that could in principle differ. With the old

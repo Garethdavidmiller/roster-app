@@ -47,7 +47,8 @@ function clone(v) {
 export function fakeTimestamp(ms) { return { toMillis: () => ms }; }
 function snap(path, id) {
     const data = state.docs.get(path);
-    return { id, exists: () => data !== undefined, data: () => (data === undefined ? undefined : clone(data)) };
+    return { id, exists: () => data !== undefined, data: () => (data === undefined ? undefined : clone(data)),
+        metadata: { fromCache: state.fromCache } };
 }
 function merge(into, patch) {
     for (const [k, v] of Object.entries(patch)) {
@@ -57,8 +58,18 @@ function merge(into, patch) {
     return into;
 }
 
+/** Wait, once, for a write the test is holding open (`state.holdNext`). */
+async function heldUntilReleased(path) {
+    for (const [prefix, gate] of state.holdNext) {
+        if (!path.startsWith(prefix)) continue;
+        state.holdNext.delete(prefix);
+        await gate;
+        return;
+    }
+}
 export async function setDoc(ref, data, opts) {
     state.ops.push({ op: 'set', path: ref.path, data, opts });
+    await heldUntilReleased(ref.path);
     failIfArmed(ref.path);
     const prev = state.docs.get(ref.path);
     state.docs.set(ref.path, opts && opts.merge && prev ? merge(prev, data) : { ...data });
@@ -95,7 +106,15 @@ export async function addDoc(colRef, data) {
     state.docs.set(ref.path, { ...data });
     return ref;
 }
-export async function getDoc(ref) { failIfArmed(`read:${ref.path}`); return snap(ref.path, ref.id); }
+export async function getDoc(ref) {
+    failIfArmed(`read:${ref.path}`);
+    // Offline, the real SDK answers from the cache, and a document the cache does not hold REJECTS
+    // rather than resolving as missing (`readDocumentViaSnapshotListener`).
+    if (state.fromCache && !state.docs.has(ref.path)) {
+        throw Object.assign(new Error('Failed to get document because the client is offline.'), { code: 'unavailable' });
+    }
+    return snap(ref.path, ref.id);
+}
 export async function getDocs(q) {
     const col = q.col;
     const wheres = (q.constraints || []).filter((c) => c.kind === 'where');
@@ -111,9 +130,11 @@ export async function getDocs(q) {
     // limit() is APPLIED, not ignored: a caller that asks for one row too few must get one row too
     // few, or a "fetch cap + 1 to detect overflow" rule is untestable.
     if (cap !== undefined) docs = docs.slice(0, cap);
-    return { docs, size: docs.length, empty: docs.length === 0 };
+    // An offline query RESOLVES from the cache, empty included — it never rejects for want of a server.
+    return { docs, size: docs.length, empty: docs.length === 0, metadata: { fromCache: state.fromCache } };
 }
 export const getDocsFromCache = getDocs;
+export const getDocFromCache = getDoc;
 export function onSnapshot() { return () => {}; }
 export function writeBatch() {
     const pending = [];

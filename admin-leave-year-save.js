@@ -38,21 +38,32 @@ import { renderTable } from './admin-saved-changes.js';
 import { renderWeekGrid, _hasStagedEdits } from './admin-week-editor.js';
 import { withSlowSaveNotice } from './slow-save.js';
 
+/** What this save's own refusals say. `saveFailureMessage` shows a refusal's `line` as it is; thrown
+ *  as bare messages, all three read "check your connection" (whole-app check, 10 Nov 2026). */
+const REFUSALS = {
+    'auth/session-expired': "You've been signed out, so nothing was saved — please sign in again.",
+    'cache/load-failed':    "This member's saved changes couldn't be loaded, so nothing was saved. Reload the page, then try again.",
+    'leave-year/invalid':   "That year can't be chosen for this day, so nothing was saved.",
+};
+/** @param {keyof typeof REFUSALS} code @returns {Error} the code as its message, the words as its `line` */
+const refusal = (code) => Object.assign(new Error(code), { line: REFUSALS[code] });
+
 /**
  * Move one January leave day to `leaveYear`'s allowance (or back to its own, with null).
  * @param {{ memberName: string, date: string, leaveYear: number|null, changedBy: string }} opts
  * @returns {Promise<void>}
- * @throws {Error} 'auth/session-expired', 'cache/load-failed', 'leave-year/invalid', a refusal
- *         carrying `line`, or a Firestore error — `saveFailureMessage` words every one of them
+ * @throws {Error} 'auth/session-expired', 'cache/load-failed' or 'leave-year/invalid' (as the message,
+ *         with the words in `line`), a stale-page refusal carrying `line`, or a Firestore error —
+ *         `saveFailureMessage` words every one of them
  */
 export async function setLeaveYear({ memberName, date, leaveYear, changedBy }) {
     await sessionReady;
     await whenOverridesReady();
     if (!hasOverrideAuthorityFor(memberName)) await whenLoadSettled().catch(() => {});
-    if (!hasOverrideAuthorityFor(memberName)) throw new Error('cache/load-failed');
-    if (!auth.currentUser) throw new Error('auth/session-expired');
+    if (!hasOverrideAuthorityFor(memberName)) throw refusal('cache/load-failed');
+    if (!auth.currentUser) throw refusal('auth/session-expired');
     if (!canChooseLeaveYear(date) || (leaveYear !== null && !isValidLeaveYear(date, leaveYear))) {
-        throw new Error('leave-year/invalid');
+        throw refusal('leave-year/invalid');
     }
     const shown = buildMemberDateMap(memberName).get(date);
     if (!shown || shown.type !== 'annual_leave') {

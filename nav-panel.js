@@ -50,7 +50,7 @@
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications, releaseDevicePush } from './notif.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl, currentUserAfterBoot } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
-import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade, closeOnBackdropTap } from './overlay.js';
 import { readArchivedNotices } from './notice-archive.js';
 import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
@@ -146,6 +146,11 @@ function _currentPageFile() {
     return window.location.pathname.split('/').pop() || 'index.html';
 }
 
+/** Is this document the Calendar — the app's root, as a directory or as `index.html`? Where a `./#…`
+ *  link is only a hash change, so the drawer must not let it navigate (`./#…` from an explicit
+ *  /index.html resolves to `/#…`: a path change and a full reload where a hash change was meant). */
+const _onCalendarPage = () => /(^|\/)(index\.html)?$/.test(window.location.pathname);
+
 let _panelOpen      = false;
 // A single shallow history entry, shared by the panel and any lightbox that
 // opens from inside it — so Android Back pops exactly one entry.
@@ -154,6 +159,12 @@ let _historyPushed  = false;
  *  drawer (a dialog), so the drawer stays. Per opening, so a pre-reload leftover never passes for it. */
 let _navEntry = 0;
 const _landedOnOwnEntry = () => history.state?.mybNavPanel === _navEntry;
+/** Push the drawer's ONE entry — shared by the panel and its two lightboxes — with a fresh marker. */
+function _pushDrawerEntry() {
+    _navEntry = Date.now() + Math.random();
+    history.pushState({ mybNavPanel: _navEntry }, '');
+    _historyPushed = true;
+}
 let _comingSoonOpen = false;
 let _noticesOpen    = false;
 
@@ -163,7 +174,9 @@ let _noticesOpen    = false;
 // Week View while also closing the drawer (one press, two surfaces). Registered once at module
 // level (the flags are module-level too, so this survives resetNavPanel→initNavPanel cycles).
 // …unless the pop LANDED on the drawer's own entry: a dialog over it was popped, and it closes (v25.06).
-registerPopInterceptor(() => _historyPushed && (_comingSoonOpen || _noticesOpen || !_landedOnOwnEntry()));
+// The same holds while App Notices or the coming-soon panel is up: they share the entry, and a dialog
+// over one of them owns its own Back (whole-app check, Nov 2026 — they used to claim every pop).
+registerPopInterceptor(() => _historyPushed && !_landedOnOwnEntry());
 // The document keydown + window popstate handlers registered by initNavPanel — held at module
 // level so resetNavPanel() can remove them (they close over the injected panel; a stale copy
 // surviving a reset would consume the shared flags against a detached panel).
@@ -178,8 +191,11 @@ registerPopInterceptor(() => _historyPushed && (_comingSoonOpen || _noticesOpen 
 
 /** How long a drawer document tap waits for a session before reading anyway (v19.07). The user has
  *  just tapped and a loading state is showing, so this is the "here's a response" budget — not a
- *  general timeout. The whole fetch stays bounded by the existing 8s race below. */
+ *  general timeout. The whole open stays inside `DOC_FETCH_BUDGET_MS`. */
 const DOC_AUTH_WAIT_MS = 2000;
+/** The most a drawer document tap waits, from the tap, before it gives its answer: the read and the
+ *  short-lived link race this one budget, and past it the stored url (or the fallback) is used. */
+const DOC_FETCH_BUDGET_MS = 8000;
 
 /**
  * Tear down an already-initialised nav panel so initNavPanel() can rebuild it from scratch with a
@@ -230,7 +246,8 @@ export function resetNavPanel() {
  *   onLockCalendar (v20.12; the Calendar, and Trains since v24.84) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
- *   canReadDocuments (v23.17, calendar only) — a THUNK: may the drawer's two document links read?
+ *   canReadDocuments (v23.17; the Calendar, and Overtime for a visitor with no named session) — a THUNK: may the
+ *   drawer's two document links read?
  *   authReady — resolves once a Firebase session exists; awaited before the Circular/Newsletter
  *   read (AUTH_PLAN.md → E1). Each page passes its own (calendar: `calendarAuthReady`; the
  *   authenticated pages: `sessionReady`). Defaults to already-resolved.
@@ -268,11 +285,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         panel.classList.add('open');
         burger.setAttribute('aria-expanded', 'true');
         lockBodyScroll();
-        if (!_historyPushed) {
-            _navEntry = Date.now() + Math.random();
-            history.pushState({ mybNavPanel: _navEntry }, '');
-            _historyPushed = true;
-        }
+        if (!_historyPushed) _pushDrawerEntry();
         _stopBodyFade(); _stopBodyFade = watchScrollFade(/** @type {HTMLElement|null} */ (panel.querySelector('.nav-panel-body')));
         // Permission/subscription can change between opens (toggled in admin, or
         // at OS level), so re-read the bell state every time the panel opens.
@@ -378,8 +391,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     function _openLatestDoc(triggerEl, fetchFn, docId) {
         if (_docFetching) return;
         // THE DOCUMENT GATE (v23.17, calendar-doc-access.js): refused HERE, before the blank tab is
-        // opened — a tab that closes a second later reads as a fault. Only the Calendar passes this;
-        // its header has the argument. The lightbox names the document; the message names the fix.
+        // opened — a tab that closes a second later reads as a fault. The Calendar passes this (its
+        // header has the argument), and Overtime, which sheds a PIN holder's identity, for a visitor
+        // with no named session. The lightbox names the document; the message names the fix.
         if (!canReadDocuments()) {
             _docFailureFallback(triggerEl, 'Enter the staff PIN on the Calendar, or sign in, to open this.');
             return;
@@ -395,7 +409,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // otherwise leave _docFetching stuck true, killing BOTH doc nav-links until a reload and
         // orphaning the blank tab. On timeout the .catch closes the tab and shows the fallback (v16.19).
         const timed = new Promise((_res, reject) =>
-            setTimeout(() => reject(new Error('doc-fetch-timeout')), 8000));
+            setTimeout(() => reject(new Error('doc-fetch-timeout')), DOC_FETCH_BUDGET_MS));
         // Wait for a Firebase session before reading (AUTH_PLAN.md → E1): the three document
         // collections require access (firestore.rules, since v23.18 — a member's claim, `admin`, or
         // the PIN's `calendarViewer`), so a read fired before the session lands is refused. Each
@@ -413,7 +427,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // The short-lived url is requested ALONGSIDE the document read (v24.23) — the server picks
         // the latest document itself, so it needs nothing the read returns, and in series the blank
         // tab waited for two round trips back to back. It never rejects (document-url.js).
-        const signedP = authOrSoon.then(() => fetchSignedDocumentUrl(/** @type {any} */ (docId)));
+        // And it races the SAME budget as the read (whole-app check, Nov 2026): its own timeout starts
+        // only once a session and an ID token are in hand, and a token refresh on a weak signal held
+        // the blank tab, and both document links, far past it. Out of time, the stored url opens.
+        const signedP = Promise.race([
+            authOrSoon.then(() => fetchSignedDocumentUrl(/** @type {any} */ (docId))),
+            new Promise(r => setTimeout(() => r(null), DOC_FETCH_BUDGET_MS)),
+        ]);
         Promise.race([authOrSoon.then(() => fetchFn()), timed]).then(/** @param {any} data */ async data => {
             const url = data?.storageUrl;
             const safeUrl = isSafeStorageUrl(url) ? url : null;
@@ -461,10 +481,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                     // and keeps the app around it. On the Calendar that is a hash change under a
                     // drawer that has to close FIRST, so the hash lands after its Back echo; on any
                     // other page it is a navigation, and the drawer's entry goes with the page.
-                    if (_panelOpen && /(^|\/)(index\.html)?$/.test(location.pathname)) {
+                    if (_panelOpen && _onCalendarPage()) {
                         closePanel();
-                        // The hash alone: `./#…` from an explicit /index.html resolves to `/#…`, a PATH
-                        // change and a full reload where a hash change was meant (24-hour review).
+                        // The hash alone, never `./#…` (24-hour review) — see `_onCalendarPage`.
                         whenHistorySettled(() => { location.hash = docId; });
                     } else {
                         // THROUGH THE DRAWER'S OWN LINK PATH (v25.06): `location.href` skipped the unsaved-work
@@ -582,10 +601,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 window.addEventListener('popstate', _cancelNav);
                 return;
             }
-            // Modifier/middle click (desktop "open in new tab") or no pushed entry: default anchor path.
-            // Nothing is deferred or cancellable here, so the open is committed — count it.
+            // Modifier click (desktop "open in new tab") or no pushed entry: default anchor path.
+            // Nothing is deferred or cancellable here, so the open is committed — count it. A new tab
+            // leaves THIS page where it is, so the drawer closes properly and pops its own entry;
+            // only forgetting it left a dead same-URL entry that swallowed the next Back press.
             _countGuideOpen();
-            closePanelForNavigation();
+            if (plainGuideClick) closePanelForNavigation(); else if (_panelOpen) closePanel();
             return;
         }
         // Same-tab page navigation (pills, Settings, real info links). The drawer pushed a history
@@ -595,21 +616,35 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // plain left-click on a real cross-page link, REPLACE that throwaway entry with the destination
         // via location.replace — no race (unlike history.back()+nav, the reason closePanel() isn't used
         // here) and single-Back behaviour is unchanged: Back still lands on the page you were on before
-        // opening the drawer, just without the dead duplicate. Hash links (#huddle — the Daily Huddle
-        // same-doc nav, whose viewer owns its own history) and modifier / new-tab clicks keep the
-        // default <a> path. (v16.87)
+        // opening the drawer, just without the dead duplicate. (v16.87)
+        //
+        // THE OTHER TWO WAYS OUT POP THE ENTRY INSTEAD. A `./#…` link on the Calendar (the Daily Huddle)
+        // is a hash change under this document, not a navigation: the drawer closes properly and the
+        // hash is set once that close's Back echo has landed — the document hand-off's pattern above.
+        // A click that leaves this page where it is — a new tab, or the inert "you are here" pill —
+        // closes it properly too. Both used to forget the entry, which left a Back press that did
+        // nothing behind every Huddle opened from the drawer (whole-app check, Nov 2026).
         const navTarget = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-pill, .nav-panel-link'));
         if (navTarget) {
             const anchor  = navTarget.tagName === 'A' ? /** @type {HTMLAnchorElement} */ (navTarget) : null;
             const rawHref = anchor?.getAttribute('href') || '';
             const plainClick = e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
-            if (anchor && _historyPushed && plainClick && rawHref && !rawHref.includes('#') && anchor.target !== '_blank') {
+            const navigatesHere = !!anchor && !!rawHref && plainClick && anchor.target !== '_blank';
+            if (navigatesHere && rawHref.startsWith('./#') && _onCalendarPage()) {
                 e.preventDefault();
-                closePanelForNavigation();      // clear _historyPushed + visually close (no history.back)
-                location.replace(anchor.href);  // overwrite the drawer's same-URL entry with the destination
+                if (_panelOpen) closePanel();
+                whenHistorySettled(() => { location.hash = rawHref.slice(2); });
                 return;
             }
-            if (_panelOpen) closePanelForNavigation();   // a hand-off click can come with the drawer shut
+            if (navigatesHere && _panelOpen && _historyPushed) {
+                e.preventDefault();
+                closePanelForNavigation();      // clear _historyPushed + visually close (no history.back)
+                location.replace(/** @type {HTMLAnchorElement} */ (anchor).href);   // overwrite the drawer's same-URL entry with the destination
+                return;
+            }
+            if (!_panelOpen) return;            // a hand-off click can come with the drawer shut
+            if (navigatesHere) closePanelForNavigation();   // no entry of ours to replace: the <a> navigates
+            else closePanel();                  // this page stays: pop the entry, as ✕ does
             return;
         }
     });
@@ -822,10 +857,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         document.addEventListener('keydown', _onComingSoonKey);
         // Reuse the panel's single history entry (normally already present, as
         // the lightbox opens from the open panel); push one only if missing.
-        if (!_historyPushed) {
-            history.pushState({ mybNavOverlay: true }, '');
-            _historyPushed = true;
-        }
+        if (!_historyPushed) _pushDrawerEntry();
         _comingSoonOpen = true;
         setTimeout(() => csClose?.focus(), 60);
     }
@@ -894,11 +926,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     }
 
     csClose?.addEventListener('click', _closeComingSoon);
-    // Only close on direct backdrop click — csClose already has its own listener
-    // and event bubbling would otherwise call _closeComingSoon twice.
-    csLightbox?.addEventListener('click', e => {
-        if (e.target === csLightbox) _closeComingSoon();
-    });
+    // Only close on a tap on the backdrop itself — csClose already has its own listener and event
+    // bubbling would otherwise call _closeComingSoon twice; and a text selection dragged out onto it
+    // is not a tap (`closeOnBackdropTap`).
+    if (csLightbox) closeOnBackdropTap(csLightbox, _closeComingSoon);
 
     // App Notices archive lightbox — same bespoke pattern as the coming-soon
     // lightbox (reuses the panel's single history entry; no createLightbox).
@@ -910,15 +941,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     function _openNotices() {
         if (!noticesLightbox) return;
         // Render the archive (notice-archive.js reads it, and an unreadable one reads as empty).
-        const list  = noticesList;
-        const empty = noticesEmpty;
         const notices = readArchivedNotices();
         // One entry per section a notice can archive under, or its chip falls back to the neutral
         // grey: Trains had none for its first two notices (v25.00). `calendar-notices.test.mjs` fails
         // on an archived section with no entry here, so the next page's notice cannot repeat that.
         const SECTION_MODS = { Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains', 'New link': 'newlink' };
-        if (list) {
-            list.innerHTML = '';
+        if (noticesList) {
+            noticesList.innerHTML = '';
             notices.forEach(/** @param {any} n */ n => {
                 const item    = document.createElement('div');
                 item.className = 'notices-item';
@@ -942,20 +971,17 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 item.appendChild(header);
                 item.appendChild(titleEl);
                 item.appendChild(bodyEl);
-                list.appendChild(item);
+                noticesList.appendChild(item);
             });
         }
-        if (list)  list.hidden  = notices.length === 0;
-        if (empty) empty.hidden = notices.length > 0;
+        if (noticesList)  noticesList.hidden  = notices.length === 0;
+        if (noticesEmpty) noticesEmpty.hidden = notices.length > 0;
         // Open the lightbox
         lockBodyScroll();
         noticesLightbox.classList.add('visible');
         requestAnimationFrame(() => noticesLightbox.classList.add('open'));
         document.addEventListener('keydown', _onNoticesKey);
-        if (!_historyPushed) {
-            history.pushState({ mybNavOverlay: true }, '');
-            _historyPushed = true;
-        }
+        if (!_historyPushed) _pushDrawerEntry();
         _noticesOpen = true;
         setTimeout(() => noticesClose?.focus(), 60);
     }
@@ -1004,9 +1030,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     _navLbKeyHandlers = [_onComingSoonKey, _onNoticesKey];
 
     noticesClose?.addEventListener('click', _closeNotices);
-    noticesLightbox?.addEventListener('click', e => {
-        if (e.target === noticesLightbox) _closeNotices();
-    });
+    if (noticesLightbox) closeOnBackdropTap(noticesLightbox, _closeNotices);
 
     // Close panel on Escape; trap Tab focus within the panel while it is open.
     // The !panel.contains(active) guard catches focus that escaped the panel
@@ -1049,10 +1073,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // Stored in the module-level ref so resetNavPanel() can remove it (same stale-copy hazard
     // as the keydown handler above — Android Back is the primary close gesture on staff phones).
     _popstateHandler = () => {
+        if (!_historyPushed) return;
+        // What was popped sat ABOVE the drawer's entry — a dialog over the drawer or over one of its two
+        // lightboxes, by Back or by the echo of its own Cancel, which overlay.js absorbs but cannot stop
+        // reaching this listener too. It is the dialog's pop, not ours.
+        if (_landedOnOwnEntry()) return;
         if (_comingSoonOpen) { _closeComingSoonFromBack(); return; }
         if (_noticesOpen)   { _closeNoticesFromBack(); return; }
-        if (!_historyPushed) return;
-        if (_landedOnOwnEntry()) return;   // what was popped sat ABOVE the drawer (a dialog it opened)
         closePanelFromBack();
     };
     window.addEventListener('popstate', _popstateHandler);

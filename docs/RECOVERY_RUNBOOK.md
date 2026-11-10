@@ -42,8 +42,8 @@ of a single record — *not* a full database restore. Reach for a full restore l
 | Storage paths | `huddles/…`, `circulars/…`, `newsletters/…` |
 | Cloud Functions (europe-west2) | **Do not keep a second list here.** `functions-surface.test.mjs` pins the whole deploy surface in CI and is the only copy that cannot fall behind — read it. A rollback scoped from a hand-kept list misses whatever the list forgot. While Overtime is paused its five endpoints and daily creator are not exported (`OVERTIME_AVAILABILITY.md` → Paused) |
 | Live site (primary) | `https://myb-roster.web.app` (Firebase Hosting) |
-| Live site (mirror) | `https://garethdavidmiller.github.io/roster-app/` (GitHub Pages, built from `main`) |
-| Deploy mechanism | GitHub Actions via Workload Identity Federation → `github-deploy@myb-roster.iam.gserviceaccount.com`. Workflows: `deploy-functions.yml`, `deploy-hosting.yml`, `deploy-rules.yml`, and `deploy-mirror.yml` (the Pages mirror, once its source is switched to GitHub Actions) |
+| Live site (mirror) | `https://garethdavidmiller.github.io/roster-app/` (GitHub Pages, published by `deploy-mirror.yml` after each passing Hosting run) |
+| Deploy mechanism | GitHub Actions via Workload Identity Federation → `github-deploy@myb-roster.iam.gserviceaccount.com`. Workflows: `deploy-functions.yml`, `deploy-hosting.yml`, `deploy-rules.yml`, and `deploy-mirror.yml` (the Pages mirror, since its source was switched to GitHub Actions on 10 November 2026) |
 | Source of truth for a rollback | this git repo — `main` is what deploys |
 | **IAM prerequisite for `unlockCalendarViewer` (and `getDocumentUrl`)** | The Cloud Run runtime service account — currently `532910998075-compute@developer.gserviceaccount.com` — must hold **`roles/iam.serviceAccountTokenCreator` on itself**, and `iamcredentials.googleapis.com` must be enabled. Under Application Default Credentials `createCustomToken` cannot sign locally; it calls the IAM Credentials API. **Gen-2 does not grant this by default and nothing in the repo can enforce it** — its absence caused the 10 Aug 2026 outage, in which every correct PIN returned 500 while every wrong one returned a healthy 401. Re-apply it if the runtime service account changes, if the function is given its own service account, or if the project is rebuilt (the command is §5b below). |
 
@@ -318,7 +318,7 @@ Each document is a Firestore doc (`circulars/{date}` etc.) **plus** a Storage fi
    git push origin main        # triggers deploy-functions.yml
    ```
    Watch the Actions run to green. **If `main` carries the status-check ruleset**
-   (OPERATIONS_REFERENCE.md → "The Pages mirror — putting it behind the Hosting gate", step 1), a
+   (OPERATIONS_REFERENCE.md → "The Pages mirror", step 1 — not yet set on 10 November 2026), a
    direct push is refused unless you are on its bypass list: push the revert to a branch and merge
    it as a pull request once CI passes. The same applies to every `git push origin main` below.
 2. **Emergency local redeploy** (if Actions itself is the problem), from a good checkout:
@@ -353,7 +353,8 @@ older believes a `name` any anonymous session can give itself.
    safety net that should have caught it.
 4. **Auth silently failing everywhere but rules look fine?** Check the **API key referrer
    allowlist** (GCP Console → APIs & Services → Credentials) — a missing domain makes every
-   Firebase Auth call fail with no visible error. It must include `myb-roster.web.app/*`,
+   Firebase Auth call fail, and nothing on screen names the cause: a typed sign-in says only
+   "Couldn’t sign you in. Try again — if it keeps happening, ask the admin." It must include `myb-roster.web.app/*`,
    `myb-roster.firebaseapp.com/*`, and `garethdavidmiller.github.io/*`.
 
 ### G. A Hosting deploy broke the live site (blank page, CSP error, 404)
@@ -364,9 +365,9 @@ private window** (no cache, no SW): does `https://myb-roster.web.app` load *past
 to the calendar, with no red console errors?
 
 1. **Revert the commit** and let `deploy-hosting.yml` redeploy — **the only route that reaches BOTH
-   origins.** Most staff open the GitHub Pages mirror, which builds from `main` (or, once its source
-   is switched, follows a completed Hosting workflow run — `deploy-mirror.yml`). A Console rollback
-   runs neither, so the mirror keeps serving the broken release.
+   origins.** Most staff open the GitHub Pages mirror, which `deploy-mirror.yml` publishes after
+   each passing Hosting run. A Console rollback runs neither, so the mirror keeps serving the broken
+   release.
 2. **Hosting rollback (fastest, `myb-roster.web.app` ONLY):** **Console → Hosting → release history →
    Rollback** to the previous release — a stopgap while the revert deploys, never the whole fix.
    (There is **no `firebase hosting:rollback` CLI command** — the Console button is the rollback
@@ -378,12 +379,13 @@ to the calendar, with no red console errors?
 ### H. GitHub-mirror failover — the live site is broken by Hosting infra, not app code
 
 The mirror at `https://garethdavidmiller.github.io/roster-app/` is served by **GitHub Pages**,
-completely independent of Firebase Hosting's infrastructure (it builds from `main`, or — once its
-source is switched — publishes what a passing Hosting run released).
+completely independent of Firebase Hosting's infrastructure. Since 10 November 2026 it publishes
+what a passing Hosting run released, through `deploy-mirror.yml`.
 
 - **It helps when the problem is Firebase *Hosting infrastructure*** (a bad hosting config,
   a Hosting outage) — direct staff to the mirror URL (note the `/roster-app/` path; the bare
-  origin 404s).
+  origin 404s). While Hosting is down no new release reaches the mirror either, because it
+  publishes only after a successful Hosting run, so it keeps serving the last good one.
 - **It does *not* help for an app-code bug** — the mirror serves the same code, so it has the
   same bug. For code bugs, fix/roll back the code (playbook G).
 - New installs from the mirror rely on `garethdavidmiller.github.io/*` being in the API-key

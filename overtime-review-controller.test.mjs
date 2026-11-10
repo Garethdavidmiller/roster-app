@@ -1,6 +1,6 @@
 /**
  * overtime-review-controller.test.mjs — WHICH WEEK IS ON SCREEN, AND WHICH WEEK THE DATA IS FROM.
- * Run with: node --experimental-test-module-mocks --test overtime-review-controller.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs overtime-review-controller.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *
@@ -46,12 +46,14 @@ function fakeEl(id) {
     return {
         id, innerHTML: '', textContent: '', hidden: true,
         querySelectorAll: () => [], querySelector: () => null,
-        addEventListener() {}, setAttribute() {}, scrollIntoView() {},
+        addEventListener() {}, setAttribute() {}, scrollIntoView() {}, focus() { focused.push(id); },
     };
 }
 
 /** @type {Record<string, any>} */
 let dom = {};
+/** Every element the controller focused directly, by id. */
+let focused = /** @type {string[]} */ ([]);
 const el = (/** @type {string} */ id) => (dom[id] ||= fakeEl(id));
 
 globalThis.document = /** @type {any} */ ({ querySelectorAll: () => [], body: { style: {} } });
@@ -60,6 +62,8 @@ globalThis.document = /** @type {any} */ ({ querySelectorAll: () => [], body: { 
 
 /** Answers `getOvertimeManagerOverview` will give, in order — each may be a promise to resolve. */
 let overviewQueue = [];
+/** How many times the overview was read — the horizon's own freshness is a count of these. */
+let overviewReads = 0;
 /** Answers `loadWeekDetail` will give, keyed by week; a function is called with a `resolve` gate. */
 let detailFor = new Map();
 /** Every week handed to the renderer, in paint order — the record the first block reads. */
@@ -72,7 +76,10 @@ let withdrawHold = /** @type {null | (() => any)} */ (null);
 mock.module('./overtime-data.js', {
     namedExports: {
         correctedNow: () => Date.parse('2026-08-20T09:00:00Z'),
-        getOvertimeManagerOverview: async () => overviewQueue.shift() ?? { ok: true, data: { planningWeeks: [], retained: [] } },
+        getOvertimeManagerOverview: async () => {
+            overviewReads++;
+            return overviewQueue.shift() ?? { ok: true, data: { planningWeeks: [], retained: [] } };
+        },
         loadWeekDetail: async (weekEnding) => {
             const entry = detailFor.get(weekEnding);
             return typeof entry === 'function' ? entry() : (entry ?? { ok: false });
@@ -82,15 +89,32 @@ mock.module('./overtime-data.js', {
     },
 });
 
+/** Every restamp of the sheet's "Printed …" line, as [host, instant]. */
+let stamped = /** @type {any[]} */ ([]);
+/** Every successor the controller put the keyboard on. */
+let refocused = /** @type {string[][]} */ ([]);
+/** What the workspace reports it opened on — the real one says when it fell back to All grades. */
+let opensOn = /** @type {null | ((grade: string) => string)} */ (null);
 mock.module('./overtime-manager.js', {
     namedExports: {
         renderWeekDetail: (_host, win, data, opts) => {
-            painted.push({ weekEnding: win.weekEnding, phase: win.phase, dates: opts.dates, grade: opts.grade, day: opts.day, opts });
+            painted.push({ weekEnding: win.weekEnding, phase: win.phase, dates: opts.dates, grade: opts.grade, day: opts.day, data, opts });
+            return { grade: opensOn ? opensOn(opts.grade) : opts.grade };
         },
+        stampPrinted: (/** @type {any} */ host, /** @type {number} */ at) => { stamped.push([host, at]); },
+        // Where the keyboard is sent after a repaint, as [attribute, value] (overtime-ui-12).
+        refocus: (/** @type {any} */ _host, /** @type {string} */ attr, /** @type {string} */ value) => { refocused.push([attr, value]); return true; },
+        focusLost: () => true,
     },
 });
 
-mock.module('./overlay.js', { namedExports: { confirmDialog: async () => true } });
+/** The page's window, as far as the controller uses it: the listeners it adds. */
+const windowListeners = /** @type {Record<string, Function>} */ ({});
+globalThis.window = /** @type {any} */ ({ addEventListener: (/** @type {string} */ t, /** @type {Function} */ f) => { windowListeners[t] = f; } });
+
+/** Every confirmation the controller asked for, in order — its words are part of what it promises. */
+let dialogs = /** @type {any[]} */ ([]);
+mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {any} */ o) => { dialogs.push(o); return true; } } });
 
 const { createReviewController } = await import('./overtime-review-controller.js');
 
@@ -155,10 +179,15 @@ function makeController(over = {}) {
 beforeEach(() => {
     dom = {};
     overviewQueue = [];
+    overviewReads = 0;
     detailFor = new Map();
     painted = [];
     createQueue = [];
     withdrawHold = null;
+    dialogs = [];
+    opensOn = null;
+    focused = [];
+    refocused = [];
     // A success flash arms a REAL 2.5-second auto-hide that no test here waits for, and it held the
     // process open after the last test: 2.7 s of wall for ~60 ms of tests (test audit, 7 Nov 2026).
     // Mocked, it is a fake timer that the reset below throws away.
@@ -259,7 +288,7 @@ describe('a week that has gone says so, and leaves the chip able to come back', 
         // The selection was cleared, so the visibility refresh has nothing to re-read — a card
         // reading "that week is gone" must not repopulate itself from the week it just disowned.
         painted.length = 0;
-        c.refreshSelectedIfStale();
+        c.refreshIfStale();
         await settle();
         assert.equal(painted.length, 0);
     });
@@ -284,7 +313,7 @@ describe('a week that has gone says so, and leaves the chip able to come back', 
         await c.loadHorizon();
         assert.equal(dom.otWeekChip.textContent, '4/6', 'still there — the card has not been re-read yet');
 
-        c.refreshSelectedIfStale();
+        c.refreshIfStale();
         await settle();
         assert.match(dom.otWeekContent.innerHTML, /no longer available/);
         assert.equal(dom.otWeekChip.textContent, '', 'and the ratio goes with the card it described');
@@ -345,6 +374,34 @@ describe('a week that has gone says so, and leaves the chip able to come back', 
         await c.selectWeek(B);
         assert.equal(dom.otWeekChip.textContent, '6/6', 'a later week still gets its ratio');
     });
+
+    test('a carried grade the week does not hold is counted as the workspace drew it — All grades (overtime-ui-8)', async () => {
+        // The workspace falls back to All grades and leaves the reviewer's choice alone (it comes
+        // back on a week that holds it); the chip went on counting the absent grade: "0/0" over
+        // "1 of 2 forms received".
+        detailFor.set(A, detail(4, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        painted.at(-1).opts.onGrade('CES');   // the reviewer works CES …
+        opensOn = () => 'ALL';                // … on a week whose population holds none
+        await c.selectWeek(A);
+        assert.equal(painted.at(-1).grade, 'CES', 'the choice is still handed in — it is the reviewer\'s');
+        assert.equal(dom.otWeekChip.textContent, '1/4', 'and the chip counts what the card does');
+    });
+
+    test('a past week chosen before a horizon reload is still marked as chosen after it (css lead)', async () => {
+        // Its View button was built with no `aria-pressed`, unlike a horizon row's, so any reload of
+        // the list — every Refresh now — unmarked the week on screen.
+        const PAST = week('2026-08-15', '2026-08-09');
+        detailFor.set(PAST.weekEnding, detail(2, 1));
+        const c = makeController();
+        await boot(c, [PAST]);
+        await c.selectWeek(PAST.weekEnding);
+        overviewQueue.push({ ok: true, data: { planningWeeks: [], retained: [PAST] } });
+        await c.loadHorizon();
+        assert.match(dom.otHorizonContent.innerHTML, /data-open="2026-08-15"\s+aria-pressed="true"/);
+    });
 });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -394,9 +451,11 @@ describe('the visibility refresh asks before it re-reads', () => {
         await boot(c, [WEEK_A]);
         await c.selectWeek(A);
         painted.length = 0;
-        c.refreshSelectedIfStale();
+        const reads = overviewReads;
+        c.refreshIfStale();
         await settle();
         assert.equal(painted.length, 0, 'inside the debounce, nothing is re-read');
+        assert.equal(overviewReads, reads, 'the horizon included');
     });
 
     test('and a week left open long enough is', async () => {
@@ -408,9 +467,81 @@ describe('the visibility refresh asks before it re-reads', () => {
         await boot(c, [WEEK_A]);
         await c.selectWeek(A);
         painted.length = 0;
-        c.refreshSelectedIfStale();
+        const reads = overviewReads;
+        overviewQueue.push({ ok: true, data: { planningWeeks: [], retained: [WEEK_A] } });
+        c.refreshIfStale();
         await settle();
         assert.equal(painted.length, 1, 'past the debounce it refreshes');
+        // The HORIZON too (overtime-ui-3): a week the 05:00 run failed to open went on reading
+        // "Opens automatically overnight" all morning, over a week card that had re-read itself.
+        assert.equal(overviewReads, reads + 1, 'and the horizon above it is re-read with it');
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('Refresh re-reads the horizon too, and a re-read that fails keeps what is on screen', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    test('the Refresh button re-reads the horizon as well as the week (overtime-ui-3)', async () => {
+        // The row could say "2 of 5 forms received" over a card that, after Refresh, said 4 of 5.
+        detailFor.set(A, detail(4, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        const reads = overviewReads;
+        overviewQueue.push({ ok: true, data: { planningWeeks: [], retained: [WEEK_A] } });
+        await painted.at(-1).opts.onRefresh();
+        await settle();
+        assert.equal(overviewReads, reads + 1);
+    });
+
+    test('a horizon being refreshed stays on screen, and one that fails to refresh says so', async () => {
+        detailFor.set(A, detail(4, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        /** @type {any} */ let land;
+        overviewQueue.push(new Promise(r => { land = r; }));
+        const refreshing = painted.at(-1).opts.onRefresh();
+        await settle();
+        assert.match(dom.otHorizonContent.innerHTML, /ot-week-list/, 'no loading line over the list being refreshed');
+        land({ ok: false, code: 'network' });
+        await refreshing; await settle();
+        const html = dom.otHorizonContent.innerHTML;
+        assert.match(html, /ot-week-list/, 'the rows already read are kept');
+        assert.match(html, /Couldn't refresh just now — this list is as at /, 'and it says how old they are');
+        assert.notEqual(html, 'ERROR');
+    });
+
+    test('a failed re-read of the week on screen keeps that snapshot and says so (overtime-ui-11)', async () => {
+        // The phone unlocks, the automatic re-read runs before the signal is back, and the list a
+        // clerk was ringing round from was replaced by "Couldn't load" — though it carried an honest
+        // "as at" time. Keep it; say the refresh failed; let the next return try again.
+        const first = detail(4, 1);
+        const answers = [first, { ok: false }];
+        detailFor.set(A, () => answers.shift());
+        const c = makeController({ debounce: 0 });
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        const shownAt = painted.at(-1).opts.now;
+        overviewQueue.push({ ok: true, data: { planningWeeks: [], retained: [WEEK_A] } });
+        c.refreshIfStale();
+        await settle();
+        assert.notEqual(dom.otWeekContent.innerHTML, 'ERROR', 'the snapshot is not taken away');
+        const again = painted.at(-1);
+        assert.equal(again.opts.refreshFailed, true, 'the workspace is told the refresh failed');
+        assert.equal(again.data, first, 'and still draws the data it had');
+        assert.equal(again.opts.now, shownAt, 'with the time that data was read, not a newer one');
+        assert.equal(dom.otWeekChip.textContent, '1/4', 'the chip still agrees with the card');
+    });
+
+    test('…but a week with nothing on screen yet still gets the error card and its retry', async () => {
+        detailFor.set(A, { ok: false });
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        assert.equal(dom.otWeekContent.innerHTML, 'ERROR');
+        assert.equal(typeof dom.otWeekContent.retry, 'function');
     });
 });
 
@@ -481,7 +612,7 @@ describe('a failure retries what failed, and a message never re-arms a create', 
         return {
             textContent: 'x', disabled: false, classList: { add() {}, remove() {} },
             getAttribute: (/** @type {string} */ a) => (a === attr ? value : null),
-            setAttribute() {},
+            setAttribute() {}, focus() {},
             addEventListener: (/** @type {string} */ _t, /** @type {any} */ f) => on.push(f),
             press: () => Promise.all(on.map(f => f())),
         };
@@ -555,7 +686,7 @@ describe('a create that fails under ANOTHER week\'s question disarms (48-hour re
     function btn(/** @type {string} */ attr, /** @type {string|null} */ value) {
         /** @type {Function[]} */ const on = [];
         return { textContent: 'x', disabled: false, hidden: true, innerHTML: '', classList: { add() {}, remove() {} },
-            getAttribute: (/** @type {string} */ a) => (a === attr ? value : null), setAttribute() {},
+            getAttribute: (/** @type {string} */ a) => (a === attr ? value : null), setAttribute() {}, focus() {},
             addEventListener: (/** @type {string} */ _t, /** @type {Function} */ f) => on.push(f),
             press: () => Promise.all(on.map(f => f())) };
     }
@@ -582,5 +713,281 @@ describe('a create that fails under ANOTHER week\'s question disarms (48-hour re
         await committing;
         assert.match(dom.otConfirmText.innerHTML, /may still have been created/);
         assert.equal(dom.otConfirmCreate.disabled, true, 'a message about A must not sit over a Create armed for B');
+    });
+});
+
+describe('the Stop-asking confirmation promises only the undo the rule allows (overtime-ui-2)', () => {
+    // It said "you can put them back while the form is open". For a press made before the first
+    // deadline that is false from the deadline on: Ask again is refused (`restore-window-passed`)
+    // though the form stays open six more days — and the reviewer pressed on the strength of it.
+    test('before the first deadline it says until then; after it, while the week is open', async () => {
+        // The mocked clock reads 20 Aug: WEEK_A's first deadline (25 Aug) is ahead, LATE's behind.
+        const LATE = week(B, '2026-09-06', { initialDeadlineAt: Date.parse('2026-08-18T11:00:00Z') });
+        const both = () => ({ ok: true, data: { planningWeeks: [], retained: [WEEK_A, LATE] } });
+        detailFor.set(A, detail(2, 1));
+        detailFor.set(B, detail(2, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A, LATE]);
+        await c.selectWeek(A);
+        overviewQueue.push(both());   // the re-read after the action keeps both weeks in the map
+        await painted.at(-1).opts.onAsk('P0', false);
+        assert.match(dialogs.at(-1).message, /put them back until the first deadline, Tue 25 Aug · 12:00\./);
+        await c.selectWeek(B);
+        overviewQueue.push(both());
+        await painted.at(-1).opts.onAsk('P0', false);
+        assert.match(dialogs.at(-1).message, /put them back while the week is open\./);
+        assert.doesNotMatch(dialogs.map(d => d.message).join(' '), /while the form is open/);
+    });
+});
+
+describe('the sheet says when it was PRINTED (overtime-ui-7)', () => {
+    // "Printed …" was drawn once, at paint, by the device clock: two printouts of a week opened at
+    // 09:00 and printed at 10:30 and 11:15 both read 09:00, on the line whose job is to order them.
+    test('each paint is stamped by the corrected clock, and printing restamps the workspace', async () => {
+        detailFor.set(A, detail(2, 1));
+        stamped = [];
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        const NOW = Date.parse('2026-08-20T09:00:00Z');   // the mocked corrected clock
+        assert.equal(painted.at(-1).opts.printedAt, NOW, 'the paint carries the corrected clock');
+        assert.equal(typeof windowListeners.beforeprint, 'function', 'the page listens for printing');
+        windowListeners.beforeprint();
+        assert.equal(stamped.at(-1)?.[0], dom.otWeekContent, 'the workspace is restamped');
+        assert.equal(stamped.at(-1)?.[1], NOW, 'by the corrected clock, as the as-at line beside it is');
+    });
+});
+
+/** A button the fake DOM can press, answering `getAttribute` for one attribute. */
+function pressable(/** @type {string} */ attr, /** @type {string|null} */ value) {
+    /** @type {Function[]} */ const on = [];
+    return { textContent: 'x', disabled: false, hidden: true, innerHTML: '', classList: { add() {}, remove() {} },
+        getAttribute: (/** @type {string} */ a) => (a === attr ? value : null), setAttribute() {}, focus() {},
+        addEventListener: (/** @type {string} */ _t, /** @type {Function} */ f) => on.push(f),
+        press: () => Promise.all(on.map(f => f())) };
+}
+const keepWeekA = () => overviewQueue.push({ ok: true, data: { planningWeeks: [], retained: [WEEK_A] } });
+
+describe('a write whose answer never came is not called a failure, and is re-read (overtime-ui-10)', () => {
+    // A timeout only says the answer never arrived. The server may have added the people (and told
+    // them) or stood somebody down (and taken the week off their page), and the screen said "That
+    // couldn't be saved (timeout)" and kept the old picture until something else re-read it.
+
+    test('a timed-out Add says it may have happened, and re-reads the list and the week', async () => {
+        detailFor.set(A, detail(2, 1));
+        const topup = pressable('data-topup', A);
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-topup]' ? [topup] : []) };
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        const reads = overviewReads, paints = painted.length;
+        createQueue = [{ ok: false, code: 'timeout' }];
+        keepWeekA();
+        await topup.press();
+        await settle();
+        assert.match(dom.otConfirmText.innerHTML, /Couldn't confirm whether anyone was added to Week ending .* — it may still have happened/);
+        assert.doesNotMatch(dom.otConfirmText.innerHTML, /\(timeout\)/, 'not "couldn\'t add anyone"');
+        assert.equal(overviewReads, reads + 1, 'the list is re-read');
+        assert.equal(painted.length, paints + 1, 'and the week on screen');
+    });
+
+    test('a Stop asking answered by a bare 5xx says it may have happened, and re-reads', async () => {
+        detailFor.set(A, detail(2, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        withdrawHold = () => ({ ok: false, code: 'http-504', status: 504 });
+        const reads = overviewReads, paints = painted.length;
+        keepWeekA();
+        await painted.at(-1).opts.onAsk('P0', false);
+        await settle();
+        assert.match(dom.otConfirmText.innerHTML, /Couldn't confirm whether P0 was taken off Week ending .* — it may still have happened/);
+        assert.equal(overviewReads, reads + 1);
+        assert.equal(painted.length, paints + 1);
+    });
+
+    test('a refusal the server STATED is still a refusal, and nothing is re-read', async () => {
+        detailFor.set(A, detail(2, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        withdrawHold = () => ({ ok: false, code: 'closed', status: 409 });
+        const reads = overviewReads;
+        await painted.at(-1).opts.onAsk('P0', false);
+        assert.match(dom.otConfirmText.innerHTML, /has closed, so who was asked can no longer be changed/);
+        assert.equal(overviewReads, reads, 'nothing ambiguous happened');
+    });
+
+    test('a create whose answer never came re-reads the list it tells the reviewer to check', async () => {
+        const create = pressable('data-create', '2026-09-26');
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [create] : []) };
+        dom.otConfirmCreate = pressable('x', null);
+        dom.otConfirmCancel = pressable('x', null);
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        c.wireConfirmBar();
+        createQueue = [{ ok: true, data: { window: { ...WEEK_A, audience: 'restricted', expectedCount: 1 } } }];
+        await create.press();
+        createQueue = [{ ok: false, code: 'network' }];
+        const reads = overviewReads;
+        await dom.otConfirmCreate.press();
+        await settle();
+        assert.match(dom.otConfirmText.innerHTML, /may still have been created/);
+        assert.equal(overviewReads, reads + 1, 'so "check the list" checks a current one');
+    });
+});
+
+describe('a refusal about the REVIEWER is worded, never the server\'s sentence in brackets (overtime-core lead)', () => {
+    test('a 401/403 says the sign-in no longer has reviewer access; offline says nothing was sent', async () => {
+        const create = pressable('data-create', '2026-09-26');
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [create] : []) };
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        createQueue = [{ ok: false, code: 'Forbidden — reviewer access required', status: 403 }];
+        await create.press();
+        assert.match(dom.otConfirmText.innerHTML, /Your sign-in no longer has reviewer access\. Reload the page and sign in again\./);
+        assert.doesNotMatch(dom.otConfirmText.innerHTML, /Forbidden/);
+        createQueue = [{ ok: false, code: 'offline' }];
+        await create.press();
+        assert.match(dom.otConfirmText.innerHTML, /nothing was sent/);
+        assert.doesNotMatch(dom.otConfirmText.innerHTML, /\(offline\)/);
+    });
+});
+
+describe('the reviewer\'s side stands down when it leaves the screen (overtime-ui-4; a css-overtime-guides lead)', () => {
+    // A switch to "My availability" left the fixed bar over the member's Submit bar, with Create armed
+    // for a week no longer in view; a session lost mid-visit left the sheet behind a sign-in that
+    // does not print.
+    async function previewed(over = {}) {
+        const create = pressable('data-create', '2026-09-26');
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [create] : []) };
+        dom.otConfirmCreate = pressable('x', null);
+        const c = makeController(over);
+        await boot(c, [WEEK_A]);
+        createQueue = [{ ok: true, data: { window: { ...WEEK_A, audience: 'restricted', expectedCount: 1 } } }];
+        await create.press();
+        assert.equal(dom.otConfirmBar.hidden, false, 'premise: the question is up');
+        assert.equal(dom.otConfirmCreate.disabled, false, 'premise: and Create is armed');
+        return c;
+    }
+
+    test('a tab switch takes the bar down and disarms Create — and the workspace stays', async () => {
+        const c = await previewed();
+        const horizon = dom.otHorizonContent.innerHTML;
+        c.standDown();
+        assert.equal(dom.otConfirmBar.hidden, true);
+        assert.equal(dom.otConfirmCreate.disabled, true, 'nothing is armed for a week off screen');
+        assert.equal(globalThis.document.body.style.paddingBottom, '', 'and the space reserved for the bar is given back');
+        assert.equal(dom.otHorizonContent.innerHTML, horizon, 'the reviewer comes back to what they left');
+    });
+
+    test('a lost session empties the cards, and no read still out paints them back', async () => {
+        const c = await previewed({ debounce: 0 });
+        detailFor.set(A, detail(2, 1));
+        await c.selectWeek(A);                                              // the sheet is drawn…
+        assert.equal(painted.length, 1, 'premise: a week is on screen');
+        painted.length = 0;
+        const slow = gated(detail(2, 2));
+        detailFor.set(A, slow.fn);
+        const selecting = c.selectWeek(A);                                  // …and re-read, held
+        /** @type {any} */ let landOverview;
+        overviewQueue = [new Promise(r => { landOverview = () => r({ ok: true, data: { planningWeeks: [WEEK_A], retained: [] } }); })];
+        const reloading = c.loadHorizon({ quiet: true });                  // and a horizon read, held
+        await settle();
+        dom.otWeekChip = { ...fakeEl('otWeekChip'), innerHTML: '1/2' };
+        c.standDown({ clear: true });
+        assert.equal(dom.otConfirmBar.hidden, true);
+        assert.deepEqual([dom.otHorizonContent.innerHTML, dom.otWeekContent.innerHTML, dom.otWeekChip.innerHTML], ['', '', '']);
+        slow.release(); landOverview();
+        await selecting; await reloading; await settle();
+        assert.deepEqual(painted, [], 'the held week read painted nothing');
+        assert.deepEqual([dom.otHorizonContent.innerHTML, dom.otWeekContent.innerHTML], ['', ''], 'nor did the held horizon read');
+        // Every read after the loss fails. None may put back a snapshot taken before it.
+        overviewQueue = [{ ok: false, code: 'no-session' }];
+        detailFor.set(A, { ok: false, code: 'no-session' });
+        c.refreshIfStale();
+        await settle();
+        assert.doesNotMatch(dom.otHorizonContent.innerHTML, /ot-week-row/, 'the horizon is not redrawn from its snapshot');
+        assert.equal(dom.otWeekContent.innerHTML, '', 'and no week is re-read: none is selected now');
+        await c.selectWeek(A);
+        assert.deepEqual(painted, [], 'a failed read of that week shows its error, never the sheet it replaced');
+    });
+});
+
+describe('the keyboard is never dropped on <body>, and the bar is heard (overtime-ui-12)', () => {
+    // Every press repainted the surface it was on and focus fell to the top of the page; the bar
+    // that asks "Open the form?" was neither focused nor announced.
+    /** The bar's words element, whose text is its markup's, as a browser's would be. */
+    const wordsEl = () => ({ ...fakeEl('otConfirmText'), get textContent() { return this.innerHTML.replace(/<[^>]*>/g, ''); } });
+    async function asked() {
+        const create = pressable('data-create', '2026-09-26');
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [create] : []) };
+        dom.otConfirmCancel = pressable('x', null);
+        dom.otConfirmCancel.focus = () => focused.push('otConfirmCancel');
+        dom.otConfirmText = wordsEl();
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        c.wireConfirmBar();
+        createQueue = [{ ok: true, data: { window: { ...WEEK_A, weekEnding: '2026-09-26', audience: 'restricted', expectedCount: 1 } } }];
+        await create.press();
+        return c;
+    }
+
+    test('the question takes the keyboard to Cancel, and is said aloud', async () => {
+        await asked();
+        assert.deepEqual(focused, ['otConfirmCancel'], 'to the answer that changes nothing');
+        assert.match(dom.otConfirmLive.textContent, /^Open the availability form for .*\?Roster week/);
+    });
+
+    test('Cancel hands the keyboard back to the row that asked', async () => {
+        await asked();
+        await dom.otConfirmCancel.press();
+        assert.deepEqual(refocused, [['data-create', '2026-09-26']]);
+    });
+
+    test('an outcome is said aloud too', async () => {
+        dom.otConfirmText = wordsEl();
+        detailFor.set(A, detail(2, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        keepWeekA();
+        await c.selectWeek(A);
+        await painted.at(-1).opts.onAsk('P0', false);
+        assert.match(dom.otConfirmLive.textContent, /^P0 is no longer being asked for /);
+    });
+
+    test('after Stop asking or Ask again, the keyboard goes to that person\'s other control', async () => {
+        detailFor.set(A, detail(2, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        keepWeekA();
+        await c.selectWeek(A);
+        await painted.at(-1).opts.onAsk('P0', false);
+        keepWeekA();
+        await painted.at(-1).opts.onAsk('P1', true);
+        assert.deepEqual(refocused, [['data-ask-again', 'P0'], ['data-stop-asking', 'P1']]);
+    });
+});
+
+describe('a horizon row speaks of a past deadline in the past tense (overtime-ui-16)', () => {
+    // The first row is always a closed week, and it read "Closes Tue 18 Aug · 12:00" beside "Form
+    // closed". The mocked clock reads Thu 20 Aug.
+    test('passed deadlines read "were due" and "Closed"; coming ones "due" and "Closes"', async () => {
+        const DONE = week('2026-08-29', '2026-08-23', { state: 'created-closed',
+            initialDeadlineAt: Date.parse('2026-08-11T11:00:00Z'), finalDeadlineAt: Date.parse('2026-08-18T11:00:00Z') });
+        const HALF = week('2026-09-05', '2026-08-30', {
+            initialDeadlineAt: Date.parse('2026-08-18T11:00:00Z'), finalDeadlineAt: Date.parse('2026-08-25T11:00:00Z') });
+        detailFor.set(HALF.weekEnding, detail(2, 1));
+        overviewQueue = [{ ok: true, data: { planningWeeks: [DONE, HALF, WEEK_B], retained: [] } }];
+        await makeController().loadHorizon();
+        const rows = dom.otHorizonContent.innerHTML.split('ot-week-row ').slice(1);
+        assert.match(rows[0], /Answers were due Tue 11 Aug · 12:00<br>\s*Closed Tue 18 Aug · 12:00/);
+        assert.match(rows[1], /Answers were due Tue 18 Aug · 12:00<br>\s*Closes Tue 25 Aug · 12:00/);
+        assert.match(rows[2], /Answers due Tue 25 Aug · 12:00<br>\s*Closes Tue 1 Sep · 12:00/);
     });
 });

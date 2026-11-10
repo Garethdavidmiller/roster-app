@@ -2,9 +2,11 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, demandAt, peakCars, demandBucket,
-    movementsOutside, summariseDemand, describeHours, describeMovements,
+    movementsOutside, dutySpans, summariseDemand, describeHours, describeMovements,
 } from './links-demand.js';
-import { DAYS } from './links-design.js';
+import { DAYS, ROTATING_LINES, dayClass, calcHourlyCoverage, generateLink, startMinutes, endMinutesAbs } from './links-design.js';
+import { PROPOSALS } from './links-proposals.js';
+import { buildDefaultTargets } from './links-default-targets.js';
 
 /**
  * The profile is measured data, so the tests that matter most are the ones that would catch it
@@ -163,10 +165,9 @@ describe('peakCars / demandBucket', () => {
 });
 
 describe('summariseDemand — the finding/fact split', () => {
-    /** Cover of `n` people in every hour of `hours`, on every day. */
-    const cover = (hours, n = 2) => Object.fromEntries(DAYS.map(d => [d, {
-        hours: Array.from({ length: 24 }, (_, h) => (hours.includes(h) ? n : 0)),
-    }]));
+    /** Somebody on duty for the whole of every hour in `hours`, on every day, as `dutySpans` gives it. */
+    const cover = (/** @type {number[]} */ hours) => Object.fromEntries(DAYS.map(d => [d,
+        hours.map(h => /** @type {[number, number]} */ ([h * 60, h * 60 + 59]))]));
     /** The whole day staffed — every hour open. */
     const openAll = () => ({ start: 0, end: 24 * 60 });
     /** The real Mon–Sat window: 06:20 to 23:55. */
@@ -178,7 +179,7 @@ describe('summariseDemand — the finding/fact split', () => {
 
     test('a staffed hour with trains and nobody on duty is a FINDING', () => {
         const r = summariseDemand({
-            profile: DEC_2026_DEMAND, movements: DEC_2026_MOVEMENTS, hourly: cover([]), days: DAYS, windowFor: openAll,
+            movements: DEC_2026_MOVEMENTS, spans: cover([]), days: DAYS, windowFor: openAll,
         });
         assert.ok(r.uncovered.length > 0);
         assert.equal(r.outside.length, 0);
@@ -190,7 +191,7 @@ describe('summariseDemand — the finding/fact split', () => {
         // leaked into `uncovered` they would flag every design that will ever exist, and the row
         // would be learned-ignored — taking the genuine finding with it.
         const r = summariseDemand({
-            profile: DEC_2026_DEMAND, movements: DEC_2026_MOVEMENTS, hourly: cover([]), days: DAYS, windowFor: w0620,
+            movements: DEC_2026_MOVEMENTS, spans: cover([]), days: DAYS, windowFor: w0620,
         });
         assert.ok(r.outside.length > 0);
         assert.ok(r.outside.every(e => e.t < 6 * 60 + 20 || e.t > 23 * 60 + 55));
@@ -203,7 +204,7 @@ describe('summariseDemand — the finding/fact split', () => {
         // would list the permanent, unmovable cases five times over and bury the entries that are
         // actually about a boundary someone could move.
         const r = summariseDemand({
-            profile: DEC_2026_DEMAND, movements: DEC_2026_MOVEMENTS, hourly: cover([]), days: DAYS, windowFor: w0620,
+            movements: DEC_2026_MOVEMENTS, spans: cover([]), days: DAYS, windowFor: w0620,
         });
         assert.deepEqual([...new Set(r.outside.map(e => e.label))].sort(), ['Mon–Fri', 'Sat', 'Sun']);
         assert.equal(r.outside.filter(e => e.label === 'Mon–Fri' && e.t === 1).length, 2);  // two 00:01 deps
@@ -213,7 +214,7 @@ describe('summariseDemand — the finding/fact split', () => {
 
     test('every outside entry carries the label the reader sees', () => {
         const r = summariseDemand({
-            profile: DEC_2026_DEMAND, movements: DEC_2026_MOVEMENTS, hourly: cover([]), days: DAYS, windowFor: w0620,
+            movements: DEC_2026_MOVEMENTS, spans: cover([]), days: DAYS, windowFor: w0620,
         });
         for (const e of r.outside) assert.ok(['Mon–Fri', 'Sat', 'Sun'].includes(e.label), e.label);
     });
@@ -221,7 +222,7 @@ describe('summariseDemand — the finding/fact split', () => {
     test('an hour with cover is neither', () => {
         const allHours = Array.from({ length: 24 }, (_, h) => h);
         const r = summariseDemand({
-            profile: DEC_2026_DEMAND, movements: DEC_2026_MOVEMENTS, hourly: cover(allHours), days: DAYS, windowFor: openAll,
+            movements: DEC_2026_MOVEMENTS, spans: cover(allHours), days: DAYS, windowFor: openAll,
         });
         assert.equal(r.uncovered.length, 0);
         assert.equal(r.outside.length, 0);
@@ -231,7 +232,7 @@ describe('summariseDemand — the finding/fact split', () => {
         // Someone rostered outside the window is an anomaly in its own right; the service then is
         // still service the link does not officially staff, and the figure must say so.
         const r = summariseDemand({
-            profile: DEC_2026_DEMAND, movements: DEC_2026_MOVEMENTS, hourly: cover([0], 3), days: DAYS, windowFor: w0620,
+            movements: DEC_2026_MOVEMENTS, spans: cover([0]), days: DAYS, windowFor: w0620,
         });
         assert.ok(r.outside.some(e => e.t < 60));
     });
@@ -239,7 +240,7 @@ describe('summariseDemand — the finding/fact split', () => {
     test('an hour with NO trains is silent whether staffed or not', () => {
         // 02:00–04:00 is empty on every day. A staffed hour with no service is not a hole.
         const r = summariseDemand({
-            profile: DEC_2026_DEMAND, movements: DEC_2026_MOVEMENTS, hourly: cover([]), days: DAYS, windowFor: openAll,
+            movements: DEC_2026_MOVEMENTS, spans: cover([]), days: DAYS, windowFor: openAll,
         });
         for (const h of [2, 3, 4]) {
             assert.ok(!r.uncovered.some(e => e.hour === h), `hour ${h} should be silent`);
@@ -255,7 +256,7 @@ describe('summariseDemand — the finding/fact split', () => {
         // real window. It now runs against the REAL boundary, to the minute.
         const allHours = Array.from({ length: 24 }, (_, h) => h);
         const r = summariseDemand({
-            profile: DEC_2026_DEMAND, movements: DEC_2026_MOVEMENTS, hourly: cover(allHours), days: DAYS, windowFor: realWindow,
+            movements: DEC_2026_MOVEMENTS, spans: cover(allHours), days: DAYS, windowFor: realWindow,
         });
         const late = r.outside.filter(e => e.label === 'Sun' && e.t > 23 * 60 + 25);
         assert.equal(late.length, 5, 'the plan records exactly five Sunday movements after 23:25');
@@ -277,7 +278,7 @@ describe('summariseDemand — the finding/fact split', () => {
 
     test('totals equal the sum of their own entries', () => {
         const r = summariseDemand({
-            profile: DEC_2026_DEMAND, movements: DEC_2026_MOVEMENTS, hourly: cover([8, 9, 10]), days: DAYS, windowFor: w0620,
+            movements: DEC_2026_MOVEMENTS, spans: cover([8, 9, 10]), days: DAYS, windowFor: w0620,
         });
         assert.equal(r.uncoveredCars, r.uncovered.reduce((a, e) => a + e.cars, 0));
         assert.equal(r.uncoveredMv, r.uncovered.reduce((a, e) => a + e.mv, 0));
@@ -285,13 +286,160 @@ describe('summariseDemand — the finding/fact split', () => {
         assert.equal(r.outsideMv, r.outside.length);   // one movement each, by construction
     });
 
-    test('survives an hourly map missing days entirely', () => {
+    test('survives a cover map missing days entirely', () => {
         const r = summariseDemand({
-            profile: DEC_2026_DEMAND, movements: DEC_2026_MOVEMENTS, hourly: {}, days: DAYS, windowFor: openAll,
+            movements: DEC_2026_MOVEMENTS, spans: {}, days: DAYS, windowFor: openAll,
         });
         assert.ok(r.uncovered.length > 0);   // absent cover reads as zero cover, not as a crash
     });
 });
+
+// ── THE COVER QUESTION IS ASKED TO THE MINUTE (whole-app review, Nov 2026) ─────────────────────────
+// It was asked of the hourly headcount, where anybody on for any part of an hour covers all of it, so
+// a gap inside an hour or straddling two was invisible: earlies to 14:20 and lates from 15:25 left 98
+// trains a week meeting nobody, and the panel said every staffed hour had someone on duty. Every
+// fixture before this one covered an hour completely or not at all, which is how it went unseen.
+describe('uncovered is asked train by train, to the minute', () => {
+    const L = ROTATING_LINES;
+    /** The real per-day windows: Mon–Sat 06:20–23:55, Sun 07:15–23:25. */
+    const realWindow = (/** @type {string} */ d) => (d === 'sun'
+        ? { start: 7 * 60 + 15, end: 23 * 60 + 25 }
+        : { start: 6 * 60 + 20, end: 23 * 60 + 55 });
+    const openAll = () => ({ start: 0, end: 24 * 60 });
+    /** Half the lines work `a` every day and half work `b` — the handover is the only gap. */
+    const twoShifts = (/** @type {string} */ a, /** @type {string} */ b) => {
+        /** @type {Record<string, any>} */ const p = {};
+        for (let i = 1; i <= L; i++) p[String(i)] = Object.fromEntries(DAYS.map(d => [d, i <= L / 2 ? a : b]));
+        return p;
+    };
+    const read = (/** @type {Record<string, any>} */ p, windowFor = realWindow) =>
+        summariseDemand({ movements: DEC_2026_MOVEMENTS, spans: dutySpans(p, L), days: DAYS, windowFor });
+    /** The day's trains strictly between two minutes, counted from the timetable itself. */
+    const trainsBetween = (/** @type {string} */ d, /** @type {number} */ from, /** @type {number} */ to) =>
+        DEC_2026_MOVEMENTS[dayClass(d)].filter(([t]) => t > from && t < to).length;
+
+    test('a gap INSIDE one hour is a finding — the hour it sits in had people on for the rest of it', () => {
+        // Earlies end 14:20, lates start 14:40.
+        const p = twoShifts('06:20-14:20', '14:40-23:55');
+        const hourly = calcHourlyCoverage(p, L);
+        assert.ok(DAYS.every(d => hourly[d].hours[14] > 0), 'premise: the heat map shows people on in hour 14');
+        const r = read(p);
+        assert.deepEqual(r.uncovered.map(e => `${e.day} ${e.hour}`), DAYS.map(d => `${d} 14`));
+        for (const e of r.uncovered) assert.equal(e.mv, trainsBetween(e.day, 14 * 60 + 20, 14 * 60 + 40), e.day);
+    });
+
+    test('a gap STRADDLING two hours is a finding in both', () => {
+        // The reader's case: 06:20–14:20 and 15:25–23:55, so 65 minutes a day with nobody on.
+        const r = read(twoShifts('06:20-14:20', '15:25-23:55'));
+        assert.deepEqual(r.uncovered.map(e => `${e.day} ${e.hour}`), DAYS.flatMap(d => [`${d} 14`, `${d} 15`]));
+        const expected = DAYS.reduce((n, d) => n + trainsBetween(d, 14 * 60 + 20, 15 * 60 + 25), 0);
+        assert.equal(r.uncoveredMv, expected, 'every train in the gap, and only those');
+        assert.equal(expected, 98, 'the figure the review measured');
+    });
+
+    test('a train exactly at a duty\'s start or finish meets the person on it', () => {
+        // Closed at both ends, like the staffed window: somebody finishing at 11:00 is there for it.
+        const movements = { weekday: [[600, 5, 0], [660, 6, 1], [700, 4, 0]], sat: [], sun: [] };
+        const r = summariseDemand({ movements, spans: { mon: [[600, 660]] }, days: ['mon'], windowFor: openAll });
+        assert.deepEqual(r.uncovered, [{ day: 'mon', hour: 11, mv: 1, cars: 4 }]);
+    });
+
+    test('a train is outside OR uncovered, never both — the ones before the opening are the fact', () => {
+        // The hour test counted the 06:04, 06:11 and 06:16 departures in the uncovered 06:00 hour AND
+        // as service before the opening. With nobody on, every train is now exactly one of the two.
+        const r = summariseDemand({ movements: DEC_2026_MOVEMENTS, spans: {}, days: DAYS, windowFor: realWindow });
+        const LABEL = /** @type {Record<string, string>} */ ({ weekday: 'Mon–Fri', sat: 'Sat', sun: 'Sun' });
+        for (const d of DAYS) {
+            const cls = dayClass(d);
+            const unc = r.uncovered.filter(e => e.day === d).reduce((n, e) => n + e.mv, 0);
+            const out = r.outside.filter(e => e.label === LABEL[cls]).length;
+            assert.equal(unc + out, DEC_2026_MOVEMENTS[cls].length, d);
+        }
+        const six = r.uncovered.find(e => e.day === 'mon' && e.hour === 6);
+        assert.equal(six?.mv, trainsBetween('mon', 6 * 60 + 19, 7 * 60), 'the 06:00 hour counts only trains from 06:20');
+    });
+
+    test('a day key that is not a day is asked about nothing — not quietly about the weekday service', () => {
+        // `dayClass` reads anything that is not a weekend key as a weekday, so 'sunday' would be
+        // answered from the Mon–Fri timetable and reported as a finding about a day that is not there.
+        const r = summariseDemand({ movements: DEC_2026_MOVEMENTS, spans: {}, days: ['sunday'], windowFor: openAll });
+        assert.deepEqual(r.uncovered, []);
+    });
+
+    test('a duty past midnight covers the next day\'s first trains, Saturday round to Sunday', () => {
+        const p = /** @type {Record<string, any>} */ ({ 1: { sat: '18:00-02:00' } });
+        const r = read(p, openAll);
+        assert.ok(!r.uncovered.some(e => e.day === 'sun' && e.hour < 2), 'the Sunday 00:05 is met by Saturday\'s late');
+        assert.ok(!r.uncovered.some(e => e.day === 'sat' && e.hour >= 18), 'and Saturday evening is met too');
+        assert.ok(r.uncovered.some(e => e.day === 'sun' && e.hour >= 7), 'premise: the rest of Sunday is bare');
+    });
+
+    test('dutySpans counts a duty in an hour exactly when the heat map does', () => {
+        // Two readers of a duty must never disagree: the heat map's picture and the finding under it.
+        // Real designs, then seeded random ones carrying the shapes only imported data reaches —
+        // a duty past midnight, a spare day, an unreadable cell.
+        const { slots, spareLines } = buildDefaultTargets();
+        const designs = [...PROPOSALS.map(x => x.patterns),
+            generateLink({ slots, spareLines, lines: L }).patterns, ...randomDesigns(40)];
+        for (const p of designs) {
+            const spans = dutySpans(p, L), hourly = calcHourlyCoverage(p, L);
+            for (const d of DAYS) for (let h = 0; h < 24; h++) {
+                const n = spans[d].filter(([s, e]) => s < (h + 1) * 60 && e > h * 60).length;
+                assert.equal(n, hourly[d].hours[h], `${d} ${h}:00`);
+            }
+        }
+    });
+
+    test('on random designs it finds exactly the trains a direct reading of the cells finds', () => {
+        // The oracle reads the patterns afresh, cell by cell, without `dutySpans`.
+        for (const p of randomDesigns(40)) {
+            const r = read(p);
+            /** @type {string[]} */ const want = [];
+            for (const [i, d] of DAYS.entries()) {
+                const prev = DAYS[(i + 6) % 7];
+                const { start, end } = realWindow(d);
+                /** @type {Map<number, number>} */ const perHour = new Map();
+                for (const [t] of DEC_2026_MOVEMENTS[dayClass(d)]) {
+                    if (t < start || t > end) continue;
+                    let on = false;
+                    for (let pos = 1; pos <= L && !on; pos++) {
+                        const today = p[String(pos)]?.[d], yday = p[String(pos)]?.[prev];
+                        const st = startMinutes(today), en = endMinutesAbs(today), yen = endMinutesAbs(yday);
+                        if (st !== null && en !== null && st <= t && t <= en) on = true;
+                        if (yen !== null && yen > 24 * 60 && t <= yen - 24 * 60) on = true;
+                    }
+                    if (!on) perHour.set(Math.floor(t / 60), (perHour.get(Math.floor(t / 60)) ?? 0) + 1);
+                }
+                for (const [h, n] of perHour) want.push(`${d} ${h} ${n}`);
+            }
+            assert.deepEqual(r.uncovered.map(e => `${e.day} ${e.hour} ${e.mv}`), want);
+        }
+    });
+});
+
+/**
+ * Seeded random designs (mulberry32, so a failure reproduces): mostly real duty times, with the
+ * shapes only legacy or imported data reaches — past midnight, spare, unreadable — mixed in.
+ * @param {number} n
+ */
+function randomDesigns(n) {
+    let a = 20261110;
+    const rnd = () => {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const CELLS = ['RD', 'RD', 'RD', 'SPARE', 'OFF', 'gibberish', '06:20-14:20', '07:15-15:45', '11:00-19:30',
+        '14:30-22:30', '15:25-23:55', '15:45-23:55', '18:00-02:00', '22:00-06:00', '06:55-15:00'];
+    return Array.from({ length: n }, () => {
+        /** @type {Record<string, any>} */ const p = {};
+        for (let i = 1; i <= ROTATING_LINES; i++) {
+            p[String(i)] = Object.fromEntries(DAYS.map(d => [d, CELLS[Math.floor(rnd() * CELLS.length)]]));
+        }
+        return p;
+    });
+}
 
 describe('movementsOutside', () => {
     test('splits before and after the boundary, exclusive of the boundary itself', () => {

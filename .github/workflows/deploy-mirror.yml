@@ -12,10 +12,11 @@ name: Deploy GitHub Pages mirror
 # main's tip, which may be a tree the gate refused — and so does a re-run. "Released" is checked by
 # who started the run, not by what it was called: the plan job below says why.
 #
-# IT IS INERT UNTIL THE OWNER SWITCHES Settings → Pages → Source TO "GitHub Actions". The first job
-# reads that setting and stands down while Pages still builds from the branch: a workflow deploy
-# against a branch-built site fails, and announcing that as a failed deploy would be crying wolf on
-# the issue thread the real failures use. The switch: OPERATIONS_REFERENCE.md → "The Pages mirror".
+# IT IS LIVE: the owner switched Settings → Pages → Source to "GitHub Actions" on 10 November 2026,
+# and it first published the mirror at 14:18 that day. The first job still reads that setting and
+# stands down if Pages is ever switched back to building from the branch: a workflow deploy against
+# a branch-built site fails, and announcing that as a failed deploy would be crying wolf on the
+# issue thread the real failures use. The switch: OPERATIONS_REFERENCE.md → "The Pages mirror".
 #
 # WHAT IT PUBLISHES IS WHAT THE BRANCH BUILD PUBLISHED — the committed tree at that commit (`git
 # archive`), less dot-files, which the app never loads. The same files, now behind the gate.
@@ -139,10 +140,10 @@ jobs:
           fi
 
           # An unreadable answer FAILS (and is reported), rather than standing down: a gate that
-          # quietly skipped every release would look exactly like one waiting for the switch.
+          # quietly skipped every release would look exactly like one standing down for a branch build.
           build_type=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.build_type')
           if [ "$build_type" != "workflow" ]; then
-            echo "::notice::Pages still builds from the branch (build_type=$build_type), so the mirror is not behind the Hosting gate yet. Set Settings → Pages → Source to GitHub Actions."
+            echo "::notice::Pages builds from the branch (build_type=$build_type), so the mirror is not behind the Hosting gate. Set Settings → Pages → Source to GitHub Actions."
             stand_down
           fi
 

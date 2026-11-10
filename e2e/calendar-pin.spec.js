@@ -179,6 +179,43 @@ test('locked: a Circular deep link says what to do, issues NO read, and is FINIS
     expect(await docReads(page), 'the held read ran once the PIN was in').toBeGreaterThan(before);
 });
 
+// ── …AND BY A SIGN-IN, WHICH RELOADS THE PAGE (whole-app review, 10 Nov 2026) ────────────────────
+// Both sign-ins on the locked Calendar end in a reload, and the tap had been consumed long before, so
+// "Enter the staff PIN, or sign in" was true only of the PIN. The tap the lock is holding is written
+// down as the page unloads and taken back by the next load (calendar-doc-viewer.js and
+// calendar-huddle-viewer.js, `pagehide`).
+test('locked: a Circular deep link is FINISHED by a sign-in too — the reload carries the tap', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
+    await page.goto('/index.html#circular');
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
+    await page.locator('#docViewerClose').click();
+    await expect(page.locator('#docViewer')).toBeHidden();
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#docViewerBody'), 'the member signed in, and the document they tapped for never came')
+        .toContainText('No Weekly Retail Circular has been uploaded yet', { timeout: 10_000 });
+});
+
+test('locked: a Daily Huddle tap is FINISHED by a sign-in too', async ({ page }) => {
+    const stored = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
+    await page.addInitScript((s) => {
+        window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true,
+            huddleDoc: { date: '2026-09-25', storageUrl: s, fileType: 'pdf' } });
+    }, stored);
+    await page.goto('/');
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel a[href="./#huddle"]').click();
+    await expect(page.locator('#huddleViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Daily Huddle');
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#huddleOpenFileBtn'), 'the member signed in, and the Huddle they tapped for never came')
+        .toBeVisible({ timeout: 10_000 });
+});
+
 test('locked: the drawer refuses a Circular tap without opening a tab', async ({ page }) => {
     await page.goto('/index.html');
     await expect(page.locator('#calendarLock')).toBeVisible();
@@ -343,6 +380,37 @@ test('re-locked mid-session: the keyboard does not move the month behind the car
     await page.evaluate(() => /** @type {HTMLElement|null} */ (document.activeElement)?.blur());   // off the PIN field
     for (const key of ['ArrowRight', 'ArrowRight', 'ArrowLeft', 't']) await page.keyboard.press(key);
     expect(await viewed()).toEqual(before);
+});
+
+// A re-lock takes down what the grant put up (whole-app review, Nov 2026). The two offer strips and
+// the swipe hint are shown with an INLINE `display`, which beats the browser's own `[hidden]`, so the
+// `hidden` the gate sets (calendar-access.js) needs index.css's `!important` id rule to win: without
+// it a strip stayed on screen above the sign-in card. Put up here exactly as their modules do, at a
+// phone's width (from 1024px the strips do not show at all).
+test('a re-lock takes the offer strips and the swipe hint down with the rest of the workspace', async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 800 });
+    await seedMember(page);
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const ids = ['notifPrompt', 'installPrompt', 'swipeHint'];
+    await page.evaluate((list) => {
+        for (const id of list) /** @type {HTMLElement} */ (document.getElementById(id)).style.display = id === 'swipeHint' ? 'block' : 'flex';
+    }, ids);
+    for (const id of ids) await expect(page.locator(`#${id}`), `premise: #${id} is up`).toBeVisible();
+
+    await page.evaluate(() => { (window.__E2E = window.__E2E || {}).failGetDocs = 'permission-denied'; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    // ONE-SHOT, read as the card arrives: an auto-retrying toBeHidden() waited out the hint's own
+    // fade timer and passed with its rule deleted (measured).
+    const left = await page.evaluate((list) => list.filter((id) => {
+        const el = /** @type {HTMLElement} */ (document.getElementById(id));
+        return getComputedStyle(el).display !== 'none' || el.getBoundingClientRect().height > 0;
+    }), ids);
+    expect(left, 'left on screen above the sign-in card').toEqual([]);
 });
 
 // Whole-app review, Oct 2026: the one-time swipe hint started its 6s timer on a LOCKED Calendar, where
@@ -746,6 +814,23 @@ test('the PIN field is labelled, and large enough not to trigger iOS focus zoom'
     // that lands a first-time user in a half-scrolled layout.
     const size = await page.locator('#calLockPin').evaluate(el => parseFloat(getComputedStyle(el).fontSize));
     expect(size).toBeGreaterThanOrEqual(16);
+    // …and drawn as a PIN, not as the login field it sits in. The PIN rule asks for --type-xl in navy;
+    // the shared login skin, (0,3,1), beat its class on size, padding and colour, so this field drew at
+    // 16px in grey and the floor above still passed (whole-app review, Nov 2026).
+    const look = await page.locator('#calLockPin').evaluate((el) => {
+        const cs = getComputedStyle(el);
+        const probe = document.body.appendChild(document.createElement('div'));
+        probe.style.fontSize = 'var(--type-xl)';
+        probe.style.color = 'var(--primary-blue)';
+        const want = { size: getComputedStyle(probe).fontSize, colour: getComputedStyle(probe).color };
+        probe.remove();
+        return { size: cs.fontSize, colour: cs.color, want,
+                 extraLeft: parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), tracking: parseFloat(cs.letterSpacing) };
+    });
+    expect(look.size, 'the PIN is --type-xl, not the login field\'s 16px').toBe(look.want.size);
+    expect(look.colour, 'the PIN is navy').toBe(look.want.colour);
+    // The run ends in one letter-space nobody sees; the left padding gives it back, so the dots sit centred.
+    expect(look.extraLeft, 'the extra left padding is one letter-space').toBeCloseTo(look.tracking, 1);
 });
 
 test('the card does not overflow at 360px, nor sprawl at 1440px', async ({ page }) => {

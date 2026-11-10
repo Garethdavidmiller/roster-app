@@ -724,8 +724,9 @@ export const isTouchProject = (info) => TOUCH_PROJECTS.includes(info.project.nam
  * sheets hang off it: the PICKER, opened by the heading face, and the ··· More sheet holding every
  * verb but Save. So "how many designs" is the picker's row count, "which is open" is the face, and
  * Delete/Duplicate/Import/Compare/Recently deleted are reached by opening More first. Both sheets
- * close themselves and run their action 500ms later; every caller's next `expect` auto-waits, so no
- * sleep is needed here.
+ * close themselves and run their action once the close has LANDED — one action per opening, so a
+ * second tap during the fade runs nothing; every caller's next `expect` auto-waits, so no sleep is
+ * needed here.
  *
  * The rows exist in the DOM whether or not the picker is open (the list is built on render, not on
  * open), so a COUNT needs no click — same as the <select>'s options before it. A CLICK does.
@@ -747,9 +748,10 @@ export async function openDesignSheet(page) {
 export async function sheetAction(page, id) {
     await openDesignSheet(page);
     await page.locator(`#${id}`).click();
-    // The row closes the sheet and runs its action 500ms later. `clickDialogConfirm` treats "no
-    // dialog yet" as "no dialog", so wait here for the sheet to go and for whatever the action opens
-    // to arrive; an action that opens nothing (Compare) simply lets the short wait lapse.
+    // The row closes the sheet and runs its action once that close has landed (one action per
+    // opening). `clickDialogConfirm` treats "no dialog yet" as "no dialog", so wait here for the sheet
+    // to go and for whatever the action opens to arrive; an action that opens nothing (Compare)
+    // simply lets the short wait lapse.
     await expect(page.locator('#designMoreLb.visible')).toHaveCount(0);
     await page.locator('.dialog-overlay, .lb-overlay.visible').first()
         .waitFor({ state: 'attached', timeout: 1500 }).catch(() => {});
@@ -884,13 +886,19 @@ export function endpointUse(page, name) {
 // ── LAYOUT PROBES SHARED BY THE PAGE SPECS (moved from pages.spec.js, 3 Nov 2026) ─────────────
 // Why text is scaled rather than the viewport narrowed: the comment above the "large text does
 // not shave the page" tests in pages.spec.js.
-/** @param {import('@playwright/test').Page} page @param {number} k */
+/**
+ * Multiply every element's used font size by `k`, as Android's font size does. Every size is READ
+ * before any is written (whole-app fix, 10 Nov 2026): reading each one after its parent had been
+ * enlarged multiplied inherited text again at every level of nesting — the Staff Guide's reached
+ * 48px at "1.3×", New link's 49px at "1.15×". Each element then carries its own size, so a second
+ * call (after a re-render, say) multiplies everything already scaled once more.
+ * @param {import('@playwright/test').Page} page @param {number} k
+ */
 export async function scaleText(page, k) {
     await page.evaluate((mult) => {
-        document.querySelectorAll('*').forEach((el) => {
-            const px = parseFloat(getComputedStyle(el).fontSize);
-            if (px) /** @type {HTMLElement} */ (el).style.fontSize = (px * mult) + 'px';
-        });
+        const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('*')]);
+        const sizes = els.map(el => parseFloat(getComputedStyle(el).fontSize));
+        els.forEach((el, i) => { if (sizes[i]) el.style.fontSize = (sizes[i] * mult) + 'px'; });
     }, k);
 }
 /** Container items + cards whose right edge is past the viewport. Content INSIDE a card may

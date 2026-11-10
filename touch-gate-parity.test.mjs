@@ -135,3 +135,28 @@ describe('a touch-only test runs on every touch engine', () => {
           + 'those tests silently stop running on.');
     });
 });
+
+// ── THE SAME RULE FOR A STYLESHEET (css-admin-ops-14, Nov 2026) ─────────────────────────────────
+// A touch block gated on `(hover: none) and (pointer: coarse)` is the stylesheet's version of a test
+// gated on one engine: it reads as "touch" and quietly means "touch that reports no hover". Some
+// Android phones report `hover: hover` (CLAUDE.md → the hover rule), and Admin's main touch-sizing
+// block — Mon–Fri, Apply, the over-limit "Save anyway" — was the one gated that way, so on those
+// phones each of its controls kept its mouse size. A hover query is for a cosmetic `:hover`; a
+// touch block keys on the pointer alone, as every other one in the app does.
+describe('a touch-only style reaches every touch device', () => {
+    const sheets = readdirSync('.').filter(f => f.endsWith('.css'))
+        .map(f => [f, readFileSync(`./${f}`, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')]);
+
+    test('the scan reads the stylesheets\' touch blocks', () => {
+        const coarse = sheets.reduce((n, [, css]) => n + [...css.matchAll(/@media[^{]*pointer:\s*coarse/g)].length, 0);
+        assert.ok(coarse >= 10, `found ${coarse} coarse-pointer blocks — the scan below is reading nothing`);
+    });
+
+    test('no stylesheet gates anything on `hover: none`', () => {
+        const offenders = sheets.flatMap(([f, css]) =>
+            [...css.matchAll(/@media[^{]*\bhover:\s*none[^{]*/g)].map(m => `${f}: ${m[0].trim()}`));
+        assert.deepEqual(offenders, [],
+            'gate a touch block on `(pointer: coarse)` alone — `hover: none` drops every touch device '
+          + 'that reports hover:\n  ' + offenders.join('\n  '));
+    });
+});

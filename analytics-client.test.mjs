@@ -11,11 +11,13 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildAnalyticsClient } from './analytics-client.js';
+import { monthKey, prevMonthKey } from './usage-stats.js';
 
 const DAY = 86_400_000;
 const ts = (ms) => ({ toMillis: () => ms });
 
-/** A recording fake. `docs` maps a `collection/id` path to its data; `queryResults` answers getDocs. */
+/** A recording fake. `docs` maps a `collection/id` path to its data; `queryResults` answers getDocs;
+ *  `fromCache(pathOrQuery)` marks that read as answered by the device's offline cache. */
 function harness(opts = {}) {
     const writes = [];
     const deletes = [];
@@ -32,9 +34,15 @@ function harness(opts = {}) {
         getDoc: async (ref) => {
             if (opts.getDocThrows?.(ref.path)) throw new Error('read failed');
             const d = docs.get(ref.path);
-            return { exists: () => d !== undefined, data: () => d };
+            return { exists: () => d !== undefined, data: () => d, metadata: { fromCache: !!opts.fromCache?.(ref.path) } };
         },
-        getDocs: async (q) => ({ docs: (opts.queryResults?.(q) || []).map(r => ({ id: r.id, data: () => r })) }),
+        getDocs: async (q) => {
+            if (opts.getDocsThrows?.(q)) throw new Error('query failed');
+            // A query's limit is honoured, as Firestore's is — a cap the fake ignored could not be tested.
+            const lim = q.parts.find(p => p.limit !== undefined)?.limit ?? Infinity;
+            return { docs: (opts.queryResults?.(q) || []).slice(0, lim).map(r => ({ id: r.id, data: () => r })),
+                metadata: { fromCache: !!opts.fromCache?.(q) } };
+        },
         setDoc: async (ref, data, o) => { if (opts.setDocRejects) throw new Error('denied'); writes.push({ path: ref.path, data, merge: !!o?.merge }); },
         addDoc: async (col, data) => { if (opts.addDocRejects) throw new Error('denied'); writes.push({ path: col.path, data }); },
         deleteDoc: async (ref) => { deletes.push(ref.path); },
@@ -166,10 +174,123 @@ describe('the error log', () => {
         assert.deepEqual(deletes, ['clientErrors/old']);
     });
 
+    // ── PAST 200 RESOLVED (Nov 2026) ─────────────────────────────────────────────────────────────
+    // The resolved read is `limit(200)` with no order, so past 200 Firestore hands back the 200 lowest
+    // document ids — and the prune and the "recently resolved" rows both worked on that arbitrary 200.
+    const resolvedRows = (/** @type {number} */ n, /** @type {number} */ now) => Array.from({ length: n },
+        (_, i) => ({ id: `r${i}`, resolved: true, resolvedAt: ts(now - DAY), timestamp: ts(now - 2 * DAY) }));
+    const isExpiryRead = (/** @type {any} */ q) => q.parts[0].where[0] === 'resolvedAt';
+
+    test('an expired record OUTSIDE the resolved window is still pruned — the prune asks for it itself', async () => {
+        const now = Date.now();
+        const old = { id: 'past-the-window', resolved: true, resolvedAt: ts(now - 120 * DAY), timestamp: ts(now - 121 * DAY) };
+        const { client, deletes } = harness({ queryResults: (q) => isExpiryRead(q) ? [old]
+            : (q.parts[0].where[2] === true ? resolvedRows(201, now) : []) });
+        await client.getClientErrors();
+        assert.deepEqual(deletes, ['clientErrors/past-the-window']);
+    });
+
+    test('the expiry read asks by resolvedAt alone, before the retention cut-off — no composite index', async () => {
+        const seen = /** @type {any[]} */ ([]);
+        const { client } = harness({ queryResults: (q) => { seen.push(q); return []; } });
+        const t0 = Date.now();
+        await client.getClientErrors();
+        const expiry = seen.find(isExpiryRead);
+        assert.ok(expiry, 'the prune makes its own read');
+        assert.equal(expiry.parts.length, 2, 'one filter and a limit — nothing that needs a composite index');
+        assert.equal(expiry.parts[0].where[1], '<');
+        const cut = /** @type {Date} */ (expiry.parts[0].where[2]).getTime();
+        assert.ok(Math.abs(cut - (t0 - 90 * DAY)) < 5000, 'the cut-off is the 90-day retention, measured from resolution');
+    });
+
+    test('more than 200 resolved is SAID — resolvedTruncated — and exactly 200 is not', async () => {
+        const now = Date.now();
+        for (const [n, expected] of [[201, true], [200, false]]) {
+            const { client } = harness({ queryResults: (q) => (!isExpiryRead(q) && q.parts[0].where[2] === true ? resolvedRows(n, now) : []) });
+            const { resolvedTruncated } = await client.getClientErrors();
+            assert.equal(resolvedTruncated, expected, `${n} resolved`);
+        }
+    });
+
+    test('the expiry read failing costs the prune, never the Error Log', async () => {
+        const now = Date.now();
+        const old = { id: 'old', resolved: true, resolvedAt: ts(now - 120 * DAY), timestamp: ts(now - 121 * DAY) };
+        const { client, deletes } = harness({
+            getDocsThrows: isExpiryRead,
+            queryResults: (q) => (q.parts[0].where[2] === true ? [old] : []),
+        });
+        const { errors } = await client.getClientErrors();
+        assert.ok(Array.isArray(errors), 'the card still gets its list');
+        assert.deepEqual(deletes, ['clientErrors/old'], 'and what the resolved read saw is still pruned');
+    });
+
     test('Resolve goes through the GATED write and stamps resolvedAt', async () => {
         const { client, writes, gated } = harness();
         await client.resolveClientError('e1');
         assert.equal(gated.length, 1, 'an unconfirmed write must be able to stop it');
         assert.deepEqual(writes[0], { path: 'clientErrors/e1', data: { resolved: true, resolvedAt: 'TS' }, merge: true });
     });
+});
+
+// ── A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1, Nov 2026) ────────────────
+// Offline, Firestore does not fail these reads: it answers from this device's cache, as of whenever it
+// last heard, and the cards painted that as current — "✓ No errors recorded." over errors it had never
+// seen. Each document is refused ON ITS OWN, so each read below is marked alone: a guard that skipped
+// one of them would leave that one's test red.
+describe('a read the offline cache answered is a failed load (settings-ops-1)', () => {
+    /** The SDK's own code for "the client is offline", which every Operations card reads as "Couldn't load". */
+    const offline = (/** @type {any} */ e) => e?.code === 'unavailable';
+    const settle = () => new Promise(r => setTimeout(r, 0));
+    const now = Date.now();
+    const expired = (/** @type {string} */ id) => ({ id, resolved: true, resolvedAt: ts(now - 120 * DAY), timestamp: ts(now - 121 * DAY) });
+    const isList = (/** @type {boolean} */ resolved) => (/** @type {any} */ q) => q.parts[0].where[0] === 'resolved' && q.parts[0].where[2] === resolved;
+    const isExpiryRead = (/** @type {any} */ q) => q.parts[0].where[0] === 'resolvedAt';
+
+    for (const [which, fromCache] of /** @type {const} */ ([['unresolved', isList(false)], ['resolved', isList(true)]])) {
+        test(`the error log: the ${which} list from the cache fails the load, and no prune runs on it`, async () => {
+            const { client, deletes } = harness({ fromCache, queryResults: (q) => (isList(true)(q) ? [expired('old')] : []) });
+            await assert.rejects(client.getClientErrors(), offline);
+            await settle();
+            assert.deepEqual(deletes, [], 'no delete decided on the cache\'s copy');
+        });
+    }
+
+    test('the error log: the prune\'s own read from the cache costs the prune, never the log', async () => {
+        // Its failure path already exists — the prune falls back to what the resolved list saw — and a
+        // cached answer takes it, rather than deleting on the cache's word.
+        const { client, deletes } = harness({ fromCache: isExpiryRead, queryResults: (q) => (isExpiryRead(q) ? [expired('cached-old')] : []) });
+        const { errors } = await client.getClientErrors();
+        await settle();
+        assert.deepEqual(errors, [], 'the log itself still loads');
+        assert.deepEqual(deletes, []);
+    });
+
+    const d = new Date();
+    for (const path of [`analytics/perf_${monthKey(d)}`, `analytics/perf_${prevMonthKey(d)}`]) {
+        test(`App Speed: ${path} from the cache fails the load`, async () => {
+            // Both months EXIST: offline, an uncached document already rejects, so only a cached one tests this.
+            const { client } = harness({ fromCache: (p) => p === path, docs: {
+                [`analytics/perf_${monthKey(d)}`]: { samples: {} }, [`analytics/perf_${prevMonthKey(d)}`]: { samples: {} },
+            } });
+            await assert.rejects(client.getPerfStats(), offline);
+        });
+    }
+
+    const usageDocs = {
+        [`analytics/pv_${monthKey(d)}`]: { counts: { calendar: 4 } },
+        [`analytics/pv_${prevMonthKey(d)}`]: { counts: { calendar: 2 } },
+        'analytics/activeAccounts': { months: {}, daily: { '2020-01-01': 3 } },
+        'analytics/origins': { daily: { '2020-01-01|web.app': 1 } },
+    };
+    for (const path of Object.keys(usageDocs)) {
+        test(`Usage: ${path} from the cache fails the load, and nothing is pruned`, async () => {
+            // The origins read keeps its own soft failure for a document it cannot read; a CACHED one
+            // means the device is offline, so it fails the card like the rest rather than reading as
+            // "No opens recorded yet".
+            const { client, updates } = harness({ fromCache: (p) => p === path, docs: usageDocs });
+            await assert.rejects(client.getUsageStats(), offline);
+            await settle();
+            assert.deepEqual(updates, [], 'no prune decided on the cache\'s copy');
+        });
+    }
 });

@@ -26,6 +26,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import { GUIDE_PAGES, REDIRECT_PAGES } from './scripts/app-pages.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SW_SRC = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
@@ -78,22 +79,33 @@ function makeCaches(seed) {
     };
 }
 
+/** An older release's cache, as a device mid-transition holds one. */
+const OLDER_CACHE = 'myb-roster-v1.00';
+
 /**
- * Boot the real worker in a sandbox and send it one navigation.
- * @param {{ cached?: Record<string, string>, network: (req: Request, signal?: AbortSignal) => Promise<Response>,
- *           preload?: Promise<Response|undefined>, path: string }} o
+ * Boot the real worker in a sandbox and send it one navigation. `older` seeds an older release's cache;
+ * `scope` installs it under another scope (the Pages mirror's sub-path); `unanswered` allows the worker
+ * to leave the request to the browser, reported as `{ answered: false }`.
+ * @param {{ cached?: Record<string, string>, older?: Record<string, string>, network: (req: Request, signal?: AbortSignal) => Promise<Response>,
+ *           preload?: Promise<Response|undefined>, path: string, mode?: string, destination?: string, scope?: string, unanswered?: boolean }} o
+ * @returns {Promise<any>}
  */
 async function navigate(o) {
     // The completion marker is always present: no warm-up starts, so "nothing cached" stays true.
-    const { stores, api } = makeCaches({ [CACHE]: { './__precache-complete': 'ok', ...(o.cached || {}) } });
+    const { stores, api } = makeCaches({
+        ...(o.older ? { [OLDER_CACHE]: o.older } : {}),
+        [CACHE]: { './__precache-complete': 'ok', ...(o.cached || {}) },
+    });
     /** @type {Record<string, Function>} */
     const listeners = {};
     const fetches = /** @type {string[]} */ ([]);
     const fetchModes = /** @type {string[]} */ ([]);
+    const scope = o.scope ?? SCOPE;
+    const origin = new URL(scope).origin;
     const ctx = {
         self: {
-            registration: { scope: SCOPE, navigationPreload: null },
-            location: { origin: ORIGIN },
+            registration: { scope, navigationPreload: null },
+            location: { origin },
             addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = fn; },
             skipWaiting() {}, clients: { claim: async () => {} },
         },
@@ -112,11 +124,12 @@ async function navigate(o) {
     let responded = null;
     const waits = /** @type {Promise<any>[]} */ ([]);
     listeners.fetch({
-        request: { url: `${ORIGIN}${o.path}`, method: 'GET', headers: new Headers(), mode: o.mode ?? 'navigate', destination: o.destination ?? 'document', credentials: 'same-origin' },
+        request: { url: `${origin}${o.path}`, method: 'GET', headers: new Headers(), mode: o.mode ?? 'navigate', destination: o.destination ?? 'document', credentials: 'same-origin' },
         preloadResponse: o.preload,
         respondWith: (/** @type {Promise<Response>} */ p) => { responded = p; },
         waitUntil: (/** @type {Promise<any>} */ p) => { waits.push(p); },
     });
+    if (!responded && o.unanswered) return { answered: false, fetches, stores };
     assert.ok(responded, 'a navigation is always answered by the worker');
     const res = await /** @type {Promise<Response>} */ (responded);
     return { res, body: await res.clone().text(), fetches, fetchModes, stores, settle: () => Promise.allSettled(waits) };
@@ -195,16 +208,17 @@ describe('service worker — a preload that lands AFTER the 2 s race (v25.06, wh
     test('still stores the worker\'s own fresh fetch, not nothing', async () => {
         // The store fetch reused `freshReq`, whose signal the race had just aborted — so it rejected at
         // once and the "a late one still refreshes the cache" promise in the header was not kept.
+        // The fallback is the guide's copy in an OLDER release's cache: a race needs something to serve.
         const { body, stores } = await navigate({
             path: '/staff-guide.html',
-            cached: { './index.html': '<h1>cached roster</h1>' },
+            older: { './staff-guide.html': '<h1>last release\'s guide</h1>' },
             preload: after(250, () => ok('<h1>late preload</h1>')),
             network: async (_req, signal) => {
                 if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
                 return ok('<h1>fresh guide</h1>');
             },
         });
-        assert.match(body, /cached roster/, 'the race serves the fallback');
+        assert.match(body, /last release's guide/, 'the race serves the fallback');
         await new Promise(r => setTimeout(r, 600));   // the preload lands, the store runs
         const stored = await stores.get(CACHE)?.get(`${ORIGIN}/staff-guide.html`)?.clone().text();
         assert.match(String(stored), /fresh guide/, 'the late answer must reach the cache for the next open');
@@ -228,17 +242,26 @@ describe('service worker — a navigation with a FALLBACK cached', () => {
         let aborted = false;
         const t0 = Date.now();
         const { res, body } = await navigate({
-            // A page with no fallback of its own (not one of the six in PAGE_FALLBACKS) falls back to
-            // the root. NOT paycalc.html: its fallback is ./paycalc.html, so with only index.html
-            // cached it has none and correctly waits for the network — case 1 above.
-            path: '/staff-guide.html',
-            cached: { './index.html': '<h1>cached roster</h1>' },
+            // The page is missing from THIS release's cache, and an older release still holds it —
+            // the transition fallback, served at the race rather than after a hung network.
+            path: '/settings.html',
+            older: { './settings.html': '<h1>cached settings</h1>' },
             network: (_req, signal) => new Promise((_r, j) => signal?.addEventListener('abort', () => { aborted = true; j(new Error('aborted')); })),
         });
-        assert.match(body, /cached roster/);
+        assert.match(body, /cached settings/);
         assert.equal(res.status, 200);
         assert.ok(Date.now() - t0 < 1500, 'served at the race, not after a long wait');
         assert.equal(aborted, true, 'the worker\'s own fetch is cancelled at the race');
+    });
+
+    test('a page whose only fallback is the ROOT still races to it — an unknown page is the app', async () => {
+        // The default in the table: a page that is none of the app's own falls back to the Calendar.
+        const { body } = await navigate({
+            path: '/no-such-page.html',
+            cached: { './index.html': '<h1>cached roster</h1>' },
+            network: (_req, signal) => new Promise((_r, j) => signal?.addEventListener('abort', () => j(new Error('aborted')))),
+        });
+        assert.match(body, /cached roster/);
     });
 
     test('a network that FAILS outright serves the fallback at once, not after the race', async () => {
@@ -252,6 +275,44 @@ describe('service worker — a navigation with a FALLBACK cached', () => {
         assert.match(body, /cached admin/);
         assert.ok(Date.now() - t0 < 2000 / SPEED, 'a failed fetch does not wait out the race');
     });
+
+    // ── A GUIDE NEVER GETS THE CALENDAR (Nov 2026, the owner's decision) ─────────────────────────
+    // A first install's warm-up reaches the guides last, and a guide had no entry in the [keyword,
+    // page] table — so its fallback was the Calendar, and on a slow but WORKING connection the race
+    // served the Calendar under the guide's address: the drawer link appeared to do nothing. Every
+    // guide, and each legacy stub, is checked from the page list the suites share.
+    for (const { file } of GUIDE_PAGES) {
+        test(`${file} missing from the cache waits for a slow network — never the Calendar in its place`, async () => {
+            const { body } = await navigate({
+                path: `/${file}`,
+                cached: { './index.html': '<h1>cached roster</h1>' },
+                network: () => after(3000 / SPEED, () => ok(`<h1>${file}</h1>`)),
+            });
+            assert.doesNotMatch(body, /cached roster/, 'the Calendar was served under a guide\'s address');
+            assert.match(body, new RegExp(file.replace('.', '\\.')));
+        });
+    }
+
+    test('offline, a guide with no copy of its own says so by NAME rather than opening the Calendar', async () => {
+        const { body } = await navigate({
+            path: '/fip-guide.html',
+            cached: { './index.html': '<h1>cached roster</h1>' },
+            network: () => Promise.reject(new TypeError('Failed to fetch')),
+        });
+        assert.match(body, /The FIP Travel Guide is not available offline/);
+    });
+
+    for (const { file, to } of REDIRECT_PAGES) {
+        test(`the legacy stub ${file} with no copy of its own falls back to the guide it leads to`, async () => {
+            const guide = to.replace(/^\.\//, '');
+            const { body } = await navigate({
+                path: `/${file}`,
+                cached: { './index.html': '<h1>cached roster</h1>', [`./${guide}`]: `<h1>cached ${guide}</h1>` },
+                network: (_req, signal) => new Promise((_r, j) => signal?.addEventListener('abort', () => j(new Error('aborted')))),
+            });
+            assert.match(body, new RegExp(`cached ${guide.replace('.', '\\.')}`));
+        });
+    }
 
     test('a page whose own fallback is missing does NOT borrow another page\'s', async () => {
         // paycalc.html with only index.html cached: no fallback, so it waits for the network
@@ -280,6 +341,30 @@ describe('service worker — the page itself cached', () => {
         await after(20, () => {});
         const all = await Promise.all([.../** @type {Map<string, Response>} */ (stores.get(CACHE)).values()].map(r => r.clone().text()));
         assert.ok(!all.some(t => /some other release/.test(t)), 'the cached page was rewritten');
+    });
+
+    // ── …AND NOT FETCHED AT ALL (Nov 2026) ─────────────────────────────────────────────────────
+    // A hit still sent a no-cache request for the page and threw the answer away — one request per
+    // open on mobile data — and waited on it, holding the worker alive until the network replied.
+    test('a held page costs no network request — the worker fetches nothing of its own', async () => {
+        const { body, fetches } = await navigate({
+            path: '/settings.html',
+            cached: { './settings.html': '<h1>this release</h1>' },
+            network: async () => ok('<h1>some other release</h1>'),
+        });
+        assert.match(body, /this release/);
+        assert.deepEqual(fetches, [], 'its JS/CSS twin fetches nothing on a hit; neither does the page');
+    });
+
+    test('nor waits on a navigation preload: a dead signal cannot hold the worker on a held page', async () => {
+        const { body, settle } = await navigate({
+            path: '/', cached: { './index.html': '<h1>this release</h1>' },
+            preload: new Promise(() => {}),   // the network never answers
+            network: () => new Promise(() => {}),
+        });
+        assert.match(body, /this release/);
+        const settled = await Promise.race([settle().then(() => true), after(200, () => false)]);
+        assert.equal(settled, true, 'the fetch event was kept open by a network request nobody reads');
     });
 });
 
@@ -369,5 +454,36 @@ describe('service worker — the pack under docs/ goes to the network, never to 
 
     test('only docs/ AT THE SCOPE is a document: a file merely named docs-something is not', () => {
         assert.equal(answers({ ...FIREBASE, path: '/docs-index.png', destination: 'image' }), true);
+    });
+});
+
+// THE SAME RULE, THROUGH A WHOLE NAVIGATION (whole-app check, Nov 2026). Found independently of v25.67:
+// the cache-first branch stored each pack PDF a colleague opened and served that copy, with no request,
+// after the pack had been republished under the same name. One check in the worker answers both blocks.
+describe('service worker — a document under docs/ is never kept in the app\'s cache', () => {
+    const pdf = (/** @type {string} */ body) => new Response(body, { status: 200, headers: { 'content-type': 'application/pdf' } });
+    const MIRROR = 'https://garethdavidmiller.github.io/roster-app/';
+
+    test('on the Pages mirror, a pack PDF opened in a new tab is left to the network', async () => {
+        const r = await navigate({ scope: MIRROR, path: '/roster-app/docs/links-26/links-26-rules.pdf',
+            network: async () => pdf('version 1'), unanswered: true });
+        assert.equal(r.answered, false, 'the worker answered it, so the next open could come from its cache');
+        assert.deepEqual(r.fetches, [], 'and it fetched nothing of its own to store');
+    });
+
+    test('so is any other file under docs/, an HTML one included, and on the main address too', async () => {
+        for (const path of ['/docs/links-26/README.md', '/docs/links-26/presentations/', '/docs/links-26/x.html']) {
+            const r = await navigate({ path, network: async () => ok('x'), unanswered: true });
+            assert.equal(r.answered, false, path);
+        }
+    });
+
+    test('CONTROL: the app\'s own icon is still answered from the cache — the pass-through is for docs/ alone', async () => {
+        const { body, fetches } = await navigate({
+            path: '/icon-192.png', mode: 'no-cors', destination: 'image',
+            cached: { './icon-192.png': 'cached icon' }, network: async () => pdf('network icon'),
+        });
+        assert.equal(body, 'cached icon');
+        assert.deepEqual(fetches, []);
     });
 });

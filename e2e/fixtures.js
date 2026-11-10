@@ -59,7 +59,19 @@ export const orderBy = () => marker('orderBy');
 export const limit = () => marker('limit');
 // doc(db, collection, id) captures its PATH (v18.97) so deleteDoc below can tell which row was
 // removed. Still an opaque object to every consumer; only the delete stub reads .path.
-export const doc = (...a) => ({ __stub: 'doc', path: a.slice(1).map(String).join('/') });
+// doc(collectionRef), with ONE argument, is an AUTO-ID reference, as the real one is (whole-app fix,
+// Nov 2026): it carries a fresh id from the same sequence addDoc uses, so a document named before it is
+// written has an identity, and a setDoc on it is recorded as a CREATE (see setDoc). The Links store
+// creates a design that way. It minted no id here, and a design made so had none.
+export const doc = (...a) => {
+  if (a.length === 1 && a[0] && a[0].__stub === 'collection') {
+    const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+    e2e.addDocSeq = (e2e.addDocSeq || 0) + 1;
+    const id = 'e2e-added-' + e2e.addDocSeq;
+    return { __stub: 'doc', path: a[0].path + '/' + id, id, autoId: true };
+  }
+  return { __stub: 'doc', path: a.slice(1).map(String).join('/') };
+};
 export const serverTimestamp = () => marker('ts');
 // writeBatch RECORDS its set() payloads (v19.35) rather than swallowing them. A test that can only
 // see the "Save N changes" counter is checking the outcome SUMMARY, not the write — and those are
@@ -261,19 +273,39 @@ export const getDocsFromCache = () => {
   const docs = rows.map(r => ({ id: r.id, data: () => r }));
   return Promise.resolve({ empty: false, size: docs.length, docs, forEach: cb => docs.forEach(cb) });
 };
+// The SINGLE-document cache read (whole-app fix, Nov 2026), which the Links store consults offline.
+// Seed window.__E2E.docCache = { id: row } for a document this device holds, or { id: null } for one
+// whose deletion the cache recorded — that resolves as NOT EXISTING, exactly as the real SDK answers
+// it. A document not named was never held, and the read REJECTS, as the real one does; so nothing
+// seeded is the default, and every spec written before this existed still consults nothing.
+// (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+export const getDocFromCache = (ref) => {
+  const held = (globalThis.__E2E || {}).docCache || {};
+  const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
+  if (!id || !Object.prototype.hasOwnProperty.call(held, id)) {
+    return Promise.reject(Object.assign(new Error('e2e: Failed to get document from cache'), { code: 'unavailable' }));
+  }
+  const row = held[id];
+  return Promise.resolve(row ? { exists: () => true, data: () => row } : { exists: () => false, data: () => undefined });
+};
 // window.__E2E.getDocData seeds what a SINGLE-doc read RESOLVES WITH (v19.91). The default stays
 // "does not exist", which is what every existing spec is written against — notably the Settings
 // password chip, whose whole suite assumes an un-migrated member. Seeding it is how a spec reaches
 // the opposite state: a member who set their password on ANOTHER device, which the server knows
 // about and this device does not. There is no other route to that state, because it is defined
 // entirely by what the server says.
+// window.__E2E.docsFromCache marks THIS snapshot too (settings-ops-1, Nov 2026), so a single-document
+// reader that refuses a cache-served answer can be tested; seed getDocData for the realistic case, a
+// document the cache holds. (Offline, the real SDK REJECTS one it does not hold; this stub still
+// resolves that as not existing, as every spec written before this expects.)
 export const getDoc = () => {
   const e2e = globalThis.__E2E || {};
   if (e2e.failGetDoc) return Promise.reject(Object.assign(new Error('e2e'), { code: 'unavailable' }));
   const seeded = e2e.getDocData;
+  const metadata = { fromCache: !!e2e.docsFromCache };
   return Promise.resolve(seeded
-    ? { exists: () => true, data: () => seeded }
-    : { exists: () => false, data: () => ({}) });
+    ? { exists: () => true, data: () => seeded, metadata }
+    : { exists: () => false, data: () => ({}), metadata });
 };
 // addDoc RECORDS its payload too (v20.97), and for the same reason setDoc does — but it had been
 // NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
@@ -313,6 +345,16 @@ export const setDoc = (/** @type {any} */ ref, /** @type {any} */ data, /** @typ
   // __E2E.failSetCode makes every setDoc REJECT with that code, unrecorded (v25.06) — the deleteDoc
   // seam's twin, for a set whose outcome is unknown (auth/signed-out-during-request).
   if (e2e.failSetCode) return Promise.reject(Object.assign(new Error('e2e set refused'), { code: e2e.failSetCode }));
+  // A set on an AUTO-ID reference (see doc) is a CREATE, recorded and held exactly as addDoc's is:
+  // added: true, and window.__E2E.addDocHold keeps it open until window.__E2E.releaseAddDoc().
+  if (ref && ref.autoId) {
+    e2e.setWrites.push({ path: ref.path, data, merge: !!(opts && opts.merge), added: true });
+    if (e2e.addDocHold) {
+      if (!e2e._addDocGate) e2e._addDocGate = new Promise(r => { e2e.releaseAddDoc = r; });
+      return e2e._addDocGate.then(() => undefined);
+    }
+    return Promise.resolve();
+  }
   e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: !!(opts && opts.merge) });
   return Promise.resolve();
 };
@@ -562,6 +604,14 @@ const _configOverrides = new WeakMap();
  * @param {string} value     what to replace it with
  */
 function _setConfigOverride(page, key, pattern, value) {
+    // "Call BEFORE page.goto()" was a contract a test could break SILENTLY, and on WebKit only: WebKit
+    // reuses the roster-data.js it already holds, so the route below never sees the next load and the
+    // setting stays as it was (integration-e2e, 10 Nov 2026 — two tests read a false setting for a true
+    // one). Refused here, so a late call fails at the call rather than as a missing overlay later on.
+    if (page.url() !== 'about:blank') {
+        throw new Error(`${key}: set after the page loaded ${page.url()}. Call it BEFORE page.goto() — `
+            + 'WebKit keeps the roster-data.js it already holds, so a later load would not see it.');
+    }
     const current = _configOverrides.get(page) || {};
     current[key] = [pattern, value];
     _configOverrides.set(page, current);

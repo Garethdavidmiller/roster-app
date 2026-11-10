@@ -885,12 +885,15 @@ jobs:
             fi
             printf '\n%s\n\n' "The expected/actual/diff triple is in the **\`visual-diffs-webkit\`** artifact on [this run]($RUN_URL) — **it expires in 7 days**." >> "$BODY"
             cat >> "$BODY" <<'MD'
-          If the change is intended, regenerate — and then review what came back:
+          If the change is intended, take the new baselines from that artifact — they are CI's render, the one
+          this lane compares against — and then review what came back:
 
           ```
-          npm run test:visual:webkit -- --update-snapshots
+          node scripts/refresh-visual-baselines.mjs <the unzipped visual-diffs-webkit folder>
           git status e2e/visual-baselines/webkit/
           ```
+
+          It copies only the baselines that FAILED, into `e2e/visual-baselines/webkit/`, and names them.
           MD
           else
             cat >> "$BODY" <<'MD'
@@ -1129,13 +1132,16 @@ jobs:
             fi
             printf '\n%s\n\n' "The expected/actual/diff triple is in the **\`visual-diffs\`** artifact on [this run]($RUN_URL) — **it expires in 7 days**." >> "$BODY"
             cat >> "$BODY" <<'MD'
-          If the change is intended, regenerate — and then review what came back:
+          If the change is intended, take the new baselines from that artifact — they are CI's render, the one
+          this lane compares against — and then review what came back:
 
           ```
-          npm run test:visual:refresh
+          node scripts/refresh-visual-baselines.mjs <the unzipped visual-diffs folder>
+          git status e2e/visual-baselines/
           ```
 
-          It rewrites only the baselines that FAILED and names them (`scripts/refresh-visual-baselines.mjs`).
+          It copies only the baselines that FAILED and names them. With no folder, `npm run test:visual:refresh`
+          redraws them from your own machine's render: a way to see a change locally, not what to commit.
           Keep `npm run test:visual -- --update-snapshots=all` for a deliberate sweep of drift inside the
           tolerance: it rewrites the ones that PASSED too, so revert anything you cannot explain and re-run —
           still green means it was rendering noise and does not belong in the diff.

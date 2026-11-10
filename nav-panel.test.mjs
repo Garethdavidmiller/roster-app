@@ -1,7 +1,7 @@
 /**
  * Unit tests for nav-panel.js: isNoticeExpired() and the App Notices archive (archiveNotice) — both
  * notice-archive.js's, re-exported here and tested through the import every page uses — and the drawer.
- * Run with: node --experimental-test-module-mocks --test nav-panel.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs nav-panel.test.mjs
  *
  * nav-panel.js imports browser-only modules (notif.js, overlay.js, ls.js) that
  * touch window/navigator at load. They are mocked so the module imports cleanly
@@ -21,9 +21,13 @@ const store = new Map();
 /** @type {string[]} */
 const signOutLog = [];
 
+/** What the Circular read answers — a test that opens one replaces it. @type {() => Promise<any>} */
+let latestCircular = async () => null;
+/** What the short-lived link answers — null, as the app ships, unless a test says otherwise. @type {() => Promise<any>} */
+let signedDocumentUrl = async () => null;
 mock.module('./firebase-client.js', {
     namedExports: {
-        getLatestCircular:    async () => null,
+        getLatestCircular:    () => latestCircular(),
         getLatestNewsletter:  async () => null,
         isSafeStorageUrl,   // the real function (see the import note above) — no mirror to keep in sync
         officeViewerUrl,    // the real function — .docx nav links route through it
@@ -31,7 +35,7 @@ mock.module('./firebase-client.js', {
         // The drawer mints a short-lived url before setting the pre-opened tab's location. `null`
         // is the state the app ships in (no IAM grant), and is what these tests exercise — the
         // stored url must still open, exactly as it did before the endpoint existed.
-        fetchSignedDocumentUrl: async () => null,
+        fetchSignedDocumentUrl: () => signedDocumentUrl(),
         currentUserAfterBoot: async () => ({ uid: 'u1' }),   // the drawer bell asks (v25.06)
     },
 });
@@ -46,12 +50,19 @@ mock.module('./notif.js', {
 });
 /** Body-scroll unlocks the drawer asked for — a close it should not have made shows up here. */
 let scrollUnlocks = 0;
+/** The drawer's claim on a popstate, which overlay.js asks before it pops its own stack. @type {Array<() => boolean>} */
+const popInterceptors = [];
 mock.module('./overlay.js', {
     namedExports: {
         lockBodyScroll: () => {}, unlockBodyScroll: () => { scrollUnlocks += 1; },
-        suppressNextPop: () => {}, registerPopInterceptor: () => {},   // v16.23 pop-ownership hooks
+        suppressNextPop: () => {}, registerPopInterceptor: (/** @type {() => boolean} */ fn) => { popInterceptors.push(fn); },   // v16.23 pop-ownership hooks
         whenHistorySettled: (/** @type {() => void} */ fn) => fn(),
         watchScrollFade: () => () => {},   // the body's "more below" fade — decoration; e2e/pages.spec.js tests it
+        // A tap on a drawer lightbox's backdrop closes it. Which taps count is overlay.js's rule, tested
+        // there against the real function; here a click on the backdrop itself is enough.
+        closeOnBackdropTap: (/** @type {any} */ overlay, /** @type {() => void} */ close) => {
+            overlay.addEventListener('click', (/** @type {any} */ e) => { if (e.target === overlay) close(); });
+        },
     },
 });
 mock.module('./ls.js', {
@@ -268,7 +279,10 @@ function mountDrawer(/** @type {any} */ opts) {
         createElement: () => fakeEl(), body: fakeEl(),
         addEventListener() {}, removeEventListener() {}, querySelector: () => null, querySelectorAll: () => [],
     });
-    global.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout });
+    // A page that is not the Calendar, so a `./#…` link is a navigation (`_onCalendarPage`).
+    const location = { pathname: '/links.html', hash: '', replace() {} };
+    global.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout, location });
+    /** @type {any} */ (global).location = location;
     global.history = /** @type {any} */ ({ pushState() {}, back() {} });
     initNavPanel({ currentPage: 'links', memberName: 'A. Test', ...opts });
     return els.get('navSignOutBtn');
@@ -356,6 +370,62 @@ describe('a drawer-link click with the drawer SHUT closes nothing (48-hour revie
     });
 });
 
+// ── EVERY WAY OUT OF THE DRAWER TAKES ITS HISTORY ENTRY WITH IT (whole-app check, Nov 2026) ──────────
+// The drawer pushes one entry when it opens. A page pill REPLACES it with the destination; everything
+// else that left by a link only FORGOT it, so a same-URL entry stayed behind and the next Back press did
+// nothing: every Daily Huddle opened from the drawer, every guide or page opened in a new tab.
+describe('every way out of the drawer takes its history entry with it', () => {
+    /** The drawer on a page at `pathname`, opened, and a click on one of its links. @param {string} pathname */
+    function openDrawerAt(pathname) {
+        // The module keeps its flags between mounts: clear them against an empty page.
+        global.document = /** @type {any} */ ({ getElementById: () => null, addEventListener() {}, removeEventListener() {} });
+        resetNavPanel();
+        mountDrawer({ onSignOut: () => {} });
+        const did = { backs: 0, replaced: /** @type {string[]} */ ([]), prevented: false };
+        const location = { pathname, hash: '', replace: (/** @type {string} */ to) => { did.replaced.push(to); } };
+        Object.assign(/** @type {any} */ (global.window), { location });
+        /** @type {any} */ (global).location = location;
+        global.history = /** @type {any} */ ({ pushState() {}, back() { did.backs += 1; } });
+        /** @type {any} */ (document.getElementById('navMenuBtn')).on.click();   // open: the drawer pushes its entry
+        /** @param {{ href?: string, tagName?: string, ctrlKey?: boolean, guide?: boolean }} link */
+        const click = ({ href = '', tagName = 'A', ctrlKey = false, guide = false }) => {
+            const el = { tagName, target: '', href: `https://example.test/${href.replace(/^\.\//, '')}`, dataset: {},
+                getAttribute: (/** @type {string} */ a) => (a === 'href' ? href : null) };
+            const wanted = guide ? '.nav-panel-link--guide' : '.nav-panel-pill, .nav-panel-link';
+            /** @type {any} */ (document.getElementById('navPanel')).on.click({
+                target: { closest: (/** @type {string} */ sel) => (sel === wanted ? el : null) },
+                button: 0, ctrlKey, preventDefault: () => { did.prevented = true; } });
+            return did;
+        };
+        return { click, location };
+    }
+
+    for (const path of ['/', '/index.html', '/roster-app/']) {
+        test(`the Daily Huddle on the Calendar (${path}) pops the drawer's entry, then sets the hash`, () => {
+            const { click, location } = openDrawerAt(path);
+            const did = click({ href: './#huddle' });
+            assert.equal(did.backs, 1, 'the entry was forgotten, not popped — Back then does nothing once');
+            assert.equal(location.hash, '#huddle', 'a hash change under this page, not a navigation');
+            assert.deepEqual(did.replaced, [], '`./#huddle` from /index.html would be a path change and a reload');
+            assert.equal(did.prevented, true);
+        });
+    }
+
+    test('from any other page it REPLACES the drawer\'s entry with the Calendar, as a page pill does', () => {
+        const did = openDrawerAt('/settings.html').click({ href: './#huddle' });
+        assert.deepEqual(did.replaced, ['https://example.test/#huddle']);
+        assert.equal(did.backs, 0, 'the page is leaving — nothing to pop');
+    });
+
+    test('a click that leaves this page where it is pops the entry: a new tab, the "you are here" pill, a guide', () => {
+        assert.equal(openDrawerAt('/settings.html').click({ href: './admin.html', ctrlKey: true }).backs, 1, 'a page opened in a new tab');
+        assert.equal(openDrawerAt('/settings.html').click({ tagName: 'SPAN' }).backs, 1, 'the inert pill for this page');
+        assert.equal(openDrawerAt('/settings.html').click({ href: './fip-guide.html', ctrlKey: true, guide: true }).backs, 1, 'a guide in a new tab');
+        const pill = openDrawerAt('/settings.html').click({ href: './admin.html' });
+        assert.deepEqual([pill.backs, pill.replaced.length], [0, 1], 'and a plain pill still replaces it, unchanged');
+    });
+});
+
 // ── The drawer's two hand-made lightboxes (test audit, 7 Nov 2026) ─────────────────────────────────
 // App Notices and the coming-soon panel run their own lifecycle — they share the drawer's history
 // entry, so createLightbox cannot own them — and nothing here had ever opened one: deleting their
@@ -405,10 +475,14 @@ function mountLive() {
     ]);
     /** @type {Function[]} */
     const keydown = [];
+    /** @type {Function[]} */
+    const popstate = [];
     const page = {
         backs: 0,
         /** Every open `.lb-overlay` this page holds — what `_overlayAbove` reads. */
         openOverlays: () => [...els.values()].filter(e => e.classList.contains('lb-overlay') && e.classList.contains('open')),
+        /** A popstate reaching the drawer's own window listener. */
+        popstate: () => popstate.slice().forEach(fn => fn({})),
     };
     global.document = /** @type {any} */ ({
         activeElement: null,
@@ -421,9 +495,12 @@ function mountLive() {
         querySelectorAll: (/** @type {string} */ sel) => (sel === '.lb-overlay.open' ? page.openOverlays() : []),
         querySelector: (/** @type {string} */ sel) => (sel === '.lb-overlay.open' ? page.openOverlays()[0] ?? null : null),
     });
-    global.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }),
+    global.window = /** @type {any} */ ({
+        addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { if (t === 'popstate') popstate.push(fn); },
+        removeEventListener() {}, matchMedia: () => ({ matches: false }),
         setTimeout: (/** @type {any[]} */ ...a) => setTimeout(...a), clearTimeout: (/** @type {any} */ t) => clearTimeout(t) });
-    global.history = /** @type {any} */ ({ pushState() {}, back() { page.backs += 1; } });
+    // `state` is the entry the page is ON — what the drawer reads to tell its own entry from another's.
+    global.history = /** @type {any} */ ({ state: null, pushState(/** @type {any} */ s) { this.state = s; }, back() { page.backs += 1; } });
     global.requestAnimationFrame = /** @type {any} */ ((/** @type {Function} */ fn) => { fn(); return 0; });
     resetNavPanel();   // the module keeps its flags between mounts — start each test from a closed drawer
     initNavPanel({ currentPage: 'links', memberName: 'A. Test', onSignOut: () => {} });
@@ -508,5 +585,53 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
             press('Escape');
             assert.equal($(lb.box).classList.contains('open'), false, 'and once on top, Escape reaches it again');
         });
+
+        // …and Back: a dialog over it (the app-update question, the unsaved-work offer) owns its own Back,
+        // and the echo of its own Cancel. Both LAND on the drawer's entry, which the lightbox shares; it
+        // used to take every pop for its own while open — closing underneath, the dialog left standing.
+        test(`${lb.name}: a pop that lands on the drawer's entry is the dialog's above it — one that leaves it is its own`, () => {
+            const { $, openFromDrawer, page } = mountLive();
+            openFromDrawer(lb.link);
+            const own = history.state;
+            const claims = () => popInterceptors.some(fn => fn());
+            /** @type {any} */ (history).state = own;            // a dialog above was popped
+            assert.equal(claims(), false, 'the drawer claimed the dialog\'s Back: the dialog would stay on screen');
+            page.popstate();
+            assert.equal($(lb.box).classList.contains('open'), true, 'a pop above it closed the lightbox underneath');
+            /** @type {any} */ (history).state = null;           // Back with nothing above: the drawer's entry goes
+            assert.equal(claims(), true);
+            page.popstate();
+            assert.equal($(lb.box).classList.contains('open'), false, 'its own Back must still close it');
+        });
     }
+});
+
+// ── THE 8-SECOND BUDGET COVERS THE WHOLE OPEN (whole-app check, Nov 2026) ─────────────────────────────
+// The drawer opens a blank tab on the tap and gives it a location once the Circular is read. The read
+// raced 8 s; the short-lived link after it did not — its own timeout starts only once a session and an
+// ID token are in hand, and a token refresh on a weak signal is bounded only by the SDK's own network
+// timeout, tens of seconds. All that time the blank tab sat there and both document links were dead.
+describe('opening the latest Circular stays inside its 8-second budget', () => {
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/x.pdf?alt=media&token=e2e';
+    beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
+    afterEach(() => { mock.timers.reset(); latestCircular = async () => null; signedDocumentUrl = async () => null; });
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+
+    test('a short-lived link that has not answered by then gives way to the stored url', async () => {
+        const { $ } = mountLive();
+        /** @type {string[]} */ const opened = [];
+        /** @type {any} */ (global.window).open = () => ({ opener: null, close() {}, location: { set href(/** @type {string} */ v) { opened.push(String(v)); } } });
+        latestCircular = async () => ({ storageUrl: STORED, fileType: 'pdf', storagePath: 'circulars/x.pdf' });
+        signedDocumentUrl = () => new Promise(r => setTimeout(() => r(null), 30_000));   // a token refresh stuck on a weak signal
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
+        /** @type {any} */ ($('navPanel')).fire('click', {
+            target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
+        await flush();
+        mock.timers.tick(7_999); await flush();
+        assert.deepEqual(opened, [], 'premise: nothing opens before the budget is spent');
+        mock.timers.tick(1); await flush();
+        assert.deepEqual(opened, [STORED], 'the blank tab waited past the 8 s budget for a link it does not need');
+        assert.equal(link.classList.contains('nav-panel-link--loading'), false, 'and both document links are live again');
+    });
 });

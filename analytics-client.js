@@ -30,9 +30,27 @@
  * review, Oct 2026), and this was the one block in it with no tie to authentication.
  */
 
-import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
+import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors, CLIENT_ERROR_RETENTION_MS } from './client-errors.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys, originKey, summariseOrigins, staleOriginKeys } from './usage-stats.js';
 import { perfSampleKey, summarisePerf, createPerfBatcher } from './perf-stats.js';
+
+/**
+ * A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1, Nov 2026) — the rule
+ * overtime-data.js states, for every read the Operations cards paint: these three, and the three in
+ * firebase-client.js, which keeps the same guard. With the persistent cache, an unreachable server
+ * does not fail a read: once the SDK is offline it answers from this device's copy, as of whenever it
+ * last heard, empty included, and the cards showed that as current: "0/51", "✓ No errors recorded",
+ * and "✓ No outstanding requests" beside a member locked out since. It is thrown as `unavailable`,
+ * the SDK's own code for an offline read it cannot answer, so each card's existing "Couldn't load …
+ * Try again" path takes over, and withClaimRetry, which retries only `permission-denied`, re-throws it
+ * untouched. It is thrown before any prune, so no delete is decided on the cache's copy. Online the
+ * SDK waits for the server, so `fromCache` is false and nothing changes.
+ * @template T @param {T} snap @returns {T}
+ */
+function refuseCachedRead(snap) {
+    if (/** @type {any} */ (snap)?.metadata?.fromCache) throw Object.assign(new Error('Read was served from the offline cache'), { code: 'unavailable' });
+    return snap;
+}
 
 /**
  * @param {{
@@ -85,28 +103,44 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
      * surface, so a genuinely-hidden overflow must be surfaced, never silently swallowed (the
      * app's no-silent-caps rule). We query `CAP + 1` and set `truncated` only when the extra row
      * comes back (i.e. > 100 actually exist) — exactly 100 with none hidden is NOT truncated.
-     * @returns {Promise<{ errors: Array<{id: string, memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string, timestamp: import('firebase/firestore').Timestamp, resolved: boolean, resolvedAt?: import('firebase/firestore').Timestamp}>, truncated: boolean }>}
+     *
+     * THE RESOLVED READ HAS THE SAME CAP, AND NOW SAYS SO (Nov 2026). It is unordered too, so past
+     * 200 the "recently resolved" rows are 30 of an arbitrary 200 — `resolvedTruncated` tells the card.
+     * And the prune no longer rides on that window: an expired record outside it was never deleted.
+     * It asks for expired records itself, by `resolvedAt` alone (a single-field range, auto-indexed).
+     * @returns {Promise<{ errors: Array<{id: string, memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string, timestamp: import('firebase/firestore').Timestamp, resolved: boolean, resolvedAt?: import('firebase/firestore').Timestamp}>, truncated: boolean, resolvedTruncated: boolean }>}
      */
     async function getClientErrors() {
         const now = Date.now();
         const UNRESOLVED_CAP = 100;
+        const RESOLVED_CAP   = 200;
+        const PRUNE_BATCH    = 200;   // per read; the next read takes the rest
         // Fetch ONE more than the display cap: if the 101st exists we KNOW there are more than
         // 100 (truncated), whereas a plain limit(100) can't tell "exactly 100" from "100+".
-        const [unresolvedSnap, resolvedSnap] = await Promise.all([
+        const [unresolvedSnap, resolvedSnap, expiredSnap] = await Promise.all([
             getDocs(query(collection(db, collections.clientErrors), where('resolved', '==', false), limit(UNRESOLVED_CAP + 1))),
-            getDocs(query(collection(db, collections.clientErrors), where('resolved', '==', true),  limit(200))),
+            getDocs(query(collection(db, collections.clientErrors), where('resolved', '==', true),  limit(RESOLVED_CAP + 1))),
+            // The prune's own read. Caught: a prune must never take the Error Log down with it — and a
+            // cached answer is caught the same way, so the prune falls back to the resolved list below.
+            getDocs(query(collection(db, collections.clientErrors),
+                where('resolvedAt', '<', new Date(now - CLIENT_ERROR_RETENTION_MS)), limit(PRUNE_BATCH))).then(refuseCachedRead).catch(() => null),
         ]);
-        // Pure truncation split (client-errors.capUnresolvedErrors, unit-tested): show at most the cap;
-        // `truncated` is true only when the (cap+1)th row came back, i.e. > cap genuinely exist.
+        for (const snap of [unresolvedSnap, resolvedSnap]) refuseCachedRead(snap);   // before the prune below
+        // Pure truncation split (client-errors.capUnresolvedErrors, unit-tested — it caps any list):
+        // show at most the cap; `truncated` only when the (cap+1)th row came back, i.e. > cap exist.
         const { shown: unresolvedDocs, truncated } = capUnresolvedErrors(unresolvedSnap.docs, UNRESOLVED_CAP);
-        const unresolved = unresolvedDocs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
-        const resolved   = resolvedSnap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
+        const { shown: resolvedDocs, truncated: resolvedTruncated } = capUnresolvedErrors(resolvedSnap.docs, RESOLVED_CAP);
+        /** @param {any} d */ const toRecord = d => ({ id: d.id, ...d.data() });
+        const unresolved = unresolvedDocs.map(toRecord);
+        const resolved   = resolvedDocs.map(toRecord);
+        const expired    = (expiredSnap?.docs ?? []).map(toRecord);
 
-        // Best-effort prune of resolved records past the retention window (from resolvedAt).
-        for (const id of expiredResolvedIds(resolved, now)) {
+        // Best-effort prune of resolved records past the retention window (from resolvedAt): what the
+        // expiry read found, plus any in the window above should that read have failed.
+        for (const id of new Set(expiredResolvedIds([...expired, ...resolved], now))) {
             deleteDoc(doc(db, collections.clientErrors, id)).catch(() => {/* best-effort cleanup */});
         }
-        return { errors: orderClientErrors(unresolved, resolved, now), truncated };
+        return { errors: orderClientErrors(unresolved, resolved, now), truncated, resolvedTruncated };
     }
 
     /**
@@ -244,6 +278,7 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
             getDoc(doc(db, collections.analytics, `perf_${m}`)),
             getDoc(doc(db, collections.analytics, `perf_${pm}`)),
         ]);
+        for (const snap of [thisSnap, lastSnap]) refuseCachedRead(snap);
         /** @param {any} snap @param {string} month @returns {PerfWindow} */
         const windowFor = (snap, month) => {
             const samples = (snap.exists() ? /** @type {any} */ (snap.data()) : {}).samples || {};
@@ -284,6 +319,10 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
             // Missing until the first write after v19.23 — an absent doc is the empty picture, not an error.
             getDoc(doc(db, collections.analytics, 'origins')).catch(() => null),
         ]);
+        // Origins too: a CACHED copy is not an absent document but an offline device, whose every figure
+        // here is as old as that copy — so it fails the card rather than reading "No opens recorded yet".
+        // Before the prunes below, so neither works from the cache's copy.
+        for (const snap of [pvSnap, pvPrevSnap, aaSnap, orgSnap]) refuseCachedRead(snap);
         const pv = pvSnap.exists() ? /** @type {any} */ (pvSnap.data()) : { counts: {} };
         const pvPrev = pvPrevSnap.exists() ? /** @type {any} */ (pvPrevSnap.data()) : { counts: {} };
         const aa = aaSnap.exists() ? /** @type {any} */ (aaSnap.data()) : { months: {}, daily: {} };

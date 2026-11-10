@@ -1,6 +1,6 @@
 /**
  * calendar-legend.test.mjs — A KEY TO A GRID THAT IS NOT THERE.
- * Run with: node --test calendar-legend.test.mjs
+ * Run with: node scripts/run-tests.mjs calendar-legend.test.mjs
  *
  * ── ORGANISED BY WHAT A WRONG ANSWER COSTS ──────────────────────────────────────────────────────
  *
@@ -65,6 +65,14 @@ describe('speaking for a month we have not got', () => {
 
     test('an authoritative month renders', () => {
         assert.equal(legendShown('render', false), 'render');
+    });
+
+    test('a FIRST RUN hides it — the grid is a prompt, and the key would be the default member\'s', () => {
+        // 10 Nov 2026: leaving Team View un-hid the legend under "Choose your name". A known month
+        // does not change that: nobody has been chosen for the key to describe.
+        for (const v of ['render', 'stale']) assert.equal(legendShown(v, false, true), 'hide', `${v} on a first run`);
+        // Team View still owns the element on a first run — stand-down, not hide.
+        assert.equal(legendShown('render', true, true), 'stand-down');
     });
 
     test('anything the rule does not recognise HIDES', () => {

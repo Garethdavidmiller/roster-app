@@ -43,8 +43,8 @@ import { initPdfViewer } from './pdf-viewer.js';
 import { isPlainClick } from './pdf-viewer-core.js';
 import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
-import { CLOSES, STARTS, TIMETABLE_STARTS, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
-import { renderStatus, renderList, renderCommon, renderPersonas, renderPersonaChips,
+import { CLOSES, STARTS, TIMETABLE_STARTS, PACK_BASE, HAVE_YOUR_SAY, CHOSEN, CONTACT } from './newlink-config.js';
+import { renderStatus, statusPhase, statusHint, renderList, renderCommon, renderPersonas, renderPersonaChips,
     renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou, aToZ } from './newlink-render.js';
 
 /** The collapsible cards, by the id prefix their header, body and chevron share. */
@@ -159,13 +159,18 @@ let statusDay = '';
 /**
  * The status card, for today. Drawn again only when the day has moved, so a return on the same day leaves it — and a
  * name tile holding focus — exactly as it was. Its taps are delegated to the card itself (`wireChoices`), so a redraw
- * keeps them.
+ * keeps them. The day can move the page out of 'open' — the link's start coming with nothing chosen (`statusPhase`) — so
+ * the two other things that ask for views are settled here too: the card's "For discussion, not a decision", and the
+ * Have your say card, both shown only while the page is open (owner, 10 Nov 2026).
  */
 function drawStatus() {
     const today = formatISO(new Date());
     if (today === statusDay) return;
     statusDay = today;
-    setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES, starts: STARTS, timetable: TIMETABLE_STARTS, today }));
+    setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES, starts: STARTS, timetable: TIMETABLE_STARTS, today, chosen: CHOSEN, contact: CONTACT }));
+    const { phase } = statusPhase({ proposals: PROPOSALS, chosen: CHOSEN, starts: STARTS, today });
+    setText('nlStatusHint', statusHint(phase));   // words, not `hidden`: `.card-header .hint` is display:block, which outranks it
+    el('nlSayCard')?.toggleAttribute('hidden', phase !== 'open');
 }
 
 /**

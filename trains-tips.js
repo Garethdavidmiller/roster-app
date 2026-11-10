@@ -17,7 +17,9 @@
  * These panels are built once, at import, with no phase — so a sentence true only before the change
  * ("December times can still change", "today's leaf-fall timetable", "Chiltern says it will…") went
  * on saying it for the four months after (whole-app review, Oct 2026). Name the columns and dates
- * rather than "today".
+ * rather than "today", and quote a chip in both of its tenses. The one thing here that turns is the
+ * changes panel's title, the name of a view that turns with it: trains-app.js gives it
+ * `changesTitle` as the panel opens.
  *
  * ── NOTHING HERE IS TYPED TWICE ─────────────────────────────────────────────────────────────────
  *
@@ -30,7 +32,7 @@
 
 import { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 import { MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, JOURNEY_PLANNER_URL } from './trains-change.js';
-import { DAYTIME } from './trains-render.js';
+import { DAYTIME, renderFurtherChanges } from './trains-render.js';
 
 // The strings below name only what is imported here — tips-content.test.mjs evaluates them with the
 // real values, so a constant used without being imported fails there rather than reading "undefined".
@@ -43,9 +45,9 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📅', html: `The page's first column is Chiltern's timetable <strong>until ${dateWords(CHANGE_DATE, -1, { weekday: true })}</strong>; the second is the new one, <strong>from ${dateWords(CHANGE_DATE, 0, { weekday: true })}</strong>.` },
                     { icon: '🚆', html: 'The totals count every passenger train <strong>leaving Marylebone</strong> on that kind of day. Two trains coupled together count once, because they leave as one.' },
-                    { icon: '🗓️', html: 'A few of today\'s weekday trains run only on <strong>Mondays and Fridays</strong>, or only <strong>Tuesday to Thursday</strong>. Weekday counts are for a Tuesday to Thursday; the trains themselves are listed with their days.' },
+                    { icon: '🗓️', html: 'In the first column, a few weekday trains run only on <strong>Mondays and Fridays</strong>, or only <strong>Tuesday to Thursday</strong>. Weekday counts are for a Tuesday to Thursday; the trains themselves are listed with their days.' },
                     { icon: '⚠️', html: `These are Chiltern's published timetables, not live running: on the day, a train can still be late, altered or cancelled. Before you tell a customer, check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> or the live departure boards, linked from the About panel (the logo in the menu).` },
-                    { icon: '🎄', html: `<strong>Christmas and New Year are not on this page.</strong> Between ${dateWords(CHANGE_DATE)} and ${dateWords(FURTHER_CHANGES_UNTIL)} Chiltern changes times again, with big changes over Christmas and New Year, and Amersham-line times may change in those weeks too. For those dates, check the journey planner.` },
+                    { icon: '🎄', html: `${renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)} Amersham-line times may change in those weeks too. For those dates, check the journey planner.` },
                 ],
             },
             {
@@ -65,7 +67,7 @@ export const CARD_TIPS = {
             {
                 items: [
                     { icon: '🕛', html: 'The <strong>last train from Marylebone</strong> that calls at each station, on the kind of day chosen above — the time it leaves Marylebone, not the time it gets there.' },
-                    { icon: '🗓️', html: 'A typical day of that kind: the few weekday trains that run only on Mondays and Fridays, or only on Wednesdays, are left out, as they are on a station\'s card.' },
+                    { icon: '🗓️', html: 'A typical day of that kind: the few weekday trains that run only on Mondays and Fridays are left out, as they are on a station\'s card.' },
                     { icon: '⚠️', html: 'Published times, not live running. For tonight\'s actual last train, check the live departure boards — linked from the About panel (the logo in the menu).' },
                 ],
             },
@@ -101,14 +103,14 @@ export const CARD_TIPS = {
                     { icon: '🔢', html: `<strong>Daytime</strong> means ${DAYTIME}. <strong>2 (1 in some hours)</strong> trains an hour means most daytime hours have two trains, and some have only one; <strong>1 to 3</strong> means no one number is true of most hours.` },
                     { icon: '🕐', html: '<strong>Going there</strong>, every time is when the train leaves <strong>Marylebone</strong>. <strong>Coming back</strong>, it is when the train leaves the station on the card, with the time it gets into Marylebone underneath.' },
                     { icon: '🔁', html: `<strong>Train by train</strong> lists only the trains that change; the ones that stay the same are one step further. A train counts as the same train when it leaves within ${MAX_SHIFT_MIN} minutes of its old time. Beyond that it shows as removed, and the new one as a new train.` },
-                    { icon: '🚏', html: '<strong>No longer stops here</strong> is a train that still runs but passes this station; <strong>Will stop here</strong> is one that already ran and now calls here too. A train that no longer comes this far says where it now ends — or, coming back, where it starts.' },
+                    { icon: '🚏', html: `<strong>Will no longer stop here</strong> is a train in both timetables that passes this station in the new one; <strong>Will stop here</strong> is one in both that calls here only in the new one. From ${dateWords(CHANGE_DATE)} they read <strong>No longer stops here</strong> and <strong>Now stops here</strong>. A train that no longer comes this far in the new timetable says where it ends instead — or, coming back, where it starts.` },
                 ],
             },
             {
                 heading: 'Good to know',
                 items: [
                     { icon: '➡️', html: 'Some trains run on past where most of their line stops: <strong>Aylesbury Vale Parkway</strong> trains are Aylesbury trains via Amersham run on, and <strong>Birmingham Snow Hill</strong> and <strong>Stourbridge Junction</strong> trains are Moor Street trains run on.' },
-                    { icon: '🗓️', html: 'A few weekday trains run at different times on <strong>Mondays and Fridays</strong>. Those are marked under the time.' },
+                    { icon: '🗓️', html: 'In the first column, a few weekday trains run at different times on <strong>Mondays and Fridays</strong>. Those are marked under the time.' },
                 ],
             },
         ],

@@ -182,23 +182,101 @@ test('the scan finds the focus rules, every exemption is in use, and each remova
 // ── 3. A control on a NAVY surface never wears the navy ring (desktop audit, Nov 2026) ─────────────
 // The fallback ring is `--focus-outline` — navy — so a control on navy with no rule of its own is a
 // Tab stop with no visible indicator (1:1). These are the shared code's controls on the navy header
-// and the opaque navy sheet; each must name a ring drawn for a dark surface. A static floor beside
-// the e2e (pages.spec.js → "keyboard focus is visible on the navy surfaces"), which reads the computed
-// ring: this one names the rule, that one proves the cascade lets it win.
-test('the shared controls on a navy surface name a ring drawn for one', () => {
-    const src = read('shared.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
-    const ON_NAVY = ['.app-icon:focus-visible', '#iconLightboxClose:focus-visible', '.notice-lb-content .lb-close:focus-visible',
-        '#navNoticesClose:focus-visible', '#navComingSoonClose:focus-visible', '.lightbox-bug-link:focus-visible',
-        '.lightbox-print-btn:focus-visible', '.notice-cta:focus-visible', '.notice-later:focus-visible',
-        '.notice-lb-content .btn-action:focus-visible', '#navNoticesList:focus-visible'];
-    /** @type {Record<string, string>} */ const ring = {};
-    for (const m of src.matchAll(/([^{}]*:focus-visible[^{}]*)\{([^}]*)\}/g)) {
-        for (const s of selectorList((m[1].split(';').pop() ?? '').trim().replace(/\s+/g, ' '))) {
-            const o = /(?:^|[\s;])outline:\s*([^;]+)/.exec(m[2])?.[1].trim();
-            if (o) ring[s] = o;
+// and the opaque navy sheet, and the Pay Calculator's two on navy surfaces of its own (whole-app fix,
+// 10 Nov 2026): the help sheet's ✕ and the guide link on the navy page. Each must name a ring drawn for
+// a dark surface. A static floor beside the e2e (pages.spec.js → "keyboard focus is visible on the navy
+// surfaces"), which reads the computed ring: this one names the rule, that one proves the cascade lets
+// it win.
+test('the controls on a navy surface name a ring drawn for one', () => {
+    /** @type {Record<string, string[]>} each stylesheet → the focus selectors on navy that it owns */
+    const ON_NAVY = {
+        'shared.css': ['.app-icon:focus-visible', '#iconLightboxClose:focus-visible', '.notice-lb-content .lb-close:focus-visible',
+            '#navNoticesClose:focus-visible', '#navComingSoonClose:focus-visible', '.lightbox-bug-link:focus-visible',
+            '.lightbox-print-btn:focus-visible', '.notice-cta:focus-visible', '.notice-later:focus-visible',
+            '.notice-lb-content .btn-action:focus-visible', '#navNoticesList:focus-visible'],
+        'paycalc.css': ['#helpLightboxClose:focus-visible', '.guide-footer-link a:focus-visible'],
+    };
+    const wrong = [];
+    for (const [file, selectors] of Object.entries(ON_NAVY)) {
+        const src = read(file).replace(/\/\*[\s\S]*?\*\//g, ' ');
+        /** @type {Record<string, string>} */ const ring = {};
+        for (const m of src.matchAll(/([^{}]*:focus-visible[^{}]*)\{([^}]*)\}/g)) {
+            for (const s of selectorList((m[1].split(';').pop() ?? '').trim().replace(/\s+/g, ' '))) {
+                const o = /(?:^|[\s;])outline:\s*([^;]+)/.exec(m[2])?.[1].trim();
+                if (o) ring[s] = o;
+            }
+        }
+        wrong.push(...selectors.filter(s => !/^var\(--focus-outline-(?:gold|light)\)$/.test(ring[s] ?? ''))
+            .map(s => `${file}: ${s} → ${ring[s] ?? 'no rule: the navy fallback'}`));
+    }
+    assert.deepEqual(wrong, [], 'a control on navy needs --focus-outline-gold or --focus-outline-light');
+});
+
+// ── 4. An outline in a BASE rule is a focus decision too (whole-app fix, 10 Nov 2026) ────────────────
+// Every scan above reads focus rules. An `outline` written on an element's own rule is drawn whether or
+// not it is focused — and at the specificity of its class it can outrank the shared fallback ring, so a
+// keyboard landing on it changes nothing on screen (the Links armed brush chip, css-links-paycalc-2). So a
+// selector whose base rule sets an outline must have a focus rule of its own, which shows its author
+// decided what focus looks like on it — or be named here as a decoration that is never a Tab stop.
+/** @type {Record<string, string>} selector → why it is not a Tab stop */
+const BASE_OUTLINE_DECORATIONS = {
+    '.ddc-badge': 'the day panel\'s shift pill: a <span> (calendar-al-lightbox.js); its hairline keeps pale fills off the navy',
+    '.ddm-chip': 'the day panel\'s marker chip: a <span> (calendar-al-lightbox.js); its outline is a whisper of gold',
+    '.dm-avatar': 'the Links masthead\'s initials badge: an aria-hidden <span> (links.html)',
+    '.cell-diff .shift-cell-btn': 'a compare-mode cell that differs: a <span> since v22.60 (links-compare.js), never pressed',
+    '.pdf-viewer-page': 'the PDF viewer\'s page: a <div role="group"> holding a canvas (pdf-viewer.js), no tabindex; its hairline edges a dark page on the navy ground',
+};
+
+/**
+ * Every selector whose base rule sets an outline (`outline`, `-style`, `-width` or `-color`; an offset
+ * alone draws nothing), and the base forms of every focus selector (`:focus`, `:focus-visible` and
+ * `:focus-within` taken out), across the given stylesheets. Comments are blanked as above.
+ * @param {Record<string, string>} sheets file → its CSS
+ */
+function baseOutlines(sheets) {
+    /** @type {{ file: string, line: number, selector: string }[]} */ const found = [];
+    /** @type {Set<string>} */ const focusBases = new Set();
+    for (const [file, css] of Object.entries(sheets)) {
+        const src = css.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+        for (const m of src.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+            const selector = (m[1].split(';').pop() ?? '').trim().replace(/\s+/g, ' ');
+            if (!selector || selector.startsWith('@')) continue;
+            const outlined = /(?:^|[\s;])outline(?:-style|-width|-color)?\s*:/.test(m[2]);
+            for (const s of selectorList(selector)) {
+                if (/:focus/.test(s)) { focusBases.add(s.replace(/:focus(?:-visible|-within)?/g, '')); continue; }
+                if (outlined) found.push({ file, line: src.slice(0, m.index + m[0].indexOf('{')).split('\n').length, selector: s });
+            }
         }
     }
-    const wrong = ON_NAVY.filter(s => !/^var\(--focus-outline-(?:gold|light)\)$/.test(ring[s] ?? ''))
-        .map(s => `${s} → ${ring[s] ?? 'no rule: the navy fallback'}`);
-    assert.deepEqual(wrong, [], 'a control on navy needs --focus-outline-gold or --focus-outline-light');
+    return { found, focusBases };
+}
+
+/** The base-rule outlines in `sheets` with no focus rule of their own. @param {Record<string, string>} sheets */
+function unclaimedOutlines(sheets) {
+    const { found, focusBases } = baseOutlines(sheets);
+    return found.filter(f => !focusBases.has(f.selector));
+}
+
+test('an outline set in a base rule has a focus rule beside it, or is a decoration nothing can focus', () => {
+    const sheets = Object.fromEntries(APP_CSS.map(f => [f, read(f)]));
+    const unclaimed = unclaimedOutlines(sheets).filter(f => !(f.selector in BASE_OUTLINE_DECORATIONS));
+    assert.deepEqual(unclaimed.map(f => `${f.file}:${f.line} ${f.selector}`), [],
+        'a base-rule outline with no focus rule of its own: give the selector a :focus-visible rule, or, if it is never a '
+        + 'Tab stop, name it in BASE_OUTLINE_DECORATIONS with the reason');
+    // Guard the guard: the scan sees the outlines that are there, every decoration still names one (an entry that
+    // outlived its element would excuse the next rule written with that selector), and each spelling is read.
+    const named = new Set(baseOutlines(sheets).found.map(f => f.selector));
+    assert.ok(named.size >= 6, `only ${named.size} base-rule outlines found across ${APP_CSS.length} stylesheets — the scan is wrong`);
+    assert.deepEqual(Object.keys(BASE_OUTLINE_DECORATIONS).filter(s => !named.has(s)), [],
+        'a decoration that names no base-rule outline any more — drop it');
+    const caught = (/** @type {string} */ css) => unclaimedOutlines({ 't.css': css }).length;
+    assert.equal(caught('.x { outline: 2px solid red; }'), 1);
+    assert.equal(caught('.x { outline-color: red; }'), 1);
+    assert.equal(caught('.x { outline-width: 2px; }'), 1);
+    assert.equal(caught('.x { outline-style: dashed; }'), 1);
+    assert.equal(caught('.x { outline-offset: 2px; }'), 0, 'an offset alone draws nothing');
+    assert.equal(caught('@media print { .x { outline: 1px solid red; } }'), 1, 'inside an at-rule too');
+    assert.equal(caught('.x { outline: 1px solid red; } .x:focus-visible { outline: var(--focus-outline); }'), 0);
+    assert.equal(caught('.x, .y { outline: 1px solid red; } .x:focus-visible { outline: var(--focus-outline); }'), 1,
+        'a focus rule for one selector of a list does not excuse the rest of it');
 });

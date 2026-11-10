@@ -1,6 +1,6 @@
 /**
  * Unit tests for storage-utils.js — the pure Storage helpers extracted from firebase-client.js.
- * Run (no mocks): node --test storage-utils.test.mjs
+ * Run (no mocks): node scripts/run-tests.mjs storage-utils.test.mjs
  *
  * isSafeStorageUrl is a SECURITY control (the download-URL allowlist for the Huddle/Circular/
  * Newsletter open buttons), so its boundaries are worth exact coverage.

@@ -1,6 +1,6 @@
 /**
  * overtime-roster.test.mjs — WHOSE ROSTER ENDED UP ON THIS MEMBER'S PHONE, AND WHETHER IT WAS READ.
- * Run with: node --experimental-test-module-mocks --test overtime-roster.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs overtime-roster.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *
@@ -14,9 +14,10 @@
  * ── ORGANISED BY WHAT A WRONG ANSWER COSTS ──────────────────────────────────────────────────────
  *
  *   1. A COLLEAGUE'S ROSTER ON A MEMBER'S DEVICE. The leak is the smaller half. The accumulator is
- *      keyed by DATE ALONE, so the last document read for a date wins whoever it belongs to: the
- *      member is shown somebody else's duty, offered "available after my shift" anchored to times
- *      they do not work, and that literal time is what they submit and a clerk acts on.
+ *      keyed by DATE ALONE, so a colleague's record for a date competes with the member's own and
+ *      can win it: the member is shown somebody else's duty, offered "available after my shift"
+ *      anchored to times they do not work, and that literal time is what they submit and a clerk
+ *      acts on.
  *   2. AN UNREAD ROSTER PRESENTED AS FACT. On a failed read the module must say `error`. Swallow it
  *      and the base roster — a rotating pattern computed locally, wrong for anybody with leave, an
  *      absence, a changed shift or an RDW — is returned as `authoritative`, and every option the
@@ -39,11 +40,12 @@
  *
  * ── ONE GUARD THIS SUITE PROVABLY CANNOT COVER ──────────────────────────────────────────────────
  *
- * `loadRosterForMembers` skips a document whose `memberName` is not a string. Deleting that clause
- * leaves every assertion here green, and no assertion could catch it: the orphan simply accumulates
+ * A document with no `memberName` is skipped — since Nov 2026 by the shared
+ * `collectOverrideRecords`, whose own suite (override-utils.test.mjs) pins it. Removing the skip
+ * would leave every assertion HERE green, and none could catch it: the orphan would accumulate
  * under the key `undefined`, and `byMember` is built by walking the REQUESTED names, so nothing an
- * outside caller can ask for ever reads it. It is defence in depth with no observable consequence
- * through this module's API, and saying so is better than a case pretending otherwise.
+ * outside caller can ask for ever reads it. Defence in depth with no observable consequence through
+ * this module's API, and saying so is better than a case pretending otherwise.
  */
 
 import { test, describe, mock, beforeEach } from 'node:test';
@@ -294,6 +296,84 @@ describe('the reviewer\'s read is wide ON PURPOSE, and still attributes every ro
         const { byMember } = await loadRosterForMembers([MEMBER, 'Nobody At All'], DATES);
         assert.ok(byMember[MEMBER], 'the known participant is still resolved');
         assert.equal('Nobody At All' in byMember, false);
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('two records on one day — the SAME winner the Calendar picks (overtime-core-2)', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+    // A manual record and a roster import for one day coexist by design (DATA_MODEL), and every
+    // other surface picks between them with `shouldReplaceOverride`: manual beats an import, then
+    // the newer wins. These loaders kept whichever document the query returned LAST — Firestore's
+    // document-id order, so the answer hung on a random id — and the form then offered "Before /
+    // After" anchored to a duty the member is not working. Each case is run in BOTH orders.
+
+    /** An override carrying the two fields precedence is decided by. */
+    const rec = (/** @type {string} */ memberName, /** @type {string} */ date, /** @type {string} */ type,
+        /** @type {string} */ value, /** @type {string} */ source, /** @type {number} */ createdAtMs) => ({
+        id: `${source}|${memberName}|${date}|${createdAtMs}`,
+        data: { memberName, date, type, value, source, createdAt: { toMillis: () => createdAtMs } },
+    });
+    const manualAL   = rec(MEMBER, FRI, 'annual_leave', 'AL', 'manual', 1_000);
+    const laterImport = rec(MEMBER, FRI, 'shift', '13:00-21:00', 'roster_import', 2_000);
+    const olderImport = rec(MEMBER, FRI, 'shift', '13:00-21:00', 'roster_import', 1_000);
+    const newerImport = rec(MEMBER, FRI, 'shift', '06:00-14:00', 'roster_import', 2_000);
+
+    test('a MANUAL record beats a roster import, whichever the read returns last', async () => {
+        for (const order of [[manualAL, laterImport], [laterImport, manualAL]]) {
+            _docs = order;
+            const { byDate } = await loadRosterContext(MEMBER, DATES);
+            assert.equal(byDate[FRI].shift, 'AL', `order ${order.map(d => d.data.source).join(' → ')}`);
+            assert.equal(byDate[FRI].hasTime, false, 'and there is no duty to anchor an offer to');
+        }
+    });
+
+    test('between two imports the NEWER wins, whichever the read returns last', async () => {
+        for (const order of [[newerImport, olderImport], [olderImport, newerImport]]) {
+            _docs = order;
+            const { byDate } = await loadRosterContext(MEMBER, DATES);
+            assert.equal(byDate[FRI].shift, '06:00-14:00');
+            assert.equal(byDate[FRI].start, '06:00');
+        }
+    });
+
+    test('and the reviewer\'s row picks the same winner — the form and the row cannot disagree', async () => {
+        for (const order of [[manualAL, laterImport], [laterImport, manualAL]]) {
+            _docs = order;
+            const { byMember } = await loadRosterForMembers([MEMBER], DATES);
+            assert.equal(byMember[MEMBER][FRI].shift, 'AL');
+        }
+        for (const order of [[newerImport, olderImport], [olderImport, newerImport]]) {
+            _docs = order;
+            const { byMember } = await loadRosterForMembers([MEMBER], DATES);
+            assert.equal(byMember[MEMBER][FRI].shift, '06:00-14:00');
+        }
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('before a member\'s start date no record applies — as on the Calendar', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+    // The Calendar, Team Week and the month legend all set the override aside before `startDate`
+    // (`isBeforeMemberStart`): `getBaseShift` already says rest there, and a record would undo it.
+    // This module's ladder did not, so the two could disagree about the same day.
+    const STARTER = 'J. Davies';   // the real roster table: starts Tue 5 May 2026
+    const WEEK = ['2026-05-03', '2026-05-04', '2026-05-05', '2026-05-06', '2026-05-07', '2026-05-08', '2026-05-09'];
+    const docs = () => [ov(STARTER, '2026-05-04', 'shift', '05:00-13:00'), ov(STARTER, '2026-05-06', 'shift', '05:00-13:00')];
+
+    test('a record dated before the start is set aside; one after it applies', async () => {
+        _docs = docs();
+        const { byDate } = await loadRosterContext(STARTER, WEEK);
+        assert.equal(byDate['2026-05-04'].shift, 'RD', 'no roster before the start, whatever is recorded');
+        assert.equal(byDate['2026-05-04'].hasTime, false);
+        assert.equal(byDate['2026-05-06'].shift, '05:00-13:00', 'guard the guard: from the start, the record wins');
+    });
+
+    test('and the reviewer\'s row agrees', async () => {
+        _docs = docs();
+        const { byMember } = await loadRosterForMembers([STARTER], WEEK);
+        assert.equal(byMember[STARTER]['2026-05-04'].shift, 'RD');
+        assert.equal(byMember[STARTER]['2026-05-06'].shift, '05:00-13:00');
     });
 });
 

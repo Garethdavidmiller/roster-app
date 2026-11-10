@@ -268,11 +268,12 @@ test('team view restored at boot marks the page usable', async ({ page }) => {
 // suite stayed green while the row was visibly broken on a phone. Only a real engine laying out
 // real CSS at a real width can see it.
 //
-// IT DRIVES THE REAL RENDERER. `admin-booked-periods.js` imports nothing and takes every handle
-// injected, so the page can build it with the REAL formatters, the REAL period merger and the REAL
-// month abbreviations, and render into the REAL box on the REAL page. Hand-writing the row's HTML
-// here would have pinned this guard to a copy of the markup that could drift out from under it —
-// and the unit suite does not assert those class names, so nothing would have caught the drift.
+// IT DRIVES THE REAL RENDERER. `admin-booked-periods.js` imports only `leave-year.js` (`carriedFrom`),
+// and takes every page handle injected, so the page can build it with the REAL formatters, the REAL
+// period merger and the REAL month abbreviations, and render into the REAL box on the REAL page.
+// Hand-writing the row's HTML here would have pinned this guard to a copy of the markup that could
+// drift out from under it — and the unit suite does not assert those class names, so nothing would
+// have caught the drift.
 test('recorded-dates rows keep the chip and ✕ on the row, at every width and text size', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.goto('/admin.html');

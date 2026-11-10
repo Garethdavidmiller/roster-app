@@ -2,13 +2,14 @@
 /**
  * calendar-app.js — Calendar UI for index.html.
  *
- * Owns: month carousel, Team Week View, notification wiring, month-jump picker,
- *   day-detail lightbox, About lightbox wiring.
- * Does NOT own: rendering (calendar-renderer.js), override cache (calendar-overrides.js),
- *   member selection (calendar-member.js), swipe (calendar-swipe.js),
- *   sync chip + initial fetch (calendar-initial-fetch.js),
- *   AL lightbox (calendar-al-lightbox.js), roster data (roster-data.js).
- * Edit here for: calendar state, event wiring, initial data fetch.
+ * Owns: the page's wiring — month navigation (buttons, keys, Today), `renderCalendar` and the
+ *   first-run prompt, the month-jump picker, the About and Team-help lightbox wiring, the access
+ *   bootstrap that starts the workspace, and the member's own-roster copy (paint and save).
+ * Does NOT own: rendering (calendar-renderer.js), Team Week View (calendar-team-view.js), override
+ *   cache (calendar-overrides.js), member selection (calendar-member.js), swipe (calendar-swipe.js),
+ *   sync chip + initial fetch (calendar-initial-fetch.js), the AL and day-detail panels
+ *   (calendar-al-lightbox.js), the notification strip (calendar-notif-prompt.js).
+ * Edit here for: event wiring, and the order the page starts in.
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
@@ -152,9 +153,10 @@ let openAboutLightbox = null;
 // NOT deferred behind Calendar access, and checked rather than assumed (v20.12). This attaches
 // handlers; it fetches nothing. The AL lightbox's own Firestore read happens in its `onOpen`, fired
 // by `#alBtn`, which lives inside `#calendarControls` — hidden while locked, so out of the
-// accessibility tree and out of tab order. And that read is a plain `getDocs`, which is SERVER-first,
-// so the tightened rule denies it outright: there is no cache path here for the gate to have to
-// cover. Same reasoning for `initCalendarTooltip`/`initCalendarKeyboard` further down — with
+// accessibility tree and out of tab order. And that read REFUSES an answer the offline cache gave —
+// `getDocs` falls back to the cache on a dead signal, where no rule is asked (CALENDAR_DATA.md 16) —
+// so nothing it shows comes from a read the server did not answer. Same reasoning for
+// `initCalendarTooltip`/`initCalendarKeyboard` further down — with
 // `#calendarDisplay` empty they have nothing to act on, and the keyboard ACTS only inside it, so the
 // stored copy painted in the lock slot before the grant (v24.59) is read, never used.
 const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc });
@@ -173,6 +175,7 @@ const teamView = initTeamView({
     isFirstRun,
     renderCalendar,
     getDisplayedMonth: () => ({ month: getDisplayMonth(), year: getDisplayYear() }),
+    onMonthRead: _repaintAfterMonthRead,   // a read Team View starts may land after it has been left
     _pushOverlayState,
     _clearOverlayHistory,
 });
@@ -207,8 +210,12 @@ applyTextScale(document);
     if (!hint) return;
     // Not until the Calendar is OPEN (whole-app review, Oct 2026). Locked, the hint is hidden with the
     // workspace — and its 6s timer still marked it seen, so a first visit that began at the sign-in
-    // card used up the one showing on nothing.
-    calendarAccessReady.then(() => { hint.style.display = ''; setTimeout(dismissSwipeHint, 6000); });
+    // card used up the one showing on nothing. Nor over the first-run prompt, which has no month to
+    // swipe: it waits for the name to be picked (10 Nov 2026).
+    const show = () => { hint.style.display = ''; setTimeout(dismissSwipeHint, 6000); };
+    calendarAccessReady.then(() => {
+        if (!isFirstRun()) show(); else document.getElementById('teamMemberSelect')?.addEventListener('change', show, { once: true });
+    });
 })();
 
 function dismissSwipeHint() {
@@ -216,7 +223,10 @@ function dismissSwipeHint() {
     if (!hint || hint.style.display === 'none') return;
     lsSet('myb_swipe_hint_seen', '1');
     hint.classList.add('fade-out');
-    setTimeout(() => { hint.style.display = 'none'; hint.classList.remove('fade-out'); }, 400);
+    // Hidden once the fade has run. Its length is the stylesheet's (.swipe-hint, index.css), read back
+    // rather than restated: a copy of the number here had already drifted from it.
+    const fadeMs = (parseFloat(getComputedStyle(hint).transitionDuration) || 0) * 1000;
+    setTimeout(() => { hint.style.display = 'none'; hint.classList.remove('fade-out'); }, fadeMs + 50);
 }
 
 
@@ -289,6 +299,7 @@ const legend = createLegend({
         return v === 'loading' && _snapshotFor(/** @type {any} */ (getCurrentMember())?.name ?? '', y, m) ? 'stale' : v;
     },
     isTeamViewMode: () => teamView.isTeamViewMode(),
+    isFirstRun,
 });
 const updateLegend = () => legend.update();
 
@@ -359,6 +370,9 @@ function retryMonth(year, month) {
     renderCalendar();
 }
 
+/** A day cell had keyboard focus when a render with none to give it back replaced the grid. */
+let _gridFocusOwed = false;
+
 // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
 // Sets data-member-name for print header then builds and inserts fresh container.
 function renderCalendar() {
@@ -367,7 +381,8 @@ function renderCalendar() {
         // of the default member's roster. Guarding renderCalendar itself covers EVERY render path
         // — init, the initial Firestore fetch's re-render, swipe — so the prompt is never
         // overwritten. Picking a name saves it → isFirstRun() false → normal render. (H1)
-        if (isFirstRun()) { showFirstRunPrompt(); return; }
+        // The legend is asked too: leaving Team View has just un-hidden it, and a prompt has no key.
+        if (isFirstRun()) { updateLegend(); showFirstRunPrompt(); return; }
         const member = getCurrentMember();
 
         // If the previously-selected member was removed from the roster, show a one-time notice.
@@ -393,9 +408,8 @@ function renderCalendar() {
         const calendarContainer = buildCalendarContainer(getDisplayMonth(), getDisplayYear(), {
             onDayDetail: /** @param {any} cell */ (cell) => openDayDetail?.(cell),
             // No button while the initial 3-month fetch is still running: the sync chip in the
-            // header is already the retry for that, and a second control racing a per-month fetch
-            // against the in-flight range fetch is the v18.76 two-authoritative-reconcilers bug
-            // (the later, staler snapshot evicts what the earlier one just loaded).
+            // header is already the retry for that read, and this render starts no read of its own
+            // until it settles (below), so a Try again then would leave "Checking" with nothing behind it.
             onRetryMonth: _initialFetchInProgress ? undefined : retryMonth,
             checking: _initialFetchInProgress,   // the first check is running: "couldn't check" would be false
         });
@@ -405,15 +419,17 @@ function renderCalendar() {
         // roving anchor below. Doing it HERE (the render choke point) covers BOTH the synchronous
         // PageUp/Down month change AND the async override-fetch re-render that follows when paging
         // beyond the cached window (v16.55) — the case a keyboard-only fix in calendar-keyboard.js
-        // missed. preventScroll so a background re-render can't yank the viewport.
-        const _hadCellFocus = document.activeElement instanceof HTMLElement
-            && document.activeElement.classList.contains('calendar-day');
+        // missed. preventScroll so a background re-render can't yank the viewport. A render with no
+        // day cells ("Checking this month", the failure panel) leaves the focus OWED (10 Nov 2026):
+        // it fell to <body> there, so the grid that followed found no cell focused and restored none.
+        const _active = document.activeElement;
+        const _hadCellFocus = (_active instanceof HTMLElement && _active.classList.contains('calendar-day'))
+            || (_gridFocusOwed && (!_active || _active === document.body));
         calendarDisplay.innerHTML = '';
         calendarDisplay.appendChild(calendarContainer);
-        if (_hadCellFocus) {
-            /** @type {HTMLElement|null} */
-            (calendarContainer.querySelector('.calendar-day:not(.other-month)[tabindex="0"]'))?.focus({ preventScroll: true });
-        }
+        const _anchor = _hadCellFocus ? /** @type {HTMLElement|null} */ (calendarContainer.querySelector('.calendar-day:not(.other-month)[tabindex="0"]')) : null;
+        _anchor?.focus({ preventScroll: true });
+        _gridFocusOwed = _hadCellFocus && !_anchor;
 
         updateNavButtonState();
         _saveOwnSnapshot();
@@ -446,7 +462,8 @@ function renderCalendar() {
 
 // The one callback for a month read that lands later — stable, so several waits on one month repaint
 // once. Deliberately unguarded by member: the read is everyone's, so a member switched mid-read is
-// waiting on it too, and so is a Team View opened on that month.
+// waiting on it too, and so is a Team View opened on that month. Team View waits with it as well, so
+// a read it started still repaints the Calendar if it lands after Team View is left (10 Nov 2026).
 function _repaintAfterMonthRead() {
     if (teamView.isTeamViewMode()) teamView.refreshFromCache(); else renderCalendarWhenIdle();
 }
@@ -475,7 +492,7 @@ const _teamMemberSelect = /** @type {HTMLSelectElement} */ (document.getElementB
 // The member picker opens the app's OWN sheet rather than the OS dropdown (v23.33). ~50 names in
 // a Material radio list was the worst instance of the fault select-sheet.js exists for; the select
 // itself is untouched as the value holder, so the change handler below is unchanged.
-enhanceSelect(_teamMemberSelect, { title: 'Whose roster are you reading?', placeholder: 'Choose your name', createLightbox });
+enhanceSelect(_teamMemberSelect, { title: 'Whose roster are you reading?', placeholder: 'Choose your name', searchLabel: 'Search names', createLightbox });
 /** @type {ReturnType<typeof setTimeout>|null} */
 let _pendingMemberApply = null;
 /** Apply the dropdown's CURRENT selection (read live so a value change during the wait is honoured). */
@@ -562,10 +579,9 @@ function announceMonthChange() {
 
 document.getElementById('todayBtn')?.addEventListener('click', () => {
     if (isSwipeCooldown()) return;
-    if (isFirstRun()) return;   // prompt is up — don't pulse/announce a month the user can't see (v16.23)
     if (teamView.isTeamViewMode()) {
-        teamView.jumpToCurrentWeek();
-    } else {
+        teamView.jumpToCurrentWeek();   // Team View draws a first run itself, so 📍 works there too
+    } else if (!isFirstRun()) {   // prompt is up — don't pulse/announce a month the user can't see (v16.23)
         const now = new Date();
         setDisplayMonth(now.getMonth());
         setDisplayYear(now.getFullYear());
@@ -804,10 +820,10 @@ try {
                 // Just print. The paper is decided by which VIEW is open, not by which control
                 // reached the printer — `calendar-team-view.js`'s `applyTeamPrintPage` installs the
                 // landscape @page while team view is active and removes it on the way out (v23.20).
-                // Before that this function owned the rule, so Ctrl+P, File → Print, the `p`
-                // shortcut and AirPrint all printed the week grid portrait while this button
-                // printed it landscape; and the v16.21 leak-clearing dance here existed only
-                // because removal depended on an `afterprint` iOS may never fire.
+                // Before that this function owned the rule, so Ctrl+P, File → Print and AirPrint all
+                // printed the week grid portrait while this button printed it landscape (the `p` key
+                // is not a route here: Team View's keys stop before it); and the v16.21 leak-clearing
+                // dance here existed only because removal depended on an `afterprint` iOS may never fire.
                 printFn() { window.print(); },
             });
             if (!about) return;
@@ -911,7 +927,6 @@ try {
             if (document.getElementById('huddleViewer')?.classList.contains('visible')) return;
             if (document.querySelector('.nav-panel.open')) return;
             if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
-            if (isFirstRun()) return;      // don't drift the hidden month behind the first-run prompt (v16.21)
             if (teamView.isTeamViewMode()) {
                 // The week table is a tab stop on a narrow screen so that a keyboard can SCROLL it
                 // (axe scrollable-region-focusable, v25.43) — and ← → are how it scrolls. Turned into
@@ -922,6 +937,8 @@ try {
                 if (e.key === 't' || e.key === 'T') teamView.jumpToCurrentWeek();
                 return;
             }
+            // Below Team View, which draws a first run itself (no "my row"), so its keys work there.
+            if (isFirstRun()) return;      // don't drift the hidden month behind the first-run prompt (v16.21)
             // Guard: when a calendar day cell has focus, arrow keys move between cells
             // (handled by initCalendarKeyboard). Only navigate months when no cell is focused.
             // Honour the year-boundary no-op like the Prev/Next buttons do (they check aria-disabled,
@@ -1012,8 +1029,8 @@ initHuddleViewer({ authReady, docAccess: documentAccess });
 initDocViewer({ authReady, docAccess: documentAccess, accessDecided: new Promise(r => { _accessDecided = r; }) });   // same gate
 
 
-// `calendarAccessReady` is imported at the top of the module — it is consumed by initInitialFetch
-// and by the telemetry block below.
+// `calendarAccessReady` (imported above) gates the initial fetch and the swipe hint; the telemetry
+// block below waits on `calendarAuthReady` instead, and says why.
 
 
 // ============================================
@@ -1265,9 +1282,7 @@ initCalendarAccess({
     _accessDecided(t);
 }, _accessDecided);
 
-// The page's one-time notices (timetable-2026, ytd-figures-2026, install-app-2026, and whatever
-// /new-notice adds next). `sign-in-2026` (v23.23) and `al-booking-2026` (v24.91) were retired early,
-// by decision rather than expiry — calendar-notices.js says why.
-// Their wiring lives in calendar-notices.js — see its header for why they left this file. They
-// queue behind the forced set-password step (below), the way the paycalc YTD notice does.
+// The page's one-time notices live in calendar-notices.js (the /new-notice skill keeps the table of
+// current ones; that header says which left early, and why they left this file). They queue behind
+// the forced set-password step (above), the way the paycalc YTD notice does.
 initCalendarNotices({ after: _passwordForceSettled });

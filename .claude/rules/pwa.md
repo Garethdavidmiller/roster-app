@@ -23,7 +23,7 @@ deep-link allowlist are `notifications.md`.
 
 | Decision | Rule |
 |----------|------|
-| SW caching: stale-while-revalidate for HTML + JS/CSS (owner approval, Jul 2026) | HTML, JS, and CSS are all served instantly from the version-pinned cache, never re-fetched once cached — no blocking network wait on any page open (network-first HTML cost 100–500ms per open, or the full 2s timeout on poor signal). An HTML cache MISS (first visit/evicted storage) falls back to the old network-first 2s race. Freshness propagates via the version-bump → new SW → new cache → warm-up → controllerchange-reload lifecycle for ALL code; roster DATA is live from Firestore, never from cached JS. Serving HTML and JS from the same version cache also shrinks the mixed-version deploy window network-first had. Do not revert without discussion. |
+| SW caching: HTML + JS/CSS served from the version cache, never re-fetched (owner approval, Jul 2026) | HTML, JS, and CSS are all served instantly from the version-pinned cache, never re-fetched once cached — no blocking network wait on any page open (network-first HTML cost 100–500ms per open, or the full 2s timeout on poor signal). An HTML cache MISS (first visit/evicted storage) falls back to the old network-first 2s race. Freshness propagates via the version-bump → new SW → new cache → warm-up → controllerchange-reload lifecycle for ALL code; roster DATA is live from Firestore, never from cached JS. Serving HTML and JS from the same version cache also shrinks the mixed-version deploy window network-first had. Do not revert without discussion. |
 | Firebase SDK cache-first from an SDK-versioned cache | The gstatic SDK modules (version-pinned, immutable) are served cache-first from `myb-roster-sdk-v{FIREBASE_SDK_VERSION}` and warmed with the app — offline launch no longer depends on the browser HTTP cache keeping ~400 KB of CDN files (evictable under storage pressure on budget Androids). The SDK cache survives app version bumps and is swept only when the SDK version changes. **Bumping the SDK in `firebase-client.js` requires bumping `FIREBASE_SDK_VERSION` in `service-worker.js` in the same commit** — enforced by `sw-asset-check.test.mjs`. |
 | `persistentLocalCache()` in `firebase-client.js` | Firestore stores queries in IndexedDB. Do not revert to `getFirestore()` — Huddle viewer and override cache depend on instant load. |
 | `subscribeToLatestHuddle` in `firebase-client.js` | Persistent `onSnapshot` — Huddle viewer updates automatically when a new Huddle arrives. Do not replace with one-time fetch. |
@@ -55,17 +55,19 @@ deep-link allowlist are `notifications.md`.
   creation order and returns the OLDEST version's copy, which served previous-version HTML to a
   fresh-JS page (a mixed-version hazard). The JS/CSS path uses the same newest-older lookup as its last
   resort for pure-offline mid-transition.
-- **Latency:** Navigation Preload is enabled on activate (the browser starts the network-first HTML
-  fetch in parallel with SW boot; the doc branch consumes `event.preloadResponse`); the warm-up runs
-  in batches of 8 (not the whole list in parallel) and skips assets the reloading page already cached;
+- **Latency:** Navigation Preload is turned OFF on activate (Nov 2026 — with HTML never re-fetched
+  once cached it was a wasted request on every open; a miss is the worker's own `no-cache` fetch, and
+  the doc branch still consumes a preload that arrives); the warm-up runs in batches of 8 (not the
+  whole list in parallel) and skips assets the reloading page already cached;
   fonts/icons warm without `cache:'no-cache'` (immutable, served from HTTP cache); navigations are
   cached under the bare path (query stripped — `ignoreSearch` on fallback match) and redirected
   responses are re-wrapped before caching/serving (`unredirect` — Firebase 301s `/index.html`→`/`;
   in-app links navigate to `./`); the 2s abort is guarded so it can never kill a response that
   already resolved.
 - **An `opaqueredirect` is passed straight through** (status 0 — a redirect under the navigation's
-  'manual' redirect mode, which is how navigation preload surfaces the start_url `./index.html` → `/`
-  301) so the browser follows it — treating it as a broken-site response would send every
+  'manual' redirect mode, which is how a navigation-preload answer surfaced the start_url
+  `./index.html` → `/` 301 while preload was on; it is off since November 2026, and the pass-through stays
+  for one that arrives) so the browser follows it — treating it as a broken-site response would send every
   installed-PWA launch down the cache fallback. `manifest.json` `start_url` and the Calendar shortcut
   point at `./` (a reinstall picks that up; the pass-through covers existing installs).
 - **HTML documents** — instant from this version's cache, never re-fetched once cached. Cache miss →
@@ -78,4 +80,6 @@ deep-link allowlist are `notifications.md`.
   claims immediately); roster DATA is always live from Firestore regardless of cached JS version.
 - **Cache-first:** icons, fonts, `manifest.json` — stable assets; and the gstatic Firebase SDK in its
   own `myb-roster-sdk-v{ver}` cache (warmed with the app, swept on SDK bump only).
+- **Anything under `docs/` is left to the browser** (Nov 2026): the Pages mirror serves the whole
+  repository, and caching the New link pack's PDFs kept a republished PDF stale until the next release.
 - **Cache name:** `myb-roster-v{APP_VERSION}` — a version bump auto-invalidates.

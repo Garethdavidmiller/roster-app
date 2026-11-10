@@ -220,6 +220,30 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // THE CALENDAR'S THREE SEE-THROUGH PANELS (whole-app check, 10 Nov 2026). No scan opened the day
+    // panel, the leave panel or Team View's help, and css-calendar-2 (a navy ring on navy glass) and -11
+    // (a caption at 4.36:1) were both on them. Each is opened the way a member opens it and scanned with
+    // the page behind it, which the scans above already cover.
+    test('calendar — the day, leave and Team View help panels, open', async ({ page }) => {
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        /** @type {Array<[() => Promise<void>, string]>} */
+        const panels = [
+            [() => page.locator('.calendar-day:not(.other-month)').nth(10).click(), '#dayDetailLightbox'],
+            [() => page.locator('#alBtn').click(), '#alLightbox'],
+            [async () => { await page.locator('#teamViewBtn').click(); await page.locator('#teamHelpBtn').click(); }, '#teamInfoLightbox'],
+        ];
+        for (const [open, panel] of panels) {
+            await open();
+            await expect(page.locator(panel)).toHaveClass(/\bopen\b/);
+            const v = await scan(page, { exclude: ['.other-month'] });
+            expect(v.length, `${panel} open — ${report(v)}`).toBe(0);
+            await page.keyboard.press('Escape');
+            await expect(page.locator(panel)).not.toHaveClass(/\bopen\b/);
+        }
+    });
+
     // The LOCKED Calendar (v20.12). The one state a visitor with no session and no PIN ever sees,
     // and it would be invisible to every other scan in this file — they all establish access first.
     // It is also the app's front door for anyone who has never used it, which is exactly the
@@ -434,10 +458,78 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // THE "FROM YOUR CALENDAR" CARD IN THE STATES THAT ASK THE MEMBER TO CHECK SOMETHING (whole-app
+    // check, 10 Nov 2026). The two scans above answer the recorded-changes read and type no hours, so
+    // they never drew the four orange pairs these states draw — and all four failed AA: the
+    // "⚠ Scheduled only" badge (2.85:1), a row's "16h 30m entered" once the hours differ (3.04:1), the
+    // "Includes an 8h estimate — check" / "Possible overtime" chip (4.31:1) and the white "Overtime"
+    // chip under Show days (3.2:1). Thu 9 Jul 2026 is a rest day for G. Miller and Tue 30 Jun a worked
+    // one, so an untimed Training day and a two-hour longer shift give the estimate chip and the OT day.
+    test('paycalc — the calendar card when the recorded changes could not be read', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+        await seedSession(page);
+        await seedMember(page);
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.failGetDocs = true;
+        });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#rosterStateBadge')).toHaveClass(/base-only/);
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    test('paycalc — the calendar card when the hours differ, with its days shown', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+        await seedSession(page);
+        await seedMember(page);
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+            w.__E2E.docs = [
+                { id: 'o1', memberName: 'G. Miller', date: '2026-07-09', value: 'TRG', type: 'other', source: 'manual' },
+                { id: 'o2', memberName: 'G. Miller', date: '2026-06-30', value: '06:20-16:20', type: 'shift', source: 'manual' },
+            ];
+        });
+        await page.goto('/paycalc.html');
+        // The rows open showing the calendar's own figures ("matches"), which carry no chip.
+        await expect(page.locator('.roster-row[data-cat="rdw"]')).toBeVisible({ timeout: 10000 });
+        await page.locator('#rdwH').fill('16');
+        await page.locator('#rdwM').fill('30');
+        await expect(page.locator('.roster-row[data-cat="rdw"]')).toHaveClass(/roster-row--differs/);
+        await expect(page.locator('.roster-row[data-cat="rdw"] .conf-possible')).toBeVisible();
+        await page.locator('#rosterDaysToggle').click();
+        await expect(page.locator('.roster-day-chip--ot')).toBeVisible();
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('operations (admin, signed in)', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/operations.html');
         await expect(page.locator('#huddleUploadCard')).toBeVisible();
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    // EVERY CARD OPEN (whole-app check, 10 Nov 2026). The scan above sees the Huddle card alone, so the
+    // reset queue, Account status, Set up accounts, the Error Log, Usage and App Speed were never read by
+    // it — settings-ops-4's mismatched names were found by applying axe's rule by hand. Each card is
+    // opened the way a reader opens it, so whatever loads on opening has loaded when the scan reads it.
+    test('operations — every card open (admin, signed in)', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        await expect(page.locator('#huddleUploadCard')).toBeVisible();
+        const bodies = await page.locator('.card-collapsible-body').evaluateAll(els => els.map(e => e.id));
+        expect(bodies.length, 'premise: the cards were found').toBeGreaterThanOrEqual(10);
+        for (const id of bodies) {
+            const body = page.locator(`#${id}`);
+            if (!await body.evaluate(el => el.classList.contains('open'))) {
+                await body.evaluate(el => /** @type {HTMLElement} */ (el.closest('.card')?.querySelector('.card-header-toggle'))?.click());
+            }
+            await expect(body, `#${id} opened`).toHaveClass(/\bopen\b/);
+        }
+        await expect(page.locator('#accountStatusContent'), 'premise: Account status has loaded').not.toHaveAttribute('aria-busy', 'true');
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
     });
@@ -662,7 +754,10 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         }));
         await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
             status: 200, contentType: 'application/json',
-            body: JSON.stringify({ ok: true, serverNow: NOW, retained: [], planningWeeks: [
+            // A RETAINED week too (whole-app fix, 10 Nov 2026), so the scan reaches a past row — the one the
+            // horizon recesses — and the fade check below can see it.
+            body: JSON.stringify({ ok: true, serverNow: NOW, retained: [
+                { ...W, weekEnding: '2026-08-08', finalDeadlineAt: Date.parse('2026-07-28T11:00:00Z') }], planningWeeks: [
                 { ...W, exists: true, state: 'created', canCreate: false,
                   expected: 2, received: 1, noResponse: 1 },
                 { ...W, weekEnding: '2026-09-12', exists: false, state: 'not-created', canCreate: true },
@@ -672,16 +767,18 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         // Both the horizon and the week detail, so the scan covers the whole reviewer surface.
         await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
         await expect(page.locator('.ot-day-panel--muted')).not.toHaveCount(0);
+        await expect(page.locator('.ot-week-row--past')).toHaveCount(1);
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
         // The muted panels recede by their HEADER colour, never by fading the panel (polish round 2).
         // A 0.9 group fade left the grey rows at 4.55:1 — passing, by 0.05 — and axe is no witness
-        // for a fade (see `faded` above), so the mechanism is checked directly.
-        const fadedMuted = await page.locator('.ot-day-panel--muted').evaluateAll(panels =>
+        // for a fade (see `faded` above), so the mechanism is checked directly. A past week's row
+        // recedes by its sunken surface the same way (its 0.86 fade took a chosen View to 4.32:1).
+        const fadedMuted = await page.locator('.ot-day-panel--muted, .ot-week-row--past').evaluateAll(panels =>
             panels.flatMap(p => [p, ...p.querySelectorAll('*')])
                 .filter(el => Number(getComputedStyle(el).opacity) < 1 && !(/** @type {any} */ (el).disabled))
                 .map(el => `${el.className} @${getComputedStyle(el).opacity}`));
-        expect(fadedMuted, 'a muted Overtime panel must not fade what the reviewer reads').toEqual([]);
+        expect(fadedMuted, 'a muted Overtime panel or a past week must not fade what the reviewer reads').toEqual([]);
     });
 
     test('links (designer, signed in)', async ({ page }) => {

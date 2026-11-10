@@ -1,7 +1,7 @@
 /**
  * paycalc-backpay.test.mjs — the back-pay lump sum, ASSEMBLED.
  *
- * Run: node --experimental-test-module-mocks --test paycalc-backpay.test.mjs   (`npm run test:unit`)
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-backpay.test.mjs   (`npm run test:unit`)
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *
@@ -67,7 +67,7 @@ mock.module('./session.js', { namedExports: {
     AUTH_KEY: 'myb_admin_session', SESSION_MS: 1,
     getSession: () => _session, saveSession: () => {}, clearSession: async () => {},
     ensureFirebaseSession: async () => {}, sessionReady: Promise.resolve(),
-    resolveSession: () => {}, getSurname: () => '',
+    resolveSession: () => {},
 } });
 mock.module('./ls.js', { namedExports: {
     lsGet: (/** @type {string} */ k) => _ls.has(k) ? _ls.get(k) : null,
@@ -165,15 +165,26 @@ const IDS = [
     'bpIncludeTick', 'bpManualAmt', 'bpModeManual', 'bpModeCompute', 'bpAwardScope',
     'backPayTotalLabel', 'backPayPeriodWrap', 'bpEstimateNote', 'bpOrderWarn', 'bpRatesLine',
     'bpRateField', 'bpLondonField', 'bpRisePctField', 'bpModeManualWhy', 'bpComputeFields',
-    'bpManualWrap', 'periodSelect',
+    'bpManualWrap', 'periodSelect', 'bpRisePct',
 ];
 globalThis.document = /** @type {any} */ (doc);
 
-const { SK, periodKey } = await import('./paycalc-migrations.js');
+/** The card itself, made ONCE and never replaced by `openCard`: the module wires its member-edit
+ *  tracking to it on first use, so a card rebuilt per test would leave the listeners on a stale node.
+ *  @type {Record<string, Function[]>} */
+const _cardListeners = {};
+els.backPayCard = { addEventListener: (/** @type {string} */ type, /** @type {Function} */ fn) => { (_cardListeners[type] ??= []).push(fn); } };
+/** An event reaching the card as the member's own does (`bubbles`), or as the app's own
+ *  `_setSelectPeriod` announces a paid-in it set (non-bubbling `input`). */
+function cardEvent(/** @type {string} */ type, /** @type {boolean} */ bubbles) {
+    for (const fn of _cardListeners[type] ?? []) fn({ type, bubbles });
+}
+
+const { SK, periodKey, bpKey } = await import('./paycalc-migrations.js');
 const { getPeriods, CONFIG: PERIOD_CONFIG, payslipPeriodNum } = await import('./paycalc-periods.js');
 const { awardRatesFor, awardFromForYear } = await import('./paycalc-calc.js');
 const { resolveAuthoritativeRates } = await import('./paycalc-backpay-state.js');
-const { calcBackPay, _accrueBackPayPeriod, awardWindowFactor, _awardBackdateDate, paidInPeriodNum } =
+const { calcBackPay, prefillBackPay, restoreBpState, raiseByPercent, _accrueBackPayPeriod, awardWindowFactor, _awardBackdateDate, paidInPeriodNum } =
     await import('./paycalc-backpay.js');
 const { getEffectiveContr, getProRateFactor } = await import('./paycalc-settings.js');
 const { _decodeHours } = await import('./paycalc-hpp.js');
@@ -317,7 +328,7 @@ describe('the lump a member is actually shown', () => {
 // ── THE WINDOW ──────────────────────────────────────────────────────────────────────────────────
 
 // THE LOWER END OF THE WINDOW IS HELD BY ONE LINE, AND IT IS NOT THE ONE THAT LOOKS LIKE IT.
-// Three statements appear to bound the window from below — `if (fromPNum && p.num < fromPNum)`, the
+// Three statements appear to bound the window from below — `if (p.num < fromPNum)`, the
 // tax-year fence `getTaxYearForOffset(p.num - 48) !== awardTy`, and `awardWindowFactor`. Deleting
 // EITHER of the first two leaves every case here green, and deleting both together does too.
 // `awardWindowFactor` returns 0 for a period whose cut-off falls before the backdate, so a March
@@ -495,5 +506,250 @@ describe('manual mode returns what the member typed, and nothing else', () => {
         // what is missing. Only the returned amount is withheld.
         assert.match(els.backPayTotalAmt.textContent, /^£1,234\.56/);
         assert.match(els.backPayNotice.textContent, /Select which payslip/);
+    });
+});
+
+// ── WHEN THE PAYSLIP'S FIGURE CAN BE COPIED (paycalc-2-3) ───────────────────────────────────────
+// The one case here that moves the clock, and only inside itself: the gate is ABOUT the date.
+describe('"Enter the amount from your payslip" opens once that payslip can be in hand', () => {
+    const PAID = /** @type {any} */ (PERIODS.find(/** @param {any} p */ p => p.num === PAID_IN));
+
+    test('locked before the paid-in payslip\'s cut-off, open from it — days before its payday', (t) => {
+        t.mock.timers.enable({ apis: ['Date'], now: new Date(PAID.cutoff.getTime() - 3600e3) });
+        openCard();
+        calcBackPay();
+        assert.equal(els.bpModeManual.disabled, true, 'no printed figure exists before the cut-off');
+
+        t.mock.timers.setTime(PAID.cutoff.getTime() + 3600e3);
+        assert.ok(new Date() < PAID.payday, 'precondition: payday is still ahead, so the payday proxy would lock it');
+        calcBackPay();
+        assert.equal(els.bpModeManual.disabled, false,
+            'payslips are issued before they pay: from the cut-off the member may hold it (payslipMayBeInHand)');
+    });
+});
+
+// ── AN AWARD FLAGGED AS ACCEPTED (paycalc-2-23) ─────────────────────────────────────────────────
+// The "accepted, not yet paid" branch is dormant: no year carries `rateUnconfirmed`. When the next
+// one does, the percentage it opens with must be THAT year's. The old free-standing constant still
+// held 2026/27's 3.6% after it was paid, so flagging any later year offered last year's rise as an
+// accepted award and priced a lump from it.
+describe('a year flagged as accepted opens with its own offered percentage, or none', () => {
+    test('a flagged year with no percentage on record opens blank and prices nothing', () => {
+        TY.rateUnconfirmed = true;   // the shape a year is in once flagged (restored below)
+        try {
+            openCard();
+            for (const id of ['oldRate', 'newRateInput', 'oldLondon', 'newLondon', 'bpRisePct']) els[id].value = '';
+            prefillBackPay();
+            assert.equal(els.bpRisePct.value, '', 'no percentage is on record for this year, so none may be offered');
+            // …and what the coordinator's "Pay rise %" step would then do with whatever was offered.
+            const pct = parseFloat(els.bpRisePct.value);
+            if (pct > 0) {
+                els.newRateInput.value = raiseByPercent(parseFloat(els.oldRate.value), pct).toFixed(2);
+                els.newLondon.value = raiseByPercent(parseFloat(els.oldLondon.value), pct).toFixed(2);
+            }
+            const out = calcBackPay();
+            assert.equal(out.bpAmount, 0, 'a lump was priced from a rise nobody has announced');
+            assert.doesNotMatch(els.bpAwardScope.innerHTML, /Yours is roughly/);
+        } finally {
+            delete TY.rateUnconfirmed;
+        }
+    });
+});
+
+// ── VIEWING IS NOT ENTERING (paycalc-2-6) ───────────────────────────────────────────────────────
+// Every recompute used to save the card, so merely opening the page wrote back-pay state, and every
+// "does this device hold pay data?" question answered yes about data nobody entered. ORDER MATTERS
+// in this block: the module remembers a member's change for the rest of the page view, as it should.
+describe('merely viewing writes nothing; the member\'s first change does', () => {
+    test('a first visit computes the default lump and saves NOTHING', () => {
+        openCard();
+        assert.equal(restoreBpState(), false, 'precondition: nothing saved for this year');
+        const out = prefillBackPay();
+        calcBackPay();                                        // the coordinator's second pass, same tick
+        assert.ok(out.bpAmount > 0, 'the default estimate is still computed, closed card or not');
+        assert.equal(_ls.has(bpKey(TY)), false, 'opening the page wrote back-pay state');
+    });
+
+    test('the app announcing a paid-in it set is not the member changing the card', () => {
+        openCard();
+        restoreBpState();                                     // the coordinator's first call: starts the watch
+        assert.ok(_cardListeners.input?.length, 'precondition: the card is being watched');
+        cardEvent('input', false);                            // _setSelectPeriod's own, non-bubbling
+        calcBackPay();
+        assert.equal(_ls.has(bpKey(TY)), false);
+    });
+
+    test('the member\'s first change saves the card — the banner\'s tick included', () => {
+        openCard();
+        prefillBackPay();
+        els.bpIncludeTick.checked = true;
+        cardEvent('change', true);                            // the tick, as the coordinator proxies it
+        calcBackPay();
+        assert.ok(_ls.has(bpKey(TY)), 'a choice the member made must survive a reload');
+        assert.equal(JSON.parse(_ls.get(bpKey(TY))).inc, '1');
+    });
+});
+
+// ── A DAMAGED SAVED STATE IS RESET ALOUD (paycalc-2-10) ─────────────────────────────────────────
+describe('a damaged saved card state is reset ALOUD, until the member re-checks it', () => {
+    test('the warning survives the second render of the same tick, and every render after', () => {
+        openCard();
+        _ls.set(bpKey(TY), '{"mode":"manual","manual":"612.40","paidIn":"55","inc":"1"');   // truncated
+        assert.equal(restoreBpState(), false);
+        prefillBackPay();                                     // render 1: the coordinator's prefill
+        calcBackPay();                                        // render 2: its "Pay rise %" pass, same tick
+        assert.match(els.backPayNotice.innerHTML, /couldn't be read and were reset/,
+            'wiped by the second render before anybody could see it');
+        // Gone, or replaced by a readable state (this year was changed earlier in the page view, so
+        // its card saves) — but never the damaged text, which would reset it again on the next load.
+        const kept = _ls.get(bpKey(TY));
+        assert.ok(kept == null || typeof JSON.parse(kept) === 'object', 'the damaged text was left in storage');
+        calcBackPay();                                        // opening the card renders again
+        assert.match(els.backPayNotice.innerHTML, /couldn't be read and were reset/);
+
+        cardEvent('change', true);                            // the member re-checks a figure
+        calcBackPay();
+        assert.doesNotMatch(els.backPayNotice.innerHTML, /couldn't be read/);
+    });
+
+    test('a saved state that is not an object is damage, never a deliberate all-blank clear', () => {
+        openCard();
+        _ls.set(bpKey(TY), '"hello"');
+        assert.equal(restoreBpState(), false, 'a string read as "a saved state, all blank"');
+        calcBackPay();
+        assert.match(els.backPayNotice.innerHTML, /couldn't be read and were reset/);
+        cardEvent('change', true);                            // leave the module as later cases expect
+    });
+});
+
+// ── A GRADE CHANGE NEVER PRICES ONE GRADE'S FIGURE IN ANOTHER'S BOX (paycalc-2-9) ────────────────
+// The CES 2025/26 award has no old rate on record, so that box keeps what it holds — and after a
+// change from CEA it held CEA's £20.06, unlocked, against CES's £21.81: "Yours is roughly £1,569.85"
+// for a rise nobody was given. The grade is switched the way the Settings card switches it, and put
+// back, because the settings module caches it for the whole file.
+const { saveSettings } = await import('./paycalc-settings.js');
+const TY25 = /** @type {any} */ (PERIOD_CONFIG.TAX_YEARS.find(/** @param {any} t */ t => t.label === '2025/26'));
+const VIEW_25 = /** @type {any} */ (PERIODS.find(/** @param {any} p */ p => p.num === 48 + TY25.first + 6));
+function setGrade(/** @type {string} */ g) {
+    for (const id of ['gradeSelect', 'taxCode', 'studentLoan', 'pgLoanCheck', 'pensionAmt', 'ytdPay', 'ytdTax']) els[id] ??= node(id);
+    els.gradeSelect.value = g;
+    saveSettings();
+}
+
+describe('a grade change never prices one grade\'s figure in another\'s box', () => {
+    test('a blob saved under CEA, restored under CES: the box CES has no record for comes back BLANK', () => {
+        try {
+            openCard({ viewed: VIEW_25 });
+            // Saved under CEA before blobs carried their grade: its locked boxes hold CEA's record.
+            _ls.set(bpKey(TY25), JSON.stringify({ year: '2025/26', mode: 'compute', pct: '', oldR: '20.06',
+                newR: '20.74', oldL: '267.08', newL: '276.16', manual: '', paidIn: '', inc: '' }));
+            setGrade('ces');
+            assert.equal(restoreBpState(), true);
+            calcBackPay();
+            assert.equal(els.oldRate.value, '', 'CEA\'s old rate was carried into the box CES has no record for');
+            assert.equal(els.oldRate.readOnly, false, 'and the box stays the member\'s to complete');
+            assert.doesNotMatch(els.bpAwardScope.innerHTML, /Yours is roughly £1,5/);
+        } finally { setGrade('cea'); }
+    });
+
+    test('changing the grade while the card shows the old grade\'s figure blanks that box', () => {
+        try {
+            openCard({ viewed: VIEW_25 });
+            calcBackPay();                                    // under CEA the old rate is on record and locked
+            assert.equal(Number(els.oldRate.value), awardRatesFor('cea', '2025/26')?.pre);
+            setGrade('ces');
+            calcBackPay();                                    // what the grade listener runs
+            assert.equal(els.oldRate.value, '', 'CEA\'s record stayed in the box CES has none for');
+        } finally { setGrade('cea'); }
+    });
+
+    test('with the old rate missing, there is NO total — never the London Allowance alone as "yours" (paycalc-2-5)', () => {
+        try {
+            openCard({ viewed: VIEW_25, mode: 'compute' });   // (it stores CEA, so the grade is set after)
+            setGrade('ces');
+            els.oldRate.value = '';                           // not on record for CES 2025/26, not typed yet
+            const out = calcBackPay();
+            assert.equal(awardRatesFor('ces', '2025/26')?.pre, null, 'precondition: the old rate is not on record');
+            assert.equal(out.bpAmount, 0, 'the London arrears alone were offered as the lump');
+            assert.equal(els.backPayTotal.style.display, 'none');
+            assert.doesNotMatch(els.bpAwardScope.innerHTML, /Yours is roughly/);
+            assert.match(els.bpAwardScope.innerHTML, /Fill in both hourly rates below to work yours out/);
+            assert.match(els.backPayNotice.textContent, /London Allowance part alone would leave out most of it/);
+
+            els.oldRate.value = '21.09';                      // …and the box can be completed by hand
+            const typed = calcBackPay();
+            assert.ok(typed.bpAmount > 100, 'a completed pair prices the whole lump');
+            assert.match(els.bpAwardScope.innerHTML, /Yours is roughly/);
+        } finally { setGrade('cea'); }
+    });
+
+    test('a CES member\'s own typed old rate survives a reload', () => {
+        try {
+            openCard({ viewed: VIEW_25 });
+            setGrade('ces');
+            _ls.set(bpKey(TY25), JSON.stringify({ year: '2025/26', grade: 'ces', mode: 'compute', pct: '',
+                oldR: '21.09', newR: '21.81', oldL: '267.08', newL: '276.16', manual: '', paidIn: '', inc: '' }));
+            assert.equal(restoreBpState(), true);
+            calcBackPay();
+            assert.equal(els.oldRate.value, '21.09');
+        } finally { setGrade('cea'); }
+    });
+});
+
+// ── A MEMBER WHO STARTED AFTER THE AWARD'S WINDOW (paycalc-2-17) ────────────────────────────────
+describe('a member who started after the award\'s window is told so, not "your payslip … yet"', () => {
+    test('every window payslip before their start: the joined-after state', () => {
+        openCard();
+        _members.push({ name: 'Z. Member', role: 'CEA', startDate: new Date(AWARD_FROM.getTime() + 23 * 864e5) });
+        const out = calcBackPay();
+        assert.equal(out.bpAmount, 0);
+        const story = els.bpAwardScope.innerHTML;
+        assert.match(story, /paid from the <strong>/, 'they had no such payslip — it is "the", not "your"');
+        assert.doesNotMatch(story, /your <strong>/);
+        assert.match(story, /You started after the period it covers, so there is nothing to backdate for you\./);
+        assert.doesNotMatch(story, /\byet\b/, '"yet" promises a lump that will never come');
+        assert.match(els.backPayNotice.textContent, /You started after the period this award covers/);
+    });
+
+    test('a member who started INSIDE the window is priced as usual (the control)', () => {
+        openCard();
+        _members.push({ name: 'Z. Member', role: 'CEA', startDate: new Date(WINDOW[2].start.getTime() + 2 * 864e5) });
+        const out = calcBackPay();
+        assert.ok(out.bpAmount > 0);
+        assert.match(els.bpAwardScope.innerHTML, /your <strong>.*Yours is roughly/s);
+    });
+});
+
+// ── BACK PAY NEVER REACHES THE HOLIDAY PREMIUM (invariant 5; contracts-b-6 part b) ──────────────
+// The premium estimate prices every payslip of the year at the SETTLED rate, which already carries
+// the award; the lump's premium share is that same uplift, so feeding it in as well would count it
+// twice (by 7.69% of `bpVarAmount`). The only guard was structural — `calcHPP()` takes no argument —
+// and nothing failed if a back-pay figure reached the estimate. This runs the REAL card first, with a
+// lump that HAS a premium share, ticked into the take-home and saved, then the REAL estimate.
+const { calcHPP, _varPayForPeriod } = await import('./paycalc-hpp.js');
+const { HPP_FRACTION } = await import('./paycalc-calc.js');
+const { hppEstKey } = await import('./paycalc-migrations.js');
+const { getStoredRateForYear } = await import('./paycalc-settings.js');
+
+describe('back pay never reaches the holiday premium (invariant 5)', () => {
+    test('a computed, ticked and saved lump leaves the premium estimate exactly where the hours put it', () => {
+        openCard();
+        const hours = { otH: 10, otM: 0 };                    // premium hours, so the lump has a premium share
+        for (const p of WINDOW) _ls.set(periodKey(p.num), JSON.stringify(hours));
+        const expected = (WINDOW.reduce((/** @type {number} */ s, /** @type {any} */ p) =>
+            s + _varPayForPeriod(p, hours, getStoredRateForYear(TY)), 0) * HPP_FRACTION).toFixed(2);
+
+        calcHPP();
+        assert.equal(_ls.get(hppEstKey(TY)), expected, 'precondition: with no back pay, the estimate is the hours\' own');
+
+        prefillBackPay();
+        els.bpIncludeTick.checked = true;
+        cardEvent('change', true);                            // the member ticks it into the take-home
+        const out = calcBackPay();
+        assert.ok(out.bpVarAmount > 0, 'precondition: the lump carries a premium share that could leak');
+        assert.ok(out.bpIncluded && _ls.has(bpKey(TY)), 'precondition: ticked, and saved');
+
+        calcHPP();
+        assert.equal(_ls.get(hppEstKey(TY)), expected, 'the premium estimate took in the back-pay lump');
     });
 });

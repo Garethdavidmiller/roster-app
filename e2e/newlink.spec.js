@@ -8,7 +8,7 @@
  * are pinned in Node (newlink-render.test.mjs, newlink-data.test.mjs); this drives the real page through them.
  */
 import { test, expect, withLinksDesigners } from './fixtures.js';
-import { collectFatalErrors, seedSession } from './helpers.js';
+import { collectFatalErrors, scaleText, seedSession } from './helpers.js';
 import { CHANGES, PACK } from '../newlink-data.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
 
@@ -23,6 +23,10 @@ function someone(what, fits) {
 }
 
 test.describe('new link', () => {
+    // THE PAGE SPEAKS OF TODAY (owner, 10 Nov 2026): from the link's start with nothing chosen it stops asking for views, so
+    // every test reads it on a day it is open — one that needs another day sets its own, which wins.
+    test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date('2026-11-16T09:00:00Z')); });
+
     test('the admin sees the page, the three proposals A to Z, and no recommendation anywhere', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await seedSession(page, 'G. Miller');
@@ -47,16 +51,17 @@ test.describe('new link', () => {
     // The page passes TODAY to the status line (test audit, 7 Nov 2026). The tenses are renderStatus's unit tests; what only
     // a browser can show is that the page hands it the real date — before this it had no date logic at all, and once the
     // link's start had come it would still have said the link "starts on" it.
-    for (const [day, says, never] of /** @type {[string, RegExp|null, RegExp][]} */ ([
-        ['2026-12-20T09:00:00Z', /The new link starts in January\s2027, and today’s link carries on until then\. The new timetable started in December\./, /comes first/],
-        ['2027-01-04T09:00:00Z', null, /starts (on|in)|carries on until then/],
+    // From the link's start with nothing chosen, the status no longer says nothing is decided (owner, 10 Nov 2026 — below).
+    for (const [day, lead, says, never] of /** @type {[string, string, RegExp|null, RegExp][]} */ ([
+        ['2026-12-20T09:00:00Z', 'Nothing is decided.', /The new link starts in January\s2027, and today’s link carries on until then\. The new timetable started in December\./, /comes first/],
+        ['2027-01-04T09:00:00Z', 'The outcome will be confirmed by Sara Silva.', null, /starts (on|in)|carries on until then|Nothing is decided/],
     ])) {
         test(`the status line on ${day.slice(0, 10)} speaks of the dates as they then are`, async ({ page }) => {
             await page.clock.setFixedTime(new Date(day));
             await seedSession(page, 'G. Miller');
             await page.goto('/newlink.html');
             const status = page.locator('#nlStatus');
-            await expect(status).toContainText('Nothing is decided.');
+            await expect(status).toContainText(lead);
             if (says) await expect(status).toContainText(says);
             await expect(status).not.toContainText(never);
         });
@@ -83,15 +88,69 @@ test.describe('new link', () => {
         await setVisibility('visible');
         await expect(status.locator('.nl-name').first()).toBeFocused();
 
-        // A fortnight later, the link has started: the sentence about it goes.
+        // A fortnight later, the link has started: the sentence about it goes — and, with nothing chosen, so does every
+        // invitation to have a say (owner, 10 Nov 2026): the status's own, the hint's and the card's.
         await setVisibility('hidden');
         await page.clock.setFixedTime(new Date('2027-01-04T09:00:00Z'));
         await setVisibility('visible');
-        await expect(status).not.toContainText(/starts (on|in)|carries on until then/);
-        await expect(status).toContainText('Nothing is decided.');
+        await expect(status).not.toContainText(/starts (on|in)|carries on until then|Nothing is decided|Have your say/);
+        await expect(status).toContainText('The outcome will be confirmed by Sara Silva.');
+        await expect(page.locator('#nlStatusHint')).toHaveText('');
+        await expect(page.locator('#nlSayCard')).toBeHidden();
         await expect(status.locator('.nl-name'), 'the tiles are drawn again, and still open their weeks').toHaveCount(3);
         await status.locator('.nl-name').first().click();
         await expect(page.locator('#nlWeeksStatus')).toContainText('Showing Balanced V6’s');
+    });
+
+    // ── THE DECIDED STATE AND THE SAFETY NET (owner, 10 Nov 2026: "Add a 'decided' state") ─────────────────────────────
+    // The page's own clock, in London: the last minute of December is open, the first of January is not. The rules are
+    // statusPhase's unit tests; what only a browser shows is that the page hands it the real date, and that the hint and
+    // the Have your say card — the coordinator's, not the status card's — go with it.
+    test.describe('on a London clock', () => {
+        test.use({ timezoneId: 'Europe/London' });
+        for (const [at, open] of /** @type {[string, boolean][]} */ ([['2026-12-31T23:59:00Z', true], ['2027-01-01T00:01:00Z', false]])) {
+            test(`with nothing chosen, ${open ? 'the last minute of 2026 still asks for views' : 'the first of January stops asking'}`, async ({ page }) => {
+                await page.clock.setFixedTime(new Date(at));
+                await seedSession(page, 'G. Miller');
+                await page.goto('/newlink.html');
+                const status = page.locator('#nlStatus');
+                await expect(status.locator('.nl-name')).toHaveCount(3);
+                if (open) {
+                    await expect(status).toContainText('Nothing is decided.');
+                    await expect(status).toContainText('Have your say by a date to be agreed');
+                    await expect(page.locator('#nlStatusHint')).toHaveText('For discussion, not a decision');
+                    await expect(page.locator('#nlSayCard')).toBeVisible();
+                } else {
+                    await expect(status).toContainText('The outcome will be confirmed by Sara Silva.');
+                    await expect(status).not.toContainText(/Nothing is decided|Have your say|has been chosen/);
+                    await expect(page.locator('#nlStatusHint')).toHaveText('');
+                    await expect(page.locator('#nlSayCard')).toBeHidden();
+                }
+            });
+        }
+    });
+
+    // CHOSEN is one line in newlink-config.js; the browser is served a copy with it set, as overtime.spec.js serves a
+    // participant in roster-data.js, so the decided page is driven through the real coordinator.
+    test('once a design is chosen the page says so, says when the link starts, and asks for no views', async ({ page }) => {
+        await page.route('**/newlink-config.js', async (route) => {
+            const res = await route.fetch();
+            const served = await res.text();
+            const body = served.replace(/export const CHOSEN = null;/, 'export const CHOSEN = \'Middle Ground\';');
+            if (body === served) throw new Error('newlink-config.js no longer declares `CHOSEN = null` — this test would check nothing');
+            await route.fulfill({ response: res, body });
+        });
+        await page.clock.setFixedTime(new Date('2026-12-20T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        const status = page.locator('#nlStatus');
+        await expect(status).toContainText('Middle Ground has been chosen.');
+        await expect(status).toContainText(/The new link starts in January\s2027, and today’s link carries on until then\./);
+        await expect(status).not.toContainText(/Nothing is decided|Have your say|a date to be agreed/);
+        await expect(page.locator('#nlStatusHint')).toHaveText('');
+        await expect(page.locator('#nlSayCard')).toBeHidden();
+        // the three are still there to read, A to Z, each opening its weeks
+        await expect(status.locator('.nl-name-title')).toHaveText(['Balanced V6', 'Level Crossing', 'Middle Ground']);
     });
 
     test('choosing a way of working shows its sentence and figures; Everything shows all six; pressing again goes back', async ({ page }) => {
@@ -205,8 +264,7 @@ test.describe('new link', () => {
     // sideways inside their frame — and only there: the page itself never does — and the pack's rows give way.
     // Each half is pinned: nothing leaves its cell, its card or the screen at 320px, or at 1.3 times the text from 320px to
     // 375px; at 375px at the normal size, where everything fits, no held run is split and the 26 weeks do not scroll.
-    // The text is enlarged ONCE per element, as Android does: helpers.js's scaleText reads each size after its parent has
-    // been enlarged, so inherited text is multiplied again at every level (14px became 49px at 1.15 on this page).
+    // The text is enlarged as Android enlarges it (helpers.js → scaleText): every size once, the width left alone.
     test('a phone\'s larger text runs nothing into its neighbour or off the screen, and the 26 weeks scroll rather than overlap', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         const open = async (/** @type {number} */ width) => {
@@ -217,10 +275,6 @@ test.describe('new link', () => {
             await expect(page.locator('#nlPersonaPanel .nl-persona')).toHaveCount(6);
             await expect(page.locator('#nlWeeksPanel .is-chosen .nl-weeks tbody tr')).toHaveCount(26);
         };
-        const scaleOnce = (/** @type {number} */ k) => page.evaluate(m => {
-            const els = [...document.querySelectorAll('*')], px = els.map(e => parseFloat(getComputedStyle(e).fontSize));
-            els.forEach((e, i) => { if (px[i]) /** @type {HTMLElement} */ (e).style.fontSize = `${px[i] * m}px`; });
-        }, k);
         // every table cell on the page: the figures and their headings, and the chosen proposal's 26 weeks
         const CELLS = '#nlPersonaPanel .nl-fig td, #nlPersonaPanel .nl-fig th, #nlWeeksPanel .is-chosen .nl-weeks td, #nlWeeksPanel .is-chosen .nl-weeks th';
         const spills = () => page.locator(CELLS).evaluateAll(cells => cells.flatMap(cell => {
@@ -246,7 +300,7 @@ test.describe('new link', () => {
         const weeksScroll = () => page.locator('#nlWeeksPanel .is-chosen .nl-weeks-wrap').evaluate(w => w.scrollWidth - w.clientWidth);
         for (const [width, k] of [[320, 1], [320, 1.3], [360, 1.3], [375, 1.3]]) {
             await open(width);
-            if (k !== 1) await scaleOnce(k);
+            if (k !== 1) await scaleText(page, k);
             const at = `at ${width}px${k === 1 ? '' : ` with the text ${k} times larger`}`;
             expect(await spills(), `${at}: nothing leaves its cell`).toEqual([]);
             expect(await offCard(), `${at}: nothing is cut off at a card's edge`).toEqual([]);

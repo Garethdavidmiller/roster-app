@@ -167,6 +167,10 @@ export function originLabel(hostname) {
     return 'other';
 }
 
+/** Every label `originLabel` can return. A new address adds its label here as well as above —
+ *  `summariseOrigins` reads anything else as 'other', and usage-stats.test.mjs checks the two agree. */
+const ORIGIN_LABELS = Object.freeze(['web', 'pages', 'fb', 'other']);
+
 /**
  * Key for the "an account used this address today" counter, and — with `pwa` — the "…from the
  * INSTALLED app" counter. Two counters rather than one keyed by mode, because they are deduped
@@ -207,6 +211,11 @@ export function parseOriginKey(key) {
  * that moves by -1/+1 can leave a lost write's -1 behind for a while (`sumDailyWindow` says why), and
  * a bar is not drawn from a negative share. A row with nobody left on it is dropped.
  *
+ * A LABEL NO WRITER USES COUNTS AS 'other' (Nov 2026). The keys are written by any signed-in session,
+ * and an origin of `__proto__` landed on `Object.prototype` here — every object on the admin's page
+ * then inherited `accounts: NaN`. The accumulator has no prototype, and only the labels
+ * `originLabel` writes reach a row, so nothing the Usage card looks up can be an inherited name.
+ *
  * @param {Record<string, any>} daily the `analytics/origins` daily map
  * @param {Date} now
  * @param {number} [days]
@@ -215,11 +224,12 @@ export function parseOriginKey(key) {
 export function summariseOrigins(daily, now, days = ROLLING_WINDOW_DAYS) {
     const win = new Set(recentDayKeys(now, days));
     /** @type {Record<string, { origin: string, accounts: number, installed: number }>} */
-    const out = {};
+    const out = Object.create(null);
     for (const [key, value] of Object.entries(daily || {})) {
         const p = parseOriginKey(key);
         if (!p || !win.has(p.day)) continue;
-        const row = out[p.origin] || (out[p.origin] = { origin: p.origin, accounts: 0, installed: 0 });
+        const origin = ORIGIN_LABELS.includes(p.origin) ? p.origin : 'other';
+        const row = out[origin] || (out[origin] = { origin, accounts: 0, installed: 0 });
         row[p.installed ? 'installed' : 'accounts'] += Number(value) || 0;
     }
     return Object.values(out)

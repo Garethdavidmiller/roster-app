@@ -63,8 +63,8 @@ the repository is a rule, not a guard.
 What each lane proves, and what it cannot see. `CLAUDE.md` lists the commands; this is the detail
 behind them.
 
-- **`npm test`** — `test:hygiene` + `test:parse` + `test:unit`: every root test file, on a bare
-  checkout with nothing installed (above).
+- **`npm test`** — `test:hygiene` + `test:parse` + `test:unit`: every root test file except the
+  `test:functions` and `test:rules` suites, on a bare checkout with nothing installed (above).
 - **`npm run test:nodeps`** (the same as `node scripts/test-nodeps.mjs`) — every suite that needs
   nothing installed. It prints how many suites it runs and which it skips, and its exclusion list is
   DERIVED from the `test:functions` and `test:rules` scripts, so nothing here restates either. It
@@ -109,7 +109,10 @@ behind them.
   and a later release merged stale baselines that the pull-request comment had named, because the
   session that shipped it read the job conclusions. The baselines are CI's render, and a container's
   differs (`docs/KNOWN_LIMITATIONS.md`), so regenerate them from the pull request's `visual-diffs`
-  artifact: `npm run test:visual:refresh` redraws only the FAILED ones. Keep
+  artifact: unzip it (check its digest) and run `node scripts/refresh-visual-baselines.mjs <folder>`,
+  which copies CI's render of each failed screenshot over its baseline. With no folder,
+  `npm run test:visual:refresh` redraws the failed ones from this machine's render, which is for
+  looking, not committing. Keep
   `-- --update-snapshots=all` for a deliberate sweep of drift inside the tolerance, then run
   `git status e2e/visual-baselines/` and revert anything you cannot explain.
 - **`npm run test:visual:webkit`** — the same idea under Safari's engine, as a deliberately small set
@@ -131,8 +134,10 @@ behind them.
 - **`npm run test:live`** — the deployment health check in `CLAUDE.md`, run against the real site:
   both origins, the root and two sub-pages, asserting served, splash down, something usable and no
   console errors. Opt-in, and it gates nothing: the network and whatever is deployed right now are not
-  properties of the branch under test. Run it after every deploying merge, once Deploy Firebase
-  Hosting has finished, and in a review. **It prints its mode per page.** `DIRECT` is the full check;
+  properties of the branch under test. Run it after every deploying merge, once both Deploy Firebase
+  Hosting and the Pages mirror's deploy that follows it have finished, and in a review. Since 10
+  November 2026 the mirror publishes only what that Hosting run released, a minute or two after it.
+  **It prints its mode per page.** `DIRECT` is the full check;
   `RELAYED` means the browser could not complete TLS to the open internet, so each request was fetched
   with curl and fulfilled into the page — real bytes, real headers, real parsing, but the API-key
   HTTP-referrer restriction and a live Firebase round trip are NOT covered. Do not read a relayed pass
@@ -149,6 +154,11 @@ behind them.
 **Run one Playwright lane at a time, and do not switch branches under one.** The suites share a dev
 server and `test-results/`: two concurrent runs once produced a false red, and checking out another
 branch mid-run invalidated a long e2e pass that then had to be redone.
+
+**A local browser run tests only this checkout.** Each checkout's dev-server port comes from its path,
+and two checkouts can land on the same one, so before the first test a run checks that the server it
+found serves this checkout's files, and stops if not (`e2e/server-identity.mjs`).
+`E2E_DEV_PORT=<port>` pins this checkout to another port.
 
 ## Where to read next
 

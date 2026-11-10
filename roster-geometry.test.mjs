@@ -1,7 +1,7 @@
 /**
  * roster-geometry.test.mjs — the PDF's own grid as a witness, organised by what a wrong answer COSTS.
  *
- * Run: node --test roster-geometry.test.mjs   (part of `npm run test:functions` — the adapter cases
+ * Run: node scripts/run-tests.mjs roster-geometry.test.mjs   (part of `npm run test:functions` — the adapter cases
  * need `pdfjs-dist` from functions/node_modules; everything else here is pure).
  *
  * @nodeps-safe — the pdfjs cases SKIP THEMSELVES by name when the parser is absent (see
@@ -96,7 +96,9 @@ function pageFrom(rowSpecs, { top = 700, rowH = 50 } = {}) {
 
 describe('rulesFromOperatorList — the drawn rules', () => {
     // A fake OPS enum and a fake operator list in pdfjs's shape: [fns[], args[]] per constructPath.
-    const OPS = { constructPath: 91, moveTo: 13, lineTo: 14, rectangle: 19, curveTo: 15, closePath: 18 };
+    // curveTo2/curveTo3 are PDF `v`/`y`, with pdfjs v4's own numbers; the enum lacked them until
+    // import-server-7, which is how the reader came to skip them without stepping over their operands.
+    const OPS = { constructPath: 91, moveTo: 13, lineTo: 14, rectangle: 19, curveTo: 15, curveTo2: 16, curveTo3: 17, closePath: 18 };
     const seg = (x1, y1, x2, y2) => [[OPS.moveTo, OPS.lineTo], [x1, y1, x2, y2]];
     const ops = (...paths) => ({ fnArray: paths.map(() => OPS.constructPath), argsArray: paths });
 
@@ -120,8 +122,89 @@ describe('rulesFromOperatorList — the drawn rules', () => {
         assert.deepEqual(vx, []); assert.deepEqual(hy, []);
     });
 
+    test('a `v` or `y` curve steps over its four operands, so the rest of its path is read true', () => {
+        // m 400 20 · v 400.2 60 420 40 · l 430 45 — a curve, then a short diagonal: no rule at all.
+        // With the curve's operands left unread, the line took 400.2 60 for its end point, and a
+        // vertical "rule" at x 400 gave the page ten columns and cost it the grid.
+        for (const op of [OPS.curveTo2, OPS.curveTo3]) {
+            const { vx, hy } = rulesFromOperatorList(ops([[OPS.moveTo, op, OPS.lineTo], [400, 20, 400.2, 60, 420, 40, 430, 45]]), OPS);
+            assert.deepEqual([vx, hy], [[], []], `op ${op}`);
+            // …and a rule drawn after the curve in the same path is still found where it is.
+            const after = rulesFromOperatorList(ops([[OPS.moveTo, op, OPS.moveTo, OPS.lineTo],
+                [10, 10, 1, 2, 3, 4, 154.8, 100, 154.8, 700]]), OPS);
+            assert.deepEqual(after.vx, [154.8], `op ${op}`);
+        }
+    });
+
     test('the pdfjs-6 encoding (a non-iterable fns) is skipped, not thrown — the v4 pin, stated', () => {
         assert.deepEqual(rulesFromOperatorList({ fnArray: [OPS.constructPath], argsArray: [[42, [0, 0]]] }, OPS), { vx: [], hy: [] });
+    });
+});
+
+// ── The sheet's own week (roster-week-heading.js — import-server-2) ─────────────────────────────
+//
+// Measured on a real CEA roster (10 Nov 2026): page 1 prints the label "Week Ending:" and a
+// DD/MM/YYYY date above the grid, as two text runs on one line; continuation pages do not repeat it,
+// and the footer's "Print Date:" carries a date that is never the week. Every run below is
+// SYNTHETIC: no text from a real sheet is in this repository.
+
+const { weekEndingsOnPage, checkSheetWeek } = require('./functions/roster-week-heading.js');
+
+describe('the sheet\'s own week — read from its printed heading, never guessed', () => {
+    const run = (/** @type {string} */ str, /** @type {number} */ x, /** @type {number} */ y) => ({ str, x, y });
+
+    test('the label and the date are two runs on one line, as the real sheet prints them', () => {
+        assert.deepEqual(weekEndingsOnPage([run('A Roster Title', 25, 543.7), run('Week Ending:', 635, 544.7), run('05/09/2026', 712, 544.7)]),
+            [{ printed: '05/09/2026', iso: '2026-09-05' }]);
+    });
+
+    test('one run carrying both, in any case or spacing, reads the same', () => {
+        for (const s of ['Week Ending:  05/09/2026', 'WEEK ENDING 5/9/2026', 'week ending: 05 / 09 / 2026']) {
+            assert.deepEqual(weekEndingsOnPage([run(s, 600, 540)]).map(h => h.iso), ['2026-09-05'], s);
+        }
+    });
+
+    test('the footer\'s print date is never the week, and no other form is guessed at', () => {
+        for (const s of ['Print Date: 27/08/2026', 'Week Ending: 05.09.2026', 'Week Ending: 05/09/26', '05/09/2026']) {
+            assert.deepEqual(weekEndingsOnPage([run(s, 30, 40)]), [], s);
+        }
+        assert.deepEqual(weekEndingsOnPage([run('Week Ending:', 635, 544), run('05/09/2026', 712, 520)]), [],
+            'a label and a date on different lines are not one heading');
+    });
+
+    test('a date that is not a real Saturday is read, and marked unusable', () => {
+        assert.deepEqual(weekEndingsOnPage([run('Week Ending: 04/09/2026', 600, 540), run('Week Ending: 31/02/2026', 600, 500)]),
+            [{ printed: '04/09/2026', iso: null }, { printed: '31/02/2026', iso: null }]);
+    });
+
+    test('the week chosen passes; another week refuses, naming both in the app\'s date style', () => {
+        const geo = (/** @type {string[]} */ ...iso) => ({ weekEndings: iso.map(i => ({ printed: '', iso: i })), pagesRead: 1, pagesRejected: 0 });
+        assert.equal(checkSheetWeek(geo('2026-09-05'), '2026-09-05').status, 'match');
+        const c = checkSheetWeek(geo('2026-09-05'), '2026-09-12');
+        assert.equal(c.status, 'mismatch');
+        assert.equal(c.message, 'This roster is for the week ending Saturday 5 September 2026, but the week chosen is '
+            + 'Saturday 12 September 2026. Choose the matching week and upload it again.');
+        assert.equal(c.sheetWeek, '2026-09-05');
+        const two = checkSheetWeek(geo('2026-09-05', '2026-09-12'), '2026-09-12');
+        assert.equal(two.status, 'mismatch', 'a PDF holding two weeks is refused, even when one is the week chosen');
+        assert.match(two.message ?? '', /more than one week — the weeks ending Saturday 5 September 2026 and Saturday 12 September 2026/);
+    });
+
+    test('no heading read is NOT a refusal: the read goes on, and the log says why', () => {
+        /** @type {Array<[any, RegExp]>} */
+        const cases = [
+            [{ weekEndings: [], pagesRead: 1, pagesRejected: 0 }, /prints no "Week Ending: DD\/MM\/YYYY" heading/],
+            [{ weekEndings: [{ printed: '04/09/2026', iso: null }], pagesRead: 1, pagesRejected: 0 }, /04\/09\/2026\) is not a Saturday/],
+            [{ available: false, reason: 'no-text', rows: [], pagesRead: 0, pagesRejected: 0, weekEndings: [] }, /text was not read \(no-text\)/],
+            [{ available: false, reason: 'wait-timeout', rows: [], pagesRead: 0, pagesRejected: 0 }, /text was not read \(wait-timeout\)/],
+            [null, /text was not read/],
+        ];
+        for (const [geometry, why] of cases) {
+            const c = checkSheetWeek(geometry, '2026-09-05');
+            assert.equal(c.status, 'unread');
+            assert.equal(c.message, undefined, 'nothing for the admin to act on');
+            assert.match(c.note, why);
+        }
     });
 });
 
@@ -557,6 +640,54 @@ describe('extractRosterGeometry — the real pdfjs, a hand-built roster', { skip
         const g = await extractRosterGeometry(buildPdf([['q 0.5 w 100 100 m 100 700 l S Q']]));
         assert.equal(g.available, false);
         assert.equal(g.reason, 'no-text');
+    });
+
+    test('the sheet\'s own week is read from above the grid, and a spill page changes no row (import-server-2)', async () => {
+        // Synthetic, in the measured shape: the heading's label and date as two runs on one line above
+        // the top rule, and a spill page — a few runs at the left margin, no drawn rules.
+        const page = rosterPage(ROSTER);
+        page.push('BT /F1 9 Tf 635 760 Td (Week Ending:) Tj ET', 'BT /F1 9 Tf 712 760 Td (05/09/2026) Tj ET');
+        const spill = ['BT /F1 9 Tf 23 400 Td (06:00) Tj ET', 'BT /F1 9 Tf 23 380 Td (14:00) Tj ET'];
+        const g = await extractRosterGeometry(buildPdf([page, spill]));
+        assert.deepEqual(g.weekEndings, [{ printed: '05/09/2026', iso: '2026-09-05' }]);
+        assert.deepEqual(g.rows.map(r => r.name), ['G. Miller', 'S. Silva', 'Vacant'], 'the heading is no row, and the spill adds none');
+        assert.deepEqual([g.pagesRead, g.pagesRejected], [1, 1], 'the spill page has no grid, and is rejected by content');
+        // …and a heading on a page the grid read REJECTS is still read: the heading is not grid furniture.
+        const cover = ['BT /F1 9 Tf 300 600 Td (Week Ending: 12/09/2026) Tj ET'];
+        const g2 = await extractRosterGeometry(buildPdf([cover, rosterPage(ROSTER)]));
+        assert.deepEqual(g2.weekEndings.map(h => h.iso), ['2026-09-12']);
+    });
+
+    test('a stroked `v` or `y` curve beside the table does not cost the page its grid (import-server-7)', async () => {
+        // Through the REAL pdfjs, which routes both operators into the same path data as the rules.
+        for (const curve of ['400 20 m 400.2 60 420 40 v 430 45 l S', '400 20 m 400.2 60 420 40 y 430 45 l S']) {
+            const page = rosterPage(ROSTER);
+            page.push(`q 0.5 w ${curve} Q`);
+            const g = await extractRosterGeometry(buildPdf([page]));
+            assert.equal(g.available, true, `${curve}: ${g.reason}`);
+            assert.deepEqual(g.rows.map(r => r.name), ['G. Miller', 'S. Silva', 'Vacant']);
+        }
+    });
+
+    test('a page read that places no member row says so — not "no-text", which means a scanned sheet', async () => {
+        // The grid and its heading only.
+        const headingOnly = await extractRosterGeometry(buildPdf([rosterPage([ROSTER[0]])]));
+        assert.deepEqual([headingOnly.available, headingOnly.pagesRead, headingOnly.reason], [false, 1, 'no-rows']);
+        // The whole fixture drawn twice the size under a halving `cm`. It LOOKS the same, but its rules
+        // are read raw and its text transformed (the module header), so no run lands in the grid.
+        const k = 2, top = 700, rowH = 50;
+        const lines = [`${1 / k} 0 0 ${1 / k} 0 0 cm`, 'q 0.5 w'];
+        for (const x of VX) lines.push(`${x * k} ${100 * k} m ${x * k} ${top * k} l S`);
+        for (let r = 0; r <= ROSTER.length; r++) lines.push(`${25.3 * k} ${(top - r * rowH) * k} m ${822.5 * k} ${(top - r * rowH) * k} l S`);
+        lines.push('Q');
+        ROSTER.forEach(([name, ...cells], r) => {
+            const y = (top - r * rowH - rowH / 2) * k;
+            const text = (/** @type {string} */ s, /** @type {number} */ x) => lines.push(`BT /F1 ${9 * k} Tf ${x * k} ${y} Td (${s}) Tj ET`);
+            if (name) text(name, NAME_X);
+            cells.forEach((c, i) => { if (c) text(c, COL_X[i]); });
+        });
+        const scaled = await extractRosterGeometry(buildPdf([lines]));
+        assert.deepEqual([scaled.available, scaled.pagesRead, scaled.reason], [false, 1, 'no-rows']);
     });
 
     test('garbage bytes never throw', async () => {

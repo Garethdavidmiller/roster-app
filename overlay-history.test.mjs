@@ -1,7 +1,7 @@
 /**
  * Unit tests for the overlay.js Android-Back history STACK (_pushOverlayState /
  * _clearOverlayHistory + the popstate listener).
- * Run with: node --test overlay-history.test.mjs
+ * Run with: node scripts/run-tests.mjs overlay-history.test.mjs
  *
  * The existing overlay.test.mjs stubs window.addEventListener as a no-op, so it can't
  * dispatch popstate. This suite installs a capturing harness (records the popstate
@@ -18,7 +18,7 @@
  *                            entry itself; our code must not double-pop).
  */
 
-import { test, describe, beforeEach } from 'node:test';
+import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 let popstateHandler = /** @type {null | (() => void)} */ (null);
@@ -365,5 +365,162 @@ describe('createLightbox — close() resolves when the close has LANDED, both ha
         await microtasks();
         assert.equal(resolved, true);
         assert.equal(landedCount(), 1, 'no second landing for a close that closed nothing');
+    });
+});
+
+// ── WHAT A DIALOG RESOLVES TO (whole-app fix, 10 Nov 2026) ──────────────────────────────────────────
+// The REAL confirmDialog, built into a small fake DOM and closed every way a member can close it.
+// A DISMISSAL — the backdrop, Escape, Android Back — resolved false, the same as Cancel, and the
+// unsaved-work offer's Cancel is Discard: a tap meant for the page landed on the backdrop and deleted
+// the kept work (shared-ui-2). And the card stays tappable through its close fade, so a second tap
+// re-ran its button: Confirm twice ran `onConfirm` twice, Cancel then Confirm resolved true (shared-ui-7).
+describe('confirmDialog — a dismissal, a button, and a second tap during the fade', () => {
+    /** @type {Function[]} */ let keydown = [];
+    const realAdd = global.document.addEventListener, realRemove = global.document.removeEventListener;
+    /** An element with classes, attributes, children and listeners the test can fire. @param {string} tag */
+    function el(tag) {
+        const cls = new Set(), attrs = /** @type {Record<string, string>} */ ({}), listeners = /** @type {Record<string, Function[]>} */ ({});
+        const e = /** @type {any} */ ({
+            tagName: tag.toUpperCase(), children: /** @type {any[]} */ ([]), style: /** @type {Record<string, string>} */ ({}),
+            set className(/** @type {string} */ v) { cls.clear(); v.split(/\s+/).filter(Boolean).forEach(c => cls.add(c)); },
+            get className() { return [...cls].join(' '); },
+            classList: { add: (/** @type {string[]} */ ...c) => c.forEach(x => cls.add(x)), remove: (/** @type {string[]} */ ...c) => c.forEach(x => cls.delete(x)),
+                contains: (/** @type {string} */ c) => cls.has(c), toggle: (/** @type {string} */ c, /** @type {boolean} */ on) => (on ? cls.add(c) : cls.delete(c)) },
+            setAttribute: (/** @type {string} */ k, /** @type {any} */ v) => { attrs[k] = String(v); },
+            getAttribute: (/** @type {string} */ k) => attrs[k] ?? null, hasAttribute: (/** @type {string} */ k) => k in attrs,
+            appendChild: (/** @type {any} */ c) => { e.children.push(c); return c; }, remove() {},
+            focus() { /** @type {any} */ (global.document).activeElement = e; },
+            addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (listeners[t] ??= []).push(fn); },
+            removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = (listeners[t] ?? []).filter(f => f !== fn); },
+            fire: (/** @type {string} */ t) => (listeners[t] ?? []).slice().forEach(fn => fn({ target: e, preventDefault() {} })),
+        });
+        return e;
+    }
+    /** The dialog's button with this class. @param {any} root @param {string} cls @returns {any} */
+    const find = (root, cls) => {
+        for (const c of root.children) { if (c.classList.contains(cls)) return c; const d = find(c, cls); if (d) return d; }
+        return null;
+    };
+    const microtasks = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+    /** The layers already on screen when a dialog opens, for `querySelectorAll` to find. @type {any[]} */
+    let layers = [];
+    /** A layer already on screen, at its z-index. @param {{ z: string, lbOverlay?: boolean, modal?: boolean, shown?: boolean, ariaHidden?: boolean }} o */
+    const layer = ({ z, lbOverlay = false, modal = false, shown = true, ariaHidden = false }) => {
+        const l = el('div');
+        if (lbOverlay) l.classList.add('lb-overlay');
+        if (modal) l.setAttribute('aria-modal', 'true');
+        if (ariaHidden) l.setAttribute('aria-hidden', 'true');
+        l.style.zIndex = z;
+        l.getClientRects = () => (shown ? [{}] : []);   // a shut sheet is `display: none`: no boxes
+        return l;
+    };
+
+    beforeEach(() => {
+        keydown = [];
+        layers = [];
+        // The two selectors the layer rule asks for, answered from `layers`.
+        /** @type {any} */ (global.document).querySelectorAll = (/** @type {string} */ sel) => layers.filter(l => sel.split(',').some(s =>
+            (s.trim() === '.lb-overlay' && l.classList.contains('lb-overlay'))
+            || (s.trim() === '[aria-modal="true"]' && l.getAttribute('aria-modal') === 'true')));
+        // An inline z-index wins, as in a browser; an `.lb-overlay` is otherwise the lightbox base.
+        /** @type {any} */ (global).getComputedStyle = (/** @type {any} */ e) => ({ zIndex: e.style?.zIndex || (e.classList?.contains('lb-overlay') ? '8000' : 'auto') });
+        // An echoing Back, as at the top of this file (an earlier block swapped in a silent one).
+        global.history.back = () => { backCount++; popstateHandler?.(); };
+        Object.assign(global.window, { scrollY: 0, scrollTo: () => {} });
+        /** @type {any} */ (global).requestAnimationFrame = (/** @type {Function} */ fn) => fn();
+        Object.assign(global.document, {
+            activeElement: null, createElement: el,
+            addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { if (t === 'keydown') keydown.push(fn); },
+            removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { if (t === 'keydown') keydown = keydown.filter(f => f !== fn); },
+        });
+        Object.assign(global.document.body, { children: [], appendChild: (/** @type {any} */ c) => { /** @type {any} */ (global.document.body).children.push(c); return c; } });
+    });
+    afterEach(() => {
+        Object.assign(global.document, { addEventListener: realAdd, removeEventListener: realRemove });
+        delete (/** @type {any} */ (global.document)).querySelectorAll;
+        delete (/** @type {any} */ (global)).getComputedStyle;
+    });
+
+    /** Open the real dialog. Reduced motion closes it at once; otherwise the fade waits for `settle()`.
+     *  @param {any} opts @param {{ fade?: boolean }} [how] */
+    async function open(opts, { fade = false } = {}) {
+        const { confirmDialog } = await freshOverlay();
+        /** @type {any} */ (global.window).matchMedia = () => ({ matches: !fade });
+        let value = /** @type {any} */ ('pending');
+        const p = confirmDialog({ message: 'Restore your unsaved changes from 14:20?', confirmLabel: 'Restore', cancelLabel: 'Discard', ...opts });
+        p.then((/** @type {any} */ v) => { value = v; });
+        const overlay = /** @type {any} */ (global.document.body).children.at(-1);
+        return {
+            overlay, confirm: find(overlay, 'dialog-btn-confirm'), cancel: find(overlay, 'dialog-btn-cancel'),
+            escape: () => keydown.slice().forEach(fn => fn({ key: 'Escape', preventDefault() {} })),
+            settle: async () => { overlay.fire('transitionend'); await microtasks(); },
+            result: async () => { await microtasks(); return value; },
+        };
+    }
+
+    for (const [how, dismiss] of /** @type {Array<[string, (d: any) => void]>} */ ([
+        ['a tap on the backdrop', (d) => d.overlay.fire('click')],
+        ['Escape', (d) => d.escape()],
+        ['Android Back', () => pressBack()],
+    ])) {
+        test(`${how} resolves the caller's dismissResult — and false, a Cancel, when there is none`, async () => {
+            const asked = await open({ dismissResult: null });
+            dismiss(asked);
+            assert.equal(await asked.result(), null, `${how} answered the question — the unsaved-work offer read it as Discard`);
+            const plain = await open({});
+            dismiss(plain);
+            assert.equal(await plain.result(), false, 'every other confirmDialog still reads a dismissal as Cancel');
+        });
+    }
+
+    test('the buttons are answers whatever a dismissal resolves to: Cancel false, Confirm true', async () => {
+        const discard = await open({ dismissResult: null });
+        discard.cancel.fire('click');
+        assert.equal(await discard.result(), false, 'Discard must still delete — it is the explicit answer');
+        const restore = await open({ dismissResult: null });
+        restore.confirm.fire('click');
+        assert.equal(await restore.result(), true);
+    });
+
+    test('a second tap during the fade changes nothing — the first answer stands', async () => {
+        const flip = await open({}, { fade: true });
+        flip.cancel.fire('click');
+        flip.confirm.fire('click');                       // the card is still on screen, and tappable
+        await flip.settle();
+        assert.equal(await flip.result(), false, 'Cancel then Confirm resolved a cancelled dialog as confirmed');
+
+        let opens = 0;
+        const twice = await open({ onConfirm: () => { opens++; } }, { fade: true });
+        twice.confirm.fire('click');
+        twice.confirm.fire('click');
+        await twice.settle();
+        assert.equal(await twice.result(), true);
+        assert.equal(opens, 1, 'a double tap on "Open in Safari" opened two tabs');
+
+        const dismissed = await open({ dismissResult: null }, { fade: true });
+        dismissed.overlay.fire('click');
+        dismissed.confirm.fire('click');
+        await dismissed.settle();
+        assert.equal(await dismissed.result(), null, 'a button tapped after a dismissal answered a question nobody saw out');
+    });
+
+    // ON TOP OF WHATEVER IS SHOWING (routed from the pwa audit, 10 Nov 2026). A question can open over a
+    // layer above the lightbox base — a notification tap asks over whatever is up: the sign-in card, the
+    // picker sheet, a notice — and it painted BENEATH that layer while it held the keyboard. It opens one
+    // above the highest layer SHOWING (a shut sheet has no boxes, a surface put away is aria-hidden), and
+    // over the lightbox base it gains no style at all. The browser half: e2e/pages.spec.js, "asked over a
+    // higher layer".
+    test('it opens one above the highest layer showing, and over the lightbox base gains no style', async () => {
+        const card = () => layer({ z: '9000', modal: true });                        // the sign-in card: modal, not a lightbox
+        layers = [card()];
+        assert.equal((await open({})).overlay.style.zIndex, '9001', 'the question opened under the sign-in card');
+        layers = [layer({ z: '9100', lbOverlay: true }), card()];                    // a sheet, modal or not
+        assert.equal((await open({})).overlay.style.zIndex, '9101', 'the question opened under the open sheet');
+        layers = [layer({ z: '9100', lbOverlay: true, modal: true, shown: false }),  // a SHUT sheet
+            layer({ z: '9500', modal: true, ariaHidden: true }),                         // a surface put away
+            card()];
+        assert.equal((await open({})).overlay.style.zIndex, '9001', 'a layer that is not showing lifted the question above it');
+        layers = [layer({ z: '8000', lbOverlay: true, modal: true }), layer({ z: '7800', modal: true })];   // About, over the drawer
+        assert.equal((await open({})).overlay.style.zIndex, undefined, 'a question over the lightbox base gained a style it does not need');
     });
 });

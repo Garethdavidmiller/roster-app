@@ -10,11 +10,11 @@
  * coordinating the Calendar. `/new-notice` additions for index.html land HERE from now on.
  *
  * Everything here follows `.claude/skills/new-notice/` — the HTML template lives in index.html,
- * the rules table in CLAUDE.md ("Current notices"). Two rules worth restating because both were
- * shipped bugs once: a notice OPENS through `openNoticeIfClear`, never `open()` (two notices up,
- * one Escape flagged the buried one seen for good — v19.53); and it waits for
- * `calendarAccessReady` (on a locked Calendar it would cover the staff-PIN card, the one control
- * on the page — v20.12).
+ * the "Current notices" table in that skill (it moved there from CLAUDE.md on 7 Nov 2026). Two
+ * rules worth restating because both were shipped bugs once: a notice OPENS through
+ * `openNoticeIfClear`, never `open()` (two notices up, one Escape flagged the buried one seen for
+ * good — v19.53); and it waits for `calendarAccessReady` (on a locked Calendar it would cover the
+ * staff-PIN card, the one control on the page — v20.12).
  *
  * AND EVERY NOTICE DECLARES AN AUDIENCE (v21.81). `calendarAccessReady` resolves the moment access
  * is granted and says nothing about WHOSE it is, so both notices were opening on a PIN-unlocked
@@ -85,11 +85,21 @@ function _openWhenAudienceAllows(lb, audience, alsoWhen = () => true, whenDecide
     // Access first, then whatever the coordinator asked us to queue behind (v23.21: the forced
     // set-password overlay a front-door sign-in may put up — see calendar-app.js). `_after` never
     // rejects and never hangs (the coordinator bounds it), so this cannot silence a notice.
+    // The one audience question, asked at the decision AND again at the open (below).
+    const addressed = () => noticeAudienceAllows(audience, getAccessType());
     calendarAccessReady.then(() => _after).then(() => {
-        if (!noticeAudienceAllows(audience, getAccessType())) return;
+        if (!addressed()) return;
         if (!alsoWhen()) return;
         whenDecided();
-        setTimeout(() => openNoticeIfClear(lb), 1500);
+        // ASKED AGAIN AT THE OPEN (whole-app review, 10 Nov 2026). Access can be taken back inside
+        // the defer — a member granted on a cached answer and re-locked half a second later ("Calendar
+        // access has expired. Sign in again to carry on.") — and the lock cards set no scroll lock,
+        // so `openNoticeIfClear` would open the notice over the very card this module waits for
+        // access to keep it off. Refused here, it is refused like any other: not opened, not flagged.
+        setTimeout(() => {
+            if (!addressed()) return;
+            openNoticeIfClear(lb);
+        }, 1500);
     });
 }
 
@@ -176,8 +186,9 @@ export function initCalendarNotices({ after } = {}) {
 
         // 'members' — chosen while the Trains page signed people in, when its link would have led the
         // station PC only to a sign-in. The PIN has read Trains since v24.84; whether the station
-        // should be told too is the owner's open question (CLAUDE.md's notice table). A PIN unlock
-        // is not flagged seen, so the notice still arrives when that device is next signed in.
+        // should be told too was left to the owner (this notice's row is in the new-notice skill's
+        // "Current notices" table). A PIN unlock is not flagged seen, so the notice still arrives
+        // when that device is next signed in.
         _openWhenAudienceAllows(lb, 'members');
     }());
 
@@ -255,13 +266,14 @@ export function initCalendarNotices({ after } = {}) {
     // the first to ask for the screen takes it (openNoticeIfClear refuses a second, leaving it unflagged
     // for the next load). The time-critical reminder goes first; the install notice, which keeps for
     // 90 days, comes back the load after.
-    // ── The new timetable starts on Sunday: the final week's reminder (v24.94; owner, 23 Oct 2026) ──
+    // ── The new timetable starts on Sunday 13 December: the final week's reminder (v24.94; owner, 23 Oct 2026) ──
     //
     // The first timetable notice ended with October (OCTOBER_LAST_DAY), six weeks before the change,
     // and from then nothing in the app said the day was coming. This is offered from Sunday 6 December
     // to the end of Saturday the 12th, members only, a ONE-OFF on the same rule as the first — every
-    // dismissal marks it done. Its words name the weekend rather than "13 December" so it does not
-    // read as the October notice coming round again. A push goes out on the Saturday evening too
+    // dismissal marks it done. Its words NAME THE DATE, on every line (whole-app review, 10 Nov 2026):
+    // they named the weekend ("starts on Sunday", "This weekend"), and on Sunday the 6th — its first
+    // day — both meant the wrong one. A push goes out on the Saturday evening too
     // (functions/documents.js, sendTimetableReminder) — to the phones that have notifications on;
     // this reaches the Calendar, which everyone opens.
     //
@@ -290,7 +302,7 @@ export function initCalendarNotices({ after } = {}) {
             closeBtn: /** @type {HTMLElement} */ (document.getElementById('timetableSoonNoticeClose')),
             onOpen() {
                 archiveNotice({
-                    id: NOTICE_ID, title: 'The new timetable starts on Sunday', section: 'Trains',
+                    id: NOTICE_ID, title: 'The new timetable starts on Sunday 13 December', section: 'Trains',
                     date: NOTICE_DATE,
                     body: 'Chiltern’s new timetable starts on Sunday 13 December. The Trains page shows what '
                         + 'changes at every station, and the last trains — open it from the menu: ☰ then 🚆 Trains.',

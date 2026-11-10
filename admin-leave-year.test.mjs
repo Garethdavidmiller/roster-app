@@ -1,6 +1,6 @@
 /**
  * admin-leave-year.test.mjs — the Annual Leave card's "which year's allowance" panel (v25.18).
- * Run: node --test admin-leave-year.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs admin-leave-year.test.mjs   (part of `npm run test:hygiene`)
  *
  * The markup is pure, so what a reader is OFFERED is tested without a page: which button is pressed,
  * which is refused and why, and that the figures say what `alPosition` says. The wiring — that a tap

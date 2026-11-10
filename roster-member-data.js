@@ -23,6 +23,14 @@
 //   managerOnly    {boolean} Optional. true = management/clerk login; hidden from staff selector; appears in login dropdown under "Management" group
 //   permanentShift {string}  Optional. 'early' | 'late' — overrides badge colour on worked days,
 //                            suppresses shift time. Remove to restore normal roster display.
+//   bilingualContract {boolean} Optional. A CEA on a BILINGUAL CONTRACT: 34 days' leave, not 32. The
+//                            contract, never the line — a plain CEA is often on a bilingual line.
+//   startDate      {Date}    Optional. First day — `new Date(year, month-1, day)`, midnight, no time.
+//                            Every date before it reads RD.
+//   proRatedAL     {Object}  Optional. { <year>: days } — the joining year's leave, TRANSCRIBED from
+//                            the clerks' workbook, never calculated (/new-starter).
+//   noProRate      {boolean} Optional. A return on full-year terms: startDate still hides the days
+//                            before it, but pay and leave are the whole year's.
 //   rosterChanges  {Array}   Optional. Scheduled roster moves, e.g. a new starter on a
 //                            temporary fixed pattern who later joins a rotating link.
 //                            Each entry: { from: Date, rosterType, currentWeek }. From `from`
@@ -45,7 +53,9 @@ export const teamMembers = [
     // Temporary move to fixed pattern 2 (09:00–16:00 Mon–Fri) from Sun 28 Jun 2026 via
     // rosterChanges — base stays main wk10 until then, so she only leaves the link from
     // 28 Jun (vacating wk10, the slot after O. Mylla — taken by new starter K. Jedlinski).
-    // AL stays the standard CEA 32 (base rosterType 'main'). To revert: delete rosterChanges.
+    // AL stays the standard CEA 32 (her contract decides it, not the line). To END the move, ADD a
+    // `rosterChanges` entry dated from the day it ends, onto whichever line she takes (wk10 is K.
+    // Jedlinski's now). Never delete this one: that redraws every date since 28 Jun 2026 as wk10.
     { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA',
       rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'fixed', currentWeek: 2 }] },
     { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA' },
@@ -92,7 +102,7 @@ export const teamMembers = [
     // `proRatedAL: 13` is TRANSCRIBED from the clerk's workbook (`New Marylebone Totals` → `AL
     // allowance`, read 8 Sep 2026). A day-count agrees here by luck; re-read the book, never recompute.
     // LEFT by 6 Nov 2026 (owner) — his bilingual line, one above T. Gherbi, is a vacancy. Row kept,
-    // `hidden`, so his past shifts, leave and absences still resolve (the /leaver skill).
+    // `hidden`, so his past shifts and everything recorded on them still resolve (the /leaver skill).
     { name: 'I. Melikian',             currentWeek: 2,  rosterType: 'fixed',      role: 'CEA', hidden: true,
       startDate: new Date(2026, 7, 10), proRatedAL: { 2026: 13 },
       rosterChanges: [{ from: new Date(2026, 8, 13), rosterType: 'bilingual', currentWeek: 5 }] },
@@ -121,14 +131,13 @@ export const teamMembers = [
     { name: 'D. Minto',                currentWeek: 1,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'A. Targanov',             currentWeek: 2,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'S. Warman',               currentWeek: 3,  rosterType: 'dispatcher', role: 'Dispatcher', hidden: true }, // left 10 Sep 2026 — Dispatcher week-3 line is a vacancy. Row kept so his past shifts, overrides and any frozen Overtime week still resolve
-    // S. Faure — comes OFF the rotating link from Mon 29 Jun 2026. On that
-    // date (B. Toth took line 4) and onto her own Mon–Fri row: `fixedRoster[2]`, 09:00–16:00, the
-    // 35 contracted hours a week she is credited with, weekends RD. The base fields still describe
-    // her BEFORE 29 Jun, so every shift she actually worked up to then still displays correctly.
-    // Any absence is override data (🪑 Absent, Mon–Fri) — this only decides what such
-    // overrides sit on, and what her weekends read. (The REASON is never recorded here — GDPR.)
-    // NOTE she shares `fixedRoster[2]` with S. Boyle and K. Jedlinski: change those hours and you
-    // change hers.
+    // S. Faure — moves off the rotating Dispatcher link on Mon 29 Jun 2026, through rosterChanges, onto
+    // a Mon–Fri row: `fixedRoster[2]`, 09:00–16:00, weekends RD (B. Toth took her line 4). The base
+    // fields describe her line BEFORE 29 Jun, so the weeks before then still display as rostered. To
+    // end the move, ADD a `rosterChanges` entry dated from the change; deleting this one would redraw
+    // every date since 29 Jun 2026.
+    // NOTE `fixedRoster[2]` is shared — S. Boyle is on it too, and it drew several starters' first
+    // weeks: change those hours and you change all of theirs.
     { name: 'S. Faure',                currentWeek: 4,  rosterType: 'dispatcher', role: 'Dispatcher',
       rosterChanges: [{ from: new Date(2026, 5, 29), rosterType: 'fixed', currentWeek: 2 }] },
     { name: 'L. Szpejer',              currentWeek: 5,  rosterType: 'dispatcher', role: 'Dispatcher' },
@@ -164,8 +173,11 @@ export const teamMembers = [
     // than before her start), and the figure below would be the same.
     // ⚠️ `proRatedAL: 5` is PROVISIONAL — a day-count (88 of 365 days × 22 = 5.3), entered on the
     // owner's word ("pro-rata her leave until I get it from the workbook", 8 Nov 2026). REPLACE it
-    // with the workbook's `AL allowance`. It replaces only the 22-day BASE: lieu days for bank
-    // holidays worked are still added on top by getALEntitlement.
+    // with the workbook's `AL allowance` before the year ends, reading docs/AL_WORKBOOK.md §5 first:
+    // for a joiner that column can hold the full grade figure. The January carry-back already caps a
+    // day moved back by 2026's remaining days. Booked as a dated row in docs/MAINTENANCE_CALENDAR.md,
+    // because a comment reminds nobody. It replaces only the 22-day BASE: lieu days for bank holidays
+    // worked are still added on top by getALEntitlement.
     { name: 'J. Bangi',                currentWeek: 3,  rosterType: 'fixed',      role: 'Dispatcher',
       startDate: new Date(2026, 9, 5), proRatedAL: { 2026: 5 },
       rosterChanges: [{ from: new Date(2026, 10, 8), rosterType: 'dispatcher', currentWeek: 3 }] },
@@ -174,10 +186,12 @@ export const teamMembers = [
     { name: 'F. Mohamed',              currentWeek: 1,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Lloyd',                currentWeek: 2,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Prashanthan',          currentWeek: 3,  rosterType: 'ces',        role: 'CES' },
-    // On the CES rotation from his 9 Jun 2026 start (currentWeek:5 anchors him from the
-    // 15 Feb CES reference so July lands on week 5).
+    // On the CES rotation from his 9 Jun 2026 start, on the line that was vacant until then — the
+    // `currentWeek: 4` the vacant row carried, REFERENCE-ANCHORED (.claude/rules/roster-data.md). It
+    // was 5 until 10 Nov 2026, chosen because 5 DISPLAYED week 4 on 1 Jul; but 5 is G. Rotaru's
+    // anchor, so the two rows drew the same turns every week while the real vacancy stayed empty.
     // noProRate: pay and AL are full-year (CES 34) despite the mid-year startDate.
-    { name: 'B. Khalil',               currentWeek: 5,  rosterType: 'ces',        role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true, hidden: true }, // left Sep 2026; CES week-5 line is a vacancy. Row kept so his past shifts and overrides still resolve
+    { name: 'B. Khalil',               currentWeek: 4,  rosterType: 'ces',        role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true, hidden: true }, // left Sep 2026; his line (currentWeek 4) is the CES vacancy. Row kept so his past shifts and overrides still resolve
     { name: 'G. Rotaru',               currentWeek: 5,  rosterType: 'ces',        role: 'CES' },
     { name: 'L. Webster',              currentWeek: 6,  rosterType: 'ces',        role: 'CES' },
     { name: 'Z. Lewis',                currentWeek: 7,  rosterType: 'ces',        role: 'CES' },

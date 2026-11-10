@@ -9,7 +9,7 @@
  *   assert the WRAPPERS delegate to it correctly (compared against the real functions, not magic
  *   numbers, so award/pension figure changes don't churn this file).
  *
- * Run: node --experimental-test-module-mocks --test paycalc-settings.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-settings.test.mjs
  * Mock strategy mirrors paycalc-periods.test.mjs (firebase-client / session / ls / roster-data /
  * roster-suggestions stubbed; paycalc-calc + paycalc-migrations are REAL).
  */
@@ -38,7 +38,7 @@ mock.module('./session.js', {
         AUTH_KEY: 'myb_admin_session', SESSION_MS: 1,
         getSession: () => _session, saveSession: () => {}, clearSession: async () => {},
         ensureFirebaseSession: async () => {}, sessionReady: Promise.resolve(),
-        resolveSession: () => {}, getSurname: () => '',
+        resolveSession: () => {},
     },
 });
 mock.module('./ls.js', {
@@ -103,6 +103,42 @@ describe('getStoredRateForYear — delegates to awardRatesFor, with the grade de
     });
     test('a year NOT on record falls back to the grade default rate (no throw)', () => {
         assert.equal(getStoredRateForYear({ label: '2099/00' }), GRADES.cea.rate);
+    });
+
+    test('a stale rate left in storage is never read (invariant 8; contracts-b-6)', () => {
+        // The legacy `rate`/`rates` keys still sit on devices that had them. Read "as a fallback" by a
+        // later edit, they would price a member at a pre-award rate — the failure class invariant 8
+        // exists to end, and every case above runs with them absent, so none of them would notice.
+        _ls.set(SK.rate, '19.99');
+        _ls.set(SK.rates, JSON.stringify({ '2025/26': 19.99, '2026/27': 19.99 }));
+        try {
+            assert.equal(getStoredRateForYear({ label: '2026/27' }), awardRatesFor('cea', '2026/27').rate);
+            assert.equal(getStoredRateForYear({ label: '2025/26' }), awardRatesFor('cea', '2025/26').rate);
+            assert.equal(getStoredRateForYear({ label: '2099/00' }), GRADES.cea.rate);
+        } finally {
+            _ls.delete(SK.rate);
+            _ls.delete(SK.rates);
+        }
+    });
+});
+
+// ── NO MEMBER-LEVEL PENSION IS STORED (paycalc-3-15) ─────────────────────────────────────────────
+// `SK.pension` was written on every settings keystroke and read only into a field that the payslip's
+// own paint replaced in the same start-up — no figure ever came from it, but every backup carried it,
+// and the rules file described it as the default later payslips inherit. Each payslip keeps its own
+// figure; one with none takes its period default.
+describe('saveSettings stores no member-level pension', () => {
+    test('a save writes nothing under the retired pension key', async () => {
+        const { saveSettings } = await import('./paycalc-settings.js');
+        beNobody();
+        _ls.clear(); _ls.set(SK.grade, 'cea');
+        const els = /** @type {Record<string, any>} */ ({});
+        global.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => (els[id] ??= { value: '', checked: false }) });
+        els.periodSelect = { value: String(getPeriods()[20].num) };
+        els.gradeSelect = { value: 'cea' };
+        els.pensionAmt = { value: '0.00' };
+        saveSettings();
+        assert.equal(_ls.get(SK.pension), undefined, 'a member-level pension default was written');
     });
 });
 
@@ -528,5 +564,352 @@ describe('confirmSettings — the pension it writes into the viewed payslip obey
         assert.equal(await saveWithPension(p, '0'), 0);
         assert.equal(await saveWithPension(p, ''), null, 'blank → the default, never £0');
         assert.equal(await saveWithPension(p, 'abc'), null, 'garbage → the default, never £0');
+    });
+});
+
+// ── A FAKE SETTINGS CARD, FOR THE BLOCKS BELOW THAT DRIVE loadSettings / saveSettings ─────────────
+//
+// A <select> with the two HTML rules these depend on: setting `.value` to a value no option carries
+// selects NOTHING (value '' and selectedIndex -1), and a dropdown that gains options while nothing
+// has been chosen shows its first one. Everything else is the plain input the module reads.
+const classes = () => {
+    const s = new Set();
+    return {
+        add: (/** @type {string} */ x) => s.add(x), remove: (/** @type {string} */ x) => s.delete(x),
+        contains: (/** @type {string} */ x) => s.has(x),
+        toggle(/** @type {string} */ x, /** @type {boolean} [on] */ on) { (on === undefined ? !s.has(x) : on) ? s.add(x) : s.delete(x); return s.has(x); },
+    };
+};
+const fakeOption = (/** @type {string} */ value = '', /** @type {string} */ text = '') =>
+    ({ tagName: 'OPTION', value, textContent: text, disabled: false });
+const fakeOptgroup = () => ({ tagName: 'OPTGROUP', label: '', /** @type {any[]} */ children: [],
+    appendChild(/** @type {any} */ c) { this.children.push(c); return c; } });
+function fakeSelect() {
+    /** @type {any} */ const sel = {
+        tagName: 'SELECT', /** @type {any[]} */ children: [], classList: classes(),
+        _chosen: /** @type {any} */ (null), _cleared: false,
+        get options() { return this.children.flatMap((/** @type {any} */ c) => c.tagName === 'OPTGROUP' ? c.children : [c]); },
+        get selectedIndex() {
+            const opts = this.options;
+            if (this._chosen && opts.includes(this._chosen)) return opts.indexOf(this._chosen);
+            return this._cleared || !opts.length ? -1 : 0;
+        },
+        get value() { const i = this.selectedIndex; return i === -1 ? '' : this.options[i].value; },
+        set value(v) {
+            this._chosen = this.options.find((/** @type {any} */ o) => o.value === String(v)) ?? null;
+            this._cleared = !this._chosen;
+        },
+        set innerHTML(_v) { this.children = []; this._chosen = null; this._cleared = false; },
+        get innerHTML() { return ''; },
+        appendChild(/** @type {any} */ c) { this.children.push(c); this._cleared = false; return c; },
+        insertBefore(/** @type {any} */ c, /** @type {any} */ ref) {
+            const nodes = c.nodeType === 11 ? c.children.splice(0) : [c];   // a fragment moves its children
+            const i = ref ? this.children.indexOf(ref) : -1;
+            if (i === -1) this.children.push(...nodes); else this.children.splice(i, 0, ...nodes);
+            this._cleared = false;
+            return c;
+        },
+        querySelector(/** @type {string} */ q) {
+            return q === 'optgroup' ? (this.children.find((/** @type {any} */ c) => c.tagName === 'OPTGROUP') ?? null) : null;
+        },
+        /** @type {Record<string, Function[]>} */ listeners: {},
+        addEventListener(/** @type {string} */ t, /** @type {Function} */ f) { (this.listeners[t] ||= []).push(f); },
+        fire(/** @type {string} */ t) { for (const f of this.listeners[t] || []) f({ target: this }); },
+    };
+    return sel;
+}
+/** An <input>: `value` is always a string, as the page's is. */
+const fakeInput = () => {
+    let v = '';
+    /** @type {any} */ const el = { checked: false, disabled: false, textContent: '', classList: classes(),
+        get value() { return v; }, set value(x) { v = String(x); },
+        closest: () => null, setAttribute() {}, focus() {}, querySelector: () => null, style: {},
+        /** @type {Record<string, Function[]>} */ listeners: {},
+        addEventListener(/** @type {string} */ t, /** @type {Function} */ f) { (this.listeners[t] ||= []).push(f); },
+        fire(/** @type {string} */ t) { for (const f of this.listeners[t] || []) f({ target: this }); } };
+    return el;
+};
+/** @type {Record<string, any>} */ let card = {};
+/**
+ * The Settings card as the coordinator leaves it before loadSettings: the loan stop's static
+ * "No — still deducted" option, then one group per tax year of the payslips the member can see.
+ */
+async function settingsCard(/** @type {number} */ viewing) {
+    const { appendPayslipOptions, visiblePeriods } = await import('./paycalc-periods.js');
+    card = {};
+    global.document = /** @type {any} */ ({
+        getElementById: (/** @type {string} */ id) => (card[id] ??= fakeInput()),
+        createElement: (/** @type {string} */ tag) => tag === 'optgroup' ? fakeOptgroup() : fakeOption(),
+        createDocumentFragment: () => ({ nodeType: 11, /** @type {any[]} */ children: [],
+            appendChild(/** @type {any} */ c) { this.children.push(c); return c; } }),
+        activeElement: null,
+    });
+    card.periodSelect = fakeInput(); card.periodSelect.value = String(viewing);
+    card.gradeSelect = fakeInput(); card.gradeSelect.value = 'cea';
+    card.taxCode = fakeInput(); card.taxCode.value = '1257L';
+    card.studentLoan = fakeInput(); card.studentLoan.value = 'plan2';
+    card.pensionOptOutFrom = fakeSelect();
+    card.slPaidOffFrom = fakeSelect();
+    card.slPaidOffFrom.appendChild(fakeOption('', 'No — still deducted'));
+    appendPayslipOptions(card.slPaidOffFrom, visiblePeriods());
+}
+const chosenText = (/** @type {any} */ sel) => String(sel.options[sel.selectedIndex]?.textContent ?? '');
+
+// ── A PAYSLIP ON RECORD THAT THE LIST NO LONGER OFFERS (paycalc-3-8) ─────────────────────────────
+//
+// The pension opt-out start and the student-loan stop each name ONE payslip, picked from a list of
+// the payslips the member can see. A select set to a value none of its options carries selects
+// NOTHING, and that blank used to be read and saved as an answer: `calculate()` read the loan stop
+// as "still deducted", the next save erased it, and the same save MOVED the opt-out start to the
+// payslip on screen — so every payslip in between got its pension deduction back. Nothing said so.
+//
+// The list gets shorter in two real ways, and both are here: a start date added after the choice
+// was made (the new-starter clamp hides the earlier tax year), and a tax year dropped from the grid
+// at a rollover (the period is no longer generated at all).
+describe('a payslip on record that the list no longer offers is kept (paycalc-3-8)', () => {
+    /** A member who joined in 2026/27, so the lists start at that year's first payslip. */
+    const JOINER = { startDate: new Date(2026, 5, 15) };
+    /** @type {any} */ let P = null;
+    /** @type {any} */ let S = null;
+    before(async () => { P = await import('./paycalc-periods.js'); S = await import('./paycalc-settings.js'); });
+    beforeEach(() => {
+        beNobody();
+        _ls.clear(); _ls.set(SK.grade, 'cea'); _ls.set(SK.setup, '1'); _ls.set(SK.sl, 'plan2');
+    });
+    afterEach(() => { P.setEarliestVisiblePeriod(null); });
+
+    test('a loan stop dated before the list starts is shown, read and kept', async () => {
+        P.setEarliestVisiblePeriod(JOINER);
+        const RECORDED = P.visiblePeriods()[0].num - 3;
+        assert.ok(getPeriods().some((/** @type {any} */ p) => p.num === RECORDED), 'premise: the grid still has that payslip');
+        _ls.set(SK.slPaidOff, String(RECORDED));
+        await settingsCard(P.todaysPeriodNum());
+        S.loadSettings();
+        assert.equal(card.slPaidOffFrom.value, String(RECORDED),
+            'the control came up blank — and calculate() reads a blank loan stop as "still deducted"');
+        assert.match(chosenText(card.slPaidOffFrom), /^Paid \d{1,2} \w{3} \d{4} · P\d+$/, 'named the way every payslip list names one');
+        S.saveSettings();                    // one keystroke in the tax code box
+        assert.equal(_ls.get(SK.slPaidOff), String(RECORDED), 'the next save erased the stop');
+    });
+
+    test('a pension opt-out dated before the list starts stays where it began', async () => {
+        P.setEarliestVisiblePeriod(JOINER);
+        const RECORDED = P.visiblePeriods()[0].num - 3;
+        const timeline = JSON.stringify([{ from: RECORDED, out: true }]);
+        _ls.set(SK.pensionTimeline, timeline);
+        await settingsCard(P.todaysPeriodNum());
+        S.loadSettings();
+        assert.equal(card.pensionOptOutCheck.checked, true, 'premise: still out of the scheme');
+        assert.equal(card.pensionOptOutFrom.value, String(RECORDED), 'the control came up blank');
+        S.saveSettings();
+        assert.equal(_ls.get(SK.pensionTimeline), timeline,
+            'the save MOVED the opt-out to the payslip on screen — every payslip between the two got its deduction back');
+    });
+
+    test('a payslip the grid no longer generates at all is kept too, and labelled without a guess', async () => {
+        const GONE = 48 + PERIOD_CONFIG.FIRST_OFFSET - 5;     // a tax year dropped at a rollover
+        assert.ok(!getPeriods().some((/** @type {any} */ p) => p.num === GONE), 'premise: no such period in the grid');
+        const timeline = JSON.stringify([{ from: GONE, out: true }]);
+        _ls.set(SK.slPaidOff, String(GONE));
+        _ls.set(SK.pensionTimeline, timeline);
+        await settingsCard(P.todaysPeriodNum());
+        S.loadSettings();
+        assert.equal(card.slPaidOffFrom.value, String(GONE));
+        assert.equal(card.pensionOptOutFrom.value, String(GONE));
+        assert.equal(chosenText(card.slPaidOffFrom), 'An earlier payslip, before this list starts');
+        S.saveSettings();
+        assert.equal(_ls.get(SK.slPaidOff), String(GONE));
+        assert.equal(_ls.get(SK.pensionTimeline), timeline);
+    });
+
+    test('a select with nothing chosen never overwrites what is on record', async () => {
+        // The second line of defence: whatever leaves a select holding nothing, a save must not write
+        // that nothing over a recorded payslip. Built by hand, so loadSettings cannot repair it first.
+        const RECORDED = P.todaysPeriodNum() - 4;
+        const timeline = JSON.stringify([{ from: RECORDED, out: true }]);
+        _ls.set(SK.slPaidOff, String(RECORDED));
+        _ls.set(SK.pensionTimeline, timeline);
+        await settingsCard(P.todaysPeriodNum());
+        P.appendPayslipOptions(card.pensionOptOutFrom, P.visiblePeriods());
+        card.pensionOptOutCheck = fakeInput(); card.pensionOptOutCheck.checked = true;
+        card.pensionOptOutFrom.value = 'none of these';
+        card.slPaidOffFrom.value = 'none of these';
+        assert.equal(card.slPaidOffFrom.selectedIndex, -1, 'premise: nothing is selected');
+        S.saveSettings();
+        assert.equal(_ls.get(SK.slPaidOff), String(RECORDED), 'a blank select erased the loan stop');
+        assert.equal(_ls.get(SK.pensionTimeline), timeline, 'a blank select moved the opt-out start');
+    });
+
+    test('CONTROL: a payslip the member PICKS is still saved, and "No — still deducted" still clears', async () => {
+        const RECORDED = P.todaysPeriodNum() - 4;
+        _ls.set(SK.slPaidOff, String(RECORDED));
+        _ls.set(SK.pensionTimeline, JSON.stringify([{ from: RECORDED, out: true }]));
+        await settingsCard(P.todaysPeriodNum());
+        S.loadSettings();
+        card.pensionOptOutFrom.value = String(RECORDED + 1);
+        card.slPaidOffFrom.value = String(RECORDED + 2);
+        S.saveSettings();
+        assert.equal(_ls.get(SK.slPaidOff), String(RECORDED + 2));
+        assert.equal(_ls.get(SK.pensionTimeline), JSON.stringify([{ from: RECORDED + 1, out: true }]));
+        card.slPaidOffFrom.value = '';
+        S.saveSettings();
+        assert.equal(_ls.get(SK.slPaidOff), '', '"No — still deducted" must still clear the stop');
+    });
+});
+
+// ── A ONE-TIME LEGACY MIGRATION RUNS FOR LEGACY DATA ONLY (paycalc-3-16) ────────────────────────
+// Two steps in loadSettings call themselves one-time legacy migrations and did not ask whether the
+// data in front of them was legacy. (1) The per-year setup stamp ran for EVERY member on their second
+// load, marking every tax year in the table confirmed — so a 2026/27 joiner's backup claimed "Tax
+// years 2025/26 and 2026/27", and nobody was ever asked to check their settings for a year they had
+// not set up. (2) The retired opt-out flag was dated from the first payslip of TODAY's tax year; it
+// could only ever have been set in 2026/27, and from the 2027/28 rollover "today" would have put a
+// pension deduction back on the 2026/27 payslips the member was out of the scheme for.
+describe('the one-time legacy migrations run for legacy data only (paycalc-3-16)', () => {
+    /** @type {any} */ let P = null;
+    /** @type {any} */ let S = null;
+    before(async () => { P = await import('./paycalc-periods.js'); S = await import('./paycalc-settings.js'); });
+    beforeEach(() => { beNobody(); _ls.clear(); _ls.set(SK.grade, 'cea'); _ls.set(SK.setup, '1'); });
+    const Y = (/** @type {string} */ label) => ({ label });
+    const MIGRATED = () => `${SK.setup}_years_migrated`;
+
+    test('a member who confirmed one tax year is not stamped confirmed for the others', async () => {
+        _ls.set(S.settingsKey(Y('2026/27')), '1');                   // what Save settings writes
+        await settingsCard(P.todaysPeriodNum());
+        S.loadSettings();
+        assert.equal(_ls.get(S.settingsKey(Y('2025/26'))), undefined, 'a year never set up was stamped confirmed');
+        assert.equal(_ls.get(MIGRATED()), '1', 'the step is still recorded as done, so it never runs again');
+    });
+
+    test('CONTROL: a member from before per-year tracking still has every year confirmed', async () => {
+        await settingsCard(P.todaysPeriodNum());                     // `setup`, and no per-year flag at all
+        S.loadSettings();
+        for (const ty of PERIOD_CONFIG.TAX_YEARS) assert.equal(_ls.get(S.settingsKey(ty)), '1', ty.label);
+    });
+
+    test('the retired opt-out flag is dated to 2026/27, whatever the clock says', async () => {
+        const ty = PERIOD_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2026/27');
+        const first2627 = 48 + ty.first;
+        _ls.set(SK.pensionOptOut, '1');
+        mock.timers.enable({ apis: ['Date'], now: new Date(2026, 0, 15) });   // a clock in another tax year
+        try {
+            assert.notEqual(P.todaysPeriodNum() - 48 >= ty.first, true, 'premise: "today" is outside 2026/27');
+            await settingsCard(P.todaysPeriodNum());
+            S.loadSettings();
+        } finally { mock.timers.reset(); }
+        assert.equal(_ls.get(SK.pensionTimeline), JSON.stringify([{ from: first2627, out: true }]),
+            'the flag was dated by the clock, not by the one tax year it can have been set in');
+    });
+});
+
+// ── THE PENSION CONTROLS NEVER WIPE A PAYSLIP'S OWN FIGURE (paycalc-3-3) ─────────────────────────
+//
+// A member whose contribution differs from the scheme's has typed their own figure on the payslip on
+// screen. Ticking "not in the pension scheme" by mistake and unticking it, or correcting the opt-out
+// date while looking at an earlier payslip she was still paying into, used to replace that figure
+// with the scheme default — in the box AND in storage, with no message. The guide promises the
+// opposite: "Everything before it keeps the pension it was actually paid with". A figure inside an
+// opt-out spell lies dormant behind the lock (priced at £0 by every surface), as every OTHER payslip
+// in the spell already does. `persist` below is the coordinator's `persistSetting(['pension'])`,
+// built from the REAL form-data functions it uses.
+describe('the pension controls keep a payslip\'s own figure (paycalc-3-3)', () => {
+    /** @type {any} */ let P = null;
+    /** @type {any} */ let S = null;
+    /** @type {any} */ let F = null;
+    before(async () => {
+        P = await import('./paycalc-periods.js');
+        S = await import('./paycalc-settings.js');
+        F = await import('./paycalc-form-data.js');
+    });
+    beforeEach(() => { beNobody(); _ls.clear(); _ls.set(SK.grade, 'cea'); _ls.set(SK.setup, '1'); });
+
+    const persist = () => {
+        const pNum = Number(card.periodSelect.value);
+        const p = getPeriods().find((/** @type {any} */ x) => x.num === pNum);
+        const w = F.settingFieldsWrite(_ls.get(periodKey(pNum)) ?? null,
+            F.readFormData({ adjNegative: false, periodDefaultPension: p ? S.periodDefaultPension(p) : null }), ['pension']);
+        if (w) _ls.set(periodKey(pNum), w);
+    };
+    /** Open payslip `pNum` holding `blob` the way loadPeriodData paints it, with the controls wired. */
+    async function open(/** @type {number} */ pNum, /** @type {any} */ blob) {
+        _ls.set(periodKey(pNum), JSON.stringify(blob));
+        await settingsCard(pNum);
+        S.loadSettings();
+        const p = getPeriods().find((/** @type {any} */ x) => x.num === pNum);
+        card.pensionAmt.value = blob.pension != null ? blob.pension : S.periodDefaultPension(p).toFixed(2);
+        S.applyPensionOptOutUI(p);
+        S.wirePensionControls({ autosave: persist });
+    }
+    const storedPension = (/** @type {number} */ pNum) => JSON.parse(String(_ls.get(periodKey(pNum)))).pension;
+
+    test('ticking "not in the scheme" by mistake and unticking it gives the payslip its figure back', async () => {
+        const V = P.todaysPeriodNum();
+        await open(V, { otH: 4, otM: 0, pension: 50 });
+        card.pensionOptOutCheck.checked = true; card.pensionOptOutCheck.fire('change');
+        assert.equal(card.pensionAmt.value, '0.00', 'premise: the lock shows £0.00');
+        assert.equal(card.pensionAmt.disabled, true);
+        assert.equal(storedPension(V), 50, 'the tick wrote the lock\'s £0.00 over the payslip\'s own figure');
+        card.pensionOptOutCheck.checked = false; card.pensionOptOutCheck.fire('change');
+        assert.equal(card.pensionAmt.value, '50', 'the untick painted the scheme default over her own figure');
+        assert.equal(storedPension(V), 50);
+    });
+
+    test('correcting the opt-out date while viewing an earlier payslip leaves its figure alone', async () => {
+        const V = P.todaysPeriodNum() - 4;
+        _ls.set(SK.pensionTimeline, JSON.stringify([{ from: V + 2, out: true }]));
+        await open(V, { otH: 4, otM: 0, pension: 50 });
+        assert.equal(card.pensionAmt.disabled, false, 'premise: she was still paying in on this payslip');
+        card.pensionOptOutFrom.value = String(V + 3); card.pensionOptOutFrom.fire('change');
+        assert.equal(card.pensionAmt.value, '50', 'a payslip the correction never touched lost its figure');
+        assert.equal(storedPension(V), 50);
+    });
+
+    test('CONTROL: a payslip holding no figure of its own still gets the scheme figure back on untick', async () => {
+        const V = P.todaysPeriodNum();
+        await open(V, { otH: 4, otM: 0 });
+        const def = S.periodDefaultPension(getPeriods().find((/** @type {any} */ x) => x.num === V)).toFixed(2);
+        card.pensionOptOutCheck.checked = true; card.pensionOptOutCheck.fire('change');
+        assert.equal(card.pensionAmt.value, '0.00');
+        card.pensionOptOutCheck.checked = false; card.pensionOptOutCheck.fire('change');
+        assert.equal(card.pensionAmt.value, def, 'a frozen £0.00 left behind would save as a real opt-out');
+        assert.equal(storedPension(V), null, 'the scheme default is stored as null, so it keeps following the table');
+    });
+});
+
+// ── A REFUSED START IS NOT LEFT ON SCREEN (paycalc-1-10; whole-app check, 10 Nov 2026) ───────────
+// A start moved at or before an earlier rejoin is refused — a spell that has already ENDED is left
+// alone (`withOptOutStartAt`). The date's change handler saved, nothing moved, and the select went on
+// naming the payslip it had just refused, while every figure used the start on record until a reload.
+describe('the opt-out date shows the start on record after a refused correction (paycalc-1-10)', () => {
+    /** @type {any} */ let P = null;
+    /** @type {any} */ let S = null;
+    before(async () => { P = await import('./paycalc-periods.js'); S = await import('./paycalc-settings.js'); });
+    beforeEach(() => { beNobody(); _ls.clear(); _ls.set(SK.grade, 'cea'); _ls.set(SK.setup, '1'); });
+
+    /** Out from V−6, back in from V−4, out again from V−2: viewing V, with the controls wired. */
+    async function twoSpells() {
+        const V = P.todaysPeriodNum();
+        const timeline = JSON.stringify([{ from: V - 6, out: true }, { from: V - 4, out: false }, { from: V - 2, out: true }]);
+        _ls.set(SK.pensionTimeline, timeline);
+        await settingsCard(V);
+        S.loadSettings();
+        S.wirePensionControls({ autosave: () => {} });
+        return { V, timeline };
+    }
+
+    test('a start moved into the spell that already ended is refused, and the control shows the start on record', async () => {
+        const { V, timeline } = await twoSpells();
+        assert.equal(card.pensionOptOutFrom.value, String(V - 2), 'premise: the control opens on the current spell\'s start');
+        card.pensionOptOutFrom.value = String(V - 5); card.pensionOptOutFrom.fire('change');
+        assert.equal(_ls.get(SK.pensionTimeline), timeline, 'premise: the refused start moved nothing');
+        assert.equal(card.pensionOptOutFrom.value, String(V - 2), 'the control went on naming the payslip it had just refused');
+    });
+
+    test('CONTROL: a start moved later than the rejoin is kept, and shown', async () => {
+        const { V } = await twoSpells();
+        card.pensionOptOutFrom.value = String(V - 1); card.pensionOptOutFrom.fire('change');
+        assert.equal(_ls.get(SK.pensionTimeline),
+            JSON.stringify([{ from: V - 6, out: true }, { from: V - 4, out: false }, { from: V - 1, out: true }]));
+        assert.equal(card.pensionOptOutFrom.value, String(V - 1));
     });
 });

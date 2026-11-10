@@ -1,6 +1,6 @@
 /**
  * links-fatigue.test.mjs — the ORR p3 fatigue factors, assessed against a link design.
- * Run: node --test links-fatigue.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-fatigue.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THE WEIGHTING HERE. This module's output goes in front of a manager assessing a roster
  * proposal for fatigue. The dangerous failure is not a wrong number — it is a design that shows NO
@@ -145,6 +145,20 @@ describe('earlyBlocksWithShortRecovery (FF8b)', () => {
     test('a SINGLE early start is not a block — counting it would fire on nearly every design', () => {
         const d = design([EARLY, RD, LATE, LATE, LATE, RD, RD]);
         assert.deepEqual(earlyBlocksWithShortRecovery(toSequence(d, 1)), []);
+    });
+    test('the row describes ONE real block — the fewest rest days after it, then the longest', () => {
+        // Five earlies then one rest day on line 1; two earlies then a late on line 2. The detail
+        // took the 5 from one and the 0 from the other: "a block of 5 early starts followed by 0 rest
+        // day(s)", a block the design does not contain (whole-app review, Nov 2026).
+        const d = design([EARLY, EARLY, EARLY, EARLY, EARLY, RD, LATE], [EARLY, EARLY, LATE, RD, RD, RD, RD]);
+        const blocks = earlyBlocksWithShortRecovery(toSequence(d, 2)).map(b => `${b.blockLength}/${b.restDays}`).sort();
+        assert.deepEqual(blocks, ['2/0', '5/1'], 'premise: the two real blocks');
+        const row = assessFatigue(d, 2).results.find(r => r.code === 'FF8b');
+        assert.equal(row?.detail, 'Worst: a block of 2 early starts from line 2 Sunday, followed by no rest day.');
+        // On a tie in rest days, the longer block is the worse one.
+        const tie = design([EARLY, EARLY, EARLY, RD, LATE, LATE, LATE], [EARLY, EARLY, RD, LATE, LATE, RD, RD]);
+        const tieRow = assessFatigue(tie, 2).results.find(r => r.code === 'FF8b');
+        assert.match(tieRow?.detail ?? '', /^Worst: a block of 3 early starts from line 1 Sunday, followed by 1 rest day\.$/);
     });
 });
 

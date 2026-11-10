@@ -1,6 +1,6 @@
 /**
  * overtime-format.test.mjs — the client's words and its clock.
- * Run with: node --test overtime-format.test.mjs   (no mocks; part of test:hygiene)
+ * Run with: node scripts/run-tests.mjs overtime-format.test.mjs   (no mocks; part of test:hygiene)
  *
  * Two things are under test and only one of them looks important.
  *
@@ -18,13 +18,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
-    shortDate, longDate, weekLabel, weekSpan, printedLabel, rowStateCopy, rosterBadge,
+    shortDate, longDate, weekLabel, weekSpan, weekDates, printedLabel, rowStateCopy, rosterBadge,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, isAvailableAnswer,
-    weekSummary, asAtLine,
+    asAtLine,
     modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, receiptLine,
     declaredAgo, deriveHistory,
     dayUnfinished, unfinishedDates, reconcileVerdict, conflictIsOurs,
-    weekAvailabilitySummary, reminderLine,
+    weekAvailabilitySummary, reminderLine, putBackWindow, canRestoreNow, writeOutcomeUnknown,
 } from './overtime-format.js';
 // WHERE THE WEEK STANDS lives in overtime-phase.js since v23.84 (extracted at the ratchet). Imported
 // from where it is defined, not through overtime-format.js's re-export, so the module is named by
@@ -457,21 +457,6 @@ describe('isAvailableAnswer — the predicate a clerk rings people from', () => 
     });
 });
 
-describe('week summaries', () => {
-    const week = (...modes) => Object.fromEntries(modes.map((m, i) => [`d${i}`, { mode: m }]));
-
-    test('all, none and some each read differently', () => {
-        assert.equal(weekSummary(week('all_day', 'all_day')), 'Available on every day');
-        assert.equal(weekSummary(week('unavailable', 'unavailable')), 'Not available on any day');
-        assert.equal(weekSummary(week('all_day', 'unavailable', 'after')), 'Available on 2 of 3 days');
-    });
-
-    test('an empty week says so rather than claiming nobody is available', () => {
-        assert.equal(weekSummary({}), 'No answers');
-        assert.equal(weekSummary(null), 'No answers');
-    });
-});
-
 describe('dates and deadlines', () => {
     test('dates are named the way staff name them', () => {
         assert.equal(shortDate('2026-09-05'), 'Sat 5 Sep');
@@ -522,6 +507,14 @@ describe('dates and deadlines', () => {
     test('a missing print stamp renders as nothing rather than as 1970', () => {
         assert.equal(printedLabel(0), '');
         assert.equal(printedLabel(undefined), '');
+    });
+
+    test('a roster week is its seven dates, Sunday to Saturday, across a month, a year and a clock change', () => {
+        // One copy now, for the form and the reviewer both (overtime-ui-17); the server's is authoritative.
+        assert.deepEqual(weekDates('2026-08-30'),
+            ['2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05']);
+        assert.deepEqual(weekDates('2026-12-27').slice(-2), ['2027-01-01', '2027-01-02']);
+        assert.deepEqual(weekDates('2026-10-25').slice(0, 2), ['2026-10-25', '2026-10-26'], 'the October clock change moves no date');
     });
 
     test('month and year boundaries do not shift the day name', () => {
@@ -682,6 +675,7 @@ describe('states in words', () => {
             'not-created':                'warn',
             'not-created-overdue':        'bad',
             'not-created-initial-passed': 'bad',
+            'not-created-beyond-roster':  'bad',
             'missed':                     'bad',
         };
         assert.deepEqual([...ROW_STATES].sort(), Object.keys(TONES).sort(),
@@ -704,6 +698,17 @@ describe('states in words', () => {
             'a stuck week must not keep promising the schedule will handle it');
         assert.match(stuck.label, /create/i, 'and must point at the thing the reviewer CAN do');
         assert.equal(stuck.tone, 'bad', 'warn is the tone of "no action needed" — this needs one');
+    });
+
+    test('a week past the app\'s roster says it cannot open, and promises nothing overnight (overtime-core-6)', () => {
+        // The server refuses to make it every night (`beyond-horizon`), so the old `not-created`
+        // reading — "Opens automatically overnight" — repeated a promise nothing would keep, daily,
+        // until the row turned "Missed". The cause is a year the admin has to raise, so say who.
+        const beyond = rowStateCopy('not-created-beyond-roster');
+        assert.match(beyond.label, /Cannot open/);
+        assert.match(beyond.label, /the admin/, 'it names who can fix it — an app matter goes to the admin');
+        assert.doesNotMatch(beyond.label, /automatically|overnight/i, 'no promise the schedule cannot keep');
+        assert.equal(beyond.tone, 'bad');
     });
 
     test('an unknown state falls back to the LOUDEST reading, not the quietest', () => {
@@ -1009,8 +1014,15 @@ describe('what a failed submit says', () => {
         assert.doesNotMatch(copy, /connection/i);
     });
 
-    test('a network failure is the one case that DOES talk about the connection', () => {
-        assert.match(submitFailureCopy('network', null), /connection/i);
+    test('no network before the send is the one case that DOES talk about the connection (overtime-core-3)', () => {
+        // `offline`: the sign-in token could not be refreshed, so nothing left the phone. It was
+        // worded as an expired sign-in, "Reload the page" — and a reload on a phone throws away every
+        // answer not yet submitted, where a second press once the signal is back simply works.
+        const copy = submitFailureCopy('offline', null);
+        assert.match(copy, /connection/i);
+        assert.match(copy, /nothing was sent/i, 'it says what happened to the answers');
+        assert.match(copy, /answers are still here/i, 'and that they are not lost');
+        assert.doesNotMatch(copy, /reload|sign in|offline/i, 'never the advice that loses them, nor the raw code');
     });
 
     test('an unknown server code no longer claims the connection is at fault', () => {
@@ -1173,6 +1185,23 @@ describe('what a timed-out submission can be said to have done', () => {
 });
 
 
+describe('a write whose outcome nobody can know (overtime-ui-10)', () => {
+    test('a timeout, a cut-off answer and an error the server did not name are UNKNOWN, not failed', () => {
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'timeout' }), true);
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'network' }), true);
+        // A function that runs out of its own time answers with a bare 5xx: it may have committed.
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'http-504', status: 504 }), true);
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'http-500', status: 500 }), true);
+    });
+    test('an answer the server DID give is not unknown — it said what happened', () => {
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'write-failed', status: 500 }), false, 'named: the transaction failed');
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'closed', status: 409 }), false);
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'http-404', status: 404 }), false, 'a 4xx is a refusal');
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'offline' }), false, 'nothing was sent');
+        assert.equal(writeOutcomeUnknown({ ok: true, code: 'timeout' }), false);
+    });
+});
+
 describe('whose write the server is refusing', () => {
     // Two opposite sentences hang off this: "your earlier submission did save, review it" against
     // "we have not overwritten a newer version". Getting it backwards tells a member their own
@@ -1208,6 +1237,15 @@ describe('weekAvailabilitySummary', () => {
         // C. Brown never submitted — No response, and never Available.
     ]);
     const arg = { weekEnding: '2026-09-12', dates: ['2026-09-09'], participants: P, submissions: subs };
+
+    test('it opens by saying which grades it covers and when it was read (overtime-ui-1)', () => {
+        const AT = Date.parse('2026-09-08T08:30:00Z');
+        const [title, scope, asAt] = weekAvailabilitySummary({ ...arg, grade: 'CES', asAt: AT }).split('\n');
+        assert.match(title, /^Overtime availability — Week ending Saturday 12 September 2026$/);
+        assert.equal(scope, 'CES only');
+        assert.equal(asAt, asAtLine(AT), 'the sheet\'s own "as at" sentence, not a second wording');
+        assert.equal(weekAvailabilitySummary({ ...arg, asAt: AT }).split('\n')[1], 'All grades');
+    });
 
     test('all three sections are named, with the right people under each', () => {
         const text = weekAvailabilitySummary(arg);
@@ -1265,12 +1303,52 @@ describe('weekAvailabilitySummary', () => {
     });
 });
 
+// ── "YOU CAN PUT THEM BACK …" — WHEN A STOP ASKING CAN BE UNDONE (overtime-ui-2) ────────────────
+// The confirmation, the panel note and the help all promised "while the form is open". Somebody
+// stopped before the first deadline can be put back only until it — after it, Ask again is refused
+// (the client hides it and the server answers `restore-window-passed`) although the form is open for
+// six more days. So the sentence is worked out from the same rule the button is.
+describe('putBackWindow — the promise a Stop asking makes', () => {
+    const INITIAL = Date.parse('2026-08-18T11:00:00Z');
+    const FINAL = Date.parse('2026-08-25T11:00:00Z');
+    test('before the first deadline, only until it — and it names the deadline', () => {
+        assert.equal(putBackWindow(INITIAL, INITIAL - 86_400_000), 'until the first deadline, Tue 18 Aug · 12:00');
+        assert.equal(putBackWindow(INITIAL, INITIAL), 'until the first deadline, Tue 18 Aug · 12:00',
+            'a stop AT the deadline is not "after" it, for the restore rule');
+    });
+    test('after it, for as long as the week is open', () => {
+        assert.equal(putBackWindow(INITIAL, INITIAL + 1), 'while the week is open');
+    });
+    test('an unknown deadline under-promises rather than over-promises', () => {
+        assert.equal(putBackWindow(NaN, INITIAL), 'until the first deadline');
+        assert.equal(putBackWindow(0, INITIAL), 'until the first deadline');
+    });
+    test('the help panel makes no unconditional promise either', async () => {
+        const { CARD_TIPS } = await import('./overtime-tips.js');
+        const help = JSON.stringify(CARD_TIPS);
+        assert.doesNotMatch(help, /always be undone|while the (form|week) is open\b(?![^.]*first deadline)/i);
+        assert.match(help, /undone until that deadline/, 'it says what the rule allows');
+    });
+
+    test('it agrees with the rule the Ask again button is drawn from, at every instant', () => {
+        for (const stoppedAt of [INITIAL - 86_400_000, INITIAL - 1, INITIAL, INITIAL + 1, FINAL - 60_000]) {
+            const promise = putBackWindow(INITIAL, stoppedAt);
+            // Just after the first deadline (or the stop, if later) — past the boundary that matters,
+            // and still before the week closes.
+            const laterInTheWeek = Math.max(stoppedAt, INITIAL) + 1;
+            const undoable = canRestoreNow(INITIAL, stoppedAt, laterInTheWeek, FINAL);
+            assert.equal(promise === 'while the week is open', undoable,
+                `stopped at ${new Date(stoppedAt).toISOString()}: "${promise}" but the button says ${undoable}`);
+        }
+    });
+});
+
 // ── reminderLine (v22.05) — the audit row's four states ────────────────────────────────────────
 describe('reminderLine', () => {
     const DL = Date.UTC(2026, 8, 1, 11);
     test('sent → stated with when, whatever the phase', () => {
         for (const phase of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
-            const r = reminderLine(phase, DL, DL - 3 * 3600e3);
+            const r = reminderLine(phase, DL, DL - 3 * 3600e3, 1, 1);
             assert.equal(r?.tone, 'ok');
             assert.match(r?.text || '', /sent/);
         }
@@ -1287,6 +1365,45 @@ describe('reminderLine', () => {
     test('unsent on a CLOSED week → silence — pre-feature history must not wear a false alarm', () => {
         assert.equal(reminderLine('CLOSED', DL, null), null);
         assert.equal(reminderLine('CLOSED', DL, undefined), null);
+    });
+
+    // ── WHAT THE REMINDER REACHED (overtime-core-4) ─────────────────────────────────────────────
+    // The stamp is CLAIMED before the send, so on its own it says a send was attempted. The server
+    // now records, after the send, how many had said nothing and how many devices took it — and the
+    // line said "sent", in the ok tone, on mornings that reached nobody.
+    const AT = DL - 7 * 3600e3;   // the 05:00 run
+    test('a send that reached nobody says so, while there is still time to ring round', () => {
+        const r = reminderLine('INITIAL_OPEN', DL, AT, 2, 0);
+        assert.match(r?.text || '', /reached nobody/);
+        assert.match(r?.text || '', /contact/i, 'and says what to do instead');
+        assert.doesNotMatch(r?.text || '', /\bsent\b/, 'a reminder nobody received was not "sent"');
+        assert.equal(r?.tone, 'warn');
+        // On a closed week it is the record, not a call to action.
+        const closed = reminderLine('CLOSED', DL, AT, 2, 0);
+        assert.match(closed?.text || '', /reached nobody/);
+        assert.doesNotMatch(closed?.text || '', /contact/i);
+        assert.equal(closed?.tone, 'note');
+    });
+    test('a morning with nobody to remind says no reminder was needed', () => {
+        const r = reminderLine('FINAL_OPEN', DL, AT, 0, 0);
+        assert.match(r?.text || '', /No reminder was needed/);
+        assert.doesNotMatch(r?.text || '', /reached nobody/, 'nobody waiting is not a failed send');
+        assert.equal(r?.tone, 'ok');
+    });
+    test('a send that reached a device is "sent" — only to people who have notifications on', () => {
+        const r = reminderLine('FINAL_OPEN', DL, AT, 3, 2);
+        assert.match(r?.text || '', /sent/);
+        assert.match(r?.text || '', /notifications/, 'a member with no subscribed device was not reached');
+        assert.equal(r?.tone, 'ok');
+    });
+    test('a stamp with no recorded outcome claims only the attempt — never "sent", never "nobody"', () => {
+        // Every stamp written before the outcome was recorded, and the seconds between the claim and
+        // the send. Unknown is not zero.
+        for (const [o, a] of [[null, null], [undefined, undefined], [2, null], [null, 0]]) {
+            const r = reminderLine('FINAL_OPEN', DL, AT, o, a);
+            assert.match(r?.text || '', /attempted/, `${o}/${a}`);
+            assert.equal(r?.tone, 'note', `${o}/${a}`);
+        }
     });
 });
 

@@ -1,7 +1,7 @@
 /**
  * paycalc-roster-suggestions.test.mjs
  * Tests for getRosterSuggestion, fetchOverridesForPeriod, and override priority.
- * Run with: node --experimental-test-module-mocks --test paycalc-roster-suggestions.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-roster-suggestions.test.mjs
  *
  * firebase-client.js is mocked via mock.module() because it imports Firebase
  * from CDN URLs that are unreachable in Node.
@@ -720,6 +720,72 @@ describe('fetchOverridesForPeriod — override priority', () => {
 
 });
 
+// ── EACH PAYSLIP KEEPS ITS OWN RECORDED CHANGES (the paycalc-2-8 lead) ────────────────────────────
+// The year fill fetches payslip after payslip into this module while the payslip on screen stays
+// put. With one map and one "loaded", that payslip read 'loaded' and priced itself from the last
+// payslip the fill had reached — its recorded Saturday back to nothing — and its Replace cleared
+// what the other payslip's map called zero. Each answer is kept under the payslip it is for.
+describe('getRosterSuggestion — each payslip reads its own recorded changes', () => {
+  // C. Reen's Saturdays are rest days, so a recorded shift on one is 9h of RDW, and without it nothing.
+  const onScreen  = period('2026-04-11');
+  const elsewhere = period('2026-05-16');
+  const recordedSat = () => mockSnap([{ date: '2026-04-11', memberName: 'C. Reen', type: 'shift',
+    value: '10:00-19:00', source: 'manual', createdAt: { toMillis: () => 1 } }]);
+
+  test("a later fetch for another payslip leaves this one its own changes, and its own 'loaded'", async () => {
+    resetOverrides('checking');
+    _mockGetDocs = async () => recordedSat();
+    await fetchOverridesForPeriod(onScreen, 'C. Reen');
+    _mockGetDocs = async () => mockSnap([]);
+    // …and the year fill moves on to its next period:
+    await fetchOverridesForPeriod(elsewhere, 'C. Reen');
+    assert.equal(getRosterSuggestion(onScreen, cReen)?.rdwH, 9,
+      'the payslip on screen was priced from the last payslip fetched, without its own recorded change');
+    assert.equal(getOverridesFetchState(onScreen), 'loaded');
+  });
+
+  test("a payslip with no answer of its own is not 'loaded' because another payslip is", async () => {
+    resetOverrides('checking');
+    _mockGetDocs = async () => mockSnap([]);
+    await fetchOverridesForPeriod(elsewhere, 'C. Reen');
+    assert.equal(getOverridesFetchState(onScreen), 'checking', "another payslip's answer stood in for this one's");
+    assert.equal(getOverridesFetchState(elsewhere), 'loaded');
+  });
+
+  test('a payslip whose own fetch failed, or came from the device cache, says so while another stays loaded', async () => {
+    resetOverrides('checking');
+    _mockGetDocs = async () => recordedSat();
+    await fetchOverridesForPeriod(onScreen, 'C. Reen');
+    _mockGetDocs = async () => { throw new Error('network error'); };
+    await fetchOverridesForPeriod(elsewhere, 'C. Reen');
+    assert.equal(getOverridesFetchState(elsewhere), 'base-only', 'a failed fetch must be named for its payslip');
+    _mockGetDocs = async () => ({ ...mockSnap([]), metadata: { fromCache: true } });
+    const third = period('2026-06-13');
+    await fetchOverridesForPeriod(third, 'C. Reen');
+    assert.equal(getOverridesFetchState(third), 'base-only', 'a cache answer must be named for its payslip');
+    assert.equal(getOverridesFetchState(onScreen), 'loaded', '…and neither touches the payslip that did load');
+    assert.equal(getRosterSuggestion(onScreen, cReen)?.rdwH, 9);
+  });
+
+  test('a reset forgets every payslip, so a period change can never inherit an earlier answer', async () => {
+    resetOverrides('checking');
+    _mockGetDocs = async () => recordedSat();
+    await fetchOverridesForPeriod(onScreen, 'C. Reen');
+    resetOverrides('checking');
+    assert.equal(getOverridesFetchState(onScreen), 'checking');
+    assert.strictEqual(getRosterSuggestion(onScreen, cReen), null, "the last period's recorded change outlived the reset");
+  });
+
+  test('CONTROL: with no payslip named, the state is whatever the last fetch left, as before', async () => {
+    resetOverrides('checking');
+    _mockGetDocs = async () => recordedSat();
+    await fetchOverridesForPeriod(onScreen, 'C. Reen');
+    _mockGetDocs = async () => { throw new Error('network error'); };
+    await fetchOverridesForPeriod(elsewhere, 'C. Reen');
+    assert.equal(getOverridesFetchState(), 'base-only');
+  });
+});
+
 // ── Sunday-on-BH payroll rule ─────────────────────────────────────────────────
 
 describe('getRosterSuggestion — Sunday-on-BH payroll rule', () => {
@@ -740,6 +806,56 @@ describe('getRosterSuggestion — Sunday-on-BH payroll rule', () => {
     _removeBhDateForTest(2026, '2026-06-07');
   });
 
+});
+
+// ── A SHIFT CHANGE ON A WEEKDAY REST DAY IS NEVER INFERRED (invariant 11; contracts-b-5) ──────────
+// The first half of paycalc.md invariant 11 — swap shifts and rest-day weekday changes are never
+// inferred — rests on ONE condition in the weekday branch, `fromOv && baseWorked`: on a rest-day base
+// `baseMins` is 0, so without it the whole shift is "excess" and is offered as Overtime 1.25, which
+// "Fill from calendar" then saves. Every weekday fixture above sits on a worked base, so deleting
+// `baseWorked` left this file green.
+describe('getRosterSuggestion — a shift change on a weekday rest day', () => {
+  const RD_TUE = '2026-06-09';
+
+  test('the fixture is a weekday rest day', async () => {
+    const { getBaseShift } = await import('./roster-data.js');
+    assert.equal(getBaseShift(lSpringer, parseISODate(RD_TUE)), 'RD');
+  });
+
+  test('a plain shift recorded there suggests no overtime — a swap pays in ways the app cannot predict', () => {
+    _setOverridesForTest(new Map([[RD_TUE, { type: 'shift', value: '09:00-17:00', _ts: 1, _manual: true }]]));
+    assert.equal(getRosterSuggestion(period(RD_TUE), lSpringer), null, 'the whole shift was offered as Overtime 1.25');
+  });
+
+  test('CONTROL: a rest day worked recorded there is Rest Day Working', () => {
+    _setOverridesForTest(new Map([[RD_TUE, { type: 'rdw', value: '09:00-17:00', _ts: 1, _manual: true }]]));
+    const s = getRosterSuggestion(period(RD_TUE), lSpringer);
+    assert.equal(s?.rdwH, 8);
+    assert.equal(s?.otH, 0);
+  });
+});
+
+// ── A RECORD DATED BEFORE THE MEMBER STARTED (paycalc-3-6) ───────────────────────────────────────
+// Every display layer suppresses a recorded change dated before a member's start date
+// (`isBeforeMemberStart`, override-utils.js: "Always call this helper"), so the Calendar shows a rest
+// day there. The suggestion engine did not ask, and counted the record — then the page applied it to
+// the estimate on view: pay for a day the app itself says came before they started.
+describe('getRosterSuggestion — a record dated before the member\'s start date', () => {
+  const joiner = { ...cReen, startDate: new Date(2026, 3, 13) };   // starts Mon 13 Apr 2026
+
+  test('suggests nothing for a bank holiday or a Saturday worked before the start date', () => {
+    _setOverridesForTest(new Map([
+      ['2026-04-06', { type: 'shift', value: '12:00-21:00', _ts: 1, _manual: true }],   // Easter Monday
+      ['2026-04-11', { type: 'shift', value: '10:00-18:00', _ts: 1, _manual: true }],   // a Saturday
+    ]));
+    assert.equal(getRosterSuggestion(period('2026-04-05', '2026-04-12'), joiner), null,
+      'the Calendar shows rest days there, and the pay suggestion counted the records anyway');
+  });
+
+  test('CONTROL: the same kind of record from the start date on is counted', () => {
+    _setOverridesForTest(new Map([['2026-04-18', { type: 'shift', value: '10:00-18:00', _ts: 1, _manual: true }]]));
+    assert.equal(getRosterSuggestion(period('2026-04-13', '2026-04-19'), joiner)?.rdwH, 8);
+  });
 });
 
 // ── A TRAINING DAY FROM THE PATTERN ON A BANK HOLIDAY (owner, 7 Nov 2026) ──────────────────────
@@ -782,20 +898,69 @@ describe('getRosterSuggestion — a bare Training day from the pattern on a bank
     }
   });
 
-  test('recorded times replace the default — the day is priced as worked, and flagged as nothing', () => {
+  // THE BUCKET, NOT ONLY THE SUM (paycalc-3-4). This case used to assert `bhH + bhOtH === 8`, which
+  // stayed true while all eight hours sat in Bank Holiday OVERTIME: a record with times found no
+  // rostered shift to cap against (the base has none), so the branch for a bank holiday worked on a
+  // REST day took the whole day. Overtime is paid on top of contracted hours; rostered hours only
+  // carry the premium — so a seven-hour day was over-suggested by a day's basic pay. The rostered day
+  // on a bank holiday is the 7-hour day, with or without times on record.
+  /** Suggest the bank holiday with this one record on it. */
+  function withRecord(/** @type {any} */ ov) {
     _addBhDateForTest(2026, BH);
     try {
-      _setOverridesForTest(new Map([[BH, { type: 'other', value: 'TRG 09:00-17:00', _ts: 1, _manual: true }]]));
-      const s = getRosterSuggestion(period(BH), campbell);
-      assert.equal(s.bhH + s.bhOtH, 8, 'the eight hours recorded');
-      assert.deepEqual(s.defaulted7h, { bh: false });
+      _setOverridesForTest(new Map([[BH, { _ts: 1, _manual: true, ...ov }]]));
+      return /** @type {any} */ (getRosterSuggestion(period(BH), campbell));
     } finally {
       _removeBhDateForTest(2026, BH);
     }
+  }
+
+  test('recorded times replace the default — the rostered 7 hours, the excess as overtime', () => {
+    const s = withRecord({ type: 'other', value: 'TRG 09:00-17:00' });
+    assert.equal(s.bhH, 7, 'the rostered day went to Bank Holiday Overtime');
+    assert.equal(s.bhOtH, 1, 'only the hour past the 7-hour day is overtime');
+    assert.deepEqual(s.defaulted7h, { bh: false }, 'the eight hours are on record');
+  });
+
+  test('a 7-hour Training day, or a plain shift, is all Bank Holiday Rostered', () => {
+    for (const ov of [{ type: 'other', value: 'TRG 09:00-16:00' }, { type: 'shift', value: '09:00-16:00' }]) {
+      const s = withRecord(ov);
+      assert.equal(s.bhH, 7, `${ov.value}: the rostered day was paid as overtime`);
+      assert.equal(s.bhOtH, 0, ov.value);
+      assert.equal(s.bhOtCount, 0, ov.value);
+    }
+  });
+
+  test('a Training day that ran short still pays the 7-hour day — flagged, because the 7 is not on record', () => {
+    const s = withRecord({ type: 'other', value: 'TRG 09:00-14:00' });
+    assert.equal(s.bhH, 7, 'never paid less than the rostered day (OTHER_DAYS.md decision 5)');
+    assert.equal(s.bhOtH, 0);
+    assert.deepEqual(s.defaulted7h, { bh: true });
+  });
+
+  test('a plain shift recorded short is the shift recorded — a shift replaces the day', () => {
+    const s = withRecord({ type: 'shift', value: '09:00-14:00' });
+    assert.equal(s.bhH, 5);
+    assert.equal(s.bhOtH, 0);
+    assert.deepEqual(s.defaulted7h, { bh: false });
+  });
+
+  test('a rest day worked recorded on top adds to the rostered day, as on any rostered bank holiday', () => {
+    const s = withRecord({ type: 'rdw', value: '18:00-20:00' });
+    assert.equal(s.bhH, 7, 'the rostered day was dropped');
+    assert.equal(s.bhOtH, 2);
+    assert.deepEqual(s.defaulted7h, { bh: true }, 'the 7 rostered hours here are the default');
   });
 
   test('on an ordinary weekday it suggests nothing — the day is contracted basic pay', () => {
     _setOverridesForTest(new Map());
+    assert.equal(getRosterSuggestion(period(BH), campbell), null);
+  });
+
+  test('…even with long times recorded: the 7-hour day is a bank-holiday decision, not a weekday one', () => {
+    // Splitting a long weekday Training day into overtime would infer a category nobody decided
+    // (invariant 11) — the owner's 7 hours answer the bank holiday only.
+    _setOverridesForTest(new Map([[BH, { type: 'other', value: 'TRG 09:00-18:00', _ts: 1, _manual: true }]]));
     assert.equal(getRosterSuggestion(period(BH), campbell), null);
   });
 });

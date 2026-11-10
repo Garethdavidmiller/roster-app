@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * module-coverage-parity.test.mjs — A RUNTIME MODULE THAT NO TEST HAS HEARD OF.
- * Run with: node --test module-coverage-parity.test.mjs
+ * Run with: node scripts/run-tests.mjs module-coverage-parity.test.mjs
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *
@@ -80,7 +80,6 @@ const UNNAMED_BY_DESIGN = {
     // error-reporter's wiring, paycalc-sticky-total, calendar-notif-prompt) got suites instead.
     'admin-time-inputs.js':  'driven by e2e/admin.spec.js ("admin: a week-grid time box formats as typed, moves on, and flags an impossible time"); its typing rule is clock-input.js, unit-tested by clock-input.test.mjs',
     'admin-week-swipe.js':   'driven by e2e/admin.spec.js ("the week label follows the swipe", "the week arrows and the swipe move the same state")',
-    'fip-guide.js':          'guide-page chrome; driven by e2e/guides.spec.js (the FIP GUIDE block: jump-to-open, malformed-hash safety)',
     'paycalc-transfer-card.js': 'driven by e2e/settings.spec.js (the Settings "Pay Calculator Data" pointer card renders and links)',
 
     // ── NO GENUINE GAPS REMAIN ──────────────────────────────────────────────────────────────────

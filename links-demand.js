@@ -28,24 +28,21 @@
  * THE ONE THING THAT MUST NOT CRY WOLF. Trains run at 00:0x and 05:5x on days the CEA link does not
  * staff, by design and not by oversight. If those render as uncovered demand, they do so on EVERY
  * design forever, the reader learns to skip the row, and the genuine finding underneath it goes with
- * it. So `summariseDemand` splits the two cases and names them differently: service in an hour the
- * station is SHUT is reported as a neutral fact (`outside`), and only service in a STAFFED hour with
- * nobody on duty is a finding (`uncovered`). The window that separates them is the per-design one
- * from `links-window.js` — which is why package 1 had to land before this.
+ * it. So `summariseDemand` splits the two cases and names them differently: service while the
+ * station is SHUT is reported as a neutral fact (`outside`), and only service inside the staffed
+ * window at a minute nobody is on duty is a finding (`uncovered`). The window that separates them is
+ * the per-design one from `links-window.js` — which is why package 1 had to land before this.
  *
  * That split is also what keeps the live Sunday question visible rather than buried: five December
  * 2026 movements fall after the current 23:25 finish, so Sunday's `outside` figure is large and the
  * hours are named. It is stated, not scored, because moving a boundary is a business decision.
  */
-import { DAYS, dayClass } from './links-design.js';
+import { DAYS, ROTATING_LINES, dayClass, startMinutes, endMinutesAbs } from './links-design.js';
 
 /**
- * Provenance. A demand curve with no version on it is the same defect as the undated printed sheet
- * fixed at v19.45 — right when it was made, and unverifiable afterwards. These are "base" files that
- * WILL be revised, and the weekday one is not even marked final, so the label says so.
- */
-/**
- * Provenance for the demand profile, rendered under the heat map.
+ * Provenance for the demand profile, rendered under the heat map. A demand curve with no version on
+ * it is the same defect as the undated printed sheet fixed at v19.45 — right when it was made, and
+ * unverifiable afterwards — and these are base files that will be revised.
  *
  * `provisional` cleared v19.71: the weekday simplifier is confirmed FINAL (owner, Aug 2026 —
  * the answer to the plan's open question 4). It had been flagged because the file is named
@@ -322,50 +319,102 @@ export function movementsOutside(movements, start, end) {
     return { before, after };
 }
 
+/** Minutes in a day. */
+const DAY_MINUTES = 24 * 60;
+
+/**
+ * Who is on duty, to the MINUTE: each day's timed duties as `[start, end]` minute spans.
+ *
+ * The heat map counts a duty in every clock hour it touches, which is right for its picture and
+ * cannot answer "is anybody here when this train arrives?". A duty ending 14:20 and the next starting
+ * 15:25 both "cover" their hour, so 65 minutes with nobody on read as fully staffed. The spans answer
+ * the question the cover finding is really asking.
+ *
+ * Read the way `calcHourlyCoverage` reads a duty, so the two cannot disagree (a test holds them
+ * together hour by hour): rest days, spare days and unreadable cells carry no time and add no span;
+ * a duty past midnight is read once, by `endMinutesAbs`, and its tail lands on the next day, Saturday
+ * round to Sunday. A span is CLOSED at both ends, like the staffed window: somebody finishing at 14:20
+ * is still there for the 14:20 train.
+ * @param {Record<string, any>} patterns
+ * @param {number} [lines]
+ * @returns {Record<string, Array<[number, number]>>}
+ */
+export function dutySpans(patterns, lines = ROTATING_LINES) {
+    /** @type {Record<string, Array<[number, number]>>} */
+    const out = Object.fromEntries(DAYS.map(d => [d, []]));
+    for (let pos = 1; pos <= lines; pos++) {
+        const row = patterns?.[String(pos)];
+        if (!row) continue;
+        for (const [i, day] of DAYS.entries()) {
+            const st = startMinutes(row[day]), en = endMinutesAbs(row[day]);
+            if (st === null || en === null) continue;
+            out[day].push([st, Math.min(en, DAY_MINUTES)]);
+            if (en > DAY_MINUTES) out[DAYS[(i + 1) % DAYS.length]].push([0, en - DAY_MINUTES]);
+        }
+    }
+    return out;
+}
+
 /**
  * Read a design's cover against the service, and split the result into a FINDING and a FACT.
  *
- * - `uncovered` — the station is open, trains are running, and nobody is on duty. A finding, and
- *                 counted PER DAY at HOUR resolution, because it is a property of the design and the
- *                 heat map's own unit is the hour: a hole at 12:00 on all five weekdays is five
- *                 times the problem of a hole on Tuesday alone, and the two must not report alike.
+ * - `uncovered` — the station is open, a train arrives or departs, and nobody is on duty at that
+ *                 minute. A finding. ASKED to the minute, train by train, and REPORTED per day by
+ *                 clock hour, because the heat map's own unit is the hour: a hole at 12:00 on all
+ *                 five weekdays is five times the problem of a hole on Tuesday alone, and the two
+ *                 must not report alike. An entry's `mv` and `cars` are the trains that met nobody.
  * - `outside`   — trains running when the station is shut, to the MINUTE. A fact, deliberately not a
  *                 finding: the last trains and the 05:5x first departure are like this on every
  *                 design there has ever been, so scoring them would flag every design forever and
  *                 teach the reader to skip the row — taking the finding above with it.
+ *
+ * **Why `uncovered` is asked to the minute (whole-app review, Nov 2026).** It was asked of the
+ * hourly headcount — an hour with anybody on at any point counted as covered — so a gap inside an
+ * hour, or one straddling two, could not be seen. Earlies to 14:20 and lates from 15:25 left 65
+ * minutes a day with nobody on and 98 trains a week meeting nobody, and the panel said every staffed
+ * hour had someone on duty. The largest gap that test could miss ran 14:01 to 15:59. It is the
+ * boundary bug the `outside` pass was built to end, inside the window instead of at its edges.
  *
  * **`outside` is counted per day CLASS, not per day**, and that asymmetry with `uncovered` is
  * deliberate. It depends only on the service and the window — never on the design — so a weekday
  * 00:01 departure is ONE fact about the operation, not five. Listing it five times would bury the
  * entries that are about a movable boundary in repetition of the ones that are not.
  *
- * The window is injected as MINUTES rather than as an is-this-hour-staffed predicate, so a caller
- * cannot accidentally ask an hourly question of a minute-level boundary — which is exactly the bug
- * the first version shipped.
+ * The window and the cover are both injected as MINUTES — the window rather than an
+ * is-this-hour-staffed predicate, the cover as `dutySpans` rather than the hourly headcount — so a
+ * caller cannot ask an hourly question of a minute-level answer: the mistake this function has made
+ * twice, once at the window's edges and once inside it.
  *
  * @param {object} args
- * @param {any} args.profile - hourly, for the `uncovered` pass
- * @param {any} args.movements - DEC_2026_MOVEMENTS-shaped, for the `outside` pass
- * @param {Record<string, {hours: number[]}>} args.hourly - calcHourlyCoverage output
+ * @param {any} args.movements - DEC_2026_MOVEMENTS-shaped
+ * @param {Record<string, Array<[number, number]>>} args.spans - `dutySpans` output: who is on, to the minute
  * @param {string[]} args.days
  * @param {(day: string) => {start: number, end: number}} args.windowFor - staffed minutes for a day
  */
-export function summariseDemand({ profile, movements, hourly, days, windowFor }) {
+export function summariseDemand({ movements, spans, days, windowFor }) {
     const uncovered = [];
     let uncoveredCars = 0, uncoveredMv = 0;
 
     for (const day of days) {
+        // Checked against DAYS before `dayClass` sees it, for `demandAt`'s reason: `dayClass` reads
+        // anything that is not a weekend key as a weekday, so a mistyped Sunday would quietly be
+        // asked about the weekday service.
+        if (!DAYS.includes(day)) continue;
         const { start, end } = windowFor(day);
-        for (let hour = 0; hour < 24; hour++) {
-            const { mv, cars } = demandAt(profile, day, hour);
-            if (mv <= 0) continue;                          // no trains — nothing to say either way
-            // ANY overlap counts as staffed here, matching the heat map's own cell: the day opens at
-            // 06:20, so 06:00 is an hour cover is required in. The minute-level question is the
-            // `outside` pass's job, not this one's.
-            if (!(start < (hour + 1) * 60 && end > hour * 60)) continue;
-            if ((hourly?.[day]?.hours?.[hour] ?? 0) > 0) continue;
-            uncovered.push({ day, hour, mv, cars });
-            uncoveredCars += cars; uncoveredMv += mv;
+        const on = spans?.[day] ?? [];
+        /** @type {Map<number, {day: string, hour: number, mv: number, cars: number}>} */
+        const byHour = new Map();
+        for (const [t, cars] of movements?.[dayClass(day)] ?? []) {
+            if (t < start || t > end) continue;                       // shut: the `outside` pass's fact
+            if (on.some(([s, e]) => s <= t && t <= e)) continue;       // somebody is here for it
+            const hour = Math.floor(t / 60);
+            const entry = byHour.get(hour) ?? { day, hour, mv: 0, cars: 0 };
+            entry.mv++; entry.cars += cars;
+            byHour.set(hour, entry);
+        }
+        for (const entry of byHour.values()) {
+            uncovered.push(entry);
+            uncoveredCars += entry.cars; uncoveredMv += entry.mv;
         }
     }
 
@@ -388,7 +437,6 @@ export function summariseDemand({ profile, movements, hourly, days, windowFor })
         uncovered, uncoveredCars, uncoveredMv,
         outside, outsideBefore: before, outsideAfter: after,
         outsideCars, outsideMv: outside.length,
-        peak: peakCars(profile),
     };
 }
 

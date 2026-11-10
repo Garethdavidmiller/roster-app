@@ -1,6 +1,6 @@
 /**
  * page-contract-parity.test.mjs — a new app page joins EVERY contract, or fails here.
- * Run: node --test page-contract-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs page-contract-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *
@@ -229,6 +229,46 @@ test('every app page opts out of algorithmic dark mode', () => {
     assert.deepEqual(missing, [], 'pages without `color-scheme: only light`');
 });
 
+/**
+ * The page's header — the `<header>` holding the burger — and what was open around it. Only the
+ * elements that take a header's banner role away are tracked (HTML-AAM: a header inside main, article,
+ * aside, nav or section is not the page's banner). Comments are stripped: pages discuss `<main>` in prose.
+ * @param {string} html
+ */
+function pageHeader(html) {
+    const src = html.replace(/<!--[\s\S]*?-->/g, ' ');
+    /** @type {string[]} */
+    const open = [];
+    let mainAt = -1;
+    /** @type {{ at: number, inside: string[] } | null} */
+    let header = null;
+    for (const m of src.matchAll(/<(\/?)(main|article|aside|nav|section|header)\b[^>]*>/gi)) {
+        const tag = m[2].toLowerCase();
+        if (m[1]) { const i = open.lastIndexOf(tag); if (i >= 0) open.splice(i); continue; }
+        if (tag === 'main' && mainAt < 0) mainAt = /** @type {number} */ (m.index);
+        if (tag === 'header' && src.slice(m.index, src.indexOf('</header>', m.index)).includes('id="navMenuBtn"')) {
+            header = { at: /** @type {number} */ (m.index), inside: [...open] };
+        }
+        open.push(tag);
+    }
+    return { mainAt, header };
+}
+
+test('every app page\'s header is its banner landmark: before <main>, never inside it', () => {
+    // CLAUDE.md → "Semantic elements": screen readers depend on the landmarks. Inside <main> the header
+    // is no banner, so a screen reader lists none and reads the burger and the page's <h1> as main
+    // content. Admin, Operations and Links had it there until the whole-app check (Nov 2026), because
+    // `.container` hid it until sign-in and placed it in its grid; their stylesheets do both now.
+    for (const page of APP_PAGES) {
+        const { mainAt, header } = pageHeader(read(`./${page}`));
+        assert.ok(header, `${page}: no <header> holds the burger (#navMenuBtn), so this check measured nothing`);
+        assert.ok(mainAt >= 0, `${page}: no <main> element`);
+        assert.deepEqual(header.inside, [], `${page}: the header sits inside <${header.inside.join('>, <')}>, so it is ` +
+            'not the page\'s banner landmark. Put it before <main>, as settings.html does.');
+        assert.ok(header.at < mainAt, `${page}: the header comes after <main>; every page puts it first`);
+    }
+});
+
 test('every app page loads shared.css and its own stylesheet, and no other page\'s', () => {
     for (const page of APP_PAGES) {
         const html = read(`./${page}`);
@@ -312,9 +352,11 @@ const WIRED_AFTER_AUTH = ['initErrorReporter', 'recordUsage', 'recordPageLatency
 /**
  * The promise each page hangs that wiring on. Written down per page rather than inferred, because
  * "some promise" is exactly the assertion that would pass on the wrong one — and the pages really
- * do differ. Five use `sessionReady`; the Calendar has no Auth session of its own and uses
- * `calendarAuthReady` (NOT `calendarAccessReady` — in `open` mode those are different instants, and
- * gating on access alone fires the writes into a window with no token, which is the v20.22 bug).
+ * do differ. Most use `sessionReady`; the Calendar has no Auth session of its own and uses
+ * `calendarAuthReady` (NOT `calendarAccessReady` — they were different instants in the anonymous
+ * `open` mode, retired v24.34, where gating on access alone fired the writes into a window with no
+ * token: the v20.22 bug. Every grant now holds a real user, so the two coincide, but the write gate
+ * is still the promise a writer waits on — calendar-access.js says why).
  *
  * `paycalc.html` is the one `soft` page: it owns its auth chain locally and has no `sessionReady`,
  * so its barrier is the `afterAuth` closure that `ensureNamedSession(...).finally()` invokes. That
@@ -829,22 +871,12 @@ test('a page with unsaved work warns through warnOnUnload AND asks before a sign
 // browser's own prompt, and a phone never shows it, so on an iPhone it protects nothing. Overtime called
 // it alone, and a half-filled availability form was dropped by any drawer pill or About-panel link
 // without a word. A page that tracks unsaved work for the unload prompt asks in the page as well.
-//
-// ONE EXEMPTION, BY NAME: links-app.js has a capture-phase guard of its own on the drawer's links, older
-// than page-session.js's, and asks about the About panel's one leaving link (Operations) on that link.
-// The exemption is CHECKED rather than trusted — if that guard goes, the page stops being exempt.
-const OWN_LEAVE_GUARD = new Map([
-    ['links-app.js', /document\.addEventListener\('click',[\s\S]*?closest\('\.nav-panel a\[href\]'\)[\s\S]*?\},\s*true\)/],
-]);
+// (Links kept an older guard of its own, exempt here by name, until Nov 2026: it navigated by itself on
+// "Leave", so the drawer's own handling never ran. It uses the shared one now, and nothing is exempt.)
 test('a page that warns on unload also asks before a drawer or About-panel link leaves', () => {
     for (const p of APP_PAGE_ENTRIES) {
         const code = codeOf(p.coordinator);
         if (!/\bwarnOnUnload\(/.test(code)) continue;
-        const own = OWN_LEAVE_GUARD.get(p.coordinator);
-        if (own) {
-            assert.match(code, own, `${p.coordinator} is exempt for its own capture-phase drawer guard, and that guard has gone — call askBeforeLeavingByDrawer`);
-            continue;
-        }
         assert.match(code, /\baskBeforeLeavingByDrawer\(/,
             `${p.coordinator} warns on unload but lets the drawer's and the About panel's links leave without asking — call askBeforeLeavingByDrawer with the same isDirty`);
     }

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView, isTouchProject, waitForPageSettled, waitForReadsToLand } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView, isTouchProject, waitForPageSettled, waitForReadsToLand, scaleText } from './helpers.js';
 // The REAL pay tables, imported rather than restated: the unsupported-role block below asserts that
 // a CES is priced as a CES, and a literal rate there would go stale on the next award — or, worse,
 // be "corrected" to whatever the page happened to show.
@@ -136,9 +136,9 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
         expect(zone.stacked, 'the occasional cards stack under the result in column 3').toBe(true);
         expect(zone.resultNotSticky, 'result is static in the sidebar (no longer a sticky rail)').toBe(true);
 
-        // "Save settings" matches the fields it sits under (polish round 2). The tablet-up 280px
-        // cap on `.btn-primary` is about buttons with nothing above them; this one ended 368px short
-        // of the Tax code field above it at 1280, which read as a leftover rather than a hierarchy.
+        // "Save settings" matches the fields it sits under (polish round 2). Under a tablet-up 280px
+        // cap on `.btn-primary` (removed since: nothing it reached was meant to be capped) it ended
+        // 368px short of the Tax code field above it at 1280, which read as a leftover, not a hierarchy.
         const saveFit = await page.evaluate(() => {
             const b = document.getElementById('saveSettingsBtn').getBoundingClientRect();
             const f = document.getElementById('taxCode').getBoundingClientRect();
@@ -221,6 +221,41 @@ test('paycalc: the payslip check is there while the payslip is in hand, and name
     expect(errors).toHaveLength(0);
 });
 
+// ── A CODE THE CALCULATOR DOES NOT RECOGNISE, SAID WHERE IT MATTERS (whole-app review, Nov 2026) ──
+// Priced on the standard 1257L allowance, and only the check line above said so — hidden until the
+// payslip's cut-off. The words are unit-tested; this pins calculate() handing computeTax's own flag to
+// the Income Tax row, the box's warning and the Year to Date line, on the payslip the page opens on.
+test('paycalc: an unrecognised tax code is named under Income Tax and the box, and the Year to Date line holds back', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));   // 20 Nov is next; 23 Oct is paid
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    const line = page.locator('#netYtdNudge');
+    await expect(line, 'premise: with 1257L the line asks for the figures').toBeVisible();
+
+    await page.locator('#taxCode').fill('OT');
+    await expect(page.locator('#summary')).toContainText("Tax code OT isn't one the calculator recognises");
+    await expect(line, 'with a wrong code the figures make the estimate worse').toBeHidden();
+    await expect(page.locator('#taxCodeWarn.show'), 'nothing flashes while the box is being typed in').toHaveCount(0);
+    await page.locator('#taxCode').blur();
+    const warn = page.locator('#taxCodeWarn');
+    await expect(warn).toBeVisible();
+    await expect(warn).toContainText('0T and D0 are written with a zero, not the letter O');
+
+    await page.locator('#taxCode').fill('0T');
+    await page.locator('#taxCode').blur();
+    await expect(warn).toBeHidden();
+    await expect(page.locator('#summary')).not.toContainText('recognises');
+    expect(errors).toHaveLength(0);
+});
+
 // A payday the calculator does not carry used to open the current payslip silently (whole-app review).
 test('paycalc: a link to a payday outside the calculator says so, and a covered one says nothing', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
@@ -293,6 +328,49 @@ test('paycalc: editing a calendar-filled box takes "Hours from calendar" away at
     await expect(page.locator('#satH')).not.toHaveClass(/roster-suggested/);
     await expect(page.locator('#satM')).not.toHaveClass(/roster-suggested/);
     await expect(page.locator('#provChips')).not.toContainText('Hours from calendar');
+});
+
+// ── A REFRESHED CALENDAR FIGURE THE MEMBER SAVES IS STILL THE CALENDAR'S (paycalc-3-1, 10 Nov 2026) ──
+// The background refresh SHOWS a changed calendar figure gold without saving it (invariant 11), and
+// the member's next edit anywhere on the payslip saves it with the rest (implicit acceptance). The
+// snapshot saying which saved figures came from the calendar must then describe what was saved —
+// autosave re-records it (`recordCalendarFigures`) — or the saved 16 below stops being gold and stops
+// following the calendar's next change.
+test('paycalc: a refreshed calendar figure the member saves keeps following the calendar', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    // The calendar's answer is read from sessionStorage at each load, so a reload can change it.
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        const times = sessionStorage.getItem('rdwTimes') || '08:00-16:00';
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'o1', memberName: 'G. Miller', date: '2026-07-09', type: 'rdw', value: times, source: 'manual' }] };
+    });
+    const loaded = () => expect(page.locator('#rosterStateBadge')).toContainText('Includes recorded changes', { timeout: 10000 });
+    const rdw = page.locator('#rdwH');
+
+    await page.goto('/paycalc.html');
+    await loaded();
+    await page.locator('#fillFromRosterBtn').click();
+    await expect(rdw, 'premise: the calendar\'s 8 hours, filled and saved').toHaveValue('8');
+
+    await page.evaluate(() => sessionStorage.setItem('rdwTimes', '06:00-22:00'));
+    await page.reload();
+    await loaded();
+    await expect(rdw, 'premise: the calendar\'s new 16 hours are shown, not saved').toHaveValue('16');
+    await expect(rdw).toHaveClass(/roster-suggested/);
+
+    await page.locator('#otH').fill('1');   // an edit elsewhere saves the payslip, the gold 16 with it
+    await page.locator('#otH').blur();
+
+    await page.evaluate(() => sessionStorage.setItem('rdwTimes', '06:00-24:00'));
+    await page.reload();
+    await loaded();
+    await expect(rdw, 'the saved 16 came from the calendar, so it is still gold').toHaveClass(/roster-suggested/);
+    await expect(rdw, '…and follows the calendar to its 18 hours').toHaveValue('18');
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 
 // Whole-app review, Oct 2026: a SETTING change (the loan plan, the pension scheme) ran the payslip's
@@ -383,7 +461,7 @@ test('paycalc: the payslip comparison renders per typed line and survives a relo
     await page.locator('#actualTaxInput').fill('540.20');
     const table = page.locator('#actualCompare table.actual-cmp');
     await expect(table).toBeVisible();
-    await expect(table).toContainText('Total pay');
+    await expect(table).toContainText('Taxable Pay');
     await expect(table).toContainText('Income Tax');
     await expect(table).toContainText('£3,808.87');
     // Only the typed lines render — an absent figure is not a £0 claim.
@@ -396,6 +474,144 @@ test('paycalc: the payslip comparison renders per typed line and survives a relo
     await expect(page.locator('#actualMoreWrap')).toBeVisible();
     await expect(page.locator('#actualGrossInput')).toHaveValue('3808.87');
     await expect(page.locator('#actualCompare table.actual-cmp')).toBeVisible();
+
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── LIKE WITH LIKE (whole-app check, 10 Nov 2026) ──────────────────────────────────────────────
+// The payslip's pay figure is its Taxable Pay, AFTER the pension, and the comparison set it against
+// the estimate's Total pay, BEFORE it — so a perfect estimate showed the whole pension as a gap. The
+// figure typed here is the estimate's own "Pay after pension deduction", read off the summary, so the
+// row must read as a match.
+test('paycalc: the comparison sets the payslip\'s Taxable Pay against the pay after the pension', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ytd_notice_2_shown', '1'); });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    await page.locator('#periodSelect').selectOption({ index: 1 });
+    await expect(page.locator('#checkActualWrap')).toBeVisible();
+
+    const afterPension = page.locator('#summary .sum-row', { hasText: 'Pay after pension deduction' }).locator('.val');
+    await expect(afterPension).toBeVisible();
+    const figure = (await afterPension.textContent() ?? '').replace(/[£,]/g, '').trim();
+    expect(Number(figure)).toBeGreaterThan(0);
+
+    await clickInView(page.locator('#actualMoreBtn'));
+    await page.locator('#actualGrossInput').fill(figure);
+    const row = page.locator('#actualCompare table.actual-cmp tbody tr', { hasText: 'Taxable Pay' });
+    await expect(row).toBeVisible();
+    await expect(row.locator('td').last()).toHaveText('—');
+    await expect(row.locator('td').last()).toHaveClass(/cmp-same/);
+
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── THE JANUARY POINTER POINTS AT A BOX THAT CAN TAKE THE FIGURE (whole-app check, 10 Nov 2026) ──
+// The Year to Date card's "enter the confirmed figure from it in the Holiday Pay Premium card"
+// showed on the January payslip whatever that card could do: before the payslip was paid, when the
+// confirm box is locked, and to a member who joined after that premium's year, for whom the whole
+// last-year section is hidden. 15 Jan 2027 (p60) carries the 2025/26 premium.
+const JAN_2027_PAID_DAY = new Date('2027-01-20T09:00:00Z');
+
+test('paycalc: the January premium pointer waits for the payslip, then points at an open box', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);   // 7 Nov 2026 — the 15 Jan 2027 payslip is months away
+    await seedSession(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#periodSelect')).toHaveValue('60');
+    await expect(page.locator('#priorHppActualInput'), 'premise: the confirm box is locked').toBeDisabled();
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', true);
+
+    // From its cut-off (9 Jan) the payslip may be in hand, which is when the box opens (paycalc-2-3).
+    await page.clock.setFixedTime(new Date('2027-01-12T09:00:00Z'));
+    await page.reload();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', false);
+
+    // Once the payslip is paid the box opens, and the pointer to it shows.
+    await page.clock.setFixedTime(JAN_2027_PAID_DAY);
+    await page.reload();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#priorHppActualInput')).toBeEnabled();
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', false);
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
+    await expect(page.locator('#ytdJanHppHint')).toBeVisible();
+
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── THE PASS THAT STORES LAST YEAR'S PREMIUM ALSO OFFERS IT (whole-app check, 10 Nov 2026) ─────────
+// calculate() read last year's stored premium for the January banner, then ran calcHPP — which is
+// what works that premium out and stores it when nothing is stored yet (updatePriorHpp). So the pass
+// that stored it painted the banner from nothing, and the HPP card and the banner disagreed until
+// something else recalculated. Something else usually does — a second pass follows a page load or a
+// change of payslip (the back-pay card re-prices) — which is why only the ORDER can be asserted: the
+// stored figure is taken away first, standing in for a premium not yet worked out, and the banner
+// must show within the pass that works it out, before the take-home £ is written a second time.
+test('paycalc: the January banner offers last year\'s premium on the pass that works it out', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));   // opens on 18 Dec 2026 (p59)
+    await seedSession(page, 'C. Reen');
+    const sat = JSON.stringify({ satH: 40, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0, rdwH: 0, rdwM: 0,
+        sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0, slSkip: false, otherAdj: 0, actualNet: null });
+    await page.addInitScript((seed) => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_creen_grade', 'cea');
+        localStorage.setItem('myb_pc_creen_setup', '1');
+        localStorage.setItem('myb_pc_creen_p45', seed);   // a 2025/26 payslip with premium hours
+    }, sat);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await expect(page.locator('#periodSelect')).toHaveValue('59');
+    await page.evaluate(() => {
+        localStorage.removeItem('myb_pc_creen_hpp_est_2025_26');
+        // One ordered log of every pass's take-home write and every banner show/hide.
+        const log = /** @type {string[]} */ ([]);
+        Object.assign(window, { __passLog: log });
+        const net = /** @type {HTMLElement} */ (document.getElementById('netDisplay'));
+        const banner = /** @type {HTMLElement} */ (document.getElementById('hppActiveBanner'));
+        new MutationObserver(records => {
+            for (const r of records) log.push(r.target === banner ? `banner:${banner.style.display || 'shown'}` : 'net');
+        }).observe(net, { childList: true, characterData: true, subtree: true });
+        new MutationObserver(() => log.push(`banner:${banner.style.display || 'shown'}`))
+            .observe(banner, { attributes: true, attributeFilter: ['style'] });
+    });
+
+    await page.locator('#periodSelect').selectOption('60');   // 15 Jan 2027 — carries the 2025/26 premium
+    await expect(page.locator('#priorHppAmt'), 'premise: the pass worked the premium out').toHaveText(/£\d/);
+    const premium = (await page.locator('#priorHppAmt').textContent() ?? '').trim();
+    await expect(page.locator('#hppActiveBanner')).toBeVisible();
+    await expect(page.locator('#hppBannerText')).toContainText(`Estimated Holiday Pay Premium of ${premium}`);
+    const log = /** @type {string[]} */ (await page.evaluate(() => /** @type {any} */ (window).__passLog));
+    const firstShown = log.indexOf('banner:shown');
+    const secondNet = log.indexOf('net', log.indexOf('net') + 1);
+    expect(firstShown, `the banner never showed: ${log.join(' ')}`).toBeGreaterThan(-1);
+    expect(secondNet === -1 || firstShown < secondNet,
+        `the banner waited for another pass to offer what this one worked out: ${log.join(' ')}`).toBe(true);
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+test('paycalc: a joiner is not pointed at last year\'s premium, which the card hides from them', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(JAN_2027_PAID_DAY);
+    await seedSession(page, 'J. Davies');   // started 5 May 2026 — employed for none of 2025/26
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_jdavies_grade', 'cea');
+        localStorage.setItem('myb_pc_jdavies_setup', '1');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#periodSelect')).toHaveValue('60');
+    await expect(page.locator('#priorHppSection'), 'premise: the last-year section is hidden from a joiner').toHaveClass(/hidden/);
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', true);
 
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
@@ -480,11 +696,21 @@ test('paycalc: Fill-the-year fills the empty paid periods, receipts by date, and
     await expect(block).toBeVisible();
     await expect(block).toContainText('Not entered yet');
     await expect(page.locator('#fillYearBtn')).toBeVisible();
+    const lumpBefore = await page.locator('#backPayTotalAmt').textContent();
     await clickInView(page.locator('#fillYearBtn'));
 
     // The receipt: filled payslips BY DATE, plus the review-before-relying line.
     await expect(block.locator('.yearso-receipt')).toContainText(/Filled \d+ payslips? from your calendar/);
     await expect(block.locator('.yearso-receipt')).toContainText('Review the suggested hours');
+
+    // The back-pay lump accrues from those hours too (paycalc-2-2, whole-app check, 10 Nov 2026): it
+    // moves with the fill, to exactly what a fresh look at the payslip gives.
+    const lumpAfter = await page.locator('#backPayTotalAmt').textContent();
+    expect(lumpAfter, 'the fill moves the lump at once — the filled hours sit inside the award window').not.toBe(lumpBefore);
+    const viewed = await page.locator('#periodSelect').inputValue();
+    await page.locator('#periodSelect').selectOption(String(Number(viewed) - 1));
+    await page.locator('#periodSelect').selectOption(viewed);
+    await expect(page.locator('#backPayTotalAmt')).toHaveText(lumpAfter ?? '');
 
     // The entered period survived byte-for-byte — rule 1, proven against real storage.
     const entered = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_pc_gmiller_p51') || 'null'));
@@ -1374,6 +1600,74 @@ test('paycalc: the back-pay lump joins take-home ONLY when the tick is on', asyn
     expect(errors, 'Uncaught JS exceptions on the back-pay opt-in').toHaveLength(0);
 });
 
+// ── HOURS INSIDE THE AWARD WINDOW MOVE THE LUMP AT ONCE (paycalc-2-2, whole-app check, 10 Nov 2026) ──
+// The lump accrues from SAVED hours, and saving hours re-priced everything but it: 20 hours of overtime
+// on the 5 Jun payslip left the card on £476.18 until the member moved away and back (£494.93). The
+// figure must move on the edit, to exactly what a fresh look gives.
+test('paycalc: an hours edit inside the award window re-prices the back-pay lump at once', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);
+    await seedSession(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('52');   // 5 Jun 2026 — inside the 2026/27 award window
+    await page.evaluate(() => {
+        const t = /** @type {HTMLElement} */ (document.getElementById('backPayCardToggle'));
+        /** @type {HTMLElement} */ (t.querySelector('.collapse-chevron') || t).click();
+    });
+    const total = page.locator('#backPayTotalAmt');
+    await expect(total).toHaveText(/£\d/);
+    const before = await total.textContent();
+
+    await page.fill('#otH', '20');
+    await page.dispatchEvent('#otH', 'input');
+    await expect(total, 'the overtime is priced into the lump on the edit').not.toHaveText(before ?? '');
+    const moved = await total.textContent();
+    await page.locator('#periodSelect').selectOption('53');
+    await page.locator('#periodSelect').selectOption('52');
+    await expect(total, 'and to exactly what a fresh look gives').toHaveText(moved ?? '');
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── A LUMP TYPED FROM THE PAYSLIP IS NOT AN ESTIMATE TO SHARPEN (whole-app check, 10 Nov 2026) ────
+// The banner's second line — "For the best estimate, fill in your hours on each payslip back to
+// 1 April …" — is the way to improve a lump WORKED OUT from hours. Typed from the payslip it is the
+// payslip's own figure, and hours change nothing, so the line has nothing to say there.
+test('paycalc: a back-pay lump typed from the payslip is not told to fill in hours', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);   // 7 Nov 2026 — the 28 Aug award payslip is paid
+    await seedSession(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('55');   // Paid 28 Aug 2026 · P24 — carries the 2026/27 award
+    await expect(page.locator('#bpActiveBanner')).toBeVisible();
+    await expect(page.locator('#bpBannerNote'), 'worked out from hours: the line is the way to sharpen it')
+        .toHaveText('For the best estimate, fill in your hours on each payslip back to 1 April 2026.');
+
+    await page.evaluate(() => {
+        const t = /** @type {HTMLElement} */ (document.getElementById('backPayCardToggle'));
+        /** @type {HTMLElement} */ (t.querySelector('.collapse-chevron') || t).click();
+    });
+    const worked = (await page.locator('#backPayTotalAmt').textContent() ?? '').replace(/[£,]/g, '').trim();
+    expect(Number(worked), 'premise: a lump worked out from hours').toBeGreaterThan(0);
+    await page.locator('#bpModeManual').check();
+    await page.locator('#bpManualAmt').fill('500.00');
+    await expect(page.locator('#bpBannerText')).toContainText('£500.00');
+    await expect(page.locator('#bpBannerNote')).toHaveText('');
+    await expect(page.locator('#bpBannerNote')).toBeHidden();
+
+    // The SAME figure as the worked-out lump, then back to hours: nothing but the source changes, so
+    // only the source can bring the line back.
+    await page.locator('#bpManualAmt').fill(worked);
+    await expect(page.locator('#bpBannerText')).not.toContainText('£500.00');
+    await expect(page.locator('#bpBannerNote')).toHaveText('');
+    await page.locator('#bpModeCompute').check();
+    await expect(page.locator('#bpBannerNote')).toHaveText(/fill in your hours on each payslip back to 1 April 2026/);
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 // ── THE TAKE-HOME £ IS THE ENGINE'S OWN FIGURE FOR WHAT IS ON SCREEN (test audit, 7 Nov 2026) ─────
 // Every other test in this file checks that the figure MOVES, or that it agrees with itself on a
 // second look. None said what it should BE, so `calculate()` could assemble the pieces wrongly with
@@ -1497,6 +1791,12 @@ test('paycalc: "Clear all entries" needs a second tap, and disarms itself', asyn
     await expect(btn, 'a change of payslip disarms it').toHaveText('Clear all entries');
     await btn.click();
     expect(await saved(57), 'one tap on the new payslip only arms it').not.toBeNull();
+    // A double-tap is ONE gesture (whole-app review, Nov 2026): the second tap at once is not a
+    // confirmation anybody read, and it used to clear the payslip.
+    await btn.click();
+    expect(await saved(57), 'a tap straight after arming does not confirm').not.toBeNull();
+    await expect(btn).toHaveText('Select again to confirm (3)');
+    await page.clock.runFor(1000);
     await btn.click();
     await expect(btn).toHaveText('Clear all entries');
     expect(await saved(57), 'the second tap clears the payslip on screen').toBeNull();
@@ -1537,6 +1837,41 @@ test('paycalc: the Settings summary and the rate field agree about the rate a pa
     expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
 });
 
+// ── A YEAR NOT YET CHECKED, IN A MEMBER'S FIRST SESSION (whole-app review, Nov 2026) ──────────────
+// Grade, tax code, loan and pension are single settings used for every payslip; only the "checked"
+// mark is per tax year. The banner said they "apply to 2025/26 only", the card opened announcing a
+// "New tax year 2025/26" that had ended, and the header kept the checked year's "✓ … £21.49/hr" over
+// a payslip priced at £20.74. Here 2026/27 is checked and 2025/26 is not (the state after a first
+// Save, before the one-time sweep of a later load marks the older years).
+test('paycalc: stepping back to a year not yet checked says what is true, and no "New tax year" for one that is over', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-08T12:00:00'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_gmiller_grade', 'cea');
+        localStorage.setItem('myb_pc_gmiller_setup', '1');
+        localStorage.setItem('myb_pc_gmiller_setup_2026_27', '1');
+        localStorage.setItem('myb_pc_gmiller_setup_years_migrated', '1');
+    });
+    await page.goto('/paycalc.html');
+    const view = (/** @type {number} */ n) => page.evaluate((num) => {
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
+        for (const o of sel.options) o.selected = o.value === String(num);
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }, n);
+    await expect(page.locator('#settingsHint')).toHaveText(/^✓ 2026\/27 — £/);
+    await view(47);   // paid 16 Jan 2026 — 2025/26, after its award
+    await expect(page.locator('#setupBanner')).toBeVisible();
+    await expect(page.locator('#setupBannerBody')).toContainText('Your settings apply to every payslip');
+    await expect(page.locator('#setupBannerBody')).not.toContainText('only');
+    await expect(page.locator('#settingsHint'), 'no ✓ over a year not yet checked').toHaveText('Check once per tax year — pension saves per payslip');
+    await expect(page.locator('#settingsNewYearNotice'), 'a year that is over is not a new one').toBeHidden();
+    await view(58);
+    await expect(page.locator('#settingsHint')).toHaveText(/^✓ 2026\/27 — £/);
+    expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
+});
+
 test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on', async ({ page }) => {
     const errors = collectFatalErrors(page);
     // The 2025/26 premium is paid on the first January payslip of 2027 (TAX_YEARS.hppPaidJan), so
@@ -1560,6 +1895,8 @@ test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on'
 
     await expect(page.locator('#hppBannerTick')).not.toBeChecked();
     await expect(page.locator('#hppBannerText')).toContainText('not added to this estimate');
+    // Confirmed, so not hedged: the figure was copied off this payslip (whole-app check, 10 Nov 2026).
+    await expect(page.locator('#hppBannerText')).toContainText('Your Holiday Pay Premium of £1,843.01 is on this payslip');
     await expect(page.locator('#provChips')).not.toContainText('Holiday Pay Premium');
     const excluded = poundsOf(await page.locator('#netDisplay').textContent());
     expect(excluded, 'the take-home figure rendered').toBeGreaterThan(0);
@@ -1669,6 +2006,32 @@ test('paycalc: Year to Date figures sharpen ONLY the payslip after their source'
 // ── AN OVER-COLLECTED YEAR IS SAID, NOT HIDDEN BEHIND £0 (72-hour review) ────────────────────────
 // computeTax reports the over-collection it clamps to £0; this pins calculate() handing it to the
 // summary — the wiring a unit test of either half cannot see.
+// A Tax Paid typed one digit short (348 for 3,480) asked for nearly a year's tax at once. Bounded by the
+// pay alone, the tax took all of it and NI came off on top: a negative take-home (whole-app review,
+// Nov 2026). This pins calculate() handing NI and loans to computeTax, and the summary saying why.
+test('paycalc: a mistyped Tax Paid never makes the take-home negative, and the summary says to check it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_sl', 'plan2');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '57');
+        localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '25142.72');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '348');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await expect(page.locator('#summary')).toContainText('ask for more tax than this payslip pays');
+    const net = await page.locator('#netDisplay').textContent();
+    expect(poundsOf(net), `the take-home reads ${net}`).toBeGreaterThanOrEqual(0);
+    expect(net ?? '', 'no minus sign on the take-home').not.toMatch(/[−-]/);
+    expect(errors).toHaveLength(0);
+});
+
 test('paycalc: Year to Date figures showing tax over-collected say a refund may be due', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(new Date('2027-01-10T09:00:00Z'));
@@ -1718,10 +2081,13 @@ test('paycalc: the take-home asks for the latest Year to Date figures, and stops
     await expect(page.locator('#ytdPay')).toBeFocused();
     await expect(page.locator('#payslipCard')).toBeInViewport();
 
-    // One figure is not a pair: the estimate cannot use it yet, so the line stays.
+    // One figure is not a pair: the estimate cannot use it yet, so the line stays — and the card's chip
+    // says so too, from what computeTax did rather than from "a box has text" (whole-app review).
     await page.fill('#ytdPay', '13200');
     await page.dispatchEvent('#ytdPay', 'input');
     await expect(line).toBeVisible();
+    await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
+    await expect(page.locator('#ytdUptoNote')).toContainText('fill in both Taxable Pay and Tax Paid');
     // Both figures, stamped to the 23 Oct payslip: in use, so the line goes.
     await page.fill('#ytdTax', '1650');
     await page.dispatchEvent('#ytdTax', 'input');
@@ -1757,6 +2123,86 @@ test('paycalc: Year to Date figures from an older payslip are asked for again', 
     await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
     await expect(page.locator('#netYtdNudge')).toBeVisible();
     await expect(page.locator('#netYtdNudge')).toContainText('from your 23 Oct payslip');
+
+    // Doing what it asks MOVES the source (whole-app review, Nov 2026): the figures were stamped on
+    // first entry only, so re-typed ones stayed on 25 Sep — the line kept asking, and the 23 Oct
+    // payslip, straight after that old source, counted its own pay twice.
+    await page.locator('#netYtdNudgeBtn').click();
+    await page.fill('#ytdPay', '14300');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await page.fill('#ytdTax', '1840');
+    await page.dispatchEvent('#ytdTax', 'input');
+    await expect(page.locator('#ytdSrcSelect')).toHaveValue('57');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
+    await expect(page.locator('#ytdUptoNote')).toContainText('from your 23 Oct payslip');
+    await expect(page.locator('#netYtdNudge')).toBeHidden();
+    await page.locator('#periodSelect').selectOption('57');
+    await expect(page.locator('#netPeriod')).toContainText('23 Oct');
+    await expect(page.locator('#ytdStatusChip'), 'the 23 Oct payslip no longer counts its own pay twice').toHaveText('not in use');
+    expect(errors).toHaveLength(0);
+});
+
+// …but ONLY over figures already recorded (whole-app check, 10 Nov 2026 — the move above first fired
+// on any typing). Figures typed into empty boxes against a payslip already recorded, or after the
+// member picked one in the select, come from the payslip they chose; moving it lost that choice, and
+// for a joiner it priced a June figure as October's (the ytd-mode HPP test went to £0).
+test('paycalc: Year to Date figures typed against a payslip the member chose keep it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '56');   // the 25 Sep payslip — no figures yet
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
+
+    // Into the empty boxes — both, which are one edit: the payslip already recorded stands.
+    await page.fill('#ytdPay', '11000');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await page.fill('#ytdTax', '1400');
+    await page.dispatchEvent('#ytdTax', 'input');
+    await expect(page.locator('#ytdSrcSelect')).toHaveValue('56');
+
+    // A new edit over those figures — the boxes are left first, as picking in the sheet leaves them —
+    // after picking a payslip in the select: the pick stands.
+    await page.locator('#ytdTax').blur();
+    await page.locator('#ytdSrcSelect').selectOption('55', { force: true });
+    await page.locator('#ytdSrcSelect').dispatchEvent('change');
+    await page.fill('#ytdPay', '9000');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await expect(page.locator('#ytdSrcSelect')).toHaveValue('55');
+    expect(errors).toHaveLength(0);
+});
+
+// A week 1 / month 1 code never uses the figures, and the card said "✓ in use" over it all the same
+// (whole-app review, Nov 2026). The code is a setting, not a Year to Date box — so this pins that the
+// chip is written by calculate() from computeTax's own answer, on every recalculation.
+test('paycalc: under a week 1 / month 1 tax code the Year to Date card says its figures are not in use', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '57');
+        localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '13200');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '1650');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
+    await page.locator('#taxCode').fill('1257L M1');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
+    await expect(page.locator('#ytdUptoNote')).toContainText('a tax code ending in W1, M1 or X works out each payslip on its own');
+    await page.locator('#taxCode').fill('1257L');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
     expect(errors).toHaveLength(0);
 });
 
@@ -2370,6 +2816,550 @@ test('paycalc: the "Includes an 8h estimate" chip wraps inside its row instead o
     expect(errors, 'Uncaught JS exceptions on the estimate chip').toHaveLength(0);
 });
 
+// The same card at 360px with the LONGEST label (the test above uses RDW, the shortest of the seven).
+// A "Bank holiday overtime" row whose hours differ needed ~56px more than the row had: nothing in it
+// could wrap, so the meta column was crushed to 0px and "Calendar: 8h 30m" and its chip painted over
+// the arrow and out of the row. An rdw change on the 31 Aug 2026 bank holiday makes that row.
+// Fitting is not enough on its own: a row that fits by SQUEEZING (the label broken over two lines,
+// the meta a narrow stack) or by letting the arrow wrap to a line of its own is the same defect drawn
+// differently. So the label keeps its one line and the arrow its place at the right edge, centred.
+test('paycalc: the calendar rows fit a 360px phone when the hours differ, longest label included', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'a narrow phone');
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.clock.setFixedTime(new Date('2026-09-02T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'b1', memberName: 'G. Miller', date: '2026-08-31', type: 'rdw', value: '06:00-14:30', source: 'manual' }];
+    });
+    await page.goto('/paycalc.html?payday=2026-09-18');
+    await expect(page.locator('.roster-row[data-cat="bhOt"]')).toBeVisible({ timeout: 10000 });
+    for (const cat of await page.locator('.roster-row').evaluateAll(els => els.map(e => e.getAttribute('data-cat')))) {
+        await page.locator(`#${cat}H`).fill('16');
+        await page.locator(`#${cat}M`).fill('30');
+    }
+    await expect(page.locator('.roster-row:not(.roster-row--differs)')).toHaveCount(0);
+    const rows = await page.locator('.roster-row').evaluateAll(els => els.map(row => {
+        const r = row.getBoundingClientRect();
+        const out = [...row.children].filter(c => c.getClientRects().length && !c.classList.contains('visually-hidden'))
+            .filter(c => { const b = c.getBoundingClientRect(); return b.left < r.left - 0.5 || b.right > r.right + 0.5; })
+            .map(c => c.className);
+        const meta = /** @type {HTMLElement} */ (row.querySelector('.roster-row-meta'));
+        const label = document.createRange();
+        label.selectNodeContents(/** @type {Element} */ (row.querySelector('.roster-row-label')));
+        const arrow = /** @type {Element} */ (row.querySelector('.roster-cat-arrow, .roster-cat-match')).getBoundingClientRect();
+        return { cat: row.getAttribute('data-cat'), overflow: row.scrollWidth - row.clientWidth, out,
+                 metaSqueezed: meta.scrollWidth - meta.clientWidth,
+                 labelLines: new Set([...label.getClientRects()].map(l => Math.round(l.top))).size,
+                 arrowFromRight: r.right - arrow.right,
+                 arrowOffCentre: Math.abs((arrow.top + arrow.bottom) / 2 - (r.top + r.bottom) / 2) };
+    }));
+    expect(rows.map(r => r.cat), 'the premise: the longest label is among them').toContain('bhOt');
+    for (const r of rows) {
+        const { cat, overflow, out, metaSqueezed, labelLines } = r;
+        expect({ cat, overflow, out, metaSqueezed, labelLines }, `the ${cat} row`)
+            .toEqual({ cat, overflow: 0, out: [], metaSqueezed: 0, labelLines: 1 });
+        // 11px = the row's 1px border + the arrow's 10px inset.
+        expect(r.arrowFromRight, `the ${cat} row's arrow sits at its right edge`).toBeCloseTo(11, 0);
+        expect(r.arrowOffCentre, `the ${cat} row's arrow is centred on the row`).toBeLessThanOrEqual(1);
+    }
+});
+
+// ── THE STYLESHEET, READ LINE BY LINE (whole-app check, 10 Nov 2026) ─────────────────────────────
+// paycalc.css findings that only a rendered page shows: each test measures what a member sees.
+
+/** A CSS colour expression as this page computes it, for comparing with a computed colour.
+ *  @param {import('@playwright/test').Page} page @param {string} value */
+const pcColour = (page, value) => page.evaluate((v) => {
+    const i = document.createElement('i'); i.style.color = v; document.body.append(i);
+    const c = getComputedStyle(i).color; i.remove(); return c;
+}, value);
+
+test('paycalc: a Tab stop on a dark surface wears the ring drawn for one', async ({ page }, info) => {
+    // The help sheet's ✕ and the guide link at the foot of the page have no focus rule of their own,
+    // so they took the app's navy fallback ring: 1.17:1 on the dark glass and 1:1 on the navy canvas.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const gold = await pcColour(page, 'var(--accent-gold)');
+    const ring = (/** @type {import('@playwright/test').Locator} */ el) => el.evaluate(e => {
+        const cs = getComputedStyle(e);
+        return { focus: e.matches(':focus-visible'), style: cs.outlineStyle, colour: cs.outlineColor };
+    });
+
+    const link = page.locator('.guide-footer-link a');
+    await link.focus();
+    expect(await ring(link), 'the guide link on the navy canvas').toEqual({ focus: true, style: 'solid', colour: gold });
+
+    await page.locator('.help-btn[data-help="hours"]').click();
+    await expect(page.locator('#helpLightbox.visible')).toBeVisible();
+    const close = page.locator('#helpLightboxClose');
+    for (let i = 0; i < 6 && !(await close.evaluate(e => e === document.activeElement)); i++) await page.keyboard.press('Tab');
+    expect(await ring(close), 'the help sheet\'s ✕ on the dark glass').toEqual({ focus: true, style: 'solid', colour: gold });
+});
+
+test('paycalc: the Training Days stepper draws its focus ring whole', async ({ page }, info) => {
+    // The stepper clips (`overflow: hidden`) and its buttons sit flush against three of its edges, so
+    // a ring drawn 2px OUTSIDE a button lost those three sides: one navy bar beside the number.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    for (const id of ['peerMinus', 'peerPlus']) {
+        const button = page.locator(`#${id}`);
+        await button.focus();
+        const g = await button.evaluate(b => {
+            const cs = getComputedStyle(b), box = b.getBoundingClientRect();
+            const st = /** @type {HTMLElement} */ (b.closest('.stepper'));
+            const sr = st.getBoundingClientRect(), edge = parseFloat(getComputedStyle(st).borderTopWidth);
+            const out = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);   // how far the ring reaches past the button
+            return { focus: b.matches(':focus-visible'), style: cs.outlineStyle,
+                clipped: [box.left - out < sr.left + edge - 0.5, box.right + out > sr.right - edge + 0.5,
+                          box.top - out < sr.top + edge - 0.5, box.bottom + out > sr.bottom - edge + 0.5] };
+        });
+        expect(g.focus && g.style === 'solid', `#${id} shows a ring`).toBe(true);
+        expect(g.clipped, `#${id}'s ring runs past the stepper's clip on [left, right, top, bottom]`).toEqual([false, false, false, false]);
+    }
+});
+
+test('paycalc: a disclosure arrow points down when shut and up when open', async ({ page }) => {
+    // The script swaps these two arrows' glyph (▼ → ▲) AND the stylesheet turned an open one by 180°,
+    // so after a quarter-second spin the ▲ faced down again: shut and open looked the same. What is
+    // asserted is the way the arrow FACES — glyph and rotation together — not either one alone.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const facing = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const t = getComputedStyle(el).transform;
+        const turned = t !== 'none' && new DOMMatrixReadOnly(t).a < 0;   // a half turn
+        return (el.textContent?.trim() === '▲') !== turned ? 'up' : 'down';
+    }));
+    if (!await page.locator('#hppCardBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#hppCardToggle .card-toggle-arrow').click();
+    }
+    for (const [button, arrow] of [['#hoursShowMore', '.show-more-arrow'], ['#hppToggleBtn', '.hpp-toggle-arrow']]) {
+        const btn = page.locator(button);
+        await btn.scrollIntoViewIfNeeded();
+        expect(await facing(`${button} ${arrow}`), `${button} shut`).toBe('down');
+        await btn.click();
+        await expect(btn).toHaveAttribute('aria-expanded', 'true');
+        expect(await facing(`${button} ${arrow}`), `${button} open`).toBe('up');
+        await btn.click();
+        await expect(btn).toHaveAttribute('aria-expanded', 'false');
+        expect(await facing(`${button} ${arrow}`), `${button} shut again`).toBe('down');
+    }
+});
+
+test('paycalc: a back-pay rate locked from the record reads as a fixed value, and does not glow on focus', async ({ page }, info) => {
+    // A CES member on a 2025/26 payslip: that award's OLD rate is not on record, so three of the four
+    // boxes are locked and one stays editable (paycalc-backpay.js). The locked rule was (0,1,1) inside
+    // `.field`, whose own input rule is (0,3,1), so all but the cursor lost: three boxes that looked
+    // editable, padlock and all, and brightened with the 4px glow when Tab reached them.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page, 'F. Mohamed');
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html?payday=2025-11-21');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    if (!await page.locator('#backPayBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#backPayCardToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#backPayBody')).toHaveCSS('visibility', 'visible');
+    if (await page.locator('#bpModeCompute').isVisible()) await page.locator('#bpModeCompute').check();
+    await expect(page.locator('#newRateInput')).toHaveClass(/bp-rate-locked/);
+    await expect(page.locator('#oldRate'), 'the premise: a figure not on record stays editable').not.toHaveClass(/bp-rate-locked/);
+    const look = (/** @type {string} */ id) => page.locator(`#${id}`).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const cs = getComputedStyle(el);
+        return { fill: cs.backgroundColor, edge: cs.borderTopColor, weight: cs.fontWeight, room: cs.paddingRight, glow: cs.boxShadow };
+    }));
+    const fixedValue = { ...(await look('hourlyRate')), glow: 'none' };   // the read-only Settings rate
+    for (const id of ['newRateInput', 'oldLondon', 'newLondon']) expect(await look(id), `#${id} at rest`).toEqual(fixedValue);
+    expect((await look('oldRate')).fill, 'the editable box keeps the field fill').not.toBe(fixedValue.fill);
+
+    await page.locator('#oldRate').focus();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#newRateInput')).toBeFocused();
+    expect(await look('newRateInput'), 'focused by keyboard: no glow, no brightening').toEqual(fixedValue);
+    expect(await page.locator('#newRateInput').evaluate(el => getComputedStyle(el).outlineStyle), 'and the ring still shows where you are').toBe('solid');
+});
+
+test('paycalc desktop: a hidden setup banner or privacy note leaves no gap behind it', async ({ page }, info) => {
+    // Rows 1 and 2 of the desktop grid belong to the setup banner and the first-visit privacy note,
+    // and an empty grid row still takes its row-gap. Only the note's was taken back, so a RETURNING
+    // member — both hidden, the normal state — had the workspace 20px under the header against the
+    // 4px of every other card page (pages.spec.js measures the first visit only, where both show).
+    test.skip(isTouchProject(info), 'the 1366px desktop grid');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    // [name, seed, which of banner / note the state shows] — all four combinations.
+    const states = /** @type {const} */ ([
+        ['first visit', {}, [true, true]],
+        // A payslip saved, the year's settings never confirmed. (A bare `…_setup` is no good here: a
+        // migration turns it into per-year confirmations, which hide the banner too.)
+        ['settings not yet confirmed', { myb_pc_gmiller_p57: JSON.stringify({ satH: 8 }) }, [true, false]],
+        ['no pay data yet', { myb_pc_gmiller_setup_2026_27: '1' }, [false, true]],
+        ['returning member', { myb_pc_gmiller_setup: '1', myb_pc_gmiller_setup_2026_27: '1' }, [false, false]],
+    ]);
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    for (const [name, seed, shows] of states) {
+        // This member's pay keys cleared, then exactly the state's — and the page loaded on them.
+        await page.evaluate(s => {
+            Object.keys(localStorage).filter(k => k.startsWith('myb_pc_gmiller_')).forEach(k => localStorage.removeItem(k));
+            for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v);
+        }, seed);
+        await page.reload();
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        expect([await page.locator('#setupBanner').isVisible(), await page.locator('#privacyNoteTop').isVisible()],
+            `${name}: the premise — which of the banner and the note it shows`).toEqual(shows);
+        const m = await page.evaluate(() => {
+            const header = /** @type {Element} */ (document.querySelector('.app-header')).getBoundingClientRect().bottom;
+            const shown = ['#setupBanner', '#privacyNoteTop', '.pc-work > :first-child']
+                .map(s => /** @type {HTMLElement} */ (document.querySelector(s)))
+                .filter(el => el.getClientRects().length)
+                .map(el => el.getBoundingClientRect());
+            return { top: Math.round(shown[0].top - header),
+                     steps: shown.slice(1).map((r, i) => Math.round(r.top - shown[i].bottom)) };
+        });
+        expect(m.top, `${name}: the first block sits 4px under the header`).toBe(4);
+        expect(m.steps.every(s => s === 16), `${name}: one 16px gap between the blocks, measured ${JSON.stringify(m.steps)}`).toBe(true);
+    }
+});
+
+test('paycalc: at large text an open card is never cut short — Save settings stays reachable', async ({ page }, info) => {
+    // The open cards were capped at fixed pixel heights (1800px, the HPP note 400px) under
+    // `overflow: hidden`, sized against DEFAULT text. At Android's 1.3x a Settings card with a student
+    // loan and a pension opt-out measured 1916px at 360px wide, so its last 116px — Save settings —
+    // was clipped with no way to scroll to it. A card's height grows faster than its text (more
+    // lines AND taller ones), so the caps are in `em` now.
+    test.skip(!isTouchProject(info), 'a phone with its text scaled');
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#settingsToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#settingsBody')).toHaveCSS('visibility', 'visible');
+    await page.evaluate(() => {   // the tallest ordinary Settings: a loan plan and the opt-out's dated question
+        const s = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan'));
+        s.value = 'plan2'; s.dispatchEvent(new Event('change', { bubbles: true }));
+        const c = /** @type {HTMLInputElement} */ (document.getElementById('pensionOptOutCheck'));
+        if (!c.checked) c.click();
+    });
+    await expect(page.locator('#pensionOptOutField')).toBeVisible();
+    if (!await page.locator('#hppCardBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#hppCardToggle .card-toggle-arrow').click();
+    }
+    await page.locator('#hppToggleBtn').click();
+    // Android's text scaling: every element's OWN size × 1.6, read first and written after, so an
+    // inherited size is scaled once.
+    const scale = () => scaleText(page, 1.6);
+    await scale();
+    const clip = (/** @type {string} */ sel) => page.locator(sel).evaluate(el =>
+        Promise.all(document.getAnimations().map(a => a.finished.catch(() => {}))).then(() => el.scrollHeight - el.clientHeight));
+    expect(await clip('#settingsBody'), 'Settings content hidden below its cap').toBeLessThanOrEqual(1);
+    expect(await clip('#hppNoteBody'), '"How is this calculated?" hidden below its cap').toBeLessThanOrEqual(1);
+    const inside = await page.evaluate(() => {
+        const save = /** @type {Element} */ (document.getElementById('saveSettingsBtn')).getBoundingClientRect();
+        const body = /** @type {Element} */ (document.getElementById('settingsBody')).getBoundingClientRect();
+        return save.bottom <= body.bottom + 0.5;
+    });
+    expect(inside, 'Save settings sits inside its open card').toBe(true);
+
+    // The Boxing Day banner (a 60px cap) wraps to a second line at this size: 88px of it.
+    await page.clock.setFixedTime(new Date('2026-12-20T09:00:00Z'));
+    await page.goto('/paycalc.html?payday=2027-01-08');
+    await expect(page.locator('.boxing-banner.visible')).toBeVisible();
+    await scale();
+    expect(await clip('.boxing-banner'), 'the Boxing Day banner hidden below its cap').toBeLessThanOrEqual(1);
+});
+
+test('paycalc: a notice sheet\'s two answers are one width, from tablet up', async ({ page }, info) => {
+    // From 768px every `.btn-primary` stopped at 280px — a cap written for the cards, whose two
+    // buttons were then exempted by name. What it still reached was the first answer in each notice
+    // sheet: "Yes, it's mine" 280px wide over a 290px "No — start fresh", the mismatched pair the
+    // cap's own comment called a fault.
+    test.skip(isTouchProject(info), 'tablet and desktop widths');
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);   // G. Miller, whose device also offers the developer's actuals sheet
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_rate', '20.74');   // unclaimed legacy pay data: the ownership question
+        localStorage.removeItem('myb_pc_ns_migrated');
+    });
+    const settle = () => page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => {}))));
+    const boxes = (/** @type {string[]} */ ids) => page.evaluate(list => list.map(id => {
+        const r = /** @type {Element} */ (document.getElementById(id)).getBoundingClientRect();
+        return { left: Math.round(r.left), width: Math.round(r.width) };
+    }), ids);
+    for (const width of [800, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
+        await settle();
+        const [mine, fresh] = await boxes(['dataOwnerMine', 'dataOwnerFresh']);
+        expect(mine, `${width}px: "Yes, it's mine" against "No — start fresh" under it`).toEqual(fresh);
+
+        await page.locator('#dataOwnerClose').click();   // decide later
+        await expect(page.locator('#dataOwnerLightbox')).not.toHaveClass(/visible/);
+        if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+            await page.locator('#settingsToggle .card-toggle-arrow').click();
+        }
+        await page.locator('#actualsImportBtn').click();
+        await expect(page.locator('#actualsLightbox.visible')).toBeVisible();
+        await settle();
+        const [load, clear] = await boxes(['actualsImport', 'actualsClear']);
+        expect(load, `${width}px: "Import" against "Clear stored data" under it`).toEqual(clear);
+    }
+});
+
+test('paycalc: a primary button and the secondary under it are drawn by one recipe', async ({ page }) => {
+    // paycalc.css kept its own `.btn-primary` recipe for Save settings, then the one primary without
+    // `.btn-action` — and it reached the three that do, overriding the shared recipe's display, edge
+    // and timing: two shapes in one pair. Nothing differed by a pixel, which is why it is the computed
+    // SHAPE that is compared — the next change to the shared recipe would have split them. Save
+    // settings wears `.btn-action` too now (Nov 2026), and the page recipe has gone.
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_rate', '20.74');   // the ownership question
+        localStorage.removeItem('myb_pc_ns_migrated');
+    });
+    const shape = (/** @type {string[]} */ ids) => page.evaluate(list => list.map(id => {
+        const cs = getComputedStyle(/** @type {Element} */ (document.getElementById(id)));
+        return [cs.display, cs.borderTopWidth, cs.borderTopStyle, cs.padding, cs.borderTopLeftRadius,
+            cs.minHeight, cs.fontSize, cs.fontWeight, cs.transitionProperty, cs.transitionDuration].join(' | ');
+    }), ids);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
+    const [mine, fresh] = await shape(['dataOwnerMine', 'dataOwnerFresh']);
+    expect(mine, '"Yes, it\'s mine" against "No — start fresh"').toBe(fresh);
+    await page.locator('#dataOwnerClose').click();
+    await expect(page.locator('#dataOwnerLightbox')).not.toHaveClass(/visible/);
+    if (!await page.locator('#payTransferBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#payTransferToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#ptDownload')).toBeVisible();
+    const [download, copy] = await shape(['ptDownload', 'ptCopy']);
+    expect(download, '"Download backup" against "Copy as text"').toBe(copy);
+    // …and Save settings is one more primary drawn by it, not by a recipe of its own.
+    if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#settingsToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#saveSettingsBtn')).toBeVisible();
+    const [save] = await shape(['saveSettingsBtn']);
+    expect(save, '"Save settings" against "Download backup"').toBe(download);
+});
+
+// …and it keeps the gap a block button had (whole-app check, 10 Nov 2026). As a `.btn-action` it is an inline-flex
+// box, whose margin does not collapse into the field above, so its own 8px top margin was ADDED to the 14px every
+// field keeps below it: 22px. Measured at a phone and a desktop width.
+test('paycalc: Save settings sits one field gap under the field above it', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    for (const width of [390, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/paycalc.html');
+        if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+            await page.locator('#settingsToggle .card-toggle-arrow').click();
+        }
+        await expect(page.locator('#saveSettingsBtn')).toBeVisible();
+        const m = await page.locator('#saveSettingsBtn').evaluate(btn => {
+            let above = btn.previousElementSibling;
+            while (above && !above.getClientRects().length) above = above.previousElementSibling;
+            const field = /** @type {Element} */ (above);
+            return { gap: Math.round(btn.getBoundingClientRect().top - field.getBoundingClientRect().bottom),
+                     fieldGap: parseFloat(getComputedStyle(field).marginBottom) };
+        });
+        expect(m.gap, `at ${width}px, the gap above Save settings against the field's own`).toBe(m.fieldGap);
+    }
+});
+
+test('paycalc guide: the two bulleted lists keep their bullets on paper', async ({ page }) => {
+    // Each bullet is a 5px gold dot drawn as a BACKGROUND (the list is `list-style: none`), and a
+    // browser printing with background graphics off — the default — drops backgrounds unless
+    // `print-color-adjust: exact` keeps them. "Entering Your Hours" and "Year to Date Figures" printed
+    // as indented lines with no markers (seen in a PDF printed that way; page.pdf() cannot show it
+    // here, because it is called with backgrounds ON).
+    await page.goto('/paycalc-guide.html');
+    await expect(page.locator('.guide-disc-list')).toHaveCount(2);
+    await page.emulateMedia({ media: 'print' });
+    const dots = await page.locator('.guide-disc-list li').evaluateAll(lis => lis.map(li => {
+        const cs = getComputedStyle(li, '::before');
+        return { shown: cs.display !== 'none' && cs.backgroundColor !== 'rgba(0, 0, 0, 0)',
+                 onPaper: cs.getPropertyValue('print-color-adjust') || cs.getPropertyValue('-webkit-print-color-adjust') };
+    }));
+    await page.emulateMedia({ media: null });
+    expect(dots.length, 'the premise: list items to look at').toBeGreaterThan(0);
+    for (const [i, dot] of dots.entries()) expect(dot, `bullet ${i + 1}`).toEqual({ shown: true, onPaper: 'exact' });
+});
+
+test('paycalc: with reduced motion "How is this calculated?" opens without sliding', async ({ page }) => {
+    // Its three sibling reveals (the breakdown, the Boxing Day banner, the cards) are in the page's
+    // reduced-motion list; this one was not, and slid open over 0.35s. Both settings are driven, so
+    // the slide is seen to exist before its absence is believed.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    const slides = () => page.locator('#hppNoteBody').evaluate(el => el.getAnimations().filter(a => a.playState === 'running').length);
+    for (const motion of /** @type {const} */ (['no-preference', 'reduce'])) {
+        await page.emulateMedia({ reducedMotion: motion });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        if (!await page.locator('#hppCardBody').evaluate(el => el.classList.contains('open'))) {
+            await page.locator('#hppCardToggle .card-toggle-arrow').click();
+        }
+        await expect(page.locator('#hppCardBody')).toHaveCSS('visibility', 'visible');
+        await page.locator('#hppToggleBtn').click();
+        await expect(page.locator('#hppNoteBody')).toHaveClass(/open/);
+        expect(await slides(), `${motion}: the note's slide`).toBe(motion === 'reduce' ? 0 : 1);
+    }
+});
+
+test('paycalc: the period buttons share the corner of the period field above them', async ({ page }) => {
+    // "← Earlier", "Later →" and 📍 wore --radius-md, the 16px PANEL corner, directly under a 12px
+    // field: two corners a few pixels apart in one card, which css-tokens.md → Corners calls
+    // "assembled rather than designed". Every action button takes --radius-button.
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#prevBtn').click();   // off the current payslip, so 📍 is offered
+    await expect(page.locator('#todayPeriodBtn')).toBeVisible();
+    const corners = await page.evaluate(() => Object.fromEntries(['periodSelectTrigger', 'periodSelect', 'prevBtn', 'nextBtn', 'todayPeriodBtn']
+        .map(id => /** @type {HTMLElement|null} */ (document.getElementById(id)))
+        .filter(el => el && el.getClientRects().length)
+        .map(el => [/** @type {HTMLElement} */ (el).id, getComputedStyle(/** @type {HTMLElement} */ (el)).borderTopLeftRadius])));
+    const field = corners.periodSelectTrigger ?? corners.periodSelect;
+    expect(field, 'the premise: the period field is on screen').toBeTruthy();
+    for (const id of ['prevBtn', 'nextBtn', 'todayPeriodBtn']) expect(corners[id], `#${id} against the field above it`).toBe(field);
+});
+
+test('paycalc: every transition on the page takes its timing from the motion tokens', async ({ page }) => {
+    // css-tokens.md → Motion vocabulary: "Use these tokens, not inline cubic-bezier(...) or a bare
+    // ease." paycalc.css hand-wrote nine — the same 0.2s four times over, and two content reveals at
+    // 0.4s and 0.35s with a bare `ease` beside siblings on --dur-slower. Read from the stylesheet the
+    // browser parsed, so a comment cannot count and a rule inside a media query cannot hide.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const found = await page.evaluate(() => {
+        const sheet = [...document.styleSheets].find(s => s.href?.endsWith('/paycalc.css'));
+        if (!sheet) return null;
+        /** @type {string[]} */ const off = [];
+        let read = 0;
+        const walk = (/** @type {CSSRuleList} */ rules) => {
+            for (const rule of /** @type {any[]} */ ([...rules])) {
+                if (rule.cssRules) walk(rule.cssRules);
+                if (!rule.style) continue;
+                // The shorthand as written; a longhand only where no shorthand set it (a shorthand's
+                // `none` reports its longhands' initial `ease`, which nobody wrote).
+                const props = rule.style.getPropertyValue('transition') ? ['transition'] : ['transition-duration', 'transition-timing-function'];
+                for (const prop of props) {
+                    const v = rule.style.getPropertyValue(prop);
+                    if (!v) continue;
+                    read++;
+                    const bare = v.replace(/var\([^)]*\)/g, '').replace(/(^|[\s,])0m?s(?=$|[\s,])/g, '$1');
+                    if (/\d(?:\.\d+)?m?s\b/.test(bare) || /(?<![-\w])ease(?![-\w])/.test(bare) || /cubic-bezier\(/.test(bare)) {
+                        off.push(`${rule.selectorText} { ${prop}: ${v} }`);
+                    }
+                }
+            }
+        };
+        walk(sheet.cssRules);
+        return { read, off };
+    });
+    expect(found, 'the premise: paycalc.css is on the page').not.toBeNull();
+    expect(found?.read, 'the premise: transitions were read').toBeGreaterThan(10);
+    expect(found?.off, 'a timing written out by hand').toEqual([]);
+});
+
+test('paycalc: a card header is the shared header — edge, padding and hint as on Settings', async ({ page }) => {
+    // paycalc.css kept a copy of the header (padding and divider, the same values) and of the hint,
+    // plus a 2px margin no other page has: Pay's hints sat 2px under their titles, every other card
+    // page's at 0 (measured on Settings, Operations, Admin, Trains and Links). A page-local copy is
+    // what keeps the old look when the shared header changes (css-tokens.md).
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    const header = () => page.locator('.card-header:has(.hint)').first().evaluate(h => {
+        const t = /** @type {Element} */ (h.querySelector('h2')).getBoundingClientRect();
+        const hint = /** @type {Element} */ (h.querySelector('.hint'));
+        const cs = getComputedStyle(h), hs = getComputedStyle(hint);
+        return { padding: cs.padding, divider: `${cs.borderBottomWidth} ${cs.borderBottomStyle} ${cs.borderBottomColor}`,
+                 step: Math.round(hint.getBoundingClientRect().top - t.bottom), hint: `${hs.fontSize} ${hs.color}` };
+    });
+    await page.goto('/settings.html');
+    await expect(page.locator('.card-header:has(.hint)').first()).toBeVisible();
+    const shared = await header();
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    expect(await header(), 'the Pay Calculator against Settings').toEqual(shared);
+});
+
+test('paycalc: a banner\'s "view … card" link is a thumb-sized target, and takes no tap meant for the tick', async ({ page }, info) => {
+    // A real button styled as a link, 12px on a line of its own: ~15px tall, under the app's 24px
+    // floor, and the gate never sees it — it loads the page with no banner up. The other small text
+    // controls already had an invisible hit area; this one was left out.
+    test.skip(!isTouchProject(info), 'a thumb');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-08-20T09:00:00Z'));   // the award payslip offers the lump
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#bpActiveBanner')).toBeVisible();
+    await page.locator('#bpBannerViewLink').evaluate(el => el.scrollIntoView({ block: 'center' }));
+    const m = await page.locator('#bpBannerViewLink').evaluate(el => {
+        const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const reach = (/** @type {number} */ dx, /** @type {number} */ dy) => {
+            let n = 0;
+            for (let i = 1; i <= 30; i++) {
+                const hit = document.elementFromPoint(cx + dx * i, cy + dy * i);
+                if (!hit || (hit !== el && !el.contains(hit))) break;
+                n = i;
+            }
+            return n;
+        };
+        const banner = /** @type {Element} */ (el.parentElement);
+        const label = /** @type {Element} */ (banner.querySelector('.banner-optin')).getBoundingClientRect();
+        const atTick = document.elementFromPoint(label.left + 40, label.bottom - 1);
+        return { drawn: Math.round(r.height), height: reach(0, -1) + reach(0, 1) + 1,
+                 tickKeepsItsEdge: !!atTick?.closest('.banner-optin') };
+    });
+    expect(m.height, `the tap target (drawn ${m.drawn}px)`).toBeGreaterThanOrEqual(24);
+    expect(m.tickKeepsItsEdge, 'the opt-in above keeps its own bottom edge').toBe(true);
+});
+
+test('paycalc: the rate badges print in their own colours, RDW included', async ({ page }) => {
+    // Every fill prints here (the print block's `*` keeps them), so the seven badges need no print
+    // rules of their own — except RDW: the calendar's shift badge shares the name, and shared.css's
+    // print rule for it would paint Pay's pale chip solid navy-teal with white words.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const paint = () => page.locator('.rate-badge').evaluateAll(els => els.map(el => {
+        const cs = getComputedStyle(el); return `${el.className}: ${cs.backgroundColor} / ${cs.color}`;
+    }));
+    const screen = await paint();
+    expect(screen.some(s => s.includes('badge-rdw')), 'the premise: the RDW badge is on the page').toBe(true);
+    await page.emulateMedia({ media: 'print' });
+    const paper = await paint();
+    await page.emulateMedia({ media: null });
+    expect(paper).toEqual(screen);
+});
+
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
 // Each block below is one finding, proved where a member meets it: the page, not the helper.
 
@@ -2386,8 +3376,35 @@ test('paycalc: the Decimal Hours Converter reads a decimal comma as the point', 
     const answer = page.locator('#decimalHrsResult');
     await box.fill('7,5');
     await expect(answer).toHaveText('7 hrs 30 mins');
+    // Only what it can read whole (whole-app check, 10 Nov 2026): these answered "7 hrs" and "1000 hrs".
+    await box.fill('7:30');
+    await expect(answer, 'a clock time is already hours and minutes').toHaveText('7 hrs 30 mins');
+    await box.fill('1e3');
+    await expect(answer).toHaveText('–');
     await box.fill('');
     await expect(answer, 'a cleared box asks nothing, so answers nothing').toHaveText('–');
+    expect(errors).toHaveLength(0);
+});
+
+// A desk keyboard can type a clock time into an hours box; parseInt stopped at the colon, so "7:30" was
+// priced and SAVED as 7h while the box still read 7:30 (whole-app review, Nov 2026). The reading is
+// unit-tested (`hoursTextToHM`); this proves the price, the save and the blur split all use it.
+test('paycalc: "7:30" in an hours box is seven and a half hours — priced, saved and split', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    const pNum = await page.locator('#periodSelect').inputValue();
+    await page.locator('#otH').fill('7:30');
+    await expect(page.locator('#otH').locator('xpath=ancestor::div[contains(@class,"hhmm-wrap")]/..').locator('.hhmm-dec-hint'))
+        .toHaveText('= 7h 30m');
+    const saved = await page.evaluate((n) => JSON.parse(localStorage.getItem(`myb_pc_gmiller_p${n}`) ?? 'null'), pNum);
+    expect([saved?.otH, saved?.otM], 'saved as typed means, before the box is left').toEqual([7, 30]);
+    await page.locator('#otH').blur();
+    await expect(page.locator('#otH')).toHaveValue('7');
+    await expect(page.locator('#otM')).toHaveValue('30');
     expect(errors).toHaveLength(0);
 });
 
@@ -2575,6 +3592,16 @@ test('paycalc: with the keypad up, ONE tap works the controls iOS needed two for
     await expect.poll(period, '← Earlier').toBe(start - 1);
     await tapWithoutClick(page.locator('#nextBtn'));
     await expect.poll(period, 'Later →').toBe(start);
+    // 📍 and the tax-year tabs move the page as the arrows do, and were bare clicks (whole-app check,
+    // 10 Nov 2026): with the keypad up, the tap that should have jumped did nothing.
+    await tapWithoutClick(page.locator('#prevBtn'));
+    await expect.poll(period, '← Earlier, again').toBe(start - 1);
+    await tapWithoutClick(page.locator('#todayPeriodBtn'));
+    await expect.poll(period, '📍 back to the payslip being earned').toBe(start);
+    await tapWithoutClick(page.locator('#tyTab0'));
+    await expect.poll(period, 'the 2025/26 tab — that year ends with internal period 49').toBeLessThanOrEqual(49);
+    await tapWithoutClick(page.locator('#todayPeriodBtn'));
+    await expect.poll(period, '📍 from another tax year').toBe(start);
     await tapWithoutClick(page.locator('#peerPlus'));
     await expect(page.locator('#peerVal'), 'the peer-training +').toHaveText('1');
     await tapWithoutClick(page.locator('#peerMinus'));
@@ -2959,6 +3986,22 @@ test('paycalc: the pay-period picker opens on the payslip on screen', async ({ p
         return { title: shown('.picker-head b'), close: shown('.lb-close') };
     });
     expect(inPanel, 'the title and the ✕ are still on screen').toEqual({ title: true, close: true });
+});
+
+// shared-ui-5 — a search box is named by what its list holds. The payslip pickers' titles are
+// questions, which have no noun to weld onto "Search", so each box was called a bare "Search".
+test('paycalc: every payslip picker calls its search box "Search pay periods"', async ({ page }) => {
+    await openReturning(page);
+    for (const id of ['periodSelect', 'pensionOptOutFrom', 'slPaidOffFrom']) {
+        // Two of these sit in Settings rows shown only once they apply, so the trigger is pressed
+        // through the DOM: what is under test is the sheet the trigger opens, not the row around it.
+        await page.locator(`#${id}Trigger`).evaluate(el => /** @type {HTMLElement} */ (el).click());
+        const box = page.locator('.picker-sheet .picker-search-input');
+        await expect(box, `${id}: a list of payslips earns a search box`).toBeVisible();
+        await expect(box, id).toHaveAttribute('aria-label', 'Search pay periods');
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.picker-sheet-overlay')).toBeHidden();
+    }
 });
 
 // PAY9 — a 3px navy stripe on two notes that sit on the navy canvas: no stripe at all, only a white

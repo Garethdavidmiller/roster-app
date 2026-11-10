@@ -30,9 +30,12 @@ function fakeStorage(initial = {}, { throwOnAccess = false } = {}) {
     };
 }
 
-/** Load ls.js against a given storage + navigator.storage, returning the module and a call log. */
-async function load({ store, persistImpl }) {
+/** Load ls.js against a given storage + navigator.storage, returning the module and a call log.
+ *  `installed` answers the display-mode query; `notifications` is the Notification permission. */
+async function load({ store, persistImpl, installed = false, notifications = false }) {
     globalThis.localStorage = /** @type {any} */ (store);
+    /** @type {any} */ (globalThis).matchMedia = (/** @type {string} */ q) => ({ matches: installed && q === '(display-mode: standalone)' });
+    /** @type {any} */ (globalThis).Notification = { permission: notifications ? 'granted' : 'default' };
     const calls = [];
     // `navigator` is a getter-only global in Node 22 — defineProperty, not assignment.
     Object.defineProperty(globalThis, 'navigator', {
@@ -76,7 +79,7 @@ describe('asking when there is NOTHING to protect (an unexplainable prompt)', ()
         assert.equal(calls.length, 0);
     });
 
-    test('it is ONE-SHOT — a refusal is not re-asked on the next page open', async () => {
+    test('a refusal is not re-asked on the next page open while NOTHING has changed', async () => {
         const store = fakeStorage({ 'myb_pc_gmiller_p24': '{"satH":8}' });
         const first = await load({ store, persistImpl: () => Promise.resolve(false) });   // refused
         first.mod.requestPersistentStorage('myb_pc_gmiller_');
@@ -87,11 +90,76 @@ describe('asking when there is NOTHING to protect (an unexplainable prompt)', ()
     });
 });
 
+// ── A REFUSAL IS NOT FOR EVER (Nov 2026, the owner's decision) ────────────────────────────────────
+// The one-shot flag was written whatever the answer, so Chrome's likely first answer — a silent no, in
+// a tab, before the app is installed — stood after the member installed it, when Chrome would say yes.
+describe('asked again when the answer can now be yes — and only then', () => {
+    const tick = () => new Promise(r => setTimeout(r, 0));
+
+    test('a refusal in a TAB is asked again once the app runs INSTALLED — and then not again', async () => {
+        const store = fakeStorage({ 'myb_pc_gmiller_p24': '{"satH":8}' });
+        const tab = await load({ store, persistImpl: () => Promise.resolve(false) });
+        tab.mod.requestPersistentStorage('myb_pc_gmiller_');
+        await tick();
+        assert.equal(tab.calls.length, 1);
+        const app = await load({ store, persistImpl: () => Promise.resolve(false), installed: true });
+        app.mod.requestPersistentStorage('myb_pc_gmiller_');
+        assert.equal(app.calls.length, 1, 'installing is the lever that can turn the no into a yes');
+        await tick();
+        const again = await load({ store, persistImpl: () => Promise.resolve(false), installed: true });
+        again.mod.requestPersistentStorage('myb_pc_gmiller_');
+        assert.equal(again.calls.length, 0, 'one more ask per lever, not one per open');
+        const backInTab = await load({ store, persistImpl: () => Promise.resolve(false) });
+        backInTab.mod.requestPersistentStorage('myb_pc_gmiller_');
+        assert.equal(backInTab.calls.length, 0, 'a tab after the installed ask has nothing new to offer');
+    });
+
+    test('notifications allowed since the last ask are a lever too — and a lever is remembered', async () => {
+        const store = fakeStorage({ 'myb_pc_gmiller_p24': 'x' });
+        const installed = await load({ store, persistImpl: () => Promise.resolve(false), installed: true });
+        installed.mod.requestPersistentStorage('myb_pc_gmiller_');
+        await tick();
+        const notifInTab = await load({ store, persistImpl: () => Promise.resolve(false), notifications: true });
+        notifInTab.mod.requestPersistentStorage('myb_pc_gmiller_');
+        assert.equal(notifInTab.calls.length, 1, 'allowing notifications can change the answer');
+        await tick();
+        const both = await load({ store, persistImpl: () => Promise.resolve(false), installed: true, notifications: true });
+        both.mod.requestPersistentStorage('myb_pc_gmiller_');
+        assert.equal(both.calls.length, 0, 'both levers have each had their ask — the tab one must not forget the install');
+    });
+
+    test('a GRANT is never asked again, whatever changes', async () => {
+        const store = fakeStorage({ 'myb_pc_gmiller_p24': 'x' });
+        const first = await load({ store, persistImpl: () => Promise.resolve(true) });
+        first.mod.requestPersistentStorage('myb_pc_gmiller_');
+        await tick();
+        const later = await load({ store, persistImpl: () => Promise.resolve(true), installed: true, notifications: true });
+        later.mod.requestPersistentStorage('myb_pc_gmiller_');
+        assert.equal(later.calls.length, 0, 'durable already — there is nothing to ask for');
+    });
+
+    test('the flag written before Nov 2026 reads as asked in a tab — an install still earns its ask', async () => {
+        const store = fakeStorage({ 'myb_pc_gmiller_p24': 'x', 'myb_storage_persist_asked': '1' });
+        const tab = await load({ store, persistImpl: () => Promise.resolve(false) });
+        tab.mod.requestPersistentStorage('myb_pc_gmiller_');
+        assert.equal(tab.calls.length, 0, 'the old one-shot still holds where nothing has changed');
+        const app = await load({ store, persistImpl: () => Promise.resolve(false), installed: true });
+        app.mod.requestPersistentStorage('myb_pc_gmiller_');
+        assert.equal(app.calls.length, 1, 'the Android tab-then-install case, on a device that asked under the old rule');
+    });
+});
+
 describe('it can never break the page', () => {
-    test('no navigator.storage at all (WebKit) — returns quietly, and still flags', async () => {
+    test('no navigator.storage at all (an older WebKit) — returns quietly, and records nothing', async () => {
+        // Nothing was asked, so nothing may say it was: an iPhone updated to a Safari that HAS the API
+        // must ask on its next open (Safari 17 brought it), not find a flag from before it existed.
         const store = fakeStorage({ 'myb_pc_gmiller_p24': 'x' });
         const { mod } = await load({ store, persistImpl: undefined });
         assert.doesNotThrow(() => mod.requestPersistentStorage('myb_pc_gmiller_'));
+        assert.equal('myb_storage_persist_asked' in store._map(), false);
+        const updated = await load({ store, persistImpl: () => Promise.resolve(false) });
+        updated.mod.requestPersistentStorage('myb_pc_gmiller_');
+        assert.equal(updated.calls.length, 1);
     });
 
     test('a REJECTED persist() promise is swallowed', async () => {

@@ -44,9 +44,15 @@ export const PROVISIONAL_MARKERS = {
 
 /** Per-page card patterns: which elements are fine-grained answer units of their own. */
 const CARD_RULES = {
-    'railcard-guide.html': { open: /<div class="rc[^"]*" id="(rc-[a-z0-9-]+)"/g,                    close: null },
-    'rangers-guide.html':  { open: /<div class="rr-(?:card|no-item)[^"]*" id="(rr-[a-z0-9-]+)"/g,   close: null },
-    'fip-guide.html':            { open: /<details id="([a-z0-9-]+)"/g,                                   close: '</details>' },
+    'railcard-guide.html': [{ open: /<div class="rc[^"]*" id="(rc-[a-z0-9-]+)"/g,                  close: null }],
+    'rangers-guide.html':  [{ open: /<div class="rr-(?:card|no-item)[^"]*" id="(rr-[a-z0-9-]+)"/g, close: null }],
+    'fip-guide.html': [
+        { open: /<details id="([a-z0-9-]+)"/g, close: '</details>' },
+        // The "No FIP operator listed" cards are plain divs, not <details>. Read by the details rule
+        // alone, Sweden and Finland were never units, so "sweden" in the drawer found Denmark's card
+        // and "finland" the top of the countries section (whole-app check, 10 November 2026).
+        { open: /<div id="(country-[a-z]+)" class="[^"]*\bnot-fip-card\b/g, close: null },
+    ],
 };
 
 /** @param {string} html strip tags + entities to visible text */
@@ -65,7 +71,7 @@ function textOf(html) {
 
 /** Title of a card slice: the first name-bearing element this repo's guides actually use. */
 function cardTitle(slice) {
-    const m = slice.match(/class="(?:rc-name|rr-name)"[^>]*>([^<]+)</)
+    const m = slice.match(/class="(?:rc-name|rr-name|not-fip-name)"[^>]*>([^<]+)</)
         || slice.match(/class="rr-no-name"><span>(?:<span[^>]*>[^<]*<\/span>)?\s*([^<]+)</)
         || slice.match(/<summary>([\s\S]*?)<\/summary>/);
     if (!m) return null;
@@ -120,23 +126,25 @@ export function extractGuideUnits(html, page) {
     // Card boundaries: pattern open → explicit close tag, or the next card/section boundary.
     /** @type {{id: string, start: number, end: number}[]} */
     const cards = [];
-    const rule = CARD_RULES[/** @type {keyof typeof CARD_RULES} */ (page)];
-    if (rule) {
-        const opens = [...src.matchAll(rule.open)];
-        opens.forEach((m, i) => {
+    const rules = CARD_RULES[/** @type {keyof typeof CARD_RULES} */ (page)] || [];
+    // Every card start on the page, whichever rule found it: an open-ended card runs to the next one.
+    const allStarts = rules.flatMap(r => [...src.matchAll(r.open)].map(m => m.index ?? 0)).sort((a, b) => a - b);
+    for (const rule of rules) {
+        for (const m of src.matchAll(rule.open)) {
             const start = m.index ?? 0;
             let end;
             if (rule.close) {
                 const c = src.indexOf(rule.close, start);
                 end = c === -1 ? src.length : c;
             } else {
-                const nextCard = i + 1 < opens.length ? (opens[i + 1].index ?? src.length) : src.length;
+                const nextCard = allStarts.find(s => s > start) ?? src.length;
                 const nextHead = heads.find(h => (h.index ?? 0) > start);
                 end = Math.min(nextCard, nextHead ? (nextHead.index ?? src.length) : src.length);
             }
             cards.push({ id: m[1], start, end });
-        });
+        }
     }
+    cards.sort((a, b) => a.start - b.start);
 
     /** @type {import('../guide-search.js').GuideIndexUnit[]} */
     const units = [];

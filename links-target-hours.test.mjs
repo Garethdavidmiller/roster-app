@@ -1,6 +1,6 @@
 /**
  * links-target-hours.test.mjs — the generator card's verdict on a target table.
- * Run: node --test links-target-hours.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-target-hours.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY THIS SUITE EXISTS, AND WHY IT IS SHAPED LIKE THIS ───────────────────────────────────────
  *

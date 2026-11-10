@@ -2,7 +2,7 @@
  * Unit tests for computeYearSoFar (paycalc-year-summary.js) — the "This tax year so far"
  * aggregation in the Year to Date card (v18.41, review item 11).
  *
- * Run: node --experimental-test-module-mocks --test paycalc-year-summary.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-year-summary.test.mjs
  *
  * Mock strategy (mirrors paycalc-hpp.test.mjs):
  *   paycalc-periods.js  — mocked with a controllable getPeriods()
@@ -34,7 +34,9 @@ mock.module('./paycalc-periods.js', {
         currentPeriodNum: () => 60,
         todaysPeriodNum:  () => 60,
         isTaxYearVisible: () => true,
-        CONFIG:           { TAX_YEARS: [] },
+        // paycalc-hpp.js imports it for the prior-year box; its real rule, for completeness.
+        payslipMayBeInHand: (/** @type {any} */ p, now = new Date()) => p.cutoff <= now,
+        CONFIG:           { TAX_YEARS: [], PERIOD_DAYS: 28 },
     },
 });
 
@@ -334,5 +336,25 @@ describe('computeYearSoFar', () => {
         assert.deepEqual(y.missing, [P62.payday], 'pre-employment paydays are never named as "not entered yet"');
         assert.ok(!y.missing.some(d => d.getTime() === P60.payday.getTime()), 'P60 predates employment');
         assert.ok(!y.missing.some(d => d.getTime() === P61.payday.getTime()), 'P61 predates employment');
+    });
+
+    test('a saved NEGATIVE pension is floored at £0, as the result card floors the box (paycalc-2-16)', () => {
+        // The card prices max(0, pension) — "a pasted negative would add untaxed headroom" — and this
+        // block added the −£50 to taxable pay instead, so the two disagreed for the same payslip.
+        _ls.set('myb_pc_p60', JSON.stringify({ otH: 10, otM: 0, pension: -50 }));
+        const y = computeYearSoFar(TY, OPTS);
+        const m = mirror({ oHrs: 10, pension: 0 });
+        assert.ok(Math.abs(y.taxable - m.sacGross) < 0.005,
+            `taxable £${y.taxable.toFixed(2)} — the card would price £${m.sacGross.toFixed(2)}`);
+    });
+
+    test('hours saved as TEXT are priced as the figures they are (paycalc-2-15)', () => {
+        // A backup made elsewhere can hold "5"; `"5" + 0.5` is "50.5", which priced fifty hours.
+        _ls.set('myb_pc_p60', JSON.stringify({ otH: '5', otM: '30' }));
+        const asText = computeYearSoFar(TY, OPTS);
+        _ls.set('myb_pc_p60', JSON.stringify({ otH: 5, otM: 30 }));
+        const asNumbers = computeYearSoFar(TY, OPTS);
+        assert.ok(Math.abs(asText.taxable - asNumbers.taxable) < 0.005,
+            `£${asText.taxable.toFixed(2)} for text against £${asNumbers.taxable.toFixed(2)} for the same figures`);
     });
 });
