@@ -332,17 +332,24 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
 
             /** @type {any[]} */
             const revisions = [];
+            /** @type {any} */
+            let rSnap = null;
             try {
-                const rSnap = await getDocs(collection(doc(windowRef, 'submissions', h.memberName), 'revisions'));
-                rSnap.forEach((/** @type {any} */ d) => {
-                    const r = d.data();
-                    revisions.push({ ...r, acceptedAt: toMillis(r.acceptedAt) });
-                });
+                rSnap = await getDocs(collection(doc(windowRef, 'submissions', h.memberName), 'revisions'));
             } catch (_) {
                 // A missing revision history is not a missing SUBMISSION. The head still shows what
                 // they said; only the "changed since initial" marker is unavailable, so it is simply
                 // omitted rather than guessed at.
             }
+            // …BUT A CACHE-SERVED HISTORY IS A FAILED LOAD, like the two lists above (overtime-core-5,
+            // Nov 2026). The connection can drop between the lists and these reads, and the cache
+            // then answers with nothing or with an OLDER history — beside a head the server just
+            // sent. That is not an absent marker but a wrong one, painted under a fresh "as at".
+            if (rSnap?.metadata?.fromCache) throw new Error('revision history served from the offline cache');
+            rSnap?.forEach((/** @type {any} */ d) => {
+                const r = d.data();
+                revisions.push({ ...r, acceptedAt: toMillis(r.acceptedAt) });
+            });
             return { ...h, history: deriveHistory(revisions, h.days, milestones.initialDeadlineAt, openedAt) };
         }));
 
