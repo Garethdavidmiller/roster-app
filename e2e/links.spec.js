@@ -403,6 +403,55 @@ test('links: a night duty in a design is never offered as a paint chip', async (
     await expect(page.locator('#brushBar .brush-chip[data-shift="22:00-06:00"]')).toHaveCount(0);
 });
 
+// A CUSTOM paint time is usually not on the bar (links-app-6): arming it lit nothing, so the next cell
+// tapped was PAINTED where the designer meant to open it. And a refused time — no colon, a night start,
+// a finish past midnight — closed the prompt exactly as Cancel did (links-app-7), in the paint bar and
+// in the cell sheet alike, so a refusal could not be told from a slip.
+test('links: a Custom… time gets its own lit chip, and a refused one says why', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openLinks(page);
+    const status = page.locator('#linksSaveStatus');
+    const custom = async (/** @type {string} */ typed) => {
+        await page.locator('.dialog-overlay .dialog-input').fill(typed);
+        await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+        await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    };
+
+    await page.locator('#brushBar .brush-chip--custom').click();
+    await custom('05:00-13:00');
+    const chip = page.locator('#brushBar .brush-chip[data-shift="05:00-13:00"]');
+    await expect(chip, 'armed AND shown armed').toHaveAttribute('aria-pressed', 'true');
+    await expect(chip, 'focus is not dropped with the Custom… button the bar replaced').toBeFocused();
+    await expect(status).toHaveText('');
+
+    await page.locator('#brushBar .brush-chip--custom').click();
+    await custom('22:00-06:00');
+    await expect(status).toContainText('“22:00-06:00” wasn’t used');
+    await expect(status).toContainText('04:00 and 20:59');
+    await expect(chip, 'a refusal leaves the armed brush as it was').toHaveAttribute('aria-pressed', 'true');
+
+    // The cell sheet's Custom… holds the same standard; Cancel stays silent.
+    await page.keyboard.press('Escape');   // disarm, so a cell tap opens its sheet
+    await expect(chip).toHaveAttribute('aria-pressed', 'false');
+    await page.evaluate(() => { const s = document.getElementById('linksSaveStatus'); if (s) s.textContent = ''; });
+    await page.locator('tr[data-pos="2"] .shift-cell-btn').first().click();
+    await page.locator('.picker-opt[data-value="__custom__"]').click();
+    await custom('1400-2230');
+    await expect(status).toContainText('“1400-2230” wasn’t used');
+    await expect(page.locator('tr[data-pos="2"] .shift-cell-btn').first(), 'nothing applied').toHaveText('RD');
+    await page.evaluate(() => { const s = document.getElementById('linksSaveStatus'); if (s) s.textContent = ''; });
+    await page.locator('tr[data-pos="2"] .shift-cell-btn').first().click();
+    await page.locator('.picker-opt[data-value="__custom__"]').click();
+    await page.locator('.dialog-overlay .dialog-btn-cancel').click();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(status, 'a cancel explains nothing').toHaveText('');
+    await page.locator('tr[data-pos="2"] .shift-cell-btn').first().click();
+    await page.locator('.picker-opt[data-value="__custom__"]').click();
+    await custom('');   // Set with nothing typed — the same as a cancel
+    await expect(status, 'an empty Set explains nothing').toHaveText('');
+});
+
 test('links: the coverage card carries a demand row per day class, in the same table', async ({ page }) => {
     await openLinksWithDesign(page);
 

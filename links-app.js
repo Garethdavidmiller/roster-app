@@ -1168,17 +1168,46 @@ export function init() {
 
         bar.querySelectorAll('.brush-chip').forEach(c => {
             c.addEventListener('click', async () => {
+                const custom = /** @type {HTMLElement} */ (c).dataset.shift === '__custom__';
                 let shift = /** @type {HTMLElement} */ (c).dataset.shift;
-                if (shift === '__custom__') {
-                    const typed = normaliseCustomShift(
-                        await promptDialog({ title: 'Custom shift', message: 'Enter a shift time, e.g. 06:00-14:00 (start between 04:00 and 20:59):', placeholder: '06:00-14:00', confirmLabel: 'Set' }));
+                if (custom) {
+                    const typed = await askCustomShift('Enter a shift time, e.g. 06:00-14:00 (start between 04:00 and 20:59):');
                     if (!typed) return;
                     shift = typed;
                 }
                 if (brush === shift) dearmBrush();
                 else armBrush(shift);
+                // A Custom… time is usually not on the bar yet, so arming it lit NOTHING, and the next cell
+                // tapped was painted rather than opened (links-app-6) — the hazard the re-arm above exists
+                // for. The bar is drawn again (`brushTimes` unions the armed time in), and focus goes to its
+                // chip, because the Custom… button it was on has just been replaced.
+                if (custom) {
+                    renderBrushBar();
+                    /** @type {HTMLElement|null} */ (bar.querySelector(`.brush-chip[data-shift="${CSS.escape(brush ?? '__custom__')}"]`))?.focus();
+                }
             });
         });
+    }
+
+    /**
+     * Ask for a Custom… shift time, for the paint bar and the cell sheet alike. The tidy time, or null.
+     *
+     * A REFUSED time says so (links-app-7). The prompt used to close on "1400-2230" exactly as it does on
+     * Cancel, so a designer could not tell a refusal from a slip — and on a phone keyboard the colon is a
+     * layer away. The window editor on this page holds the same standard: "a silently reverted input
+     * reads as the app losing input". The rules are `normaliseCustomShift`'s; the sentence names all
+     * three rather than working out which one failed, which would be its arithmetic copied here.
+     * @param {string} message @param {string} [defaultValue]
+     */
+    async function askCustomShift(message, defaultValue = '') {
+        const raw = await promptDialog({ title: 'Custom shift', message, defaultValue, placeholder: '06:00-14:00', confirmLabel: 'Set' });
+        if (raw === null || !raw.trim()) return null;   // cancelled, or nothing typed: nothing to explain
+        const typed = normaliseCustomShift(raw);
+        if (!typed) {
+            _designActionStatus(`“${raw.trim()}” wasn’t used — write a shift as its start and finish in 24-hour time, like 06:00-14:00. `
+                + 'It has to start between 04:00 and 20:59 and finish later the same day.');
+        }
+        return typed;
     }
 
     // ============================================
@@ -1521,9 +1550,8 @@ export function init() {
             onPick: async value => {
                 let newVal = value;
                 if (newVal === '__custom__') {
-                    const typed = normaliseCustomShift(
-                        await promptDialog({ title: 'Custom shift', message: 'Type the shift as start–end, e.g. 06:00-14:00 (CEA shifts start between 04:00 and 20:59)', defaultValue: current.includes('-') ? current : '', placeholder: '06:00-14:00', confirmLabel: 'Set' }));
-                    if (!typed) return;   // cancelled: the cell was never taken apart, so nothing to restore
+                    const typed = await askCustomShift('Type the shift as start–end, e.g. 06:00-14:00 (CEA shifts start between 04:00 and 20:59)', current.includes('-') ? current : '');
+                    if (!typed) return;   // cancelled or refused: the cell was never taken apart, so nothing to restore
                     newVal = typed;
                 }
                 // No `newVal === current` check here: `applyShift` has owned "is this actually a
