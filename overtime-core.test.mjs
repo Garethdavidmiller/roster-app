@@ -167,7 +167,12 @@ describe('the frozen timetable', () => {
     test('a stored window reads back as exactly the timetable that was stored', () => {
         // `storedMilestones` is how every reader gets an existing window's deadlines (invariant 7);
         // the instants come back from Firestore as Timestamps, and the rules work in epoch ms.
-        const m = C.deriveMilestones(WEEK_SEP);
+        // OFF-RULE on purpose: a timetable today's rule would not derive, so a reader that derives
+        // instead of reading cannot pass (the blind spot contracts-b-1 found in the endpoint suite).
+        const derived = C.deriveMilestones(WEEK_SEP);
+        const m = { ...derived, initialDeadlineAt: derived.initialDeadlineAt + 3_600_000,
+            finalDeadlineAt: derived.finalDeadlineAt - 3_600_000, retentionUntil: derived.retentionUntil + 1,
+            draftRosterDate: '2026-08-19', finalRosterDate: '2026-08-26', policyVersion: 0 };
         const ts = (/** @type {number} */ ms) => ({ toMillis: () => ms });
         const stored = { ...m, initialDeadlineAt: ts(m.initialDeadlineAt), finalDeadlineAt: ts(m.finalDeadlineAt),
             retentionUntil: ts(m.retentionUntil), audience: 'restricted', createdAt: ts(1) };
