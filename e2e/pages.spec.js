@@ -567,6 +567,27 @@ test('App Notices: an empty archive shows its message, with no empty list left i
         'an empty group is still offered to a screen reader').toHaveCount(0);
 });
 
+// …and the other half of the same rule: a list that is NOT hidden is still drawn, so the companion above can only ever
+// take an empty archive's list away.
+test('App Notices: an archive with a notice in it lists it', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify([{
+        id: 'e2e-filled', title: 'A notice you have read', section: 'Calendar', date: '2026-11-01',
+        body: 'Its words.', archivedAt: new Date().toISOString(),
+    }])));
+    await page.goto('/settings.html');
+    await page.locator('#navMenuBtn').click();
+    const toggle = page.locator('#navGuidesToggle');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    await page.locator('.nav-panel-link--notices').click();
+    await expect(page.locator('#navNoticesLightbox')).toBeVisible();
+    await expect(page.locator('#navNoticesList .notices-item'), 'the read notice is listed').toHaveCount(1);
+    await expect(page.locator('#navNoticesList .notices-item-title')).toHaveText('A notice you have read');
+    await expect(page.locator('#navNoticesList'), 'the list is drawn').toBeVisible();
+    await expect(page.locator('#navNoticesEmpty'), 'no "nothing here" beside a notice').toBeHidden();
+});
+
 // A TIPS TITLE STAYS CLEAR OF ITS ✕ (whole-app review, Nov 2026). The picker sheet's head reserves room for its ✕ and
 // the Tips panel's title did not: "🙋 Password Reset Requests" ran 8px under the glyph at 360px. Every line of the
 // title is measured, because the ✕ sits beside the first and a wrapped second line still reaches its target.
