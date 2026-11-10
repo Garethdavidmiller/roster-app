@@ -85,6 +85,11 @@ import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_R
 // only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
 import { scoreOrder, GENTLE_THRESHOLD_MINUTES } from './links-adjacency.js';
 
+/** A day key as a reader names it, for the rows that say where something is. */
+const DAY_NAME = /** @type {Record<string, string>} */ ({
+    sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday',
+});
+
 /** A duty counts as an FF2 "early shift" when it starts in this window (inclusive of 05:00). */
 const EARLY_FROM = 5 * 60;
 const EARLY_TO   = 7 * 60;      // exclusive — 07:00 itself is not an early start
@@ -505,10 +510,17 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
 
     // ── Recovery time ────────────────────────────────────────────────────────
     const ff8b = earlyBlocksWithShortRecovery(seq);
+    // The WORST block is ONE block, chosen by a stated rule — the fewest rest days after it, then the
+    // longest — and described whole, where it starts included. The longest length taken from one
+    // block and the fewest rest days from another described a block the design does not contain
+    // (whole-app review, Nov 2026).
+    const ff8bWorst = ff8b.reduce((w, b) =>
+        (b.restDays < w.restDays || (b.restDays === w.restDays && b.blockLength > w.blockLength) ? b : w), ff8b[0]);
     add({ code: 'FF8b', family: 'Recovery time', title: 'Fewer than 2 days rest after a block of early starts',
         status: ff8b.length ? 'present' : 'clear', value: ff8b.length, threshold: '2 days',
-        detail: ff8b.length
-            ? `Worst: a block of ${Math.max(...ff8b.map(b => b.blockLength))} early starts followed by ${Math.min(...ff8b.map(b => b.restDays))} rest day(s).`
+        detail: ff8bWorst
+            ? `Worst: a block of ${ff8bWorst.blockLength} early starts from line ${ff8bWorst.fromLine} ${DAY_NAME[ff8bWorst.fromDay] ?? ff8bWorst.fromDay}, `
+              + `followed by ${ff8bWorst.restDays === 0 ? 'no rest day' : `${ff8bWorst.restDays} rest day${ff8bWorst.restDays === 1 ? '' : 's'}`}.`
             : 'Every block of 2+ consecutive early starts is followed by at least 2 rest days.' });
 
     const ff11 = longestRunBetween48hBreaks(seq);
