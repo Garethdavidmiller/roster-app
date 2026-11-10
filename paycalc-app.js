@@ -1481,15 +1481,17 @@ export function init() {
 
     // ── THE PICKER SHEETS, THE BACKUP CARD AND THE LATE WIRING ─────────────────────
     // Every dropdown here opens the app's own sheet rather than the OS one: the period picker is the
-    // page's primary control, and the rest join it so the calculator has ONE kind of dropdown.
+    // page's primary control, and the rest join it so the calculator has ONE kind of dropdown. A
+    // title is also the control's accessible name, so it carries its field's visible label word for
+    // word (paycalc-copy-parity.test.mjs) — and the loan stop never says "paid off" (paycalc.md).
     initSelectSheets([
         { id: 'periodSelect',      title: 'Which pay period?' },
         { id: 'gradeSelect',       title: 'Your grade' },
         { id: 'studentLoan',       title: 'Student loan plan' },
-        { id: 'pensionOptOutFrom', title: 'Opted out from which period?' },
-        { id: 'slPaidOffFrom',     title: 'Paid off from which period?' },
-        { id: 'ytdSrcSelect',      title: 'Where are these figures from?' },
-        { id: 'backPayPeriod',     title: 'Paid in which period?' },
+        { id: 'pensionOptOutFrom', title: 'Not in the scheme from which payslip?' },
+        { id: 'slPaidOffFrom',     title: 'Student loan stopped being deducted?' },
+        { id: 'ytdSrcSelect',      title: 'From which payslip?' },
+        { id: 'backPayPeriod',     title: 'Which payslip carries this lump sum?' },
     ], { createLightbox });
 
     initTransferCard();   // late: the backup card reads the per-member namespace runMigrations() chose
