@@ -196,6 +196,18 @@ describe('decimalHoursText — the converter card reads what the member typed', 
     assert.equal(decimalHoursText('-2'), '–', 'hours are never negative');
     assert.equal(decimalHoursText('0'), '0 mins', 'a typed zero is still an answer');
   });
+  test('a clock time is already hours and minutes, and a half-read number answers nothing', () => {
+    // The parser stops at the first character it cannot use: "7:30" answered "7 hrs" and "1e3"
+    // answered "1000 hrs" (whole-app check, 10 Nov 2026).
+    assert.equal(decimalHoursText('7:30'), '7 hrs 30 mins');
+    assert.equal(decimalHoursText(':45'), '45 mins');
+    assert.equal(decimalHoursText('7:05'), '7 hrs 5 mins');
+    assert.equal(decimalHoursText('7:75'), '–', 'no clock reads 75 minutes');
+    assert.equal(decimalHoursText('1e3'), '–', 'not "1000 hrs"');
+    assert.equal(decimalHoursText('7.5h'), '–');
+    assert.equal(decimalHoursText('.5'), '30 mins', 'a leading point is still a number');
+    assert.equal(decimalHoursText(' 7.5 '), '7 hrs 30 mins', 'spaces around it are not');
+  });
 });
 
 // ── wireIosTap (v21.66) ──────────────────────────────────────────────────────────────────────────

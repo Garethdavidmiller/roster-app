@@ -2736,6 +2736,11 @@ test('paycalc: the Decimal Hours Converter reads a decimal comma as the point', 
     const answer = page.locator('#decimalHrsResult');
     await box.fill('7,5');
     await expect(answer).toHaveText('7 hrs 30 mins');
+    // Only what it can read whole (whole-app check, 10 Nov 2026): these answered "7 hrs" and "1000 hrs".
+    await box.fill('7:30');
+    await expect(answer, 'a clock time is already hours and minutes').toHaveText('7 hrs 30 mins');
+    await box.fill('1e3');
+    await expect(answer).toHaveText('–');
     await box.fill('');
     await expect(answer, 'a cleared box asks nothing, so answers nothing').toHaveText('–');
     expect(errors).toHaveLength(0);

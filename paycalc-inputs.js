@@ -126,12 +126,21 @@ export function _decHintEl(hId, make) {
  * converter's bare `parseFloat("7,5")` read 7 — the iPhone audit, 7 Nov 2026. `parseSmartFloatOrNull`,
  * not `parseSmartFloat`: that one floors a blank or unreadable box to 0, and the card would then
  * answer "0 mins" to a question nobody had asked yet.
+ *
+ * It answers ONLY for what it can read whole: a plain number, or a clock time, which is already hours
+ * and minutes. The parser alone stops at the first character it cannot use, so the card answered
+ * "7 hrs" to "7:30" and "1000 hrs" to "1e3" — for something nobody typed (whole-app check, 10 Nov
+ * 2026). A clock time with 60 minutes or more is not one, and answers "–".
  * @param {string} raw the box's text
  * @returns {string}
  */
 export function decimalHoursText(raw) {
-  const v = parseSmartFloatOrNull(raw);
-  const hm = v === null ? null : decimalToHM(v);   // single source: paycalc-format.js (60→next-hour guard)
+  const s = String(raw ?? '').trim();
+  const clock = /^(\d*):(\d{1,2})$/.exec(s);
+  const hm = clock ? (+clock[2] < 60 ? { h: +(clock[1] || 0), m: +clock[2] } : null)
+    : /^(\d+[.,]?\d*|[.,]\d+)$/.test(s)
+      ? decimalToHM(/** @type {number} */ (parseSmartFloatOrNull(s)))   // paycalc-format.js (60→next-hour guard)
+      : null;
   if (!hm) return '–';
   const hrs = `${hm.h} hr${hm.h !== 1 ? 's' : ''}`;
   const mins = `${hm.m} min${hm.m !== 1 ? 's' : ''}`;
