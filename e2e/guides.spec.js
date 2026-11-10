@@ -337,6 +337,24 @@ test('fip: a country is announced by its name, not its disclosure triangle', asy
     await expect(page.locator('summary .chevron:not([aria-hidden="true"])'), 'a chevron a screen reader reads out').toHaveCount(0);
 });
 
+// Whole-app review, Nov 2026: the primary button "📞 Trainseurope — 01354 660222" opened Trainseurope's
+// website in a new tab. A member who taps a telephone and a number expects a call. So any link that
+// SHOWS a phone number must dial THAT number, and the website is a link of its own.
+test('fip: a link that shows a phone number dials it, and the website is its own link', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    const shown = await page.locator('a').evaluateAll(links => links
+        .map(a => ({ text: (a.textContent || '').replace(/\s+/g, ' ').trim(), href: a.getAttribute('href') || '' }))
+        .filter(l => /📞|\b0\d{4} ?\d{6}\b/.test(l.text)));
+    expect(shown.length, 'the Trainseurope button is where this test looks').toBeGreaterThan(0);
+    for (const link of shown) {
+        const number = (link.text.match(/\b0\d{4} ?\d{6}\b/) || [''])[0].replace(/\s/g, '');
+        expect(link.href, `"${link.text}" must dial ${number}`).toBe(`tel:+44${number.slice(1)}`);
+    }
+    const site = page.locator('#sec-apply ~ a[href^="https://www.trainseurope.co.uk"]');
+    await expect(site).toHaveCount(1);
+    await expect(site).toContainText('website');
+});
+
 test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
     await page.goto('/fip-guide.html');
     // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,
