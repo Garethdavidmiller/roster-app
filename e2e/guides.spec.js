@@ -262,6 +262,46 @@ test('fip: scrollspy marks the chip for the section scrolled into view', async (
     await expect(page.locator('.chip[data-target="sec-need"]')).toHaveAttribute('aria-current', 'true');
 });
 
+// Whole-app review, Nov 2026: the Railcard and Rangers bars had drifted from the FIP one above. With
+// Reduce Motion on they still animated a scroll of several thousand pixels, and after a jump the chip
+// they marked current stayed current wherever the reader went — "Digital" lit over the quick check.
+// The scroll's behaviour is read off the call itself, because an instant and a smooth jump end in the
+// same place and a test that only looked at the landing could not tell them apart.
+for (const [guide, first, last] of /** @type {Array<[string, string, string]>} */ ([
+    ['railcard-guide', 'rc-quick', 'rc-digital'],
+    ['rangers-guide', 'rr-quick', 'rr-checks'],
+])) {
+    test(`${guide}: a chip jump honours Reduce Motion, and the current chip follows the reader`, async ({ page }) => {
+        await page.addInitScript(() => {
+            /** @type {string[]} */
+            const calls = [];
+            /** @type {any} */ (window).__scrollCalls = calls;
+            const real = Element.prototype.scrollIntoView;
+            Element.prototype.scrollIntoView = function (/** @type {any} */ arg) {
+                calls.push(arg && typeof arg === 'object' ? (arg.behavior ?? 'auto') : 'auto');
+                return real.call(this, arg);
+            };
+        });
+        const lastChip = page.locator(`.chip-bar .chip[data-target="${last}"]`);
+        const firstChip = page.locator(`.chip-bar .chip[data-target="${first}"]`);
+        const lastCall = () => page.evaluate(() => /** @type {any} */ (window).__scrollCalls.at(-1));
+
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.goto(`/${guide}.html`);
+        await lastChip.click();
+        expect(await lastCall(), 'the jump under Reduce Motion').toBe('auto');
+        await expect(lastChip).toHaveAttribute('aria-current', 'true');
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await expect(firstChip, 'back at the top, the first chip is current again').toHaveAttribute('aria-current', 'true');
+        await expect(lastChip).not.toHaveAttribute('aria-current', 'true');
+
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        await page.reload();
+        await lastChip.click();
+        expect(await lastCall(), 'the jump with motion allowed').toBe('smooth');
+    });
+}
+
 test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
     await page.goto('/fip-guide.html');
     // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,

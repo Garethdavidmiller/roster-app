@@ -3,23 +3,106 @@
 // The Print / Save as PDF button is wired by the shared guide-print.js (a module since v24.61 — it
 // is where the iOS home-screen print guard lives, so no guide may keep a private copy).
 
-// Chip-bar navigation: click a chip → smooth-scroll to the target section
-document.querySelector('.chip-bar')?.addEventListener('click', function (e) {
-    var chip = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.chip'));
-    if (!chip) return;
-    var target = document.getElementById(chip.dataset.target ?? '');
-    if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    // Move focus to the jumped-to section and mark the active chip, so keyboard
-    // and screen-reader users land on the target and hear which chip is current
-    // (without this the viewport scrolls but focus stays on the chip).
-    target.setAttribute('tabindex', '-1');
-    target.focus({ preventScroll: true });
-    document.querySelectorAll('.chip-bar .chip[aria-current]').forEach(function (c) {
-        c.removeAttribute('aria-current');
-    });
+// ── Section chip-bar: quick-nav + scrollspy, ported from fip-guide.js ──────────────────────────
+// This bar had drifted from the FIP one (whole-app review, Nov 2026): it smooth-scrolled even with
+// Reduce Motion on — a scroll of several thousand pixels — and the chip it marked current stayed
+// current after the reader had scrolled elsewhere, naming one section over another. The FIP bar's
+// scrollspy answered both, so this is that code; rangers-guide.js carries the same block.
+var chipBar = /** @type {HTMLElement|null} */ (document.querySelector('.chip-bar'));
+var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+// [{ chip, section }] for the chipped sections, in document (== chip-bar) order.
+var chipTargets = chipBar
+    ? Array.prototype.slice.call(chipBar.querySelectorAll('.chip')).map(function (c) {
+        var chip = /** @type {HTMLElement} */ (c);
+        return { chip: chip, section: document.getElementById(chip.dataset.target || '') };
+    }).filter(function (t) { return t.section; })
+    : [];
+
+/** @type {HTMLElement|null} */
+var activeChip = null;
+
+/** Mark exactly one chip current (idempotent) and reveal it within the horizontally-scrollable bar. */
+function setActiveChip(/** @type {HTMLElement|null} */ chip) {
+    if (chip === activeChip) return;
+    if (activeChip) activeChip.removeAttribute('aria-current');
+    activeChip = chip;
+    if (!chip || !chipBar) return;
     chip.setAttribute('aria-current', 'true');
-});
+    // Centre the active chip; this scrolls ONLY the bar's own horizontal overflow, never the page.
+    var left = chip.offsetLeft - (chipBar.clientWidth - chip.offsetWidth) / 2;
+    var max = chipBar.scrollWidth - chipBar.clientWidth;
+    chipBar.scrollTo({ left: Math.max(0, Math.min(left, max)), behavior: reduceMotion ? 'auto' : 'smooth' });
+}
+
+// Scrollspy: the current section is the LAST chipped section whose top has scrolled below the sticky
+// header + chip-bar. Above the first section the first chip wins (covers the page intro); at the page
+// bottom the last chip wins (a short final section may never reach the line).
+var spyPaused = false;
+var spyTimer = 0;
+var spyTicking = false;
+var spyThreshold = 106;   // header + chip-bar + margin; measured for real once the header lays out
+
+/** Cache the sticky-stack height so the scroll handler never forces a layout read per frame. */
+function measureThreshold() {
+    var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
+    spyThreshold = (hdr ? hdr.offsetHeight : 54) + (chipBar ? chipBar.offsetHeight : 40) + 12;
+}
+
+/** @returns {HTMLElement|null} */
+function currentChip() {
+    if (!chipTargets.length) return null;
+    if (Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 2) {
+        return chipTargets[chipTargets.length - 1].chip;
+    }
+    var chosen = chipTargets[0].chip;
+    for (var i = 0; i < chipTargets.length; i++) {
+        var sec = /** @type {HTMLElement} */ (chipTargets[i].section);
+        if (sec.getBoundingClientRect().top <= spyThreshold) chosen = chipTargets[i].chip;
+        else break;
+    }
+    return chosen;
+}
+function updateSpy() { if (!spyPaused) setActiveChip(currentChip()); }
+
+/** Lift the post-click pause and reconcile the active chip to the settled scroll position. */
+function resumeSpy() { spyPaused = false; if (spyTimer) { clearTimeout(spyTimer); spyTimer = 0; } updateSpy(); }
+
+if (chipTargets.length) {
+    measureThreshold();
+    window.addEventListener('scroll', function () {
+        if (spyTicking) return;
+        spyTicking = true;
+        // finally: a throw in updateSpy must never latch spyTicking true (that would kill the spy).
+        requestAnimationFrame(function () { try { updateSpy(); } finally { spyTicking = false; } });
+    }, { passive: true });
+    window.addEventListener('resize', function () { measureThreshold(); updateSpy(); }, { passive: true });
+    // scrollend lifts the click pause exactly when the smooth scroll settles.
+    window.addEventListener('scrollend', resumeSpy);
+    updateSpy();
+}
+
+// Chip click → scroll to the section (instantly under Reduce Motion), focus it, mark it current. While
+// a smooth scroll is in flight the spy is paused, so mid-flight frames don't light other chips;
+// scrollend (or the fallback timer, for engines without it) resumes it on landing.
+if (chipBar) {
+    chipBar.addEventListener('click', function (e) {
+        var chip = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.chip'));
+        if (!chip) return;
+        var target = document.getElementById(chip.dataset.target || '');
+        if (!target) return;
+        setActiveChip(chip);
+        if (!reduceMotion) {
+            spyPaused = true;
+            if (spyTimer) clearTimeout(spyTimer);
+            spyTimer = setTimeout(resumeSpy, 1500);   // ceiling fallback where scrollend is unsupported
+        }
+        target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        // Land focus on the section, so keyboard and screen-reader users arrive where the page did.
+        target.setAttribute('tabindex', '-1');
+        target.focus({ preventScroll: true });
+    });
+}
 
 // ── Deep-link landing ─────────────────────────────────────────────────────────────────────────
 // A guide-search result IS a deep link (railcard-guide.html#rc-senior). The browser scrolls to the
@@ -76,6 +159,8 @@ function adjustScrollOffsets() {
         /** @type {HTMLElement} */ (el).style.scrollMarginTop = stickyH + 'px';
     });
     keepLandingClear(stickyH);
+    measureThreshold();   // keep the cached scrollspy threshold in step with the real header height
+    updateSpy();
 }
 if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(adjustScrollOffsets);
