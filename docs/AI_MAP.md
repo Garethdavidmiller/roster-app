@@ -141,8 +141,10 @@ every base-shift, date and shift-classification helper. Rules: `.claude/rules/ro
   Overtime's `rosterBadge`; the default stays byte-identical) · `SHIFT_TIME_REGEX` · `TIME_RE` ·
   `validateRosterPatterns(rosters?)` (a load-time self-check on localhost or `?debug`).
 - **Leave and grades.** `getALEntitlement(member, year, overrides)` → number or **`null`** (none on
-  record: test for it, because `null - taken - booked` is a number). Read the whole allowance through
-  `entitlementFor` (`al-entitlement.js`), never this (`christmas-leave.test.mjs`).
+  record — including a year before the member's `startDate`: test for it, because `null - taken - booked`
+  is a number). Read the whole allowance through `entitlementFor` (`al-entitlement.js`), never this
+  (`christmas-leave.test.mjs`). `dispatcherBaseAL(member, year)` — a Dispatcher's leave before days in
+  lieu (the joining year's `proRatedAL`, else 22), the one base the allowance and `dispatcherBreakdown` share.
   `projectAnnualLeaveOverage({...})` (both AL write paths' over-entitlement warning, or null) ·
   `gradeForRole(role)` → `'cea'|'ces'|null` (re-exported by `paycalc-settings.js`, whose entry says what
   null means) · `getMembersForGrade(grade)` (Management is not filtered on `hidden` — see the comment) ·

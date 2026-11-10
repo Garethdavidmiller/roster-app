@@ -69,7 +69,7 @@ export const fixedRoster = {
 };
 
 // 10-week CES (Customer Experience Supervisor) roster — Marylebone.
-// Weeks 4 and 9 are spare weeks with guaranteed Sunday working.
+// Weeks 4 and 9 are Spare all week; weeks 5 and 10 open with a rostered Sunday, then Spare to Thursday.
 // Reference: F. Mohamed on Week 1 w/c 15 Feb 2026.
 export const cesRoster = {
     1:  { sun: 'RD',          mon: 'RD',          tue: 'RD',          wed: '05:40-14:30', thu: '06:20-15:30', fri: '05:40-14:30', sat: '05:40-15:00' },

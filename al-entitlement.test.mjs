@@ -20,7 +20,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor, entitlementNote } from './al-entitlement.js';
-import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement } from './roster-data.js';
+import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement, getBankHolidays, dispatcherBaseAL } from './roster-data.js';
 import { isRestShift, nextReplacedType, nextLeaveYear, buildOverrideCacheRecord } from './override-utils.js';
 import { rangeWriteDates, swapDecisionDates } from './al-swapped-days.js';
 
@@ -537,6 +537,19 @@ describe('a Dispatcher entitlement splits into the two things it is made of', ()
         const split = dispatcherBreakdown({ member: disp(), year: 2026, overrides: [] });
         assert.equal(split.base, 22);
         assert.equal(split.proRated, false);
+    });
+
+    test('with no bank holiday worked the lieu part is 0 — the allowance and the split start from ONE base', () => {
+        // Both read `dispatcherBaseAL` (roster-data.js). Each held its own literal 22 until 10 Nov 2026,
+        // and the identity above could not see them drift: the lieu part is derived by subtraction, so
+        // a different base on one side would have moved into "BH lieu" and still added up.
+        for (const m of [disp(), disp({ startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } })]) {
+            const rested = getBankHolidays(2026).map(day =>
+                ({ memberName: m.name, date: formatISO(day), type: 'correction', value: 'RD', source: 'manual' }));
+            const split = dispatcherBreakdown({ member: m, year: 2026, overrides: rested });
+            assert.equal(split.lieu, 0, 'no bank holiday was worked, so there is no day in lieu');
+            assert.equal(split.base, dispatcherBaseAL(m, 2026));
+        }
     });
 
     test('and it answers null for anybody it has nothing to say about', () => {

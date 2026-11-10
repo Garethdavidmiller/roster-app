@@ -23,6 +23,14 @@
 //   managerOnly    {boolean} Optional. true = management/clerk login; hidden from staff selector; appears in login dropdown under "Management" group
 //   permanentShift {string}  Optional. 'early' | 'late' — overrides badge colour on worked days,
 //                            suppresses shift time. Remove to restore normal roster display.
+//   bilingualContract {boolean} Optional. A CEA on a BILINGUAL CONTRACT: 34 days' leave, not 32. The
+//                            contract, never the line — a plain CEA is often on a bilingual line.
+//   startDate      {Date}    Optional. First day — `new Date(year, month-1, day)`, midnight, no time.
+//                            Every date before it reads RD.
+//   proRatedAL     {Object}  Optional. { <year>: days } — the joining year's leave, TRANSCRIBED from
+//                            the clerks' workbook, never calculated (/new-starter).
+//   noProRate      {boolean} Optional. A return on full-year terms: startDate still hides the days
+//                            before it, but pay and leave are the whole year's.
 //   rosterChanges  {Array}   Optional. Scheduled roster moves, e.g. a new starter on a
 //                            temporary fixed pattern who later joins a rotating link.
 //                            Each entry: { from: Date, rosterType, currentWeek }. From `from`

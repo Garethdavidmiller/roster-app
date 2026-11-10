@@ -13,9 +13,9 @@
 export const APP_VERSION = '25.64';
 
 // ============================================
-// PERFORMANCE CACHES — declared early so they're out of TDZ before any
-// function that uses them runs (formatISO is called during module load
-// from date helpers during module load.
+// PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
+// line has run throws (the temporal dead zone), so one declared beside formatISO would break any call
+// reaching it while this module is still loading.
 // ============================================
 const _isoCache = new Map();
 const _isoCacheMax = 64;
@@ -184,9 +184,9 @@ function countDispatcherBankHolidaysWorked(member, year, overrides) {
         const dateStr = `${y}-${m}-${d}`;
 
         // Override takes precedence; fall back to base roster.
-        // NOTE: getBaseShift applies isChristmasRD, so Dec 26 (Boxing Day) always returns
-        // 'RD' from the base roster even when a dispatcher is scheduled to work. A lieu day
-        // for Boxing Day is only counted when an RDW override is recorded for that date.
+        // NOTE: getBaseShift applies isChristmasRD, so 25 and 26 Dec always read 'RD' from the base
+        // roster even when a dispatcher is due to work. A Christmas bank holiday counts only when an
+        // override records the member AT WORK that day — any worked value (isWorkedShift), not only RDW.
         const shift = overrideMap.has(dateStr)
             ? overrideMap.get(dateStr).value
             : getBaseShift(member, bh);
@@ -208,6 +208,11 @@ function countDispatcherBankHolidaysWorked(member, year, overrides) {
 export function isWorkedShift(shift) {
     return shift !== 'RD' && shift !== 'OFF' && shift !== 'SPARE' && shift !== 'AL' && shift !== 'SICK';
 }
+
+/** A Dispatcher's leave for `year` BEFORE any day in lieu: the joining year's transcribed `proRatedAL`,
+ *  else 22. The one figure the allowance (getALEntitlement) and its caption's split (dispatcherBreakdown,
+ *  al-entitlement.js) both start from, so the two cannot diverge. @param {any} member @param {number} year */
+export function dispatcherBaseAL(member, year) { return member?.proRatedAL?.[year] ?? 22; }
 
 /**
  * Annual leave entitlement for a staff member in a given year.
@@ -246,8 +251,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
     // days short — with nothing to say so, because a wrong leave balance still renders and still
     // books against. Cases and the reasoning: roster-data.test.mjs.
     if (member.role === 'Dispatcher') {
-        const base = member.proRatedAL?.[year] ?? 22;
-        return base + countDispatcherBankHolidaysWorked(member, year, overrides);
+        return dispatcherBaseAL(member, year) + countDispatcherBankHolidaysWorked(member, year, overrides);
     }
     // Pro-rated entitlement takes priority for joiners in every other role, where the whole figure
     // IS an allowance and there is no earned component to protect.
@@ -268,8 +272,8 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
     // NO ENTITLEMENT ON RECORD REFUSES RATHER THAN GUESSING (v22.45). This used to fall through to
     // `return 32`, so a Management row — or any role added later — would have been handed a CEA's
     // leave: a complete, plausible figure belonging to somebody else. **Not a defect anyone could
-    // reach today**, and the comment should say so rather than imply a fix: all seven Management
-    // rows carry `hidden: true`, so `populateMemberDropdown` omits them and no surface can select
+    // reach today**, and the comment should say so rather than imply a fix: every Management row
+    // carries `hidden: true`, so `populateMemberDropdown` omits them and no surface can select
     // one. It is one un-set flag away, which is the whole reason to close it — the same
     // fall-through shape that DID give a Dispatcher somebody else's pay rate until v21.78.
     // `null`, never 0: a zero is a claim about their leave and this function has none to make.
@@ -367,12 +371,11 @@ export const SWIPE_VELOCITY  = 0.4;  // px/ms — fast flick commits even below 
 // ============================================
 // CALENDAR DATE HELPERS
 // ============================================
-// These private helpers generate date Sets automatically for CONFIG.MIN_YEAR
-// through CONFIG.MAX_YEAR + 1, so they never need manual updates.
+// Bank holidays, paydays and cut-offs are computed for a year on first use and cached — none is typed in.
 
 /**
- * Easter Sunday for a given year, via the Computus algorithm.
- * Duplicates the logic in calculateBankHolidays but returns a standalone Date.
+ * Easter Sunday for a given year, via the Computus algorithm — the one copy of it: calculateBankHolidays
+ * and isEasterSunday both read this.
  * @param {number} year
  * @returns {Date}
  */
@@ -804,21 +807,6 @@ export function getShiftClass(timeStr) {
 }
 
 /**
- * Returns an HTML shift badge `<span>` for a shift value.
- * Icon and label are wrapped in separate child `<span>` elements so the
- * layout direction (stacked vs inline) is controlled purely by CSS on the
- * parent .shift-badge — no <br> in flex context needed.
- * @param {string} timeStr  Shift value (e.g. "RD", "06:00-14:00")
- * @param {{showTime?: boolean}} [opts]  `showTime` renders a WORKED shift's badge as the time
- *   (`☀️ 06:20-14:20`) rather than its classification (`☀️ Early`), keeping the word in the
- *   accessible name. Added v22.21 for Admin's Change-a-Shift week grid, where the badge was the
- *   only thing on the row and "EARLY" does not tell you what the person is rostered to work —
- *   which is precisely the question you are answering when you decide whether to change it.
- *   Non-worked values (Rest, AL, Spare, Absent, the Other family) ignore it: they have no time,
- *   and their word IS the information.
- * @returns {string}  HTML string (safe — no user data interpolated)
- */
-/**
  * A shift's BADGE, broken into its parts: the colour class, the emoji, and the word.
  *
  * `getShiftBadge` builds its HTML from this, and so does the calendar's day-detail panel — which
@@ -850,9 +838,19 @@ export function shiftBadgeParts(timeStr) {
 }
 
 /**
- * @param {string} timeStr
- * @param {{showTime?: boolean}} [opts]
- * @returns {string}
+ * Returns an HTML shift badge `<span>` for a shift value.
+ * Icon and label are wrapped in separate child `<span>` elements so the
+ * layout direction (stacked vs inline) is controlled purely by CSS on the
+ * parent .shift-badge — no <br> in flex context needed.
+ * @param {string} timeStr  Shift value (e.g. "RD", "06:00-14:00")
+ * @param {{showTime?: boolean}} [opts]  `showTime` renders a WORKED shift's badge as the time
+ *   (`☀️ 06:20-14:20`) rather than its classification (`☀️ Early`), keeping the word in the
+ *   accessible name. Added v22.21 for Admin's Change-a-Shift week grid, where the badge was the
+ *   only thing on the row and "EARLY" does not tell you what the person is rostered to work —
+ *   which is precisely the question you are answering when you decide whether to change it.
+ *   Non-worked values (Rest, AL, Spare, Absent, the Other family) ignore it: they have no time,
+ *   and their word IS the information.
+ * @returns {string}  HTML string (safe — no user data interpolated)
  */
 export function getShiftBadge(timeStr, opts = {}) {
     const { cls, emoji, word, title, timed } = shiftBadgeParts(timeStr);
@@ -1215,7 +1213,7 @@ export function isSunday(dateStr) {
 }
 
 // Run validations immediately at module load.
-// Production: skip the per-cell regex scan (49 weeks × 7 days × 5 rosters) to speed up first paint.
+// Production: skip the scan of every cell of every pattern, to speed up first paint.
 // Dev/debug: opt-in via localhost or ?debug=1 query string.
 if (typeof location !== 'undefined' &&
     (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ||

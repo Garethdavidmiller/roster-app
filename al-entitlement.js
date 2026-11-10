@@ -60,7 +60,7 @@
  * pure, which is what lets the boundary (a day that is today) be tested at all.
  */
 
-import { getALEntitlement, getBaseShift, isSunday, parseISODate } from './roster-data.js';
+import { getALEntitlement, dispatcherBaseAL, getBaseShift, isSunday, parseISODate } from './roster-data.js';
 import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride } from './override-utils.js';
 import { leaveYearOf, offeredJanuaries } from './leave-year.js';
 import { isChristmasClosureDate, boxingDayLieuDays } from './christmas-leave.js';
@@ -299,7 +299,7 @@ export function dispatcherBreakdown({ member, year, overrides }) {
     if (entitlement === null) return null;
 
     const proRated = member.proRatedAL?.[y] !== undefined;
-    const base = proRated ? member.proRatedAL[y] : 22;
+    const base = dispatcherBaseAL(member, y);   // the figure getALEntitlement starts from — one formula
     // A BOXING DAY IN LIEU IS NOT A BANK-HOLIDAY DAY (v25.37) — in 2026 Boxing Day is a Saturday and
     // no bank holiday at all — so it is reported on its own and kept out of `lieu`, which the caption
     // labels "BH lieu". `base + lieu + boxingDay === entitlement` is what the test pins.
