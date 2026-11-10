@@ -229,6 +229,46 @@ test('every app page opts out of algorithmic dark mode', () => {
     assert.deepEqual(missing, [], 'pages without `color-scheme: only light`');
 });
 
+/**
+ * The page's header — the `<header>` holding the burger — and what was open around it. Only the
+ * elements that take a header's banner role away are tracked (HTML-AAM: a header inside main, article,
+ * aside, nav or section is not the page's banner). Comments are stripped: pages discuss `<main>` in prose.
+ * @param {string} html
+ */
+function pageHeader(html) {
+    const src = html.replace(/<!--[\s\S]*?-->/g, ' ');
+    /** @type {string[]} */
+    const open = [];
+    let mainAt = -1;
+    /** @type {{ at: number, inside: string[] } | null} */
+    let header = null;
+    for (const m of src.matchAll(/<(\/?)(main|article|aside|nav|section|header)\b[^>]*>/gi)) {
+        const tag = m[2].toLowerCase();
+        if (m[1]) { const i = open.lastIndexOf(tag); if (i >= 0) open.splice(i); continue; }
+        if (tag === 'main' && mainAt < 0) mainAt = /** @type {number} */ (m.index);
+        if (tag === 'header' && src.slice(m.index, src.indexOf('</header>', m.index)).includes('id="navMenuBtn"')) {
+            header = { at: /** @type {number} */ (m.index), inside: [...open] };
+        }
+        open.push(tag);
+    }
+    return { mainAt, header };
+}
+
+test('every app page\'s header is its banner landmark: before <main>, never inside it', () => {
+    // CLAUDE.md → "Semantic elements": screen readers depend on the landmarks. Inside <main> the header
+    // is no banner, so a screen reader lists none and reads the burger and the page's <h1> as main
+    // content. Admin, Operations and Links had it there until the whole-app check (Nov 2026), because
+    // `.container` hid it until sign-in and placed it in its grid; their stylesheets do both now.
+    for (const page of APP_PAGES) {
+        const { mainAt, header } = pageHeader(read(`./${page}`));
+        assert.ok(header, `${page}: no <header> holds the burger (#navMenuBtn), so this check measured nothing`);
+        assert.ok(mainAt >= 0, `${page}: no <main> element`);
+        assert.deepEqual(header.inside, [], `${page}: the header sits inside <${header.inside.join('>, <')}>, so it is ` +
+            'not the page\'s banner landmark. Put it before <main>, as settings.html does.');
+        assert.ok(header.at < mainAt, `${page}: the header comes after <main>; every page puts it first`);
+    }
+});
+
 test('every app page loads shared.css and its own stylesheet, and no other page\'s', () => {
     for (const page of APP_PAGES) {
         const html = read(`./${page}`);

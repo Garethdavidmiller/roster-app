@@ -3421,8 +3421,8 @@ button.login-back:focus-visible { outline: var(--focus-outline); outline-offset:
 
 
 /* ── Boot placeholder ────────────────────────────────────────────────────────────────────────────
-   Admin, Operations and Links hide `.container` until `body.auth-ready`, and their header is inside
-   it — so before their JS runs those pages are blank navy with nothing on them, not even a burger.
+   Admin, Operations and Links hide `.container`, and their header with it, until `body.auth-ready` —
+   so before their JS runs those pages are blank navy with nothing on them, not even a burger.
    Trains hides its cards the same way (trains.css, `#trainsMain`) under a header that shows. This is
    what sits in that window. Pure CSS in both directions: shown by default, removed the
    instant the class lands, so a coordinator that never finishes cannot strand it and no module has

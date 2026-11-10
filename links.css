@@ -79,7 +79,11 @@ body {
    which of the two binds depends on the content, and the content changes. */
 .container > * { min-width: 0; }
 body.auth-ready .container { display: grid; }
-.app-header { margin-bottom: -8px; }
+/* The header is <main>'s sibling (inside it, it was not the banner landmark), so it takes here what
+   the grid gave it: the page's band, 4px above the first card at every width as on Settings, and
+   the hide until sign-in. e2e/pages.spec.js holds all three. */
+.app-header { max-width: var(--content-max-width); margin: 0 auto 4px; }
+body:not(.auth-ready) .app-header { display: none; }
 
 /* ---- Header end ----
    Holds the gold "🔗 Links" page badge. It carried a gold-OUTLINE "Beta" chip beside it from v12.33
@@ -1439,9 +1443,6 @@ body.auth-ready .container { display: grid; }
 /* ---- Tablet/Desktop ---- */
 @media (min-width: 768px) {
     .container { gap: 14px; }
-    /* net gap = 14px - 10px = 4px, the gap under the header on every card page (desktop audit,
-       Nov 2026; it was 0 — the first card 10px lower than on Pay or Settings). */
-    .app-header { margin-bottom: -10px; }
 }
 
 /* ---- Design picker strip ---- */
