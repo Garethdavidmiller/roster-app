@@ -58,9 +58,11 @@ export const CARD_TIPS = {
                 // rather than as the check it is.
                 { icon: '⤓', html: '<strong>Import</strong> takes a design somebody has written down elsewhere — paste it from a spreadsheet, or type times, <strong>RD</strong> and <strong>SP</strong> a row per line. Press <strong>Preview import</strong> first: it tells you what would be saved, and anything it had to assume, before there is a Save button at all.' },
                 // Added with the gate (v20.98). Without it the refusal reads as the tool
-                // being broken rather than as the arithmetic saying no.
-                { icon: '⏱️', html: '<strong>Generate refuses a design that would underpay.</strong> The rotation has to average the contracted week with Sundays left out, and a <strong>spare week counts as a full week</strong>. Individual weeks vary — the average is what counts.' },
-                { icon: '➕', html: 'If it refuses, it says how many hours of duty are missing. Only three things close that gap: more duties, longer ones, or more spare weeks. Spreading the same work over more lines never can — that is what makes a link shorter per person, not longer.' },
+                // being broken rather than as the arithmetic saying no. It refuses a SURPLUS too, with the
+                // opposite remedies (links-app-13): the panel used to describe the shortfall alone.
+                { icon: '⏱️', html: '<strong>Generate refuses a design that does not pay the contracted week exactly</strong> — under it or over it. The rotation has to average the contracted week with Sundays left out, and a <strong>spare week counts as a full week</strong>. Individual weeks vary — the average is what counts.' },
+                { icon: '➕', html: 'If it is <strong>short</strong>, it says how many hours of duty are missing. Only three things close that gap: more duties, longer ones, or more spare weeks. Spreading the same work over more lines never can — that makes each line shorter, not longer.' },
+                { icon: '➖', html: 'If it is <strong>over</strong>, it says how many hours of duty too many — a surplus would be permanent overtime nobody has agreed to. The remedies are the opposite ones: fewer duties, shorter ones, or fewer spare weeks.' },
                 { icon: '🛡️', html: 'An import saves as a <strong>new</strong> design and never changes the one you have open. A cell it cannot read stops the whole import rather than quietly becoming a rest day — a design that arrives four duties light looks like a lighter week, not like a mistake.' },
                 { icon: '⇔', html: '<strong>Compare with…</strong>, under the same <strong>···</strong>, shows two designs side by side — cells that differ are highlighted in gold. It needs at least two designs.' },
                 { icon: '🗑', html: 'Deleting a design does not destroy it — it moves to <strong>Recently deleted</strong>, where it stays until someone restores it or removes it for good. Nothing is removed automatically. It is under <strong>···</strong>, and only appears when something is in there.' },
@@ -75,8 +77,13 @@ export const CARD_TIPS = {
         title: 'Check staffing coverage',
         sections: [{ items: [
             { icon: '📊', html: 'Each cell shows how many people are <strong>on duty during that hour</strong> — rows are days, columns are hours of the day' },
-            { icon: '🔵', html: 'Darker blue = more people on at once; blank = nobody on duty' },
-            { icon: '🔴', html: 'A red <strong>0</strong> means a gap — nobody on duty in the middle of that day\'s working hours' },
+            { icon: '🔵', html: 'Darker blue = more people on at once' },
+            // Since the staffed window (v19.54) a gap is any hour the station is OPEN with nobody on —
+            // the opening and closing hours included — and a shut hour is grey. The card's own note
+            // (links-analysis.js) says the same; this used to call a blank cell "nobody on duty" and a
+            // gap a mid-day hole (links-app-13).
+            { icon: '🔴', html: 'A red <strong>0</strong> means a gap — the station is open and nobody is on duty, at the open and the close as much as mid-day' },
+            { icon: '⬜', html: 'A <strong>grey</strong> hour is outside the <strong>staffed window</strong>, set at the top of this card — the station is shut, so nobody on is not a gap. A number on grey means someone is rostered while it is shut.' },
             { icon: '🟡', html: '<strong>SP</strong> column = spares on standby that day (no fixed time, so they aren\'t in the hourly cells)' },
             { icon: '💡', html: 'This shows the real <em>shape</em> of the day — opens, the morning build, the afternoon peak, and the taper to close. Updates live as you edit cells.' },
             { icon: '🚆', html: 'The orange <strong>Trains per hour</strong> rows underneath are the December 2026 <em>service</em> — arrivals and departures together, weighted by train length, so a 9-car evening train counts for more than a 3-car midday one.' },
@@ -92,6 +99,12 @@ export const CARD_TIPS = {
             { icon: '⏱️', html: '<strong>Rest between shifts</strong> — checks every transition between two <em>timed</em> shifts across the rotation for less than 12 hours rest. Late-to-early next morning is the classic short turnaround. A spare day has no times, so a transition either side of one can\'t be measured and isn\'t counted.' },
             { icon: '📅', html: `<strong>Longest run</strong> — how many consecutive working days appear anywhere in the ${ROTATING_LINES}-line cycle. More than ${DEFAULT_MAX_RUN} days is flagged — a design aim, not a limit.` },
             { icon: '⚖️', html: '<strong>Shift balance</strong> — how the worked days split between early, late, and spare across the full rotation.' },
+            // The rest of the card (links-app-13): the panel explained the first section's rows and none
+            // of the sections that make up most of it.
+            { icon: '🕐', html: '<strong>Hours a week</strong> — the rotation\'s average with Sundays left out, against the contracted week. A cover week counts as a full week, and Sunday duty sits on top, because Sunday is not contracted.' },
+            { icon: '🏢', html: '<strong>Company limits</strong> — the longest run of working days, and the contracted days a year. Each row says whether this design meets the limit — met as well as breached — and names its source.' },
+            { icon: '🩺', html: '<strong>Fatigue factors</strong> — the ORR\'s good-practice list, grouped in its own families. They report which factors a pattern <strong>features</strong>: they are not pass/fail limits, and nothing here approves a design. A <strong>standing</strong> factor comes with the operation itself — every 06:20 start, say — so it is counted apart from the rest.' },
+            { icon: '📏', html: '<strong>For comparison — today\'s link</strong> — the same factors measured on the roster in use now, so a figure can be read against the link it would replace.' },
             { icon: '🔄', html: 'Checks cover the <em>rotation</em>, not a single week — turnarounds and run lengths wrap across line boundaries.' },
         ]}],
     },
@@ -115,7 +128,7 @@ export const CARD_TIPS = {
                 { icon: '💬', html: 'It is a <strong>starting point to argue with</strong>, not a proposal: change anything you like, and read the checks below before anyone takes a printout into a room.' },
             ]},
             { heading: 'How to use it', items: [
-                { icon: '➕', html: '<strong>+ Add another shift</strong> for a new start time; ✕ removes a row. Pick times from the dropdown or choose Custom time….' },
+                { icon: '➕', html: '<strong>+ Add another shift</strong> for a new start time; ✕ removes a row. Pick times from the dropdown or choose <strong>Custom…</strong> to type one.' },
                 { icon: '⚠️', html: `Each day's total (all shifts + spare) can't exceed ${ROTATING_LINES} — watch the Total row.` },
                 { icon: '💾', html: '<strong>Saved staffing setups</strong> keep a table to come back to, shared with the other designers. Anyone can save one; only the person who created it, or the admin, can overwrite or delete it.' },
                 { icon: '3️⃣', html: 'Tap <strong>Build the link</strong>, then review the coverage and the design checks before saving.' },
