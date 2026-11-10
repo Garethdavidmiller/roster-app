@@ -191,6 +191,20 @@ describe('an unusable date does not render as arithmetic', () => {
         assert.equal(formatDayMonth(/** @type {any} */ ('2026-09-18')), '—');
     });
 
+    test('the two London shims answer the same way — no RangeError, and null is not 1 Jan 1970', () => {
+        // They were the two left out (whole-app review, 10 Nov 2026): undefined threw out of `Intl`, and
+        // null read as the epoch. Their callers test for a missing time first; the promise is none has to.
+        for (const v of [undefined, null, NaN, 'not a time', new Date(NaN)]) {
+            const at = /** @type {any} */ (v);
+            assert.equal(londonClock(at), '—', `londonClock(${String(v)})`);
+            assert.equal(formatWeekdayDate(londonDate(at), true), '—', `londonDate(${String(v)})`);
+            assert.equal(printedStamp(londonDate(at), londonClock(at)), 'Printed — · —');
+        }
+        // An instant is untouched, the epoch included: `0` is falsy and must not read as missing.
+        assert.equal(londonClock(0), '01:00', 'London kept summer time all year in 1970');
+        assert.equal(formatDayMonthYear(londonDate(0)), '1 Jan 1970');
+    });
+
     test('a valid date is untouched by the guard', () => {
         const d = new Date(2026, 8, 18, 14, 23);
         assert.equal(formatDayMonth(d), '18 Sep');
