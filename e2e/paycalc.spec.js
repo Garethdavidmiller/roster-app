@@ -2357,6 +2357,66 @@ test('paycalc: the "Includes an 8h estimate" chip wraps inside its row instead o
     expect(errors, 'Uncaught JS exceptions on the estimate chip').toHaveLength(0);
 });
 
+// ── THE STYLESHEET, READ LINE BY LINE (whole-app check, 10 Nov 2026) ─────────────────────────────
+// paycalc.css findings that only a rendered page shows: each test measures what a member sees.
+
+/** A CSS colour expression as this page computes it, for comparing with a computed colour.
+ *  @param {import('@playwright/test').Page} page @param {string} value */
+const pcColour = (page, value) => page.evaluate((v) => {
+    const i = document.createElement('i'); i.style.color = v; document.body.append(i);
+    const c = getComputedStyle(i).color; i.remove(); return c;
+}, value);
+
+test('paycalc: a Tab stop on a dark surface wears the ring drawn for one', async ({ page }, info) => {
+    // The help sheet's ✕ and the guide link at the foot of the page have no focus rule of their own,
+    // so they took the app's navy fallback ring: 1.17:1 on the dark glass and 1:1 on the navy canvas.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const gold = await pcColour(page, 'var(--accent-gold)');
+    const ring = (/** @type {import('@playwright/test').Locator} */ el) => el.evaluate(e => {
+        const cs = getComputedStyle(e);
+        return { focus: e.matches(':focus-visible'), style: cs.outlineStyle, colour: cs.outlineColor };
+    });
+
+    const link = page.locator('.guide-footer-link a');
+    await link.focus();
+    expect(await ring(link), 'the guide link on the navy canvas').toEqual({ focus: true, style: 'solid', colour: gold });
+
+    await page.locator('.help-btn[data-help="hours"]').click();
+    await expect(page.locator('#helpLightbox.visible')).toBeVisible();
+    const close = page.locator('#helpLightboxClose');
+    for (let i = 0; i < 6 && !(await close.evaluate(e => e === document.activeElement)); i++) await page.keyboard.press('Tab');
+    expect(await ring(close), 'the help sheet\'s ✕ on the dark glass').toEqual({ focus: true, style: 'solid', colour: gold });
+});
+
+test('paycalc: the Training Days stepper draws its focus ring whole', async ({ page }, info) => {
+    // The stepper clips (`overflow: hidden`) and its buttons sit flush against three of its edges, so
+    // a ring drawn 2px OUTSIDE a button lost those three sides: one navy bar beside the number.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    for (const id of ['peerMinus', 'peerPlus']) {
+        const button = page.locator(`#${id}`);
+        await button.focus();
+        const g = await button.evaluate(b => {
+            const cs = getComputedStyle(b), box = b.getBoundingClientRect();
+            const st = /** @type {HTMLElement} */ (b.closest('.stepper'));
+            const sr = st.getBoundingClientRect(), edge = parseFloat(getComputedStyle(st).borderTopWidth);
+            const out = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);   // how far the ring reaches past the button
+            return { focus: b.matches(':focus-visible'), style: cs.outlineStyle,
+                clipped: [box.left - out < sr.left + edge - 0.5, box.right + out > sr.right - edge + 0.5,
+                          box.top - out < sr.top + edge - 0.5, box.bottom + out > sr.bottom - edge + 0.5] };
+        });
+        expect(g.focus && g.style === 'solid', `#${id} shows a ring`).toBe(true);
+        expect(g.clipped, `#${id}'s ring runs past the stepper's clip on [left, right, top, bottom]`).toEqual([false, false, false, false]);
+    }
+});
+
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
 // Each block below is one finding, proved where a member meets it: the page, not the helper.
 

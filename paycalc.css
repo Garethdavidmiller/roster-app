@@ -441,6 +441,8 @@
   @media (hover: hover) and (pointer: fine) {
     #helpLightboxClose:hover { color: white; }
   }
+  /* On the dark glass the navy fallback ring measured 1.17:1: the gold every ✕ on a navy sheet wears. */
+  #helpLightboxClose:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
 
   /* ── SHOW MORE / HOURS EXTRA ── */
     .show-more-btn {
@@ -558,7 +560,9 @@
       touch-action: manipulation; transition: background-color var(--dur-med); flex-shrink: 0;
     }
     .stepper button:active { background: var(--primary-blue); color: white; }
-    .stepper button:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+    /* Inside the button: the stepper clips (`overflow: hidden`), and a ring drawn outside lost three
+       of its four sides — the inset ring .bd-btn and .roster-row wear for the same reason. */
+    .stepper button:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
     @media (hover: hover) and (pointer: fine) {
       .stepper button:hover { background: var(--primary-blue-dark); color: white; }
     }
@@ -1475,6 +1479,8 @@
   @media (hover: hover) and (pointer: fine) {
     .guide-footer-link a:hover { color: white; }
   }
+  /* On the navy canvas the navy fallback ring was 1:1 — gold, as on every other dark surface. */
+  .guide-footer-link a:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; border-radius: var(--radius-xs); }
 
   /* ── ROSTER SUGGESTION CARD ── */
   .roster-card {
