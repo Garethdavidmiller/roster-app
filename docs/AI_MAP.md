@@ -788,6 +788,9 @@ runtime, so `overlay-parity.test.mjs`'s scan of the served HTML cannot see them.
   LANDED — the fade done and its Back echo arrived. To act on a close, await it rather than a timer.
 - `dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler })` — the close routine, exported for
   the rare overlay built without `createLightbox`.
+- `closeOnBackdropTap(overlay, close)` — the backdrop rule `createLightbox` and the drawer's two lightboxes
+  share: a press AND release on the overlay itself, so a text selection dragged out of the card is not a
+  tap; a click made in code, with no press, still closes.
 - `_pushOverlayState(handler)` / `_clearOverlayHistory(handler)` — Android Back on a LIFO stack: nested
   overlays each get an entry and Back closes only the topmost (`overlay-history.test.mjs`).
   `whenHistorySettled(fn)` runs `fn` once no Back echo of ours is outstanding, so a dialog opened from a

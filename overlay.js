@@ -321,6 +321,24 @@ function _guardFocus(overlay, panel, isTop) {
     document.addEventListener('focusin', onFocusIn, true);
     return () => document.removeEventListener('focusin', onFocusIn, true);
 }
+/**
+ * Close on a tap on the BACKDROP: a press and a release on the overlay itself. A mouse drag that starts
+ * inside the card and ends on the backdrop — selecting a prompt's text — arrives as a `click` on the
+ * overlay too, because a click goes to the nearest element the press and the release share, and it
+ * closed the prompt under the selection. A click with no press seen (one made in code) still counts.
+ * @param {Element} overlay
+ * @param {() => void} close
+ */
+export function closeOnBackdropTap(overlay, close) {
+    /** @type {EventTarget|null} */ let pressedOn = null;
+    overlay.addEventListener('pointerdown', e => { pressedOn = e.target; });
+    overlay.addEventListener('click', e => {
+        const from = pressedOn;
+        pressedOn = null;
+        if (e.target === overlay && (from === null || from === overlay)) close();
+    });
+}
+
 /** Input types that raise no keyboard; any other input, and a textarea, is typed into. */
 const _NO_KEYBOARD = new Set(['button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'image', 'range', 'color', 'hidden']);
 const _isTextEntry = (/** @type {any} */ el) => el?.tagName === 'TEXTAREA' || (el?.tagName === 'INPUT' && !_NO_KEYBOARD.has(String(el.type || 'text').toLowerCase()));
@@ -383,8 +401,8 @@ export function watchScrollFade(panel) {
  * .open + focus, body scroll lock, Android Back support, Escape to close,
  * a Tab trap and a guard for focus moves Tab never sees, and a text field focused in the tap.
  *
- * Default wiring added here: clicking the backdrop (the overlay itself, not
- * the content card) closes, and the close button closes. Callers add any
+ * Default wiring added here: a tap on the backdrop (the overlay itself, not
+ * the content card — `closeOnBackdropTap`) closes, and the close button closes. Callers add any
  * further triggers themselves and prepare dynamic content BEFORE calling
  * open() — or via onOpen, which runs before the overlay becomes visible.
  *
@@ -525,7 +543,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         return _settling;
     }
 
-    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    closeOnBackdropTap(overlay, close);
     closeBtn?.addEventListener('click', close);
 
     return { open, close };

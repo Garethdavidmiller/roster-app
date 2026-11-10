@@ -54,6 +54,11 @@ mock.module('./overlay.js', {
         suppressNextPop: () => {}, registerPopInterceptor: (/** @type {() => boolean} */ fn) => { popInterceptors.push(fn); },   // v16.23 pop-ownership hooks
         whenHistorySettled: (/** @type {() => void} */ fn) => fn(),
         watchScrollFade: () => () => {},   // the body's "more below" fade — decoration; e2e/pages.spec.js tests it
+        // A tap on a drawer lightbox's backdrop closes it. Which taps count is overlay.js's rule, tested
+        // there against the real function; here a click on the backdrop itself is enough.
+        closeOnBackdropTap: (/** @type {any} */ overlay, /** @type {() => void} */ close) => {
+            overlay.addEventListener('click', (/** @type {any} */ e) => { if (e.target === overlay) close(); });
+        },
     },
 });
 mock.module('./ls.js', {

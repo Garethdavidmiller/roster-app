@@ -50,7 +50,7 @@
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications, releaseDevicePush } from './notif.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl, currentUserAfterBoot } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
-import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade, closeOnBackdropTap } from './overlay.js';
 import { readArchivedNotices } from './notice-archive.js';
 import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
@@ -915,11 +915,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     }
 
     csClose?.addEventListener('click', _closeComingSoon);
-    // Only close on direct backdrop click — csClose already has its own listener
-    // and event bubbling would otherwise call _closeComingSoon twice.
-    csLightbox?.addEventListener('click', e => {
-        if (e.target === csLightbox) _closeComingSoon();
-    });
+    // Only close on a tap on the backdrop itself — csClose already has its own listener and event
+    // bubbling would otherwise call _closeComingSoon twice; and a text selection dragged out onto it
+    // is not a tap (`closeOnBackdropTap`).
+    if (csLightbox) closeOnBackdropTap(csLightbox, _closeComingSoon);
 
     // App Notices archive lightbox — same bespoke pattern as the coming-soon
     // lightbox (reuses the panel's single history entry; no createLightbox).
@@ -1022,9 +1021,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     _navLbKeyHandlers = [_onComingSoonKey, _onNoticesKey];
 
     noticesClose?.addEventListener('click', _closeNotices);
-    noticesLightbox?.addEventListener('click', e => {
-        if (e.target === noticesLightbox) _closeNotices();
-    });
+    if (noticesLightbox) closeOnBackdropTap(noticesLightbox, _closeNotices);
 
     // Close panel on Escape; trap Tab focus within the panel while it is open.
     // The !panel.contains(active) guard catches focus that escaped the panel

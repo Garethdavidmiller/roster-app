@@ -653,6 +653,24 @@ describe('createLightbox — a tap on the backdrop closes it, a tap on the panel
         closeBtn._trigger('click', { target: closeBtn });
         assert.equal(overlay.classList.contains('open'), false);
     });
+
+    // A mouse drag that starts in the card and ends on the backdrop — selecting a prompt's text — is a
+    // `click` on the overlay too: a click goes to the nearest element the press and release share.
+    test('a press that began inside the card and was released on the backdrop does not close it', () => {
+        const { overlay, content } = build();
+        overlay._trigger('pointerdown', { target: content });
+        overlay._trigger('click', { target: overlay });
+        assert.equal(overlay.classList.contains('open'), true, 'a text selection dragged out of the card closed the dialog');
+        overlay._trigger('click', { target: overlay });       // the next click, made in code with no press
+        assert.equal(overlay.classList.contains('open'), false, 'a press is forgotten at its click — one made in code still closes');
+    });
+
+    test('a press AND release on the backdrop still closes it', () => {
+        const { overlay } = build();
+        overlay._trigger('pointerdown', { target: overlay });
+        overlay._trigger('click', { target: overlay });
+        assert.equal(overlay.classList.contains('open'), false);
+    });
 });
 
 describe('createLightbox — an onClose that throws cannot strand the overlay', () => {

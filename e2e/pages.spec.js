@@ -213,6 +213,39 @@ test('confirmDialog → promptDialog: Back closes the prompt and stays on the pa
     expect(await page.evaluate(() => /** @type {any} */ (window).__chain), 'Back is a cancel').toBe(null);
 });
 
+// A DRAG THAT ENDS ON THE BACKDROP IS NOT A TAP ON IT (shared-ui-8). Selecting a prompt's pre-filled
+// text with the mouse and letting go just outside the card makes a `click` on the overlay — the nearest
+// element the press and the release share — and the backdrop rule took that for a tap: the prompt
+// closed as Cancel and the typing was gone. A press AND release on the backdrop still closes it.
+test('promptDialog: a text selection dragged out onto the backdrop does not close it; a backdrop tap does', async ({ page }) => {
+    await seedMemberSession(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible({ timeout: 20_000 });
+    const openPrompt = () => page.evaluate(async () => {
+        const { promptDialog } = await import('/overlay.js');
+        /** @type {any} */ (window).__answer = promptDialog({ message: 'Rename this design', defaultValue: 'Balanced V6 — copy' });
+    });
+    await openPrompt();
+    const input = page.locator('.dialog-overlay.open .dialog-input');
+    await expect(input).toBeVisible();
+    await expect.poll(() => page.locator('.dialog-overlay.open .dialog-lb-content').evaluate(el => getComputedStyle(el).transform),
+        { timeout: 5000 }).toBe('matrix(1, 0, 0, 1, 0, 0)');   // the open's scale has landed
+    const field = /** @type {{ x: number, y: number, width: number, height: number }} */ (await input.boundingBox());
+    const card = /** @type {{ x: number, y: number, width: number, height: number }} */ (
+        await page.locator('.dialog-overlay.open .dialog-lb-content').boundingBox());
+    const y = field.y + field.height / 2;
+    await page.mouse.move(field.x + field.width - 6, y);
+    await page.mouse.down();
+    await page.mouse.move(card.x - 24, y, { steps: 6 });   // out past the card's edge, onto the backdrop
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    await expect(input, 'the prompt closed under a text selection').toBeVisible();
+
+    await page.mouse.click(card.x - 24, y);                  // a real tap on the backdrop
+    await expect(page.locator('.dialog-overlay.open')).toHaveCount(0);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__answer), 'a backdrop tap is still a Cancel').toBe(null);
+});
+
 // Same race, from the drawer: the brand button closes the drawer (a `history.back()`) and opens
 // About. About must open only once that traversal has landed, or it has no entry of its own.
 // This pins the OUTCOME, not the mechanism: Chromium and WebKit here both land a same-document
