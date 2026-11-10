@@ -552,6 +552,46 @@ test('admin: another member signing in on the same phone is offered nothing — 
     expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'G. Miller\'s copy is left for G. Miller').not.toBeNull();
 });
 
+// RESTORE PUTS ROWS BACK ONLY ON THEIR OWN MEMBER AND WEEK (whole-app check, Nov 2026). The offer waits for the
+// draft's member to be read, and meanwhile the member on screen can be edited. Restore then jumped — which,
+// with this week's own changes staged, stops at "Discard or keep editing?" — and put the rows back anyway, onto
+// the member on screen, under "Your unsaved changes are back". A Save would have written them to that person.
+test('admin: Restore while another member\'s same week holds changes of its own puts nothing on it, and keeps the draft', async ({ page }) => {
+    const { date } = await stageAbsenceAndHide(page);   // G. Miller, week of 7 Dec 2026
+    await page.addInitScript(() => {   // after the session seeder's own, which selects the signed-in member
+        localStorage.setItem('myb_roster_selected_member', 'S. Silva');
+        window.__E2E = { ...(window.__E2E || {}), docsDelayMs: 1500 };
+    });
+    const accept = (/** @type {import('@playwright/test').Dialog} */ d) => d.accept().catch(() => {});
+    page.on('dialog', accept);
+    await page.goto('/admin.html?date=2026-12-07');   // S. Silva's same week, as a link from the Calendar opens it
+    page.off('dialog', accept);
+    // S. Silva's read is slow; G. Miller's — the one the offer waits for — is held until this test has edited S. Silva.
+    const memberReads = () => page.evaluate(() => ((/** @type {any} */ (window).__E2E.whereCalls || [])).filter((/** @type {any[]} */ w) => w[0] === 'memberName').map((/** @type {any[]} */ w) => w[2]));
+    await expect.poll(memberReads).toEqual(['S. Silva']);
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.docsHeld = true; e.docsDelayMs = 0; });
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await expect(page.locator('#fieldMember')).toHaveValue('S. Silva');
+    await expect.poll(memberReads, { message: 'premise: the offer\'s read of G. Miller is out, and held' }).toEqual(['S. Silva', 'G. Miller']);
+    await expect(page.locator('.dialog-overlay.visible')).toHaveCount(0);
+    const own = page.locator(`.day-row:not([data-date="${date}"])`)
+        .filter({ has: page.locator('.type-pill-btn[data-type="annual_leave"]:not([disabled])') }).last();
+    await own.locator('.day-cb').click();
+    await clickInView(own.locator('.type-pill-btn[data-type="annual_leave"]'));
+    const ownDate = await own.getAttribute('data-date');
+    expect(ownDate, 'premise: S. Silva\'s own change is on another day').not.toBe(date);
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    const offer = page.locator('.dialog-overlay.visible');
+    await expect(offer).toContainText('Restore your unsaved changes');
+    await offer.getByRole('button', { name: 'Restore' }).click();
+    await expect(page.locator('#formFeedback')).toContainText('Your unsaved changes weren’t put back, because this week has changes of its own.');
+    await expect(page.locator('#fieldMember')).toHaveValue('S. Silva');
+    await expect(page.locator(`.day-row[data-date="${date}"] .type-pill-btn[data-type="sick"]`), 'G. Miller\'s absence is not on S. Silva').toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator(`.day-row[data-date="${ownDate}"] .type-pill-btn[data-type="annual_leave"]`), 'S. Silva\'s own change stands').toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'kept, for the next load').not.toBeNull();
+});
+
 // A SAVE THAT LANDS FORGETS THE COPY THE HIDE KEPT (whole-app check, Nov 2026). Saving and then switching
 // app is what the slow save teaches, so the rows are kept while the commit waits. When it landed, every
 // row was switched off before the week was redrawn — and a switched-off row with a saved record reads

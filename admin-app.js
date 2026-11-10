@@ -1626,6 +1626,14 @@ export function init() {
             await _draft.offer({ ask: confirmDialog, apply: async (kept) => {
                 showInChangeAShift(member, date);
                 await ensureMemberLoaded(member).catch((e) => console.warn('[Admin] Draft restore: the member did not load:', e));
+                // ONLY ON ITS OWN MEMBER AND WEEK (whole-app check, Nov 2026). With changes staged here the jump stops at
+                // "Discard or keep editing?", and the rows went onto the member on screen. Not put back: the slot keeps it.
+                if (fieldMember.value !== member || fieldDate.value !== date) {
+                    showError(hasUnsavedChanges()
+                        ? 'Your unsaved changes weren’t put back, because this week has changes of its own. Save or discard them, and yours will be offered again the next time you open Admin.'
+                        : 'Your unsaved changes weren’t put back, because a different member or week is on screen. They’ll be offered again the next time you open Admin.');
+                    return false;
+                }
                 const { put, left } = applyWeekDraft(weekGrid, kept.data.rows, _savedOn(member));
                 if (put) markChanged();
                 updateSaveBtn();
