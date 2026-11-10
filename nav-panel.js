@@ -246,7 +246,8 @@ export function resetNavPanel() {
  *   onLockCalendar (v20.12; the Calendar, and Trains since v24.84) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
- *   canReadDocuments (v23.17, calendar only) — a THUNK: may the drawer's two document links read?
+ *   canReadDocuments (v23.17; the Calendar, and Overtime for a visitor with no named session) — a THUNK: may the
+ *   drawer's two document links read?
  *   authReady — resolves once a Firebase session exists; awaited before the Circular/Newsletter
  *   read (AUTH_PLAN.md → E1). Each page passes its own (calendar: `calendarAuthReady`; the
  *   authenticated pages: `sessionReady`). Defaults to already-resolved.
@@ -390,8 +391,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     function _openLatestDoc(triggerEl, fetchFn, docId) {
         if (_docFetching) return;
         // THE DOCUMENT GATE (v23.17, calendar-doc-access.js): refused HERE, before the blank tab is
-        // opened — a tab that closes a second later reads as a fault. Only the Calendar passes this;
-        // its header has the argument. The lightbox names the document; the message names the fix.
+        // opened — a tab that closes a second later reads as a fault. The Calendar passes this (its
+        // header has the argument), and Overtime, which sheds a PIN holder's identity, for a visitor
+        // with no named session. The lightbox names the document; the message names the fix.
         if (!canReadDocuments()) {
             _docFailureFallback(triggerEl, 'Enter the staff PIN on the Calendar, or sign in, to open this.');
             return;
@@ -939,15 +941,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     function _openNotices() {
         if (!noticesLightbox) return;
         // Render the archive (notice-archive.js reads it, and an unreadable one reads as empty).
-        const list  = noticesList;
-        const empty = noticesEmpty;
         const notices = readArchivedNotices();
         // One entry per section a notice can archive under, or its chip falls back to the neutral
         // grey: Trains had none for its first two notices (v25.00). `calendar-notices.test.mjs` fails
         // on an archived section with no entry here, so the next page's notice cannot repeat that.
         const SECTION_MODS = { Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains', 'New link': 'newlink' };
-        if (list) {
-            list.innerHTML = '';
+        if (noticesList) {
+            noticesList.innerHTML = '';
             notices.forEach(/** @param {any} n */ n => {
                 const item    = document.createElement('div');
                 item.className = 'notices-item';
@@ -971,11 +971,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 item.appendChild(header);
                 item.appendChild(titleEl);
                 item.appendChild(bodyEl);
-                list.appendChild(item);
+                noticesList.appendChild(item);
             });
         }
-        if (list)  list.hidden  = notices.length === 0;
-        if (empty) empty.hidden = notices.length > 0;
+        if (noticesList)  noticesList.hidden  = notices.length === 0;
+        if (noticesEmpty) noticesEmpty.hidden = notices.length > 0;
         // Open the lightbox
         lockBodyScroll();
         noticesLightbox.classList.add('visible');
