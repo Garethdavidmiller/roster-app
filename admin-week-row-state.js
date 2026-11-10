@@ -2,9 +2,10 @@
 /**
  * admin-week-row-state.js — WHAT A WEEK-GRID ROW LOOKS LIKE IN EACH OF ITS STATES.
  *
- * Owns: turning one `.day-row` on and off, and keeping the four things that depend on a row's
- *   current type in step with it — the RDW warning, the Spare submenu mode, the swapped-day
- *   question, and the overwrite badge. And, since the iPhone audit (Nov 2026), a row's staged state
+ * Owns: turning one `.day-row` on and off, drawing it from its saved record (`prefillRow`), and
+ *   keeping the four things that depend on a row's current type in step with it — the RDW warning,
+ *   the Spare submenu mode, the swapped-day question, and the overwrite badge. And, since the iPhone
+ *   audit (Nov 2026), a row's staged state
  *   AS DATA: `isStagedRow` (the one test of "is this row staged?") and the reading and putting back
  *   of a week's staged rows that a kept draft is made of (`readWeekDraft` / `applyWeekDraft`,
  *   unsaved-draft.js).
@@ -27,8 +28,8 @@
  * things is not a boundary; it is a cut made to create room, which is exactly what this extraction
  * was trying to avoid.
  *
- * This cluster needs NONE. It imports the shift-type table and the status helper and
- * nothing else — every function takes a row element and reads the DOM under it. That is what a
+ * This cluster needs NONE. It imports the shift-type table, the Other-day grammar and the status
+ * helper and nothing else — every function takes a row element and reads the DOM under it. That is what a
  * seam looks like: the functions here do not know the editor exists.
  *
  * Keep it that way. If something in here starts needing the editor's state or its injected
@@ -36,6 +37,7 @@
  */
 
 import { TYPES } from './admin-shift-types.js';
+import { parseOtherValue } from './override-utils.js';
 import { setStatus } from './status-text.js';
 
 /**
@@ -158,6 +160,43 @@ export function _syncOverwriteBadge(row) {
     setStatus(badge, row.classList.contains('prefilled-existing') ? '✓ Saved'
         : row.dataset.type ? '⚠ Updating'
         : '⚠ Removing');
+}
+
+/**
+ * Draw a row in the state its saved record puts it in — the record's type, Other flavour, RDW tick and
+ * times — marked as an untouched prefill. A Spare record shows as Other → Spare (v15.57: there is no
+ * top-level Spare pill), and an Other day is read through its grammar: a naive `value.split('-')` would
+ * shred 'TRG RDW 08:00-16:00'.
+ * @param {HTMLElement} row
+ * @param {{ type: string, value?: string }} existing  the record that wins the day
+ */
+export function prefillRow(row, existing) {
+    const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
+    const pills    = row.querySelectorAll('.type-pill-btn');
+    const startEl  = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
+    const endEl    = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
+    const isSpare  = existing.type === 'spare_shift';
+    const meta     = TYPES[isSpare ? 'other' : existing.type];
+    _activateRow(row, checkbox, pills, startEl, endEl, isSpare ? 'other' : existing.type);
+    row.classList.add('prefilled-existing');
+    _syncAlSwap(row);         // a saved, untouched row is not being booked — not asked
+    _syncOverwriteBadge(row); // loaded + untouched → "✓ Saved" (not "Updating")
+    const other   = existing.type === 'other' ? parseOtherValue(existing.value) : null;
+    const flavour = isSpare ? 'SPARE' : other?.flavour;
+    if (flavour) row.querySelectorAll('.other-flavour-btn').forEach(b => {
+        const on = /** @type {HTMLElement} */ (b).dataset.flavour === flavour;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', String(on));
+    });
+    if (isSpare) _syncOtherSpareMode(row);   // hides the RDW tick and the times: "No time needed"
+    if (other) {
+        const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
+        if (cb && !cb.disabled) cb.checked = other.rdw;
+        _syncOtherRdwWarn(row);
+    }
+    const time = other ? other.time
+        : meta && !meta.fixed && existing.value && existing.value.includes('-') ? existing.value : null;
+    if (time && startEl && endEl) [startEl.value, endEl.value] = time.split('-');
 }
 
 /**

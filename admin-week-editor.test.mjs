@@ -635,3 +635,47 @@ describe('a week of staged rows, kept and put back', () => {
         assert.deepEqual(readWeekDraft(gridOf(after.map(x => x.r)), () => ''), kept);
     });
 });
+
+// ── A ROW DRAWN FROM ITS SAVED RECORD (prefillRow) ───────────────────────────────────────────────
+// What a manager reads as "already recorded" on each day. Each kind of record is drawn differently:
+// times split out of a shift, none for a fixed type, an Other day read through its grammar, and
+// Spare shown under Other.
+const { prefillRow } = await import('./admin-week-row-state.js');
+const pressed = (/** @type {any} */ x) => x.pills.filter((/** @type {any} */ p) => p.classList.contains('active')).map((/** @type {any} */ p) => p.dataset.type);
+const chips   = (/** @type {any} */ x) => x.flavours.filter((/** @type {any} */ f) => f.classList.contains('active')).map((/** @type {any} */ f) => f.dataset.flavour);
+
+describe('prefillRow draws a row as its saved record', () => {
+    test('a shift: its type, its times, and marked as an untouched prefill', () => {
+        const x = draftRow();
+        prefillRow(x.r, { type: 'shift', value: '07:00-15:00' });
+        assert.deepEqual(pressed(x), ['shift']);
+        assert.deepEqual([x.startEl.value, x.endEl.value], ['07:00', '15:00']);
+        assert.equal(x.r.classList.contains('prefilled-existing'), true);
+        assert.equal(isStagedRow(x.r), false, 'a saved record is not staged work');
+    });
+
+    test('a fixed type carries no times', () => {
+        const x = draftRow();
+        prefillRow(x.r, { type: 'annual_leave', value: 'AL' });
+        assert.deepEqual(pressed(x), ['annual_leave']);
+        assert.deepEqual([x.startEl.value, x.endEl.value], ['', '']);
+    });
+
+    test('an Other day is read through its grammar: flavour, RDW tick and times', () => {
+        const x = draftRow();
+        prefillRow(x.r, { type: 'other', value: 'IND RDW 08:00-16:00' });
+        assert.deepEqual(pressed(x), ['other']);
+        assert.deepEqual(chips(x), ['IND']);
+        assert.equal(x.rdwCb.checked, true);
+        assert.deepEqual([x.startEl.value, x.endEl.value], ['08:00', '16:00'], 'not shredded on its first hyphen');
+    });
+
+    test('a Spare record shows under Other, with the Spare chip and no times', () => {
+        const x = draftRow();
+        prefillRow(x.r, { type: 'spare_shift', value: 'SPARE' });
+        assert.deepEqual(pressed(x), ['other']);
+        assert.deepEqual(chips(x), ['SPARE']);
+        assert.equal(x.r.classList.contains('other-spare'), true);
+        assert.deepEqual([x.startEl.value, x.endEl.value], ['', '']);
+    });
+});

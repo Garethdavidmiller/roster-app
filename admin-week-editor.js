@@ -38,7 +38,7 @@ import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-o
 // The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
 // headroom. Same names, so every call site below is unchanged; see that module's header for why
 // this cluster was the seam and the bulk bar was not.
-import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow, _syncAlSwap, isStagedRow }
+import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow, isStagedRow, prefillRow }
     from './admin-week-row-state.js';
 // The grid's time boxes — typed formatting and the HH:MM check — moved out at v24.64, for the same
 // reason as the line above, and now share clock-input.js's rule rather than restating it.
@@ -333,49 +333,7 @@ export function buildWeekGridInto(container, dateStr) {
         const endEl    = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
 
         // Pre-fill with existing override — mark as prefilled so Save button stays disabled until user edits
-        if (existing) {
-            // Spare moved under the Other pill (v15.57): an existing spare_shift override prefills
-            // via Other → Spare (there is no top-level Spare pill anymore).
-            const isSpare       = existing.type === 'spare_shift';
-            const prefillType   = isSpare ? 'other' : existing.type;
-            const typeMeta      = TYPES[prefillType];
-            _activateRow(row, checkbox, pills, startEl, endEl, prefillType);
-            row.classList.add('prefilled-existing');
-            _syncAlSwap(row);         // a saved, untouched row is not being booked — not asked
-            _syncOverwriteBadge(row); // loaded + untouched → "✓ Saved" (not "Updating")
-            if (isSpare) {
-                // Activate the Spare chip inside the now-open Other submenu; _syncOtherSpareMode
-                // hides RDW/times and applies the fixed-type "No time needed" state.
-                row.querySelectorAll('.other-flavour-btn').forEach(b => {
-                    const on = (/** @type {HTMLElement} */ (b)).dataset.flavour === 'SPARE';
-                    b.classList.toggle('active', on);
-                    b.setAttribute('aria-pressed', String(on));
-                });
-                _syncOtherSpareMode(row);
-            }
-            const _exOther = existing.type === 'other' ? parseOtherValue(existing.value) : null;
-            if (_exOther) {
-                // Restore flavour + RDW tick + optional times from the stored grammar —
-                // a naive value.split('-') would shred 'TRG RDW 08:00-16:00'.
-                row.querySelectorAll('.other-flavour-btn').forEach(b => {
-                    const on = (/** @type {HTMLElement} */ (b)).dataset.flavour === _exOther.flavour;
-                    b.classList.toggle('active', on);
-                    b.setAttribute('aria-pressed', String(on));
-                });
-                const _cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
-                if (_cb && !_cb.disabled) _cb.checked = _exOther.rdw;
-                _syncOtherRdwWarn(row);
-                if (_exOther.time) {
-                    const [s, e] = _exOther.time.split('-');
-                    /** @type {HTMLInputElement} */ (startEl).value = s;
-                    /** @type {HTMLInputElement} */ (endEl).value   = e;
-                }
-            } else if (typeMeta && !typeMeta.fixed && existing.value && existing.value.includes('-')) {
-                const [s, e] = existing.value.split('-');
-                /** @type {HTMLInputElement} */ (startEl).value = s;
-                /** @type {HTMLInputElement} */ (endEl).value   = e;
-            }
-        }
+        if (existing) prefillRow(row, existing);
 
         pills.forEach(pillEl => {
             const pill = /** @type {HTMLButtonElement} */ (pillEl);
