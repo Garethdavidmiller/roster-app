@@ -19,10 +19,16 @@
  */
 
 import { DEVICE_KEYS, memberSlug, PAY_DATA_GENERATION, keyOwnerSlug } from './paycalc-migrations.js';
-import { inventoryOf, damagedEntries } from './paycalc-inventory.js';
+import { inventoryOf, damagedEntries, classifyPayKey } from './paycalc-inventory.js';
+import { formatISO } from './roster-data.js';
 
 /** Identifies our own blobs. A file that does not carry this is not ours, whatever its extension. */
 export const BACKUP_FORMAT = 'myb-paycalc-backup';
+
+/** The refusal for figures saved under a name this roster does not hold: there is nobody to sign in
+ *  as, and the one owner who can fix it — a member renamed since — needs the admin. */
+const NOT_ON_ROSTER = "That backup was saved under a name this device doesn't recognise, so it can't be restored "
+    + 'as yours. Nothing was changed. If it is yours from before a change of name, contact the admin.';
 
 /** Schema version. Bump when the blob's SHAPE changes; a newer blob is refused by an older app. */
 export const BACKUP_VERSION = 1;
@@ -184,6 +190,11 @@ export function validateBackup(text, { currentSlug }) {
     // the per-member namespacing exists), and pay history is the most sensitive thing this app
     // holds. The legitimate cross-member case is rare enough to handle by signing in as that person.
     if (srcSlug && srcSlug !== currentSlug) {
+        // An owner this roster does not hold at all — this member under a FORMER name, or somebody
+        // since removed from it — has nobody to sign in as, so "Sign in as them" was an instruction
+        // nobody could follow (paycalc-2-19). Still refused: whose figures these are is exactly what
+        // cannot be told.
+        if (keyOwnerSlug(`myb_pc_${srcSlug}_`) === null) return { ok: false, error: NOT_ON_ROSTER };
         // `member` is attacker-controlled text from the file. It is only ever rendered via
         // textContent, so it cannot inject — but it is unbounded, so cap it rather than let a
         // pathological string stretch the card.
@@ -207,6 +218,18 @@ export function validateBackup(text, { currentSlug }) {
                 ? { ok: false, error: `That backup is inconsistent (${owned}). Nothing was changed.` }
                 : { ok: false, error: 'That backup belongs to someone else. Sign in as them to restore it.' };
         }
+        // …NOR AN OWNER THIS ROSTER DOES NOT HOLD (paycalc-2-19). `keyOwnerSlug` knows only the names
+        // on the roster, so a file saved under any other, its slug stripped (`myb_pc_formername_p50`),
+        // read as legacy — and the replace traded the importer's history for keys nothing reads. A
+        // key whose tail is not a kind of ours but becomes one past its first segment is shaped
+        // `<slug>_<key>`: it has an owner.
+        const slugShaped = keys.find(k => {
+            const tail = k.slice('myb_pc_'.length);
+            const cut = tail.indexOf('_');
+            return classifyPayKey(tail).kind === 'unknown' && cut > 0
+                && classifyPayKey(tail.slice(cut + 1)).kind !== 'unknown';
+        });
+        if (slugShaped) return { ok: false, error: NOT_ON_ROSTER };
     }
 
     // Every key must actually sit under the slug the blob claims, or re-keying would mangle it.
@@ -255,11 +278,15 @@ export function rekeyEntries(entries, fromSlug, toSlug) {
 }
 
 /**
- * A filename a member can recognise in their Downloads folder months later.
- * @param {string} member @param {string} isoDate
+ * A filename a member can recognise in their Downloads folder months later — dated by the device's
+ * own CALENDAR. Given the ISO instant, a copy saved between midnight and 01:00 in summer was named
+ * for the day before (paycalc-2-21); the instant stays in the blob as `exportedAt`. A string is
+ * still read as its first ten characters, for a caller that already holds a calendar date.
+ * @param {string} member @param {Date|string} when
  */
-export function backupFilename(member, isoDate) {
-    return `myb-pay-backup-${memberSlug(member) || 'device'}-${isoDate.slice(0, 10)}.json`;
+export function backupFilename(member, when) {
+    const day = when instanceof Date ? formatISO(when) : String(when).slice(0, 10);
+    return `myb-pay-backup-${memberSlug(member) || 'device'}-${day}.json`;
 }
 
 /**

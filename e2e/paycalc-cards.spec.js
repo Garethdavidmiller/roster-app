@@ -120,3 +120,60 @@ test('paycalc: with no estimate, confirming last year\'s premium offers it on th
     await expect(page.locator('#hppBannerText')).toContainText('Holiday Pay Premium of £500.00 could land on this payslip');
     expect(errors).toHaveLength(0);
 });
+
+// ── "ON THIS DEVICE" IS WHAT IS ON THIS DEVICE NOW (paycalc-2-11) ───────────────────────────────
+//
+// Move Your Pay Data lists what a copy would carry. The list was painted once, at page load, so a
+// member who entered payslips and THEN opened the card to save a copy — the order anyone changing
+// phone would go in — read a list without them. The downloaded file was always right; the list that
+// answers "what am I about to carry?" was not.
+
+test('paycalc: Move Your Pay Data lists the payslips entered since the page opened', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    const list = page.locator('#ptInventory');
+    await expect(list, 'precondition: a fresh device holds no payslip').not.toContainText('payslip');
+
+    await page.locator('#otH').fill('5');                                  // saved as it is typed
+    await page.locator('#payTransferToggle').click();
+    await expect(list, 'opening the card reads what is saved now').toContainText('1 payslip of entered figures');
+
+    // And with the card open, an entry elsewhere on the page reaches it too.
+    await showPayslip(page, '25 Sep 2026');
+    await page.locator('#otH').fill('3');
+    await expect(list).toContainText('2 payslips of entered figures');
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── THE BACKUP IS NAMED FOR THE DAY IT IS HERE (paycalc-2-21) ───────────────────────────────────
+//
+// The filename took its date from the UTC instant, so a copy saved between midnight and 01:00 in UK
+// summer time — a night turn's end — was named for the day before. `backupFilename`'s own rule is
+// unit-tested (paycalc-transfer.test.mjs); this is the card passing it the right thing.
+
+test.describe('a backup saved after midnight in summer', () => {
+    test.use({ timezoneId: 'Europe/London' });
+
+    test('paycalc: a backup saved at 00:30 UK time is named for that day, not the day before', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await page.clock.setFixedTime(new Date('2026-07-14T23:30:00Z'));   // 00:30 on 15 Jul in the UK
+        await seedSession(page);
+        await page.addInitScript(QUIET);
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_gmiller_p51', JSON.stringify({
+                satH: 7, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0,
+                rdwH: 0, rdwM: 0, sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0,
+                slSkip: false, otherAdj: 0, actualNet: null,
+            }));
+        });
+        await page.goto('/paycalc.html');
+        await page.locator('#payTransferToggle').click();
+        const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#ptDownload').click()]);
+        expect(download.suggestedFilename()).toBe('myb-pay-backup-gmiller-2026-07-15.json');
+        expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+    });
+});

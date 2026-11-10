@@ -14,7 +14,7 @@ import {
     selectBackupKeys, summarise, buildBackup, validateBackup, rekeyEntries, backupFilename,
     applyRestore,
 } from './paycalc-transfer.js';
-import { PAY_DATA_GENERATION } from './paycalc-migrations.js';
+import { PAY_DATA_GENERATION, keyOwnerSlug } from './paycalc-migrations.js';
 
 const PREFIX = 'myb_pc_gmiller_';
 const SLUG = 'gmiller';
@@ -488,6 +488,50 @@ describe('the identity rule (option A — refuse a different member)', () => {
         assert.match(res.error, /inconsistent/);
     });
 
+    // THE SAME DOOR, FOR A NAME THE ROSTER DOES NOT HOLD (paycalc-2-19). The check above knows only
+    // the roster's own slugs, so a file saved under any other name — a member's FORMER name, or
+    // somebody since removed from the roster — read as legacy once its slug was stripped: re-keyed
+    // to `myb_pc_gmiller_zformer_…`, and the replace deleted the importer's history for keys
+    // nothing reads.
+    test("an 'ownerless' backup whose keys sit under a name the roster does not hold is refused", () => {
+        assert.equal(keyOwnerSlug('myb_pc_zformer_'), null, 'premise: zformer is nobody on the roster');
+        const stripped = JSON.stringify({
+            format: BACKUP_FORMAT, version: BACKUP_VERSION, member: '',
+            data: { 'myb_pc_zformer_p50': '{"satH":8}', 'myb_pc_zformer_code': '1257L' },
+        });
+        const res = validateBackup(stripped, { currentSlug: SLUG });
+        assert.equal(res.ok, false);
+        assert.match(res.error, /doesn't recognise/);
+    });
+
+    test('…while genuine legacy keys — underscores, unknown kinds and all — still restore', () => {
+        // The control for the test above: a legacy key whose tail holds an underscore is one of OUR
+        // kinds whole, and a kind this version has never heard of is carried, not taken for a name.
+        const legacy = JSON.stringify({
+            format: BACKUP_FORMAT, version: BACKUP_VERSION, slug: '', member: '',
+            data: {
+                'myb_pc_p16': '{}', 'myb_pc_hpp_est_2025_26': '1700.00', 'myb_pc_sl_paid_off': '20',
+                'myb_pc_pension_timeline': '[]', 'myb_pc_bp_state': '{}', 'myb_pc_some_future_kind': 'x',
+            },
+        });
+        const res = validateBackup(legacy, { currentSlug: SLUG });
+        assert.equal(res.ok, true, res.ok ? '' : res.error);
+        assert.equal(res.ok && res.unnamespaced, true);
+    });
+
+    test('a backup saved under a name the roster no longer holds says what to do — not "sign in as them"', () => {
+        // paycalc-2-19 (b). A member renamed on the roster finds their own earlier copy naming a slug
+        // nobody holds now, and "Sign in as them" was an instruction nobody could follow.
+        const former = JSON.stringify({
+            ...JSON.parse(makeBlob()), member: 'Z. Former', slug: 'zformer',
+            data: { 'myb_pc_zformer_p16': '{}' },
+        });
+        const res = validateBackup(former, { currentSlug: SLUG });
+        assert.equal(res.ok, false, 'still refused: whose figures these are cannot be told');
+        assert.doesNotMatch(res.error, /Sign in as them/);
+        assert.match(res.error, /contact the admin/);
+    });
+
     test('a slug that is present but not a string is refused — it would mangle every key', () => {
         for (const slug of [7, true, ['gmiller'], { s: 'gmiller' }]) {
             const res = validateBackup(makeBlob({ slug }), { currentSlug: SLUG });
@@ -554,6 +598,18 @@ describe('filename', () => {
     });
     test('falls back when there is no member', () => {
         assert.equal(backupFilename('', '2026-07-28T16:40:00.000Z'), 'myb-pay-backup-device-2026-07-28.json');
+    });
+    test('the date is the day it is on this device, not in UTC (paycalc-2-21)', () => {
+        // 00:30 on 15 July in the UK is 23:30 on the 14th in UTC, and named from the ISO instant the
+        // copy carried the 14th. The zone is FORCED: CI runs in UTC and the no-install lane in Los
+        // Angeles, and in neither does this instant change day, so the old code would pass there.
+        const was = process.env.TZ;
+        process.env.TZ = 'Europe/London';
+        try {
+            const when = new Date(2026, 6, 15, 0, 30);
+            assert.equal(when.toISOString().slice(0, 10), '2026-07-14', 'premise: still the 14th in UTC');
+            assert.equal(backupFilename('G. Miller', when), 'myb-pay-backup-gmiller-2026-07-15.json');
+        } finally { if (was === undefined) delete process.env.TZ; else process.env.TZ = was; }
     });
 });
 
