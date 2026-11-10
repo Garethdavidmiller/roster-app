@@ -307,6 +307,8 @@ things an edit can silently break.
   Its "use the staff PIN instead" is a sign-out (`releaseDevicePush`, `clearSession`, reload), never a
   panel swap, because the drawer still carries that member's name and role pills.
 - `hideLockPanel()` (takes whatever is up off the page, and the backoff timer with it) ·
+  `dismissSignInForm()` (on a grant: the come-back card's full-screen form, which is not in the slot —
+  never the inline card, nor a form whose own sign-in is in flight) ·
   `resetUnlockFailures()` (on a grant) · `PIN_FIRST_HASH` (re-exported from `calendar-access-core.js`).
 - Tested through `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
 
@@ -374,11 +376,14 @@ The Calendar's override cache and every read that fills it. The reasoning is bes
   through the shared `resolveDayShift`; memoised, except for a month drawn from the stored copy.
 - `monthKey(year, month)` · `releaseStaleMonths(maxAgeMs, now?)` (releases settled months older than
   that — never one in flight, nothing during the first read — and hands back a saved-copy month whose
-  re-check failed, whatever its age, so its label clears on the next return that can check).
+  last check failed, whatever its age, so its label clears on the next return that can check) ·
+  `oweRecheck(keys)` (the first load's failure owes that re-check to its months drawn as a saved copy;
+  a month with no copy is owed nothing).
 - `_initialFetchInProgress` (a live binding) · `setInitialFetchInProgress(v)` · `addFetchedMonths(keys)` ·
   `clearFetchedMonth(key)` (it also re-arms the failure repaint) — for `calendar-initial-fetch.js`.
 - **The access gate.** `setOverrideAccess(granted)` — a grant is a fresh start (every claim cleared, the
-  generation advanced); revoking clears nothing. `hasOverrideAccess()` · `setOverrideAccessLostHandler(fn)`
+  generation advanced); revoking clears no claim but forgets what every month was known to be, so every
+  route that loses access forgets in one place. `hasOverrideAccess()` · `setOverrideAccessLostHandler(fn)`
   (injected, so this module never imports the access layer) · `accessGeneration()` (a refusal from an
   earlier grant must not re-lock a newer one).
 - This module's two reads are the cache's only writers, and both clear the month shift-type memo; a new

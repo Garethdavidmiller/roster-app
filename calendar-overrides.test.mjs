@@ -114,11 +114,11 @@ const {
     rosterOverridesCache, _initialFetchInProgress,
     setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth,
     monthKey, _monthSlices, fetchOverridesForRange, fetchOverridesForRangeFromCache,
-    ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess, releaseStaleMonths, SERVED_FROM_CACHE,
+    ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess, releaseStaleMonths, oweRecheck, SERVED_FROM_CACHE,
     READ_SUPERSEDED,
 } = await import('./calendar-overrides.js');
 // The REAL knowledge module — this suite is where a read's outcome becomes a claim about a month.
-const { knowledgeOf, decideDisplay, forget: forgetKnowledge } = await import('./calendar-data-state.js');
+const { knowledgeOf, noteKnowledge, decideDisplay, forget: forgetKnowledge } = await import('./calendar-data-state.js');
 
 // Open the Calendar access gate for this whole file (v20.12). Every read here refuses to run
 // without it — that is the point of the gate, and this suite is about what the reads DO once they
@@ -615,8 +615,8 @@ describe('a settled month is re-read once it is old (Oct 2026 review)', () => {
 });
 
 describe('a GRANT is a fresh start (v20.41)', () => {
-    // The bug this pins: `handleAccessLost` re-locks the Calendar and forgets what every month knew,
-    // but the months stayed CLAIMED in fetchedMonths. Re-entering the PIN therefore came back to a
+    // The bug this pins: losing access re-locks the Calendar and forgets what every month knew (the
+    // shut, `setOverrideAccess(false)`), but the months stayed CLAIMED in fetchedMonths. Re-entering the PIN therefore came back to a
     // Calendar that would never read anything again — every ensureOverridesCached a no-op against a
     // claim from the previous session, every month stuck on "Checking this month", and a Try again
     // that could not win. Revoking the viewer's tokens is a documented step of rotating the PIN, so
@@ -787,6 +787,27 @@ describe('a re-check that fails keeps the grid as the saved copy, never as curre
         await ensureOverridesCached(2058, 2, () => {});
         assert.ok(!releaseStaleMonths(HOUR, Date.now()).includes(monthKey(2058, 2)));
     });
+
+    // cal-data-4 (10 Nov 2026). The copy need not be the SERVER's: a phone opened in a signal gap
+    // draws the month from this device's cache, its FIRST check fails, and it is the same labelled
+    // saved copy — which stayed, with "Couldn't update", after the signal came back.
+    test('a month whose FIRST check failed over this device\'s own copy is owed a re-check too', async () => {
+        _getDocsFromCacheFlag = true; _mockDocs = [AL('2068-03-10')];   // no signal: the device's cache answers
+        await ensureOverridesCached(2068, 2, () => {});
+        const key = monthKey(2068, 2);
+        assert.equal(knowledgeOf(key), 'cached', 'premise: drawn as the saved copy');
+        assert.ok(releaseStaleMonths(HOUR, Date.now()).includes(key),
+            'a phone picked up once the signal was back never asked for the month again');
+    });
+
+    test('the first load owes a re-check only to its months that hold a copy (oweRecheck)', () => {
+        const [held, failed, never] = [monthKey(2069, 0), monthKey(2069, 1), monthKey(2069, 2)];
+        noteKnowledge(held, 'cached'); noteKnowledge(failed, 'error');
+        oweRecheck([held, failed, never]);
+        const released = releaseStaleMonths(HOUR, Date.now());
+        assert.ok(released.includes(held), 'a saved copy is asked for again on return');
+        assert.ok(!released.includes(failed) && !released.includes(never), 'a month with no copy keeps its failure panel and Try again');
+    });
 });
 
 // ── AN ANSWER BELONGS TO THE GRANT THAT ASKED (10 Nov 2026, external review F2) ─────────────────────
@@ -818,7 +839,7 @@ describe('an answer belongs to the grant that asked for it', () => {
         const a = ensureOverridesCached(2061, 2, () => { paintsA++; });
         await _tick();
         assert.equal(_releases.length, 1, 'premise: A is out');
-        setOverrideAccess(false); forgetKnowledge(); setOverrideAccess(true);   // re-locked, then the PIN again
+        setOverrideAccess(false); setOverrideAccess(true);   // re-locked (the shut forgets), then the PIN again
         _deferGetDocs = false; _getDocsThrows = true;
         await ensureOverridesCached(2061, 2, () => {});
         _getDocsThrows = false;
@@ -836,7 +857,7 @@ describe('an answer belongs to the grant that asked for it', () => {
         let paints = 0;
         const a = ensureOverridesCached(2062, 2, () => { paints++; });
         await _tick();
-        setOverrideAccess(false); forgetKnowledge();   // access lost — and nobody has re-entered the PIN
+        setOverrideAccess(false);   // access lost — and nobody has re-entered the PIN
         _releases[0](); await a;
         assert.equal(rosterOverridesCache.size, 0, 'rows were written behind the lock card');
         assert.equal(knowledgeOf(key), 'unknown', 'a discarded answer is not a failure either — it is nothing');
@@ -1082,6 +1103,91 @@ describe('fetchOverridesForRangeFromCache', () => {
     });
 });
 
+// ── A SAVED COPY IS A MONTH THIS DEVICE ONCE HELD WHOLE (cal-data-3, 10 Nov 2026) ───────────────────
+// Offline, the device's Firestore cache answers a range read from every document it holds that
+// matches — including the rows the leave panel, Admin and the Pay Calculator read one MEMBER at a
+// time. So a month the Calendar had never loaded could come back with one member's rows, be called a
+// saved copy, and be drawn for everybody: a colleague's leave missing under "Saved copy". Every other
+// test in this file runs with no storage — a device with no record, where the old rule stands — so
+// these install one.
+describe('a saved copy is only a month this device once held whole', () => {
+    const KEY = 'myb_cal_whole_months';
+    /** @type {Map<string, string>} */ let storage;
+    const AL = (/** @type {string} */ date, member = 'A. Smith') => makeDoc('al-' + member + date, { memberName: member, date,
+        value: 'AL', type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 1000 } });
+    beforeEach(() => {
+        storage = new Map([[KEY, JSON.stringify(['2070-01'])]]);   // this device has read SOME month whole
+        /** @type {any} */ (globalThis).localStorage = {
+            getItem: (/** @type {string} */ k) => (storage.has(k) ? storage.get(k) : null),
+            setItem: (/** @type {string} */ k, /** @type {string} */ v) => { storage.set(k, String(v)); },
+            removeItem: (/** @type {string} */ k) => { storage.delete(k); },
+        };
+        rosterOverridesCache.clear(); forgetKnowledge();
+        _mockDocs = []; _mockCacheDocs = []; _getDocsThrows = false; _getDocsFromCacheFlag = false;
+        setOverrideAccess(true);
+    });
+    afterEach(() => {
+        delete /** @type {any} */ (globalThis).localStorage;
+        _getDocsFromCacheFlag = false; _mockDocs = []; _mockCacheDocs = [];
+        forgetKnowledge(); setOverrideAccess(true);
+    });
+
+    test('a month never read whole, answered by the cache with one member\'s rows, is NOT a saved copy', async () => {
+        _getDocsFromCacheFlag = true; _mockDocs = [AL('2070-03-10')];   // offline; the leave panel cached A. Smith's March
+        await ensureOverridesCached(2070, 2, () => {});
+        assert.equal(knowledgeOf(monthKey(2070, 2)), 'error',
+            'one member\'s rows were called a saved copy of the month for everybody');
+    });
+
+    test('…nor does the first load\'s cache paint call it known', async () => {
+        _mockCacheDocs = [AL('2070-03-10')];
+        /** @type {string[]} */ const months = [];
+        await fetchOverridesForRangeFromCache('2070-03-01', '2070-03-31', months);
+        assert.deepEqual(months, [], 'the cache paint called a month known on the strength of one member\'s rows');
+    });
+
+    test('a month the Calendar HAS read whole stays a saved copy offline, on a later open', async () => {
+        _mockDocs = [AL('2070-04-10'), AL('2070-04-12', 'B. Jones')];
+        await ensureOverridesCached(2070, 3, () => {});                 // online: every member's April
+        assert.ok(JSON.parse(storage.get(KEY) ?? '[]').includes('2070-04'), 'the whole read was not recorded');
+        setOverrideAccess(true); forgetKnowledge();                     // a later open: nothing in this page's memory
+        /** @type {string[]} */ const months = [];
+        _mockCacheDocs = _mockDocs;
+        await fetchOverridesForRangeFromCache('2070-04-01', '2070-04-30', months);
+        assert.deepEqual(months, ['2070-04'], 'the cache paint refused a month this device holds whole');
+        _getDocsFromCacheFlag = true;
+        await ensureOverridesCached(2070, 3, () => {});
+        assert.equal(knowledgeOf(monthKey(2070, 3)), 'cached', 'offline, the saved copy was refused');
+    });
+
+    test('only a WHOLE month a SERVER answered is recorded — not part of one, not a cache answer', async () => {
+        await fetchOverridesForRange('2070-05-10', '2070-05-20');
+        _getDocsFromCacheFlag = true; _mockDocs = [AL('2070-06-10')];
+        await ensureOverridesCached(2070, 5, () => {});
+        const whole = JSON.parse(storage.get(KEY) ?? '[]');
+        assert.ok(!whole.includes('2070-05'), 'ten days of May were recorded as the whole month');
+        assert.ok(!whole.includes('2070-06'), 'a cache answer was recorded as a whole read');
+    });
+
+    test('a device with NO record keeps the old rule — no device loses its saved copy to the change', async () => {
+        storage.clear();
+        _getDocsFromCacheFlag = true; _mockDocs = [AL('2070-07-10')];
+        await ensureOverridesCached(2070, 6, () => {});
+        assert.equal(knowledgeOf(monthKey(2070, 6)), 'cached');
+    });
+
+    test('…but a record that cannot be READ names no month — it is not taken for no record', async () => {
+        storage.set(KEY, '{"not a list');
+        _getDocsFromCacheFlag = true; _mockDocs = [AL('2070-08-10')];   // offline: one member's August, cached
+        await ensureOverridesCached(2070, 7, () => {});
+        assert.equal(knowledgeOf(monthKey(2070, 7)), 'error',
+            'an unreadable record restored the old rule, and one member\'s rows became a saved copy');
+        setOverrideAccess(true); forgetKnowledge(); _getDocsFromCacheFlag = false;
+        await ensureOverridesCached(2070, 7, () => {});                 // online: every member's August
+        assert.deepEqual(JSON.parse(storage.get(KEY) ?? 'null'), ['2070-08'], 'the next whole read did not rewrite the record');
+    });
+});
+
 // ── A returning member's boot reads the cache ONCE, and for everyone ─────────────────────────
 //
 // The provisional paint (v22.97, retired 26 Sep 2026 by owner decision — DECISIONS.md) read ONE
@@ -1131,5 +1237,181 @@ describe('the initial fetch after a grant', async () => {
         assert.deepEqual(scoped, [], 'the boot\'s cache read was narrowed to one member');
         assert.equal(rosterOverridesCache.has(`B. Colleague|${today}`), true);
         assert.equal(knowledgeOf(thisMonth), 'cached');
+    });
+});
+
+// ── ACCESS LOST THROUGH THE FIRST LOAD FORGETS TOO (cal-data-6, 10 Nov 2026) ───────────────────────
+// The month read's route shut the gate AND forgot what every month knew; the first load's read and
+// its chip's retry reach the coordinator's wrapper, which shut the gate only. So after the next PIN
+// a month read under the old grant was drawn as current — and stayed current, "As rostered" included,
+// when the new grant's own read failed. Driven through the REAL chip retry; the wrapper is modelled by
+// the one step of it that touches this state, `setOverrideAccess(false)` (calendar-app.js).
+describe('losing access through the first load\'s chip forgets what the old grant knew', async () => {
+    const { initInitialFetch } = await import('./calendar-initial-fetch.js');
+    const { hasOverrideAccess } = await import('./calendar-overrides.js');
+    const now = new Date();
+    const thisMonth = monthKey(now.getFullYear(), now.getMonth());
+    // A month the member navigates to, well outside the first load's three.
+    const far = { y: now.getMonth() + 4 > 11 ? now.getFullYear() + 1 : now.getFullYear(), m: (now.getMonth() + 4) % 12 };
+    const farMonth = monthKey(far.y, far.m);
+    const AL = (/** @type {string} */ date) => makeDoc('al-' + date, { memberName: 'A. Smith', date, value: 'AL',
+        type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 1000 } });
+    const OFFLINE = () => Object.assign(new Error('offline'), { code: 'unavailable' });
+    const DENIED  = () => Object.assign(new Error('denied'), { code: 'permission-denied' });
+    /** @type {any} */ let savedDoc;
+    /** @type {any[]} */ let headerKids;
+
+    beforeEach(() => {
+        savedDoc = /** @type {any} */ (globalThis).document;
+        headerKids = [];
+        const header = { appendChild(/** @type {any} */ c) { headerKids.push(c); c.isConnected = true; return c; } };
+        /** @type {any} */ (globalThis).document = {
+            getElementById: () => null,
+            querySelector: (/** @type {string} */ sel) => (sel === '.calendar-header' ? header : null),
+            createElement: (/** @type {string} */ tag) => ({ tag, type: '', className: '', textContent: '', disabled: false, onclick: null,
+                isConnected: false, setAttribute() {}, remove() { this.isConnected = false; }, focus() {} }),
+            addEventListener: () => {}, body: null,
+        };
+        mock.timers.enable({ apis: ['setTimeout'] });
+        rosterOverridesCache.clear(); forgetKnowledge();
+        _mockDocs = []; _getDocsThrows = false; _deferGetDocs = true; _releases.length = 0;
+    });
+    afterEach(() => {
+        mock.timers.reset();
+        /** @type {any} */ (globalThis).document = savedDoc;
+        _deferGetDocs = false; _releases.length = 0; _mockCacheDocs = []; _mockDocs = [];
+        setInitialFetchInProgress(false);
+        forgetKnowledge();
+        setOverrideAccess(true);
+    });
+
+    test('the chip\'s retry is refused, the Calendar re-locks, the PIN again — and the new grant\'s read fails', async () => {
+        const chip = () => headerKids.find(k => k.tag === 'button' && k.isConnected);
+        _mockCacheDocs = [AL(`${thisMonth}-10`)];   // the device holds this month: phase 1 paints it
+        setOverrideAccess(true);
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, authReady: Promise.resolve(),
+            onAccessLost: () => setOverrideAccess(false) });
+        await _tick(30);
+        assert.equal(knowledgeOf(thisMonth), 'cached', 'premise: the first load painted the saved copy');
+        _releases.shift()?.(OFFLINE());   // …and its server read failed on the network
+        await _tick(30);
+        assert.ok(chip()?.className.includes('sync-chip-error'), 'premise: the chip offers the retry');
+
+        _mockDocs = [AL(`${farMonth}-10`)];   // the member moves on to a month that loads
+        const nav = ensureOverridesCached(far.y, far.m, () => {});
+        await _tick(); _releases.shift()?.(); await nav;
+        assert.equal(knowledgeOf(farMonth), 'authoritative', 'premise: that month is current');
+
+        chip().onclick();                     // the PIN has been rotated; somebody presses the chip
+        await _tick(30);
+        _releases.shift()?.(DENIED());
+        await _tick(30);
+        assert.equal(hasOverrideAccess(), false, 'premise: the refusal re-locked the Calendar');
+        assert.deepEqual([knowledgeOf(thisMonth), knowledgeOf(farMonth)], ['unknown', 'unknown'],
+            'what the old grant knew survived the lock');
+
+        setOverrideAccess(true);              // the new PIN
+        _mockDocs = [];
+        const again = ensureOverridesCached(far.y, far.m, () => {});
+        await _tick(); _releases.shift()?.(OFFLINE()); await again;
+        assert.equal(knowledgeOf(farMonth), 'error',
+            'the old grant\'s month was drawn as current by the new one, over its own failed read');
+    });
+});
+
+// ── A MONTH THAT LOADS BY ITSELF WITHDRAWS THE FIRST LOAD'S "COULDN'T UPDATE" (cal-data-5) ────────
+// The failure render re-reads the month on screen. When that read worked — a blip — the grid was
+// drawn as current and the header watcher put "Couldn't update — try again" back above it after every
+// render, until somebody pressed it. The real first load, the real month read and the real knowledge
+// states; the header is rebuilt on every render, as `buildCalendarContainer` rebuilds it.
+describe('the first load\'s failure chip and a month that then loads by itself', async () => {
+    const { initInitialFetch } = await import('./calendar-initial-fetch.js');
+    const ovNs = await import('./calendar-overrides.js');   // the live `_initialFetchInProgress` binding
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth();
+    const OFFLINE = () => Object.assign(new Error('offline'), { code: 'unavailable' });
+    /** @type {any} */ let savedDoc, savedObserver, header;
+    /** @type {Function[]} */ let observers = [];
+    /** @type {Record<string, Function[]>} */ let listeners = {};
+    const rebuildHeader = () => {
+        if (header) for (const k of header.kids) k.isConnected = false;
+        header = { kids: /** @type {any[]} */ ([]), appendChild(/** @type {any} */ c) { this.kids.push(c); c.isConnected = true; return c; } };
+        for (const cb of [...observers]) cb();
+    };
+    const chip = () => header.kids.find((/** @type {any} */ k) => k.tag === 'button' && k.isConnected);
+    const renderCalendar = () => { rebuildHeader(); if (!ovNs._initialFetchInProgress) ensureOverridesCached(y, m, renderCalendar); };
+
+    beforeEach(() => {
+        savedDoc = /** @type {any} */ (globalThis).document;
+        savedObserver = /** @type {any} */ (globalThis).MutationObserver;
+        observers = []; header = null; listeners = {};
+        /** @type {any} */ (globalThis).document = {
+            getElementById: () => null,
+            querySelector: (/** @type {string} */ sel) => (sel === '.calendar-header' ? header : null),
+            createElement: (/** @type {string} */ tag) => ({ tag, type: '', className: '', textContent: '', disabled: false, onclick: null,
+                isConnected: false, setAttribute() {}, remove() { this.isConnected = false; }, focus() {} }),
+            addEventListener: (/** @type {string} */ type, /** @type {Function} */ fn) => { (listeners[type] ||= []).push(fn); },
+            hidden: false, body: {},
+        };
+        /** @type {any} */ (globalThis).MutationObserver = class {
+            /** @param {Function} cb */ constructor(cb) { this.cb = cb; }
+            observe() { observers.push(this.cb); }
+            disconnect() { observers = observers.filter(c => c !== this.cb); }
+        };
+        rebuildHeader();
+        mock.timers.enable({ apis: ['setTimeout'] });
+        rosterOverridesCache.clear(); forgetKnowledge();
+        _mockDocs = []; _mockCacheDocs = []; _getDocsThrows = false; _deferGetDocs = true; _releases.length = 0;
+        setOverrideAccess(true);
+    });
+    afterEach(() => {
+        mock.timers.reset();
+        /** @type {any} */ (globalThis).document = savedDoc;
+        /** @type {any} */ (globalThis).MutationObserver = savedObserver;
+        _deferGetDocs = false; _releases.length = 0; _mockDocs = []; _mockCacheDocs = []; _getDocsFromCacheFlag = false;
+        setInitialFetchInProgress(false);
+        forgetKnowledge();
+        setOverrideAccess(true);
+    });
+
+    test('the first load fails once, the failure render\'s own read of the month works: no chip above it', async () => {
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar, authReady: Promise.resolve() });
+        renderCalendar();                     // the boot's own first render
+        await _tick(30);
+        _releases.shift()?.(OFFLINE());       // the three-month read fails — a blip
+        await _tick(30);
+        assert.ok(chip()?.className.includes('sync-chip-error'), 'premise: the failure is on the chip');
+        assert.equal(_releases.length, 1, 'premise: the failure render asked for the month on screen again');
+        _releases.shift()?.();                // …and that read works
+        await _tick(30);
+        assert.equal(knowledgeOf(monthKey(y, m)), 'authoritative', 'premise: the month on screen is current');
+        assert.equal(chip(), undefined, '"Couldn\'t update — try again" stood above a grid the server had just answered for');
+        renderCalendar(); await _tick(30);
+        assert.equal(chip(), undefined, 'and the next render does not put it back');
+    });
+
+    // cal-data-4: the same first load with NO signal at all — the device's cache answers every read —
+    // and then the phone is put away and taken out again once the signal is back.
+    test('opened in a signal gap, shown again with a signal: the month is asked for, and is current', async () => {
+        _mockCacheDocs = [makeDoc('al', { memberName: 'A. Smith', date: `${monthKey(y, m)}-10`, value: 'AL',
+            type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 1000 } })];
+        _mockDocs = _mockCacheDocs;
+        _getDocsFromCacheFlag = true;         // no signal: the server reads are answered by the cache
+        try {
+            initInitialFetch({ isTeamViewMode: () => false, renderCalendar, authReady: Promise.resolve() });
+            renderCalendar();
+            await _tick(30);
+            while (_releases.length) { _releases.shift()?.(); await _tick(30); }   // every read the boot makes, answered by the cache
+            assert.equal(knowledgeOf(monthKey(y, m)), 'cached', 'premise: the saved copy is on screen');
+            assert.ok(chip()?.className.includes('sync-chip-error'), 'premise: "Couldn\'t update" above it');
+        } finally { _getDocsFromCacheFlag = false; }   // the signal is back
+
+        for (const fn of listeners.visibilitychange || []) fn();   // the phone is taken out again
+        await _tick(30);
+        assert.equal(_releases.length, 1, 'coming back to the page asked the server for nothing');
+        _releases.shift()?.();
+        await _tick(30);
+        assert.equal(knowledgeOf(monthKey(y, m)), 'authoritative', 'the month is current again');
+        assert.equal(chip(), undefined, 'and nothing says it could not update');
     });
 });

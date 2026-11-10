@@ -3106,6 +3106,9 @@ test('calendar: a later month answered from the cache says so, and Try again re-
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         w.__E2E.docs = [{ id: 'nov', memberName: 'G. Miller', date: '2026-11-11',
             type: 'annual_leave', value: 'AL', note: '' }];
+        // A device that read November whole on an earlier day — only that makes the cache's November a
+        // saved copy (cal-data-3: rows another page cached one member at a time are not one).
+        localStorage.setItem('myb_cal_whole_months', JSON.stringify(['2026-11']));
     });
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
