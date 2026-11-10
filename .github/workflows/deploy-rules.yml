@@ -96,8 +96,8 @@ jobs:
         run: npm run check
 
       # Gate: Firestore + Storage security rules tests must pass before any rules ship.
-      # firebase emulators:exec downloads the emulator binaries on first run
-      # (cached in ~/.cache/firebase/emulators between runs).
+      # firebase emulators:exec downloads the emulator binaries into ~/.cache/firebase/emulators on
+      # every run: each run is a fresh machine, and nothing here caches them between runs.
       - name: Run Firestore and Storage rules tests
         run: npm run test:rules
 

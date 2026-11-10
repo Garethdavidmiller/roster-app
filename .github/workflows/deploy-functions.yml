@@ -98,7 +98,7 @@ jobs:
           for f in functions/*.js; do node --check "$f"; done
 
       # BEFORE test:functions, which since v20.55 includes functions-surface.test.mjs — it
-      # require()s functions/index.js to pin the eleven-function deploy surface, and that pulls
+      # require()s functions/index.js to pin the deployed function surface, and that pulls
       # firebase-admin/firebase-functions from functions/node_modules. With the install after the
       # tests (the old order), the surface pin would have failed on every CI run while passing on
       # any dev machine that had ever installed — the classic works-here gap.
