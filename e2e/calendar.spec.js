@@ -1107,6 +1107,25 @@ test('calendar: a first visit does not use up the swipe hint over the choose-you
     await expect(page.locator('#swipeHint'), 'shown once there is a month to swipe').toBeVisible();
 });
 
+// Retired, the hint fades and is then hidden, and the wait before hiding it is the fade's own length, read off the
+// stylesheet: calendar-app.js kept a second copy of the number (400ms, against --dur-slower's 0.3s), and two homes for
+// one figure drift apart. A fade made longer here must run to its end before the line goes.
+test('calendar: the swipe hint is hidden when its fade has run, however long the stylesheet makes it', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the hint is touch-only');
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const hint = page.locator('#swipeHint');
+    await expect(hint, 'premise: a first visit shows the hint').toBeVisible();
+    await page.addStyleTag({ content: '.swipe-hint { transition: opacity 2s linear !important; }' });
+    await page.locator('#nextMonth').click();
+    await expect(hint).toHaveClass(/fade-out/);
+    await page.waitForTimeout(1000);
+    expect(await hint.evaluate(el => /** @type {HTMLElement} */ (el).style.display), 'hidden halfway through its fade').not.toBe('none');
+    await expect(hint, 'and hidden once it has run').toBeHidden({ timeout: 5000 });
+    expect(await page.evaluate(() => localStorage.getItem('myb_swipe_hint_seen'))).toBe('1');
+});
+
 test('calendar: a removed saved member falls back to the calendar + stale banner, NOT the first-run prompt', async ({ page }) => {
     // Saved member that no longer exists in the roster (e.g. a leaver who was removed).
     await page.addInitScript(() => localStorage.setItem('myb_roster_selected_member', 'Z. Nonexistent'));
