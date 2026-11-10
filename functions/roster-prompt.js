@@ -415,11 +415,11 @@ function reviewRestReadsOfEmptyCells(safeEntries, cellRows, dates) {
  * deterministic extraction, so it stays off (`max_tokens` went 8192 → 16000 for headroom). Turning
  * it back on through streaming failed in production at v16.27 and was rolled back at v16.28;
  * OPERATIONS_REFERENCE.md → parseRosterPDF has that history. **Sonnet 5.5 has no `disabled`.** It is
- * a 400 there, which would fail every upload as "Could not reach the AI service". The lowest setting
- * is `between_tools`, which does no extended thinking on a call with no tools. It is accepted only
- * alone inside `thinking` and at effort `high` or below, so the effort is stated rather than left to
- * a default a later model could move. index-endpoints.test.mjs pins each of these through the real
- * handler, because no stub raises the 400 the model would.
+ * a 400 there, which would fail every upload as "The AI service refused the request (HTTP 400)".
+ * The lowest setting is `between_tools`, which does no extended thinking on a call with no tools.
+ * It is accepted only alone inside `thinking` and at effort `high` or below, so the effort is stated
+ * rather than left to a default a later model could move. index-endpoints.test.mjs pins each of
+ * these through the real handler, because no stub raises the 400 the model would.
  *
  * **SENT THROUGH `@anthropic-ai/sdk` 1.x, ON API VERSION 2026-10-21** (v25.35; 0.x sent 2023-06-01).
  * That version refuses `temperature`, `top_p` and `top_k` outright, a `document` block in an

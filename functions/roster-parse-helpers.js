@@ -1248,8 +1248,9 @@ function isAllowedPushEndpoint(endpoint) {
  * Why throttle at all when the collection can't grow (doc id = member name, so at most one row per
  * member — see the endpoint)? Two reasons: a member tapping the link repeatedly should not inflate the
  * `count` the admin reads as "how badly are they stuck", and every recorded request is a potential
- * notification. The endpoint returns success either way, so a throttled request is indistinguishable
- * from a recorded one to the caller — nothing is leaked by the difference.
+ * notification. The endpoint answers with the same body either way, and no sooner than
+ * RESET_REQUEST_ANSWER_FLOOR_MS (auth-endpoints.js), so a throttled request cannot be told from a
+ * recorded one by its body or its ordinary timing.
  *
  * A missing/unparseable previous timestamp means "never asked" → record.
  *
