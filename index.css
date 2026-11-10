@@ -1420,7 +1420,7 @@
             position: relative;
             padding: 5px 14px;
             border: 2px solid var(--border-light);
-            border-radius: var(--radius-xl);
+            border-radius: var(--radius-pill);   /* a pill's token: --radius-xl drew the same shape at this height */
             font-size: var(--type-label);
             font-weight: 600;
             cursor: pointer;
@@ -1531,7 +1531,7 @@
             background: var(--primary-blue);
             color: white;
             border: 2px solid var(--primary-blue);
-            border-radius: 10px;
+            border-radius: var(--radius-button);   /* the month view's Prev/Next corner; a literal 10px since v25.12 */
             font-size: var(--type-label);
             font-weight: 600;
             cursor: pointer;
@@ -2723,7 +2723,7 @@
             text-decoration: none;
             padding: 8px 16px;
             border: 1px solid rgba(255,255,255,0.5);
-            border-radius: var(--radius-xl);
+            border-radius: var(--radius-pill);   /* a pill's token: --radius-xl drew the same shape at this height */
             transition: color var(--dur-med), border-color var(--dur-med), background var(--dur-med);
             cursor: pointer;
         }
@@ -2941,7 +2941,7 @@
             width: min(420px, 88vw);
             margin: auto;
             padding: 26px 24px max(24px, env(safe-area-inset-bottom));
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius-xl);   /* a white dialog's corner; --radius-lg is the card's, which no overlay wears */
             box-shadow: var(--shadow-3);
             text-align: center;
         }
@@ -2995,8 +2995,9 @@
         }
 
         /* ---- Month/year jump picker overlay ---- */
-        /* #monthJumpOverlay uses .lb-overlay; unique: lower z-index, slightly faster fade */
-        #monthJumpOverlay { z-index: 7000; transition: opacity 0.18s ease; }
+        /* #monthJumpOverlay uses .lb-overlay, in the lightbox band like every dialog (a literal 7000 put it
+           under the drawer, whose band is below every dialog); unique only in its slightly faster fade. */
+        #monthJumpOverlay { transition: opacity var(--dur-med) var(--ease-standard); }
         #monthJumpCard {
             background: white;
             border-radius: var(--radius-xl);
