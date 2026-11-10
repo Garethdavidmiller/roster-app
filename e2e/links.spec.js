@@ -3200,6 +3200,11 @@ test('links: pressing Generate again produces a different, named design', async 
 // falls back today — which one does is the optimiser's business — and the switches-off half is the
 // case that repeats on every press whatever the optimiser does.
 test('links: a generated design that repeats an earlier one says which design it is', async ({ page }) => {
+    // Eight builds, each a search on the main thread with the button held through it: 8s on Chromium and
+    // 38s on the iPhone project measured here, alone, which on CI's shared runner ran past the iPhone's 60s
+    // with a build still running (10 Nov 2026). A long flow gets room — slow() triples each engine's own
+    // budget — and no step does: every wait below keeps its timeout.
+    test.slow();
     await page.setViewportSize({ width: 1280, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -4403,7 +4408,16 @@ test('links: an offline save of a design this device knows was removed for good 
 // was not in the list yet) and made two, and the landing opened the new design over whatever had been
 // done meanwhile, clearing `dirty` over it. The create is HELD here (addDocHold), as the slow server.
 test('links: Save a copy as… says it is saving, makes one copy per press, and a late landing keeps later edits', async ({ page }) => {
+    // The held create is IN FLIGHT only until the slow-save bound (8s) calls it queued, and on CI's shared
+    // iPhone runner the steps below took longer than that: the copy was "Saved in this browser" before the
+    // second press (10 Nov 2026). The bound is the next test but one's subject, on a fake clock; here it is
+    // set past any run's length, and the page is asked which value it got.
+    await page.route('**/slow-save.js', async (route) => {
+        const res = await route.fetch();
+        await route.fulfill({ response: res, body: (await res.text()).replace(/export const SLOW_SAVE_MS = \d+;/, 'export const SLOW_SAVE_MS = 600000;') });
+    });
     await openWindowDesign(page);
+    expect(await page.evaluate(async () => (await import('/slow-save.js')).SLOW_SAVE_MS), 'premise: the bound is out of the way').toBe(600000);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
     const status = page.locator('#linksSaveStatus');
     await sheetAction(page, 'dupDesignBtn');
