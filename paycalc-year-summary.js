@@ -25,10 +25,10 @@ import {
 import { getPeriods } from './paycalc-periods.js';
 import { periodsInTaxYear, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
 import {
-  getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear, getPensionDefault, isPensionOptedOut,
+  getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear,
 } from './paycalc-settings.js';
 import { readSavedPeriod } from './paycalc-migrations.js';
-import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
+import { _decodeHours, isDataEmpty, savedPeriodPension } from './paycalc-hpp.js';
 
 /**
  * Sum the year's entered payslips into a so-far + projected view.
@@ -113,11 +113,11 @@ export function computeYearSoFar(ty, opts) {
         london:   getLondonAllowanceForPeriod(p, ty) * proRate,
         otherAdj: parseFloat(String(d.otherAdj ?? 0)) || 0,
       });
-      // The opt-out TIMELINE first, as the result card does (whole-app review, Oct 2026): a payslip
-      // inside an opt-out spell is priced with no pension even if it still holds a figure saved
-      // before the member left the scheme — the card shows £0.00 there, and this block must agree.
-      const pension  = isPensionOptedOut(p) ? 0
-        : d.pension != null ? (parseFloat(String(d.pension)) || 0) : getPensionDefault(p) * proRate;
+      // The pension the result card would price this payslip with — one rule for every reader of a
+      // saved payslip (savedPeriodPension): no pension inside an opt-out spell, whatever figure the
+      // payslip still holds; its own figure floored at £0, as the card floors the box (paycalc-2-16);
+      // else the period default, pro-rated on a joining period.
+      const pension  = savedPeriodPension(p, d, proRate);
 
       // Opt-in lumps the caller is adding to the result card's take-home for this same payslip —
       // fold into gross BEFORE pension/tax/NI/SL exactly as calculate() does (grossWithBp). At most

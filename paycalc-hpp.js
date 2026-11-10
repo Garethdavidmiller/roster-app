@@ -42,17 +42,17 @@ import { isDataEmpty } from './paycalc-format.js';
  * override any earlier estimate; before v17.26 the `actual > 0` test silently ignored a confirmed
  * £0 and kept adding the stale estimate to the January take-home. Absence of the actual (never
  * entered / cleared) falls back to the estimate. Negatives clamp to 0 (a payslip HPP can't be
- * negative). PURE — the single source of the "actual beats estimate" rule, shared by calcHPP's
- * take-home add (paycalc-app.js) and the prior-year display (updatePriorHpp).
+ * negative). Stored text that is not a figure confirms nothing (paycalc-2-15): it read as a
+ * confirmed £0 and took the estimate out of the January payslip. PURE — the single source of the
+ * "actual beats estimate" rule, shared by calcHPP's take-home add (paycalc-app.js) and the
+ * prior-year display (updatePriorHpp).
  * @param {string|null|undefined} actualRaw - raw stored actual ('' / null = not confirmed)
  * @param {string|null|undefined} estRaw    - raw stored estimate
  * @returns {{ amount: number, isEstimate: boolean, hasActual: boolean }}
  */
 export function resolveHppForPeriod(actualRaw, estRaw) {
-  const hasActual = actualRaw != null && String(actualRaw).trim() !== '';
-  if (hasActual) {
-    return { amount: Math.max(0, parseSmartFloat(actualRaw) || 0), isEstimate: false, hasActual: true };
-  }
+  const actual = parseSmartFloatOrNull(actualRaw);
+  if (actual != null) return { amount: Math.max(0, actual), isEstimate: false, hasActual: true };
   const est = Math.max(0, parseFloat(String(estRaw ?? '')) || 0);
   return { amount: est, isEstimate: est > 0, hasActual: false };
 }
@@ -68,15 +68,34 @@ export function resolveHppForPeriod(actualRaw, estRaw) {
  * @param {any} d - Saved period data from localStorage.
  */
 export function _decodeHours(p, d) {
+  // Read every field AS A NUMBER (paycalc-2-15). This app always stores numbers, but a backup made
+  // elsewhere can hold "5" — and `"5" + 0.5` is "50.5", so HPP, back pay and the year block priced
+  // fifty hours of overtime where the form, which parses, showed five. Text that is not a figure is 0.
+  const n = (/** @type {any} */ v) => Number(v) || 0;
   return {
-    satHrs:  (d.satH  || 0) + (d.satM  || 0) / 60,
-    bhHrs:   hasBankHoliday(p) ? ((d.bhH   || 0) + (d.bhM   || 0) / 60) : 0,
-    bhOtHrs: hasBankHoliday(p) ? ((d.bhOtH || 0) + (d.bhOtM || 0) / 60) : 0,
-    otHrs:   (d.otH   || 0) + (d.otM   || 0) / 60,
-    rdwHrs:  (d.rdwH  || 0) + (d.rdwM  || 0) / 60,
-    sunHrs:  (d.sunH  || 0) + (d.sunM  || 0) / 60,
-    boxHrs:  hasBoxingDay(p)  ? ((d.boxH  || 0) + (d.boxM  || 0) / 60) : 0,
+    satHrs:  n(d.satH)  + n(d.satM)  / 60,
+    bhHrs:   hasBankHoliday(p) ? (n(d.bhH)   + n(d.bhM)   / 60) : 0,
+    bhOtHrs: hasBankHoliday(p) ? (n(d.bhOtH) + n(d.bhOtM) / 60) : 0,
+    otHrs:   n(d.otH)   + n(d.otM)   / 60,
+    rdwHrs:  n(d.rdwH)  + n(d.rdwM)  / 60,
+    sunHrs:  n(d.sunH)  + n(d.sunM)  / 60,
+    boxHrs:  hasBoxingDay(p)  ? (n(d.boxH)  + n(d.boxM)  / 60) : 0,
   };
+}
+
+/**
+ * The pension a SAVED payslip is priced with — the one rule for every reader of a saved payslip (the
+ * year block and the rough Year to Date premium), matching what calculate() does with the pension
+ * box: nothing inside an opt-out spell; the payslip's own figure when it reads as one, floored at £0
+ * because a negative would add untaxed headroom (paycalc-2-16 — the result card floored it and the
+ * year block added it); otherwise the period default, scaled for a joining period.
+ * @param {any} p @param {any} d - the saved payslip, or null @param {number} factor - getProRateFactor(p)
+ * @returns {number}
+ */
+export function savedPeriodPension(p, d, factor) {
+  if (isPensionOptedOut(p)) return 0;
+  const own = d && d.pension != null ? parseSmartFloatOrNull(String(d.pension)) : null;
+  return own != null ? Math.max(0, own) : (parseFloat(String(getPensionDefault(p))) || 0) * factor;
 }
 
 // Compute variable pay for one period from saved data. Used by calcHPP and
@@ -202,17 +221,11 @@ function _expectedNonPremiumYtd(ty) {
     const factor  = getProRateFactor(p);
     const basic   = getEffectiveContr(p) * getRateForPeriod(p, grade, ty.label, settledRate);
     const london  = getLondonAllowanceForPeriod(p, ty) * factor;
-    // Use the member's OWN saved pension for the period when present (mirrors calculate() and
-    // computeYearSoFar) — the typed YTD "Taxable Pay" reflects the actual pension sacrifice, so
-    // subtracting only the default over-subtracts on any period where the member overrode pension,
-    // biasing this rough estimate. Fall back to the period default (pro-rated) when none is saved.
-    // …except inside an opt-out spell, where the result card and the year block price no pension
-    // whatever figure the payslip still holds (whole-app review, Oct 2026).
-    const saved   = readSavedPeriod(p.num);
-    const pension = isPensionOptedOut(p) ? 0
-      : (saved.data && saved.data.pension != null)
-      ? (parseFloat(String(saved.data.pension)) || 0)
-      : (parseFloat(String(getPensionDefault(p))) || 0) * factor;
+    // The member's OWN saved pension for the period when present — the typed YTD "Taxable Pay"
+    // reflects the actual pension sacrifice, so subtracting only the default over-subtracts on any
+    // period where the member overrode it. The one rule every saved-payslip reader shares:
+    // savedPeriodPension (an opt-out spell, the floor at £0, the pro-rated default).
+    const pension = savedPeriodPension(p, readSavedPeriod(p.num).data, factor);
     nonPremium += basic + london - pension;
   }
   // …plus the lumps the figure holds that are neither basic nor premium (see knownYtdLumps).
@@ -718,10 +731,11 @@ export function updatePriorHpp(ty) {
   const actualRaw = lsGet(hppActualKey(priorTy));
   let   est       = estRaw    ? parseFloat(estRaw)    : 0;
   let _priorSkipped = 0;   // corrupt prior-year periods — surfaced on the card, never console-only (v16.70)
-  // A confirmed actual is signalled by KEY PRESENCE, not `> 0` — a member who enters a genuine £0
-  // from their payslip has confirmed it (v17.26). smart-parse so a pre-v16.84 raw "1,200" self-heals.
-  const hasActual = actualRaw != null && actualRaw.trim() !== '';
-  const actual    = hasActual ? Math.max(0, parseSmartFloat(actualRaw) || 0) : 0;
+  // A confirmed actual is any stored FIGURE, not `> 0` — a member who enters a genuine £0 from their
+  // payslip has confirmed it (v17.26); a pre-v16.84 raw "1,200" self-heals. One rule with the
+  // take-home's, so the card and the January payslip can never disagree about what is confirmed.
+  const { hasActual, amount: actual } = resolveHppForPeriod(actualRaw, null);
+  const _anyStored = actualRaw != null && actualRaw.trim() !== '';   // even text that is not a figure
   // A STORED figure is whatever that year's own amount source last wrote; one computed below is from
   // the saved hours. The block says which (paycalc-2-4) — see _priorSourcePhrase.
   const _fromStore = est > 0;
@@ -824,11 +838,12 @@ export function updatePriorHpp(ty) {
 
   const input = document.getElementById('priorHppActualInput');
   // DISABLED until that payslip can be in hand (`inHand`, above): there is no printed figure to copy
-  // before then. A stored actual keeps it enabled.
+  // before then. Anything stored keeps it enabled — a figure that needs correcting, or text that
+  // needs clearing, must never be locked in.
   if (input) {
     const stored = actualRaw || '';
     if (document.activeElement !== input) /** @type {HTMLInputElement} */ (input).value = stored;
-    /** @type {HTMLInputElement} */ (input).disabled = !inHand && !hasActual;
+    /** @type {HTMLInputElement} */ (input).disabled = !inHand && !_anyStored;
   }
   // The entry apparatus must not go stale once a figure is confirmed (v17.99): the "enter when the
   // payslip arrives" note only shows while EMPTY, and the hint flips to how to undo.

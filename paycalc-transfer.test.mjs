@@ -524,6 +524,23 @@ describe('malformed input is refused in the member\'s own terms', () => {
         });
     }
 
+    test('a version that is not a version is DAMAGE — never "update this device" (paycalc-2-15)', () => {
+        // A missing or garbled version used to read as "made by a newer version of the app. Update this
+        // device first" — sending the member to update a phone that is already current.
+        for (const version of [undefined, null, '1', 0, 1.5, 'x']) {
+            const res = validateBackup(makeBlob({ version }), { currentSlug: SLUG });
+            assert.equal(res.ok, false, `version ${JSON.stringify(version)}`);
+            assert.match(res.error, /damaged \(its version record\)/, `version ${JSON.stringify(version)}`);
+        }
+    });
+
+    test('a data generation sent as text is refused, not waved past the newer-than-us check', () => {
+        // "9" > 3 is true in JS, but `typeof … === 'number'` skipped the check entirely for text.
+        const res = validateBackup(makeBlob({ dataGeneration: '9' }), { currentSlug: SLUG });
+        assert.equal(res.ok, false);
+        assert.match(res.error, /damaged \(its data record\)/);
+    });
+
     test('a backup from a NEWER app version is refused, not half-understood', () => {
         const res = validateBackup(makeBlob({ version: BACKUP_VERSION + 1 }), { currentSlug: SLUG });
         assert.equal(res.ok, false);

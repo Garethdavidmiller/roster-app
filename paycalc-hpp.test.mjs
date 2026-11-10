@@ -150,7 +150,8 @@ globalThis.document = /** @type {any} */ ({
 });
 
 const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable, knownYtdLumps,
-        priorHppToStore, updatePriorHpp, calcHPP, readHppState, restoreHppState, saveHppState } = await import('./paycalc-hpp.js');
+        priorHppToStore, updatePriorHpp, calcHPP, readHppState, restoreHppState, saveHppState,
+        savedPeriodPension } = await import('./paycalc-hpp.js');
 const { periodKey, hppEstKey, hppActualKey, hppModeKey } = await import('./paycalc-migrations.js');
 const { getPeriods, CONFIG: PERIOD_CONFIG } = _realPeriods;
 
@@ -224,6 +225,11 @@ describe('resolveHppForPeriod', () => {
 
     test('an estimate of £0 is not treated as a live estimate', () => {
         assert.deepEqual(resolveHppForPeriod(null, '0.00'), { amount: 0, isEstimate: false, hasActual: false });
+    });
+
+    test('stored text that is not a figure confirms nothing — it read as a confirmed £0 (paycalc-2-15)', () => {
+        assert.deepEqual(resolveHppForPeriod('abc', '9'), { amount: 9, isEstimate: true, hasActual: false });
+        assert.deepEqual(resolveHppForPeriod('£1,843.01', '9'), { amount: 1843.01, isEstimate: false, hasActual: true });
     });
 });
 
@@ -325,6 +331,27 @@ describe('_decodeHours', () => {
         assert.equal(h.otHrs,  0);
         assert.equal(h.rdwHrs, 0);
         assert.equal(h.sunHrs, 0);
+    });
+
+    test('hours saved as TEXT are read as the figures they are, garbage as 0 (paycalc-2-15)', () => {
+        // A backup made elsewhere can hold "5": `"5" + 0.5` is "50.5", so HPP, back pay and the year
+        // block priced fifty hours where the form — which parses — showed five, and "abc" gave £NaN.
+        assert.equal(_decodeHours(makeP50(), { otH: '5', otM: '30' }).otHrs, 5.5);
+        assert.equal(_decodeHours(makeP50(), { satH: 'abc' }).satHrs, 0);
+        assert.ok(Number.isFinite(_varPayForPeriod(makeP50(), { satH: 'abc', sunH: '2' }, 20.74)));
+    });
+});
+
+describe('savedPeriodPension — the pension a saved payslip is priced with (paycalc-2-16)', () => {
+    beforeEach(reset);
+    test('its own figure, floored at £0 as the result card floors the box', () => {
+        assert.equal(savedPeriodPension(makeP50(), { pension: -50 }, 1), 0, 'a negative added untaxed headroom');
+        assert.equal(savedPeriodPension(makeP50(), { pension: 100 }, 1), 100);
+        assert.equal(savedPeriodPension(makeP50(), { pension: '£120.50' }, 1), 120.5);
+    });
+    test('none saved, or text that is not a figure: the period default, scaled for a joining period', () => {
+        assert.equal(savedPeriodPension(makeP50(), { pension: 'abc' }, 1), 147.36, 'as the box treats unreadable text');
+        assert.equal(savedPeriodPension(makeP50(), null, 0.5), 147.36 * 0.5);
     });
 });
 
@@ -689,6 +716,18 @@ describe('the rough Year to Date premium takes the back-pay lump\'s arrears out 
         assert.match(_els.hppBasis.textContent, /pay-rise lump on your \d{1,2} \w{3} 2025 payslip/);
         // Nothing was taken out: the figure is 7.69% of all £1,000.
         assert.equal(_els.hppAmount.textContent, `£${(1000 * HPP_FRACTION).toFixed(2)}`);
+    });
+
+    test('a saved negative pension is priced at £0 here too, as the result card prices it (paycalc-2-16)', (t) => {
+        const { carrier } = award(TY26);
+        const odd = 48 + TY26.first + 1;
+        saveHours(odd, { pension: -50 });                     // a pasted −50: the card took no pension
+        let taxable = lump(TY26).total;
+        for (const p of getPeriods()) {
+            if (p.num >= 48 + TY26.first && p.num <= carrier.num) taxable += plainPay(TY26, p) + (p.num === odd ? 147.36 : 0);
+        }
+        runYtd(t, 58, String(carrier.num), taxable);
+        assert.equal(_els.hppAmount.textContent, '£0.00', 'the −£50 was subtracted as pension and read as £50 short');
     });
 
     test('before the award payslip is covered, nothing is taken out and nothing is said', (t) => {

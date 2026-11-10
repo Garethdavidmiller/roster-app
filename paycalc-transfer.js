@@ -134,14 +134,24 @@ export function validateBackup(text, { currentSlug }) {
     if (blob.format !== BACKUP_FORMAT) {
         return { ok: false, error: 'That file is not a pay calculator backup.' };
     }
-    if (typeof blob.version !== 'number' || blob.version > BACKUP_VERSION) {
+    // Every version this app has written is a whole number from 1. Anything else — missing, text, 0 —
+    // is a damaged file, and telling its owner to update their phone would send them the wrong way
+    // (paycalc-2-15). Only a well-formed version ABOVE ours is "newer".
+    if (!Number.isInteger(blob.version) || blob.version < 1) {
+        return { ok: false, error: 'That backup is damaged (its version record). Nothing was changed.' };
+    }
+    if (blob.version > BACKUP_VERSION) {
         return { ok: false, error: 'That backup was made by a newer version of the app. Update this device first.' };
     }
     // A blob whose FILE shape we understand can still hold values written by a later paycalc —
     // a pension timeline in a shape this version cannot read, say. Refuse rather than write it:
     // the values would be restored faithfully and then silently misread. Absent on every backup
-    // written before v22.14, and absence means "no later than us", which is what those are.
-    if (typeof blob.dataGeneration === 'number' && blob.dataGeneration > PAY_DATA_GENERATION) {
+    // written before v22.14, and absence means "no later than us", which is what those are — but a
+    // PRESENT one that is not a whole number cannot be compared at all, and "9" slipped past `>`.
+    if (blob.dataGeneration != null && !Number.isInteger(blob.dataGeneration)) {
+        return { ok: false, error: 'That backup is damaged (its data record). Nothing was changed.' };
+    }
+    if (blob.dataGeneration > PAY_DATA_GENERATION) {
         return { ok: false, error: 'That backup holds pay figures from a newer version of the app. Update this device first.' };
     }
     if (!blob.data || typeof blob.data !== 'object' || Array.isArray(blob.data)) {
