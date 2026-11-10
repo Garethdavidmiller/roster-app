@@ -190,12 +190,13 @@ function nowInLondon() {
 // stays the COMPOSITION ROOT (the VAPID public key literal and STAFF_SITE_URL keep their
 // one guarded home in this file). The re-export names are the deploy contract — Firebase
 // discovers functions from THIS module's exports, so renaming or dropping one here
-// deletes it in production.
+// deletes it in production. The generated roster rides in for the pay reminder, which goes to
+// CEA and CES members only — an audience that may never come from a request.
 Object.assign(exports, buildDocumentEndpoints({
     HUDDLE_SECRET, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
     readRawBody, nowInLondon, isRetriableFirestoreError: _isRetriableFirestoreError,
     MAX_FILE_BYTES, MAX_HUDDLE_HTML_CHARS,
-    ADMIN_FUNCTION_ORIGINS,
+    ADMIN_FUNCTION_ORIGINS, rosterMembers,
 }));
 
 

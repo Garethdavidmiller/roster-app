@@ -78,8 +78,9 @@ time-sensitive event. "Latest" does not apply; lead with the event and its urgen
 
 ## Who receives it — broadcast or targeted
 
-**Broadcasts** (`fanOutPush`, every subscribed device): the three documents, the pay reminder and the
-one-off timetable reminder. **Everything else is targeted** (`sendTargetedPush`, to named uids only),
+**Broadcasts** (`fanOutPush`, every subscribed device): the three documents and the one-off timetable
+reminder. **Everything else is targeted** (`sendTargetedPush`, to named uids only) — the pay reminder
+to CEA and CES members only, the grades the Pay Calculator prices (owner, 10 Nov 2026), and the rest
 because of what it SAYS:
 
 - **The reset request goes to the admin's devices only** — "N. Surname is locked out" sent to 50

@@ -33,11 +33,12 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const crypto = require('crypto');
 const { getAuth } = require('firebase-admin/auth');
-const { parseStrictIsoDate, isPayCutoffDay, fileSignatureMatches, buildPushPayload } = require('./roster-parse-helpers');
+const { parseStrictIsoDate, isPayCutoffDay, fileSignatureMatches, buildPushPayload, nameToEmail } = require('./roster-parse-helpers');
 const { mayReceiveDocumentUrl, resolveKind, kindFromBody, signedUrlExpiry, SIGNED_URL_TTL_MS,
     isSignablePathForKind } = require('./doc-url-core');
-const { setupWebPush, fanOutPush } = require('./push');
+const { setupWebPush, fanOutPush, sendTargetedPush } = require('./push');
 const { memberNameFromClaims } = require('./member-identity');
+const { isViewerAccount } = require('./calendar-viewer-auth');
 
 /**
  * Build the document-domain endpoints. Called once from index.js with the shared infra.
@@ -51,11 +52,12 @@ const { memberNameFromClaims } = require('./member-identity');
  * @param {Function} deps.isRetriableFirestoreError  commit-ambiguous classifier
  * @param {number}   deps.MAX_FILE_BYTES
  * @param {number}   deps.MAX_HUDDLE_HTML_CHARS
+ * @param {Record<string, any>} deps.rosterMembers  the server-owned roster (roster-members.json) — the pay reminder's audience
  */
 function buildDocumentEndpoints({
     HUDDLE_SECRET, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
     readRawBody, nowInLondon, isRetriableFirestoreError,
-    MAX_FILE_BYTES, MAX_HUDDLE_HTML_CHARS, ADMIN_FUNCTION_ORIGINS,
+    MAX_FILE_BYTES, MAX_HUDDLE_HTML_CHARS, ADMIN_FUNCTION_ORIGINS, rosterMembers,
 }) {
 
     // Set to true to silence all Huddle push notifications (e.g. while the staff site
@@ -566,15 +568,66 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
 }
 
 /**
- * Fan out pay reminder push notifications.
- * URL includes ?payday=YYYY-MM-DD so the Pay Calculator opens on the correct period.
+ * WHO THE PAY REMINDER IS FOR — CEA and CES members, nobody else (owner decision, 10 November 2026).
+ *
+ * "Open the Pay Calculator to estimate your pay" invites the reader to a page that prices only the
+ * grades `gradeForRole` (roster-data.js) knows. A Dispatcher or a manager who tapped it landed on the
+ * card saying the calculator does not cover their pay, though .claude/rules/paycalc.md invariant 13
+ * says nothing sends such a member there — and the Calendar's own payday notice already asks the same
+ * question (`payCalcIsTheirs`, calendar-notices.js). The broadcast was the one route left that did not.
+ *
+ * The grades are KEYS of the server-owned roster (`cea`, `ces`: each grade's visible members, the
+ * same lists `getMembersForGrade` gives the client), spelt as `gradeForRole` answers. The device test
+ * in documents-endpoints.test.mjs takes its expected audience from `gradeForRole` itself, so pricing a
+ * third grade on the client without adding it here fails a test instead of silently missing people.
+ */
+const PAY_REMINDER_GRADES = Object.freeze(['cea', 'ces']);
+
+/**
+ * The names the pay reminder is addressed to, from the server-owned roster. Never from a request.
+ * @param {Record<string, any>|null|undefined} roster  roster-members.json
+ * @returns {string[]}
+ */
+function payReminderMembers(roster) {
+    const names = new Set();
+    for (const grade of PAY_REMINDER_GRADES) {
+        const list = roster && roster[grade];
+        if (!Array.isArray(list)) {
+            console.warn(`[payReminder] the server roster has no "${grade}" list — its members are not reminded`);
+            continue;
+        }
+        for (const name of list) if (typeof name === 'string' && name) names.add(name);
+    }
+    return [...names];
+}
+
+/**
+ * A member's Auth uid, from the account their name derives to — the derivation setupRosterAuth
+ * provisions with, and the one the Overtime notices resolve through. Any failure is `null` and that
+ * member is skipped: fail closed, per member. The shared Calendar PIN account is refused even when a
+ * PIN holder has linked a roster email to it: the devices it owns are the station's shared PCs, not
+ * the member's phone (Set up accounts and the admin reset refuse it for the same reason).
+ * @param {string} name
+ * @returns {Promise<string|null>}
+ */
+async function uidForMember(name) {
+    try {
+        const user = await getAuth().getUserByEmail(nameToEmail(name));
+        return user && user.uid && !isViewerAccount(user) ? user.uid : null;
+    } catch (_) {
+        return null;
+    }
+}
+
+/**
+ * Send the pay reminder to the devices of CEA and CES members — a TARGETED send, never a broadcast
+ * (see PAY_REMINDER_GRADES). URL includes ?payday=YYYY-MM-DD so the Pay Calculator opens on the
+ * correct period.
  *
  * @param {Date}         payday        The upcoming payday date
  * @param {SecretParam}  vapidPrivate  Firebase secret param for VAPID private key
  */
 async function sendPayPushNotifications(payday, vapidPrivate) {
-    setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
-
     // Use toISOString() (UTC) — the caller constructs payday at NOON UTC from London calendar
     // parts, so the UTC date is the correct London date on any runtime timezone.
     const paydayISO = payday.toISOString().slice(0, 10);
@@ -582,15 +635,20 @@ async function sendPayPushNotifications(payday, vapidPrivate) {
     const paydayDay = payday.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Europe/London' });
     const paydayFmt = payday.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'Europe/London' });
 
+    // sendTargetedPush fails closed: no resolvable member means nothing is sent, never "everyone".
+    const names = payReminderMembers(rosterMembers);
+    const uids  = (await Promise.all(names.map(uidForMember))).filter(Boolean);
+
+    setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
     // Event-reminder grammar (.claude/rules/notifications.md): "💷 <Event> — <urgency>",
     // calm/no-exclamation tone, action in the body.
-    await fanOutPush(buildPushPayload({
+    const accepted = await sendTargetedPush(buildPushPayload({
         feature:  'pay',
         headline: `Payday ${paydayDay} — hours cutoff today`,
         body:     `Open the Pay Calculator to estimate your ${paydayFmt} pay.`,
         url:      `${STAFF_SITE_URL}/paycalc.html?payday=${paydayISO}`,
-    }), '[payReminder]');
-    console.log(`[payReminder] Pay reminder sent — payday ${paydayISO}`);
+    }), uids, '[payReminder]');
+    console.log(`[payReminder] Pay reminder for payday ${paydayISO} — ${uids.length} of ${names.length} CEA/CES member(s) resolved, ${accepted} subscription(s) accepted`);
 }
 
 // ============================================================================
@@ -598,8 +656,8 @@ async function sendPayPushNotifications(payday, vapidPrivate) {
 // ============================================================================
 /**
  * Runs daily at 08:00 London time. On pay cutoff Saturdays (the Saturday before
- * payday), sends a push notification to all subscribed devices reminding staff
- * to enter their hours in the Pay Calculator.
+ * payday), sends a push notification to the devices of CEA and CES members — the
+ * grades the Pay Calculator prices — reminding them to enter their hours in it.
  *
  * Cutoff date logic mirrors isCutoffDate() in roster-data.js:
  *   - First payday: 13 Feb 2026 (Friday). Cycle: every 28 days.
