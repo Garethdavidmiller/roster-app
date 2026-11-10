@@ -1286,6 +1286,11 @@
             opacity: 1;
             transform: translateX(-50%) translateY(0);
         }
+        /* Reduce motion: the two surfaces that slide up from the foot of the page appear in place, as the
+           drawer and every lightbox do (Nov 2026). Neither waits on `transitionend`. */
+        @media (prefers-reduced-motion: reduce) {
+            .al-confirm-bar, .al-confirm-bar.visible, #saveToast { transition: none; }
+        }
 
         /* .card-collapsible-header/.card-collapsible-body/.collapse-chevron — consolidated into shared.css */
 

@@ -1529,6 +1529,23 @@ test('admin: the week grid\'s Retry looks like Saved Changes\' Retry', async ({ 
     expect(await look(week)).toBe(await look(list));
 });
 
+// With "reduce motion" on, the drawer, every lightbox and the notices appear without moving — and the
+// over-limit confirm bar still slid up its full height while the save toast rose 20px.
+test('admin: with reduce motion on, the over-limit bar and the save toast appear without sliding', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const moving = await page.evaluate(() => ['alConfirmBar', 'saveToast'].map(id => {
+        const el = /** @type {HTMLElement} */ (document.getElementById(id));
+        el.classList.add('visible');
+        const n = el.getAnimations().length;   // flushes style, so a transition that just started is counted
+        el.classList.remove('visible');
+        return [id, n];
+    }));
+    for (const [id, n] of moving) expect(n, `#${id} still animates its entrance with reduce motion on`).toBe(0);
+});
+
 // The save toast and the Unsaved bar share the foot of the screen, and an Apply that both stages days
 // and raises a toast ("Set 6 days — Sunday skipped …") drew the toast over the bar's label and both of
 // its buttons for four seconds, with taps passing through to buttons nobody could see.
