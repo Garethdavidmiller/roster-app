@@ -502,6 +502,12 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     refreshIfStale();
   });
   globalThis.addEventListener?.('pageshow', (/** @type {any} */ e) => { if (e.persisted) refreshIfStale(); });   // globalThis: the Node suites have no window
+  // …AND WHILE IT STAYS IN VIEW (cal-data-8, 10 Nov 2026). A page that is never hidden — a window
+  // beside Admin, a station PC left on Team View — never came BACK into view, so it showed what each
+  // month held when first read, as current, for as long as it was open: the shared-PC case the release
+  // exists for. The same check every STALE_MONTH_MS while the page is visible and holds access. unref():
+  // in Node (the suites) a live interval would hold the process open; a browser returns a number.
+  /** @type {any} */ (setInterval(() => { if (!document.hidden && hasOverrideAccess()) refreshIfStale(); }, STALE_MONTH_MS)).unref?.();
 
   // THE PANEL'S RETRY TAKES OVER FROM THE CHIP (48-hour review). The month panel's Try again re-reads
   // the month without passing through `doRetry`, so a recorded failure outlived a retry that worked

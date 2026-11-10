@@ -138,10 +138,10 @@ export function clearFetchedMonth(key) { fetchedMonths.delete(key); _settledAt.d
  *
  * A month marked fetched used to be fetched for the life of the page. On a shared office PC, or an
  * iPhone app resumed from the background, that showed the morning's roster as current in the
- * afternoon — "As rostered" included. The caller runs this when the page comes back into view and
- * re-renders; the re-read runs behind the grid already on screen, and a re-read that FAILS keeps
- * that grid rather than withholding it — as the labelled saved copy, no longer as current (see the
- * catch in `ensureOverridesCached`). A month still IN FLIGHT is left alone, and nothing is released
+ * afternoon — "As rostered" included. The caller runs this when the page comes back into view, and
+ * on a slow timer while it stays in view, and re-renders; the re-read runs behind the grid already on
+ * screen, and a re-read that FAILS keeps that grid rather than withholding it — as the labelled saved
+ * copy, no longer as current (see the catch in `ensureOverridesCached`). A month still IN FLIGHT is left alone, and nothing is released
  * while the initial fetch runs — it owns its months until it settles.
  *
  * A month whose last check failed over a saved copy is handed back too, WHATEVER ITS AGE (10 Nov

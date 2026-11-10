@@ -883,6 +883,40 @@ describe('visibilitychange', () => {
         assert.equal(refetches, 1, 'the released months were never asked for again');
         assert.equal(repaints, 0, 'a cache repaint is not a re-read');
     });
+
+    // cal-data-8 (10 Nov 2026). A page that is never hidden never comes BACK into view, so it went on
+    // showing what each month held when first read, as current, for as long as it stayed open.
+    test('a page that STAYS in view runs the same check every ten minutes', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+        let renders = 0, refetches = 0;
+        let teamView = false;
+        initInitialFetch({ isTeamViewMode: () => teamView, renderCalendar: () => { renders++; },
+            renderTeamView: () => {}, refetchTeamView: () => { refetches++; } });
+        await flushAsync();
+        const settled = renders;
+        _releaseImpl = () => ['2026-10'];
+        global.document.hidden = false;
+        t.mock.timers.tick(10 * 60_000);
+        assert.equal(renders, settled + 1, 'ten minutes in view and nothing was asked for again');
+        teamView = true;
+        t.mock.timers.tick(10 * 60_000);
+        assert.equal(refetches, 1, 'and Team View re-READS, as it does on a return');
+    });
+
+    test('…but not while hidden, nor on a Calendar that has lost its access', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+        let renders = 0;
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => { renders++; } });
+        await flushAsync();
+        const settled = renders;
+        _releaseImpl = () => ['2026-10'];
+        global.document.hidden = true;
+        t.mock.timers.tick(10 * 60_000);
+        assert.equal(renders, settled, 'a hidden page is checked when it comes back, not on the clock');
+        global.document.hidden = false; _hasAccess = false;
+        t.mock.timers.tick(10 * 60_000);
+        assert.equal(renders, settled, 'a locked Calendar has nothing to draw and must not read');
+    });
 });
 
 // ── E1: the render path must never be gated on auth (AUTH_PLAN.md → E1) ───────
