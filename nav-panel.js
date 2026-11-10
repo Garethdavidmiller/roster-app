@@ -191,8 +191,11 @@ registerPopInterceptor(() => _historyPushed && !_landedOnOwnEntry());
 
 /** How long a drawer document tap waits for a session before reading anyway (v19.07). The user has
  *  just tapped and a loading state is showing, so this is the "here's a response" budget — not a
- *  general timeout. The whole fetch stays bounded by the existing 8s race below. */
+ *  general timeout. The whole open stays inside `DOC_FETCH_BUDGET_MS`. */
 const DOC_AUTH_WAIT_MS = 2000;
+/** The most a drawer document tap waits, from the tap, before it gives its answer: the read and the
+ *  short-lived link race this one budget, and past it the stored url (or the fallback) is used. */
+const DOC_FETCH_BUDGET_MS = 8000;
 
 /**
  * Tear down an already-initialised nav panel so initNavPanel() can rebuild it from scratch with a
@@ -404,7 +407,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // otherwise leave _docFetching stuck true, killing BOTH doc nav-links until a reload and
         // orphaning the blank tab. On timeout the .catch closes the tab and shows the fallback (v16.19).
         const timed = new Promise((_res, reject) =>
-            setTimeout(() => reject(new Error('doc-fetch-timeout')), 8000));
+            setTimeout(() => reject(new Error('doc-fetch-timeout')), DOC_FETCH_BUDGET_MS));
         // Wait for a Firebase session before reading (AUTH_PLAN.md → E1): the three document
         // collections require access (firestore.rules, since v23.18 — a member's claim, `admin`, or
         // the PIN's `calendarViewer`), so a read fired before the session lands is refused. Each
@@ -422,7 +425,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // The short-lived url is requested ALONGSIDE the document read (v24.23) — the server picks
         // the latest document itself, so it needs nothing the read returns, and in series the blank
         // tab waited for two round trips back to back. It never rejects (document-url.js).
-        const signedP = authOrSoon.then(() => fetchSignedDocumentUrl(/** @type {any} */ (docId)));
+        // And it races the SAME budget as the read (whole-app check, Nov 2026): its own timeout starts
+        // only once a session and an ID token are in hand, and a token refresh on a weak signal held
+        // the blank tab, and both document links, far past it. Out of time, the stored url opens.
+        const signedP = Promise.race([
+            authOrSoon.then(() => fetchSignedDocumentUrl(/** @type {any} */ (docId))),
+            new Promise(r => setTimeout(() => r(null), DOC_FETCH_BUDGET_MS)),
+        ]);
         Promise.race([authOrSoon.then(() => fetchFn()), timed]).then(/** @param {any} data */ async data => {
             const url = data?.storageUrl;
             const safeUrl = isSafeStorageUrl(url) ? url : null;

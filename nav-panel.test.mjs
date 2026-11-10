@@ -21,9 +21,13 @@ const store = new Map();
 /** @type {string[]} */
 const signOutLog = [];
 
+/** What the Circular read answers — a test that opens one replaces it. @type {() => Promise<any>} */
+let latestCircular = async () => null;
+/** What the short-lived link answers — null, as the app ships, unless a test says otherwise. @type {() => Promise<any>} */
+let signedDocumentUrl = async () => null;
 mock.module('./firebase-client.js', {
     namedExports: {
-        getLatestCircular:    async () => null,
+        getLatestCircular:    () => latestCircular(),
         getLatestNewsletter:  async () => null,
         isSafeStorageUrl,   // the real function (see the import note above) — no mirror to keep in sync
         officeViewerUrl,    // the real function — .docx nav links route through it
@@ -31,7 +35,7 @@ mock.module('./firebase-client.js', {
         // The drawer mints a short-lived url before setting the pre-opened tab's location. `null`
         // is the state the app ships in (no IAM grant), and is what these tests exercise — the
         // stored url must still open, exactly as it did before the endpoint existed.
-        fetchSignedDocumentUrl: async () => null,
+        fetchSignedDocumentUrl: () => signedDocumentUrl(),
         currentUserAfterBoot: async () => ({ uid: 'u1' }),   // the drawer bell asks (v25.06)
     },
 });
@@ -600,4 +604,34 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
             assert.equal($(lb.box).classList.contains('open'), false, 'its own Back must still close it');
         });
     }
+});
+
+// ── THE 8-SECOND BUDGET COVERS THE WHOLE OPEN (whole-app check, Nov 2026) ─────────────────────────────
+// The drawer opens a blank tab on the tap and gives it a location once the Circular is read. The read
+// raced 8 s; the short-lived link after it did not — its own timeout starts only once a session and an
+// ID token are in hand, and a token refresh on a weak signal is bounded only by the SDK's own network
+// timeout, tens of seconds. All that time the blank tab sat there and both document links were dead.
+describe('opening the latest Circular stays inside its 8-second budget', () => {
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/x.pdf?alt=media&token=e2e';
+    beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
+    afterEach(() => { mock.timers.reset(); latestCircular = async () => null; signedDocumentUrl = async () => null; });
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+
+    test('a short-lived link that has not answered by then gives way to the stored url', async () => {
+        const { $ } = mountLive();
+        /** @type {string[]} */ const opened = [];
+        /** @type {any} */ (global.window).open = () => ({ opener: null, close() {}, location: { set href(/** @type {string} */ v) { opened.push(String(v)); } } });
+        latestCircular = async () => ({ storageUrl: STORED, fileType: 'pdf', storagePath: 'circulars/x.pdf' });
+        signedDocumentUrl = () => new Promise(r => setTimeout(() => r(null), 30_000));   // a token refresh stuck on a weak signal
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
+        /** @type {any} */ ($('navPanel')).fire('click', {
+            target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
+        await flush();
+        mock.timers.tick(7_999); await flush();
+        assert.deepEqual(opened, [], 'premise: nothing opens before the budget is spent');
+        mock.timers.tick(1); await flush();
+        assert.deepEqual(opened, [STORED], 'the blank tab waited past the 8 s budget for a link it does not need');
+        assert.equal(link.classList.contains('nav-panel-link--loading'), false, 'and both document links are live again');
+    });
 });
