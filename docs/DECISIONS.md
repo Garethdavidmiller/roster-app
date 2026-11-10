@@ -102,6 +102,44 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **Leave over rest-day working is free, whatever kind** (owner, 10 Nov 2026 — "Free, like plain
+  RDW") · **Trigger to revisit: payroll charging a day of leave over a rest-day Training, Meeting or
+  Spare record.** Leave booked across a base rest day holding RDW, an Other day (Training, Meeting … —
+  "TRG RDW") or a Spare turn costs no entitlement; only a recorded swap (`shift`) on a rest day does
+  (VAL-AL-001). The base roster is the witness, because once leave replaces the record only its type
+  survives (`isContractedWorkOverride`, `override-utils.js`). Neither booking path asks about such a
+  day: it is settled, and free. The roster review treats the roster's leave over one as it treats leave
+  over an RDW — as the rest day it costs nothing on. Not changed by it: an ABSENCE over such a day
+  still shows on the Calendar.
+
+- **The roster upload offers next week from Thursday** (owner, 10 Nov 2026; the Saturday case settled
+  by the lead the same day) · **Trigger to revisit: the roster office changing the day it releases
+  the roster.** The week-ending box defaults by London date: Sunday to Wednesday to the week in
+  progress, Thursday and Friday to the Saturday after next (the Thursday release's week), and a
+  Saturday to the next Saturday, so Thursday to the following Wednesday all offer one week
+  (`defaultWeekEnding`, `roster-alignment.js`). A whole week out is the one misplacement the day-drift
+  checks cannot see; where its heading can be read, the sheet's own printed week now refuses one
+  (KNOWN_LIMITATIONS.md → "The sheet's own week is checked only where its heading can be read").
+
+- **A roster import never pre-ticks 25 or 26 December** (owner, 10 Nov 2026) · **Trigger to revisit:
+  the Christmas leave rule changing (`christmas-leave.js`).** Those rows start unticked with a note
+  that the app's Christmas leave decides the day, ask no swapped-day question, and can still be ticked
+  on purpose (`isChristmasClosureDate`, `roster-review-states.js`).
+
+- **When every Monday-to-Saturday cell of an imported row is unread, its Sunday is unread too** (a
+  default decided in the whole-app fix, 10 Nov 2026, not an owner decision) · **Trigger to revisit: a
+  live Dispatch import on which the extra Sunday questions prove tiresome** (KNOWN_LIMITATIONS.md →
+  "Worth watching on a live Dispatch import"). Such a Sunday is a question, never pre-ticked as a rest
+  day (`computeCellStates`), because a member printed on a second sheet works most of the week
+  elsewhere.
+
+- **The leave panel labels a balance it has not checked yet** (a default decided in the whole-app fix,
+  10 Nov 2026, not an owner decision) · **Trigger to revisit: a report that the label is noise on a
+  good signal, or a case for a maximum age.** The saved balance still paints at once and is kept when a
+  refresh fails, but until the server answers it reads "Saved copy — checking for changes…", and
+  "Saved copy — couldn't check for changes" if the check fails — the month grid's words
+  (`CALENDAR_DATA.md` 18). No age limit and no date are shown.
+
 - **Card-title icon tiles — BUILT, THEN REMOVED; a chosen control wears the page's colour instead**
   (owner, 3 Nov 2026 — "Use screenshots and choose the best aesthetic solution. Still unsure whether
   the tile colour is an improvement too"; v25.16) · **Trigger to revisit: a case for colour in the
