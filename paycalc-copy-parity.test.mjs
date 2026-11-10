@@ -175,6 +175,22 @@ describe('a row or a card says what it is for, and only that', () => {
         for (const t of tips) assert.doesNotMatch(t, /Clear all entries[^.]*undo|undo[^.]*Clear all entries/i, t.slice(0, 80));
     });
 
+    test('the payslip comparison asks for the pay figure it compares: Taxable Pay (paycalc-1-15)', async () => {
+        // The table sets the payslip's Taxable Pay — after the pension — against the estimate's pay
+        // after the pension, and its row says so. The box it is typed into asked for "Total pay",
+        // placeholder "Gross": the figure BEFORE the pension, so a member reading it typed the wrong
+        // line and the row showed the whole pension as a difference.
+        const { buildActualComparison } = await import('./paycalc-breakdown.js');
+        const table = buildActualComparison({ actual: { gross: 1, pension: null, tax: null, ni: null, net: null },
+            estimate: { gross: 1, pension: 0, tax: 0, ni: 0, net: 0 } });
+        const row = /<th scope="row">([^<]+)<\/th>/.exec(table)?.[1];
+        assert.equal(row, 'Taxable Pay', 'premise: the comparison names the payslip\'s own line');
+        const box = /<label class="check-more-field">([^<]*)<span class="pfx">(?:(?!<\/label>)[\s\S])*?id="actualGrossInput"[^>]*placeholder="([^"]*)"/.exec(html);
+        assert.ok(box, 'the comparison\'s pay box is missing from paycalc.html');
+        assert.equal(text(box[1]), row, 'the box asks for one figure and the row compares another');
+        assert.equal(box[2], row, 'the placeholder names a different payslip line');
+    });
+
     test('the guide promises only the conversion the converter makes (paycalc-3-10)', () => {
         // The card has ONE input, a decimal from the payslip, and answers in hours and minutes. The
         // guide said it converted "and back", so a member typed 7:30 to get a decimal — and read "7 hrs".
