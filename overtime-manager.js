@@ -4,7 +4,7 @@
  *
  * Owns: the three views built from a week's data — By day, Awaiting, and the change indicators.
  * Every WORD comes from `overtime-format.js`; the READ is `loadWeekDetail` in `overtime-data.js`;
- * the planning horizon that got the reviewer here belongs to `overtime-app.js`.
+ * the planning horizon that got the reviewer here belongs to `overtime-review-controller.js`.
  *
  * ── NO FIREBASE IMPORT, DELIBERATELY ────────────────────────────────────────────────────────────
  *

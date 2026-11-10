@@ -2,20 +2,11 @@
 /**
  * overtime-app.js — coordinator for overtime.html.
  *
- * Owns: the access gate, the session/login wiring, the two tab surfaces, and the Manager planning
- * horizon. Delegates every RULE to the server (functions/overtime-core.js) and every WORD to
- * overtime-format.js; the network lives in overtime-data.js.
- *
- * ── THE PLANNING HORIZON IS THE POINT OF THIS PAGE, NOT A CONVENIENCE ───────────────────────────
- *
- * A weekly-window system has exactly one catastrophic failure, and it happens before any document
- * exists: nobody creates the window. Then no participants exist, so nobody is outstanding, so no
- * reminder can fire, so staff see nothing — and "no window" is indistinguishable from "no overtime
- * needed this week". The clerk plans a roster from a page that is quietly empty.
- *
- * So the horizon is rendered FIRST, above the week detail, from the CALENDAR rather than from
- * Firestore, and a missed week keeps its row until its Saturday has passed. Anything that makes
- * these rows less prominent makes the feature less safe.
+ * Owns: the access gate, the session/login wiring, the tab surfaces and the member's own forms. The
+ * reviewer's side — the planning horizon, week selection and workspace — is
+ * overtime-review-controller.js, whose header says why the horizon is the point of this page. Every
+ * RULE is the server's (functions/overtime-core.js), every WORD overtime-format.js's; the network
+ * lives in overtime-data.js.
  *
  * ── BETA ACCESS IS A CLIENT COURTESY, NOT THE BOUNDARY ──────────────────────────────────────────
  *
@@ -23,17 +14,6 @@
  * Firestore gives ordinary members nothing, and every endpoint re-checks the claim server-side.
  * Someone who types the URL sees a short "not available" panel because that is kinder than a blank
  * page — not because it stops them.
- *
- * ── WHICH READ IS LATEST, NOT MERELY WHICH WEEK IS SELECTED ─────────────────────────────────────
- *
- * `renderWeekDetail` guards on the selected WEEK, so two reads of the SAME week both satisfy it —
- * and since v21.48 three things start one (Refresh, the visibility refetch, a week press). If the
- * second returns first, the first lands after it and paints the OLDER snapshot beneath the NEWER
- * "as at" time. Every other stale render is a page that is behind; this is a page that is behind
- * while saying it is current, on the surface a clerk rings people from. Hence `detailGeneration`:
- * a ticket per call, and only the newest may paint. Coalescing into one in-flight promise is
- * worse — it would hand a Refresh press the answer to the read already running, which is the
- * stale data the press exists to replace.
  */
 
 import { CONFIG, escapeHtml as esc } from './roster-data.js';   // esc: every innerHTML value goes through it
@@ -212,8 +192,7 @@ export function init() {
         // (v21.58, owner request) — the same "Staff member" field a self-service member sees
         // there, locked to the one name it can hold — so both pages answer "who am I acting as?"
         // in one visual language. A real <select>, disabled: there is genuinely nobody else to
-        // pick. Filled here because start() re-runs on an in-place sign-in, so a changed
-        // identity repaints it — and REBUILT rather than appended, for exactly that path.
+        // pick. Filled here because start() runs once, after any in-place sign-in, so the name is final.
         const idBar = el('otMineIdentity');
         const idSel = /** @type {HTMLSelectElement|null} */ (el('otIdentityMember'));
         if (idBar && idSel && currentUser) {

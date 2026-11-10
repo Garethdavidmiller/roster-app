@@ -95,9 +95,10 @@
          emoji, in the chip every other page uses — a second title is not emphasis, it is a page
          that has not decided where its name lives. No other app page has one. -->
 
-    <!-- Tabs. Rendered only for somebody who has BOTH surfaces (a rostered Master Admin); a
-         reviewer with no form of their own, or a member with no review rights, sees one panel and
-         no tab strip at all rather than a tab that leads nowhere. -->
+    <!-- Tabs. Shown to a reviewer who also has a form of their own (a rostered Master Admin), or
+         whose own form FAILED to load, so the error and the workspace are both reachable
+         (`loadEverything`). Anyone else sees one panel and no strip, rather than a tab that leads
+         nowhere. -->
     <div class="ot-tabs" id="otTabs" role="tablist" aria-label="Overtime views" hidden>
         <button type="button" class="ot-tab" id="otTabMine" role="tab"
                 aria-selected="true" aria-controls="otMinePanel">My availability</button>

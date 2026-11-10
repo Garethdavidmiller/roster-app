@@ -14,6 +14,28 @@
  * confirm bar. Nothing in the second is reachable from the first, and none of its EIGHT pieces of
  * state means anything to a member.
  *
+ * ── THE PLANNING HORIZON IS THE POINT OF THE PAGE, NOT A CONVENIENCE ────────────────────────────
+ *
+ * A weekly-window system has exactly one catastrophic failure, and it happens before any document
+ * exists: nobody creates the window. Then no participants exist, so nobody is outstanding, so no
+ * reminder can fire, so staff see nothing — and "no window" is indistinguishable from "no overtime
+ * needed this week". The clerk plans a roster from a page that is quietly empty.
+ *
+ * So the horizon is rendered FIRST, above the week detail, from the CALENDAR rather than from
+ * Firestore, and a missed week keeps its row until its Saturday has passed. Anything that makes
+ * these rows less prominent makes the feature less safe.
+ *
+ * ── WHICH READ IS LATEST, NOT MERELY WHICH WEEK IS SELECTED ─────────────────────────────────────
+ *
+ * `renderWeekDetail` guards on the selected WEEK, so two reads of the SAME week both satisfy it —
+ * and three things start one (Refresh, the visibility refetch, a week press). If the second returns
+ * first, the first lands after it and paints the OLDER snapshot beneath the NEWER "as at" time.
+ * Every other stale render is a page that is behind; this is a page that is behind while saying it
+ * is current, on the surface a clerk rings people from. Hence `detailGeneration`: a ticket per call,
+ * and only the newest may paint. Coalescing into one in-flight promise is worse — it would hand a
+ * Refresh press the answer to the read already running, which is the stale data the press exists
+ * to replace.
+ *
  * ── WHAT IT OWNS, AND WHY THAT IS ALL ONE THING ─────────────────────────────────────────────────
  *
  * Every piece of state here exists to keep several asynchronous reads from disagreeing about which
@@ -392,10 +414,11 @@ function wireConfirmBar() {
         btn.disabled = true;
         const week = pendingWeek;
         const r = await OTD.createOvertimeWindow(week, { dryRun: false });
-        // Re-arm from `pendingWeek`, not unconditionally: a timeout keeps the week pending (the
-        // press is worth repeating), and every other outcome below clears it. Unless a preview of
-        // ANOTHER week landed while this was out (48-hour review): the message below is about THIS
-        // week, so Create must not stay armed for that one under it.
+        // Re-arm from `pendingWeek`, not unconditionally: a failure keeps the week pending, so the
+        // press can be repeated (a second create of a week that exists answers with that week), and
+        // only a success clears it. Unless a preview of ANOTHER week landed while this was out
+        // (48-hour review): the message below is about THIS week, so Create must not stay armed for
+        // that one under it.
         if (pendingWeek !== week) pendingWeek = null;
         armConfirmBar();
         if (!r.ok) {

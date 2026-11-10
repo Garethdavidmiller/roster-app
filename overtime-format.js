@@ -174,8 +174,8 @@ export function shiftSpanMinutes(start, end) {
  * Are two stored day answers the same declaration?
  *
  * Structural and order-independent, because the two sides come from different producers — the
- * form's `buildAnswer` and the server's canonicalised copy — whose key ORDER may differ while the
- * answer does not. A `JSON.stringify` comparison would call those different, and the form would
+ * form's transitions (overtime-answer.js) and the server's canonicalised copy — whose key ORDER may
+ * differ while the answer does not. A `JSON.stringify` comparison would call those different, and the form would
  * mark a day "changed" that the member has not touched.
  * @param {any} a @param {any} b
  */
