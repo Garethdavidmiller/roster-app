@@ -188,15 +188,32 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     .filter(p => !OT.isWithdrawn(p.data()) && !submitted.has(p.id) && !asked.has(p.id))
                     .map(p => p.id);
                 const uids = (await Promise.all(names.map(uidForName))).filter(Boolean);
+                // ── WHAT IT REACHED, WRITTEN BESIDE THE CLAIM (overtime-core-4, Nov 2026) ───────
+                //
+                // The claim above is an ATTEMPT — it has to be written before the send, or two runs
+                // both send — and the reviewer's line read it as "sent" on a morning nobody could be
+                // reached or the push failed. So the outcome is recorded once the send is over:
+                //   reminderOutstanding  participants who had said nothing (0: nobody needed it)
+                //   reminderAccepted     devices whose push service took it (0: it reached nobody)
+                // A stamp without them stays what it always was — an attempt, outcome unknown: every
+                // window from before this, and a run that stopped between the two writes.
+                let accepted = 0;
                 if (uids.length) {
                     const n = OT.reminderNotice(milestones);
                     const payload = buildPushPayload({
                         feature: 'overtime', headline: n.headline, body: n.body,
                         url: `${STAFF_SITE_URL}/overtime.html`,
                     });
-                    await send(payload, uids, `[overtimeReminder ${d.id}]`);
+                    try {
+                        // `sendTargetedPush` counts ACCEPTED sends, and 0 is the direction it vouches for.
+                        accepted = Number(await send(payload, uids, `[overtimeReminder ${d.id}]`)) || 0;
+                    } catch (sendErr) {
+                        console.error(`[overtimeReminder] ${d.id} send failed:`, sendErr);
+                    }
                 }
-                console.log(`[overtimeReminder] ${d.id} — ${names.length} unanswered, ${uids.length} resolvable target(s)`);
+                console.log(`[overtimeReminder] ${d.id} — ${names.length} unanswered, `
+                    + `${uids.length} resolvable target(s), ${accepted} accepted`);
+                await d.ref.update({ reminderOutstanding: names.length, reminderAccepted: accepted });
             } catch (err) {
                 // One bad week must not abandon the rest. NOTE there is no retry to rely on
                 // (v21.56): `reminderDue` selects only the run inside 24h of noon — the deadline's
@@ -1076,6 +1093,10 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     // Absent/null on weeks created before the reminder feature — the client's
                     // reminderLine deliberately stays silent for those once they close.
                     reminderSentAt: doc ? (toMillis(doc.reminderSentAt) || null) : null,   // toMillis maps absent to 0
+                    // What that attempt reached (overtime-core-4) — null where nothing was recorded,
+                    // never 0: an unrecorded outcome is unknown, and "reached nobody" would accuse.
+                    reminderOutstanding: doc && Number.isInteger(doc.reminderOutstanding) ? doc.reminderOutstanding : null,
+                    reminderAccepted:    doc && Number.isInteger(doc.reminderAccepted) ? doc.reminderAccepted : null,
                     state: OT.windowRowState(milestones, nowMs, !!doc, overdue.has(weekEnding)),
                     audience: doc ? doc.audience : null,
                     canAdd,

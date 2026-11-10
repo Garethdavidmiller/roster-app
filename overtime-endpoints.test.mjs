@@ -2405,6 +2405,72 @@ describe('push notices — targeted, accumulated, and never able to fail a write
         assert.equal(reminderSends(sends).length, 1);
     });
 
+    // ── WHAT THE REMINDER REACHED (overtime-core-4, Nov 2026) ───────────────────────────────────
+    //
+    // `reminderSentAt` is claimed BEFORE the send, which is what stops two runs both sending — so on
+    // its own it records an attempt, and the reviewer's line said "Reminder to non-responders sent"
+    // on a morning nobody could be reached or the push failed. The outcome is now written beside it.
+    /**
+     * One deadline morning against the seeded window (G. Miller, silent unless `submitted`).
+     * @param {{ sendPush?: Function, uidForName?: Function, submitted?: boolean }} o
+     */
+    async function reminderMorning({ sendPush = async (/** @type {any} */ _p, /** @type {string[]} */ uids) => uids.length,
+        uidForName = async () => 'uid-gm', submitted = false } = {}) {
+        freeze(M.initialDeadlineAt - 5 * 3600_000);
+        const { db, eps } = build(seededWindow(submitted ? {
+            [`overtimeWindows/${WEEK}/submissions/G. Miller`]: { currentRevision: 1, days: noDays() },
+        } : {}), { notify: { sendPush, uidForName } });
+        await eps.autoCreateOvertimeWindows.run({});
+        const overview = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
+        unfreeze();
+        const w = db._store.get(`overtimeWindows/${WEEK}`);
+        return { w, row: overview.body.planningWeeks.find((/** @type {any} */ r) => r.weekEnding === WEEK) };
+    }
+
+    test('a reminder that reached a device records it — and the reviewer\'s row carries it', async () => {
+        const { w, row } = await reminderMorning();
+        assert.ok(w.reminderSentAt, 'claimed');
+        assert.equal(w.reminderOutstanding, 1);
+        assert.equal(w.reminderAccepted, 1);
+        assert.deepEqual([row.reminderOutstanding, row.reminderAccepted], [1, 1]);
+    });
+
+    test('a silent member with no account was NOT reached, and the record says so', async () => {
+        const { w } = await reminderMorning({ uidForName: async () => null });
+        assert.ok(w.reminderSentAt, 'the morning is still claimed — the claim is what stops a second send');
+        assert.deepEqual([w.reminderOutstanding, w.reminderAccepted], [1, 0]);
+    });
+
+    test('a push the service refused records the ACCEPTED count, not the targets asked', async () => {
+        const { w } = await reminderMorning({ sendPush: async () => 0 });
+        assert.deepEqual([w.reminderOutstanding, w.reminderAccepted], [1, 0]);
+    });
+
+    test('a push transport that throws records that nothing was reached', async () => {
+        const { w } = await reminderMorning({ sendPush: async () => { throw new Error('push transport down'); } });
+        assert.deepEqual([w.reminderOutstanding, w.reminderAccepted], [1, 0]);
+    });
+
+    test('a morning with nobody silent records that nobody needed reminding', async () => {
+        const { w } = await reminderMorning({ submitted: true });
+        assert.deepEqual([w.reminderOutstanding, w.reminderAccepted], [0, 0]);
+    });
+
+    test('a window with a stamp and no outcome reaches the row as UNKNOWN, never as zero', async () => {
+        // Every window stamped before the outcome existed, and a run that stopped between the two
+        // writes: "attempted, outcome unknown" — not "reached nobody", which would be an accusation.
+        const NOW = Date.parse('2026-08-19T09:00:00Z');
+        freeze(NOW);
+        const [week] = OT.weeksNeedingWindows(OT.lastSchedulerRun(NOW), [], { maxRosterYear: 2030 });
+        const { eps } = build({ [`overtimeWindows/${week}`]: { ...OT.deriveMilestones(week), audience: 'restricted',
+            reminderSentAt: { toMillis: () => NOW - 3600_000 } } });
+        const rows = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'))).body.planningWeeks;
+        unfreeze();
+        const row = rows.find((/** @type {any} */ r) => r.weekEnding === week);
+        assert.equal(row.reminderOutstanding, null);
+        assert.equal(row.reminderAccepted, null);
+    });
+
     test('a push that throws costs a log line, never the window', async () => {
         // The write this announces has already committed; a notice is a courtesy on top. The seam
         // here throws on EVERY send, and the run must still create its windows and finish.
