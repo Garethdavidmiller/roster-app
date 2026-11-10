@@ -668,6 +668,58 @@ test('admin: the AL banner follows the year the picker is showing', async ({ pag
         .toEqual(thisYear);
 });
 
+// ── AND STRAIGHT AFTER A BOOKING IT STAYS ON THE YEAR JUST BOOKED (whole-app check, 10 Nov 2026) ──
+// The save reset the picker to today's month, which crossed the year back and told the banner to
+// switch, so a manager who had just booked January read THIS year's figures under "✓ Recorded". The
+// owner's decided default: keep showing the year just booked. Through the real save.
+test('admin: straight after booking next year’s leave, the picker and the banner stay on that year', async ({ page }) => {
+    test.setTimeout(40_000);
+    const me = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const works = (/** @type {Date} */ d) => d.getDay() !== 0 && /^\d\d:\d\d-/.test(getBaseShift(me, d));
+    /** @type {string[]} */ let pair = [];
+    for (let d = new Date(2027, 0, 4); d.getMonth() === 0 && !pair.length; d.setDate(d.getDate() + 1)) {
+        const next = new Date(d); next.setDate(d.getDate() + 1);
+        if (works(d) && works(next)) pair = [iso(d), iso(next)];
+    }
+    expect(pair, 'premise: two working days running in January 2027 on G. Miller\'s line').toHaveLength(2);
+    const AL_DATES = [];
+    for (let d = 1; d <= 26; d++) AL_DATES.push(`2026-06-${String(d).padStart(2, '0')}`);
+
+    await page.clock.setFixedTime(new Date('2026-11-03T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((dates) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.authUser = true;          // a write needs the signed-in Firebase user, as every save test here
+        w.__E2E.docs = dates.map((/** @type {string} */ d, /** @type {number} */ i) => ({
+            id: 'al' + i, memberName: 'G. Miller', date: d, type: 'annual_leave', value: 'AL', note: '',
+        }));
+    }, AL_DATES);
+    await page.goto('/admin.html');
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#alToggleHeader').click();
+    const label  = page.locator('#alRpLabel');
+    const taken  = page.locator('#alBannerTaken');
+    const booked = page.locator('#alBannerBooked');   // leave after today — the whole of 2027's
+    await expect(taken, 'premise: this year\'s leave is on record').not.toHaveText('0');
+    for (let i = 0; i < 2; i++) await page.locator('#alRpNext').click();
+    await expect(label).toHaveText('January 2027');
+    await expect(taken, 'premise: the banner moved to 2027 with the picker').toHaveText('0');
+    await expect(booked).toHaveText('0');
+
+    await page.locator(`#alRpGrid .rp-day[data-iso="${pair[0]}"]`).click();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${pair[1]}"]`).click();
+    await clickInView(page.locator('#alSaveBtn'));
+    await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []).length),
+        { message: 'premise: the booking was written' }).toBeGreaterThan(0);
+    await expect(page.locator('#alFeedback')).toContainText('Recorded');
+    await expect(page.locator('#alRpFrom'), 'the range clears').toHaveText('Choose start');
+    await expect(label, 'the picker went back to today’s month').toHaveText('January 2027');
+    await expect(taken, 'the banner switched to this year’s figures under the receipt').toHaveText('0');
+    await expect(booked, 'the banner counts the days just booked, in the year they were booked in').toHaveText('2');
+});
+
 // ── A PRESS WHOSE RELEASE NEVER REACHES THE LEAVE PICKER (whole-app check, 10 Nov 2026) ──────────
 // The month grid started listening on ANY press and stopped only on a release delivered to it, so a
 // press released off the grid — or a right-click, whose release the context menu keeps — left the
