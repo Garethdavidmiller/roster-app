@@ -67,8 +67,9 @@ const pushPath    = require.resolve('./functions/push.js');
  *
  * @param {Array<{id: string, owner?: string, endpoint: string}>} subs   what pushSubscriptions holds
  * @param {(endpoint: string) => number|undefined} statusFor  HTTP status to fail an endpoint with
+ * @param {(value: any) => boolean} lookupFails  an owner query that REJECTS (a transient Firestore error)
  */
-function build(subs, statusFor = () => undefined) {
+function build(subs, statusFor = () => undefined, lookupFails = () => false) {
     const sent = [];
     const deleted = [];
     const queries = [];
@@ -89,6 +90,7 @@ function build(subs, statusFor = () => undefined) {
             queries.push(value);
             return {
                 get: async () => {
+                    if (lookupFails(value)) throw Object.assign(new Error('unavailable'), { code: 14 });
                     const hit = subs.filter((s) => s[field] === value);
                     return { docs: hit.map(docFor), size: hit.length, empty: hit.length === 0 };
                 },
@@ -140,6 +142,38 @@ describe('sendTargetedPush fails CLOSED — an addressed notice never widens', (
         assert.equal(await mod.sendTargetedPush(PAYLOAD, ['uid_admin'], '[t]'), 2);
         assert.deepEqual(sent.map((s) => s.endpoint).sort(),
             ['https://fcm.googleapis.com/fcm/send/admin1', 'https://fcm.googleapis.com/fcm/send/admin2']);
+    });
+});
+
+describe('one failed owner lookup costs that owner only — never the whole send', () => {
+    // The pay reminder addresses every CEA and CES member (~34 lookups) and Overtime every participant.
+    // With the lookups gathered by Promise.all, one transient Firestore error rejected the whole call:
+    // nobody was reached, though the comment above the query promised the opposite.
+    test('the other targets are still sent, and only their acceptances are counted', async () => {
+        const { mod, sent } = build(
+            [sub('a', 'uid_a'), sub('b', 'uid_b'), sub('c', 'uid_c')], undefined, (uid) => uid === 'uid_b');
+        const accepted = await mod.sendTargetedPush(PAYLOAD, ['uid_a', 'uid_b', 'uid_c'], '[t]');
+        assert.equal(accepted, 2, 'one failed lookup lost the other targets');
+        assert.deepEqual(sent.map((s) => s.endpoint).sort(),
+            ['https://fcm.googleapis.com/fcm/send/a', 'https://fcm.googleapis.com/fcm/send/c']);
+    });
+
+    test('every lookup failing sends nothing and answers zero — and never widens to everyone', async () => {
+        const { mod, sent } = build(
+            [sub('a', 'uid_a'), sub('b', 'uid_b'), sub('legacy', undefined)], undefined, () => true);
+        const errors = [];
+        const realError = console.error;
+        console.error = (...a) => { errors.push(a.map(String).join(' ')); };
+        let accepted;
+        try {
+            accepted = await mod.sendTargetedPush(PAYLOAD, ['uid_a', 'uid_b'], '[t]');
+        } finally {
+            console.error = realError;
+        }
+        assert.equal(accepted, 0, 'zero is the answer a caller may rely on: nobody was reached');
+        assert.deepEqual(sent, []);
+        // Logged as an ERROR: a scheduled notice that reached nobody leaves no other trace.
+        assert.ok(errors.some(l => l.includes('Every subscription lookup failed')), errors.join('\n'));
     });
 });
 

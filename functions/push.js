@@ -149,12 +149,23 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
         return 0;
     }
 
-    // One equality query per uid rather than a single `in` query: the target list is the admin roster
-    // (one or two names), `in` caps at 30 values, and per-uid queries keep the failure of one lookup
-    // from taking the others down with it.
-    const results = await Promise.all(uids.map(uid =>
+    // One equality query per uid rather than a single `in` query: `in` caps at 30 values, and the
+    // targets run from one member (a password reset) to every CEA and CES member (the pay reminder,
+    // ~34). Settled one by one, so a lookup that fails costs THAT owner their notice and nobody else's
+    // — with `Promise.all`, one transient error lost every target. Never widened: a failed lookup
+    // contributes no devices, it does not become "everyone".
+    const lookups = await Promise.allSettled(uids.map(uid =>
         getFirestore().collection('pushSubscriptions').where('owner', '==', uid).get()));
-    const docs = results.flatMap(snap => snap.docs);
+    const failed = lookups.filter(r => r.status === 'rejected');
+    if (failed.length === uids.length) {
+        // Every lookup failed: nobody can be reached. An error, not a warning — a scheduled notice
+        // (the pay reminder) has no other trace that it went to no one.
+        console.error(`${logTag} Every subscription lookup failed (${failed.length}) — nothing sent`,
+            failed[0].reason && failed[0].reason.code);
+        return 0;
+    }
+    if (failed.length) console.warn(`${logTag} ${failed.length} of ${uids.length} subscription lookup(s) failed — those targets are skipped`);
+    const docs = lookups.flatMap(r => (r.status === 'fulfilled' ? r.value.docs : []));
     if (docs.length === 0) {
         // Worth a warning, not a silent return: on a fresh project this means the admin has never
         // subscribed, but it ALSO means their subscription predates the owner stamp (see #2 above) —
