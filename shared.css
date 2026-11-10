@@ -929,18 +929,29 @@ body {
     padding-right:  max(clamp(16px, 2.5vw, 40px), env(safe-area-inset-right));
 }
 
-/* Screen-reader-only text — shared utility (v16.73; the Calendar's older copy in index.css is
-   gone). Standard clip pattern: rendered for AT, invisible on screen. */
-.visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+/* Screen-reader-only text — THE shared utility (v16.73; the Calendar's older copy in index.css is
+   gone): read out, never seen. `.sr-only` is the same job under a second name the markup also uses, so
+   it is the same rule rather than a second recipe that could drift (whole-app review, Nov 2026); new
+   markup takes `.visually-hidden`.
+   EVERY DECLARATION IS `!important`, for the reason `.fieldpick-native` gives below: a page that styles
+   fields by ELEMENT out-ranks a class — `input[type="text"] { width: 100%; padding: …; border: … }` is
+   (0,1,1) against this rule's (0,1,0) — and a hidden field then keeps `width: 100%` while absolutely
+   positioned, i.e. 100% of whatever it is positioned in. The sign-in card's hidden username did exactly
+   that on Admin and Operations: 375px wide inside the fixed sign-in sheet, which then scrolled sideways. */
+.visually-hidden,
+.sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    border: 0 !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
 }
 /* A HIDDEN USERNAME IS STILL A FIELD (iPhone audit, 7 Nov 2026). The sign-in card, the forced
    password overlay and the Settings password card each carry one for the password manager
@@ -3748,17 +3759,6 @@ body.auth-ready .boot-placeholder { display: none; }
 #tipsLightboxClose { color: rgba(0,0,0,0.35); }
 @media (hover: hover) and (pointer: fine) {
     #tipsLightboxClose:hover { color: rgba(0,0,0,0.7); }
-}
-
-/* Visually-hidden but readable by screen readers. */
-.sr-only {
-    position: absolute;
-    width: 1px; height: 1px;
-    padding: 0; margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
 }
 
 /* ---- Waiting for signal (v24.21, slow-save.js; moved here from admin.css at v24.23) ----
