@@ -294,12 +294,15 @@ export function trapFocus(container, e) {
 // trap never saw them: typing walked out of a prompt into a field behind it (a screen reader's moves
 // and a late `focus()` are the same shape). So an open overlay pulls focus that lands outside it back
 // in — to the control last focused inside, else the first. TOPMOST ONLY and failing OPEN, as Escape:
-// `_isTopOverlay` orders the stack, and an open `aria-modal` surface NOT on it that paints above (by
-// z-index, then document order) stands the guard down — the sign-in card a lost session mounts over a
-// dialog, the password-force card. Fighting those would leave a member unable to type a password.
+// `_isTopOverlay` orders the stack, and any other open `aria-modal` surface that paints above (by
+// z-index, then document order) stands the guard down. That is meant for the surfaces OFF the stack —
+// the sign-in card a lost session mounts over a dialog, the password-force card: fighting those would
+// leave a member unable to type a password. Nothing here asks whether a surface is on the stack, so one
+// that is stands it down too. That happens only where paint and stack disagree (the document viewer
+// under the Huddle until 10 Nov 2026), and focus is then left where the reader can see it.
 /** An element's layer as it paints: its computed z-index, `auto` as 0. @param {Element} el */
 const _zOf = (el) => parseInt(getComputedStyle(el).zIndex, 10) || 0;
-/** Does an open modal surface off the stack paint above `overlay`? (A shut drawer is aria-hidden; a shut lightbox has no boxes.) @param {Element} overlay */
+/** Does another open modal surface paint above `overlay` — in practice one off the stack (above)? (A shut drawer is aria-hidden; a shut lightbox has no boxes.) @param {Element} overlay */
 function _unstackedSurfaceAbove(overlay) {
     return Array.from(document.querySelectorAll('[aria-modal="true"]')).some(el => {
         if (el === overlay || el.contains(overlay) || overlay.contains(el)) return false;
