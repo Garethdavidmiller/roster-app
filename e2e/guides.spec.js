@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, isTouchProject, seedMemberSession } from './helpers.js';
+import { collectFatalErrors, isTouchProject, scaleText, seedMemberSession } from './helpers.js';
 
 // ── FIP GUIDE (fip-guide.html) — jump-to-open + malformed-hash safety ──────────────
 
@@ -849,17 +849,13 @@ test('staff guide: the on-screen banner\'s title has no top margin, as on paper'
 // A GRID TRACK IS ONLY AS NARROW AS ITS WIDEST CHILD ALLOWS (css-tokens.md), on the document guides (whole-app review,
 // Nov 2026). `.cols` had bare `1fr` tracks, so with the text enlarged one child that will not shrink — the Staff Guide's
 // two-column badge key — widened the column past a phone's edge, and every paragraph, heading and table in it ran off
-// the right. The text is scaled ONCE, every size read before any is written (the shared `scaleText` compounds through
-// inherited sizes), because Android's font scale multiplies sizes and leaves the viewport alone.
+// the right. The text is scaled as Android's font scale scales it (`scaleText`): every size multiplied, the viewport
+// left alone.
 test('staff guide: enlarged text does not widen the column past a phone @layout', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto('/staff-guide.html');
     await page.evaluate(() => document.fonts.ready);
-    await page.evaluate(() => {
-        const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('*')]);
-        const sizes = els.map(el => parseFloat(getComputedStyle(el).fontSize));
-        els.forEach((el, i) => { if (sizes[i]) el.style.fontSize = (sizes[i] * 1.5) + 'px'; });
-    });
+    await scaleText(page, 1.5);
     const m = await page.evaluate(() => {
         const vw = document.documentElement.clientWidth;
         const cols = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.cols')]);
@@ -1057,15 +1053,7 @@ test('fip: an opened country card shows its checked date', async ({ page }) => {
 // ── WHAT THE GUIDE STYLESHEETS OWE THE READER (whole-app fix, 10 Nov 2026) ───────────────────────────
 // Each a fault in a guide's own stylesheet, invisible to the behaviour tests above, and measured on the
 // rendered page. Larger text is modelled the way Android's setting works — every used font size
-// multiplied, the viewport left alone — reading every size before writing any, so nested text is
-// scaled once: `scaleText` (helpers.js) reads while it writes, and inherited sizes compound in it.
-
-/** Multiply every element's font size by `k`, once. @param {import('@playwright/test').Page} page @param {number} k */
-const scaleTextOnce = (page, k) => page.evaluate((k) => {
-    const els = [...document.querySelectorAll('*')];
-    const sizes = els.map(e => parseFloat(getComputedStyle(e).fontSize));
-    els.forEach((e, i) => { if (sizes[i]) /** @type {HTMLElement} */ (e).style.fontSize = `${sizes[i] * k}px`; });
-}, k);
+// multiplied, the viewport left alone (`scaleText`, helpers.js).
 
 for (const [guide, row, label] of [['rangers-guide', '.rr-row', '.rr-lbl'], ['railcard-guide', '.rc-layer', '.rc-layer-lbl']]) {
     test(`${guide}: a row's label never runs into its value under larger text`, async ({ page }) => {
@@ -1075,7 +1063,7 @@ for (const [guide, row, label] of [['rangers-guide', '.rr-row', '.rr-lbl'], ['ra
             await page.setViewportSize({ width: w, height: 800 });
             await page.goto(`/${guide}.html`);
             await page.evaluate(() => document.fonts.ready);
-            if (k !== 1) await scaleTextOnce(page, k);
+            if (k !== 1) await scaleText(page, k);
             const worst = await page.evaluate(([row, label]) => {
                 let found = { over: -Infinity, text: '' };
                 for (const r of document.querySelectorAll(row)) {
@@ -1216,7 +1204,7 @@ test('staff guide: the badge grid stacks when its pair no longer fits, so larger
         await page.setViewportSize({ width: w, height: 800 });
         await page.goto('/staff-guide.html');
         await page.evaluate(() => document.fonts.ready);
-        if (k !== 1) await scaleTextOnce(page, k);
+        if (k !== 1) await scaleText(page, k);
         const m = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: innerWidth,
             columns: getComputedStyle(/** @type {Element} */ (document.querySelector('.badge-grid'))).gridTemplateColumns.split(' ').length }));
         expect(m.scroll, `the page's width at ${w}px, ${k}× text`).toBeLessThanOrEqual(m.width);
