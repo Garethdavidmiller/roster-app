@@ -10,7 +10,7 @@
  */
 import { test, expect, forcePasswordSet } from './fixtures.js';
 import { seedSession, seedMember, seedMemberSession, isTouchProject, scaleText, tooWide, waitForPageSettled, signInThroughOverlay,
-    openRosterReview, stubUsageReads, stubPerfReads } from './helpers.js';
+    openRosterReview, stubUsageReads, stubPerfReads, clickInView } from './helpers.js';
 import { teamMembers, CONFIG } from '../roster-data.js';
 import { APP_PAGES as APP_PAGES_LIST } from '../scripts/app-pages.mjs';
 
@@ -1174,6 +1174,90 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
             return [...new Set(out)];
         });
         expect(bad, `${url} has fields that will zoom the page on iOS`).toEqual([]);
+    }
+});
+
+// ── EVERY FIELD WEARS THE FIELD RING WHEN FOCUSED (whole-app check, 10 Nov 2026) ─────────────────
+// css-tokens.md: "Every focusable field carries `--focus-ring`, including inputs inside modals." No
+// test held that sentence for the page's own fields, and the sign-in fields and the picker's search box
+// wore the ring only on Admin and Operations, borrowed from those pages' field rules (those two are
+// pinned by e2e/auth.spec.js → "a focused sign-in field, and the picker's search box, wear the field
+// ring on every page"). A static reading cannot answer it — a page rule that sets only the outline
+// correctly leaves the glow to a wider one — so the focused field's COMPUTED shadow is read, on every
+// page, with every card opened as a reader opens it.
+// One field is left out by name, the drawer's guide search. The drawer stays shut through the sweep, so
+// the box cannot take focus (a shut drawer is `visibility: hidden`, and the sweep reports a field it
+// could not focus); opened, it is the one field that does not wear the ring, by decision — on the navy
+// drawer it wears the gold outline drawn for a dark surface (shared.css).
+const RING_EXEMPT = { '.nav-gs-input': 'shut, it cannot take focus; open, it wears the gold outline drawn for the navy drawer, not the light-surface glow' };
+test('every focusable field wears the field ring when focused @a11y', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard');
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+    });
+    for (const url of APP_URLS) {
+        await page.goto(url);
+        await waitForPageSettled(page);
+        if (url === '/paycalc.html') {
+            // Pay's payslip check is on screen only for a payslip that can be in hand, and calculate()
+            // re-hides it on every run for one that cannot — focusing the fields above it runs one — so
+            // forcing it open (the 16px sweep can, measuring in one task) would hide it again mid-sweep.
+            // A PAID payslip instead, as a member checking one has, and the two disclosures that are not
+            // cards opened by their own buttons.
+            await page.locator('#periodSelect').selectOption({ index: 1 });
+            await expect(page.locator('#checkActualWrap')).toBeVisible();
+            for (const btn of ['#hoursShowMore', '#actualMoreBtn']) {
+                const b = page.locator(btn);
+                if (await b.getAttribute('aria-expanded') !== 'true') await clickInView(b);
+                await expect(b).toHaveAttribute('aria-expanded', 'true');
+            }
+        }
+        // Opened through each card's own control (Pay's are `.content-card`s with an arrow), so a body
+        // that is hidden by more than its class is open too, and its fields can take focus.
+        for (const id of await page.locator('.card-collapsible-body, .collapsible-body').evaluateAll(els => els.map(e => e.id))) {
+            const body = page.locator(`#${id}`);
+            if (await body.evaluate(el => el.classList.contains('open'))) continue;
+            await body.evaluate(el => {
+                const card = el.closest('.card, .content-card');
+                /** @type {HTMLElement|null|undefined} */ (card?.querySelector('.card-toggle-arrow') ?? card?.querySelector('.card-header-toggle'))?.click();
+            });
+        }
+        // The ring is drawn on `:focus-visible`, and a script's focus() answers it the way the last
+        // interaction did: after Pay's clicks above, a focused BUTTON (every `.fieldpick` trigger) is a
+        // mouse user's and shows nothing. One Tab makes this a keyboard user's sweep — the reader the
+        // ring is for.
+        await page.keyboard.press('Tab');
+        const own = await ownElements(page, TEXT_FIELDS);
+        const seen = await page.evaluate(async (exempt) => {
+            const probe = document.body.appendChild(document.createElement('div'));
+            probe.style.boxShadow = 'var(--focus-ring)';
+            const ring = getComputedStyle(probe).boxShadow;
+            probe.remove();
+            const fields = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('input, select, textarea, .fieldpick')]).filter(el => {
+                const t = /** @type {any} */ (el).type;
+                return !['checkbox', 'radio', 'hidden', 'file'].includes(t) && el.getClientRects().length
+                    && !(/** @type {any} */ (el).disabled) && el.tabIndex >= 0
+                    && getComputedStyle(el).pointerEvents !== 'none'          // an enhanced select's value holder
+                    && !Object.keys(exempt).some(sel => el.matches(sel));
+            });
+            const bad = [];
+            for (const el of fields) {
+                el.focus();
+                const name = `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : '.' + String(el.className).split(' ')[0]}`;
+                if (document.activeElement !== el) { bad.push(`${name}: could not be focused, so it was not measured`); continue; }
+                await Promise.all(el.getAnimations().map(a => a.finished.catch(() => {})));
+                if (!getComputedStyle(el).boxShadow.includes(ring)) bad.push(`${name}: no --focus-ring`);
+                el.blur();
+            }
+            return { measured: fields.length, bad };
+        }, RING_EXEMPT);
+        expect(own.held === 0 || seen.measured > 0,
+            `${url} holds ${own.held} fields of its own and none was focused — the page was not laid out, so this proves nothing`).toBe(true);
+        expect(seen.bad, `${url}: focused fields without the field ring`).toEqual([]);
     }
 });
 
