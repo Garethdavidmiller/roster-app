@@ -12,7 +12,7 @@
  * this was a mechanical extraction to gain testability, not a redesign of the breakdown.
  */
 
-import { fmt } from './paycalc-format.js';
+import { fmt, decimalToHM } from './paycalc-format.js';
 
 /** A tax code fit to quote on the page — letters and digits, which every real PAYE code is — or null.
  *  Anything else is described, never written in, so nothing typed into the box becomes markup.
@@ -47,13 +47,15 @@ export function taxCodeNotRecognised(code) {
 }
 
 /**
- * Decimal hours → "Nh Mm" / "Nh" — the per-row hours label in the full breakdown. Pure.
+ * Decimal hours → "Nh Mm" / "Nh" — the per-row hours label in the full breakdown. Pure. Through
+ * `decimalToHM`, whose 60-minute carry it lacked: 140 − 7h 20m − 7h 40m is 124.99999999999999 in
+ * floating point, and the basic-pay row read "124h 60m" (whole-app review, Nov 2026).
  * @param {number} h decimal hours
  * @returns {string}
  */
 export function fmtHrsMins(h) {
-    const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
-    return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
+    const hm = decimalToHM(Math.max(0, h)) ?? { h: 0, m: 0 };
+    return hm.m > 0 ? `${hm.h}h ${hm.m}m` : `${hm.h}h`;
 }
 
 /**
@@ -212,7 +214,7 @@ export function buildBreakdownRows(d) {
         bd += `<div class="bd-row"><span class="b-lbl">Training Days (${peer} day${peer>1?'s':''} × 2h × ${fmt(rate)})</span><span class="b-val">${fmt(gPeer)}</span></div>`;
     bd += `<div class="bd-row"><span class="b-lbl">London Allowance</span><span class="b-val">${fmt(LONDON)}</span></div>`;
     if (otherAdj !== 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;   // fmt signs a negative "−£"
     // The stopped-deducting cutover outranks the one-off skip (mirrors the summary-row precedence).
     // Worded as the observable fact, never "repaid in full" (v19.27): a loan moved to direct debit
     // stops being deducted while still owed.

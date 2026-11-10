@@ -31,8 +31,16 @@ export const fdShort = formatDayMonth;
 /** "18 Sep 2026" @param {Date} d */
 export const fdLong = formatDayMonthYear;
 
-/** @param {number} n */
-export const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+/**
+ * Money: "£1,234.56". A negative is "−£1,234.56" — the minus (U+2212) BEFORE the pound sign, as the
+ * rows that subtract print theirs; it was "£-500.00" beside "+£" and "−£" rows (whole-app review).
+ * A figure that rounds to nothing carries no sign.
+ * @param {number} n
+ */
+export const fmt = n => {
+    const s = Math.abs(n).toFixed(2);
+    return (n < 0 && s !== '0.00' ? '−' : '') + '£' + s.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
 
 /**
  * A capped, comma-joined list of payday dates for "these payslips are missing" copy

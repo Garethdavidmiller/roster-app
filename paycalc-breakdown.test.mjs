@@ -16,6 +16,21 @@ test('fmtHrsMins formats decimal hours as "Nh"/"Nh Mm"', () => {
     assert.equal(fmtHrsMins(1.25), '1h 15m');
 });
 
+test('fmtHrsMins carries 60 minutes into the hour — never "124h 60m"', () => {
+    // 140 contracted hours less Saturday 7h 20m and Bank Holiday 7h 40m: 124.99999999999999 in floating
+    // point, and the basic-pay row read "124h 60m" (whole-app review, Nov 2026).
+    assert.equal(fmtHrsMins(140 - (7 + 20 / 60) - (7 + 40 / 60)), '125h');
+    assert.equal(fmtHrsMins(7.999), '8h');
+    // Every Saturday/bank-holiday split of the contracted hours that should come out whole, does.
+    for (let sat = 0; sat <= 140 * 60; sat += 7) {
+        for (const bh of [20, 40, 50, 110]) {
+            if ((sat + bh) % 60) continue;
+            const label = fmtHrsMins(140 - sat / 60 - bh / 60);
+            assert.ok(!/60m/.test(label), `Saturday ${sat}m, bank holiday ${bh}m → ${label}`);
+        }
+    }
+});
+
 // ── buildSummaryRows ────────────────────────────────────────────────────────────
 const SUM_BASE = {
     _bpThisPeriod: 0, _hppForPeriod: 0, gross: 2000, grossWithBp: 2000,
@@ -241,10 +256,10 @@ test('buildBreakdownRows: training pluralises days; otherAdj shows sign', () => 
     assert.ok(one.includes('Training Days (1 day × 2h × £21.49)'));
     const many = buildBreakdownRows({ ...BD_BASE, peer: 3, gPeer: 128.94 });
     assert.ok(many.includes('Training Days (3 days × 2h × £21.49)'));
-    // A negative adjustment gets no '+' prefix; fmt() renders the sign after the £ (£-12.50) —
-    // this mirrors the original inline template exactly (byte-identical extraction).
+    // A negative adjustment reads "−£12.50", beside the "+£" of a positive one (whole-app review):
+    // it printed "£-12.50", the extraction having copied the old template's sign after the £.
     const neg = buildBreakdownRows({ ...BD_BASE, otherAdj: -12.5 });
-    assert.ok(neg.includes('Other payroll adjustment</span><span class="b-val">£-12.50</span>'));
+    assert.ok(neg.includes('Other payroll adjustment</span><span class="b-val">−£12.50</span>'));
     const pos = buildBreakdownRows({ ...BD_BASE, otherAdj: 12.5 });
     assert.ok(pos.includes('Other payroll adjustment</span><span class="b-val">+£12.50</span>'));
 });
