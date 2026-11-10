@@ -991,6 +991,27 @@ service cloud.firestore {
         let now = request.time.year() * 12 + request.time.month();
         return asked >= now - 1 && asked <= now + 1;
       }
+      // ── THE PAGE-VIEW AND OPEN IDS A `pv_` DOCUMENT COUNTS ─────────────────────────────────
+      // One id per app page + the document/guide OPEN ids (v18.20 — Huddle/Circular/Newsletter opens
+      // and the guide opens share the same anonymous counter map; guide-staff and guide-paycalc added
+      // v19.95, guide-rangers with the fifth guide at v20.05). The list must hold one id per
+      // NAV_GUIDES entry — firestore-contract-parity.test.mjs checks it both ways, so a guide added
+      // without an id here fails rather than counting nothing.
+      function pvCountIds() {
+        return ['calendar', 'admin', 'paycalc', 'operations', 'settings', 'links', 'overtime', 'trains', 'newlink',
+                'huddle', 'circular', 'newsletter',
+                'guide-staff', 'guide-paycalc', 'guide-railcard', 'guide-fip', 'guide-rangers'];
+      }
+      // The list judges what a write ADDS or CHANGES, never every key the document holds (10 Nov
+      // 2026). Rules see the RESULTING document, so an id taken off the list — which the parity test
+      // asks for once no client writes it — left this month's document holding a key the list
+      // refused, and every later page view, on every page, was refused until the month ended. A key
+      // already stored is left as it is, and only the admin may remove one (the anti-wipe guard), so
+      // retiring an id is safe at any time.
+      function countsWrittenAreKnown() {
+        let written = request.resource.data.counts.diff(resource == null ? {} : resource.data.get('counts', {}));
+        return written.addedKeys().hasOnly(pvCountIds()) && written.changedKeys().hasOnly(pvCountIds());
+      }
       // Anti-WIPE guard (review B4): the legit writers only INCREMENT (setDoc merge with FieldValue),
       // never remove keys. A malicious non-merge overwrite with empty maps passed the shape check and
       // ZEROED existing counters (worse than the "tamper one value" App-Check gap). So on UPDATE a
@@ -1008,14 +1029,7 @@ service cloud.firestore {
            docId == 'pv_' + request.resource.data.month &&
            isCounterMonth(request.resource.data.month) &&
            request.resource.data.counts is map &&
-           // One page-view id per app page + the document/guide OPEN ids (v18.20 — Huddle/Circular/Newsletter
-           // opens and the guide opens share the same anonymous counter map; guide-staff and
-           // guide-paycalc added v19.95, guide-rangers with the fifth guide at v20.05). The list
-           // must hold one id per NAV_GUIDES entry — firestore-contract-parity.test.mjs checks it
-           // both ways, so a guide added without an id here fails rather than counting nothing.
-           request.resource.data.counts.keys().hasOnly(['calendar', 'admin', 'paycalc', 'operations', 'settings', 'links', 'overtime', 'trains', 'newlink',
-                                                        'huddle', 'circular', 'newsletter',
-                                                        'guide-staff', 'guide-paycalc', 'guide-railcard', 'guide-fip', 'guide-rangers']) &&
+           countsWrittenAreKnown() &&
            (!('calendar'   in request.resource.data.counts) || request.resource.data.counts.calendar   is int) &&
            (!('admin'      in request.resource.data.counts) || request.resource.data.counts.admin      is int) &&
            (!('paycalc'    in request.resource.data.counts) || request.resource.data.counts.paycalc    is int) &&

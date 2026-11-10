@@ -1927,6 +1927,46 @@ describe('analytics', () => {
         }));
     });
 
+    // rules-2 (whole-app fix, 10 Nov 2026). Rules judge the RESULTING document, and the allowlist
+    // used to be applied to every key in it. So an id taken off the list — which the parity test
+    // demands as soon as no client writes it — left this month's document holding a key the list
+    // refused, and every later page view, on every page, was refused until the month ended (the
+    // writer swallows the refusal, so the Usage card just stopped). The list now judges what a
+    // write ADDS or CHANGES; a key the document already holds is left alone.
+    // Both this UTC month and the month the real writer names by the local clock (the same month
+    // except near a boundary); `beforeEach` clears either.
+    const seedWithRetiredId = () => testEnv.withSecurityRulesDisabled(async ctx => {
+        for (const month of new Set([monthAt(), monthKey(new Date())])) {
+            await setDoc(doc(ctx.firestore(), 'analytics', `pv_${month}`),
+                { month, counts: { calendar: 4, 'retired-page': 2 } });
+        }
+    });
+
+    test('an id retired from the allowlist mid-month does not stop the month\'s other counters', async () => {
+        await seedWithRetiredId();
+        for (const db of [memberDb(), viewerDb()]) {
+            await assertSucceeds(setDoc(doc(db, 'analytics', pvId()),
+                { month: monthAt(), counts: { calendar: increment(1) } }, { merge: true }));
+        }
+        // …and the real writer, which is what every page calls.
+        /** @type {Promise<unknown>[]} */ const writes = [];
+        const client = realAnalyticsClient(memberDb(), { setDoc: recording(setDoc, writes) });
+        client.recordPageView('admin');
+        client.recordPageView('huddle');
+        assert.equal(writes.length, 2, 'each call wrote once');
+        for (const w of writes) await assertSucceeds(w);
+    });
+
+    test('…but no write may add an id that is not on the list, or change a retired one', async () => {
+        await seedWithRetiredId();
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()),
+            { month: monthAt(), counts: { 'retired-page': increment(1) } }, { merge: true }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()),
+            { month: monthAt(), counts: { 'guide-nonexistent': increment(1) } }, { merge: true }));
+        await assertFails(setDoc(doc(adminDb(), 'analytics', pvId()),
+            { month: monthAt(), counts: { 'retired-page': 9 } }, { merge: true }));
+    });
+
     // rules-3 (whole-app fix, 10 Nov 2026). The id was pinned to a YYYY-MM SHAPE and not to the
     // present, so any member or PIN session could create a document for any of 120,000 months in
     // each family — documents no client can delete. One month either side stays open: the client

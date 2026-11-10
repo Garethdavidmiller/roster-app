@@ -32,8 +32,14 @@ const APP_JS = readdirSync(new URL('./', ROOT))
 // simply never increments, and the Usage card under-reports for as long as nobody notices. The ids
 // live in three places: the rules allowlist, the recordUsage() call sites, and OPEN_META.
 test('every analytics id the client can write is allowed by firestore.rules', () => {
-    const m = RULES.match(/request\.resource\.data\.counts\.keys\(\)\.hasOnly\(\[([\s\S]*?)\]\)/);
-    assert.ok(m, 'analytics counts allowlist not found in firestore.rules — has the rule been reshaped?');
+    const m = RULES.match(/function pvCountIds\(\) \{\s*return \[([\s\S]*?)\];/);
+    assert.ok(m, 'analytics counts allowlist (`pvCountIds`) not found in firestore.rules — has the rule been reshaped?');
+    // …and it must be what the pv_ rule actually consults, or this compares the client with a list
+    // nothing reads.
+    assert.match(RULES, /\.addedKeys\(\)\.hasOnly\(pvCountIds\(\)\)/,
+        'the pv_ rule no longer checks the ids a write adds against pvCountIds()');
+    assert.match(RULES, /\.changedKeys\(\)\.hasOnly\(pvCountIds\(\)\)/,
+        'the pv_ rule no longer checks the ids a write changes against pvCountIds()');
     const allowed = new Set([...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]));
 
     // Page views: the id each coordinator passes to recordUsage().
@@ -51,10 +57,13 @@ test('every analytics id the client can write is allowed by firestore.rules', ()
         'ids the client writes but firestore.rules rejects — the write fails SILENTLY (fire-and-forget), so the counter just stops');
 
     // The reverse direction too: a leftover id in the rules is dead allowlist surface, and usually
-    // means a counter was renamed on the client and the rule kept the old spelling.
+    // means a counter was renamed on the client and the rule kept the old spelling. Removing one is
+    // safe whenever this fails: the list judges only what a write adds or changes, so the key the
+    // month's document still holds stops nothing (until 10 Nov 2026 it refused every later page view
+    // for the rest of the month).
     const stale = [...allowed].filter(id => !clientIds.has(id)).sort();
     assert.deepEqual(stale, [],
-        'ids allowed by firestore.rules that no client code writes — stale allowlist entries');
+        'ids allowed by firestore.rules that no client code writes — stale allowlist entries; remove them from pvCountIds() and their `is int` lines');
 });
 
 // The guide open ids have a FOURTH home — NAV_GUIDES in nav-panel.js, which is what actually emits
