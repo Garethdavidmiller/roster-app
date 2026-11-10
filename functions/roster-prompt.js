@@ -386,6 +386,34 @@ function reviewRestReadsOfEmptyCells(safeEntries, cellRows, dates) {
     return sent;
 }
 
+/**
+ * The members the model listed MORE THAN ONCE, of `names` and in its order (whole-app fix, Nov
+ * 2026). `buildSafeEntries` keeps one row per name — `memberRows`' rule, the first that says
+ * anything — and skips the rest, saying so only in its log. A real Dispatch sheet prints an empty
+ * placeholder above a member's real row, so the review names the member, and the admin, who holds
+ * the PDF, checks the row that stood. Not geometry-path only: the model can repeat a name on either.
+ *
+ * Asked of `memberRows` itself, so "listed more than once" means exactly "a row was skipped": a name
+ * repeated with a stray space is one member here, as it is there. `names` is the list
+ * `missingMembers` is judged against (`relevantNames`), so a name no roster lists, which is never on
+ * the review, is never named.
+ *
+ * @param {any[]} parsedMembers   the model's raw `parsed` rows
+ * @param {string[]} names        the roster type's members
+ * @returns {string[]}
+ */
+function repeatedMembers(parsedMembers, names) {
+    const standing = memberRows(parsedMembers);
+    /** @type {Set<string>} */
+    const skipped = new Set();
+    for (const e of Array.isArray(parsedMembers) ? parsedMembers : []) {
+        const name = e && typeof e.memberName === 'string' ? e.memberName.trim() : '';
+        const kept = standing.get(name);
+        if (kept && kept !== e) skipped.add(name);
+    }
+    return names.filter(n => skipped.has(n));
+}
+
 // ── HOW THE MODEL IS ASKED (moved here from index.js at v25.28) ───────────────────────────────────
 
 /**
@@ -449,6 +477,7 @@ module.exports = {
     buildCellPrompt,
     reviewBlankReadsOfFilledCells,
     reviewRestReadsOfEmptyCells,
+    repeatedMembers,
     MODEL_REQUEST,
     DECLINED_ERROR,
 };

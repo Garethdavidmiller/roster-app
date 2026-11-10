@@ -693,6 +693,17 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             mmNote.innerHTML = `<span aria-hidden="true">⚠</span> <strong>Not found in this read:</strong> ${names}. If they should be on this roster, check the PDF — the read may have skipped a row — or read the roster again.`;
             changeList.appendChild(mmNote);
         }
+        // ---- A member the read listed more than once (whole-app fix, Nov 2026) ----
+        // The server keeps ONE row per name, the first that is not empty (a Dispatch sheet prints an
+        // empty placeholder row above the real one), and names each member it skipped a row for: one
+        // line per name. An older Function sends no field, which is read as none.
+        for (const name of Array.isArray(parsedResult.duplicateMembers) ? parsedResult.duplicateMembers : []) {
+            const dupNote = document.createElement('div');
+            dupNote.className = 'roster-crosscheck-note';
+            dupNote.setAttribute('role', 'status');
+            dupNote.innerHTML = `<span aria-hidden="true">⚠</span> ${esc(name)} appeared more than once in the read; the first row that was not empty was used. Check it against the PDF.`;
+            changeList.appendChild(dupNote);
+        }
         // ---- THE CIRCUIT BREAKER (v22.16) ---- Why several same-direction drifts mean a parser
         // failure rather than a coincidence of rotas: roster-alignment.js.
         const alignment = assessRosterAlignment(parsedResult);

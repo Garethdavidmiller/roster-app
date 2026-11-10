@@ -68,18 +68,22 @@ to name the test. Staff stay on the previous release meanwhile.
 - **The `npm run check` half of the gate stays single-shot, deliberately.** An automatic retry would
   hide a flake, and it would also hand a genuinely intermittent product bug a second chance to reach
   staff. The Playwright half retries once in CI (`playwright.config.mjs`), which reports a
-  pass-on-retry as `flaky`. The failure notice says to re-run when the failure is spurious.
+  pass-on-retry as `flaky`. The failure notice says to run the workflow again on `main` (Actions → Run
+  workflow) when the failure is spurious.
 - **A failed deploy is announced, not repaired.** Every deploy workflow opens or comments on a
   `deploy-failure` issue through `.github/actions/report-deploy-failure`, whose header says why an
   issue, why repeated failures comment rather than open another, and why it never fails the job. The
-  reporter is a separate job (`needs: deploy` with a job-level `if: failure()`), so it fires whatever
-  killed the deploy, setup included; `workflow-hygiene.test.mjs` holds that shape, because the
+  reporter is a separate job (`needs: deploy` with a job-level `if: failure() ||
+  contains(needs.*.result, 'cancelled')`), so it fires whatever killed the deploy, setup included — and
+  when the deploy runs out of time, which ends a job cancelled rather than failed (until 10 Nov 2026 a
+  timeout told nobody); `workflow-hygiene.test.mjs` holds that shape, because the
   triggering condition is an outage and cannot be reproduced on demand. **The irreducible tail:** the
   reporter still needs `checkout` and the action itself, so an outage broad enough to take those down
   takes the reporter with it. Nothing inside a workflow can report that.
 - **A failed deploy does not fix itself.** `paths-ignore` skips the deploy for a commit whose files are
-  all documentation, so production can stay stale until an unrelated served change lands. Re-run the
-  workflow instead of waiting.
+  all documentation, so production can stay stale until an unrelated served change lands. Run the
+  workflow on `main` (Actions → Run workflow) instead of waiting; a re-run of an old run stops itself
+  once a newer run exists.
 
 ### The `webkit` job is intermittently red, and it is not a gate
 
@@ -270,8 +274,8 @@ the viewport for a tall surface), under the iPhone 13 descriptor. Two things are
 
 GitHub's `ubuntu-latest` moved to Ubuntu 26.04 in late October 2026. Every job that starts a browser
 says `runs-on: ubuntu-24.04`; the list and the reason are written once, on `e2e.yml`'s smoke job.
-Playwright supports 26.04 now, so what holds them is the baselines: they are drawn on 24.04, in a dev
-container that is 24.04.
+Playwright supports 26.04 now, so what holds them is the baselines: they are CI's own render on
+24.04.
 
 **Deferred:**
 - **Move them all together**, as their own change, with every Chromium and WebKit baseline redrawn

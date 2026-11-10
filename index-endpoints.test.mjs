@@ -1210,6 +1210,59 @@ describe('parseRosterPDF — an empty duplicate row never stands in front of the
     });
 });
 
+// ── …AND THE REVIEW IS TOLD (import-dup, whole-app fix, Nov 2026) ───────────────────────────────
+//
+// Which row stands is settled above. The other row's only trace was a log line, so the admin had
+// no reason to check that person against the PDF. `duplicateMembers` names each member the model
+// listed more than once, judged against the same roster list as `missingMembers`.
+describe('parseRosterPDF — a member the model listed twice is named in the response', () => {
+    const DISPATCHER = require('./functions/roster-members.json').dispatcher[0];
+    /** One reply through the real handler, with its log silenced. */
+    const parse = async (/** @type {any[]} */ rows, rosterType = 'cea') => {
+        const warn = console.warn; console.warn = () => {};
+        try {
+            build({ aiReply: JSON.stringify({ columnHeaders: DAY_HEADERS, parsed: rows }) });
+            const req = rosterRequest();
+            req.headers['x-roster-type'] = rosterType;
+            return await call(index.parseRosterPDF, req);
+        } finally { console.warn = warn; }
+    };
+
+    test('the empty placeholder row and the real one: the member is named, once', async () => {
+        const empty = { memberName: DISPATCHER, ...Object.fromEntries(DAY_HEADERS.map(h => [h, 'BLANK'])) };
+        const real  = { memberName: DISPATCHER, Sun: 'BLANK', Mon: '06:00-14:00', Tue: '06:00-14:00', Wed: 'RD',
+            Thu: 'RD', Fri: '14:00-22:00', Sat: '14:00-22:00' };
+        const out = await parse([empty, real, empty], 'dispatcher');
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        assert.deepEqual(out.body.duplicateMembers, [DISPATCHER]);
+        assert.ok(!out.body.missingMembers.includes(DISPATCHER), 'listed twice is not missing');
+    });
+
+    test('control: a read that lists every member once names nobody', async () => {
+        const out = await parse([PARSED_ROW]);
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        assert.deepEqual(out.body.duplicateMembers, []);
+    });
+
+    test('control: a name no roster lists, given twice, is not named — it is not on the review', async () => {
+        const stray = { ...PARSED_ROW, memberName: 'Q. Notonroster' };
+        const out = await parse([PARSED_ROW, stray, stray]);
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        assert.deepEqual(out.body.parsed.map((/** @type {any} */ e) => e.memberName), ['L. Springer']);
+        assert.deepEqual(out.body.duplicateMembers, []);
+    });
+
+    // buildSafeEntries keys a row by its TRIMMED name, so these two rows are one member to it and it
+    // skipped the second. The response has to agree, or the review is silent about a skipped row.
+    test('a name repeated with a stray space is the same member, and the first row with shifts stood', async () => {
+        const out = await parse([PARSED_ROW, { ...PARSED_ROW, memberName: ' L. Springer ', Mon: '06:30-12:30' }]);
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        assert.deepEqual(out.body.duplicateMembers, ['L. Springer']);
+        assert.equal(out.body.parsed.length, 1, 'one member, one row');
+        assert.equal(out.body.parsed[0].shifts[out.body.dates[1]], '05:30-11:30', 'the first row that was not empty');
+    });
+});
+
 // ── THE SHEET'S OWN WEEK, THROUGH THE HANDLER (import-server-2; the owner supplied a sheet, 10 Nov 2026) ──
 //
 // A whole week out is the one misplacement the day-drift layers cannot see, and the sheet prints its

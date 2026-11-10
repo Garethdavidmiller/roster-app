@@ -28,7 +28,7 @@ wl4-results.json
 __pycache__/
 
 # Second Nature's decks are the TEMPLATE the shipped decks are built from, not shipped (README.md → presentations).
-# Kept here rather than in the root .gitignore because the CI version guard counts a root dotfile as a served change.
+# Kept here, beside the decks it concerns.
 # Since 9 Nov 2026 the folder also holds Common Ground's and Even Step's finished decks, TRACKED: the two designs were
 # discarded from the pack, and their decks are the bases shortlist-decks.py and relay-decks.py build from (fresh.mjs
 # BASES). So Second Nature's alone are ignored, by name, and a base added here later is not silently left out of a commit

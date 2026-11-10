@@ -42,7 +42,7 @@ const {
 const { applySundayScanCorrections, settleDisputedSundays } = require('./roster-sunday-repair');
 const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin, settledGeometry } = require('./roster-geometry');
 const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, reviewBlankReadsOfFilledCells, reviewRestReadsOfEmptyCells, DAY_LABELS: CELL_DAY_LABELS,
-    MODEL_REQUEST, DECLINED_ERROR } = require('./roster-prompt');
+    MODEL_REQUEST, DECLINED_ERROR, repeatedMembers } = require('./roster-prompt');
 const { checkSheetWeek } = require('./roster-week-heading');
 const {
     CALENDAR_VIEWER_UID,
@@ -233,7 +233,7 @@ Object.assign(exports, buildDocumentEndpoints({
  *     weekEnding:  "2026-04-04",
  *     rosterType:  "cea",
  *     dates:       ["2026-03-29", ..., "2026-04-04"],   // Sun → Sat
- *     crossCheck, missingMembers, choices, geometry, geometryRefused,   // the review's evidence — each explained where it is sent
+ *     crossCheck, missingMembers, duplicateMembers, choices, geometry, geometryRefused,   // the review's evidence — each explained where it is sent
  *     parsed: [
  *       { memberName: "L. Springer", shifts: { "2026-03-29": "RD", "2026-03-30": "05:30-11:30", ... } },
  *       ...
@@ -778,6 +778,8 @@ columnScan: one key per column header; every staff member appears in every colum
             dates,
             crossCheck,
             missingMembers,
+            // …and each one the model listed MORE THAN ONCE: one row stood, and the rest were skipped.
+            duplicateMembers: repeatedMembers(parsed.parsed, relevantNames),
             // The two candidate values for each cell the cross-check flagged (v19.32) — lets the
             // review table offer a pick instead of a dead "couldn't read" row. Keyed
             // "memberName|date"; keys for names filtered out above are harmless (never looked up).

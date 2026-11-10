@@ -263,6 +263,7 @@ Body:
   "dates": ["2026-03-29", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04"],
   "crossCheck": "complete",
   "missingMembers": [],
+  "duplicateMembers": [],
   "choices": {},
   "geometry": { "status": "complete", "checked": 28, "total": 28, "pagesRead": 2, "pagesRejected": 0 },
   "geometryRefused": [],
@@ -282,6 +283,7 @@ Body:
 
 - **`crossCheck`** — the column-scan cross-check status: `"complete"` (every returned member re-verified against a SECOND column-by-column read — by the same model, of the same PDF, in the same call, so it is a second reading and **not** an independent witness), `"partial"` (some), `"unavailable"` (the AI omitted/garbled `columnScan` so the check never ran), or `"not-applicable"` on the geometry path (that prompt asks for no column re-read). The review UI shows an advisory note when it isn't `"complete"` or `"not-applicable"`.
 - **`missingMembers`** — roster members of this `rosterType` the AI returned NO row for (advisory: could be a dropped row OR a genuine absence — leaver/new starter/other page). The review UI lists them so a silently-dropped member is visible.
+- **`duplicateMembers`** — roster members of this `rosterType` the AI returned MORE THAN ONE row for, judged against the same names as `missingMembers` (`repeatedMembers`, `functions/roster-prompt.js`). Only one row is used, the first that is not empty (`memberRows`; a real Dispatch sheet prints an empty placeholder row above the member's real one), so the review gives each member a line asking the admin to check them against the PDF. A response without the field, from an older Function, is read as none.
 - **`choices`** — the two candidate readings for each cell the cross-check flagged, keyed `"memberName|date"`, so the review can offer a pick instead of a dead "couldn't read" row.
 - **`geometry`** — `{ status, checked, total, pagesRead, pagesRejected }` for the PDF's-own-grid witness (`functions/roster-geometry.js`): `status` is `"complete"` (every returned member was matched to a geometry row and checked), `"partial"` (some — the rest are named in the Functions log as unmatched) or `"unavailable"` (no grid found, no text layer, `pdfjs-dist` absent, or nobody matched — the witness did not run for this read). Unlike `crossCheck`, this IS an independent witness: it reads the file's coordinates, not the model. It is counted over the rows the admin will see, never a hallucinated name.
 - **`geometryRefused`** — the member names whose rows the witness refused (a claim read where the PDF's cell is empty), filtered to names on the review. Consumed by `assessRosterAlignment` (roster-alignment.js): such a row starts unticked with its own wording, and refusals count toward the three-member breaker. The refused cells themselves are already `UNKNOWN|…` in `parsed`.
@@ -543,7 +545,9 @@ also requires no checks before a merge. That is `ARCHITECTURE.md` → EXC-008.
 
 **What is already in the repository.** `deploy-mirror.yml` publishes the
 mirror from the commit a SUCCESSFUL "Deploy Firebase Hosting" run released, and from nothing else:
-it checks every precached file is in the site, deploys, then proves the live mirror serves that
+it checks that the run was a push to this repository's `main` or a run started here by hand (a fork's
+pull request with a workflow named like the deploy is refused) and that `main` contains the commit,
+checks every precached file is in the site, deploys, then proves the live mirror serves that
 version, and a failure lands on the same `deploy-failure` issue as the other deploys. **It does
 nothing until the switch below** — it reads the Pages setting first and stands down while the branch
 build is in charge. The hourly currency check knows the difference too: once the mirror is gated it
@@ -559,10 +563,13 @@ trails Hosting rather than leading it, so "both origins behind" during a release
    `guard` (it decides whether the others run), and `visual` / `visual-webkit`, which are report-only
    by design. Whether the `webkit` entries gate merging is your call: the deploy gate deliberately
    runs Chromium only (DECISIONS.md, 8 Sep 2026).
-2. **Switch the Pages source.** Settings → Pages → Build and deployment → Source: **GitHub Actions**.
-3. **Publish once, now.** Actions → "Deploy GitHub Pages mirror" → Run workflow, from `main`. A manual
-   run publishes the last commit Hosting released from `main` — never main's tip.
-4. **Check it.** Open `https://garethdavidmiller.github.io/roster-app/` in a private window: past the
+2. **Require approval for outside contributors.** Settings → Actions → General → "Approval for running
+   fork pull request workflows from contributors" → **Require approval for all external contributors**.
+   The mirror no longer trusts such runs; this stops them running at all.
+3. **Switch the Pages source.** Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+4. **Publish once, now.** Actions → "Deploy GitHub Pages mirror" → Run workflow, from `main`. A manual
+   run, or a re-run, publishes the newest commit Hosting released from `main` — never main's tip.
+5. **Check it.** Open `https://garethdavidmiller.github.io/roster-app/` in a private window: past the
    splash, no red errors in the console (the deployment health check at the top of CLAUDE.md).
 
 **What changes afterwards.** The mirror updates a minute or two after a Hosting deploy finishes

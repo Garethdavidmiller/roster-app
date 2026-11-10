@@ -28,7 +28,7 @@ name: Workflow Lint
 # It also enforces `timeout-minutes` on every job (added Jul 2026). No job had one, so each
 # inherited GitHub's 6-HOUR default — a hung runner would have blocked the branch for
 # the rest of the day, and on a required check nothing else could merge either. The
-# rule lives HERE rather than in the nine workflow files because the failure mode is
+# rule lives HERE rather than in each workflow file because the failure mode is
 # a job someone ADDS later without one; a hand-edit fixes today, a lint fixes always.
 
 on:
