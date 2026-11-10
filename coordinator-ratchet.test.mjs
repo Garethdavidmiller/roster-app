@@ -471,7 +471,11 @@ const CAPS = {
     // 1096 → 1097 at v25.67, a RAISE of exactly one line: the comment on the docs/ pass-through. The rule itself rides on
     // the same-origin line; the New link pack's PDFs, which the in-app viewer reads, must reach the network rather than
     // sit in the release's cache, and nothing else in the worker grew.
-    'service-worker.js':       1097,
+    // 1097 → 1094 in Nov 2026, the cap coming down with the file. Release C's merge with v25.67 dropped C's own docs/
+    // block, four lines that main's same-origin line now carries, and release D added one: the precache entry for
+    // `legacy-redirect.js`, the one script the two legacy guide stubs carry (owner, 10 Nov 2026), whose reasoning
+    // lives in its own header. Left at 1097 the cap would bank three lines as headroom.
+    'service-worker.js':       1094,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

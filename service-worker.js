@@ -368,7 +368,6 @@ const SUPPLEMENTARY_ASSETS = [
     // asset that does not exist. It caught it immediately, which is the system working.)
     "./guide.html",
     "./fip.html",
-    // The one script the two stubs carry: it keeps the fragment and query of an old bookmark (10 Nov 2026).
     "./legacy-redirect.js",
     "./railcard-guide.js",
     "./rangers-guide.js",

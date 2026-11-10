@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Marylebone Roster — the one script the two legacy guide addresses carry (owner, 10 Nov 2026).
  *
