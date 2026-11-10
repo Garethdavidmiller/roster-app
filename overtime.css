@@ -994,7 +994,11 @@ body[data-ot-paused] #otMineToggleHeader { cursor: default; }
 
 .ot-mode:active { transform: scale(var(--press-scale)); }
 .ot-mode:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-@media (hover: hover) and (pointer: fine) { .ot-mode:hover { opacity: 0.75; } }
+/* A tint of the pill's own colour, never on the chosen one — admin's `.type-pill-btn` hover (v25.51),
+   for the reason it records: `opacity: 0.75` took a chosen pill's white-on-green from 6.0:1 to 3.6:1. */
+@media (hover: hover) and (pointer: fine) {
+    .ot-mode:not([aria-checked="true"]):hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+}
 
 /* Two tones, because there are two answers. The five "available" modes differ only in WHEN, so
    splitting them by colour would invent a distinction the data does not carry. */

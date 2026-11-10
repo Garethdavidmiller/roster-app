@@ -1234,6 +1234,32 @@ test.describe('overtime.css — print, focus and contrast', () => {
         expect(m.past, 'a past week still reads as set apart from a live one').not.toBe(m.live);
     });
 
+    test('the mouse over an answer tints an unchosen pill and leaves the chosen one as it is', async ({ page }) => {
+        // `opacity: 0.75` on hover took a chosen pill's white-on-green from 6.0:1 to 3.6:1 for as long
+        // as the mouse rested on it — the fade admin's identical pill dropped at v25.51.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        const day = page.locator('.ot-day').first();
+        await day.waitFor();
+        const chosen = day.locator('.ot-mode--yes').first(), other = day.locator('.ot-mode--yes').nth(1);
+        await chosen.click();
+        await expect(chosen).toHaveAttribute('aria-checked', 'true');
+        /** @param {any} l */
+        const look = (l) => l.evaluate((/** @type {Element} */ p) => ({ opacity: getComputedStyle(p).opacity, fill: getComputedStyle(p).backgroundColor }));
+        await page.mouse.move(0, 0);
+        await page.waitForTimeout(250);    // past the fill's --dur-fast transition
+        const rest = await look(chosen);
+        await chosen.hover();
+        await page.waitForTimeout(250);
+        expect(await look(chosen), 'the chosen pill is not repainted under the mouse').toEqual(rest);
+        await other.hover();
+        await page.waitForTimeout(250);
+        const hovered = await look(other);
+        expect(hovered.opacity, 'nothing fades').toBe('1');
+        expect(hovered.fill, 'an unchosen pill answers the mouse with a tint').not.toBe('rgba(0, 0, 0, 0)');
+    });
+
     test('the call sheet uses the paper: no card inset, and not the phone column', async ({ page }) => {
         // A4's printable column (~703px at this page's margins) is under the 768px breakpoint, so the
         // phone layout's 560px cap held the sheet to four-fifths of the paper; and the "no inset" rule
