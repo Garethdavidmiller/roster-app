@@ -117,8 +117,12 @@ function applyCountryFilter(/** @type {string} */ raw) {
     if (noMatchEl) {
         var none = !!q && shown === 0;
         noMatchEl.hidden = !none;
+        // "No country CARD", and where the rest lives: the finder reads the country cards only, so
+        // "No countries or operators match “Eurostar”" told a reader the page had nothing on an
+        // operator it covers in a section of its own (whole-app review, Nov 2026).
         noMatchEl.textContent = none
-            ? ('No countries or operators match “' + (searchInput ? searchInput.value.trim() : '') + '”. Try a different term, or clear the search.')
+            ? ('No country card matches “' + (searchInput ? searchInput.value.trim() : '')
+                + '”. Eurostar and the ferries have their own sections — tap Eurostar or Ferries at the top. Or try a different term.')
             : '';
     }
 }

@@ -201,6 +201,30 @@ test('fip: the country finder folds accents and matches the start of a word', as
     await expect(page.locator('#country-at'), 'the accented spelling still works').toBeVisible();
 });
 
+// Whole-app review, Nov 2026: the booking steps say "see Czechia and Slovakia", and typing "Czechia"
+// into the finder just below them answered "No countries or operators match" — the card was titled
+// "Czech Republic", and the finder matches the start of a word. So every country the page's own
+// booking table names must find a card TITLED with that name, which is what a reader is looking at.
+// And a miss says what the finder covers: Eurostar and the ferries are sections of their own.
+test('fip: the finder finds every country by the name the booking table gives it', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    const names = (await page.locator('#booking-table [role="rowheader"]').allTextContents()).map(n => n.trim());
+    expect(names.length, 'the booking table is where this test reads the names').toBeGreaterThan(10);
+    const search = page.locator('#countrySearch');
+    for (const name of names) {
+        await search.fill(name);
+        const titles = await page.locator('[id^="country-"]:not([hidden]) :is(summary, .not-fip-name)').allTextContents();
+        expect(titles.some(t => t.includes(name)),
+            `"${name}" finds no card titled with it — the finder shows: ${titles.map(t => t.trim()).join(' | ') || 'nothing'}`).toBe(true);
+    }
+    // The card keeps the name a reader may still type.
+    await search.fill('czech republic');
+    await expect(page.locator('#country-cz')).toBeVisible();
+    await search.fill('Stena');
+    await expect(page.locator('#countryNoMatch')).toContainText('No country card matches');
+    await expect(page.locator('#countryNoMatch')).toContainText('Ferries');
+});
+
 test('fip: the section chip-bar jumps to a section and marks it current', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.goto('/fip-guide.html');
