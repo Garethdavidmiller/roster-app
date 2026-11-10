@@ -2,8 +2,9 @@
 /**
  * overtime-roster.js — what a member is actually rostered to do on each day of an Overtime week.
  *
- * Owns: one bounded Firestore read for one member over seven dates, and the honest four-state
- * answer about how well that read went. Does NOT own the override→display LADDER — that is
+ * Owns: the bounded override read for a window's seven dates — a member's own (`loadRosterContext`)
+ * or, for a reviewer, every participant's (`loadRosterForMembers`) — and the honest answer about
+ * how well that read went: `authoritative` or `error`. Does NOT own the override→display LADDER — that is
  * `resolveEffectiveShift` in `override-utils.js`, with Christmas leave on top (`resolveDayShift`,
  * christmas-leave.js, v25.37): the same resolution the calendar renderer, Team View and the month
  * legend all use, and reimplementing it here is how those three drifted apart before v16.48.
@@ -18,8 +19,10 @@
  * where a later-resolving staler read wiped overrides the calendar had just loaded.
  *
  * So this module reads its own seven dates and keeps its own answer. What it DOES share is the
- * pure decision vocabulary of `calendar-data-state.js` — the four knowledge states — because that
- * argument is general and was won once already.
+ * Calendar's RULES — the per-day winner (`collectOverrideRecords` + `shouldReplaceOverride`), the
+ * start-date guard and the display ladder — so a day here is the day the Calendar shows. Not
+ * `calendar-data-state.js`'s four knowledge states: a read here is `authoritative` or `error`,
+ * because options built on a possibly stale roster get submitted (see `loadRosterContext`).
  *
  * ── THE INVARIANT ───────────────────────────────────────────────────────────────────────────────
  *
@@ -188,9 +191,9 @@ function resolveWeek(member, dates, overrides) {
             start,
             end,
             // How long the day's EFFECTIVE duty runs — including a timed RDW, i.e. extra already
-            // agreed. `modesFor` withholds the "Up to 12 hours" offer when this already reaches
-            // 720; a day with no times is 0, not null, because "rostered nothing" is a known
-            // length, where null is reserved for a day whose roster could not be read at all.
+            // agreed. `offersFullTwelve` (overtime-format.js) withholds the 12-hour tick when this
+            // already reaches 720; a day with no times is 0, not null, because "rostered nothing" is
+            // a known length, where null is reserved for a day whose roster could not be read at all.
             rosteredMinutes: timed ? shiftSpanMinutes(start, end) : 0,
         };
     }

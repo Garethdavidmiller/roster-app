@@ -894,9 +894,10 @@ const REMINDER_LOOKAHEAD_MS = 24 * 60 * 60 * 1000;
 /**
  * Should THIS window's initial-deadline reminder go out now?
  *
- * `reminderSentAtMs` is the idempotency stamp (0 when never sent): the scheduler stamps after the
- * attempt, so a re-run the same morning sends nothing. Once the deadline passes the phase moves and
- * this is false for ever — the stamp only has to protect the one morning.
+ * `reminderSentAtMs` is the idempotency stamp (0 when never claimed): the scheduler CLAIMS it in a
+ * transaction before it sends (functions/overtime.js) — written after, two overlapping runs would
+ * both read "unsent" and both send — so a re-run the same morning sends nothing. Once the deadline
+ * passes the phase moves and this is false for ever: the stamp only has to protect the one morning.
  *
  * @param {{ initialDeadlineAt: number, retentionUntil: number, weekStart: string,
  *           finalDeadlineAt: number }} milestones

@@ -229,13 +229,14 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
     /**
      * Is the retention purge allowed to DELETE, or only to report what it would delete?
      *
-     * ── WHY IT SHIPS DISARMED ───────────────────────────────────────────────────────────────────
+     * ── WHY IT WAS BUILT DISARMED, AND HOW IT ARMS ──────────────────────────────────────────────
      *
      * `purgeExpiredOvertimeWindows` is the only irreversible thing this feature does, it runs
      * unattended, and the first time it has anything to do will be months after it was written — by
      * which point nobody is watching for it. A dry run is how the walk gets exercised against real
-     * documents while its mistakes are still only log lines. Read one run's log, confirm the weeks
-     * and the counts are the ones you expect, then arm it in `index.js`.
+     * documents while its mistakes are still only log lines. Nobody has to arm it by hand: `index.js`
+     * passes `purgeArmedAt` (overtime-core.js), which turns true at 00:00 London on 1 Dec 2026, after
+     * ten daily dry runs have named real expired windows (OVERTIME_AVAILABILITY.md → Retention).
      *
      * It gates ONE statement, exactly as `dryRun` does in `createOvertimeWindow`: the selection, the
      * ordering and the counting are the same code either way, so what the log described is what the
@@ -845,8 +846,10 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * The participant-selection policy currently in force. Server-owned release control, not an
      * operational choice — a Manager sees what will happen and cannot change it.
      *
-     * Widening the beta is a one-word edit HERE plus a deploy; existing windows are untouched,
-     * because their populations were frozen at creation. A pilot rung slots in as a third value.
+     * Widening the beta is a one-word edit HERE plus a deploy. No window is REWRITTEN — populations
+     * are frozen at creation — but an existing week still before its first deadline gains the newly
+     * eligible, add-only, at the next nightly top-up (`addMissingParticipants`); "untouched" had come
+     * to mean an audience change never took effect. A pilot rung slots in as a third value.
      */
     function currentAudience() {
         return 'restricted';

@@ -2335,7 +2335,7 @@ describe('push notices — targeted, accumulated, and never able to fail a write
         assert.deepEqual(s.uids, ['uid-gm'],
             'the submitted (uid-ls) and the withdrawn (uid-ss) are not reminded; the accountless (H. Croft) are skipped');
         assert.match(s.payload.body, /are due by 12:00 today/);
-        assert.ok(db._store.get(`overtimeWindows/${WEEK}`).reminderSentAt, 'stamped after the attempt');
+        assert.ok(db._store.get(`overtimeWindows/${WEEK}`).reminderSentAt, 'the morning is claimed (before the send)');
 
         // The same morning again — a re-run, a second scheduler instance — sends nothing more.
         await eps.autoCreateOvertimeWindows.run({});
