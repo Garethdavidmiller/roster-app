@@ -44,9 +44,9 @@
 
 'use strict';
 
-const { BLANK_CELL_TOKEN, normaliseShift } = require('./roster-parse-helpers');
+const { BLANK_CELL_TOKEN, normaliseShift, memberRows } = require('./roster-parse-helpers');
 const { matchGeometryRow } = require('./roster-geometry');
-const { isPhysicallyBlank } = require('./cell-day-rules');
+const { isBlankReading } = require('./cell-day-rules');
 
 /** Sunday-first, matching `dates` everywhere in the import. `headerToDayIndex` accepts these. */
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -262,13 +262,17 @@ OUTPUT FORMAT — return exactly this structure:
  * Does this printed cell say the day is a REST day? Asked through `normaliseShift`, the rule the
  * reply's own values are resolved by, so a cell is judged by the rules that would have read it.
  * `NA` and `NS` say rest on every day since v25.38; until then they were asked by the day, and this
- * took the column's index to do it.
+ * took the column's index to do it. Asked QUIETLY: it is a classification, not a reading anybody
+ * reviews, and its warnings ran to one per worked cell (import-server-8).
  * @param {string} text
  */
 function cellSaysRest(text) {
-    const v = normaliseShift(text);
+    const v = normaliseShift(text, { quiet: true });
     return v === 'RD' || v === 'OFF';
 }
+
+/** The printed text a review sentinel quotes, capped as `normaliseShift` caps its own. */
+const quoteCell = (/** @type {string} */ text) => (text.length > 40 ? `${text.slice(0, 39)}…` : text);
 
 /**
  * A day the model reported EMPTY, in a cell the grid shows holding a shift or a code, goes to the
@@ -298,13 +302,9 @@ function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dat
     /** @type {Array<{ memberName: string, dates: string[] }>} */
     const sent = [];
     if (!Array.isArray(dates) || dates.length < 7) return sent;
-    /** @type {Map<string, any>} */
-    const replyFor = new Map();
-    for (const e of parsedMembers || []) {
-        if (!e || typeof e !== 'object' || typeof e.memberName !== 'string') continue;
-        const name = e.memberName.trim();
-        if (!replyFor.has(name)) replyFor.set(name, e);   // buildSafeEntries keeps the first, too
-    }
+    // The row buildSafeEntries kept, by its own rule — a different pick would judge one row's cells
+    // against another row's reply.
+    const replyFor = memberRows(parsedMembers);
     const cellsFor = new Map((cellRows || []).map(r => [r.memberName, r.cells]));
     for (const entry of safeEntries) {
         const reply = replyFor.get(entry.memberName);
@@ -325,9 +325,13 @@ function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dat
             if (!text || cellSaysRest(text)) continue;
             const label = DAY_LABELS[i];
             const raw = reply[label] !== undefined ? reply[label] : byDay[label.slice(0, 3).toLowerCase()];
-            if (!isPhysicallyBlank(raw)) continue;
-            console.warn(`[parseRosterPDF] ${entry.memberName} ${dates[i]}: the ${label} cell holds "${text}" but was read as empty — sent to review`);
-            entry.shifts[dates[i]] = `UNKNOWN|the PDF has "${text}" in this cell, but it was read as empty — check the PDF`;
+            // The same words for an empty read as buildSafeEntries: a "-" it made the day's blank
+            // meaning, and a worked Sunday written as one would otherwise become a silent rest day.
+            if (!isBlankReading(raw)) continue;
+            // The log quotes no cell (import-server-6): beside a name and a date, an absence's printed
+            // code is its REASON, which the app never stores. The admin holding the PDF sees the text.
+            console.warn(`[parseRosterPDF] ${entry.memberName} ${dates[i]}: the ${label} cell holds text on the PDF but was read as empty — sent to review`);
+            entry.shifts[dates[i]] = `UNKNOWN|the PDF has "${quoteCell(text)}" in this cell, but it was read as empty — check the PDF`;
             days.push(dates[i]);
         }
         if (days.length) sent.push({ memberName: entry.memberName, dates: days });
@@ -411,11 +415,11 @@ function reviewRestReadsOfEmptyCells(safeEntries, cellRows, dates) {
  * deterministic extraction, so it stays off (`max_tokens` went 8192 → 16000 for headroom). Turning
  * it back on through streaming failed in production at v16.27 and was rolled back at v16.28;
  * OPERATIONS_REFERENCE.md → parseRosterPDF has that history. **Sonnet 5.5 has no `disabled`.** It is
- * a 400 there, which would fail every upload as "Could not reach the AI service". The lowest setting
- * is `between_tools`, which does no extended thinking on a call with no tools. It is accepted only
- * alone inside `thinking` and at effort `high` or below, so the effort is stated rather than left to
- * a default a later model could move. index-endpoints.test.mjs pins each of these through the real
- * handler, because no stub raises the 400 the model would.
+ * a 400 there, which would fail every upload as "The AI service refused the request (HTTP 400)".
+ * The lowest setting is `between_tools`, which does no extended thinking on a call with no tools.
+ * It is accepted only alone inside `thinking` and at effort `high` or below, so the effort is stated
+ * rather than left to a default a later model could move. index-endpoints.test.mjs pins each of
+ * these through the real handler, because no stub raises the 400 the model would.
  *
  * **SENT THROUGH `@anthropic-ai/sdk` 1.x, ON API VERSION 2026-10-21** (v25.35; 0.x sent 2023-06-01).
  * That version refuses `temperature`, `top_p` and `top_k` outright, a `document` block in an
