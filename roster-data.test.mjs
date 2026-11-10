@@ -449,6 +449,28 @@ describe('validateRosterPatterns: the Other family in a pattern', () => {
     });
 });
 
+// …and only what the app can DRAW and PAY (whole-app review, 10 Nov 2026). The time test was a shape
+// — two digits, a colon, two digits — so '24:00-08:00' and '29:99-99:99' passed to be drawn ❓ Unknown,
+// and '06:20-06:20' to be paid as a 24-hour turn. 'AL' and 'RDW' passed as keywords, though leave and
+// RDW are things that happen TO a day, as overrides, and RDW in a pattern is shown and never paid.
+describe('validateRosterPatterns: a pattern holds only what the app can draw and pay', () => {
+    const week = (/** @type {Record<string, string>} */ over) => ({ t: { 1: {
+        sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'OFF', thu: 'SPARE', fri: '15:30-00:30', sat: '22:00-07:00', ...over } } });
+    const quietly = (/** @type {() => number} */ fn) => {
+        const was = console.error; console.error = () => {};
+        try { return fn(); } finally { console.error = was; }
+    };
+    test('real ranges — overnight ones and a midnight finish included — and RD, OFF and SPARE pass', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({}))), 0);
+        assert.equal(quietly(() => validateRosterPatterns(week({ mon: '15:30-00:00' }))), 0);
+    });
+    for (const bad of ['24:00-08:00', '29:99-99:99', '06:20-06:20', 'AL', 'RDW', 'SICK', '6:20-14:20', '06:20-14:20-15:00']) {
+        test(`'${bad}' is refused`, () => {
+            assert.equal(quietly(() => validateRosterPatterns(week({ mon: bad }))), 1);
+        });
+    }
+});
+
 // ── A PATTERN IN FORCE IS NEVER EDITED IN PLACE (whole-app review, 10 Nov 2026) ─────────────────
 //
 // A pattern has no start date: getBaseShift reads one table for every date, past and future. So the

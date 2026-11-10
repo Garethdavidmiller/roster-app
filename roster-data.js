@@ -671,8 +671,10 @@ export function getSpecialDayBadges(date, _dateStr) {
 
 /**
  * Validate all shift strings in every roster pattern object.
- * Valid values: 'RD', 'OFF', 'SPARE', 'AL', 'RDW', 'HH:MM-HH:MM', and — Monday to Saturday only — a
- * BARE Other-family flavour such as 'TRG' (v25.40: `fixedRoster[3]`, a starter's training weeks).
+ * Valid values: 'RD', 'OFF', 'SPARE', a real 'HH:MM-HH:MM' whose ends differ, and — Monday to Saturday
+ * only — a BARE Other-family flavour such as 'TRG' (v25.40: `fixedRoster[3]`, a starter's training weeks).
+ * Not 'AL' or 'RDW': they happen TO a day, as overrides, and RDW in a pattern is shown and never paid
+ * (whole-app review, 10 Nov 2026 — as were '24:00-08:00', drawn ❓, and '06:20-06:20', a 24-hour turn).
  *
  * WHY ONLY BARE, AND NEVER ON A SUNDAY. The Other family was an OVERRIDE grammar until v25.40, and
  * two of its parts only work when an override carries them. A TIME rides in `resolveEffectiveShift`'s
@@ -690,8 +692,8 @@ export function getSpecialDayBadges(date, _dateStr) {
  * @returns {number} how many cells failed
  */
 export function validateRosterPatterns(rosters = { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster }) {
-    const SHIFT_RE = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
-    const VALID_KEYWORDS = new Set(['RD', 'OFF', 'SPARE', 'AL', 'RDW']);
+    const isRange = (/** @type {string} */ v) => { const [s, e, more] = String(v).split('-'); return more === undefined && TIME_RE.test(s) && TIME_RE.test(e ?? '') && s !== e; };
+    const VALID_KEYWORDS = new Set(['RD', 'OFF', 'SPARE']);
     const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const isBareFlavour = (/** @type {string} */ v) => Object.prototype.hasOwnProperty.call(OTHER_FLAVOURS, v);
     let errors = 0;
@@ -706,8 +708,8 @@ export function validateRosterPatterns(rosters = { weeklyRoster, bilingualRoster
                 } else if (isOtherValue(shift) && day === 'sun') {
                     console.error(`[roster-data] validateRosterPatterns: ${rosterName} week ${week} sun has '${shift}' — an Other day (Training, Induction, …) can never be on a Sunday`);
                     errors++;
-                } else if (!VALID_KEYWORDS.has(shift) && !SHIFT_RE.test(shift) && !isBareFlavour(shift)) {
-                    console.error(`[roster-data] validateRosterPatterns: ${rosterName} week ${week} ${day} has invalid value '${shift}' — expected RD/OFF/SPARE/AL/RDW, HH:MM-HH:MM, or a bare Other flavour (TRG, IND, …) with no RDW marker and no times`);
+                } else if (!VALID_KEYWORDS.has(shift) && !isRange(shift) && !isBareFlavour(shift)) {
+                    console.error(`[roster-data] validateRosterPatterns: ${rosterName} week ${week} ${day} has invalid value '${shift}' — expected RD/OFF/SPARE, a real HH:MM-HH:MM whose ends differ, or a bare Other flavour (TRG, IND, …) with no RDW marker and no times`);
                     errors++;
                 }
             }
