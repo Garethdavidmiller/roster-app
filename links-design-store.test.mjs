@@ -852,6 +852,27 @@ describe('a queued write does not wait for a server that is not there', () => {
         assert.equal(wrote?.opts?.merge, true, 'and is still a merge');
     });
 
+    test('soft delete ONLINE, on a connection that cannot reach the server (whole-app fix, Nov 2026)', async () => {
+        // The browser says online — Wi-Fi with no uplink, a dead mobile cell — and the real SDK holds
+        // the write without answering. Awaited, the delete had no outcome at all until the signal came
+        // back, and then switched the page away from whatever had been edited meanwhile.
+        const { api } = makeDb({ initial: { name: 'A', revision: 2 } });
+        api.isOnline = () => true;
+        api.ackWaitMs = 20;
+        let issued = false;
+        api.setDoc = () => { issued = true; return neverResolves(); };
+        const res = await Promise.race([createDesignStore(api).softDelete(ID, ME), hang()]);
+        assert.notEqual(res, 'hung', 'the press has an answer within the bound');
+        assert.equal(/** @type {any} */ (res).queued, true, 'past the bound the delete is in the SDK\'s queue, and says so');
+        assert.equal(issued, true, 'and it was issued');
+    });
+
+    test('…while one the server answers in time is not called queued', async () => {
+        const { api } = makeDb({ initial: { name: 'A', revision: 2 } });
+        api.ackWaitMs = 1000;
+        assert.equal((await createDesignStore(api).softDelete(ID, ME)).queued, false);
+    });
+
     test('rename', async () => {
         const { api } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 2 },
             failTx: { code: 'unavailable', message: 'client is offline' } });

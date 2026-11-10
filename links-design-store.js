@@ -38,8 +38,9 @@
  * being asked once too seldom costs somebody else's afternoon.
  *
  * **4. A queued (offline) write is started, not awaited, and never stamps a revision a colleague's
- * online save could also produce.** See `queueWrite` and `queuedRevision`. A save, a rename and a
- * create alike — the create names its document with an auto-id reference so it can be queued too.
+ * online save could also produce.** See `sendWrite` and `queuedRevision`. A save, a rename, a delete
+ * and a create alike — the create names its document with an auto-id reference so it can be queued
+ * too — and an online delete the server does not answer within `SLOW_SAVE_MS` is answered as queued.
  *
  * ── WHAT IS DELIBERATELY NOT HERE ───────────────────────────────────────────────────────────────
  *
@@ -58,6 +59,7 @@
 import { conflictOf, baselineAfterWrite, baselineAfterCommit, canAdvanceBaseline, nextRevision } from './links-concurrency.js';
 import { isDeleted } from './links-deletion.js';
 import { SIGNED_OUT_CODE, UNCONFIRMED_CODE } from './claim-retry.js';
+import { SLOW_SAVE_MS } from './slow-save.js';
 
 /**
  * @typedef {object} StoreDeps
@@ -68,6 +70,8 @@ import { SIGNED_OUT_CODE, UNCONFIRMED_CODE } from './claim-retry.js';
  * @property {any} designsCol                     the collection reference
  * @property {Function} withClaimRetry            wraps every write (stale-claim self-heal)
  * @property {() => boolean} [isOnline]           overridable for tests
+ * @property {number} [ackWaitMs]                 how long an online delete waits for the server
+ *                                                before it is answered as queued; overridable for tests
  */
 
 /** Firestore reports an unreachable backend as `unavailable`; the browser has its own view. */
@@ -102,6 +106,7 @@ export function createDesignStore(deps) {
     } = deps;
     const _isOnline = deps.isOnline;
     const offlineNow = _isOnline ? () => !_isOnline() : _offlineByDefault;
+    const ackWaitMs = deps.ackWaitMs ?? SLOW_SAVE_MS;
     const isOffline = (/** @type {any} */ err) => isOfflineFailure(err, offlineNow);
     const refFor = (/** @type {string} */ id) => doc(db, 'linkDesigns', id);
 
@@ -218,6 +223,11 @@ export function createDesignStore(deps) {
                 await queueWrite(() => setDoc(queuedRef, body));
                 return { id: queuedRef.id, updatedAt: null, queued: true, baseline: baselineAfterCommit(1) };
             }
+            // Online the create is AWAITED, so on a connection that is up but cannot reach Firestore it
+            // has no bound, unlike the delete below (whole-app fix, Nov 2026). Bounding it needs the
+            // document named BEFORE the write, as the branch above does, so that an unanswered create
+            // can still come back as queued with its id; the e2e double mints no id for `doc(col)`
+            // and models a create only through `addDoc`, so that change waits on e2e/fixtures.js.
             const ref = await withClaimRetry(() => addDoc(designsCol, body));
             const updatedAt = await readStamp(ref);
             return {
@@ -461,8 +471,11 @@ export function createDesignStore(deps) {
             // the signal came back: nothing changed on screen, the designer kept editing, and the late
             // landing then switched the page away and dropped those edits unasked. Queued, it shows now.
             if (offlineNow()) { await queueWrite(write); return { queued: true }; }
-            await withClaimRetry(write);
-            return { queued: false };
+            // …and on a connection that is UP but cannot reach Firestore the browser says online, so
+            // the same wait had no end at all (whole-app fix, Nov 2026). Bounded by the app's one
+            // figure for a write the server has not answered (slow-save.js): past it the delete is in
+            // the SDK's queue, and saying so is the answer the press is owed.
+            return { queued: await sendWrite(write, ackWaitMs) === 'queued' };
         },
 
         /**
