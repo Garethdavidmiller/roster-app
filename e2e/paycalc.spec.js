@@ -2947,6 +2947,16 @@ test('paycalc: with the keypad up, ONE tap works the controls iOS needed two for
     await expect.poll(period, '← Earlier').toBe(start - 1);
     await tapWithoutClick(page.locator('#nextBtn'));
     await expect.poll(period, 'Later →').toBe(start);
+    // 📍 and the tax-year tabs move the page as the arrows do, and were bare clicks (whole-app check,
+    // 10 Nov 2026): with the keypad up, the tap that should have jumped did nothing.
+    await tapWithoutClick(page.locator('#prevBtn'));
+    await expect.poll(period, '← Earlier, again').toBe(start - 1);
+    await tapWithoutClick(page.locator('#todayPeriodBtn'));
+    await expect.poll(period, '📍 back to the payslip being earned').toBe(start);
+    await tapWithoutClick(page.locator('#tyTab0'));
+    await expect.poll(period, 'the 2025/26 tab — that year ends with internal period 49').toBeLessThanOrEqual(49);
+    await tapWithoutClick(page.locator('#todayPeriodBtn'));
+    await expect.poll(period, '📍 from another tax year').toBe(start);
     await tapWithoutClick(page.locator('#peerPlus'));
     await expect(page.locator('#peerVal'), 'the peer-training +').toHaveText('1');
     await tapWithoutClick(page.locator('#peerMinus'));

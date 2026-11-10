@@ -1132,7 +1132,8 @@ export function init() {
         b.className = 'ty-tab';
         b.id = `tyTab${i}`;
         b.textContent = ty.label;
-        b.addEventListener('click', () => jumpToTaxYear(i, onPeriodChange));
+        // Navigation, like the arrows below: one tap with the keypad up (wireIosTap).
+        wireIosTap(b, () => jumpToTaxYear(i, onPeriodChange), { releaseFocus: true });
         wrap.appendChild(b);
       });
     })();
@@ -1158,15 +1159,15 @@ export function init() {
 
     // ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
 
-    // Period navigation. The arrows (and the peer stepper, Save settings) take ONE tap with the keypad up (wireIosTap):
+    // Period navigation. The arrows, 📍 and the tax-year tabs (and the peer stepper, Save settings)
+    // take ONE tap with the keypad up (wireIosTap):
     /** @type {HTMLElement} */ (document.getElementById('periodSelect')).addEventListener('change', onPeriodChange);
     wireIosTap(/** @type {HTMLElement} */ (document.getElementById('prevBtn')), () => prevPeriod(onPeriodChange), { releaseFocus: true });
     wireIosTap(/** @type {HTMLElement} */ (document.getElementById('nextBtn')), () => nextPeriod(onPeriodChange), { releaseFocus: true });
-    /** @type {HTMLElement} */ (document.getElementById('todayPeriodBtn')).addEventListener('click', () => {
-      const sel = document.getElementById('periodSelect');
-      _setSelectPeriod(sel, _defaultPeriodNum);
+    wireIosTap(/** @type {HTMLElement} */ (document.getElementById('todayPeriodBtn')), () => {
+      _setSelectPeriod(document.getElementById('periodSelect'), _defaultPeriodNum);
       onPeriodChange();
-    });
+    }, { releaseFocus: true });
     /** @type {HTMLElement} */ (document.getElementById('clearBtn')).addEventListener('click', clearPeriod);
 
     // Result breakdown toggle
