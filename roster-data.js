@@ -36,7 +36,7 @@ export const CONFIG = {
     CES_ROSTER_REFERENCE_DATE:        new Date(2026, 1, 15, 12, 0, 0),          // Feb 15, 2026 (F. Mohamed on CES Week 1)
     DISPATCHER_ROSTER_REFERENCE_DATE: new Date(2026, 1, 1,  12, 0, 0),          // Feb 1, 2026 (Minto on Week 1, all 10 consecutive)
     MIN_YEAR:                         2024,                                      // Earliest navigable year
-    MAX_YEAR:                         2030,                                      // Latest navigable year — extend to 2032+ by end of 2028; update lunar calendar data first
+    MAX_YEAR:                         2030,                                      // Latest navigable year — extend to 2032+ by end of 2028: check SPECIAL_BANK_HOLIDAYS for the new years first, and run `npm run generate:roster-members` in the same commit
     EARLY_START_THRESHOLD:            4,                                         // Shifts starting 04:00–10:59 are Early
     EARLY_SHIFT_THRESHOLD:            11,                                        // Shifts starting 11:00–20:59 are Late
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
@@ -417,7 +417,7 @@ export function isSameDay(date1, date2) {
 //   { year: 2022, month: 6, day: 3 }  — Platinum Jubilee extra BH
 //   { year: 2023, month: 5, day: 8 }  — King's Coronation extra BH
 //
-// None currently scheduled for 2024–2030. Check gov.uk each autumn.
+// None currently scheduled for 2024–2030. The gov.uk check is a yearly row in MAINTENANCE_CALENDAR.md.
 /** @type {Array<any>} */
 const SPECIAL_BANK_HOLIDAYS = [
     // Add future one-off bank holidays here when announced by the government.
