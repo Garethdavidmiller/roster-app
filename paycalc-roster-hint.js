@@ -243,10 +243,10 @@ export function updateRosterHint() {
 
   const badge = document.getElementById('rosterStateBadge');
   if (badge) {
-    if (getOverridesFetchState() === 'loaded') {
+    if (getOverridesFetchState(p) === 'loaded') {
       setStatus(badge, '✓ Includes recorded changes');
       badge.className    = 'roster-state-badge loaded';
-    } else if (getOverridesFetchState() === 'base-only') {
+    } else if (getOverridesFetchState(p) === 'base-only') {
       setStatus(badge, '⚠ Scheduled only');
       badge.className    = 'roster-state-badge base-only';
     } else {
@@ -340,7 +340,7 @@ export function updateRosterHint() {
 
   const hintTextEl = document.getElementById('rosterHintText');
   if (hintTextEl) {
-    hintTextEl.textContent = getOverridesFetchState() === 'loaded'
+    hintTextEl.textContent = getOverridesFetchState(p) === 'loaded'
       ? 'Likely special-rate hours only — Saturday, Sunday, bank holidays, RDW, and Boxing Day. Standard contracted hours are already included in basic pay. Check against what you actually worked.'
       : 'Calendar (base pattern only) — recorded shift changes not yet loaded. Special-rate hours only; standard contracted hours are already included in basic pay.';
   }
@@ -365,7 +365,7 @@ export function updateRosterHint() {
     //      in exactly the state that recovery was written for.
     //
     // So: refuse only when the data is complete AND there is nothing to write AND nothing to remove.
-    const _loaded = getOverridesFetchState() === 'loaded';
+    const _loaded = getOverridesFetchState(p) === 'loaded';
     const _entered = _hasEntry;
     const _zeroInCalendar = (/** @type {string} */ cat) =>
       !((s[cat + 'H'] || 0) > 0 || (s[cat + 'M'] || 0) > 0);
@@ -527,7 +527,7 @@ function _hasEntry(cat) {
  */
 function _suggestionOrNone(p, member) {
   const s = getRosterSuggestion(p, member);
-  if (s || getOverridesFetchState() !== 'loaded') return s;
+  if (s || getOverridesFetchState(p) !== 'loaded') return s;
   const zero = { days: [], none: true };
   for (const cat of ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box']) Object.assign(zero, { [cat + 'H']: 0, [cat + 'M']: 0, [cat + 'Count']: 0 });
   return zero;
@@ -589,7 +589,9 @@ export async function fillFromRoster(autosave) {
   // shifts exist as RECORDED CHANGES then gets a fill that misses exactly the hours they wanted.
   // The tap is an explicit "give me the calendar", so it is the right moment to try once more;
   // a failure falls through to base-only, which is what would have happened anyway.
-  if (getOverridesFetchState() !== 'loaded' && member?.name) {
+  // Every state read here names THIS payslip: while the year fill runs, the last fetch is another
+  // payslip's, and "loaded" alone priced this one from that payslip's changes (paycalc-2-8).
+  if (getOverridesFetchState(p) !== 'loaded' && member?.name) {
     const btn = /** @type {HTMLButtonElement|null} */ (document.getElementById('fillFromRosterBtn'));
     _fillInFlight = true;
     if (btn) btn.disabled = true;
@@ -608,7 +610,7 @@ export async function fillFromRoster(autosave) {
   // clearZeros only when the calendar data is COMPLETE: clearing on base-only counts could
   // wipe real hours whose recorded changes simply failed to load (the inverse of the bug).
   const { written, cleared } = _applyRosterSuggestion(s, true,
-    { clearZeros: getOverridesFetchState() === 'loaded' });
+    { clearZeros: getOverridesFetchState(p) === 'loaded' });
   autosave();
   // Refresh row states (✓ matched) before the confirmation text swap below.
   updateRosterHint();
@@ -631,7 +633,7 @@ export async function fillFromRoster(autosave) {
       ? `✓ Filled ${_what}${cleared.length ? ` + cleared ${_gone}` : ''}`
       : cleared.length > 0
         ? `✓ Cleared ${_gone} — your calendar shows none`
-        : (getOverridesFetchState() === 'loaded'
+        : (getOverridesFetchState(p) === 'loaded'
             ? 'Nothing to fill — no special-rate shifts on this payslip'
             : 'Nothing to fill — and recorded shift changes could not be loaded (check signal)');
     setStatus(hint, said);

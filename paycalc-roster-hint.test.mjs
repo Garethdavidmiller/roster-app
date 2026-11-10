@@ -42,6 +42,9 @@ function setupDom(/** @type {string} */ period) {
 /** A suggestion a test supplies, or null for the default. @type {null | ((p: any) => any)} */
 let _suggestion = null;
 /** @type {string} */ let _fetchState = 'base-only';
+/** A payslip's OWN state, by period number, where a test sets one; any other answers `_fetchState`,
+ *  which stands for whatever the last fetch left — as the real module's no-argument form does. */
+const _stateByNum = new Map();
 /** @type {number} */ let _fetchCalls = 0;
 /** @type {(v: string) => void} */ let _resolveFetch = () => {};
 /** Who is signed in — G. Miller unless a test needs a joiner. */
@@ -50,13 +53,16 @@ mock.module('./session.js', { namedExports: { getSession: () => ({ name: _sessio
 mock.module('./paycalc-roster-suggestions.js', {
     namedExports: {
         bhsForYear: () => [],
-        getOverridesFetchState: () => _fetchState,
+        getOverridesFetchState: (/** @type {any} */ p) => (p && _stateByNum.has(p.num) ? _stateByNum.get(p.num) : _fetchState),
         // Every period's calendar says 5h overtime, tagged with the period so a cross-write is visible —
         // unless a test hands in a suggestion of its own (the rendered-badge tests below).
         getRosterSuggestion: (/** @type {any} */ p) => (_suggestion ? _suggestion(p) : { otH: 5, otM: p.num % 60 }),
-        fetchOverridesForPeriod: () => {
+        fetchOverridesForPeriod: (/** @type {any} */ p) => {
             _fetchCalls++;
-            return new Promise(r => { _resolveFetch = (v) => { if (v === 'loaded') _fetchState = 'loaded'; r(v); }; });
+            return new Promise(r => { _resolveFetch = (v) => {
+                if (v === 'loaded') { _fetchState = 'loaded'; if (p) _stateByNum.set(p.num, 'loaded'); }
+                r(v);
+            }; });
         },
     },
 });
@@ -75,7 +81,7 @@ const A = '60', B = '61';
 /** @type {number} */ let _autosaves = 0;
 const autosave = () => { _autosaves++; };
 
-beforeEach(() => { _store.clear(); _fetchState = 'base-only'; _fetchCalls = 0; _autosaves = 0; _suggestion = null; });
+beforeEach(() => { _store.clear(); _fetchState = 'base-only'; _stateByNum.clear(); _fetchCalls = 0; _autosaves = 0; _suggestion = null; });
 
 describe('fillFromRoster — the period on screen when the fetch returns is the one it was asked for', () => {
     test('switching payslip during the fetch writes NOTHING into the new one', async () => {
@@ -307,16 +313,6 @@ describe('the estimate badge reaches the rendered row', () => {
 describe('the fill receipt says what happened, and nothing it cannot do', () => {
     beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); });
     afterEach(() => { mock.timers.reset(); });
-    /** A status line as setStatus writes one: a hidden glyph, then the words. */
-    function statusLine() {
-        /** @type {any[]} */ const parts = [];
-        return {
-            get textContent() { return parts.map(p => p.textContent ?? p.data ?? '').join(''); },
-            set textContent(v) { parts.length = 0; if (v) parts.push({ textContent: String(v) }); },
-            appendChild(/** @type {any} */ c) { parts.push(c); return c; },
-            ownerDocument: { createElement: () => ({ textContent: '', setAttribute() {} }), createTextNode: (/** @type {string} */ t) => ({ data: t }) },
-        };
-    }
 
     test('a fill names what it filled, and does not send the member to "Clear all entries"', async () => {
         setupDom(A);
@@ -424,6 +420,18 @@ describe('the joiner notice', () => {
     });
 });
 
+/** A status line as setStatus writes one: a hidden glyph, then the words. */
+function statusLine() {
+    /** @type {any[]} */ const parts = [];
+    return {
+        className: '',
+        get textContent() { return parts.map(p => p.textContent ?? p.data ?? '').join(''); },
+        set textContent(v) { parts.length = 0; if (v) parts.push({ textContent: String(v) }); },
+        appendChild(/** @type {any} */ c) { parts.push(c); return c; },
+        ownerDocument: { createElement: () => ({ textContent: '', setAttribute() {} }), createTextNode: (/** @type {string} */ t) => ({ data: t }) },
+    };
+}
+
 /** An <input> as the page has one: `value` is always a string, and its classList works. */
 function input() {
     const c = new Set();
@@ -508,5 +516,84 @@ describe('the background refresh never moves the snapshot of a saved figure', ()
         _store.set(periodKey(58), JSON.stringify({ rdwH: 8, rdwM: 0, satH: 7, satM: 0 }));
         recordCalendarFigures(58);
         assert.deepEqual(snapOf(58), { rdwH: 8, rdwM: 0 }, 'a typed 7h of Saturday would follow the calendar on the next visit');
+    });
+});
+
+// ── THE CARD AND THE FILL ASK ABOUT THEIR OWN PAYSLIP (the paycalc-2-8 lead) ─────────────────────
+//
+// While the year fill runs, the suggestion module's last fetch is another payslip's — so a bare
+// "loaded" was THAT payslip's answer. The payslip on screen then skipped its own fetch, priced itself
+// without its recorded changes (a worked Sunday back to its base hours), cleared what the other
+// payslip's map called zero, and saved. Every state read here names the payslip on screen; the mock
+// answers a named payslip from `_stateByNum`, and the bare form from `_fetchState`, the last fetch.
+describe('the card and the fill ask about the payslip on screen, not the last one fetched', () => {
+    beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); });
+    afterEach(() => { mock.timers.reset(); });
+
+    /** The card as updateRosterHint draws it, over a calendar answer `s` for the payslip on screen. */
+    function card(/** @type {any} */ s) {
+        setupDom(A);
+        for (const id of HM_IDS) _els[id] = input();
+        Object.assign(_els, { rosterHintBar: { style: {} }, rosterRows: { innerHTML: '' },
+            rosterStateBadge: statusLine(), rosterHintText: { textContent: '' } });
+        _suggestion = () => s;
+    }
+    const NONE_SPECIAL = { days: [], satH: 0, satM: 0, sunH: 0, sunM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0,
+        otH: 0, otM: 0, rdwH: 0, rdwM: 0, boxH: 0, boxM: 0 };
+
+    test("another payslip's 'loaded' does not stand in for this one's: the fill fetches its own", async () => {
+        setupDom(A);
+        _fetchState = 'loaded';                        // the year fill's last fetch — another payslip
+        _stateByNum.set(Number(A), 'checking');        // this one's own changes are not in hand
+        const run = fillFromRoster(autosave);
+        assert.equal(_fetchCalls, 1, "the fill took another payslip's answer as this one's and skipped its own fetch");
+        _resolveFetch('loaded');
+        await run;
+        assert.equal(_autosaves, 1);
+    });
+
+    test("…and when its own fetch fails, it neither clears on the other payslip's answer nor says the calendar has none", async () => {
+        setupDom(A);
+        for (const id of HM_IDS) _els[id] = input();
+        _els.rosterHintText = statusLine();
+        _els.bhH.value = '7';                          // a bank holiday this payslip's calendar shows nothing of
+        _suggestion = () => ({ days: [] });
+        _fetchState = 'loaded';
+        _stateByNum.set(Number(A), 'checking');
+        const run = fillFromRoster(autosave);
+        _resolveFetch('base-only');                    // this payslip's own fetch: no signal
+        await run;
+        assert.equal(_els.bhH.value, '7', "7h of bank holiday was cleared on the strength of another payslip's recorded changes");
+        assert.match(_els.rosterHintText.textContent, /could not be loaded/,
+            'the receipt told the member this payslip has no special-rate shifts — a fact nobody established');
+    });
+
+    test("the card neither refuses nor claims recorded changes on another payslip's answer", () => {
+        card(NONE_SPECIAL);
+        _fetchState = 'loaded';
+        _stateByNum.set(Number(A), 'checking');
+        updateRosterHint();
+        assert.equal(_els.fillFromRosterBtn.disabled, false,
+            '"Nothing to fill this payslip" was stated on another payslip\'s answer, and the retry that would find out was locked');
+        assert.doesNotMatch(_els.rosterStateBadge.textContent, /recorded changes/, "the badge vouched for this payslip's changes");
+        assert.match(_els.rosterHintText.textContent, /not yet loaded/);
+    });
+
+    test('a payslip whose own fetch failed is marked as scheduled only, though another payslip loaded', () => {
+        card({ ...NONE_SPECIAL, otH: 5, otCount: 1 });
+        _fetchState = 'loaded';
+        _stateByNum.set(Number(A), 'base-only');
+        updateRosterHint();
+        assert.match(_els.rosterStateBadge.textContent, /Scheduled only/, "this payslip's own failure went unmarked");
+    });
+
+    test("a payslip with no calendar answer of its own shows no card, though another payslip's map said none", () => {
+        card(null);
+        _els.bhH.value = '7';                          // what a Replace on a "none" answer would clear
+        _fetchState = 'loaded';
+        _stateByNum.set(Number(A), 'checking');
+        updateRosterHint();
+        assert.equal(_els.rosterHintBar.style.display, 'none',
+            "another payslip's answer was drawn as this one's \"none\", offering to clear its 7h of bank holiday");
     });
 });

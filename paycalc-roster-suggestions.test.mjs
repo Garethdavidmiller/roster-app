@@ -720,6 +720,71 @@ describe('fetchOverridesForPeriod — override priority', () => {
 
 });
 
+// ── EACH PAYSLIP KEEPS ITS OWN RECORDED CHANGES (the paycalc-2-8 lead) ────────────────────────────
+// The year fill fetches payslip after payslip into this module while the payslip on screen stays
+// put. With one map and one "loaded", that payslip read 'loaded' and priced itself from the last
+// payslip the fill had reached — its recorded Saturday back to nothing — and its Replace cleared
+// what the other payslip's map called zero. Each answer is kept under the payslip it is for.
+describe('getRosterSuggestion — each payslip reads its own recorded changes', () => {
+  // C. Reen's Saturdays are rest days, so a recorded shift on one is 9h of RDW, and without it nothing.
+  const onScreen  = period('2026-04-11');
+  const elsewhere = period('2026-05-16');
+  const recordedSat = () => mockSnap([{ date: '2026-04-11', memberName: 'C. Reen', type: 'shift',
+    value: '10:00-19:00', source: 'manual', createdAt: { toMillis: () => 1 } }]);
+
+  test("a later fetch for another payslip leaves this one its own changes, and its own 'loaded'", async () => {
+    resetOverrides('checking');
+    _mockGetDocs = async () => recordedSat();
+    await fetchOverridesForPeriod(onScreen, 'C. Reen');
+    _mockGetDocs = async () => mockSnap([]);
+    await fetchOverridesForPeriod(elsewhere, 'C. Reen');          // the year fill's next payslip
+    assert.equal(getRosterSuggestion(onScreen, cReen)?.rdwH, 9,
+      'the payslip on screen was priced from the last payslip fetched, without its own recorded change');
+    assert.equal(getOverridesFetchState(onScreen), 'loaded');
+  });
+
+  test("a payslip with no answer of its own is not 'loaded' because another payslip is", async () => {
+    resetOverrides('checking');
+    _mockGetDocs = async () => mockSnap([]);
+    await fetchOverridesForPeriod(elsewhere, 'C. Reen');
+    assert.equal(getOverridesFetchState(onScreen), 'checking', "another payslip's answer stood in for this one's");
+    assert.equal(getOverridesFetchState(elsewhere), 'loaded');
+  });
+
+  test('a payslip whose own fetch failed, or came from the device cache, says so while another stays loaded', async () => {
+    resetOverrides('checking');
+    _mockGetDocs = async () => recordedSat();
+    await fetchOverridesForPeriod(onScreen, 'C. Reen');
+    _mockGetDocs = async () => { throw new Error('network error'); };
+    await fetchOverridesForPeriod(elsewhere, 'C. Reen');
+    assert.equal(getOverridesFetchState(elsewhere), 'base-only', 'a failed fetch must be named for its payslip');
+    _mockGetDocs = async () => ({ ...mockSnap([]), metadata: { fromCache: true } });
+    const third = period('2026-06-13');
+    await fetchOverridesForPeriod(third, 'C. Reen');
+    assert.equal(getOverridesFetchState(third), 'base-only', 'a cache answer must be named for its payslip');
+    assert.equal(getOverridesFetchState(onScreen), 'loaded', '…and neither touches the payslip that did load');
+    assert.equal(getRosterSuggestion(onScreen, cReen)?.rdwH, 9);
+  });
+
+  test('a reset forgets every payslip, so a period change can never inherit an earlier answer', async () => {
+    resetOverrides('checking');
+    _mockGetDocs = async () => recordedSat();
+    await fetchOverridesForPeriod(onScreen, 'C. Reen');
+    resetOverrides('checking');
+    assert.equal(getOverridesFetchState(onScreen), 'checking');
+    assert.strictEqual(getRosterSuggestion(onScreen, cReen), null, "the last period's recorded change outlived the reset");
+  });
+
+  test('CONTROL: with no payslip named, the state is whatever the last fetch left, as before', async () => {
+    resetOverrides('checking');
+    _mockGetDocs = async () => recordedSat();
+    await fetchOverridesForPeriod(onScreen, 'C. Reen');
+    _mockGetDocs = async () => { throw new Error('network error'); };
+    await fetchOverridesForPeriod(elsewhere, 'C. Reen');
+    assert.equal(getOverridesFetchState(), 'base-only');
+  });
+});
+
 // ── Sunday-on-BH payroll rule ─────────────────────────────────────────────────
 
 describe('getRosterSuggestion — Sunday-on-BH payroll rule', () => {

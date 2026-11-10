@@ -22,8 +22,21 @@ import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-c
 // previous period can never leak into the current one.
 let _overridesByDate = new Map();
 
-/** Test-only: inject a pre-built overrides map so unit tests bypass Firestore. */
-export function _setOverridesForTest(/** @type {any} */ map) { _overridesByDate = map; }
+// …and ONE PER PAYSLIP since that reset. The year fill (paycalc-year-card.js) fetches payslip after
+// payslip into this module while the one on screen stays put, and a single map with a single
+// "loaded" belonged to whichever payslip it reached last: the on-screen payslip's own Replace read
+// 'loaded', priced itself from another payslip's changes (a recorded Sunday back to its base hours)
+// and cleared what that map called zero (paycalc-2-8). So each answer is kept under the payslip it
+// is FOR, a suggestion reads its own payslip's, and `getOverridesFetchState(p)` answers for that
+// payslip alone. `null` is a payslip whose fetch came back without the server's answer.
+/** @type {Map<string, Map<string, any>|null>} */
+const _byPayslip = new Map();
+const _NO_CHANGES = new Map();
+/** A payslip's key in `_byPayslip`: the window its changes are fetched for. @param {{ start: Date, cutoff: Date }} p */
+const _payslipKey = p => `${formatISO(p.start)}..${formatISO(p.cutoff)}`;
+
+/** Test-only: inject a pre-built overrides map so unit tests bypass Firestore. It stands for every payslip. */
+export function _setOverridesForTest(/** @type {any} */ map) { _overridesByDate = map; _byPayslip.clear(); }
 
 /** Test-only: inject an extra date as a BH for a given year. Ensures cache is
  *  populated from real BHs first, then adds the extra date. */
@@ -52,17 +65,29 @@ let _overrideFetchToken = 0;
 // 'base-only': No session, or fetch failed — showing base roster only.
 // 'loaded':    Firestore succeeded — overrides applied to suggestions.
 let _overridesFetchState = 'base-only';
+/** What the last reset said — the answer for a payslip with no fetch of its own back since. */
+let _resetState = 'base-only';
 
 /** Called from onPeriodChange to reset the cache before a new fetch starts. */
 export function resetOverrides(/** @type {any} */ newState) {
   _overrideFetchToken++;
   _overridesByDate = new Map();
+  _byPayslip.clear();
   _overridesFetchState = newState;
+  _resetState = newState;
 }
 
-/** Returns the current fetch state string for use in UI badge rendering. */
-export function getOverridesFetchState() {
-  return _overridesFetchState;
+/**
+ * The fetch state, for the badge and the fills. Given a payslip it answers for THAT payslip: 'loaded'
+ * only when its own recorded changes are in hand, 'base-only' when its own fetch failed, otherwise
+ * what the last reset said ('checking' while the period change's fetch is out). With no payslip, the
+ * state the last fetch left — whichever payslip that was for.
+ * @param {{ start: Date, cutoff: Date }} [p]
+ */
+export function getOverridesFetchState(p) {
+  if (!p) return _overridesFetchState;
+  const own = _byPayslip.get(_payslipKey(p));
+  return own ? 'loaded' : own === null ? 'base-only' : _resetState;
 }
 
 // ── BANK HOLIDAY HELPERS ──────────────────────────────────────────────────────
@@ -93,7 +118,8 @@ const _fmtOt = (/** @type {any} */ m) => { const h = Math.floor(m / 60), mm = m 
 // ── FIRESTORE FETCH ───────────────────────────────────────────────────────────
 /**
  * Queries Firestore for override documents in the period window and stores
- * them in _overridesByDate keyed by ISO date. Non-work values (AL, RD, SICK,
+ * them keyed by ISO date — under this payslip in `_byPayslip`, and as the shared
+ * `_overridesByDate`. Non-work values (AL, RD, SICK,
  * SPARE) are kept — getRosterSuggestion needs to know about them to skip the
  * base shift on that day.
  *
@@ -138,6 +164,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
     if (snap?.metadata?.fromCache) {
       _overridesByDate = new Map();
       _overridesFetchState = 'base-only';
+      _byPayslip.set(_payslipKey(p), null);
       return 'cached';
     }
     const map = new Map();
@@ -155,6 +182,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
     });
     _overridesByDate = map;
     _overridesFetchState = 'loaded';
+    _byPayslip.set(_payslipKey(p), map);
     return 'loaded';
   } catch (err) {
     // A stale failure must not touch state either — without this check a slow
@@ -163,6 +191,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
     if (thisToken !== _overrideFetchToken) return 'cancelled';
     console.warn('[paycalc-roster-suggestions] fetchOverridesForPeriod failed — using base roster only:', (/** @type {any} */ (err))?.message ?? err);
     _overridesFetchState = 'base-only';
+    _byPayslip.set(_payslipKey(p), null);
     return 'base-only';
   }
 }
@@ -200,6 +229,10 @@ export function getRosterSuggestion(p, member) {
   // …and which hold the 7h DEFAULT for a bare Training day from the pattern on a bank holiday.
   const defaulted7h = { bh: false };
   const days = [];
+  // This payslip's own recorded changes (see `_byPayslip`); the shared map only where this payslip
+  // has no fetch back since the reset — which is how a test injects one.
+  const key = _payslipKey(p);
+  const changes = _byPayslip.has(key) ? (_byPayslip.get(key) || _NO_CHANGES) : _overridesByDate;
 
   const cur = new Date(p.start);
   while (cur <= p.cutoff) {
@@ -208,7 +241,7 @@ export function getRosterSuggestion(p, member) {
     // A record dated before the member's start date is suppressed, exactly as every display layer
     // suppresses it — the base there is already RD (getBaseShift), and the Calendar shows a rest day,
     // so the suggestion must not pay for one (paycalc-3-6).
-    const ov   = isBeforeMemberStart(member, noon) ? undefined : _overridesByDate.get(iso);
+    const ov   = isBeforeMemberStart(member, noon) ? undefined : changes.get(iso);
 
     // Always read baseValue independently so the split logic can compare
     // the override duration against the rostered duration.
