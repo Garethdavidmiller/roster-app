@@ -45,10 +45,16 @@ function norm(/** @type {string} */ s) { return (s || '').toLowerCase().replace(
  * (guide-search.js `tokeniseText`). The finder lower-cased and nothing else, so "obb", "mav" and
  * "krakow" — an operator or city typed on a UK keyboard — found nothing, and "cie" matched the middle
  * of "Société" and offered Switzerland instead of Ireland (whole-app review, Oct 2026).
+ * A stroke or a ligature is part of its letter, so NFKD cannot take it off: "Łódź", "ŁKA" and
+ * "København" fell apart at the Ł or the ø (Nov 2026). The same table as guide-search.js's
+ * WHOLE_LETTERS, kept inside this function so guide-search.test.mjs can run it beside the drawer's.
  * @param {string} s @returns {string[]}
  */
 function foldWords(s) {
-    return (s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    /** @type {Record<string, string>} */
+    var whole = { 'ł': 'l', 'đ': 'd', 'ø': 'o', 'æ': 'ae', 'œ': 'oe', 'ß': 'ss' };
+    return (s || '').toLowerCase().replace(/[łđøæœß]/g, function (c) { return whole[c]; })
+        .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
         .split(/[^a-z0-9]+/).filter(Boolean);
 }
 // Each card's words, read once: the cards are static, and the filter runs on every keystroke.
@@ -70,10 +76,12 @@ var printBtn = document.querySelector('.btn-print');
  */
 function describePrintScope(shown) {
     if (!printBtn) return;
+    // "the guide with \u2026", not "the N countries": the general chapters print as well, and a name that
+    // promised only countries would undersell the sheet by a dozen pages (whole-app review, Nov 2026).
     var label = shown === null ? 'PDF \u2014 save or print the whole FIP guide'
-        : shown === 0          ? 'PDF \u2014 save or print, no countries match your search'
-        : shown === 1          ? 'PDF \u2014 save or print the 1 country shown'
-        :                        'PDF \u2014 save or print the ' + shown + ' countries shown';
+        : shown === 0          ? 'PDF \u2014 save or print the guide without countries, as none matches your search'
+        : shown === 1          ? 'PDF \u2014 save or print the guide with the 1 country shown'
+        :                        'PDF \u2014 save or print the guide with the ' + shown + ' countries shown';
     printBtn.setAttribute('aria-label', label);
 }
 describePrintScope(null);
@@ -115,8 +123,12 @@ function applyCountryFilter(/** @type {string} */ raw) {
     if (noMatchEl) {
         var none = !!q && shown === 0;
         noMatchEl.hidden = !none;
+        // "No country CARD", and where the rest lives: the finder reads the country cards only, so
+        // "No countries or operators match “Eurostar”" told a reader the page had nothing on an
+        // operator it covers in a section of its own (whole-app review, Nov 2026).
         noMatchEl.textContent = none
-            ? ('No countries or operators match “' + (searchInput ? searchInput.value.trim() : '') + '”. Try a different term, or clear the search.')
+            ? ('No country card matches “' + (searchInput ? searchInput.value.trim() : '')
+                + '”. Eurostar and the ferries have their own sections — tap Eurostar or Ferries at the top. Or try a different term.')
             : '';
     }
 }
@@ -238,9 +250,43 @@ if (chipBar) {
     });
 }
 
-// Sit the sticky chip-bar directly under the sticky header, then set scroll-margin-top on every jump
-// target (section headings + country cards) so a jump isn't hidden under header + chip-bar. Runs
-// after fonts load so the header height is measured accurately (mirrors railcard-guide.js).
+// ── Deep-link landing (mirrors railcard-guide.js, which has the reasoning) ────────────────────
+// The browser lands a #fragment with the stylesheet's FALLBACK scroll-margin and stops re-applying
+// it once the page has loaded, which on a cached phone is usually before adjustFipOffsets has
+// measured the real stack: a heading arrived 21px under the chip bar (40px at 320px). Each
+// measurement re-lands the fragment while the page is still landing — until it has loaded and
+// measured with its fonts, or the reader touches, clicks, scrolls with a wheel or types. A reload or
+// Back/Forward restores the reader's own position and is left alone.
+var landingId = '';
+(function () {
+    var nav = /** @type {PerformanceNavigationTiming|undefined} */ (
+        window.performance && performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : undefined);
+    if (nav && nav.type !== 'navigate') return;
+    landingId = safeDecode(location.hash.slice(1));
+})();
+function endLanding() { landingId = ''; }
+['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(function (type) {
+    window.addEventListener(type, endLanding, { capture: true, passive: true });
+});
+window.addEventListener('hashchange', endLanding);
+
+/**
+ * While the page is still landing on a deep link, move the target back out from under the sticky
+ * stack. Only a target that STARTS under the stack is moved: one the page cannot scroll to the top
+ * (near its end) sits lower and is left there, and so is one the reader has scrolled past.
+ * @param {number} stickyH the measured header + chip bar, which a landed target must clear
+ */
+function keepLandingClear(stickyH) {
+    if (!landingId) return;
+    var target = document.getElementById(landingId);
+    if (!target) { landingId = ''; return; }
+    var top = target.getBoundingClientRect().top;
+    if (top >= 0 && top < stickyH - 1) target.scrollIntoView({ block: 'start' });
+}
+
+// Sit the sticky chip-bar directly under the sticky header, then set scroll-margin-top on every id
+// in the page body so a jump isn't hidden under header + chip-bar. Runs after fonts load so the
+// header height is measured accurately (mirrors railcard-guide.js).
 function adjustFipOffsets() {
     if (!chipBar) return;
     var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
@@ -248,14 +294,26 @@ function adjustFipOffsets() {
     var hdrH = hdr.offsetHeight;
     chipBar.style.top = hdrH + 'px';
     var stickyH = hdrH + chipBar.offsetHeight + 8;
-    document.querySelectorAll('.section-label[id], [id^="country-"]').forEach(function (el) {
+    // EVERY id, not the section labels and country cards: the booking table, the multi-country
+    // card and the three ferry cards are search results too, and they kept the stylesheet's 100px
+    // against a 121px stack (whole-app review, Nov 2026).
+    document.querySelectorAll('main [id]').forEach(function (el) {
         /** @type {HTMLElement} */ (el).style.scrollMarginTop = stickyH + 'px';
     });
+    keepLandingClear(stickyH);
     measureThreshold();   // keep the cached scrollspy threshold in step with the real header height
     updateSpy();          // re-evaluate with the accurate header height
 }
 if (document.fonts && document.fonts.ready) { document.fonts.ready.then(adjustFipOffsets); }
 else { requestAnimationFrame(adjustFipOffsets); }
+// The landing ends with one last measurement once the page has loaded AND its fonts are ready.
+Promise.all([
+    document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve(),
+    document.readyState === 'complete' ? Promise.resolve()
+        : new Promise(function (resolve) { window.addEventListener('load', resolve, { once: true }); }),
+]).then(function () {
+    requestAnimationFrame(function () { adjustFipOffsets(); endLanding(); });
+});
 // The header's HEIGHT can change after that one-shot measurement (late font swap re-wrapping the
 // subtitle, a device font-scale change, rotation) — leaving the chip-bar's sticky `top` stale, so a
 // slit of page content scrolled through the gap between header and bar (staff screenshot, v18.82).
@@ -345,8 +403,9 @@ function expandAllForPrint() {
     _fipPrepared = true;
     _fipOpenRestore = [];
     // A HIDDEN card's <details> is opened too, deliberately: `hidden` is what keeps it off the
-    // paper, and leaving it closed as well would mean the filter and the disclosure state had to
-    // be restored in the right order to end up where we started.
+    // paper (fip-guide.css expands only `details:not([hidden])` in print), and leaving it closed as
+    // well would mean the filter and the disclosure state had to be restored in the right order to
+    // end up where we started.
     document.querySelectorAll('details').forEach(function (d) {
         var det = /** @type {HTMLDetailsElement} */ (d);
         _fipOpenRestore.push([det, det.open]);
@@ -362,11 +421,10 @@ function restoreAfterPrint() {
 window.addEventListener('beforeprint', expandAllForPrint);
 window.addEventListener('afterprint', restoreAfterPrint);
 // The restore needs the same defence the prepare got (v23.27). `afterprint` is the same event from
-// the same engine that does not fire `beforeprint` for AirPrint — and here the un-restored state is
-// worse than an expanded page: every country card is un-hidden, so a traveller who had filtered to
-// "Belgium" comes back from the print sheet to what looks like a search box that has stopped
-// working. Becoming visible again is the signal every engine sends. Where `afterprint` fires it has
-// already cleared the flag, so this is a no-op.
+// the same engine that does not fire `beforeprint` for AirPrint, and un-restored, every country card
+// the reader had closed would stay open for good — printing would have changed the page. Becoming
+// visible again is the signal every engine sends. Where `afterprint` fires it has already cleared
+// the flag, so this is a no-op.
 document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') restoreAfterPrint();
 });

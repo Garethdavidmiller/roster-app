@@ -363,6 +363,15 @@ test('the FIP print button prints the countries on screen, not all of them @prin
         .every(c => c.tagName !== 'DETAILS' || /** @type {HTMLDetailsElement} */ (c).open)),
         'every country still on screen is open for the printer').toBe(true);
 
+    // …and IN PRINT MEDIA, which is where the paper is decided. The two checks above are about the
+    // DOM, and they passed for a year while the print stylesheet un-hid every filtered card (an author
+    // `display` outranks the browser's [hidden] rule) and the button printed all 32 countries (whole-
+    // app review, 10 Nov 2026). So: no filtered-out country has a box on paper, every shown one does.
+    const onPaper = await inPrint(page, () => [...document.querySelectorAll('[id^="country-"]')]
+        .map(c => ({ id: c.id, hidden: /** @type {HTMLElement} */ (c).hidden, h: c.getBoundingClientRect().height })));
+    expect(onPaper.filter(c => c.hidden && c.h > 0).map(c => c.id), 'a filtered-out country prints').toEqual([]);
+    expect(onPaper.filter(c => !c.hidden && c.h === 0).map(c => c.id), 'a country on screen does not print').toEqual([]);
+
     // And the button says which of the two it will do — the visible label cannot change (shared
     // header geometry), so the accessible name is where the scope has to live.
     // Derived from the DOM, not written down: the query matches whichever cards mention Belgium,
@@ -370,7 +379,7 @@ test('the FIP print button prints the countries on screen, not all of them @prin
     const shown = await page.evaluate(() =>
         [...document.querySelectorAll('[id^="country-"]')].filter(c => !c.hidden).length);
     await expect(page.locator('.btn-print'))
-        .toHaveAttribute('aria-label', new RegExp(`the ${shown} countr(y|ies) shown`));
+        .toHaveAttribute('aria-label', new RegExp(`the guide with the ${shown} countr(y|ies) shown`));
 
     // …and a SIGHTED reader is told too (v23.31). The accessible name above is announced on focus;
     // a traveller filtering to one country never focuses the button before pressing it, so until

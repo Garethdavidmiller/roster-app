@@ -21,6 +21,126 @@ test('fip: a country jump-link opens that country section (C1)', async ({ page }
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });
 
+// ── A DEEP LINK LANDS CLEAR OF THE STICKY STACK (whole-app review, 10 Nov 2026) ────────────────
+// Every drawer search result is a deep link into a guide. The browser scrolls to the fragment as
+// soon as the target is laid out, with the stylesheets' fallback scroll-margin — shorter than the
+// real header + chip bar on a phone, whose subtitle wraps — and stops re-applying it once the page
+// has loaded. The scripts measure the real stack only on `document.fonts.ready` and the header's
+// ResizeObserver, and on a phone serving everything from its cache the load finishes first: a
+// result opened with its own heading under the chip bar (Rangers 48px, Railcard 28px, the FIP
+// booking table and ferry cards 21px, at 375px).
+//
+// On a fast local server that order is a RACE, which the old code won most of the time — so these
+// tests FORCE the phone's order. An init script holds both measurement triggers until the test
+// releases them, after `load`. The page's own code is untouched; only WHEN the platform answers it
+// changes.
+/** @param {import('@playwright/test').Page} page */
+async function holdGuideMeasurement(page) {
+    await page.addInitScript(() => {
+        /** @type {() => void} */
+        let release = () => {};
+        const released = new Promise(resolve => { release = () => resolve(undefined); });
+        /** @type {any} */ (window).__releaseGuideMeasurement = () => release();
+        const RealObserver = window.ResizeObserver;
+        window.ResizeObserver = class extends RealObserver {
+            /** @param {ResizeObserverCallback} callback */
+            constructor(callback) {
+                super((entries, observer) => { released.then(() => callback(entries, observer)); });
+            }
+        };
+        // `ready` is an accessor on the FontFaceSet prototype, an interface Chromium does not expose
+        // by name — so walk to it from the instance rather than naming it.
+        /** @type {PropertyDescriptor|undefined} */
+        let ready;
+        for (let proto = Object.getPrototypeOf(document.fonts); proto && !ready; proto = Object.getPrototypeOf(proto)) {
+            ready = Object.getOwnPropertyDescriptor(proto, 'ready');
+        }
+        const realReady = /** @type {PropertyDescriptor} */ (ready);
+        Object.defineProperty(document.fonts, 'ready', {
+            configurable: true,
+            get() { return released.then(() => realReady.get?.call(document.fonts)); },
+        });
+    });
+}
+/** Two frames and a beat: let a measurement, and any scroll it starts, finish. @param {import('@playwright/test').Page} page */
+async function settleFrames(page) {
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 200)))));
+}
+/** Open a guide at a fragment with its measurement held, and wait for the browser's own landing. */
+async function landHeld(/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ url) {
+    await page.goto(url);   // resolves on `load` — after which the browser no longer re-lands the fragment
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+}
+/** @param {import('@playwright/test').Page} page @param {string} id */
+function landing(page, id) {
+    return page.evaluate((target) => ({
+        top: Math.round(document.getElementById(target)?.getBoundingClientRect().top ?? -1),
+        barBottom: Math.round(document.querySelector('.chip-bar')?.getBoundingClientRect().bottom ?? -1),
+    }), id);
+}
+
+for (const [guide, id] of /** @type {Array<[string, string]>} */ ([
+    ['rangers-guide', 'rr-thames'],
+    ['railcard-guide', 'rc-senior'],
+    ['fip-guide', 'booking-table'],           // not a section label or a country card
+    ['fip-guide', 'ferry-stena-irish-sea'],   // nor this
+])) {
+    test(`guides: a deep link to ${guide}#${id} lands below the header and chip bar`, async ({ page }) => {
+        await page.setViewportSize({ width: 375, height: 740 });
+        await holdGuideMeasurement(page);
+        await landHeld(page, `/${guide}.html#${id}`);
+        await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+        await settleFrames(page);
+        const geo = await landing(page, id);
+        expect(geo.barBottom, 'the chip bar is where this test looks for it').toBeGreaterThan(0);
+        expect(geo.top, `#${id} starts under the sticky stack (top ${geo.top}px, chip bar ends ${geo.barBottom}px)`)
+            .toBeGreaterThanOrEqual(geo.barBottom);
+    });
+}
+
+// The other half: the re-landing is for a page still LANDING. A reader who has already moved the
+// page is left where they put it, and so is a reload, which restores the reader's own position
+// rather than the fragment. The nudge is small on purpose — the target stays inside the band where
+// a re-land would act, so only the two guards stand between the reader and a jump.
+test('guides: a deep link does not pull back a reader who has moved, or a reload', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await landHeld(page, '/railcard-guide.html#rc-senior');
+    await page.mouse.move(180, 500);
+    await page.mouse.wheel(0, 30);
+    await settleFrames(page);
+    const moved = await page.evaluate(() => Math.round(window.scrollY));
+    const { top, barBottom } = await landing(page, 'rc-senior');
+    expect(top, 'the nudge leaves the card inside the band a re-land would act on').toBeLessThan(barBottom);
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement moved a reader who had scrolled').toBe(moved);
+
+    await page.reload();
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    const restored = await page.evaluate(() => Math.round(window.scrollY));
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement moved a reloaded page off its restored position').toBe(restored);
+});
+
+// A scroll that comes with no touch, click, wheel or key — a screen reader moving through the page,
+// a drag on the scrollbar — ends nothing, so what leaves it alone is that the target is no longer
+// under the sticky stack.
+test('guides: a deep link leaves alone a page scrolled away without a touch or a key', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await landHeld(page, '/rangers-guide.html#rr-thames');
+    await page.evaluate(() => window.scrollBy(0, 400));
+    await settleFrames(page);
+    const moved = await page.evaluate(() => Math.round(window.scrollY));
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement pulled the page back to the fragment').toBe(moved);
+});
+
 test('fip: a malformed hash does not throw (safeDecode)', async ({ page }) => {
     const errors = collectFatalErrors(page);
     // A lone "%" is an invalid percent-escape — decodeURIComponent would throw uncaught without the guard.
@@ -79,6 +199,35 @@ test('fip: the country finder folds accents and matches the start of a word', as
     await expect(page.locator('#country-ch'), 'no longer found inside "Société"').toBeHidden();
     await search.fill('ÖBB');
     await expect(page.locator('#country-at'), 'the accented spelling still works').toBeVisible();
+    // A stroke is part of its letter, so NFKD leaves Ł and ø whole (Nov 2026): these found nothing.
+    await search.fill('lodz');
+    await expect(page.locator('#country-pl'), '"lodz" finds Łódź').toBeVisible();
+    await search.fill('kobenhavn');
+    await expect(page.locator('#country-dk'), '"kobenhavn" finds København').toBeVisible();
+});
+
+// Whole-app review, Nov 2026: the booking steps say "see Czechia and Slovakia", and typing "Czechia"
+// into the finder just below them answered "No countries or operators match" — the card was titled
+// "Czech Republic", and the finder matches the start of a word. So every country the page's own
+// booking table names must find a card TITLED with that name, which is what a reader is looking at.
+// And a miss says what the finder covers: Eurostar and the ferries are sections of their own.
+test('fip: the finder finds every country by the name the booking table gives it', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    const names = (await page.locator('#booking-table [role="rowheader"]').allTextContents()).map(n => n.trim());
+    expect(names.length, 'the booking table is where this test reads the names').toBeGreaterThan(10);
+    const search = page.locator('#countrySearch');
+    for (const name of names) {
+        await search.fill(name);
+        const titles = await page.locator('[id^="country-"]:not([hidden]) :is(summary, .not-fip-name)').allTextContents();
+        expect(titles.some(t => t.includes(name)),
+            `"${name}" finds no card titled with it — the finder shows: ${titles.map(t => t.trim()).join(' | ') || 'nothing'}`).toBe(true);
+    }
+    // The card keeps the name a reader may still type.
+    await search.fill('czech republic');
+    await expect(page.locator('#country-cz')).toBeVisible();
+    await search.fill('Stena');
+    await expect(page.locator('#countryNoMatch')).toContainText('No country card matches');
+    await expect(page.locator('#countryNoMatch')).toContainText('Ferries');
 });
 
 test('fip: the section chip-bar jumps to a section and marks it current', async ({ page }) => {
@@ -112,6 +261,112 @@ test('fip: scrollspy marks the chip for the section scrolled into view', async (
     await page.evaluate(() => window.scrollTo(0, 0));
     await expect(page.locator('.chip[data-target="sec-need"]')).toHaveAttribute('aria-current', 'true');
 });
+
+// Whole-app review, Nov 2026: the Railcard and Rangers bars had drifted from the FIP one above. With
+// Reduce Motion on they still animated a scroll of several thousand pixels, and after a jump the chip
+// they marked current stayed current wherever the reader went — "Digital" lit over the quick check.
+// The scroll's behaviour is read off the call itself, because an instant and a smooth jump end in the
+// same place and a test that only looked at the landing could not tell them apart.
+for (const [guide, first, last] of /** @type {Array<[string, string, string]>} */ ([
+    ['railcard-guide', 'rc-quick', 'rc-digital'],
+    ['rangers-guide', 'rr-quick', 'rr-checks'],
+])) {
+    test(`${guide}: a chip jump honours Reduce Motion, and the current chip follows the reader`, async ({ page }) => {
+        await page.addInitScript(() => {
+            /** @type {string[]} */
+            const calls = [];
+            /** @type {any} */ (window).__scrollCalls = calls;
+            const real = Element.prototype.scrollIntoView;
+            Element.prototype.scrollIntoView = function (/** @type {any} */ arg) {
+                calls.push(arg && typeof arg === 'object' ? (arg.behavior ?? 'auto') : 'auto');
+                return real.call(this, arg);
+            };
+        });
+        const lastChip = page.locator(`.chip-bar .chip[data-target="${last}"]`);
+        const firstChip = page.locator(`.chip-bar .chip[data-target="${first}"]`);
+        const lastCall = () => page.evaluate(() => /** @type {any} */ (window).__scrollCalls.at(-1));
+
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.goto(`/${guide}.html`);
+        await lastChip.click();
+        expect(await lastCall(), 'the jump under Reduce Motion').toBe('auto');
+        await expect(lastChip).toHaveAttribute('aria-current', 'true');
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await expect(firstChip, 'back at the top, the first chip is current again').toHaveAttribute('aria-current', 'true');
+        await expect(lastChip).not.toHaveAttribute('aria-current', 'true');
+
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        await page.reload();
+        await lastChip.click();
+        expect(await lastCall(), 'the jump with motion allowed').toBe('smooth');
+    });
+}
+
+// Whole-app review, Nov 2026: heading navigation on the Railcard guide stopped at the A–Z section —
+// reaching "Network" meant reading through eight cards — because a card's name was a plain span; two
+// Rangers headings announced their status pill as part of the title; and every FIP country was read
+// out with its flag and a "down-pointing triangle". Read from the accessibility tree, which is what a
+// screen reader is given, not from the markup.
+for (const [guide, cardSel, nameSel] of /** @type {Array<[string, string, string]>} */ ([
+    ['railcard-guide', '.rc[id]', '.rc-name'],
+    ['rangers-guide', '.rr-card[id], .rr-no-item[id]', '.rr-name, .rr-no-name'],
+])) {
+    test(`${guide}: every card is a level-3 heading by its own name, and no heading reads a status pill`, async ({ page }) => {
+        await page.goto(`/${guide}.html`);
+        const cards = page.locator(cardSel);
+        const count = await cards.count();
+        expect(count, 'the cards are where this test looks for them').toBeGreaterThan(5);
+        for (let i = 0; i < count; i++) {
+            const card = cards.nth(i);
+            const name = (await card.locator(nameSel).first().innerText()).replace(/\s+/g, ' ').trim();
+            const headings = card.getByRole('heading', { level: 3 });
+            await expect(headings, `${await card.getAttribute('id')} has one heading`).toHaveCount(1);
+            await expect(headings).toHaveAccessibleName(name);
+        }
+        await expect(page.getByRole('heading', { name: /checked ·|Source conflict|source not yet verified/i }),
+            'a heading whose name carries a status pill').toHaveCount(0);
+    });
+}
+
+test('fip: a country is announced by its name, not its disclosure triangle', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    const snapshot = await page.locator('#sec-countries ~ details[id^="country-"]').first().ariaSnapshot();
+    expect(snapshot, 'the snapshot reads the card at all').toContain('France');
+    expect(snapshot).not.toContain('▾');
+    await expect(page.locator('summary .chevron')).not.toHaveCount(0);
+    await expect(page.locator('summary .chevron:not([aria-hidden="true"])'), 'a chevron a screen reader reads out').toHaveCount(0);
+});
+
+// Whole-app review, Nov 2026: the primary button "📞 Trainseurope — 01354 660222" opened Trainseurope's
+// website in a new tab. A member who taps a telephone and a number expects a call. So any link that
+// SHOWS a phone number must dial THAT number, and the website is a link of its own.
+test('fip: a link that shows a phone number dials it, and the website is its own link', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    const shown = await page.locator('a').evaluateAll(links => links
+        .map(a => ({ text: (a.textContent || '').replace(/\s+/g, ' ').trim(), href: a.getAttribute('href') || '' }))
+        .filter(l => /📞|\b0\d{4} ?\d{6}\b/.test(l.text)));
+    expect(shown.length, 'the Trainseurope button is where this test looks').toBeGreaterThan(0);
+    for (const link of shown) {
+        const number = (link.text.match(/\b0\d{4} ?\d{6}\b/) || [''])[0].replace(/\s/g, '');
+        expect(link.href, `"${link.text}" must dial ${number}`).toBe(`tel:+44${number.slice(1)}`);
+    }
+    const site = page.locator('#sec-apply ~ a[href^="https://www.trainseurope.co.uk"]');
+    await expect(site).toHaveCount(1);
+    await expect(site).toContainText('website');
+});
+
+// Whole-app review, Nov 2026 (a lead from the PWA reader): every app page names its tab icon, and the
+// guides named none, so a browser fell back to the ORIGIN's /favicon.ico — which neither origin has,
+// and which on the Pages mirror is a different site altogether. Each guide now asks for the app's
+// own icon. (paycalc-guide.html belongs to another area and is reported there.)
+for (const guide of ['staff-guide', 'railcard-guide', 'fip-guide', 'rangers-guide']) {
+    test(`${guide}: names the app's own tab icon, so the browser never falls back to /favicon.ico`, async ({ page }) => {
+        const asked = page.waitForRequest(r => new URL(r.url()).pathname.endsWith('/icon-192.png'), { timeout: 5000 });
+        await page.goto(`/${guide}.html`);
+        await asked;
+        await expect(page.locator('link[rel="icon"][href$="icon-192.png"]')).toHaveCount(1);
+    });
+}
 
 test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
     await page.goto('/fip-guide.html');
