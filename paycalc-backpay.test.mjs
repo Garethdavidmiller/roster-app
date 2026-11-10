@@ -621,3 +621,57 @@ describe('a damaged saved card state is reset ALOUD, until the member re-checks 
         cardEvent('change', true);                            // leave the module as later cases expect
     });
 });
+
+// ── A GRADE CHANGE NEVER PRICES ONE GRADE'S FIGURE IN ANOTHER'S BOX (paycalc-2-9) ────────────────
+// The CES 2025/26 award has no old rate on record, so that box keeps what it holds — and after a
+// change from CEA it held CEA's £20.06, unlocked, against CES's £21.81: "Yours is roughly £1,569.85"
+// for a rise nobody was given. The grade is switched the way the Settings card switches it, and put
+// back, because the settings module caches it for the whole file.
+const { saveSettings } = await import('./paycalc-settings.js');
+const TY25 = /** @type {any} */ (PERIOD_CONFIG.TAX_YEARS.find(/** @param {any} t */ t => t.label === '2025/26'));
+const VIEW_25 = /** @type {any} */ (PERIODS.find(/** @param {any} p */ p => p.num === 48 + TY25.first + 6));
+function setGrade(/** @type {string} */ g) {
+    for (const id of ['gradeSelect', 'taxCode', 'studentLoan', 'pgLoanCheck', 'pensionAmt', 'ytdPay', 'ytdTax']) els[id] ??= node(id);
+    els.gradeSelect.value = g;
+    saveSettings();
+}
+
+describe('a grade change never prices one grade\'s figure in another\'s box', () => {
+    test('a blob saved under CEA, restored under CES: the box CES has no record for comes back BLANK', () => {
+        try {
+            openCard({ viewed: VIEW_25 });
+            // Saved under CEA before blobs carried their grade: its locked boxes hold CEA's record.
+            _ls.set(bpKey(TY25), JSON.stringify({ year: '2025/26', mode: 'compute', pct: '', oldR: '20.06',
+                newR: '20.74', oldL: '267.08', newL: '276.16', manual: '', paidIn: '', inc: '' }));
+            setGrade('ces');
+            assert.equal(restoreBpState(), true);
+            calcBackPay();
+            assert.equal(els.oldRate.value, '', 'CEA\'s old rate was carried into the box CES has no record for');
+            assert.equal(els.oldRate.readOnly, false, 'and the box stays the member\'s to complete');
+            assert.doesNotMatch(els.bpAwardScope.innerHTML, /Yours is roughly £1,5/);
+        } finally { setGrade('cea'); }
+    });
+
+    test('changing the grade while the card shows the old grade\'s figure blanks that box', () => {
+        try {
+            openCard({ viewed: VIEW_25 });
+            calcBackPay();                                    // under CEA the old rate is on record and locked
+            assert.equal(Number(els.oldRate.value), awardRatesFor('cea', '2025/26')?.pre);
+            setGrade('ces');
+            calcBackPay();                                    // what the grade listener runs
+            assert.equal(els.oldRate.value, '', 'CEA\'s record stayed in the box CES has none for');
+        } finally { setGrade('cea'); }
+    });
+
+    test('a CES member\'s own typed old rate survives a reload', () => {
+        try {
+            openCard({ viewed: VIEW_25 });
+            setGrade('ces');
+            _ls.set(bpKey(TY25), JSON.stringify({ year: '2025/26', grade: 'ces', mode: 'compute', pct: '',
+                oldR: '21.09', newR: '21.81', oldL: '267.08', newL: '276.16', manual: '', paidIn: '', inc: '' }));
+            assert.equal(restoreBpState(), true);
+            calcBackPay();
+            assert.equal(els.oldRate.value, '21.09');
+        } finally { setGrade('cea'); }
+    });
+});

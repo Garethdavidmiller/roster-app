@@ -1642,7 +1642,7 @@ The field readers for `paycalc.html`'s hours and figures, and the live "= 7h 30m
 
 ### `paycalc-backpay-state.js`
 Which FIGURE ends up in which back-pay box, and which of them the member may change — the three decisions every recorded back-pay defect sat in, taken out of `calcBackPay` so they are unit-tested (`paycalc-backpay-state.test.mjs`; the header lists the five defects).
-- `BP_FIELDS` (the saved-state schema, DOM id ↔ blob key) · `readBpFields` / `bpFieldWrites` (the round trip) · `resolveAuthoritativeRates` · `allRatesOnRecord` · `resolvePaidInPeriod`.
+- `BP_FIELDS` (the saved-state schema, DOM id ↔ blob key) · `readBpFields` / `bpFieldWrites` (the round trip) · `resolveAuthoritativeRates` · `allRatesOnRecord` · `resolvePaidInPeriod` · `blobFitsGrade` (was a saved blob written under the grade now in force — else a box with no record for it is blanked).
 - **Three rules:** `bpFieldWrites` returns an entry for EVERY field, so a blob silent about a field blanks it. The lock never reads a box's contents, and a locked box is WRITTEN with its recorded figure. `resolvePaidInPeriod` never returns 0 while any candidate exists — the order of its ladder is a judgement, and never-zero is the safety property.
 
 ### `paycalc-pension.js`

@@ -27,7 +27,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { bpKey, readSavedPeriod } from './paycalc-migrations.js';
 import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
 import { fd, fdShort, fdLong, fdList, fmt } from './paycalc-format.js';
-import { readBpFields, bpFieldWrites, resolveAuthoritativeRates, allRatesOnRecord, resolvePaidInPeriod } from './paycalc-backpay-state.js';
+import { readBpFields, bpFieldWrites, resolveAuthoritativeRates, allRatesOnRecord, resolvePaidInPeriod, blobFitsGrade } from './paycalc-backpay-state.js';
 
 import { setStatus } from './status-text.js';
 /**
@@ -52,6 +52,12 @@ const PENDING_AWARD_PCT = Object.freeze({});
 // the new year prefills its own state; a year with a saved blob restores via restoreBpState instead.
 /** @type {string|null} */
 let _lastAwardYear = null;
+
+// The grade the card's rate boxes were last filled or restored under. A box with no figure on record
+// for the grade now in force keeps its contents, so a grade change must blank it, or one grade's
+// figure is priced against another's (paycalc-2-9; see blobFitsGrade).
+/** @type {string|null} */
+let _bpGrade = null;
 
 // The award year whose saved card state restoreBpState found UNREADABLE (not merely absent) and
 // reset — the card meanwhile computes a correct default estimate (no-silent-caps; Finding #7,
@@ -233,6 +239,7 @@ export function prefillBackPay() {
       : todaysPeriodNum();
     _setSelectPeriod(paidSel, _target);
   }
+  _bpGrade = getGrade();
   return calcBackPay();
 }
 
@@ -289,7 +296,7 @@ function _saveBpState() {
     // here — save, clear and restore each used to carry their own hand-written copy of that list,
     // which is how a field could be saved and restored but never cleared (see the module header).
     lsSet(bpKey(awardTy), JSON.stringify({
-      year: awardTy.label, mode: _bpMode(),
+      year: awardTy.label, grade: getGrade(), mode: _bpMode(),
       ...readBpFields(v),
       paidIn: v('backPayPeriod'),
       inc:  /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'))?.checked ? '1' : '',
@@ -340,6 +347,18 @@ export function restoreBpState() {
     const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
     if (_el) _el.value = value;
   }
+  // A blob saved under another grade: its figure in a box this grade has NO record for is that other
+  // grade's, so it comes back blank rather than priced (paycalc-2-9). Recorded boxes need nothing —
+  // calcBackPay writes the record into them.
+  const _grade = getGrade();
+  const _auth = resolveAuthoritativeRates(awardTy, awardRatesFor(_grade, awardTy.label));
+  if (!blobFitsGrade(s, _grade, _auth)) {
+    for (const [id, v] of Object.entries(_auth)) {
+      const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+      if (v == null && _el) _el.value = '';
+    }
+  }
+  _bpGrade = _grade;
   const paidSel = document.getElementById('backPayPeriod');
   // Rebuild the paid-in list for THIS award's year before applying the saved selection — the select
   // otherwise still holds the previously-viewed year's periods, so _setSelectPeriod would no-op and
@@ -480,10 +499,17 @@ export function calcBackPay() {
   // CONTENTS (review F1 — an earlier version locked on non-empty, so a recompute mid-typing froze
   // the fragment), and a locked box is WRITTEN with the recorded figure (review F2 — otherwise a
   // stale restored value sits behind a padlock and reads as confirmed).
-  const _auth = resolveAuthoritativeRates(awardTy, awardRatesFor(getGrade(), awardTy?.label ?? ''));
+  const _grade = getGrade();
+  const _auth = resolveAuthoritativeRates(awardTy, awardRatesFor(_grade, awardTy?.label ?? ''));
+  // The GRADE changed since these boxes were filled: a box the new grade has no record for still
+  // holds the old grade's figure (often the record it was locked to a moment ago). Blank it — the
+  // member is its only source now (paycalc-2-9). The coordinator's grade listener lands here.
+  const _gradeChanged = _bpGrade !== null && _bpGrade !== _grade;
+  _bpGrade = _grade;
   for (const [_id, _v] of Object.entries(_auth)) {
     const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(_id));
     if (!_el) continue;
+    if (_gradeChanged && _v == null) _el.value = '';
     const _lk = _v != null;
     if (_lk) _el.value = _v.toFixed(2);
     _el.readOnly = _lk;
