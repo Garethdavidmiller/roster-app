@@ -158,6 +158,19 @@
     <p id="setupRestore" hidden>Used the Pay Calculator before? Restore your figures from <a href="#payTransferCard" class="setup-restore-link">💾 Move Your Pay Data</a>.</p>
   </div>
 
+  <!-- THE ROSTER NAMES A DIFFERENT GRADE (owner, 10 Nov 2026). A saved grade outranks the roster
+       role, so a member moved between CEA and CES kept the old rates silently. One line asks; the
+       words and both answers are paycalc-settings.js → renderGradePrompt. The first-run banner's
+       panel, so the two things this page asks of a member look alike. Hidden in print with it. -->
+  <div class="setup-banner grade-prompt" id="gradePrompt" hidden>
+    <p id="gradePromptText"></p>
+    <div class="grade-prompt-actions" id="gradePromptActions">
+      <button type="button" class="btn-action btn-primary" id="gradePromptUse"></button>
+      <button type="button" class="btn-action btn-secondary" id="gradePromptKeep"></button>
+    </div>
+    <p id="gradePromptDone" tabindex="-1" hidden></p>
+  </div>
+
   <!-- ── A ROLE THIS CALCULATOR HAS NO CONFIRMED RATES FOR (v21.78) ────────────────────────────
        Every consumer of the grade falls back to CEA when no grade is stored, so a Dispatcher
        or a manager could open this page and be handed a polished, plausible, wrong

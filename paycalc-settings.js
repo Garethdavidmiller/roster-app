@@ -5,7 +5,8 @@
  * Owns: grade cache, getContr/getLoggedMember/getEffectiveContr/getProRateFactor/
  *   getPensionDefault, updateRateForPeriod, updateYtdForTaxYear, settingsKey,
  *   saveSettings, confirmSettings, setSettingsCardOpen, loadSettings, and wireSettingsCard — the
- *   card's place in the desktop Tab order and the setup banner's link to it.
+ *   card's place in the desktop Tab order and the setup banner's link to it. Also the grade prompt
+ *   (gradeToOffer/renderGradePrompt): a roster grade that differs from the saved one is ASKED about.
  * Does NOT own: period arithmetic (paycalc-periods.js), pay maths (paycalc-calc.js),
  *   roster hints (paycalc-roster-hint.js).
  * Edit here for: grade helpers, settings persistence, rate/YTD field updates.
@@ -55,6 +56,96 @@ export function getLoggedMember() {
   const sess = getSession();
   if (!sess?.name) return null;
   return teamMembers.find(m => m.name === sess.name) || null;
+}
+
+// ── A ROSTER GRADE THAT DIFFERS FROM THE SAVED ONE IS ASKED ABOUT, NEVER APPLIED ──────────────────
+// (owner, 10 Nov 2026). Grade is an editable setting, and a SAVED grade outranks the roster role
+// (loadSettings), so a member moved from CEA to CES kept CEA rates with nothing on the page saying so.
+// Applying the roster's grade silently would be the opposite mistake: somebody acting up, or a
+// roster row not yet corrected, would have a deliberate setting overwritten. So the page ASKS, once,
+// in one line at the top — and remembers a "Keep" against the grade it declined, so the question
+// comes back only if the roster later names a different grade.
+const GRADE_NAMES = /** @type {Record<string, string>} */ ({
+  cea: 'Customer Experience Ambassador',
+  ces: 'Customer Experience Supervisor',
+});
+
+/**
+ * The roster's grade to offer, or null when there is nothing to ask. PURE.
+ * Nothing is asked when no grade is saved (loadSettings adopts the role's grade itself), when the
+ * role has no confirmed rates (the page refuses instead), when the two agree, or when the member
+ * already chose to keep their own grade over THIS roster grade.
+ * @param {string|null|undefined} stored - the grade saved on this device
+ * @param {string|null|undefined} role - the member's roster role ('CEA', 'CES', …)
+ * @param {string|null|undefined} kept - the roster grade the member last declined, if any
+ * @returns {string|null}
+ */
+export function gradeToOffer(stored, role, kept) {
+  const rosterGrade = gradeForRole(role);
+  if (!rosterGrade || !GRADES[rosterGrade]) return null;
+  if (!stored || !GRADES[stored]) return null;
+  if (stored === rosterGrade || kept === rosterGrade) return null;
+  return rosterGrade;
+}
+
+/**
+ * Paint the grade prompt (#gradePrompt). `mayShow` is true only on load: a member who changes the
+ * Grade box during a visit has just answered the question themselves, so a save may HIDE the prompt
+ * (the two now agree) but never raise it. An answered prompt keeps its confirmation until reload.
+ * @param {boolean} [mayShow]
+ */
+export function renderGradePrompt(mayShow = false) {
+  const box = document.getElementById('gradePrompt');
+  if (!box?.dataset || box.dataset.answered) return;
+  const offer = gradeToOffer(getGrade(), getLoggedMember()?.role, lsGet(SK.gradeKept));
+  if (!offer) { box.hidden = true; return; }
+  if (!mayShow && box.hidden) return;
+  const current = getGrade();
+  const text = document.getElementById('gradePromptText');
+  const use = document.getElementById('gradePromptUse');
+  const keep = document.getElementById('gradePromptKeep');
+  if (!text || !use || !keep) return;
+  text.textContent = `The roster lists you as ${offer.toUpperCase()} (${GRADE_NAMES[offer]}), `
+    + `but this calculator is using ${current.toUpperCase()} rates.`;
+  use.textContent = `Use ${offer.toUpperCase()} rates`;
+  keep.textContent = `Keep ${current.toUpperCase()}`;
+  if (!box.dataset.wired) {
+    box.dataset.wired = '1';
+    use.addEventListener('click', () => answerGradePrompt(box, 'use'));
+    keep.addEventListener('click', () => answerGradePrompt(box, 'keep'));
+  }
+  box.hidden = false;
+}
+
+/**
+ * The member's answer. "Use" sets the Grade box and ANNOUNCES the change, so the page's own change
+ * handler re-prices everything a grade touches (rate, pension default, back pay) — the same path a
+ * hand-picked grade takes. "Keep" remembers the roster grade it declined. Either way the question
+ * gives way to one line saying what happened, which takes focus: the button just pressed is gone.
+ * @param {HTMLElement} box @param {'use'|'keep'} answer
+ */
+function answerGradePrompt(box, answer) {
+  const offer = gradeToOffer(getGrade(), getLoggedMember()?.role, lsGet(SK.gradeKept));
+  const done = document.getElementById('gradePromptDone');
+  if (!offer || !done) { box.hidden = true; return; }
+  box.dataset.answered = '1';
+  if (answer === 'use') {
+    const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('gradeSelect'));
+    if (sel) {
+      sel.value = offer;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    setStatus(done, `✓ Now using ${offer.toUpperCase()} rates.`);
+  } else {
+    lsSet(SK.gradeKept, offer);
+    setStatus(done, `✓ Keeping ${getGrade().toUpperCase()} rates. You can change your grade in Your Settings.`);
+  }
+  for (const id of ['gradePromptText', 'gradePromptActions']) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = true;
+  }
+  done.hidden = false;
+  done.focus();
 }
 
 /**
@@ -430,6 +521,8 @@ export function saveSettings() {
   // (getStoredRateForYear, getPensionDefault) must read the NEW grade. (v17.40 review fix.)
   lsSet(SK.grade, _savedGrade);
   invalidateGrade();
+  // A grade picked by hand answers the grade prompt's question: hide it if the two now agree.
+  renderGradePrompt();
   // NB: the hourly rate is NO LONGER persisted (v17.87) — it is fixed by grade and derived by
   // getStoredRateForYear/getRateForPeriod, so there is nothing to save and no stale rate can form.
   lsSet(SK.code,      /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value);
@@ -659,6 +752,9 @@ export function loadSettings() {
     lsSet(SK.grade, grade);
     invalidateGrade();
   }
+  // A saved grade outranks the roster role above, so a member whose role has changed since is
+  // ASKED here (owner, 10 Nov 2026) — the only moment the prompt may appear.
+  renderGradePrompt(true);
   // ── PENSION STATUS: migrate the retired boolean, then paint the controls ──────────────────────
   //
   // The v21.64 flag carried no date, so no migration can recover the real one. It becomes a change

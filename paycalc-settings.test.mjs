@@ -78,7 +78,7 @@ mock.module('./paycalc-roster-suggestions.js', {
 const { SK, periodKey } = await import('./paycalc-migrations.js');
 const {
     getStoredRateForYear, getPensionDefault, isPensionOptedOut, gradeForRole,
-    periodDefaultPension, getProRateFactor, getEffectiveContr, periodRate,
+    periodDefaultPension, getProRateFactor, getEffectiveContr, periodRate, gradeToOffer,
 } = await import('./paycalc-settings.js');
 const { awardRatesFor, getPensionForPeriod, GRADES, computeGross, getRateForPeriod, getLondonAllowanceForPeriod } = await import('./paycalc-calc.js');
 // The REAL period grid and the REAL year engine, both running against the REAL settings module
@@ -273,6 +273,34 @@ describe('getPensionDefault — a member who is not in the pension scheme', () =
 // The third case is the one `.claude/rules/paycalc.md` invariant 13 names: a role with no confirmed
 // rates gets NO figure, not a caption over somebody else's. `null` is what makes that possible, so
 // it is a return value with a job, not an absence.
+// ── THE ROSTER NAMES A DIFFERENT GRADE: ASK, NEVER APPLY (owner, 10 Nov 2026) ────────────────────
+// A saved grade outranks the roster role, so a member moved from CEA to CES kept CEA rates with nothing
+// saying so. The page now asks — and only in the one situation that needs a question.
+describe('gradeToOffer — when the page asks whether to use the roster\'s grade', () => {
+    test('a member the roster moved to CES, still on CEA here, is offered CES — and the reverse', () => {
+        assert.equal(gradeToOffer('cea', 'CES', null), 'ces');
+        assert.equal(gradeToOffer('ces', 'CEA', null), 'cea');
+    });
+    test('nothing is asked when the two agree', () => {
+        assert.equal(gradeToOffer('cea', 'CEA', null), null);
+        assert.equal(gradeToOffer('ces', 'CES', null), null);
+    });
+    test('a "Keep" is remembered against the grade it declined — and only that grade', () => {
+        assert.equal(gradeToOffer('cea', 'CES', 'ces'), null, 'asked again after the member said keep');
+        assert.equal(gradeToOffer('ces', 'CEA', 'ces'), 'cea', 'a keep against CES silenced a different question');
+    });
+    test('nothing saved yet: no question — the page adopts the roster\'s grade itself', () => {
+        assert.equal(gradeToOffer('', 'CES', null), null);
+        assert.equal(gradeToOffer(null, 'CES', null), null);
+        assert.equal(gradeToOffer('zzz', 'CES', null), null, 'an unrecognised saved value is not a grade to compare');
+    });
+    test('a role with no confirmed rates is never offered a grade — the page refuses instead', () => {
+        for (const role of ['Dispatcher', 'Management', '', null, undefined]) {
+            assert.equal(gradeToOffer('cea', role, null), null, `${role} was offered a grade`);
+        }
+    });
+});
+
 describe('gradeForRole — the role → pay-grade map every figure hangs off', () => {
     test('a CES is a CES, and the gap is the reason that matters', () => {
         assert.equal(gradeForRole('CES'), 'ces');
