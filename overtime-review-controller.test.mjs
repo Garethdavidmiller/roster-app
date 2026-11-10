@@ -46,12 +46,14 @@ function fakeEl(id) {
     return {
         id, innerHTML: '', textContent: '', hidden: true,
         querySelectorAll: () => [], querySelector: () => null,
-        addEventListener() {}, setAttribute() {}, scrollIntoView() {},
+        addEventListener() {}, setAttribute() {}, scrollIntoView() {}, focus() { focused.push(id); },
     };
 }
 
 /** @type {Record<string, any>} */
 let dom = {};
+/** Every element the controller focused directly, by id. */
+let focused = /** @type {string[]} */ ([]);
 const el = (/** @type {string} */ id) => (dom[id] ||= fakeEl(id));
 
 globalThis.document = /** @type {any} */ ({ querySelectorAll: () => [], body: { style: {} } });
@@ -89,6 +91,8 @@ mock.module('./overtime-data.js', {
 
 /** Every restamp of the sheet's "Printed …" line, as [host, instant]. */
 let stamped = /** @type {any[]} */ ([]);
+/** Every successor the controller put the keyboard on. */
+let refocused = /** @type {string[][]} */ ([]);
 /** What the workspace reports it opened on — the real one says when it fell back to All grades. */
 let opensOn = /** @type {null | ((grade: string) => string)} */ (null);
 mock.module('./overtime-manager.js', {
@@ -98,6 +102,9 @@ mock.module('./overtime-manager.js', {
             return { grade: opensOn ? opensOn(opts.grade) : opts.grade };
         },
         stampPrinted: (/** @type {any} */ host, /** @type {number} */ at) => { stamped.push([host, at]); },
+        // Where the keyboard is sent after a repaint, as [attribute, value] (overtime-ui-12).
+        refocus: (/** @type {any} */ _host, /** @type {string} */ attr, /** @type {string} */ value) => { refocused.push([attr, value]); return true; },
+        focusLost: () => true,
     },
 });
 
@@ -179,6 +186,8 @@ beforeEach(() => {
     withdrawHold = null;
     dialogs = [];
     opensOn = null;
+    focused = [];
+    refocused = [];
     // A success flash arms a REAL 2.5-second auto-hide that no test here waits for, and it held the
     // process open after the last test: 2.7 s of wall for ~60 ms of tests (test audit, 7 Nov 2026).
     // Mocked, it is a fake timer that the reset below throws away.
@@ -603,7 +612,7 @@ describe('a failure retries what failed, and a message never re-arms a create', 
         return {
             textContent: 'x', disabled: false, classList: { add() {}, remove() {} },
             getAttribute: (/** @type {string} */ a) => (a === attr ? value : null),
-            setAttribute() {},
+            setAttribute() {}, focus() {},
             addEventListener: (/** @type {string} */ _t, /** @type {any} */ f) => on.push(f),
             press: () => Promise.all(on.map(f => f())),
         };
@@ -677,7 +686,7 @@ describe('a create that fails under ANOTHER week\'s question disarms (48-hour re
     function btn(/** @type {string} */ attr, /** @type {string|null} */ value) {
         /** @type {Function[]} */ const on = [];
         return { textContent: 'x', disabled: false, hidden: true, innerHTML: '', classList: { add() {}, remove() {} },
-            getAttribute: (/** @type {string} */ a) => (a === attr ? value : null), setAttribute() {},
+            getAttribute: (/** @type {string} */ a) => (a === attr ? value : null), setAttribute() {}, focus() {},
             addEventListener: (/** @type {string} */ _t, /** @type {Function} */ f) => on.push(f),
             press: () => Promise.all(on.map(f => f())) };
     }
@@ -753,7 +762,7 @@ describe('the sheet says when it was PRINTED (overtime-ui-7)', () => {
 function pressable(/** @type {string} */ attr, /** @type {string|null} */ value) {
     /** @type {Function[]} */ const on = [];
     return { textContent: 'x', disabled: false, hidden: true, innerHTML: '', classList: { add() {}, remove() {} },
-        getAttribute: (/** @type {string} */ a) => (a === attr ? value : null), setAttribute() {},
+        getAttribute: (/** @type {string} */ a) => (a === attr ? value : null), setAttribute() {}, focus() {},
         addEventListener: (/** @type {string} */ _t, /** @type {Function} */ f) => on.push(f),
         press: () => Promise.all(on.map(f => f())) };
 }
@@ -906,6 +915,62 @@ describe('the reviewer\'s side stands down when it leaves the screen (overtime-u
         assert.equal(dom.otWeekContent.innerHTML, '', 'and no week is re-read: none is selected now');
         await c.selectWeek(A);
         assert.deepEqual(painted, [], 'a failed read of that week shows its error, never the sheet it replaced');
+    });
+});
+
+describe('the keyboard is never dropped on <body>, and the bar is heard (overtime-ui-12)', () => {
+    // Every press repainted the surface it was on and focus fell to the top of the page; the bar
+    // that asks "Open the form?" was neither focused nor announced.
+    /** The bar's words element, whose text is its markup's, as a browser's would be. */
+    const wordsEl = () => ({ ...fakeEl('otConfirmText'), get textContent() { return this.innerHTML.replace(/<[^>]*>/g, ''); } });
+    async function asked() {
+        const create = pressable('data-create', '2026-09-26');
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [create] : []) };
+        dom.otConfirmCancel = pressable('x', null);
+        dom.otConfirmCancel.focus = () => focused.push('otConfirmCancel');
+        dom.otConfirmText = wordsEl();
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        c.wireConfirmBar();
+        createQueue = [{ ok: true, data: { window: { ...WEEK_A, weekEnding: '2026-09-26', audience: 'restricted', expectedCount: 1 } } }];
+        await create.press();
+        return c;
+    }
+
+    test('the question takes the keyboard to Cancel, and is said aloud', async () => {
+        await asked();
+        assert.deepEqual(focused, ['otConfirmCancel'], 'to the answer that changes nothing');
+        assert.match(dom.otConfirmLive.textContent, /^Open the availability form for .*\?Roster week/);
+    });
+
+    test('Cancel hands the keyboard back to the row that asked', async () => {
+        await asked();
+        await dom.otConfirmCancel.press();
+        assert.deepEqual(refocused, [['data-create', '2026-09-26']]);
+    });
+
+    test('an outcome is said aloud too', async () => {
+        dom.otConfirmText = wordsEl();
+        detailFor.set(A, detail(2, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        keepWeekA();
+        await c.selectWeek(A);
+        await painted.at(-1).opts.onAsk('P0', false);
+        assert.match(dom.otConfirmLive.textContent, /^P0 is no longer being asked for /);
+    });
+
+    test('after Stop asking or Ask again, the keyboard goes to that person\'s other control', async () => {
+        detailFor.set(A, detail(2, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        keepWeekA();
+        await c.selectWeek(A);
+        await painted.at(-1).opts.onAsk('P0', false);
+        keepWeekA();
+        await painted.at(-1).opts.onAsk('P1', true);
+        assert.deepEqual(refocused, [['data-ask-again', 'P0'], ['data-stop-asking', 'P1']]);
     });
 });
 

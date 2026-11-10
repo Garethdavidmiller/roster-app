@@ -214,6 +214,9 @@
         <button type="button" class="btn-action btn-primary" id="otConfirmCreate">Open the form</button>
     </div>
 </div>
+<!-- The bar's words, said aloud. Always rendered, unlike the bar: a live region inside an element
+     that was hidden when its words changed is announced unreliably (overtime-ui-12). -->
+<div id="otConfirmLive" class="visually-hidden" role="status"></div>
 
 <script type="module" src="./overtime-boot.js"></script>
 </body>

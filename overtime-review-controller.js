@@ -76,7 +76,7 @@ import {
     writeOutcomeUnknown,
 } from './overtime-format.js';
 import { phaseAt } from './overtime-phase.js';
-import { renderWeekDetail as paintWeekDetail, stampPrinted } from './overtime-manager.js';
+import { renderWeekDetail as paintWeekDetail, stampPrinted, refocus, focusLost } from './overtime-manager.js';
 import { confirmDialog } from './overlay.js';
 
 /**
@@ -342,6 +342,9 @@ async function previewWindow(weekEnding, btn) {
     }
     armConfirmBar();
     showConfirmBar(bar);
+    // The question is asked at the foot of the page, so the keyboard goes there — to Cancel, the
+    // answer that changes nothing (overtime-ui-12).
+    el('otConfirmCancel')?.focus();
 }
 
 /**
@@ -445,8 +448,11 @@ function armConfirmBar() {
 
 function wireConfirmBar() {
     el('otConfirmCancel')?.addEventListener('click', () => {
+        const asked = pendingWeek;
         pendingWeek = null;
         hideConfirmBar();
+        // Back to the row that asked; the hidden bar takes the keyboard with it otherwise.
+        if (asked) refocus(el('otHorizonContent'), 'data-create', asked);
     });
     el('otConfirmCreate')?.addEventListener('click', async () => {
         if (!pendingWeek) return;
@@ -551,6 +557,10 @@ function showConfirmBar(bar) {
     if (confirmHideTimer) { clearTimeout(confirmHideTimer); confirmHideTimer = null; }
     if (bar) bar.hidden = false;
     reserveConfirmSpace(true);
+    // Said aloud through a live region that is always rendered: words that appear inside a bar that
+    // was hidden when they changed are announced unreliably or not at all (overtime-ui-12).
+    const live = el('otConfirmLive');
+    if (live) live.textContent = el('otConfirmText')?.textContent ?? '';
 }
 
 /** Take the bar down, and the pending auto-hide with it. The mirror of `showConfirmBar`. */
@@ -742,7 +752,11 @@ async function setAsking(weekEnding, memberName, ask) {
         ? `<strong>${esc(memberName)}</strong> is being asked for ${esc(week)} again.`
         : `<strong>${esc(memberName)}</strong> is no longer being asked for ${esc(week)}.`, true);
     await loadHorizon();
-    if (selectedWeek === weekEnding) renderWeekDetail(weekEnding);
+    if (selectedWeek !== weekEnding) return;
+    await renderWeekDetail(weekEnding);
+    // The repaint took the pressed button with it: the keyboard goes to the same person's control in
+    // its new place (Ask again ↔ Stop asking) — unless the reader moved on meanwhile (overtime-ui-12).
+    if (focusLost()) refocus(el('otWeekContent'), ask ? 'data-stop-asking' : 'data-ask-again', memberName);
 }
 
     return {

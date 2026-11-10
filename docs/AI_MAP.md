@@ -478,7 +478,7 @@ server.
   `where('memberName','==',…)`**: the rules would return everyone's without it. `authoritative` or
   `error`, never `cached`, because the options it generates get submitted.
 - `loadRosterForMembers(memberNames, dates)` — the reviewer's one unfiltered read of a week; never
-  called from the member's side. A failed roster read does not fail the week (`rosterKnown`).
+  called from the member's side. A failed roster read does not fail the week: the roster comes back empty and each row's badge says "Roster unavailable".
 - `rosterBadge` — re-exported from `overtime-format.js`, where the reviewer's rows can reach it.
 - **Rules the headers argue, which an edit must not undo:** no default answer and no copy from last
   week; Submit refuses on press and names the first unanswered day rather than sitting disabled; the
@@ -514,6 +514,11 @@ sheet — rendered from data handed in (paused — see the Overtime entry). It p
   the one it OPENED on (All grades when the carried grade is not in this week), which the card's chip counts.
 - `stampPrinted(host, nowMs)` — restamps the sheet's "Printed …" line as it prints (`beforeprint`); iOS
   fires none for AirPrint, so there it keeps the paint's stamp.
+- `refocus(host, attr, value)` → whether a successor was found — puts the keyboard on the control that
+  replaced the one pressed (matched by value, so nothing needs escaping); `focusLost()` — focus fell to
+  `<body>` rather than being moved on by the reader. Every press here repaints the workspace, so a chip,
+  Refresh, and (in the controller) Stop asking, Ask again and the confirm bar's Cancel each hand the
+  keyboard on rather than dropping it.
 - **Rules its header and comments argue:** three sections per date — Available, Not available, No
   response — that never merge, an empty one still showing its heading; GRADE re-renders every count, DAY
   only hides rows; the grade is the reviewer's and survives a week switch (`overtime-review-controller.js`

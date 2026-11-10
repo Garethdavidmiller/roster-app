@@ -120,8 +120,8 @@ export function renderWeekDetail(host, win, data,
 
     function paint() {
         host.innerHTML = build(win, data, { dates, now, grade, day, canRefresh: !!onRefresh, refreshFailed, printedAt });
-        wireGlance(host, next => { day = next; onDay?.(next); paint(); });
-        wireGrades(host, next => { grade = next; onGrade?.(next); paint(); });
+        wireGlance(host, next => { day = next; onDay?.(next); paint(); refocus(host, 'data-glance', next); });
+        wireGrades(host, next => { grade = next; onGrade?.(next); paint(); refocus(host, 'data-grade', next); });
         wireAsk(host, onAsk);
         wireRefresh(host, onRefresh);
         // The thunk reads the SAME lens state the panels were built from — grade-filtered,
@@ -134,6 +134,24 @@ export function renderWeekDetail(host, win, data,
         }));
     }
 }
+
+/**
+ * Put the keyboard on the successor of a control a repaint replaced. Every press in the workspace
+ * rebuilds it, and focus then fell to <body>: a keyboard user started again from the burger after
+ * every chip (overtime-ui-12). Matched by value, not by selector, so no name or grade needs escaping.
+ * @param {HTMLElement|null} host @param {string} attr @param {string} value
+ * @returns {boolean} whether a successor was found
+ */
+export function refocus(host, attr, value) {
+    if (typeof host?.querySelectorAll !== 'function') return false;
+    const next = /** @type {HTMLElement|undefined} */ (Array.from(host.querySelectorAll(`[${attr}]`))
+        .find(n => n.getAttribute(attr) === value));
+    next?.focus();
+    return !!next;
+}
+
+/** Focus fell out of the page (its element was replaced) rather than being moved on by the reader. */
+export const focusLost = () => !document.activeElement || document.activeElement === document.body;
 
 /**
  * Restamp the sheet's "Printed …" line with the moment it prints (overtime-ui-7): drawn at paint, it
@@ -173,7 +191,7 @@ function wireCopy(host, summaryText) {
 /**
  * Wire the Refresh control. Same guard shape as the other wire fns: a host with no query surface
  * (the unit tests' two-line fake) simply leaves the markup inert.
- * @param {HTMLElement} host @param {(() => void) | undefined} onRefresh
+ * @param {HTMLElement} host @param {(() => any) | undefined} onRefresh resolves once the week has repainted
  */
 function wireRefresh(host, onRefresh) {
     if (typeof host?.querySelector !== 'function' || !onRefresh) return;
@@ -187,7 +205,10 @@ function wireRefresh(host, onRefresh) {
         // discarded, so there is no state in which a disabled button survives.
         btn.disabled = true;
         btn.textContent = 'Refreshing…';
-        onRefresh();
+        // The new button takes the keyboard back — unless the reader moved on while it read.
+        Promise.resolve(onRefresh()).then(() => {
+            if (focusLost()) /** @type {HTMLElement|null} */ (host.querySelector('.ot-refresh-btn'))?.focus();
+        });
     });
 }
 

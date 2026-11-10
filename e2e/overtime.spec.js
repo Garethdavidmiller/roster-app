@@ -3607,3 +3607,79 @@ test.describe('the member form on an iPhone', () => {
         await expect(page.locator('.ot-submit')).toContainText('6 days still to answer');
     });
 });
+
+test.describe('the keyboard stays where the reviewer left it (overtime-ui-12)', () => {
+    // Every press in the workspace rebuilt it, and focus fell to <body>: a keyboard user started again
+    // from the burger after every chip, every Refresh and every Stop asking.
+    /** A created week for a reviewer, its participants seeded as `docs`. @param {any} page @param {any[]} docs */
+    async function reviewerWeek(page, docs) {
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+        }, docs);
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }) }));
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [{ ...W, exists: true, state: 'created',
+                canCreate: false, expected: docs.length, received: docs.length, noResponse: 0 }], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+    }
+    const TWO_GRADES = [
+        { id: 'A. One', memberName: 'A. One', grade: 'CEA', rosterOrder: 1 },
+        { id: 'B. Two', memberName: 'B. Two', grade: 'CES', rosterOrder: 2 },
+    ];
+
+    test('a grade or day chip pressed from the keyboard keeps it', async ({ page }) => {
+        await reviewerWeek(page, TWO_GRADES);
+        const grade = page.locator('[data-grade="CES"]');
+        await grade.focus();
+        await page.keyboard.press('Enter');
+        await expect(grade).toHaveAttribute('aria-pressed', 'true');
+        await expect(grade, 'the repainted chip has the keyboard').toBeFocused();
+        const day = page.locator('[data-glance]').nth(2);
+        await day.focus();
+        await page.keyboard.press('Enter');
+        await expect(day).toHaveAttribute('aria-pressed', 'true');
+        await expect(day).toBeFocused();
+    });
+
+    test('Refresh from the keyboard hands it to the new Refresh once the week is read', async ({ page }) => {
+        await reviewerWeek(page, TWO_GRADES);
+        await page.locator('.ot-refresh-btn').focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('.ot-refresh-btn')).toHaveText('Refresh');
+        await expect(page.locator('.ot-refresh-btn')).toBeFocused();
+    });
+
+    test('after Ask again the keyboard is on that person\'s Stop asking', async ({ page }) => {
+        const row = { id: 'G. Miller', memberName: 'G. Miller', grade: 'CEA', rosterOrder: 1 };
+        await page.route('**/withdrawOvertimeParticipant', async (/** @type {any} */ r) => {
+            await page.evaluate((back) => { /** @type {any} */ (window).__E2E.docs = [back]; }, row);   // the server put them back
+            await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, serverNow: NOW }) });
+        });
+        await reviewerWeek(page, [{ ...row, withdrawn: true, withdrawnBy: 'H. Croft' }]);
+        await page.locator('[data-ask-again="G. Miller"]').focus();
+        await page.keyboard.press('Enter');
+        await page.locator('.dialog-btn-confirm').click();
+        await expect(page.locator('[data-stop-asking="G. Miller"]')).toBeFocused();
+    });
+
+    test('the confirm bar takes the keyboard when it asks, says so aloud, and Cancel gives it back', async ({ page }) => {
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: sixWeeks() });
+        await page.route('**/createOvertimeWindow', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, dryRun: true, window: { ...W, expectedCount: 1 } }) }));
+        await page.goto('/overtime.html');
+        const open = page.getByRole('button', { name: 'Open now' }).first();
+        await open.focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#otConfirmCancel'), 'to the answer that changes nothing').toBeFocused();
+        await expect(page.locator('#otConfirmLive')).toContainText('Open the availability form for');
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#otConfirmBar')).toBeHidden();
+        await expect(open, 'back to the row that asked').toBeFocused();
+    });
+});
