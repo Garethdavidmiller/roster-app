@@ -4,7 +4,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { ROTATING_LINES } from './links-design.js';
-import { POLICY_SOURCE_CONFIRMED } from './links-limits.js';
+import { POLICY_SOURCE_CONFIRMED, assessHardLimits } from './links-limits.js';
 import { assessFatigue } from './links-fatigue.js';
 
 // Minimal DOM: getElementById returns a per-id stub element with { innerHTML, style }.
@@ -697,6 +697,39 @@ describe('fatigue rows are advisory on screen', () => {
             assert.equal(row.cls, 'check-warn-row', `${r.code} is advisory: present means amber`);
         }
         assert.deepEqual(rows.filter(x => x.cls === 'check-bad').map(x => x.code), [], 'no fatigue row may wear check-bad');
+    });
+
+    // Three more renderings carry invariant 2 and had no test: each could be broken with every Links
+    // test green (contracts-b, whole-app review, Nov 2026).
+    test('the ORR factors are worth discussing, never "needs fixing"', () => {
+        const { html } = render();
+        const fix = (html.match(/check-triage--fix[\s\S]*?<\/ul>/) || [''])[0];
+        const discuss = (html.match(/check-triage--discuss[\s\S]*?<\/ul>/) || [''])[0];
+        assert.match(discuss, /ORR fatigue factors? present in this design/, 'premise: the fixture has a present factor');
+        assert.doesNotMatch(fix, /fatigue/i, 'a fatigue factor listed as something that has to be fixed reads as a pass/fail');
+    });
+
+    test('the fatigue section says, in words, that these are not pass/fail limits', () => {
+        const { html } = render();
+        const section = html.split(/<div class="check-section-head"><span>Fatigue factors/)[1] ?? '';
+        assert.match(section, /These are <strong>not pass\/fail limits<\/strong>/);
+    });
+
+    test('a breached company limit wears the red a fatigue row never does, and a met one is green', () => {
+        // Four days a week keeps the design inside the 219-day ceiling; lines 1 and 2 worked every
+        // day put fourteen in a row over the 13-day limit. One breached, one met.
+        const patterns = fullPatterns();
+        for (const k of Object.keys(patterns)) patterns[k].fri = 'RD';
+        for (const w of ['1', '2']) for (const d of ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']) patterns[w][d] = '06:00-14:00';
+        const { checks } = assessHardLimits(patterns, ROTATING_LINES);
+        assert.ok(checks.some(c => c.status === 'breach') && checks.some(c => c.status === 'ok'),
+            'premise: the fixture breaches one limit and meets another');
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const html = els.checksContent.innerHTML;
+        const section = (html.split(/data-claim="limit"/)[1] ?? '').split('<div class="check-section-head"')[0];
+        const rows = [...section.matchAll(/<div class="check-row ([^"]+)">/g)].map(m => m[1]);
+        assert.deepEqual(rows, checks.map(c => (c.status === 'breach' ? 'check-bad' : c.status === 'ok' ? 'check-good' : 'check-neutral')));
     });
 
     test('a STANDING factor renders inline — it is not "nothing to report"', () => {
