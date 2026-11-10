@@ -60,6 +60,8 @@ globalThis.document = /** @type {any} */ ({ querySelectorAll: () => [], body: { 
 
 /** Answers `getOvertimeManagerOverview` will give, in order — each may be a promise to resolve. */
 let overviewQueue = [];
+/** How many times the overview was read — the horizon's own freshness is a count of these. */
+let overviewReads = 0;
 /** Answers `loadWeekDetail` will give, keyed by week; a function is called with a `resolve` gate. */
 let detailFor = new Map();
 /** Every week handed to the renderer, in paint order — the record the first block reads. */
@@ -72,7 +74,10 @@ let withdrawHold = /** @type {null | (() => any)} */ (null);
 mock.module('./overtime-data.js', {
     namedExports: {
         correctedNow: () => Date.parse('2026-08-20T09:00:00Z'),
-        getOvertimeManagerOverview: async () => overviewQueue.shift() ?? { ok: true, data: { planningWeeks: [], retained: [] } },
+        getOvertimeManagerOverview: async () => {
+            overviewReads++;
+            return overviewQueue.shift() ?? { ok: true, data: { planningWeeks: [], retained: [] } };
+        },
         loadWeekDetail: async (weekEnding) => {
             const entry = detailFor.get(weekEnding);
             return typeof entry === 'function' ? entry() : (entry ?? { ok: false });
@@ -85,7 +90,7 @@ mock.module('./overtime-data.js', {
 mock.module('./overtime-manager.js', {
     namedExports: {
         renderWeekDetail: (_host, win, data, opts) => {
-            painted.push({ weekEnding: win.weekEnding, phase: win.phase, dates: opts.dates, grade: opts.grade, day: opts.day, opts });
+            painted.push({ weekEnding: win.weekEnding, phase: win.phase, dates: opts.dates, grade: opts.grade, day: opts.day, data, opts });
         },
     },
 });
@@ -157,6 +162,7 @@ function makeController(over = {}) {
 beforeEach(() => {
     dom = {};
     overviewQueue = [];
+    overviewReads = 0;
     detailFor = new Map();
     painted = [];
     createQueue = [];
@@ -262,7 +268,7 @@ describe('a week that has gone says so, and leaves the chip able to come back', 
         // The selection was cleared, so the visibility refresh has nothing to re-read — a card
         // reading "that week is gone" must not repopulate itself from the week it just disowned.
         painted.length = 0;
-        c.refreshSelectedIfStale();
+        c.refreshIfStale();
         await settle();
         assert.equal(painted.length, 0);
     });
@@ -287,7 +293,7 @@ describe('a week that has gone says so, and leaves the chip able to come back', 
         await c.loadHorizon();
         assert.equal(dom.otWeekChip.textContent, '4/6', 'still there — the card has not been re-read yet');
 
-        c.refreshSelectedIfStale();
+        c.refreshIfStale();
         await settle();
         assert.match(dom.otWeekContent.innerHTML, /no longer available/);
         assert.equal(dom.otWeekChip.textContent, '', 'and the ratio goes with the card it described');
@@ -397,9 +403,11 @@ describe('the visibility refresh asks before it re-reads', () => {
         await boot(c, [WEEK_A]);
         await c.selectWeek(A);
         painted.length = 0;
-        c.refreshSelectedIfStale();
+        const reads = overviewReads;
+        c.refreshIfStale();
         await settle();
         assert.equal(painted.length, 0, 'inside the debounce, nothing is re-read');
+        assert.equal(overviewReads, reads, 'the horizon included');
     });
 
     test('and a week left open long enough is', async () => {
@@ -411,9 +419,81 @@ describe('the visibility refresh asks before it re-reads', () => {
         await boot(c, [WEEK_A]);
         await c.selectWeek(A);
         painted.length = 0;
-        c.refreshSelectedIfStale();
+        const reads = overviewReads;
+        overviewQueue.push({ ok: true, data: { planningWeeks: [], retained: [WEEK_A] } });
+        c.refreshIfStale();
         await settle();
         assert.equal(painted.length, 1, 'past the debounce it refreshes');
+        // The HORIZON too (overtime-ui-3): a week the 05:00 run failed to open went on reading
+        // "Opens automatically overnight" all morning, over a week card that had re-read itself.
+        assert.equal(overviewReads, reads + 1, 'and the horizon above it is re-read with it');
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('Refresh re-reads the horizon too, and a re-read that fails keeps what is on screen', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    test('the Refresh button re-reads the horizon as well as the week (overtime-ui-3)', async () => {
+        // The row could say "2 of 5 forms received" over a card that, after Refresh, said 4 of 5.
+        detailFor.set(A, detail(4, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        const reads = overviewReads;
+        overviewQueue.push({ ok: true, data: { planningWeeks: [], retained: [WEEK_A] } });
+        await painted.at(-1).opts.onRefresh();
+        await settle();
+        assert.equal(overviewReads, reads + 1);
+    });
+
+    test('a horizon being refreshed stays on screen, and one that fails to refresh says so', async () => {
+        detailFor.set(A, detail(4, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        /** @type {any} */ let land;
+        overviewQueue.push(new Promise(r => { land = r; }));
+        const refreshing = painted.at(-1).opts.onRefresh();
+        await settle();
+        assert.match(dom.otHorizonContent.innerHTML, /ot-week-list/, 'no loading line over the list being refreshed');
+        land({ ok: false, code: 'network' });
+        await refreshing; await settle();
+        const html = dom.otHorizonContent.innerHTML;
+        assert.match(html, /ot-week-list/, 'the rows already read are kept');
+        assert.match(html, /Couldn't refresh just now — this list is as at /, 'and it says how old they are');
+        assert.notEqual(html, 'ERROR');
+    });
+
+    test('a failed re-read of the week on screen keeps that snapshot and says so (overtime-ui-11)', async () => {
+        // The phone unlocks, the automatic re-read runs before the signal is back, and the list a
+        // clerk was ringing round from was replaced by "Couldn't load" — though it carried an honest
+        // "as at" time. Keep it; say the refresh failed; let the next return try again.
+        const first = detail(4, 1);
+        const answers = [first, { ok: false }];
+        detailFor.set(A, () => answers.shift());
+        const c = makeController({ debounce: 0 });
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        const shownAt = painted.at(-1).opts.now;
+        overviewQueue.push({ ok: true, data: { planningWeeks: [], retained: [WEEK_A] } });
+        c.refreshIfStale();
+        await settle();
+        assert.notEqual(dom.otWeekContent.innerHTML, 'ERROR', 'the snapshot is not taken away');
+        const again = painted.at(-1);
+        assert.equal(again.opts.refreshFailed, true, 'the workspace is told the refresh failed');
+        assert.equal(again.data, first, 'and still draws the data it had');
+        assert.equal(again.opts.now, shownAt, 'with the time that data was read, not a newer one');
+        assert.equal(dom.otWeekChip.textContent, '1/4', 'the chip still agrees with the card');
+    });
+
+    test('…but a week with nothing on screen yet still gets the error card and its retry', async () => {
+        detailFor.set(A, { ok: false });
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        assert.equal(dom.otWeekContent.innerHTML, 'ERROR');
+        assert.equal(typeof dom.otWeekContent.retry, 'function');
     });
 });
 

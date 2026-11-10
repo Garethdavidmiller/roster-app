@@ -62,20 +62,22 @@ import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was 
  *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
  * @param {{ dates: string[], now: number, grade?: string, onGrade?: (g: string) => void,
  *   day?: string, onDay?: (d: string) => void, onRefresh?: () => void,
- *   onAsk?: (memberName: string, ask: boolean) => void }} opts
+ *   onAsk?: (memberName: string, ask: boolean) => void, refreshFailed?: boolean }} opts
  *   `grade` is the reviewer's standing choice, handed back in by the coordinator; `onGrade` is how
  *   it gets there. See below. `day`/`onDay` are the same pair for the DAY lens, but with a narrower
  *   lifetime: the coordinator hands the day back only across a SAME-WEEK re-render (a refresh must
  *   not throw away the lens the reviewer is looking through), and resets it on a week switch,
  *   because a day's values are this window's dates. `onRefresh`, when provided, renders a Refresh
  *   control beside the freshness line — the data here is a one-shot snapshot, and without it the
- *   only route to current answers was leaving the week and coming back. `onAsk` is the only
+ *   only route to current answers was leaving the week and coming back; `refreshFailed` says a newer
+ *   read of this snapshot did not arrive, so it is still the one drawn. `onAsk` is the only
  *   MUTATION this module can start: it hands the decision straight back out, because writing is
  *   the coordinator's job and this module is a pure render everywhere else — which is what makes
  *   it testable with a two-line fake DOM.
  */
 export function renderWeekDetail(host, win, data,
-    { dates, now, grade: initialGrade = 'ALL', onGrade, day: initialDay = 'ALL', onDay, onRefresh, onAsk }) {
+    { dates, now, grade: initialGrade = 'ALL', onGrade, day: initialDay = 'ALL', onDay, onRefresh, onAsk,
+        refreshFailed = false }) {
     /**
      * The grade currently in view. `ALL` is not a grade — no participant can carry it as one.
      *
@@ -111,7 +113,7 @@ export function renderWeekDetail(host, win, data,
     paint();
 
     function paint() {
-        host.innerHTML = build(win, data, { dates, now, grade, day, canRefresh: !!onRefresh });
+        host.innerHTML = build(win, data, { dates, now, grade, day, canRefresh: !!onRefresh, refreshFailed });
         wireGlance(host, next => { day = next; onDay?.(next); paint(); });
         wireGrades(host, next => { grade = next; onGrade?.(next); paint(); });
         wireAsk(host, onAsk);
@@ -230,9 +232,10 @@ const ADDED_LATER_TOLERANCE_MS = 60_000;
  * @param {any} win
  * @param {{ participants: any[], submissions: Map<string, any>,
  *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
- * @param {{ dates: string[], now: number, grade: string, day?: string, canRefresh?: boolean }} state
+ * @param {{ dates: string[], now: number, grade: string, day?: string, canRefresh?: boolean,
+ *   refreshFailed?: boolean }} state
  */
-function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }) {
+function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false, refreshFailed = false }) {
     const { submissions } = data;
     // WITHDRAWN COMES OFF FIRST, before the grade filter and before anything is counted. A person
     // who has left is not somebody the week is short of an answer from, and leaving them in the
@@ -286,6 +289,8 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
                 ? ' <button type="button" class="ot-refresh-btn">Refresh</button>' : ''}
                 <button type="button" class="ot-copy-btn">Copy summary</button>
                 <span class="ot-copy-status" role="status"></span></div>
+            ${refreshFailed ? `<div class="ot-reminder-line ot-reminder-line--warn" role="status">Couldn't refresh `
+                + `just now — still showing availability as at ${esc(deadlineLabel(now))}.</div>` : ''}
             ${(() => {
                 // The reminder audit (v22.05): whether the deadline-morning reminder actually went
                 // out, and what it reached (overtime-core-4), without reading Cloud Function logs.

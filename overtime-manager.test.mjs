@@ -241,6 +241,18 @@ describe('by day', () => {
 });
 
 describe('the header', () => {
+    test('a refresh that failed says so, and gives the age of what is still shown (overtime-ui-11)', () => {
+        const NOW = Date.parse('2026-08-19T08:00:00Z');
+        const failed = (/** @type {boolean} */ refreshFailed) => {
+            const host = fakeHost();
+            renderWeekDetail(/** @type {any} */ (host), WIN, { participants: PARTICIPANTS, submissions: submissions() },
+                { dates: DATES, now: NOW, refreshFailed });
+            return host.innerHTML;
+        };
+        assert.match(failed(true), /Couldn't refresh just now — still showing availability as at Wed 19 Aug · 09:00\./);
+        assert.doesNotMatch(failed(false), /Couldn't refresh/);
+    });
+
     test('counts state no response explicitly', () => {
         assert.match(render(), /2 of 3 forms received · 1 no response/);
     });

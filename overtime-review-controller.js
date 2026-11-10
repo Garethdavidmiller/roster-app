@@ -41,10 +41,10 @@
  * Every piece of state here exists to keep several asynchronous reads from disagreeing about which
  * week the reviewer is looking at:
  *
- *   · `horizonGeneration` / `detailGeneration` — the two GENERATION TICKETS. Three actions reload
- *     the horizon (create, top-up, stop-asking) and two in quick succession put two reads in
- *     flight; the older one painting LAST showed pre-action counts and repopulated `horizonByWeek`
- *     with the stale rows the next detail read takes its milestones from.
+ *   · `horizonGeneration` / `detailGeneration` — the two GENERATION TICKETS. Three actions and
+ *     every refresh reload the horizon, and two in quick succession put two reads in flight; the
+ *     older one painting LAST showed pre-action counts and repopulated `horizonByWeek` with the
+ *     stale rows the next detail read takes its milestones from.
  *   · `selectedWeek` — checked again after every await, because painting an older week's answers
  *     over a newer selection is the classic late-read bug.
  *   · `horizonByWeek` — where a week's milestones come from when the detail read needs them.
@@ -53,10 +53,12 @@
  *     would be reset by the act of changing week. They differ from each other deliberately (grade
  *     survives a week switch, day does not — its values are one window's dates).
  *   · `pendingWeek` — what the Create button is armed for, and nothing else.
- *   · `detailFetchedAt` — what the visibility refresh debounces on.
+ *   · `detailFetchedAt` / `horizonFetchedAt` — what the visibility refresh debounces on.
+ *   · `weekShown` / `horizonShown` — the newest snapshot each card drew, so a re-read that fails can
+ *     put it back, with its own age, rather than an error card (overtime-ui-3, -11).
  *
- * Those eight have to agree with each other and with nothing else on the page. That is the
- * invariant, and this module is the one owner of it.
+ * They have to agree with each other and with nothing else on the page. That is the invariant, and
+ * this module is the one owner of it.
  *
  * ── WHAT IT DOES NOT OWN ────────────────────────────────────────────────────────────────────────
  *
@@ -85,10 +87,16 @@ import { confirmDialog } from './overlay.js';
  * @param {number} deps.detailRefreshDebounceMs
  */
 export function createReviewController({ el, esc, renderLoading, renderError, detailRefreshDebounceMs }) {
-    // ── The eight pieces of state, and the reason they live together (see the header) ───────────
+    // ── The state, and the reason it lives together (see the header) ────────────────────────────
 
     /** Ticket for the newest horizon read. Only its holder may paint. */
     let horizonGeneration = 0;
+    /** When the horizon last came back — the visibility refresh's debounce for it. */
+    let horizonFetchedAt = 0;
+    /** The overview the horizon is drawing, and when it was read. @type {{weeks: any[], past: any[], readAt: number}|null} */
+    let horizonShown = null;
+    /** The newest snapshot the workspace drew — what a failed re-read of THAT week falls back on. @type {{weekEnding: string, win: any, data: any, dates: string[], now: number}|null} */
+    let weekShown = null;
     /** The week the Manager detail card is showing, if any. @type {string|null} */
     let selectedWeek = null;
     /** The planning rows from the last overview, keyed by week. @type {Map<string, any>} */
@@ -106,15 +114,24 @@ export function createReviewController({ el, esc, renderLoading, renderError, de
 
 // ── Upcoming weeks (the planning horizon) ───────────────────────────────────────────────────
 
-async function loadHorizon() {
+/**
+ * Read and draw the horizon. `quiet` is a REFRESH (overtime-ui-3): rows already on screen stay there
+ * while it reads and if it fails — then with a line saying how old they are — because a loading line
+ * or an error card in their place would take away the one surface that shows a week nobody created.
+ * @param {{ quiet?: boolean }} [opts]
+ */
+async function loadHorizon({ quiet = false } = {}) {
     const host = el('otHorizonContent');
     if (!host) return;
-    renderLoading(host, 'Loading upcoming weeks…');
+    const keep = quiet ? horizonShown : null;
+    if (!keep) { renderLoading(host, 'Loading upcoming weeks…'); horizonShown = null; }
     const generation = ++horizonGeneration;
     const r = await OTD.getOvertimeManagerOverview();
     if (generation !== horizonGeneration) return;   // a newer load owns the card now
+    if (!r.ok && keep) { paintHorizon(host, keep, true); return; }
     // Its OWN retry: the page default is loadEverything, which rebuilds the member's form too.
     if (!r.ok) { renderError(host, () => loadHorizon()); return; }
+    horizonFetchedAt = Date.now();
 
     const weeks = r.data.planningWeeks || [];
     horizonByWeek.clear();
@@ -138,20 +155,8 @@ async function loadHorizon() {
         .filter((/** @type {any} */ w) => !shown.has(w.weekEnding));
     for (const w of past) horizonByWeek.set(w.weekEnding, w);
 
-    host.innerHTML = `<div class="ot-week-list">${weeks.map(renderHorizonRow).join('')}</div>`
-        + (past.length ? `
-            <div class="ot-history">
-                <div class="ot-history-title">Previous weeks</div>
-                <div class="ot-week-list">${past.map(renderPastWeekRow).join('')}</div>
-            </div>` : '');
-    host.querySelectorAll('[data-create]').forEach(btn =>
-        btn.addEventListener('click', () => previewWindow(
-            String(btn.getAttribute('data-create')), /** @type {HTMLElement} */ (btn))));
-    host.querySelectorAll('[data-open]').forEach(btn =>
-        btn.addEventListener('click', () => selectWeek(String(btn.getAttribute('data-open')))));
-    host.querySelectorAll('[data-topup]').forEach(btn =>
-        btn.addEventListener('click', () => topUpWeek(
-            String(btn.getAttribute('data-topup')), /** @type {HTMLElement} */ (btn))));
+    horizonShown = { weeks, past, readAt: OTD.correctedNow() };
+    paintHorizon(host, horizonShown, false);
 
     // OPEN THE WEEK BEING PLANNED, rather than making the reviewer ask for it.
     //
@@ -184,6 +189,29 @@ async function loadHorizon() {
             || created[created.length - 1];
         if (lead) await selectWeek(lead.weekEnding, { scroll: false });
     }
+}
+
+/**
+ * Draw one overview's rows and wire their buttons — `stale` when a refresh of them has just failed.
+ * @param {HTMLElement} host @param {{weeks: any[], past: any[], readAt: number}} shown @param {boolean} stale
+ */
+function paintHorizon(host, { weeks, past, readAt }, stale) {
+    host.innerHTML = (stale ? `<div class="ot-reminder-line ot-reminder-line--warn" role="status">Couldn't refresh `
+            + `just now — this list is as at ${esc(deadlineLabel(readAt))}.</div>` : '')
+        + `<div class="ot-week-list">${weeks.map(renderHorizonRow).join('')}</div>`
+        + (past.length ? `
+            <div class="ot-history">
+                <div class="ot-history-title">Previous weeks</div>
+                <div class="ot-week-list">${past.map(renderPastWeekRow).join('')}</div>
+            </div>` : '');
+    host.querySelectorAll('[data-create]').forEach(btn =>
+        btn.addEventListener('click', () => previewWindow(
+            String(btn.getAttribute('data-create')), /** @type {HTMLElement} */ (btn))));
+    host.querySelectorAll('[data-open]').forEach(btn =>
+        btn.addEventListener('click', () => selectWeek(String(btn.getAttribute('data-open')))));
+    host.querySelectorAll('[data-topup]').forEach(btn =>
+        btn.addEventListener('click', () => topUpWeek(
+            String(btn.getAttribute('data-topup')), /** @type {HTMLElement} */ (btn))));
 }
 
 /** @param {any} w */
@@ -544,6 +572,7 @@ async function renderWeekDetail(weekEnding) {
         // "Refreshing…" button, which wireRefresh promises can never survive — so say what
         // happened and clear the selection instead (v21.56, external sweep).
         selectedWeek = null;
+        weekShown = null;
         host.innerHTML = '<div class="ot-state">That week is no longer available — pick a week above.</div>';
         // EMPTY, not `hidden` (v21.94). `selectWeek` clears this chip by writing '' and relying on
         // the `.card-year-chip:empty { display: none }` rule; setting `hidden` here was a second
@@ -566,16 +595,30 @@ async function renderWeekDetail(weekEnding) {
     // flight, and painting the older answer over the newer selection is the classic late-read
     // bug. Cheap to prevent; invisible when it happens.
     if (selectedWeek !== weekEnding) return;
-    if (!data.ok) { renderError(host, () => renderWeekDetail(weekEnding)); return; }
+    // A RE-READ of the week on screen that fails — one the device's cache answered included —
+    // keeps the snapshot, whose "as at" is still true, and says the refresh failed (overtime-ui-11).
+    // The error card is for a week with nothing drawn yet.
+    if (!data.ok && weekShown?.weekEnding === weekEnding) { paintShown(host, weekShown, true); return; }
+    if (!data.ok) { weekShown = null; renderError(host, () => renderWeekDetail(weekEnding)); return; }
     detailFetchedAt = Date.now();
-    const now = OTD.correctedNow();
+    weekShown = { weekEnding, win, data, dates, now: OTD.correctedNow() };
+    paintShown(host, weekShown, false);
+}
+
+/**
+ * Draw a week's snapshot — again, with `refreshFailed`, when a newer read of it did not arrive.
+ * @param {HTMLElement} host @param {{weekEnding: string, win: any, data: any, dates: string[], now: number}} shown
+ * @param {boolean} refreshFailed
+ */
+function paintShown(host, { weekEnding, win, data, dates, now }, refreshFailed) {
     // The overview's rows carry no `phase`, and the workspace keys the closed-week panels and the
     // reminder audit on it — so it is derived from the clock here, never read off the row.
     paintWeekDetail(host, { ...win, phase: phaseAt(win, now) }, data, {
-        dates, now,
+        dates, now, refreshFailed,
         grade: reviewGrade, onGrade: (g) => { reviewGrade = g; paintWeekChip(data, g); },
         day: reviewDay, onDay: (d) => { reviewDay = d; },
-        onRefresh: () => renderWeekDetail(weekEnding),
+        // The horizon too: its row for this week says the same counts (overtime-ui-3).
+        onRefresh: () => { loadHorizon({ quiet: true }); return renderWeekDetail(weekEnding); },
         onAsk: (memberName, ask) => setAsking(weekEnding, memberName, ask),
     });
     paintWeekChip(data, reviewGrade);
@@ -667,8 +710,13 @@ function weekDatesFrom(weekStart) {
         loadHorizon,
         selectWeek,
         wireConfirmBar,
-        /** The coordinator's visibility handler asks this; the debounce rule lives here. */
-        refreshSelectedIfStale() {
+        /**
+         * The coordinator's visibility handler asks this; the debounce rule lives here. The HORIZON
+         * too, on the same debounce (overtime-ui-3): re-reading only the week let a row that guards
+         * the one catastrophic failure ("did not open overnight") go stale above a fresh card.
+         */
+        refreshIfStale() {
+            if (Date.now() - horizonFetchedAt >= detailRefreshDebounceMs) loadHorizon({ quiet: true });
             if (!selectedWeek) return;
             if (Date.now() - detailFetchedAt < detailRefreshDebounceMs) return;
             renderWeekDetail(selectedWeek);

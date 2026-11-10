@@ -1957,7 +1957,7 @@ The Admin week grid's swipe gesture and week arrows, which share one cooldown so
 
 ### `overtime-review-controller.js`
 The reviewer's side of `overtime.html`: the planning horizon, the week selection, the detail workspace, the grade and day lenses, the creation preview and the confirm bar. Overtime is paused — `docs/OVERTIME_AVAILABILITY.md` → Paused.
-- `createReviewController({ el, esc, renderLoading, renderError, detailRefreshDebounceMs })` → `{ loadHorizon, selectWeek, wireConfirmBar, refreshSelectedIfStale }`. The four DOM helpers are the page's, injected.
+- `createReviewController({ el, esc, renderLoading, renderError, detailRefreshDebounceMs })` → `{ loadHorizon, selectWeek, wireConfirmBar, refreshIfStale }` (the last re-reads the week AND the horizon, on one debounce). The four DOM helpers are the page's, injected.
 - **The invariant it owns:** its eight pieces of state agree about which week is on screen, and with nothing else on the page — generation tickets so only the newest read paints, `selectedWeek` re-checked after every await, a grade lens that survives a week change and a day lens that does not. The header names each one.
 - It renders through `overtime-manager.js` and reads through `overtime-data.js`; session, identity, tabs and the member's form stay with `overtime-app.js`.
 - Tested by `overtime-review-controller.test.mjs`, the only kind of test that can choose which of two in-flight reads resolves last.

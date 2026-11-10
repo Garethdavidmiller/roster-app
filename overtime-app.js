@@ -275,7 +275,7 @@ export function init() {
         warnOnUnload(formDirty);
         askBeforeLeavingByDrawer(formDirty);
 
-        // ── The reviewer's week must not go quietly stale (v21.48, external review) ─────────────
+        // ── The reviewer's week, and the horizon above it, must not go quietly stale (v21.48) ───
         //
         // The workspace is a one-off snapshot, and the page states its age ("Availability as at…")
         // without ever improving it: a reviewer who opened a week at 09:00 and looked again at
@@ -287,7 +287,7 @@ export function init() {
         // through arriving submissions, listen to the heads then — the checklist carries it.
         document.addEventListener('visibilitychange', () => {
             if (document.hidden || !canReview) return;
-            review.refreshSelectedIfStale();
+            review.refreshIfStale();
         });
     }
 

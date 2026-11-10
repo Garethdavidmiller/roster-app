@@ -1646,7 +1646,7 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
         const base = await reads(page);
         // Read where a refetch WOULD start, not 250ms later (test audit, 7 Nov 2026). The handler's
-        // refetch begins its reads synchronously — refreshSelectedIfStale → renderWeekDetail →
+        // refetch begins its reads synchronously — refreshIfStale → renderWeekDetail →
         // loadWeekDetail → getDocs, with no await before them — so a read it was going to start is
         // counted by the time `dispatchEvent` returns; the second count, a task later, also catches
         // one started after a microtask hop. A sleep proved neither, and passed on a page whose

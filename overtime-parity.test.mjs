@@ -259,7 +259,7 @@ describe('the reviewer\'s state has one owner', () => {
         // A coordinator poking at the workspace directly would be the same coupling by another
         // route: it would need one of the eight fields to know what to poke.
         const calls = [...app.matchAll(/review\.(\w+)/g)].map(m => m[1]);
-        const allowed = new Set(['loadHorizon', 'selectWeek', 'wireConfirmBar', 'refreshSelectedIfStale']);
+        const allowed = new Set(['loadHorizon', 'selectWeek', 'wireConfirmBar', 'refreshIfStale']);
         const unexpected = [...new Set(calls)].filter(c => !allowed.has(c));
         assert.deepEqual(unexpected, [],
             'overtime-app.js uses a review-controller member outside its published surface');
