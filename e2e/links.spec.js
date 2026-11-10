@@ -3485,6 +3485,28 @@ test('links compare: the analysis of the difference renders with the two grids',
     await an.screenshot({ path: process.env.COMPARE_SHOT || 'test-results/compare-analysis.png' });
 });
 
+// Keep only the shortlist pressed IN COMPARE MODE, the open design staying (links-app-10). It reset compare
+// and redrew the picker alone: both compare grids stayed on screen under a button reading "Compare with…",
+// with no paint bar, and the main grid hidden by a body class nothing removed.
+test('links compare: Keep only the shortlist ends compare mode and puts the grid back', async ({ page }) => {
+    await openWindowDesign(page, [{
+        id: 'fresh', name: 'Fresh start', patterns: partlyDifferentPatterns(3),
+        updatedAt: 1_794_000_000_000, updatedBy: 'G. Miller',   // saved after the shortlist: it stays
+    }]);
+    await expect(activeDesignName(page)).toHaveText('Fresh start');
+    await sheetAction(page, 'compareBtn');   // against "Morning heavy", saved long before
+    await expect(page.locator('body')).toHaveClass(/links-compare-on/);
+    await sheetAction(page, 'keepShortlistBtn');
+    await clickDialogConfirm(page);
+    await expect(page.locator('#linksSaveStatus')).toContainText('The older design is in Recently deleted');
+    await expect(activeDesignName(page)).toHaveText('Fresh start');
+    await expect(page.locator('body')).not.toHaveClass(/links-compare-on/);
+    await expect(page.locator('#compareGridsWrap')).not.toHaveClass(/compare-mode-active/);
+    await expect(page.locator('#linksGridWrapper'), 'the grid is back').toBeVisible();
+    await expect(page.locator('#brushBar'), 'and the paint bar with it').toBeVisible();
+    await expect(page.locator('#compareBtn')).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('links compare: scrolling one column moves the other to the same day', async ({ page }) => {
     await openWindowDesign(page, [{
         id: 'b', name: 'Nearly the same', patterns: partlyDifferentPatterns(3),

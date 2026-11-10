@@ -2256,7 +2256,14 @@ export function init() {
         actionStatus: _designActionStatus,
         getHeader: () => header,
         // "Keep only the shortlist" (v25.09, links-shortlist.js): the moved designs leave the live list; an open one gives way to the next, else to the first built-in design (Balanced V6, A to Z), read-only.
-        removeDesigns: (/** @type {Set<string>} */ ids) => { designs = designs.filter(d => !ids.has(d.id)); compare.resetCompare(); if (ids.has(activeDesignId)) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]); else renderDesignPicker(); },
+        // Compare is reset either way, so the page is DRAWN again either way (links-app-10): with the picker alone, the
+        // two compare grids stayed up under a button reading "Compare with…", with no paint bar and the grid hidden.
+        removeDesigns: (/** @type {Set<string>} */ ids) => {
+            designs = designs.filter(d => !ids.has(d.id));
+            compare.resetCompare();
+            if (ids.has(activeDesignId)) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]);
+            else { renderDesignPicker(); renderGrid(); renderBrushBar(); compare.renderCompare(); }
+        },
     });
 
     const binFailed = new Set();   // old-length designs whose move to the bin FAILED this visit — shown live
