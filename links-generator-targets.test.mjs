@@ -100,11 +100,13 @@ mock.module('./firebase-client.js', { namedExports: {
     writeWithClaimRetry: (/** @type {Function} */ fn) => fn(),
 } });
 
-/** What the dialogs answer, and what they were asked. */
-const dialogs = { confirm: true, /** @type {string|null} */ prompt: null, /** @type {string[]} */ asked: [], prompted: 0 };
+/** What the dialogs answer, and what they were asked. `promptAt`, when set, answers a prompt with a
+ *  promise the test resolves itself — a name the designer is still typing. */
+const dialogs = { confirm: true, /** @type {string|null} */ prompt: null, /** @type {string[]} */ asked: [], prompted: 0,
+    /** @type {null | (() => Promise<string|null>)} */ promptAt: null };
 mock.module('./overlay.js', { namedExports: {
     confirmDialog: async (/** @type {any} */ o) => { dialogs.asked.push(o.message); return dialogs.confirm; },
-    promptDialog: async () => { dialogs.prompted++; return dialogs.prompt; },
+    promptDialog: () => { dialogs.prompted++; return dialogs.promptAt ? dialogs.promptAt() : Promise.resolve(dialogs.prompt); },
     createLightbox: () => ({}),
 } });
 mock.module('./select-sheet.js', { namedExports: { enhanceSelect: () => {} } });
@@ -135,7 +137,7 @@ beforeEach(() => {
     stored.clear();
     server.sets = new Map([['W', { ...SILVA, updatedAt: stamp() }], ['S', { ...MINE, updatedAt: stamp() }]]);
     server.writes = []; server.hangAdd = false; server.txFails = null;
-    dialogs.confirm = true; dialogs.prompt = null; dialogs.asked = []; dialogs.prompted = 0;
+    dialogs.confirm = true; dialogs.prompt = null; dialogs.asked = []; dialogs.prompted = 0; dialogs.promptAt = null;
 });
 
 // ── WHERE THE TABLE IS, relative to the setup it came from (whole-app review, Nov 2026) ─────────────
@@ -201,6 +203,114 @@ describe('the sets row says where the table is relative to the setup', () => {
         assert.deepEqual(server.writes.map(w => w.op), ['delete']);
         assert.equal(remembered().setId, '', 'a deleted setup is no longer where the table came from');
         assert.equal(remembered().setName, '');
+    });
+});
+
+// ── A SETUP WRITE THAT CANNOT FINISH (whole-app review, Nov 2026) ───────────────────────────────────
+// Firestore settles `addDoc` only when the server acknowledges it, so offline the Save as new press
+// went quiet — no setup, no message — and a second press passed the duplicate-name check against the
+// unchanged list and queued a second setup of the same name. The two transaction paths do fail
+// offline, and said "check you're signed in", which names the wrong cause.
+describe('a setup write that cannot finish', () => {
+    /** Navigator's own answer, which Node does not give: undefined reads as online. */
+    const setOnline = (/** @type {boolean|undefined} */ on) =>
+        Object.defineProperty(globalThis.navigator, 'onLine', { value: on, configurable: true });
+    beforeEach(() => setOnline(undefined));
+
+    test('offline, Save as new says so before asking for a name, and writes nothing', async () => {
+        await openCard();
+        setOnline(false);
+        dialogs.prompt = 'Summer';
+        await fire('genSetSaveAsBtn', 'click');
+        assert.equal(dialogs.prompted, 0, 'no name is asked for a save that cannot happen');
+        assert.deepEqual(server.writes, []);
+        assert.match(hint(), /offline/i);
+        assert.doesNotMatch(hint(), /signed in/);
+    });
+
+    test('a second press while a save is on its way starts no second setup', async () => {
+        const panel = await openCard();
+        await pick('S');   // M. Robson's own, so Use setup, Save changes and Delete are all on offer
+        for (const id of ['genSetLoadBtn', 'genSetSaveBtn', 'genSetDeleteBtn', 'genSetSaveAsBtn']) {
+            assert.equal(el(id).disabled, false, `premise: ${id} is on offer before the write`);
+        }
+        server.hangAdd = true;
+        dialogs.prompt = 'Summer';
+        void el('genSetSaveAsBtn').listeners.click[0]();   // never settles, as offline
+        await settle();
+        assert.equal(server.writes.length, 1, 'premise: the first write is on its way');
+        assert.match(hint(), /Saving “Summer”/, 'the press says what it is doing');
+        for (const id of ['genSetLoadBtn', 'genSetSaveBtn', 'genSetDeleteBtn', 'genSetSaveAsBtn']) {
+            assert.equal(el(id).disabled, true, `${id} is held while the write is on its way`);
+        }
+        // A count typed meanwhile re-asks the row's question; the write keeps its own line.
+        await fire('genSlotRows', 'input', { target: countBox(0, 'sun', '2') });
+        assert.match(hint(), /Saving “Summer”/, 'an edit during the write does not paint over what it is doing');
+        const table = JSON.stringify(panel.getTable());
+        void el('genSetSaveAsBtn').listeners.click[0]();
+        await el('genSetDeleteBtn').listeners.click[0]();
+        await el('genSetSaveBtn').listeners.click[0]();
+        await el('genSetLoadBtn').listeners.click[0]();
+        await settle();
+        assert.equal(dialogs.prompted, 1, 'a press during the write asks for no second name');
+        assert.deepEqual(dialogs.asked, [], 'and Delete or Save changes asks nothing');
+        assert.equal(server.writes.length, 1, 'and nothing else is written');
+        assert.equal(JSON.stringify(panel.getTable()), table, 'nor does Use setup replace the table being saved');
+    });
+
+    test('no write starts while another is on its way, even from a name asked for before it began', async () => {
+        // Two presses, each waiting for a name before either write began; the answers come one after
+        // the other, the second while the first write is on its way.
+        await openCard();
+        server.hangAdd = true;
+        /** @type {Function[]} */ const answer = [];
+        dialogs.promptAt = () => new Promise(r => answer.push(r));
+        const press = el('genSetSaveAsBtn').listeners.click[0];
+        void press(); void press();
+        await settle();
+        assert.equal(answer.length, 2, 'premise: both presses are waiting for a name');
+        answer[0]('Summer');
+        await settle();
+        assert.equal(server.writes.length, 1, 'premise: the first write is on its way');
+        answer[1]('Autumn');
+        await settle();
+        assert.equal(server.writes.length, 1, 'the second name, answered during the write, starts nothing');
+    });
+
+    test('offline, Save changes and Delete say so before asking anything, and write nothing', async () => {
+        await openCard();
+        await pick('S');
+        setOnline(false);
+        await fire('genSetSaveBtn', 'click');
+        assert.match(hint(), /offline — overwriting “Spring”/);
+        await fire('genSetDeleteBtn', 'click');
+        assert.match(hint(), /offline — deleting “Spring”/);
+        assert.deepEqual(dialogs.asked, [], 'no confirm is shown for a write that cannot happen');
+        assert.deepEqual(server.writes, []);
+    });
+
+    test('an offline failure of Save changes or Delete names the connection, not the sign-in', async () => {
+        await openCard();
+        server.txFails = Object.assign(new Error('Failed to get document because the client is offline.'), { code: 'unavailable' });
+        await pick('S');
+        await fire('genSetSaveBtn', 'click');
+        assert.match(hint(), /offline/i, 'Save changes');
+        assert.doesNotMatch(hint(), /signed in/);
+        assert.equal(el('genSetSaveBtn').disabled, false, 'the buttons are released once the write has failed');
+        await fire('genSetDeleteBtn', 'click');
+        assert.match(hint(), /offline/i, 'Delete');
+        assert.doesNotMatch(hint(), /signed in/);
+        assert.deepEqual(server.writes, []);
+    });
+
+    test('Save changes on a setup deleted meanwhile says deleted, not changed', async () => {
+        await openCard();
+        await pick('S');
+        server.sets.delete('S');
+        await fire('genSetSaveBtn', 'click');
+        assert.match(hint(), /“Spring” was deleted/);
+        assert.doesNotMatch(hint(), /changed by someone else/);
+        assert.deepEqual(server.writes, [], 'and nothing recreated it');
     });
 });
 

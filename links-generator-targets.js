@@ -62,6 +62,7 @@ import { assessTargetHours, targetHoursLines, targetProvenanceNote } from './lin
 import { targetSetPayload, describeSetState, describeSetList, MAX_SET_NAME, SPARE_WEEKS_CAP, targetSetProblem } from './links-target-sets.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
 import { createTargetSetStore } from './links-target-sets-store.js';
+import { isOfflineFailure } from './links-design-store.js';
 import { checkName } from './links-design-naming.js';
 
 /**
@@ -491,6 +492,18 @@ export function createTargetPanel(deps) {
         // picker may claim — see its header for why an empty array must not speak for a failed read.
         /** @type {'loading'|'ready'|'error'} */
         let setsStatus = 'loading';
+        /**
+         * True while a setup write is on its way (whole-app review, Nov 2026). Firestore settles a
+         * write only when the server acknowledges it, so on a poor connection a press could sit
+         * unanswered while a second press started a second write: two setups of one name from Save
+         * as new. Every button that writes or replaces the table is held until it settles, and the
+         * row says what it is doing.
+         */
+        let setWriteInFlight = false;
+        /** The browser's own word that there is no connection — the design store's test too. */
+        const _offline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+        const _offlineLine = (/** @type {string} */ doing) =>
+            `You're offline — ${doing} needs a connection. Try again once you're connected.`;
         const _setSelect = /** @type {HTMLSelectElement|null} */ (document.getElementById('genSetSelect'));
         // The app's own sheet, not the OS dropdown (v23.33). These are shared between designers and
         // carry a state line each, so the list is read rather than merely set.
@@ -536,19 +549,50 @@ export function createTargetPanel(deps) {
             // still-loading and the failed read — a control armed against an unknown list is how a
             // designer overwrites a set the picker never showed them.
             const list = describeSetList(setsStatus, targetSets);
-            if (loadBtn) loadBtn.disabled = !set || !list.usable;
-            if (saveBtn) saveBtn.disabled = !state.canWrite || !list.usable;
+            const held = setWriteInFlight;
+            if (loadBtn) loadBtn.disabled = !set || !list.usable || held;
+            if (saveBtn) saveBtn.disabled = !state.canWrite || !list.usable || held;
             if (delBtn) {
-                delBtn.disabled = !state.canDelete || !list.usable;
+                delBtn.disabled = !state.canDelete || !list.usable || held;
                 const label = set ? `Delete “${set.name}”` : 'Delete this set';
                 delBtn.setAttribute('aria-label', label);   // the word alone does not say WHICH set
             }
             // Save as new is deliberately NOT gated on `usable`: it creates a document, needs
             // nothing from the list, and on a failed read it is the only way to keep this table.
+            const saveAsBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('genSetSaveAsBtn'));
+            if (saveAsBtn) saveAsBtn.disabled = held;
             const retry = document.getElementById('genSetRetryBtn');
             if (retry) retry.hidden = !list.canRetry;
-            if (_setHint) _setHint.textContent = list.hint ?? state.text;
+            // A write on its way keeps its own line ("Saving …") until it settles.
+            if (_setHint && !held) _setHint.textContent = list.hint ?? state.text;
         }
+
+        /**
+         * One setup write, with the buttons held while it is on its way (see `setWriteInFlight`).
+         * The release comes BEFORE the caller writes its outcome, so a failure line is not painted
+         * over by the row's ordinary state.
+         * @template T
+         * @param {string} saying - the row's line while it is on its way
+         * @param {() => Promise<T>} write
+         * @returns {Promise<{ok: true, value: T} | {ok: false, err: any}>}
+         */
+        async function _heldWrite(saying, write) {
+            setWriteInFlight = true;
+            refreshSetControls();
+            if (_setHint) _setHint.textContent = saying;
+            try {
+                return { ok: true, value: await write() };
+            } catch (err) {
+                return { ok: false, err };
+            } finally {
+                setWriteInFlight = false;
+                refreshSetControls();
+            }
+        }
+        /** The line for a setup write that failed: unconfirmed, offline, or refused. */
+        const _failLine = (/** @type {any} */ err, /** @type {string} */ what, /** @type {string} */ doing, /** @type {string} */ refused) =>
+            unconfirmedWriteLine(err, what, 'the staffing setups')
+            ?? (isOfflineFailure(err) ? _offlineLine(doing) : refused);
         // Every table edit re-asks the question, so "still matches Set A" becomes "you have changed
         // it" on the keystroke that changes it rather than on the next reload.
         _onTargetTableChanged = refreshSetControls;
@@ -585,7 +629,7 @@ export function createTargetPanel(deps) {
 
         document.getElementById('genSetLoadBtn')?.addEventListener('click', async () => {
             const set = _selectedSet();
-            if (!set) return;
+            if (!set || setWriteInFlight) return;   // a write on its way is about to name this table
             if (!await _confirmDiscard(`“${set.name}”`)) return;
             // Fresh copies — targetSets keeps its own snapshot, and the table edits in place.
             _resetTargets({ slots: set.slots.map((/** @type {any} */ sl) => ({ ...sl })), spareLines: set.spareLines },
@@ -603,7 +647,8 @@ export function createTargetPanel(deps) {
         // unlike a design there is no bin behind this one: a deleted set is gone.
         document.getElementById('genSetDeleteBtn')?.addEventListener('click', async () => {
             const set = _selectedSet();
-            if (!set || !describeSetState(set, { userName: currentUser, isAdmin: isAdmin }).canDelete) return;
+            if (!set || setWriteInFlight || !describeSetState(set, { userName: currentUser, isAdmin: isAdmin }).canDelete) return;
+            if (_offline()) { if (_setHint) _setHint.textContent = _offlineLine(`deleting “${set.name}”`); return; }
             const sure = await confirmDialog({
                 title: 'Delete this set?',
                 message: `“${set.name}” will be removed for every designer. The table above is not affected.`,
@@ -611,38 +656,41 @@ export function createTargetPanel(deps) {
                 danger: true,
             });
             if (!sure) return;
-            try {
-                // AGAINST THE VERSION THEY WERE SHOWN (v21.96, external review). The picker's copy
-                // of a set can be minutes old, and this dialog adds however long it takes to read.
-                // A bare `deleteDoc` destroys whatever is there now — including an update somebody
-                // made in that gap, which the person confirming never saw and did not agree to
-                // remove. There is no bin behind a set, so that is final.
-                if (!await setStore.writeIfUnchanged(set, null)) {
-                    // Refresh FIRST, then say why. `loadTargetSets` repaints the hint from the
-                    // reloaded row, so setting the message before it wrote a sentence nobody ever
-                    // saw — the refusal would have looked like a button that did nothing.
-                    await loadTargetSets(set.id);
-                    if (_setHint) _setHint.textContent = `“${set.name}” was changed by someone else just now — reload and check before deleting it.`;
-                    return;
-                }
-                // The table itself stays exactly as it is — deleting the SET does not take the shift
-                // times off the screen. It is no longer FROM a set, though, so the row must stop
-                // claiming it is, or the hint would name a set that no longer exists.
-                // Through saveGenTargets, not by clearing the two variables: the set name is also in
-                // this device's stored stamp, so clearing only the in-memory pair left the memory
-                // note naming a deleted set after the next reload. The table is unchanged; it has
-                // simply stopped being FROM a set, so both are passed empty (an ordinary edit keeps
-                // the id — header rule 2).
-                if (genFromSetId === set.id) saveGenTargets('edited', '', '');
-                await loadTargetSets();
-            } catch (_err) {
-                if (_setHint) _setHint.textContent = unconfirmedWriteLine(_err, 'this delete', 'the staffing setups') ?? `Couldn't delete “${set.name}” — check you're signed in and try again.`;
+            // AGAINST THE VERSION THEY WERE SHOWN (v21.96, external review). The picker's copy of a
+            // set can be minutes old, and this dialog adds however long it takes to read. A bare
+            // `deleteDoc` destroys whatever is there now — including an update somebody made in that
+            // gap, which the person confirming never saw and did not agree to remove. There is no
+            // bin behind a set, so that is final.
+            const r = await _heldWrite(`Deleting “${set.name}”…`, () => setStore.writeIfUnchanged(set, null));
+            if (!r.ok) {
+                if (_setHint) _setHint.textContent = _failLine(r.err, 'this delete', `deleting “${set.name}”`,
+                    `Couldn't delete “${set.name}” — check you're signed in and try again.`);
+                return;
             }
+            if (!r.value) {
+                // Refresh FIRST, then say why. `loadTargetSets` repaints the hint from the reloaded
+                // row, so setting the message before it wrote a sentence nobody ever saw — the
+                // refusal would have looked like a button that did nothing.
+                await loadTargetSets(set.id);
+                if (_setHint) _setHint.textContent = `“${set.name}” was changed by someone else just now — reload and check before deleting it.`;
+                return;
+            }
+            // The table itself stays exactly as it is — deleting the SET does not take the shift
+            // times off the screen. It is no longer FROM a set, though, so the row must stop claiming
+            // it is, or the hint would name a set that no longer exists.
+            // Through saveGenTargets, not by clearing the two variables: the set name is also in this
+            // device's stored stamp, so clearing only the in-memory pair left the memory note naming
+            // a deleted set after the next reload. The table is unchanged; it has simply stopped
+            // being FROM a set, so both are passed empty (an ordinary edit keeps the id — header
+            // rule 2).
+            if (genFromSetId === set.id) saveGenTargets('edited', '', '');
+            await loadTargetSets();
         });
 
         document.getElementById('genSetSaveBtn')?.addEventListener('click', async () => {
             const set = _selectedSet();
-            if (!set || !describeSetState(set, { userName: currentUser, isAdmin: isAdmin }).canWrite) return;
+            if (!set || setWriteInFlight || !describeSetState(set, { userName: currentUser, isAdmin: isAdmin }).canWrite) return;
+            if (_offline()) { if (_setHint) _setHint.textContent = _offlineLine(`overwriting “${set.name}”`); return; }
             const sure = await confirmDialog({
                 title: 'Overwrite this set?',
                 message: `Replace “${set.name}” with the table above? Everyone who loads it will get this version.`,
@@ -651,30 +699,37 @@ export function createTargetPanel(deps) {
             if (!sure) return;
             const _problem = targetSetProblem({ slots: genSlots, spareLines: genSpareLines });
             if (_problem) { if (_setHint) _setHint.textContent = _problem; return; }
-            try {
-                // `createdBy` is passed through UNCHANGED — the rules refuse an update that moves
-                // it, so ownership survives every overwrite including the admin's. And the write
-                // only lands on the version the picker showed: see `_writeSetIfUnchanged`.
-                const _payload = targetSetPayload({ name: set.name, slots: genSlots, spareLines: genSpareLines },
-                    set.createdBy, currentUser ?? '', serverTimestamp());
-                if (!await setStore.writeIfUnchanged(set, _payload)) {
-                    // Refresh FIRST, then say why. `loadTargetSets` repaints the hint from the
-                    // reloaded row, so setting the message before it wrote a sentence nobody ever
-                    // saw — the refusal would have looked like a button that did nothing.
-                    await loadTargetSets(set.id);
-                    if (_setHint) _setHint.textContent = `“${set.name}” was changed by someone else just now — reload it and try again if you still want to overwrite.`;
-                    return;
-                }
-                // The table IS this set again — an overwrite is the other way of making them match,
-                // so the row must stop saying "you have changed it since".
-                // Through saveGenTargets, so the attribution is STORED too (the delete handler's
-                // rule): set in memory only, the note lost the set's name on the next reload.
-                saveGenTargets('edited', set.name, set.id);
-                genOriginTable = _copyTable();
-                await loadTargetSets();
-            } catch (_err) {
-                if (_setHint) _setHint.textContent = unconfirmedWriteLine(_err, 'this save', 'the staffing setups') ?? `Couldn't save “${set.name}” — check you're signed in and try again.`;
+            // `createdBy` is passed through UNCHANGED — the rules refuse an update that moves it, so
+            // ownership survives every overwrite including the admin's. And the write only lands on
+            // the version the picker showed: see `writeIfUnchanged` in links-target-sets-store.js.
+            const _payload = targetSetPayload({ name: set.name, slots: genSlots, spareLines: genSpareLines },
+                set.createdBy, currentUser ?? '', serverTimestamp());
+            const r = await _heldWrite(`Saving “${set.name}”…`, () => setStore.writeIfUnchanged(set, _payload));
+            if (!r.ok) {
+                if (_setHint) _setHint.textContent = _failLine(r.err, 'this save', `overwriting “${set.name}”`,
+                    `Couldn't save “${set.name}” — check you're signed in and try again.`);
+                return;
             }
+            if (!r.value) {
+                // Refresh FIRST, then say why. `loadTargetSets` repaints the hint from the reloaded
+                // row, so setting the message before it wrote a sentence nobody ever saw — the
+                // refusal would have looked like a button that did nothing. A setup its owner
+                // DELETED is refused here too, and is not "changed": once a good read no longer
+                // holds it, say so, and point at the way to keep the table.
+                await loadTargetSets(set.id);
+                const gone = setsStatus === 'ready' && !targetSets.some(t => t.id === set.id);
+                if (_setHint) _setHint.textContent = gone
+                    ? `“${set.name}” was deleted by someone else just now — Save as new keeps the table above as a new setup.`
+                    : `“${set.name}” was changed by someone else just now — reload it and try again if you still want to overwrite.`;
+                return;
+            }
+            // The table IS this set again — an overwrite is the other way of making them match, so
+            // the row must stop saying "you have changed it since".
+            // Through saveGenTargets, so the attribution is STORED too (the delete handler's rule):
+            // set in memory only, the note lost the set's name on the next reload.
+            saveGenTargets('edited', set.name, set.id);
+            genOriginTable = _copyTable();
+            await loadTargetSets();
         });
 
         document.getElementById('genSetSaveAsBtn')?.addEventListener('click', async () => {
@@ -682,32 +737,43 @@ export function createTargetPanel(deps) {
             // null author. Only an owner may ever overwrite a set, so a set written without one
             // would be unmaintainable by the person who made it.
             const author = currentUser;
-            if (!author) return;
+            if (!author || setWriteInFlight) return;
+            // OFFLINE IS ITS OWN ANSWER, given before a name is asked for (whole-app review, Nov
+            // 2026). `addDoc` settles only on the server's acknowledgement, so offline this press
+            // went quiet and a second one queued a second setup of the same name. A setup exists to
+            // be shared, so it is not queued here the way a design is; the table itself is already
+            // kept on this device, under this design.
+            if (_offline()) {
+                if (_setHint) _setHint.textContent = _offlineLine('saving a staffing setup') + ' The table above is kept on this device.';
+                return;
+            }
             const name = await promptDialog({
                 title: 'Save as a new staffing setup',
                 message: 'Name these staffing numbers — e.g. Winter cover. Every designer can see it; only you can overwrite it.',
                 placeholder: 'Setup name',
                 maxLength: MAX_SET_NAME,
             });
-            if (!name?.trim()) return;
+            if (!name?.trim() || setWriteInFlight) return;
             const setCheck = checkName(name, { existing: targetSets, noun: 'staffing setup' });
             if (!setCheck.ok) { if (_setHint) _setHint.textContent = setCheck.message || ''; return; }
             const _problem = targetSetProblem({ slots: genSlots, spareLines: genSpareLines });
             if (_problem) { if (_setHint) _setHint.textContent = _problem; return; }
-            try {
-                // Select the set that was just created (v21.07). The picker is sorted by name, so
-                // without this the new set is saved and the selection lands on whatever sorts first
-                // — reading as though the save had gone somewhere else, and leaving Save changes
-                // pointed at a different designer's set.
-                const ref = await writeWithClaimRetry(() => addDoc(SETS_COL,
-                    targetSetPayload({ name, slots: genSlots, spareLines: genSpareLines },
-                        author, author, serverTimestamp())));
-                saveGenTargets('edited', name.trim(), ref?.id ?? '');   // stored, as above
-                genOriginTable = _copyTable();
-                await loadTargetSets(ref?.id ?? '');
-            } catch (_err) {
-                if (_setHint) _setHint.textContent = unconfirmedWriteLine(_err, 'the new setup', 'the staffing setups') ?? 'Couldn\'t save the new staffing setup — check you\'re signed in and try again.';
+            const r = await _heldWrite(`Saving “${name.trim()}”…`, () => writeWithClaimRetry(() => addDoc(SETS_COL,
+                targetSetPayload({ name, slots: genSlots, spareLines: genSpareLines },
+                    author, author, serverTimestamp()))));
+            if (!r.ok) {
+                if (_setHint) _setHint.textContent = _failLine(r.err, 'the new setup', 'saving a staffing setup',
+                    'Couldn\'t save the new staffing setup — check you\'re signed in and try again.');
+                return;
             }
+            // Select the set that was just created (v21.07). The picker is sorted by name, so without
+            // this the new set is saved and the selection lands on whatever sorts first — reading as
+            // though the save had gone somewhere else, and leaving Save changes pointed at a
+            // different designer's set.
+            const ref = r.value;
+            saveGenTargets('edited', name.trim(), ref?.id ?? '');   // stored, as above
+            genOriginTable = _copyTable();
+            await loadTargetSets(ref?.id ?? '');
         });
 
         loadTargetSets();    })();
