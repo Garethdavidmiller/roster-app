@@ -34,6 +34,7 @@
  */
 
 import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, COLLECTIONS } from './firebase-client.js';
+import { sessionReady } from './session.js';
 import { manualOverrideId } from './override-id.js';
 import { shouldReplaceOverride } from './override-utils.js';
 import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead } from './admin-override-coverage.js';
@@ -88,7 +89,8 @@ export function initOverrideStore({ renderTable, renderWeekGrid, hasStagedEdits,
 // write will fail its own commit anyway, better than hanging the Save button forever. loadOverrides()
 // is called unconditionally in the AUTHORISED admin-init branch (not the not-signed-in/login branch,
 // where sessionReady also never resolves and the login overlay covers the Save button), so a write
-// path can't pend on this indefinitely. (v16.85)
+// path can't pend on this indefinitely. (v16.85) Every read now waits for `sessionReady` first (see
+// `loadOverrides`), which that same branch resolves — and every write path awaits it anyway.
 /** @type {(v?: any) => void} */
 let _resolveOverridesReady = () => {};
 const _overridesReady = new Promise(res => { _resolveOverridesReady = res; });
@@ -266,6 +268,13 @@ export function whenLoadSettled() { return _loadInFlight ?? Promise.resolve(); }
  *
  * `everyone` defaults to whatever the cache already claims, so once an admin has opened All staff,
  * later resyncs keep the list whole rather than silently narrowing it under them.
+ *
+ * NO READ BEFORE THE SESSION (whole-app check, Nov 2026). The page calls this the moment it boots,
+ * and on an iPhone that is often BEFORE it is signed in: Firebase can restore no user behind a valid
+ * local session, so the page signs in silently (`ensureFirebaseSession`), and Firestore holds a read
+ * only until Auth has STARTED, not until that sign-in lands. The read went out with no credential,
+ * the rules refused it, and nothing read again — "Couldn't load" on a page whose session was fine.
+ * After boot `sessionReady` has long resolved, so this costs a later read nothing.
  * @param {{ everyone?: boolean, member?: string }} [opts]
  * @returns {Promise<void>}
  */
@@ -277,6 +286,7 @@ export async function loadOverrides(opts = {}) {
     if (_loadInFlight && _loadInFlightKey === key) return _loadInFlight;
     const prev = _loadInFlight;
     const run = (prev ? prev.catch(() => {}) : Promise.resolve())
+        .then(() => sessionReady)
         .then(() => _loadOverridesInner({ everyone, member }))
         .finally(() => { if (_loadInFlight === run) { _loadInFlight = null; _loadInFlightKey = null; } });
     _loadInFlight    = run;

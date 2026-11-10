@@ -1450,6 +1450,34 @@ test('admin: a day before the start date takes no change — the pills say why, 
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
 });
 
+// THE FIRST READ WAITS FOR THE SESSION (whole-app check, Nov 2026). On an iPhone Firebase can restore no
+// user behind a valid local session (AUTH_AND_SESSIONS.md), and Admin then signs in silently. The boot
+// read went out first — with no credential, which the overrides rule refuses — and nothing retried it once
+// the sign-in landed: "Couldn't load" on a page whose session was fine. Held here: a sign-in that never lands.
+test('admin: the first read of saved changes waits for the silent sign-in, and the week says it is loading', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), hangSignIn: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForFunction(() => document.body.classList.contains('auth-ready'));
+    await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.signIns || []).length),
+        { message: 'premise: the silent sign-in is out' }).toBeGreaterThan(0);
+    await expect(page.locator('#weekGrid')).toContainText("Loading this member's saved changes");
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.docReads || 0), 'no read before the session is there').toBe(0);
+});
+
+// …AND WHILE THAT FIRST READ IS OUT, THE WEEK SAYS SO. It showed the page's static "Select a staff member
+// and date above to load the week" — over a member bar and a week label already showing both.
+test('admin: while the first read is out, the week says it is loading, not "select a staff member"', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docsHeld: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.docReads || 0), { message: 'premise: the read is out' }).toBeGreaterThan(0);
+    await expect(page.locator('#weekGrid')).toContainText("Loading this member's saved changes");
+    await expect(page.locator('#weekGrid')).not.toContainText('Select a staff member');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+});
+
 // ── THE STAGED OVERRIDE LOAD (v21.38, external review) ──────────────────────────────────────────
 //
 // Admin used to read the newest few thousand documents of the whole collection on every open and

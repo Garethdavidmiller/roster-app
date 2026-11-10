@@ -101,6 +101,14 @@ mock.module('./firebase-client.js', {
 let _serverCached = false;
 let _serverFails = false;
 
+// THE SESSION (Nov 2026). Every read waits for `sessionReady`. It is a one-shot promise in the app, so the
+// mock hands out a THENABLE that defers to whichever promise a test set: settled for everybody, held for
+// the one test that is about the wait — and no test depends on the order the others ran in.
+/** @type {Promise<boolean>} */ let _session = Promise.resolve(true);
+mock.module('./session.js', {
+    namedExports: { sessionReady: { then: (/** @type {any} */ ok, /** @type {any} */ no) => _session.then(ok, no) } },
+});
+
 /** A read held open until the test releases it. The only way to express "a second load arrived
  *  while the first was still out", which is where every defect in block 1 lives. */
 function gate() {
@@ -128,6 +136,7 @@ beforeEach(() => {
     _els = {};
     _reads = [];
     _handler = async () => [];
+    _session = Promise.resolve(true);
 });
 
 const row = (/** @type {string} */ id, /** @type {string} */ member, /** @type {string} */ date) =>
@@ -199,6 +208,24 @@ describe('1 · the load never happens', () => {
         await store.loadOverrides({ member: 'A. One' });
         assert.equal(_reads.length, 2);
         assert.equal(store.getAllOverrides().length, 1);
+    });
+
+    // The boot read went out before the silent sign-in had landed — with no credential, which the rules
+    // refuse — and nothing read again once it had. See loadOverrides' own comment.
+    test('no read goes out until the session is there, and the first load reads once it is', async () => {
+        const { store } = await freshStore();
+        /** @type {(v: boolean) => void} */ let signedIn = () => {};
+        _session = new Promise(res => { signedIn = res; });
+        _handler = async () => [row('a1', 'A. One', '2026-09-01')];
+
+        const boot = store.loadOverrides({ member: 'A. One' });
+        await tick(); await tick();
+        assert.equal(_reads.length, 0, 'no read while the sign-in is still out');
+
+        signedIn(true);
+        await boot;
+        assert.deepEqual(_reads.map(r => r.member), ['A. One'], 'the held read runs, once, when the session lands');
+        assert.equal(store.hasOverrideAuthorityFor('A. One'), true);
     });
 });
 

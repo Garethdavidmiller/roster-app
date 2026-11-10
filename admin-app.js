@@ -1634,6 +1634,8 @@ export function init() {
         };
         // Loads the SELECTED MEMBER only (v21.38) — see admin-override-coverage.js. (It also marked the
         // speed ladder's `rosterLive` rung until the App Speed review retired the ladder, Oct 2026.)
+        // Drawn FIRST, so the week says "Loading…" while it reads — not the page's "Select a staff member" (Nov 2026).
+        renderWeekGrid();
         loadOverrides().then(_offerDraft).catch((err) => console.error('[Admin] The unsaved-changes offer failed:', err));
         // AN INSTALLED APP STAYS OPEN FOR DAYS (iPhone audit, Nov 2026), and this week was read once, its "Today" stamped
         // as it drew. Back after five minutes away, with nothing staged and nothing sending, it is read and drawn again.
