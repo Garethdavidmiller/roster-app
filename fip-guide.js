@@ -45,10 +45,16 @@ function norm(/** @type {string} */ s) { return (s || '').toLowerCase().replace(
  * (guide-search.js `tokeniseText`). The finder lower-cased and nothing else, so "obb", "mav" and
  * "krakow" — an operator or city typed on a UK keyboard — found nothing, and "cie" matched the middle
  * of "Société" and offered Switzerland instead of Ireland (whole-app review, Oct 2026).
+ * A stroke or a ligature is part of its letter, so NFKD cannot take it off: "Łódź", "ŁKA" and
+ * "København" fell apart at the Ł or the ø (Nov 2026). The same table as guide-search.js's
+ * WHOLE_LETTERS, kept inside this function so guide-search.test.mjs can run it beside the drawer's.
  * @param {string} s @returns {string[]}
  */
 function foldWords(s) {
-    return (s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    /** @type {Record<string, string>} */
+    var whole = { 'ł': 'l', 'đ': 'd', 'ø': 'o', 'æ': 'ae', 'œ': 'oe', 'ß': 'ss' };
+    return (s || '').toLowerCase().replace(/[łđøæœß]/g, function (c) { return whole[c]; })
+        .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
         .split(/[^a-z0-9]+/).filter(Boolean);
 }
 // Each card's words, read once: the cards are static, and the filter runs on every keystroke.

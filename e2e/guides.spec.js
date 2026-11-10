@@ -199,6 +199,11 @@ test('fip: the country finder folds accents and matches the start of a word', as
     await expect(page.locator('#country-ch'), 'no longer found inside "Société"').toBeHidden();
     await search.fill('ÖBB');
     await expect(page.locator('#country-at'), 'the accented spelling still works').toBeVisible();
+    // A stroke is part of its letter, so NFKD leaves Ł and ø whole (Nov 2026): these found nothing.
+    await search.fill('lodz');
+    await expect(page.locator('#country-pl'), '"lodz" finds Łódź').toBeVisible();
+    await search.fill('kobenhavn');
+    await expect(page.locator('#country-dk'), '"kobenhavn" finds København').toBeVisible();
 });
 
 // Whole-app review, Nov 2026: the booking steps say "see Czechia and Slovakia", and typing "Czechia"
