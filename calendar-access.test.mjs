@@ -1033,6 +1033,11 @@ describe('initCalendarAccess', () => {
         assert.ok(!skeleton.includes('calLockPin'), 'the skeleton is not the PIN card');
         assert.ok(!/\d{1,2}:\d{2}/.test(skeleton), 'a shift time reached a pre-access surface');
         assert.ok(!/\b(RD|AL|RDW|SICK|SPARE)\b/.test(skeleton), 'a shift code reached a pre-access surface');
+        // cal-data-11: its one spoken line is WRITTEN once the region is in the document, not built
+        // into it — a live region is read only for what changes after it is in the accessibility tree.
+        assert.ok(skeleton.includes('role="status"></p>'), 'the status region was created with its words already in it');
+        assert.equal(lastPanel().querySelector('[role="status"]').textContent, 'Loading the roster…',
+            'the skeleton says nothing to a screen reader');
 
         release();
         await p;
