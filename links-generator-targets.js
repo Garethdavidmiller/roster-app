@@ -14,11 +14,15 @@
  *
  * 1. **`genOriginTable` is a DEEP copy, taken on every load.** The table is edited in place, so an
  *    aliased snapshot compares equal to itself for ever and every destructive button goes back to
- *    being silent. It is what tells "this IS Set A" from "this started as Set A and is now mine".
+ *    being silent. It is what tells "as it arrived" from "changed here since". Whether the table
+ *    still IS a setup is asked of the setup itself, as the picker holds it now: a setup its owner
+ *    has since overwritten no longer matches a table that nobody here touched.
  *
- * 2. **An ordinary edit drops the set attribution.** `saveGenTargets`'s `setName` defaults to `''`
- *    precisely because every keystroke reaches it without one — otherwise the note goes on claiming
- *    the numbers on screen are still that designer's saved set.
+ * 2. **An ordinary edit drops the set NAME and keeps its ID.** `saveGenTargets`'s `setName`
+ *    defaults to `''` precisely because every keystroke reaches it without one — otherwise the note
+ *    goes on claiming the numbers on screen are still that designer's saved set. Its `setId`
+ *    defaults to the setup the table came from: clearing that too made the SECOND keystroke after
+ *    Use setup read as though no setup had ever been loaded.
  *
  * 3. **`loadGenTargets` accepts TWO stored shapes and stamps its own.** A validator that demanded
  *    only the post-v19.58 `spareLines` would discard every table written before it, silently, in
@@ -226,11 +230,13 @@ export function createTargetPanel(deps) {
 
     /** Persist the current target table for the active design. Silent — losing it is a nuisance,
      *  never a failure worth interrupting a designer for. */
-    function saveGenTargets(source = 'edited', setName = '', setId = '') {
+    function saveGenTargets(source = 'edited', setName = '', setId = genFromSetId) {
         genFromMemory = false;
-        // Default '' is load-bearing: every ordinary edit reaches this function without a name, so
-        // typing in the table drops the set attribution rather than leaving the note claiming the
-        // numbers on screen are still that designer's saved set.
+        // Both defaults are load-bearing (header rule 2). Every ordinary edit reaches this function
+        // with neither argument: the NAME drops, so the note stops claiming the numbers on screen
+        // are still that designer's saved set; the ID stays, so the sets row can still say the table
+        // has been changed since that setup was loaded. A caller that means "no longer from a setup"
+        // passes '' for both.
         genFromSetName = setName;
         genFromSetId   = setId;
         _updateMemoryNote();
@@ -498,9 +504,19 @@ export function createTargetPanel(deps) {
             // WHOSE it is and WHERE THE TABLE IS relative to it are two questions, answered together
             // by the pure `describeSetState` (v21.08) — see its header for why this is not written
             // inline any more.
-            const isLoaded = !!set && set.id === genFromSetId;
+            //
+            // WHERE THE TABLE IS takes three facts, and the sentence may claim only what they support
+            // (whole-app review, Nov 2026): the table came FROM this setup; it MATCHES the setup as
+            // the picker holds it now (not the copy taken at load, which went on saying "still
+            // matches" after the owner overwrote the setup); and it has been CHANGED here since it
+            // arrived. From it, not matching, and untouched here means the SETUP moved, or the table
+            // was edited before a reload: "you have changed the table" is false there and "Save
+            // changes" would push the old numbers over the new, while "Press Use setup" is true.
+            const fromIt = !!set && set.id === genFromSetId;
+            const matches = fromIt && sameTargetTable({ slots: genSlots, spareLines: genSpareLines }, set);
+            const isLoaded = fromIt && (matches || _tableChanged());
             const state = describeSetState(set, {
-                userName: currentUser, isAdmin: isAdmin, isLoaded, changed: isLoaded && _tableChanged(),
+                userName: currentUser, isAdmin: isAdmin, isLoaded, changed: isLoaded && !matches,
             });
             // A list we do not have cannot be acted on, and `usable` is false for BOTH the
             // still-loading and the failed read — a control armed against an unknown list is how a
@@ -601,8 +617,9 @@ export function createTargetPanel(deps) {
                 // Through saveGenTargets, not by clearing the two variables: the set name is also in
                 // this device's stored stamp, so clearing only the in-memory pair left the memory
                 // note naming a deleted set after the next reload. The table is unchanged; it has
-                // simply stopped being FROM a set, which is exactly what an ordinary edit records.
-                if (genFromSetId === set.id) saveGenTargets();
+                // simply stopped being FROM a set, so both are passed empty (an ordinary edit keeps
+                // the id — header rule 2).
+                if (genFromSetId === set.id) saveGenTargets('edited', '', '');
                 await loadTargetSets();
             } catch (_err) {
                 if (_setHint) _setHint.textContent = unconfirmedWriteLine(_err, 'this delete', 'the staffing setups') ?? `Couldn't delete “${set.name}” — check you're signed in and try again.`;
