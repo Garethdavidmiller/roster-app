@@ -543,7 +543,8 @@ let _dialogSeq = 0;
  * @param {string} [o.placeholder]         - input placeholder (prompt)
  * @param {number} [o.maxLength]           - input maxlength (prompt)
  * @param {(input: HTMLInputElement|null) => any} o.resultOnConfirm - value to resolve on confirm
- * @param {any}     o.resultOnCancel       - value to resolve on cancel/dismiss
+ * @param {any}     o.resultOnCancel       - value to resolve on the Cancel button
+ * @param {any}     o.resultOnDismiss      - value to resolve on a dismissal: the backdrop, Escape, Android Back
  * @returns {Promise<any>}
  */
 function _openDialog(o) {
@@ -609,12 +610,29 @@ function _openDialog(o) {
         document.body.appendChild(overlay);
 
         let settled = false;
-        let result = o.resultOnCancel;
+        // Until a button is pressed the dialog is being DISMISSED — the backdrop, Escape or Android Back
+        // — which `confirmDialog` reads as Cancel unless its caller must tell "not now" from "no": the
+        // unsaved-work offer, whose Cancel deletes the kept work (unsaved-draft.js).
+        let result = o.resultOnDismiss;
+        // ONE ANSWER PER DIALOG. The card stays on screen, and tappable, through its close fade, so a
+        // second tap used to run its button again: a double tap on "Open in Safari" ran `onConfirm`
+        // twice, and Cancel then Confirm resolved a cancelled dialog as confirmed. The first answer —
+        // a button, or a dismissal (`onClose` below) — stands.
+        let answered = false;
+        /** @param {() => any} pick */
+        const answer = (pick) => {
+            if (answered) return;
+            answered = true;
+            // try/finally so a throwing resultOnConfirm can never leave the dialog open and the Promise
+            // pending (today both resolvers are total, but this keeps the contract robust).
+            try { result = pick(); } finally { lb.close(); }
+        };
 
         const lb = createLightbox({
             overlay,
             content,
-            closeBtn: cancelBtn,                       // Cancel = the close control (also Esc/backdrop/Back)
+            // No `closeBtn`: Cancel is wired below, because it is an ANSWER, and createLightbox's close
+            // control would resolve it as a dismissal. The backdrop, Escape and Back stay its own.
             initialFocus: () => input ?? confirmBtn,
             // Resolve when the close has LANDED, not as it starts. Callers chain dialogs
             // (`if (!await confirmDialog(…)) return; await promptDialog(…)`), and a resolve here in
@@ -622,6 +640,7 @@ function _openDialog(o) {
             // still in flight — the traversal popped the NEW entry, so Back then left the page.
             afterClose: () => { if (!settled) { settled = true; resolve(result); } },
             onClose: () => {
+                answered = true;   // a dismissal is an answer too: no button may change it during the fade
                 // Remove the dynamic node AFTER the close transition (not synchronously here): a
                 // node detached now would suppress dismissOverlay's transitionend, forcing its 500ms
                 // fallback AND skipping the fade-out every other lightbox shows. 500ms clears the
@@ -631,10 +650,9 @@ function _openDialog(o) {
             },
         });
 
-        // try/finally so a throwing resultOnConfirm can never leave the dialog open and the Promise
-        // pending (today both resolvers are total, but this keeps the contract robust).
-        const confirmAndClose = () => { try { result = o.resultOnConfirm(input); } finally { lb.close(); } };
+        const confirmAndClose = () => answer(() => o.resultOnConfirm(input));
         confirmBtn.addEventListener('click', confirmAndClose);
+        cancelBtn.addEventListener('click', () => answer(() => o.resultOnCancel));
         // Enter in the prompt input submits (mirrors native prompt()).
         input?.addEventListener('keydown', e => {
             if (e.key === 'Enter') { e.preventDefault(); confirmAndClose(); }
@@ -647,13 +665,15 @@ function _openDialog(o) {
 /**
  * Promise-based replacement for the browser's confirm(), styled as an app lightbox (inherits the
  * createLightbox lifecycle: focus trap, Escape, Android Back, scroll lock, transitionend fallback).
- * Resolves true if the user confirms; false on Cancel / backdrop / Escape / Android Back.
+ * Resolves true if the user confirms and false on Cancel. A DISMISSAL — backdrop, Escape, Android
+ * Back — resolves `dismissResult`, which is false, a Cancel, unless the caller passes something else.
  *
  * ASYNC by nature — it cannot stand in for confirm() in a SYNCHRONOUS context that must decide
  * `preventDefault()` inline (a capture-phase navigation guard) or in a `beforeunload` handler.
  * For a navigation guard, intercept-always then navigate when the returned Promise resolves true;
  * beforeunload must keep the native dialog.
  *
+ * @template [D=false]
  * @param {object} opts
  * @param {string}  opts.message
  * @param {string} [opts.title]
@@ -662,9 +682,12 @@ function _openDialog(o) {
  * @param {boolean} [opts.danger=false]  - style the confirm button as destructive (e.g. Delete)
  * @param {() => void} [opts.onConfirm]  - run synchronously INSIDE the confirm tap, for work that
  *                                         needs the user gesture (window.open)
- * @returns {Promise<boolean>}
+ * @param {D} [opts.dismissResult]       - what a dismissal resolves to (default false). For a question
+ *   whose Cancel destroys something, so that a tap meant for the page behind cannot: the unsaved-work
+ *   offer passes null, and a dismissed offer is asked again next load (unsaved-draft.js).
+ * @returns {Promise<boolean|D>}
  */
-export function confirmDialog({ message, title, confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false, onConfirm }) {
+export function confirmDialog({ message, title, confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false, onConfirm, dismissResult }) {
     return _openDialog({
         message, title, confirmLabel, cancelLabel, danger,
         withInput: false,
@@ -673,6 +696,7 @@ export function confirmDialog({ message, title, confirmLabel = 'OK', cancelLabel
         // (`window.open`) belongs here, not after the await. print-guard.js → explainNoPrint.
         resultOnConfirm: () => { onConfirm?.(); return true; },
         resultOnCancel: false,
+        resultOnDismiss: dismissResult === undefined ? false : dismissResult,
     });
 }
 
@@ -697,5 +721,6 @@ export function promptDialog({ message, title, defaultValue = '', placeholder, m
         withInput: true, defaultValue, placeholder, maxLength,
         resultOnConfirm: input => (input ? input.value : null),
         resultOnCancel: null,
+        resultOnDismiss: null,
     });
 }

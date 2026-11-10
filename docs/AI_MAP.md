@@ -798,10 +798,11 @@ runtime, so `overlay-parity.test.mjs`'s scan of the served HTML cannot see them.
   stays green. `trapFocus(container, e)` wraps Tab, including from the panel itself.
 - **`openNoticeIfClear(lightbox)`** — the ONLY way a one-time notice opens (the `new-notice` skill): false
   while `lb-open` is set, so the notice stays unflagged and takes its turn next load.
-- `confirmDialog({ message, title?, confirmLabel?, cancelLabel?, danger?, onConfirm? })` →
+- `confirmDialog({ message, title?, confirmLabel?, cancelLabel?, danger?, onConfirm?, dismissResult? })` →
   `Promise<boolean>` and `promptDialog({...})` → `Promise<string|null>` — app-drawn `confirm()` and
   `prompt()`. Async, so never inside a capture-phase navigation guard or a `beforeunload`; `onConfirm`
-  runs inside the tap, for work that needs the gesture.
+  runs inside the tap, for work that needs the gesture. A dismissal (backdrop, Escape, Back) resolves
+  `dismissResult`, false unless given; the first answer stands through the close fade.
 - `lockBodyScroll()` / `unlockBodyScroll()` — depth-counted and iOS-safe.
 - `watchScrollFade(panel)` → stop function — toggles `.has-more` (the "more below" fade in shared.css)
   while a scrolling panel has content past its fold. Every lightbox gets it through `createLightbox`; the
@@ -1818,7 +1819,7 @@ How a signed-in page leaves a session, and what it does when the session leaves 
 
 ### `unsaved-draft.js`
 A copy of unsaved work, kept on this device for the exits nothing can ask about (iOS discards a hidden page, a swipe back asks nothing) and offered on the next load. Imports only `ls.js` and `date-format.js`. The five rules — never applied silently, never across members, it mirrors the unsaved state at the last hide, a day then gone, a draft is work and not a decision — are its header. Written by `keepDraftWhenHidden` (`page-session.js`); used by `admin-app.js` and `links-app.js`. Tested in `page-session.test.mjs`.
-- `createDraftSlot({ page, by, now?, usable? })` → `{ peek, keep(scope, data), forget, offer({ ask, apply }) }` — one page's slot for the signed-in member. `usable(data)` is the page's test of a draft it can put back WHOLE (Links: a grid; Admin: rows); one that fails is neither offered nor kept. `forget` never deletes an earlier page life's draft that has not been answered; `offer` asks through the page's `confirmDialog` ("Restore your unsaved changes from 14:20?", Restore / Discard), and a Restore whose `apply` returns false or throws keeps the draft.
+- `createDraftSlot({ page, by, now?, usable? })` → `{ peek, keep(scope, data), forget, offer({ ask, apply }) }` — one page's slot for the signed-in member. `usable(data)` is the page's test of a draft it can put back WHOLE (Links: a grid; Admin: rows); one that fails is neither offered nor kept. `forget` never deletes an earlier page life's draft that has not been answered; `offer` asks through the page's `confirmDialog` ("Restore your unsaved changes from 14:20?", Restore / Discard), and a Restore whose `apply` returns false or throws keeps the draft — as does a question dismissed unanswered (`'unanswered'`), which the next load asks again.
 - `draftKey(page, by)` / `DRAFT_PREFIX` / `DRAFT_MAX_AGE_MS` — `myb_draft_<page>_<URI-encoded name>`, and the day after which a draft is neither offered nor kept.
 - `encodeDraft(draft)` / `decodeDraft(raw, { page, by, now })` — the stored shape, and what may be offered: null for another member or page, another version, malformed, older than a day or dated in the future.
 - `restoreQuestion(savedAt, now)` — the 24-hour question, with "yesterday" when it is.

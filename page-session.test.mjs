@@ -561,7 +561,8 @@ describe('unsaved-draft.js', () => {
         /** @param {string} by @param {number} [t] */
         const slotFor = (by, t = NOW) => ud.createDraftSlot({ page: 'admin', by, now: () => t });
         /** @type {any[]} */ let asked = [];
-        const ask = (/** @type {boolean} */ answer) => async (/** @type {any} */ o) => { asked.push(o); return answer; };
+        /** What the page's confirmDialog answers: true Restore, false Discard, null a dismissal. */
+        const ask = (/** @type {boolean|null} */ answer) => async (/** @type {any} */ o) => { asked.push(o); return answer; };
         beforeEach(() => { asked = []; });
 
         test('keep, then peek; a colleague\'s slot on the same phone sees none of it; forget deletes it', () => {
@@ -596,7 +597,21 @@ describe('unsaved-draft.js', () => {
             assert.equal(await slotFor('A. Member').offer({ ask: ask(true), apply: (d) => applied.push(d) }), 'restored');
             assert.deepEqual(applied.map(d => d.data.rows[0].type), ['sick']);
             assert.equal(ls.has(KEY), false, 'cleared after a restore: the work is the page\'s again');
-            assert.deepEqual(asked[1], { title: 'Unsaved changes', message: 'Restore your unsaved changes from 13:20?', confirmLabel: 'Restore', cancelLabel: 'Discard' });
+            assert.deepEqual(asked[1], { title: 'Unsaved changes', message: 'Restore your unsaved changes from 13:20?', confirmLabel: 'Restore', cancelLabel: 'Discard',
+                dismissResult: null });
+        });
+
+        test('a question put away unanswered — a tap outside it, Escape, Back — keeps the draft, still unanswered (rule 1)', async () => {
+            ls.set(KEY, stored());
+            const slot = slotFor('A. Member');
+            /** @type {any[]} */ const applied = [];
+            assert.equal(await slot.offer({ ask: ask(null), apply: (d) => applied.push(d) }), 'unanswered');
+            assert.equal(asked[0].dismissResult, null, 'the dialog must be told a dismissal is not Discard');
+            assert.deepEqual(applied, [], 'nothing is put back');
+            assert.ok(ls.has(KEY), 'a tap on the backdrop deleted the kept work');
+            slot.forget();   // a clean hide in the same page life
+            assert.ok(ls.has(KEY), 'still unanswered, so a clean hide may not delete it (rule 3)');
+            assert.ok(slotFor('A. Member').peek(), 'and the next load asks again');
         });
 
         test('a Restore that could not be put back keeps the draft for the next load', async () => {

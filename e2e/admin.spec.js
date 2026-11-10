@@ -541,6 +541,28 @@ test('admin: Discard deletes the kept rows, changes nothing, and the next load a
     await expect(page.locator('.dialog-overlay'), 'discarded is discarded').toHaveCount(0);
 });
 
+// A DISMISSAL IS NOT AN ANSWER (shared-ui-2). The question arrives a moment after the page, once the
+// member's records are in, so a tap meant for the grid lands on the backdrop — most of a phone screen.
+// That, Escape and Android Back each used to count as Discard and delete the kept rows for good.
+test('admin: a tap outside the offer, Escape or Back answers nothing — the kept rows are asked about again', async ({ page }) => {
+    const { clock } = await stageAbsenceAndHide(page);
+    await reloadPastLeaveSite(page);
+    const offer = page.locator('.dialog-overlay.visible');
+    for (const [how, dismiss] of /** @type {Array<[string, () => Promise<unknown>]>} */ ([
+        ['a tap on the backdrop', () => offer.click({ position: { x: 4, y: 4 } })],
+        ['Escape', () => page.keyboard.press('Escape')],
+        ['Android Back', () => page.evaluate(() => history.back())],
+    ])) {
+        await expect(offer, `asked again before ${how}`).toContainText(`Restore your unsaved changes from ${clock}?`);
+        await dismiss();
+        await expect(page.locator('.dialog-overlay'), `${how} closes the question`).toHaveCount(0);
+        expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), `${how} is not Discard`).not.toBeNull();
+        await expect(page.locator('#saveBtn'), 'and puts nothing back').toBeDisabled();
+        await page.reload();
+    }
+    await expect(offer, 'still waiting for an answer').toContainText(`Restore your unsaved changes from ${clock}?`);
+});
+
 test('admin: another member signing in on the same phone is offered nothing — the rows stay G. Miller\'s', async ({ page }) => {
     await stageAbsenceAndHide(page);
     await seedMemberSession(page, 'S. Silva');   // a later init script: this reload is S. Silva's

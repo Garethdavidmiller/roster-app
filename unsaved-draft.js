@@ -19,6 +19,9 @@
  * ── THE RULES ───────────────────────────────────────────────────────────────────────────────────
  *
  *   1. NEVER APPLIED SILENTLY. A draft is offered, and only Restore puts it back; Discard deletes it.
+ *      Putting the question away unanswered — a tap outside it, Escape, Android Back — is neither:
+ *      the question arrives a moment after the page, so a tap meant for the page lands on its
+ *      backdrop, and that must not delete the work. The draft waits and is asked about next load.
  *   2. NEVER ACROSS MEMBERS. One slot per page per signed-in member: the key carries the name, and a
  *      read refuses a draft whose stored name is not the reader's, so a colleague signing in on the
  *      same phone is offered nothing. An ANSWERED sign-out or leave keeps nothing either: the member
@@ -167,7 +170,8 @@ export function weekRestoredLine(put, left) {
  * except a draft an earlier page life left that has not been answered yet (rule 3). `offer` asks
  * once, through the page's own `confirmDialog`: Discard deletes the draft; Restore runs `apply`
  * and deletes it afterwards — unless `apply` could not put it back (it returned false, or threw),
- * in which case it stays for the next load.
+ * in which case it stays for the next load; and a question dismissed unanswered leaves it waiting,
+ * still unanswered (rule 1), for the next load to ask.
  *
  * `usable(data)` is the page's own test of a draft it could put back WHOLE: one that fails it is
  * neither offered nor kept. A Links draft whose patterns were unreadable would otherwise come back
@@ -199,15 +203,19 @@ export function createDraftSlot({ page, by, now = Date.now, usable = () => true 
         },
         forget() { if (!waiting) lsDel(key); },
         /**
-         * @param {{ ask: (o: { title: string, message: string, confirmLabel: string, cancelLabel: string }) => Promise<boolean>,
+         * `ask` is the page's `confirmDialog`, which resolves `dismissResult` — null — when the question
+         * is put away without an answer.
+         * @param {{ ask: (o: { title: string, message: string, confirmLabel: string, cancelLabel: string, dismissResult: null }) => Promise<boolean|null>,
          *           apply: (draft: Draft) => any }} o
-         * @returns {Promise<'none'|'discarded'|'restored'|'kept'>}
+         * @returns {Promise<'none'|'discarded'|'restored'|'kept'|'unanswered'>}
          */
         async offer({ ask, apply }) {
             const draft = peek();
             if (!draft) { waiting = false; return 'none'; }
             const restore = await ask({ title: 'Unsaved changes', message: restoreQuestion(draft.savedAt, now()),
-                confirmLabel: 'Restore', cancelLabel: 'Discard' });
+                confirmLabel: 'Restore', cancelLabel: 'Discard', dismissResult: null });
+            // Only an explicit Discard deletes (rule 1); `waiting` stays as it was, so a clean hide keeps it (rule 3).
+            if (restore === null || restore === undefined) return 'unanswered';
             if (!restore) { waiting = false; lsDel(key); return 'discarded'; }
             try {
                 if (await apply(draft) === false) return 'kept';
