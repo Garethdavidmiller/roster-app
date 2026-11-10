@@ -559,6 +559,28 @@ test('the member\'s own stored copy keeps its "Checking for changes…" label on
     expect(label?.words).toBe('Checking for changes…');
 });
 
+// ── THE BEST FIGURE IS MARKED ON PAPER AS ITS KEY SAYS (whole-app review, 10 Nov 2026) ─────────
+// Under each New link table the key says "Green is the best of the three for you". On paper the best
+// figure was forced black, and the browser's default print (no background graphics) dropped its green
+// pill, so it differed from its neighbours by weight alone while the key went on promising green.
+test('New link: the best figure prints in the green pill its key promises @print', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/newlink.html');
+    await page.locator('[data-persona="earlies"]').click();
+    await expect(page.locator('#nlPersonaPanel .nl-best').first(), 'premise: a table with a best figure').toBeVisible();
+    const look = await inPrint(page, () => {
+        const read = (/** @type {string} */ s) => {
+            const cs = getComputedStyle(/** @type {Element} */ (document.querySelector(s)));
+            return { colour: cs.color, pill: cs.backgroundColor, kept: cs.printColorAdjust || cs.webkitPrintColorAdjust };
+        };
+        return { best: read('.nl-fig .nl-best b'), key: read('.nl-best-key'), plain: read('.nl-fig-row td:not(.nl-best):not(.nl-today)') };
+    });
+    expect([look.best.kept, look.key.kept], 'both pills survive a print without background graphics').toEqual(['exact', 'exact']);
+    expect({ colour: look.best.colour, pill: look.best.pill }, 'the best figure looks like the key\'s "Green"')
+        .toEqual({ colour: look.key.colour, pill: look.key.pill });
+    expect(look.best.colour, 'and unlike a figure that is not the best').not.toBe(look.plain.colour);
+});
+
 // ── PRINT THIS COUNTRY (v24.06) ─────────────────────────────────────────────────────────────────
 // The print review, item 1 (ROADMAP_HISTORY.md): "Most readers want France, not the book." The guide is 25 sheets and a
 // traveller checking one coupon before a trip needs one card.

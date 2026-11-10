@@ -485,8 +485,10 @@ body {
     .nl-weeks-wrap { overflow: visible; }
     .nl-inline { color: inherit; text-decoration: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); break-inside: avoid; }
-    .nl-d, .nl-swatch, .nl-flag, .nl-fig thead th, .nl-side { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-    .nl-fig .nl-best b { color: black; }
+    /* The best figure keeps its green pill on paper, as the key beneath it promises ("Green is the best…"):
+       forced black, with its pill dropped by the default print, it differed from its neighbours by weight alone. */
+    .nl-d, .nl-swatch, .nl-flag, .nl-fig thead th, .nl-side,
+    .nl-fig .nl-best b, .nl-best-key { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .nl-file-meta { color: black; }
     .nl-file, .nl-name { box-shadow: none; }
 }
