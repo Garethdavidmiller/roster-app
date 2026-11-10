@@ -2733,6 +2733,9 @@
         @media (hover: hover) and (pointer: fine) {
             .al-lb-link:hover { color: white; border-color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.1); }
         }
+        /* Gold, as the year arrows and the ✕ above them wear: with no rule here the links took the navy
+           fallback, drawn 2px out on the navy glass, where it measured 1.0–1.8:1 — no indicator at all. */
+        .al-lb-link:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
         .al-lb-error {
             margin-top: 8px;
             font-size: var(--type-small);

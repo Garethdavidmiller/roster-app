@@ -3309,6 +3309,42 @@ test('calendar: the leave panel steps to next year and links to that year\'s rec
     await expect(year).toHaveText('2026');
 });
 
+// ── THE LEAVE PANEL'S LINKS SHOW WHERE THE KEYBOARD IS (whole-app review, 10 Nov 2026) ──────────
+// "Record leave" and "Leave dates" had no focus rule, so Tab gave them the app's NAVY fallback ring,
+// drawn 2px out on the panel's navy glass — 1.0–1.8:1, no indicator at all — while every other control
+// on the panel wears gold. calendar-controls-parity.test.mjs names the rule; this proves it wins.
+test('calendar: the leave panel\'s two links take the gold focus ring on its navy glass', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbViewLink'), 'premise: the member\'s own panel shows both links').toBeVisible();
+    const ringOf = (/** @type {string} */ token) => page.evaluate((t) => {
+        const probe = document.body.appendChild(document.createElement('div'));
+        probe.style.outline = `var(${t})`;
+        const c = getComputedStyle(probe).outlineColor;
+        probe.remove();
+        return c;
+    }, token);
+    const gold = await ringOf('--focus-outline-gold');
+    expect(gold, 'premise: the gold and navy rings are two colours').not.toBe(await ringOf('--focus-outline'));
+    for (const name of ['Record leave', 'Leave dates']) {
+        let ring = null;
+        for (let i = 0; i < 12 && !ring; i++) {
+            await page.keyboard.press('Tab');
+            ring = await page.evaluate((n) => {
+                const el = document.activeElement;
+                if (!el?.matches('.al-lb-link') || el.textContent !== n) return null;
+                const cs = getComputedStyle(el);
+                return { style: cs.outlineStyle, width: cs.outlineWidth, colour: cs.outlineColor };
+            }, name);
+        }
+        expect(ring, `"${name}"`).toEqual({ style: 'solid', width: '2px', colour: gold });
+    }
+});
+
 // ── WHOSE LEAVE IT IS (v25.50, owner, 7 Nov 2026) ──────────────────────────────────────────────
 // "When I choose a name in calendar I can see their individual AL amounts, which is fine. But the AL
 // calendar screen doesn't actually tell me whose AL I'm looking at." The panel now names the member on

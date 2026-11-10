@@ -17,7 +17,9 @@
 //      shrink-to-fit parent is the cyclic case, Chromium resolves it as `none`, and the select grew
 //      past its 200px cap on the desktop (v22.84's first cut);
 //   4. the month heading row keeps `flex-wrap: wrap`, the net that stops "September 2026" splitting
-//      on the commonest Android width and under text scaling no width query can see.
+//      on the commonest Android width and under text scaling no width query can see;
+//   5. every control on the page's navy surfaces names the gold or light focus ring, never leaving
+//      the navy fallback to draw on navy.
 //
 // Comments are stripped before matching, so a rule can't hide inside one — or be invented by one.
 
@@ -71,4 +73,24 @@ test('4. the month heading row wraps — the net for the longest month name and 
     const header = RULES.find(r => r.selector === '.calendar-header');
     assert.ok(header, 'the base .calendar-header rule exists');
     assert.match(header.body, /flex-wrap:\s*wrap/);
+});
+
+// The app-wide fallback ring is NAVY, so a control on the Calendar's navy glass with no rule of its own
+// is a Tab stop with no visible indicator: the leave panel's two links were, measured at 1.0–1.8:1
+// (whole-app review, Nov 2026). shared.css's navy controls are focus-ring-parity.test.mjs's; these are
+// the page's. This names the rule; e2e/calendar.spec.js proves the cascade lets it win.
+test('5. every control on the Calendar\'s navy surfaces names a ring drawn for a dark one', () => {
+    const ON_NAVY = ['.title-icon:focus-visible', '.top-prompt-action:focus-visible', '.top-prompt-dismiss:focus-visible',
+        '#dayDetailClose:focus-visible', '#alLightboxClose:focus-visible', '#teamInfoClose:focus-visible',
+        '#huddleViewerClose:focus-visible', '.day-detail-pay-btn:focus-visible', '.day-detail-leave-btn:focus-visible',
+        '.al-lb-yearbtn:focus-visible', '.al-lb-link:focus-visible'];
+    /** @type {Record<string, string>} */ const ring = {};
+    for (const m of css.matchAll(/([^{}]*:focus-visible[^{}]*)\{([^}]*)\}/g)) {
+        const outline = /(?:^|[\s;])outline:\s*([^;]+)/.exec(m[2])?.[1].trim();
+        if (!outline) continue;
+        for (const s of m[1].trim().replace(/\s+/g, ' ').split(',')) ring[s.trim()] = outline;
+    }
+    const wrong = ON_NAVY.filter(s => !/^var\(--focus-outline-(?:gold|light)\)$/.test(ring[s] ?? ''))
+        .map(s => `${s} → ${ring[s] ?? 'no rule: the navy fallback'}`);
+    assert.deepEqual(wrong, [], 'a control on navy needs --focus-outline-gold or --focus-outline-light');
 });
