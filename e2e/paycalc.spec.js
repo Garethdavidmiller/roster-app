@@ -2715,6 +2715,27 @@ test('paycalc guide: the two bulleted lists keep their bullets on paper', async 
     for (const [i, dot] of dots.entries()) expect(dot, `bullet ${i + 1}`).toEqual({ shown: true, onPaper: 'exact' });
 });
 
+test('paycalc: with reduced motion "How is this calculated?" opens without sliding', async ({ page }) => {
+    // Its three sibling reveals (the breakdown, the Boxing Day banner, the cards) are in the page's
+    // reduced-motion list; this one was not, and slid open over 0.35s. Both settings are driven, so
+    // the slide is seen to exist before its absence is believed.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    const slides = () => page.locator('#hppNoteBody').evaluate(el => el.getAnimations().filter(a => a.playState === 'running').length);
+    for (const motion of /** @type {const} */ (['no-preference', 'reduce'])) {
+        await page.emulateMedia({ reducedMotion: motion });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        if (!await page.locator('#hppCardBody').evaluate(el => el.classList.contains('open'))) {
+            await page.locator('#hppCardToggle .card-toggle-arrow').click();
+        }
+        await expect(page.locator('#hppCardBody')).toHaveCSS('visibility', 'visible');
+        await page.locator('#hppToggleBtn').click();
+        await expect(page.locator('#hppNoteBody')).toHaveClass(/open/);
+        expect(await slides(), `${motion}: the note's slide`).toBe(motion === 'reduce' ? 0 : 1);
+    }
+});
+
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
 // Each block below is one finding, proved where a member meets it: the page, not the helper.
 

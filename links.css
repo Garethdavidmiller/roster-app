@@ -1565,6 +1565,8 @@ body.auth-ready .container { display: grid; }
 .dm-status--proposal { display: none; }
 .dm-status--saving::before { animation: dm-pulse 1s infinite; }
 @keyframes dm-pulse { 50% { opacity: 0.3; } }
+/* It loops for as long as a write is in flight — for ever, if it cannot finish. The words say it. */
+@media (prefers-reduced-motion: reduce) { .dm-status--saving::before { animation: none; } }
 .dm-status-long, .dm-status-short { overflow: hidden; text-overflow: ellipsis; }
 .dm-status-long { display: none; }
 

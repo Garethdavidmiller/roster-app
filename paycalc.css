@@ -1292,7 +1292,7 @@
       #iconLightbox, #iconLightboxContent,
       #noticeYtdLightbox, #noticeYtdContent,
       #helpLightbox, #helpLightboxContent,
-      .bd-body, .bd-arrow, .boxing-banner, .collapsible-body,
+      .bd-body, .bd-arrow, .boxing-banner, .collapsible-body, .hpp-note-body,
       .card-toggle-arrow,
       .save-status, .stepper button, .pbb-seg {
         transition: none !important;

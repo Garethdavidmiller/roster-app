@@ -1874,6 +1874,35 @@ test('links grid: the three totals columns are set apart from Saturday by a heav
     expect(edges.saturday, 'the day columns keep the hairline').toBe('1px');
 });
 
+test('links: with reduced motion the "Saving…" dot holds still', async ({ page }) => {
+    // The dot pulses for as long as a save is in flight — for ever, if the write cannot finish — and
+    // it was the one loop on the page that "reduce motion" did not stop (shared.css stops the boot
+    // spinner, the comparable case). Both settings are driven, so the pulse is seen to exist first.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    // The keyframe animation only: the dot's colour TRANSITION also runs as the state changes.
+    const pulses = () => page.locator('#designStatus').evaluate(el => document.getAnimations().filter(a => {
+        const fx = /** @type {KeyframeEffect|null} */ (a.effect);
+        return a instanceof CSSAnimation && fx?.target === el && fx.pseudoElement === '::before' && a.playState === 'running';
+    }).length);
+    for (const motion of /** @type {const} */ (['no-preference', 'reduce'])) {
+        await page.emulateMedia({ reducedMotion: motion });
+        await page.goto('/links.html');
+        await page.locator('#linksEmptyProposals').click();
+        await proposalOptions(page).filter({ hasText: 'Balanced V6' }).click();
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
+        await page.locator('#linksSaveBtnTop').click();
+        await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+        await expect(page.locator('#designStatus'), `${motion}: the save is in flight`).toHaveClass(/dm-status--saving/);
+        expect(await pulses(), `${motion}: the dot's pulse`).toBe(motion === 'reduce' ? 0 : 1);
+        await page.evaluate(() => { const w = /** @type {any} */ (window); w.__E2E.addDocHold = false; w.__E2E.releaseAddDoc?.(); });
+    }
+});
+
 test('links grid: a mouse stroke paints every cell it crosses, and a touch does not stroke', async ({ page }) => {
     // Press and drag painted NOTHING — the grid listened for `click` alone, and a click whose press
     // and release land on different cells goes to the row — while two comments said a drag-paint
