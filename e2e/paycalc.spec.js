@@ -482,6 +482,58 @@ test('paycalc: the January premium pointer waits for the payslip, then points at
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 
+// ── THE PASS THAT STORES LAST YEAR'S PREMIUM ALSO OFFERS IT (whole-app check, 10 Nov 2026) ─────────
+// calculate() read last year's stored premium for the January banner, then ran calcHPP — which is
+// what works that premium out and stores it when nothing is stored yet (updatePriorHpp). So the pass
+// that stored it painted the banner from nothing, and the HPP card and the banner disagreed until
+// something else recalculated. Something else usually does — a second pass follows a page load or a
+// change of payslip (the back-pay card re-prices) — which is why only the ORDER can be asserted: the
+// stored figure is taken away first, standing in for a premium not yet worked out, and the banner
+// must show within the pass that works it out, before the take-home £ is written a second time.
+test('paycalc: the January banner offers last year\'s premium on the pass that works it out', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));   // opens on 18 Dec 2026 (p59)
+    await seedSession(page, 'C. Reen');
+    const sat = JSON.stringify({ satH: 40, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0, rdwH: 0, rdwM: 0,
+        sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0, slSkip: false, otherAdj: 0, actualNet: null });
+    await page.addInitScript((seed) => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_creen_grade', 'cea');
+        localStorage.setItem('myb_pc_creen_setup', '1');
+        localStorage.setItem('myb_pc_creen_p45', seed);   // a 2025/26 payslip with premium hours
+    }, sat);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await expect(page.locator('#periodSelect')).toHaveValue('59');
+    await page.evaluate(() => {
+        localStorage.removeItem('myb_pc_creen_hpp_est_2025_26');
+        // One ordered log of every pass's take-home write and every banner show/hide.
+        const log = /** @type {string[]} */ ([]);
+        Object.assign(window, { __passLog: log });
+        const net = /** @type {HTMLElement} */ (document.getElementById('netDisplay'));
+        const banner = /** @type {HTMLElement} */ (document.getElementById('hppActiveBanner'));
+        new MutationObserver(records => {
+            for (const r of records) log.push(r.target === banner ? `banner:${banner.style.display || 'shown'}` : 'net');
+        }).observe(net, { childList: true, characterData: true, subtree: true });
+        new MutationObserver(() => log.push(`banner:${banner.style.display || 'shown'}`))
+            .observe(banner, { attributes: true, attributeFilter: ['style'] });
+    });
+
+    await page.locator('#periodSelect').selectOption('60');   // 15 Jan 2027 — carries the 2025/26 premium
+    await expect(page.locator('#priorHppAmt'), 'premise: the pass worked the premium out').toHaveText(/£\d/);
+    const premium = (await page.locator('#priorHppAmt').textContent() ?? '').trim();
+    await expect(page.locator('#hppActiveBanner')).toBeVisible();
+    await expect(page.locator('#hppBannerText')).toContainText(`Estimated Holiday Pay Premium of ${premium}`);
+    const log = /** @type {string[]} */ (await page.evaluate(() => /** @type {any} */ (window).__passLog));
+    const firstShown = log.indexOf('banner:shown');
+    const secondNet = log.indexOf('net', log.indexOf('net') + 1);
+    expect(firstShown, `the banner never showed: ${log.join(' ')}`).toBeGreaterThan(-1);
+    expect(secondNet === -1 || firstShown < secondNet,
+        `the banner waited for another pass to offer what this one worked out: ${log.join(' ')}`).toBe(true);
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 test('paycalc: a joiner is not pointed at last year\'s premium, which the card hides from them', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(JAN_2027_PAID_DAY);

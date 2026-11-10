@@ -704,9 +704,17 @@ export function init() {
       // by default — the card computes and shows the lump either way).
       const _bpThisPeriod = (_bpPNum > 0 && _bpPNum === _pNum && _bpIncluded) ? _bpAmount : 0;
 
+      // The HPP card FIRST, because it is what stores the premiums read below: this year's whenever a
+      // payslip of the year is viewed, and last year's — the one a January payslip carries — the first
+      // time it is worked out (updatePriorHpp). Run after the read, the pass that stored it painted
+      // the January banner from nothing until something else recalculated. calcHPP takes no back-pay
+      // input (invariant 5): it prices every period of the year at the settled rate, which already
+      // holds the lump's variable part — feeding it in counted it twice. Nothing calculate() works out
+      // is an input to it.
+      calcHPP();
+
       // The HPP that lands on THIS payslip: the tax year whose premium a January payslip carries
       // (the prior year's — paycalc-hpp-schedule.js owns that relation, two Januaries included).
-      // calcHPP() stores the estimate whenever a payslip of that year is viewed.
       const _hppTy = hppTaxYearForPayslip(_curP, getPeriods(), CONFIG.TAX_YEARS);
       // A CONFIRMED actual (stored, even £0) beats the estimate: resolveHppForPeriod is that one rule,
       // shared with the prior-year card so the two cannot disagree.
@@ -924,9 +932,6 @@ export function init() {
         tickYear: _hppTy ? _hppTy.label : undefined,
       });
 
-      // calcHPP takes no back-pay input (invariant 5): it prices every period of the year at the
-      // settled rate, which already holds the lump's variable part — feeding it in counted it twice.
-      calcHPP();
       renderYearCard({
         ty: _ty, plan, pgLoan, slPaidOffFromP: _slPaidOffFromP,
         // The OPT-IN back-pay lump, so year-so-far agrees with the result card (see the module).
