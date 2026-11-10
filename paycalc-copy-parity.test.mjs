@@ -67,7 +67,8 @@ function subtitleFor(title) {
 // wording paycalc.md rules out for a loan moved to direct debit with a balance still owed.
 describe('picker sheets carry their field\'s visible label', () => {
     const app = readFileSync(new URL('./paycalc-app.js', import.meta.url), 'utf8');
-    const specs = [...app.matchAll(/\{\s*id:\s*'(\w+)',\s*title:\s*'([^']+)'\s*\}/g)].map(m => ({ id: m[1], title: m[2] }));
+    // A spec may carry more after its title (a `searchLabel`, shared-ui-5), so the match runs to the brace.
+    const specs = [...app.matchAll(/\{\s*id:\s*'(\w+)',\s*title:\s*'([^']+)'[^{}]*\}/g)].map(m => ({ id: m[1], title: m[2] }));
     /** The `<label for=id>` text, without its `.note` aside. @param {string} id */
     const labelFor = id => {
         const m = new RegExp(`<label for="${id}">([\\s\\S]*?)</label>`).exec(html);
