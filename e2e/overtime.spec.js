@@ -464,6 +464,19 @@ test.describe('member surface', () => {
         // And the member is TOLD, rather than left to spot a two-digit difference.
         await expect(day.locator('.ot-day-stale')).toContainText('Your shift has changed');
         await expect(day.locator('.ot-day-stale')).toContainText('Available after 15:00');
+
+        // …and offered the way to the shift as it is now (overtime-ui-18): re-pressing "After 15:00"
+        // keeps the saved answer, so "After 20:00" was reachable only by choosing something else
+        // first. The answer pills' own size, measured at a phone's width, where that is 44px.
+        await page.setViewportSize({ width: 390, height: 844 });
+        const offer = day.getByRole('button', { name: 'Change it to after 20:00' });
+        const height = (await offer.boundingBox())?.height ?? 0;
+        expect(height).toBeGreaterThanOrEqual(44);
+        expect(height).toBe((await day.getByRole('radio').first().boundingBox())?.height);
+        await offer.click();
+        await expect(day.locator('[role="radio"][aria-checked="true"]')).toHaveText('After 20:00');
+        await expect(day.locator('.ot-day-stale')).toHaveCount(0);
+        await expect(page.locator('.ot-day').nth(1).locator('.ot-day-stale'), 'one day at a time').toHaveCount(1);
     });
 
     test('opening another week runs the open routine ONCE, not once per list on the page', async ({ page }) => {

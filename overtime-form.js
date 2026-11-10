@@ -353,6 +353,14 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             focusFullTwelve(date);
             updateSubmitState();
         }));
+        daysHost.querySelectorAll('[data-reanchor]').forEach(btn => btn.addEventListener('click', () => {
+            const date = String(btn.getAttribute('data-reanchor'));
+            const mode = String(answers[date]?.mode);
+            answers[date] = reanchored(answers[date], ctx.byDate[date]);
+            paintDays();
+            updateSubmitState();
+            focusMode(date, mode);   // the note and its button are gone; the option they changed is not
+        }));
         daysHost.querySelectorAll('[data-release]').forEach(box => box.addEventListener('change', () => {
             const date = String(box.getAttribute('data-release'));
             // NO ANSWER REQUIRED, unlike the willingness tick above — this asks about CONTRACTED
@@ -484,11 +492,29 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                        ${a?.mode === 'custom' ? customRow(date, a) : ''}
                        ${fullTwelveRow(date, c, a)}
                        ${sundayReleaseRow(date, c, a)}
-                       ${answerAnchorStale(a, c) ? `
-                        <p class="ot-day-stale" role="status">Your shift has changed since you
-                        answered. Your answer still says <strong>${esc(answerCopy(a))}</strong> —
-                        change it if that no longer suits.</p>` : ''}`}
+                       ${answerAnchorStale(a, c) ? staleNote(date, a, c) : ''}`}
             </div>`;
+    }
+
+    /**
+     * An answer anchored to a shift that has since moved — said, and (overtime-ui-18) with the way to
+     * the shift as it is now. Re-pressing the chosen option keeps the saved answer (the v20.75 rule),
+     * so the new time was reachable only by choosing something else first. Offered only where the
+     * roster still has that boundary: none on a rest day, and no "after" on an overnight duty.
+     * @param {string} date @param {any} a @param {any} c
+     */
+    function staleNote(date, a, c) {
+        const next = c?.hasTime && modesFor(c).includes(a.mode) ? reanchored(a, c) : null;
+        const words = next ? answerCopy({ mode: next.mode, until: next.until, from: next.from }).replace(/^Available /, '') : '';
+        return `<p class="ot-day-stale" role="status">Your shift has changed since you answered. Your answer
+            still says <strong>${esc(answerCopy(a))}</strong> — change it if that no longer suits.${next ? `
+            <button type="button" class="ot-mode ot-mode--yes" data-reanchor="${esc(date)}">Change it to ${esc(words)}</button>` : ''}</p>`;
+    }   // (the answer pills' recipe: it chooses an available answer, and takes their 44px touch target)
+
+    /** The two presses a member would make — another option, then this one — as one, through
+     *  overtime-answer.js's own transitions, so the 12-hour tick and a Sunday request survive. */
+    function reanchored(/** @type {any} */ a, /** @type {any} */ c) {
+        return withMode(withMode(a, 'all_day', c), a.mode, c);
     }
 
     /**
@@ -561,7 +587,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      */
     function fullTwelveRow(date, c, a) {
         if (!a?.mode || a.mode === 'unavailable') return '';
-        if (!offersFullTwelve(c)) return '';
+        // A tick ALREADY GIVEN is shown wherever the day stops asking, as a saved mode keeps its
+        // button (dayBlock) — hidden, it could not be taken back and went out with every save (overtime-ui-6).
+        if (!offersFullTwelve(c) && a.fullTwelve !== true) return '';
         const on = a.fullTwelve === true;
         return `
             <label class="ot-longday">
@@ -582,7 +610,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * @param {string} date @param {any} c @param {any} a
      */
     function sundayReleaseRow(date, c, a) {
-        if (!offersSundayRelease(date, c)) return '';
+        // A request ALREADY MADE is shown, so it can be withdrawn, though the Sunday no longer offers
+        // one (now a rest day, or the roster unread) — as `fullTwelveRow` does (overtime-ui-6).
+        if (!offersSundayRelease(date, c) && a?.releaseRequested !== true) return '';
         const on = a?.releaseRequested === true;
         return `
             <label class="ot-release">

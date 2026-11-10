@@ -62,10 +62,30 @@ function fakeEl(extra = {}) {
     };
 }
 
+/**
+ * The day list. It reads the ticks and buttons `paintDays` wires back out of its own markup — once
+ * per paint, so the element a case presses is the one the form put a listener on.
+ */
+function fakeDays() {
+    const days = fakeEl();
+    let html = '';
+    /** @type {Record<string, any[]>} */ let made = {};
+    Object.defineProperty(days, 'innerHTML', { get: () => html, set: (v) => { html = String(v); made = {}; } });
+    days.querySelectorAll = (/** @type {string} */ sel) => {
+        const m = /^\[data-(release|fulltwelve|reanchor)\]$/.exec(sel);
+        if (!m) return [];
+        const attr = `data-${m[1]}`;
+        return (made[sel] ||= [...html.matchAll(new RegExp(`<(?:input|button)\\b[^>]*\\b${attr}="([^"]*)"[^>]*>`, 'g'))]
+            .map(([tag, value]) => fakeEl({ checked: /\schecked\b/.test(tag),
+                getAttribute: (/** @type {string} */ a) => (a === attr ? value : null) })));
+    };
+    return days;
+}
+
 /** The host, answering the selectors `renderWeekForm` reads back out of its own markup. */
 function fakeHost() {
     const parts = {
-        '.ot-days': fakeEl(), '.ot-feedback': fakeEl(),
+        '.ot-days': fakeDays(), '.ot-feedback': fakeEl(),
         '.ot-submit': fakeEl(), '.ot-form-head': fakeEl(),
         '.ot-bulk-unavailable': fakeEl(),
         '.ot-bulk-row': fakeEl(), '.ot-cap-note': fakeEl(), '.ot-roster-warning': fakeEl(),
@@ -583,5 +603,93 @@ describe('a closed form does not invite answers (overtime-ui-16)', () => {
         await f.submit();
         assert.doesNotMatch(f.host.parts['.ot-roster-warning'].innerHTML, /still enter availability/);
         assert.match(f.host.parts['.ot-roster-warning'].innerHTML, /Couldn't confirm your current MYB roster\./);
+    });
+});
+
+/** The control a case presses, by its attribute and date — the one the latest paint wired. */
+const control = (/** @type {any} */ f, /** @type {string} */ attr, /** @type {string} */ date) =>
+    f.host.parts['.ot-days'].querySelectorAll(`[${attr}]`).find((/** @type {any} */ b) => b.getAttribute(attr) === date);
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('a saved tick stays on the form after the day stops offering it (overtime-ui-6)', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+    // The form's own rule for a saved MODE is that the member must see it (dayBlock). A saved
+    // Sunday-release request or 12-hour tick was the exception: hidden once the day stopped offering
+    // it, impossible to withdraw, re-sent with every save, and still flagged on the reviewer's row.
+
+    test('a release request on a Sunday that is now a rest day is shown, and can be withdrawn', async () => {
+        const SUN = DATES[0];   // every day is a rest day in the default roster, so nothing offers the request
+        const days = { ...answeredWeek('unavailable'), [SUN]: { mode: 'unavailable', releaseRequested: true } };
+        const f = await mountForm({ win: { submission: { days, currentRevision: 3 } } });
+        assert.equal(control(f, 'data-release', SUN)?.checked, true, 'the saved request has its tick, ticked');
+        assert.match(f.host.parts['.ot-days'].innerHTML, /Asked to come off this Sunday/);
+        control(f, 'data-release', SUN).checked = false;
+        await control(f, 'data-release', SUN).fire('change');
+        await f.submit();
+        assert.deepEqual(calls.find(c => c.call === 'submit').answers[SUN], { mode: 'unavailable' },
+            'withdrawn, so no longer sent');
+    });
+
+    test('a 12-hour tick on a day that now reaches twelve rostered hours is shown, and can be removed', async () => {
+        const TUE = DATES[2];
+        rosterFor = (d) => (d === TUE ? { shift: '07:00-19:00', isRest: false, hasTime: true, overnight: false,
+            start: '07:00', end: '19:00', rosteredMinutes: 720 } : REST);
+        const days = { ...answeredWeek('unavailable'), [TUE]: { mode: 'before', until: '07:00', fullTwelve: true } };
+        const f = await mountForm({ win: { submission: { days, currentRevision: 3 } } });
+        assert.equal(control(f, 'data-fulltwelve', TUE)?.checked, true, 'the saved tick is on the form');
+        control(f, 'data-fulltwelve', TUE).checked = false;
+        await control(f, 'data-fulltwelve', TUE).fire('change');
+        await f.submit();
+        assert.deepEqual(calls.find(c => c.call === 'submit').answers[TUE], { mode: 'before', until: '07:00' });
+    });
+
+    test('…and a day with nothing saved still offers neither (the gates themselves stand)', async () => {
+        const f = await mountForm();   // rest days throughout, nothing ticked
+        assert.doesNotMatch(f.host.parts['.ot-days'].innerHTML, /data-release=/);
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('an out-of-date Before/After answer has a way to the shift as it is now (overtime-ui-18)', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+    // Re-pressing the chosen option keeps the saved answer (the v20.75 rule), and the new time
+    // appeared only after choosing something else first — so the note said "change it" and offered
+    // no visible way to. The owner's default: make that route visible, the smallest change.
+    const MON = DATES[1];
+    const NINE = { shift: '09:00-17:00', isRest: false, hasTime: true, overnight: false,
+        start: '09:00', end: '17:00', rosteredMinutes: 480 };
+
+    test('the note offers the new time, and one press moves the answer — and keeps what rode on it', async () => {
+        rosterFor = (d) => (d === MON ? NINE : REST);
+        const days = { ...answeredWeek('unavailable'), [MON]: { mode: 'before', until: '07:00', fullTwelve: true } };
+        const f = await mountForm({ win: { submission: { days, currentRevision: 3 } } });
+        assert.match(f.host.parts['.ot-days'].innerHTML, /data-reanchor="2026-08-31"[^>]*>Change it to before 09:00</);
+        await control(f, 'data-reanchor', MON).fire('click');
+        assert.doesNotMatch(f.host.parts['.ot-days'].innerHTML, /Your shift has changed/, 'no longer out of date');
+        await f.submit();
+        assert.deepEqual(calls.find(c => c.call === 'submit').answers[MON], { mode: 'before', until: '09:00', fullTwelve: true });
+    });
+
+    test('Before & after moves both boundaries', async () => {
+        rosterFor = (d) => (d === MON ? NINE : REST);
+        const days = { ...answeredWeek('unavailable'), [MON]: { mode: 'before_after', until: '07:00', from: '15:00' } };
+        const f = await mountForm({ win: { submission: { days, currentRevision: 3 } } });
+        assert.match(f.host.parts['.ot-days'].innerHTML, />Change it to before 09:00 and after 17:00</);
+        await control(f, 'data-reanchor', MON).fire('click');
+        await f.submit();
+        assert.deepEqual(calls.find(c => c.call === 'submit').answers[MON], { mode: 'before_after', until: '09:00', from: '17:00' });
+    });
+
+    test('no offer where the roster no longer has that boundary — a rest day, or an overnight "after"', async () => {
+        const after = { ...answeredWeek('unavailable'), [MON]: { mode: 'after', from: '15:00' } };
+        rosterFor = () => REST;
+        const rest = await mountForm({ win: { submission: { days: after, currentRevision: 3 } } });
+        assert.match(rest.host.parts['.ot-days'].innerHTML, /Your shift has changed/, 'premise: the answer is out of date');
+        assert.doesNotMatch(rest.host.parts['.ot-days'].innerHTML, /data-reanchor/);
+        rosterFor = (d) => (d === MON ? { shift: '22:00-07:00', isRest: false, hasTime: true, overnight: true,
+            start: '22:00', end: '07:00', rosteredMinutes: 540 } : REST);
+        const night = await mountForm({ win: { submission: { days: after, currentRevision: 3 } } });
+        assert.doesNotMatch(night.host.parts['.ot-days'].innerHTML, /data-reanchor/,
+            'an overnight duty offers no "after" — the server would refuse it');
     });
 });
