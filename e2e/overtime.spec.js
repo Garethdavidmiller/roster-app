@@ -1031,6 +1031,95 @@ test.describe('access and chrome', () => {
     });
 });
 
+// ── WHAT THE STYLESHEET OWES THE READER (whole-app fix, 10 Nov 2026) ───────────────────────────────
+// Each of these was a fault in overtime.css alone, invisible to the behaviour tests above: a print
+// that showed what it should not, a sheet that came out blank, a focused control under a pinned bar,
+// a ring the colour of the page, a fade below AA. Measured on the rendered page, never read off the CSS.
+test.describe('overtime.css — print, focus and contrast', () => {
+    const CREATED = { ...W, exists: true, state: 'created', canCreate: false, expected: 6, received: 4, noResponse: 2 };
+    const PEOPLE = ['L. Springer', 'A. Hared', 'M. Robson', 'J. Davies', 'I. Cooper', 'A. Panchal'];
+
+    /** The reviewer's sheet for one created week, with six people on it. @param {any} page */
+    async function reviewerSheet(page, weeks = [CREATED]) {
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks });
+        const days = Object.fromEntries(weekDates(W.weekStart).map((d, i) => [d, { mode: i % 2 ? 'unavailable' : 'all_day' }]));
+        await page.addInitScript(({ people, days, at }) => {
+            window.__E2E = { ...(window.__E2E || {}), docsByPath: {
+                participants: people.map((id, i) => ({ id, grade: 'CEA', rosterOrder: i + 1, createdAt: at })),
+                submissions: people.slice(0, 4).map(id => ({ id, currentRevision: 1, firstAcceptedAt: at, updatedAt: at, days })),
+                revisions: [],
+            } };
+        }, { people: PEOPLE, days, at: W.initialDeadlineAt - 3 * 86_400_000 });
+    }
+
+    /** Reviewer day panels that get a box — an ancestor's `display: none` included. @param {any} page */
+    const shownDays = (page) => page.locator('.ot-day-panel[data-date]').evaluateAll(els =>
+        els.filter(e => e.getClientRects().length > 0).length);
+
+    test('with the sign-in up, the paper says sign in — never the sheet beneath the card', async ({ page }) => {
+        // A session can go mid-visit, and page-session.js lays the sign-in over the loaded workspace
+        // without clearing it. The card itself is chrome and hidden in print, so Ctrl+P on a shared PC
+        // printed the names and answers from under it (one sheet: the scroll lock pins the body).
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await expect(page.locator('#otWeekContent')).toContainText('L. Springer');
+        // Scrolled into the sheet, as a reviewer at work is — the sign-in's scroll lock keeps that offset.
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+        await expect(page.locator('#loginPassword')).toBeVisible({ timeout: 8000 });
+
+        await page.emulateMedia({ media: 'print' });
+        await expect(page.locator('.app'), 'nothing behind the sign-in prints').toBeHidden();
+        const { notice, top } = await page.evaluate(() => ({
+            notice: getComputedStyle(document.body, '::before').content,
+            top: document.body.getBoundingClientRect().top,
+        }));
+        expect(notice).toContain('Sign in to see overtime availability');
+        expect(top, 'the notice is drawn on the sheet, not at the old scroll offset above it').toBeGreaterThanOrEqual(0);
+    });
+
+    test('a collapsed "Who is available" still prints its sheet, and a view with no week says why', async ({ page }) => {
+        // The card's header does not print, so a card collapsed on screen printed one blank sheet. And a
+        // reviewer with no week open printed a blank sheet too — the horizon is hidden on paper.
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.locator('#otWeekChevron').click();
+        await expect(page.locator('#otWeekBody')).not.toHaveClass(/\bopen\b/);
+        expect(await shownDays(page), 'collapsed on screen').toBe(0);
+        await page.emulateMedia({ media: 'print' });
+        expect(await shownDays(page), 'the SHEET still carries the week').toBe(7);
+
+        await page.emulateMedia({ media: 'screen' });
+        await reviewerSheet(page, [{ ...W, exists: false, state: 'not-created', canCreate: true }]);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otHorizonContent .ot-week-row')).toHaveCount(1);
+        await expect(page.locator('#otWeekCard')).toBeHidden();
+        await page.emulateMedia({ media: 'print' });
+        expect(await page.evaluate(() => getComputedStyle(document.body, '::before').content))
+            .toContain('No week is open, so there is nothing to print');
+    });
+
+    test('the call sheet uses the paper: no card inset, and not the phone column', async ({ page }) => {
+        // A4's printable column (~703px at this page's margins) is under the 768px breakpoint, so the
+        // phone layout's 560px cap held the sheet to four-fifths of the paper; and the "no inset" rule
+        // reset `.card-body`, which on this page is already 0 — the inset is the collapsible body's.
+        await page.setViewportSize({ width: 703, height: 1000 });
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.emulateMedia({ media: 'print' });
+        const m = await page.evaluate(() => ({
+            pad: getComputedStyle(/** @type {Element} */ (document.getElementById('otWeekBody'))).paddingLeft,
+            app: /** @type {Element} */ (document.querySelector('main.app')).getBoundingClientRect().width,
+        }));
+        expect(m.pad, 'no inset on the printed card').toBe('0px');
+        expect(m.app, 'the sheet spans the printable width').toBeGreaterThanOrEqual(700);
+    });
+});
+
 test.describe('opening a week — the press has to land', () => {
     /** Stub the dry run so it is still in flight when we look at the page. */
     async function stubSlowPreview(page, delayMs) {

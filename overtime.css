@@ -1719,6 +1719,29 @@ body[data-ot-paused] #otMineToggleHeader { cursor: default; }
     body[data-ot-view="mine"] .app { display: none !important; }
     body[data-ot-view="mine"]::before {
         content: "⏱ Overtime availability\A\A This is an interactive form — you choose when you can work overtime and submit it here. There is nothing on this page to print. Managers can print the availability everyone has submitted from the Everyone view.";
+    }
+
+    /* ── Waiting for a sign-in: a notice, never what is behind the card ──────
+       A session can go mid-visit (an account reset or disabled, a password changed elsewhere), and
+       page-session.js then lays the sign-in over the page it was on, with the reviewer's sheet still
+       in the document beneath it. The card is chrome and hidden above, so Ctrl+P on a shared PC
+       printed the names and answers from under it. The scroll lock's `position: fixed` goes too, or
+       the notice is drawn at the old scroll offset, above the top of the sheet. */
+    body:has(#loginOverlay) .app { display: none !important; }
+    body:has(#loginOverlay) { position: static !important; }
+    body:has(#loginOverlay)::before {
+        content: "⏱ Overtime availability\A\A Sign in to see overtime availability. Nothing on this page prints until you do.";
+    }
+
+    /* ── No week open on the reviewer's view: say so, rather than print a blank sheet ──
+       (Everything else on this view is already off the paper, so there is nothing to hide.) */
+    body[data-ot-view="all"]:has(#otWeekCard[hidden]):not(:has(#loginOverlay))::before {
+        content: "⏱ Overtime availability\A\A No week is open, so there is nothing to print. Open a week from “Upcoming weeks”, then print.";
+    }
+
+    /* The three notices' one box. `:is()`, not a plain list: a browser without `:has()` drops a whole
+       selector list over one argument it cannot read, which would take the member's notice with it. */
+    body:is([data-ot-view="mine"], :has(#loginOverlay), [data-ot-view="all"]:has(#otWeekCard[hidden]))::before {
         white-space: pre-line;
         display: block;
         max-width: 16cm;
@@ -1733,7 +1756,15 @@ body[data-ot-paused] #otMineToggleHeader { cursor: default; }
     body[data-ot-view="all"] #otMinePanel,
     body[data-ot-view="all"] #otHorizonCard { display: none !important; }
 
-    /* The card is a document now, not a card: no shadow, no radius, no inset. */
+    /* The paper's whole width. A4's printable column is ~703px, under the 768px breakpoint, so the
+       phone layout's 560px column and 10px gutters applied and the sheet used four-fifths of it. */
+    body[data-ot-view="all"] { padding-left: 0; padding-right: 0; }
+    body[data-ot-view="all"] .app { max-width: none; }
+
+    /* The card is a document now, not a card: no shadow, no radius, no inset. On this page the inset
+       is the COLLAPSIBLE body's (shared.css; a nested `.card-body` is already 0). And it prints open
+       even when collapsed on screen: its header does not print, so a collapsed card printed a blank
+       sheet with nothing on it to say why. */
     body[data-ot-view="all"] .card {
         box-shadow: none !important;
         border-radius: 0;
@@ -1741,7 +1772,7 @@ body[data-ot-paused] #otMineToggleHeader { cursor: default; }
         margin: 0;
     }
     body[data-ot-view="all"] .card-header { display: none !important; }
-    body[data-ot-view="all"] .card-body { padding: 0 !important; }
+    body[data-ot-view="all"] .card-collapsible-body { display: block !important; padding: 0 !important; }
 
     .ot-print-head { display: block; margin-bottom: 10px; }
     .ot-print-title {
