@@ -36,6 +36,7 @@ import { formatDisplay } from './admin-period-dates.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
+import { isBoxingDay } from './admin-shift-rules.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
 // The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
 // headroom. Same names, so every call site below is unchanged; see that module's header for why
@@ -211,6 +212,10 @@ export function buildWeekGridInto(container, dateStr) {
         const badgeHTML = badges.map(b => `<span class="day-badge" role="img" aria-label="${b.title}">${b.icon}</span>`).join('');
 
         const existing = memberDateMap.get(dateISO);
+        // TWO DAYS THAT TAKE NO CHANGE, refused at the pills as a Sunday is, with the reason in the row
+        // (admin-shift-rules.js → checkDayRules, the backstop at Save): before the member's start date,
+        // which the Calendar never shows, and an Other day on Boxing Day (owner, Jul 2026).
+        const beforeStart = isBeforeMemberStart(member, date), boxing = isBoxingDay(dateISO) && !isSunday(dateISO);
         // CHRISTMAS LEAVE (v25.37) — said in the row, as the Sunday reason is, because the Base roster
         // column shows the rest day `getBaseShift` makes both Christmas days for everybody. A member due
         // at work is on leave that is never counted, unless work is recorded on the day; a Boxing Day
@@ -251,6 +256,8 @@ export function buildWeekGridInto(container, dateStr) {
                 ${PILL_TYPES.map(t => `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`).join('\n                ')}
                 ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded</span>` : ''}
                 ${christmasNote ? `<span class="christmas-note">${escapeHtml(christmasNote)}</span>` : ''}
+                ${beforeStart ? `<span class="start-note">Before the start date (${formatDisplay(formatISO(/** @type {Date} */ (member.startDate)))}) — the Calendar doesn’t show changes here, so none can be recorded</span>`
+                    : boxing ? '<span class="christmas-note">Boxing Day can’t be an Other day — training, meetings and the rest</span>' : ''}
             </div>
             <div class="col-time">
                 <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" aria-label="Start time (HH:MM)" aria-describedby="${timeErrId}">
@@ -315,6 +322,12 @@ export function buildWeekGridInto(container, dateStr) {
                 shiftPill.setAttribute('aria-label', 'Shift — unavailable on Sundays; record Sunday work as Rest Day Working (RDW)');
             }
         }
+        if (beforeStart || boxing) row.querySelectorAll('.type-pill-btn').forEach(p => {
+            const t = /** @type {HTMLElement} */ (p).dataset.type ?? '';
+            if (!beforeStart && t !== 'other') return;
+            /** @type {HTMLButtonElement} */ (p).disabled = true;
+            p.setAttribute('aria-label', `${TYPES[t]?.label ?? t} — unavailable ${beforeStart ? 'before the start date' : 'on Boxing Day'}`);
+        });
 
         const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
         const pills    = row.querySelectorAll('.type-pill-btn');

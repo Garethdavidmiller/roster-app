@@ -26,6 +26,7 @@ import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
 import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft } from './admin-week-row-state.js';
+import { checkDayRules } from './admin-shift-rules.js';
 import { initLeaveYearPanel } from './admin-leave-year.js';
 import { setLeaveYear } from './admin-leave-year-save.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
@@ -819,6 +820,11 @@ export function init() {
         });
 
         if (errors.length)                    return showError("Can't save — " + errors.join(' · '));
+        // DAYS THAT TAKE NO CHANGE (admin-shift-rules.js): before the start date; an Other day on Boxing Day.
+        // Here, not in the collector above, whose slice override-utils.test.mjs evaluates with fixed names.
+        const dayRules = checkDayRules({ toSave, member: teamMembers.find(m => m.name === memberName), formatDate: formatDisplay });
+        dayRules.failedDates.forEach(d => weekGrid.querySelector(`.day-row[data-date="${d}"]`)?.classList.add('row-error'));
+        if (dayRules.errors.length)           return showError("Can't save — " + dayRules.errors.join(' · '));
         if (!toSave.length && !toDelete.length) return showError('No changes to save.');
 
         // Both the rest-gap validation below (validateShiftRules → getEffectiveShift reads _allOverrides

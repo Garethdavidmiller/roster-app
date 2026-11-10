@@ -1,6 +1,7 @@
 // @ts-check
 /**
- * admin-shift-rules.js — the two rules a shift change must not break, decided without a DOM.
+ * admin-shift-rules.js — the two rules a shift change must not break, and the days that take no change
+ * at all, decided without a DOM.
  *
  * ── WHY IT LEFT THE COORDINATOR (v21.38, external review) ───────────────────────────────────────
  *
@@ -34,10 +35,19 @@
  * Collapsing those was a real defect: a naive `split('-')` on `TRG 09:00-17:00` shreds into NaN and
  * silently skips every check on that day, which reads as "no problem found".
  *
+ * ── AND TWO DAYS THAT TAKE NO CHANGE AT ALL (`checkDayRules`) ───────────────────────────────────
+ *
+ * A day before the member's start date (whole-app check, Nov 2026): the Calendar, its legend and
+ * Team Week never show a change there (`isBeforeMemberStart`), so one saved was receipted and then
+ * invisible for ever. And an Other day on Boxing Day — "Sundays and Boxing Day can never be
+ * training/Other days" (owner, Jul 2026). Both are refused at the grid's pills as a Sunday's are;
+ * this is the backstop at Save, for a row that reaches it another way.
+ *
  * Pure — no DOM, no Firebase. Tested by admin-shift-rules.test.mjs.
  */
 
-import { parseOtherValue, isRestShift } from './override-utils.js';
+import { parseOtherValue, isRestShift, isBeforeMemberStart } from './override-utils.js';
+import { parseISODate } from './roster-data.js';
 
 /** Maximum length of a single shift. */
 export const MAX_SHIFT_MINS = 12 * 60;
@@ -152,5 +162,27 @@ export function checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFo
         });
     });
 
+    return { errors, failedDates };
+}
+
+/** Is the ISO date Boxing Day, 26 December, in any year? @param {string} iso @returns {boolean} */
+export function isBoxingDay(iso) { return /^\d{4}-12-26$/.test(iso); }
+
+/**
+ * The staged changes that may not be saved on their day at all — see the header. Same shape as
+ * `checkShiftRules`, so the caller paints exactly the rows it is told failed.
+ * @param {{ toSave: Array<{ date: string, type: string }>, member: any, formatDate: (iso: string) => string }} args
+ * @returns {{ errors: string[], failedDates: string[] }}
+ */
+export function checkDayRules({ toSave, member, formatDate }) {
+    /** @type {string[]} */ const errors = [];
+    /** @type {string[]} */ const failedDates = [];
+    for (const { date, type } of toSave) {
+        const why = member && isBeforeMemberStart(member, parseISODate(date)) ? 'before the start date, so a change here would never show on the Calendar'
+            : type === 'other' && isBoxingDay(date) ? 'an "Other" day cannot be recorded on Boxing Day' : '';
+        if (!why) continue;
+        if (!failedDates.includes(date)) failedDates.push(date);
+        errors.push(`${formatDate(date)}: ${why}`);
+    }
     return { errors, failedDates };
 }

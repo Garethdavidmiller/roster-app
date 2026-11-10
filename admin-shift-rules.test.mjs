@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { checkShiftRules, constrainingTime, effectiveEndMins, parseMinutes, fmtHours } from './admin-shift-rules.js';
+import { checkShiftRules, constrainingTime, effectiveEndMins, parseMinutes, fmtHours, checkDayRules, isBoxingDay } from './admin-shift-rules.js';
 import { TYPES } from './admin-shift-types.js';
 
 /** A harness with no neighbours unless the test supplies them. */
@@ -184,5 +184,35 @@ describe('the pieces', () => {
         assert.equal(parseMinutes('07:30'), 450);
         assert.equal(fmtHours(720), '12h');
         assert.equal(fmtHours(570), '9.5h');
+    });
+});
+
+// ── THE DAYS THAT TAKE NO CHANGE AT ALL (whole-app check, Nov 2026) ────────────────────────────────
+describe('checkDayRules — before the start date, and an Other day on Boxing Day', () => {
+    const starter = { name: 'Starter', startDate: new Date(2026, 5, 3) };   // Wed 3 June 2026
+    const fmt = (/** @type {string} */ d) => d;
+
+    test('a change before the start date is refused; on the start date and after it is not', () => {
+        const { errors, failedDates } = checkDayRules({ member: starter, formatDate: fmt, toSave: [
+            { date: '2026-06-02', type: 'correction' }, { date: '2026-06-03', type: 'shift' }, { date: '2026-06-04', type: 'annual_leave' }] });
+        assert.deepEqual(failedDates, ['2026-06-02']);
+        assert.deepEqual(errors, ['2026-06-02: before the start date, so a change here would never show on the Calendar']);
+    });
+
+    test('an Other day on Boxing Day is refused, in any year; Spare (its own type) and work are not', () => {
+        const { errors, failedDates } = checkDayRules({ member: { name: 'Any' }, formatDate: fmt, toSave: [
+            { date: '2026-12-26', type: 'other' }, { date: '2031-12-26', type: 'other' },
+            { date: '2026-12-26', type: 'spare_shift' }, { date: '2026-12-26', type: 'rdw' }, { date: '2026-12-25', type: 'other' }] });
+        assert.deepEqual(failedDates, ['2026-12-26', '2031-12-26']);
+        assert.deepEqual(errors, ['2026-12-26: an "Other" day cannot be recorded on Boxing Day',
+                                  '2031-12-26: an "Other" day cannot be recorded on Boxing Day']);
+    });
+
+    test('a member with no start date, and an ordinary week, refuse nothing', () => {
+        assert.deepEqual(checkDayRules({ member: { name: 'Any' }, formatDate: fmt, toSave: [{ date: '2026-06-01', type: 'shift' }] }),
+            { errors: [], failedDates: [] });
+        assert.equal(isBoxingDay('2026-12-26'), true);
+        assert.equal(isBoxingDay('2026-12-25'), false);
+        assert.equal(isBoxingDay('2026-06-26'), false);
     });
 });

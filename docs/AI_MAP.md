@@ -1440,9 +1440,10 @@ What the Admin override cache actually KNOWS. Pure — no DOM, no Firebase, no i
 - Tested by `admin-override-coverage.test.mjs`.
 
 ### `admin-shift-rules.js`
-The two rules a shift change must not break — maximum length and minimum rest. Pure: it DECIDES, and the caller (`validateShiftRules`, `admin-overrides.js`) PAINTS.
+The two rules a shift change must not break — maximum length and minimum rest — and the days that take no change at all. Pure: it DECIDES, and the caller (`validateShiftRules`, `admin-overrides.js`) PAINTS.
 - `checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFor, formatDate, shiftDate })` → `{ errors, failedDates }`; `failedDates` is deduplicated, so a row breaking both neighbours is marked once while both sentences are still said. The neighbouring day comes from the INJECTED `resolveShift`, because a missed rest gap and an unloaded cache look identical from inside.
 - `constrainingTime(value, baseShiftFor)` — what an adjacent day constrains by; `null` means "does not constrain", which is not "constrains by nothing". An Other day has three cases (timed, untimed RDW, untimed on the base shift), set out in the header.
+- `checkDayRules({ toSave, member, formatDate })` → `{ errors, failedDates }` — the days that take no change at all: before the member's start date (the Calendar never shows it) and an Other day on Boxing Day (owner, Jul 2026). The Save's backstop, run by `admin-app.js` AFTER the collector; the grid refuses both at the pills first. `isBoxingDay(iso)`.
 - `MAX_SHIFT_MINS` / `MIN_REST_MINS` · `parseMinutes` · `effectiveEndMins` · `fmtHours`. Tested by `admin-shift-rules.test.mjs`.
 
 ### `admin-deep-link.js`

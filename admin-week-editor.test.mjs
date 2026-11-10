@@ -416,9 +416,11 @@ describe('the "Base roster" column says what the day WAS', () => {
             /class="christmas-note">Christmas Day: due at work, so on annual leave that is never counted — nothing to record</);
         assert.match(row('2026-12-26').innerHTML, /class="christmas-note">Boxing Day: /);
         assert.doesNotMatch(row('2026-12-24').innerHTML, /christmas-note/, 'an ordinary day says nothing');
-        // Before 2026 the days are rest days like any other, and the row says nothing.
+        // Before 2026 the days are rest days like any other, and the row says nothing about leave…
         const old = buildWeek('G. Miller', '2025-12-25').slice(1);
-        assert.ok(old.every(r => !/christmas-note/.test(r.innerHTML)));
+        assert.ok(old.every(r => !/class="christmas-note">(Christmas Day|Boxing Day):/.test(r.innerHTML)));
+        // …while Boxing Day refuses an Other day in every year (owner, Jul 2026), and says so.
+        assert.match(old.find(r => r.dataset.date === '2025-12-26').innerHTML, /Boxing Day can’t be an Other day/);
     });
 });
 

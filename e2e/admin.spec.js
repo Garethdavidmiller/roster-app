@@ -1388,6 +1388,68 @@ test('admin: Working days ticks a rest day with a swapped-in shift, and leaves a
     expect(ticked).toEqual(['2027-01-11', '2027-01-12', '2027-01-13', '2027-01-15', '2027-01-16']);
 });
 
+/** Admin on `member`'s week holding `iso`, signed in as G. Miller with a working Firebase user.
+ *  @param {import('@playwright/test').Page} page @param {string} member @param {string} iso */
+async function adminOnWeek(page, member, iso) {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption(member);
+    await page.locator('#fieldDate').evaluate((el, d) => {
+        /** @type {HTMLInputElement} */ (el).value = d;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    }, iso);
+    await expect(page.locator(`.day-row[data-date="${iso}"]`)).toBeVisible();
+}
+
+// BOXING DAY IS NEVER AN OTHER DAY (owner, Jul 2026 — CLAUDE.md, Shift types), refused the way a Sunday's
+// is: at the pill, with the reason in the row, and at Save for a row that reaches it another way.
+test('admin: Boxing Day takes no Other day — the pill says why, and Save refuses one', async ({ page }) => {
+    await adminOnWeek(page, 'G. Miller', '2026-12-21');
+    const boxing = page.locator('.day-row[data-date="2026-12-26"]');
+    await boxing.locator('.day-cb').click();
+    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toBeDisabled();
+    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toHaveAttribute('aria-label', /Boxing Day/);
+    await expect(boxing.locator('.col-pills')).toContainText('Boxing Day can’t be an Other day');
+    await expect(boxing.locator('.type-pill-btn[data-type="rdw"]'), 'work on Boxing Day is still recordable').toBeEnabled();
+    const thu = page.locator('.day-row[data-date="2026-12-24"]');   // a working day, so the save has a batch
+    await thu.locator('.day-cb').click();
+    await thu.locator('.type-pill-btn[data-type="annual_leave"]').click();
+    await boxing.evaluate((r) => {   // an Other day reaching Save by another route
+        /** @type {HTMLElement} */ (r).dataset.type = 'other';
+        r.querySelector('.other-flavour-btn[data-flavour="TRG"]')?.classList.add('active');
+    });
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('26 Dec 2026: an "Other" day cannot be recorded on Boxing Day');
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
+});
+
+// A DAY BEFORE A MEMBER'S START DATE TAKES NO CHANGE (whole-app check, Nov 2026; decided default). The
+// Calendar, its legend and Team Week never show one (`isBeforeMemberStart`), so a change saved there was
+// accepted, receipted and then invisible for ever.
+test('admin: a day before the start date takes no change — the pills say why, Apply skips it, and Save refuses it', async ({ page }) => {
+    await adminOnWeek(page, 'K. Jedlinski', '2026-06-01');   // starts Wed 3 Jun 2026
+    const mon = page.locator('.day-row[data-date="2026-06-01"]');
+    await mon.locator('.day-cb').click();
+    for (const t of ['annual_leave', 'shift', 'rdw', 'sick', 'correction', 'other']) {
+        await expect(mon.locator(`.type-pill-btn[data-type="${t}"]`), `${t} before the start date`).toBeDisabled();
+    }
+    await expect(mon.locator('.col-pills')).toContainText('Before the start date (3 Jun 2026)');
+    await expect(page.locator('.day-row[data-date="2026-06-03"] .type-pill-btn[data-type="shift"]'), 'the start date itself is a working day').toBeEnabled();
+
+    await page.locator('#bulkSelMonFri').click();
+    await page.locator('#bulkTypePills .pill-correction').click();
+    await page.locator('#bulkApplyBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('Set 3 days — 1 Jun 2026 and 2 Jun 2026 skipped: before the start date, so nothing is recorded.');
+    await expect(mon).not.toHaveAttribute('data-type', /./);
+
+    await mon.evaluate((r) => { /** @type {HTMLElement} */ (r).dataset.type = 'correction'; });   // reaching Save another way
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('1 Jun 2026: before the start date, so a change here would never show on the Calendar');
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
+});
+
 // ── THE STAGED OVERRIDE LOAD (v21.38, external review) ──────────────────────────────────────────
 //
 // Admin used to read the newest few thousand documents of the whole collection on every open and
