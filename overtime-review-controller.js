@@ -72,7 +72,7 @@
 
 import * as OTD from './overtime-data.js';
 import {
-    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, isWithdrawn, putBackWindow,
+    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, isWithdrawn, putBackWindow, weekDates,
 } from './overtime-format.js';
 import { phaseAt } from './overtime-phase.js';
 import { renderWeekDetail as paintWeekDetail } from './overtime-manager.js';
@@ -583,7 +583,7 @@ async function renderWeekDetail(weekEnding) {
         if (chip) chip.textContent = '';
         return;
     }
-    const dates = weekDatesFrom(win.weekStart);
+    const dates = weekDates(win.weekStart);
     // A ticket per call — only the newest may paint. See "WHICH READ IS LATEST" in the header.
     const generation = ++detailGeneration;
     const data = await OTD.loadWeekDetail(weekEnding,
@@ -692,18 +692,6 @@ async function setAsking(weekEnding, memberName, ask) {
         : `<strong>${esc(memberName)}</strong> is no longer being asked for ${esc(week)}.`, true);
     await loadHorizon();
     if (selectedWeek === weekEnding) renderWeekDetail(weekEnding);
-}
-
-/**
- * The seven Sunday→Saturday dates. The server's `weekDates` is authoritative; this mirrors it.
- * @param {string} weekStart
- */
-function weekDatesFrom(weekStart) {
-    const [y, m, d] = String(weekStart).split('-').map(Number);
-    return Array.from({ length: 7 }, (_, i) => {
-        const dt = new Date(Date.UTC(y, m - 1, d + i));
-        return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
-    });
 }
 
     return {

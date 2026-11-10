@@ -229,6 +229,17 @@ export function weekSpan(weekStart, weekEnding) {
 }
 
 /**
+ * The seven Sunday→Saturday ISO dates of a roster week — the one client copy, for the member's form
+ * and the reviewer's workspace alike. Mirrors the server's `weekDates`, which is authoritative. UTC
+ * arithmetic throughout, so no device time zone can move a date.
+ * @param {string} weekStart
+ */
+export function weekDates(weekStart) {
+    const [y, m, d] = String(weekStart).split('-').map(Number);
+    return Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10));
+}
+
+/**
  * When a printed sheet came out of the tray: "Tue 8 Sep 2026 · 14:07".
  *
  * Its own formatter rather than a `deadlineLabel` with a flag, because the two answer opposite

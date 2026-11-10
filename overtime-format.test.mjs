@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
-    shortDate, longDate, weekLabel, weekSpan, printedLabel, rowStateCopy, rosterBadge,
+    shortDate, longDate, weekLabel, weekSpan, weekDates, printedLabel, rowStateCopy, rosterBadge,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, isAvailableAnswer,
     asAtLine,
     modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, receiptLine,
@@ -507,6 +507,14 @@ describe('dates and deadlines', () => {
     test('a missing print stamp renders as nothing rather than as 1970', () => {
         assert.equal(printedLabel(0), '');
         assert.equal(printedLabel(undefined), '');
+    });
+
+    test('a roster week is its seven dates, Sunday to Saturday, across a month, a year and a clock change', () => {
+        // One copy now, for the form and the reviewer both (overtime-ui-17); the server's is authoritative.
+        assert.deepEqual(weekDates('2026-08-30'),
+            ['2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05']);
+        assert.deepEqual(weekDates('2026-12-27').slice(-2), ['2027-01-01', '2027-01-02']);
+        assert.deepEqual(weekDates('2026-10-25').slice(0, 2), ['2026-10-25', '2026-10-26'], 'the October clock change moves no date');
     });
 
     test('month and year boundaries do not shift the day name', () => {

@@ -444,7 +444,8 @@ false for a closed week; checked against its server twin by `overtime-parity.tes
 nothing; `overtime-format.js` re-exports all six.
 
 **`overtime-format.js`** — the pure words and time arithmetic both sides share; keep it Node-loadable.
-*Dates*, in Europe/London: `shortDate` · `longDate` · `weekLabel` · `weekSpan` · `printedLabel` (carries
+*Dates*, in Europe/London: `shortDate` · `longDate` · `weekLabel` · `weekSpan` · `weekDates` (a week's
+seven ISO dates — the one client copy, for the form and the reviewer) · `printedLabel` (carries
 the year: it stamps paper) · `asAtLine` · `declaredAgo` · `receiptLine`. *The form's rules:*
 `dayUnfinished` / `unfinishedDates` (the count and the day an error walks to come from one list) ·
 `reconcileVerdict` · `conflictIsOurs` · `modesFor` (shortcuts only where an authoritative duty time

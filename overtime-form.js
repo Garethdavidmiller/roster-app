@@ -42,7 +42,7 @@ import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was 
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines, phaseChip, phaseTone,
     answerAnchorStale, submitDisposition, modesFor, offersFullTwelve, submitFailureCopy,
-    sameAnswer, receiptLine, unfinishedDates, reconcileVerdict, conflictIsOurs, isAvailableAnswer,
+    sameAnswer, receiptLine, unfinishedDates, reconcileVerdict, conflictIsOurs, isAvailableAnswer, weekDates,
 } from './overtime-format.js';
 import { offersSundayRelease, SUNDAY_RELEASE_LABEL, SUNDAY_RELEASE_ASKED } from './overtime-sunday-release.js';
 import { withMode, withFullTwelve, withRelease } from './overtime-answer.js';
@@ -982,16 +982,6 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
 }
 
 // ── Small helpers ───────────────────────────────────────────────────────────────────────────────
-
-/** The seven Sunday→Saturday ISO dates. Mirrors the server's `weekDates`, which is authoritative. */
-/** @param {string} weekStart */
-function weekDates(weekStart) {
-    const [y, m, d] = String(weekStart).split('-').map(Number);
-    return Array.from({ length: 7 }, (_, i) => {
-        const dt = new Date(Date.UTC(y, m - 1, d + i));
-        return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
-    });
-}
 
 /** @param {any} o */
 function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
