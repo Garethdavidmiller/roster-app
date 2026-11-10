@@ -67,8 +67,9 @@
       display: block; margin-top: 2px;
     }
 
-    /* ── PRIMARY BUTTON ── */
-    .btn-primary {
+    /* ── PRIMARY BUTTON ── Save settings is the one primary without .btn-action. A button wearing
+       both takes shared.css's recipe whole: this one, reaching them, gave each pair two shapes. */
+    .btn-primary:not(.btn-action) {
       display: flex; align-items: center; justify-content: center;
       width: 100%; min-height: 44px; box-sizing: border-box; padding: 11px 16px;
       background: var(--primary-blue); color: white;

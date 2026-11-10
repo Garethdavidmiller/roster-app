@@ -2666,6 +2666,36 @@ test('paycalc: a notice sheet\'s two answers are one width, from tablet up', asy
     }
 });
 
+test('paycalc: a primary button and the secondary under it are drawn by one recipe', async ({ page }) => {
+    // paycalc.css keeps its own `.btn-primary` recipe for Save settings, the one primary that does not
+    // wear `.btn-action` — and it reached the three that do, overriding the shared recipe's display,
+    // edge and timing: two shapes in one pair. Nothing differed by a pixel, which is why it is the
+    // computed SHAPE that is compared — the next change to the shared recipe would have split them.
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_rate', '20.74');   // the ownership question
+        localStorage.removeItem('myb_pc_ns_migrated');
+    });
+    const shape = (/** @type {string[]} */ ids) => page.evaluate(list => list.map(id => {
+        const cs = getComputedStyle(/** @type {Element} */ (document.getElementById(id)));
+        return [cs.display, cs.borderTopWidth, cs.borderTopStyle, cs.padding, cs.borderTopLeftRadius,
+            cs.minHeight, cs.fontSize, cs.fontWeight, cs.transitionProperty, cs.transitionDuration].join(' | ');
+    }), ids);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
+    const [mine, fresh] = await shape(['dataOwnerMine', 'dataOwnerFresh']);
+    expect(mine, '"Yes, it\'s mine" against "No — start fresh"').toBe(fresh);
+    await page.locator('#dataOwnerClose').click();
+    await expect(page.locator('#dataOwnerLightbox')).not.toHaveClass(/visible/);
+    if (!await page.locator('#payTransferBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#payTransferToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#ptDownload')).toBeVisible();
+    const [download, copy] = await shape(['ptDownload', 'ptCopy']);
+    expect(download, '"Download backup" against "Copy as text"').toBe(copy);
+});
+
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
 // Each block below is one finding, proved where a member meets it: the page, not the helper.
 
