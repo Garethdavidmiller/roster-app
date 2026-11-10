@@ -737,7 +737,8 @@ describe('getRosterSuggestion — each payslip reads its own recorded changes', 
     _mockGetDocs = async () => recordedSat();
     await fetchOverridesForPeriod(onScreen, 'C. Reen');
     _mockGetDocs = async () => mockSnap([]);
-    await fetchOverridesForPeriod(elsewhere, 'C. Reen');          // the year fill's next payslip
+    // …and the year fill moves on to its next period:
+    await fetchOverridesForPeriod(elsewhere, 'C. Reen');
     assert.equal(getRosterSuggestion(onScreen, cReen)?.rdwH, 9,
       'the payslip on screen was priced from the last payslip fetched, without its own recorded change');
     assert.equal(getOverridesFetchState(onScreen), 'loaded');
