@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * links-proposals.js — the SHORTLISTED 26-line designs, built into the Links workspace (v24.47).
+ * links-proposals.js — the SHORTLISTED designs for the new link, built into the Links workspace (v24.47).
  *
  * ── WHAT THESE ARE ─────────────────────────────────────────────────────────────────────────────
  *

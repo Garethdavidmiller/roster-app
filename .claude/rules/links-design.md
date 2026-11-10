@@ -43,12 +43,12 @@ or in the module header beside the code.
 
 | # | Invariant | Where it lives |
 |---|---|---|
-| 1 | **The rotation length is declared once and written down nowhere** — not in a module, not in a comment, not in prose. A literal is one more copy waiting to drift. | `links-design.js` (`ROTATING_LINES`) · `links-rotation-parity.test.mjs` |
+| 1 | **The rotation length is declared once and stated nowhere else** — no literal in code, strings or markup (the parity test), and no comment or prose giving the CURRENT length as a fact (held by hand: the test strips comments, because a comment may record history — a dated release, a past length). A literal is one more copy waiting to drift. | `links-design.js` (`ROTATING_LINES`) · `links-rotation-parity.test.mjs` |
 | 2 | **A hard limit and a fatigue factor are opposite kinds of statement.** Separate modules, separate counts, separate sections. Fatigue factors report what is PRESENT; they never pass or fail a design, and nothing here may read as a certificate. | `links-limits.js` · `links-fatigue.js` |
 | 3 | **Every fatigue rule laps the rotation.** Somebody on the last line goes to the first next week. | `links-fatigue.js` |
 | 4 | **The generator REFUSES what it cannot repair.** Reporting a shortfall is not refusing it — a design that exists gets saved, compared, printed and taken into a room. | `links-design.js` (`repairShortRest`) · `links-contract.test.mjs` |
 | 5 | **A failed read-back flags the baseline UNKNOWN, never merely null.** Every co-editing bug here has been a SILENT overwrite of a colleague's work, discovered only on reopening. | `links-design-store.js` · `links-concurrency.js` |
-| 6 | **An import becomes a design or a refusal, never a half-design.** An unreadable cell is refused BY NAME, never defaulted to a rest day — an import that "succeeds" four duties light reads as a lighter week, and every panel then reports confidently about it. | `links-import.js` |
+| 6 | **An import becomes a design or a refusal, never a half-design.** An unreadable cell is refused BY NAME, never defaulted to a rest day — an import that "succeeds" four duties light reads as a lighter week, and every panel then reports confidently about it. A row of empty cells is an empty week IN ITS PLACE, never a line skipped: skipping one moved every later week up a line. | `links-import.js` |
 | 7 | **The days-worked divisor is the WORKING lines, not the rotation** — unlike the hours average beside it. | `links-design.js` (`lineTotals`) |
 | 8 | **Reordering is free with respect to coverage**, so the line-order objectives compete only with each other. | `links-adjacency.js` |
 | 9 | **A saved target set (a staffing setup) is refused whole or loaded whole**, and the client's ownership check only decides what is OFFERED — the rules are the protection. | `links-target-sets.js` · `firestore.rules` |
@@ -1050,11 +1050,14 @@ an amber line-number cell (`.row-unfilled`), and "Lines not yet designed" lists 
 filled.
 
 **`ROTATING_LINES` in `links-design.js` is the ONE declaration of the length** (invariant 1).
-**Everything derives from it — do not write the number down again**, in a module, a comment, prose or a
-`max` attribute. Static markup that cannot interpolate uses a `.js-rotating-lines` span stamped at init,
-and the numeric `max` attributes are stamped too. `links-rotation-parity.test.mjs` fails on a literal in
-the Links modules or `links.html` even when it is right today; it does not read this file, so here the
-rule is held by hand.
+**Everything derives from it — do not write the number down again** in code, a string, markup or a
+`max` attribute, and do not give the current length as a fact in a comment or prose: name
+`ROTATING_LINES` instead. Static markup that cannot interpolate uses a `.js-rotating-lines` span stamped
+at init, and the numeric `max` attributes are stamped too. `links-rotation-parity.test.mjs` fails on a
+literal in the code, strings or markup of the Links modules and `links.html` even when it is right
+today. It strips comments on purpose — a comment may RECORD HISTORY, a dated release or a past length
+("28 → 22 → 24 → 26"), and that history is often the most useful thing in it — so the comment half of
+the rule is held by hand, as is this file, which the test does not read.
 
 **The length and the cover-week count came from the owner on 1 Oct 2026** (the default's cover weeks are
 `DEFAULT_COVER_WEEKS`), and the rules every design at this length is judged against are
