@@ -100,64 +100,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    # ── PRODUCTION DEPLOYS ONLY EVER RUN FROM `main` (v22.32, external review) ─────────────────
-    #
-    # `workflow_dispatch` above carries no branch restriction, and the concurrency group above
-    # QUEUES rather than cancels — but GitHub keeps only ONE pending run per group, so a newer
-    # pending run displaces the previous one. That is safe for consecutive pushes to main, where
-    # the later tree contains the earlier one. It is NOT safe across branches:
-    #
-    #     main A deploying → main B pending → someone dispatches branch C → B is displaced
-    #                                       → production finishes on C, not on B
-    #
-    # Production would then be running a branch while `main` holds the newer tree, and nothing
-    # would say so. It takes a deliberate act by someone with write access, which is why this is
-    # hardening rather than a defect, and the guard costs one line. It stops C deploying. It does
-    # NOT stop C displacing B (10 Nov 2026 review): the run joins the queue before this condition
-    # is read, so B still never deploys and production stays on A. The `not-main` job below makes
-    # such a run fail and say so. Keeping branch runs out of the queue altogether would key the
-    # group on the ref, which the concurrency comment above decides against.
-    #
-    # If deploying a non-main ref is ever genuinely needed (a rollback to a tag, say), add an
-    # explicit input and widen this condition to name it. Do not simply delete the check.
+  # ── THE GATE RUNS AS PARALLEL JOBS, AND THE DEPLOY WAITS FOR EVERY ONE (10 Nov 2026) ───────────
+  #
+  # The tests and the upload were one job, so the two Chrome projects ran one after the other on a
+  # single runner: 35m18s and 34m07s of tests inside v25.68's and v25.69's 38m24s and 37m10s deploys,
+  # near enough to the job's 40-minute limit that #1737 doubled it. They now run as jobs of their
+  # own, side by side, as e2e.yml's pull-request checks have since 3 Nov 2026, where the same two
+  # halves took 16 to 18 minutes each on 10 Nov 2026:
+  #
+  #     check ─────────────────┐
+  #     smoke (chromium) ──────┤
+  #     smoke (mobile-chrome) ─┼──► deploy ──► the Pages mirror (deploy-mirror.yml)
+  #     csp ───────────────────┘
+  #
+  # A release now waits for the slowest job instead of the sum. Three things keep it the same gate,
+  # and workflow-hygiene.test.mjs holds each one:
+  #   1. `deploy` NEEDS EVERY GATE JOB, and its `if:` names no status function, so GitHub adds
+  #      `success()`: one gate job red, cancelled or skipped, and nothing is uploaded.
+  #   2. THE SMOKE MATRIX NAMES EXACTLY playwright.config.mjs's PROJECTS. `npm run test:e2e` read that
+  #      list for itself; a project now missing from the matrix would never gate a release.
+  #   3. `report-failure` NEEDS EVERY JOB, not only `deploy`. A gate job that runs out of time ends
+  #      CANCELLED and leaves `deploy` SKIPPED; `failure()` is false for both, and the cancelled check
+  #      reads only the jobs it lists, so a reporter waiting on `deploy` alone would say nothing.
+  #
+  # Only `deploy` can sign in to Google (`id-token: write`). The gate jobs hold a read-only token and
+  # keep it off the disk, so no test and no install script runs where a deploy credential could be
+  # minted. Every job runs only from main, for the reason given on `deploy`.
+  check:
     if: github.ref == 'refs/heads/main'
-    # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
-    runs-on: ubuntu-24.04
-    # 40, not 20 (2 Oct 2026). The gate grew under a fixed budget until the budget won: v24.43
-    # released at 20m11s, and v24.44 was CANCELLED at exactly 20m00s — smoke alone took 17m14s,
-    # so the clock ran out inside the CSP proof, before the deploy step, and production stayed on
-    # the previous version with every test green. Nothing failed; the hourly currency check was
-    # the only thing that noticed. A timeout here is a stuck-job guard, not a performance budget,
-    # so it is set at about twice today's run to leave room for the suite to keep growing.
-    # 80, not 40 (10 Nov 2026), by that same rule: the whole-app check's browser tests took v25.68's
-    # deploy to 38m24s of its 40 (smoke 35m18s), and v25.69 queued behind it with more. Running the
-    # two Chrome projects as parallel jobs, as e2e.yml's smoke does, would halve the run; until then
-    # the limit follows the run.
-    timeout-minutes: 80
+    runs-on: ubuntu-latest
+    # The same command, setup and limit as e2e.yml's `unit` job (1.6 minutes on 10 Nov 2026).
+    timeout-minutes: 10
     permissions:
       contents: read
-      actions: read     # the re-run check below lists this workflow's runs
-      id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
     steps:
-      # No token left on disk for the job's lifetime (whole-app review, 10 Nov 2026): nothing here
-      # needs git credentials — the upload check only lists files — and every dependency's install
-      # script runs in this job. The mirror's deploy job does the same.
+      # No token left on disk (whole-app review, 10 Nov 2026): every dependency's install script runs
+      # in this job, and nothing here needs git credentials. The same holds for every job below.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # A RE-RUN MUST NOT PUT AN OLDER TREE LIVE (whole-app review, 10 Nov 2026). A re-run deploys
-      # the commit this run first ran on; once a newer run of this workflow exists, that may be older
-      # than what is live, so this stops it before anything is installed or signed in. The action's
-      # header has the account. A first attempt passes straight through.
-      - name: A re-run deploys only if no newer run has overtaken it
-        uses: ./.github/actions/refuse-overtaken-rerun
-
       # THE GATE RUNS ON THE PR LANES' NODE — 24 since v25.30 (48-hour review). The PR lanes moved to
-      # 22 on 26 Sep 2026 while this job kept testing on 20, so a suite green on 22 and red on 20
+      # 22 on 26 Sep 2026 while this gate kept testing on 20, so a suite green on 22 and red on 20
       # passed the PR and failed only here, after the merge — the exact split e2e.yml's comment says
-      # it removed. firebase-tools stepped back to 20 for its sign-in until 3 Nov 2026; the whole job
+      # it removed. firebase-tools stepped back to 20 for its sign-in until 3 Nov 2026; every job here
       # runs on one Node now (deploy-functions.yml has the history).
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -176,12 +162,48 @@ jobs:
           # Canonical check command (lint + tests) lives in package.json.
           npm run check
 
+  smoke:
+    if: github.ref == 'refs/heads/main'
+    # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
+    runs-on: ubuntu-24.04
+    # One job per Playwright project, as in e2e.yml's smoke job, which has the account. Each job runs
+    # only its own project, so the matrix must name every one in playwright.config.mjs;
+    # workflow-hygiene.test.mjs holds the two lists equal. `fail-fast: false` so a red half never
+    # cancels the green one and loses its report.
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, mobile-chrome]
+    # THE LIMIT FOLLOWS THE RUN. While the tests shared one job with the upload, it went 20 → 40 on
+    # 2 Oct 2026: v24.43 released at 20m11s, and v24.44 was CANCELLED at exactly 20m00s — smoke alone
+    # took 17m14s, so the clock ran out inside the CSP proof, before the deploy step, and production
+    # stayed on the previous version with every test green. Nothing failed; the hourly currency check
+    # was the only thing that noticed. Then 40 → 80 on 10 Nov 2026 (#1737), after a 38m24s run. A
+    # limit here is a stuck-job guard, not a performance budget, set at about twice a normal run: each
+    # half took 16 to 18 minutes in e2e.yml on 10 Nov 2026, so 40.
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
       # Gate the deploy on the E2E smoke suite. The app is offline-first, so a
       # blank-page break (SyntaxError, missing import, broken module graph) is invisible
       # to already-installed phones — the only thing that catches it before staff
       # do is a real-browser page-load test. (This does NOT exercise the production CSP —
       # the local server applies no firebase.json headers; csp-hygiene.test.mjs checks the
-      # CSP config statically.) Do not deploy if smoke fails.
+      # CSP config statically, and the csp job below enforces it in a browser.)
       # Browser restored from the Actions cache, keyed on the Playwright version — the reasoning is on
       # the smoke job in e2e.yml. The apt libraries, which the cache cannot hold, install on every run
       # with a time limit of their own (reason in the same place): a stalled mirror here would otherwise
@@ -203,12 +225,58 @@ jobs:
           browser: chromium
 
       - name: Run smoke tests
-        run: npm run test:e2e
+        run: npm run test:e2e -- --project=${{ matrix.project }}
         env:
           CI: true
 
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          # The project in the name: two jobs upload here, and a colliding artifact name fails the
+          # upload of whichever lands second — losing the report for the half that broke.
+          name: playwright-report-${{ matrix.project }}
+          path: playwright-report/
+          retention-days: 7
+
+  csp:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    # The same command, setup and limit as e2e.yml's `csp` job (1.4 minutes on 10 Nov 2026).
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore Playwright Chromium from the cache
+        id: pw-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-${{ hashFiles('node_modules/@playwright/test/package.json') }}
+      - name: Install Playwright Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+      - name: Install Chromium's system libraries
+        timeout-minutes: 8
+        uses: ./.github/actions/install-browser-deps
+        with:
+          browser: chromium
+
       # Deployed-CSP proof (added after the v18.55 review's deployment-assurance gap). The smoke
-      # suite above runs against a header-less http-server, so it can NOT catch a Content-Security-
+      # suite runs against a header-less http-server, so it can NOT catch a Content-Security-
       # Policy that blocks something the app loads. test:csp serves the app through the Firebase
       # Hosting EMULATOR (a local `demo-` project — no GCloud auth) so the REAL firebase.json CSP
       # header is applied + enforced by Chromium, and asserts no page triggers a policy violation.
@@ -224,9 +292,74 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: playwright-report
+          name: playwright-report-csp
           path: playwright-report/
           retention-days: 7
+
+  deploy:
+    # The whole gate above. The `if:` below names no status function, so GitHub adds `success()`:
+    # one gate job red, cancelled or skipped, and this job does not run.
+    needs: [check, smoke, csp]
+    # ── PRODUCTION DEPLOYS ONLY EVER RUN FROM `main` (v22.32, external review) ─────────────────
+    #
+    # `workflow_dispatch` above carries no branch restriction, and the concurrency group above
+    # QUEUES rather than cancels — but GitHub keeps only ONE pending run per group, so a newer
+    # pending run displaces the previous one. That is safe for consecutive pushes to main, where
+    # the later tree contains the earlier one. It is NOT safe across branches:
+    #
+    #     main A deploying → main B pending → someone dispatches branch C → B is displaced
+    #                                       → production finishes on C, not on B
+    #
+    # Production would then be running a branch while `main` holds the newer tree, and nothing
+    # would say so. It takes a deliberate act by someone with write access, which is why this is
+    # hardening rather than a defect, and the guard costs one line. It stops C deploying. It does
+    # NOT stop C displacing B (10 Nov 2026 review): the run joins the queue before this condition
+    # is read, so B still never deploys and production stays on A. The `not-main` job below makes
+    # such a run fail and say so. Keeping branch runs out of the queue altogether would key the
+    # group on the ref, which the concurrency comment above decides against.
+    #
+    # If deploying a non-main ref is ever genuinely needed (a rollback to a tag, say), add an
+    # explicit input and widen this condition to name it. Do not simply delete the check. The gate
+    # jobs above carry the same condition, so a branch run spends no time testing either.
+    if: github.ref == 'refs/heads/main'
+    # The image it has always deployed from. Nothing in this job starts a browser any more, so the pin
+    # is kept for continuity rather than for the visual baselines; moving it is a change of its own.
+    runs-on: ubuntu-24.04
+    # 20 (10 Nov 2026). The tests run in the jobs above now, and what is left here took about a minute
+    # on v25.69. The bound is the live check below at its worst — six looks of up to a minute each,
+    # the pauses between them and two more reads, about eight minutes — with room for a slow `npm ci`.
+    # This job's limit while it still ran the tests went 20 → 40 → 80; `smoke` has that history.
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read     # the re-run check below lists this workflow's runs
+      id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
+    steps:
+      # No token left on disk for the job's lifetime (whole-app review, 10 Nov 2026): nothing here
+      # needs git credentials — the upload check only lists files — and every dependency's install
+      # script runs in this job. The mirror's deploy job does the same.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A RE-RUN MUST NOT PUT AN OLDER TREE LIVE (whole-app review, 10 Nov 2026). A re-run deploys
+      # the commit this run first ran on; once a newer run of this workflow exists, that may be older
+      # than what is live, so this stops it before anything is installed or signed in. The action's
+      # header has the account. A first attempt passes straight through. A re-run's gate jobs run
+      # before this is reached, so a refused re-run still costs their time; never a deploy.
+      - name: A re-run deploys only if no newer run has overtaken it
+        uses: ./.github/actions/refuse-overtaken-rerun
+
+      # firebase-tools and the upload check below come from the lockfile: without this, `npx firebase`
+      # would fetch whatever version is newest on the day.
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
 
       # ── THE DEPLOY TOOL'S NODE ──────────────────────────────────────────────────────────────
       # Everything from here on is firebase-tools. Node 24 since v25.30 (22 from 3 Nov 2026); it was
@@ -342,8 +475,14 @@ jobs:
   # v24.44 deploy cut off at 20m00s on 2 Oct 2026 told nobody, and only the hourly currency check
   # noticed. So it also runs when the job it waits for was cancelled, and the notice says the
   # deploy may have stopped part-way.
+  #
+  # …AND IT WAITS FOR EVERY GATE JOB, NOT ONLY `deploy` (10 Nov 2026). The tests have their own jobs
+  # now (the comment at the top of `jobs:`). A gate job that runs out of time ends cancelled and
+  # leaves `deploy` skipped, and neither `failure()` nor a cancelled check of `deploy` alone sees
+  # that, so this lists them all. The notice says "cut off part-way" only when `deploy` itself was
+  # cancelled: a gate job cut off means nothing was uploaded, which is the plain "did not deploy".
   report-failure:
-    needs: deploy
+    needs: [check, smoke, csp, deploy]
     if: failure() || contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -356,4 +495,4 @@ jobs:
         with:
           target: 'Firebase Hosting'
           token: ${{ github.token }}
-          result: ${{ contains(needs.*.result, 'cancelled') && 'cancelled' || 'failure' }}
+          result: ${{ needs.deploy.result == 'cancelled' && 'cancelled' || 'failure' }}

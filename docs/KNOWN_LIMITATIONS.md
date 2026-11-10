@@ -60,7 +60,7 @@ after every release. The decision it prices is `ROADMAP.md` → Address migratio
 
 ## The deploy gate can flake, and a failed deploy does not retry itself
 
-`e2e.yml`'s `unit` job and `deploy-hosting.yml`'s test step run the identical `npm run check`, and a
+`e2e.yml`'s `unit` job and `deploy-hosting.yml`'s `check` job run the identical `npm run check`, and a
 deploy has failed it once while the same commit's pull request passed (Aug 2026: a single unit test,
 not reproduced locally in nine runs, and never named — the job log is too large to fetch through the
 API and its tail held only passes). **If it recurs, pull the log promptly** — that is the one chance
@@ -74,7 +74,8 @@ to name the test. Staff stay on the previous release meanwhile.
 - **A failed deploy is announced, not repaired.** Every deploy workflow opens or comments on a
   `deploy-failure` issue through `.github/actions/report-deploy-failure`, whose header says why an
   issue, why repeated failures comment rather than open another, and why it never fails the job. The
-  reporter is a separate job that needs the deploy job (the mirror's needs its plan job too), with a
+  reporter is a separate job that needs the deploy job and every job before it (Hosting's gate jobs,
+  the mirror's plan job), with a
   job-level `if: failure() || contains(needs.*.result, 'cancelled')`, so it fires whatever killed the
   deploy, setup included — and
   when the deploy runs out of time, which ends a job cancelled rather than failed (until 10 Nov 2026 a

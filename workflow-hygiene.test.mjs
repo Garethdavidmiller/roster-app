@@ -203,7 +203,9 @@ describe('a failed deploy is announced, whenever it fails', () => {
                 `${file}: report-failure needs the JOB-level 'if: failure() || contains(needs.*.result, `
                 + "'cancelled')' — a step-level guard could not fire when the job failed during setup, "
                 + 'and `failure()` alone does not fire when the deploy ran out of time.');
-            assert.match(block, /^ {10}result: \$\{\{ contains\(needs\.\*\.result, 'cancelled'\) && 'cancelled' \|\| 'failure' \}\}[ \t]*$/m,
+            // Hosting reads its deploy job's own result (10 Nov 2026): its tests run in jobs of their
+            // own, and one of those cut off means nothing was uploaded — "did not go out" is then true.
+            assert.match(block, /^ {10}result: \$\{\{ (?:contains\(needs\.\*\.result, 'cancelled'\)|needs\.deploy\.result == 'cancelled') && 'cancelled' \|\| 'failure' \}\}[ \t]*$/m,
                 `${file}: report-failure must tell the notice how the deploy ended — a deploy cut off `
                 + 'part-way is not one that "did not go out"');
             // Without issues:write the reporter runs and the API call fails — a notifier that
@@ -532,45 +534,133 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
 // project in playwright.config.mjs — into one written out in e2e.yml's matrix, and a project added to
 // the config but not to the matrix would silently stop running in CI while every job stayed green.
 // So the matrix is held to the config here, both read from their files, never restated.
-describe('the Chromium suite runs one job per project, and no project is left out', () => {
-    const e2e = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
-    const body = e2e.slice(e2e.search(/^jobs:/m));
-    const start = body.search(/^ {2}smoke:[ \t]*$/m);
-    const rest = body.slice(start + 1);
-    const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
-    const smoke = next === -1 ? rest : rest.slice(0, next);
+//
+// THE DEPLOY GATE TOO (10 Nov 2026). deploy-hosting.yml made the same split once its single job had
+// reached 38 of its 40 minutes, and there a project missing from the matrix would never gate a
+// release while every deploy went green. Both files are held to the one config.
+for (const file of ['e2e.yml', 'deploy-hosting.yml']) {
+    describe(`${file}: the Chromium suite runs one job per project, and no project is left out`, () => {
+        const src = readFileSync(join(WF_DIR, file), 'utf8');
+        const body = src.slice(src.search(/^jobs:/m));
+        const start = body.search(/^ {2}smoke:[ \t]*$/m);
+        const rest = body.slice(start + 1);
+        const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+        const smoke = next === -1 ? rest : rest.slice(0, next);
 
-    const cfg = readFileSync('playwright.config.mjs', 'utf8');
-    const projectsBlock = cfg.slice(cfg.search(/^\s*projects:\s*\[/m));
-    const configProjects = [...projectsBlock.slice(0, projectsBlock.search(/^\s*\],?\s*$/m))
-        .matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]);
+        const cfg = readFileSync('playwright.config.mjs', 'utf8');
+        const projectsBlock = cfg.slice(cfg.search(/^\s*projects:\s*\[/m));
+        const configProjects = [...projectsBlock.slice(0, projectsBlock.search(/^\s*\],?\s*$/m))
+            .matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]);
 
-    test('both lists actually parsed', () => {
-        assert.ok(start !== -1, 'no smoke job in e2e.yml');
-        assert.ok(configProjects.length >= 2, `expected playwright.config.mjs's projects, parsed ${configProjects.length}`);
+        test('both lists actually parsed', () => {
+            assert.ok(start !== -1, `no smoke job in ${file}`);
+            assert.ok(configProjects.length >= 2, `expected playwright.config.mjs's projects, parsed ${configProjects.length}`);
+        });
+
+        test('the matrix names exactly the config\'s projects', () => {
+            const m = /^\s+project:\s*\[([^\]]*)\]/m.exec(smoke);
+            assert.ok(m, 'smoke has no project matrix: the whole suite is back in one job, against the limit it outgrew');
+            const matrix = m[1].split(',').map(s => s.trim()).filter(Boolean);
+            assert.deepEqual([...matrix].sort(), [...configProjects].sort(),
+                `${file} runs ${matrix.join(', ')}; playwright.config.mjs defines ${configProjects.join(', ')}. `
+                + 'A project in the config but not the matrix never runs here; one in the matrix but not the config fails its job.');
+        });
+
+        test('each job runs its own project, and a failure never cancels the other half', () => {
+            assert.match(smoke, /npm run test:e2e -- --project=\$\{\{ matrix\.project \}\}/,
+                'each job must pass its matrix project to Playwright, or both jobs run the whole suite');
+            assert.match(smoke, /^\s+fail-fast:\s*false\s*$/m,
+                'with fail-fast on, a red half cancels the green one, and its report is lost');
+        });
+
+        test('each half uploads its report under its own name', () => {
+            // Two jobs uploading one artifact name: whichever lands second fails its upload, so the report
+            // for the half that broke can be the one that is lost.
+            assert.match(smoke, /name: playwright-report-\$\{\{ matrix\.project \}\}/,
+                'the report artifact must carry the project, or the two halves collide');
+        });
+    });
+}
+
+// ── THE HOSTING DEPLOY WAITS FOR ITS WHOLE GATE (10 Nov 2026) ──────────────────────────────────────
+//
+// The Hosting deploy's tests moved into jobs of their own (deploy-hosting.yml's comment at the top of
+// `jobs:` has the account), so what running in one job used to guarantee — every test before the
+// upload, every failure reported — is now wiring, and each wire is one word in a list. Drop a job
+// from `deploy`'s `needs` and a release stops waiting for it. Drop one from `report-failure`'s and a
+// gate job that runs out of time is cancelled in silence: it leaves `deploy` SKIPPED, and neither
+// `failure()` nor a cancelled check of `deploy` alone sees that. Give a test job `id-token: write` and
+// every test and install script runs where a Google credential can be minted.
+describe('the Hosting deploy waits for its whole gate', () => {
+    const src = readFileSync(join(WF_DIR, 'deploy-hosting.yml'), 'utf8');
+    const body = src.slice(src.search(/^jobs:/m));
+    const heads = [...body.matchAll(/^ {2}([A-Za-z_][\w-]*):[ \t]*$/gm)];
+    /** Each job's block, its comment lines dropped. @type {Map<string, string>} */
+    const jobs = new Map(heads.map((h, i) => [h[1], body.slice(h.index, heads[i + 1]?.index ?? body.length)
+        .split('\n').filter(l => !/^\s*#/.test(l)).join('\n')]));
+    /** A job's `needs`, as a list or a single name. @param {string} name */
+    const needsOf = (name) => {
+        const m = /^ {4}needs:[ \t]*(?:\[([^\]]*)\]|(\S+))[ \t]*$/m.exec(jobs.get(name) ?? '');
+        return m ? (m[1] ?? m[2]).split(',').map(s => s.trim()).filter(Boolean) : [];
+    };
+    const gate = [...jobs.keys()].filter(n => !['deploy', 'not-main', 'report-failure'].includes(n));
+
+    test('the gate jobs were found', () => {
+        // Every contract below passes on an empty list, so pin it to what is there.
+        assert.ok(gate.length >= 3 && ['check', 'smoke', 'csp'].every(n => gate.includes(n)),
+            `found the gate jobs ${gate.join(', ') || 'none'}; expected at least check, smoke and csp`);
     });
 
-    test('the matrix names exactly the config\'s projects', () => {
-        const m = /^\s+project:\s*\[([^\]]*)\]/m.exec(smoke);
-        assert.ok(m, 'smoke has no project matrix: the whole suite is back in one job, against the limit it outgrew');
-        const matrix = m[1].split(',').map(s => s.trim()).filter(Boolean);
-        assert.deepEqual([...matrix].sort(), [...configProjects].sort(),
-            `e2e.yml runs ${matrix.join(', ')}; playwright.config.mjs defines ${configProjects.join(', ')}. `
-            + 'A project in the config but not the matrix never runs in CI; one in the matrix but not the config fails its job.');
+    test('the deploy needs every gate job', () => {
+        const missing = gate.filter(n => !needsOf('deploy').includes(n));
+        assert.deepEqual(missing, [],
+            `deploy does not wait for ${missing.join(', ')}, so a release would go out whatever that job found`);
     });
 
-    test('each job runs its own project, and a failure never cancels the other half', () => {
-        assert.match(smoke, /npm run test:e2e -- --project=\$\{\{ matrix\.project \}\}/,
-            'each job must pass its matrix project to Playwright, or both jobs run the whole suite');
-        assert.match(smoke, /^\s+fail-fast:\s*false\s*$/m,
-            'with fail-fast on, a red half cancels the green one, and its report is lost');
+    test('the deploy names no status function, so a gate job that is not green stops it', () => {
+        // GitHub adds `success()` only to an `if:` without a status function. With `always()`,
+        // `!cancelled()` or `failure()` in it, the deploy would run after a red or cancelled gate job.
+        const cond = /^ {4}if:[ \t]*(.*?)[ \t]*$/m.exec(jobs.get('deploy') ?? '')?.[1];
+        assert.equal(cond, "github.ref == 'refs/heads/main'",
+            `deploy's condition is ${cond}: anything beyond the main-only check can let it run past the gate`);
     });
 
-    test('each half uploads its report under its own name', () => {
-        // Two jobs uploading one artifact name: whichever lands second fails its upload, so the report
-        // for the half that broke can be the one that is lost.
-        assert.match(smoke, /name: playwright-report-\$\{\{ matrix\.project \}\}/,
-            'the report artifact must carry the project, or the two halves collide');
+    test('the failure reporter waits for every gate job as well as the deploy', () => {
+        const missing = [...gate, 'deploy'].filter(n => !needsOf('report-failure').includes(n));
+        assert.deepEqual(missing, [],
+            `report-failure does not wait for ${missing.join(', ')}: that job running out of time would end `
+            + 'cancelled, leave deploy skipped, and nobody would be told');
+    });
+
+    test('the notice says "cut off part-way" only when the deploy job itself was', () => {
+        // A gate job cut off means nothing was uploaded, which is the plain "did not deploy" notice.
+        assert.match(jobs.get('report-failure') ?? '',
+            /^ {10}result: \$\{\{ needs\.deploy\.result == 'cancelled' && 'cancelled' \|\| 'failure' \}\}[ \t]*$/m,
+            "report-failure must pass the deploy job's own result: a cancelled gate job uploaded nothing");
+    });
+
+    test('every gate job runs only from main', () => {
+        const open = gate.filter(n => !/^ {4}if: github\.ref == 'refs\/heads\/main'[ \t]*$/m.test(jobs.get(n) ?? ''));
+        assert.deepEqual(open, [],
+            `${open.join(', ')} would run on a run started from a branch, which deploys nothing (not-main says why)`);
+    });
+
+    test('only the deploy job can mint a Google credential', () => {
+        const holders = [...jobs].filter(([, job]) => /^ {6}id-token:[ \t]*write\b/m.test(job)).map(([n]) => n);
+        assert.deepEqual(holders, ['deploy'],
+            `id-token: write is held by ${holders.join(', ') || 'no job'}; only the job that publishes may sign in to Google`);
+    });
+
+    test('no gate job leaves its git token on disk for an install script', () => {
+        const leaky = gate.filter(n => {
+            const job = jobs.get(n) ?? '';
+            const at = job.indexOf('uses: actions/checkout@');
+            if (at === -1) return false;
+            const tail = job.slice(at + 1);
+            const step = tail.slice(0, tail.search(/\n\s*- (name|uses):/));
+            return !/^\s+persist-credentials: false[ \t]*$/m.test(step);
+        });
+        assert.deepEqual(leaky, [], `${leaky.join(', ')} check out with the token kept on disk, where every npm install script can read it`);
     });
 });
 
@@ -2388,9 +2478,9 @@ describe('every CI lane runs the command it is there for', () => {
         ['e2e.yml', 'rules', 'npm run test:rules'],
         ['e2e.yml', 'smoke', 'npm run test:e2e'],
         ['e2e.yml', 'csp', 'npm run test:csp'],
-        ['deploy-hosting.yml', 'deploy', 'npm run check'],
-        ['deploy-hosting.yml', 'deploy', 'npm run test:e2e'],
-        ['deploy-hosting.yml', 'deploy', 'npm run test:csp'],
+        ['deploy-hosting.yml', 'check', 'npm run check'],
+        ['deploy-hosting.yml', 'smoke', 'npm run test:e2e'],
+        ['deploy-hosting.yml', 'csp', 'npm run test:csp'],
     ]);
     for (const [file, job, cmd] of LANES) {
         test(`${file} → ${job} runs ${cmd}`, () => {
