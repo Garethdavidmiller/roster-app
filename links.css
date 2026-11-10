@@ -943,9 +943,7 @@ body.auth-ready .container { display: grid; }
     white-space: pre-line;
     line-height: 1.35;
     text-align: center;
-    transition: filter var(--dur-fast) var(--ease-standard), outline var(--dur-fast);
-    outline: 2px solid transparent;
-    outline-offset: 1px;
+    transition: filter var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
     touch-action: manipulation; /* arm/disarm taps must never trigger double-tap zoom */
 }
 .brush-chip.type-rd    { background: var(--surface); color: var(--text-light); border: 1px solid var(--border-light); }
@@ -953,8 +951,11 @@ body.auth-ready .container { display: grid; }
 .brush-chip.type-early { background: color-mix(in srgb, var(--shift-early-fill) 16%, transparent); color: var(--shift-early-text); }
 .brush-chip.type-late  { background: color-mix(in srgb, var(--shift-late-fill) 16%, transparent); color: var(--shift-late-text); }
 .brush-chip--custom    { background: var(--surface); color: var(--text-mid); border: 1px dashed var(--border-light); font-style: italic; }
-/* Armed state: solid navy ring */
-.brush-chip--active    { outline-color: var(--primary-blue); outline-width: 2px; }
+/* ARMED: a navy ring INSIDE the chip, the mark the cell under the pointer wears. A shadow, because the
+   outline is the keyboard's: when the base rule gave every chip a transparent one for this, it beat
+   the app's focus fallback and Tab crossed the bar with no ring. */
+.brush-chip--active    { box-shadow: inset 0 0 0 2px var(--primary-blue); }
+.brush-chip:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 /* Hover never repaints a chosen control (css-tokens.md): the ARMED chip keeps its own colour under
    the pointer that armed it, so it still matches the cells it paints. */
 @media (hover: hover) and (pointer: fine) {

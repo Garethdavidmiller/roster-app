@@ -1818,6 +1818,42 @@ test('links grid: an edit from the keyboard leaves focus on the cell, by either 
     await expect(page.locator('.picker-sheet-overlay')).toContainText('Line 1 · Sun');
 });
 
+test('links paint bar: Tab shows which chip has focus, and the ARMED chip still reads differently', async ({ page }, info) => {
+    // The chips are the page's primary control, and Tab crossed them with no ring at all (whole-app
+    // check, 10 Nov 2026): the base rule gave every chip a transparent outline, for the armed marker
+    // to recolour, and that beat the app's focus fallback. The one ringed chip was the ARMED one, so
+    // a keyboard user saw a ring that was not where they were, and pressed Enter blind.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await openMixedDesign(page);
+    const navy = await page.evaluate(() => {
+        const i = document.createElement('i'); i.style.color = 'var(--primary-blue)'; document.body.append(i);
+        const c = getComputedStyle(i).color; i.remove(); return c;
+    });
+    const chips = page.locator('#brushBar .brush-chip');
+    /** @param {number} n */
+    const look = (n) => chips.nth(n).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const cs = getComputedStyle(el);
+        return { focus: el === document.activeElement && el.matches(':focus-visible'),
+            ring: cs.outlineStyle === 'none' ? 'none' : `${cs.outlineWidth} ${cs.outlineColor}`, armed: cs.boxShadow };
+    }));
+    await chips.nth(1).focus();
+    await page.keyboard.press('Enter');                       // arm it
+    await expect(chips.nth(1)).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Tab');                         // and move on
+    const [armed, focused] = [await look(1), await look(2)];
+    expect(focused.focus, 'Tab moved focus to the next chip').toBe(true);
+    expect(focused.ring, 'the chip with focus wears the navy ring').toBe(`2px ${navy}`);
+    expect(focused.armed, 'and no armed mark').toBe('none');
+    expect(armed.ring, 'the armed chip, no longer focused, wears no focus ring').toMatch(/^none$|rgba\(0, 0, 0, 0\)/);
+    expect(armed.armed, 'it keeps its armed mark — a ring inside the chip').toMatch(/inset/);
+    expect(armed.armed, 'drawn in navy').toContain(navy);
+    // Back onto the armed chip: both marks at once, each still its own.
+    await page.keyboard.press('Shift+Tab');
+    const both = await look(1);
+    expect(both).toMatchObject({ focus: true, ring: `2px ${navy}` });
+    expect(both.armed).toMatch(/inset/);
+});
+
 test('links grid: a mouse stroke paints every cell it crosses, and a touch does not stroke', async ({ page }) => {
     // Press and drag painted NOTHING — the grid listened for `click` alone, and a click whose press
     // and release land on different cells goes to the row — while two comments said a drag-paint
