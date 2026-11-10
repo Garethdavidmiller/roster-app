@@ -115,7 +115,6 @@ body.auth-ready .container { display: grid; }
        viewport on desktop. hidden first as a fallback for older browsers. */
     overflow: hidden;
     overflow: clip;
-    container-type: inline-size;
 }
 
 /* ---- Prose inside cards ---- */
@@ -265,8 +264,6 @@ body.auth-ready .container { display: grid; }
 @media (max-width: 767px) {
     .links-save-row { margin-inline: -16px; padding-inline: 16px; }
 }
-/* No shadow on paper — it is a scroll affordance, and there is no scrolling on paper. */
-@media print { .links-save-row { position: static; box-shadow: none; } }
 
 /* The sticky summary strip starts `hidden` until a design loads. `display: flex` out-specifies the
    attribute, so an empty strip occupied the header until then. Found by
@@ -776,14 +773,6 @@ body.auth-ready .container { display: grid; }
     font-weight: 700;
 }
 
-/* Coverage footer label in the pos-num column */
-.cov-foot-label {
-    font-size: 9px;
-    font-weight: 700;
-    color: var(--text-mid);
-    text-align: center;
-}
-
 /* Coverage footer */
 .links-grid tfoot td {
     background: var(--surface-sunken);
@@ -1033,7 +1022,6 @@ body.auth-ready .container { display: grid; }
     padding-top: 14px;
     border-top: 1px solid var(--border-light);
 }
-.check-section-head:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .check-section-head .check-note { text-transform: none; letter-spacing: 0; font-weight: 600; }
 /* The section's headline counts, sitting at the far end of its own heading — so the reader gets
    the summary BEFORE the 24 rows, not by tallying icons afterwards. */
@@ -1367,7 +1355,8 @@ body.auth-ready .container { display: grid; }
    so until v25.16 the filter you had just switched on turned grey under the pointer that switched it. */
 @media (hover: hover) and (pointer: fine) {
     .btn-set:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--surface-sunken); color: var(--text-dark); }
-    .btn-set--danger:hover:not(:disabled)  { color: var(--error-red); border-color: var(--error-red); }
+    /* The same (0,4,0) as the rule above, and after it: at (0,3,0) Delete's red words lost to it. */
+    .btn-set--danger:hover:not(:disabled):not([aria-pressed="true"]) { color: var(--error-red); border-color: var(--error-red); }
 }
 .btn-set:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .btn-set:disabled { opacity: 0.4; cursor: default; }
@@ -1614,8 +1603,12 @@ body.auth-ready .container { display: grid; }
     .dm-more { width: 52px; min-height: 44px; }
 }
 
-/* ---- The ··· More sheet ---- */
-#designMoreContent {
+/* ── The ··· More sheet and the design picker sheet (v23.32; rows moved to the shared classes
+   v23.33) — one shell for both, and it scrolls through `.lb-content`. The picker's ROWS are
+   `.picker-opt` from shared.css — the same rows `select-sheet.js` renders for every other dropdown
+   in the app, which is the point: one dropdown, one definition. See rule 1 in
+   links-design-header.js for why a native <select> stopped being the right control. */
+#designMoreContent, #designPickerContent {
     background: white;
     border-radius: var(--radius-xl);
     padding: 8px;
@@ -1624,22 +1617,6 @@ body.auth-ready .container { display: grid; }
     max-height: 85dvh;
     box-shadow: var(--shadow-3);
     text-align: left;
-    overflow-y: auto;
-}
-/* ── The design picker sheet (v23.32; rows moved to the shared classes v23.33) ────────────────
-   The shell only. Its ROWS are `.picker-opt` from shared.css — the same rows `select-sheet.js`
-   renders for every other dropdown in the app, which is the point: one dropdown, one definition.
-   See rule 1 in links-design-header.js for why a native <select> stopped being the right control. */
-#designPickerContent {
-    background: white;
-    border-radius: var(--radius-xl);
-    padding: 8px;
-    width: min(var(--modal-wide), var(--modal-cap));
-    max-height: 85vh;
-    max-height: 85dvh;
-    box-shadow: var(--shadow-3);
-    text-align: left;
-    overflow-y: auto;
 }
 .dm-picklist { display: grid; gap: 2px; padding: 4px 0 0; }
 
@@ -1797,9 +1774,6 @@ body.auth-ready .container { display: grid; }
         flex-direction: column;
         justify-content: flex-end;
     }
-    /* Cap the measure on the generator's intro prose so it doesn't run ~140ch across the
-       full ~1000px card (the grid/tables keep the full width). */
-    .links-desc { max-width: 82ch; }
 }
 .compare-col { min-width: 0; }
 .compare-col-head {
@@ -2077,12 +2051,14 @@ body.auth-ready .container { display: grid; }
     padding: 10px 14px 12px;
     margin: 14px 0 0;
 }
+/* The legend wears the shared `.field-eyebrow`'s values (shared.css): size, weight, colour, case
+   and tracking. */
 .gen-objectives legend {
     font-size: var(--type-micro);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--text-mid);
+    color: var(--text-light);
     padding: 0 4px;
 }
 .gen-obj-note {
@@ -2155,7 +2131,6 @@ body.auth-ready .container { display: grid; }
 }
 .gen-input-inline { width: 52px; margin: 0 2px; }
 @media (min-width: 1024px) { .gen-obj-note { max-width: 72ch; } }
-@media print { .gen-objectives { display: none; } }
 
 /* ═══ Generator polish (v19.61) — read the WHY before changing any of this ═══ */
 
@@ -2204,7 +2179,8 @@ body.auth-ready .container { display: grid; }
     .gen-th-time,
     .gen-td-time,
     .gen-spare-row .gen-td-label,
-    .gen-total-row td:first-child {
+    .gen-total-row td:first-child,
+    .gen-hours-row .gen-td-label {   /* opaque already: the row's sunken fill */
         position: sticky;
         left: 0;
         z-index: 2;
@@ -2349,9 +2325,6 @@ body.auth-ready .container { display: grid; }
    grid container every child becomes an item — so the number box left the sentence it belongs to and
    dropped into the checkbox's column on a row of its own ("Vary the shift type, at most" / "3 |
    weeks the same"). The text has to be ONE element for it to wrap as one. */
-/* The legend matches the app's shared `.field-eyebrow` (shared.css) rather than restating a
-   near-copy of it — same size, weight, transform and tracking. */
-.gen-objectives legend { letter-spacing: 0.5px; color: var(--text-light); }
 
 /* ---- Import a design (v20.97) ----
    The paste box and its two-step confirm. It borrows the dialog family from shared.css for the

@@ -1387,6 +1387,44 @@ async function openLinksWithTargetSets(page) {
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
 }
 
+test('links sets: pointing at Delete turns its words red, not only its edge', async ({ page }, info) => {
+    // The danger hover was (0,3,0) and the set buttons' own hover (0,4,0), so the general one won the
+    // colour: Delete gained a red border round dark grey words — half a warning (whole-app check).
+    test.skip(isTouchProject(info), 'hover is a fine pointer\'s');
+    await openLinksWithTargetSets(page);
+    await page.locator('#genSetSelect').selectOption('ts-robson');
+    const del = page.locator('#genSetDeleteBtn');
+    await expect(del).toBeEnabled();
+    await del.hover();
+    const paint = await del.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const i = document.createElement('i'); i.style.color = 'var(--error-red)'; document.body.append(i);
+        const red = getComputedStyle(i).color; i.remove();
+        const cs = getComputedStyle(el);
+        return { words: cs.color === red, edge: cs.borderTopColor === red };
+    }));
+    expect(paint).toEqual({ words: true, edge: true });
+});
+
+test('links generator: on a phone every first-column label stays put while the counts scroll', async ({ page }, info) => {
+    // Below 768px the target table scrolls inside its card, and the first column is sticky so each row
+    // stays named. The list named the spare and total rows and missed "Hours a week", added later:
+    // scrolled to Sunday, that one label slid away ("urs a week") between two that stayed.
+    test.skip(!isTouchProject(info), 'a phone');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    const lefts = await page.locator('.gen-slot-table-wrap').evaluate(wrap => {
+        wrap.scrollLeft = wrap.scrollWidth;
+        const edge = wrap.getBoundingClientRect().left;
+        return { scrolled: wrap.scrollLeft > 0,
+            labels: ['.gen-th-time', '.gen-spare-row .gen-td-label', '.gen-total-row td:first-child', '.gen-hours-row .gen-td-label']
+                .map(s => Math.round(/** @type {Element} */ (wrap.querySelector(s)).getBoundingClientRect().left - edge)) };
+    });
+    expect(lefts.scrolled, 'the premise: the table scrolls at this width').toBe(true);
+    expect(lefts.labels, 'time head, Spare weeks, Total on duty, Hours a week — each at the left edge').toEqual([0, 0, 0, 0]);
+});
+
 test('links sets: the picker lists every designer\'s sets, and Save follows whose is selected', async ({ page }) => {
     await openLinksWithTargetSets(page);
     // Sorted by name: Set A (Silva) first, Set B (mine) second — attribution rendered with each.
