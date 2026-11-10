@@ -1437,6 +1437,41 @@ test('admin: the AL banner keeps its figures and the Boxing Day note inside the 
     }
 });
 
+// The collapsed AL card's one figure at 1–5 days left was brand gold on the chip's near-white ground,
+// 1.69:1, while the banner inside the same card said the same thing in the darkened `--al-low`. No
+// scan reached the state, so it is driven for real: 29 days of leave on days he is rostered to work.
+test('admin: "AL left" in the card header is readable when only a few days remain', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    const me = teamMembers.find(/** @param {any} m */ m => m.name === 'G. Miller');
+    /** @type {string[]} */
+    const days = [];
+    for (const d = new Date('2026-01-05T12:00:00'); days.length < 29; d.setDate(d.getDate() + 1)) {
+        const s = getBaseShift(me, d);
+        if (d.getDay() !== 0 && s && s !== 'RD' && s !== 'OFF') days.push(d.toISOString().slice(0, 10));
+    }
+    await page.addInitScript((docs) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { docs });
+    }, days.map((date, i) => ({ id: `al${i}`, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '' })));
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    const chip = page.locator('#alHeaderBalance');
+    await expect(chip, 'premise: 1–5 days left').toHaveClass(/\bbalance-low\b/);
+    const ratio = await chip.evaluate(el => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** Any CSS colour → sRGB, by painting it (resolves oklch and color-mix). @param {string} css */
+        const rgb = (css) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        /** @param {number[]} c */
+        const lum = (c) => c.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const cs = getComputedStyle(el);
+        const [hi, lo] = [lum(rgb(cs.color)), lum(rgb(cs.backgroundColor))].sort((x, y) => y - x);
+        return (hi + 0.05) / (lo + 0.05);
+    });
+    expect(ratio, '"AL left: N" at a low balance is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
+});
+
 test('admin: the recorded-dates list shows one year at a time, and only years that have leave',
     async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));

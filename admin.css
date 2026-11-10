@@ -2505,9 +2505,9 @@
         }
 
         /* AL balance shown in the collapsed card header */
-        /* AL-remaining header chip — base look comes from the shared .card-year-chip (v18.16);
-           these modifiers only recolour the low/none balance states. */
-        .al-left-chip.balance-low  { color: var(--accent-gold-dark); }
+        /* AL-remaining header chip — base look from the shared .card-year-chip (v18.16); these recolour
+           the low/none states. Low is the banner's own `--al-low` (Nov 2026): brand gold was 1.69:1. */
+        .al-left-chip.balance-low  { color: var(--al-low); }
         .al-left-chip.balance-none { color: var(--error-red); }
 
         /* ---- Staged changes bar (fixed bottom, shown when pending saves exist) ---- */
