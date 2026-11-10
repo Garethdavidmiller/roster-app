@@ -88,6 +88,7 @@
 'use strict';
 
 const { BLANK_CELL_TOKEN, reviewLabel } = require('./roster-parse-helpers');
+const { weekEndingsOnPage } = require('./roster-week-heading');
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -211,12 +212,13 @@ function assignRunsToGrid({ items, vx, hy }) {
 
 // ── 3. The adapter — the only code that touches pdfjs ───────────────────────────────────────────
 
-/** @typedef {{ available: boolean, reason?: string, rows: Array<{ name: string, cells: string[], occupancy: boolean[] }>, pagesRead: number, pagesRejected: number }} RosterGeometry */
+/** @typedef {{ available: boolean, reason?: string, rows: Array<{ name: string, cells: string[], occupancy: boolean[] }>, pagesRead: number, pagesRejected: number, weekEndings?: Array<{ printed: string, iso: string|null }> }} RosterGeometry */
 
 /**
  * Read the roster PDF's grid. NEVER THROWS — every failure is a `RosterGeometry` with
  * `available: false` (nothing usable) or with fewer pages, so the import proceeds as it did before
- * this witness existed.
+ * this witness existed. It also gathers the sheet's own `Week Ending:` headings (`weekEndings`) from
+ * every page with text, grid or not: the heading sits above the grid (roster-week-heading.js).
  *
  * @param {Buffer|Uint8Array} pdfBytes
  * @param {{ loadPdfjs?: () => Promise<any> }} [deps]   injectable for tests; default imports pdfjs-dist v4
@@ -224,7 +226,7 @@ function assignRunsToGrid({ items, vx, hy }) {
  */
 async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOMETRY_WORK_BUDGET_MS, now = Date.now } = {}) {
     /** @type {RosterGeometry} */
-    const result = { available: false, rows: [], pagesRead: 0, pagesRejected: 0 };
+    const result = { available: false, rows: [], pagesRead: 0, pagesRejected: 0, weekEndings: [] };
     const deadline = now() + workBudgetMs;
     let pdfjs;
     try {
@@ -254,11 +256,10 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
                 const page = await doc.getPage(p);
                 const tc = await page.getTextContent();
                 if (!tc.items.length) continue;                       // an empty page is not a rejection
+                const items = tc.items.map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5] }));
+                result.weekEndings.push(...weekEndingsOnPage(items)); // before the grid: it may reject the page
                 const { vx, hy } = rulesFromOperatorList(await page.getOperatorList(), pdfjs.OPS);
-                const rows = assignRunsToGrid({
-                    items: tc.items.map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5] })),
-                    vx, hy,
-                });
+                const rows = assignRunsToGrid({ items, vx, hy });
                 if (rows === null) { result.pagesRejected++; continue; }
                 result.pagesRead++;
                 result.rows.push(...rows);
