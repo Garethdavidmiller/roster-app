@@ -593,14 +593,16 @@ self.addEventListener("activate", event => {
     console.log(`[SW ${APP_VERSION}] Activating — claiming clients`);
     event.waitUntil(Promise.all([
         self.clients.claim(),
-        // Navigation Preload: the browser starts the HTML fetch in PARALLEL with SW boot.
-        // Since v16.10 (HTML stale-while-revalidate) it doubles as the free background
-        // refresh on a cache hit, and still saves ~50–250ms on the cache-miss path when
-        // the SW process was cold. The doc branch consumes event.preloadResponse.
-        // Feature-detected (iOS < 15.4 lacks it); failure is non-fatal — the doc branch
-        // falls back to the SW's own fetch.
+        // Navigation Preload is turned OFF (Nov 2026) — actively, because the setting belongs to the
+        // registration and outlives the worker that set it. v16.09 turned it on so the network-first
+        // HTML fetch could start beside a cold worker. Since HTML is served from this version's cache
+        // and never re-fetched (v16.10; no rewrite since Oct 2026), a preload was one network request
+        // on every open with its answer thrown away — and on a MISS it could be last release's page
+        // from the browser's HTTP cache (the Pages mirror's max-age), which the doc branch served. Off,
+        // a miss is the worker's own no-cache fetch. Feature-detected; failure is non-fatal — the doc
+        // branch still consumes a preload that arrives.
         self.registration.navigationPreload
-            ? self.registration.navigationPreload.enable().catch(() => {})
+            ? self.registration.navigationPreload.disable().catch(() => {})
             : null,
     ]));
     startWarmup();
@@ -667,11 +669,11 @@ self.addEventListener("fetch", event => {
     const isManagedAsset = NETWORK_FIRST_FILES.includes(relPath);
 
     if (isDoc) {
-        // Cache-hit → served instantly (SWR, v16.10). Miss → network-first: revalidate
-        // against the server (304 if unchanged → no body download), update the SW cache,
-        // fall back to cached copy if offline or the network hangs past 2 seconds.
-        // The network source is the browser's Navigation Preload response when available
-        // (started in parallel with SW boot — see activate); else the SW's own fetch below.
+        // Cache-hit → served instantly, nothing fetched (v16.10; Nov 2026). Miss → network-first:
+        // revalidate against the server (304 if unchanged → no body download), store it in the SW
+        // cache, fall back to a cached copy if offline or the network hangs past 2 seconds.
+        // The network source is the SW's own fetch below — or, should one arrive, a Navigation
+        // Preload response (preload is turned off on activate since Nov 2026).
         // AbortController cancels OUR fetch on timeout (feature-detected: it throws in
         // service workers on iOS < 15.1); a preload response can't be cancelled, so a late
         // one still refreshes the cache via waitUntil — only this response is already served.
@@ -744,15 +746,15 @@ self.addEventListener("fetch", event => {
             );
         };
         event.respondWith((async () => {
-            // ── STALE-WHILE-REVALIDATE for HTML (v16.10, owner-approved — replaces the
-            // v14.18 network-first decision): serve the cached page INSTANTLY when this
-            // version's cache has it, and let the network fetch below refresh the cache in
-            // the background. This removes the last blocking round trip per page open
-            // (100–500ms on 4G; a full 2s on the old timeout path when offline/poor signal).
-            // Freshness still propagates exactly like JS/CSS: HTML never changes without a
-            // version bump → new SW → new cache → warm-up → controllerchange reload. Serving
-            // HTML and JS from the SAME version cache also shrinks the mixed-version window
-            // network-first had (fresh HTML + cached JS during a deploy transition).
+            // ── A HELD PAGE IS SERVED AT ONCE, AND NOTHING IS FETCHED (v16.10, owner-approved —
+            // replaces the v14.18 network-first decision): this removes the last blocking round
+            // trip per page open (100–500ms on 4G; a full 2s on the old timeout path on poor
+            // signal). Freshness propagates exactly like JS/CSS: HTML never changes without a
+            // version bump → new SW → new cache → warm-up → controllerchange reload. Serving HTML
+            // and JS from the SAME version cache also shrinks the mixed-version window network-first
+            // had (fresh HTML + cached JS during a deploy transition). The network copy that used to
+            // be fetched beside a hit could only be identical or the wrong release, so it was not
+            // stored (Oct 2026) — and since Nov 2026 it is not fetched at all, before or after.
             // EXACT-page match only — '/' (the scope root) additionally tries the warm-up's
             // './index.html' key. Never map one page to another here: the fallback chain's
             // index-default is OFFLINE-fallback behaviour, not an instant-serve rule.
@@ -760,14 +762,15 @@ self.addEventListener("fetch", event => {
             // DEGRADE to the network path, never reject: a rejected respondWith on a navigation
             // makes the browser render its own error page, so index.html — and therefore the
             // splash — never even loads (the stuck-launch class the watchdog papers over). The
-            // SDK and cache-first branches already .catch their cache access; the two SWR
-            // branches were the odd ones out (v16.19).
+            // SDK and cache-first branches already .catch their cache access (v16.19).
             const cache = await openCache().catch(() => null);
             const cachedDoc = cache
                 ? (await cache.match(event.request, { ignoreSearch: true }).catch(() => null)
                     || (relPath === '' ? await cache.match('./index.html').catch(() => null) : null))
                 : null;
+            if (cachedDoc) return cachedDoc;
 
+            // ── A MISS (first visit, evicted storage, a page the warm-up has not reached) ──
             let networkSettled = false;
             let viaPreload = false;   // a preload answer may be the browser's HTTP cache — see below
             const networkPromise = (event.preloadResponse
@@ -788,12 +791,11 @@ self.addEventListener("fetch", event => {
                 // guarantee: Firebase always sets it, so absence means a stub we shouldn't
                 // second-guess) — only a present, clearly-non-html type is skipped (v16.19).
                 const ct = response ? (response.headers.get('content-type') || '') : '';
-                // ONLY ON A MISS (Oct 2026): over a held page the network copy is identical or the WRONG
-                // release (an HTTP-cached preload, or an old worker) — the JS/CSS branch argues it fully.
-                // …AND NEVER A PRELOAD ANSWER: it may be last release's page from the HTTP cache (Pages
-                // max-age), kept for the whole version. Serve the preload; STORE a NEW Request (the race aborts freshReq).
+                // NEVER A PRELOAD ANSWER: it may be last release's page from the HTTP cache (Pages
+                // max-age), kept for the whole version. Serve the preload; STORE a NEW Request (the race
+                // aborts freshReq). Preload is off since Nov 2026 (activate); this covers one that arrives.
                 // Stored under the bare path (query stripped) — findCachedFallback matches ignoreSearch.
-                if (!cachedDoc && response && response.status === 200 && (!ct || ct.includes('text/html'))) {
+                if (response && response.status === 200 && (!ct || ct.includes('text/html'))) {
                     const store = viaPreload
                         ? fetch(new Request(event.request.url, { headers: event.request.headers, mode: 'same-origin', cache: 'no-cache' })).then(r => (r && r.status === 200 && /text\/html|^$/.test(r.headers.get('content-type') || '') ? r : null)).catch(() => null)
                         : Promise.resolve(response.clone());
@@ -806,12 +808,10 @@ self.addEventListener("fetch", event => {
             // next open (a preload response cannot be aborted anyway, so consuming it is free).
             try { event.waitUntil(networkPromise.catch(() => null)); } catch (_e) { /* settled */ }
 
-            if (cachedDoc) return cachedDoc;
-            // Cache miss (first visit, or evicted storage): network-first with the 2s cache-fallback
-            // race, as before v16.10 — PROVIDED THERE IS SOMETHING TO FALL BACK TO (v24.61, iOS audit
-            // B3). With nothing cached the race served the synthesised "Offline" page to an ONLINE
-            // member on a slow connection and the abort killed the real fetch; now it waits for the
-            // network, and only the network's failure is offline.
+            // Network-first with the 2s cache-fallback race, as before v16.10 — PROVIDED THERE IS
+            // SOMETHING TO FALL BACK TO (v24.61, iOS audit B3). With nothing cached the race served the
+            // synthesised "Offline" page to an ONLINE member on a slow connection and the abort killed
+            // the real fetch; now it waits for the network, and only the network's failure is offline.
             const fallbackDoc = await findCachedFallback();
             if (!fallbackDoc) {
                 let response;

@@ -89,7 +89,7 @@ const never = () => new Promise(() => {});
 /**
  * Boot the real worker. `network` answers every fetch the worker makes, and is handed the request's
  * abort signal. `readBodies`: see makeCaches.
- * @param {{ seed: Record<string, Record<string, string>>, network: (url: string, signal?: AbortSignal) => Promise<Response>, readBodies?: boolean }} o
+ * @param {{ seed: Record<string, Record<string, string>>, network: (url: string, signal?: AbortSignal) => Promise<Response>, readBodies?: boolean, navigationPreload?: any }} o
  */
 function boot(o) {
     const { stores, api } = makeCaches(o.seed, o.readBodies);
@@ -105,7 +105,7 @@ function boot(o) {
     };
     const ctx = {
         self: {
-            registration: { scope: SCOPE, navigationPreload: null },
+            registration: { scope: SCOPE, navigationPreload: o.navigationPreload ?? null },
             location: { origin: ORIGIN },
             addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = fn; },
             skipWaiting() { skipped = true; },
@@ -169,6 +169,18 @@ describe('service worker — install and activate never wait for the precache (v
         const r = await fire(w.listeners.activate);
         assert.ok(r.waits > 0, 'premise: activate waits for the claim');
         assert.equal(r.settled, true, 'every fetch of the reloaded page would wait until the warm-up finished');
+    });
+
+    test('activate turns Navigation Preload OFF — the setting outlives the worker that set it', async () => {
+        // With HTML served from this version's cache and never re-fetched, a preload is a network
+        // request on every open whose answer is thrown away; a release that once enabled it left it on
+        // in the registration, so turning it off has to be done, not merely not done.
+        const calls = /** @type {string[]} */ ([]);
+        const w = boot({ seed: { [CACHE]: { './__precache-complete': '1' } }, network: never,
+            navigationPreload: { enable: async () => { calls.push('enable'); }, disable: async () => { calls.push('disable'); } } });
+        const r = await fire(w.listeners.activate);
+        assert.equal(r.settled, true);
+        assert.deepEqual(calls, ['disable']);
     });
 });
 

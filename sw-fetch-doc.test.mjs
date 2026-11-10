@@ -342,6 +342,30 @@ describe('service worker — the page itself cached', () => {
         const all = await Promise.all([.../** @type {Map<string, Response>} */ (stores.get(CACHE)).values()].map(r => r.clone().text()));
         assert.ok(!all.some(t => /some other release/.test(t)), 'the cached page was rewritten');
     });
+
+    // ── …AND NOT FETCHED AT ALL (Nov 2026) ─────────────────────────────────────────────────────
+    // A hit still sent a no-cache request for the page and threw the answer away — one request per
+    // open on mobile data — and waited on it, holding the worker alive until the network replied.
+    test('a held page costs no network request — the worker fetches nothing of its own', async () => {
+        const { body, fetches } = await navigate({
+            path: '/settings.html',
+            cached: { './settings.html': '<h1>this release</h1>' },
+            network: async () => ok('<h1>some other release</h1>'),
+        });
+        assert.match(body, /this release/);
+        assert.deepEqual(fetches, [], 'its JS/CSS twin fetches nothing on a hit; neither does the page');
+    });
+
+    test('nor waits on a navigation preload: a dead signal cannot hold the worker on a held page', async () => {
+        const { body, settle } = await navigate({
+            path: '/', cached: { './index.html': '<h1>this release</h1>' },
+            preload: new Promise(() => {}),   // the network never answers
+            network: () => new Promise(() => {}),
+        });
+        assert.match(body, /this release/);
+        const settled = await Promise.race([settle().then(() => true), after(200, () => false)]);
+        assert.equal(settled, true, 'the fetch event was kept open by a network request nobody reads');
+    });
 });
 
 describe('service worker — a JS module (Oct 2026 production review)', () => {
