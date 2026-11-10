@@ -627,7 +627,7 @@ describe('parseRosterPDF through the real SDK: what crosses the wire (v25.35)', 
     // a request the model will not take, a rejected key: each fails the same way every time, and
     // "Could not reach the AI service — please try again in a moment" sent the admin round a retry
     // that cannot work. roster-prompt.js names the case: a model that rejects a setting "would fail
-    // every upload as 'Could not reach the AI service'".
+    // every upload as 'The AI service refused the request (HTTP 400)'" — which is what this checks.
     for (const [status, type] of [[400, 'invalid_request_error'], [401, 'authentication_error'],
         [403, 'permission_error'], [404, 'not_found_error']]) {
         test(`an HTTP ${status} is the AI service refusing, said so, and not worth a retry`, async () => {
