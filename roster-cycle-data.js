@@ -2,7 +2,14 @@
 // MYB Roster — Shift Cycle Data
 // Pure data: the week-by-week shift patterns for each roster type.
 // No logic, no imports. Referenced by getRosterForMember() in roster-data.js.
-// Update this file when Chiltern issues a new base roster PDF.
+//
+// A PATTERN HAS NO START DATE. getBaseShift reads these tables for every date, past and future, so
+// editing a week in place — or a cycle's length or reference Sunday in CONFIG — redraws every day
+// already worked and re-judges the leave recorded on them, with nothing to say so. A NEW base roster
+// (the CEA link due in January 2027) is a NEW table: its own export here, its own length and
+// reference Sunday in CONFIG, its own roster type in roster-data.js, and each member moved onto it by
+// a dated `rosterChanges` entry (docs/OPERATIONS_REFERENCE.md → "When the new link starts"). Edit a
+// week in place only to correct a cell that was always wrong; roster-data.test.mjs pins every week.
 
 // 20-week rotating roster pattern (CEA — main).
 // SP weeks mean "Spare" — can be rostered ANY day, ANY shift during that week.

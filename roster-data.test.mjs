@@ -11,6 +11,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import {
     getBankHolidays,
     isBankHoliday,
@@ -47,6 +48,10 @@ import {
     formatISO,
     CONFIG,
     fixedRoster,
+    weeklyRoster,
+    bilingualRoster,
+    cesRoster,
+    dispatcherRoster,
     isValidEmail,
     isChilternWorkEmail,
     workEmailLocalPart,
@@ -441,6 +446,67 @@ describe('validateRosterPatterns: the Other family in a pattern', () => {
     });
     test('an unknown word is still refused', () => {
         assert.equal(quietly(() => validateRosterPatterns(week({ mon: 'TRAINING' }))), 1);
+    });
+});
+
+// ── A PATTERN IN FORCE IS NEVER EDITED IN PLACE (whole-app review, 10 Nov 2026) ─────────────────
+//
+// A pattern has no start date: getBaseShift reads one table for every date, past and future. So the
+// edit roster-cycle-data.js used to ask for — replace the table when a new base roster arrives —
+// redraws every day already worked and re-judges the leave recorded on them, and nothing errors.
+// Simulated for the January 2027 CEA link: 5,433 of the 6,573 base shifts the 21 main-link members
+// had between 1 Jan and 9 Nov 2026 came out different. A new base roster is a new table and roster
+// type, with each member moved onto it by a dated `rosterChanges` entry (roster-cycle-data.js).
+//
+// So every week that exists today is pinned, with the constants that place each cycle in time: a NEW
+// week or table passes untouched, and an EDITED one fails, naming the week. If an edit corrects a cell
+// that was ALWAYS wrong — so every past date was wrong too — update its digest and say so in the commit.
+describe('a pattern in force is never edited in place', () => {
+    const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    /** A week's seven cells, Sunday first. Eight hex characters are plenty to notice an edit. */
+    const digest = (/** @type {Record<string, string>} */ week) =>
+        createHash('sha256').update(DAYS.map(k => week[k]).join('|')).digest('hex').slice(0, 8);
+    /** @type {Record<string, Record<number, Record<string, string>>>} */
+    const TABLES = { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
+    /** Week 1 first. A week of Spare on all seven days digests to '1089a547' wherever it appears. */
+    const PINNED = {
+        weeklyRoster: ['1089a547', '1eabcfbc', 'baa733f8', '45a0efd8', 'b402c7d5', '4de0e2e6', '1089a547', 'b9e0c3bb', '3cc3f934', '2f2d51b0',
+                       '790b1ee8', '1089a547', 'da69c2a2', 'dbebf081', '078d038f', 'edc96eb1', '1089a547', 'e04d76a0', '4fb50022', '45adc273'],
+        bilingualRoster: ['1089a547', '45a0fabe', 'd8aabddb', '32db854e', '57d55631', '5a8850a7', '51b43c2c', '1089a547'],
+        fixedRoster: ['cc3c67d4', '036722bc', '005e3a19'],
+        cesRoster: ['5f974d01', 'abdac8bd', 'a72314b0', '1089a547', '7f51ec7e', '9b06e81f', '719872fb', 'efc75714', '1089a547', 'e6afee3f'],
+        dispatcherRoster: ['b5d10c52', 'ceeca403', '787c08de', '52f118ff', 'efd0ff79', 'f8b3ec7b', 'ec1a9db3', '1efb4600', '4e9ea548', '697433ff'],
+    };
+
+    test('every week in force reads as it did', () => {
+        const edited = [];
+        for (const [name, digests] of Object.entries(PINNED)) {
+            digests.forEach((want, i) => {
+                const week = TABLES[name][i + 1];
+                if (!week || digest(week) !== want) edited.push(`${name} week ${i + 1}`);
+            });
+        }
+        assert.deepEqual(edited, [],
+            `these weeks were edited in place, which redraws every past date they cover:\n  ${edited.join('\n  ')}\n`
+            + 'Bring a new base roster in as a NEW table and roster type, and move members onto it with a dated\n'
+            + 'rosterChanges entry (roster-cycle-data.js header). Update a digest only for a cell that was always wrong.');
+    });
+
+    test('and the constants that place each cycle in time are unchanged', () => {
+        const placed = Object.fromEntries(['MAIN', 'BILINGUAL', 'CES', 'DISPATCHER'].map(k => [k,
+            `${CONFIG[`${k}_ROSTER_WEEKS`]} weeks from ${formatISO(CONFIG[`${k}_ROSTER_REFERENCE_DATE`])}`]));
+        assert.deepEqual(placed, {
+            MAIN: '20 weeks from 2026-02-08', BILINGUAL: '8 weeks from 2026-02-15',
+            CES: '10 weeks from 2026-02-15', DISPATCHER: '10 weeks from 2026-02-01',
+        }, 'a cycle length or a reference Sunday moves every past date of every member on that cycle');
+    });
+
+    test('and each roster type still reads the table it always has', () => {
+        for (const [type, table] of /** @type {[string, any][]} */ ([['main', weeklyRoster], ['bilingual', bilingualRoster],
+            ['fixed', fixedRoster], ['ces', cesRoster], ['dispatcher', dispatcherRoster]])) {
+            assert.equal(getRosterForMember({ rosterType: type, currentWeek: 1 }).data, table,
+                `pointing '${type}' at another table redraws every past date of every member on it`);
+        }
     });
 });
 
