@@ -203,3 +203,31 @@ describe('the sets row says where the table is relative to the setup', () => {
         assert.equal(remembered().setName, '');
     });
 });
+
+// ── THE BOX SHOWS WHAT THE TABLE HOLDS (whole-app review, Nov 2026) ─────────────────────────────────
+// The handlers keep a whole, non-negative count and cap the cover weeks, and left the typed text in
+// the box: 99 cover weeks on screen over a table holding 25, -3 or 2.7 over 0 or 2. Written back when
+// the typing ends (`change`), so the box never fights a keystroke (`input` leaves it alone).
+describe('a number box shows what the table holds once the typing is over', () => {
+    test('cover weeks over the cap', async () => {
+        const panel = await openCard();
+        const box = Object.assign(el('genSpareLines'), { value: '99' });
+        await fire('genSpareLines', 'input', { target: box });
+        assert.equal(panel.getTable().spareLines, 25, 'premise: the table holds the capped figure');
+        assert.equal(box.value, '99', 'while typing, the box is left alone');
+        await fire('genSpareLines', 'change', { target: box });
+        assert.equal(box.value, '25');
+    });
+
+    test('a negative or a fractional headcount', async () => {
+        const panel = await openCard();
+        for (const [typed, held] of [['-3', '0'], ['2.7', '2']]) {
+            const box = countBox(0, 'sat', typed);
+            await fire('genSlotRows', 'input', { target: box });
+            assert.equal(String(panel.getTable().slots[0].sat), held, `premise: ${typed} is held as ${held}`);
+            assert.equal(box.value, typed, 'while typing, the box is left alone');
+            await fire('genSlotRows', 'change', { target: box });
+            assert.equal(box.value, held, `${typed} is shown as ${held}`);
+        }
+    });
+});

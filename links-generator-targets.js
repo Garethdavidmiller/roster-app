@@ -375,6 +375,16 @@ export function createTargetPanel(deps) {
             saveGenTargets();
         });
 
+        // THE BOX SHOWS WHAT THE TABLE HOLDS once the typing is over (whole-app review, Nov 2026).
+        // The handlers here keep a whole, non-negative count and cap the cover weeks, and left the
+        // typed text standing: -3 or 2.7 on screen over a table holding 0 or 2, and 99 cover weeks
+        // over 25. Written back on `change`, never on `input`, which would fight the typing.
+        tbody.addEventListener('change', e => {
+            const input = /** @type {HTMLInputElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-slot-count'));
+            const slot = input && genSlots[+(input.dataset.slot ?? '')];
+            if (input && slot) input.value = String((/** @type {Record<string, any>} */ (slot))[input.dataset.class ?? '']);
+        });
+
         tbody.addEventListener('change', async e => {
             const select = /** @type {HTMLSelectElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-slot-time'));
             if (!select) return;
@@ -409,6 +419,10 @@ export function createTargetPanel(deps) {
             genSpareLines = Math.min(Math.max(0, parseInt(_el.value, 10) || 0), Number(_el.max) || SPARE_WEEKS_CAP, SPARE_WEEKS_CAP);
             updateGenTotals();
             saveGenTargets();
+        });
+        // …and the capped figure goes back in the box when the typing ends (see the count boxes).
+        document.getElementById('genSpareLines')?.addEventListener('change', e => {
+            /** @type {HTMLInputElement} */ (e.target).value = String(genSpareLines);
         });
 
         document.getElementById('genAddSlotBtn')?.addEventListener('click', () => {
