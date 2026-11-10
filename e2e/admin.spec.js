@@ -1435,6 +1435,20 @@ test('admin: the AL banner keeps its figures and the Boxing Day note inside the 
             expect(r, `${width}px: a figure or the note runs past the banner's edge (${m.edge}px)`).toBeLessThanOrEqual(m.edge + 0.5);
         }
     }
+    // …and it is read, so it is quieter by its size, never by a fade: at `opacity: 0.75` it was 3.47:1.
+    const note = await page.locator('#alBannerBreakdown').evaluate(el => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string} css */
+        const rgb = (css) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        /** @param {number[]} c */
+        const lum = (c) => c.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const [hi, lo] = [lum(rgb(getComputedStyle(el).color)),
+            lum(rgb(getComputedStyle(/** @type {Element} */ (el.closest('.al-banner'))).backgroundColor))].sort((x, y) => y - x);
+        return { opacity: getComputedStyle(el).opacity, ratio: (hi + 0.05) / (lo + 0.05) };
+    });
+    expect(note.opacity, 'the entitlement note is faded with opacity').toBe('1');
+    expect(note.ratio, 'the entitlement note is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
 });
 
 // The collapsed AL card's one figure at 1–5 days left was brand gold on the chip's near-white ground,
