@@ -2250,7 +2250,8 @@ test('admin: a Saved Changes row is one row — controls side by side, under 64p
     await page.waitForSelector('.day-row', { timeout: 10000 });
     await page.locator('#fieldMember').selectOption('G. Miller');
     await page.locator('#overridesToggleHeader').click();
-    const card = page.locator('.override-card').first();
+    // By its date, not its place: the list is newest first (admin-2-3), so the absence is the second row.
+    const card = page.locator('.override-card').filter({ has: page.locator('.btn-edit[data-date="2026-09-01"]') });
     await expect(card).toBeVisible();
 
     const g = await card.evaluate(el => {
