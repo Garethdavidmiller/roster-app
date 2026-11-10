@@ -1781,6 +1781,26 @@ describe('a row the PDF\'s own grid refused fails closed the same way', () => {
         assert.ok([...st.values()].every(c => c.rosterBlocked));
     });
 
+    // Whole-app fix, Nov 2026: the hard gate in `collectRosterWrites` reads `rosterBlocked` off each
+    // cell, and the UNREADABLE branch never stamped it — so an answered unreadable cell on a refused
+    // read was the one row the gate could not see. The HARD GATE test builds its states by hand, so it
+    // could not notice; this one builds them from the real state machine.
+    test('an unreadable cell of a refused read is refused too: answered or picked, it writes nothing', () => {
+        const names = [MEMBER, ...others.slice(0, ALIGNMENT_BLOCK_THRESHOLD - 1)];
+        const parsed = names.map(m => ({ memberName: m.name, shifts: honest(m) }));
+        const day = DATES.find(d => /^\d{2}:\d{2}-/.test(getBaseShift(MEMBER, new Date(d + 'T12:00:00'))));
+        parsed[0].shifts[day] = 'UNKNOWN|07:00-15:00 or Absent? (PDF unclear)';
+        const st = states({ parsed, dates: DATES, geometryRefused: names.map(m => m.name),
+            choices: { [`${MEMBER.name}|${day}`]: ['07:00-15:00', 'SICK'] } });
+        const cell = st.get(`${MEMBER.name}|${day}`);
+        assert.deepEqual([cell.state, cell.rosterBlocked, cell.drift], ['UNREADABLE', true, 'geometry']);
+        cell.chosen = 'entered'; cell.entered = { display: '07:00-15:00' };
+        assert.deepEqual(collectRosterWrites(st), [], 'an answered unreadable cell on a refused read');
+        cell.chosen = 0;
+        assert.ok(cell.options?.[0], 'fixture: a reading to pick');
+        assert.deepEqual(collectRosterWrites(st), [], 'a picked reading on a refused read');
+    });
+
     test('two refusals plus one drift the breaker can see is also three', () => {
         const rowFor = (/** @type {any} */ m, off) => Object.fromEntries(DATES.map(d => {
             const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off); return [d, getBaseShift(m, x)]; }));

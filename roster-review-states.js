@@ -220,6 +220,11 @@ export function computeCellStates(parsedResult, existingOverrides) {
                      *  Kept on the state rather than read back off the DOM so a re-render (a tick
                      *  elsewhere refreshes the whole list) cannot lose a half-typed shift. */
                     draft:       { type: null, from: '', to: '' },
+                    // The read's verdict, as every other state carries it (whole-app fix, Nov 2026):
+                    // without `rosterBlocked` here the collector's hard gate could not see an
+                    // answered unreadable cell on a refused read, and it was written.
+                    drift,
+                    rosterBlocked: alignment.blocked,
                 });
                 continue;
             }
