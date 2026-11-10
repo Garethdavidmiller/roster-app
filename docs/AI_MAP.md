@@ -1570,7 +1570,7 @@ The roster-assist hint bar on `paycalc.html`: render, fill, and the snapshot of 
 - `updateRosterHint()` — re-renders the bar from the current suggestion. `toggleRosterDays()` — the day-by-day list. `updateJoinerNotice(p)` — the pro-rata banner for a joining period.
 - `fillFromRoster(autosave)` / `fillCategoryFromRoster(cat, autosave)` — fill every category, or the one tapped, OVERWRITING what is there (an explicit tap), then save and re-render. The whole fill first retries a recorded-changes fetch that had not loaded, and writes nothing if the payslip on screen changed during that wait.
 - `_applyRosterSuggestion(s, force, { clearZeros })` → `{ written, cleared }`, the categories behind the fill's feedback. `clearZeros` — on an explicit fill with fully loaded data a zero clears a field, because zero is the calendar's answer; never in the base-only state, and never on the background re-apply.
-- `clearRosterSuggestedAll()` · `_restoreRosterSuggested(pNum)` · `snapKey(pNum)` (the snapshot's key, exported so the coordinator's `clearPeriod()` can delete it).
+- `clearRosterSuggestedAll()` · `_restoreRosterSuggested(pNum)` · `snapKey(pNum)` (the snapshot's key, exported so the coordinator's `clearPeriod()` can delete it). The snapshot describes the SAVED payslip: the background refresh on view never moves the entry of a saved figure, and `recordCalendarFigures(pNum)` — for a caller that has just saved a period — re-records it from the gold boxes at their saved values.
 - `_confBadge(cat, fromOv, estimateHours)` — a row's confidence chip. A figure that holds a DEFAULT says so ("Includes an Nh estimate — check"), and it is exported so that wording is tested.
 - `HM_PAIRS` — the hour/minute field pairs, re-exported from `paycalc-format.js`.
 

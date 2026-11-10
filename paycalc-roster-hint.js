@@ -4,7 +4,7 @@
  *
  * Owns: updateRosterHint, updateJoinerNotice, toggleRosterDays, fillFromRoster,
  *   fillCategoryFromRoster, _applyRosterSuggestion, clearRosterSuggestedAll,
- *   _restoreRosterSuggested, snapKey, renderRosterDayList.
+ *   _restoreRosterSuggested, recordCalendarFigures, snapKey, renderRosterDayList.
  * Does NOT own: period arithmetic (paycalc-periods.js), override cache / suggestion
  *   engine (paycalc-roster-suggestions.js), calculation (paycalc-app.js).
  * Edit here for: roster hint bar rendering, day list, fill logic, snap persistence.
@@ -16,7 +16,7 @@ import { getLoggedMember, getEffectiveContr, getContr } from './paycalc-settings
 import { getRosterSuggestion, getOverridesFetchState, fetchOverridesForPeriod } from './paycalc-roster-suggestions.js';
 import { escapeHtml } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
-import { pcPrefix } from './paycalc-migrations.js';
+import { pcPrefix, readSavedPeriod } from './paycalc-migrations.js';
 import { fdLong, minutesFieldText } from './paycalc-format.js';
 import { proRateDays } from './paycalc-calc.js';
 
@@ -105,17 +105,19 @@ function renderRosterDayList(days) {
  * @param {any} mId
  * @param {any} hVal
  * @param {any} mVal
+ * @returns {boolean} true only when the pair was BLANK and is now filled — the one case whose
+ *   snapshot the display-only refresh may write (see `_applyRosterSuggestion`)
  */
 function _suggestIfBlank(hId, mId, hVal, mVal) {
   const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
   const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
-  if (!elH || !elM) return;
+  if (!elH || !elM) return false;
   // Nothing to suggest when the engine reports zero for BOTH hours and minutes — the
   // suggestion object uses numeric 0 (not null) for undetected categories, so guarding
   // only on `== null` stamped a gold "0" onto every empty category, making it look like a
   // confirmed "none" where the engine actually has no information. A real 0-in-one-field
   // pairing (e.g. 5h 0m, or 0h 30m) still passes because the other field is non-zero.
-  if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) return;
+  if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) return false;
   // ONE PAIR, ONE AUTHOR (whole-app review, Oct 2026). The hours and minutes boxes are one figure,
   // and this used to fill each independently — so a payslip saved as 8h 0m, which reloads as "8"
   // beside a BLANK minutes box, took the calendar's 30 into the blank and priced 8h 30m: a figure
@@ -123,7 +125,8 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
   // 45 typed minutes did the same in reverse. If the member typed either box, the pair is theirs.
   const hEdited = elH.value !== '' && !elH.classList.contains('roster-suggested');
   const mEdited = elM.value !== '' && !elM.classList.contains('roster-suggested');
-  if (hEdited || mEdited) return;
+  if (hEdited || mEdited) return false;
+  const wasBlank = elH.value === '' && elM.value === '';
   if (hVal != null) {
     elH.value = hVal ?? '';
     elH.classList.add('roster-suggested');
@@ -132,6 +135,7 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
     elM.value = minutesFieldText(mVal);   // "00", not "0" — display only; the stored value is unchanged
     elM.classList.add('roster-suggested');
   }
+  return wasBlank;
 }
 
 // ── SNAP PERSISTENCE ──────────────────────────────────────────────────────────
@@ -157,6 +161,39 @@ function _saveRosterSnap(pNum, s) {
       boxH: s.boxH, boxM: s.boxM,
     }));
   } catch {}
+}
+
+/**
+ * Merges just these pairs into the snapshot, leaving every other category's entry as it was.
+ * @param {any} pNum
+ * @param {{ hId: string, mId: string, hVal: any, mVal: any }[]} pairs
+ */
+function _mergeRosterSnap(pNum, pairs) {
+  try {
+    const snap = JSON.parse(lsGet(snapKey(pNum)) || '{}');
+    for (const { hId, mId, hVal, mVal } of pairs) { snap[hId] = hVal ?? ''; snap[mId] = mVal ?? ''; }
+    lsSet(snapKey(pNum), JSON.stringify(snap));
+  } catch {}
+}
+
+/**
+ * Re-record which SAVED figures came from the calendar: the gold pairs on screen, at the values the
+ * payslip now holds. Call it straight after a period is saved, so the snapshot describes the saved
+ * blob (paycalc-3-1). An edit saves every box, gold ones included (implicit acceptance — paycalc.md),
+ * so this is the moment a figure the background refresh only SHOWED becomes one that is saved; and
+ * a pair the member typed over drops out, so it can never be taken for the calendar's on a later
+ * visit. Read back from storage rather than the boxes, so a save that failed changes nothing here.
+ * @param {number} pNum
+ */
+export function recordCalendarFigures(pNum) {
+  const { data } = readSavedPeriod(pNum);
+  if (!data) return;
+  /** @type {Record<string, any>} */ const snap = {};
+  for (const { hId, mId } of HM_PAIRS) {
+    const gold = [hId, mId].some(id => document.getElementById(id)?.classList.contains('roster-suggested'));
+    if (gold) { snap[hId] = data[hId] ?? 0; snap[mId] = data[mId] ?? 0; }
+  }
+  try { lsSet(snapKey(pNum), JSON.stringify(snap)); } catch {}
 }
 
 /** Re-adds roster-suggested to any field whose current value still matches the last
@@ -389,7 +426,7 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
   // "✓ Filled" after a tap that wrote nothing is the difference between a member reporting
   // "nothing to fill this payslip" (true, diagnosable) and "the button doesn't work" (what got
   // reported, undiagnosable, and it outlived two fixes aimed at the tap itself).
-  const written = [], cleared = [];
+  const written = [], cleared = [], filledBlank = [];
   for (const { hId, mId, cat } of HM_PAIRS) {
     const hVal = s[hId], mVal = s[mId];
     if (force) {
@@ -419,11 +456,19 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
       elH.classList.add('roster-suggested');
       elM.classList.add('roster-suggested');
       written.push(cat);
-    } else {
-      _suggestIfBlank(hId, mId, hVal, mVal);
+    } else if (_suggestIfBlank(hId, mId, hVal, mVal)) {
+      filledBlank.push({ hId, mId, hVal, mVal });
     }
   }
-  _saveRosterSnap(currentPeriodNum(), s);
+  // THE SNAPSHOT DESCRIBES WHAT IS SAVED (paycalc-3-1). It is how a reload tells a saved figure that
+  // came from the calendar (gold, and free to follow it) from one the member typed. An explicit fill
+  // is saved straight after, so it writes the lot. The background refresh on view saves NOTHING
+  // (invariant 11) — so it must not move the entry of a figure that IS saved: it used to, and a
+  // payslip filled at 8h whose calendar later said 16h then showed 16 on one visit and, on the next,
+  // read its saved 8 as typed and showed that. It only adds the pairs it filled from BLANK, which is
+  // what lets a member's next edit — whose autosave keeps the gold figures — keep them gold.
+  if (force) _saveRosterSnap(currentPeriodNum(), s);
+  else if (filledBlank.length) _mergeRosterSnap(currentPeriodNum(), filledBlank);
   return { written, cleared };
 }
 
@@ -502,13 +547,7 @@ export function fillCategoryFromRoster(cat, autosave) {
     elM.classList.add('roster-suggested');
     // Merge this category into the existing snapshot so reload can restore the
     // roster-suggested class for just these fields (without clobbering other fields).
-    const pNum = currentPeriodNum();
-    try {
-      const existing = JSON.parse(lsGet(snapKey(pNum)) || '{}');
-      existing[hId] = hVal ?? '';
-      existing[mId] = mVal ?? '';
-      lsSet(snapKey(pNum), JSON.stringify(existing));
-    } catch {}
+    _mergeRosterSnap(currentPeriodNum(), [{ hId, mId, hVal, mVal }]);
   }
   autosave();
   // Programmatic value changes don't fire the input listeners — refresh the

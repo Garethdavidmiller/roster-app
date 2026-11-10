@@ -59,7 +59,10 @@ mock.module('./paycalc-roster-suggestions.js', {
     },
 });
 
-const { fillFromRoster, snapKey, _restoreRosterSuggested, _applyRosterSuggestion, _confBadge, updateRosterHint } = await import('./paycalc-roster-hint.js');
+const { fillFromRoster, snapKey, _restoreRosterSuggested, _applyRosterSuggestion, _confBadge, updateRosterHint, recordCalendarFigures } = await import('./paycalc-roster-hint.js');
+// The REAL form writer, for the blocks that replay a page load (loadPeriodData's order).
+const { writeFormData } = await import('./paycalc-form-data.js');
+const { periodKey } = await import('./paycalc-migrations.js');
 
 const A = '60', B = '61';
 /** @type {number} */ let _autosaves = 0;
@@ -239,5 +242,92 @@ describe('the estimate badge reaches the rendered row', () => {
         const html = render({ rdwH: 8, rdwM: 0, rdwCount: 1, defaulted8h: { rdw: true }, defaulted7h: {} });
         assert.match(html, /data-cat="rdw"/, 'premise: the RDW row rendered');
         assert.match(html, /Includes an 8h estimate/);
+    });
+});
+
+/** An <input> as the page has one: `value` is always a string, and its classList works. */
+function input() {
+    const c = new Set();
+    let v = '';
+    return {
+        get value() { return v; }, set value(x) { v = String(x); },
+        classList: { add: (/** @type {string} */ x) => c.add(x), remove: (/** @type {string} */ x) => c.delete(x), contains: (/** @type {string} */ x) => c.has(x) },
+    };
+}
+
+// ── THE SNAPSHOT DESCRIBES WHAT IS SAVED (paycalc-3-1) ───────────────────────────────────────────
+//
+// The snapshot is how a reload knows which SAVED figures came from the calendar (and so may follow
+// it). The background refresh on view is display-only — it puts the calendar's latest figure in the
+// box and saves nothing — but it used to rewrite the snapshot anyway. So a payslip filled at 8h of
+// RDW, whose calendar later said 16h, showed 16 on one visit and, on the next, compared the saved 8
+// against a snapshot of 16, decided the 8 was hand-typed, and kept it: 8 at 1.25x one visit, 16 the
+// visit before, with nothing typed in between. Each visit below is loadPeriodData's order — the real
+// writeFormData, the restore, then the fetch callback's display-only apply with no autosave.
+describe('the background refresh never moves the snapshot of a saved figure', () => {
+    /** A page load of payslip `pNum` holding `blob`, then the background refresh with `calendar`. */
+    function visit(/** @type {number} */ pNum, /** @type {any} */ blob, /** @type {any} */ calendar) {
+        setupDom(String(pNum));
+        for (const id of HM_IDS) _els[id] = input();
+        _els.peerVal = { textContent: '' }; _els.slSkipCheck = { checked: false }; _els.otherAdj = { value: '' };
+        writeFormData(blob);
+        _restoreRosterSuggested(pNum);
+        _applyRosterSuggestion(calendar);
+        return { rdw: _els.rdwH.value, gold: _els.rdwH.classList.contains('roster-suggested') };
+    }
+    const snapOf = (/** @type {number} */ n) => JSON.parse(String(localStorage.getItem(snapKey(n))));
+
+    test('a filled figure whose calendar later changes reads the same on every visit', () => {
+        _store.set(snapKey(58), JSON.stringify({ rdwH: 8, rdwM: 0 }));     // pressed Fill at 8h
+        const saved = { rdwH: 8, rdwM: 0 };
+        const calendar = { rdwH: 16, rdwM: 0 };                             // a second RDW recorded since
+        const first = visit(58, saved, calendar);
+        const second = visit(58, saved, calendar);
+        assert.deepEqual(first, { rdw: '16', gold: true }, 'premise: the calendar-linked figure follows the calendar');
+        assert.deepEqual(second, first, 'the next visit read the saved 8 as typed and showed it instead');
+        assert.equal(snapOf(58).rdwH, 8, 'viewing rewrote the snapshot of a figure nothing saved');
+    });
+
+    test('a visit with no signal does not strip a saved figure of its calendar link', () => {
+        _store.set(snapKey(58), JSON.stringify({ satH: 8, satM: 0, rdwH: 8, rdwM: 0 }));
+        const saved = { satH: 8, satM: 0, rdwH: 8, rdwM: 0 };
+        visit(58, saved, { satH: 8, satM: 0, rdwH: 0, rdwM: 0 });          // base pattern only: no RDW
+        assert.deepEqual(visit(58, saved, { satH: 8, satM: 0, rdwH: 16, rdwM: 0 }), { rdw: '16', gold: true },
+            'one visit with no signal turned a calendar figure into a typed one for good');
+    });
+
+    test('CONTROL: a figure the refresh fills from blank, then saved by the member, stays linked', () => {
+        // Implicit acceptance (paycalc.md): typing anything else saves the gold figures with it.
+        assert.deepEqual(visit(58, {}, { rdwH: 8, rdwM: 0 }), { rdw: '8', gold: true });
+        const savedByAutosave = { rdwH: 8, rdwM: 0 };
+        assert.deepEqual(visit(58, savedByAutosave, { rdwH: 16, rdwM: 0 }), { rdw: '16', gold: true },
+            'a figure the member accepted lost its calendar link');
+    });
+
+    // The save's own half: `recordCalendarFigures`, which the coordinator's autosave calls once it
+    // has written the payslip. A REFRESHED figure (8h saved, 16h shown) that the member then saves by
+    // typing somewhere else must stay linked — the display-only refresh no longer records it.
+    test('a refreshed figure the member saves keeps its calendar link, through the save', () => {
+        _store.set(snapKey(58), JSON.stringify({ rdwH: 8, rdwM: 0 }));
+        assert.deepEqual(visit(58, { rdwH: 8, rdwM: 0 }, { rdwH: 16, rdwM: 0 }), { rdw: '16', gold: true });
+        _els.otH.value = '3';                                               // the member types overtime…
+        const saved = { rdwH: 16, rdwM: 0, otH: 3, otM: 0 };              // …and autosave saves the form
+        _store.set(periodKey(58), JSON.stringify(saved));
+        recordCalendarFigures(58);
+        assert.deepEqual(snapOf(58), { rdwH: 16, rdwM: 0 }, 'the snapshot must name exactly the gold figures saved');
+        assert.deepEqual(visit(58, saved, { rdwH: 24, rdwM: 0 }), { rdw: '24', gold: true },
+            'the saved 16 came back as typed, and stopped following the calendar');
+        assert.equal(_els.otH.value, '3', 'and the typed overtime is never treated as the calendar\'s');
+    });
+
+    test('a saved figure the member typed is never recorded as the calendar\'s', () => {
+        setupDom('58');
+        for (const id of HM_IDS) _els[id] = input();
+        _els.rdwH.value = '8'; _els.rdwH.classList.add('roster-suggested'); _els.rdwM.classList.add('roster-suggested');
+        _els.satH.value = '7';                                              // typed: no gold
+        _store.set(snapKey(58), JSON.stringify({ satH: 7, satM: 0 }));     // a stale entry from an old fill
+        _store.set(periodKey(58), JSON.stringify({ rdwH: 8, rdwM: 0, satH: 7, satM: 0 }));
+        recordCalendarFigures(58);
+        assert.deepEqual(snapOf(58), { rdwH: 8, rdwM: 0 }, 'a typed 7h of Saturday would follow the calendar on the next visit');
     });
 });
