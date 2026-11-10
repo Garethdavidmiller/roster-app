@@ -327,6 +327,9 @@ export function init() {
      * so its absence reads as a decision and not as a missing number.
      */
     function currentLinkBaseline() {
+        // MEASURED ONCE (links-app-20). Today's roster is a constant for the session, and this ran for
+        // every painted cell — about a fifth of a paint's computation — for the same answer every time.
+        if (_baselineMemo !== undefined) return _baselineMemo;
         try {
             const toPatterns = (/** @type {any} */ cycle) => {
                 /** @type {Record<string, any>} */ const p = {}; let i = 1;
@@ -339,18 +342,23 @@ export function init() {
                 r.results.find((/** @type {any} */ x) => x.code === code && x.status !== 'n/a');
             const ff11a = pick(a, 'FF11');
             const ff15a = pick(a, 'FF15');
-            return {
+            // Each factor's threshold is ITS OWN row's (links-fatigue.js), never typed here: a sentence
+            // that types "13" and "4" goes on saying them after the rule it quotes has moved.
+            _baselineMemo = {
                 summary: `Today's link already features ${a.present} of these factors on the main ${main.lines}-line cycle,`
                     + ` which this ${TOTAL_POS}-line design replaces.`,
-                detail: `Longest run without a two-day break: ${ff11a?.value}, against FF11's 13.`
-                    + ` Longest run of consecutive early starts: ${ff15a?.value}, against FF15's 4.`
+                detail: `Longest run without a two-day break: ${ff11a?.value}, against FF11's ${ff11a?.threshold}.`
+                    + ` Longest run of consecutive early starts: ${ff15a?.value}, against FF15's ${ff15a?.threshold}.`
                     + ` Measured on the main cycle at its own length, not spliced into one rotation.`,
             };
         } catch (err) {
             console.warn('[Links] Baseline unavailable:', err);
-            return null;   // the panel simply omits the comparison rather than showing a wrong one
+            _baselineMemo = null;   // the panel simply omits the comparison rather than showing a wrong one
         }
+        return _baselineMemo;
     }
+    /** `currentLinkBaseline`'s one answer; undefined until it is first asked. @type {{summary: string, detail: string}|null|undefined} */
+    let _baselineMemo;
 
     /**
      * The staffed-window editor on the Coverage card (v19.54).
@@ -1734,9 +1742,20 @@ export function init() {
             // respect to coverage — permuting rows cannot change how many people work shift X on day
             // D — so it can only ever trade the objectives against each other, and the status line
             // states what that trade actually was rather than leaving the designer to trust it.
-            // AFTER the confirm, deliberately: the 2-opt sweep is ~150ms on a desktop and several
-            // times that on the phones this is used from, and run before the dialog that is the
-            // button sitting dead with nothing on screen to explain it.
+            //
+            // SAY IT, THEN DO IT (links-app-21). The search runs on the main thread, AFTER the confirm
+            // (before it, the button sat dead with nothing to explain it). Measured on a desktop with the
+            // default table: about 0.2 s for the first press and 0.3–0.7 s for each later one — every
+            // later press runs three seeded starts, and one that falls back runs the first press's search
+            // again on top — and several times that on a phone. So the button is HELD and says what is
+            // happening, and a frame is given for that to paint before the search starts. The release is
+            // booked BEFORE the search, for the frame after it: a tap made while it ran lands on the held
+            // button and is dropped, and nothing the search throws can leave the button held.
+            if (_mirrorEl) { _mirrorEl.textContent = 'Building the link…'; _mirrorEl.hidden = false; }
+            _designActionStatus('Building the link…', '');
+            if (_btnEl) /** @type {HTMLButtonElement} */ (_btnEl).disabled = true;
+            await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+            requestAnimationFrame(() => { if (_btnEl) /** @type {HTMLButtonElement} */ (_btnEl).disabled = false; });
             const _chk = (/** @type {string} */ id) =>
                 !!(/** @type {HTMLInputElement|null} */ (document.getElementById(id))?.checked);
             const _on = {
