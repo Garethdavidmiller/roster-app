@@ -2,15 +2,17 @@
 /**
  * links-import.js — turning somebody ELSE's roster proposal into a design this app can hold.
  *
- * Pure: no DOM, no Firebase, no imports beyond `links-design.js`'s own pure helpers. The UI half is
- * in `links-design-library.js`. Tested by links-import.test.mjs.
+ * Pure: no DOM, no Firebase, no imports beyond `links-design.js`'s own pure helpers and the name
+ * limit in `links-design-naming.js`. The UI half is in `links-design-library.js`. Tested by
+ * links-import.test.mjs.
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *
  * Every design in the workspace so far was either auto-generated or painted cell by cell. Proposals
  * do not arrive that way. They arrive as a photograph of a handwritten sheet, a Word table, or a
- * column out of one of the Dec 2026 simplifier spreadsheets — and the only route in was 168 taps,
- * which is enough friction that a colleague's idea simply never gets compared against anything.
+ * column out of one of the Dec 2026 simplifier spreadsheets — and the only route in was a tap for
+ * every cell of the rotation, which is enough friction that a colleague's idea simply never gets
+ * compared against anything.
  * That is the failure this removes: not typing effort, but proposals that are never assessed.
  *
  * ── IT IS A TRUST BOUNDARY, AND THAT IS THE WHOLE JOB ───────────────────────────────────────────
@@ -46,9 +48,10 @@
  */
 
 import { DAYS, canonicaliseShift, ROTATING_LINES, normaliseCustomShift } from './links-design.js';
+import { MAX_DESIGN_NAME } from './links-design-naming.js';
 
-/** How long a pasted design name may be — matches the picker's own limit. */
-export const MAX_IMPORT_NAME = 100;
+/** How long a pasted design name may be — the picker's own limit, read from where it is set. */
+export const MAX_IMPORT_NAME = MAX_DESIGN_NAME;
 
 /**
  * Tokens that mean "this person is not working that day", mapped to the app's one non-worked value.

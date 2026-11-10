@@ -98,8 +98,8 @@ export function createDesignLibrary(ctx) {
     // The RULES are all in `links-import.js`; everything here is the panel. Two things about the
     // shape of this flow are deliberate:
     //
-    //  1. CHECK BEFORE SAVE, always, even when the paste is perfect. A design is 168 cells the
-    //     reader has never seen as a grid, and it came from somebody else — so "it parsed" is not
+    //  1. CHECK BEFORE SAVE, always, even when the paste is perfect. A design is every cell of the
+    //     rotation, unseen as a grid, and it came from somebody else — so "it parsed" is not
     //     the same as "this is what I meant to import". The check states what would be written and
     //     any assumption made on the way, and only then does Save appear.
     //  2. It saves as a NEW design and never touches the open one. An import that could overwrite
