@@ -192,13 +192,15 @@ export function init() {
     initCardCollapse('circularUploadToggleHeader',    'circularUploadBody',    'circularUploadChevron');
     initCardCollapse('newsletterUploadToggleHeader', 'newsletterUploadBody', 'newsletterUploadChevron');
     initCardCollapse('rosterUploadToggleHeader',   'rosterUploadBody',   'rosterUploadChevron');
-    initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
+    const authSetupCard = initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
     // Account status collapse wired ONCE here (not inside initAccountStatus) — its _cardLoadError
     // retry re-invokes initAccountStatus, and initCardCollapse has no idempotency guard, so wiring it
     // there would add a duplicate listener per failed load (an even number of retries → dead toggle).
     initCardCollapse('accountStatusToggleHeader', 'accountStatusBody', 'accountStatusChevron');
-    initCardCollapse('resetRequestsToggleHeader', 'resetRequestsBody', 'resetRequestsChevron');
-    initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
+    // A card this page opens BY CODE keeps its handle: `setOpen` is the one place a card's open state
+    // is written (card-collapse.js), and a hand-made second copy here could drift from what a tap does.
+    const resetRequestsCard = initCardCollapse('resetRequestsToggleHeader', 'resetRequestsBody', 'resetRequestsChevron');
+    const errorLogCard = initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
     initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
     initCardCollapse('pageSpeedToggleHeader',   'pageSpeedBody',   'pageSpeedChevron');
 
@@ -210,20 +212,20 @@ export function init() {
     // allowlist, so an arbitrary hash can never expand an unrelated card. Runs on load AND on
     // hashchange, because tapping the notification while Operations is already open re-navigates an
     // existing client (see the SW's notificationclick) and fires only hashchange.
-    /** @type {Record<string, [string, string, string]>} hash → [bodyId, chevronId, cardId] */
+    /** @type {Record<string, [{ setOpen(open: boolean): void }, string]>} hash → [collapse handle, cardId] */
     const DEEP_LINK_CARDS = {
-        '#reset-requests': ['resetRequestsBody', 'resetRequestsChevron', 'resetRequestsCard'],
-        '#error-log':      ['errorLogBody',      'errorLogChevron',      'errorLogCard'],
-        '#login-accounts': ['authSetupBody',     'authSetupChevron',     'authSetupCard'],
+        '#reset-requests': [resetRequestsCard, 'resetRequestsCard'],
+        '#error-log':      [errorLogCard,      'errorLogCard'],
+        '#login-accounts': [authSetupCard,     'authSetupCard'],
     };
     /** @param {string} [hash] defaults to location.hash — the strip passes its own so a repeat
      *  tap (same hash, no hashchange) still opens and scrolls. */
     function openDeepLinkedCard(hash) {
         const target = DEEP_LINK_CARDS[hash || location.hash];
         if (!target) return;
-        const [bodyId, chevronId, cardId] = target;
+        const [card, cardId] = target;
         // Only ever OPENS. Re-running on a repeat tap must not toggle a card the admin just closed.
-        openCard(bodyId, chevronId);
+        card.setOpen(true);
         document.getElementById(cardId)?.scrollIntoView({
             block: 'start',
             // The app honours prefers-reduced-motion everywhere else; a notification tap is no place
@@ -270,24 +272,6 @@ export function init() {
             attention.report('accountLeavers', leavers);
         },
     });
-
-    /**
-     * Expand a collapsible card programmatically — idempotent, and never a toggle.
-     *
-     * `aria-expanded` is set alongside the class because opening a card by class ALONE leaves the
-     * chevron reporting "collapsed" to a screen reader until the first manual toggle
-     * (A11Y_BASELINE.md, v18.68) — the failure this helper exists to make unrepeatable.
-     *
-     * @param {string} bodyId @param {string} chevronId @returns {void}
-     */
-    function openCard(bodyId, chevronId) {
-        const body = document.getElementById(bodyId);
-        if (!body || body.classList.contains('open')) return;
-        body.classList.add('open');
-        const chev = document.getElementById(chevronId);
-        chev?.classList.add('open');
-        chev?.setAttribute('aria-expanded', 'true');
-    }
 
     // ============================================
     // ACCOUNT STATUS  (work email + password, per member)
@@ -738,7 +722,7 @@ export function init() {
             }
             // Auto-open when there IS something to action — an outstanding request is time-sensitive
             // (someone is locked out right now) and this card is collapsed by default.
-            if (autoOpen) openCard('resetRequestsBody', 'resetRequestsChevron');
+            if (autoOpen) resetRequestsCard.setOpen(true);
             content.innerHTML = `<div class="rr-list">${requests.map(r => {
                 // escapeHtml even though the writer is server-validated (v18.94). The allowlist IS the
                 // control, but it sits three layers away with no test tying it to this render, and a
