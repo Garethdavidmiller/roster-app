@@ -246,6 +246,17 @@ describe('the selection a live page draws', () => {
         assert.equal(getSelectedMemberIndex(), 0);
         assert.equal(isFirstRun(), true, 'asking which member to draw ended the first-run prompt');
     });
+
+    test('the DEFAULT a page fell back to is held too, where it is not a first run', async () => {
+        // Whether a member was saved is read once, at module load, so this needs a page of its own
+        // that loaded with one saved: a colleague who has since left the roster, the case the
+        // "no longer on the roster" banner is for. The picker then shows the default member.
+        store.set(MEMBER_KEY, 'Z. Nobody');
+        const page = await import('./calendar-member.js?loaded-with-a-saved-member');
+        assert.equal(page.getSelectedMemberIndex(), 0, 'premise: the default, after a name that left the roster');
+        store.set(MEMBER_KEY, 'B. Jones');                 // another Calendar tab picks somebody
+        assert.equal(page.getCurrentMember().name, 'A. Smith', 'the grid moved off the default the picker shows');
+    });
 });
 
 // ── getCurrentMember ──────────────────────────────────────────────────────────

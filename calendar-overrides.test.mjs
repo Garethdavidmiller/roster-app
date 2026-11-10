@@ -1175,6 +1175,17 @@ describe('a saved copy is only a month this device once held whole', () => {
         await ensureOverridesCached(2070, 6, () => {});
         assert.equal(knowledgeOf(monthKey(2070, 6)), 'cached');
     });
+
+    test('…but a record that cannot be READ names no month — it is not taken for no record', async () => {
+        storage.set(KEY, '{"not a list');
+        _getDocsFromCacheFlag = true; _mockDocs = [AL('2070-08-10')];   // offline: one member's August, cached
+        await ensureOverridesCached(2070, 7, () => {});
+        assert.equal(knowledgeOf(monthKey(2070, 7)), 'error',
+            'an unreadable record restored the old rule, and one member\'s rows became a saved copy');
+        setOverrideAccess(true); forgetKnowledge(); _getDocsFromCacheFlag = false;
+        await ensureOverridesCached(2070, 7, () => {});                 // online: every member's August
+        assert.deepEqual(JSON.parse(storage.get(KEY) ?? 'null'), ['2070-08'], 'the next whole read did not rewrite the record');
+    });
 });
 
 // ── A returning member's boot reads the cache ONCE, and for everyone ─────────────────────────

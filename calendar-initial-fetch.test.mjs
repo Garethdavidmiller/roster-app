@@ -155,7 +155,11 @@ function rebuildHeader() {
     renderHeaderIntoDOM();
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+    // A test that ends with its sync in flight can leave the read itself still to be ISSUED — and issued
+    // after the reset below, it meets this test's resolving fake, lands, and confirms its months inside
+    // the NEXT test (measured, 10 Nov 2026). Let it be issued against its own test's fakes first.
+    await new Promise(r => setImmediate(r));
     _progressHistory     = [];
     _addMonthsHistory    = [];
     _clearMonthsHistory  = [];
@@ -491,6 +495,19 @@ describe('failure path', () => {
         setDisplayMonth(away.getMonth()); setDisplayYear(away.getFullYear());   // the member goes there
         rebuildHeader();
         assert.equal(getSyncChip(), null, 'over THAT grid, which is current, the failure is withdrawn');
+    });
+
+    test('…and only the failure: "Updating your shifts…" is still true over a confirmed month, so it comes back', (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => new Promise(() => {});                  // the window's read is still out
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        t.mock.timers.tick(800);
+        assert.equal(getSyncChip()?.textContent, '↻ Updating your shifts…', 'premise: the updating chip is up');
+        const now = new Date();
+        noteKnowledge(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, 'authoritative');
+        rebuildHeader();
+        assert.equal(getSyncChip()?.textContent, '↻ Updating your shifts…',
+            'a header rebuild over a confirmed month took away a sync that is still running');
     });
 
     test('dismissSyncError leaves a sync that is still RUNNING alone', (t) => {

@@ -400,6 +400,17 @@ describe('watchLocalDate', () => {
         assert.deepEqual([getDisplayMonth(), getDisplayYear()], [0, 2027]);
     });
 
+    test('…and a page left open across TWO month ends follows both — each from the date it last saw', () => {
+        const r = rig('2026-11-30T22:00:00');
+        setDisplayMonth(10); setDisplayYear(2026);
+        watchLocalDate(() => {}, r.env);
+        r.set('2026-12-01T07:30:00'); r.resume();
+        r.set('2026-12-15T07:30:00'); r.resume();
+        r.set('2027-01-01T07:30:00'); r.resume();
+        assert.deepEqual([getDisplayMonth(), getDisplayYear()], [0, 2027],
+            'the second month end compared the display with the date the page OPENED on, and kept December');
+    });
+
     test('a month the member browsed to is left where it is', () => {
         const r = rig('2026-11-30T22:00:00');
         setDisplayMonth(9); setDisplayYear(2026);   // October, browsed back to
