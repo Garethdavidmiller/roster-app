@@ -1,5 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     OBJECTIVES, GENTLE_THRESHOLD_MINUTES, DEFAULT_BLOCK_TARGET, lineStartProfile, weekStep,
     breakLength, boundaryRest, scoreOrder, cost, reorderLines, applyOrder,
@@ -783,6 +784,21 @@ describe('minimum rest survives the reorder', () => {
             assert.ok(r.after.shortBoundary <= 1,
                 `attempt ${attempt}: ${r.after.shortBoundary} short steps — more than the design was handed`);
             assert.deepEqual(r.order, Object.keys(p), `attempt ${attempt}: the handed order is kept`);
+        }
+    });
+
+    test('the minimum is the generator\'s own MIN_REST_MINUTES — no Links module that applies or states it types it', () => {
+        // The day the constant moves, a typed copy keeps the old figure: the reorder would filter on
+        // it and could put back a Saturday-into-Sunday turnaround the generator's gate had repaired,
+        // and the panels would state a minimum nobody applies (links-analysis-14). Both are 720
+        // today, so no behaviour can tell them apart, which is why this reads the source. Comments
+        // may quote the figure; code may not. FF5, FF10 and FF13 keep "12h" in links-fatigue.js:
+        // they quote the ORR's sheet, not the company minimum, so that module is not read here.
+        for (const f of ['links-adjacency.js', 'links-analysis.js', 'links-compare.js']) {
+            const code = readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')
+                .replace(/\/\*[\s\S]*?\*\//g, '')
+                .replace(/(^|\s)\/\/.*$/gm, '$1');
+            assert.doesNotMatch(code, /\b12\s*\*\s*60\b|\b720\b|\b12 hours\b|\b12h\b/, `${f} writes the minimum rest down`);
         }
     });
 });
