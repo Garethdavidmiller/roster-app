@@ -594,6 +594,31 @@ test('the summary never claims full cover — only that the STAFFED hours have n
     assert.match(strip, /staffed hours?/i, 'the cover chip no longer says which hours it means');
 });
 
+// The cover chip counts staffed hours WITH TRAINS and nobody on; the card's red 0s count every staffed
+// hour with nobody on. Under the default windows the two are equal, because every default staffed
+// hour has a train; they part when a window takes in a train-less hour — here Sunday from 06:20,
+// where the first train is 07:42. The chip said "No gaps in staffed hours" over the card's red 0.
+test('the cover chip says WITH TRAINS in both forms, so it cannot contradict a red 0 on the card', async () => {
+    const { PROPOSALS } = await import('./links-proposals.js');
+    const sunFrom0620 = { monSat: { start: '06:20', end: '23:55' }, sun: { start: '06:20', end: '23:25' } };
+    resetDom();
+    const a = initLinksAnalysis({ getDesign: () => ({ patterns: PROPOSALS[1].patterns, window: sunFrom0620 }) });
+    a.renderCoverageChart();
+    assert.match(els.coverageHeatmap.innerHTML, /1 staffed hour with nobody on duty/, 'premise: the card shows a red 0');
+    a.renderSummary();
+    const chips = [...els.linksSummary.innerHTML.matchAll(/<span class="sum-chip[^"]*">.*?<\/strong>([^<]*)<\/span>/g)].map(m => m[1]);
+    const cover = chips.find(c => /staffed/.test(c));
+    assert.ok(cover, 'the cover chip did not render');
+    assert.match(cover, /with trains/, `the cover chip claims more than its figure counts: "${cover}"`);
+    assert.doesNotMatch(els.linksSummary.innerHTML, /gaps in staffed hours/i);
+
+    // …and the other form says the same thing about the same figure.
+    resetDom();
+    const bare = fullPatterns();   // nobody on at the weekend, so Saturday and Sunday trains meet nobody
+    initLinksAnalysis({ getDesign: () => ({ patterns: bare }) }).renderSummary();
+    assert.match(els.linksSummary.innerHTML, /sum-chip--bad"><span aria-hidden="true">⛔<\/span><strong>\d+<\/strong> staffed hours with trains and nobody on/);
+});
+
 test('the summary never says "no fatigue factors" while standing factors exist', () => {
     resetDom();
     const patterns = fullPatterns();          // 06:00 starts ⇒ at least one STANDING early factor

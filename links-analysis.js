@@ -383,10 +383,15 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // The fix is to say what the number IS rather than to add a chip. The strip is width-
             // bound (the note below measures what a fourth costs), so the fatigue chip carries both
             // figures in one label when there is a second figure to carry.
+            //
+            // "WITH TRAINS" IS IN BOTH FORMS (whole-app review, Nov 2026). The figure is staffed
+            // hours with trains and nobody on; the Coverage card's red 0s count every staffed hour
+            // with nobody on, trains or not. "No gaps in staffed hours" sat above a red 0 at Sunday
+            // 06:00 — staffed once the window opened at 06:20, and no train runs in it.
             + (sum.uncovered.length
                 ? chip('bad', '⛔', sum.uncovered.length,
-                    sum.uncovered.length === 1 ? 'staffed hour with no cover' : 'staffed hours with no cover')
-                : chip('ok', '✓', 'No', 'gaps in staffed hours'))
+                    sum.uncovered.length === 1 ? 'staffed hour with trains and nobody on' : 'staffed hours with trains and nobody on')
+                : chip('ok', '✓', 'No', 'staffed hours with trains and nobody on'))
             + (fat.present
                 ? chip('warn', '⚠', fat.present,
                     `to act on${fat.standing ? ` · ${fat.standing} standing` : ''}`)
