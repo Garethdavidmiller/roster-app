@@ -2709,10 +2709,12 @@
         /* '…' while loading and '—' when there is nothing: muted, so they cannot pass for figures. */
         .al-lb-stats.is-pending .al-lb-val,
         .al-lb-stats.is-pending #alLbRemaining { color: rgba(255,255,255,0.35); }   /* the id rule above outranks a class */
+        /* The on-navy muted token, not a local 0.6 (whole-app check, 10 Nov 2026): over the glass a
+           phone paints, "Remaining" measured 4.14:1 at 0.6, under AA for 10px text. */
         .al-lb-lbl {
             font-size: var(--type-micro);
             font-weight: 600;
-            color: rgba(255,255,255,0.6);
+            color: var(--on-navy-muted);
             text-transform: uppercase;
             letter-spacing: 0.3px;
         }

@@ -41,7 +41,6 @@ mock.module('./session.js', {
         resolveSession: () => {},
         saveSession:    () => {},
         clearSession:   () => {},
-        getSurname:     () => null,
     },
 });
 mock.module('./roster-data.js', {

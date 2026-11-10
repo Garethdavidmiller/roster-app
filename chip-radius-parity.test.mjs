@@ -65,6 +65,39 @@ test('the scan reads the chip rules, and sees a chip on the panel corner — gua
         'a comment is not a rule, and a panel is not a chip');
 });
 
+// ── THE CORNER BELONGS TO DIALOGS, WHATEVER A RULE IS CALLED (whole-app check, 10 Nov 2026) ──────
+// The scan above reads a rule only when its NAME says badge, chip, pill or tag, so Links' `.btn-set`
+// buttons wore the panel corner unseen. css-tokens.md gives `--radius-xl` to one family, the compact
+// white dialogs, so this asks the question the other way round: every rule wearing it must be one of
+// them. A new dialog joins the list; a button takes `--radius-button`, a chip `--radius-pill`.
+/** Each dialog panel rule, written as its selector reads in the stylesheet. */
+const DIALOG_PANELS = new Set([
+    '.dialog-lb-content', '.picker-sheet', '.dp-content',
+    '#loginCard, #pwForceContent, .cal-lock-card, .pc-role-card', '#tipsLightboxContent',
+    '#teamInfoContent', '#docViewerContent', '#monthJumpCard',
+    '#designMoreContent, #designPickerContent', '#designBinContent',
+]);
+
+/** The selectors of the rules wearing `--radius-xl`. A body holding no brace is a rule's own, so a
+ *  rule inside `@media` is read by itself, never as its wrapper. @param {string} css */
+function panelCornerRules(css) {
+    return [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+        .filter(m => /border-radius\s*:\s*var\(--radius-xl\)/.test(m[2]))
+        .map(m => m[1].trim().replace(/\s+/g, ' '));
+}
+
+test('only a dialog panel wears --radius-xl, whatever its rule is called', () => {
+    const worn = APP_CSS.flatMap(f => panelCornerRules(read(f)).map(sel => ({ f, sel })));
+    assert.deepEqual(worn.filter(w => !DIALOG_PANELS.has(w.sel)).map(w => `${w.f}: ${w.sel}`), [],
+        'not a dialog, on the dialog corner — a button takes --radius-button and a chip --radius-pill; a new dialog joins DIALOG_PANELS');
+    // The list's teeth: an entry nothing wears any more has left the family, and leaves the list.
+    const seen = new Set(worn.map(w => w.sel));
+    assert.deepEqual([...DIALOG_PANELS].filter(s => !seen.has(s)), [],
+        'listed in DIALOG_PANELS but no longer on --radius-xl — remove it from the list');
+    // Guard the guard: the reader finds a rule inside a media query, by itself.
+    assert.deepEqual(panelCornerRules('@media (pointer: coarse) {\n  .btn-x { border-radius: var(--radius-xl); }\n}'), ['.btn-x']);
+});
+
 test('the overlay family still uses --radius-xl (the swap did not overreach)', () => {
     // Guards the opposite mistake: a blanket find-and-replace that dragged the real panel/dialog
     // corners onto the pill token would pass the test above while restyling every overlay.

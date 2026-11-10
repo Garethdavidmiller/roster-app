@@ -158,7 +158,15 @@ restated**:
 
 Which outline is a **contrast** decision, not a taste one: gold on a light surface is ~1.5:1 and fails
 the 3:1 focus-indicator floor — never use it there. **Every focusable field carries `--focus-ring`**,
-including inputs inside modals, where keyboard users most need it.
+including inputs inside modals, where keyboard users most need it. That is measured, not assumed:
+`e2e/pages.spec.js` → "every focusable field wears the field ring when focused" focuses every field on
+every app page with its cards open and reads the computed shadow; the drawer's guide search is its one
+exemption, by name. **One field cannot wear it on an iPhone, by engine:** WebKit draws no `box-shadow` on
+a `<select>` that keeps the platform's face, and the Links generator's time boxes keep that face on a
+touch screen by decision (`links.css`, "THE CLOSED FACE IS THE APP'S"). There the focus OUTLINE is the
+indicator, which `e2e/links.spec.js` → "the generator's boxes and the Import fields wear the app's field
+recipe" asserts. The sweep cannot meet it: it runs on a fine pointer, where those boxes wear the app's
+face.
 
 **Never leave a Tab stop with no indicator.** `outline: none` in a focus rule is legitimate only when a
 `box-shadow` ring replaces it, or the element genuinely is not tabbable (`#hourlyRate` carries
@@ -184,7 +192,8 @@ Nav-drawer pills/links keep their opacity-based press (the flat-drawer aesthetic
 corner radii exceed the box height CSS scales them proportionally, so on a 20px-tall chip both resolve
 to the same fully rounded corner — which is exactly why a wrong one goes unnoticed. Guarded by
 `chip-radius-parity.test.mjs`, which also asserts the overlay family still uses `--radius-xl` so a
-future sweep cannot overreach.
+future sweep cannot overreach, and, whatever a rule is called, refuses `--radius-xl` on anything but a
+listed dialog panel (`DIALOG_PANELS`).
 
 **The three weight tiers are real — do not flatten them.** Chip `font-weight` reads like drift until
 you sort it:

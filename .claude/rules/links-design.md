@@ -1036,7 +1036,9 @@ Measured at 390px and 1280px, not eyeballed. The reasoning for each rule is besi
 - **The generate feedback is written beside the BUTTON** (`#genStatus`, `aria-hidden`; the sticky save
   row's copy carries the `aria-live`, and one announcement is enough), and **the button is held still**:
   the first generate grows the grid card above by a whole grid, so the handler re-anchors the scroll to
-  keep the button under the finger. Both pinned by an e2e.
+  keep the button under the finger. Both pinned by an e2e. From the press until the line-order search
+  has run, both lines read "Building the link…" and the button is held (links-app-21), so the finished
+  line ("Link generated …"), never the mirror's visibility, is what says a design exists.
 - **The objective labels:** the label text is ONE `<span>` (a flex item), so it wraps as a block, and a
   numeric clause has its own line. **Grid is wrong here**: every child becomes an item, and the number
   box drops into the checkbox's column. **A number and the words that qualify it are one unbreakable

@@ -978,11 +978,11 @@ describe('the Pages mirror publishes only a release this repository made', () =>
         assert.deepEqual(r.outputs, { sha: B, go: 'true' }, `a re-run put the mirror back on an older release:\n${r.out}`);
     });
 
-    test('while Pages still builds from the branch, nothing is published and main is not asked', () => {
+    test('while Pages builds from the branch, nothing is published and main is not asked', () => {
         const r = plan(finished({ RUN_SHA: A }), { build_type: 'legacy' });
         assert.equal(r.status, 0, r.out);
         assert.deepEqual(r.outputs, { go: 'false' }, r.out);
-        assert.ok(!r.calls.some(c => c.includes('/compare/')), 'the inert workflow must not gain a new way to fail');
+        assert.ok(!r.calls.some(c => c.includes('/compare/')), 'standing down must not gain a new way to fail');
     });
 });
 

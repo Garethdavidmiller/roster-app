@@ -102,6 +102,34 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **The month grid takes no pinch-zoom** (owner, 10 Nov 2026) · **Trigger to revisit: a member who
+  needs to zoom the month and cannot.** The grid's `touch-action: pan-y` keeps a sideways swipe for
+  changing month, so a pinch that STARTS on the grid does not zoom; a pinch anywhere else on the page
+  does. Allowing it (`pan-y pinch-zoom`) needs a test on a real iPhone and a real Android phone first,
+  for the gesture arbitration the code warns about, and was declined.
+
+- **A payday counts as paid from 12:00** (owner, 10 Nov 2026 — kept) · **Trigger to revisit: payroll
+  moving the time pay lands.** It is the same rule everywhere a payslip is "paid" or "current", so the
+  whole-app check left it alone.
+
+- **Notifications after a sign-out are re-saved by the Calendar alone** (owner, 10 Nov 2026) ·
+  **Trigger to revisit: a member who signed in on another page reporting missed notifications.**
+  Signing out removes the device's push record, and the next signed-in Calendar load saves it again.
+  A sign-in on any other page does not, so the bell can read "on" with no record until the Calendar
+  opens, and the app opens on the Calendar. Re-saving on every signed-in page would cost a call on
+  every load (`getNotifState()` after `ensureFirebaseSession`).
+
+- **A back-pay lump typed from the payslip carries no "fill in your hours" line** (owner, 10 Nov 2026
+  — the July line, narrowed) · **Trigger to revisit: none expected.** Hours cannot change a figure
+  copied from the payslip, so the banner's second line shows only for a computed lump
+  (`paycalc-money-banner.js`).
+
+- **Two workflow questions, both left as they are** (owner, 10 Nov 2026) · **Trigger to revisit: a
+  branch's deploy holding up a release from `main`, or an indexes-only change becoming routine.** A
+  manual deploy run from a branch still shares its workflow's queue with `main`, because the groups are
+  per-workflow and ref-independent on purpose (`deploy-functions.yml`, `deploy-rules.yml`); and a change
+  to `firestore.indexes.json` alone still needs a version bump.
+
 - **Leave over rest-day working is free, whatever kind** (owner, 10 Nov 2026 — "Free, like plain
   RDW") · **Trigger to revisit: payroll charging a day of leave over a rest-day Training, Meeting or
   Spare record.** Leave booked across a base rest day holding RDW, an Other day (Training, Meeting … —

@@ -1314,7 +1314,10 @@ test.describe('overtime.css — print, focus and contrast', () => {
 
     /**
      * Press Tab `presses` times from where focus is; for each control it lands on inside `scope`, the
-     * share of the control under `bar`. Real key presses, so the browser's own scroll-into-view runs.
+     * share of the control under `bar`. Real key presses, so the browser's own scroll-into-view runs —
+     * and read once two frames have passed, which is when a reader sees it: a busy WebKit can still be
+     * applying the scroll a press made when a read straight after it lands (1 walk in 6 here, two workers;
+     * on CI's iPhone runner, 10 Nov 2026), and never once after the frames.
      * @param {any} page @param {{ bar: string, scope: string, presses: number }} o
      */
     async function underBar(page, { bar, scope, presses }) {
@@ -1322,6 +1325,7 @@ test.describe('overtime.css — print, focus and contrast', () => {
         const seen = [];
         for (let i = 0; i < presses; i++) {
             await page.keyboard.press('Tab');
+            await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
             const m = await page.evaluate(({ bar, scope }) => {
                 const a = document.activeElement, b = document.querySelector(bar);
                 if (!a || !b || !a.closest(scope) || b.contains(a)) return null;

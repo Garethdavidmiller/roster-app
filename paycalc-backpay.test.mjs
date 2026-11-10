@@ -67,7 +67,7 @@ mock.module('./session.js', { namedExports: {
     AUTH_KEY: 'myb_admin_session', SESSION_MS: 1,
     getSession: () => _session, saveSession: () => {}, clearSession: async () => {},
     ensureFirebaseSession: async () => {}, sessionReady: Promise.resolve(),
-    resolveSession: () => {}, getSurname: () => '',
+    resolveSession: () => {},
 } });
 mock.module('./ls.js', { namedExports: {
     lsGet: (/** @type {string} */ k) => _ls.has(k) ? _ls.get(k) : null,

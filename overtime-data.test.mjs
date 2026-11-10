@@ -441,6 +441,50 @@ describe('5 · the reviewer\'s week, read from the device\'s cache', () => {
         assert.deepEqual(r.submissions.get('A. One').days, { d: { mode: 'unavailable' } });
         assert.equal(r.submissions.get('A. One').history.changedSinceInitial, false);
     });
+
+    // THE TWO PARTS OF loadWeekDetail NO TEST REACHED (whole-app check, 10 Nov 2026): every fixture
+    // here was a revision-2 head, and nothing read `lateInitial` back, so the single-revision shortcut
+    // and the window's opening time — which decides whether there is a deadline to be late against —
+    // could both break with the suite green.
+    const oneRevision = (/** @type {number} */ firstAcceptedAt) => ({
+        currentRevision: 1, days: { d: { mode: 'all_day' } }, firstAcceptedAt, updatedAt: firstAcceptedAt });
+
+    test('a head at revision 1 is its own history — no revision read, and its own acceptance time', async () => {
+        // A revision read here would fail the load (the cache answers it), so a load that succeeds
+        // proves the read was never made.
+        const week = (/** @type {number} */ at) => ({
+            participants: { docs: [{ id: 'A. One', data: { createdAt: 1_000 } }] },
+            submissions:  { docs: [{ id: 'A. One', data: oneRevision(at) }] },
+            revisions:    { docs: [], fromCache: true },
+        });
+        _snaps = week(2_000);
+        const r = await (await freshData()).loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+        assert.equal(r.ok, true, 'a revision-1 head read its revisions');
+        const h = r.submissions.get('A. One').history;
+        assert.deepEqual(h.initialRevision?.days, { d: { mode: 'all_day' } }, 'its one revision is the head');
+        assert.equal(h.lateInitial, false);
+        assert.equal(h.changedSinceInitial, false);
+        // …first answered after the initial deadline, the same head is late.
+        _snaps = week(7_000);
+        const late = await (await freshData()).loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+        assert.equal(late.submissions.get('A. One').history.lateInitial, true, 'the shortcut lost the head\'s acceptance time');
+    });
+
+    test('a week opened after its initial deadline has nobody late against it — and it opened at its EARLIEST stamp', async () => {
+        const week = (/** @type {number[]} */ createdAts) => ({
+            participants: { docs: createdAts.map((t, i) => ({ id: `M${i}`, data: { createdAt: t } })) },
+            submissions:  { docs: [{ id: 'M0', data: oneRevision(9_000) }] },
+        });
+        const lateOf = async (/** @type {number[]} */ createdAts) => {
+            _snaps = week(createdAts);
+            const r = await (await freshData()).loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+            return r.submissions.get('M0').history.lateInitial;
+        };
+        assert.equal(await lateOf([8_000, 8_000]), false, 'created after the deadline: there was no initial window to miss');
+        // Everyone frozen at creation shares its stamp; a LATER one is the nightly top-up adding
+        // somebody, not the opening. Opened at 1_000, an answer at 9_000 is late.
+        assert.equal(await lateOf([1_000, 8_000]), true, 'the opening was read from a top-up\'s stamp');
+    });
 });
 
 describe('6 · when the state on screen was read', () => {

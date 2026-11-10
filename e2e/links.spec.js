@@ -11,7 +11,7 @@ import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedC
 // rotation length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
 // rotation would leave every fixture over-length: the grid ignores the surplus rows, so the specs
 // would still pass while quietly testing the legacy-design path rather than the normal one.
-import { ROTATING_LINES } from '../links-design.js';
+import { ROTATING_LINES, CONTRACTED_HOURS_PER_WEEK } from '../links-design.js';
 import { PROPOSALS } from '../links-proposals.js';
 import { describeSetList } from '../links-target-sets.js';
 
@@ -1637,6 +1637,53 @@ test('links memory: a remembered spare count that leaves no working line is refu
     await expect(error).not.toContainText('leaves no working lines');
 });
 
+// THE CONTRACT AND REST REFUSALS, PRESSED (whole-app check, 10 Nov 2026). generateLink's refusals are
+// unit-pinned (links-contract.test.mjs, links-design.test.mjs); what only the page shows is the sentence
+// each becomes — the size of the gap, and remedies that are OPPOSITES for a shortfall and a surplus, so
+// crossing them would tell the designer to make it worse. Until now the only refused press driven in a
+// browser was the spare count above and the over-capacity one.
+for (const [label, weekday, gap, remedy, notRemedy] of /** @type {Array<[string, number, string, string, string]>} */ ([
+    ['short of', 1, 'a week of duty missing across the rotation', 'Add duties, lengthen them, or use more spare weeks',
+        'Remove duties'],
+    ['over', ROTATING_LINES, 'a week of duty more than the rotation is paid for', 'Remove duties, shorten them, or use fewer spare weeks',
+        'Add duties'],
+])) {
+    test(`links generator: a table ${label} the contracted week is refused, with its own remedy`, async ({ page }) => {
+        // One early duty each weekday, on one line or on every line: 8h × 5 = 40h a working line
+        // against the 35h contract when every line works it, and far short when one does.
+        await openLinksWithMemory(page, { slots: [{ time: '06:20-14:20', weekday, sat: 0, sun: 0 }], spareLines: 0 });
+        await page.locator('#genApplyBtn').click();
+        const error = page.locator('#genError');
+        await expect(error).toContainText(`Can't generate — These targets average`);
+        await expect(error).toContainText(`the contract is ${CONTRACTED_HOURS_PER_WEEK}h`);
+        await expect(error).toContainText(gap);
+        await expect(error).toContainText(remedy);
+        await expect(error, 'the opposite remedy would make it worse').not.toContainText(notRemedy);
+        await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link generated');
+    });
+}
+
+test('links generator: a table no arrangement can give the minimum rest is refused, naming the gap and the minimum', async ({ page }) => {
+    // The default table pays the contract, so the rest gate is the one left to refuse it. The minimum is
+    // raised in the served module (the line-order note test's route) until no arrangement of those
+    // duties can meet it: an early, then the next day's early, is 16 hours.
+    const ANCHOR = 'export const MIN_REST_MINUTES = 12 * 60;';
+    await page.route('**/links-design.js', async route => {
+        const res = await route.fetch();
+        const src = await res.text();
+        if (!src.includes(ANCHOR)) throw new Error(`links: links-design.js no longer contains "${ANCHOR}" — re-point the test.`);
+        await route.fulfill({ response: res, body: src.replace(ANCHOR, 'export const MIN_REST_MINUTES = 20 * 60;'), contentType: 'text/javascript' });
+    });
+    await openLinksWithDesign(page);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').click();
+    const error = page.locator('#genError');
+    await expect(error).toContainText('Can\'t generate — one turn would follow another with only');
+    await expect(error).toContainText('rest, and the minimum is 20h 00m. No arrangement of these lines fixes it.');
+    await expect(error).toContainText('Move a late finish earlier or a following start later.');
+    await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link generated');
+});
+
 // ── Saved target sets (v21.04) ──────────────────────────────────────────────────────────────────
 // The promise under test: others can load and change anyone's set, but overwriting belongs to its
 // creator. The RULES enforce that server-side (firestore.rules.test.mjs covers it case for case);
@@ -1923,6 +1970,12 @@ test('links sets: the row says whether the table still matches the set', async (
     await page.locator('#genSlotRows tr').first().locator('[data-class="weekday"]').fill('7');
     await expect(page.locator('#genSetHint')).toContainText('You have changed the table');
     await expect(page.locator('#genSetHint')).not.toContainText('still matches');
+
+    // …and a SECOND edit (links-analysis-2). The first edit used to be the only one the row knew came
+    // after a load: the second dropped the setup's stamp, and the row offered to load it over the work.
+    await page.locator('#genSlotRows tr').first().locator('[data-class="weekday"]').fill('8');
+    await expect(page.locator('#genSetHint')).toContainText('You have changed the table');
+    await expect(page.locator('#genSetHint')).not.toContainText('Press Use setup');
 });
 
 test('links sets: Load asks before it throws away a table you have changed', async ({ page }) => {
@@ -1975,7 +2028,9 @@ test('links grid: each line carries its own totals, and they follow an edit', as
     // The generator's own completion signal, not the row count: the design open before it already
     // had every row, so the count was true BEFORE the generator ran, and the reads below could land
     // on the old design or mid-redraw (48-hour review, Nov 2026 — one intermittent red under load).
-    await expect(page.locator('#genStatus')).toBeVisible({ timeout: 10_000 });
+    // Its FINISHED line, not the mirror's visibility: since links-app-21 the mirror reads "Building the
+    // link…" for a frame before the search runs, and the old design is still on screen in that frame.
+    await expect(page.locator('#genStatus')).toContainText('Link generated', { timeout: 10_000 });
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
 
     // Three cells on every line, no exceptions — the renderer indexes rows by position, so a short
@@ -2267,7 +2322,7 @@ test('links: with reduced motion the "Saving…" dot holds still', async ({ page
     }
 });
 
-test('links: the generator\'s boxes and the Import fields wear the app\'s field recipe', async ({ page }) => {
+test('links: the generator\'s boxes and the Import fields wear the app\'s field recipe', async ({ page, browserName }) => {
     // css-tokens.md: every focusable field carries the 4px --focus-ring, inside a modal included, and
     // the thing a member types into wears --field-border and --radius-field. The generator's number
     // boxes and time selects had the outline alone; the Import dialog's two fields had the outline
@@ -2275,22 +2330,28 @@ test('links: the generator\'s boxes and the Import fields wear the app\'s field 
     await openMixedDesign(page);
     const token = await page.evaluate(() => {
         const probe = document.createElement('div');
-        probe.style.cssText = 'box-shadow: var(--focus-ring); border: var(--field-border); border-radius: var(--radius-field)';
+        probe.style.cssText = 'box-shadow: var(--focus-ring); border: var(--field-border); border-radius: var(--radius-field); outline: var(--focus-outline)';
         document.body.append(probe);
         const cs = getComputedStyle(probe);
-        const t = { ring: cs.boxShadow, edge: `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`, corner: cs.borderTopLeftRadius };
+        const t = { ring: cs.boxShadow, edge: `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`, corner: cs.borderTopLeftRadius,
+                    outline: `${cs.outlineWidth} ${cs.outlineStyle} ${cs.outlineColor}` };
         probe.remove();
         return t;
     });
     const look = (/** @type {string} */ sel) => page.locator(sel).first().evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
         const cs = getComputedStyle(el);
-        return { focus: el.matches(':focus-visible'), ring: cs.boxShadow,
+        return { focus: el.matches(':focus-visible'), ring: cs.boxShadow, outline: `${cs.outlineWidth} ${cs.outlineStyle} ${cs.outlineColor}`,
+                 platformSelect: el.tagName === 'SELECT' && cs.appearance !== 'none',
                  edge: `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`, corner: cs.borderTopLeftRadius };
     }));
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
     for (const sel of ['.gen-slot-count', '.gen-slot-time']) {
         await page.locator(sel).first().focus();
-        expect(await look(sel), `${sel} with focus`).toMatchObject({ focus: true, ring: token.ring });
+        const seen = await look(sel);
+        expect(seen, `${sel} with focus`).toMatchObject({ focus: true, outline: token.outline });
+        // WebKit paints no shadow on a <select> that keeps the platform's face, and on a touch screen the time
+        // boxes keep it by decision (links.css, "THE CLOSED FACE IS THE APP'S"): there the outline is the ring.
+        if (!(browserName === 'webkit' && seen.platformSelect)) expect(seen.ring, `${sel}'s ring with focus`).toBe(token.ring);
     }
     // The setup buttons beside them are pills, and wore the dialog corner (--radius-xl), which looks
     // the same only while a pill is under 40px tall — chip-radius-parity reads chip NAMES, not this.
@@ -3194,6 +3255,11 @@ test('links: pressing Generate again produces a different, named design', async 
 // falls back today — which one does is the optimiser's business — and the switches-off half is the
 // case that repeats on every press whatever the optimiser does.
 test('links: a generated design that repeats an earlier one says which design it is', async ({ page }) => {
+    // Eight builds, each a search on the main thread with the button held through it: 8s on Chromium and
+    // 38s on the iPhone project measured here, alone, which on CI's shared runner ran past the iPhone's 60s
+    // with a build still running (10 Nov 2026). A long flow gets room — slow() triples each engine's own
+    // budget — and no step does: every wait below keeps its timeout.
+    test.slow();
     await page.setViewportSize({ width: 1280, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -3209,7 +3275,10 @@ test('links: a generated design that repeats an earlier one says which design it
         await page.locator('#genApplyBtn').click();
         await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
         await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+        // Changed is not finished: since links-app-21 the line reads "Building the link…" from the
+        // press until the search has run, and a grid read in that frame is the PREVIOUS design's.
         await expect(status).not.toHaveText(before ?? '');
+        await expect(status).toContainText('Link generated');
         return {
             grid: await page.evaluate(() => /** @type {HTMLElement} */ (document.getElementById('linksGridBodyRows')).innerText),
             said: await status.textContent() ?? '',
@@ -4397,7 +4466,16 @@ test('links: an offline save of a design this device knows was removed for good 
 // was not in the list yet) and made two, and the landing opened the new design over whatever had been
 // done meanwhile, clearing `dirty` over it. The create is HELD here (addDocHold), as the slow server.
 test('links: Save a copy as… says it is saving, makes one copy per press, and a late landing keeps later edits', async ({ page }) => {
+    // The held create is IN FLIGHT only until the slow-save bound (8s) calls it queued, and on CI's shared
+    // iPhone runner the steps below took longer than that: the copy was "Saved in this browser" before the
+    // second press (10 Nov 2026). The bound is the next test but one's subject, on a fake clock; here it is
+    // set past any run's length, and the page is asked which value it got.
+    await page.route('**/slow-save.js', async (route) => {
+        const res = await route.fetch();
+        await route.fulfill({ response: res, body: (await res.text()).replace(/export const SLOW_SAVE_MS = \d+;/, 'export const SLOW_SAVE_MS = 600000;') });
+    });
     await openWindowDesign(page);
+    expect(await page.evaluate(async () => (await import('/slow-save.js')).SLOW_SAVE_MS), 'premise: the bound is out of the way').toBe(600000);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
     const status = page.locator('#linksSaveStatus');
     await sheetAction(page, 'dupDesignBtn');
@@ -4799,8 +4877,11 @@ test('links generator: pressing Generate leaves the button under your finger and
     await clickDialogConfirm(page);
     // Wait for the design to exist before measuring anything: a dialog resolves after its close
     // lands, so a check taken at the click would see the pre-generate page — a button that "did
-    // not move" because nothing had happened yet, and an empty status to mirror.
-    await expect(page.locator('#genStatus')).toBeVisible({ timeout: 10_000 });
+    // not move" because nothing had happened yet, and an empty status to mirror. The mirror being
+    // VISIBLE no longer says so: since links-app-21 it reads "Building the link…" for a frame before
+    // the search runs, and on WebKit that frame stalled long enough for every check below to run
+    // inside it (mobile-safari, CI run 42838201900: an 18-character status). The finished line does.
+    await expect(page.locator('#genStatus')).toContainText('Link generated', { timeout: 10_000 });
 
     // The button did not move — the first-generate reflow (empty state → 24-row grid above this
     // card) is compensated, so pressing again to explore needs no re-scroll.

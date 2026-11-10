@@ -38,7 +38,7 @@ mock.module('./session.js', {
         AUTH_KEY: 'myb_admin_session', SESSION_MS: 1,
         getSession: () => _session, saveSession: () => {}, clearSession: async () => {},
         ensureFirebaseSession: async () => {}, sessionReady: Promise.resolve(),
-        resolveSession: () => {}, getSurname: () => '',
+        resolveSession: () => {},
     },
 });
 mock.module('./ls.js', {

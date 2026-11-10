@@ -342,7 +342,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         // ONLY THE TOPMOST OVERLAY ANSWERS THE KEYBOARD (v19.53). This is a `document` listener, so
         // it fired for a viewer sitting UNDERNEATH something else: a notification tap on a Circular
         // while the Huddle is open sets the hash, and `calendar-doc-viewer.js` opens over the top
-        // without closing this one — both listen to `hashchange` and neither knows about the other.
+        // without closing this one — both listen to `hashchange`, and neither closes the other.
         // One Escape then closed both, and `trapFocus` dragged Tab into a panel nobody could see.
         // That is the exact pair of symptoms the rule was written for; `createLightbox` has enforced
         // it since v19.53 and this viewer, being hand-rolled, was never brought along.

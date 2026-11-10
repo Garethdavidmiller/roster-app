@@ -140,7 +140,9 @@ test('paycalc: ticking the back-pay lump into the take-home leaves the holiday p
 
 test('paycalc: with no estimate, confirming last year\'s premium offers it on the January payslip at once', async ({ page }) => {
     // The member who entered no 2025/26 hours has no estimate, so no banner — and the banner carries
-    // the opt-in tick. Before the fix it appeared only after some unrelated edit.
+    // the opt-in tick. Before the fix it appeared only after some unrelated edit. The figure is
+    // CONFIRMED, copied off this payslip the day after it was paid, so the banner states it rather
+    // than hedging it ("could land" — the wording before 987f545f).
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(new Date('2027-01-16T10:00:00Z'));
     await seedSession(page);
@@ -154,7 +156,9 @@ test('paycalc: with no estimate, confirming last year\'s premium offers it on th
     await page.locator('#priorHppActualInput').press('Tab');
 
     await expect(page.locator('#hppActiveBanner')).toBeVisible();
-    await expect(page.locator('#hppBannerText')).toContainText('Holiday Pay Premium of £500.00 could land on this payslip');
+    await expect(page.locator('#hppBannerText'))
+        .toHaveText('ℹ️ Your Holiday Pay Premium of £500.00 is on this payslip — not added to this estimate');
+    await expect(page.locator('#hppBannerTick'), 'offered, not added: the tick is the member\'s to give').not.toBeChecked();
     expect(errors).toHaveLength(0);
 });
 

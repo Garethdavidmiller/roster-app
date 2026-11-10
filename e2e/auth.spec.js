@@ -915,6 +915,10 @@ test('login overlay geometry is identical across every page that shows it', asyn
 // scrolled sideways: 562px of scroll on a 375px phone, 1,919 in a 1,280 window. Pinned against that
 // kind of rule itself, injected on every page, so the guard holds whichever page happens to carry one.
 test('the sign-in screens never scroll sideways, whatever a page styles its fields by element', async ({ page }) => {
+    // Before the first page, as its contract says: WebKit serves a later page the roster-data.js it already holds,
+    // past the route that turns the setting on, so a call after the loop left mobile-safari with no set-password
+    // card to measure (10 Nov 2026). The loop below never signs in, so the setting changes nothing there.
+    await forcePasswordSet(page);
     const BY_ELEMENT = 'input, input[type="text"] { width: 100%; min-height: 44px; padding: 8px 10px; border: 2px solid; }';
     const PAGES = APP_PAGES.filter(p => p.file !== 'index.html'
         && (p.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true)).map(p => p.url);
@@ -935,7 +939,6 @@ test('the sign-in screens never scroll sideways, whatever a page styles its fiel
         }
     }
     // The forced set-password card carries the same field.
-    await forcePasswordSet(page);
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#pwForceOverlay')).toBeVisible();

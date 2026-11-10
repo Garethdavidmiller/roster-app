@@ -10,7 +10,7 @@
  */
 import { test, expect, forcePasswordSet } from './fixtures.js';
 import { seedSession, seedMember, seedMemberSession, isTouchProject, scaleText, tooWide, waitForPageSettled, signInThroughOverlay,
-    openRosterReview, stubUsageReads, stubPerfReads } from './helpers.js';
+    openRosterReview, stubUsageReads, stubPerfReads, clickInView } from './helpers.js';
 import { teamMembers, CONFIG } from '../roster-data.js';
 import { APP_PAGES as APP_PAGES_LIST } from '../scripts/app-pages.mjs';
 
@@ -260,14 +260,20 @@ test('promptDialog: a text selection dragged out onto the backdrop does not clos
     const card = /** @type {{ x: number, y: number, width: number, height: number }} */ (
         await page.locator('.dialog-overlay.open .dialog-lb-content').boundingBox());
     const y = field.y + field.height / 2;
+    // Halfway from the screen's edge to the card's: on the backdrop at every width. A fixed 24px out was
+    // off the screen on a phone, where the card is 90vw and leaves 20px a side — the drag then ended on
+    // nothing and passed without testing anything, and the tap closed nothing.
+    const x = card.x / 2;
+    expect(await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.matches('.dialog-overlay.open') ?? false, [x, y]),
+        'premise: the point the drag ends on, and the tap lands on, is the backdrop').toBe(true);
     await page.mouse.move(field.x + field.width - 6, y);
     await page.mouse.down();
-    await page.mouse.move(card.x - 24, y, { steps: 6 });   // out past the card's edge, onto the backdrop
+    await page.mouse.move(x, y, { steps: 6 });               // out past the card's edge, onto the backdrop
     await page.mouse.up();
     await page.waitForTimeout(400);
     await expect(input, 'the prompt closed under a text selection').toBeVisible();
 
-    await page.mouse.click(card.x - 24, y);                  // a real tap on the backdrop
+    await page.mouse.click(x, y);                            // a real tap on the backdrop
     await expect(page.locator('.dialog-overlay.open')).toHaveCount(0);
     expect(await page.evaluate(() => /** @type {any} */ (window).__answer), 'a backdrop tap is still a Cancel').toBe(null);
 });
@@ -466,6 +472,10 @@ test('drawer: the guide search box looks the same on every card page while it is
 // overflow is inside a fixed overlay, so no document-width check could see it.
 test('the sign-in and set-password screens never scroll sideways, on any page', async ({ page }) => {
     test.setTimeout(90_000);
+    // BEFORE the first page, as forcePasswordSet's contract says: WebKit serves a later page the roster-data.js
+    // it already holds, past the route that turns the setting on, so a call after the first loop never reached
+    // the set-password half there (10 Nov 2026). Nothing in the first loop signs in, so it changes nothing there.
+    await forcePasswordSet(page);
     await page.setViewportSize({ width: 375, height: 800 });
     const sideways = (/** @type {string} */ id) => page.locator(id).evaluate(el => el.scrollWidth - el.clientWidth);
     for (const p of APP_PAGES_LIST.filter(x => x.cards && (x.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true))) {
@@ -473,7 +483,6 @@ test('the sign-in and set-password screens never scroll sideways, on any page', 
         await page.locator('#loginOverlay.visible').waitFor();
         expect(await sideways('#loginOverlay'), `${p.file}: the sign-in screen scrolls sideways`).toBeLessThanOrEqual(0);
     }
-    await forcePasswordSet(page);
     for (const url of ['/admin.html', '/operations.html']) {
         await page.goto(url);
         await page.evaluate(() => localStorage.clear());   // the first page's sign-in must not carry over
@@ -1202,6 +1211,90 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
     }
 });
 
+// ── EVERY FIELD WEARS THE FIELD RING WHEN FOCUSED (whole-app check, 10 Nov 2026) ─────────────────
+// css-tokens.md: "Every focusable field carries `--focus-ring`, including inputs inside modals." No
+// test held that sentence for the page's own fields, and the sign-in fields and the picker's search box
+// wore the ring only on Admin and Operations, borrowed from those pages' field rules (those two are
+// pinned by e2e/auth.spec.js → "a focused sign-in field, and the picker's search box, wear the field
+// ring on every page"). A static reading cannot answer it — a page rule that sets only the outline
+// correctly leaves the glow to a wider one — so the focused field's COMPUTED shadow is read, on every
+// page, with every card opened as a reader opens it.
+// One field is left out by name, the drawer's guide search. The drawer stays shut through the sweep, so
+// the box cannot take focus (a shut drawer is `visibility: hidden`, and the sweep reports a field it
+// could not focus); opened, it is the one field that does not wear the ring, by decision — on the navy
+// drawer it wears the gold outline drawn for a dark surface (shared.css).
+const RING_EXEMPT = { '.nav-gs-input': 'shut, it cannot take focus; open, it wears the gold outline drawn for the navy drawer, not the light-surface glow' };
+test('every focusable field wears the field ring when focused @a11y', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard');
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+    });
+    for (const url of APP_URLS) {
+        await page.goto(url);
+        await waitForPageSettled(page);
+        if (url === '/paycalc.html') {
+            // Pay's payslip check is on screen only for a payslip that can be in hand, and calculate()
+            // re-hides it on every run for one that cannot — focusing the fields above it runs one — so
+            // forcing it open (the 16px sweep can, measuring in one task) would hide it again mid-sweep.
+            // A PAID payslip instead, as a member checking one has, and the two disclosures that are not
+            // cards opened by their own buttons.
+            await page.locator('#periodSelect').selectOption({ index: 1 });
+            await expect(page.locator('#checkActualWrap')).toBeVisible();
+            for (const btn of ['#hoursShowMore', '#actualMoreBtn']) {
+                const b = page.locator(btn);
+                if (await b.getAttribute('aria-expanded') !== 'true') await clickInView(b);
+                await expect(b).toHaveAttribute('aria-expanded', 'true');
+            }
+        }
+        // Opened through each card's own control (Pay's are `.content-card`s with an arrow), so a body
+        // that is hidden by more than its class is open too, and its fields can take focus.
+        for (const id of await page.locator('.card-collapsible-body, .collapsible-body').evaluateAll(els => els.map(e => e.id))) {
+            const body = page.locator(`#${id}`);
+            if (await body.evaluate(el => el.classList.contains('open'))) continue;
+            await body.evaluate(el => {
+                const card = el.closest('.card, .content-card');
+                /** @type {HTMLElement|null|undefined} */ (card?.querySelector('.card-toggle-arrow') ?? card?.querySelector('.card-header-toggle'))?.click();
+            });
+        }
+        // The ring is drawn on `:focus-visible`, and a script's focus() answers it the way the last
+        // interaction did: after Pay's clicks above, a focused BUTTON (every `.fieldpick` trigger) is a
+        // mouse user's and shows nothing. One Tab makes this a keyboard user's sweep — the reader the
+        // ring is for.
+        await page.keyboard.press('Tab');
+        const own = await ownElements(page, TEXT_FIELDS);
+        const seen = await page.evaluate(async (exempt) => {
+            const probe = document.body.appendChild(document.createElement('div'));
+            probe.style.boxShadow = 'var(--focus-ring)';
+            const ring = getComputedStyle(probe).boxShadow;
+            probe.remove();
+            const fields = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('input, select, textarea, .fieldpick')]).filter(el => {
+                const t = /** @type {any} */ (el).type;
+                return !['checkbox', 'radio', 'hidden', 'file'].includes(t) && el.getClientRects().length
+                    && !(/** @type {any} */ (el).disabled) && el.tabIndex >= 0
+                    && getComputedStyle(el).pointerEvents !== 'none'          // an enhanced select's value holder
+                    && !Object.keys(exempt).some(sel => el.matches(sel));
+            });
+            const bad = [];
+            for (const el of fields) {
+                el.focus();
+                const name = `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : '.' + String(el.className).split(' ')[0]}`;
+                if (document.activeElement !== el) { bad.push(`${name}: could not be focused, so it was not measured`); continue; }
+                await Promise.all(el.getAnimations().map(a => a.finished.catch(() => {})));
+                if (!getComputedStyle(el).boxShadow.includes(ring)) bad.push(`${name}: no --focus-ring`);
+                el.blur();
+            }
+            return { measured: fields.length, bad };
+        }, RING_EXEMPT);
+        expect(own.held === 0 || seen.measured > 0,
+            `${url} holds ${own.held} fields of its own and none was focused — the page was not laid out, so this proves nothing`).toBe(true);
+        expect(seen.bad, `${url}: focused fields without the field ring`).toEqual([]);
+    }
+});
+
 /**
  * THE PRE-EXISTING FAILURES THE v23.35 WIDENING FOUND, RECORDED RATHER THAN HIDDEN.
  *
@@ -1271,6 +1364,12 @@ const KNOWN_SMALL = {
 // would fail a control that is comfortably operable. What that bargain requires is that the row
 // ACTUALLY clears 44px, which is the half Settings was missing — its `.pw-show-row` had no height
 // of its own, so the label rescued nothing.
+//
+// A `<summary>` IS A CONTROL TOO (whole-app check, 10 Nov 2026): it is the button that opens its
+// `<details>`, and the selector never named it, so no fold in the app was measured. The walk reaches
+// the Links check card's quiet fold; the others — Trains' "Train by train", Links' compare fold,
+// Admin's save receipt, Operations' stack trace — appear only after a choice, a save or an error
+// that this walk does not make.
 test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
     test.skip(info.project.name !== 'mobile-chrome', 'a thumb, not a mouse');
     // It walks every control on several pages, so it needs ~32s on an idle runner — right on the
@@ -1312,7 +1411,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
         // No wait after opening: `.open` is `display: block`, nothing animates (the 16px sweep above).
         await page.evaluate(() => document.querySelectorAll('.card-collapsible-body')
             .forEach(el => el.classList.add('open')));
-        const own = await ownElements(page, 'button, select, [role=button], input[type=checkbox], input[type=radio]');
+        const own = await ownElements(page, 'button, select, summary, [role=button], input[type=checkbox], input[type=radio]');
         expect(own.held === 0 || own.withBox > 0,
             `${url} holds ${own.held} controls of its own and none had a box — the page was not laid out, so this proves nothing`).toBe(true);
         const scan = () => page.evaluate(() => {
@@ -1362,7 +1461,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
             const target = (el) => (/^(checkbox|radio)$/.test(el.type)
                 && el.closest('label')) || el;
             document.querySelectorAll(
-                'button, select, [role=button], input[type=checkbox], input[type=radio]'
+                'button, select, summary, [role=button], input[type=checkbox], input[type=radio]'
             ).forEach(node => {
                 const el = target(node);
                 const r = el.getBoundingClientRect();
