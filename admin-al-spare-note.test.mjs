@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spareShiftNote, countSpareDays } from './admin-al-spare-note.js';
 import { teamMembers, getBaseShift, isSunday } from './roster-data.js';
+import { projectAlBooking } from './admin-al-projection.js';
 
 test('no Spare days → no line at all', () => {
     for (const n of [0, -1, NaN, undefined, null]) {
@@ -113,4 +114,41 @@ test('a saved Spare override counts even over a working base', () => {
     assert.equal(countSpareDays(f.m, [f.iso], new Map()), 0, 'premise: the base alone is not Spare');
     assert.equal(countSpareDays(f.m, [f.iso], spare), 1);
     assert.equal(countSpareDays(null, [f.iso], spare), 0, 'no member, no count');
+});
+
+// ── …AND ONLY WHILE IT COSTS A DAY (whole-app check, 10 Nov 2026) ───────────────────────────────
+// Leave over a Spare turn saved on a base REST day is free, like leave over RDW (owner, 10 Nov 2026),
+// and the booking records it at no cost. The note says each day it counts "still uses 1 day of annual
+// leave", so it said that about a day the same preview called free.
+
+/** A CEA/CES member and a non-Sunday BASE REST day in November 2026 (clear of 25/26 December). */
+function findRest() {
+    for (const m of teamMembers) {
+        if (m.hidden || m.managerOnly || (m.role !== 'CEA' && m.role !== 'CES')) continue;
+        for (let i = 0; i < 30; i++) {
+            const d = new Date(2026, 10, 1 + i);
+            const iso = `2026-11-${String(d.getDate()).padStart(2, '0')}`;
+            if (!isSunday(iso) && getBaseShift(m, d) === 'RD') return { m, iso };
+        }
+    }
+    return null;
+}
+
+test('a Spare turn saved on a base rest day is not counted — the booking charges nothing for it', () => {
+    const f = findRest();
+    assert.ok(f, 'fixture: no member has a non-Sunday rest day in November 2026');
+    const spare = new Map([[f.iso, { type: 'spare_shift', value: 'SPARE' }]]);
+    const booked = projectAlBooking({ member: f.m, dates: [f.iso], ovByDate: spare });
+    assert.deepEqual([booked.consuming, booked.freeWritten], [[], [f.iso]], 'premise: the booking records the day at no cost');
+    assert.equal(countSpareDays(f.m, [f.iso], spare), 0,
+        'the note would say "It still uses 1 day of annual leave" about a day the booking does not charge');
+});
+
+test('over a month of Spare turns, the note counts exactly the days the booking charges', () => {
+    const f = /** @type {any} */ (findRest());
+    const dates = Array.from({ length: 30 }, (_, i) => `2026-11-${String(i + 1).padStart(2, '0')}`);
+    const spare = new Map(dates.map(d => [d, { type: 'spare_shift', value: 'SPARE' }]));
+    const booked = projectAlBooking({ member: f.m, dates, ovByDate: spare });
+    assert.ok(booked.consuming.length > 0 && booked.freeWritten.length > 0, 'premise: the month holds working days and rest days');
+    assert.equal(countSpareDays(f.m, dates, spare), booked.consuming.length);
 });

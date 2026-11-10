@@ -55,8 +55,9 @@ deep-link allowlist are `notifications.md`.
   creation order and returns the OLDEST version's copy, which served previous-version HTML to a
   fresh-JS page (a mixed-version hazard). The JS/CSS path uses the same newest-older lookup as its last
   resort for pure-offline mid-transition.
-- **Latency:** Navigation Preload is enabled on activate (the browser starts the network-first HTML
-  fetch in parallel with SW boot; the doc branch consumes `event.preloadResponse`); the warm-up runs
+- **Latency:** Navigation Preload is turned OFF on activate (Nov 2026 — with HTML never re-fetched
+  once cached it was a wasted request on every open; a miss is the worker's own `no-cache` fetch, and
+  the doc branch still consumes a preload that arrives); the warm-up runs
   in batches of 8 (not the whole list in parallel) and skips assets the reloading page already cached;
   fonts/icons warm without `cache:'no-cache'` (immutable, served from HTTP cache); navigations are
   cached under the bare path (query stripped — `ignoreSearch` on fallback match) and redirected

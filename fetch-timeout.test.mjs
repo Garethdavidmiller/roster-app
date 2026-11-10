@@ -277,6 +277,54 @@ describe('the deadline covers reading the body', () => {
     });
 });
 
+// ── …and so is the CALLER's signal (Nov 2026) ────────────────────────────────────────────────────
+// The caller's listener was removed when the headers arrived, so a cancel while the body was still
+// arriving did nothing: the read finished and the caller was handed a success for a request it had
+// cancelled — Overtime's `cancelled` branch, written for exactly this, could not be reached.
+describe('a caller cancel during the body read', () => {
+    /** Headers at once; the body finishes after `ms` unless the request's signal aborts it first. */
+    function slowBodyFetch(ms) {
+        return (/** @type {any} */ _url, /** @type {any} */ opts) => Promise.resolve({
+            ok: true, status: 200,
+            json: () => new Promise((resolve, reject) => {
+                const t = setTimeout(() => resolve({ a: 1 }), ms);
+                opts?.signal?.addEventListener('abort', () => {
+                    clearTimeout(t);
+                    const e = new Error('The operation was aborted'); e.name = 'AbortError'; reject(e);
+                });
+            }),
+        });
+    }
+
+    test('rejects the read with the ABORTED code — never resolves it as a success', async () => {
+        const caller = new AbortController();
+        globalThis.fetch = /** @type {any} */ (slowBodyFetch(80));
+        const r = await fetchWithTimeout('https://example.test', { signal: caller.signal }, 5000);
+        const read = r.json();
+        caller.abort();   // the headers are in; the body is still arriving
+        await assert.rejects(read, (/** @type {any} */ err) => {
+            assert.ok(isFetchAborted(err), 'a cancelled request must not be reported as a success');
+            assert.ok(!isFetchTimeout(err), 'and it is the caller\'s cancel, not our bound');
+            return true;
+        });
+    });
+
+    test('once the body HAS been read, the listener is gone and a later cancel is inert', async () => {
+        const caller = new AbortController();
+        let removed = false;
+        const realRemove = caller.signal.removeEventListener.bind(caller.signal);
+        caller.signal.removeEventListener = (/** @type {any[]} */ ...args) => { removed = true; return /** @type {any} */ (realRemove)(...args); };
+        /** @type {any} */ let seen;
+        globalThis.fetch = /** @type {any} */ ((/** @type {any} */ url, /** @type {any} */ opts) => { seen = opts.signal; return slowBodyFetch(5)(url, opts); });
+        const r = await fetchWithTimeout('https://example.test', { signal: caller.signal }, 5000);
+        assert.equal(removed, false, 'kept while the body is still to come');
+        assert.deepEqual(await r.json(), { a: 1 });
+        assert.equal(removed, true, 'released with the timer once the body is in');
+        caller.abort();
+        assert.equal(seen.aborted, false, 'a finished request is not aborted after the fact');
+    });
+});
+
 // ── A REFUSAL IS AN ANSWER, NOT A RETRY (whole-app review, Oct 2026) ────────────────────────────
 describe('serverRefusal', () => {
     test('a 4xx carries the server\'s own sentence', () => {

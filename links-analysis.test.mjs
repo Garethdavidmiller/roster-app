@@ -4,7 +4,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { ROTATING_LINES } from './links-design.js';
-import { POLICY_SOURCE_CONFIRMED } from './links-limits.js';
+import { POLICY_SOURCE_CONFIRMED, assessHardLimits } from './links-limits.js';
 import { assessFatigue } from './links-fatigue.js';
 
 // Minimal DOM: getElementById returns a per-id stub element with { innerHTML, style }.
@@ -91,17 +91,29 @@ test('designed state renders the coverage heat map + the checks panel', () => {
     assert.match(els.checksContent.innerHTML, /Shift balance/);
 });
 
-test('the panel states that its hours figures are a FLOOR', () => {
+test('the panel states that its hours figures are a FLOOR — when a spare week makes them one', () => {
     // `assessFatigue` has returned `hoursAreFloor` since v19.46 with a comment saying it exists "so
     // the UI can say so" — and for thirteen versions the UI did not. It matters more since v19.58
     // made spare a whole WEEK: a spare line carries no times, so it contributes seven worked days
     // and ZERO hours, and every hours figure understates by a standby week per spare line.
     // Under-reporting hours is the FLATTERING direction, which is the one thing this panel exists
     // not to do quietly.
-    resetDom();
-    const a = initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) });
-    a.renderDesignChecks();
-    assert.match(els.checksContent.innerHTML, /floor, not an estimate/);
+    //
+    // …and only then (whole-app review, Nov 2026). The flag was the constant `true`, so a design
+    // with no spare day was told its "real totals are higher" when they are exact.
+    const withSpare = fullPatterns();
+    withSpare['4'] = { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' };
+    for (const [label, patterns, floor] of /** @type {[string, any, boolean][]} */ ([
+        ['a design with a spare week', withSpare, true],
+        ['a design with no spare day', fullPatterns(), false],
+    ])) {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const html = els.checksContent.innerHTML;
+        assert.equal(/floor, not an estimate/.test(html), floor, `${label}: the panel's floor line`);
+        assert.equal(/this figure is a floor/.test(html), floor, `${label}: the 55-hour row's floor line`);
+        assert.equal(assessFatigue(patterns, ROTATING_LINES).hoursAreFloor, floor, `${label}: the flag itself`);
+    }
 });
 
 test('getDesign is read lazily — a later design change is reflected on the next render', () => {
@@ -594,6 +606,47 @@ test('the summary never claims full cover — only that the STAFFED hours have n
     assert.match(strip, /staffed hours?/i, 'the cover chip no longer says which hours it means');
 });
 
+// The cover chip counts staffed hours WITH TRAINS and nobody on; the card's red 0s count every staffed
+// hour with nobody on. Under the default windows the two are equal, because every default staffed
+// hour has a train; they part when a window takes in a train-less hour — here Sunday from 06:20,
+// where the first train is 07:42. The chip said "No gaps in staffed hours" over the card's red 0.
+test('the cover chip says WITH TRAINS in both forms, so it cannot contradict a red 0 on the card', async () => {
+    const { PROPOSALS } = await import('./links-proposals.js');
+    const sunFrom0620 = { monSat: { start: '06:20', end: '23:55' }, sun: { start: '06:20', end: '23:25' } };
+    resetDom();
+    const a = initLinksAnalysis({ getDesign: () => ({ patterns: PROPOSALS[1].patterns, window: sunFrom0620 }) });
+    a.renderCoverageChart();
+    assert.match(els.coverageHeatmap.innerHTML, /1 staffed hour with nobody on duty/, 'premise: the card shows a red 0');
+    a.renderSummary();
+    const chips = [...els.linksSummary.innerHTML.matchAll(/<span class="sum-chip[^"]*">.*?<\/strong>([^<]*)<\/span>/g)].map(m => m[1]);
+    const cover = chips.find(c => /staffed/.test(c));
+    assert.ok(cover, 'the cover chip did not render');
+    assert.match(cover, /with trains/, `the cover chip claims more than its figure counts: "${cover}"`);
+    assert.doesNotMatch(els.linksSummary.innerHTML, /gaps in staffed hours/i);
+
+    // …and the other form says the same thing about the same figure.
+    resetDom();
+    const bare = fullPatterns();   // nobody on at the weekend, so Saturday and Sunday trains meet nobody
+    initLinksAnalysis({ getDesign: () => ({ patterns: bare }) }).renderSummary();
+    assert.match(els.linksSummary.innerHTML, /sum-chip--bad"><span aria-hidden="true">⛔<\/span><strong>\d+<\/strong> staffed hours with trains and nobody on/);
+});
+
+// ── THE STRIP NAMES ITS DESIGN WHENEVER TWO GRIDS ARE ON SCREEN (whole-app review, Nov 2026) ────────
+// A design fresh from the generator has no name until its first save, and generate-then-compare is
+// the commonest way in. The chip needed a name, so the strip went unlabelled in exactly that case.
+test('in compare mode the strip names its design, an unsaved one as its compare column does', async () => {
+    const { COMPARE_ACTIVE_FALLBACK } = await import('./links-compare.js');
+    const chipFor = (/** @type {any} */ design, /** @type {boolean} */ comparing) => {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => design, isComparing: () => comparing }).renderSummary();
+        return (els.linksSummary.innerHTML.match(/<span class="sum-chip sum-chip--who">([^<]*)<\/span>/) || [])[1] ?? null;
+    };
+    assert.equal(chipFor({ name: 'Option A', patterns: fullPatterns() }, true), 'Option A');
+    assert.equal(chipFor({ name: '', patterns: fullPatterns() }, true), COMPARE_ACTIVE_FALLBACK, 'an unsaved design is named too');
+    assert.equal(chipFor({ patterns: fullPatterns() }, true), COMPARE_ACTIVE_FALLBACK);
+    assert.equal(chipFor({ name: '', patterns: fullPatterns() }, false), null, 'and outside compare mode there is no chip');
+});
+
 test('the summary never says "no fatigue factors" while standing factors exist', () => {
     resetDom();
     const patterns = fullPatterns();          // 06:00 starts ⇒ at least one STANDING early factor
@@ -644,6 +697,39 @@ describe('fatigue rows are advisory on screen', () => {
             assert.equal(row.cls, 'check-warn-row', `${r.code} is advisory: present means amber`);
         }
         assert.deepEqual(rows.filter(x => x.cls === 'check-bad').map(x => x.code), [], 'no fatigue row may wear check-bad');
+    });
+
+    // Three more renderings carry invariant 2 and had no test: each could be broken with every Links
+    // test green (contracts-b, whole-app review, Nov 2026).
+    test('the ORR factors are worth discussing, never "needs fixing"', () => {
+        const { html } = render();
+        const fix = (html.match(/check-triage--fix[\s\S]*?<\/ul>/) || [''])[0];
+        const discuss = (html.match(/check-triage--discuss[\s\S]*?<\/ul>/) || [''])[0];
+        assert.match(discuss, /ORR fatigue factors? present in this design/, 'premise: the fixture has a present factor');
+        assert.doesNotMatch(fix, /fatigue/i, 'a fatigue factor listed as something that has to be fixed reads as a pass/fail');
+    });
+
+    test('the fatigue section says, in words, that these are not pass/fail limits', () => {
+        const { html } = render();
+        const section = html.split(/<div class="check-section-head"><span>Fatigue factors/)[1] ?? '';
+        assert.match(section, /These are <strong>not pass\/fail limits<\/strong>/);
+    });
+
+    test('a breached company limit wears the red a fatigue row never does, and a met one is green', () => {
+        // Four days a week keeps the design inside the 219-day ceiling; lines 1 and 2 worked every
+        // day put fourteen in a row over the 13-day limit. One breached, one met.
+        const patterns = fullPatterns();
+        for (const k of Object.keys(patterns)) patterns[k].fri = 'RD';
+        for (const w of ['1', '2']) for (const d of ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']) patterns[w][d] = '06:00-14:00';
+        const { checks } = assessHardLimits(patterns, ROTATING_LINES);
+        assert.ok(checks.some(c => c.status === 'breach') && checks.some(c => c.status === 'ok'),
+            'premise: the fixture breaches one limit and meets another');
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const html = els.checksContent.innerHTML;
+        const section = (html.split(/data-claim="limit"/)[1] ?? '').split('<div class="check-section-head"')[0];
+        const rows = [...section.matchAll(/<div class="check-row ([^"]+)">/g)].map(m => m[1]);
+        assert.deepEqual(rows, checks.map(c => (c.status === 'breach' ? 'check-bad' : c.status === 'ok' ? 'check-good' : 'check-neutral')));
     });
 
     test('a STANDING factor renders inline — it is not "nothing to report"', () => {
@@ -827,5 +913,118 @@ describe('the hard-limit summaries', () => {
         assert.match(limitHead(), /not yet assessable/);
         assert.doesNotMatch(limitHead(), /within limits/, 'a half-drawn design must never read as passing');
     });
+});
+
+// ── A GAP INSIDE AN HOUR REACHES THE CARD AND THE STRIP (whole-app review, Nov 2026) ─────────────
+// Earlies to 14:20 and lates from 15:25: 65 minutes a day with nobody on, and every cell either side
+// shows people on duty, because a cell counts anyone on at any point in its hour. Asked by the hour,
+// the card said every staffed hour had someone on duty and the strip said there were no gaps. The
+// question is asked train by train now (links-demand.test.mjs); this pins that both renderers ask it.
+test('a gap inside the hour is named on the card and counted on the strip', () => {
+    const p = /** @type {Record<string, any>} */ ({});
+    for (let i = 1; i <= ROTATING_LINES; i++) {
+        const t = i <= ROTATING_LINES / 2 ? '06:20-14:20' : '15:25-23:55';
+        p[String(i)] = { sun: t, mon: t, tue: t, wed: t, thu: t, fri: t, sat: t };
+    }
+    resetDom();
+    const a = initLinksAnalysis({ getDesign: () => ({ patterns: p }) });
+    a.renderCoverageChart();
+    const card = els.coverageHeatmap.innerHTML.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+    assert.match(card, /Trains run with nobody on duty in 14 staffed hours/, 'the card does not name the gap');
+    assert.match(card, /98 train movements a week/);
+    assert.match(card, /Those hours show people on duty in the table above: the gap is inside the hour/,
+        'the card does not say why the cells above it show people on duty');
+    assert.doesNotMatch(card, /Every train inside the staffed window has someone on duty/);
+    a.renderSummary();
+    assert.match(els.linksSummary.innerHTML, /sum-chip--bad"><span aria-hidden="true">⛔<\/span><strong>14<\/strong>/,
+        'the strip does not count the hours with trains and nobody on');
+});
+
+// ── THE FATIGUE HEADING COUNTS EACH STATUS AS ITSELF (whole-app review, Nov 2026) ─────────────────
+// It read "23 clear" over thirteen clear factors and ten not applicable — on the always-visible,
+// printed line an assessing manager reads first, against the panel's own NOT-APPLICABLE ≠ CLEAR.
+test('the fatigue heading counts clear and not-applicable apart, and every status it names', async () => {
+    const { PROPOSALS } = await import('./links-proposals.js');
+    for (const patterns of [fullPatterns(), ...PROPOSALS.map(p => p.patterns)]) {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const head = (els.checksContent.innerHTML.match(/Fatigue factors <span[^>]*>[^<]*<\/span><\/span><span class="check-section-meta">([^<]*)</) || [])[1];
+        assert.ok(head, 'the fatigue heading did not render');
+        const by = (/** @type {string} */ s) => assessFatigue(patterns, ROTATING_LINES).results.filter(r => r.status === s).length;
+        const count = (/** @type {string} */ word) => Number((head.match(new RegExp(`(\\d+) ${word}`)) || [])[1] ?? 0);
+        assert.equal(count('present'), by('present'), head);
+        assert.equal(count('standing'), by('standing'), head);
+        assert.equal(count('clear'), by('clear'), head);
+        assert.equal(count('not applicable'), by('n/a'), head);
+        assert.ok(by('n/a') > 0, 'premise: the night family is not applicable here, so the split is exercised');
+    }
+});
+
+// ── SENTENCES THAT READ WRONGLY AT THE EDGES (whole-app review, Nov 2026) ─────────────────────────
+describe('sentences at the edges', () => {
+    const text = (/** @type {string} */ html) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+    const demandNote = (/** @type {any} */ window) => {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns(), window }) }).renderCoverageChart();
+        return text(els.coverageHeatmap.innerHTML.split('dem-note')[1] ?? '');
+    };
+
+    test('each service-outside clause has a subject, and "Both" is said only of two', () => {
+        const both = demandNote(undefined);
+        assert.match(both, /\d+ train movements run after the day's finish .* \d+ run before the day's start .* Both are stated, not scored/,
+            'the default window has movements on both sides');
+        const noAfter = demandNote({ monSat: { start: '06:20', end: '23:59' }, sun: { start: '07:15', end: '23:59' } });
+        assert.match(noAfter, /\b12 train movements run before the day's start/, 'with nothing after, the clause names its own subject');
+        assert.match(noAfter, /They are stated, not scored/);
+        assert.doesNotMatch(noAfter, /Both are/);
+        const noBefore = demandNote({ monSat: { start: '00:00', end: '23:55' }, sun: { start: '00:00', end: '23:25' } });
+        assert.match(noBefore, /train movements run after the day's finish/);
+        assert.doesNotMatch(noBefore, /before the day's start/);
+        assert.doesNotMatch(noBefore, /Both are/);
+    });
+
+    test('one Sunday duty is one duty', () => {
+        const p = fullPatterns();
+        p['1'].sun = '06:00-14:00';
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: p }) }).renderDesignChecks();
+        assert.match(text(els.checksContent.innerHTML), /— 1 Sunday duty, 8h 00m across the rotation/);
+    });
+
+    test('an overlap is said as an overlap, never as a negative rest', () => {
+        // 18:00–02:30 on Monday into a 01:00 start on Tuesday: the second duty starts 1h 30m before
+        // the first ends. As a signed figure it read "-2h -30m rest" — wrong in sign and in size.
+        const p = fullPatterns();
+        p['1'].mon = '18:00-02:30';
+        p['1'].tue = '01:00-09:00';
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: p }) }).renderDesignChecks();
+        const t = text(els.checksContent.innerHTML);
+        assert.match(t, /Line 1 mon \(ends 02:30\) → Line 1 tue \(starts 01:00\) — overlapping by 1h 30m/);
+        assert.match(t, /Two consecutive duties overlap: the second starts 1h 30m before the first ends\./);
+        assert.doesNotMatch(t, /-\d+h/);
+    });
+});
+
+// ── A STORED CELL IS TEXT, NEVER MARKUP (whole-app review, Nov 2026) ─────────────────────────────
+// The short-turnaround row quotes the two times it measured, cut from the stored cell. The time
+// readers once anchored one END of the string each (`^HH:MM-`, `-HH:MM$`), so `15:25-<anything>-23:55`
+// read as a duty, `normalisePatterns` kept it, and the rules check `patterns` only as a map. Its middle
+// reached `innerHTML` raw: the one place on this card where a design's own text did. The readers now
+// take only a whole HH:MM-HH:MM (links-design.js `TIME_PAIR`, pinned in links-design.test.mjs), so such
+// a cell is no duty at all, and the card says it could not read it instead of quoting it. The row's
+// own escape is a second wall that no stored cell can reach today, so this pins the end-to-end
+// property — nothing of the cell as markup, and nothing of it read as a time — not the escape.
+test('a stored cell with markup in it is counted as unreadable, and none of it reaches the card as markup', () => {
+    resetDom();
+    const patterns = fullPatterns();
+    patterns['1'].sat = '15:25-<img src=x onerror=alert(1)>-23:55';
+    patterns['2'].sun = '06:20-14:20';   // 6h 25m after a 23:55 finish, were the cell a duty
+    initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+    const html = els.checksContent.innerHTML;
+    const words = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+    assert.doesNotMatch(html, /<img/i, 'a fragment of a stored cell was written into the page as markup');
+    assert.doesNotMatch(html, /Short turnarounds/, 'a cell that is not a whole time was read as a duty');
+    assert.match(words, /1 worked cell could not be read as a time/, 'the unreadable cell is said, never dropped in silence');
 });
 

@@ -71,11 +71,11 @@ function londonOffsetMinutes(utcMs) {
  * The epoch-ms instant of `hour:00:00` Europe/London on an ISO calendar date.
  *
  * ── WHY TWO PASSES, HONESTLY ────────────────────────────────────────────────────────────────────
- * For the only two hours this module actually uses — 00:00 and 12:00 — ONE pass is already correct
- * everywhere, including on both transition days, and mutation-testing confirms it (removing the
- * second pass leaves every noon and midnight assertion green). The reason is arithmetic: the guess
- * is at most |offset| = 1h from the answer, and the UK moves its clocks at 01:00–02:00 local, so
- * neither the guess nor the answer straddles a transition at those hours.
+ * For the three hours in use — 00:00 and 12:00, and 05:00 for `lastSchedulerRun` — ONE pass is
+ * already correct everywhere, including on both transition days, and mutation-testing confirms it
+ * (removing the second pass leaves every noon and midnight assertion green). The reason is
+ * arithmetic: the guess is at most |offset| = 1h from the answer, and the UK moves its clocks at
+ * 01:00–02:00 local, so neither the guess nor the answer straddles a transition at those hours.
  *
  * The second pass is here for the NEXT hour somebody uses. It diverges only where local time is
  * pathological — 01:00 on spring-forward, which does not exist — and there it resolves forward
@@ -83,12 +83,12 @@ function londonOffsetMinutes(utcMs) {
  * resolution and the one a reader expects. It is one extra `Intl` read, it is pinned by
  * `overtime-core.test.mjs`, and it is what stops a future deadline time from shipping an hour out.
  *
- * ⚠️ 00:00 and 12:00 are both safe from the two pathologies of local-time arithmetic. **If you add
- * a third hour, decide first** what a non-existent time (spring gap) and a doubled time (autumn
- * overlap) should mean for a DEADLINE — "which 01:30 was I supposed to submit by" is not a question
- * to answer at the keyboard.
+ * ⚠️ 00:00, 05:00 and 12:00 are all safe from the two pathologies of local-time arithmetic. **If you
+ * add an hour between 01:00 and 02:00, decide first** what a non-existent time (spring gap) and a
+ * doubled time (autumn overlap) should mean for a DEADLINE — "which 01:30 was I supposed to submit
+ * by" is not a question to answer at the keyboard.
  * @param {string} isoDate "YYYY-MM-DD"
- * @param {number} hour    0–23; in production only 0 or 12 — see above
+ * @param {number} hour    0–23; in production 0, 5 or 12 — see above
  * @returns {number} epoch ms
  */
 function londonTimestamp(isoDate, hour) {

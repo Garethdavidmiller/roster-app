@@ -277,4 +277,17 @@ describe('the search box is named in English', () => {
             assert.equal(searchLabelFor(/** @type {any} */ (bad)), 'Search');
         }
     });
+
+    // THE TITLES THE APP REALLY PASSES (whole-app check, Nov 2026). The tests above used a title no
+    // caller passes; the callers ask QUESTIONS, and the rule welded them into "Search whose roster are
+    // you reading?". A question, or a label with figures and marks in it, has no noun to keep.
+    test('a question, or a label that is not plain words, makes the box just "Search"', () => {
+        for (const title of ['Whose roster are you reading?', 'Which member are you working on?', 'Which pay period?',
+            'Opted out from which period?', 'Paid off from which period?', 'Paid in which period?', 'Show which month?',
+            'Line 3 · Mon']) {
+            assert.equal(searchLabelFor(title), 'Search', `"${title}" is not something to weld onto "Search"`);
+        }
+        assert.equal(searchLabelFor('Select your name'), 'Search your name', 'the sign-in sheet keeps its noun');
+        assert.equal(searchLabelFor('Saved staffing setups'), 'Search saved staffing setups');
+    });
 });

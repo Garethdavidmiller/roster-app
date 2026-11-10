@@ -41,10 +41,11 @@ export function alFigureYear({ pickedFrom, pickerViewYear, shiftDate, today }) {
     if (pickedFrom) return String(pickedFrom).substring(0, 4);
     // `!= null` rather than a truthiness test states the intent — null means "the picker has not
     // moved", not "the picker is showing year zero". It is a SHAPE guard and nothing more: no
-    // reachable input distinguishes the two, because the only caller passes a year off a real Date
-    // between MIN_YEAR and MAX_YEAR. Mutating it to `if (pickerViewYear)` leaves the whole suite
-    // green, and that is recorded here rather than papered over with a test for year 0 — a case
-    // that cannot occur, asserted to make a number go up.
+    // reachable input distinguishes the two, because the only caller passes the year the range
+    // picker has moved to, and `buildRangePicker` moves only between CONFIG.MIN_YEAR and MAX_YEAR
+    // (bounded 10 Nov 2026; before that it ran to any year). Mutating it to `if (pickerViewYear)`
+    // leaves the whole suite green, and that is recorded here rather than papered over with a test
+    // for year 0 — a case that cannot occur, asserted to make a number go up.
     if (pickerViewYear != null) return String(pickerViewYear);
     if (shiftDate) return String(shiftDate).substring(0, 4);
     return String(today.getFullYear());

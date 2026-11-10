@@ -7,9 +7,10 @@
 //     cached the data — which is why calendar-overrides.js carries its own gate.
 //
 // Both follow from the same mechanism, so one experiment settles both.
-// SDK 12.16.0 is served from 127.0.0.1 — the exact bundles gstatic serves, fetched once and
-// rewritten only to resolve their own cross-import locally. No CDN at run time, no proxy.
-import { chromium } from '/home/user/roster-app/node_modules/@playwright/test/index.mjs';
+// The SDK is served from 127.0.0.1 — the exact bundles gstatic serves (README step 1 fetches the
+// version firebase-client.js loads), rewritten only to resolve their own cross-import locally. No CDN
+// at run time, no proxy. The README's results were measured on 12.16.0.
+import { chromium } from '@playwright/test';   // the repository's install, from any checkout
 
 const PROJECT = 'myb-roster-offline-proof';
 const RULES_URL = `http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}:securityRules`;

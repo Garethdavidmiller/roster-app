@@ -151,6 +151,19 @@ test('an hour with trains and nobody on is found, and named', () => {
     assert.ok(r.service.uncovered.b.where.every(w => w.day === 'sun'), 'and every one is on the Sunday');
 });
 
+test('a gap inside the hour is found here too — the comparison asks what the card asks', () => {
+    // Earlies to 14:20 and lates from 15:25: every hour has somebody on for part of it, and 98 trains
+    // a week meet nobody. Rule 1: the comparison reads cover exactly as the Coverage card does.
+    /** @type {Record<string, any>} */ const gap = {};
+    for (let i = 1; i <= ROTATING_LINES; i++) {
+        const t = i <= ROTATING_LINES / 2 ? '06:20-14:20' : '15:25-23:55';
+        gap[String(i)] = { sun: t, mon: t, tue: t, wed: t, thu: t, fri: t, sat: t };
+    }
+    const r = compareDesigns(PT, { patterns: gap });
+    assert.equal(r.service.uncovered.b.hours, 14, 'hours 14 and 15, on all seven days');
+    assert.deepEqual([...new Set(r.service.uncovered.b.where.map(w => w.hour))], [14, 15]);
+});
+
 // ── v24.25: the three things review found compare mode stating more strongly than the card does ──
 
 /** Every rotating line works `wk` Mon–Thu, `fri` on Friday, and rests at the weekend. */
@@ -172,6 +185,17 @@ test('the weekday row is the FEWEST on duty on any weekday — never Monday stan
     assert.equal(wk.a, 0, 'Friday has nobody on, so the weekday figure is 0');
     assert.deepEqual(wk.fewestOn.a, ['fri'], 'and it says which day that is');
     assert.equal(wk.days, 5);
+});
+
+test('the hours are called a floor when either design has a spare day, and only then', () => {
+    // The flag was the constant `true`, so two designs with no spare day were told every hours figure
+    // was "a floor, not an estimate" (whole-app review, Nov 2026).
+    const plain = weekdayDesign('06:00-14:00', '06:00-14:00');
+    const spare = structuredClone(plain);
+    spare.patterns['2'] = { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' };
+    assert.equal(compareDesigns(plain, plain).fatigue.hoursAreFloor, false);
+    assert.equal(compareDesigns(plain, spare).fatigue.hoursAreFloor, true);
+    assert.equal(compareDesigns(spare, plain).fatigue.hoursAreFloor, true);
 });
 
 test('a factor that moved carries its threshold and its "to confirm" flag, as the card does', () => {

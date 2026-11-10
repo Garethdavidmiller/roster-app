@@ -32,8 +32,14 @@ const APP_JS = readdirSync(new URL('./', ROOT))
 // simply never increments, and the Usage card under-reports for as long as nobody notices. The ids
 // live in three places: the rules allowlist, the recordUsage() call sites, and OPEN_META.
 test('every analytics id the client can write is allowed by firestore.rules', () => {
-    const m = RULES.match(/request\.resource\.data\.counts\.keys\(\)\.hasOnly\(\[([\s\S]*?)\]\)/);
-    assert.ok(m, 'analytics counts allowlist not found in firestore.rules — has the rule been reshaped?');
+    const m = RULES.match(/function pvCountIds\(\) \{\s*return \[([\s\S]*?)\];/);
+    assert.ok(m, 'analytics counts allowlist (`pvCountIds`) not found in firestore.rules — has the rule been reshaped?');
+    // …and it must be what the pv_ rule actually consults, or this compares the client with a list
+    // nothing reads.
+    assert.match(RULES, /\.addedKeys\(\)\.hasOnly\(pvCountIds\(\)\)/,
+        'the pv_ rule no longer checks the ids a write adds against pvCountIds()');
+    assert.match(RULES, /\.changedKeys\(\)\.hasOnly\(pvCountIds\(\)\)/,
+        'the pv_ rule no longer checks the ids a write changes against pvCountIds()');
     const allowed = new Set([...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]));
 
     // Page views: the id each coordinator passes to recordUsage().
@@ -51,10 +57,13 @@ test('every analytics id the client can write is allowed by firestore.rules', ()
         'ids the client writes but firestore.rules rejects — the write fails SILENTLY (fire-and-forget), so the counter just stops');
 
     // The reverse direction too: a leftover id in the rules is dead allowlist surface, and usually
-    // means a counter was renamed on the client and the rule kept the old spelling.
+    // means a counter was renamed on the client and the rule kept the old spelling. Removing one is
+    // safe whenever this fails: the list judges only what a write adds or changes, so the key the
+    // month's document still holds stops nothing (until 10 Nov 2026 it refused every later page view
+    // for the rest of the month).
     const stale = [...allowed].filter(id => !clientIds.has(id)).sort();
     assert.deepEqual(stale, [],
-        'ids allowed by firestore.rules that no client code writes — stale allowlist entries');
+        'ids allowed by firestore.rules that no client code writes — stale allowlist entries; remove them from pvCountIds() and their `is int` lines');
 });
 
 // The guide open ids have a FOURTH home — NAV_GUIDES in nav-panel.js, which is what actually emits
@@ -97,6 +106,21 @@ test('every guide in the nav drawer has an open counter, and every guide counter
         'the guide link no longer carries data-open-id — the open counter has lost its id source');
     assert.doesNotMatch(NAV, /_href\.includes\('(guide|fip)/,
         'guide open ids must not be matched from the href — see the substring trap above');
+});
+
+// The rules file's ONE maintained answer to "when did this last change" is its "Last swept" line,
+// and the 0.10 doc-stamp check does not cover the file, so the line is kept by hand. It read v24.56
+// while changes labelled v25.06 and v25.18 landed beneath it (whole-app fix, 10 Nov 2026). This
+// cannot see a change nobody labelled; it refuses a sweep line older than a version the file cites.
+test('the firestore.rules sweep line is not older than any version the file cites', () => {
+    const sweep = RULES.match(/^\/\/ Last swept [^\n]*?\bv(\d+)\.(\d{2})\b/m);
+    assert.ok(sweep, 'the "// Last swept … vNN.NN" line was not found in firestore.rules');
+    const rank = (/** @type {string} */ major, /** @type {string} */ minor) => Number(major) * 100 + Number(minor);
+    const swept = rank(sweep[1], sweep[2]);
+    const newer = [...new Set([...RULES.matchAll(/\bv(\d{2})\.(\d{2})\b/g)]
+        .filter(m => rank(m[1], m[2]) > swept).map(m => m[0]))];
+    assert.deepEqual(newer, [],
+        `firestore.rules cites ${newer.join(', ')} but its "Last swept" line says v${sweep[1]}.${sweep[2]} — re-read the file against its comments and restamp that line`);
 });
 
 // ── 2. The "Other" day-family flavour grammar ───────────────────────────────────────────────────

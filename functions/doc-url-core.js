@@ -23,7 +23,8 @@
  * ── THE THREE RULES, AND WHY EACH IS HERE RATHER THAN IN THE HANDLER ────────────────────────────
  *
  * 1. WHO. `mayReceiveDocumentUrl` is a MIRROR of `firestore.rules` for `huddles`, `circulars` and
- *    `newsletters`: a member `name` claim, `admin`, or the shared `calendarViewer` capability the
+ *    `newsletters`: the BOUND member (`memberNameFromClaims` — a `name` on its own password account,
+ *    carrying the server's `member` claim), `admin`, or the shared `calendarViewer` capability the
  *    staff PIN mints. It must never be more permissive than the rule — if it were, this endpoint
  *    would become a way to read a document the rules refuse, which is the opposite of its purpose.
  *    `doc-url-core.test.mjs` pins the two together by reading `firestore.rules` itself, because two
@@ -130,21 +131,15 @@ function resolveKind(raw) {
  *
  * Malformed JSON is NOT an error here. It yields `undefined`, `resolveKind` refuses it, and the
  * caller gets the same 400 as any other unusable kind — there is nothing a caller could do
- * differently on being told which of the two it was.
+ * differently on being told which of the two it was. The reading itself is `jsonBodyOf`
+ * (request-helpers.js), the one copy every endpoint now shares (functions-core-8).
  *
- * @param {any} body  req.body, in any of the shapes the runtime may hand over
+ * @param {any} body      req.body, in any of the shapes the runtime may hand over
+ * @param {any} [rawBody] req.rawBody, read when the body itself carries nothing
  * @returns {any} the raw kind value, for `resolveKind` to accept or refuse
  */
-function kindFromBody(body) {
-    if (body && typeof body === 'object' && !Buffer.isBuffer(body)) return body.kind;
-    const text = Buffer.isBuffer(body) ? body.toString('utf8') : (typeof body === 'string' ? body : '');
-    if (!text) return undefined;
-    try {
-        const parsed = JSON.parse(text);
-        return parsed && typeof parsed === 'object' ? parsed.kind : undefined;
-    } catch (_) {
-        return undefined;
-    }
+function kindFromBody(body, rawBody) {
+    return jsonBodyOf(body, rawBody).kind;
 }
 
 /**
@@ -203,6 +198,7 @@ function isSignablePathForKind(kind, path) {
 }
 
 const { memberNameFromClaims } = require('./member-identity');
+const { jsonBodyOf } = require('./request-helpers');
 
 module.exports = {
     DOC_KINDS,

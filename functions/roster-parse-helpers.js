@@ -23,13 +23,14 @@
 // correct and unreachable: five physically blank weekdays became five explicit Rest Days, and on
 // the duplicate-sheet case that proposes overwriting the shifts the primary roster just wrote.
 //
-// It is matched CASE-INSENSITIVELY and the scan set below shares it, so `parsed`, `sundayScan` and
-// `columnScan` cannot end up with three subtly different ideas of what empty looks like.
+// It is matched CASE-INSENSITIVELY, beside the EMPTY and lone dash a model also writes
+// (`BLANK_READINGS`, cell-day-rules.js): the row read and both scans ask that one list, so one model's
+// three reads cannot disagree about what an empty cell looks like (the row read did, until Nov 2026).
 //
 // Required at the top since v25.38, because `normaliseShift` asks it about NA and NS.
 const {
-    BLANK_CELL_TOKEN,
-    isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, blankCellMeaning,
+    BLANK_CELL_TOKEN, BLANK_READINGS,
+    isBlankReading, isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, blankCellMeaning,
 } = require('./cell-day-rules');
 const { readOtherDayCell, namesMeeting } = require('./roster-other-days');
 const { isViewerAccount } = require('./calendar-viewer-auth');
@@ -51,19 +52,23 @@ const { isViewerAccount } = require('./calendar-viewer-auth');
  *   "MTG", "MEET" → "MEET"; "10:00-14:00 MTG" → "MEET 10:00-14:00"  (a meeting keeps its times, v25.38)
  *
  * @param {string} raw - Shift value from Claude AI
+ * @param {{ quiet?: boolean }} [opts] - `quiet` classifies without logging, for a caller that only
+ *   asks what a PRINTED cell says (`cellSaysRest`): there every worked cell's duty line logged a
+ *   warning about a review row that never exists, burying the lines worth reading (import-server-8)
  * @returns {string}   - Normalised shift value
  */
-function normaliseShift(raw) {
+function normaliseShift(raw, { quiet = false } = {}) {
     if (typeof raw !== 'string') return 'RD';
     const s = raw.trim().toUpperCase();
+    const warn = quiet ? () => {} : (/** @type {string} */ m) => console.warn(m);
 
     if (s.replace(/[./]/g, '') === 'SP') return 'SPARE';   // "SP" / "S.P." / "S/P"
 
     // Valid 24-hour clock value: hours 00–23, minutes 00–59. The regexes below only
     // constrain digit COUNT, so without this an OCR slip like "29:75-88:90" would
     // normalise to a bogus shift time and pass review as a genuine shift. Out-of-range
-    // values fall through to the unrecognised path (warn → 'RD') so they don't silently
-    // become a real working shift.
+    // values fall through to the unrecognised path (the UNKNOWN review sentinel) so they
+    // don't silently become a real working shift.
     const validHHMM = (h, m) => +h >= 0 && +h <= 23 && +m >= 0 && +m <= 59;
 
     // A WORKED RANGE NEEDS TWO DIFFERENT CLOCK TIMES (v20.39). Both times valid is not enough:
@@ -148,7 +153,7 @@ function normaliseShift(raw) {
         // Bare 'RDW' means the AI omitted the required shift time. Return as-is so
         // the review table displays it for manual correction — the admin can see the
         // unusual value and fix it before approving the upload.
-        console.warn(`[parseRosterPDF] AI returned bare "RDW" with no time for "${raw}" — review table will flag it`);
+        warn(`[parseRosterPDF] AI returned bare "RDW" with no time for "${raw}" — review table will flag it`);
         return s;
     }
 
@@ -164,7 +169,7 @@ function normaliseShift(raw) {
     // Extract the leading time rather than defaulting to 'RD': if the member's base shift is also RD,
     // an 'RD' here would classify as MATCH and silently drop a genuine worked shift from the roster.
     // The extracted shift is still shown in the review table (surfaced as a DIFF when it differs from
-    // base). Genuinely unrecognised values (no valid leading time) still fall through to 'RD' below.
+    // base). Genuinely unrecognised values (no valid leading time) fall through to UNKNOWN below.
     // ACCEPTED TRADE-OFF: a hypothetical negating annotation ("06:00-12:00 CANCELLED") would also be
     // extracted as the worked time — but the old RD-default silently lost genuinely WORKED annotated
     // shifts, which is the error we have actually observed. If cancellation-style annotations ever
@@ -179,10 +184,10 @@ function normaliseShift(raw) {
         // the trailing token, so without this the RDW was dropped and the day saved as a plain `shift`
         // (normal pay) — the exact pay-loss rdwMatch guards, leaking through the annotated-time path (v16.19).
         if (/\bRDW\b/.test(s)) {   // word-boundaried so a stray substring (e.g. "…hARDWare…") can't force an RDW encode (v16.22)
-            console.warn(`[parseRosterPDF] Extracted leading RDW time from "${raw}" (trailing content ignored) — review table will show it`);
+            warn(`[parseRosterPDF] Extracted leading RDW time from "${raw}" (trailing content ignored) — review table will show it`);
             return `RDW|${time}`;
         }
-        console.warn(`[parseRosterPDF] Extracted leading time from "${raw}" (trailing content ignored) — review table will show it`);
+        warn(`[parseRosterPDF] Extracted leading time from "${raw}" (trailing content ignored) — review table will show it`);
         return time;
     }
 
@@ -212,7 +217,7 @@ function normaliseShift(raw) {
     // "PREFIX|value" decoding; capped so a pathological value can't bloat the payload.
     const cleaned = s.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
     if (cleaned === '') return 'RD';   // was only pipes/whitespace — treat as blank
-    console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — flagged UNKNOWN for review`);
+    warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — flagged UNKNOWN for review`);
     return `UNKNOWN|${cleaned}`;
 }
 
@@ -363,6 +368,25 @@ function mapColumnHeadersToDates(columnHeaders, dates) {
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /**
+ * The row that speaks for each member: the FIRST THAT SAYS ANYTHING (import-server-5). A real
+ * Dispatch sheet prints an EMPTY placeholder above the same member's real row, and the grid matcher
+ * already breaks that tie this way (`soleOccupied`, roster-geometry.js, v24.03): an empty row states
+ * nothing, so it stands only when no row for the name says anything. Two that do keep the first.
+ * @param {any[]} parsedMembers  the model's rows
+ * @returns {Map<string, any>}   trimmed memberName → the row that stands
+ */
+function memberRows(parsedMembers) {
+    const says = (/** @type {any} */ e) => Object.keys(e).some(k => headerToDayIndex(k) !== undefined && !isBlankReading(e[k]));
+    const out = new Map();
+    for (const e of Array.isArray(parsedMembers) ? parsedMembers : []) {
+        if (!e || typeof e !== 'object' || typeof e.memberName !== 'string' || !e.memberName.trim()) continue;
+        const kept = out.get(e.memberName.trim());
+        if (!kept || (!says(kept) && says(e))) out.set(e.memberName.trim(), e);
+    }
+    return out;
+}
+
+/**
  * Build safe shift entries from AI parsed output.
  *
  * The AI returns each member as an object with day-name keys.
@@ -377,7 +401,7 @@ const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
  */
 function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
-    const seenMembers = new Set();
+    const standing = memberRows(parsedMembers);
     for (const entry of parsedMembers) {
         // Guard against a non-object array element (e.g. the AI returns `"parsed": [null]`):
         // `entry.memberName` on null throws a TypeError, and this runs OUTSIDE the AI-call
@@ -387,12 +411,12 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         // Skip a repeated member (e.g. a two-page roster that lists someone on both pages, or an AI
         // hallucinated duplicate). Two rows for the same member would render duplicate review rows and,
         // on save, write the same date/member override doc twice with nondeterministic last-write-wins.
+        // Which one stands is `memberRows`' rule: the first that says anything.
         const memberKey = entry.memberName.trim();
-        if (seenMembers.has(memberKey)) {
-            console.warn(`[parseRosterPDF] Duplicate member "${memberKey}" in AI output — keeping the first, skipping the repeat`);
+        if (standing.get(memberKey) !== entry) {
+            console.warn(`[parseRosterPDF] Duplicate member "${memberKey}" in AI output — kept the first row that says anything, skipped this one`);
             continue;
         }
-        seenMembers.add(memberKey);
 
         // ── SUNDAY IS THE ONE COLUMN WHOSE BLANK IS AN ANSWER (v22.19) ──────────────────────────
         //
@@ -469,7 +493,8 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
             // the model to REPORT an empty cell rather than interpret it, so "the model said this
             // was empty" and "the model never mentioned this day" are the same fact and must take
             // the same branch. Before that they could not be told apart, and this rule was dead.
-            const blank = isPhysicallyBlank(raw);
+            // So do EMPTY and a lone dash, which both scans already read as empty (import-server-1).
+            const blank = isBlankReading(raw);
 
             if (blank) {
                 (raw === undefined || raw === null ? absentKeys : blankKeys).push(header);
@@ -506,10 +531,11 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
 
 // ── Column-scan cross-check (the general day-shift defence) ─────────────────
 
-// Scan tokens that mean "this cell is empty" on ANY day. NA and NS are not listed: they are rest
-// codes rather than empty cells, and `normaliseShift` reads both as the rest day (v25.38). Until
-// then their meaning depended on the day, and this function took the column's day index to ask.
-const BLANK_SCAN_TOKENS = new Set([BLANK_CELL_TOKEN, '', 'RD', 'EMPTY', '-', 'OFF']);
+// Scan tokens that read as a rest day on ANY day: the row read's own words for an empty cell
+// (`BLANK_READINGS`) and the two printed rest codes. NA and NS are not listed: `normaliseShift`
+// reads both as the rest day (v25.38). Until then their meaning depended on the day, and this
+// function took the column's day index to ask.
+const BLANK_SCAN_TOKENS = new Set([...BLANK_READINGS, 'RD', 'OFF']);
 
 /**
  * Normalise a raw columnScan cell value to the same vocabulary as the row read,
@@ -593,15 +619,19 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
     if (!Array.isArray(columnHeaders) || dates.length < 7) return stats;
 
     for (const entry of safeEntries) {
-        // Build this member's column-read map: date → normalised value (signalled cells only).
+        // Build this member's column-read map: date → normalised value (signalled cells only), and
+        // which of those the scan read as an EMPTY cell rather than a printed rest code.
         const colRead = Object.create(null);
+        const scanBlank = new Set();
         for (const header of columnHeaders) {
             const dayIndex = headerToDayIndex(header);
             if (dayIndex === undefined) continue;
             const colObj = columnScan[header];
             if (!colObj || typeof colObj !== 'object') continue;
             const v = normaliseScanValue(colObj[entry.memberName]);
-            if (v !== null) colRead[dates[dayIndex]] = v;
+            if (v === null) continue;
+            colRead[dates[dayIndex]] = v;
+            if (isBlankReading(colObj[entry.memberName])) scanBlank.add(dates[dayIndex]);
         }
 
         // ── WHY THE COLUMN SCAN IS NOT A WITNESS TO BLANKNESS (tried and refused, 1 Sep 2026) ──
@@ -664,10 +694,10 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         // Provable realignment. A dropped blank cell shifts only the SUFFIX of the row after it
         // (a drop at Sunday = the classic full-row drift; a drop mid-week leaves the head aligned).
         // Anchor at the FIRST disagreeing day k and try both one-day suffix shifts:
-        //   delta +1 (undo a DROPPED cell): days after k take the row value one slot earlier;
-        //            day k itself takes the column scan's value (the dropped cell's true content).
-        //   delta -1 (undo an INSERTED/ghost cell): days from k take the row value one slot later;
-        //            Saturday takes the column scan's value.
+        //   delta +1 (undo a DROPPED cell): days after k take the row value one slot earlier, and
+        //            day k — VACATED, no row value left for it — takes the column scan's reading.
+        //   delta -1 (undo an INSERTED/ghost cell): days from k take the row value one slot later,
+        //            and the vacated Saturday takes the column scan's reading.
         // Adopt ONLY if the repaired row then agrees with the column scan on EVERY signalled day —
         // i.e. two-source consensus on the realigned row (a non-drift disagreement scrambles the
         // agreeing tail under either shift and fails this verification).
@@ -677,15 +707,16 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
             for (const delta of [1, -1]) {
                 const shifted = Object.create(null);
                 for (let i = 0; i < 7; i++) shifted[dates[i]] = entry.shifts[dates[i]];
-                if (delta === 1) {
-                    for (let i = 6; i >= k + 1; i--) shifted[dates[i]] = entry.shifts[dates[i - 1]];
-                    shifted[dates[k]] = colRead[dates[k]] ?? 'RD';
-                } else {
-                    for (let i = k; i <= 5; i++) shifted[dates[i]] = entry.shifts[dates[i + 1]];
-                    // Unread by both passes, so a question — never a rest day (v22.19).
-                    shifted[dates[6]] = colRead[dates[6]] ?? blankCellMeaning(6, DAY_LABELS[6]);
-                }
+                const vacated = delta === 1 ? k : 6;
+                if (delta === 1) for (let i = 6; i >= k + 1; i--) shifted[dates[i]] = entry.shifts[dates[i - 1]];
+                else for (let i = k; i <= 5; i++) shifted[dates[i]] = entry.shifts[dates[i + 1]];
+                shifted[dates[vacated]] = colRead[dates[vacated]];
                 if (signalDates.every(d => cellsAgree(shifted[d], colRead[d]))) {
+                    // What is WRITTEN in the vacated slot is what an honest read of that cell gives
+                    // (import-server-4): a scan "blank" was already RD above, and Monday to Saturday a
+                    // blank is a question, never a rest day (v22.19) — as is a slot no scan read.
+                    const d = dates[vacated];
+                    if (colRead[d] === undefined || scanBlank.has(d)) shifted[d] = blankCellMeaning(vacated, DAY_LABELS[vacated]);
                     for (let i = 0; i < 7; i++) entry.shifts[dates[i]] = shifted[dates[i]];
                     console.warn(`[parseRosterPDF] ${entry.memberName}: row read disagreed with the column scan on ${disagree.length} day(s) and realigns exactly under a one-day suffix ${delta > 0 ? 'RIGHT' : 'LEFT'}-shift from ${dates[k]} — day-drift repaired (repaired row matches the column scan everywhere)`);
                     repaired = true;
@@ -731,8 +762,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
     return stats;
 }
 
-// ── Huddle push notification day label ───────────────────────────────────────
-
+// ── Strict calendar dates ────────────────────────────────────────────────────
 
 /**
  * Parse a strict YYYY-MM-DD calendar date. Returns the UTC-noon Date if the string is a real
@@ -898,8 +928,10 @@ function buildPushPayload({ feature, body, baseUrl, headline, url }) {
     if (!f) throw new Error(`Unknown notification feature: ${feature}`);
     const finalHeadline = headline || f.defaultHeadline;
     if (!finalHeadline) throw new Error(`No headline for notification feature: ${feature}`);
-    const finalUrl = url || (f.hashPath ? `${baseUrl}${f.hashPath}` : undefined);
-    if (!finalUrl) throw new Error(`No url for notification feature: ${feature}`);
+    // A hash path needs the origin it hangs from: without one this built "undefined/#huddle" (import-server-8).
+    const base = typeof baseUrl === 'string' && baseUrl ? baseUrl : null;
+    const finalUrl = url || (f.hashPath && base ? `${base}${f.hashPath}` : undefined);
+    if (!finalUrl) throw new Error(`No url for notification feature: ${feature} (an event needs a url, a document a baseUrl)`);
     // Enforce the notification design language's truncation-safe budgets (.claude/rules/notifications.md:
     // title ≤ ~40 chars INCLUDING the emoji, body ≤ ~80) so the builder GUARANTEES a clean fit rather
     // than letting the OS hard-truncate a long caller-supplied headline/body mid-word. All current
@@ -1064,11 +1096,17 @@ function computeOrphanLabels(users, activeEmails) {
             user.email.endsWith('@myb-roster.local') &&
             !activeEmails.has(user.email) &&
             !user.disabled) {
-            out.push({ uid: user.uid, label: user.displayName || user.email });
+            // Its display name only when the ADDRESS was made from it: the holder can set any name,
+            // and a leaver renamed after a current member was listed as that member (functions-core lead).
+            const own = typeof user.displayName === 'string' && user.displayName.trim() !== ''
+                && nameToEmail(user.displayName.trim()).toLowerCase() === user.email.toLowerCase();
+            out.push({ uid: user.uid, label: own ? user.displayName : user.email });
         }
     }
     return out;
 }
+
+const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
 
 /**
  * summariseAccountGaps — which active members are NOT properly set up, and which leavers still are.
@@ -1094,9 +1132,9 @@ function computeOrphanLabels(users, activeEmails) {
  * everything here: an absent item reads as unknown, and a full-volume wrong one gets the whole
  * strip ignored.
  *
- * ONLY THE CLAIMS THIS APP SETS ARE COMPARED (`name`, `admin`, `manager`, `linksDesigner`). An
- * exact object comparison would report a gap for any claim added later by anything else, and a
- * false alarm on a provisioning index teaches the admin to skip it.
+ * ONLY THE CLAIMS THIS APP SETS ARE COMPARED (`MANAGED_CLAIMS`: `name`, `member`, `admin`, `manager`,
+ * `linksDesigner`). An exact object comparison would report a gap for any claim added later by
+ * anything else, and a false alarm on a provisioning index teaches the admin to skip it.
  *
  * PURE — the handler around it uses the Admin SDK and cannot run in the test sandbox, and every
  * judgement worth getting wrong is here. Tested in roster-parse-helpers.test.mjs.
@@ -1107,8 +1145,6 @@ function computeOrphanLabels(users, activeEmails) {
  *        the SERVER-owned roster, exactly as setupRosterAuth resolves it
  * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'disabled'|'claims' }>, leavers: string[] }}
  */
-const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
-
 function summariseAccountGaps(users, { processMembers, adminSet, managerSet, designerSet }) {
     const list = Array.isArray(users) ? users : [];
     /** @type {Map<string, {disabled?: boolean, customClaims?: Record<string, any>|null}>} */
@@ -1204,8 +1240,7 @@ function isAllowedPushEndpoint(endpoint) {
     return PUSH_SERVICE_HOSTS.some(h => host === h || host.endsWith('.' + h));
 }
 
-// ── Exports ──────────────────────────────────────────────────────────────────
-
+// ── The password-reset request queue ────────────────────────────────────────
 
 /**
  * Throttle decision for a password-reset REQUEST (PASSWORD_DESIGN.md — the request queue).
@@ -1217,8 +1252,9 @@ function isAllowedPushEndpoint(endpoint) {
  * Why throttle at all when the collection can't grow (doc id = member name, so at most one row per
  * member — see the endpoint)? Two reasons: a member tapping the link repeatedly should not inflate the
  * `count` the admin reads as "how badly are they stuck", and every recorded request is a potential
- * notification. The endpoint returns success either way, so a throttled request is indistinguishable
- * from a recorded one to the caller — nothing is leaked by the difference.
+ * notification. The endpoint answers with the same body either way, and no sooner than
+ * RESET_REQUEST_ANSWER_FLOOR_MS (auth-endpoints.js), so a throttled request cannot be told from a
+ * recorded one by its body or its ordinary timing.
  *
  * A missing/unparseable previous timestamp means "never asked" → record.
  *
@@ -1334,6 +1370,7 @@ module.exports = {
     HEADER_TO_INDEX,
     headerToDayIndex,
     mapColumnHeadersToDates,
+    memberRows,
     buildSafeEntries,
     BLANK_CELL_TOKEN,
     isPhysicallyBlank,

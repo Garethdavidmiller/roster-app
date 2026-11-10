@@ -21,8 +21,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift, getBankHolidays } from './roster-data.js';
-import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave, lieuGoesWords } from './admin-al-projection.js';
+import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave, lieuGoesWords, rangeSundayCorrections } from './admin-al-projection.js';
 import { consumesEntitlement, countedAlDates, entitlementFor } from './al-entitlement.js';
+import { isRestShift } from './override-utils.js';
 
 // C. Reen is the fixed Mon–Fri 12:00–19:00 line: every weekend is a rest day and every weekday is
 // worked, which makes "working day" and "rest day" unambiguous without any override at all.
@@ -411,6 +412,60 @@ describe('the preview names every day in lieu a booking takes back', () => {
         assert.equal(lieuGoesWords(['2026-12-25', '2026-12-26']),
             'Christmas Day and Boxing Day recorded as leave, so the days in lieu for working them go');
         assert.equal(lieuGoesWords(['2026-08-31']), 'the bank holiday on 31 August recorded as leave, so the day in lieu for working it goes');
+    });
+});
+
+// The JSDoc called `ovByDate` optional and defaulted it to null; `isWorkingDate` then dereferenced
+// it and threw on the first ordinary working day (whole-app check, 10 Nov 2026).
+describe('projectAlBooking — an omitted override map means "nothing in play"', () => {
+    test('it does not throw, and answers exactly as an empty map does', () => {
+        const omitted = projectAlBooking({ member: reen, dates: [MON, SAT, SUN] });
+        assert.deepEqual(omitted, projectAlBooking({ member: reen, dates: [MON, SAT, SUN], ovByDate: new Map() }));
+        assert.deepEqual(omitted.consuming, [MON]);
+    });
+});
+
+// THE SUNDAY RULE BOTH RANGE CARDS WRITE BY (admin.md → "Sunday RD corrections"), stated once so the
+// preview and the receipt can name the days the save changes (whole-app check, 10 Nov 2026).
+describe('rangeSundayCorrections — the worked Sundays a range booking sets as rest days', () => {
+    /** A member and a Sunday their BASE roster works, and one it rests — found, never written down. */
+    const sundays = (() => {
+        for (const m of teamMembers.filter(x => !x.hidden)) {
+            let worked = null, rest = null;
+            for (let i = 0; i < 400 && !(worked && rest); i++) {
+                const d = new Date(2026, 5, 7 + i);
+                if (d.getDay() !== 0) continue;
+                const iso = formatISO(d);
+                // The rule's own predicate: a Spare Sunday is not a rest day, so it is "worked" here.
+                if (!isRestShift(getBaseShift(m, d))) worked ??= iso; else rest ??= iso;
+            }
+            if (worked && rest) return { m, worked, rest };
+        }
+        return null;
+    })();
+
+    test('premise: a member with a worked and a rested Sunday', () => {
+        assert.ok(sundays, 'nobody on the roster works a Sunday — the cases below prove nothing');
+    });
+
+    test('a worked Sunday is set; a rested Sunday and every weekday are not', () => {
+        const { m, worked, rest } = /** @type {any} */ (sundays);
+        assert.deepEqual(rangeSundayCorrections({ dates: [worked, rest, MON], memberObj: m, ovByDate: NO_OV }), [worked]);
+    });
+
+    test('not over a day already at rest, nor over worked overtime it would erase', () => {
+        const { m, worked } = /** @type {any} */ (sundays);
+        const on = (/** @type {any} */ ov) => rangeSundayCorrections({ dates: [worked], memberObj: m, ovByDate: new Map([[worked, ov]]) });
+        assert.deepEqual(on({ type: 'correction', value: 'RD' }), []);
+        assert.deepEqual(on({ type: 'rdw', value: '08:00-16:00' }), []);
+        assert.deepEqual(on({ type: 'shift', value: '08:00-16:00' }), []);
+        // …but leave or an absence on a Sunday is masked, as it always was (v12.61).
+        assert.deepEqual(on({ type: 'annual_leave', value: 'AL' }), [worked]);
+    });
+
+    test('no member, no dates — nothing to say', () => {
+        assert.deepEqual(rangeSundayCorrections({ dates: [MON], memberObj: null }), []);
+        assert.deepEqual(rangeSundayCorrections({ dates: /** @type {any} */ (null), memberObj: reen }), []);
     });
 });
 

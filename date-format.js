@@ -129,11 +129,25 @@ export const printedStamp = (date, clock) => `Printed ${formatWeekdayDate(date, 
  * TIME on that Date instead would put it back at risk — a device whose own DST gap is at 01:00
  * renders a 01:30 London instant as 02:30, because that local time does not exist. Formatting the
  * clock through `Intl` in London never constructs a local Date at all.
- * @param {number|Date} at
+ * @param {number|Date|null|undefined} at
  */
-export const londonClock = at => new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-}).format(at instanceof Date ? at : new Date(at));
+export const londonClock = at => {
+    const d = instant(at);
+    return usable(d) ? new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).format(d) : NO_DATE;
+};
+
+/**
+ * The instant a London shim was handed, as a Date. `null` and `undefined` are UNUSABLE rather than
+ * what `new Date` makes of them (1 Jan 1970, and a RangeError out of `Intl`), so the two shims answer
+ * like the composers (whole-app review, 10 Nov 2026): their callers test for a missing time first,
+ * and the module's promise above is that none has to.
+ * @param {number|Date|null|undefined} at @returns {Date}
+ */
+function instant(at) {
+    return at instanceof Date ? at : at == null ? new Date(NaN) : new Date(at);
+}
 
 /**
  * "14:23" — 24-hour, zero-padded, in the device's own zone.
@@ -157,13 +171,16 @@ export const formatClock = d => (usable(d)
  *
  * `formatToParts` with NUMERIC parts, not a formatted string: the numbers are the same in every
  * locale and every ICU version, so the spelling divergence this whole section exists for cannot
- * re-enter through the zone shim.
- * @param {number|Date} at @returns {Date}
+ * re-enter through the zone shim. An unusable instant gives an unusable Date, which every composer
+ * above spells as `NO_DATE`.
+ * @param {number|Date|null|undefined} at @returns {Date}
  */
 export function londonDate(at) {
+    const d = instant(at);
+    if (!usable(d)) return new Date(NaN);
     const parts = new Intl.DateTimeFormat('en-GB', {
         timeZone: 'Europe/London', year: 'numeric', month: 'numeric', day: 'numeric',
-    }).formatToParts(at instanceof Date ? at : new Date(at));
+    }).formatToParts(d);
     const get = (/** @type {string} */ type) => Number(parts.find(p => p.type === type)?.value);
     return new Date(get('year'), get('month') - 1, get('day'), 12);
 }

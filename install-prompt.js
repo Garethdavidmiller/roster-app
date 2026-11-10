@@ -216,15 +216,27 @@ export function initInstallPrompt({ accessReady, getAccessType }) {
     const stepsEl    = document.getElementById('installPromptSteps');
     if (!actionBtn || !dismissBtn || !stepsEl) return;
 
+    // ANSWERED IS ANSWERED, FOR THE REST OF THE VISIT (whole-app review, 10 Nov 2026). Chromium fires
+    // `beforeinstallprompt` AGAIN when the member cancels the dialog Install opened — "typically
+    // immediately after the userChoice property has resolved" (web.dev, "Customize install") — and
+    // the handler below showed the strip whenever the event came, so somebody who had just said no
+    // was asked again at once. Held in memory: the flag on disk answers for LATER visits (the early
+    // return above), and `lsSet` forgives a storage that throws (iOS private mode), so the visit must
+    // not depend on it. The re-fired offer is still HELD (the handler's `preventDefault` runs
+    // first): the browser's own promotion stays quiet for the visit the member has just answered,
+    // and the install notice may still spend it.
+    let _answered = false;
+
     /** Hide the notification ask for THIS visit only — it returns next time. See the header. */
     function show() {
         if (_yielded) return;        // the install notice has this visit's ask
+        if (_answered) return;       // the member has answered the strip — above
         const notif = document.getElementById('notifPrompt');
         if (notif) /** @type {HTMLElement} */ (notif).style.display = 'none';
         /** @type {HTMLElement} */ (strip).style.display = 'flex';
     }
     function hide() { /** @type {HTMLElement} */ (strip).style.display = 'none'; }
-    function dismiss() { hide(); lsSet(DISMISSED_KEY, '1'); }
+    function dismiss() { _answered = true; hide(); lsSet(DISMISSED_KEY, '1'); }
 
     // Chromium. The event can arrive before OR after the access decision, so both are awaited
     // together rather than assuming an order.

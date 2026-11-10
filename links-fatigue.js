@@ -75,8 +75,9 @@
  *    definition is unagreed, unlabelled, is the false-assurance failure in miniature.
  *
  * Hours caveat: SPARE days carry no times, so they contribute ZERO to any hours total here. A
- * standby day is worked time, so every hours figure this module produces is a FLOOR, not an
- * estimate. `hoursAreFloor` is returned so the UI can say so rather than imply precision.
+ * standby day is worked time, so on a design with a spare day every hours figure this module
+ * produces is a FLOOR, not an estimate. `hoursAreFloor` says whether that is so, so the UI can say
+ * it rather than imply precision — and not say it of a design whose totals are exact.
  */
 
 import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, runLengthsWhere, SPARE_WORKED_DAYS, spareDrawsOnFour, isRest } from './links-design.js';
@@ -84,6 +85,11 @@ import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_R
 // needs the adjacency maths. Direction is fatigue → adjacency → design; `links-adjacency.js` imports
 // only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
 import { scoreOrder, GENTLE_THRESHOLD_MINUTES } from './links-adjacency.js';
+
+/** A day key as a reader names it, for the rows that say where something is. */
+const DAY_NAME = /** @type {Record<string, string>} */ ({
+    sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday',
+});
 
 /** A duty counts as an FF2 "early shift" when it starts in this window (inclusive of 05:00). */
 const EARLY_FROM = 5 * 60;
@@ -399,11 +405,11 @@ export function startTimeJumps(seq, thresholdMinutes = 120) {
 /**
  * FF17 — backward rotation.
  *
- * INTERPRETATION, NOT SETTLED: counted as steps within a working block where the next duty starts
- * EARLIER than the one before it. A forward-rotating pattern moves later through the week, which is
- * the principle the generator already encodes. Reported as a count of backward steps against forward
- * steps, so the pattern's overall direction is visible rather than asserted. **Confirm whether the
- * factor is about individual steps or the cycle's net direction.**
+ * Counted as steps within a working block where the next duty starts EARLIER than the one before it
+ * — ORR's own definition (Managing rail staff fatigue, Aug 2024, 7.68), settled by the owner on
+ * 28 Sep 2026 (see the FF17 row). A forward-rotating pattern moves later through the week. Reported as
+ * a count of backward steps against forward steps, so the pattern's overall direction is visible
+ * rather than asserted.
  * @param {Array<{shift:any, line:number, day:string}>} seq
  */
 export function rotationDirection(seq) {
@@ -456,6 +462,11 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     patterns = patterns || {};
     const seq = toSequence(patterns, lines);
     const timed = seq.filter(x => startMinutes(x.shift) !== null);
+    // Hours are a FLOOR only where a spare day is counted at zero (the header's caveat). This was the
+    // constant `true`, so a design with no spare day at all was told its "real totals are higher" on
+    // the panel and the compare card, when they are exact (whole-app review, Nov 2026). A worked cell
+    // with no readable time also counts zero; the hours row names those, and an import refuses them.
+    const hoursAreFloor = seq.some(x => x.shift === 'SPARE');
 
     /** @type {FatigueResult[]} */
     const results = [];
@@ -505,10 +516,17 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
 
     // ── Recovery time ────────────────────────────────────────────────────────
     const ff8b = earlyBlocksWithShortRecovery(seq);
+    // The WORST block is ONE block, chosen by a stated rule — the fewest rest days after it, then the
+    // longest — and described whole, where it starts included. The longest length taken from one
+    // block and the fewest rest days from another described a block the design does not contain
+    // (whole-app review, Nov 2026).
+    const ff8bWorst = ff8b.reduce((w, b) =>
+        (b.restDays < w.restDays || (b.restDays === w.restDays && b.blockLength > w.blockLength) ? b : w), ff8b[0]);
     add({ code: 'FF8b', family: 'Recovery time', title: 'Fewer than 2 days rest after a block of early starts',
         status: ff8b.length ? 'present' : 'clear', value: ff8b.length, threshold: '2 days',
-        detail: ff8b.length
-            ? `Worst: a block of ${Math.max(...ff8b.map(b => b.blockLength))} early starts followed by ${Math.min(...ff8b.map(b => b.restDays))} rest day(s).`
+        detail: ff8bWorst
+            ? `Worst: a block of ${ff8bWorst.blockLength} early starts from line ${ff8bWorst.fromLine} ${DAY_NAME[ff8bWorst.fromDay] ?? ff8bWorst.fromDay}, `
+              + `followed by ${ff8bWorst.restDays === 0 ? 'no rest day' : `${ff8bWorst.restDays} rest day${ff8bWorst.restDays === 1 ? '' : 's'}`}.`
             : 'Every block of 2+ consecutive early starts is followed by at least 2 rest days.' });
 
     const ff11 = longestRunBetween48hBreaks(seq);
@@ -556,7 +574,9 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     const hrs = maxHoursInAny7Days(seq);
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 55 hours worked in any 7-day period',
         status: over55 ? 'present' : 'clear', value: over55 && hrs <= 55 ? Math.round(mins7 / 0.6) / 100 : hrs, threshold: 55,
-        detail: 'Spare days carry no times and count as zero hours, so this figure is a floor — the real total is higher.' });
+        detail: hoursAreFloor
+            ? 'Spare days carry no times and count as zero hours, so this figure is a floor — the real total is higher.'
+            : undefined });
 
     // ── THE TWO ROWS THAT WERE MISSING (v21.97) ─────────────────────────────
     // Added when the ORR source was read for the first time. It carries FOUR MRSF rows in this
@@ -564,8 +584,9 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
 
     // "More than 7 consecutive 8h shifts". The tightest consecutive-working rule on the page and
     // the one most likely to bite THIS link, whose duties are around eight hours: FF11 allows 13
-    // shifts between 48h breaks, and this allows 7. It is marked `confirm` because "8h shifts" has
-    // more than one defensible reading and the choice changes what fires.
+    // shifts between 48h breaks, and this allows 7. "8h shifts" has more than one defensible reading
+    // and the choice changes what fires; the owner settled it on 28 Sep 2026, so the row carries no
+    // `confirm` (see the line above the `add`).
     //
     // Read here as EIGHT HOURS OR MORE, which is the direction that reports rather than the one
     // that stays quiet — a nine-hour duty is not less fatiguing than an eight-hour one, and this
@@ -714,12 +735,17 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     // and, directly beneath it, FF13 with a GREEN TICK. An affirmative all-clear on a factor that is
     // present. Never hardcode a status here — if a factor cannot be computed, it does not get a tick.
     const ff13 = runDesignChecks(patterns, lines).turnarounds;
-    const worst = ff13.length ? Math.min(...ff13.map(t => t.restMinutes)) : null;
+    const worst = Math.min(...ff13.map(t => t.restMinutes));   // read only when there is one
+    // A negative shortest rest is an OVERLAP (a duty past midnight into a next-day start before its own
+    // finish) and is said as one — as a signed figure it read "-2h -30m" for 1h 30m.
+    const shortest = worst < 0
+        ? `Two consecutive duties overlap: the second starts ${_hm(-worst)} before the first ends.`
+        : `Shortest rest between consecutive duties is ${_hm(worst)}.`;
     add({ code: 'FF13', family: 'Intervals between duties', title: 'Less than 12h rest in any 24h',
         status: ff13.length ? 'present' : 'clear', value: ff13.length, threshold: `${MIN_REST_MINUTES / 60}h`,
         detail: ff13.length
-            ? `Shortest rest between consecutive duties is ${_hm(/** @type {number} */(worst))}. Same finding as the short-turnaround check above — one rule, reported twice.`
-            : 'Every pair of consecutive duties has at least 12 hours between them. Same rule as the short-turnaround check above.' });
+            ? `${shortest} Same finding as the short-turnaround check above — one rule, reported twice.`
+            : `Every pair of consecutive duties has at least ${MIN_REST_MINUTES / 60} hours between them. Same rule as the short-turnaround check above.` });
 
     return {
         results,
@@ -729,6 +755,6 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         // combined total would say that it was.
         standing: results.filter(r => r.status === 'standing').length,
         confirmNeeded: results.filter(r => r.confirm).length,
-        hoursAreFloor: true,
+        hoursAreFloor,
     };
 }

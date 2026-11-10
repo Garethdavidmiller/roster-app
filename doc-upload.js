@@ -13,10 +13,29 @@
  * Per-card differences are passed as config: accepted file types, an optional async `transform`
  * that yields extra args for the upload fn (the Huddle passes its htmlContent), the date offset
  * (Huddle caps at tomorrow — sent the evening before), the upload fn, and the copy.
+ *
+ * ── ONE UPLOAD AT A TIME, PER CARD (whole-app review, 10 Nov 2026) ─────────────────────────────
+ *
+ * From Upload to its answer the card is SHUT: the file picker is disabled, a pick that reaches the
+ * handler anyway changes nothing, and a second press is ignored. It used to re-open on any new pick
+ * — the file handler enabled Upload whatever was in flight — so an admin who noticed the wrong
+ * Circular and picked the right one could press again, and two uploads for one date ran side by
+ * side. Both reported success; whichever COMMITTED last became the live document, which was the
+ * wrong file as often as not, and the other sat in Storage unreferenced. The first to finish also
+ * dropped `data-uploading`, Operations' sign that a reload must wait, while the second still ran.
+ *
+ * ── THE UPLOAD IS A WRITE LIKE ANY OTHER (AUTH_AND_SESSIONS 22) ────────────────────────────────
+ *
+ * It goes through `runGatedWrite` (claim-retry.js): refused while an earlier write on this page is
+ * unconfirmed, and counted as one itself when it ends with the account gone — which is what keeps
+ * Operations' busy check holding an update once this card's button has come back. Its outcomes are
+ * worded by `unconfirmedWriteLine`, the app's one sentence for each.
  */
 
-import { formatISO } from './roster-data.js';
+import { formatISO, parseISODate } from './roster-data.js';
+import { formatDayMonthYear } from './date-format.js';
 import { sessionReady } from './session.js';
+import { runGatedWrite, unconfirmedWriteLine } from './claim-retry.js';
 
 /** 20 MB — matches functions/index.js MAX_FILE_BYTES and storage.rules request.resource.size, kept in
  *  step by upload-cap-parity.test.mjs, whose header says why a client cap above the rules' costs most. */
@@ -40,13 +59,14 @@ export function isDocxFile(f) {
  *   dateId: string, fileId: string, fileLabelId: string, uploadBtnId: string, feedbackId: string,
  *   uploadFn: (date: string, file: File, user: string, ...extra: any[]) => Promise<any>,
  *   currentUser: string|null,
- *   successMsg: (date: string) => string,
+ *   successMsg: (date: string) => string,     // given the date as app copy spells it (10 Nov 2026), not ISO
  *   btnLabel: string,
  *   logPrefix: string,
  *   maxDateOffsetDays?: number,               // date input cap = today + this (default 0). Huddle: 1.
  *   isAccepted?: (f: File) => boolean,        // default isPdfFile
  *   rejectTypeMsg?: string,                   // default 'Please choose a PDF file'
  *   sigMismatchMsg?: string,                  // shown on a SIGNATURE_MISMATCH upload error
+ *   whereToCheck?: string,                    // where to look after a sign-out mid-upload (default 'whether it saved')
  *   transform?: (file: File, ctx: { setBtnText: (t: string) => void })
  *               => Promise<{ extraArgs?: any[], abortMsg?: string }>,  // e.g. DOCX→HTML → [htmlContent]
  * }} cfg
@@ -104,7 +124,23 @@ export function initDocUploadCard(cfg) {
     fileInput.value = '';
   }
 
+  // True from Upload to its answer — the transform included, since a DOCX conversion is part of the
+  // same upload. While it holds, nothing re-opens the card (header: ONE UPLOAD AT A TIME).
+  let _uploading = false;
+  /** Shut the card for an upload, or open it again once that upload has its answer.
+   *  @param {boolean} on */
+  function _setUploading(on) {
+    _uploading = on;
+    fileInput.disabled = on;
+    // Operations defers an SW-update reload while this is set (operations-app.js `_opsBusy`).
+    if (on) uploadBtn.dataset.uploading = 'true';
+    else delete uploadBtn.dataset.uploading;
+  }
+
   fileInput.addEventListener('change', () => {
+    // A pick cannot land while the picker is disabled; if one reaches us anyway, the file in flight
+    // is the one this card is answering for, and Upload must not come back for a second.
+    if (_uploading) return;
     const file = (fileInput.files || [])[0];
     /** @type {HTMLElement} */ (feedback).textContent = '';
     /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback';
@@ -121,6 +157,7 @@ export function initDocUploadCard(cfg) {
   });
 
   uploadBtn.addEventListener('click', async () => {
+    if (_uploading) return;   // one upload at a time — the header says why
     _refreshDateBounds();   // stale-tab guard — see the init comment (v16.23)
     const date = dateInput.value;
     const file = (fileInput.files || [])[0];
@@ -136,8 +173,8 @@ export function initDocUploadCard(cfg) {
       return;
     }
     uploadBtn.disabled = true;
-    // In flight until the finally below: Operations defers an SW-update reload while it is set.
-    uploadBtn.dataset.uploading = 'true';
+    // In flight until the answer below — every return path, and the finally, opens the card again.
+    _setUploading(true);
     /** @type {HTMLElement} */ (feedback).textContent = '';
     /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback';
 
@@ -157,7 +194,7 @@ export function initDocUploadCard(cfg) {
         /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';
         uploadBtn.disabled = false;
         uploadBtn.textContent = cfg.btnLabel;
-        delete uploadBtn.dataset.uploading;
+        _setUploading(false);
         return;
       }
       if (r.abortMsg) {
@@ -165,7 +202,7 @@ export function initDocUploadCard(cfg) {
         /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';
         uploadBtn.disabled = false;
         uploadBtn.textContent = cfg.btnLabel;
-        delete uploadBtn.dataset.uploading;
+        _setUploading(false);
         return;
       }
       extraArgs = r.extraArgs || [];
@@ -176,8 +213,12 @@ export function initDocUploadCard(cfg) {
       // sessionReady: a returning admin skips the login handler, so auth.currentUser may still be
       // null when the page opens — awaiting prevents a fast click hitting a permission failure.
       await sessionReady;
-      await cfg.uploadFn(date, file, cfg.currentUser || '', ...extraArgs);
-      /** @type {HTMLElement} */ (feedback).textContent = cfg.successMsg(date);
+      // Through the page's write gate (header): refused before it starts while an earlier write is
+      // unconfirmed, and counted as unconfirmed itself if the account goes before it is.
+      await runGatedWrite(() => cfg.uploadFn(date, file, cfg.currentUser || '', ...extraArgs));
+      // The date in app copy's own spelling ("10 Nov 2026", the one the date field shows), never
+      // the ISO key it was filed under (whole-app review, 10 Nov 2026).
+      /** @type {HTMLElement} */ (feedback).textContent = cfg.successMsg(formatDayMonthYear(parseISODate(date)));
       /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--ok';
       fileInput.value = '';
       /** @type {HTMLElement} */ (fileLabel).textContent = '';
@@ -190,18 +231,22 @@ export function initDocUploadCard(cfg) {
       // "Try again" is also wrong for an UNCONFIRMED one (v21.96): the write may have landed, so
       // the honest instruction is to look before repeating it. Saying "failed" would be a claim we
       // deliberately refused to make one layer down.
+      // An account that went mid-upload, or an earlier write left unconfirmed, comes FIRST, in the
+      // app's own sentence for each (claim-retry.js): the first is answered by signing in again,
+      // never by the "connection dropped" line, which is about a read that could not answer.
       const _e = /** @type {any} */ (err);
       /** @type {HTMLElement} */ (feedback).textContent =
-        _e?.code === 'upload/superseded'
+        unconfirmedWriteLine(_e, 'this upload', cfg.whereToCheck || 'whether it saved')
+        ?? (_e?.code === 'upload/superseded'
           ? 'Someone else saved a newer file for this date. Reload to see it, then upload again only if yours should replace it.'
           : _e?.code === 'upload/unconfirmed'
             ? "Couldn't confirm this saved — the connection dropped mid-save. Reload to see whether it's there, and upload again if it isn't."
-            : _e?.message === 'SIGNATURE_MISMATCH' ? sigMismatchMsg : 'Upload failed — please try again';
+            : _e?.message === 'SIGNATURE_MISMATCH' ? sigMismatchMsg : 'Upload failed — please try again');
       /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';
       uploadBtn.disabled = false;
     } finally {
       uploadBtn.textContent = cfg.btnLabel;
-      delete uploadBtn.dataset.uploading;
+      _setUploading(false);
     }
   });
 }

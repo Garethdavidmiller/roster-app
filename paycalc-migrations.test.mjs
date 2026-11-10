@@ -19,7 +19,7 @@ import {
     pcPrefix, setPaycalcNamespace, SK, memberSlug,
     periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey,
     runMigrations, hasPendingLegacyMigration, resolveLegacyMigration,
-    parseSavedPeriod,
+    parseSavedPeriod, keyOwnerSlug,
 } from './paycalc-migrations.js';
 import { teamMembers } from './roster-data.js';
 import { TAX_YEARS } from './paycalc-calc.js';
@@ -285,7 +285,72 @@ describe('hidden (leaver) member data is never treated as claimable legacy', () 
     });
 });
 
+// ── A NAMESPACE THE ROSTER NO LONGER NAMES (paycalc-3-5) ─────────────────────────────────────────
+// The block above relies on leavers staying on the roster as `hidden`. A RENAMED member (or a row
+// removed outright) leaves their pay data under a slug the roster no longer holds, and it was classed
+// as legacy: offered to whoever signed in next, re-keyed by "Yes, it's mine" to `myb_pc_<new>_<old>_…`
+// — keys nothing reads, so the calculator opened empty and the question never came back — and
+// deleted outright by another member's "No — start fresh". It is somebody's namespaced data: its
+// remainder is a key this app writes, while the whole tail is not one. So it is never claimable, and
+// it stays where it is until a rename has a carry-over of its own.
+describe('a member namespace the roster no longer names is never claimable', () => {
+    const OLD = 'aoldname';   // synthetic: nobody on the roster
+    const FORMER = {
+        [`myb_pc_${OLD}_code`]: 'CODE-X',
+        [`myb_pc_${OLD}_p55`]: JSON.stringify({ satH: 8 }),
+        [`myb_pc_${OLD}_ytd_pay_2026_27`]: 'YTD-X',
+        [`myb_pc_${OLD}_setup`]: '1',
+    };
+
+    test('premise: the slug is nobody on the roster', () => {
+        assert.ok(!teamMembers.some(m => memberSlug(m.name) === OLD));
+    });
+
+    test('it is owned, not legacy — so nobody is asked to claim it', () => {
+        global.localStorage = makeLocalStorage(FORMER);
+        for (const k of Object.keys(FORMER)) assert.equal(keyOwnerSlug(k), OLD, k);
+        assert.equal(hasPendingLegacyMigration('G. Miller'), false, 'a former member\'s pay data was offered to somebody else');
+    });
+
+    test('"Yes, it\'s mine" never re-keys it, and "No — start fresh" never deletes it', () => {
+        global.localStorage = makeLocalStorage({ ...FORMER, 'myb_pc_rate': '99' });   // genuine legacy alongside
+        resolveLegacyMigration('G. Miller', 'mine');
+        const moved = global.localStorage.dump();
+        assert.equal(moved['myb_pc_gmiller_rate'], '99', 'premise: genuine legacy data still moves');
+        for (const [k, v] of Object.entries(FORMER)) assert.equal(moved[k], v, `${k} was moved`);
+        assert.ok(!Object.keys(moved).some(k => k.startsWith(`myb_pc_gmiller_${OLD}_`)), 're-keyed with the old slug left in');
+
+        global.localStorage = makeLocalStorage({ ...FORMER, 'myb_pc_rate': '99' });
+        resolveLegacyMigration('A. Panchal', 'fresh');
+        const kept = global.localStorage.dump();
+        assert.equal(kept['myb_pc_rate'], undefined, 'premise: genuine legacy data is still cleared');
+        for (const [k, v] of Object.entries(FORMER)) assert.equal(kept[k], v, `${k} was deleted by somebody else's "start fresh"`);
+    });
+
+    test('CONTROL: every genuine legacy key shape is still legacy', () => {
+        for (const k of ['myb_pc_rate', 'myb_pc_code', 'myb_pc_p43', 'myb_pc_ytd_pay', 'myb_pc_ytd_pay_2026_27',
+            'myb_pc_setup_2025_26', 'myb_pc_setup_years_migrated', 'myb_pc_hpp_est_2025_26', 'myb_pc_hpp_actual',
+            'myb_pc_bp_state', 'myb_pc_bp_state_2026_27', 'myb_pc_pension_timeline', 'myb_pc_pension_optout',
+            'myb_pc_sl_paid_off', 'myb_pc_pg_loan', 'myb_pc_snap_55', 'myb_pc_actuals']) {
+            assert.equal(keyOwnerSlug(k), null, `${k} is unnamespaced legacy data`);
+        }
+    });
+});
+
 // ── parseSavedPeriod — the shared saved-period decoder (back-pay + HPP) ────────
+
+// ── THE RATE IS NEVER STORED, SO NOTHING BUILDS ONE (invariant 8; contracts-b-6, paycalc-3-15) ─────
+// `runMigrations` still turned a legacy single `rate` into a per-tax-year `rates` key on every
+// device that had one — a key nothing has read since the rate became fixed by grade (v17.87), and one
+// every backup then carried as "your settings". A stale rate in storage is the failure class
+// invariant 8 exists to end; the app must not be manufacturing more of it.
+describe('the retired rate keys', () => {
+    test('a legacy rate is left alone: no per-year rates key is built from it', () => {
+        global.localStorage = makeLocalStorage({ 'myb_pc_rate': '19.99' });
+        runMigrations(deps(MEMBER));
+        assert.equal(global.localStorage.getItem('myb_pc_rates'), null, 'a stale rate was copied into a new key');
+    });
+});
 
 describe('parseSavedPeriod', () => {
     test('treats null / empty raw as "never saved", not an error', () => {

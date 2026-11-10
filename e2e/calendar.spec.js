@@ -488,6 +488,56 @@ test('calendar: the legend follows the grid across a SWIPE, in both directions',
     await expect(page.locator('.legend')).toBeVisible();
 });
 
+// ── A READ TEAM VIEW STARTED, LANDING DURING A SWIPE ONTO ITS MONTH (10 Nov 2026, cal-ui-5) ─────────
+// The incoming month is built at pointerdown as "Checking this month". When its read — started by Team
+// View, then left — landed mid-gesture, its only waiter was Team View's repaint, which does nothing once
+// Team View is closed, and the commit found the month settled and asked for nothing: the live month sat
+// on the wait panel although it had been read. Every waiter must repaint whatever surface is live.
+test('calendar: a month read by Team View that lands mid-swipe is drawn when the swipe commits', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse drag drives the gesture here');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));   // first read: Aug–Oct
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('.month-year')).toHaveText('October 2026');
+    await page.evaluate(() => { (/** @type {any} */ (window).__E2E ??= {}).docsHeld = true; });
+    await page.locator('#teamViewBtn').click();                       // opens on 27 Sep – 3 Oct
+    for (let i = 0; i < 5; i++) await page.locator('#tvNextWeek').click();
+    await expect(page.locator('#tvWeekJump')).toHaveText('1–7 Nov 2026');
+    await expect(page.locator('.tv-pending'), 'premise: November is being read, for Team View').toBeVisible();
+    await page.locator('#teamViewBtn').click();                       // back to October
+    await expect(page.locator('.month-year')).toHaveText('October 2026');
+
+    const live = '#calendarDisplay > .calendar-container:not(.carousel-panel)';
+    for (let attempt = 0; ; attempt++) {
+        expect(attempt, 'the drag never took hold in four attempts').toBeLessThan(4);
+        const box = /** @type {any} */ (await page.locator('#calendarDisplay').boundingBox());
+        const y = box.y + box.height / 2;
+        await page.mouse.move(box.x + box.width - 20, y);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width - 90, y, { steps: 6 });
+        const dragging = await page.waitForFunction((sel) => /translate3d\(-/.test(
+            /** @type {HTMLElement|null} */ (document.querySelector(sel))?.style.transform || ''), live, { timeout: 2000 })
+            .then(() => true, () => false);
+        if (!dragging) { await page.mouse.up(); continue; }
+        await expect(page.locator('#calendarDisplay > .carousel-panel').last(), 'premise: November built while unread')
+            .toHaveAttribute('data-override-state', 'loading');
+        // The read lands NOW, mid-gesture.
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+        await expect.poll(() => page.evaluate(() => {
+            const e = /** @type {any} */ (window).__E2E; return (e.docReadsSettled || 0) >= (e.docReads || 0);
+        })).toBe(true);
+        await page.mouse.move(box.x + 20, y, { steps: 6 });
+        await page.mouse.up();
+        break;
+    }
+    await page.waitForFunction(() => document.querySelectorAll('.month-year').length === 1
+        && document.querySelector('.month-year')?.textContent === 'November 2026', null, { timeout: 10000 });
+    await expect(page.locator(live), 'the month that was read is drawn, not left waiting')
+        .toHaveAttribute('data-override-state', 'render');
+});
+
 // A BALANCED LEGEND AT 1024px (polish round 2). As a flex row the keys wrapped greedily, so a busy
 // month — RDW, leave, an absence and an Other day on top of the fixed keys — put "✂️ Pay cut-off" and
 // "💷 Payday" alone on a second line (measured: 10 keys over 2). The four conditional keys are
@@ -801,6 +851,11 @@ test('calendar: the name sheet offers a filter, and picking a filtered row still
     expect(label, 'the search box must be named').toBeTruthy();
     expect((label || '').toLowerCase(), 'the sheet title leaked into the search name verbatim')
         .not.toMatch(/search (choose|select|pick) /);
+    // …and this sheet's title is a QUESTION, which welded into "Search whose roster are you reading?"
+    // (whole-app check, Nov 2026): a question has no noun to keep.
+    expect(label, 'the sheet\'s question was welded onto "Search"').not.toMatch(/\?|roster are you reading/i);
+    // …and the page says what the list holds, so the box is not a bare "Search" (shared-ui-5).
+    expect(label).toBe('Search names');
 
     const shownNow = () => page.locator('.picker-opt[data-value]').count();
     const before = await shownNow();
@@ -915,6 +970,82 @@ test('calendar: first-run pick survives a failed localStorage write (iOS private
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await expect(page.locator('.first-run-prompt')).toHaveCount(0);
     expect(errors, 'Uncaught JS exceptions in private-mode first-run').toHaveLength(0);
+});
+
+// ── A FIRST RUN THAT GOES INTO TEAM VIEW, OR OPENS THE LEAVE PANEL (10 Nov 2026, cal-ui-3) ─────────
+// A station PC on the staff PIN where nobody has picked a name. Team View handles that state on purpose
+// (no "my row"), so its controls must work there; and the leave panel and the colour key must give the
+// first-run answer the grid gives — nobody's figures, no key to a grid that is not there.
+test('calendar: on a first run, Team View still answers 📍 and the ← → T keys', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    const label = page.locator('#tvWeekJump');
+    await expect(label).toBeVisible();
+    const thisWeek = await label.innerText();
+    await page.keyboard.press('ArrowRight');
+    await expect(label, '→ moves a week, as the Team View help says').not.toHaveText(thisWeek);
+    await page.keyboard.press('t');
+    await expect(label, 'T comes back to this week').toHaveText(thisWeek);
+    await page.locator('#tvNextWeek').click();
+    await expect(label).not.toHaveText(thisWeek);
+    await page.locator('#todayBtn').click();
+    await expect(label, '📍 comes back to this week').toHaveText(thisWeek);
+});
+
+test('calendar: on a first run, the leave panel shows nobody\'s leave and asks for a name', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLightbox')).toBeVisible();
+    await expect(page.locator('#alLbWho'), 'nobody has been chosen, so the panel names nobody').toBeHidden();
+    await expect(page.locator('#alLbTaken')).toHaveText('—');
+    await expect(page.locator('#alLbError')).toHaveText(/Choose your name/);
+    await expect(page.locator('#alLightbox')).toHaveAttribute('aria-label', 'Annual Leave balance');
+});
+
+test('calendar: on a first run, leaving Team View does not put the colour key under the prompt', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await expect(page.locator('.legend'), 'premise: no key beside the prompt').toBeHidden();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#tvWeekJump')).toBeVisible();
+    await page.locator('#teamViewBtn').click();   // back to Month
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await expect(page.locator('.legend')).toBeHidden();
+});
+
+test('calendar: Team View opens on the grade of the name picked after a first run', async ({ page }) => {
+    const ces = teamMembers.find(m => !m.hidden && m.role === 'CES');
+    expect(ces, 'premise: the roster has a CES').toBeTruthy();
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#gradeTab-CEA'), 'nobody chosen yet: the first grade').toHaveAttribute('aria-selected', 'true');
+    await page.locator('#teamViewBtn').click();
+    await page.locator('#teamMemberSelect').selectOption({ label: ces.name });
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#gradeTab-CES')).toHaveAttribute('aria-selected', 'true');
+    // …and a tab the reader CHOOSES stays chosen when the view is opened again.
+    await page.locator('#gradeTab-Dispatcher').click();
+    await page.locator('#teamViewBtn').click();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#gradeTab-Dispatcher')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('calendar: a first visit does not use up the swipe hint over the choose-your-name prompt', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the hint is touch-only');
+    test.setTimeout(30_000);
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.waitForTimeout(6_500);
+    await expect(page.locator('#swipeHint'), 'there is no month to swipe under the prompt').toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('myb_swipe_hint_seen'))).toBeNull();
+    await page.locator('#teamMemberSelect').selectOption({ index: 1 });
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('#swipeHint'), 'shown once there is a month to swipe').toBeVisible();
 });
 
 test('calendar: a removed saved member falls back to the calendar + stale banner, NOT the first-run prompt', async ({ page }) => {
@@ -1345,6 +1476,16 @@ test('install strip: pressing Install fires the browser prompt and does not come
     expect(await page.evaluate(() => /** @type {any} */ (window).__promptFired)).toBe(true);
     await expect(page.locator('#installPrompt')).toBeHidden();
     expect(await page.evaluate(() => localStorage.getItem('myb_install_prompt_done'))).toBe('1');
+    // …and a "Cancel" in Chrome's dialog does not bring it back (whole-app review, 10 Nov 2026):
+    // Chromium fires `beforeinstallprompt` again once the member's choice resolves, and the strip
+    // used to show itself for any offer that arrived.
+    await page.evaluate(() => {
+        const again = new Event('beforeinstallprompt', { cancelable: true });
+        /** @type {any} */ (again).prompt = () => Promise.resolve();
+        window.dispatchEvent(again);
+    });
+    await page.waitForTimeout(100);   // the handler's accessReady hop
+    await expect(page.locator('#installPrompt')).toBeHidden();
 });
 
 // ── AN UNREADABLE `--prompt-available` FAILS CLOSED (v22.32, external review) ───────────────────
@@ -2719,6 +2860,77 @@ test('calendar: a refused Enter opens the day panel rather than doing nothing', 
     }
 });
 
+// ── KEYBOARD FOCUS SURVIVES A GRID REBUILT UNDER IT (10 Nov 2026, cal-ui-4) ─────────────────────────
+// Every re-render wipes #calendarDisplay. With focus dropped to <body>, PageUp/PageDown do nothing and
+// ← → change the MONTH instead of the day, so each of these left a keyboard user stranded.
+/** Which day cell holds focus, by its date words — or what does, when no day cell does. */
+const focusedDay = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => {
+    const a = /** @type {HTMLElement|null} */ (document.activeElement);
+    return a?.classList.contains('calendar-day') && a.closest('#calendarDisplay') ? a.dataset.detailDay : `not a day: ${a?.tagName}`;
+});
+
+test('calendar: PageDown onto a month still loading keeps focus for the grid that follows', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard route');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { (/** @type {any} */ (window).__E2E ??= {}).docsHeld = true; });   // new months wait
+    await page.locator('.calendar-day.today').focus();
+    await page.keyboard.press('PageDown');   // October: inside the first read, drawn at once
+    await expect(page.locator('.month-year')).toHaveText('October 2026');
+    await page.keyboard.press('PageDown');   // November: not read yet
+    await expect(page.locator('.calendar-pending')).toBeVisible();
+    await page.evaluate(() => { (/** @type {any} */ (window).__E2E ??= {}).docsHeld = false; });
+    await expect(page.locator('#calendarDisplay .calendar-day').first()).toBeVisible();
+    expect(await focusedDay(page), 'the grid that arrived must take the focus back').toMatch(/November 2026$/);
+    await page.keyboard.press('PageDown');
+    await expect(page.locator('.month-year'), 'and PageDown still pages').toHaveText('December 2026');
+});
+
+test('calendar: closing the day panel after the grid was redrawn behind it returns focus to that day', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard route');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        // The month is painted from the cache while the first server read is held open.
+        w.__E2E.cacheDocs = w.__E2E.docs = [{ id: 'c1', memberName: 'G. Miller', date: '2026-09-18', type: 'annual_leave', value: 'AL', note: '' }];
+        w.__E2E.docsHeld = true;
+    });
+    await page.goto('/');
+    const shown = page.locator('#calendarDisplay > .calendar-container');
+    await expect(shown).toHaveAttribute('data-override-state', 'stale');
+    const cell = page.locator('#calendarDisplay .calendar-day:not(.other-month):not(.payday):not(.cutoff)').nth(9);
+    const day = await cell.getAttribute('data-detail-day');
+    await cell.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#dayDetailLightbox')).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });   // the read lands
+    await expect(shown, 'premise: the grid behind the panel was rebuilt').toHaveAttribute('data-override-state', 'render');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#dayDetailLightbox')).toBeHidden();
+    expect(await focusedDay(page)).toBe(day);
+});
+
+test('calendar: T in Team View keeps focus on the control it was pressed from', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard route');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/');
+    await page.locator('#teamViewBtn').click();
+    await page.locator('#tvNextWeek').click();   // a week away, so T has somewhere to go
+    await expect(page.locator('#tvNextWeek')).toBeFocused();
+    await page.keyboard.press('t');
+    await expect(page.locator('.tv-week-status--now'), 'premise: back on this week').toBeVisible();
+    await expect(page.locator('#tvNextWeek'), 'the rebuilt Next still has the focus').toBeFocused();
+    // "↩ Back to this week" is not drawn on this week, so focus moves to Next, as its own click does.
+    await page.locator('#tvNextWeek').click();
+    await page.locator('#tvToday').focus();
+    await page.keyboard.press('t');
+    await expect(page.locator('#tvNextWeek')).toBeFocused();
+});
+
 test('calendar: a PIN-unlocked screen cannot click through to the calculator', async ({ page }) => {
     // THE STATION PC — and deliberately the HARD version of it: a stale local session naming the
     // very member on screen (reachable — an iOS ITP eviction drops the Firebase user while the
@@ -2906,6 +3118,9 @@ test('calendar: a later month answered from the cache says so, and Try again re-
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         w.__E2E.docs = [{ id: 'nov', memberName: 'G. Miller', date: '2026-11-11',
             type: 'annual_leave', value: 'AL', note: '' }];
+        // A device that read November whole on an earlier day — only that makes the cache's November a
+        // saved copy (cal-data-3: rows another page cached one member at a time are not one).
+        localStorage.setItem('myb_cal_whole_months', JSON.stringify(['2026-11']));
     });
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -2991,6 +3206,31 @@ test.describe('the team week jump', () => {
         expect(label, `week label after picking Sunday ${target.iso}`).toMatch(new RegExp(`^${target.sunDate}\\b`));
         expect(label).toContain(String(target.satDate));
     });
+
+    // FOCUS FOLLOWS THE PICK (shared-ui-4). The pick rebuilds the week row, and Team View focuses the
+    // NEW label in its `change` handler. The picker announced the pick while still open, so its focus
+    // guard pulled that focus straight back into the closing picker — and it fell to <body> when the
+    // picker hid, so the next Tab started from the top of the page.
+    test('calendar: a week picked from the keyboard leaves focus on the rebuilt week label', async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'a keyboard');
+        await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.goto('/');
+        await page.waitForSelector('.control-group--actions', { state: 'attached' });
+        await page.locator('#teamViewBtn').click();
+        await page.waitForSelector('.team-week-text');
+        const before = await page.locator('.team-week-text').innerText();
+        await page.locator('#tvWeekJump').focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#datePickerLightbox')).toBeVisible();
+        await expect(page.locator('#dpGrid .dp-day:focus'), 'it opens on the chosen day').toHaveCount(1);
+        await page.keyboard.press('ArrowDown');   // the same day, a week on
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#datePickerLightbox')).toBeHidden();
+        await expect(page.locator('.team-week-text')).not.toHaveText(before);
+        await expect(page.locator('#tvWeekJump'), 'focus is on the label the pick rebuilt, not on <body>').toBeFocused();
+    });
 });
 
 // Team View opens on the month the reader is ON. `weekStartForMonth` is unit-tested in
@@ -3050,6 +3290,48 @@ test('huddle: a tap with no Huddle uploaded says so', async ({ page }) => {
     await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet');
     await page.locator('#huddleViewerClose').click();
     await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+});
+
+// THE DRAWER TAKES ITS HISTORY ENTRY WITH IT (shared-ui-3; cal-docs-8, the drawer half). The Daily Huddle
+// link is a hash on this page, and the drawer only FORGOT the entry it had pushed rather than popping it,
+// so after reading the Huddle the first Back press landed on that entry: the same Calendar, nothing moved.
+// With the viewer taking its own tap's entry back as well ("a tap leaves no dead Back press", below), ONE
+// press after a Huddle opened from the drawer leaves the Calendar. Asserted where the member LANDS: a walk
+// over the entries' states cannot see the entry it starts on, which is where the leftover now sits.
+test('huddle: opened from the drawer and closed, one Back press leaves the Calendar', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/railcard-guide.html');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel a[href="./#huddle"]').click();
+    await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet');
+    const echoed = page.evaluate(() => new Promise(r => addEventListener('popstate', () => r(true), { once: true })));
+    await page.locator('#huddleViewerClose').click();
+    await echoed;                                            // the close's own Back has landed
+    await page.evaluate(() => history.back());
+    await expect(page, 'a Back press after the Huddle did nothing: it landed on the drawer\'s leftover entry')
+        .toHaveURL(/railcard-guide\.html/);
+});
+
+// …and from any OTHER page the link loads the Calendar, so the drawer's entry is REPLACED, as a page
+// pill's is: Back from the Calendar lands where the member was before opening the drawer.
+test('huddle: opened from another page\'s drawer, Back returns to that page past no drawer entry', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    await expect(page.locator('#navMenuBtn[data-nav-panel-init]')).toBeAttached({ timeout: 15_000 });
+    await page.evaluate(() => history.replaceState({ ...(history.state ?? {}), e2eBase: true }, ''));
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel a[href="./#huddle"]').click();
+    await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet', { timeout: 15_000 });
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+    for (let i = 0; i < 4 && !page.url().includes('/settings.html'); i++) await page.goBack();
+    expect(page.url()).toContain('/settings.html');
+    expect(await page.evaluate(() => history.state), 'Back landed on the drawer\'s leftover entry, not the page')
+        .toEqual(expect.objectContaining({ e2eBase: true }));
 });
 
 test('huddle: a tap on a Huddle that could not be read offers Try again, which re-reads', async ({ page }) => {
@@ -3224,6 +3506,29 @@ test('huddle: offline with nothing cached, a tap says it could not load — neve
     await expect(body).not.toContainText('No Daily Huddle has been uploaded yet');
 });
 
+test('circular: offline with nothing cached, the viewer and the drawer say they could not connect — never "none uploaded"', async ({ page }) => {
+    // The Huddle's rule, which the one-shot Circular/Newsletter read never got (documents-client.js →
+    // `latestIn`, whole-app review 10 Nov 2026): an empty answer from the cache alone is a read that failed.
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true };
+        window.open = /** @type {any} */ (() => ({ opener: null, close() {}, location: {} }));
+    });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });   // offline from here
+    await page.evaluate(() => { location.hash = '#circular'; });
+    const body = page.locator('#docViewerBody');
+    await expect(body).toContainText("Couldn't load this document.", { timeout: 10_000 });
+    await expect(body).not.toContainText('has been uploaded yet');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#docViewer')).not.toHaveClass(/visible/);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel .nav-panel-link--newsletter').click();
+    await expect(page.locator('#navComingSoonLightbox')).toContainText("Couldn't connect", { timeout: 10_000 });
+    await expect(page.locator('#navComingSoonLightbox')).not.toContainText('No newsletter has been uploaded yet');
+});
+
 test('huddle: the Open button works immediately, while the short-lived link is still pending', async ({ page }) => {
     const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
     await page.addInitScript((stored) => {
@@ -3243,6 +3548,133 @@ test('huddle: the Open button works immediately, while the short-lived link is s
         .toEqual([STORED]);
 });
 
+// ── THE HUDDLE VIEWER IN THE BROWSER (whole-app review, 10 Nov 2026) ──────────────────────────────
+// What only a real browser shows: the history a tap leaves, what is drawn on top of what, the real
+// sanitiser, and the keyboard. calendar-huddle-viewer.test.mjs drives the module's own seams.
+const HUDDLE_PDF = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
+/** A member's Calendar with a Huddle to deliver. @param {import('@playwright/test').Page} page @param {Record<string, any>} [doc] */
+async function calendarWithHuddle(page, doc = {}) {
+    await page.addInitScript((d) => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleDoc: d };
+        /** @type {any} */ (window).__opened = [];
+        window.open = /** @type {any} */ ((url) => { /** @type {any} */ (window).__opened.push(String(url)); return null; });
+    }, { date: '2026-09-25', storageUrl: HUDDLE_PDF, fileType: 'pdf', ...doc });
+    await seedMemberSession(page, 'G. Miller');
+}
+
+test('huddle: a tap leaves no dead Back press behind it', async ({ page }) => {
+    // The tap's own history entry was REWRITTEN into a second copy of the page, so after reading the
+    // Huddle it took two Back presses to leave the Calendar (measured). One is right.
+    await calendarWithHuddle(page);
+    await page.goto('/railcard-guide.html');
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleOpenFileBtn')).toBeVisible({ timeout: 15_000 });
+    const echoed = page.evaluate(() => new Promise(r => addEventListener('popstate', () => r(true), { once: true })));
+    await page.locator('#huddleViewerClose').click();
+    await echoed;                                            // the close's own Back has landed
+    await page.evaluate(() => history.back());
+    await expect(page, 'a Back press after the Huddle did nothing').toHaveURL(/railcard-guide\.html/);
+});
+
+/** Wait for the two viewers' own transitions to end — a viewer still sliding in is not where it will
+ *  be, so what lies under a point is not settled until then. @param {import('@playwright/test').Page} page */
+const viewersSettled = (page) => page.waitForFunction(() => document.getAnimations()
+    .filter(a => /** @type {any} */ (a.effect)?.target?.closest?.('#huddleViewer, #docViewer'))
+    .every(a => a.playState !== 'running'));
+
+test('huddle: a Circular tap while the Huddle is open opens OVER it, takes the keyboard, and closes back to the Huddle', async ({ page }) => {
+    // A tap is not a Back press: the Huddle stays where it was, the document is drawn above it (it is
+    // an ordinary lightbox, in the band below the full-bleed Huddle) and Escape goes to what is seen.
+    // `open`, not `visible`: a close takes `open` away at once and keeps `visible` through its fade.
+    await calendarWithHuddle(page);
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleOpenFileBtn')).toBeVisible({ timeout: 15_000 });
+    await viewersSettled(page);
+    await page.evaluate(() => { location.hash = '#circular'; });
+    await expect(page.locator('#docViewer')).toHaveClass(/\bopen\b/);
+    await expect(page.locator('#docViewerBody')).toContainText('No Weekly Retail Circular has been uploaded yet');
+    await viewersSettled(page);
+    await expect(page.locator('#huddleViewer'), 'the tap closed the Huddle it was made over').toHaveClass(/\bopen\b/);
+    expect(await page.evaluate(() => {
+        const at = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+        return at?.closest('#docViewer') ? 'doc' : at?.closest('#huddleViewer') ? 'huddle' : at?.tagName;
+    }), 'the document viewer was drawn underneath the Huddle').toBe('doc');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#docViewer')).not.toHaveClass(/visible/);
+    await expect(page.locator('#huddleViewer'), 'Escape went to the viewer underneath').toHaveClass(/\bopen\b/);
+});
+
+test('huddle: a second Huddle tap while it is open keeps it on screen', async ({ page }) => {
+    // The tap's popstate was read as Back: it closed the viewer, the tap re-opened it inside the
+    // close's fade, and the fade's end hid it — "open", invisible, the page scroll-locked behind it.
+    await calendarWithHuddle(page);
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleOpenFileBtn')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await page.waitForTimeout(800);                          // past the 500ms fade and its fallback
+    await expect(page.locator('#huddleViewer')).toHaveClass(/visible/);
+    await expect(page.locator('#huddleOpenFileBtn')).toBeVisible();
+});
+
+test('huddle: a tap before the Huddle has answered says "Loading…", and an answer that never comes is told', async ({ page }) => {
+    // No Huddle seeded: the fixture's listener never answers. The tap drew NOTHING, and the 8-second
+    // "safety timeout" tested for a state the Calendar never held by then.
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleViewerBody')).toContainText('Loading…');
+    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn't load the Daily Huddle", { timeout: 12_000 });
+});
+
+test('huddle: drawn through the REAL sanitiser — no data- or aria- attribute, no picture, and the picture is named with the route to the file', async ({ page }) => {
+    await calendarWithHuddle(page, {
+        fileType: 'docx', storagePath: 'huddles/2026-09-25-a.docx',
+        htmlContent: '<p data-action="x" aria-label="y" id="z" class="c">Plan for the day</p>'
+            + '<p><img src="data:image/png;base64,iVBORw0KGgo=" alt="Gate plan"></p>'
+            + '<table><tr><td data-k="1" aria-hidden="true" colspan="2">Gate</td></tr></table>',
+    });
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    const body = page.locator('#huddleViewerBody');
+    await expect(body).toContainText('Plan for the day', { timeout: 15_000 });
+    const attrs = await page.evaluate(() => [...document.querySelectorAll('#huddleViewerBody p, #huddleViewerBody td')]
+        .flatMap(el => [...el.attributes].map(a => a.name)));
+    expect(attrs.filter(n => /^(data-|aria-)|^id$/.test(n)), 'the sanitiser passed attributes its comment says it refuses').toEqual([]);
+    expect(attrs, 'the structural table attribute is kept').toContain('colspan');
+    await expect(body.locator('img')).toHaveCount(0);
+    await expect(body).toContainText('This Huddle has pictures that aren’t shown here.');
+    await page.locator('#huddleOpenOriginalBtn').click();
+    // A Word file opens through the Office Online viewer, which shows its pictures (storage-utils.js).
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__opened), { timeout: 3000 })
+        .toEqual([expect.stringContaining(encodeURIComponent(HUDDLE_PDF))]);
+});
+
+test('huddle: a long plan scrolls from the keyboard — the body is a Tab stop inside the viewer', async ({ page }) => {
+    await calendarWithHuddle(page, {
+        fileType: 'docx', storagePath: 'huddles/2026-09-25-a.docx',
+        htmlContent: Array.from({ length: 80 }, (_, i) => `<p>Line ${i + 1} of the plan</p>`).join(''),
+    });
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleViewerBody')).toContainText('Line 80 of the plan', { timeout: 15_000 });
+    await expect(page.locator('#huddleViewerClose')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#huddleViewerBody'), 'Tab stayed on ✕, the only stop').toBeFocused();
+    await page.keyboard.press('PageDown');
+    await expect.poll(() => page.locator('#huddleViewerBody').evaluate(el => el.scrollTop), { message: 'the plan did not scroll' })
+        .toBeGreaterThan(0);
+});
+
 // ── A CACHE-SERVED LEAVE BALANCE IS REFUSED (Oct 2026 review) ───────────────────────────────────
 // Offline, the year query is answered from whatever records the device happens to hold, and counting
 // those overstates the leave left. The panel must say it could not load rather than show a figure.
@@ -3259,6 +3691,45 @@ test('calendar: the leave panel refuses a balance served from the offline cache'
     await page.locator('#alBtn').click();
     await expect(page.locator('#alLbError')).toBeVisible();
     await expect(page.locator('#alLbTaken')).toHaveText('—');
+});
+
+// …AND A BALANCE THIS DEVICE SAVED EARLIER IS LABELLED AS ONE until a read confirms it (10 Nov 2026,
+// cal-ui-2). The saved copy has no age limit: the member who reads "6 left" from a copy saved before
+// three more days were recorded must be told it was not checked — the month grid's words for the same
+// state (CALENDAR_DATA.md 18) — rather than shown it as current, and the figures stay.
+/** Seed a saved balance for G. Miller's 2026 that no read would produce: 20 taken, 6 booked, of 32. */
+const seedSavedBalance = (/** @type {import('@playwright/test').Page} */ page) => page.addInitScript(() => {
+    localStorage.setItem('myb_al_stats_G. Miller|2026', JSON.stringify(
+        { taken: 20, booked: 6, entitlement: 32, breakdown: null, carry: null, christmas: null }));
+});
+
+test('calendar: the leave panel labels a saved balance it could not check, and keeps it', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await seedSavedBalance(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbError')).toHaveText('Saved copy — couldn\'t check for changes');
+    await expect(page.locator('#alLbError')).toBeVisible();
+    await expect(page.locator('#alLbTaken'), 'the saved figures stay').toHaveText('20');
+    await expect(page.locator('#alLbRemaining')).toHaveText('6');
+});
+
+test('calendar: the leave panel says a saved balance is being checked, and drops that once it is', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await seedSavedBalance(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbTaken')).toHaveText('20');
+    await expect(page.locator('#alLbError')).toHaveText('Saved copy — checking for changes…');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await expect(page.locator('#alLbTaken'), 'the server\'s answer replaces the copy').toHaveText('0');
+    await expect(page.locator('#alLbError')).toBeHidden();
 });
 
 // ── THE LEAVE PANEL'S YEAR AND ITS SECOND ROUTE (v24.46, owner) ─────────────────────────────────

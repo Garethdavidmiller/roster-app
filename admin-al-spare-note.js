@@ -1,6 +1,7 @@
 // @ts-check
-import { getBaseShift, isSunday, parseISODate } from './roster-data.js';
+import { getBaseShift, parseISODate } from './roster-data.js';
 import { resolveEffectiveShift } from './override-utils.js';
+import { consumesEntitlement } from './al-entitlement.js';
 // admin-al-spare-note.js — the one sentence the AL booking preview says about Spare days.
 //
 // ── WHY A MODULE FOR ONE SENTENCE ──────────────────────────────────────────────────────────────
@@ -31,6 +32,10 @@ import { resolveEffectiveShift } from './override-utils.js';
 // closes the entitlement question rather than opening it. It carries 📋 — the Spare badge the app
 // already uses — and not ⚠, because there is nothing here to be careful about.
 //
+// A Spare turn saved on a base REST day costs nothing at all — leave over rest-day working is free,
+// like leave over RDW (owner, 10 Nov 2026) — so `countSpareDays` leaves it out, and the note never
+// says "still uses 1 day" about it.
+//
 // ── A SPARE DAY IS ONE THAT IS *STILL* SPARE (v24.44, owner-reported) ─────────────────────────
 //
 // The count read the BASE roster alone, so a Spare week the weekly roster upload had since turned
@@ -46,7 +51,7 @@ import { resolveEffectiveShift } from './override-utils.js';
 /**
  * The Spare-day line for the AL booking preview, or `''` when there is nothing to say.
  *
- * @param {number} spareCount how many of the booked days have a Spare base shift
+ * @param {number} spareCount how many of the booked days are Spare and cost a day (`countSpareDays`)
  * @param {number} totalDays  how many days the booking covers, so a one-day booking can say
  *                            "This is…" rather than "1 of these days is…", which has no "these"
  *                            to be one of
@@ -66,9 +71,11 @@ export function spareShiftNote(spareCount, totalDays) {
 }
 
 /**
- * How many of `dates` are a working day that is STILL Spare — the base roster says Spare and no
- * override has since replaced it (a roster upload, a Change a Shift). A saved Spare override counts
- * too. Sundays never count: annual leave is not recorded on one.
+ * How many of `dates` are STILL Spare and COST a day of leave — the base roster says Spare and no
+ * override has since replaced it (a roster upload, a Change a Shift), or a Spare turn was saved over
+ * a working day. Whether a day costs is `consumesEntitlement`'s answer, the one the booking itself
+ * charges by: never a Sunday or 25/26 December, and never a Spare turn saved on a base rest day
+ * (owner, 10 Nov 2026), which the note would otherwise say "still uses 1 day" about.
  *
  * @param {any} memberObj
  * @param {string[]} dates ISO `YYYY-MM-DD`
@@ -77,6 +84,6 @@ export function spareShiftNote(spareCount, totalDays) {
  */
 export function countSpareDays(memberObj, dates, ovByDate) {
     if (!memberObj) return 0;
-    return dates.filter(d => !isSunday(d)
+    return dates.filter(d => consumesEntitlement(memberObj, d, ovByDate)
         && resolveEffectiveShift(ovByDate?.get(d) ?? null, getBaseShift(memberObj, parseISODate(d)), false).shift === 'SPARE').length;
 }

@@ -1,7 +1,7 @@
 /**
  * Parity tests for the surname-derivation rule that is DELIBERATELY duplicated
  * across the ESM/CommonJS boundary:
- *   - browser:  normaliseSurname()  in auth-identity.js  (re-exported by firebase-client.js; used by session.js getSurname)
+ *   - browser:  normaliseSurname()  in auth-identity.js  (re-exported by firebase-client.js; behind every account email and surname default)
  *   - functions: nameToPassword()   in functions/roster-parse-helpers.js
  *
  * Cloud Functions are CommonJS and cannot import the browser ES module, so the
@@ -31,7 +31,7 @@ const { surnamePassword } = await import('./auth-identity.js');
 
 // The single canonical derivation. BOTH source files must contain this exact
 // expression; if you change it, change it in all three places (here + both files)
-// and reset every staff member's password (see session.js getSurname warning).
+// and reset every staff member's password (see the warning in auth-identity.js's header).
 const CANON = ".split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '')";
 
 /** Reference implementation of the shared core derivation (unpadded surname). */

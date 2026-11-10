@@ -94,6 +94,8 @@ function makeEl(/** @type {string} */ id) {
         // string would make every assertion below pass against a `setStatus` that appended nothing.
         get textContent() { return own + kids.map(k => k.textContent).join(''); },
         set textContent(v) { own = String(v ?? ''); kids = []; },
+        /** What was appended, in order — the rendered cards, so a test can read the list's ORDER. */
+        get _kids() { return kids; },
         classList: {
             add: (/** @type {string} */ c) => { if (!classes.includes(c)) classes.push(c); },
             remove: (/** @type {string} */ c) => { const i = classes.indexOf(c); if (i >= 0) classes.splice(i, 1); },
@@ -179,6 +181,10 @@ mock.module('./firebase-client.js', {
 let _coversAll = true;
 /** Every `loadOverrides` call, so a test can tell "it fetched first" from "it rendered anyway". */
 /** @type {any[]} */ let _loads = [];
+/** Whether the selected member's records have been READ, and whether their last read failed — the
+ *  two answers that tell an unread member from one with nothing recorded (block 9). */
+let _authority = true;
+let _loadFailed = false;
 
 mock.module('./admin-override-store.js', {
     namedExports: {
@@ -193,6 +199,8 @@ mock.module('./admin-override-store.js', {
         removeFromCache: (/** @type {string[]} */ ids) => { _removed.push([...ids]); },
         isTruncated: () => false,
         coversAllStaff: () => _coversAll,
+        hasOverrideAuthorityFor: () => _authority,
+        loadFailedFor: () => _loadFailed,
         OVERRIDES_QUERY_CAP: 400,
         loadOverrides: async (/** @type {any} */ opts) => { _loads.push(opts); },
         // The store's own rule, over the mocked rows: the MANUAL records of the day that the deleted one
@@ -233,6 +241,8 @@ function setup(roles = {}) {
     _checked = [];
     _rows = [];
     _coversAll = true;
+    _authority = true;
+    _loadFailed = false;
     _loads = [];
     for (const id of PAGE_IDS) {
         const e = el(id);
@@ -365,6 +375,18 @@ describe('1c. the confirm is armed for ONE selection (v25.06, whole-app review)'
         assert.equal(el('bulkDeleteBtn').textContent, '⚠ Delete 3?', 'still asking, 1.5s into its own window');
         await fire('bulkDeleteBtn', 'click');
         assert.deepEqual([..._deleted].sort(), ['a', 'b', 'c'], 'the confirming tap deletes');
+    });
+    test('…and so does a re-arm made WHILE armed, with no disarm in between (10 Nov 2026)', async (t) => {
+        // The case above re-arms through a disarm (a change event), which stops the first timer itself;
+        // this one does not, so only the re-arm can stop it — the shared helper's own clear.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _checked = ['a'].map(row);
+        await fire('bulkDeleteBtn', 'click');                 // t=0: armed for one (due at 5s)
+        t.mock.timers.tick(4000);
+        _checked = ['a', 'b'].map(row);                       // a redraw — nothing announced it
+        await fire('bulkDeleteBtn', 'click');                 // t=4s: re-armed for two (due at 9s)
+        t.mock.timers.tick(1500);
+        assert.equal(el('bulkDeleteBtn').textContent, '⚠ Delete 2?', 'the first arm\'s timer disarmed the second');
     });
 });
 
@@ -661,5 +683,193 @@ describe('8. a bulk delete larger than one batch', () => {
         await bulkDelete(many(450));
         assert.deepEqual(_removed, [many(200)], 'the first batch is gone from the server, so from the list too');
         assert.match(el('listFeedback').textContent, /Deleted 200 of 450/, 'a part-way stop says how far it got');
+    });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// THE WHOLE-APP CHECK (10 Nov 2026): what the list may say about an unread member, the order it is
+// in, the toolbar after a render, a refusal's wording, the month default, the fade, and a stored date
+// printed into markup. Each case below fails on the code before the fix.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** Arm and then press a row's ✕, as two taps reach the delegated listener. @param {string} id */
+async function rowDelete(id) {
+    const btn = makeEl(`row-delete-${id}`); btn.dataset.id = id;
+    const target = { closest: (/** @type {string} */ sel) => sel === '.btn-delete' ? btn : null };
+    for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // arms
+    for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // deletes
+}
+/** The dates of the rendered rows, top to bottom, read out of each card's markup. */
+const renderedDates = () => el('overrideTableBody')._kids.map((/** @type {any} */ c) => /data-date="([^"]*)"/.exec(c.innerHTML)?.[1]);
+
+describe('9. an empty list for a member whose records were never read says so', () => {
+    test('still loading: the loading state, never "No recorded changes"', () => {
+        setup({ isAdmin: true });
+        selectMember('S. Silva');
+        _rows = [...MINE];          // the cache holds somebody else
+        _authority = false;         // S. Silva's read has not landed
+        renderTable();
+        assert.doesNotMatch(el('overrideTableBody').innerHTML, /No recorded changes/);
+        assert.match(el('overrideTableBody').innerHTML, /Loading saved changes/);
+        assert.equal(el('listCount').textContent, 'Loading…', 'not "0 saved changes"');
+        assert.equal(el('overridesCountChip').textContent, '');
+    });
+
+    test('a failed read says so, and its Retry asks for THAT member — by click or by key', async () => {
+        setup({ isAdmin: true });
+        selectMember('S. Silva');
+        _authority = false; _loadFailed = true;
+        renderTable();
+        assert.match(el('overrideTableBody').innerHTML, /Couldn't load saved changes\./);
+        assert.equal(el('listCount').textContent, 'Error');
+        const target = { closest: (/** @type {string} */ sel) => sel === '[data-retry-member]' ? {} : null };
+        for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });
+        for (const fn of el('overrideTableBody')._on.keydown ?? []) await fn({ target, key: 'Enter', preventDefault() {} });
+        assert.deepEqual(_loads, [{ everyone: false, member: 'S. Silva' }, { everyone: false, member: 'S. Silva' }]);
+    });
+
+    test('the lasting case: All staff turned back off after both reads failed keeps the failure and its Retry', async () => {
+        setup({ isAdmin: true });
+        selectMember('S. Silva');
+        _authority = false; _loadFailed = true; _coversAll = false;
+        await fire('showAllOverridesBtn', 'click');    // on: starts a collection read (which fails)
+        await fire('showAllOverridesBtn', 'click');    // off again: the member's list is drawn
+        assert.doesNotMatch(el('overrideTableBody').innerHTML, /No recorded changes/);
+        assert.match(el('overrideTableBody').innerHTML, /↻ Retry/);
+    });
+
+    test('a member who HAS been read and has nothing still gets the empty sentence', () => {
+        setup({ isAdmin: true });
+        selectMember('S. Silva');
+        renderTable();
+        assert.match(el('overrideTableBody').innerHTML, /No recorded changes yet for S\. Silva/);
+    });
+
+    test('rows a capped all-staff read left in the cache are still listed', () => {
+        setup({ isAdmin: false, isManager: false });
+        selectMember('S. Silva');
+        _rows = [...THEIRS]; _authority = false;
+        renderTable();
+        assert.equal(el('listCount').textContent, '3 saved changes');
+    });
+});
+
+describe('10. the list is newest first, whatever order the cache is in', () => {
+    test('a member\'s read, which arrives in id order, is listed by date', () => {
+        setup({ isAdmin: false, isManager: false });    // "All months": nothing filtered away
+        selectMember('G. Miller');
+        _rows = ['2026-09-02', '2026-11-20', '2026-01-05', '2026-10-01'].map(d => change('G. Miller', d));
+        renderTable();
+        assert.deepEqual(renderedDates(), ['2026-11-20', '2026-10-01', '2026-09-02', '2026-01-05']);
+    });
+
+    test('everybody\'s rows on one date are in name order, and the cache itself is not reordered', () => {
+        setup({ isAdmin: false, isManager: false });
+        _rows = [change('S. Silva', '2026-09-01'), change('A. Adams', '2026-09-01'), change('G. Miller', '2026-09-03')];
+        const before = _rows.map(o => o.id);
+        renderTable();   // no member selected: everyone's rows
+        assert.deepEqual(renderedDates(), ['2026-09-03', '2026-09-01', '2026-09-01']);
+        assert.match(el('overrideTableBody')._kids[1].innerHTML, /A\. Adams/);
+        assert.deepEqual(_rows.map(o => o.id), before, 'sorting the cache in place would reorder every other reader');
+    });
+});
+
+describe('11. the toolbar starts again with every render', () => {
+    test('an emptying bulk delete leaves no live "Delete selected" and no ticked "Select all"', async () => {
+        el('bulkDeleteBtn').style.display = 'inline-block';   // shown, as ticking rows shows it
+        el('selectAllOverrides').checked = true;
+        await bulkDelete(['only-row']);
+        assert.match(el('overrideTableBody').innerHTML, /No recorded changes yet/, 'premise: the delete emptied the list');
+        assert.equal(el('bulkDeleteBtn').style.display, 'none');
+        assert.equal(el('selectAllOverrides').checked, false);
+    });
+
+    test('a re-render with rows left takes "Select all" out of its dash state', () => {
+        setup({ isAdmin: false, isManager: false });
+        selectMember('G. Miller');
+        _rows = [...MINE];
+        el('selectAllOverrides').indeterminate = true;   // one of two ticked…
+        renderTable();                                     // …and the rows were rebuilt
+        assert.equal(el('selectAllOverrides').indeterminate, false);
+    });
+});
+
+describe('12. a refused delete is not blamed on the connection', () => {
+    const REFUSED = () => Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });
+
+    test('the row ✕', async () => {
+        _rows = [change('G. Miller', '2026-09-01')];
+        _commit = async () => { throw REFUSED(); };
+        await rowDelete('G. Miller-2026-09-01');
+        assert.match(el('listFeedback').textContent, /Could not delete — you may have been signed out/);
+        assert.doesNotMatch(el('listFeedback').textContent, /connection/);
+    });
+
+    test('Delete selected, whole and part-way', async () => {
+        _commit = async () => { throw REFUSED(); };
+        await bulkDelete(['a']);
+        assert.match(el('listFeedback').textContent, /Bulk delete failed — you may have been signed out/);
+        let n = 0;
+        _commit = async () => { if (++n === 2) throw REFUSED(); };
+        await bulkDelete(Array.from({ length: 250 }, (_, i) => `r${i}`));
+        assert.match(el('listFeedback').textContent, /Deleted 200 of 250 before it stopped — the rest are still listed\. You may have been signed out/);
+    });
+
+    test('an ordinary failure still points at the connection', async () => {
+        _commit = async () => { throw new Error('network'); };
+        await bulkDelete(['a']);
+        assert.match(el('listFeedback').textContent, /check your connection/);
+    });
+});
+
+describe('13. every member starts on this month, as the Tip says', () => {
+    test('a member with nothing this month does not take the default away from the next one', () => {
+        setup({ isAdmin: true });
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const chosen = () => el('overridesMonthFilter')._kids.find((/** @type {any} */ o) => o.selected)?.value ?? '';
+        _rows = [change('G. Miller', '2025-01-05'), change('S. Silva', `${ym}-05`)];
+        selectMember('G. Miller');
+        resetTableMemberFilter();
+        assert.equal(chosen(), '', 'premise: nothing this month for the first member, so "All months"');
+        selectMember('S. Silva');
+        resetTableMemberFilter();
+        assert.equal(chosen(), ym, 'the next member starts on this month again');
+    });
+});
+
+describe('14. one fade per feedback line', () => {
+    // Its OWN clock, as block 1c's re-arm case has: run after that case, the file-wide fake clock no
+    // longer fires the fade, and this passed with the guard deleted — vacuous, and only in a full run.
+    test('a refusal three seconds after a delete is still showing when the delete\'s fade comes due', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _rows = [change('G. Miller', '2026-09-01'), change('G. Miller', '2026-09-02')];
+        await rowDelete('G. Miller-2026-09-01');                      // t=0: deleted, its fade due at 6s
+        assert.equal(el('listFeedback').className, 'list-feedback success');
+        t.mock.timers.tick(3000);
+        _refuseDelete = 'Someone else has changed this since your list loaded, so nothing was deleted.';
+        try { await rowDelete('G. Miller-2026-09-02'); } finally { _refuseDelete = null; }   // t=3s: refused
+        t.mock.timers.tick(3500);                                     // t=6.5s: the first fade is due
+        assert.equal(el('listFeedback').className, 'list-feedback error', 'the refusal was taken down by the earlier fade');
+        t.mock.timers.tick(10_000);
+        assert.equal(el('listFeedback').className, 'list-feedback error', 'and an error has no fade of its own');
+    });
+
+    test('premise: a success on its own does fade', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _rows = [change('G. Miller', '2026-09-01')];
+        await rowDelete('G. Miller-2026-09-01');
+        t.mock.timers.tick(6000);
+        assert.equal(el('listFeedback').className, 'list-feedback', 'the clock this block relies on must fire');
+    });
+});
+
+describe('15. a stored date is escaped where the row prints it', () => {
+    test('markup in a date reaches the page as text', () => {
+        setup({ isAdmin: false, isManager: false });
+        selectMember('G. Miller');
+        _rows = [{ id: 'x', memberName: 'G. Miller', date: '<img src=x>', type: 'annual_leave', value: 'AL', source: 'manual' }];
+        renderTable();
+        assert.doesNotMatch(el('overrideTableBody')._kids[0].innerHTML, /<img/);
     });
 });

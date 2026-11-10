@@ -73,9 +73,11 @@ export const SPEED_GROUPS = {
     slow:  { label: 'Slow',     sub: 'over 3s',  tone: 'bad',  buckets: ['3-8s', 'over8s'] },
 };
 
-/** bucket id → speed group id ('quick'|'ok'|'slow'). */
+/** bucket id → speed group id ('quick'|'ok'|'slow'). NO PROTOTYPE (Nov 2026): the bucket comes from a
+ *  sample key any signed-in session can write, and a bucket of `constructor` found the inherited
+ *  `Object` here — truthy, so it was counted in a total while landing in no band. */
 const _BUCKET_GROUP = (() => {
-    /** @type {Record<string, 'quick'|'ok'|'slow'>} */ const m = {};
+    /** @type {Record<string, 'quick'|'ok'|'slow'>} */ const m = Object.create(null);
     for (const g of /** @type {Array<'quick'|'ok'|'slow'>} */ (Object.keys(SPEED_GROUPS))) {
         for (const b of SPEED_GROUPS[g].buckets) m[b] = g;
     }
@@ -130,7 +132,7 @@ function _count(raw) {
 export function summarisePerf(samples, { metric = 'domReady' } = {}) {
     const overall = { quick: 0, ok: 0, slow: 0 };
     /** @type {Record<string, {quick:number, ok:number, slow:number}>} */
-    const pages = {};
+    const pages = Object.create(null);
     let total = 0;
     for (const [key, raw] of Object.entries(samples || {})) {
         const n = _count(raw);
@@ -140,8 +142,10 @@ export function summarisePerf(samples, { metric = 'domReady' } = {}) {
         const group = _BUCKET_GROUP[bucket];
         // A page id is a fixed lower-case token ('calendar', 'guide-staff'). Sample keys are writable
         // by any signed-in session, and the busiest page's id is RENDERED on the admin's card — so
-        // anything else is nobody's page and is dropped here, before it can reach the DOM.
-        if (!group || !PAGE_ID_TOKEN.test(page || '')) continue;
+        // anything else is nobody's page and is dropped here, before it can reach the DOM. So is a
+        // token that names something every object inherits (`constructor`): it landed on the `Object`
+        // function, counted in the total with no row, and the card looks page ids up in a plain object.
+        if (!group || !PAGE_ID_TOKEN.test(page || '') || Object.hasOwn(Object.prototype, page)) continue;
         overall[group] += n;
         (pages[page] || (pages[page] = { quick: 0, ok: 0, slow: 0 }))[group] += n;
         total += n;
@@ -522,14 +526,14 @@ export function perfRecordFullness(samples) {
  */
 function _summariseMetricRows(samples, page, wanted) {
     /** @type {Record<string, Record<string, number>>} */
-    const perMilestone = {};
+    const perMilestone = Object.create(null);   // keyed by written strings — no prototype to land on
     for (const [key, raw] of Object.entries(samples || {})) {
         const n = _count(raw);
         if (!n) continue;
         const parsed = parsePerfSampleKey(key);
         if (parsed.page !== page) continue;
         if (!wanted.some(m => m.metric === parsed.metric)) continue;
-        (perMilestone[parsed.metric] || (perMilestone[parsed.metric] = {}))[parsed.bucket] =
+        (perMilestone[parsed.metric] || (perMilestone[parsed.metric] = Object.create(null)))[parsed.bucket] =
             (perMilestone[parsed.metric]?.[parsed.bucket] || 0) + n;
     }
     const rows = [];

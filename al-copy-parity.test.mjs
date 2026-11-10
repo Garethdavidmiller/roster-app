@@ -28,8 +28,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { CHRISTMAS_LEAVE_FROM_YEAR } from './christmas-leave.js';
 
-const read = (/** @type {string} */ p) => readFileSync(new URL(p, import.meta.url), 'utf8');
+const read =(/** @type {string} */ p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 
 const adminSrc = read('./admin-app.js');
 const adminHtml = read('./admin.html');
@@ -130,6 +131,54 @@ describe('the Staff Guide teaches the same rule', () => {
     test('it names the swap question', () => {
         assert.match(section, /swapped/i,
             'the guide describes booking leave without mentioning the rest-day question');
+    });
+});
+
+// ── CHRISTMAS LEAVE (whole-app review, 10 Nov 2026) ─────────────────────────────────────────────
+//
+// From Christmas 2026 a member whose pattern has them at work on 25 or 26 December is shown on
+// annual leave that costs nothing (christmas-leave.js, owner 5 Nov 2026). The Staff Guide's marker
+// key went on saying "🎄 Christmas (Rest by default)" — for 34 of 45 members on 25 December 2026 the
+// opposite of what the calendar draws — because nothing tied the guide's markers to the app. Two
+// ties: every marker the guide lists is one the calendar's own key shows, and the guide states the
+// leave rule from the year the module starts it.
+describe('the Staff Guide states the Christmas leave rule the calendar follows', () => {
+    const indexHtml = read('./index.html');
+    /** Strip the emoji presentation selector, which one file may carry and the other not. */
+    const norm = (/** @type {string} */ s) => s.replace(/️/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const calendarKey = [...indexHtml.matchAll(
+        /<span class="legend-text"><span aria-hidden="true">([^<]+)<\/span>\s*([^<]+)<\/span>/g)]
+        .map(m => norm(`${m[1]} ${m[2]}`));
+    const markersAt = guide.indexOf('<div class="markers">');
+    // The markers block runs to the paragraph after it.
+    const guideMarkers = [...guide.slice(markersAt, guide.indexOf('<p', markersAt))
+        .matchAll(/<div class="marker">([^<]+)<\/div>/g)].map(m => norm(m[1]));
+    const section = guide.slice(guide.indexOf('id="sg-calendar-markers"'),
+        guide.indexOf('<h2', guide.indexOf('id="sg-calendar-markers"') + 10));
+
+    test('the slices are where this test thinks they are', () => {
+        assert.ok(markersAt !== -1 && guideMarkers.length >= 5,
+            `found ${guideMarkers.length} Staff Guide markers — re-anchor this test`);
+        assert.ok(calendarKey.some(k => k.startsWith('🎄')), "the calendar key's 🎄 item is not where this test looks");
+    });
+
+    test('every marker the guide lists is one the calendar key shows, icon and name', () => {
+        const unknown = guideMarkers.filter(m => !calendarKey.includes(m));
+        assert.deepEqual(unknown, [],
+            'the Staff Guide lists a marker the calendar key does not show — the guide must name each '
+            + `marker as the calendar does (index.html's legend): ${unknown.join(', ')}`);
+    });
+
+    test('it says Christmas leave applies from the year the module starts it, and costs nothing', () => {
+        assert.doesNotMatch(guide, /Rest by default/i,
+            'the Staff Guide says Christmas is Rest by default again — from '
+            + `${CHRISTMAS_LEAVE_FROM_YEAR} a member due at work is shown on annual leave`);
+        assert.match(section, new RegExp(`From ${CHRISTMAS_LEAVE_FROM_YEAR}\\b`),
+            `the Calendar Markers section must say Christmas leave starts in ${CHRISTMAS_LEAVE_FROM_YEAR}`);
+        assert.match(section, /AL\b/, 'the section must say the day shows as AL');
+        assert.match(section, /not come off your allowance|not counted/i,
+            'the section must say Christmas leave costs nothing — the misreading is "somebody booked leave for me"');
+        assert.match(section, /in lieu/i, 'the section must mention the day in lieu for working 26 December');
     });
 });
 

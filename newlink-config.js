@@ -25,15 +25,17 @@
  * needed is auth-policy.js's `newlinkAudience` role — every colleague on a normal CEA contract, and the managers — read by
  * the `newlink` policy and, through `canOpenNewlink`, by the nav pill's `newlinkAudienceOnly`. The role is written there
  * rather than imported from here, because newlink-boundary.test.mjs keeps this file out of the roster pages' reach.
- * newlink-config.test.mjs holds the switch, the role and the pill to one story: 'open' exactly while the policy admits the
- * audience, and the role equal to `audienceNames()` and the managers for every name on the roster.
+ * newlink-config.test.mjs holds the switch, the role and the pill to one story: past 'preview' exactly while the policy admits
+ * the audience, and the role equal to `audienceNames()` and the managers for every name on the roster. 'decided' (owner,
+ * 10 Nov 2026) is set by naming the chosen design in CHOSEN, and changes what the page SAYS, never who may read it.
  *
  * ── WHAT IT IS NOT ─────────────────────────────────────────────────────────────────────────────
  *
  * Not a ballot: nothing here collects a view, a vote or a name (owner: no voting, no stored feedback). Not a roster: the
  * page never mixes a proposal into the Calendar, Team Week, the day panel or the Pay Calculator, and newlink-boundary
  * .test.mjs fails if any of their modules imports the proposals. Not secret: this file is served to anyone, like every
- * module — it holds decisions and no personal data.
+ * module. It holds decisions, and names one person — CONTACT, with CONTACT_ROLE — on the owner's instruction (4 Nov 2026);
+ * nothing a stranger should not read belongs here.
  */
 import { teamMembers } from './roster-data.js';
 
@@ -70,10 +72,22 @@ export const CONTACT = 'Sara Silva';
  */
 export const CONTACT_ROLE = 'the RMT rep';
 
-/** @typedef {'preview'|'open'} Phase  'preview' until v25.59, 'open' since v25.60 (see the header) */
+/**
+ * The design chosen for the new link, by its name on the page — 'Balanced V6', 'Level Crossing' or 'Middle Ground' — or null
+ * while nothing is decided. THE ONE LINE THAT SWITCHES THE PAGE TO 'decided' (owner, 10 Nov 2026: "Add a 'decided' state"):
+ * the status card then says which design has been chosen and when the link starts, and the page stops inviting views — no
+ * "For discussion, not a decision", no "Have your say". A name that is not one of the three is refused (the page goes on as
+ * though nothing were chosen) and newlink-config.test.mjs fails on it. Still null when the link's start (STARTS) comes, the
+ * page stops inviting views anyway and says only that CONTACT will confirm the outcome — it never names a design itself.
+ * @type {string|null}
+ */
+export const CHOSEN = null;
 
-/** @type {Phase} Where the page is in its life. */
-export const PHASE = 'open';
+/** @typedef {'preview'|'open'|'decided'} Phase  'preview' until v25.59, 'open' since v25.60, 'decided' once CHOSEN is set */
+
+/** @type {Phase} Where the page is in its life. 'decided' FOLLOWS from CHOSEN, so the two cannot disagree; the page is open to
+ *  the same people in both (auth-policy.js `newlink`). Back to 'preview' would be an edit to this line. */
+export const PHASE = CHOSEN ? 'decided' : 'open';
 
 /**
  * The last day for views, 'YYYY-MM-DD' — or null, which the page words as "a date to be agreed" (owner: "Not set yet").

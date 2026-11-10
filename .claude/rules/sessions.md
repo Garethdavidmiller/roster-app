@@ -72,7 +72,7 @@ has `name` but not `manager`.
 Shared surname derivation for Firebase Auth: lowercases and strips non-alpha (the ≥6-char padding for
 the Firebase *password* is applied separately by the password builders in `session.js` / `functions`,
 **not** inside `normaliseSurname`). Lives in the pure `auth-identity.js` (so it's unit-testable) and is
-**re-exported by `firebase-client.js`**; `getSurname()` in `session.js` delegates to it. A deliberate
+**re-exported by `firebase-client.js`**. A deliberate
 duplicate lives in `functions/roster-parse-helpers.js`, inside `nameToPassword()` and `nameToEmail` —
 Cloud Functions are CommonJS and cannot import browser ES modules, so unification requires a build
 step. If the rule ever changes, update both locations (`surname-parity.test.mjs` enforces it), and
