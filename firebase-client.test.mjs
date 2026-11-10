@@ -290,7 +290,7 @@ describe('admin endpoints are called with a FORCE-REFRESHED token', () => {
     // A token minted before the admin claim was revoked is still valid by signature for up to an
     // hour; forcing the refresh is the client half of `checkRevoked` on the server.
     const cases = [
-        { name: 'resetMemberPassword', run: () => fc.resetMemberPassword(MEMBER, { revoke: false }), method: 'POST', url: /\/resetMemberPassword$/ },
+        { name: 'resetMemberPassword', run: () => fc.resetMemberPassword(MEMBER), method: 'POST', url: /\/resetMemberPassword$/ },
         { name: 'getSignInStats', run: () => fc.getSignInStats(), method: 'GET', url: /\/getSignInStats$/ },
         { name: 'getAccountSetupGaps', run: () => fc.getAccountSetupGaps(), method: 'GET', url: /\/getAccountSetupGaps$/ },
     ];
@@ -315,10 +315,12 @@ describe('admin endpoints are called with a FORCE-REFRESHED token', () => {
         });
     }
 
-    test('the reset carries exactly the member and the revoke choice', async () => {
+    test('the reset carries exactly the member — a reset always signs them out, so there is no choice to send', async () => {
+        // The `revoke` option and its body field went with the server's (functions-core, Nov 2026):
+        // the "Phase-2 migration nudge" they served never did anything (PASSWORD_DESIGN.md §7).
         signIn();
-        await fc.resetMemberPassword(MEMBER, { revoke: false });
-        assert.deepEqual(JSON.parse(fetches[0].init.body), { member: MEMBER, revoke: false });
+        await fc.resetMemberPassword(MEMBER);
+        assert.deepEqual(JSON.parse(fetches[0].init.body), { member: MEMBER });
     });
 
     test('the two reads carry no body at all', async () => {

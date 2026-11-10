@@ -709,15 +709,12 @@ export async function setOwnPassword(memberName, newPassword) {
 const RESET_PASSWORD_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/resetMemberPassword';
 
 /**
- * Reset a member's password to the surname default (admin break-glass), and sign the member out of
- * their other devices. Requires the caller's admin claim (enforced server-side). `revoke: false` was
- * kept for a "Phase-2 migration nudge" that PASSWORD_DESIGN.md §7 records as doing nothing; the one
- * caller (Operations) passes `true`, the default, and once it passes nothing the option can go.
+ * Reset a member's password to the surname default (admin break-glass). Requires the caller's admin
+ * claim (enforced server-side). A reset always signs the member out of their other devices.
  * @param {string} memberName
- * @param {{ revoke?: boolean }} [opts]
  * @returns {Promise<any>} the function's JSON response
  */
-export async function resetMemberPassword(memberName, { revoke = true } = {}) {
+export async function resetMemberPassword(memberName) {
     const user = auth.currentUser;
     if (!user) throw new Error('Not signed in');
     const { token } = await user.getIdTokenResult(/* forceRefresh */ true);
@@ -728,7 +725,7 @@ export async function resetMemberPassword(memberName, { revoke = true } = {}) {
         r = await fetchWithTimeout(RESET_PASSWORD_URL, {
             method:  'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ member: memberName, revoke }),
+            body:    JSON.stringify({ member: memberName }),
         }, 65_000);
         // Read INSIDE the try: the body shares the deadline, and a body cut off by it is a timeout too.
         if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
