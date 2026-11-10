@@ -543,7 +543,9 @@ also requires no checks before a merge. That is `ARCHITECTURE.md` → EXC-008.
 
 **What is already in the repository.** `deploy-mirror.yml` publishes the
 mirror from the commit a SUCCESSFUL "Deploy Firebase Hosting" run released, and from nothing else:
-it checks every precached file is in the site, deploys, then proves the live mirror serves that
+it checks that the run was a push to this repository's `main` or a run started here by hand (a fork's
+pull request with a workflow named like the deploy is refused) and that `main` contains the commit,
+checks every precached file is in the site, deploys, then proves the live mirror serves that
 version, and a failure lands on the same `deploy-failure` issue as the other deploys. **It does
 nothing until the switch below** — it reads the Pages setting first and stands down while the branch
 build is in charge. The hourly currency check knows the difference too: once the mirror is gated it
@@ -559,10 +561,13 @@ trails Hosting rather than leading it, so "both origins behind" during a release
    `guard` (it decides whether the others run), and `visual` / `visual-webkit`, which are report-only
    by design. Whether the `webkit` entries gate merging is your call: the deploy gate deliberately
    runs Chromium only (DECISIONS.md, 8 Sep 2026).
-2. **Switch the Pages source.** Settings → Pages → Build and deployment → Source: **GitHub Actions**.
-3. **Publish once, now.** Actions → "Deploy GitHub Pages mirror" → Run workflow, from `main`. A manual
-   run publishes the last commit Hosting released from `main` — never main's tip.
-4. **Check it.** Open `https://garethdavidmiller.github.io/roster-app/` in a private window: past the
+2. **Require approval for outside contributors.** Settings → Actions → General → "Approval for running
+   fork pull request workflows from contributors" → **Require approval for all external contributors**.
+   The mirror no longer trusts such runs; this stops them running at all.
+3. **Switch the Pages source.** Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+4. **Publish once, now.** Actions → "Deploy GitHub Pages mirror" → Run workflow, from `main`. A manual
+   run, or a re-run, publishes the newest commit Hosting released from `main` — never main's tip.
+5. **Check it.** Open `https://garethdavidmiller.github.io/roster-app/` in a private window: past the
    splash, no red errors in the console (the deployment health check at the top of CLAUDE.md).
 
 **What changes afterwards.** The mirror updates a minute or two after a Hosting deploy finishes
