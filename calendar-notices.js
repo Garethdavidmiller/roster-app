@@ -85,11 +85,21 @@ function _openWhenAudienceAllows(lb, audience, alsoWhen = () => true, whenDecide
     // Access first, then whatever the coordinator asked us to queue behind (v23.21: the forced
     // set-password overlay a front-door sign-in may put up — see calendar-app.js). `_after` never
     // rejects and never hangs (the coordinator bounds it), so this cannot silence a notice.
+    // The one audience question, asked at the decision AND again at the open (below).
+    const addressed = () => noticeAudienceAllows(audience, getAccessType());
     calendarAccessReady.then(() => _after).then(() => {
-        if (!noticeAudienceAllows(audience, getAccessType())) return;
+        if (!addressed()) return;
         if (!alsoWhen()) return;
         whenDecided();
-        setTimeout(() => openNoticeIfClear(lb), 1500);
+        // ASKED AGAIN AT THE OPEN (whole-app review, 10 Nov 2026). Access can be taken back inside
+        // the defer — a member granted on a cached answer and re-locked half a second later ("Calendar
+        // access has expired. Sign in again to carry on.") — and the lock cards set no scroll lock,
+        // so `openNoticeIfClear` would open the notice over the very card this module waits for
+        // access to keep it off. Refused here, it is refused like any other: not opened, not flagged.
+        setTimeout(() => {
+            if (!addressed()) return;
+            openNoticeIfClear(lb);
+        }, 1500);
     });
 }
 

@@ -349,6 +349,22 @@ describe('2 · a notice arriving at the wrong moment', () => {
         assert.equal(_openedViaHelper.length > 0, true);
     });
 
+    test('access taken back INSIDE the defer: nothing opens over the lock card, and nothing is flagged (cal-docs-11)', async () => {
+        // Granted, the gate passed, the 1500ms timer armed — then re-locked ("Calendar access has
+        // expired"), as a member whose first read is refused is. The audience was asked once, at the
+        // grant; the open itself must ask again, or the notice lands on the card it waits to avoid.
+        await wire({ accessType: SHOWING_ACCESS });
+        _access.decide();
+        await _access.promise;
+        await drain();
+        _accessType = 'none';
+        mock.timers.tick(2000);
+        assert.equal(_openedViaHelper.length, 0, 'no notice opened on a re-locked Calendar');
+        const doneKeys = new Set(NOTICES.map(DONE_KEY_OF));
+        assert.deepEqual(_writes.filter(([k]) => doneKeys.has(k)), [],
+            'and none is flagged seen, so each arrives intact the next time this device is let in');
+    });
+
     test('a notice opens through openNoticeIfClear, never lightbox.open()', async () => {
         // v19.53: with two overlays up, one Escape ran BOTH onClose callbacks — the buried notice was
         // archived and flagged seen by somebody who never saw it.
