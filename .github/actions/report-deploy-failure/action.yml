@@ -51,6 +51,19 @@ inputs:
   token:
     description: 'GITHUB_TOKEN. The calling job needs issues-write permission.'
     required: true
+  # How the deploy ended, because the two need different words (whole-app review, 10 Nov 2026). A
+  # job that runs out of its timeout-minutes ends CANCELLED, not failed, and may have stopped
+  # part-way through its release.
+  result:
+    description: 'How the deploy job ended, failure (the default) or cancelled, which is how a job that ran out of time ends.'
+    required: false
+    default: 'failure'
+  # The Pages mirror publishes the commit a Hosting run released, which is often behind the commit
+  # its own run started from (main's tip), so it says which (whole-app review, 10 Nov 2026).
+  sha:
+    description: 'The commit being deployed, when it is not the run''s own commit. none means the run stopped before choosing one.'
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -61,7 +74,8 @@ runs:
         GH_TOKEN: ${{ inputs.token }}
         TARGET: ${{ inputs.target }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        SHA: ${{ github.sha }}
+        SHA: ${{ inputs.sha || github.sha }}
+        RESULT: ${{ inputs.result }}
         WORKFLOW: ${{ github.workflow }}
       run: |
         set -uo pipefail
@@ -69,19 +83,43 @@ runs:
 
         # The app version AT THIS COMMIT — context, not a claim about what is live. The workflow
         # cannot know what is live (that is whatever the last successful deploy shipped), and
-        # guessing would be worse than saying nothing.
-        VERSION=$(grep -oE "APP_VERSION = '[^']+'" roster-data.js 2>/dev/null | grep -oE "[0-9]+\.[0-9]+" || true)
-        [ -n "${VERSION:-}" ] || VERSION="unknown"
+        # guessing would be worse than saying nothing. The calling job checked out its own commit;
+        # any other is read through the API, because the checkout holds no history to read it from.
+        VERSION=""
+        if [ "$SHA" = "none" ]; then
+          COMMIT="none — the run stopped before choosing one"
+        else
+          COMMIT="\`${SHA}\`"
+          if [ "$SHA" = "$(git rev-parse HEAD 2>/dev/null)" ]; then
+            VERSION=$(grep -oE "APP_VERSION = '[^']+'" roster-data.js 2>/dev/null | grep -oE "[0-9]+\.[0-9]+" || true)
+          else
+            VERSION=$(gh api -H "Accept: application/vnd.github.raw" "repos/$GITHUB_REPOSITORY/contents/roster-data.js?ref=$SHA" 2>/dev/null \
+              | grep -oE "APP_VERSION = '[^']+'" | grep -oE "[0-9]+\.[0-9]+" || true)
+          fi
+        fi
+        if [ -n "$VERSION" ]; then VERSION="\`v${VERSION}\`"; else VERSION="unknown"; fi
+
+        if [ "$RESULT" = "cancelled" ]; then
+          HEADLINE=$(printf '%s\n' \
+          "**${TARGET} did not finish deploying.** It was cut off — it ran out of time, or the run was" \
+          "cancelled — so what is live depends on how far it got: the last successful deploy, this" \
+          "commit, or, for Cloud Functions, which deploy one by one, some functions on each.")
+        elif [ "$SHA" = "none" ]; then
+          HEADLINE="**${TARGET} did not deploy.** It stopped before choosing what to publish, so nothing went out."
+        else
+          HEADLINE=$(printf '%s\n' \
+          "**${TARGET} did not deploy.** Production is still running whatever the last successful" \
+          "deploy shipped — this commit did **not** go out.")
+        fi
 
         BODY=$(printf '%s\n' \
-        "**${TARGET} did not deploy.** Production is still running whatever the last successful" \
-        "deploy shipped — this commit did **not** go out." \
+        "$HEADLINE" \
         "" \
         "| | |" \
         "|---|---|" \
         "| Workflow | \`${WORKFLOW}\` |" \
-        "| Commit | \`${SHA}\` |" \
-        "| App version at this commit | \`v${VERSION}\` |" \
+        "| Commit | ${COMMIT} |" \
+        "| App version at this commit | ${VERSION} |" \
         "| Run | ${RUN_URL} |" \
         "" \
         "### Why this needs looking at rather than ignoring" \
@@ -95,7 +133,7 @@ runs:
         "" \
         "### What to do" \
         "" \
-        "1. Open the run above and find the failing step." \
+        "1. Open the run above and find the step that failed, or the one still running when it was cut off." \
         "2. **If it is a flaky test** — this has happened (v19.94: one unit test of 1254, passing on" \
         "   the same commit everywhere else) — re-run the workflow, or dispatch it from the Actions" \
         "   tab. Both re-run the whole gate, so a genuine failure still cannot slip through." \

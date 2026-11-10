@@ -227,7 +227,7 @@ jobs:
           VERSION=$(grep -oE "APP_VERSION = '[^']+'" _site/roster-data.js | grep -oE "[0-9]+\.[0-9]+")
           echo "Expecting APP_VERSION $VERSION on the Pages mirror"
           for i in $(seq 1 12); do
-            curl -sS -o /tmp/rd.js "https://garethdavidmiller.github.io/roster-app/roster-data.js?release=$GITHUB_RUN_ID-$i" || true
+            curl -sS --max-time 30 -o /tmp/rd.js "https://garethdavidmiller.github.io/roster-app/roster-data.js?release=$GITHUB_RUN_ID-$i" || true
             if grep -q "APP_VERSION = '$VERSION'" /tmp/rd.js; then
               echo "OK: the Pages mirror is serving v$VERSION"
               exit 0
@@ -240,10 +240,16 @@ jobs:
 
   # A failure anywhere above — the plan, the layout check, the deploy or the live proof — opens or
   # updates the same deploy-failure issue the other deploys use. Its own job, for the reason
-  # deploy-hosting.yml gives: a step-level reporter cannot run when the job died in setup.
+  # deploy-hosting.yml gives: a step-level reporter cannot run when the job died in setup. And it
+  # runs when a job was cancelled, which is how one that ran out of time ends (deploy-hosting.yml).
+  #
+  # IT NAMES THE RELEASE THE PLAN CHOSE (whole-app review, 10 Nov 2026). This run's own commit is
+  # main's tip, which is often a merge Hosting has not released yet; the notice used to name that,
+  # and its version, as the commit that "did not go out". So it waits for the plan too, and passes
+  # on what the plan chose — `none` when the plan stopped before choosing.
   report-failure:
-    needs: deploy
-    if: failure()
+    needs: [plan, deploy]
+    if: failure() || contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -255,3 +261,5 @@ jobs:
         with:
           target: 'GitHub Pages mirror'
           token: ${{ github.token }}
+          result: ${{ contains(needs.*.result, 'cancelled') && 'cancelled' || 'failure' }}
+          sha: ${{ needs.plan.outputs.sha || 'none' }}

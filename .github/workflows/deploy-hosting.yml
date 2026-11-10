@@ -251,9 +251,11 @@ jobs:
           VERSION=$(grep -oE "APP_VERSION = '[^']+'" roster-data.js | grep -oE "[0-9]+\.[0-9]+")
           echo "Expecting APP_VERSION $VERSION live on myb-roster.web.app"
           ok=false
+          # Every read is limited to 30s (10 Nov 2026): an origin that accepts the connection and
+          # never answers otherwise holds this step until the whole job runs out of time.
           for i in 1 2 3 4 5 6; do
-            code=$(curl -sS -o /tmp/root.html -w '%{http_code}' https://myb-roster.web.app/ || echo 000)
-            curl -sS -o /tmp/rd.js https://myb-roster.web.app/roster-data.js || true
+            code=$(curl -sS --max-time 30 -o /tmp/root.html -w '%{http_code}' https://myb-roster.web.app/ || echo 000)
+            curl -sS --max-time 30 -o /tmp/rd.js https://myb-roster.web.app/roster-data.js || true
             # grep the downloaded FILES (not a `printf "$live" | grep -q` pipe): under `set -o pipefail`,
             # grep -q exits on first match and closes the pipe, so printf takes SIGPIPE (141) once the
             # file exceeds the ~64KB pipe buffer, and pipefail reports the whole pipeline as FAILED — a
@@ -270,12 +272,12 @@ jobs:
           fi
           echo "OK: myb-roster.web.app serving v$VERSION"
           # A deep-link (not just root) must also load — the documented Pages-404 class hit sub-pages.
-          sub=$(curl -sS -o /dev/null -w '%{http_code}' https://myb-roster.web.app/paycalc.html || echo 000)
+          sub=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' https://myb-roster.web.app/paycalc.html || echo 000)
           if [ "$sub" != "200" ]; then echo "::error::paycalc.html returned $sub"; exit 1; fi
           echo "OK: paycalc.html deep-link 200"
           # GitHub Pages staff mirror: liveness only. It builds independently of this workflow, so its
           # version can briefly lag a Firebase deploy — a hard version-match would flake. Warn only.
-          mcode=$(curl -sS -o /dev/null -w '%{http_code}' https://garethdavidmiller.github.io/roster-app/ || echo 000)
+          mcode=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' https://garethdavidmiller.github.io/roster-app/ || echo 000)
           if [ "$mcode" = "200" ]; then echo "OK: Pages mirror live (200)"; else echo "::warning::Pages mirror returned $mcode — check the mirror build"; fi
 
   # ── AND A FAILURE BEFORE THE FIRST STEP MUST NOT BE SILENT EITHER ───────────────────────────
@@ -295,9 +297,15 @@ jobs:
   # The irreducible tail: this job needs `checkout` and the action itself, so a codeload outage
   # broad enough to take those down takes the reporter with it. Nothing inside a workflow can
   # report that. It is a far smaller target than the four actions the deploy job pulls.
+  #
+  # …NOR A DEPLOY THAT RUNS OUT OF TIME (whole-app review, 10 Nov 2026). A job that reaches its
+  # timeout-minutes ends CANCELLED, not failed, and `failure()` alone skipped this job for it: the
+  # v24.44 deploy cut off at 20m00s on 2 Oct 2026 told nobody, and only the hourly currency check
+  # noticed. So it also runs when the job it waits for was cancelled, and the notice says the
+  # deploy may have stopped part-way.
   report-failure:
     needs: deploy
-    if: failure()
+    if: failure() || contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -309,3 +317,4 @@ jobs:
         with:
           target: 'Firebase Hosting'
           token: ${{ github.token }}
+          result: ${{ contains(needs.*.result, 'cancelled') && 'cancelled' || 'failure' }}

@@ -197,9 +197,14 @@ jobs:
   # The irreducible tail: this job needs `checkout` and the action itself, so a codeload outage
   # broad enough to take those down takes the reporter with it. Nothing inside a workflow can
   # report that. It is a far smaller target than the four actions the deploy job pulls.
+  #
+  # …NOR A DEPLOY THAT RUNS OUT OF TIME (whole-app review, 10 Nov 2026) — deploy-hosting.yml has
+  # the incident. A cancelled job is not a failed one, so `failure()` alone missed it, and nothing
+  # else watches this deploy: one cut off mid-release can leave the split surface described at the
+  # top of this file, and nobody would be told.
   report-failure:
     needs: deploy
-    if: failure()
+    if: failure() || contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -211,3 +216,4 @@ jobs:
         with:
           target: 'Cloud Functions'
           token: ${{ github.token }}
+          result: ${{ contains(needs.*.result, 'cancelled') && 'cancelled' || 'failure' }}

@@ -193,11 +193,19 @@ describe('a failed deploy is announced, whenever it fails', () => {
 
             // `needs` is what makes it run after the deploy; the job-level `if` is what makes it run
             // when the deploy died before its first step. A step-level guard is the defect.
-            assert.match(block, /^ {4}needs: deploy[ \t]*$/m,
+            assert.match(block, /^ {4}needs: (deploy|\[(\w+, )*deploy(, \w+)*\])[ \t]*$/m,
                 `${file}: report-failure must declare 'needs: deploy'`);
-            assert.match(block, /^ {4}if: failure\(\)[ \t]*$/m,
-                `${file}: report-failure needs a JOB-level 'if: failure()' — a step-level guard is `
-                + 'exactly what could not fire when the job failed during setup.');
+            // …and when it was CANCELLED, which is how a job that runs out of time ends (10 Nov 2026
+            // review). `failure()` alone is false for a cancelled job: the v24.44 deploy cut off at
+            // 20m00s told nobody. The spelling matters as much as the shape — GitHub's value is
+            // `cancelled`, and a `canceled` here would never match anything.
+            assert.match(block, /^ {4}if: failure\(\) \|\| contains\(needs\.\*\.result, 'cancelled'\)[ \t]*$/m,
+                `${file}: report-failure needs the JOB-level 'if: failure() || contains(needs.*.result, `
+                + "'cancelled')' — a step-level guard could not fire when the job failed during setup, "
+                + 'and `failure()` alone does not fire when the deploy ran out of time.');
+            assert.match(block, /^ {10}result: \$\{\{ contains\(needs\.\*\.result, 'cancelled'\) && 'cancelled' \|\| 'failure' \}\}[ \t]*$/m,
+                `${file}: report-failure must tell the notice how the deploy ended — a deploy cut off `
+                + 'part-way is not one that "did not go out"');
             // Without issues:write the reporter runs and the API call fails — a notifier that
             // reports nothing is worse than none, because the workflow still goes green-ish.
             assert.match(block, /^ {6}issues: write[ \t]*$/m,
@@ -217,6 +225,114 @@ describe('a failed deploy is announced, whenever it fails', () => {
                 + 'handler already covers every failure the step could see, and more.');
         });
     }
+
+    test('the mirror\'s notice names the release its plan chose, not main\'s tip', () => {
+        // 10 Nov 2026 review: the mirror publishes the commit a Hosting run released, while its own
+        // run's commit is main's tip — usually a merge Hosting has not released yet. The reporter
+        // only waited for the deploy job, so it could not see the plan's choice and named the tip.
+        const src = readFileSync(join(WF_DIR, 'deploy-mirror.yml'), 'utf8');
+        const block = src.slice(src.search(/^ {2}report-failure:[ \t]*$/m));
+        assert.match(block, /^ {4}needs: \[plan, deploy\][ \t]*$/m, 'the reporter must wait for the plan to read its choice');
+        assert.match(block, /^ {10}sha: \$\{\{ needs\.plan\.outputs\.sha \|\| 'none' \}\}[ \t]*$/m,
+            'the reporter must pass on the commit the plan chose, or `none` when it chose nothing');
+        const action = readFileSync('.github/actions/report-deploy-failure/action.yml', 'utf8');
+        assert.match(action, /^ {8}SHA: \$\{\{ inputs\.sha \|\| github\.sha \}\}[ \t]*$/m,
+            'the action must report the commit it is given, and the run\'s own only when given none');
+        assert.match(action, /^ {8}RESULT: \$\{\{ inputs\.result \}\}[ \t]*$/m, 'the action must read how the deploy ended');
+    });
+
+    test('a post-deploy read cannot hang until the job runs out of time', () => {
+        // A curl with no --max-time against an origin that accepts and never answers waits until
+        // the job's own limit cancels it — the silent ending the reporter now catches, but a step
+        // that fails by name says what hung. Every curl in every workflow carries a limit.
+        for (const f of readdirSync(WF_DIR).filter(n => /\.ya?ml$/.test(n))) {
+            const unbounded = readFileSync(join(WF_DIR, f), 'utf8').split('\n')
+                .filter(l => !l.trim().startsWith('#') && /\bcurl\s+-/.test(l) && !/--max-time\s+\d+/.test(l));
+            assert.deepEqual(unbounded, [], `${f}: a curl with no --max-time`);
+        }
+    });
+
+    describe('the notice says which commit, and whether the deploy was cut off', () => {
+        const script = stepScript(readFileSync('.github/actions/report-deploy-failure/action.yml', 'utf8'),
+            'Open or update the deploy-failure issue');
+        const HEAD = '1'.repeat(40), RELEASE = '2'.repeat(40);
+
+        /**
+         * Runs the reporter's script with `gh` and `git` stubbed and returns the issue body it sent.
+         * @param {Record<string, string>} env
+         * @param {Record<string, string>} [versions] the APP_VERSION the API holds at each commit
+         */
+        const notice = (env, versions = {}) => {
+            const dir = mkdtempSync(join(tmpdir(), 'reporter-'));
+            try {
+                const bin = join(dir, 'bin');
+                mkdirSync(bin);
+                writeFileSync(join(bin, 'git'), '#!/usr/bin/env bash\n[ "$1 $2" = "rev-parse HEAD" ] && echo "$STUB_HEAD" && exit 0\nexit 1\n', { mode: 0o755 });
+                writeFileSync(join(bin, 'gh'), `#!/usr/bin/env node
+const { appendFileSync, writeFileSync } = require('node:fs');
+const a = process.argv.slice(2);
+appendFileSync(process.env.GH_LOG, a.join(' ') + '\\n');
+if (a[0] === 'api') {
+    const m = /^repos\\/[^/]+\\/[^/]+\\/contents\\/roster-data\\.js\\?ref=(\\w+)$/.exec(a[a.length - 1]);
+    const v = m && JSON.parse(process.env.STUB_VERSIONS)[m[1]];
+    if (!v || !a.includes('Accept: application/vnd.github.raw')) { console.error('gh: HTTP 404'); process.exit(1); }
+    process.stdout.write("export const APP_VERSION = '" + v + "';\\n");
+} else if (a[0] === 'issue' && (a[1] === 'create' || a[1] === 'comment')) {
+    writeFileSync(process.env.GH_BODY, a[a.indexOf('--body') + 1]);
+}
+`, { mode: 0o755 });
+                writeFileSync(join(dir, 'report.sh'), script);
+                writeFileSync(join(dir, 'roster-data.js'), "export const APP_VERSION = '25.64';\n");
+                writeFileSync(join(dir, 'calls'), '');
+                writeFileSync(join(dir, 'body'), '');
+                execFileSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', 'report.sh'], { cwd: dir, encoding: 'utf8', stdio: 'pipe',
+                    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_LOG: join(dir, 'calls'), GH_BODY: join(dir, 'body'),
+                        STUB_HEAD: HEAD, STUB_VERSIONS: JSON.stringify(versions), GH_TOKEN: 'stub', GITHUB_REPOSITORY: 'owner/roster-app',
+                        TARGET: 'Firebase Hosting', RUN_URL: 'https://example.invalid/run/1', WORKFLOW: 'Deploy Firebase Hosting',
+                        SHA: HEAD, RESULT: 'failure', ...env } });
+                return { body: readFileSync(join(dir, 'body'), 'utf8'), calls: readFileSync(join(dir, 'calls'), 'utf8') };
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        };
+
+        test('a failed deploy names its own commit and the version checked out', () => {
+            const { body, calls } = notice({});
+            assert.match(body, /\*\*Firebase Hosting did not deploy\.\*\*/);
+            assert.match(body, /this commit did \*\*not\*\* go out/);
+            assert.ok(body.includes(`| Commit | \`${HEAD}\` |`), body);
+            assert.ok(body.includes('| App version at this commit | `v25.64` |'), body);
+            assert.doesNotMatch(calls, /contents\//, 'the checked-out commit needs no API read');
+        });
+
+        test('a deploy that was cut off says it may have stopped part-way, not that nothing went out', () => {
+            const { body } = notice({ RESULT: 'cancelled' });
+            assert.match(body, /did not finish deploying/);
+            assert.match(body, /ran out of time, or the run was\s+cancelled/);
+            assert.doesNotMatch(body, /did \*\*not\*\* go out/,
+                'a deploy cut off part-way may be partly live; "did not go out" would send the reader the wrong way');
+        });
+
+        test('another commit is named with ITS version, read at that commit', () => {
+            // The mirror's case: main's tip checked out (v25.64), the release being published v25.62.
+            const { body, calls } = notice({ TARGET: 'GitHub Pages mirror', SHA: RELEASE }, { [RELEASE]: '25.62' });
+            assert.ok(body.includes(`| Commit | \`${RELEASE}\` |`), body);
+            assert.ok(body.includes('| App version at this commit | `v25.62` |'), `the version of the checked-out tip was reported:\n${body}`);
+            assert.match(calls, new RegExp(`contents/roster-data\\.js\\?ref=${RELEASE}`));
+        });
+
+        test('a run that chose nothing says so, and claims no commit or version', () => {
+            const { body } = notice({ TARGET: 'GitHub Pages mirror', SHA: 'none' });
+            assert.match(body, /stopped before choosing what to publish, so nothing went out/);
+            assert.ok(body.includes('| Commit | none — the run stopped before choosing one |'), body);
+            assert.ok(body.includes('| App version at this commit | unknown |'), body);
+        });
+
+        test('a version it cannot read is "unknown", not "vunknown"', () => {
+            const { body } = notice({ SHA: RELEASE });
+            assert.ok(body.includes('| App version at this commit | unknown |'), body);
+        });
+    });
 });
 
 // ── THE SUITE MUST NOT RUN TWICE, AND MUST NOT SKIP ITSELF (1 Sep 2026) ────────────────────────────
