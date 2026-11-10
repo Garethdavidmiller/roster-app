@@ -1843,6 +1843,25 @@ test('admin: a leave range across a start date asks nothing about the days befor
     expect(written).toEqual(['2026-06-03', '2026-06-04', '2026-06-05']);
 });
 
+// …and the preview says what those days are. It counted them among "rest days skipped" — a day before somebody
+// started is not a rest day, and is told apart from the real ones in the same range (Sat 6 answered free, Sun 7).
+test('admin: the leave preview names the days before the start date as such, not as rest days', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-06-01T09:00:00Z'));
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('K. Jedlinski');   // starts Wed 3 Jun 2026; Sat 6 and Sun 7 are rest days
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-06-01"]').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-06-07"]').click();
+    const preview = page.locator('#alPreview');
+    await clickInView(preview.locator('.swapday-row[data-date="2026-06-06"] .swapday-opt[data-answer="no"]'));
+    await expect(preview).toContainText('3 days of Annual Leave');
+    await expect(preview).toContainText('2 rest days skipped');
+    await expect(preview).toContainText('2 days skipped before the start date');
+});
+
 // THE FIRST READ WAITS FOR THE SESSION (whole-app check, Nov 2026). On an iPhone Firebase can restore no
 // user behind a valid local session (AUTH_AND_SESSIONS.md), and Admin then signs in silently. The boot
 // read went out first — with no credential, which the overrides rule refuses — and nothing retried it once
