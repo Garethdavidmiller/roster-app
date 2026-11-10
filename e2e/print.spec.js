@@ -284,8 +284,12 @@ test('the "printing isn’t available" button wears a focus ring its strip lets 
     await page.locator('.btn-print').click();
     const open = page.locator('#printUnavailable').getByRole('button', { name: 'Open in Safari' });
     await expect(open).toBeVisible();
-    await page.keyboard.press('Shift');   // keyboard modality, so a scripted focus matches :focus-visible
-    await open.focus();
+    // Reached by the keyboard, out to the PDF button and back: a ring is drawn for keyboard focus, and only travel
+    // counts as that in every engine. A lone Shift then a scripted focus does in Chromium and not in WebKit, which
+    // left this test reading an unfocused-looking button there (10 Nov 2026).
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(open, 'premise: Tab came back to the strip\'s button').toBeFocused();
     const m = await open.evaluate(el => {
         const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
         /** @param {string} c */
