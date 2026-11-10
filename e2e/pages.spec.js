@@ -8,9 +8,10 @@
  * file of 10,599 lines. Those now live in admin.spec.js, links.spec.js,
  * operations.spec.js, settings.spec.js and guides.spec.js, moved test for test and unchanged.
  */
-import { test, expect } from './fixtures.js';
-import { seedSession, seedMember, seedMemberSession, isTouchProject, scaleText, tooWide, waitForPageSettled } from './helpers.js';
-import { teamMembers } from '../roster-data.js';
+import { test, expect, forcePasswordSet } from './fixtures.js';
+import { seedSession, seedMember, seedMemberSession, isTouchProject, scaleText, tooWide, waitForPageSettled, signInThroughOverlay,
+    openRosterReview, stubUsageReads, stubPerfReads } from './helpers.js';
+import { teamMembers, CONFIG } from '../roster-data.js';
 import { APP_PAGES as APP_PAGES_LIST } from '../scripts/app-pages.mjs';
 
 test('a card title\'s emoji sits inside its title, on its first line, and a wrapped title hangs from it', async ({ page }) => {
@@ -272,6 +273,111 @@ test('drawer: the body fades at the fold only while there is more below it', asy
     await expect(page.locator('#navPanel')).toHaveClass(/\bopen\b/);
     await page.waitForTimeout(100);   // two frames for the first measure
     await expect(body, 'a drawer that fits wears no fade').not.toHaveClass(/\bhas-more\b/);
+});
+
+// ── A PAGE'S FIELD RULES STAY ON THE PAGE (css-admin-ops-1 and -5, Nov 2026) ────────────────────────
+// Admin and Operations style their fields BY ELEMENT, and those rules were unscoped, so they reached
+// the shared surfaces every page hosts and out-ranked those surfaces' own rules. Focused, the drawer's
+// guide search turned white under its white text — a search typed blind — and the drawer search had
+// only ever been driven on the Calendar. Both rules are scoped to `.container` now; these two tests
+// hold every card page to one drawer box and one sign-in screen.
+test('drawer: the guide search box looks the same on every card page while it is typed in', async ({ page }) => {
+    test.setTimeout(90_000);
+    await seedSession(page, 'G. Miller');
+    /** @type {Record<string, string>} */
+    const looks = {};
+    for (const p of APP_PAGES_LIST.filter(x => x.cards)) {
+        await page.goto(p.url);
+        await waitForPageSettled(page);
+        await page.locator('#navMenuBtn').click();
+        const input = page.locator('#navGuideSearchInput');
+        await expect(input, `${p.file}: the drawer's search box`).toBeVisible();
+        await input.click();
+        await input.pressSequentially('rail');
+        const look = await input.evaluate(el => {
+            const c = getComputedStyle(el);
+            return { text: c.color, fill: c.backgroundColor, ring: `${c.outlineColor} ${c.outlineStyle}` };
+        });
+        expect(look.text, `${p.file}: what is typed is drawn in the colour of the box it is typed into`).not.toBe(look.fill);
+        looks[p.file] = JSON.stringify(look);
+    }
+    const [first, ...rest] = Object.entries(looks);
+    for (const [file, look] of rest) expect(look, `${file}'s drawer search differs from ${first[0]}'s`).toBe(first[1]);
+});
+
+// …and the sign-in card's hidden username field (the password manager's) took the page's
+// `input[type="text"] { width: 100% }` — 100% of the fixed overlay, from the card's middle — so the
+// sign-in screen, and the set-password screen after it, could be dragged half a screen sideways. The
+// overflow is inside a fixed overlay, so no document-width check could see it.
+test('the sign-in and set-password screens never scroll sideways, on any page', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 375, height: 800 });
+    const sideways = (/** @type {string} */ id) => page.locator(id).evaluate(el => el.scrollWidth - el.clientWidth);
+    for (const p of APP_PAGES_LIST.filter(x => x.cards && (x.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true))) {
+        await page.goto(p.url);
+        await page.locator('#loginOverlay.visible').waitFor();
+        expect(await sideways('#loginOverlay'), `${p.file}: the sign-in screen scrolls sideways`).toBeLessThanOrEqual(0);
+    }
+    await forcePasswordSet(page);
+    for (const url of ['/admin.html', '/operations.html']) {
+        await page.goto(url);
+        await page.evaluate(() => localStorage.clear());   // the first page's sign-in must not carry over
+        await page.goto(url);
+        await signInThroughOverlay(page, 'G. Miller');
+        await expect(page.locator('#pwForceOverlay')).toBeVisible();
+        expect(await sideways('#pwForceOverlay'), `${url}: the set-password screen scrolls sideways`).toBeLessThanOrEqual(0);
+    }
+});
+
+// ── EVERY CONTROL A PAGE STYLES IS SET IN INTER (css-admin-ops-9, Nov 2026) ───────────────────────────
+// A <button> or an <input> does not inherit the page's font — the browser gives it the platform's — so
+// each rule that styles one has to say `font-family: inherit`, and on Admin and Operations eighteen did
+// not: "Upload Huddle", the review's ticks and choices, Reset, Set email, Mon–Fri, the month toggle were
+// Arial on the station PC beside Inter. The baselines were drawn with the wrong font in them, and
+// nothing read a control's font. This reads every control carrying a class the page's OWN stylesheet
+// styles, with the surfaces that build controls on demand opened first.
+test('every control Admin and Operations style is set in Inter', async ({ page }) => {
+    test.setTimeout(90_000);
+    const offInter = (/** @type {string} */ sheet) => page.evaluate((file) => {
+        /** @type {Set<string>} */
+        const own = new Set();
+        /** @param {CSSRuleList} rules */
+        const walk = (rules) => {
+            for (const r of /** @type {any} */ (rules)) {
+                if (r.selectorText) for (const m of r.selectorText.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)) own.add(m[1]);
+                if (r.cssRules) walk(r.cssRules);
+            }
+        };
+        for (const s of document.styleSheets) if ((s.href || '').endsWith('/' + file)) walk(s.cssRules);
+        const off = new Set();
+        for (const el of document.querySelectorAll('button, input, select, textarea')) {
+            if (el.matches('input[type="checkbox"], input[type="radio"], input[type="file"]')) continue;
+            if (![...el.classList].some(c => own.has(c))) continue;
+            if (!/^"?Inter\b/.test(getComputedStyle(el).fontFamily)) off.add(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`);
+        }
+        return { read: own.size, off: [...off] };
+    }, sheet);
+
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const admin = await offInter('admin.css');
+    expect(admin.read, 'premise: admin.css was read').toBeGreaterThan(100);
+    expect(admin.off, 'Admin controls drawn in the platform font').toEqual([]);
+
+    await stubUsageReads(page, {});
+    await stubPerfReads(page, {});
+    await openRosterReview(page);   // the review's ticks, choices and skip-all
+    await page.evaluate(() => {
+        for (const id of ['accountStatusBody', 'usageBody', 'pageSpeedBody']) document.getElementById(id)?.classList.add('open');
+        for (const id of ['usageToggleHeader', 'pageSpeedToggleHeader']) document.getElementById(id)?.click();
+    });
+    await page.locator('.acct-row .email-set-btn').first().click();   // the email form, built on demand
+    await expect(page.locator('.email-set-input')).toBeVisible();
+    await expect(page.locator('.speed-toggle-btn').first(), 'premise: a month toggle is drawn').toBeAttached();
+    const ops = await offInter('operations.css');
+    expect(ops.read, 'premise: operations.css was read').toBeGreaterThan(100);
+    expect(ops.off, 'Operations controls drawn in the platform font').toEqual([]);
 });
 
 // ── THE FIRST CARD SITS THE SAME DISTANCE UNDER THE HEADER ON EVERY PAGE (desktop audit, Nov 2026) ─

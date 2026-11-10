@@ -1400,6 +1400,222 @@ test('admin: Christmas leave is listed with the recorded leave, not counted, wit
     await expect(page.locator('#alBannerBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day');
 });
 
+// The note under ENTITLEMENT is a 45-character sentence from Boxing Day 2026, and it was `nowrap`: the
+// fourth figure grew as wide as the sentence and the four ran out of the banner, where the card's
+// `overflow: hidden` cut them ("…for working B") — so the TEXT test above stayed green on a note
+// nobody could finish reading. Geometry, at a phone's widths and in the desktop side column.
+test('admin: the AL banner keeps its figures and the Boxing Day note inside the banner', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'bx', memberName: 'G. Miller', date: '2026-12-26', type: 'rdw', value: '13:30-21:00', note: '' }],
+        });
+    });
+    await page.setViewportSize({ width: 375, height: 900 });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alBannerBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day');
+    for (const width of [360, 375, 1024]) {
+        await page.setViewportSize({ width, height: 900 });
+        const m = await page.locator('#alBanner').evaluate(banner => {
+            const edge = banner.getBoundingClientRect().right - parseFloat(getComputedStyle(banner).borderRightWidth);
+            const right = (/** @type {Element} */ el) => el.getBoundingClientRect().right;
+            return {
+                edge,
+                overflow: banner.scrollWidth - banner.clientWidth,
+                stats: [...banner.querySelectorAll('.al-banner-stat')].map(right),
+                note: right(/** @type {Element} */ (banner.querySelector('#alBannerBreakdown'))),
+            };
+        });
+        expect(m.overflow, `${width}px: the banner's content is wider than the banner`).toBeLessThanOrEqual(0);
+        for (const r of [...m.stats, m.note]) {
+            expect(r, `${width}px: a figure or the note runs past the banner's edge (${m.edge}px)`).toBeLessThanOrEqual(m.edge + 0.5);
+        }
+    }
+    // …and it is read, so it is quieter by its size, never by a fade: at `opacity: 0.75` it was 3.47:1.
+    const note = await page.locator('#alBannerBreakdown').evaluate(el => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string} css */
+        const rgb = (css) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        /** @param {number[]} c */
+        const lum = (c) => c.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const [hi, lo] = [lum(rgb(getComputedStyle(el).color)),
+            lum(rgb(getComputedStyle(/** @type {Element} */ (el.closest('.al-banner'))).backgroundColor))].sort((x, y) => y - x);
+        return { opacity: getComputedStyle(el).opacity, ratio: (hi + 0.05) / (lo + 0.05) };
+    });
+    expect(note.opacity, 'the entitlement note is faded with opacity').toBe('1');
+    expect(note.ratio, 'the entitlement note is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
+});
+
+// The collapsed AL card's one figure at 1–5 days left was brand gold on the chip's near-white ground,
+// 1.69:1, while the banner inside the same card said the same thing in the darkened `--al-low`. No
+// scan reached the state, so it is driven for real: 29 days of leave on days he is rostered to work.
+test('admin: "AL left" in the card header is readable when only a few days remain', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    const me = teamMembers.find(/** @param {any} m */ m => m.name === 'G. Miller');
+    /** @type {string[]} */
+    const days = [];
+    for (const d = new Date('2026-01-05T12:00:00'); days.length < 29; d.setDate(d.getDate() + 1)) {
+        const s = getBaseShift(me, d);
+        if (d.getDay() !== 0 && s && s !== 'RD' && s !== 'OFF') days.push(d.toISOString().slice(0, 10));
+    }
+    await page.addInitScript((docs) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { docs });
+    }, days.map((date, i) => ({ id: `al${i}`, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '' })));
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    const chip = page.locator('#alHeaderBalance');
+    await expect(chip, 'premise: 1–5 days left').toHaveClass(/\bbalance-low\b/);
+    const ratio = await chip.evaluate(el => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** Any CSS colour → sRGB, by painting it (resolves oklch and color-mix). @param {string} css */
+        const rgb = (css) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        /** @param {number[]} c */
+        const lum = (c) => c.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const cs = getComputedStyle(el);
+        const [hi, lo] = [lum(rgb(cs.color)), lum(rgb(cs.backgroundColor))].sort((x, y) => y - x);
+        return (hi + 0.05) / (lo + 0.05);
+    });
+    expect(ratio, '"AL left: N" at a low balance is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
+});
+
+// Unticking a day that holds a saved change stages its removal, and the badge beside its date says
+// so in the badge's own colours — which were white on the bright orange, 2.16:1, the one pairing
+// css-tokens.md forbids. The a11y scan never unticks a saved row.
+test('admin: the "Removing" badge on an unticked saved day is readable', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'o1', memberName: 'G. Miller', date: '2026-11-12', type: 'rdw', value: '13:30-21:00', note: '' }],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    const row = page.locator('.week-panel .day-row[data-date="2026-11-12"]');
+    await expect(row.locator('.overwrite-badge')).toContainText('Saved');
+    await row.locator('.col-check input').click();
+    const badge = row.locator('.overwrite-badge');
+    await expect(badge).toContainText('Removing');
+    const ratio = await badge.evaluate(async el => {
+        await Promise.all(el.getAnimations().map(a => a.finished));   // its fill eases between states
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string} css */
+        const rgb = (css) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        /** @param {number[]} c */
+        const lum = (c) => c.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const cs = getComputedStyle(el);
+        const [hi, lo] = [lum(rgb(cs.color)), lum(rgb(cs.backgroundColor))].sort((x, y) => y - x);
+        return (hi + 0.05) / (lo + 0.05);
+    });
+    expect(ratio, 'the "Removing" badge is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
+});
+
+// A failed read shows two Retries at once — Saved Changes' and the week grid's, the second added
+// "because this is the card they are looking at" — and only the first was styled: the rule was scoped
+// to `.override-state`, so the week grid's rendered as plain grey text with no pointer.
+test('admin: the week grid\'s Retry looks like Saved Changes\' Retry', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const other = await page.locator('#fieldMember').evaluate((el) => {
+        const sel = /** @type {HTMLSelectElement} */ (el);
+        return [...sel.options].find(o => o.value && o.value !== sel.value)?.value ?? '';
+    });
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = true; });
+    await page.locator('#fieldMember').selectOption(other);
+    const week = page.locator('#retryWeekLink'), list = page.locator('#retryLoadLink');
+    await expect(week, 'premise: the week grid offers a Retry').toHaveCount(1, { timeout: 10000 });
+    await expect(list, 'premise: Saved Changes offers one too').toHaveCount(1);
+    const look = (/** @type {import('@playwright/test').Locator} */ l) => l.evaluate(el => {
+        const c = getComputedStyle(el);
+        return [c.color, c.cursor, c.textDecorationLine, c.fontWeight, c.fontSize].join(' | ');
+    });
+    expect(await look(week)).toBe(await look(list));
+});
+
+// With "reduce motion" on, the drawer, every lightbox and the notices appear without moving — and the
+// over-limit confirm bar still slid up its full height while the save toast rose 20px.
+test('admin: with reduce motion on, the over-limit bar and the save toast appear without sliding', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const moving = await page.evaluate(() => ['alConfirmBar', 'saveToast'].map(id => {
+        const el = /** @type {HTMLElement} */ (document.getElementById(id));
+        el.classList.add('visible');
+        const n = el.getAnimations().length;   // flushes style, so a transition that just started is counted
+        el.classList.remove('visible');
+        return [id, n];
+    }));
+    for (const [id, n] of moving) expect(n, `#${id} still animates its entrance with reduce motion on`).toBe(0);
+});
+
+// The save toast and the Unsaved bar share the foot of the screen, and an Apply that both stages days
+// and raises a toast ("Set 6 days — Sunday skipped …") drew the toast over the bar's label and both of
+// its buttons for four seconds, with taps passing through to buttons nobody could see.
+test('admin: the save toast rises clear of the Unsaved bar', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#bulkSelAll').click();
+    await page.locator('.bulk-type-group .type-pill-btn[data-type="annual_leave"]').click();
+    await page.locator('#bulkApplyBtn').click();
+    await expect(page.locator('#stagedBar')).toBeVisible();
+    await expect(page.locator('#saveToast'), 'premise: the toast is up with the bar').toHaveClass(/\bvisible\b/);
+    const g = await page.locator('#saveToast').evaluate(async el => {
+        await Promise.all(el.getAnimations().map(a => a.finished));   // it rises as it appears
+        return { toast: el.getBoundingClientRect().bottom,
+                 bar: /** @type {HTMLElement} */ (document.getElementById('stagedBar')).getBoundingClientRect().top };
+    });
+    expect(g.toast, 'the toast is drawn over the Unsaved bar').toBeLessThanOrEqual(g.bar);
+});
+
+// "Unsaved: 2 days, 1 to remove" was `nowrap` and could not shrink, so at 360px the bar's Save button
+// ran 22px off the screen — and with Android's large text, the plain "N days" state did the same.
+test('admin: the Unsaved bar keeps Discard and Save on a 360px screen, removals staged, text large', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'o1', memberName: 'G. Miller', date: '2026-11-12', type: 'rdw', value: '13:30-21:00', note: '' }],
+        });
+    });
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('.week-panel .day-row[data-date="2026-11-12"] .col-check input').click();   // 1 to remove
+    for (const d of ['2026-11-10', '2026-11-11']) {
+        const row = page.locator(`.week-panel .day-row[data-date="${d}"]`);
+        await row.locator('.col-check input').click();
+        await row.locator('.type-pill-btn[data-type="annual_leave"]').click();
+    }
+    await expect(page.locator('#stagedCount')).toHaveText('2 days, 1 to remove');
+    const fit = () => page.evaluate(() => {
+        const label = /** @type {HTMLElement} */ (document.querySelector('.staged-bar-label'));
+        return { vw: document.documentElement.clientWidth, labelOverflow: label.scrollWidth - label.clientWidth,
+            buttons: ['stagedDiscardBtn', 'stagedSaveBtn'].map(id => [id, Math.round(/** @type {HTMLElement} */ (document.getElementById(id)).getBoundingClientRect().right)]) };
+    });
+    for (const scale of [1, 1.3]) {
+        if (scale !== 1) await scaleText(page, scale);
+        const f = await fit();
+        for (const [id, right] of f.buttons) expect(right, `${id} runs off the screen at ${scale}× text`).toBeLessThanOrEqual(f.vw);
+        expect(f.labelOverflow, `"Unsaved: …" runs out of its own box, under the buttons, at ${scale}× text`).toBeLessThanOrEqual(0);
+    }
+});
+
 test('admin: the recorded-dates list shows one year at a time, and only years that have leave',
     async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));

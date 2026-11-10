@@ -839,6 +839,35 @@ test('operations usage: the release-reload note names the months it qualifies an
     await expect(card).toContainText('Until late October 2026 this also counted the reload');
 });
 
+// The month toggle clips to its pill (`overflow: hidden`) and its two buttons fill it edge to edge, so
+// the shared focus ring — drawn 2px OUTSIDE a button — was cut away but for a hairline at the seam: a
+// keyboard user on "Last month" saw almost nothing. Geometry, because a focus state is in no
+// screenshot baseline: wherever the ring is drawn, it must lie inside the box that clips it.
+test('operations usage: the month toggle draws its focus ring inside the pill that clips it', async ({ page }) => {
+    const card = await openUsageCard(page);
+    for (const label of ['This month', 'Last month']) {
+        const btn = card.locator('.speed-toggle-btn', { hasText: label });
+        await page.keyboard.press('Tab');   // keyboard modality, so the programmatic focus below is :focus-visible
+        await btn.focus();
+        const g = await btn.evaluate(el => {
+            const cs = getComputedStyle(el);
+            const toggle = /** @type {HTMLElement} */ (el.parentElement);
+            const ts = getComputedStyle(toggle);
+            const b = el.getBoundingClientRect(), t = toggle.getBoundingClientRect();
+            const reach = Math.max(0, parseFloat(cs.outlineOffset) + parseFloat(cs.outlineWidth));   // past the button's box
+            const bw = parseFloat(ts.borderLeftWidth);
+            return {
+                ring: el.matches(':focus-visible') && cs.outlineStyle !== 'none', clips: ts.overflow,
+                inside: b.left - reach >= t.left + bw - 0.5 && b.right + reach <= t.right - bw + 0.5
+                    && b.top - reach >= t.top + bw - 0.5 && b.bottom + reach <= t.bottom - bw + 0.5,
+            };
+        });
+        expect(g.ring, `${label}: a keyboard focus draws a ring`).toBe(true);
+        expect(g.clips, 'premise: the toggle clips to its pill').toBe('hidden');
+        expect(g.inside, `${label}: the focus ring is drawn where the pill cuts it away`).toBe(true);
+    }
+});
+
 // ── Reset requests: a Clear during an in-flight load must not leave a ghost (v18.97) ────────────
 // v18.94 stopped two Clears racing by DROPPING a refresh requested mid-load. That fixed the ordering
 // but left a subtler ghost (external review): clear A → refresh A starts → clear B → refresh B is
@@ -1831,6 +1860,16 @@ test('operations: a roster read that looks a day out is refused, and writes noth
     await expect(remedy).toBeVisible();
     await expect(remedy).toHaveText('Read the roster again');
     await expect(remedy).toHaveClass(/roster-cancel-btn--primary/);
+    // …and stays readable under a mouse: the plain button's hover rule outweighed the variant and
+    // turned its words navy on its own navy fill. Read once the colour has finished easing.
+    await remedy.hover();
+    const hovered = await remedy.evaluate(async el => {
+        await Promise.all(el.getAnimations().map(a => a.finished));
+        const c = getComputedStyle(el);
+        return { text: c.color, fill: c.backgroundColor };
+    });
+    expect(hovered.text, 'the remedy\'s words vanish into its fill under the pointer').not.toBe(hovered.fill);
+    expect(hovered.text).toBe('rgb(255, 255, 255)');
 
     // No per-row escape hatch: a tick on a refused read does nothing at all.
     const firstTick = page.locator('.roster-tick').first();
@@ -2468,6 +2507,40 @@ test('operations: account gaps reach the card BY NAME and the strip by group', a
     // not state its remedy has thrown away the reason for grouping that way.
     await expect(gaps).toContainText('Press Set up accounts below');
     await expect(gaps).toContainText('Tick the leavers box below');
+});
+
+// The leaver line is the one live access problem on the card, and it was the least legible text on it:
+// its red on its own tint was 4.36:1, and the remedy under it was faded on top (`opacity: 0.85`,
+// 3.62:1) — the line telling the admin which button closes the door. Nothing here may be faded
+// (css-tokens.md → "opacity on a group"), and every line and remedy clears 4.5:1 on its own ground.
+test('operations: the account-gap lines and their remedies are readable, and none is faded', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ setUp: [{ name: 'B. Toth', why: 'no-account' }], leavers: ['B. Khalil'] }),
+    }));
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('authSetupBody')?.classList.add('open'));
+    const gaps = page.locator('#authSetupGaps');
+    await expect(gaps.locator('.auth-gap-line--leaver .auth-gap-fix'), 'premise: the leaver line and its remedy').toBeVisible();
+    const m = await gaps.evaluate(root => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string} css */
+        const rgb = (css) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        /** @param {number[]} c */
+        const lum = (c) => c.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const faded = [...root.querySelectorAll('*')].filter(el => parseFloat(getComputedStyle(el).opacity) < 1).map(el => el.className);
+        const ratios = [...root.querySelectorAll('.auth-gap-line, .auth-gap-fix')].map(el => {
+            const line = /** @type {Element} */ (el.closest('.auth-gap-line'));
+            const [hi, lo] = [lum(rgb(getComputedStyle(el).color)), lum(rgb(getComputedStyle(line).backgroundColor))].sort((x, y) => y - x);
+            return [el.className, Math.round((hi + 0.05) / (lo + 0.05) * 100) / 100];
+        });
+        return { faded, ratios };
+    });
+    expect(m.faded, 'text the admin has to read is faded with opacity').toEqual([]);
+    for (const [cls, ratio] of m.ratios) expect(ratio, `${cls} is under the 4.5:1 text floor`).toBeGreaterThanOrEqual(4.5);
 });
 
 test('operations: an audit that could not run reports NOTHING, rather than a clean bill', async ({ page }) => {
