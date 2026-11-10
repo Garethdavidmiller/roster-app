@@ -102,8 +102,9 @@ export function audienceNames() {
 
 /**
  * Where the pack's PDFs are served. Firebase Hosting serves nothing under docs/ (firebase.json `ignore`); the GitHub
- * Pages mirror serves the whole repository, so the page links there from both addresses. Retiring the mirror breaks
- * these links — move the files into a served folder first.
+ * Pages mirror serves the whole repository, so the page reads them from there on both addresses — in the app's PDF viewer
+ * (pdf-viewer.js), which is why the CSP's connect-src names the mirror. Retiring the mirror breaks the pack — move the
+ * files into a served folder first.
  */
 export const PACK_BASE = 'https://garethdavidmiller.github.io/roster-app/docs/links-26/';
 

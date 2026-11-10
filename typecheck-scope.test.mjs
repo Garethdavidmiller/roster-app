@@ -86,6 +86,7 @@ describe('the type-checker’s scope is a decision, not a drift', () => {
         const NAMED_FILES = new Set([
             'service-worker.js',   // the decision this file is about
             'purify.es.mjs',       // vendored — not ours to annotate
+            'pdfjs',               // vendored PDF.js, minified (pdf-viewer.js loads it by URL) — not ours to annotate
             'generate-sri.mjs',    // build tooling, not shipped
         ]);
         const unexpected = jsconfig.exclude.filter((/** @type {string} */ e) => {

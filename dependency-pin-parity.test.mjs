@@ -89,6 +89,28 @@ describe('pdfjs-dist — the geometry reader is tested on the version it runs on
     });
 });
 
+describe('pdfjs-dist — the copy the PDF viewer loads is the version the server runs', () => {
+    // The in-app PDF viewer (pdf-viewer.js, v25.67) loads PDF.js from pdfjs/ — the legacy build, VENDORED, so no package
+    // manager sees it. It is the same library the roster reader pins above, and the same rule holds: one version. Its
+    // two files must also agree with EACH OTHER — PDF.js refuses a worker of another version outright, so a library
+    // updated without its worker opens no file at all. Moving the pin above without re-vendoring fails here, by design:
+    // `npm pack pdfjs-dist@<ver>`, copy legacy/build/pdf.min.mjs and pdf.worker.min.mjs into pdfjs/, then run the
+    // viewer's e2e (e2e/newlink.spec.js) in both engines.
+    const pinned = ROOT_PKG.devDependencies?.['pdfjs-dist'];
+    const found = (/** @type {string} */ f, /** @type {RegExp} */ re) => [...new Set([...read(f).matchAll(re)].map(m => m[1]))];
+
+    test('pdfjs/pdf.min.mjs is the pinned version', () => {
+        const lib = found('./pdfjs/pdf.min.mjs', /apiVersion:"(\d+\.\d+\.\d+)"/g);
+        assert.deepEqual(lib, [pinned], `pdfjs/pdf.min.mjs is PDF.js ${lib.join(', ') || '(no version found)'}, the pin is ${pinned}`);
+    });
+
+    test('pdfjs/pdf.worker.min.mjs is the same version — or the library refuses it', () => {
+        const worker = found('./pdfjs/pdf.worker.min.mjs', /apiVersion:\w+\}=\w+,\w+="(\d+\.\d+\.\d+)"/g);
+        assert.deepEqual(worker, [pinned],
+            `pdfjs/pdf.worker.min.mjs is PDF.js ${worker.join(', ') || '(no version found — a new build may write it differently; read the file and adjust the pattern)'}, the pin is ${pinned}`);
+    });
+});
+
 describe('firebase — the rules tests run the SDK the app loads', () => {
     // The app loads the Firebase web SDK from gstatic (firebase-client.js), which no package manager
     // sees; the rules tests drive the emulator with the npm `firebase` package, pinned exactly in

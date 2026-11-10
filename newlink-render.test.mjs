@@ -206,12 +206,18 @@ test('the tiles: one per way of working and Everything, exactly one pressed', ()
     assert.match(tabs, new RegExp(`data-design="${PROPOSALS[1].id}" aria-pressed="true"`));
 });
 
-test('the pack: every file opens in a new tab, with no opener, under the base', () => {
+test('the pack: every file is a real link under the base that names its file, and opens in the viewer on this page', () => {
     const html = renderPack(PACK, 'https://example.test/docs/links-26/');
-    const links = [...html.matchAll(/<a class="nl-file" href="([^"]+)" target="_blank" rel="noopener noreferrer">/g)].map(m => m[1]);
-    assert.equal(links.length, PACK.length);
-    for (const href of links) assert.match(href, /^https:\/\/example\.test\/docs\/links-26\/.+\.pdf$/);
-    assert.match(html, /opens in a new tab/, 'said to a screen reader, not only shown');
+    const links = [...html.matchAll(/<a class="nl-file" href="([^"]+)" data-file="([^"]+)" aria-haspopup="dialog" target="_blank" rel="noopener noreferrer">/g)];
+    assert.equal(links.length, PACK.length, 'one link per file, each still a real link (a Ctrl-click still gives a tab)');
+    for (const [, href, file] of links) {
+        assert.match(href, /^https:\/\/example\.test\/docs\/links-26\/.+\.pdf$/);
+        assert.equal(href, `https://example.test/docs/links-26/${file}`, 'data-file is the path the viewer looks the file up by');
+    }
+    assert.deepEqual(links.map(m => m[2]).sort(), PACK.map(f => f.path).sort(), 'every file in the pack, once');
+    // It no longer opens a new tab, so it must not SAY so — to the eye or to a screen reader (owner, 10 Nov 2026).
+    assert.doesNotMatch(html, /new tab/);
+    assert.match(html, /The files open on this page, and need a connection\./);
 });
 
 test('everything it prints is escaped', () => {
