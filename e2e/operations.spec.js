@@ -1688,6 +1688,25 @@ for (const [card, file, words] of [['circularUpload', 'circularFileInput', 'Circ
     });
 }
 
+// An upload whose account went mid-save may still land, so the admin is sent to LOOK — and told where,
+// as the Huddle card does (whole-app check, 10 Nov 2026; cal-docs NAA 5). It said "…then check whether
+// it saved", with nowhere named.
+for (const [prefix, drawer] of [['circular', '☰ → Weekly Retail Circular'], ['newsletter', '☰ → Marylebone Newsletter']]) {
+    test(`operations: a ${prefix} upload signed out mid-save says where to check`, async ({ page }) => {
+        await page.addInitScript(() => {
+            const w = /** @type {any} */ (window);
+            w.__E2E = { ...(w.__E2E || {}), failSetCode: 'auth/signed-out-during-request' };
+        });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        await page.evaluate((p) => document.getElementById(`${p}UploadBody`)?.classList.add('open'), prefix);
+        await page.setInputFiles(`#${prefix}FileInput`, { name: 'doc.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
+        await page.locator(`#${prefix}UploadBtn`).click();
+        await expect(page.locator(`#${prefix}Feedback`)).toHaveText(
+            `You were signed out before this upload was confirmed. Sign in again, then check ${drawer}.`);
+    });
+}
+
 // ── A tab left open past midnight can still pick today (v23.36) ─────────────────────────────────
 // `doc-upload.js` recomputes its date cap at init and on submit — the v16.23 stale-tab fix, written
 // before this picker existed. `date-picker.js` reads `min`/`max` at OPEN time, so an Operations tab
@@ -3319,6 +3338,30 @@ test('operations: a fully provisioned roster says so, and still adds no strip it
     await page.goto('/operations.html');
     await expect(page.locator('#authSetupGaps')).toContainText('Everyone on the roster has a login');
     await expect(page.locator('#attentionStrip')).toBeHidden();
+});
+
+// A RE-AUDIT THAT CANNOT ANSWER TAKES ITS COUNT OFF THE STRIP (whole-app check, 10 Nov 2026;
+// settings-ops-6). Reporting nothing on a failed check was right and was not enough: the strip kept
+// "Leavers still active" from the load's audit beside a card saying it could no longer tell.
+test('operations: a re-audit that cannot answer takes the account counts off the strip', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    let audits = 0;
+    await page.route(GAPS_URL, route => (++audits === 1
+        ? route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+            body: JSON.stringify({ setUp: [{ name: 'B. Toth', why: 'no-account' }], leavers: ['B. Khalil'] }) })
+        : route.abort('failed')));
+    await page.route('**/setupRosterAuth', route => route.fulfill({ status: 200, contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ created: ['B. Toth'] }) }));
+    await page.goto('/operations.html');
+    const strip = page.locator('#attentionStrip');
+    await expect(strip.getByRole('link', { name: 'Leavers still active: 1' }), 'premise: the load\'s audit answered').toBeVisible();
+    await expect(strip.getByRole('link', { name: 'Not set up: 1 member' })).toBeVisible();
+
+    await page.locator('#authSetupToggleHeader').click();
+    await page.locator('#authSetupBtn').click();   // the run re-audits, and this time nothing answers
+    await expect(page.locator('#authSetupGaps')).toContainText('Couldn’t check');
+    await expect(strip, 'the strip still stood behind counts the card can no longer vouch for').toBeHidden();
 });
 
 // CONFIRMING THE LEAVER DISABLE KEEPS THE FIRST RUN'S REPORT (whole-app review, Oct 2026). The

@@ -10,8 +10,7 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml, parseISODate } from './roster-data.js';
-import { formatDayMonthYear } from './date-format.js';
+import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
@@ -268,13 +267,15 @@ export function init() {
     // read so a `const` declared below would happen to work, and "happens to work by timing" is not
     // a thing to leave in a file this long. The audit feeds the strip only when it ANSWERED:
     // admin-auth.js reports nothing on a failed or refused check, because an unreported item is
-    // UNKNOWN to the strip while an absent one reads as nothing to do.
+    // UNKNOWN to the strip while an absent one reads as nothing to do — and a check that fails after
+    // one that answered WITHDRAWS what that one reported, so the strip goes back to unknown with it.
     initAuthSetup({
         currentIsAdmin: true,
         onAttention: ({ setUp, leavers }) => {
             attention.report('accountSetup', setUp);
             attention.report('accountLeavers', leavers);
         },
+        onWithdraw: () => { attention.withdraw('accountSetup'); attention.withdraw('accountLeavers'); },
     });
 
     // ============================================
@@ -845,9 +846,11 @@ export function init() {
             isAccepted: f => isPdfFile(f) || isDocxFile(f),
             rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
             sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
-            // The date in words ("6 Nov 2026"), as app copy writes one — the input's value is ISO (Nov 2026 review).
-            successMsg: date => `Newsletter uploaded for ${formatDayMonthYear(parseISODate(date))} — staff can open it from ☰ → Marylebone Newsletter`,
+            // doc-upload.js hands the date over in words ("6 Nov 2026"), as app copy writes one — formatted
+            // a second time here, it read "uploaded for —" (whole-app check, 10 Nov 2026).
+            successMsg: date => `Newsletter uploaded for ${date} — staff can open it from ☰ → Marylebone Newsletter`,
             btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter',
+            whereToCheck: '☰ → Marylebone Newsletter',   // where a sign-out mid-upload is told to look
         });
     }
 
@@ -862,8 +865,9 @@ export function init() {
             isAccepted: f => isPdfFile(f) || isDocxFile(f),
             rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
             sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
-            successMsg: date => `Circular uploaded for ${formatDayMonthYear(parseISODate(date))} — staff can open it from ☰ → Weekly Retail Circular`,
+            successMsg: date => `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`,
             btnLabel: 'Upload Circular', logPrefix: 'Circular',
+            whereToCheck: '☰ → Weekly Retail Circular',
         });
     }
 
