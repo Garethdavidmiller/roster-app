@@ -28,6 +28,7 @@
  */
 import { test, expect, forcePasswordSet } from './fixtures.js';
 import { seedSession, seedMember, seedMemberSession, waitForPageSettled, signInThroughOverlay } from './helpers.js';
+import zlib from 'node:zlib';
 
 /** A4 portrait in points, to the nearest whole number: 595 × 842. Landscape is the transpose. */
 const A4_W = 595, A4_H = 842;
@@ -480,6 +481,41 @@ test('printing with a lightbox open prints the whole page, and not the lightbox 
         expect(onPaper, `${url}: on paper the body flows and the lightbox is gone`).toEqual({ body: 'static', panel: 'none' });
         await page.keyboard.press('Escape');
     }
+});
+
+// ── A SHIFT BADGE KEEPS ITS FILL ON PAPER, ON ANY PAGE (whole-app review, Nov 2026) ─────────────────
+// Printed without "Background graphics" — Chrome's default — a filled badge lost its fill and kept its white
+// word, which then vanished on white paper. Only pages that set `print-color-adjust: exact` on everything
+// were spared; shared.css now sets it on the badges themselves. Read off the PDF: the colours its content
+// streams paint, for one badge as printed and for the same badge forced back to `economy`.
+test('a shift badge keeps its fill on paper even with background graphics off @print', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+    /** The fill colours a PDF's content streams set. @param {Buffer} pdf */
+    const painted = (pdf) => {
+        const found = new Set();
+        for (const m of pdf.toString('latin1').matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+            let body;
+            try { body = zlib.inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1'); } catch { continue; }
+            for (const c of body.matchAll(/(-?[\d.]+ -?[\d.]+ -?[\d.]+) rg/g)) found.add(c[1]);
+        }
+        return found;
+    };
+    // Settings prints a page of its own and sets no `print-color-adjust` on `*` — a page that trusts the badge.
+    await page.goto('/settings.html');
+    await page.evaluate(() => {
+        const badge = document.createElement('span');
+        badge.className = 'shift-badge badge-early';
+        badge.id = 'printedBadge';
+        badge.textContent = '☀️ Early';
+        document.body.prepend(badge);
+    });
+    const kept = painted(await page.pdf({ printBackground: false }));
+    await page.locator('#printedBadge').evaluate(el => {
+        el.style.setProperty('print-color-adjust', 'economy', 'important');
+        el.style.setProperty('-webkit-print-color-adjust', 'economy', 'important');
+    });
+    const dropped = painted(await page.pdf({ printBackground: false }));
+    expect([...kept].filter(c => !dropped.has(c)), 'the badge\'s fill is not on the paper').not.toEqual([]);
 });
 
 // …but a SIGN-IN sheet keeps its lock on paper. Behind the set-password card is the signed-in page it is holding

@@ -10,9 +10,8 @@
     animation-timing-function: ease;
 }
 /* Everything that moves in this file stands still under reduced motion, each component's rule beside it
-   (e2e/pages.spec.js checks the header and the arrows); a page stylesheet answers for its own. The page
-   crossfade was an escapee, and so, until Nov 2026, were the logo's grow and three turning arrows. Kill
-   the animation so navigations cut instantly. */
+   (a page answers for its own). The page crossfade escaped once, as the logo's grow and the turning
+   arrows did until Nov 2026. Kill the animation so navigations cut instantly. */
 @media (prefers-reduced-motion: reduce) {
     ::view-transition-group(*),
     ::view-transition-old(root),
@@ -41,10 +40,11 @@
 
 /* ============================================================
    CSS CUSTOM PROPERTIES
-   All CSS variables for the entire app live here — both pages
-   read them. Variables only used by one page are commented to
-   make that clear, but keeping them all here means colour or
-   spacing changes only ever need one edit.
+   The app's tokens — every app page reads them. A token one
+   page alone needs lives in that page's own stylesheet (the
+   page-identity trio, Links' design colours); anything two
+   pages share lives here, so a colour or spacing change is one
+   edit.
    ============================================================ */
 :root {
     /* THE APP'S ONE DOWNWARD CHEVRON — the mark that says "this opens a picker" (v23.69).
@@ -510,8 +510,8 @@
                              the save toast and slow-save notice 7500, the AL confirm bar 7600), which
                              at 300 covered its footer and with it Sign out (v24.52); below every
                              lightbox, dialog and sheet, which the drawer itself opens */
-    --z-lightbox: 8000;   /* .lb-overlay base (About / Tips / dialogs / pickers) */
-    --z-notice:   8500;   /* one-time notice lightboxes — above the lightbox base, below login */
+    --z-lightbox: 8000;   /* .lb-overlay base (About, Tips, dialogs, the date picker, one-time notices) */
+    --z-notice:   8500;   /* above that, below login: the Huddle viewer, Pay's help sheet and YTD notice */
     --z-login:    9000;   /* login overlay — must sit above content and notices */
     --z-picker:   9100;   /* the app's own select sheet — see .picker-sheet-overlay below */
     --z-splash:   9999;   /* splash-watchdog recovery panel + hover tooltip (top of everything) */
@@ -557,12 +557,9 @@
     scrollbar-color: var(--border-mid) transparent;
 }
 
-/* A FORM CONTROL DOES NOT INHERIT THE PAGE'S TYPEFACE. The browser gives `button`, `input`, `select` and
-   `textarea` a font of their own — Arial on Windows and Linux, the system face on a phone — so every control
-   without a `font-family` rule of its own was drawn in it: the burger on every page, the date picker's
-   arrows, the prompt dialog's field, Pay's hours fields and its Clear and ± buttons (whole-app review,
-   Nov 2026, measured page by page). Inter is the app's only typeface (css-tokens.md). An element rule, so
-   any class that names a face of its own — the monospace paste boxes — still wins. */
+/* A form control does not inherit the page's typeface: the browser gives it its own (Arial on Windows),
+   so every control without a font rule — the burger, the date picker's arrows, the prompt's field, Pay's
+   hours fields — was not Inter (whole-app review, Nov 2026). A class naming a face of its own still wins. */
 button, input, select, textarea { font-family: inherit; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -807,12 +804,9 @@ input[type="checkbox"]:disabled:indeterminate { background-color: var(--check-fi
         outline: 2px solid Highlight;
         outline-offset: -2px;
     }
-    /* …AND A CHOSEN CONTROL STILL SHOWS FOCUS (whole-app review, Nov 2026). The ring above is (0,2,0) and the
-       app's focus fallback (0,1,0), and the theme removes every box-shadow, so on a chosen control the ring won
-       whether it was focused or not: Tab onto Pay's chosen tax year, a pressed leave-year answer or Links' armed
-       brush, and nothing changed on screen while its unchosen neighbours lit up. Focused, a chosen control draws
-       a DOUBLE line — the inner one where the chosen ring is, the outer one where a focus ring goes — so both
-       states show at once, and the weight here outranks any page's own `:focus-visible` rule. */
+    /* …and STILL SHOWS FOCUS (whole-app review, Nov 2026). The ring above out-ranks the focus fallback and the
+       theme drops box-shadows, so a focused chosen control looked unfocused. Focused, it draws a DOUBLE line:
+       the chosen ring inside, a focus ring outside — both states at once. */
     :is(button, a, [role="button"], [role="tab"], [role="radio"], [role="option"]):is(
         [aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], [aria-current="true"],
         .active, .is-active, .is-on, .is-chosen, .is-current):focus-visible,
@@ -928,26 +922,24 @@ html {
 :where(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
 p { text-wrap: pretty; }
 
-/* Focus-visible safety net (v14.54): a zero-specificity fallback so any
-   interactive element lacking its own focus rule still shows a visible ring.
-   :where() = 0 specificity, so every existing component focus style overrides
-   this — it can only ADD a ring where one is missing, never weaken one. Form
-   fields are excluded (they use the brighten-to-white + glow focus system). */
+/* Focus-visible safety net (v14.54): a ring for any interactive element without a focus rule of its own.
+   Its weight is (0,1,0), NOT zero — the `:focus-visible` sits outside the `:where()` — so a component's
+   `.x:focus-visible` (0,2,0) beats it, but a later single-class rule setting `outline` on the component
+   itself ties it and wins on order, and that component needs a focus rule of its own (Links' paint chips,
+   Nov 2026). Form fields are excluded (they use the brighten-to-white + glow focus system). */
 :where(a, button, [role="button"], [tabindex="0"]):focus-visible {
     /* Navy, not gold: this fallback fires mostly on LIGHT surfaces (cards/prose), where gold
        (~1.5:1 on white) falls below the 3:1 focus-indicator floor. Navy-drawer elements have
-       their own gold rules (they win over this zero-specificity :where), so gold stays where
-       it's high-contrast (on navy) and light surfaces get a visible navy ring. */
+       their own gold rules (at (0,2,0) they out-rank this), so gold stays where it's
+       high-contrast (on navy) and light surfaces get a visible navy ring. */
     outline: var(--focus-outline);
     outline-offset: 2px;
 }
 
-/* THE PAGE GUTTER — every card page's, with the safe-area insets around it (the notch, the home indicator,
-   a phone on its side). It was declared here as a 16px fallback that matched no page, while each of the
-   eight card pages restated its own 20px gutter later in the cascade, so the rule that read as the source
-   decided nothing anywhere (whole-app review, Nov 2026 — measured on all nine pages at five widths, and
-   Overtime had once lived on the wrong fallback). These are the eight pages' values, so a page that forgets
-   its own gets the right gutter, and the pages' copies can go. The Calendar's full-bleed page keeps its own. */
+/* THE PAGE GUTTER, with the safe-area insets (notch, home indicator). It was a 16px fallback no page used —
+   each card page restates its own 20px later in the cascade — so it decided nothing (whole-app review, Nov
+   2026). These are the card pages' values: a page that forgets its own gets the right one, and the copies
+   can go. The Calendar's full-bleed page keeps its own. */
 body {
     padding-top:    max(20px, env(safe-area-inset-top));
     padding-bottom: max(10px, env(safe-area-inset-bottom));
@@ -961,15 +953,11 @@ body {
     }
 }
 
-/* Screen-reader-only text — THE shared utility (v16.73; the Calendar's older copy in index.css is
-   gone): read out, never seen. `.sr-only` is the same job under a second name the markup also uses, so
-   it is the same rule rather than a second recipe that could drift (whole-app review, Nov 2026); new
-   markup takes `.visually-hidden`.
-   EVERY DECLARATION IS `!important`, for the reason `.fieldpick-native` gives below: a page that styles
-   fields by ELEMENT out-ranks a class — `input[type="text"] { width: 100%; padding: …; border: … }` is
-   (0,1,1) against this rule's (0,1,0) — and a hidden field then keeps `width: 100%` while absolutely
-   positioned, i.e. 100% of whatever it is positioned in. The sign-in card's hidden username did exactly
-   that on Admin and Operations: 375px wide inside the fixed sign-in sheet, which then scrolled sideways. */
+/* Screen-reader-only text — THE shared utility (v16.73): read out, never seen. `.sr-only` is the same
+   job under a second name, so one rule (new markup takes `.visually-hidden`). Every declaration is
+   `!important`, for `.fieldpick-native`'s reason below: an element rule out-ranks a class — Admin's
+   `input[type="text"] { width: 100% … }` gave the sign-in card's hidden username a full-width box, and
+   the sign-in sheet scrolled sideways (whole-app review, Nov 2026). */
 .visually-hidden,
 .sr-only {
     position: absolute !important;
@@ -1026,15 +1014,11 @@ body.lb-open {
     overflow: hidden;
 }
 body.lb-open #stickyTotal { display: none !important; }
-/* PAPER HAS NO SCROLL TO LOCK (whole-app review, Nov 2026). Printing while a lightbox, the drawer or the
-   Huddle viewer was open — Ctrl/Cmd+P, the browser's Print — laid out ONE sheet, because a fixed body is one
-   viewport-tall box, shifted up by however far the page was scrolled: Pay's three sheets came out as one with
-   its help sheet open, Trains' two as one with Tips open (and Trains printed the Tips panel over it). On
-   paper the body returns to the flow and the lightboxes go: none is the page, and with the body flowing a
-   fixed one would repeat on every sheet.
-   NOT while a SIGN-IN sheet is up. That lock is a gate rather than a scroll lock: behind the set-password
-   card is the signed-in page it is holding back, and behind the sign-in card an empty page, so either prints
-   as it always has — the card, on one sheet. (`:has()` unsupported: the rule drops, and the lock stays.) */
+/* PAPER HAS NO SCROLL TO LOCK (whole-app review, Nov 2026). Printing with a lightbox, the drawer or the
+   Huddle viewer open laid out ONE sheet — a fixed body is one viewport tall, shifted by the scroll — and
+   Trains printed its Tips panel over it. On paper the body flows and lightboxes go. NOT under a sign-in
+   sheet: behind the set-password card is the page it holds back, so the card prints alone, as it always
+   has. (`:has()` unsupported: the rule drops and the lock stays.) */
 @media print {
     body.lb-open:not(:has(#loginOverlay.visible:not(.login-overlay--inline), #pwForceOverlay.visible)) {
         position: static; top: auto; left: auto; right: auto; width: auto; overflow: visible;
@@ -1547,11 +1531,9 @@ button.lightbox-bug-link {
    No other FIXED layer lives between 9000 and `--z-splash` (9999), so raising the sheet costs no
    other surface. Caught by the e2e that clicks a real row rather than by the three tests that only
    read the trigger's label — the label was right the whole time.
-   ONE THING ENTERS THAT RANGE AT RUN TIME, ON PURPOSE: a confirm dialog opened over a layer higher
-   than its own — a notification's question arriving while this sheet or the sign-in card is up
-   (sw-register.js) — is lifted one above the highest layer on screen (overlay.js → `_openDialog`).
-   The newest overlay holds the keyboard, so it must also paint on top, or Enter answers a question
-   nobody can see. */
+   ONE THING ENTERS THAT RANGE, AT RUN TIME: a confirm dialog raised over a higher layer (a notification's
+   question while this sheet or the sign-in card is up) is lifted one above the highest layer on screen
+   (overlay.js → `_openDialog`) — it holds the keyboard, so it must paint on top. */
 .picker-sheet-overlay { z-index: var(--z-picker); }
 /* A SHEET WITH A SEARCH BOX SITS AT THE TOP OF THE SCREEN (iPhone audit, 7 Nov 2026). Centred, the
    panel re-centred on every keystroke that shortened the list, so the box and its matches slid DOWN
@@ -1790,13 +1772,13 @@ button.lightbox-bug-link {
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
    Card layout: .notice-lb-content (below) — use class="lb-content notice-lb-content".
    Badge uses .notice-badge + page modifier (not .lightbox-badge — which is the About lightbox badge).
-   Title uses .lightbox-app-name (scoped to 17px inside .notice-lb-content context).
+   Title uses .lightbox-app-name (scoped to --type-large, 18px, inside .notice-lb-content).
    All per-notice visual needs met here — do NOT add page-specific overrides. ── */
 
 /* Page-identity badge — coloured to match the page's nav pill.
    Use class="notice-badge notice-badge--[page]" on every notice lightbox.
-   Modifier classes: --pay (green) · --links (purple) · --settings (indigo)
-                     --ops (orange) · --calendar (gold) · --trains (raspberry) · no modifier = neutral */
+   Modifier classes: --pay (green) · --links (purple) · --settings (indigo) · --ops (orange)
+                     --calendar (gold) · --trains (raspberry) · --newlink (teal) · no modifier = neutral */
 .notice-badge {
     display: inline-flex;
     align-items: center;
@@ -2296,7 +2278,8 @@ button.lightbox-bug-link {
 /* ---- Utility ---- */
 .hidden { display: none !important; }
 
-/* ---- Help button (? circle on card headers) — used across all pages ---- */
+/* ---- Help button (the ? circle on the Pay Calculator's cards — paycalc.html and paycalc-lightboxes.js; the
+   other card pages use `.btn-card-tips`, the same size) ---- */
 .help-btn {
     width: 24px; height: 24px; border-radius: 50%;
     background: var(--bg-faint); border: 1.5px solid var(--border-mid);
@@ -2350,10 +2333,14 @@ button.lightbox-bug-link {
    made this look finished. */
 .badge-unknown { background: white; color: var(--warning-amber); border: 2px dashed var(--warning-amber); }
 
-/* Badge colour enforcement for print — keeps colours when browser strips backgrounds.
-   badge-night keeps its screen style (white bg + dark border) — it reads better on
-   black-and-white printers than an all-dark filled badge. */
+/* BADGE COLOURS ON PAPER. Printing without "Background graphics" (Chrome's default) drops the fill and keeps
+   the white word, which vanishes on white paper; `!important` cannot stop that, only `print-color-adjust:
+   exact` can — set here on the badges, not trusted to each page's `*` rule (Overtime's sheet has none;
+   whole-app review, Nov 2026). badge-night keeps its screen style (white bg + dark border) — it reads better
+   on black-and-white printers than an all-dark filled badge. */
 @media print {
+    .badge-rest, .badge-early, .badge-late, .badge-night, .badge-spare, .badge-rdw, .badge-al,
+    .badge-sick, .badge-other, .badge-unknown { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .badge-rest  { background: var(--charcoal)  !important; color: white !important; }
     .badge-early { background: var(--early-badge) !important; color: white !important; }
     .badge-late  { background: var(--blue-sky)  !important; color: white !important; }
@@ -2895,9 +2882,8 @@ button.nav-panel-link--notices {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
 }
-/* `display: flex` above out-specifies the UA's `[hidden]` rule, so the list nav-panel.js hides for an
-   EMPTY archive stayed in the panel: a 0px box that still took the column's gap (the message sat 20px
-   under the heading, not 10) and was still read out as an empty "Notices you've read" group. */
+/* `display: flex` beats the UA's `[hidden]`, so an EMPTY archive's list stayed: a 0px box taking the gap
+   twice, still read out as an empty group (whole-app review, Nov 2026). */
 .nav-notices-list[hidden] { display: none; }
 .notices-item {
     background: rgba(255, 255, 255, 0.07);
@@ -3264,9 +3250,8 @@ button.nav-panel-link--notices {
     text-align: center;
     text-align-last: center;
 }
-/* …and the 4px ring every field wears (css-tokens.md → Focus indicators). It was missing here, so the card
-   borrowed it from Admin's and Operations' own field rules and had none on the other seven pages: one shared
-   card, two focus looks, depending on the page that hosted it (whole-app review, Nov 2026). */
+/* …and the 4px ring every field wears: without it here the card borrowed one from Admin's and Operations'
+   field rules and had none on the seven other pages (whole-app review, Nov 2026). */
 .login-field select:focus-visible,
 .login-field .fieldpick:focus-visible,
 .login-field input:not([type="checkbox"]):not([type="radio"]):focus-visible {
@@ -3434,9 +3419,10 @@ button.login-back:focus-visible { outline: var(--focus-outline); outline-offset:
 
 
 /* ── Boot placeholder ────────────────────────────────────────────────────────────────────────────
-   admin / operations / links hide `.container` until `body.auth-ready`, and their header is inside
+   Admin, Operations and Links hide `.container` until `body.auth-ready`, and their header is inside
    it — so before their JS runs those pages are blank navy with nothing on them, not even a burger.
-   This is what sits in that window. Pure CSS in both directions: shown by default, removed the
+   Trains hides its cards the same way (trains.css, `#trainsMain`) under a header that shows. This is
+   what sits in that window. Pure CSS in both directions: shown by default, removed the
    instant the class lands, so a coordinator that never finishes cannot strand it and no module has
    to remember to clear it. Deliberately plain — it is scaffolding, not a screen. */
 .boot-placeholder {
@@ -3463,7 +3449,8 @@ body.auth-ready .boot-placeholder { display: none; }
 @keyframes boot-spin { to { transform: rotate(360deg); } }
 /* Without the spin there is still a ring and the word beside it — the state is legible either way. */
 @media (prefers-reduced-motion: reduce) { .boot-spinner { animation: none; } }
-/* Never on paper: a printed page is not loading, and these three pages restrict printing anyway. */
+/* Never on paper: a printed page is not loading — Trains prints its timetable, and a "Loading…" line
+   above it would be the one thing on the sheet that is not true. */
 @media print { .boot-placeholder { display: none !important; } }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -3816,9 +3803,8 @@ body.auth-ready .boot-placeholder { display: none; }
     border-radius: 8px;
     margin-top: 1px;
 }
-/* The panel's only visible way out, so it is read as text: `--text-light` is 6.0:1 on the white panel, the
-   date picker's ✕ beside it. It was black at 35% — 2.43:1, under the 3:1 floor for a control's own glyph as
-   well as the text floor — and only the mouse's hover ever lifted it (whole-app review, Nov 2026). */
+/* The panel's only visible way out: `--text-light` (6.0:1), as the date picker's ✕. It was black at 35%,
+   2.43:1 — under both floors, and only a mouse's hover lifted it (whole-app review, Nov 2026). */
 #tipsLightboxClose { color: var(--text-light); }
 @media (hover: hover) and (pointer: fine) {
     #tipsLightboxClose:hover { color: var(--text-dark); }
