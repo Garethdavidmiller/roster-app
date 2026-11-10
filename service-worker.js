@@ -658,6 +658,12 @@ self.addEventListener("fetch", event => {
     const isDoc          = path === '/' || path.endsWith('/') || path.endsWith('.html');
     // Scope-relative so JS/CSS match under a sub-path (/roster-app/) too, not just root.
     const relPath        = path.startsWith(SCOPE_PATH) ? path.slice(SCOPE_PATH.length) : path.replace(/^\//, '');
+    // THE REPOSITORY'S DOCUMENTS ARE THE NETWORK'S (Nov 2026). The Pages mirror serves the whole
+    // repository, so the New link pack's PDFs under docs/ are inside this scope — and the cache-first
+    // branch below kept each one a colleague opened in this release's cache, served with no request
+    // until the next release, long after the pack was republished. Nothing precaches them and the page
+    // says they need a connection, so they are left to the browser.
+    if (relPath.startsWith('docs/')) return;
     const isManagedAsset = NETWORK_FIRST_FILES.includes(relPath);
 
     if (isDoc) {

@@ -83,9 +83,12 @@ function makeCaches(seed) {
 const OLDER_CACHE = 'myb-roster-v1.00';
 
 /**
- * Boot the real worker in a sandbox and send it one navigation. `older` seeds an older release's cache.
+ * Boot the real worker in a sandbox and send it one navigation. `older` seeds an older release's cache;
+ * `scope` installs it under another scope (the Pages mirror's sub-path); `unanswered` allows the worker
+ * to leave the request to the browser, reported as `{ answered: false }`.
  * @param {{ cached?: Record<string, string>, older?: Record<string, string>, network: (req: Request, signal?: AbortSignal) => Promise<Response>,
- *           preload?: Promise<Response|undefined>, path: string, mode?: string, destination?: string }} o
+ *           preload?: Promise<Response|undefined>, path: string, mode?: string, destination?: string, scope?: string, unanswered?: boolean }} o
+ * @returns {Promise<any>}
  */
 async function navigate(o) {
     // The completion marker is always present: no warm-up starts, so "nothing cached" stays true.
@@ -97,10 +100,12 @@ async function navigate(o) {
     const listeners = {};
     const fetches = /** @type {string[]} */ ([]);
     const fetchModes = /** @type {string[]} */ ([]);
+    const scope = o.scope ?? SCOPE;
+    const origin = new URL(scope).origin;
     const ctx = {
         self: {
-            registration: { scope: SCOPE, navigationPreload: null },
-            location: { origin: ORIGIN },
+            registration: { scope, navigationPreload: null },
+            location: { origin },
             addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = fn; },
             skipWaiting() {}, clients: { claim: async () => {} },
         },
@@ -119,11 +124,12 @@ async function navigate(o) {
     let responded = null;
     const waits = /** @type {Promise<any>[]} */ ([]);
     listeners.fetch({
-        request: { url: `${ORIGIN}${o.path}`, method: 'GET', headers: new Headers(), mode: o.mode ?? 'navigate', destination: o.destination ?? 'document', credentials: 'same-origin' },
+        request: { url: `${origin}${o.path}`, method: 'GET', headers: new Headers(), mode: o.mode ?? 'navigate', destination: o.destination ?? 'document', credentials: 'same-origin' },
         preloadResponse: o.preload,
         respondWith: (/** @type {Promise<Response>} */ p) => { responded = p; },
         waitUntil: (/** @type {Promise<any>} */ p) => { waits.push(p); },
     });
+    if (!responded && o.unanswered) return { answered: false, fetches, stores };
     assert.ok(responded, 'a navigation is always answered by the worker');
     const res = await /** @type {Promise<Response>} */ (responded);
     return { res, body: await res.clone().text(), fetches, fetchModes, stores, settle: () => Promise.allSettled(waits) };
@@ -360,5 +366,38 @@ describe('service worker — a JS module (Oct 2026 production review)', () => {
         await settle(); await after(20, () => {});
         const keys = [.../** @type {Map<string, Response>} */ (stores.get(CACHE)).keys()];
         assert.ok(keys.some(k => k.endsWith('/calendar-app.js')));
+    });
+});
+
+// ── THE REPOSITORY'S DOCUMENTS ARE THE NETWORK'S (trains-newlink-3) ─────────────────────────────
+// The Pages mirror serves the whole repository, so the New link pack's PDFs under docs/ sit inside the
+// mirror's scope. The cache-first branch stored each one a colleague opened in this release's cache
+// and served that copy with no request at all — after the pack had been republished under the same
+// name, until the next release. They are left to the browser now, on both addresses.
+describe('service worker — a document under docs/ is never kept in the app\'s cache', () => {
+    const pdf = (/** @type {string} */ body) => new Response(body, { status: 200, headers: { 'content-type': 'application/pdf' } });
+    const MIRROR = 'https://garethdavidmiller.github.io/roster-app/';
+
+    test('on the Pages mirror, a pack PDF opened in a new tab is left to the network', async () => {
+        const r = await navigate({ scope: MIRROR, path: '/roster-app/docs/links-26/links-26-rules.pdf',
+            network: async () => pdf('version 1'), unanswered: true });
+        assert.equal(r.answered, false, 'the worker answered it, so the next open could come from its cache');
+        assert.deepEqual(r.fetches, [], 'and it fetched nothing of its own to store');
+    });
+
+    test('so is any other file under docs/, an HTML one included, and on the main address too', async () => {
+        for (const path of ['/docs/links-26/README.md', '/docs/links-26/presentations/', '/docs/links-26/x.html']) {
+            const r = await navigate({ path, network: async () => ok('x'), unanswered: true });
+            assert.equal(r.answered, false, path);
+        }
+    });
+
+    test('CONTROL: the app\'s own icon is still answered from the cache — the pass-through is for docs/ alone', async () => {
+        const { body, fetches } = await navigate({
+            path: '/icon-192.png', mode: 'no-cors', destination: 'image',
+            cached: { './icon-192.png': 'cached icon' }, network: async () => pdf('network icon'),
+        });
+        assert.equal(body, 'cached icon');
+        assert.deepEqual(fetches, []);
     });
 });
