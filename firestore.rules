@@ -70,7 +70,9 @@ rules_version = '2';
 // H2 linksDesigner writes + linkDesigns shape-validation (v17.02) · analytics anti-wipe map guard
 // (v17.03) · staffContact Chiltern work-email validation (v16.34 local-part tightening) · 20 MB
 // inclusive upload cap lives in storage.rules · analytics doc-id pinning.
-// (This file is NOT covered by the 0.10 doc-stamp sweep — update this line by hand when rules change.)
+// (This file is NOT covered by the 0.10 doc-stamp sweep — update this line by hand when rules change.
+// firestore-contract-parity.test.mjs refuses a sweep line older than any version the file cites, so
+// label a change with its version and the check can see it.)
 //
 // Write policy: PER-MEMBER ISOLATION is now STRICT (B3, see SECURITY_RELEASE_PLAN.md).
 // `overrides` create/update/delete require the member's own `name` claim, OR an `admin`/`manager`
