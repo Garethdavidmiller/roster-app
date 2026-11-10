@@ -518,8 +518,21 @@ export function renderWeekGrid() {
 // and the sticky bar's Discard stayed live — a "discarded" save then landed anyway. Set around the
 // commit by executeSave; while set, Save and both sticky-bar buttons stay disabled.
 let _saveInFlight = false;
-/** @param {boolean} on */
-export function setSaveInFlight(on) { _saveInFlight = !!on; updateSaveBtn(); }
+/** Is the week itself held still for its own save? @type {boolean} */
+let _weekHeld = false;
+/**
+ * @param {boolean} on
+ * @param {{ grid?: boolean }} [opts] `grid`: the write is this WEEK's own save, which resets and redraws
+ *   every row when it lands — so a change made in the wait (seconds, on an iPhone) was taken and then
+ *   thrown away without a word. The grid and the bulk bar are `inert` until it settles. A range booking
+ *   leaves them live: it never redraws over staged rows, and asks before it moves the week.
+ */
+export function setSaveInFlight(on, { grid = false } = {}) {
+    _saveInFlight = !!on;
+    _weekHeld = _saveInFlight && grid;
+    for (const id of ['weekGrid', 'bulkBar']) { const el = document.getElementById(id); if (el) el.inert = _weekHeld; }
+    updateSaveBtn();
+}
 /** Is any override write on this page still sending? One lock for the grid AND the range cards (v24.38). @returns {boolean} */
 export function isSaveInFlight() { return _saveInFlight; }
 
@@ -588,7 +601,9 @@ export function updateSaveBtn() {
         // Blank the hint only when the preview above is actually carrying the summary; if the
         // preview isn't showing (no member selected, or stale HTML without #gridPreview) fall
         // back to the guidance so there's never an enabled Save with no on-screen explanation.
-        hint.textContent = previewShown ? '' : 'Select a type on at least one day, then save your changes';
+        // While the week is held for its own save, a tap on it does nothing, and this says why.
+        hint.textContent = _weekHeld ? 'You can change this week again once the save has finished.'
+            : previewShown ? '' : 'Select a type on at least one day, then save your changes';
     }
 }
 

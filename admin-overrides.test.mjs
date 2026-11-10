@@ -1252,6 +1252,46 @@ describe('a save is not undone by a load that started before it', () => {
     });
 });
 
+// ── …AND A WEEK THE READER MOVED TO IN THAT WAIT IS NOT REDRAWN BY THE SAVE (A9) ────────────────────
+//
+// "Only the view this save came from" was decided once, BEFORE the wait above, so a navigation that
+// landed inside the wait was redrawn by the save anyway — over whatever was staged there. The week is
+// held still while its own save is sending, so nothing can be staged there now; this is the second lock.
+// The store's renderers are not wired in this file, so every redraw seen here is the save's own.
+describe('a save redraws only the view it came from (A9)', () => {
+    test('a week the reader moved to while the save waited on a running load is left alone', async () => {
+        setAllOverrides([]);
+        mockAuth.currentUser = { getIdToken: async () => 'tok' };
+        const member = { value: 'G. Miller' }, date = { value: '2026-09-07' };
+        const label = { textContent: '', setAttribute() {}, classList: { toggle() {} } };
+        const el = () => ({ innerHTML: '', dataset: {}, style: {}, className: '',
+            classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+            appendChild: (/** @type {any} */ c) => c, insertAdjacentHTML() {}, querySelector: () => null,
+            querySelectorAll: () => [], setAttribute() {}, addEventListener() {} });
+        const { getElementById, createElement } = global.document;
+        global.document.getElementById = (/** @type {string} */ id) =>
+            id === 'fieldMember' ? member : id === 'fieldDate' ? date : id === 'weekNavLabel' ? label : null;
+        global.document.createElement = el;
+        try {
+            const gate = openGetDocsGate();
+            const loading = loadOverrides({ everyone: true });
+            await Promise.resolve();
+            const saving = executeSave([{ memberName: 'G. Miller', date: '2026-09-08', type: 'rdw', value: '06:20-14:00' }], []);
+            for (let i = 0; i < 20; i++) await Promise.resolve();
+            assert.match(label.textContent, /Sep 2026/, 'premise: the save drew its own week as it was committed');
+            date.value = '2026-10-12';        // the reader moves to another week while the save waits
+            label.textContent = 'moved';      // …which that navigation drew
+            gate.resolve([]);
+            await loading;
+            await saving;
+            assert.equal(label.textContent, 'moved', 'the save redrew a week it did not come from');
+        } finally {
+            global.document.getElementById = getElementById;
+            global.document.createElement = createElement;
+        }
+    });
+});
+
 // ── AND NOT DUPLICATED BY ONE THAT FINISHES LATE (v21.42, external review) ────────────────────────
 //
 // The v21.41 fix above closed one ordering and opened its inverse, which is the shape a "wait for the

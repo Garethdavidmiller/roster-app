@@ -170,7 +170,9 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     // Disable the button BEFORE awaiting sessionReady (v16.23): a double-tap during a slow sign-in
     // passed the collector twice and wrote duplicates. Fixed ids (v24.48) now make a second run land on
     // the same documents, so this is a guard against a wasted write. The finally re-enables it.
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; } setSaveInFlight(true);
+    // `grid`: the batch is the week as it stood at the press, and the week is redrawn when it lands —
+    // so the week is held still until then, rather than taking a change it would throw away.
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; } setSaveInFlight(true, { grid: true });
 
     await sessionReady;
     // Don't mutate the cache until the initial load has settled — otherwise the in-flight initial
@@ -271,32 +273,41 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         });
         _showSuccess(receipt.summary, receipt.lines);
 
-        // Only the view this save came from: a navigation while it waited drew rows nobody saved (A9).
-        const sameView = fieldMember?.value === memberName && fieldDate?.value === savedDate;
-        if (sameView) resetStagedRows();   // the row lifecycle belongs to the week editor (v21.38)
-
-        // AND ANY LOAD ALREADY RUNNING HAS TO LAND FIRST (v21.41). `whenOverridesReady()` answers only
-        // for the BOOT load; a member switch, All staff or a Retry can be in flight at commit, and it
-        // would assign the cache from a pre-write snapshot — the saved day vanishing from Saved Changes
-        // while correct in Firestore, which reads as data loss. A FAILED load must not fail a committed save.
-        await whenLoadSettled().catch(() => {});
-        // …AND THE MERGE IS BY ID (v21.42, external review): waiting lets that load reach the server
-        // AFTER the batch, so its rows can already hold what was just written, and appending `newDocs`
-        // put one id in the cache twice. Firestore is untouched, but everything that COUNTS rows — Saved
-        // Changes, AL taken and booked, the entitlement a manager books against — read a day wrong.
+        // THE MERGE IS BY ID (v21.42, external review): a read can already hold what was just written,
+        // and appending `newDocs` put one id in the cache twice. Firestore is untouched, but everything
+        // that COUNTS rows — Saved Changes, AL taken and booked, the entitlement a manager books
+        // against — read a day wrong. `newIds` before `newDocs`: whatever a read brought back for these
+        // documents is the same document, so the write's own record replaces it rather than joining it.
         const newIds     = new Set(newDocs.map(d => d.id));
         const removedIds = new Set([...dropped].filter(id => !newIds.has(id)));
-        mutateCache(rows => {
-            // `newIds` before `newDocs`: whatever the read brought back for these documents is the
-            // same document, so the write's own record replaces it rather than joining it.
+        const merge = () => mutateCache(rows => {
             const kept = rows.filter(o => !removedIds.has(o.id) && !newIds.has(o.id));
             kept.push(...newDocs);
             kept.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
             return kept;
         });
+        // Only the view this save came from: a navigation while it waited drew rows nobody saved (A9).
+        // ASKED AT EACH REDRAW, not once before the wait below — a navigation can land inside it too.
+        const sameView = () => !!fieldMember?.value && !!fieldDate?.value
+            && fieldMember.value === memberName && fieldDate.value === savedDate;
+        // DRAWN AS SAVED NOW (whole-app check, Nov 2026). The rows used to be switched off here and
+        // redrawn only after the wait: while a load was running the day just saved showed nothing and
+        // the Unsaved bar still counted it — and a switched-off row with a saved record reads as a
+        // staged REMOVAL, so the kept-draft check found unsaved work in a week that had none.
+        merge();
+        if (sameView()) renderWeekGrid();
+
+        // AND ANY LOAD ALREADY RUNNING HAS TO LAND FIRST (v21.41). `whenOverridesReady()` answers only
+        // for the BOOT load; a member switch, All staff or a Retry can be in flight at commit, and it
+        // assigns the cache from a snapshot that may predate this write — the saved day vanishing from
+        // Saved Changes while correct in Firestore, which reads as data loss. So the merge runs AGAIN
+        // once it has landed. A FAILED load must not fail a committed save.
+        await whenLoadSettled().catch(() => {});
+        merge();
         renderTable();
+        if (sameView()) renderWeekGrid();
+        // AFTER the redraw: its "saved — forget the kept draft" asks whether anything is still staged.
         _onAfterSave();
-        if (sameView && fieldMember?.value && fieldDate?.value) renderWeekGrid();
 
     } catch (err) {
         console.error('[Admin] Save failed:', err);

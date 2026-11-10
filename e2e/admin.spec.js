@@ -552,6 +552,66 @@ test('admin: another member signing in on the same phone is offered nothing — 
     expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'G. Miller\'s copy is left for G. Miller').not.toBeNull();
 });
 
+// A SAVE THAT LANDS FORGETS THE COPY THE HIDE KEPT (whole-app check, Nov 2026). Saving and then switching
+// app is what the slow save teaches, so the rows are kept while the commit waits. When it landed, every
+// row was switched off before the week was redrawn — and a switched-off row with a saved record reads
+// as a staged removal, so on any week holding one the "saved: forget it" check found unsaved work and
+// kept the copy. A page iOS then discarded offered to restore work that had been saved.
+test('admin: a save landing while the page is hidden forgets the kept copy, on a week holding another saved change', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), holdCommits: true, docs: [{ id: 'm_2026-12-09_G.%20Miller', memberName: 'G. Miller',
+            date: '2026-12-09', type: 'annual_leave', value: 'AL', note: '', source: 'manual' }] };
+    });
+    await openAdminOnDecember(page);
+    await expect(page.locator('.day-row[data-date="2026-12-09"] .overwrite-badge'), 'premise: Wednesday holds a saved change, untouched').toContainText('Saved');
+    await page.locator('.day-row[data-date="2026-12-08"] .day-cb').click();
+    await page.locator('.day-row[data-date="2026-12-08"] .type-pill-btn[data-type="annual_leave"]').click();
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#saveBtn')).toContainText('Saving');
+    await setVisibility(page, 'hidden');
+    expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'premise: hidden mid-save, the rows are kept').not.toBeNull();
+
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+    expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'saved: forgotten as it lands, not at a later hide').toBeNull();
+});
+
+// …AND WHILE A READ THAT WAS ALREADY RUNNING FINISHES, THE WEEK READS AS SAVED. A save waits for a read in
+// flight at commit (All staff, a Retry, the return refresh) before it redraws, and in that wait the rows
+// were switched off and nothing recounted: the day just saved showed nothing, a saved day lost its type,
+// and under "1 change saved" the Unsaved bar still read "1 day".
+test('admin: while a read that was running at the save finishes, the week reads as saved, not as unsaved', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'm_2026-12-09_G.%20Miller', memberName: 'G. Miller',
+            date: '2026-12-09', type: 'annual_leave', value: 'AL', note: '', source: 'manual' }] };
+    });
+    await openAdminOnDecember(page);
+    const badge = (/** @type {string} */ d) => page.locator(`.day-row[data-date="${d}"] .overwrite-badge`);
+    await expect(badge('2026-12-09'), 'premise: Wednesday holds a saved change, untouched').toContainText('Saved');
+    await page.locator('#overridesToggleHeader').click();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
+    await page.locator('#showAllOverridesBtn').click();   // the collection read, held in flight
+    await page.locator('.day-row[data-date="2026-12-08"] .day-cb').click();
+    await page.locator('.day-row[data-date="2026-12-08"] .type-pill-btn[data-type="annual_leave"]').click();
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+
+    // Committed, and waiting on the read.
+    const al = (/** @type {string} */ d) => page.locator(`.day-row[data-date="${d}"] .type-pill-btn[data-type="annual_leave"]`);
+    await expect(badge('2026-12-08'), 'the day just saved reads as saved').toContainText('Saved');
+    await expect(al('2026-12-08')).toHaveAttribute('aria-pressed', 'true');
+    await expect(al('2026-12-09'), 'a saved day nobody touched keeps its type').toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#stagedBar'), 'nothing reads as unsaved').toBeHidden();
+    await expect(page.locator('#gridPreview')).toBeHidden();
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await waitForReadsToLand(page, 'the All staff read never landed');
+    await expect(badge('2026-12-08')).toContainText('Saved');
+    await expect(page.locator('#saveBtn'), 'and the save has finished').toHaveText('Save changes');
+});
+
 // ── A WEEK LEFT OPEN IS READ AGAIN WHEN THE APP COMES BACK (iPhone audit, Nov 2026) ─────────────
 // An installed app is not reloaded when it is reopened — iOS keeps it resident for days — and Admin
 // read its week once, with "Today" stamped as it drew. Back after five minutes away, with nothing
@@ -972,6 +1032,53 @@ test('admin: a slow save says "Waiting for signal" only when the browser reports
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
         .filter((/** @type {any} */ w) => /^Slow save/.test(w.data?.message ?? '')).length),
         'an offline-when-slow save must not be logged as a diagnostic').toBe(0);
+});
+
+// ── A CHANGE MADE WHILE A SAVE IS SENDING IS REFUSED, NOT TAKEN AND THROWN AWAY (Nov 2026) ─────────
+// The batch is the grid as it stood at the press. When the commit lands every row is reset and the week
+// redrawn, so a tap in the wait — seconds on an iPhone (KNOWN_LIMITATIONS) — used to light up, then
+// vanish under a receipt that never mentioned it: Monday re-typed as Absent still SAVED as leave.
+// Clicked with the real mouse, so a held grid is met the way a finger meets it.
+test('admin: a change tapped while a save is still sending is refused, not taken and then thrown away', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Jan 2027');
+    // Monday and Tuesday are both rostered working days on this line, so leave asks nothing. A row's
+    // pills show once it is ticked, so each is ticked first, as a person does.
+    const box  = (/** @type {string} */ d) => page.locator(`.day-row[data-date="${d}"] .day-cb`);
+    const pill = (/** @type {string} */ d, /** @type {string} */ t) =>
+        page.locator(`.day-row[data-date="${d}"] .type-pill-btn[data-type="${t}"]`);
+    await box('2027-01-11').click();
+    await pill('2027-01-11', 'annual_leave').click();
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#saveBtn')).toContainText('Saving');
+
+    // While the commit waits: Monday re-typed as Absent, Tuesday ticked, and the bulk bar's All 7.
+    await pill('2027-01-11', 'sick').click({ force: true });
+    await box('2027-01-12').click({ force: true });
+    await page.locator('#bulkSelAll').click({ force: true });
+    await expect(pill('2027-01-11', 'annual_leave'), 'the row being saved keeps the type it is being saved as').toHaveAttribute('aria-pressed', 'true');
+    await expect(pill('2027-01-11', 'sick')).toHaveAttribute('aria-pressed', 'false');
+    await expect(box('2027-01-12'), 'nothing new is staged while the save is sending').not.toBeChecked();
+    await expect(box('2027-01-15'), 'nor by the bulk bar').not.toBeChecked();
+
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+    const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.map((/** @type {any} */ w) => `${w.date} ${w.type}`));
+    expect(written, 'the save wrote the batch it was pressed with').toEqual(['2027-01-11 annual_leave']);
+    await expect(pill('2027-01-11', 'annual_leave'), 'and the week shows what was saved').toHaveAttribute('aria-pressed', 'true');
+    // …and the week is editable again once it has landed.
+    await box('2027-01-12').click();
+    await pill('2027-01-12', 'annual_leave').click();
+    await expect(pill('2027-01-12', 'annual_leave')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#saveBtn')).toBeEnabled();
 });
 
 // ── A SAVE WHOSE ACCOUNT IS REVOKED ENDS, AND SAYS WHERE TO SIGN IN (v24.36 / v24.37) ─────────────

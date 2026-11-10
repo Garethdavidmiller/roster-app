@@ -483,6 +483,26 @@ test('while a save is in flight the unsaved banner\'s Discard is held too (revie
     assert.equal(discard.disabled, false);
 });
 
+test('the week\'s own save holds the grid and the bulk bar still until it lands; a range booking does not', () => {
+    const g = grid([]);
+    const bar = put('bulkBar');
+    put('saveBtn', makeEl('button'));
+    const hint = put('saveBtnHint');
+    setSaveInFlight(true, { grid: true });
+    assert.equal(g.inert, true, 'the week is redrawn when its save lands: a change made in the wait was thrown away');
+    assert.equal(bar.inert, true, 'the bulk bar stages rows too');
+    assert.match(hint.textContent, /once the save has finished/, 'a tap that does nothing says why');
+    setSaveInFlight(false);
+    assert.equal(g.inert, false);
+    assert.equal(bar.inert, false);
+    assert.doesNotMatch(hint.textContent, /once the save has finished/);
+    // A range booking takes the same write lock, and leaves the week live: it never redraws over staged rows.
+    setSaveInFlight(true);
+    assert.equal(g.inert, false);
+    assert.equal(bar.inert, false);
+    setSaveInFlight(false);
+});
+
 // ───────────────────────────────────────────────────────────────────────────────────────────────
 // A WEEK'S STAGED ROWS AS A KEPT DRAFT (iPhone audit, Nov 2026)
 // ───────────────────────────────────────────────────────────────────────────────────────────────
