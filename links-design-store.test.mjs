@@ -23,6 +23,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDesignStore, isOfflineFailure } from './links-design-store.js';
 import { conflictOf } from './links-concurrency.js';
+import { runGatedWrite, _resetUnconfirmedWrites, SIGNED_OUT_CODE, UNCONFIRMED_CODE } from './claim-retry.js';
 
 const ID = 'design-1';
 const ME = 'G. Miller';
@@ -507,7 +508,7 @@ describe('creating and restoring ARM the baseline', () => {
 describe('what counts as offline', () => {
     // The predicate that decides whether the unserialised path may be taken at all. Too broad and
     // rule 2 is back to being advisory.
-    const online = () => false;      // navigator.onLine === true → "not offline"
+    const online = () => false;      // isOfflineNow(): the device does not report itself offline
     test('a contention abort is NOT offline', () => {
         assert.equal(isOfflineFailure({ code: 'aborted' }, online), false);
     });
@@ -522,6 +523,63 @@ describe('what counts as offline', () => {
     });
     test('and so is the browser saying so, whatever the error', () => {
         assert.equal(isOfflineFailure({ code: 'aborted' }, () => true), true);
+    });
+    test('…except an answer from the page\'s OWN write machinery, which no browser state turns into "offline"', () => {
+        // The gate refusing a write while an earlier one is unconfirmed, and an account that signed
+        // out mid-write (claim-retry.js). Neither is the absence of a server.
+        assert.equal(isOfflineFailure({ code: UNCONFIRMED_CODE }, () => true), false);
+        assert.equal(isOfflineFailure({ code: SIGNED_OUT_CODE }, () => true), false);
+    });
+});
+
+describe('a write the page\'s own gate refused is never "queued" (whole-app fix, Nov 2026)', () => {
+    // claim-retry.js: once a write on this page ends unconfirmed (signed out mid-write), every later
+    // write is refused until a reload. Offline, that refusal was read as "no server": the store took
+    // the queued path, the queue's own refusal was only logged, and the page said "Saved in this
+    // browser" about a write nothing had issued. The REAL gate, because the wrapper every other test
+    // injects (fn => fn()) has no gate to close.
+    const closeGate = async () => {
+        _resetUnconfirmedWrites();
+        await runGatedWrite(() => Promise.reject(Object.assign(new Error('signed out'), { code: SIGNED_OUT_CODE })))
+            .catch(() => {});
+    };
+    const offlineGated = () => {
+        const db = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 2 },
+            failTx: { code: 'unavailable', message: 'client is offline' } });
+        db.api.isOnline = () => false;
+        db.api.withClaimRetry = (/** @type {Function} */ fn) => runGatedWrite(fn);
+        return db;
+    };
+    /** @type {Array<[string, (s: any) => Promise<any>]>} */
+    const writers = [
+        ['save', s => s.save({ id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, loadedRevision: 2, baselineUnknown: false, currentUser: ME })],
+        ['create', s => s.create({ name: 'New' })],
+        ['rename', s => s.rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 2 })],
+        ['softDelete', s => s.softDelete(ID, ME)],
+    ];
+    for (const [what, run] of writers) {
+        test(`${what}: the refusal reaches the caller, and nothing is written`, async () => {
+            await closeGate();
+            try {
+                const { api, writes } = offlineGated();
+                await assert.rejects(run(createDesignStore(api)), (/** @type {any} */ err) => err.code === UNCONFIRMED_CODE,
+                    'a refusal before anything was issued is not a queued write — the caller words it as unconfirmed');
+                assert.deepEqual(writes, []);
+            } finally { _resetUnconfirmedWrites(); }
+        });
+    }
+
+    test('a save SIGNED OUT mid-transaction while offline says so, rather than being queued', async () => {
+        // The transaction is abandoned with the sign-out code, which also closes the gate. Read as
+        // offline, the store went on to queue — refused by the gate it had just closed — and the
+        // designer was told about "an earlier change", not that they had been signed out.
+        _resetUnconfirmedWrites();
+        try {
+            const { api, writes } = offlineGated();
+            api.runTransaction = async () => { throw Object.assign(new Error('signed out'), { code: SIGNED_OUT_CODE }); };
+            await assert.rejects(writers[0][1](createDesignStore(api)), (/** @type {any} */ err) => err.code === SIGNED_OUT_CODE);
+            assert.deepEqual(writes, []);
+        } finally { _resetUnconfirmedWrites(); }
     });
 });
 

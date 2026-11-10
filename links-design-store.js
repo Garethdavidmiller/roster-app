@@ -57,7 +57,7 @@
 
 import { conflictOf, baselineAfterWrite, baselineAfterCommit, canAdvanceBaseline, nextRevision } from './links-concurrency.js';
 import { isDeleted } from './links-deletion.js';
-import { SIGNED_OUT_CODE } from './claim-retry.js';
+import { SIGNED_OUT_CODE, UNCONFIRMED_CODE } from './claim-retry.js';
 
 /**
  * @typedef {object} StoreDeps
@@ -74,12 +74,21 @@ import { SIGNED_OUT_CODE } from './claim-retry.js';
 const _offlineByDefault = () => typeof navigator !== 'undefined' && navigator.onLine === false;
 
 /**
+ * Answers from this page's OWN write machinery (claim-retry.js): the gate refusing a write while an
+ * earlier one is unconfirmed, and an account that signed out mid-write. Neither is the absence of a
+ * server, whatever the browser says. Read as offline, the gate's refusal took the queued path and the
+ * page said "Saved in this browser" about a write that was never issued (whole-app fix, Nov 2026).
+ */
+const NEVER_OFFLINE = new Set([UNCONFIRMED_CODE, SIGNED_OUT_CODE]);
+
+/**
  * Was this failure the absence of a server, rather than a server that said no?
- * @param {any} err @param {() => boolean} isOnlineCheck
+ * @param {any} err @param {() => boolean} isOfflineNow  true when the device reports itself OFFLINE
  * @returns {boolean}
  */
-export function isOfflineFailure(err, isOnlineCheck = _offlineByDefault) {
-    if (isOnlineCheck()) return true;
+export function isOfflineFailure(err, isOfflineNow = _offlineByDefault) {
+    if (NEVER_OFFLINE.has(err?.code)) return false;
+    if (isOfflineNow()) return true;
     return err?.code === 'unavailable' || /offline|client is offline/i.test(String(err?.message || ''));
 }
 
@@ -97,19 +106,46 @@ export function createDesignStore(deps) {
     const refFor = (/** @type {string} */ id) => doc(db, 'linkDesigns', id);
 
     /**
-     * RULE 4 — a queued write is STARTED, never awaited. Firestore resolves a write only when the
-     * server acknowledges it, which offline is "not until the connection returns", so awaiting one
-     * held the page on "Saving…" instead of reporting the queue. The SDK owns the queue; a later
-     * rejection (a rules refusal on sync) is logged, the one place left to see it.
+     * RULE 4 — send a write, and wait for the server's acknowledgement for at most `waitMs`.
+     *
+     * Firestore resolves a write only when the server acknowledges it — offline, "not until the
+     * connection returns" — so awaiting one held the page on "Saving…" instead of reporting the queue.
+     * Resolves `'acked'` when the answer comes in time and `'queued'` when it does not: the write is
+     * issued and the SDK owns the queue, so a later rejection (a rules refusal on sync) is logged, the
+     * one place left to see it.
+     *
+     * It REJECTS with any answer that comes in time, and that includes a refusal before anything was
+     * issued: the page's unconfirmed-write gate refuses inside `withClaimRetry`, so there is no write
+     * to queue. Started-not-awaited, that refusal was only logged and the store answered "queued" for
+     * nothing (whole-app fix, Nov 2026). The bound starts when the write is ISSUED, so it can never
+     * outrun a refusal.
      * @param {() => Promise<any>} write
+     * @param {number} waitMs  0 to issue and move on, for a device known to be offline
+     * @returns {Promise<'acked'|'queued'>}
      */
-    const queueWrite = (write) => {
-        withClaimRetry(write).catch((/** @type {any} */ err) => {
+    const sendWrite = (write, waitMs) => new Promise((resolve, reject) => {
+        let answered = false;
+        /** @type {any} */ let timer = null;
+        /** The first answer wins, once. @param {() => void} settle */
+        const answer = (settle) => {
+            if (answered) return false;
+            answered = true;
+            clearTimeout(timer);
+            settle();
+            return true;
+        };
+        withClaimRetry(() => {
+            if (timer === null) timer = setTimeout(() => answer(() => resolve('queued')), waitMs);
+            return write();
+        }).then(() => { answer(() => resolve('acked')); }, (/** @type {any} */ err) => {
+            if (answer(() => reject(err))) return;
             // Signed out while queued is NOT a failure: the SDK keeps it for that account (v24.37).
             if (err?.code === SIGNED_OUT_CODE) { console.warn('[Links] Queued write held until that designer signs in again'); return; }
             console.error('[Links] Queued write failed on sync:', err);
         });
-    };
+    });
+    /** A write for a device that is offline: issued, then answered `queued`. @param {() => Promise<any>} write */
+    const queueWrite = (write) => sendWrite(write, 0);
 
     /**
      * The revision a QUEUED write stamps. Not `known + 1`: that is precisely what a colleague's
@@ -179,7 +215,7 @@ export function createDesignStore(deps) {
             // exact, because nobody else can write a document whose id only this device holds.
             if (offlineNow()) {
                 const queuedRef = doc(designsCol);
-                queueWrite(() => setDoc(queuedRef, body));
+                await queueWrite(() => setDoc(queuedRef, body));
                 return { id: queuedRef.id, updatedAt: null, queued: true, baseline: baselineAfterCommit(1) };
             }
             const ref = await withClaimRetry(() => addDoc(designsCol, body));
@@ -286,7 +322,7 @@ export function createDesignStore(deps) {
                         const again = movedOnOf(d);
                         if (again) return { status: 'conflict', conflict: again };
                     } catch { /* nothing cached to consult — proceed, as the ordinary offline save does */ }
-                    queueWrite(() => setDoc(ref, { ...buildPayload(), revision: queuedRevision(loadedRevision) }));
+                    await queueWrite(() => setDoc(ref, { ...buildPayload(), revision: queuedRevision(loadedRevision) }));
                     return { status: 'queued', baseline: baselineAfterWrite(null, false) };
                 }
                 if (gone)         return { status: 'deleted-elsewhere', deletedData: null };
@@ -343,8 +379,8 @@ export function createDesignStore(deps) {
                 // A queued write may NOT increment from what we last knew: `known + 1` is exactly
                 // the number a colleague's online save from the same revision commits, so when ours
                 // landed the two matched and her next save overwrote ours with no prompt. See
-                // `queuedRevision`. Started, not awaited — rule 4 below.
-                queueWrite(() => setDoc(ref, { ...buildPayload(), revision: queuedRevision(loadedRevision) }));
+                // `queuedRevision`. Issued, not awaited — rule 4.
+                await queueWrite(() => setDoc(ref, { ...buildPayload(), revision: queuedRevision(loadedRevision) }));
                 // Nothing verified what the server held, so the baseline is UNKNOWN, never null.
                 return { status: 'queued', baseline: baselineAfterWrite(null, false) };
             }
@@ -401,9 +437,10 @@ export function createDesignStore(deps) {
                 // A SECOND offline rename sees through the first — its revision is ours, not a save.
                 const under = throughOwnRename(id, cached)?.revision;
                 const rev = queuedRevision(preRevision);
+                await queueWrite(() => setDoc(ref, { name, revision: rev }, { merge: true }));
+                // Recorded once it is ISSUED: a rename the gate refused is nobody's to see through.
                 ownRenames.set(id, { rev, before: typeof under === 'number' ? under : null,   // see `ownRenames`
                     stamp: cached?.updatedAt?.toMillis?.() ?? null, by: cached?.updatedBy ?? null });
-                queueWrite(() => setDoc(ref, { name, revision: rev }, { merge: true }));
                 return { baselineFresh, revision: null, updatedAt: null, queued: true };
             }
             // A rename that may advance the baseline advances it to the revision it COMMITTED —
@@ -423,7 +460,7 @@ export function createDesignStore(deps) {
             // RULE 4, for the delete too (whole-app review, Oct 2026). Awaited offline, it held until
             // the signal came back: nothing changed on screen, the designer kept editing, and the late
             // landing then switched the page away and dropped those edits unasked. Queued, it shows now.
-            if (offlineNow()) { queueWrite(write); return { queued: true }; }
+            if (offlineNow()) { await queueWrite(write); return { queued: true }; }
             await withClaimRetry(write);
             return { queued: false };
         },
