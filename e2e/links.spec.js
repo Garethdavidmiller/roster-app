@@ -2364,6 +2364,24 @@ test('links grid: a total that is only a floor says so with a "+", not by its co
     expect((await mark('.tot-legend .lg-uncertain'))[0], 'the legend shows the same mark').toMatch(/^"\+"/);
 });
 
+// THE LEGEND'S WORDS NAME WHAT ITS SAMPLE DRAWS (whole-app fix, Nov 2026). The floor sample draws
+// "Orange+" — its "+" is the cells' own `::after` — and the words named the orange alone, so the mark a
+// reader meets in the grid was the one thing the legend did not explain. The mark is read off the
+// sample rather than typed here, so the words and the drawing cannot part again.
+test('links grid: the totals legend names the mark its floor sample draws', async ({ page }) => {
+    await openWindowDesign(page);
+    const legend = await page.locator('.tot-legend').evaluate(el => {
+        const sample = /** @type {Element} */ (el.querySelector('.lg-uncertain'));
+        const drawn = getComputedStyle(sample, '::after').content;   // `"+" / ""` where alt text is supported
+        const range = document.createRange();   // the entry's words: after the sample, up to the next "·"
+        range.selectNodeContents(el);
+        range.setStartAfter(sample);
+        return { mark: /^"([^"]+)"/.exec(drawn)?.[1] ?? '', words: range.toString().split('·')[0] };
+    });
+    expect(legend.mark, 'premise: the floor sample draws a mark after its word').not.toBe('');
+    expect(legend.words, 'the floor entry names the mark its sample draws').toContain(`“${legend.mark}”`);
+});
+
 test('links compare: a "Compare with:" name is a thumb-sized target on a phone', async ({ page }, info) => {
     // A 12px label with 4px padding, ~22.5px tall — under the app's 24px floor, beside paint chips and
     // set buttons that carry a 30px one. The tap-target gate loads Links with one design, so compare
