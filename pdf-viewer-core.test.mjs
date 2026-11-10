@@ -8,7 +8,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     ZOOM_STEPS, MAX_DEVICE_PIXEL_RATIO, MAX_CANVAS_PIXELS, MAX_FIT_WIDTH, zoomAfter, zoomLabel, pageLayout,
-    canOpenOutside, isPlainClick, classifyFailure, FAILURE_TEXT, pageLabel, pagesLabel,
+    canOpenOutside, isPlainClick, classifyFailure, FAILURE_TEXT, PAGE_FAILURE_TEXT, pageLabel, pagesLabel,
 } from './pdf-viewer-core.js';
 
 const A4 = { pageWidth: 594.96, pageHeight: 841.92 };      // the proposal sheets, the rules, the shortlist
@@ -141,6 +141,12 @@ describe('failures', () => {
         assert.match(FAILURE_TEXT.gone, /Reload the page/);
         assert.match(FAILURE_TEXT.broken, /tell the admin/);
         for (const text of Object.values(FAILURE_TEXT)) assert.doesNotMatch(text, /!/, 'no exclamation marks');
+    });
+
+    test('a page that could not be drawn says so in the file\'s own words, and its button is the one that tries again', () => {
+        // The same voice as the file's failure ("This file could not be shown"); what to do is the button beside it.
+        assert.equal(PAGE_FAILURE_TEXT, 'This page could not be shown.');
+        assert.match(FAILURE_TEXT.broken, /^This file could not be shown\./, 'the two failures say it the same way');
     });
 });
 

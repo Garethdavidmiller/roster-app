@@ -686,6 +686,31 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // A PAGE THAT COULD NOT BE DRAWN (external review, 10 Nov 2026) is a state of its own: dark words on the white page, with
+    // that page's own Try again. The fault is lifted before the scan, so axe's own canvas works; a failed page is never
+    // retried on its own, so the notice stays for the scan.
+    test('newlink — the PDF viewer with a page that could not be drawn', async ({ page }) => {
+        await page.route('https://garethdavidmiller.github.io/roster-app/docs/links-26/**', (route) =>
+            route.fulfill({ path: decodeURIComponent(new URL(route.request().url()).pathname.replace('/roster-app/', '')),
+                contentType: 'application/pdf', headers: { 'access-control-allow-origin': '*' } }));
+        await page.addInitScript(() => {
+            const w = /** @type {any} */ (window);
+            w.__drawFault = true;
+            const save = CanvasRenderingContext2D.prototype.save;
+            CanvasRenderingContext2D.prototype.save = function () {
+                if (w.__drawFault) throw new Error('test: the drawing was refused');
+                return save.call(this);
+            };
+        });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        await page.locator('#nlPackList a.nl-file').last().click();
+        await expect(page.locator('#pdfViewerSheet .pdf-viewer-page-retry').first()).toBeVisible({ timeout: 20_000 });
+        await page.evaluate(() => { /** @type {any} */ (window).__drawFault = false; });
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('overtime — member form (signed in)', async ({ page }) => {
         // Scanned with the FORM RENDERED, not the empty shell: seven day groups of mode buttons is
         // the only state on this page with any structure to get wrong.

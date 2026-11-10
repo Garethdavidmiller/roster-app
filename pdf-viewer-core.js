@@ -146,6 +146,12 @@ export const FAILURE_TEXT = Object.freeze({
     broken: 'This file could not be shown. Try again, and tell the admin if it keeps happening.',
 });
 
+/**
+ * What a page says in its own box when the file opened but that page could not be drawn — PDF.js refused it, or the
+ * browser gave its canvas no memory to draw in. Its button tries that page again (external review, 10 Nov 2026).
+ */
+export const PAGE_FAILURE_TEXT = 'This page could not be shown.';
+
 /** "Page 3 of 8" — each page's name to a screen reader. @param {number} n @param {number} total */
 export const pageLabel = (n, total) => `Page ${n} of ${total}`;
 
