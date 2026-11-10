@@ -650,9 +650,11 @@ If the block says it **couldn't check** — the connection, an account list the 
 (it declines to name the whole roster as missing rather than guess), or an answer it could not read —
 that is a third answer and not a pass. Retry it.
 
-**"Taken back and reset to the default password"** (v24.24) is a line Set up accounts prints when it
-finds an account at a roster email carrying no custom claim at all — somebody registered that email
-from outside before the server provisioned it. It resets the password to the member's surname
+**"Reset to the default password and signed out"** (v24.24; worded "Taken back and reset to the default
+password" until 10 Nov 2026) is a line Set up accounts prints when it finds an account at a roster
+email carrying no custom claim at all — somebody registered that email from outside before the server
+provisioned it — and also for a DISABLED account at a roster email that it re-enables, such as a
+returning leaver's, from whom nothing was taken back. It resets the password to the member's surname
 default, signs out every session on it, stamps `resetAt` (so Settings asks them to choose a new one)
 and then stamps the claims. The member named there should be told their password is their surname.
 For anybody provisioned before v24.24 this never fires: their accounts already carry claims. A

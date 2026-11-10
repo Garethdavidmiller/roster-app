@@ -58,9 +58,13 @@ export function initSickSection({
             const to    = parseISODate(dates[dates.length - 1]);
             return to > maxTo ? 'Maximum range is 1 year.' : null;
         },
-        renderReady: ({ member, rangeStr, workDays, restCount }) => {
+        renderReady: ({ member, rangeStr, workDays, restCount, sundays = [], sundayNote = '' }) => {
             const label    = workDays === 1 ? '1 absence day' : `${workDays} absence days`;
-            const restNote = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
+            // A worked Sunday in the range is not skipped: the save sets it as a rest day, beside the
+            // absence (the shared range writer's Sunday rule), so it is named, not counted as skipped.
+            const rest     = restCount - sundays.length;
+            const parts    = [...(rest > 0 ? [`${rest} rest day${rest > 1 ? 's' : ''} skipped`] : []), ...(sundayNote ? [sundayNote] : [])];
+            const restNote = parts.length ? ` <em>(+ ${parts.join(', ')})</em>` : '';
             return `🪑 <strong>${label}</strong> for ${esc(member)}: ${rangeStr}${restNote}`;
         },
         successFeedback: (n, m) => `✓ Recorded ${n} absence day${n > 1 ? 's' : ''} for ${m}`,

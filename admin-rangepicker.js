@@ -7,7 +7,7 @@
  * Does NOT own: AL/sick save logic, week grid, or any other admin section.
  */
 
-import { DAY_NAMES, MONTH_ABB, MONTH_NAMES, formatISO, parseISODate, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { CONFIG, DAY_NAMES, MONTH_ABB, MONTH_NAMES, formatISO, parseISODate, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 
 /**
  * Returns an array of ISO date strings from fromVal to toVal inclusive,
@@ -30,17 +30,15 @@ export function getDateRange(fromVal, toVal) {
 }
 
 /**
- * Builds an inline date-range calendar inside #{prefix}RangePicker and wires
- * it to the hidden <input type="date"> elements #{prefix}From / #{prefix}To.
- * Returns { reset() } for post-save clearing.
+ * Builds an inline date-range calendar inside #{prefix}RangePicker and wires it to the hidden
+ * <input type="date"> elements #{prefix}From / #{prefix}To. It moves between CONFIG.MIN_YEAR and
+ * MAX_YEAR only, as every other date control does: outside them the Calendar cannot show a day and
+ * there are no bank holidays to count leave against (whole-app check, 10 Nov 2026).
  * @param {string} prefix  'al' | 'sick'
- * @returns {{ reset: Function }}
- */
-/**
- * @param {string} prefix
  * @param {{ onViewYearChange?: (year:number) => void }} [opts]
  *   `onViewYearChange` fires when the DISPLAYED month crosses into a different year — see
  *   `notifyView` for why it is the year and not the month, and why it never fires on build.
+ * @returns {{ reset: (o?: { keepView?: boolean }) => void }} for post-save clearing
  */
 export function buildRangePicker(prefix, opts = {}) {
 
@@ -80,8 +78,14 @@ export function buildRangePicker(prefix, opts = {}) {
     const clip      = /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpClip'));
     const grid      = /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpGrid'));
 
-    /** @param {number} delta */
+    /** May the view move one month this way? Never past CONFIG.MIN_YEAR's January or MAX_YEAR's December —
+     *  and, on a device whose clock is already outside them, only back towards them.
+     *  @param {number} delta -1 | +1 */
+    const canMove = (delta) => delta < 0 ? yr * 12 + mo > CONFIG.MIN_YEAR * 12 : yr * 12 + mo < CONFIG.MAX_YEAR * 12 + 11;
+
+    /** @param {number} delta -1 | +1 — a no-op at the bounds */
     function moveMonth(delta) {
+        if (!canMove(delta)) return;
         mo += delta;
         if (mo > 11) { mo = 0; yr++; }
         if (mo < 0)  { mo = 11; yr--; }
@@ -109,8 +113,22 @@ export function buildRangePicker(prefix, opts = {}) {
         opts.onViewYearChange?.(yr);
     }
 
-    /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpPrev')).addEventListener('click', () => { moveMonth(-1); render(); });
-    /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpNext')).addEventListener('click', () => { moveMonth(+1); render(); });
+    const prevBtn = /** @type {HTMLButtonElement} */ (document.getElementById(prefix + 'RpPrev'));
+    const nextBtn = /** @type {HTMLButtonElement} */ (document.getElementById(prefix + 'RpNext'));
+    /** An arrow at a bound is `aria-disabled` and faded, as the Calendar's own (`updateNavButtonState`),
+     *  never `disabled`: that would drop a keyboard user's focus from the arrow they had just pressed.
+     *  Its click is already a no-op there — `moveMonth` refuses.
+     *  @param {HTMLButtonElement} btn @param {boolean} ok */
+    const paintArrow = (btn, ok) => { btn.setAttribute('aria-disabled', String(!ok)); btn.style.opacity = ok ? '' : '0.4'; };
+    /** The month's name and its two arrows: `render` paints them, and so does a swipe's commit, which
+     *  does not call `render` — leaving the arrows as they were for the month it had left. */
+    function paintNav() {
+        label.textContent = `${MONTH_NAMES[mo]} ${yr}`;
+        paintArrow(prevBtn, canMove(-1));
+        paintArrow(nextBtn, canMove(+1));
+    }
+    prevBtn.addEventListener('click', () => { moveMonth(-1); render(); });
+    nextBtn.addEventListener('click', () => { moveMonth(+1); render(); });
     clearBtn.addEventListener('click', () => {
         fromISO = toISO = hoverISO = '';
         fromInput.value = toInput.value = '';
@@ -202,7 +220,7 @@ export function buildRangePicker(prefix, opts = {}) {
     }
 
     function render() {
-        label.textContent = `${MONTH_NAMES[mo]} ${yr}`;
+        paintNav();
         grid.style.transition = '';
         grid.style.transform  = '';
         renderGrid(grid);
@@ -265,15 +283,30 @@ export function buildRangePicker(prefix, opts = {}) {
         grid.style.transform  = '';
         if (swPanelPrev) { swPanelPrev.style.transition = TRANSITION; swPanelPrev.style.transform = `translate3d(${-swWidth}px,0,0)`; }
         if (swPanelNext) { swPanelNext.style.transition = TRANSITION; swPanelNext.style.transform = `translate3d(${swWidth}px,0,0)`;  }
-        setTimeout(() => { discardAdj(); grid.style.transition = ''; swCooldown = false; }, DURATION_MS + 50);
+        // `will-change` too, as the commit branch resets it: a layer kept promoted after every snap-back.
+        setTimeout(() => { discardAdj(); grid.style.transition = ''; grid.style.willChange = ''; swCooldown = false; }, DURATION_MS + 50);
     }
 
     grid.addEventListener('pointerdown', e => {
+        // A right or middle press is not a swipe — and the context menu it opens can take the release
+        // that would have ended one, leaving the month to follow the mouse (calendar-swipe.js's guard).
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         if (!e.isPrimary || swCooldown) return;
         navigator.vibrate?.(0);
         swStartX = e.clientX; swStartY = e.clientY; swStartT = e.timeStamp;
         swListening = true; swDragging = false; swFired = false; swHaptic = false;
     });
+
+    // A RELEASE THE GRID NEVER HEARD ENDS THE PRESS HERE (whole-app check, 10 Nov 2026). Before the
+    // swipe is sure of itself nothing is captured, so a press released off the grid reached only the
+    // document — and the grid kept listening, slid after the mouse with no button held, and took the
+    // next click as the end of a swipe. Bubble phase: a release on the grid has already been handled.
+    /** @param {PointerEvent} e */
+    function abandonUncaptured(e) {
+        if (e.isPrimary && swListening && !swDragging) swListening = false;
+    }
+    document.addEventListener('pointerup', abandonUncaptured);
+    document.addEventListener('pointercancel', abandonUncaptured);
 
     grid.addEventListener('pointermove', e => {
         if (!e.isPrimary || !swListening) return;
@@ -287,10 +320,11 @@ export function buildRangePicker(prefix, opts = {}) {
             grid.setPointerCapture(e.pointerId);   // on `grid`, never `clip`: a capture target's events don't reach its children
             grid.style.transition = 'none';
             grid.style.willChange = 'transform';
-            swPanelPrev = buildAdjPanel(-1);
-            swPanelNext = buildAdjPanel(+1);
-            swPanelPrev.style.transform = `translate3d(${-swWidth}px,0,0)`;
-            swPanelNext.style.transform = `translate3d(${swWidth}px,0,0)`;
+            // No neighbour past a bound: there is no month there to swipe to.
+            swPanelPrev = canMove(-1) ? buildAdjPanel(-1) : null;
+            swPanelNext = canMove(+1) ? buildAdjPanel(+1) : null;
+            if (swPanelPrev) swPanelPrev.style.transform = `translate3d(${-swWidth}px,0,0)`;
+            if (swPanelNext) swPanelNext.style.transform = `translate3d(${swWidth}px,0,0)`;
             swCooldown = true;
             swDragging = true;
         }
@@ -314,16 +348,16 @@ export function buildRangePicker(prefix, opts = {}) {
 
         const dx  = e.clientX - swStartX;
         const vel = e.timeStamp > swStartT ? Math.abs(dx) / (e.timeStamp - swStartT) : 0;
-        const goLeft  = dx < 0 && (Math.abs(dx) >= SWIPE_THRESHOLD || vel >= SWIPE_VELOCITY);
-        const goRight = dx > 0 && (Math.abs(dx) >= SWIPE_THRESHOLD || vel >= SWIPE_VELOCITY);
+        const goLeft  = dx < 0 && (Math.abs(dx) >= SWIPE_THRESHOLD || vel >= SWIPE_VELOCITY) && !!swPanelNext;
+        const goRight = dx > 0 && (Math.abs(dx) >= SWIPE_THRESHOLD || vel >= SWIPE_VELOCITY) && !!swPanelPrev;
 
         if (goLeft || goRight) {
             if (!swHaptic) navigator.vibrate?.(6);
             const incoming = goLeft ? swPanelNext : swPanelPrev;
             const discard  = goLeft ? swPanelPrev : swPanelNext;
             moveMonth(goLeft ? +1 : -1);
-            label.textContent = `${MONTH_NAMES[mo]} ${yr}`;
-            notifyView();   // this branch paints its own label rather than calling `render`
+            paintNav();
+            notifyView();   // this branch paints its own nav rather than calling `render`
             // Slide both panels to their committed positions
             grid.style.transition     = TRANSITION;
             grid.style.transform      = `translate3d(${goLeft ? -swWidth : swWidth}px,0,0)`;
@@ -386,6 +420,7 @@ export function buildRangePicker(prefix, opts = {}) {
             d.setDate(Math.min(d.getDate(), new Date(d.getFullYear(), d.getMonth() + delta + 1, 0).getDate()));
             d.setMonth(d.getMonth() + delta);
         }
+        if (d.getFullYear() < CONFIG.MIN_YEAR || d.getFullYear() > CONFIG.MAX_YEAR) return;   // the bounds, as the arrows
         focusISO = formatISO(d);
         yr = d.getFullYear(); mo = d.getMonth();
         // While a range is half-drawn, the keyboard previews it as the pointer does.
@@ -417,10 +452,18 @@ export function buildRangePicker(prefix, opts = {}) {
     updateChips();
 
     return {
-        reset() {
+        /**
+         * Clear the range. `keepView` leaves the month on screen where it is — what a save wants: the
+         * reader is still looking at the year they just booked in, and moving the picker back to today
+         * told the banner above it to switch years under "✓ Recorded" (owner's decided default, 10 Nov 2026).
+         * @param {{ keepView?: boolean }} [o]
+         */
+        reset({ keepView = false } = {}) {
             fromISO = toISO = hoverISO = focusISO = '';
-            yr = new Date().getFullYear();
-            mo = new Date().getMonth();
+            if (!keepView) {
+                yr = new Date().getFullYear();
+                mo = new Date().getMonth();
+            }
             fromInput.value = toInput.value = '';
             toInput.dispatchEvent(new Event('change'));
             render();

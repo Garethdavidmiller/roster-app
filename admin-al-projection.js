@@ -37,8 +37,16 @@
 // once: the range path did not re-ask a question an existing `replacedType: 'shift'` had settled, and
 // the week grid did. A shared decision layer is the only version of this that stays true, because
 // there is no second copy to forget.
+//
+// ── AND ONE RULE BOTH RANGE CARDS SHARE ────────────────────────────────────────────────────────
+//
+// `rangeSundayCorrections` is the leave AND absence cards' Sunday rule — which worked Sundays a range
+// booking sets as rest days. It lives here, beside what a save will do, so the preview and the receipt
+// can name those days before the write instead of calling them "skipped" (whole-app check, 10 Nov 2026).
 
-import { projectAnnualLeaveOverage, parseISODate } from './roster-data.js';
+import { projectAnnualLeaveOverage, parseISODate, isSunday, getBaseShift } from './roster-data.js';
+import { isRestShift } from './override-utils.js';
+import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType } from './al-entitlement.js';
 import { isChristmasClosureDate } from './christmas-leave.js';
@@ -115,9 +123,12 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *            counts: {asked:number, unanswered:number, consuming:number, freeWritten:number,
  *                     skipped:number, answeredFree:number, christmas:number, writing:number, lieuLost:number}}}
  */
-export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers = null }) {
+export function projectAlBooking({ member, dates, ovByDate: given = null, swapAnswers = null }) {
     const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], answeredFree: [], christmas: [], writing: [], lieuLost: [] };
     if (!member || !Array.isArray(dates)) return { ...empty, counts: _counts(empty) };
+    // Omitted means "nothing in play", as it does for every rule below — `isWorkingDate` alone
+    // dereferences the map, and threw on the first ordinary working day without one.
+    const ovByDate = given ?? new Map();
 
     const all = [...new Set(dates)].sort();
     const asked = swapDecisionDates({ dates: all, memberObj: member, ovByDate });
@@ -141,7 +152,7 @@ export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers =
             // `skipped` that is an ANSWER rather than a range rule — see the block comment above.
             if (answer !== true) { skipped.push(date); answeredFree.push(date); continue; }
             swapped = true;
-        } else if (!isWorkingDate(member, date, /** @type {any} */ (ovByDate))) {
+        } else if (!isWorkingDate(member, date, ovByDate)) {
             // Not asked and not worked: a Sunday, or a rest day the record already settled.
             skipped.push(date);
             // A Christmas day is never asked because its answer is fixed — see `answeredFree` above.
@@ -176,6 +187,26 @@ function lowersAllowance(member, date, ovByDate) {
     const leave = { memberName: member.name, date, type: 'annual_leave', value: 'AL', createdAt: { seconds: 4102444800 } };
     const after = entitlementFor(member, year, [...held.filter(o => o.date !== date), leave]);
     return after !== null && after < before;
+}
+
+/**
+ * The Sundays a RANGE booking — leave or absence — sets as rest days. A Sunday in the range whose
+ * BASE roster is a worked shift gets a `correction`/RD written beside the booking, so the shift does
+ * not show through the leave on the Calendar (.claude/rules/admin.md → "Sunday RD corrections") —
+ * unless the day already holds a rest value, or a worked record (`WORKED_OVERRIDE_TYPES`) the
+ * correction would erase. It is `recordRangeOverrides`'s rule (admin-overrides.js), stated here so
+ * the preview and the receipt name the days the save will change; the writer writes them only beside
+ * at least one day of the booking itself, which the caller checks.
+ * @param {{ dates: string[], memberObj: any, ovByDate?: Map<string, any>|null }} args
+ * @returns {string[]} the Sundays, in the order given
+ */
+export function rangeSundayCorrections({ dates, memberObj, ovByDate = null }) {
+    if (!memberObj || !Array.isArray(dates)) return [];
+    return dates.filter(d => {
+        if (!isSunday(d) || isRestShift(getBaseShift(memberObj, parseISODate(d)))) return false;
+        const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(d) : null;
+        return !(ov && (isRestShift(ov.value) || WORKED_OVERRIDE_TYPES.has(ov.type)));
+    });
 }
 
 /**
