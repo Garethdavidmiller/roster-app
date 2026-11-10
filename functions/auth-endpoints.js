@@ -56,6 +56,24 @@ function unlinkOtherProviders(user) {
     const others = (user.providerData || []).map((p) => p.providerId).filter((id) => id && id !== 'password');
     return others.length ? { providersToUnlink: others } : {};
 }
+
+/**
+ * Stamp `passwordStatus/{member}.resetAt` — the marker a device's SILENT sign-in is refused against
+ * (AUTH_AND_SESSIONS.md 23): a device whose local session began before it must type a password.
+ *
+ * WRITTEN FIRST, AND REQUIRED (functions-core-2, 10 Nov 2026). Every path that puts an account back
+ * on the surname default calls this BEFORE the credential changes, and stops if it throws. The
+ * default is exactly what a forgotten device signs itself back in with, so a stamp that failed AFTER
+ * the reset — once logged as "the member won't be nudged" — let the lost phone the reset was meant
+ * to sign out come straight back. A stamp that lands for a reset that then fails costs the member's
+ * devices one typed sign-in, which is what the admin asked for anyway; the retry completes it.
+ * @param {string} member
+ * @returns {Promise<void>}
+ */
+async function stampResetAt(member) {
+    await getFirestore().collection('passwordStatus').doc(member).set(
+        { resetAt: FieldValue.serverTimestamp() }, { merge: true });
+}
 const { isViewerAccount } = require('./calendar-viewer-auth');
 const rosterMembers = require('./roster-members.json');
 
@@ -222,18 +240,14 @@ const setupRosterAuth = onRequest(
                             // member would have been given, the display name the roster's, and every
                             // session on it is revoked. Reported by name, so the admin can tell the
                             // member what their password now is.
+                            // resetAt FIRST, and it must land (stampResetAt): a device that signed in
+                            // on this account before the take-back would otherwise sign itself back in
+                            // with the default. A failed stamp is a reclaim-failed, nothing touched.
+                            await stampResetAt(name);
                             await getAuth().updateUser(uid, { password, displayName: name, disabled: false, ...unlinkOtherProviders(existing) });
                             await getAuth().revokeRefreshTokens(uid);
                             reclaimed.push(name);
                             console.warn(`[setupRosterAuth] Reclaimed an account with no server claims: ${email}`);
-                            // The same Settings nudge an admin reset gives. Best-effort: a missed
-                            // nudge does not make the take-back a failure.
-                            try {
-                                await getFirestore().collection('passwordStatus').doc(name).set(
-                                    { resetAt: FieldValue.serverTimestamp() }, { merge: true });
-                            } catch (stampErr) {
-                                console.error(`[setupRosterAuth] resetAt stamp failed after reclaim for ${name}`, stampErr && stampErr.code);
-                            }
                         } else {
                             if (existing.disabled) {
                                 await getAuth().updateUser(uid, { disabled: false });
@@ -351,10 +365,11 @@ const setupRosterAuth = onRequest(
 );
 
 /**
- * resetMemberPassword — admin break-glass (PASSWORD_DESIGN.md §5). Resets ONE member's Firebase Auth
- * password back to their surname default and stamps `passwordStatus/{member}.resetAt` (Admin SDK,
- * bypassing Firestore rules) so the account is flagged as surname-default again (the Settings nudge
- * then prompts them to choose a new one — there is no forced overlay yet; that is Phase 2). This is
+ * resetMemberPassword — admin break-glass (PASSWORD_DESIGN.md §5). Stamps `passwordStatus/{member}.
+ * resetAt` FIRST (Admin SDK, bypassing Firestore rules — and with no stamp, no reset: stampResetAt),
+ * then resets ONE member's Firebase Auth password back to their surname default, so the account is
+ * flagged as surname-default again and every device that signed in before the stamp must type a
+ * password (the Settings nudge then prompts them to choose a new one — there is no forced overlay yet; that is Phase 2). This is
  * the only ADMIN / server-side password-write path — self-service changes go through the client
  * `setOwnPassword` (`updatePassword`) in firebase-client.js, which the server never sees.
  *
@@ -416,18 +431,30 @@ const resetMemberPassword = onRequest(
             // outside, so its display name and any other sign-in method are the outsider's, and its
             // sessions must end whatever the admin chose for `revoke`.
             const takeBack = mustReclaim(user);
+            // ── THE STAMP FIRST, AND IT MUST LAND (functions-core-2, 10 Nov 2026) ────────────────
+            // resetAt is what keeps the member's OTHER devices out once the password is back on the
+            // surname default (AUTH_AND_SESSIONS.md 23) — not a status flag. Stamped AFTER the
+            // reset, a failed write left the lost phone free to sign itself straight back in, while
+            // this endpoint answered `stamped: false` and called it cosmetic. So it is written before
+            // anything changes, and a stamp that cannot be written changes nothing: 503, try again.
+            try {
+                await stampResetAt(member);
+            } catch (stampErr) {
+                console.error('[resetMemberPassword] resetAt stamp failed — nothing was changed for', member,
+                              stampErr && stampErr.code, stampErr);
+                return res.status(503).json({ error: 'Could not record the reset, so nothing was changed — try again' });
+            }
             await getAuth().updateUser(user.uid, takeBack
                 ? { password, displayName: member, disabled: false, ...unlinkOtherProviders(user) }
                 : { password });
             // ── PAST THIS LINE THE CREDENTIAL HAS CHANGED, AND NOTHING MAY SAY OTHERWISE ─────────
             // (v21.86, external audit.) Revocation used to be a bare `await` inside the outer try,
-            // so a failure there took the whole call to the generic 500 — skipping the resetAt
-            // stamp on the way. The admin was told the reset failed about an account whose password
-            // was now the surname default; the reasonable next move is to retry, or to tell the
-            // member their old password still works. Neither is true.
+            // so a failure there took the whole call to the generic 500. The admin was told the
+            // reset failed about an account whose password was now the surname default; the
+            // reasonable next move is to retry, or to tell the member their old password still
+            // works. Neither is true.
             //
-            // Each later stage is now attempted on its own and REPORTED on its own. The rule this
-            // encodes is the one the stamp already followed and revocation did not: once the
+            // Each later stage is now attempted on its own and REPORTED on its own: once the
             // password mutation succeeds, this endpoint reports what happened, never "nothing did".
             let revoked = false;
             if (revoke || takeBack) {
@@ -441,23 +468,6 @@ const resetMemberPassword = onRequest(
                     console.error('[resetMemberPassword] revoke failed (password WAS reset) for', member,
                                   revokeErr && revokeErr.code, revokeErr);
                 }
-            }
-            // Stamp resetAt so the member is prompted to set a new password. merge preserves any
-            // existing passwordSetAt (whose staleness vs this resetAt is what marks them un-migrated).
-            // The password is ALREADY changed + sessions revoked by this point, so a failure of only
-            // this Firestore stamp must NOT report the reset as failed (the old 500 told the admin
-            // "nothing changed" when the account was in fact reset). Surface it as a partial success:
-            // the reset stands, but the "un-migrated" flag couldn't be written, so the member won't be
-            // nudged to re-set until a re-run. A retry heals the stamp (the reset is idempotent).
-            let stamped = true;
-            try {
-                await getFirestore().collection('passwordStatus').doc(member).set(
-                    { resetAt: FieldValue.serverTimestamp() },
-                    { merge: true },
-                );
-            } catch (stampErr) {
-                stamped = false;
-                console.error('[resetMemberPassword] resetAt stamp failed (password WAS reset) for', member, stampErr && stampErr.code, stampErr);
             }
             // TELL THE MEMBER (v23.62, owner request). Until now the one person this is ABOUT was
             // the only person not told: their password had become the surname default and — with
@@ -501,8 +511,10 @@ const resetMemberPassword = onRequest(
             }
             // `revoked` is now what HAPPENED, not what was asked for. A caller reading the old
             // field saw the REQUEST echoed back, which is the same value on the failure path.
+            // `stamped` is always true here — no reset proceeds without its stamp — and stays in
+            // the answer because Operations still reads it.
             return res.json({
-                ok: true, member, revoked, stamped, notified,
+                ok: true, member, revoked, stamped: true, notified,
                 ...((revoke || takeBack) && !revoked ? { revokeFailed: true } : {}),
                 // The account still carries NO claim, so the member cannot use the app on it until
                 // Set up accounts stamps one — Operations says so (v24.57).

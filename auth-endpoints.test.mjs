@@ -204,6 +204,7 @@ function build({
     existingUsers = null,
     usersPerPage = Infinity,
     releaseFail = null,
+    stampFail = null,
 } = {}) {
     const sends = [];
     /** Every `releasePushForOwner` call — the leaver's push records leaving with the account (H4). */
@@ -217,6 +218,23 @@ function build({
     const pushPath  = require.resolve('./functions/push.js');
     const db = makeDb(seed);
     const users = new Map((existingUsers || []).map((u) => [u.email, u]));
+    // Every passwordStatus write — the resetAt stamp — with `at`: how many Auth calls had been made
+    // when it was attempted. That is what puts the stamp and the credential change on ONE timeline,
+    // so a test can ask which came first (functions-core-2). `stampFail` makes the write refuse.
+    const stamps = [];
+    const plainCollection = db.collection.bind(db);
+    db.collection = (name) => {
+        const c = plainCollection(name);
+        if (name !== 'passwordStatus') return c;
+        return { ...c, doc: (id) => {
+            const d = c.doc(id);
+            return { ...d, set: async (data, opts) => {
+                stamps.push({ member: id, at: authOps.length });
+                if (stampFail) throw new Error(stampFail);
+                return d.set(data, opts);
+            } };
+        } };
+    };
 
     const firestore = () => db;
     firestore.FieldValue = { serverTimestamp: () => SERVER_TS, increment: (n) => ({ inc: n }) };
@@ -324,7 +342,7 @@ function build({
         STAFF_SITE_URL: 'https://myb-roster.web.app',
         ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
     });
-    return { eps, sends, db, authOps, users, released };
+    return { eps, sends, db, authOps, users, released, stamps };
 }
 
 function makeRes() {
@@ -741,25 +759,30 @@ describe('resetMemberPassword does the whole job when it does proceed', () => {
         assert.equal(good.body.revokeFailed, undefined, 'and nothing is flagged when nothing failed');
     });
 
-    test('a failed Firestore stamp does not report the reset as failed', async () => {
-        // The password IS changed and the sessions ARE revoked by this point. Reporting 500 here
-        // told an admin "nothing changed" about an account that had just been reset — they would
-        // reasonably then tell the member their old password still works.
-        const { eps } = build();
-        // Break only the stamp: the passwordStatus doc refuses the write.
-        const { eps: eps2 } = (() => {
-            const built = build();
-            const orig = built.db.collection.bind(built.db);
-            built.db.collection = (name) => (name === 'passwordStatus'
-                ? { doc: () => ({ set: async () => { throw new Error('firestore down'); } }) }
-                : orig(name));
-            return { eps: built.eps };
-        })();
-        assert.ok(eps);   // the unbroken build is only here to prove the fixture itself is sound
+    // ── THE STAMP IS THE CONTROL, SO IT COMES FIRST (functions-core-2, 10 Nov 2026) ──────────────
+    // `resetAt` is what a forgotten device's silent sign-in is refused against (AUTH_AND_SESSIONS 23),
+    // and the reset has just made the surname — the very password that sign-in tries — valid again.
+    // Stamped AFTER the credential, a failed write was answered `200, stamped: false` and described as
+    // a table that might look wrong; the lost phone the admin was signing out then signed straight back
+    // in. Now no reset proceeds without its stamp.
+    test('resetAt is written BEFORE the password changes', async () => {
+        const { eps, authOps, stamps } = build();
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 200);
+        const reset = authOps.findIndex((o) => o.op === 'updateUser' && o.patch && 'password' in o.patch);
+        assert.ok(reset >= 0, 'the password was reset');
+        assert.equal(stamps.length, 1);
+        assert.ok(stamps[0].at <= reset, 'the stamp landed after the credential changed — a failure between them strands the reset');
+        assert.equal(out.body.stamped, true);
+    });
 
-        const out = await call(eps2.resetMemberPassword, asAdmin({ member: MEMBER }));
-        assert.equal(out.code, 200, 'the reset stands');
-        assert.equal(out.body.stamped, false, 'and says plainly that the flag did not get written');
+    test('a stamp that cannot be written stops the reset — nothing changes, and the admin is told to try again', async () => {
+        const { eps, authOps, sends } = build({ stampFail: 'firestore down' });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 503, 'a reset without its stamp would let the signed-out devices back in');
+        assert.match(out.body.error, /nothing was changed/);
+        assert.deepEqual(authOps.filter((o) => AUTH_MUTATIONS.includes(o.op)), [], 'no credential, session or claim was touched');
+        assert.deepEqual(sends, [], 'and the member is not told of a reset that did not happen');
     });
 });
 
@@ -935,6 +958,26 @@ describe('setupRosterAuth stamps `member`, and takes back an account it never st
             assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (reclaim-failed`)), out.body.failed.join(' | '));
         });
     }
+
+    // functions-core-2: the stamp is what refuses a device that signed in on this account before the
+    // take-back, so it lands first — and a take-back that cannot stamp does not happen at all.
+    test('a take-back stamps resetAt BEFORE it resets the password', async () => {
+        const { eps, authOps, stamps } = build({ existingUsers: [outsiderAccount(MEMBER)] });
+        await call(eps.setupRosterAuth, asAdmin({}));
+        const reset = authOps.findIndex((o) => o.op === 'updateUser' && o.uid === uidFor(MEMBER));
+        const mine = stamps.filter((s) => s.member === MEMBER);
+        assert.equal(mine.length, 1);
+        assert.ok(reset >= 0 && mine[0].at <= reset, 'the account was reset before its stamp landed');
+    });
+
+    test('a take-back whose stamp fails touches nothing on the account and stamps no claims', async () => {
+        const { eps, authOps } = build({ existingUsers: [outsiderAccount(MEMBER)], stampFail: 'firestore down' });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(authOps.filter((o) => o.uid === uidFor(MEMBER) && AUTH_MUTATIONS.includes(o.op)), [],
+            'the outsider\'s account was changed without the stamp that keeps its old sessions out');
+        assert.deepEqual(out.body.reclaimed, []);
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (reclaim-failed`)), out.body.failed.join(' | '));
+    });
 });
 
 
