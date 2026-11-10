@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse, scaleText } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -2187,14 +2187,8 @@ for (const [width, scale] of [[320, 1.0], [360, 1.0], [412, 1.0], [320, 1.3], [3
         await page.setViewportSize({ width, height: 800 });
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
-        if (scale !== 1) {
-            // Every used font size × k, read before any is written so none compounds — what the OS does.
-            await page.evaluate((k) => {
-                const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('*')]);
-                const px = els.map(e => parseFloat(getComputedStyle(e).fontSize));
-                els.forEach((e, i) => { if (px[i]) e.style.fontSize = `${px[i] * k}px`; });
-            }, scale);
-        }
+        // Every used font size × k, read before any is written so none compounds — what the OS does.
+        if (scale !== 1) await scaleText(page, scale);
         const g = await page.evaluate(() => {
             const rect = (/** @type {string} */ s) => /** @type {Element} */ (document.querySelector(s)).getBoundingClientRect();
             const burger = rect('#navMenuBtn'), logo = rect('.title-icon'), h1 = rect('.header h1');

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView, isTouchProject, waitForPageSettled, waitForReadsToLand } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView, isTouchProject, waitForPageSettled, waitForReadsToLand, scaleText } from './helpers.js';
 // The REAL pay tables, imported rather than restated: the unsupported-role block below asserts that
 // a CES is priced as a CES, and a literal rate there would go stale on the next award — or, worse,
 // be "corrected" to whatever the page happened to show.
@@ -3049,11 +3049,8 @@ test('paycalc: at large text an open card is never cut short — Save settings s
     }
     await page.locator('#hppToggleBtn').click();
     // Android's text scaling: every element's OWN size × 1.6, read first and written after, so an
-    // inherited size is scaled once (`scaleText` in helpers.js compounds them).
-    const scale = () => page.evaluate(() => {
-        const all = /** @type {[HTMLElement, number][]} */ ([...document.querySelectorAll('*')].map(el => [el, parseFloat(getComputedStyle(el).fontSize)]));
-        for (const [el, px] of all) if (px) el.style.fontSize = (px * 1.6) + 'px';
-    });
+    // inherited size is scaled once.
+    const scale = () => scaleText(page, 1.6);
     await scale();
     const clip = (/** @type {string} */ sel) => page.locator(sel).evaluate(el =>
         Promise.all(document.getAnimations().map(a => a.finished.catch(() => {}))).then(() => el.scrollHeight - el.clientHeight));
