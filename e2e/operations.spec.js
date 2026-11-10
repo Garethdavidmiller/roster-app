@@ -1478,6 +1478,31 @@ test('operations: a refusal that is an HTML page is not shown as the reason', as
     await expect(dialog).not.toContainText('<');
 });
 
+// A RESET WHOSE STAMP FAILED IS A SECURITY STATE, NOT A WRONG TABLE (Nov 2026 review). A device the
+// reset signed out keeps its 60-day session, and its next silent sign-in is refused only when the
+// SAVED resetAt says the session is older (AUTH_AND_SESSIONS 23) — so with no stamp, the lost phone
+// signs itself back in with the surname the reset has just restored. The dialog said only that "the
+// table below may still show Own password", and ranked it below a taken-back account.
+test('operations: a reset whose stamp failed tells the admin to reset again, first', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await page.route('**/resetMemberPassword', route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ revoked: true, stamped: false, notified: true, takenBack: true }),
+    }));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    await page.locator('.acct-row').first().locator('.btn-acct-reset').click();
+    await page.locator('.dialog-btn-confirm').click();
+    const dialog = page.locator('.lb-overlay.open');
+    await expect(dialog).toContainText('Password reset — reset again');
+    await expect(dialog).toContainText('could sign itself back in');
+    await expect(dialog).toContainText('Reset again to retry that');
+});
+
 // A FULLY SUCCESSFUL RESET SAYS SO (whole-app review, Oct 2026). The row re-renders, and a member
 // already on the default looks exactly as before — so a reset that worked gave no sign it had run.
 test('operations: a fully successful reset leaves a receipt on the row', async ({ page }) => {

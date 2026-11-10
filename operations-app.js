@@ -610,7 +610,10 @@ export function init() {
                     parts.push('Their other sessions were signed out.');
                 }
                 if (_notStamped) {
-                    parts.push('The account-status stamp couldn\'t be saved, so the table below may still show "Own password".');
+                    // NOT just a wrong table (Nov 2026 review): a signed-out device's silent sign-in is
+                    // refused only on a SAVED resetAt (session.js, AUTH_AND_SESSIONS 23). Without it the
+                    // lost phone signs itself back in with the surname this reset has just restored.
+                    parts.push('The reset couldn’t be recorded, so a device it signed out could sign itself back in with their surname — and the table below may still show “Own”. Reset again to retry that.');
                 }
                 if (_takenBack) {
                     parts.push(`This account had been registered outside the app, so it was taken back: anyone signed in on it was signed out. Run Set up accounts next — until then ${name} cannot use the app on it. Then let them know their password is their surname.`);
@@ -620,11 +623,12 @@ export function init() {
                 }
                 parts.push('Resetting again is safe.');
                 confirmDialog({
-                    // Precedence, most actionable first: a live session somewhere is a security
-                    // state, a missing stamp is a wrong table, and an untold member is an errand.
+                    // Precedence, most actionable first: a live session somewhere, and a missing stamp
+                    // that lets a signed-out device back in, are security states; an account taken back
+                    // waits on Set up accounts; and an untold member is an errand.
                     title: _revokeFailed ? 'Password reset — other devices not signed out'
+                         : _notStamped   ? 'Password reset — reset again'
                          : _takenBack    ? 'Account taken back — run Set up accounts'
-                         : _notStamped   ? 'Password reset — status not updated'
                          :                 'Password reset — tell them yourself',
                     message: parts.join('\n\n'),
                     confirmLabel: 'OK',
