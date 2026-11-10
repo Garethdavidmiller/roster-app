@@ -612,15 +612,6 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
        means. */
     body[data-print-country] > .content > *:not(.is-print-country) { display: none !important; }
 
-    /* THE COUNTRY IS NAMED ON ITS OWN SHEET. `summary { display: none }` above is right for the
-       full print — 32 disclosure headings on an expanded guide are chrome, and the section labels
-       already carry the structure — and it is exactly wrong here: the first cut printed the banner
-       and then went straight into tag pills, so a France sheet and a Serbia sheet were told apart
-       only by reading the operator name in the body. That is the same "says nothing about what it
-       is" this section is for. The chevron goes: it is a disclosure affordance on paper. */
-    body[data-print-country] .is-print-country > summary { display: block !important; }
-    body[data-print-country] .is-print-country > summary .chevron { display: none; }
-
     body { background: white; font-size: 13px; }
 
     .content { max-width: 100%; padding: 0 0 16px; }
@@ -630,8 +621,15 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
        without :not([hidden]) this, and a second rule that un-hid every country card, put all 32
        countries on the paper of a filtered guide (whole-app review, 10 Nov 2026). */
     details:not([hidden]) { display: block !important; box-shadow: none; border: 1px solid var(--border); }
-    summary { display: none !important; }
     .detail-body { display: block !important; }
+
+    /* EVERY CARD IS NAMED ON PAPER (decided 10 Nov 2026). The summary is the only place a card says
+       which country it is, and the full print hid every one: thirty country cards share one section
+       label, "European destinations", so France's card began at its tag row and Belgium's read
+       "Operator: SNCB/NMBS". The one-country sheet had been fixed for exactly that reason first. The
+       summary prints as the card's heading; the chevron, a disclosure affordance, does not. */
+    summary { display: block !important; padding: 7px 12px 5px; font-size: 14px; }
+    summary .chevron { display: none; }
 
     /* Remove box shadows throughout */
     .card { box-shadow: none; border: 1px solid var(--border); }
@@ -653,7 +651,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
        compared word for word. Nothing was ever clipped — the price was blank-bottomed pages, 27
        against the 24 the same content takes with no avoid at all, on a guide a traveller prints at
        a station before a trip. This lands at 25: two pages back, and the third deliberately spent
-       on the orphan rules below.
+       on the orphan rules below. Naming every card on paper (10 Nov 2026) costs two more: 27.
        So a COUNTRY may break (a reference entry running over a page is how every reference book
        works), while the small blocks that read as one unit — a callout, a summary card, a table
        row — still may not. `break-after: avoid` on the summary is what keeps that honest: a country

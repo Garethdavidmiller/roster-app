@@ -531,9 +531,9 @@ test('printing one country prints one country @print', async ({ page, browserNam
     // `afterprint`, which is the app doing the right thing — the print is over, so the guide comes
     // back — but it means one render is all the state gets.
     await page.emulateMedia({ media: 'print' });
-    // The sheet has to SAY which country. `summary { display: none }` is right for the full print
-    // and exactly wrong here — without the override a France sheet and a Serbia sheet differ only
-    // by the operator name buried in the body.
+    // The sheet has to SAY which country: without its summary a France sheet and a Serbia sheet
+    // differ only by the operator name buried in the body. (The full print names every card too —
+    // "the full FIP print names every card it prints", below.)
     expect(await page.locator('#country-fr > summary').isVisible()).toBe(true);
     expect(await page.locator('#country-be').isVisible(), 'the other 31 stay off the sheet').toBe(false);
     expect(await page.locator('.page-header').isVisible(), 'the banner says which guide it came from').toBe(true);
@@ -575,6 +575,26 @@ test('the header PDF after an un-restored country print prints the whole guide @
     // And the restore still lands on the page as the reader left it, not on the expanded snapshot.
     await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
     expect(await page.evaluate(() => document.querySelectorAll('details:not([open])').length)).toBe(closedBefore);
+});
+
+// The summary is the only place a card says which country it is, and the full print hid every one:
+// thirty country cards share one section label, so France's card began at its tag row and Belgium's
+// read "Operator: SNCB/NMBS". Decided 10 Nov 2026: every card keeps its name on paper.
+test('the full FIP print names every card it prints @print', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    await page.evaluate(() => { window.print = () => {}; });
+    await page.locator('.btn-print').click();          // the guide's own prepare opens every card
+    await page.emulateMedia({ media: 'print' });
+    const cards = await page.locator('main details').evaluateAll(ds => ds.map(d => {
+        const s = /** @type {HTMLElement} */ (d.querySelector('summary')), c = s.querySelector('.chevron');
+        return { id: d.id || (s.textContent || '').trim().slice(0, 24),
+            named: s.getClientRects().length > 0 && (s.innerText || '').trim().length > 2,
+            arrow: !!c && c.getClientRects().length > 0 };
+    }));
+    expect(cards.length, 'the country, ferry and general cards').toBeGreaterThan(30);
+    expect(cards.filter(c => !c.named).map(c => c.id), 'cards printed with no name').toEqual([]);
+    expect(cards.filter(c => c.arrow).map(c => c.id), 'a disclosure arrow on paper').toEqual([]);
+    expect(await page.locator('#country-fr > summary').innerText()).toContain('France');
 });
 
 test('every country card offers its own print, named @print', async ({ page }) => {
