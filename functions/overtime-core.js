@@ -445,15 +445,22 @@ function weeksNeedingWindows(nowMs, existingWeekEndings, { maxRosterYear }) {
  * `autoOverdue` is that distinction and nothing more; the caller decides it (see
  * `lastSchedulerRun`), because only the caller knows which weeks exist.
  *
+ * A week ending after the roster's last year can never be created — `validateWeekEnding` refuses it
+ * (`beyond-horizon`), so it is never `autoOverdue` either — and as `not-created` it said "Opens
+ * automatically overnight" every day until "Missed" (overtime-core-6). `beyondRoster` gives it its
+ * own state at every phase, because its cause, a CONFIG year nobody raised, is the same throughout.
+ *
  * @param {number} nowMs
  * @param {boolean} exists
  * @param {boolean} [autoOverdue] true when the last scheduled run was due to create this week and
  *   did not. Ignored unless the week is missing and still inside its initial deadline — past that
  *   the row is already reporting something worse.
- * @returns {'created'|'created-closed'|'not-created'|'not-created-overdue'|'not-created-initial-passed'|'missed'}
+ * @param {boolean} [beyondRoster] true when the week ends after the roster's last year
+ * @returns {'created'|'created-closed'|'not-created'|'not-created-overdue'|'not-created-initial-passed'|'missed'|'not-created-beyond-roster'}
  */
-function windowRowState(milestones, nowMs, exists, autoOverdue = false) {
+function windowRowState(milestones, nowMs, exists, autoOverdue = false, beyondRoster = false) {
     if (exists) return nowMs >= milestones.finalDeadlineAt ? 'created-closed' : 'created';
+    if (beyondRoster) return 'not-created-beyond-roster';
     if (nowMs < milestones.initialDeadlineAt) return autoOverdue ? 'not-created-overdue' : 'not-created';
     if (nowMs < milestones.finalDeadlineAt)   return 'not-created-initial-passed';
     return 'missed';

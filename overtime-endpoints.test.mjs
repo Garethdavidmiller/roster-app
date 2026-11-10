@@ -795,6 +795,24 @@ describe('getOvertimeManagerOverview — the missing window is the point', () =>
             'the newest row is simply waiting for tonight, and must say so');
     });
 
+    test('a week past the roster\'s last year says it cannot open, rather than "overnight" (overtime-core-6)', async () => {
+        // December 2030 with MAX_YEAR not yet raised: the scheduler refuses every 2031 week each
+        // night (`beyond-horizon`), and those rows read "Opens automatically overnight" until they
+        // read "Missed" — the cause visible only as a line in the function log.
+        freeze(Date.parse('2030-12-18T10:00:00Z'));   // a Wednesday; the horizon runs into 2031
+        const { eps } = build();
+        const rows = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'))).body.planningWeeks;
+        unfreeze();
+        const beyond = rows.filter(w => w.weekEnding.startsWith('2031'));
+        assert.ok(beyond.length >= 2, `fixture no longer reaches past the roster: ${rows.map(w => w.weekEnding)}`);
+        for (const w of beyond) {
+            assert.equal(w.state, 'not-created-beyond-roster', w.weekEnding);
+            assert.equal(w.canCreate, false, `${w.weekEnding}: the server refuses it, so no button`);
+        }
+        assert.notEqual(rows.find(w => w.weekEnding === '2030-12-28').state, 'not-created-beyond-roster',
+            'a week inside the roster is untouched');
+    });
+
     test('a missed week offers no Create, and a recoverable one does', async () => {
         // `canCreate` and `state` are computed separately, so they can disagree — and a Create
         // button on a week the server would refuse is a button that reports a failure the Manager

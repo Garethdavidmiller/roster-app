@@ -682,6 +682,7 @@ describe('states in words', () => {
             'not-created':                'warn',
             'not-created-overdue':        'bad',
             'not-created-initial-passed': 'bad',
+            'not-created-beyond-roster':  'bad',
             'missed':                     'bad',
         };
         assert.deepEqual([...ROW_STATES].sort(), Object.keys(TONES).sort(),
@@ -704,6 +705,17 @@ describe('states in words', () => {
             'a stuck week must not keep promising the schedule will handle it');
         assert.match(stuck.label, /create/i, 'and must point at the thing the reviewer CAN do');
         assert.equal(stuck.tone, 'bad', 'warn is the tone of "no action needed" — this needs one');
+    });
+
+    test('a week past the app\'s roster says it cannot open, and promises nothing overnight (overtime-core-6)', () => {
+        // The server refuses to make it every night (`beyond-horizon`), so the old `not-created`
+        // reading — "Opens automatically overnight" — repeated a promise nothing would keep, daily,
+        // until the row turned "Missed". The cause is a year the admin has to raise, so say who.
+        const beyond = rowStateCopy('not-created-beyond-roster');
+        assert.match(beyond.label, /Cannot open/);
+        assert.match(beyond.label, /the admin/, 'it names who can fix it — an app matter goes to the admin');
+        assert.doesNotMatch(beyond.label, /automatically|overnight/i, 'no promise the schedule cannot keep');
+        assert.equal(beyond.tone, 'bad');
     });
 
     test('an unknown state falls back to the LOUDEST reading, not the quietest', () => {

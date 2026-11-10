@@ -369,6 +369,9 @@ export function rowStateCopy(state) {
         // Still opens automatically, but late enough to be worth a look: the first deadline has
         // gone, so anyone answering now misses the draft roster.
         case 'not-created-initial-passed': return { label: 'No form yet · first deadline has passed', tone: 'bad' };
+        // Past the last roster year the app holds (`CONFIG.MAX_YEAR`): the server refuses to make it,
+        // overnight or by hand, until the admin raises the year — so no promise, and no button.
+        case 'not-created-beyond-roster':  return { label: 'Cannot open · past the end of the app\'s roster · tell the admin', tone: 'bad' };
         default:                           return { label: 'Missed · no form was opened, so nobody was asked', tone: 'bad' };
     }
 }
