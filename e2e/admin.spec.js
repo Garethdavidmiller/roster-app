@@ -4527,7 +4527,10 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
 // towards its line, so the wrapped chip sat directly under "Today" — measured 0.17px apart at 390px
 // and the owner's ~1.11× text, 1.09px at 412px / 1.3×. The date line is now a wrapping flex row with
 // a row gap. Asserted as GEOMETRY because both chips are present and correct either way: nothing
-// but their boxes can tell a clear gap from two chips touching.
+// but their boxes can tell a clear gap from two chips touching. Run at 1.3×, not 1.11×: at 390px the
+// 1.11× line wraps by 1.2px of text width, which CI's Chromium drew narrower, so the chips sat on one
+// line and there was no gap to measure (10 Nov 2026). At 1.3× they need 21px more than the line has,
+// and the old `display: block` line still puts them 0.4px apart.
 test('admin: a row that is today AND saved keeps a clear gap between its two chips when they wrap', async ({ page }, testInfo) => {
     test.skip(!isTouchProject(testInfo), 'the stacked date line is the touch layout');
     await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
@@ -4541,7 +4544,7 @@ test('admin: a row that is today AND saved keeps a clear gap between its two chi
     await page.locator('#fieldMember').selectOption('G. Miller');
     const row = page.locator('.week-panel .day-row.today');
     await expect(row.locator('.overwrite-badge')).toBeVisible();
-    await scaleText(page, 1.11);
+    await scaleText(page, 1.3);
     const g = await row.evaluate((r) => {
         const t = /** @type {Element} */ (r.querySelector('.day-today-tag')).getBoundingClientRect();
         const b = /** @type {Element} */ (r.querySelector('.overwrite-badge')).getBoundingClientRect();
