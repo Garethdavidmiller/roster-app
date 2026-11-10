@@ -202,8 +202,10 @@ jobs:
           "### Where to look" \
           "" \
           "1. The run's log names the page and the mode. \`LIVE_REQUIRE_DIRECT\` failing on its own" \
-          "   means the runner's browser could not reach the site at all — a TLS or DNS answer, not" \
-          "   an app one." \
+          "   means the runner's browser got no usable answer from \`web.app/robots.txt\`: either the" \
+          "   runner could not reach the site, or web.app itself is answering with an error — which" \
+          "   would be the outage. Open https://myb-roster.web.app/robots.txt in a private window; if" \
+          "   that fails too, the site is down." \
           "2. A stuck splash or a console error on ONE origin points at that origin: a Hosting" \
           "   release for \`web.app\`, the Pages build for \`github.io\`." \
           "3. Both origins failing the same way is the app itself — the last merge to \`main\`, or the" \

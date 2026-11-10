@@ -2557,3 +2557,24 @@ describe('a lane uploads the folder its own Playwright config writes', () => {
     });
 });
 
+// ── THE LIVE-SITE ALERT DOES NOT SEND ITS READER AWAY FROM AN OUTAGE (10 Nov 2026 review) ─────────
+//
+// The direct-connection probe reads web.app's robots.txt, and anything but a 200 — web.app answering
+// 404 or 5xx for everything, the worst outage there is — failed every page on that assertion before
+// any page opened. The issue's first hint then said such a failure was "a TLS or DNS answer, not an
+// app one". The hint must leave the outage possible and say how to tell.
+describe('the live-site alert does not send its reader away from an outage', () => {
+    const src = readFileSync(join(WF_DIR, 'live-health.yml'), 'utf8');
+    const hint = src.slice(src.indexOf('"1. The run\'s log names the page'), src.indexOf('"2. A stuck splash'));
+
+    test('the hint was found', () => {
+        assert.ok(hint.length > 50, 'the first hint of the live-site issue was not found');
+    });
+
+    test('a failed direct probe is not ruled out as the outage, and the reader is told how to tell', () => {
+        assert.doesNotMatch(hint, /an app one/, 'the hint rules the app out for a failure the site itself can cause');
+        assert.match(hint, /web\.app itself is answering with an error/, 'the hint must name the site answering with an error as a cause');
+        assert.match(hint, /robots\.txt in a private window/, 'the hint must say how to tell the two apart');
+    });
+});
+
