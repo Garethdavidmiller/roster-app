@@ -15,10 +15,15 @@ import { isAccessFailure as _isAccessFailure } from './claim-retry.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
 import { reconcileRangeIntoCache, collectOverrideRecords, isBeforeMemberStart, isOtherValue } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
-import { noteKnowledge, forget as forgetKnowledge } from './calendar-data-state.js';
+import { noteKnowledge, noteCheckFailed, forget as forgetKnowledge } from './calendar-data-state.js';
 
 /** The error a month read answered by the OFFLINE CACHE is turned into (v24.48). */
 export const SERVED_FROM_CACHE = 'served-from-cache';
+
+/** The error a read is turned into when its answer lands after the access it was issued under has
+ *  gone or been replaced (10 Nov 2026) — see `fetchOverridesForRange`. A caller must STAND DOWN on
+ *  it: it is neither a failure to report nor, above all, a success to record. */
+export const READ_SUPERSEDED = 'read-superseded';
 
 // Cache keyed "memberName|YYYY-MM-DD".
 export const rosterOverridesCache = new Map();
@@ -68,7 +73,7 @@ export function setOverrideAccess(granted) {
     // at the same moment, that is a permanent wait state. `_failureRepainted` goes with it for the
     // same reason: a failure that happened under the old session is not news the new one has heard.
     // Harmless at boot — the first grant runs before the initial fetch claims anything.
-    if (_accessGranted) { _accessGen++; fetchedMonths.clear(); _settledAt.clear(); _failureRepainted.clear(); _monthOwner.clear(); }
+    if (_accessGranted) { _accessGen++; fetchedMonths.clear(); _settledAt.clear(); _failureRepainted.clear(); _monthOwner.clear(); _recheckOwed.clear(); }
 }
 
 /** @returns {number} the current grant, for a reader that must ignore a refusal from an older one. */
@@ -92,6 +97,11 @@ const fetchedMonths        = new Set();
 // claimed). What `releaseStaleMonths` measures age from — see there.
 /** @type {Map<string, number>} */
 const _settledAt = new Map();
+// Months whose last RE-check failed while this device held the server's earlier answer — the ones
+// drawn as a labelled saved copy. `releaseStaleMonths` hands them back however recent the failure, so
+// the label clears itself the next time the page comes into view with a connection (10 Nov 2026).
+/** @type {Set<string>} */
+const _recheckOwed = new Set();
 // Memoised getShiftTypesInMonth() results. Key: "memberName|year|month".
 // Cleared whenever fetchOverridesForRange() writes new data into rosterOverridesCache.
 const shiftTypesMonthCache = new Map();
@@ -124,13 +134,18 @@ export function clearFetchedMonth(key) { fetchedMonths.delete(key); _settledAt.d
  * A month marked fetched used to be fetched for the life of the page. On a shared office PC, or an
  * iPhone app resumed from the background, that showed the morning's roster as current in the
  * afternoon — "As rostered" included. The caller runs this when the page comes back into view and
- * re-renders; the re-read runs behind the grid already on screen, because knowledge never
- * downgrades (calendar-data-state.js), so a re-read that fails keeps the good grid rather than
- * withholding it. A month still IN FLIGHT is left alone, and nothing is released while the initial
- * fetch runs — it owns its months until it settles.
+ * re-renders; the re-read runs behind the grid already on screen, and a re-read that FAILS keeps
+ * that grid rather than withholding it — as the labelled saved copy, no longer as current (see the
+ * catch in `ensureOverridesCached`). A month still IN FLIGHT is left alone, and nothing is released
+ * while the initial fetch runs — it owns its months until it settles.
+ *
+ * A month whose last re-check failed is handed back too, WHATEVER ITS AGE (10 Nov 2026). It is
+ * already unclaimed, so any render would re-read it — but nothing renders when a phone is simply
+ * picked up again, and without this the "couldn't check for changes" label stayed until somebody
+ * pressed Try again, long after the signal had returned.
  * @param {number} maxAgeMs
  * @param {number} [now]
- * @returns {string[]} the month keys released
+ * @returns {string[]} the month keys the next render should read again
  */
 export function releaseStaleMonths(maxAgeMs, now = Date.now()) {
     if (_initialFetchInProgress) return [];
@@ -143,6 +158,9 @@ export function releaseStaleMonths(maxAgeMs, now = Date.now()) {
         _settledAt.delete(key);
         released.push(key);
     }
+    // Claimed again since it failed (a retry is already out for it): that read will settle it.
+    for (const key of _recheckOwed) if (!fetchedMonths.has(key)) released.push(key);
+    _recheckOwed.clear();
     return released;
 }
 
@@ -256,12 +274,24 @@ export async function fetchOverridesForRange(startStr, endStr) {
     if (!_accessGranted) throw new Error('calendar-access-required');
     // Taken at ISSUE, not on completion — the whole point is the order the reads were STARTED in.
     const seq = ++_readSeq;
+    const gen = _accessGen;   // …and the grant it was started under, for the same reason (below)
     const q = query(
         collection(db, COLLECTIONS.overrides),
         where('date', '>=', startStr),
         where('date', '<=', endStr)
     );
     const snapshot = await getDocs(q);
+    // THE ANSWER BELONGS TO THE GRANT THAT ASKED FOR IT (10 Nov 2026, external review F2). The gate
+    // above is checked when a read is ISSUED, and a read takes time: access can be lost, or lost and
+    // granted again, before the answer lands. An answer from the earlier grant used to be committed
+    // all the same — written into the cache while the Calendar was locked, or over a month the new
+    // grant's own read had just FAILED for, which then drew as current on the strength of a check
+    // the new session never made. A refusal from an earlier grant was already ignored (v24.56); this
+    // is the same rule for a success. THROWN, not returned, and before either branch below — the
+    // cache-served one merges too — so no caller can go on to record a success: each stands down.
+    if (!_accessGranted || gen !== _accessGen) {
+        throw Object.assign(new Error('Override read outlived the access it was issued under'), { code: READ_SUPERSEDED });
+    }
     // ANSWERED BY THE CACHE, NOT THE SERVER (v24.48, external audit F1). With `persistentLocalCache`,
     // `getDocs` on a dead signal resolves from this device's cache — a possibly-stale SUBSET, possibly
     // empty — and reconciling that authoritatively EVICTED leave the device already held and marked the
@@ -342,6 +372,7 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr, monthsWi
     // false (paints nothing) rather than throwing, because "no access yet" is indistinguishable to
     // every caller from "no cache yet", which is already this function's normal empty state.
     if (!_accessGranted) return false;
+    const gen = _accessGen;
     try {
         const q = query(
             collection(db, COLLECTIONS.overrides),
@@ -349,6 +380,10 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr, monthsWi
             where('date', '<=', endStr)
         );
         const snapshot = await getDocsFromCache(q);
+        // …AND ASKED AGAIN WHEN THE ANSWER LANDS (10 Nov 2026). The line above guards the moment the
+        // read is issued; the cache answers a moment later, and a Calendar locked in between must not
+        // have yesterday's rows written into it behind the card. Same refusal, same reason.
+        if (!_accessGranted || gen !== _accessGen) return false;
         if (snapshot.empty) return false;
         const records = collectOverrideRecords(snapshot);
         // Skip any month a SERVER read has already written (v20.44). Additive merging cannot evict,
@@ -405,6 +440,10 @@ export async function ensureOverridesCached(year, month, renderFn) {
         return;
     }
     fetchedMonths.add(key);
+    _recheckOwed.delete(key);   // this read IS the re-check
+    // Which server answer this device held for the month when this read was issued (0: none). If it
+    // is still the same one when the read fails, nothing newer has landed — see the catch.
+    const ownerAtIssue = _monthOwner.get(key) || 0;
     /** @type {Set<Function>} */
     const waiters = new Set(renderFn ? [renderFn] : []);
     _monthWaiters.set(key, waiters);
@@ -421,11 +460,31 @@ export async function ensureOverridesCached(year, month, renderFn) {
         _settledAt.set(key, Date.now());
     } catch (err) {
         settle();
-        if (gen !== _accessGen) return;   // issued under an earlier grant — it neither claims nor locks this one
+        // Issued under an earlier grant, or answered after access had gone: it neither claims nor
+        // locks the current one, and it has nothing to report — `fetchOverridesForRange` committed
+        // none of it. The current grant's own render reads the month.
+        if (gen !== _accessGen || /** @type {any} */ (err)?.code === READ_SUPERSEDED) return;
         fetchedMonths.delete(key);  // Allow retry on next navigation
-        // A cache-served read that held this month's records is the labelled last-known grid, not a
-        // failure (v24.48); anything else is `error` — actionable, earning a Retry where `unknown` waits.
-        noteKnowledge(key, /** @type {any} */ (err)?.code === SERVED_FROM_CACHE && /** @type {any} */ (err).painted ? 'cached' : 'error');
+        if (_monthOwner.has(key)) {
+            // THIS DEVICE HOLDS THE SERVER'S EARLIER ANSWER FOR THE MONTH, AND THE RE-CHECK FAILED
+            // (10 Nov 2026, external review F1). The grid stays — holding real data beats holding
+            // none — but as the labelled saved copy: a month read in the morning and re-checked in
+            // the afternoon with no signal went on being drawn as CURRENT, "As rostered" included,
+            // because a failure could not be recorded against `authoritative`.
+            //
+            // ONLY WHERE THIS FAILURE IS THE NEWEST NEWS. If another read's answer landed for the
+            // month while this one was out, the server has spoken since this one was asked, and a
+            // slow, superseded failure must not un-confirm it — the same ordering `_monthOwner`
+            // keeps for writes, applied to the claim.
+            if ((_monthOwner.get(key) || 0) === ownerAtIssue) noteCheckFailed(key);
+            // A month forgotten for a retry ("Try again") comes back as the saved copy too, not as
+            // the failure panel: pressing the button must not cost the member the grid they had.
+            noteKnowledge(key, 'cached');
+        } else {
+            // A cache-served read that held this month's records is the labelled last-known grid, not a
+            // failure (v24.48); anything else is `error` — actionable, earning a Retry where `unknown` waits.
+            noteKnowledge(key, /** @type {any} */ (err)?.code === SERVED_FROM_CACHE && /** @type {any} */ (err).painted ? 'cached' : 'error');
+        }
         // ACCESS GONE, not a network blip (v20.15). This path had no recovery at all: the month
         // simply rendered from the base roster with a line in the console, which is the one outcome
         // the whole feature exists to prevent — somebody shown a shift they are not working, with
@@ -442,6 +501,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
             try { _onAccessLost(); } catch (e) { console.error('[Calendar] access-lost handler failed', e); }
             return;
         }
+        if (_monthOwner.has(key)) _recheckOwed.add(key);   // a saved copy: ask again when the page comes back
         console.error('[Firestore] Failed to fetch overrides for', key, err);
         // Tell the caller to repaint, so a withheld grid can show its failure panel instead of
         // waiting forever on a fetch that has already lost (v20.40). Once per claim — see

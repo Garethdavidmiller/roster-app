@@ -29,8 +29,15 @@ let _cacheQueries  = [];
 // index, so a test can land the second read first and the first one late. That ordering is the
 // entire subject of the cache-ownership tests; a mock that resolves immediately cannot express it.
 let _deferGetDocs = false;
-/** @type {(() => void)[]} */
+// Each parked read is released by calling its entry: with nothing it ANSWERS, with an error it
+// REJECTS (10 Nov 2026) — a read that fails after another has landed is half of the ordering tests.
+/** @type {((err?: any) => void)[]} */
 const _releases = [];
+// The same lever for the phase-1 CACHE read, which had none: "the Calendar locked while the cache
+// read was out" could not be expressed, so nothing could see what that read did when it landed.
+let _deferCacheDocs = false;
+/** @type {(() => void)[]} */
+const _cacheReleases = [];
 const _tick = async (n = 3) => { for (let i = 0; i < n; i++) await Promise.resolve(); };
 
 /** Build a fake Firestore document. */
@@ -67,8 +74,9 @@ mock.module('./firebase-client.js', {
         getDocs:    async () => {
             if (_getDocsThrows) throw new Error('simulated Firestore fetch failure');
             const docs = _mockDocs;   // captured at ISSUE — a later test mutation must not reach it
-            if (_deferGetDocs) await new Promise(r => _releases.push(r));
-            return { size: docs.length, forEach: cb => docs.forEach(cb), metadata: { fromCache: _getDocsFromCacheFlag } };
+            const fromCache = _getDocsFromCacheFlag;   // …and so is who answers: a parked read keeps the answer it was issued with
+            if (_deferGetDocs) await new Promise((res, rej) => _releases.push((/** @type {any} */ err) => err ? rej(err) : res(undefined)));
+            return { size: docs.length, forEach: cb => docs.forEach(cb), metadata: { fromCache } };
         },
         // Phase 1 of the two-phase load (AUTH_PLAN.md → E1). Defaults to an EMPTY cache so every
         // existing test keeps exercising the server path unchanged; the cache tests set _mockCacheDocs.
@@ -76,6 +84,7 @@ mock.module('./firebase-client.js', {
             _cacheQueries.push(q);
             if (_cacheThrows) throw new Error('simulated cache miss');
             const docs = _mockCacheDocs;
+            if (_deferCacheDocs) await new Promise(r => _cacheReleases.push(() => r(undefined)));
             return { size: docs.length, empty: docs.length === 0, forEach: cb => docs.forEach(cb) };
         },
         COLLECTIONS: { overrides: 'overrides', linkDesigns: 'linkDesigns' },
@@ -106,7 +115,10 @@ const {
     setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth,
     monthKey, _monthSlices, fetchOverridesForRange, fetchOverridesForRangeFromCache,
     ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess, releaseStaleMonths, SERVED_FROM_CACHE,
+    READ_SUPERSEDED,
 } = await import('./calendar-overrides.js');
+// The REAL knowledge module — this suite is where a read's outcome becomes a claim about a month.
+const { knowledgeOf, decideDisplay, forget: forgetKnowledge } = await import('./calendar-data-state.js');
 
 // Open the Calendar access gate for this whole file (v20.12). Every read here refuses to run
 // without it — that is the point of the gate, and this suite is about what the reads DO once they
@@ -642,6 +654,266 @@ describe('a GRANT is a fresh start (v20.41)', () => {
         setOverrideAccess(false);
         await ensureOverridesCached(2032, 4, () => { renders++; });
         assert.equal(renders, 1, 'a shut gate reads nothing at all, claims or no claims');
+    });
+});
+
+// ── A RE-CHECK THAT FAILS (10 Nov 2026, external review F1) ─────────────────────────────────────────
+// A month read once and re-read later (the page came back into view after ten minutes) with no signal
+// stayed `authoritative`: knowledge was monotonic, so the failure could not be recorded, and the
+// morning's grid went on being drawn as current — "As rostered" included — with the "Saved copy —
+// couldn't check for changes" label never reached. These run the real `ensureOverridesCached` into
+// the real knowledge module, because the defect lived between the two.
+describe('a re-check that fails keeps the grid as the saved copy, never as current', () => {
+    const HOUR = 3_600_000;
+    beforeEach(() => {
+        rosterOverridesCache.clear(); _mockDocs = []; _getDocsThrows = false; _getDocsFromCacheFlag = false;
+        _deferGetDocs = false; _releases.length = 0;
+        setOverrideAccess(true);   // a grant is a fresh start: no claims, no owners, nothing owed
+    });
+    afterEach(() => { _getDocsThrows = false; _getDocsFromCacheFlag = false; _deferGetDocs = false; _releases.length = 0; });
+
+    const AL = (/** @type {string} */ date) => makeDoc('al-' + date, { memberName: 'A. Smith', date, value: 'AL',
+        type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 1000 } });
+    /** The month is read and settled, then old enough for the page's return to release it. */
+    async function readThenExpire(/** @type {number} */ year, /** @type {number} */ month, /** @type {Function} */ paint = () => {}) {
+        const key = monthKey(year, month);
+        _mockDocs = [AL(`${key}-10`)];
+        await ensureOverridesCached(year, month, paint);
+        assert.equal(knowledgeOf(key), 'authoritative', 'premise: the first read settled');
+        assert.ok(releaseStaleMonths(HOUR, Date.now() + 2 * HOUR).includes(key), 'premise: old enough to be re-read');
+        return key;
+    }
+
+    test('the re-read is answered by the offline CACHE: the saved copy, the leave kept, one repaint', async () => {
+        let paints = 0;
+        const key = await readThenExpire(2051, 2, () => { paints++; });
+        _getDocsFromCacheFlag = true; _mockDocs = [];   // no signal: an empty subset from this device's cache
+        await ensureOverridesCached(2051, 2, () => { paints++; });
+        assert.equal(knowledgeOf(key), 'cached', 'the month is no longer current');
+        assert.equal(decideDisplay(knowledgeOf(key)), 'stale', 'the grid is kept — as the labelled saved copy');
+        assert.equal(rosterOverridesCache.get('A. Smith|2051-03-10')?.value, 'AL', 'and the leave already held is still there');
+        assert.equal(paints, 2, 'the failure repaints once, or the label never reaches the screen');
+    });
+
+    test('the network REJECTS the re-read: the same saved copy, not the failure panel', async () => {
+        const key = await readThenExpire(2052, 2);
+        _getDocsThrows = true;
+        await ensureOverridesCached(2052, 2, () => {});
+        assert.equal(knowledgeOf(key), 'cached');
+        assert.equal(rosterOverridesCache.get('A. Smith|2052-03-10')?.value, 'AL');
+    });
+
+    test('the next read that succeeds makes the month current again', async () => {
+        const key = await readThenExpire(2053, 2);
+        _getDocsThrows = true;
+        await ensureOverridesCached(2053, 2, () => {});
+        assert.equal(knowledgeOf(key), 'cached', 'premise: the re-check failed');
+        _getDocsThrows = false; _mockDocs = [];
+        let paints = 0;
+        await ensureOverridesCached(2053, 2, () => { paints++; });
+        assert.equal(knowledgeOf(key), 'authoritative');
+        assert.equal(paints, 1, 'and the grid is redrawn without its label');
+        assert.equal(rosterOverridesCache.has('A. Smith|2053-03-10'), false, 'the server\'s answer is applied: the leave was cancelled meanwhile');
+    });
+
+    test('a failure OLDER than the latest answer does not un-confirm it', async () => {
+        // The re-read is slow; another read (the chip's retry covers the same month) is issued after it
+        // and lands first. The server has answered since the slow one was asked, so its failure is not
+        // news — recording it would label a month "couldn't check" seconds after a check that worked.
+        const key = await readThenExpire(2054, 2);
+        _deferGetDocs = true;
+        const slow = ensureOverridesCached(2054, 2, () => {});
+        await _tick();
+        assert.equal(_releases.length, 1, 'premise: the re-read is out');
+        _deferGetDocs = false;
+        _mockDocs = [AL('2054-03-12')];
+        await fetchOverridesForRange('2054-03-01', '2054-03-31');   // newer, and it lands
+        _releases[0](new Error('simulated: the slow read fails'));
+        await slow;
+        assert.equal(knowledgeOf(key), 'authoritative', 'a superseded failure walked a freshly confirmed month backwards');
+        assert.equal(rosterOverridesCache.get('A. Smith|2054-03-12')?.value, 'AL');
+    });
+
+    test('"Try again" while still offline gives the saved copy back, not the failure panel', async () => {
+        // The page's retry forgets the month first, so the press visibly does something. A second
+        // failure then recorded `error` — and the member lost the grid they had by pressing a button.
+        const key = await readThenExpire(2055, 2);
+        _getDocsThrows = true;
+        await ensureOverridesCached(2055, 2, () => {});
+        clearFetchedMonth(key); forgetKnowledge(key);            // what retryMonth does (calendar-app.js)
+        assert.equal(knowledgeOf(key), 'unknown', 'premise: forgotten for the retry');
+        let paints = 0;
+        await ensureOverridesCached(2055, 2, () => { paints++; });
+        assert.equal(knowledgeOf(key), 'cached', 'the server\'s earlier answer is still in hand');
+        assert.equal(paints, 1, 'and the retry reports its outcome');
+    });
+
+    test('a month this device has NEVER read still fails as a failure — there is no copy to label', async () => {
+        // The other direction. `cached` over a month nobody read would draw the bare base roster
+        // under a label saying it was once checked.
+        _getDocsThrows = true;
+        await ensureOverridesCached(2056, 2, () => {});
+        assert.equal(knowledgeOf(monthKey(2056, 2)), 'error');
+    });
+
+    test('the month is asked for again when the page comes back — however recent the failure', async () => {
+        // It is already unclaimed, so any render re-reads it; but nothing renders when a phone is
+        // simply picked up again, and the label then stayed until somebody pressed Try again.
+        const key = await readThenExpire(2057, 2);
+        _getDocsThrows = true;
+        await ensureOverridesCached(2057, 2, () => {});
+        assert.ok(releaseStaleMonths(HOUR, Date.now()).includes(key), 'owed a re-check on return');
+        assert.ok(!releaseStaleMonths(HOUR, Date.now()).includes(key), 'handed back once, not on every return');
+        _getDocsThrows = false; _mockDocs = [];
+        await ensureOverridesCached(2057, 2, () => {});
+        assert.equal(knowledgeOf(key), 'authoritative', 'premise: the re-check worked');
+        assert.ok(!releaseStaleMonths(HOUR, Date.now()).includes(key), 'a month that is current again is owed nothing');
+    });
+
+    test('the read that re-checks a month settles the debt — it is not still owed once it has aged', async () => {
+        const key = await readThenExpire(2059, 2);
+        _getDocsThrows = true;
+        await ensureOverridesCached(2059, 2, () => {});          // the re-check fails: owed
+        _getDocsThrows = false;
+        await ensureOverridesCached(2059, 2, () => {});          // and this one is the re-check
+        const released = releaseStaleMonths(HOUR, Date.now() + 2 * HOUR);
+        assert.equal(released.filter(k => k === key).length, 1, 'released once, for its age — not a second time for a debt already paid');
+    });
+
+    test('…but only a month with a copy to re-check: a plain failure is not re-read on return', async () => {
+        // Its failure panel and its Try again are unchanged; handing it back here would re-read on
+        // every return to the page, beside a sync chip that goes on saying the load failed.
+        _getDocsThrows = true;
+        await ensureOverridesCached(2058, 2, () => {});
+        assert.ok(!releaseStaleMonths(HOUR, Date.now()).includes(monthKey(2058, 2)));
+    });
+});
+
+// ── AN ANSWER BELONGS TO THE GRANT THAT ASKED (10 Nov 2026, external review F2) ─────────────────────
+// The access gate was checked when a read was ISSUED, and a read takes time. An answer that landed
+// after access had been lost — or lost and granted again — was committed all the same: rows written
+// behind the lock card, and a month marked current over the new grant's own failed read. A REFUSAL
+// from an earlier grant was already ignored (v24.56); these are the same rule for a success.
+describe('an answer belongs to the grant that asked for it', () => {
+    beforeEach(() => {
+        rosterOverridesCache.clear(); _mockDocs = []; _mockCacheDocs = []; _getDocsThrows = false;
+        _deferGetDocs = false; _releases.length = 0; _deferCacheDocs = false; _cacheReleases.length = 0;
+        forgetKnowledge();
+        setOverrideAccess(true);
+    });
+    // The module holds the gate process-wide: leave it open for the suites that follow.
+    afterEach(() => {
+        _deferGetDocs = false; _releases.length = 0; _deferCacheDocs = false; _cacheReleases.length = 0;
+        _getDocsThrows = false; _mockCacheDocs = [];
+        setOverrideAccess(true);
+    });
+
+    const AL = (/** @type {string} */ date) => makeDoc('al-' + date, { memberName: 'A. Smith', date, value: 'AL',
+        type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 1000 } });
+
+    test('the reported sequence: A is out, access is lost and regained, the new read FAILS, then A lands', async () => {
+        const key = monthKey(2061, 2);
+        _deferGetDocs = true; _mockDocs = [AL('2061-03-10')];
+        let paintsA = 0;
+        const a = ensureOverridesCached(2061, 2, () => { paintsA++; });
+        await _tick();
+        assert.equal(_releases.length, 1, 'premise: A is out');
+        setOverrideAccess(false); forgetKnowledge(); setOverrideAccess(true);   // re-locked, then the PIN again
+        _deferGetDocs = false; _getDocsThrows = true;
+        await ensureOverridesCached(2061, 2, () => {});
+        _getDocsThrows = false;
+        assert.equal(knowledgeOf(key), 'error', 'premise: the new grant\'s own read failed');
+
+        _releases[0](); await a;
+        assert.equal(knowledgeOf(key), 'error', 'the earlier grant\'s answer marked the month current over a failed check');
+        assert.equal(rosterOverridesCache.has('A. Smith|2061-03-10'), false, 'and wrote its rows');
+        assert.equal(paintsA, 0, 'and repainted for a session that had gone');
+    });
+
+    test('A lands while the Calendar is still LOCKED: nothing written, nothing known, nothing painted', async () => {
+        const key = monthKey(2062, 2);
+        _deferGetDocs = true; _mockDocs = [AL('2062-03-10')];
+        let paints = 0;
+        const a = ensureOverridesCached(2062, 2, () => { paints++; });
+        await _tick();
+        setOverrideAccess(false); forgetKnowledge();   // access lost — and nobody has re-entered the PIN
+        _releases[0](); await a;
+        assert.equal(rosterOverridesCache.size, 0, 'rows were written behind the lock card');
+        assert.equal(knowledgeOf(key), 'unknown', 'a discarded answer is not a failure either — it is nothing');
+        assert.equal(paints, 0);
+
+        // And the claim it held does not strand the next grant: the month is read again, and lands.
+        _deferGetDocs = false;
+        setOverrideAccess(true);
+        await ensureOverridesCached(2062, 2, () => { paints++; });
+        assert.equal(knowledgeOf(key), 'authoritative');
+        assert.equal(paints, 1);
+    });
+
+    test('a discarded answer is REPORTED as discarded, so no caller can record it as a success', async () => {
+        // The first load and the chip's retry call this directly and mark their months current when
+        // it returns. Resolving here would hand them a success to record.
+        _deferGetDocs = true; _mockDocs = [AL('2063-03-10')];
+        const read = fetchOverridesForRange('2063-03-01', '2063-03-31');
+        await _tick();
+        setOverrideAccess(false);
+        _releases[0]();
+        await assert.rejects(read, (/** @type {any} */ e) => e.code === READ_SUPERSEDED);
+        assert.equal(rosterOverridesCache.size, 0);
+    });
+
+    test('an answer the CACHE gave is discarded the same way — that branch merges too', async () => {
+        _deferGetDocs = true; _getDocsFromCacheFlag = true; _mockDocs = [AL('2064-03-10')];
+        const read = fetchOverridesForRange('2064-03-01', '2064-03-31');
+        _getDocsFromCacheFlag = false;
+        await _tick();
+        setOverrideAccess(false);
+        _releases[0]();
+        await assert.rejects(read, (/** @type {any} */ e) => e.code === READ_SUPERSEDED,
+            'guard: discarded BEFORE the cache-served branch, which would have merged the rows and thrown its own code');
+        assert.equal(rosterOverridesCache.size, 0);
+    });
+
+    test('a local-CACHE read out when the Calendar locks paints nothing', async () => {
+        // Invariant 3's read: a cache hit consults no rule, so this refusal is the only one there is —
+        // and it used to be made once, when the read was issued.
+        _deferCacheDocs = true; _mockCacheDocs = [AL('2065-03-10')];
+        /** @type {string[]} */ const months = [];
+        const read = fetchOverridesForRangeFromCache('2065-03-01', '2065-03-31', months);
+        await _tick();
+        assert.equal(_cacheReleases.length, 1, 'premise: the cache read is out');
+        setOverrideAccess(false);
+        _cacheReleases[0]();
+        assert.equal(await read, false, 'it must report that nothing was painted');
+        assert.equal(rosterOverridesCache.size, 0, 'yesterday\'s rows were written behind the lock card');
+        assert.deepEqual(months, [], 'and no month may be called known on the strength of them');
+    });
+
+    test('…nor does one that lands under a NEWER grant', async () => {
+        _deferCacheDocs = true; _mockCacheDocs = [AL('2066-03-10')];
+        const read = fetchOverridesForRangeFromCache('2066-03-01', '2066-03-31');
+        await _tick();
+        setOverrideAccess(false); setOverrideAccess(true);
+        _cacheReleases[0]();
+        assert.equal(await read, false);
+        assert.equal(rosterOverridesCache.size, 0);
+    });
+
+    test('the check refuses only what outlived its grant — an answer under its own grant is committed', async () => {
+        // The guard for the guard: a check that refused everything would pass every test above.
+        _deferGetDocs = true; _mockDocs = [AL('2067-03-10')];
+        const a = ensureOverridesCached(2067, 2, () => {});
+        await _tick();
+        _releases[0](); await a;
+        assert.equal(knowledgeOf(monthKey(2067, 2)), 'authoritative');
+        assert.equal(rosterOverridesCache.get('A. Smith|2067-03-10')?.value, 'AL');
+
+        _deferGetDocs = false; _deferCacheDocs = true; _mockCacheDocs = [AL('2068-03-10')];
+        const cached = fetchOverridesForRangeFromCache('2068-03-01', '2068-03-31');
+        await _tick();
+        _cacheReleases[0]();
+        assert.equal(await cached, true);
+        assert.equal(rosterOverridesCache.get('A. Smith|2068-03-10')?.value, 'AL');
     });
 });
 

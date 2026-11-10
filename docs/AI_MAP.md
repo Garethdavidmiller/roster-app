@@ -352,21 +352,27 @@ The pure rules of Calendar access — no DOM, no Firebase, no storage — tested
 
 ### `calendar-overrides.js`
 The Calendar's override cache and every read that fills it. The reasoning is beside each function;
-`CALENDAR_DATA.md` 3–6, 16 and 18 are its invariants.
+`CALENDAR_DATA.md` 3–6, 16, 18 and 20 are its invariants.
 - `rosterOverridesCache` — a `Map` keyed `"memberName|YYYY-MM-DD"`.
 - `fetchOverridesForRange(startStr, endStr)` — the authoritative server read. It reconciles each month
   slice only where no NEWER read has written it (`_monthSlices`, a test seam). A snapshot the offline
   cache answered is merged additively and thrown as `SERVED_FROM_CACHE` (carrying `painted`), so the
-  month is recorded `cached` or `error` and released.
+  month is recorded `cached` or `error` and released. An answer that lands after the access it was
+  issued under has gone, or been replaced, commits NOTHING and is thrown as `READ_SUPERSEDED` — a
+  caller stands down on it, and never records a success or reports a failure.
 - `fetchOverridesForRangeFromCache(startStr, endStr, monthsWithRows?)` — phase 1: the local cache only,
-  additive (never evicts), skipping months a server read owns; never throws.
+  additive (never evicts), skipping months a server read owns; never throws, and paints nothing if
+  access went while it was out.
 - `ensureOverridesCached(year, month, renderFn)` — a no-op once the month is claimed; otherwise reads it,
   records what is now known, and calls back EVERY waiter when it settles (a caller arriving mid-read
-  joins). A failure repaints once per claim, or it would be a fetch↔render loop.
+  joins). A failure repaints once per claim, or it would be a fetch↔render loop. A failed RE-check of a
+  month this device holds the server's answer for keeps the grid as the labelled saved copy
+  (`noteCheckFailed`) — only where no other answer has landed since the read was issued.
 - `getShiftTypesInMonth(member, year, month, snapshot?)` — the legend's set (SPARE, RDW, AL, SICK, OTHER)
   through the shared `resolveDayShift`; memoised, except for a month drawn from the stored copy.
 - `monthKey(year, month)` · `releaseStaleMonths(maxAgeMs, now?)` (releases settled months older than
-  that — never one in flight, nothing during the first read).
+  that — never one in flight, nothing during the first read — and hands back a saved-copy month whose
+  re-check failed, whatever its age, so its label clears on the next return that can check).
 - `_initialFetchInProgress` (a live binding) · `setInitialFetchInProgress(v)` · `addFetchedMonths(keys)` ·
   `clearFetchedMonth(key)` (it also re-arms the failure repaint) — for `calendar-initial-fetch.js`.
 - **The access gate.** `setOverrideAccess(granted)` — a grant is a fresh start (every claim cleared, the
@@ -394,15 +400,18 @@ What the Calendar KNOWS about each month's overrides, and so what it may show. P
 tested by `calendar-data-state.test.mjs`. The invariant — cache absence is not evidence that no override
 exists — and the four states are argued in the header (`CALENDAR_DATA.md` 1–2).
 - `noteKnowledge(keys, k)` — monotonic: a late `cached` never walks back an `authoritative`.
-- `forget(keys?)` — the one deliberate downgrade (access lost; a Try again).
+- `noteCheckFailed(keys)` — the newest check failed: `authoritative` → `cached`, nothing else moves. The
+  caller owns the ordering (a failure older than the latest answer must not reach it).
+- `forget(keys?)` — the other deliberate downgrade (access lost; a Try again).
 - `knowledgeOf(key)` / `worstKnowledge(keys)` — a Team View week is as known as its less-known month, and
   an empty set is `unknown`.
 - `decideDisplay(knowledge)` → `'render'|'stale'|'loading'|'unavailable'` · `showsRoster(display)` (a
   real roster is on screen for `render` and `stale`).
 - `_reset()` — test seam.
 - Written by `calendar-overrides.js` and `calendar-initial-fetch.js`; read by the renderer, Team View, the
-  legend and the page-ready metric. A `cached` month draws its grid with no banner — the sync chip is the
-  running commentary.
+  legend and the page-ready metric. A `cached` month draws its grid labelled "Saved copy — couldn't check
+  for changes" with a Try again (not while the first check is still running, where the sync chip speaks
+  alone); Team View draws a `cached` week exactly as a current one.
 
 ### `overtime-app.js` / `overtime-boot.js` / `overtime-data.js` / `overtime-format.js` / `overtime-clock.js` / `overtime-tips.js`
 The Overtime availability page. **Paused:** `CONFIG.OVERTIME_ENABLED` is false, so the page says so to

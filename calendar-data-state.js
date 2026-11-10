@@ -29,7 +29,9 @@
  *   cached         we hold a previously-known effective state for this month. Usable, but it may
  *                  have been superseded, so it must be LABELLED rather than presented as current.
  *   authoritative  a server read settled for this month. This is the only state that may be shown
- *                  as current.
+ *                  as current — and it stops being true when a NEWER check of the month fails
+ *                  (`noteCheckFailed`), because "current" is a claim about the latest check, not
+ *                  about a read that once worked.
  *   error          a read was attempted and failed. Distinct from `unknown` because the user can
  *                  act on it: it earns a Retry, where `unknown` only earns a wait.
  *
@@ -71,7 +73,8 @@ function rank(k) {
  * fetch, and a manual retry can all be outstanding at once, and they settle in any order. A late
  * `cached` landing after an `authoritative` must not walk the month backwards and re-hide a grid the
  * user is already reading — the same class of bug as the stale-snapshot cache eviction the audit
- * describes, one level up. Downgrading is only ever done explicitly, by `forget()`.
+ * describes, one level up. Downgrading is only ever done explicitly, by the two functions below:
+ * `noteCheckFailed()` (a newer check failed) and `forget()` (access went, or a retry starts again).
  * @param {string[]|string} keys one or more `monthKey` values
  * @param {Knowledge} k
  */
@@ -83,8 +86,34 @@ export function noteKnowledge(keys, k) {
 }
 
 /**
+ * The NEWEST check of a month failed, so what was current is now only the last-known copy
+ * (10 Nov 2026, external review F1).
+ *
+ * `authoritative` → `cached`, and nothing else moves. A month read at 09:00 and re-checked at 14:00
+ * with no signal used to stay `authoritative`: `noteKnowledge` is monotonic, so the failure could not
+ * be recorded, the grid went on being drawn as current — "As rostered" included — and the "Saved copy
+ * — couldn't check for changes" label that exists for exactly this was never reached. The grid is
+ * KEPT (that is what `cached` is for); it is the claim to be current that goes.
+ *
+ * Only `authoritative` is touched, on purpose. `cached` is already this answer, `unknown` has
+ * nothing to label, and `error` must keep its Retry — turning either of those into a "saved copy"
+ * would draw a base roster under a label that says somebody once checked it.
+ *
+ * ORDERING IS THE CALLER'S JOB, and it is the whole risk: a failure that is OLDER than the success
+ * it would overrule must not get here, or a slow, superseded read un-confirms a month the server has
+ * just answered for. `calendar-overrides.js` owns the order the reads were issued and landed in, so
+ * it decides (see `ensureOverridesCached`); this module only records the verdict.
+ * @param {string[]|string} keys one or more `monthKey` values
+ */
+export function noteCheckFailed(keys) {
+    for (const key of Array.isArray(keys) ? keys : [keys]) {
+        if (_knowledge.get(key) === 'authoritative') _knowledge.set(key, 'cached');
+    }
+}
+
+/**
  * Drop what was known about a month, so the next navigation re-reads it.
- * The one legitimate downgrade: used when access is lost, where continuing to show a roster the
+ * The other legitimate downgrade: used when access is lost, where continuing to show a roster the
  * session is no longer entitled to read would be worse than showing nothing.
  * @param {string[]|string} [keys] omit to forget everything
  */

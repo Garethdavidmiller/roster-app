@@ -8,7 +8,7 @@
  * Edit here for: sync chip appearance, retry behaviour, initial fetch range.
  */
 
-import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, releaseStaleMonths, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, accessGeneration } from './calendar-overrides.js';
+import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, releaseStaleMonths, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, accessGeneration, hasOverrideAccess, READ_SUPERSEDED } from './calendar-overrides.js';
 import { isAccessFailure } from './claim-retry.js';
 import { noteKnowledge } from './calendar-data-state.js';
 import { formatISO } from './roster-data.js';
@@ -293,8 +293,10 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       if (_retryGen !== _fetchGen || _dataLoaded) return;
       // Issued under an EARLIER grant (v24.57, review): it says nothing about the current one, and
       // must not release the new grant's month claims, mark its months failed, or leave a retry chip
-      // on a calendar that is working. The grant's own reads own those months now.
-      if (_grant !== accessGeneration()) { setChipState(null); if (syncChip) { syncChip.remove(); syncChip = null; } return; }
+      // on a calendar that is working. The grant's own reads own those months now. The same for an
+      // ANSWER that outlived its grant (`READ_SUPERSEDED`, 10 Nov 2026): the read was discarded, not
+      // failed, so there is nothing to report and no failure to record against a locked Calendar.
+      if (_grant !== accessGeneration() || /** @type {any} */ (err)?.code === READ_SUPERSEDED) { setChipState(null); if (syncChip) { syncChip.remove(); syncChip = null; } return; }
       // Mirror the initial fetch's failure path: release the re-claimed months so a later
       // render/navigation can re-fetch them — otherwise a failed retry re-strands all three
       // for the session (the chip is a recovery path only while the calendar header exists).
@@ -402,8 +404,20 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // in-flight — if so, the UI is already in a good state; don't clobber it.
       if (_origGen !== _fetchGen) return;
       syncResolved = true;
-      // From an earlier grant — stand down entirely, as the retry path above does (v24.57).
-      if (_grant !== accessGeneration()) { setChipState(null); if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; } return; }
+      // From an earlier grant, or an answer that outlived its grant — stand down entirely, as the
+      // retry path above does (v24.57; `READ_SUPERSEDED`, 10 Nov 2026).
+      if (_grant !== accessGeneration() || /** @type {any} */ (err)?.code === READ_SUPERSEDED) {
+        setChipState(null);
+        if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
+        // …AND HAND THE MONTHS TO THE GRANT THAT NOW HOLDS THE CALENDAR. Its own repaint ran while this
+        // load was still out, and the month grid does not read while the first load is in progress —
+        // so with nothing here the re-unlocked Calendar sat on "Checking this month" until somebody
+        // navigated. Flag down first, for the reason given at the failure render below. Only where
+        // access is held: a Calendar still locked has nothing to draw and must not read.
+        setInitialFetchInProgress(false);
+        if (hasOverrideAccess()) { if (isTeamViewMode()) refetchTeamView(); else renderCalendar(); }
+        return;
+      }
       // NOT "base roster will be used" any more (v20.40) — a device with no cache now withholds the
       // grid instead. `noteKnowledge` is monotonic, so on a device phase 1 DID paint this is a no-op
       // and the cached grid stays up behind the retry chip, which is the right answer there.

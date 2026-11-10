@@ -17,7 +17,7 @@
 
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { noteKnowledge, forget, knowledgeOf, worstKnowledge, decideDisplay, showsRoster, _reset }
+import { noteKnowledge, noteCheckFailed, forget, knowledgeOf, worstKnowledge, decideDisplay, showsRoster, _reset }
     from './calendar-data-state.js';
 
 const JAN = '2026-0', FEB = '2026-1', MAR = '2026-2';
@@ -94,9 +94,9 @@ describe('knowledge is monotonic, because these fetches race', () => {
         assert.equal(decideDisplay(knowledgeOf(JAN)), 'unavailable');
     });
 
-    test('forget is the ONE legitimate downgrade, and it is explicit', () => {
+    test('forget is a legitimate downgrade, and it is explicit', () => {
         // Used when access is lost: continuing to show a roster the session may no longer read is
-        // worse than showing nothing.
+        // worse than showing nothing. (One of two since 10 Nov 2026 — `noteCheckFailed` is below.)
         noteKnowledge(JAN, 'authoritative');
         forget(JAN);
         assert.equal(knowledgeOf(JAN), 'unknown');
@@ -106,6 +106,52 @@ describe('knowledge is monotonic, because these fetches race', () => {
         noteKnowledge([JAN, FEB, MAR], 'authoritative');
         forget();
         assert.equal(worstKnowledge([JAN, FEB, MAR]), 'unknown');
+    });
+});
+
+// ── THE NEWEST CHECK FAILED (10 Nov 2026, external review F1) ────────────────────────────────────
+// A month read in the morning and re-checked in the afternoon with no signal stayed `authoritative`:
+// the failure could not be recorded, so the grid went on being drawn as current. `noteCheckFailed`
+// is the narrow downgrade for that — and narrow is the point, in both directions.
+describe('a newer check that fails takes "current" away, and nothing else', () => {
+    test('authoritative becomes cached: the grid stays, labelled, and is no longer "current"', () => {
+        noteKnowledge(JAN, 'authoritative');
+        noteCheckFailed(JAN);
+        assert.equal(knowledgeOf(JAN), 'cached');
+        assert.equal(decideDisplay(knowledgeOf(JAN)), 'stale', 'the labelled saved copy, never the failure panel');
+        assert.equal(showsRoster(decideDisplay(knowledgeOf(JAN))), true, 'a failed re-check must not blank a good grid');
+    });
+
+    test('it moves ONLY an authoritative month — a failed check is not evidence that data exists', () => {
+        // Turning `unknown` or `error` into `cached` would draw the bare base roster under a label
+        // that says somebody once checked it: the original defect, with a caption.
+        noteCheckFailed(JAN);
+        assert.equal(knowledgeOf(JAN), 'unknown');
+        noteKnowledge(FEB, 'error');
+        noteCheckFailed(FEB);
+        assert.equal(knowledgeOf(FEB), 'error', 'a failed month keeps its Retry');
+        noteKnowledge(MAR, 'cached');
+        noteCheckFailed(MAR);
+        assert.equal(knowledgeOf(MAR), 'cached');
+    });
+
+    test('the next check that succeeds makes the month current again', () => {
+        noteKnowledge(JAN, 'authoritative');
+        noteCheckFailed(JAN);
+        noteKnowledge(JAN, 'authoritative');
+        assert.equal(knowledgeOf(JAN), 'authoritative');
+    });
+
+    test('it takes one key or many, like noteKnowledge — and leaves the months it was not given', () => {
+        noteKnowledge([JAN, FEB, MAR], 'authoritative');
+        noteCheckFailed([JAN, FEB]);
+        assert.deepEqual([JAN, FEB, MAR].map(knowledgeOf), ['cached', 'cached', 'authoritative']);
+    });
+
+    test('a week with one un-confirmed month is no longer current as a whole', () => {
+        noteKnowledge([JAN, FEB], 'authoritative');
+        noteCheckFailed(FEB);
+        assert.equal(decideDisplay(worstKnowledge([JAN, FEB])), 'stale');
     });
 });
 
