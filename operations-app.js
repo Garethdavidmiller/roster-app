@@ -24,7 +24,6 @@ import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
-import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
 import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
@@ -177,7 +176,9 @@ export function init() {
         currentIsAdmin: true,
         parseUrl:   'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF',
         getIdToken: async () => { await sessionReady; return auth.currentUser?.getIdToken(); },
-        loadOverrides,
+        // Nothing to re-read: this page has no Saved Changes list. Admin's loadOverrides returned at once
+        // here (no member picker), and importing it loaded a dozen Admin modules (Nov 2026 review).
+        loadOverrides: async () => {},
     });
 
     // Brand-styled date pickers over the four upload date fields. AFTER the card inits above,

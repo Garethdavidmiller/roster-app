@@ -20,6 +20,20 @@ test('operations: shows the in-place login when not signed in', async ({ page })
     expect(errors, 'Uncaught JS exceptions triggering operations redirect').toHaveLength(0);
 });
 
+// ── NOT ADMIN'S SAVED-CHANGES MACHINERY (Nov 2026 review, import-client-11's Operations half) ────
+// Operations imported admin-overrides.js for one function, loadOverrides, which returns at once on this
+// page (it has no member picker and no Saved Changes list) — and the import brought a dozen of Admin's
+// modules with it. The roster import's re-read is an explicit no-op here now, and none of them loads.
+test('operations: the page loads none of Admin\'s saved-changes modules', async ({ page }) => {
+    const loaded = [];
+    page.on('request', r => { const m = /\/(admin-[a-z-]+)\.js(?:\?|$)/.exec(r.url()); if (m) loaded.push(m[1]); });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#rosterUploadCard')).toBeVisible();
+    expect(loaded, 'premise: the roster import still loads').toContain('admin-roster-upload');
+    expect(loaded.filter(f => /^admin-(overrides|override-store|saved-changes|week-editor)$/.test(f))).toEqual([]);
+});
+
 // Desktop layout contract: the wrapper-column grid (v14.35) must keep the three
 // publishing cards in the narrow LEFT column and the width-hungry cards (roster +
 // monitoring) in the wide RIGHT column — not auto-placed into mismatched positions.
