@@ -1216,6 +1216,31 @@ test('parseSmartFloat: a decimal COMMA is the point, and a thousands comma is un
     assert.equal(parseSmartFloatOrNull('21758,94'), 21758.94);
 });
 
+// …and so is a comma with NO digit before it, or more than two after (whole-app review, 10 Nov 2026).
+// The rule above demanded a digit in front, so ",5" — the comma twin of ".5", typed for half an hour
+// — was stripped to 5 and priced as five hours; "7,5833" read as 75,833. A comma is a thousands
+// separator only where it sits like one: a leading group of one to three digits that does not start
+// with 0, then exactly three digits.
+test('parseSmartFloat: a decimal comma with no digit before it, or more than two after, is still the point', () => {
+    assert.equal(parseSmartFloat(',5'), 0.5, 'the comma twin of ".5"');
+    assert.equal(parseSmartFloat(',25'), 0.25);
+    assert.equal(parseSmartFloat('-,5'), -0.5);
+    assert.equal(parseSmartFloat('7,5833'), 7.5833);
+    assert.equal(parseSmartFloat('0,125'), 0.125, 'no thousands group starts with 0');
+    assert.equal(parseSmartFloat('1.234,567'), 1234.567, 'a dot in front makes the comma the point');
+    assert.equal(parseSmartFloatOrNull(',5'), 0.5);
+    assert.equal(parseSmartFloatOrNull('7,5833'), 7.5833);
+});
+
+test('parseSmartFloat: a comma placed like a thousands separator still is one', () => {
+    assert.equal(parseSmartFloat('1,234'), 1234);
+    assert.equal(parseSmartFloat('12,345'), 12345);
+    assert.equal(parseSmartFloat('123,456'), 123456);
+    assert.equal(parseSmartFloat('-1,234'), -1234);
+    assert.equal(parseSmartFloat('12,345,678'), 12345678);
+    assert.equal(parseSmartFloatOrNull('£1,500'), 1500);
+});
+
 test('parseSmartFloat: iOS smart minus is normalised so parseFloat succeeds', () => {
     // U+2212 MINUS SIGN — raw parseFloat('−5') returns NaN; the strip fixes it.
     assert.equal(parseSmartFloat('−5'), -5);

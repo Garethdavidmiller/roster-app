@@ -1042,12 +1042,16 @@ function _cleanNumericString(v) {
         .replace(/[‘’]/g, "'")
         .replace(/£/g, '')
         .trim();
-    // A comma before one or two FINAL digits is a decimal comma — a thousands group is always three
-    // digits, so this cannot be one. A phone set to a decimal-comma region offers "," on the decimal
-    // keypad, and stripping it turned "21758,94" into £2,175,894 (whole-app review, Oct 2026). Dots
-    // before such a comma are then the thousands separators ("1.234,56").
-    const dec = /^(-?[\d.]*\d),(\d{1,2})$/.exec(s);
-    if (dec) return `${dec[1].replace(/\./g, '')}.${dec[2]}`;
+    // ONE comma, with only digits after it, is a thousands separator only where it sits like one: a
+    // leading group of one to three digits not starting with 0, then exactly three ("1,234", "21,758").
+    // Anything else is a DECIMAL comma. A phone set to a decimal-comma region offers "," on the decimal
+    // keypad: stripping it turned "21758,94" into £2,175,894 (whole-app review, Oct 2026), and ",5" —
+    // the comma twin of ".5" — into 5 hours, and "7,5833" into 75,833 (10 Nov 2026). Dots before a
+    // decimal comma are then the thousands separators ("1.234,56").
+    const one = /^(-?)([\d.]*),(\d+)$/.exec(s);
+    if (one && !(one[3].length === 3 && /^[1-9]\d{0,2}$/.test(one[2]))) {
+        return `${one[1]}${one[2].replace(/\./g, '')}.${one[3]}`;
+    }
     return s.replace(/,/g, '');
 }
 
