@@ -39,6 +39,9 @@ const storagePath = require.resolve('firebase-admin/storage', { paths: [fnDir] }
 const pushPath    = require.resolve('./functions/push.js');
 const authPath    = require.resolve('firebase-admin/auth', { paths: [fnDir] });
 const docsPath    = require.resolve('./functions/documents.js');
+// The pay reminder's audience and send. Reloaded with documents.js on every build: a cached copy would
+// keep the push transport and the Auth fake of whichever build loaded it FIRST, and record its sends there.
+const payPath     = require.resolve('./functions/pay-reminder.js');
 const webpushPath = require.resolve('web-push', { paths: [fnDir] });
 
 /** The REAL server-owned roster — the pay reminder's audience is read from it. */
@@ -210,6 +213,7 @@ function build({ seed = {}, objects = [], maxFileBytes = 20 * 1024 * 1024 } = {}
             return uids.length;
         },
     });
+    delete require.cache[payPath];
     delete require.cache[docsPath];
     const { buildDocumentEndpoints } = require('./functions/documents.js');
     /** @type {{year: number, month: number, day: number}} */
@@ -662,7 +666,8 @@ describe('sendPayReminderNotification — a daily schedule that must fire on exa
 //
 // The expected audience is not typed here. It comes from the client's own `gradeForRole`, the
 // function the Pay Calculator turns a member away with, so pricing another grade there without
-// adding it to the server's PAY_REMINDER_GRADES fails this block rather than missing those members.
+// adding it to PAY_REMINDER_GRADES (functions/pay-reminder.js) fails this block rather than missing
+// those members.
 
 /** Everybody the Pay Calculator prices, among the people on the roster today (a leaver is hidden). */
 const PRICED = new Set(teamMembers
@@ -715,6 +720,7 @@ function buildDeviceWorld({ lookup } = {}) {
         },
     });
     delete require.cache[pushPath];   // the REAL transport, loaded against the fakes above
+    delete require.cache[payPath];
     delete require.cache[docsPath];
     const { buildDocumentEndpoints } = require('./functions/documents.js');
     const eps = buildDocumentEndpoints({
@@ -741,7 +747,7 @@ describe('the pay reminder reaches CEA and CES phones only — never a Dispatche
             assert.ok(onRoster(role).length > 0, `no ${role} member on the server roster — the test below would prove nothing about them`);
         }
         assert.ok([...PRICED].every(n => ['CEA', 'CES'].includes(roleOf(n))),
-            'gradeForRole now prices a grade beyond CEA and CES — decide whether the pay reminder goes to it (PAY_REMINDER_GRADES)');
+            'gradeForRole now prices a grade beyond CEA and CES — decide whether the pay reminder goes to it (PAY_REMINDER_GRADES, functions/pay-reminder.js)');
     });
 
     test('a cutoff Saturday reaches every CEA and CES phone, and no Dispatcher or manager phone', async () => {

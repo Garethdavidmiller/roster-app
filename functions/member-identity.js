@@ -62,6 +62,19 @@ function mustReclaim(user) {
 }
 
 /**
+ * The `updateUser` field that removes every sign-in method but the password from an account being
+ * TAKEN BACK or re-enabled (v24.56, auth review): resetting the password of an account somebody else
+ * held left any other method they had linked working. Empty when there is nothing to remove.
+ * @param {{ providerData?: Array<{ providerId: string }> }} user
+ * @returns {{ providersToUnlink?: string[] }}
+ */
+function unlinkOtherProviders(user) {
+    const others = ((user && user.providerData) || []).map((p) => p && p.providerId)
+        .filter((id) => id && id !== 'password');
+    return others.length ? { providersToUnlink: others } : {};
+}
+
+/**
  * The OTHER member an existing account's claims belong to, or `null` when they are this address's own
  * (whole-app check, 10 Nov 2026). setupRosterAuth stamps a roster name's claims onto whatever account
  * holds that name's email, and adopted any account already carrying a claim — so an account that came
@@ -84,4 +97,4 @@ function claimedByAnotherMember(user) {
     return derived && own && derived.toLowerCase() === own ? null : claimed;
 }
 
-module.exports = { memberNameFromClaims, mustReclaim, claimedByAnotherMember };
+module.exports = { memberNameFromClaims, mustReclaim, claimedByAnotherMember, unlinkOtherProviders };

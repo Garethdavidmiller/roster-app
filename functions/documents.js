@@ -3,10 +3,11 @@
  * (second cut of the index.js domain split; the first was push.js at v20.52).
  *
  * Owns: ingestHuddle (the Power Automate upload), getDocumentUrl (the short-lived document url),
- * the three onDocumentCreated notification triggers, the scheduled pay reminder, the one-off
- * timetable reminder (sendTimetableReminder), and their private helpers (the huddle prune, the
- * fan-out wrappers). Everything DOCUMENT-shaped: a file arrives or a doc is created, staff are
- * told, old copies are reclaimed, and a member is handed a link to open one.
+ * the three onDocumentCreated notification triggers, the scheduled pay reminder (its audience and
+ * send: ./pay-reminder.js), the one-off timetable reminder (sendTimetableReminder), and their
+ * private helpers (the huddle prune, the fan-out wrappers). Everything DOCUMENT-shaped: a file
+ * arrives or a doc is created, staff are told, old copies are reclaimed, and a member is handed a
+ * link to open one.
  *
  * ── WHY A FACTORY, NOT A PLAIN MODULE ──────────────────────────────────────────────────────────
  * `buildDocumentEndpoints(deps)` takes its shared infrastructure as ARGUMENTS — the secret
@@ -33,13 +34,13 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const crypto = require('crypto');
 const { getAuth } = require('firebase-admin/auth');
-const { parseStrictIsoDate, isPayCutoffDay, fileSignatureMatches, buildPushPayload, nameToEmail } = require('./roster-parse-helpers');
+const { parseStrictIsoDate, isPayCutoffDay, fileSignatureMatches, buildPushPayload } = require('./roster-parse-helpers');
 const { mayReceiveDocumentUrl, resolveKind, kindFromBody, signedUrlExpiry, SIGNED_URL_TTL_MS,
     isSignablePathForKind } = require('./doc-url-core');
-const { setupWebPush, fanOutPush, sendTargetedPush } = require('./push');
+const { setupWebPush, fanOutPush } = require('./push');
 const { memberNameFromClaims } = require('./member-identity');
-const { isViewerAccount } = require('./calendar-viewer-auth');
 const { bearerToken } = require('./request-helpers');
+const { sendPayReminder } = require('./pay-reminder');
 
 /**
  * Build the document-domain endpoints. Called once from index.js with the shared infra.
@@ -127,9 +128,9 @@ const ingestHuddle = onRequest(
         region:        'europe-west2',
         cors:          false,
         timeoutSeconds: 60,
-        // Declared, not the platform's 256 MiB (functions-core-3): a 20 MB file is held as the
-        // base64 body, its text and the decoded bytes at once — measured near 270 MB at 19 MB before
-        // the Storage and Firestore clients. parseRosterPDF takes the same cap on the same 512 MiB.
+        // Declared, not the platform's 256 MiB (functions-core-3): a file at the upload cap is held as
+        // the base64 body, its text and the decoded bytes at once — measured near 270 MiB just under
+        // the cap, before the Storage and Firestore clients. parseRosterPDF has the same cap and 512 MiB.
         memory:        '512MiB',
     },
     async (req, res) => {
@@ -286,9 +287,10 @@ const ingestHuddle = onRequest(
             // PDF files are opened natively by Chrome — no conversion needed.
             //
             // NOT FOR A LARGE .docx (functions-core-3). Mammoth inlines every picture as base64, so a
-            // 1 MB file already converts to ~1.4 million characters, seven times the cap below, and a
-            // 10–19 MB one costs 100–200 MB more at its peak — all to be thrown away. Over
-            // MAX_DOCX_CONVERT_BYTES the file is stored and offered as a file, as a failed conversion is.
+            // file of one megabyte already converts to ~1.4 million characters, seven times the cap
+            // below, and one near the upload cap costs a further 100–200 MiB at its peak — all thrown
+            // away. Over MAX_DOCX_CONVERT_BYTES the file is stored and offered as a file, exactly as
+            // after a failed conversion.
             let htmlContent = null;
             if (isDocx && fileBuffer.length > MAX_DOCX_CONVERT_BYTES) {
                 console.log(`[ingestHuddle] DOCX of ${fileBuffer.length} bytes — too large for its HTML to be kept; not converting`);
@@ -652,90 +654,6 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
     console.log(`[push] Huddle notification sent for ${huddleDate}`);
 }
 
-/**
- * WHO THE PAY REMINDER IS FOR — CEA and CES members, nobody else (owner decision, 10 November 2026).
- *
- * "Open the Pay Calculator to estimate your pay" invites the reader to a page that prices only the
- * grades `gradeForRole` (roster-data.js) knows. A Dispatcher or a manager who tapped it landed on the
- * card saying the calculator does not cover their pay, though .claude/rules/paycalc.md invariant 13
- * says nothing sends such a member there — and the Calendar's own payday notice already asks the same
- * question (`payCalcIsTheirs`, calendar-notices.js). The broadcast was the one route left that did not.
- *
- * The grades are KEYS of the server-owned roster (`cea`, `ces`: each grade's visible members, the
- * same lists `getMembersForGrade` gives the client), spelt as `gradeForRole` answers. The device test
- * in documents-endpoints.test.mjs takes its expected audience from `gradeForRole` itself, so pricing a
- * third grade on the client without adding it here fails a test instead of silently missing people.
- */
-const PAY_REMINDER_GRADES = Object.freeze(['cea', 'ces']);
-
-/**
- * The names the pay reminder is addressed to, from the server-owned roster. Never from a request.
- * @param {Record<string, any>|null|undefined} roster  roster-members.json
- * @returns {string[]}
- */
-function payReminderMembers(roster) {
-    const names = new Set();
-    for (const grade of PAY_REMINDER_GRADES) {
-        const list = roster && roster[grade];
-        if (!Array.isArray(list)) {
-            console.warn(`[payReminder] the server roster has no "${grade}" list — its members are not reminded`);
-            continue;
-        }
-        for (const name of list) if (typeof name === 'string' && name) names.add(name);
-    }
-    return [...names];
-}
-
-/**
- * A member's Auth uid, from the account their name derives to — the derivation setupRosterAuth
- * provisions with, and the one the Overtime notices resolve through. Any failure is `null` and that
- * member is skipped: fail closed, per member. The shared Calendar PIN account is refused even when a
- * PIN holder has linked a roster email to it: the devices it owns are the station's shared PCs, not
- * the member's phone (Set up accounts and the admin reset refuse it for the same reason).
- * @param {string} name
- * @returns {Promise<string|null>}
- */
-async function uidForMember(name) {
-    try {
-        const user = await getAuth().getUserByEmail(nameToEmail(name));
-        return user && user.uid && !isViewerAccount(user) ? user.uid : null;
-    } catch (_) {
-        return null;
-    }
-}
-
-/**
- * Send the pay reminder to the devices of CEA and CES members — a TARGETED send, never a broadcast
- * (see PAY_REMINDER_GRADES). URL includes ?payday=YYYY-MM-DD so the Pay Calculator opens on the
- * correct period.
- *
- * @param {Date}         payday        The upcoming payday date
- * @param {SecretParam}  vapidPrivate  Firebase secret param for VAPID private key
- */
-async function sendPayPushNotifications(payday, vapidPrivate) {
-    // Use toISOString() (UTC) — the caller constructs payday at NOON UTC from London calendar
-    // parts, so the UTC date is the correct London date on any runtime timezone.
-    const paydayISO = payday.toISOString().slice(0, 10);
-
-    const paydayDay = payday.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Europe/London' });
-    const paydayFmt = payday.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'Europe/London' });
-
-    // sendTargetedPush fails closed: no resolvable member means nothing is sent, never "everyone".
-    const names = payReminderMembers(rosterMembers);
-    const uids  = (await Promise.all(names.map(uidForMember))).filter(Boolean);
-
-    setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
-    // Event-reminder grammar (.claude/rules/notifications.md): "💷 <Event> — <urgency>",
-    // calm/no-exclamation tone, action in the body.
-    const accepted = await sendTargetedPush(buildPushPayload({
-        feature:  'pay',
-        headline: `Payday ${paydayDay} — hours cutoff today`,
-        body:     `Open the Pay Calculator to estimate your ${paydayFmt} pay.`,
-        url:      `${STAFF_SITE_URL}/paycalc.html?payday=${paydayISO}`,
-    }), uids, '[payReminder]');
-    console.log(`[payReminder] Pay reminder for payday ${paydayISO} — ${uids.length} of ${names.length} CEA/CES member(s) resolved, ${accepted} subscription(s) accepted`);
-}
-
 // ============================================================================
 // sendPayReminderNotification — scheduled pay cutoff reminder
 // ============================================================================
@@ -743,6 +661,7 @@ async function sendPayPushNotifications(payday, vapidPrivate) {
  * Runs daily at 08:00 London time. On pay cutoff Saturdays (the Saturday before
  * payday), sends a push notification to the devices of CEA and CES members — the
  * grades the Pay Calculator prices — reminding them to enter their hours in it.
+ * This decides WHEN; who it reaches, and why it is targeted, is ./pay-reminder.js.
  *
  * Cutoff date logic mirrors isCutoffDate() in roster-data.js:
  *   - First payday: 13 Feb 2026 (Friday). Cycle: every 28 days.
@@ -767,13 +686,14 @@ const sendPayReminderNotification = onSchedule(
             }
 
             // Anchor the payday at NOON UTC built from the London calendar parts — not local
-            // midnight. sendPayPushNotifications derives the ?payday= deep link via toISOString();
+            // midnight. sendPayReminder derives the ?payday= deep link via toISOString();
             // a local-midnight Date only yields the right UTC day because Cloud Run pins TZ=UTC,
             // and this file's convention (isPayCutoffDay, pruneOldHuddles) is TZ-independence.
             const payday = new Date(Date.UTC(year, month, day, 12));
             payday.setUTCDate(payday.getUTCDate() + 6);
             console.log(`[payReminder] Cutoff day — sending pay reminder`);
-            await sendPayPushNotifications(payday, VAPID_PRIVATE_KEY);
+            await sendPayReminder({ payday, roster: rosterMembers, vapidPrivate: VAPID_PRIVATE_KEY,
+                vapidPublic: VAPID_PUBLIC_KEY, STAFF_SITE_URL });
         } catch (err) {
             console.error('[payReminder] Unhandled error:', err);
             throw err;
