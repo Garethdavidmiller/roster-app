@@ -3,10 +3,11 @@
  * (second cut of the index.js domain split; the first was push.js at v20.52).
  *
  * Owns: ingestHuddle (the Power Automate upload), getDocumentUrl (the short-lived document url),
- * the three onDocumentCreated notification triggers, the scheduled pay reminder, the one-off
- * timetable reminder (sendTimetableReminder), and their private helpers (the huddle prune, the
- * fan-out wrappers). Everything DOCUMENT-shaped: a file arrives or a doc is created, staff are
- * told, old copies are reclaimed, and a member is handed a link to open one.
+ * the three onDocumentCreated notification triggers, the scheduled pay reminder (its audience and
+ * send: ./pay-reminder.js), the one-off timetable reminder (sendTimetableReminder), and their
+ * private helpers (the huddle prune, the fan-out wrappers). Everything DOCUMENT-shaped: a file
+ * arrives or a doc is created, staff are told, old copies are reclaimed, and a member is handed a
+ * link to open one.
  *
  * ── WHY A FACTORY, NOT A PLAIN MODULE ──────────────────────────────────────────────────────────
  * `buildDocumentEndpoints(deps)` takes its shared infrastructure as ARGUMENTS — the secret
@@ -38,6 +39,8 @@ const { mayReceiveDocumentUrl, resolveKind, kindFromBody, signedUrlExpiry, SIGNE
     isSignablePathForKind } = require('./doc-url-core');
 const { setupWebPush, fanOutPush } = require('./push');
 const { memberNameFromClaims } = require('./member-identity');
+const { bearerToken } = require('./request-helpers');
+const { sendPayReminder } = require('./pay-reminder');
 
 /**
  * Build the document-domain endpoints. Called once from index.js with the shared infra.
@@ -51,11 +54,13 @@ const { memberNameFromClaims } = require('./member-identity');
  * @param {Function} deps.isRetriableFirestoreError  commit-ambiguous classifier
  * @param {number}   deps.MAX_FILE_BYTES
  * @param {number}   deps.MAX_HUDDLE_HTML_CHARS
+ * @param {string[]} deps.ADMIN_FUNCTION_ORIGINS  the CORS allowlist for getDocumentUrl
+ * @param {Record<string, any>} deps.rosterMembers  the server-owned roster (roster-members.json) — the pay reminder's audience
  */
 function buildDocumentEndpoints({
     HUDDLE_SECRET, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
     readRawBody, nowInLondon, isRetriableFirestoreError,
-    MAX_FILE_BYTES, MAX_HUDDLE_HTML_CHARS, ADMIN_FUNCTION_ORIGINS,
+    MAX_FILE_BYTES, MAX_HUDDLE_HTML_CHARS, ADMIN_FUNCTION_ORIGINS, rosterMembers,
 }) {
 
     // Set to true to silence all Huddle push notifications (e.g. while the staff site
@@ -63,6 +68,41 @@ function buildDocumentEndpoints({
     // STAFF_SITE_URL was missing the `/roster-app` path, so notification taps hit a 404
     // (mis-recorded at the time as "the site is down"). To pause again: set true, redeploy.
     const HUDDLE_PUSH_PAUSED = false;
+
+    // The largest .docx the ingest converts to HTML (functions-core-3). Generous on purpose: an
+    // ordinary text Huddle is tens of kilobytes, and a file this size whose HTML still fitted
+    // MAX_HUDDLE_HTML_CHARS would have to be almost entirely content Word does not render.
+    const MAX_DOCX_CONVERT_BYTES = 2 * 1024 * 1024;
+
+    /**
+     * Is the document just written under `date` the one a tap would now open — the LATEST of its
+     * kind? Every arrival notice says "Latest …" and every viewer opens the newest `date`, so a
+     * back-filled older document announced as "Latest" sent staff to the newer one they had already
+     * read (functions-core-1). Asked with the viewer's own query, so the two cannot disagree.
+     *
+     * A read that FAILS answers true — announce, as before. A missed arrival is the failure nobody
+     * sees; a wrongly-announced back-fill is one extra buzz.
+     * @param {string} collectionName  'huddles' | 'circulars' | 'newsletters'
+     * @param {string} date            YYYY-MM-DD — the document just written
+     * @returns {Promise<boolean>}
+     */
+    async function isLatestOfKind(collectionName, date) {
+        try {
+            const snap = await getFirestore().collection(collectionName).orderBy('date', 'desc').limit(1).get();
+            if (snap.empty) return true;
+            const newest = (snap.docs[0].data() || {}).date;
+            return !(typeof newest === 'string' && newest > date);
+        } catch (err) {
+            console.warn(`[${collectionName}] could not read the latest document — announcing ${date} anyway:`, err && err.message);
+            return true;
+        }
+    }
+
+    /** London's tomorrow as YYYY-MM-DD — the latest date a Huddle may be filed under, as on the card. */
+    function londonTomorrowIso() {
+        const { year, month, day } = nowInLondon();
+        return new Date(Date.UTC(year, month, day + 1)).toISOString().slice(0, 10);
+    }
 
 /**
  * POST /ingestHuddle
@@ -88,6 +128,10 @@ const ingestHuddle = onRequest(
         region:        'europe-west2',
         cors:          false,
         timeoutSeconds: 60,
+        // Declared, not the platform's 256 MiB (functions-core-3): a file at the upload cap is held as
+        // the base64 body, its text and the decoded bytes at once — measured near 270 MiB just under
+        // the cap, before the Storage and Firestore clients. parseRosterPDF has the same cap and 512 MiB.
+        memory:        '512MiB',
     },
     async (req, res) => {
 
@@ -124,6 +168,14 @@ const ingestHuddle = onRequest(
         const parsedDate = parseStrictIsoDate(date);
         if (!parsedDate) {
             res.status(400).json({ error: 'Invalid date — expected a real YYYY-MM-DD calendar date' });
+            return;
+        }
+        // No later than London's tomorrow, the bound the manual card holds. The flow dates a Huddle
+        // by the day its email was received, so this never refuses a real one — but a far-future
+        // date would be "the latest" for every Huddle after it: shown in their place, and silencing
+        // every notice (isLatestOfKind) until somebody deleted it.
+        if (date > londonTomorrowIso()) {
+            res.status(400).json({ error: 'Date is in the future — a Huddle is filed under the day it was received' });
             return;
         }
 
@@ -233,8 +285,16 @@ const ingestHuddle = onRequest(
             // client never needs to download the raw DOCX or rely on an external viewer.
             // The HTML is stored in Firestore alongside the storage URL.
             // PDF files are opened natively by Chrome — no conversion needed.
+            //
+            // NOT FOR A LARGE .docx (functions-core-3). Mammoth inlines every picture as base64, so a
+            // file of one megabyte already converts to ~1.4 million characters, seven times the cap
+            // below, and one near the upload cap costs a further 100–200 MiB at its peak — all thrown
+            // away. Over MAX_DOCX_CONVERT_BYTES the file is stored and offered as a file, exactly as
+            // after a failed conversion.
             let htmlContent = null;
-            if (isDocx) {
+            if (isDocx && fileBuffer.length > MAX_DOCX_CONVERT_BYTES) {
+                console.log(`[ingestHuddle] DOCX of ${fileBuffer.length} bytes — too large for its HTML to be kept; not converting`);
+            } else if (isDocx) {
                 try {
                     const mammoth = require('mammoth'); // M8: lazy-loaded only for DOCX conversion
                     const result = await mammoth.convertToHtml({ buffer: fileBuffer });
@@ -263,15 +323,15 @@ const ingestHuddle = onRequest(
                 uploadedBy: 'power-automate',
             };
             if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
-            // Write the metadata AND decide create-vs-re-send ATOMICALLY (Finding #6). The old flow read
+            // Write the metadata AND learn what it replaced ATOMICALLY (Finding #6). The old flow read
             // the doc up front (check) then, separately, notified when that read said 'absent' (act) —
             // a check-then-act race: two concurrent Power Automate runs for the same date both read
             // "absent" before either wrote, so BOTH fanned out a push. A transaction serialises them —
-            // whichever commits first sees `!exists` and owns the notify; the other sees the doc and
-            // suppresses. The transaction's own retry replaces the manual commit-ambiguous re-issue (the
-            // set is idempotent, so an internal retry recomputes createdNew against the latest committed
-            // state — if a concurrent run created the doc meanwhile, createdNew flips false and we don't
-            // double-notify, consistent with "a missed notification is safer than spamming staff").
+            // whichever commits first sees what was there before it and owns the notify; the other
+            // sees the first one's upload and suppresses. The transaction's own retry replaces the
+            // manual commit-ambiguous re-issue (the set is idempotent, so an internal retry recomputes
+            // against the latest committed state — if a concurrent run wrote the doc meanwhile, the
+            // retry sees ITS upload and we don't double-notify).
             //
             // READ THAT NARROWLY (v22.13). What makes the retry safe is that it happens INSIDE the
             // transaction, which re-reads and recomputes; idempotence alone does not make a rewrite
@@ -280,13 +340,16 @@ const ingestHuddle = onRequest(
             // re-issued outside any transaction, and an equally idempotent `set` then overwrote a
             // competing upload's file reference. Same operation, no transaction, real data loss.
             // Do not cite this comment when reasoning about a write that is not in one.
-            let createdNew = false;
+            /** @type {{ existed: boolean, replacedBy: any }} */
+            let written = { existed: false, replacedBy: null };
             const huddleRef = getFirestore().collection('huddles').doc(date);
             try {
-                createdNew = await getFirestore().runTransaction(async tx => {
+                written = await getFirestore().runTransaction(async tx => {
                     const snap = await tx.get(huddleRef);
+                    // WHO wrote what this replaces is what separates a re-send from a new arrival.
+                    const before = { existed: snap.exists, replacedBy: snap.exists ? (snap.data() || {}).uploadedBy : null };
                     tx.set(huddleRef, firestoreDoc);
-                    return !snap.exists;   // true ⇒ this run created the date's doc → a genuine first upload
+                    return before;
                 });
             } catch (metaErr) {
                 if (isRetriableFirestoreError(metaErr)) {
@@ -323,20 +386,31 @@ const ingestHuddle = onRequest(
             // it skips Power Automate uploads (uploadedBy === 'power-automate') to avoid
             // double-notifying. This direct call is the authoritative path for PA uploads.
             //
-            // Notify only on a genuine CREATE for this date (createdNew from the atomic transaction
-            // above). onHuddleCreated is create-only, so a MANUAL re-upload never re-notifies; without
-            // this guard a Power Automate RE-SEND — or a concurrent double-run — for a date that already
-            // had a huddle still fanned out a second push to everyone. Matching the manual path's
-            // convention means an accidental duplicate can't spam staff; a genuine correction still
-            // updates the huddle silently (the in-app viewer has a live subscription and refreshes).
-            if (createdNew) {
+            // WHETHER TO ANNOUNCE (functions-core-1, 10 Nov 2026). Two questions, both needed:
+            //
+            //  1. Is this a NEW arrival? Yes for a first upload under the date. No when it replaces
+            //     this flow's OWN earlier upload — a retry, or a concurrent double-run — which used to
+            //     fan out a second push to everyone for one Huddle. But YES when it replaces a HAND
+            //     upload: the card files under today and this flow files under the day received, so a
+            //     Huddle uploaded by hand this morning shares its date with tonight's automatic one —
+            //     the next day's plan, which nobody would otherwise be told about. The price is one
+            //     extra buzz on the rare day the flow delivers late a Huddle already uploaded by hand
+            //     (the shared tag replaces the first notice rather than stacking). An unknown writer —
+            //     a document with no `uploadedBy` — stays silent, as before.
+            //  2. Is it the LATEST? A back-filled older date is kept, and announcing it as "Latest
+            //     Huddle" would open the newer one staff already had (isLatestOfKind).
+            const newArrival = !written.existed
+                || (typeof written.replacedBy === 'string' && written.replacedBy !== '' && written.replacedBy !== 'power-automate');
+            if (!newArrival) {
+                console.log(`[ingestHuddle] Re-send / concurrent duplicate of this flow's own upload for ${date} — not re-notifying`);
+            } else if (!(await isLatestOfKind('huddles', date))) {
+                console.log(`[ingestHuddle] ${date} is older than the latest Huddle — stored, not announced as "Latest"`);
+            } else {
                 try {
                     await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
                 } catch (pushErr) {
                     console.warn('[ingestHuddle] Push notifications failed (non-fatal):', pushErr.message);
                 }
-            } else {
-                console.log(`[ingestHuddle] Re-send / concurrent duplicate for existing date ${date} — not re-notifying (matches the manual re-upload path)`);
             }
 
             // Bound the collection: huddles are daily and would otherwise grow without limit.
@@ -364,10 +438,11 @@ const ingestHuddle = onRequest(
 /**
  * Fires whenever a new document is created in the `huddles` collection —
  * i.e. the first upload for a given date, whether from Power Automate or
- * from the manual upload card in admin.html.
+ * from the manual upload card on operations.html. It announces only a hand
+ * upload, and only when that date is now the latest Huddle (isLatestOfKind).
  *
  * Re-uploads for the same date (setDoc overwrite) are UPDATE events, not
- * CREATE events, so staff are only notified once per huddle date.
+ * CREATE events, so a hand correction never re-notifies.
  */
 const onHuddleCreated = onDocumentCreated(
     {
@@ -396,7 +471,12 @@ const onHuddleCreated = onDocumentCreated(
             return;
         }
 
-        // Manual admin upload — fire push from here (ingestHuddle is not involved).
+        // Manual admin upload — fire push from here (ingestHuddle is not involved), unless it is a
+        // back-fill: an older date announced as "Latest Huddle" would open the newer one.
+        if (!(await isLatestOfKind('huddles', date))) {
+            console.log(`[onHuddleCreated] ${date} is older than the latest Huddle — not announced as "Latest"`);
+            return;
+        }
         console.log(`[onHuddleCreated] Manual upload by "${uploadedBy}" for ${date} — fanning out push`);
         try {
             await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
@@ -412,7 +492,8 @@ const onHuddleCreated = onDocumentCreated(
 // Circulars and newsletters are browser-upload-only today, so unlike the Huddle there
 // is no double-send concern — the create trigger is the single notification source.
 // Fires on CREATE only, so re-uploading a correction to the same date (setDoc overwrite
-// = UPDATE) does not re-notify.
+// = UPDATE) does not re-notify; and a back-filled OLDER date is not announced, because
+// "Latest …" would open the newer one (isLatestOfKind).
 //
 // FUTURE — Power Automate automation: this trigger fires on doc CREATE regardless of
 // WHO writes it (Firestore triggers fire for Admin SDK writes too). So a future
@@ -433,6 +514,10 @@ const onCircularCreated = onDocumentCreated(
     { document: 'circulars/{date}', secrets: [VAPID_PRIVATE_KEY], region: 'europe-west2' },
     async event => {
         const date = event.params.date;
+        if (!(await isLatestOfKind('circulars', date))) {
+            console.log(`[onCircularCreated] ${date} is older than the latest Circular — not announced as "Latest"`);
+            return;
+        }
         console.log(`[onCircularCreated] ${date} — fanning out push`);
         try {
             await sendDocPushNotifications('circular', "Tap to read this week's retail update.", VAPID_PRIVATE_KEY);
@@ -446,6 +531,10 @@ const onNewsletterCreated = onDocumentCreated(
     { document: 'newsletters/{date}', secrets: [VAPID_PRIVATE_KEY], region: 'europe-west2' },
     async event => {
         const date = event.params.date;
+        if (!(await isLatestOfKind('newsletters', date))) {
+            console.log(`[onNewsletterCreated] ${date} is older than the latest Newsletter — not announced as "Latest"`);
+            return;
+        }
         console.log(`[onNewsletterCreated] ${date} — fanning out push`);
         try {
             await sendDocPushNotifications('newsletter', 'Tap to read the latest newsletter.', VAPID_PRIVATE_KEY);
@@ -565,41 +654,14 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
     console.log(`[push] Huddle notification sent for ${huddleDate}`);
 }
 
-/**
- * Fan out pay reminder push notifications.
- * URL includes ?payday=YYYY-MM-DD so the Pay Calculator opens on the correct period.
- *
- * @param {Date}         payday        The upcoming payday date
- * @param {SecretParam}  vapidPrivate  Firebase secret param for VAPID private key
- */
-async function sendPayPushNotifications(payday, vapidPrivate) {
-    setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
-
-    // Use toISOString() (UTC) — the caller constructs payday at NOON UTC from London calendar
-    // parts, so the UTC date is the correct London date on any runtime timezone.
-    const paydayISO = payday.toISOString().slice(0, 10);
-
-    const paydayDay = payday.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Europe/London' });
-    const paydayFmt = payday.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'Europe/London' });
-
-    // Event-reminder grammar (.claude/rules/notifications.md): "💷 <Event> — <urgency>",
-    // calm/no-exclamation tone, action in the body.
-    await fanOutPush(buildPushPayload({
-        feature:  'pay',
-        headline: `Payday ${paydayDay} — hours cutoff today`,
-        body:     `Open the Pay Calculator to estimate your ${paydayFmt} pay.`,
-        url:      `${STAFF_SITE_URL}/paycalc.html?payday=${paydayISO}`,
-    }), '[payReminder]');
-    console.log(`[payReminder] Pay reminder sent — payday ${paydayISO}`);
-}
-
 // ============================================================================
 // sendPayReminderNotification — scheduled pay cutoff reminder
 // ============================================================================
 /**
  * Runs daily at 08:00 London time. On pay cutoff Saturdays (the Saturday before
- * payday), sends a push notification to all subscribed devices reminding staff
- * to enter their hours in the Pay Calculator.
+ * payday), sends a push notification to the devices of CEA and CES members — the
+ * grades the Pay Calculator prices — reminding them to enter their hours in it.
+ * This decides WHEN; who it reaches, and why it is targeted, is ./pay-reminder.js.
  *
  * Cutoff date logic mirrors isCutoffDate() in roster-data.js:
  *   - First payday: 13 Feb 2026 (Friday). Cycle: every 28 days.
@@ -624,13 +686,14 @@ const sendPayReminderNotification = onSchedule(
             }
 
             // Anchor the payday at NOON UTC built from the London calendar parts — not local
-            // midnight. sendPayPushNotifications derives the ?payday= deep link via toISOString();
+            // midnight. sendPayReminder derives the ?payday= deep link via toISOString();
             // a local-midnight Date only yields the right UTC day because Cloud Run pins TZ=UTC,
             // and this file's convention (isPayCutoffDay, pruneOldHuddles) is TZ-independence.
             const payday = new Date(Date.UTC(year, month, day, 12));
             payday.setUTCDate(payday.getUTCDate() + 6);
             console.log(`[payReminder] Cutoff day — sending pay reminder`);
-            await sendPayPushNotifications(payday, VAPID_PRIVATE_KEY);
+            await sendPayReminder({ payday, roster: rosterMembers, vapidPrivate: VAPID_PRIVATE_KEY,
+                vapidPublic: VAPID_PUBLIC_KEY, STAFF_SITE_URL });
         } catch (err) {
             console.error('[payReminder] Unhandled error:', err);
             throw err;
@@ -700,7 +763,7 @@ const sendTimetableReminder = onSchedule(
      * So the Office viewer stays and the URL it is handed becomes short-lived. That bounds the leak
      * without changing one thing a member sees or one step an admin takes.
      *
-     * ── FOUR PROPERTIES, EACH LOAD-BEARING ────────────────────────────────────────────────────
+     * ── FIVE PROPERTIES, EACH LOAD-BEARING ────────────────────────────────────────────────────
      *
      * 1. THE CALLER NAMES A KIND, NEVER A PATH. `resolveKind` answers from a frozen allowlist; the
      *    collection, the document and the storage path are all resolved HERE. An endpoint that
@@ -728,7 +791,7 @@ const sendTimetableReminder = onSchedule(
      * show a member a dead button. RECOVERY_RUNBOOK.md records the grant.
      *
      * Request:  POST { "kind": "huddle" | "circular" | "newsletter" }, Authorization: Bearer <ID token>
-     * Success:  200 { url, expiresAt, fileType }
+     * Success:  200 { url, expiresAt, fileType, storagePath }   (storagePath: the file signed — see below)
      * Refusals: 405 method · 401 no/!valid token · 403 no door · 400 unknown kind
      *           404 nothing published yet · 503 signing unavailable (the IAM case above)
      */
@@ -741,7 +804,7 @@ const sendTimetableReminder = onSchedule(
         async (req, res) => {
             if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-            const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
+            const bearer = bearerToken(req);
             let claims;
             try {
                 // checkRevoked — property 3 above.
@@ -755,11 +818,10 @@ const sendTimetableReminder = onSchedule(
 
             // kindFromBody, not `req.body.kind` — an unparsed body (no JSON Content-Type) would
             // otherwise be refused as an unknown kind, which is the one thing it is not.
-            const kind = resolveKind(kindFromBody(req.body));
+            const kind = resolveKind(kindFromBody(req.body, req.rawBody));
             if (!kind.ok) return res.status(400).json({ error: 'Unknown document kind' });
 
-            // The LATEST of that kind — the same document the viewer is showing. The id is a date
-            // string, so a descending id order is a descending date order.
+            // The LATEST of that kind — the same query, on the `date` field, the viewer opens with.
             let snap;
             try {
                 snap = await getFirestore().collection(kind.collection)

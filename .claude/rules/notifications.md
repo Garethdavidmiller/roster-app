@@ -3,6 +3,7 @@ paths:
   - "functions/push.js"
   - "functions/roster-parse-helpers.js"
   - "functions/documents.js"
+  - "functions/pay-reminder.js"
   - "functions/overtime*.js"
   - "functions/auth-endpoints.js"
   - "functions/index.js"
@@ -21,8 +22,8 @@ paths:
 The one app surface rendered by the **OS**, not by our CSS — so it cannot inherit the design system
 and needs its own explicit rules. Every Web Push notification staff receive must follow them. They
 are enforced by a single builder, `buildPushPayload` in `functions/roster-parse-helpers.js`, which
-the senders import (`functions/documents.js`, `functions/overtime.js`, `functions/auth-endpoints.js`);
-the service worker renders the result.
+the senders import (`functions/documents.js`, `functions/pay-reminder.js`, `functions/overtime.js`,
+`functions/auth-endpoints.js`); the service worker renders the result.
 
 ## The core principle (what ties a notification to the app)
 
@@ -78,9 +79,10 @@ time-sensitive event. "Latest" does not apply; lead with the event and its urgen
 
 ## Who receives it — broadcast or targeted
 
-**Broadcasts** (`fanOutPush`, every subscribed device): the three documents, the pay reminder and the
-one-off timetable reminder. **Everything else is targeted** (`sendTargetedPush`, to named uids only),
-because of what it SAYS:
+**Broadcasts** (`fanOutPush`, every subscribed device): the three documents and the one-off timetable
+reminder. **Everything else is targeted** (`sendTargetedPush`, to named uids only) — the pay reminder
+to CEA and CES members only, the grades the Pay Calculator prices (owner, 10 Nov 2026;
+`functions/pay-reminder.js`), and the rest because of what it SAYS:
 
 - **The reset request goes to the admin's devices only** — "N. Surname is locked out" sent to 50
   people is a leak, not a notification.

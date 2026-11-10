@@ -104,20 +104,11 @@ function setupWebPush(vapidPrivate, vapidPublic) {
 }
 
 /**
- * Fan out Web Push notifications to all subscribed devices for a given JSON payload.
- * Dead subscriptions (HTTP 410/404 — genuinely gone) are deleted from Firestore. A 401 is a
- * VAPID-AUTH failure (server misconfig, not a dead endpoint) and is logged, NEVER deleted —
- * deleting on 401 would wipe the whole collection on any VAPID key error (v16.15).
- *
- * @param {object} payload   Object that will be JSON.stringify'd — must include title, body, url, tag
- * @param {string} logTag    Short string for console log lines, e.g. '[push]'
- */
-/**
  * Send a Web Push payload to the devices of SPECIFIC identities only, never to everyone.
  *
- * This is the targeted counterpart to fanOutPush, and it exists because one notification in this app
- * is not a broadcast: "N. Surname asked for a password reset" is addressed to the admin, and sending
- * it to all ~50 staff would leak who is locked out to the entire team.
+ * This is the targeted counterpart to fanOutPush, and it exists because some notices are not
+ * broadcasts — "N. Surname asked for a password reset" is addressed to the admin, and sending it to
+ * all ~50 staff would leak who is locked out to the entire team.
  *
  * **It FAILS CLOSED, on purpose, in three separate places**, because every failure mode here has the
  * same consequence — telling 50 people something meant for one:
@@ -137,24 +128,37 @@ function setupWebPush(vapidPrivate, vapidPublic) {
  * @param {object} payload            JSON-stringified for the push body — title, body, url, tag
  * @param {string[]} ownerUids        Firebase Auth uids allowed to receive this
  * @param {string} logTag             Short string for console log lines
+ * @param {{ timeoutMs?: number }} [opts]  a per-send bound SHORTER than SEND_TIMEOUT_MS, for a caller
+ *                                    whose own answer waits on this send and must end inside its budget
  * @returns {Promise<number>}         How many subscriptions ACCEPTED the push. Zero is the reliable
  *                                    direction: it means nobody was reached, and a caller may act on
  *                                    that. A non-zero count means the push service took the message,
  *                                    not that a phone displayed it.
  */
-async function sendTargetedPush(payload, ownerUids, logTag) {
+async function sendTargetedPush(payload, ownerUids, logTag, opts = {}) {
     const uids = Array.from(new Set((ownerUids || []).filter(u => typeof u === 'string' && u)));
     if (uids.length === 0) {
         console.warn(`${logTag} No target uids — sending nothing (never fans out)`);
         return 0;
     }
 
-    // One equality query per uid rather than a single `in` query: the target list is the admin roster
-    // (one or two names), `in` caps at 30 values, and per-uid queries keep the failure of one lookup
-    // from taking the others down with it.
-    const results = await Promise.all(uids.map(uid =>
+    // One equality query per uid rather than a single `in` query: `in` caps at 30 values, and the
+    // targets run from one member (a password reset) to every CEA and CES member (the pay reminder,
+    // ~34). Settled one by one, so a lookup that fails costs THAT owner their notice and nobody else's
+    // — with `Promise.all`, one transient error lost every target. Never widened: a failed lookup
+    // contributes no devices, it does not become "everyone".
+    const lookups = await Promise.allSettled(uids.map(uid =>
         getFirestore().collection('pushSubscriptions').where('owner', '==', uid).get()));
-    const docs = results.flatMap(snap => snap.docs);
+    const failed = lookups.filter(r => r.status === 'rejected');
+    if (failed.length === uids.length) {
+        // Every lookup failed: nobody can be reached. An error, not a warning — a scheduled notice
+        // (the pay reminder) has no other trace that it went to no one.
+        console.error(`${logTag} Every subscription lookup failed (${failed.length}) — nothing sent`,
+            failed[0].reason && failed[0].reason.code);
+        return 0;
+    }
+    if (failed.length) console.warn(`${logTag} ${failed.length} of ${uids.length} subscription lookup(s) failed — those targets are skipped`);
+    const docs = lookups.flatMap(r => (r.status === 'fulfilled' ? r.value.docs : []));
     if (docs.length === 0) {
         // Worth a warning, not a silent return: on a fresh project this means the admin has never
         // subscribed, but it ALSO means their subscription predates the owner stamp (see #2 above) —
@@ -165,7 +169,10 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
 
     const payloadStr = JSON.stringify(payload);
     // Timeout AND how long the push service may hold it (pushSendOptions — never the 4-week default).
-    const sendOptions = pushSendOptions(payload, SEND_TIMEOUT_MS);
+    // A caller's own bound may only be SHORTER: anything else falls back to the transport's.
+    const asked = opts && opts.timeoutMs;
+    const timeoutMs = Number.isFinite(asked) && asked > 0 && asked < SEND_TIMEOUT_MS ? asked : SEND_TIMEOUT_MS;
+    const sendOptions = pushSendOptions(payload, timeoutMs);
     // ACCEPTED, not attempted (v21.85, external review). A caller that records "the admin has been
     // told" needs to know a push actually left, and `docs.length` says only that we tried: a
     // transient 500 from the push service, or an endpoint whose keys have rotated, counted exactly
@@ -212,6 +219,15 @@ async function releasePushForOwner(uid) {
     return snap.docs.length;
 }
 
+/**
+ * Fan out Web Push notifications to all subscribed devices for a given JSON payload.
+ * Dead subscriptions (HTTP 410/404 — genuinely gone) are deleted from Firestore. A 401 is a
+ * VAPID-AUTH failure (server misconfig, not a dead endpoint) and is logged, NEVER deleted —
+ * deleting on 401 would wipe the whole collection on any VAPID key error (v16.15).
+ *
+ * @param {object} payload   Object that will be JSON.stringify'd — must include title, body, url, tag
+ * @param {string} logTag    Short string for console log lines, e.g. '[push]'
+ */
 async function fanOutPush(payload, logTag) {
     const snapshot = await getFirestore().collection('pushSubscriptions').get();
     if (snapshot.empty) {

@@ -570,6 +570,24 @@ Which member a verified ID token speaks for, or none — the server copy of `isM
   `functions/documents.js`.
 - `mustReclaim(user)` — an existing account at a roster email with NO custom claim must be taken back
   before `setupRosterAuth` stamps it (`functions/auth-endpoints.js`).
+- `claimedByAnotherMember(user)` — the OTHER member an existing account's claims name, or `null` when
+  the member they name derives to the account's own email (a respelling that still derives it is the
+  same person; `{ admin: true }` names nobody). `setupRosterAuth` does not adopt such an account and
+  `resetMemberPassword` refuses it (409).
+- `unlinkOtherProviders(user)` — the `updateUser` field (`providersToUnlink`) that strips every sign-in
+  method but the password from an account being taken back or re-enabled; `{}` when there is none.
+
+### `functions/request-helpers.js`
+The request plumbing every endpoint shares — one copy, because the five inline copies had drifted (a
+Buffer body answered 400, a right PIN posted as a Buffer was charged as a guess, one gate wanted a
+case-exact "Bearer "). Requires nothing at load time: `requireAdmin` requires `firebase-admin/auth`
+when it runs, so the readers are tested in test:hygiene (`doc-url-core.test.mjs`).
+- `jsonBodyOf(body, rawBody)` · `readJsonBody(req)` — the JSON body as an object whatever shape it
+  arrived in (object, Buffer, string, or the raw bytes beside an empty body); anything unusable is `{}`.
+- `bearerToken(req)` — the `Authorization: Bearer` token, the scheme in any case, or `''`.
+- `requireAdmin(req, res, logTag?)` — no token is a 401 before anything is verified; otherwise
+  `verifyIdToken(token, true)` (checkRevoked) and a strict `admin === true`. Answers 401/403 itself and
+  returns null. Used by parseRosterPDF and the four admin account endpoints.
 
 ### `functions/london-clock.js`
 An ISO calendar date, and the instant it names in London — machinery, not Overtime policy. **It requires
@@ -2057,8 +2075,14 @@ The document-and-notification domain. `buildDocumentEndpoints(deps)` — a facto
 - `getDocumentUrl` — POST `{ kind }` with a bearer ID token → `{ url, expiresAt, fileType, storagePath }`, a short-lived signed url for the LATEST document of that kind. The caller names a KIND, never a path (`functions/doc-url-core.js`), and the door mirrors the `firestore.rules` read. A 503 is what a missing `roles/iam.serviceAccountTokenCreator` grant looks like (CLAUDE.md).
 - `ingestHuddle` — Power Automate → Storage and Firestore: timing-safe bearer auth, base64 and file-signature checks, DOCX → HTML through a lazy `mammoth`, and a create-or-notify transaction; it awaits the three-month `pruneOldHuddles` before it responds.
 - `onHuddleCreated` (the push for a manual admin upload; it skips `power-automate`, which `ingestHuddle` already notified) · `onCircularCreated` · `onNewsletterCreated` — `onDocumentCreated` triggers, each pushing its document-arrival notice through `buildPushPayload` and `fanOutPush`.
-- `sendPayReminderNotification` (daily at 08:00 London; pushes on pay-cutoff Saturdays) · `sendTimetableReminder` (daily at 18:00 London; sends once, the evening before `TIMETABLE_CHANGE`, landing on `trains.html`).
+- `sendPayReminderNotification` (daily at 08:00 London; on pay-cutoff Saturdays it calls `sendPayReminder`, `functions/pay-reminder.js`) · `sendTimetableReminder` (daily at 18:00 London; sends once, the evening before `TIMETABLE_CHANGE`, landing on `trains.html`).
 - `HUDDLE_PUSH_PAUSED`, the Huddle push kill switch, lives here.
+
+### `functions/pay-reminder.js`
+WHO the pay reminder reaches: CEA and CES members only (owner decision, 10 Nov 2026), because the Pay Calculator prices only the grades `gradeForRole` knows and turns everybody else away. The schedule that decides WHEN stays in `documents.js`.
+- `PAY_REMINDER_GRADES` — the server roster keys addressed (`cea`, `ces`), spelt as `gradeForRole` answers. `documents-endpoints.test.mjs` takes its expected audience from `gradeForRole` itself, so a newly priced grade fails a test rather than silently missing its members.
+- `payReminderMembers(roster)` — the names, from the server-owned `roster-members.json`, never a request; a missing grade list is logged, not guessed.
+- `sendPayReminder({ payday, roster, vapidPrivate, vapidPublic, STAFF_SITE_URL })` — resolves each name to its account uid (refusing the shared PIN account, skipping any failed lookup) and sends through `sendTargetedPush`, which fails closed: no uids, nothing sent — never everyone. Returns the subscriptions that accepted it.
 
 ### `functions/auth-endpoints.js`
 The account-and-credential domain. `buildAuthEndpoints(deps)` — the same factory pattern; the pure decisions it orchestrates are unit-tested in `roster-parse-helpers.js`. `unlockCalendarViewer` is deliberately NOT here (`index.js`).
@@ -2076,7 +2100,7 @@ The PURE server rules behind the staff Calendar PIN — CommonJS, kept apart fro
 
 ### `functions/push.js`
 The web-push TRANSPORT: how a payload reaches a phone, never what it says or when — that is `buildPushPayload` (`roster-parse-helpers.js`) and `.claude/rules/notifications.md`.
-- `getWebPush()` (the lazy `web-push` require) · `setupWebPush(vapidPrivate, vapidPublic)` (once per instance) · `fanOutPush(payload, logTag)` — every subscribed device · `sendTargetedPush(payload, ownerUids, logTag)` — named uids only · `releasePushForOwner(uid)` — deletes the records one account owns, the leaver sweep's last step (an empty uid touches nothing) · `pushSendOptions(payload, timeoutMs)` / `PUSH_TTL_BY_TAG` — how long a push service may hold each feature's notice; a new feature adds its tag or gets a day.
+- `getWebPush()` (the lazy `web-push` require) · `setupWebPush(vapidPrivate, vapidPublic)` (once per instance) · `fanOutPush(payload, logTag)` — every subscribed device · `sendTargetedPush(payload, ownerUids, logTag, { timeoutMs }?)` — named uids only, an optional SHORTER per-send deadline for a caller that must answer quickly · `releasePushForOwner(uid)` — deletes the records one account owns, the leaver sweep's last step (an empty uid touches nothing) · `pushSendOptions(payload, timeoutMs)` / `PUSH_TTL_BY_TAG` — how long a push service may hold each feature's notice; a new feature adds its tag or gets a day.
 - **`sendTargetedPush` fails CLOSED at every step**: no target uids → nothing sent; a record with no `owner` → skipped, never assumed; no matches → log and stop. There is deliberately no fall-back-to-everyone branch, because the notice that needs it is "N. Surname is locked out".
 - Both senders skip any endpoint `isAllowedPushEndpoint` refuses, and delete a record only on a 404 or 410 (`shouldDeleteSubscription`), never on a 401.
 

@@ -169,6 +169,42 @@ describe('the body arrives in three shapes, and only one of them is an object', 
                 'the raw-body fallback widened what this endpoint will sign');
         }
     });
+
+    test('an empty parsed body falls back to the raw bytes the runtime kept beside it', () => {
+        assert.equal(C.kindFromBody({}, Buffer.from('{"kind":"circular"}')), 'circular');
+    });
+});
+
+// ── THE SHARED READER ITSELF (request-helpers.js, functions-core-8) ─────────────────────────────
+// kindFromBody is built on it, and so is every other endpoint's body: one copy instead of five that
+// had drifted. It requires nothing at load time, which is why it is tested here, in test:hygiene.
+describe('request-helpers: one body reader and one bearer parser for every endpoint', () => {
+    const H = require('./functions/request-helpers.js');
+
+    test('every shape the runtime hands over reads as the same object', () => {
+        const want = { member: 'L. Springer' };
+        const json = JSON.stringify(want);
+        for (const [body, rawBody] of [[want, undefined], [Buffer.from(json), undefined], [json, undefined],
+            [{}, Buffer.from(json)], [undefined, Buffer.from(json)], ['', json]]) {
+            assert.deepEqual(H.jsonBodyOf(body, rawBody), want,
+                `${Buffer.isBuffer(body) ? 'Buffer' : JSON.stringify(body)} + ${rawBody ? 'rawBody' : 'nothing'}`);
+        }
+        assert.deepEqual(H.readJsonBody({ body: Buffer.from(json) }), want, 'and through a request');
+    });
+
+    test('nothing usable is an empty object — never a throw, never an array or a scalar', () => {
+        for (const bad of [undefined, null, '', '   ', Buffer.alloc(0), '{not json', '[1,2]', '"x"', '7', 7]) {
+            assert.deepEqual(H.jsonBodyOf(/** @type {any} */ (bad)), {}, JSON.stringify(bad));
+        }
+        assert.deepEqual(H.readJsonBody(undefined), {});
+    });
+
+    test('the bearer scheme is matched in any case, and a missing header is no token', () => {
+        const req = (/** @type {any} */ authorization) => ({ headers: authorization === undefined ? {} : { authorization } });
+        for (const h of ['Bearer tok', 'bearer tok', 'BEARER   tok  ']) assert.equal(H.bearerToken(req(h)), 'tok', h);
+        for (const h of [undefined, '', 'Bearer ']) assert.equal(H.bearerToken(req(h)), '', JSON.stringify(h));
+        assert.equal(H.bearerToken(undefined), '');
+    });
 });
 
 describe('HOW LONG — the window has to outlive Microsoft, not the tap', () => {
