@@ -220,6 +220,30 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // THE CALENDAR'S THREE SEE-THROUGH PANELS (whole-app check, 10 Nov 2026). No scan opened the day
+    // panel, the leave panel or Team View's help, and css-calendar-2 (a navy ring on navy glass) and -11
+    // (a caption at 4.36:1) were both on them. Each is opened the way a member opens it and scanned with
+    // the page behind it, which the scans above already cover.
+    test('calendar — the day, leave and Team View help panels, open', async ({ page }) => {
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        /** @type {Array<[() => Promise<void>, string]>} */
+        const panels = [
+            [() => page.locator('.calendar-day:not(.other-month)').nth(10).click(), '#dayDetailLightbox'],
+            [() => page.locator('#alBtn').click(), '#alLightbox'],
+            [async () => { await page.locator('#teamViewBtn').click(); await page.locator('#teamHelpBtn').click(); }, '#teamInfoLightbox'],
+        ];
+        for (const [open, panel] of panels) {
+            await open();
+            await expect(page.locator(panel)).toHaveClass(/\bopen\b/);
+            const v = await scan(page, { exclude: ['.other-month'] });
+            expect(v.length, `${panel} open — ${report(v)}`).toBe(0);
+            await page.keyboard.press('Escape');
+            await expect(page.locator(panel)).not.toHaveClass(/\bopen\b/);
+        }
+    });
+
     // The LOCKED Calendar (v20.12). The one state a visitor with no session and no PIN ever sees,
     // and it would be invisible to every other scan in this file — they all establish access first.
     // It is also the app's front door for anyone who has never used it, which is exactly the
