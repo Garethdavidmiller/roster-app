@@ -355,6 +355,19 @@ test('fip: a link that shows a phone number dials it, and the website is its own
     await expect(site).toContainText('website');
 });
 
+// Whole-app review, Nov 2026 (a lead from the PWA reader): every app page names its tab icon, and the
+// guides named none, so a browser fell back to the ORIGIN's /favicon.ico — which neither origin has,
+// and which on the Pages mirror is a different site altogether. Each guide now asks for the app's
+// own icon. (paycalc-guide.html belongs to another area and is reported there.)
+for (const guide of ['staff-guide', 'railcard-guide', 'fip-guide', 'rangers-guide']) {
+    test(`${guide}: names the app's own tab icon, so the browser never falls back to /favicon.ico`, async ({ page }) => {
+        const asked = page.waitForRequest(r => new URL(r.url()).pathname.endsWith('/icon-192.png'), { timeout: 5000 });
+        await page.goto(`/${guide}.html`);
+        await asked;
+        await expect(page.locator('link[rel="icon"][href$="icon-192.png"]')).toHaveCount(1);
+    });
+}
+
 test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
     await page.goto('/fip-guide.html');
     // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,
