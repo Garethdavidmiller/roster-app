@@ -36,13 +36,15 @@ import { perfSampleKey, summarisePerf, createPerfBatcher } from './perf-stats.js
 
 /**
  * A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1, Nov 2026) — the rule
- * overtime-data.js states, for the three reads Operations paints from here. With the persistent cache,
- * an unreachable server does not fail a read: once the SDK is offline it answers from this device's
- * copy, as of whenever it last heard, and the cards showed that as current — "✓ No errors recorded.",
- * last visit's usage. It is thrown as `unavailable`, the SDK's own code for an offline read it cannot
- * answer, so each card's existing "Couldn't load … Try again" path takes over; and it is thrown before
- * any prune, so no delete is decided on the cache's copy. Online the SDK waits for the server, so
- * `fromCache` is false and nothing changes. firebase-client.js keeps the same guard for its own reads.
+ * overtime-data.js states, for every read the Operations cards paint: these three, and the three in
+ * firebase-client.js, which keeps the same guard. With the persistent cache, an unreachable server
+ * does not fail a read: once the SDK is offline it answers from this device's copy, as of whenever it
+ * last heard, empty included, and the cards showed that as current: "0/51", "✓ No errors recorded",
+ * and "✓ No outstanding requests" beside a member locked out since. It is thrown as `unavailable`,
+ * the SDK's own code for an offline read it cannot answer, so each card's existing "Couldn't load …
+ * Try again" path takes over, and withClaimRetry, which retries only `permission-denied`, re-throws it
+ * untouched. It is thrown before any prune, so no delete is decided on the cache's copy. Online the
+ * SDK waits for the server, so `fromCache` is false and nothing changes.
  * @template T @param {T} snap @returns {T}
  */
 function refuseCachedRead(snap) {

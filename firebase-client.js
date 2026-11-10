@@ -357,11 +357,9 @@ export async function withClaimRetry(fn) {
  *  write no new one starts until reload. @template T @param {() => Promise<T>} fn @returns {Promise<T>} */
 export function writeWithClaimRetry(fn) { return runGatedWrite(() => withClaimRetry(fn)); }
 
-/** A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1), for the admin reads below: offline,
- *  `getDocs` resolves from this device's cache, empty included, and Operations painted it as the server's
- *  answer ("✓ No outstanding requests", "0/51"). `unavailable` is the SDK's own offline code, so each card's
- *  catch says "Couldn't load" and withClaimRetry re-throws it untouched. analytics-client.js keeps the same
- *  guard. Online the SDK waits for the server, and nothing changes. @template T @param {T} snap @returns {T} */
+/** A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1) — for the admin reads below, which
+ *  Operations painted as current offline ("✓ No outstanding requests", "0/51"). analytics-client.js keeps the
+ *  same guard, with the argument and why it throws `unavailable`. @template T @param {T} snap @returns {T} */
 function refuseCachedRead(snap) {
     if (/** @type {any} */ (snap)?.metadata?.fromCache) throw Object.assign(new Error('Read was served from the offline cache'), { code: 'unavailable' });
     return snap;
