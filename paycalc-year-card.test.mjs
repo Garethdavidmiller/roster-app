@@ -595,6 +595,24 @@ describe('where focus goes when a fill ends', () => {
         assert.equal(doc.activeElement, receipt, 'the receipt is what a screen reader should read next');
     });
 
+    test('the receipt KEEPS focus through the further rebuilds that follow a fill', async () => {
+        // The page re-prices the back-pay lump after a fill (a recalculation) and then recalculates
+        // again, so a fill ends in two rebuilds — and in a browser each one drops focus off the node it
+        // replaces. Handing the second one's focus to the button moved it off the receipt being read.
+        const html = /** @type {PropertyDescriptor} */ (Object.getOwnPropertyDescriptor(_block, 'innerHTML'));
+        Object.defineProperty(_block, 'innerHTML', {
+            get: html.get,
+            set(/** @type {string} */ v) {
+                if (_block.contains(doc.activeElement)) doc.activeElement = doc.body;
+                html.set?.call(this, v);
+            },
+        });
+        initYearCard({ afterFill: () => { render(); render(); } });
+        render();
+        await clickFill(fillButton());
+        assert.equal(doc.activeElement, receipt, 'the second rebuild hands focus back to the receipt');
+    });
+
     test('a member who moved to another field while the fill ran keeps their place', async () => {
         render();
         const handler = _block._on.click?.[0];
