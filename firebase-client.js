@@ -154,13 +154,11 @@ function _setMemberPersistence() {
 // PURE, and imported for the same reason session.js imports it: the question "is this identity the
 // shared Calendar viewer?" must have ONE answer, and the boot-persistence decision below is a place
 // where a second local copy of that predicate would be a second place a bypass could be introduced.
-// calendar-access-core.js imports only the pure auth-identity.js, so this adds no cycle
-// (import-graph.test.mjs).
+// calendar-access-core.js imports only the pure auth-identity.js — no cycle (import-graph.test.mjs).
 import { isViewerUser } from './calendar-access-core.js';
 
 /** Resolve the FIRST auth emission (the persisted-user restore), bounded at 8s; null on timeout.
- *  The app's only subscription for that question: session.js's `restoreFirstAuthUser` delegates to
- *  `currentUserAfterBoot` (below), which awaits the boot this feeds (v21.29).
+ *  The app's one such subscription: session.js's `restoreFirstAuthUser` awaits it via `currentUserAfterBoot`.
  *  **It bounds the emission, NOT `authReady`** (measured, browser SDK build, Sep 2026): Auth's
  *  initialisation includes the stored user's `accounts:lookup`, and `setPersistence` queues behind
  *  it — so `authReady` settles when the lookup does, up to the SDK's 30s API timeout.
@@ -635,8 +633,7 @@ export async function savePasswordSetAt(memberName) {
  */
 export async function getAllPasswordStatus() {
     const snap = await getDocs(collection(db, COLLECTIONS.passwordStatus));
-    // memberName AFTER the spread, as getResetRequests below (v18.94): the doc id is what the rules
-    // bind, so a stored field of the same name must never win over it.
+    // The id AFTER the spread, as in getResetRequests (v18.94): what the rules bind must win.
     return snap.docs.map(/** @param {any} d */ d => ({ ...d.data(), memberName: d.id }));
 }
 
@@ -672,15 +669,17 @@ export async function reauthenticateWithPassword(memberName, typed) {
 }
 
 /**
- * Change the signed-in member's OWN password, and START the `passwordSetAt` stamp without waiting
- * for it. Resolves the moment the password HAS changed, which is where a caller's deadline belongs
- * (settings-ops-2, Nov 2026): the stamp is a Firestore write that settles only when the server
- * acknowledges it, and waited for inside an 8-second deadline it turned a password that had changed
- * into "we couldn't confirm" wherever commits were slow. `stamp` settles `true` once recorded and
- * `false` if not — it never rejects, because the password changed either way (`setOwnPassword`
- * below says why a missing stamp is only a soft note). The forced set-password overlay uses this.
- * @param {string} memberName
- * @param {string} newPassword
+ * Set the signed-in member's OWN password (after a fresh reauth) — the server never sees it — and
+ * START the `passwordSetAt` stamp without waiting. Resolves once the password HAS changed, the half a
+ * deadline belongs on (settings-ops-2): timed together, a slow commit read as "we couldn't confirm".
+ *
+ * Ordering matters: the stamp is a SEPARATE Firestore write that can fail on its own (transient /
+ * `unavailable`, a `permission-denied` surviving the claim retry, an offline queue rejection). Had
+ * that failed the change, the member would be told to retry with a password that NO LONGER EXISTS,
+ * and a Firestore error would read as "current password incorrect". So `stamp` settles false and
+ * never rejects: the password changed either way, and only the migration record (a monitoring
+ * signal, not a security control) is missing until the next successful set.
+ * @param {string} memberName @param {string} newPassword
  * @returns {Promise<{ stamp: Promise<boolean> }>} rejects only if the password itself was not changed
  */
 export async function changeOwnPassword(memberName, newPassword) {
@@ -688,33 +687,16 @@ export async function changeOwnPassword(memberName, newPassword) {
     if (!user) throw new Error('Not signed in');
     await updatePassword(user, newPassword);   // (A) the password is now genuinely changed
     // (B) record migration — best-effort, must not undo (A), and never awaited here
-    const stamp = savePasswordSetAt(memberName).then(() => true, (e) => {
-        console.warn('[Auth] password changed, but passwordSetAt stamp failed:', e);
-        return false;
-    });
+    const stamp = savePasswordSetAt(memberName).then(() => true,
+        (e) => { console.warn('[Auth] password changed, but passwordSetAt stamp failed:', e); return false; });
     return { stamp };
 }
 
 /**
- * Set the signed-in member's OWN Firebase Auth password to a new value (after a fresh reauth), then
- * stamp `passwordSetAt`. Standard secure client flow — the server never sees the password.
- *
- * Ordering matters: the `passwordSetAt` stamp is a SEPARATE Firestore write that can fail
- * independently of the (already-committed) password change (transient/`unavailable`, a
- * `permission-denied` surviving the claim retry, an offline queue rejection). If a stamp failure
- * were allowed to reject this function, the caller would surface "password change failed" — telling
- * the user to retry with a password that NO LONGER EXISTS and routing a Firestore error into the
- * "current password incorrect" branch, leaving them stuck. So a stamp failure is swallowed and
- * reported via `statusRecorded:false` — the password genuinely changed either way; only the
- * migration record (a monitoring signal, not a security control) is missing and self-heals on the
- * next successful set.
- *
- * It WAITS for the stamp, so a caller that puts a deadline on it is timing the stamp too — the Settings
- * card does today (settings-ops-2); `changeOwnPassword` above is the half to put a deadline on.
- * @param {string} memberName
- * @param {string} newPassword
- * @returns {Promise<{ statusRecorded: boolean }>} `statusRecorded` is false when the password
- *   changed but the migration stamp did not persist.
+ * `changeOwnPassword`, then WAIT for the stamp — so a deadline on this times the stamp too. The
+ * Settings card's call (settings-ops-2 is to move it to `changeOwnPassword`).
+ * @param {string} memberName @param {string} newPassword
+ * @returns {Promise<{ statusRecorded: boolean }>} false when the password changed but the stamp did not persist
  */
 export async function setOwnPassword(memberName, newPassword) {
     const { stamp } = await changeOwnPassword(memberName, newPassword);
@@ -728,12 +710,9 @@ const RESET_PASSWORD_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/r
 
 /**
  * Reset a member's password to the surname default (admin break-glass), and sign the member out of
- * their other devices. Requires the caller's admin claim (enforced server-side).
- *
- * `revoke` is true unless a caller says otherwise, and none does: `revoke: false` was kept for a
- * "Phase-2 migration nudge", which PASSWORD_DESIGN.md §7 records as doing nothing — the forced
- * set-password overlay is the whole mechanism. The one caller (Operations) passes `true`, the default;
- * once it stops passing anything, the option can go.
+ * their other devices. Requires the caller's admin claim (enforced server-side). `revoke: false` was
+ * kept for a "Phase-2 migration nudge" that PASSWORD_DESIGN.md §7 records as doing nothing; the one
+ * caller (Operations) passes `true`, the default, and once it passes nothing the option can go.
  * @param {string} memberName
  * @param {{ revoke?: boolean }} [opts]
  * @returns {Promise<any>} the function's JSON response
