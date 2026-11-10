@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -193,11 +193,19 @@ describe('a failed deploy is announced, whenever it fails', () => {
 
             // `needs` is what makes it run after the deploy; the job-level `if` is what makes it run
             // when the deploy died before its first step. A step-level guard is the defect.
-            assert.match(block, /^ {4}needs: deploy[ \t]*$/m,
+            assert.match(block, /^ {4}needs: (deploy|\[(\w+, )*deploy(, \w+)*\])[ \t]*$/m,
                 `${file}: report-failure must declare 'needs: deploy'`);
-            assert.match(block, /^ {4}if: failure\(\)[ \t]*$/m,
-                `${file}: report-failure needs a JOB-level 'if: failure()' — a step-level guard is `
-                + 'exactly what could not fire when the job failed during setup.');
+            // …and when it was CANCELLED, which is how a job that runs out of time ends (10 Nov 2026
+            // review). `failure()` alone is false for a cancelled job: the v24.44 deploy cut off at
+            // 20m00s told nobody. The spelling matters as much as the shape — GitHub's value is
+            // `cancelled`, and a `canceled` here would never match anything.
+            assert.match(block, /^ {4}if: failure\(\) \|\| contains\(needs\.\*\.result, 'cancelled'\)[ \t]*$/m,
+                `${file}: report-failure needs the JOB-level 'if: failure() || contains(needs.*.result, `
+                + "'cancelled')' — a step-level guard could not fire when the job failed during setup, "
+                + 'and `failure()` alone does not fire when the deploy ran out of time.');
+            assert.match(block, /^ {10}result: \$\{\{ contains\(needs\.\*\.result, 'cancelled'\) && 'cancelled' \|\| 'failure' \}\}[ \t]*$/m,
+                `${file}: report-failure must tell the notice how the deploy ended — a deploy cut off `
+                + 'part-way is not one that "did not go out"');
             // Without issues:write the reporter runs and the API call fails — a notifier that
             // reports nothing is worse than none, because the workflow still goes green-ish.
             assert.match(block, /^ {6}issues: write[ \t]*$/m,
@@ -217,6 +225,114 @@ describe('a failed deploy is announced, whenever it fails', () => {
                 + 'handler already covers every failure the step could see, and more.');
         });
     }
+
+    test('the mirror\'s notice names the release its plan chose, not main\'s tip', () => {
+        // 10 Nov 2026 review: the mirror publishes the commit a Hosting run released, while its own
+        // run's commit is main's tip — usually a merge Hosting has not released yet. The reporter
+        // only waited for the deploy job, so it could not see the plan's choice and named the tip.
+        const src = readFileSync(join(WF_DIR, 'deploy-mirror.yml'), 'utf8');
+        const block = src.slice(src.search(/^ {2}report-failure:[ \t]*$/m));
+        assert.match(block, /^ {4}needs: \[plan, deploy\][ \t]*$/m, 'the reporter must wait for the plan to read its choice');
+        assert.match(block, /^ {10}sha: \$\{\{ needs\.plan\.outputs\.sha \|\| 'none' \}\}[ \t]*$/m,
+            'the reporter must pass on the commit the plan chose, or `none` when it chose nothing');
+        const action = readFileSync('.github/actions/report-deploy-failure/action.yml', 'utf8');
+        assert.match(action, /^ {8}SHA: \$\{\{ inputs\.sha \|\| github\.sha \}\}[ \t]*$/m,
+            'the action must report the commit it is given, and the run\'s own only when given none');
+        assert.match(action, /^ {8}RESULT: \$\{\{ inputs\.result \}\}[ \t]*$/m, 'the action must read how the deploy ended');
+    });
+
+    test('a post-deploy read cannot hang until the job runs out of time', () => {
+        // A curl with no --max-time against an origin that accepts and never answers waits until
+        // the job's own limit cancels it — the silent ending the reporter now catches, but a step
+        // that fails by name says what hung. Every curl in every workflow carries a limit.
+        for (const f of readdirSync(WF_DIR).filter(n => /\.ya?ml$/.test(n))) {
+            const unbounded = readFileSync(join(WF_DIR, f), 'utf8').split('\n')
+                .filter(l => !l.trim().startsWith('#') && /\bcurl\s+-/.test(l) && !/--max-time\s+\d+/.test(l));
+            assert.deepEqual(unbounded, [], `${f}: a curl with no --max-time`);
+        }
+    });
+
+    describe('the notice says which commit, and whether the deploy was cut off', () => {
+        const script = stepScript(readFileSync('.github/actions/report-deploy-failure/action.yml', 'utf8'),
+            'Open or update the deploy-failure issue');
+        const HEAD = '1'.repeat(40), RELEASE = '2'.repeat(40);
+
+        /**
+         * Runs the reporter's script with `gh` and `git` stubbed and returns the issue body it sent.
+         * @param {Record<string, string>} env
+         * @param {Record<string, string>} [versions] the APP_VERSION the API holds at each commit
+         */
+        const notice = (env, versions = {}) => {
+            const dir = mkdtempSync(join(tmpdir(), 'reporter-'));
+            try {
+                const bin = join(dir, 'bin');
+                mkdirSync(bin);
+                writeFileSync(join(bin, 'git'), '#!/usr/bin/env bash\n[ "$1 $2" = "rev-parse HEAD" ] && echo "$STUB_HEAD" && exit 0\nexit 1\n', { mode: 0o755 });
+                writeFileSync(join(bin, 'gh'), `#!/usr/bin/env node
+const { appendFileSync, writeFileSync } = require('node:fs');
+const a = process.argv.slice(2);
+appendFileSync(process.env.GH_LOG, a.join(' ') + '\\n');
+if (a[0] === 'api') {
+    const m = /^repos\\/[^/]+\\/[^/]+\\/contents\\/roster-data\\.js\\?ref=(\\w+)$/.exec(a[a.length - 1]);
+    const v = m && JSON.parse(process.env.STUB_VERSIONS)[m[1]];
+    if (!v || !a.includes('Accept: application/vnd.github.raw')) { console.error('gh: HTTP 404'); process.exit(1); }
+    process.stdout.write("export const APP_VERSION = '" + v + "';\\n");
+} else if (a[0] === 'issue' && (a[1] === 'create' || a[1] === 'comment')) {
+    writeFileSync(process.env.GH_BODY, a[a.indexOf('--body') + 1]);
+}
+`, { mode: 0o755 });
+                writeFileSync(join(dir, 'report.sh'), script);
+                writeFileSync(join(dir, 'roster-data.js'), "export const APP_VERSION = '25.64';\n");
+                writeFileSync(join(dir, 'calls'), '');
+                writeFileSync(join(dir, 'body'), '');
+                execFileSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', 'report.sh'], { cwd: dir, encoding: 'utf8', stdio: 'pipe',
+                    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_LOG: join(dir, 'calls'), GH_BODY: join(dir, 'body'),
+                        STUB_HEAD: HEAD, STUB_VERSIONS: JSON.stringify(versions), GH_TOKEN: 'stub', GITHUB_REPOSITORY: 'owner/roster-app',
+                        TARGET: 'Firebase Hosting', RUN_URL: 'https://example.invalid/run/1', WORKFLOW: 'Deploy Firebase Hosting',
+                        SHA: HEAD, RESULT: 'failure', ...env } });
+                return { body: readFileSync(join(dir, 'body'), 'utf8'), calls: readFileSync(join(dir, 'calls'), 'utf8') };
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        };
+
+        test('a failed deploy names its own commit and the version checked out', () => {
+            const { body, calls } = notice({});
+            assert.match(body, /\*\*Firebase Hosting did not deploy\.\*\*/);
+            assert.match(body, /this commit did \*\*not\*\* go out/);
+            assert.ok(body.includes(`| Commit | \`${HEAD}\` |`), body);
+            assert.ok(body.includes('| App version at this commit | `v25.64` |'), body);
+            assert.doesNotMatch(calls, /contents\//, 'the checked-out commit needs no API read');
+        });
+
+        test('a deploy that was cut off says it may have stopped part-way, not that nothing went out', () => {
+            const { body } = notice({ RESULT: 'cancelled' });
+            assert.match(body, /did not finish deploying/);
+            assert.match(body, /ran out of time, or the run was\s+cancelled/);
+            assert.doesNotMatch(body, /did \*\*not\*\* go out/,
+                'a deploy cut off part-way may be partly live; "did not go out" would send the reader the wrong way');
+        });
+
+        test('another commit is named with ITS version, read at that commit', () => {
+            // The mirror's case: main's tip checked out (v25.64), the release being published v25.62.
+            const { body, calls } = notice({ TARGET: 'GitHub Pages mirror', SHA: RELEASE }, { [RELEASE]: '25.62' });
+            assert.ok(body.includes(`| Commit | \`${RELEASE}\` |`), body);
+            assert.ok(body.includes('| App version at this commit | `v25.62` |'), `the version of the checked-out tip was reported:\n${body}`);
+            assert.match(calls, new RegExp(`contents/roster-data\\.js\\?ref=${RELEASE}`));
+        });
+
+        test('a run that chose nothing says so, and claims no commit or version', () => {
+            const { body } = notice({ TARGET: 'GitHub Pages mirror', SHA: 'none' });
+            assert.match(body, /stopped before choosing what to publish, so nothing went out/);
+            assert.ok(body.includes('| Commit | none — the run stopped before choosing one |'), body);
+            assert.ok(body.includes('| App version at this commit | unknown |'), body);
+        });
+
+        test('a version it cannot read is "unknown", not "vunknown"', () => {
+            const { body } = notice({ SHA: RELEASE });
+            assert.ok(body.includes('| App version at this commit | unknown |'), body);
+        });
+    });
 });
 
 // ── THE SUITE MUST NOT RUN TWICE, AND MUST NOT SKIP ITSELF (1 Sep 2026) ────────────────────────────
@@ -613,16 +729,368 @@ describe('the deploy workflows serialise rather than race', () => {
 // displace a pending `main` B and leave production finishing on C while main holds the newer tree.
 //
 // The guard is one `if:` per workflow, which is exactly the kind of line a later edit removes
-// without noticing. Asserted here rather than trusted.
+// without noticing. Asserted here rather than trusted. It stops C DEPLOYING; it cannot stop C
+// displacing B, because a run joins the queue before any job's condition is read (10 Nov 2026
+// review). So each workflow also has a `not-main` job that turns such a run red and says what to do,
+// instead of letting it finish green having deployed nothing while B is lost.
 describe('deploy workflows only run from main', () => {
     for (const wf of ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml', 'deploy-mirror.yml']) {
         test(`${wf} gates its deploy job on refs/heads/main`, () => {
             const src = readFileSync(new URL(`.github/workflows/${wf}`, import.meta.url), 'utf8');
             assert.match(src, /if:\s*github\.ref == 'refs\/heads\/main'/,
                 `${wf} must gate its deploy job on main — without it a manual dispatch from a `
-                + 'branch can displace a pending main deploy and land production on that branch');
+                + 'branch deploys that branch to production');
+        });
+
+        test(`${wf}: a run from another branch fails and says what to do`, () => {
+            const src = readFileSync(join(WF_DIR, wf), 'utf8');
+            const start = src.search(/^ {2}not-main:[ \t]*$/m);
+            assert.ok(start > -1, `${wf}: no not-main job, so a branch run that displaced a waiting main deploy goes green`);
+            const rest = src.slice(start + 1);
+            const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+            const job = next === -1 ? rest : rest.slice(0, next);
+            assert.match(job, /^ {4}if: github\.ref != 'refs\/heads\/main'[ \t]*$/m, `${wf}: not-main must run exactly when the deploy does not`);
+            assert.match(job, /::error title=Nothing was (deployed|published)::[^\n]*Run workflow, on main/, `${wf}: not-main must say what to do`);
+            assert.match(job, /^\s+exit 1[ \t]*$/m, `${wf}: not-main must FAIL the run — a green run that did nothing is the silence it exists to end`);
+            assert.match(job, /^ {4}permissions: \{\}[ \t]*$/m, `${wf}: not-main needs no token at all`);
         });
     }
+});
+
+/**
+ * The script of the step called `name`: its `run: |` block scalar, dedented. Refuses to reach past
+ * the step into the next one, so a step that lost its script fails here rather than lending another's.
+ * @param {string} src a workflow's source
+ * @param {string} name the step's `name:`
+ */
+function stepScript(src, name) {
+    const lines = src.split('\n');
+    const at = lines.findIndex(l => l.trim() === `- name: ${name}`);
+    assert.ok(at >= 0, `no step is named "${name}"`);
+    const runAt = lines.findIndex((l, i) => i > at && /^\s*run: \|\s*$/.test(l));
+    assert.ok(runAt > at && !lines.slice(at + 1, runAt).some(l => /^\s*- (name|uses):/.test(l)),
+        `the "${name}" step has no \`run: |\` script of its own`);
+    const indent = lines[runAt + 1].match(/^\s*/)[0].length;
+    const body = [];
+    for (let i = runAt + 1; i < lines.length; i++) {
+        if (lines[i].trim() && lines[i].match(/^\s*/)[0].length < indent) break;
+        body.push(lines[i].slice(indent));
+    }
+    return body.join('\n');
+}
+
+/**
+ * A stand-in for `gh api`, written into `bin`. It answers from the JSON fixture named by $GH_STUB —
+ * workflow runs filtered by the query's branch, event, status and per_page the way the API filters
+ * them, the Pages build type, and how main compares with a commit — applies `--jq` with the real jq,
+ * and appends every path it is asked for to $GH_LOG. Anything else is an error, so a script that
+ * starts asking a new question fails its test instead of being answered by accident.
+ * @param {string} bin
+ */
+function writeGhStub(bin) {
+    writeFileSync(join(bin, 'gh'), `#!/usr/bin/env node
+const { readFileSync, appendFileSync } = require('node:fs');
+const { execFileSync } = require('node:child_process');
+const args = process.argv.slice(2);
+if (args[0] !== 'api') { console.error('stub gh: only "gh api" is stubbed'); process.exit(2); }
+const path = args[1];
+appendFileSync(process.env.GH_LOG, path + '\\n');
+const jq = args.includes('--jq') ? args[args.indexOf('--jq') + 1] : '.';
+const fx = JSON.parse(readFileSync(process.env.GH_STUB, 'utf8'));
+const [p, query = ''] = path.split('?');
+const q = new URLSearchParams(query);
+let body, m;
+if (/^repos\\/[^/]+\\/[^/]+\\/actions\\/workflows\\/[^/]+\\/runs$/.test(p)) {
+    let runs = fx.runs;
+    if (q.has('branch')) runs = runs.filter(r => r.head_branch === q.get('branch'));
+    if (q.has('event')) runs = runs.filter(r => r.event === q.get('event'));
+    if (q.has('status')) runs = runs.filter(r => r.conclusion === q.get('status') || r.status === q.get('status'));
+    if (q.has('per_page')) runs = runs.slice(0, Number(q.get('per_page')));
+    body = { workflow_runs: runs };
+} else if (/^repos\\/[^/]+\\/[^/]+\\/pages$/.test(p)) {
+    body = { build_type: fx.build_type };
+} else if ((m = /^repos\\/[^/]+\\/[^/]+\\/compare\\/(.+)\\.\\.\\.main$/.exec(p)) && m[1] in fx.on_main) {
+    body = { status: fx.on_main[m[1]] };
+} else {
+    console.error('gh: HTTP 404: Not Found (' + path + ')');
+    process.exit(1);
+}
+process.stdout.write(execFileSync('jq', ['-r', jq], { input: JSON.stringify(body) }));
+`, { mode: 0o755 });
+}
+
+// ── THE MIRROR PUBLISHES ONLY A RELEASE THIS REPOSITORY MADE (whole-app review, 10 Nov 2026) ────
+//
+// deploy-mirror.yml used to recognise "a commit Hosting released" by three things a stranger can
+// supply: the triggering workflow's NAME, its branch name and its conclusion. A fork's pull request
+// that renames a one-step workflow "Deploy Firebase Hosting" and calls its branch `main` ends
+// `success`, on `main`, at the fork's commit — and once Pages deploys from the workflow, the mirror
+// most staff open would publish it (a manual run picked it too, being the newest "success on main").
+// Nothing is run on GitHub here, so the plan step's own script is run, with `gh` stubbed and a run
+// list in which the stranger's run is the newest of all.
+describe('the Pages mirror publishes only a release this repository made', () => {
+    const script = stepScript(readFileSync(join(WF_DIR, 'deploy-mirror.yml'), 'utf8'), 'Decide what to publish');
+    const OURS = 1001, THEIRS = 2002;
+    const A = 'a'.repeat(40), B = 'b'.repeat(40), C = 'c'.repeat(40), F = 'f'.repeat(40);
+    const run = (/** @type {object} */ r) => ({ head_branch: 'main', status: 'completed', conclusion: 'success',
+        head_repository: { id: OURS, full_name: 'owner/roster-app' }, ...r });
+    const stranger = { id: THEIRS, full_name: 'stranger/roster-app' };
+    // Newest first, as the API lists them.
+    const RUNS = [
+        run({ run_number: 46, event: 'pull_request', head_sha: F, head_repository: stranger }),
+        run({ run_number: 45, event: 'workflow_dispatch', head_sha: B }),
+        run({ run_number: 44, event: 'push', head_sha: A }),
+        run({ run_number: 43, event: 'push', head_sha: C, conclusion: 'failure' }),
+    ];
+    // How main compares with each commit. `main` itself compares as identical, as it would on GitHub.
+    const ON_MAIN = { [A]: 'ahead', [B]: 'identical', [C]: 'ahead', [F]: 'behind', main: 'identical' };
+
+    /**
+     * Runs the plan step once.
+     * @param {Record<string, string>} env what GitHub would put in the step's env
+     * @param {{ runs?: object[], build_type?: string }} [fixture]
+     */
+    const plan = (env, fixture = {}) => {
+        const dir = mkdtempSync(join(tmpdir(), 'mirror-plan-'));
+        try {
+            const bin = join(dir, 'bin');
+            mkdirSync(bin);
+            writeGhStub(bin);
+            writeFileSync(join(dir, 'plan.sh'), script);
+            writeFileSync(join(dir, 'fixture.json'), JSON.stringify({ runs: RUNS, build_type: 'workflow', on_main: ON_MAIN, ...fixture }));
+            writeFileSync(join(dir, 'out'), '');
+            writeFileSync(join(dir, 'calls'), '');
+            const vars = { PATH: `${bin}:${process.env.PATH}`, GH_STUB: join(dir, 'fixture.json'), GH_LOG: join(dir, 'calls'),
+                GITHUB_OUTPUT: join(dir, 'out'), GITHUB_REPOSITORY: 'owner/roster-app', GH_TOKEN: 'stub', REPO_ID: String(OURS),
+                EVENT: 'workflow_run', ATTEMPT: '1', RUN_CONCLUSION: '', RUN_BRANCH: '', RUN_SHA: '', RUN_EVENT: '',
+                RUN_REPO_ID: '', RUN_REPO: '', ...env };
+            let status = 0, out = '';
+            try {
+                out = execFileSync('bash', ['--noprofile', '--norc', '-e', 'plan.sh'], { cwd: dir, env: vars, encoding: 'utf8', stdio: 'pipe' });
+            } catch (/** @type {any} */ e) {
+                status = e.status;
+                out = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+            }
+            const outputs = Object.fromEntries(readFileSync(join(dir, 'out'), 'utf8').split('\n').filter(Boolean)
+                .map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
+            const calls = readFileSync(join(dir, 'calls'), 'utf8').split('\n').filter(Boolean);
+            return { status, out, outputs, calls };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+    /** A finished Hosting run, as the workflow_run event describes it. */
+    const finished = (/** @type {Record<string, string>} */ r) => ({ RUN_CONCLUSION: 'success', RUN_BRANCH: 'main',
+        RUN_EVENT: 'push', RUN_REPO_ID: String(OURS), RUN_REPO: 'owner/roster-app', ...r });
+
+    test('a release from a push to main is published, once main is checked to hold it', () => {
+        const r = plan(finished({ RUN_SHA: A }));
+        assert.equal(r.status, 0, r.out);
+        assert.deepEqual(r.outputs, { sha: A, go: 'true' }, r.out);
+        assert.ok(r.calls.some(c => c.startsWith(`repos/owner/roster-app/compare/${A}...main`)),
+            'the plan must ask how main compares with the commit before publishing it');
+    });
+
+    test('so is a release somebody started by hand', () => {
+        const r = plan(finished({ RUN_SHA: B, RUN_EVENT: 'workflow_dispatch' }));
+        assert.deepEqual(r.outputs, { sha: B, go: 'true' }, r.out);
+    });
+
+    test('a fork\'s pull request named like the deploy, on a branch called main, publishes nothing and asks nothing', () => {
+        // The attack itself. It must stand down before any question is asked, so that a stranger's
+        // run can neither publish nor make the plan FAIL — a failure posts on the owner's deploy-failure
+        // thread, and the stranger could repeat it with every push to the pull request.
+        const r = plan(finished({ RUN_SHA: F, RUN_EVENT: 'pull_request', RUN_REPO_ID: String(THEIRS), RUN_REPO: 'stranger/roster-app' }));
+        assert.equal(r.status, 0, r.out);
+        assert.deepEqual(r.outputs, { go: 'false' }, `the stranger's commit was accepted:\n${r.out}`);
+        assert.match(r.out, /::warning::.*pull_request event in stranger\/roster-app/, 'the stand-down must say whose run it was');
+        assert.deepEqual(r.calls, [], 'nothing may be asked about a run nobody here started');
+    });
+
+    test('the event alone is enough to refuse: a pull-request run is never a release, whatever its repository', () => {
+        const r = plan(finished({ RUN_SHA: A, RUN_EVENT: 'pull_request' }));
+        assert.deepEqual(r.outputs, { go: 'false' }, r.out);
+    });
+
+    test('and so is the repository: a push event whose head is another repository is refused', () => {
+        // GitHub does not produce this today; the check must still hold on its own, so that neither
+        // half of the provenance test leans on the other.
+        const r = plan(finished({ RUN_SHA: A, RUN_REPO_ID: String(THEIRS), RUN_REPO: 'stranger/roster-app' }));
+        assert.deepEqual(r.outputs, { go: 'false' }, r.out);
+    });
+
+    test('a run that failed, or released another branch, still publishes nothing', () => {
+        assert.deepEqual(plan(finished({ RUN_SHA: C, RUN_CONCLUSION: 'failure' })).outputs, { go: 'false' });
+        assert.deepEqual(plan(finished({ RUN_SHA: A, RUN_BRANCH: 'claude/feature' })).outputs, { go: 'false' });
+    });
+
+    test('a commit main does not hold is refused, loudly, even from this repository', () => {
+        const r = plan(finished({ RUN_SHA: F }));
+        assert.equal(r.status, 1, `a commit main does not contain was published:\n${r.out}`);
+        assert.match(r.out, /::error::Commit f{40} is not on this repository's main \(main is 'behind' from it\)/);
+        assert.equal(r.outputs.go, undefined, r.out);
+    });
+
+    test('anything but a full commit SHA is refused, even one main "holds"', () => {
+        // The checkout takes `ref:` as given, so `main` would publish main's tip — the tree the gate
+        // may have refused, which is the one thing this workflow exists to stop.
+        const r = plan(finished({ RUN_SHA: 'main' }));
+        assert.equal(r.status, 1, r.out);
+        assert.equal(r.outputs.go, undefined, r.out);
+    });
+
+    test('a manual run publishes the newest release this repository made, never the stranger\'s newer run', () => {
+        // The newest successful run "on main" is the stranger's (46), and the old query asked for
+        // exactly that. Push (44) and hand (45) are asked for separately; the later of the two wins.
+        const r = plan({ EVENT: 'workflow_dispatch' });
+        assert.equal(r.status, 0, r.out);
+        assert.deepEqual(r.outputs, { sha: B, go: 'true' }, `the manual run published the wrong commit:\n${r.out}`);
+        for (const ev of ['push', 'workflow_dispatch']) {
+            assert.ok(r.calls.some(c => /\/actions\/workflows\/deploy-hosting\.yml\/runs\?/.test(c) && c.includes(`event=${ev}`)),
+                `the manual run must ask for ${ev} runs by event, or pull-request runs can fill the page`);
+        }
+    });
+
+    test('a manual run takes a push release when that is the newer one', () => {
+        const r = plan({ EVENT: 'workflow_dispatch' }, { runs: [run({ run_number: 47, event: 'push', head_sha: C }), ...RUNS] });
+        assert.deepEqual(r.outputs, { sha: C, go: 'true' }, r.out);
+    });
+
+    test('a manual run refuses a newest release from another repository, whatever its event says', () => {
+        // GitHub does not produce this today. If it ever did, quietly taking the older release
+        // beneath it would leave the mirror behind Hosting, so the run stops and says so.
+        const r = plan({ EVENT: 'workflow_dispatch' },
+            { runs: [run({ run_number: 48, event: 'workflow_dispatch', head_sha: F, head_repository: stranger }), ...RUNS] });
+        assert.equal(r.status, 1, `a run from another repository was taken:\n${r.out}`);
+        assert.match(r.out, /did not come from this repository/);
+        assert.equal(r.outputs.go, undefined, r.out);
+    });
+
+    test('a manual run with no release to publish fails rather than publishing something', () => {
+        const r = plan({ EVENT: 'workflow_dispatch' }, { runs: [RUNS[0], RUNS[3]] });
+        assert.equal(r.status, 1, r.out);
+        assert.match(r.out, /There is no successful Hosting release on main to publish/);
+    });
+
+    test('a re-run publishes the newest release, not the older one it was first given', () => {
+        // Re-running replays the event: this run was first given A, and B has been released since.
+        const r = plan({ ...finished({ RUN_SHA: A }), ATTEMPT: '2' });
+        assert.deepEqual(r.outputs, { sha: B, go: 'true' }, `a re-run put the mirror back on an older release:\n${r.out}`);
+    });
+
+    test('while Pages still builds from the branch, nothing is published and main is not asked', () => {
+        const r = plan(finished({ RUN_SHA: A }), { build_type: 'legacy' });
+        assert.equal(r.status, 0, r.out);
+        assert.deepEqual(r.outputs, { go: 'false' }, r.out);
+        assert.ok(!r.calls.some(c => c.includes('/compare/')), 'the inert workflow must not gain a new way to fail');
+    });
+});
+
+// ── A RE-RUN NEVER PUTS AN OLDER TREE LIVE (whole-app review, 10 Nov 2026) ──────────────────────
+//
+// A re-run replays its run's own commit, up to 30 days later, and the deploy-failure notice used to
+// say "re-run the workflow". Release A fails, B deploys, A is re-run: A's older tree goes live over
+// B with a green run — and for Rules that is older SECURITY rules, with nothing watching. The three
+// deploys now call one action that stops a re-run once a newer run of the same workflow exists. Its
+// script is run here against a stubbed run list, and its wiring is held in each deploy job.
+describe('a re-run never puts an older tree live', () => {
+    const ACTION = '.github/actions/refuse-overtaken-rerun/action.yml';
+    const script = stepScript(readFileSync(ACTION, 'utf8'), 'Stop a re-run that a newer run of this workflow has overtaken');
+    const REF = 'owner/roster-app/.github/workflows/deploy-functions.yml@refs/heads/main';
+    const run = (/** @type {number} */ n, /** @type {string} */ event, branch = 'main') => ({ run_number: n, event, head_branch: branch,
+        status: 'completed', conclusion: 'failure', head_sha: String(n % 10).repeat(40) });
+
+    /**
+     * @param {Record<string, string>} env
+     * @param {object[]} runs newest first, as the API lists them
+     */
+    const check = (env, runs) => {
+        const dir = mkdtempSync(join(tmpdir(), 'rerun-'));
+        try {
+            const bin = join(dir, 'bin');
+            mkdirSync(bin);
+            writeGhStub(bin);
+            writeFileSync(join(dir, 'check.sh'), script);
+            writeFileSync(join(dir, 'fixture.json'), JSON.stringify({ runs, on_main: {} }));
+            writeFileSync(join(dir, 'calls'), '');
+            const vars = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_STUB: join(dir, 'fixture.json'), GH_LOG: join(dir, 'calls'),
+                GITHUB_REPOSITORY: 'owner/roster-app', GH_TOKEN: 'stub', ATTEMPT: '2', RUN_NUMBER: '44', WORKFLOW_REF: REF,
+                WORKFLOW: 'Deploy Firebase Functions', ...env };
+            let status = 0, out = '';
+            try {
+                out = execFileSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', 'check.sh'], { cwd: dir, env: vars, encoding: 'utf8', stdio: 'pipe' });
+            } catch (/** @type {any} */ e) {
+                status = e.status;
+                out = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+            }
+            return { status, out, calls: readFileSync(join(dir, 'calls'), 'utf8').split('\n').filter(Boolean) };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+
+    test('a first attempt passes straight through, asking nothing', () => {
+        const r = check({ ATTEMPT: '1' }, [run(45, 'push'), run(44, 'push')]);
+        assert.equal(r.status, 0, r.out);
+        assert.deepEqual(r.calls, [], 'the queue keeps first attempts in order; they need no question');
+    });
+
+    test('a re-run of the newest run deploys, asking about this workflow by file', () => {
+        const r = check({}, [run(44, 'push'), run(40, 'workflow_dispatch')]);
+        assert.equal(r.status, 0, r.out);
+        assert.match(r.out, /still the newest run/);
+        for (const ev of ['push', 'workflow_dispatch']) {
+            assert.ok(r.calls.includes(`repos/owner/roster-app/actions/workflows/deploy-functions.yml/runs?branch=main&event=${ev}&per_page=1`),
+                `expected a question about ${ev} runs of deploy-functions.yml, got:\n${r.calls.join('\n')}`);
+        }
+    });
+
+    test('a re-run that a newer push has overtaken stops, and says what to do', () => {
+        const r = check({}, [run(45, 'push'), run(44, 'push')]);
+        assert.equal(r.status, 1, `an overtaken re-run went ahead:\n${r.out}`);
+        assert.match(r.out, /::error title=A newer deploy has overtaken this run::This is a re-run of run #44, and run #45/);
+        assert.match(r.out, /Run workflow, on main/);
+    });
+
+    test('so does one that a newer run started by hand has overtaken', () => {
+        const r = check({}, [run(46, 'workflow_dispatch'), run(44, 'push')]);
+        assert.equal(r.status, 1, r.out);
+    });
+
+    test('runs on other branches, and a stranger\'s pull-request runs, overtake nothing', () => {
+        // A branch run deploys nothing; a pull-request run named like a deploy is anybody's to start,
+        // and must not be a way to block the owner's re-run.
+        const r = check({}, [run(48, 'pull_request'), run(47, 'workflow_dispatch', 'claude/branch'), run(44, 'push')]);
+        assert.equal(r.status, 0, r.out);
+    });
+
+    test('a re-run that cannot tell which workflow it is stops rather than guessing', () => {
+        const r = check({ WORKFLOW_REF: 'owner/roster-app/somewhere-else' }, [run(44, 'push')]);
+        assert.equal(r.status, 1, r.out);
+        assert.match(r.out, /Cannot check this re-run/);
+    });
+
+    for (const wf of ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml']) {
+        test(`${wf}: the check runs right after the checkout, before any credential, and can read the runs`, () => {
+            const src = readFileSync(join(WF_DIR, wf), 'utf8');
+            const deploy = src.slice(src.search(/^ {2}deploy:[ \t]*$/m), src.search(/^ {2}not-main:[ \t]*$/m));
+            const checkout = deploy.indexOf('uses: actions/checkout@');
+            const guard = deploy.indexOf('uses: ./.github/actions/refuse-overtaken-rerun');
+            const signIn = deploy.indexOf('uses: google-github-actions/auth@');
+            assert.ok(guard > -1, `${wf}: the deploy job no longer checks a re-run — an old run re-run would put its older tree live`);
+            assert.ok(checkout > -1 && checkout < guard && guard < signIn,
+                `${wf}: the re-run check must come after the checkout (it is a local action) and before the sign-in`);
+            assert.ok(!/- name:|- uses:/.test(deploy.slice(checkout + 1, deploy.lastIndexOf('- name:', guard))),
+                `${wf}: nothing may run between the checkout and the re-run check — a refused re-run should cost nothing`);
+            assert.match(deploy, /^ {6}actions: read\b/m, `${wf}: listing the workflow's runs needs actions: read, or the check fails every re-run`);
+        });
+    }
+
+    test('the failure notice no longer sends the reader to Re-run first', () => {
+        const action = readFileSync('.github/actions/report-deploy-failure/action.yml', 'utf8');
+        assert.match(action, /choose \*\*Run workflow\*\* on"/, 'step 2 must recommend Run workflow on main');
+        assert.match(action, /\*\*Re-run\*\* is fine only while this is the newest run/, 'and say when a re-run is safe');
+    });
 });
 
 // ── THE VISUAL LANE IS REPORT-ONLY, AND THEREFORE HAS TO SPEAK (2 Sep 2026) ────────────────────
@@ -736,21 +1204,31 @@ describe('the version guard exempts only what cannot go stale', () => {
      * caches can, plus what carries policy at the edge.
      */
     const e2eSrc = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
+    // Found by the diff it filters, whatever the list is assigned to, and reported INSIDE a test: an
+    // assertion thrown while this block is being set up registers none of its tests, and a run
+    // narrowed with --test-name-pattern then passes having checked nothing (10 Nov 2026).
     const exclusion = (() => {
-        const from = e2eSrc.indexOf('RUNTIME=$(');
-        assert.ok(from > -1, 'the version job no longer builds a RUNTIME file list');
-        const m = /grep -vE "([^"]+)"/.exec(e2eSrc.slice(from));
-        assert.ok(m, 'the version job no longer filters its file list');
-        return new RegExp(m[1]);
+        const from = e2eSrc.indexOf('--name-only --no-renames origin/main...HEAD');
+        const m = from > -1 ? /grep -z?vE "([^"]+)"/.exec(e2eSrc.slice(from)) : null;
+        return m ? new RegExp(m[1]) : null;
     })();
     /** True when the guard would DEMAND a version bump for a change to this path. */
-    const needsBump = (/** @type {string} */ path) => !exclusion.test(path);
+    const needsBump = (/** @type {string} */ path) => {
+        assert.ok(exclusion, 'the version job no longer filters the files it diffs against main with grep -vE');
+        return !exclusion.test(path);
+    };
+
+    test('the version job\'s exclusion list is found', () => {
+        assert.ok(exclusion, 'the version job no longer filters the files it diffs against main with grep -vE');
+    });
 
     test('a change that cannot reach a device is exempt', () => {
         for (const f of ['package.json', 'package-lock.json', 'jsconfig.json', 'eslint.config.js',
                          'playwright.config.mjs', 'playwright.visual.mjs', 'githooks/pre-commit',
                          'docs/AI_MAP.md', 'CLAUDE.md', 'workflow-hygiene.test.mjs',
-                         'e2e/pages.spec.js', 'scripts/bump-version.mjs']) {
+                         'e2e/pages.spec.js', 'scripts/bump-version.mjs',
+                         // 10 Nov 2026 review: tooling the app never fetches.
+                         '.gitignore', '.prettierrc', '.firebaserc', '.nojekyll', 'generate-sri.mjs']) {
             assert.equal(needsBump(f), false,
                 `${f} cannot go stale on a device — the service worker does not cache it — so `
                 + 'demanding a version bump for it is a false alarm, and false alarms are how this '
@@ -763,10 +1241,48 @@ describe('the version guard exempts only what cannot go stale', () => {
                          'paycalc.css', 'shared.css', 'manifest.json',
                          // Not cached, but policy at the edge: the CSP header, the cache rules and
                          // the security rules all change what a device is allowed to do.
-                         'firebase.json', 'firestore.rules', 'storage.rules']) {
+                         'firebase.json', 'firestore.rules', 'storage.rules',
+                         // A file INSIDE a dot-directory is served (hosting-ignore-parity measured it):
+                         // only a NAME starting with a dot is exempt, never a path beneath one.
+                         '.well-known/assetlinks.json', 'icons/.cache/icon.png']) {
             assert.equal(needsBump(f), true,
                 `${f} is exempt from the version guard. If that was done to quiet a failing job, `
                 + 'it disarmed the guard for precisely the files it exists to protect.');
+        }
+    });
+
+    test('it exempts whatever the Hosting deploy skips, except where a stale copy can still reach a device', () => {
+        // THE THIRD LIST (10 Nov 2026 review). deploy-hosting.yml's paths-ignore answers "can a change
+        // to this alone reach the served app?" and hosting-ignore-parity holds it to firebase.json.
+        // This exclusion answers nearly the same question for the version, and was held to neither:
+        // generate-sri.mjs, skipped by the deploy, still demanded a bump here. So every pattern the
+        // deploy skips must be exempt here too, unless it is named below with the reason it is not.
+        const hosting = readFileSync(join(WF_DIR, 'deploy-hosting.yml'), 'utf8');
+        const skips = [...hosting.slice(hosting.indexOf('paths-ignore:'), hosting.indexOf('workflow_dispatch:'))
+            .matchAll(/^\s*-\s+(.+?)\s*$/gm)].map(m => m[1].replace(/^(['"])(.*)\1$/, '$2'));
+        assert.ok(skips.length > 20, `only ${skips.length} paths-ignore entries read — the reader has stopped matching`);
+        /** @type {Record<string, string>} */
+        const STILL_BUMPS = {
+            'functions/**': 'a Functions change is versioned (CLAUDE.md → Version bumping)',
+            'firestore.rules': 'security rules are versioned (CLAUDE.md → Version bumping)',
+            'storage.rules': 'security rules are versioned (CLAUDE.md → Version bumping)',
+            'firestore.indexes.json': 'left for the owner to decide (10 Nov 2026 review); it demands a bump until then',
+            '**/*.pdf': 'the Pages mirror serves the whole tree, and the service worker keeps what the app opens',
+            '**/*.jpg': 'the Pages mirror serves the whole tree, and the service worker keeps what the app opens',
+            '**/*.jpeg': 'the Pages mirror serves the whole tree, and the service worker keeps what the app opens',
+            '**/*.zip': 'the Pages mirror serves the whole tree, and the service worker keeps what the app opens',
+        };
+        // Never committed, so never in a diff: either answer would be right.
+        const NEVER_COMMITTED = ['.git/**', 'example-payslips/**', 'playwright-report/**', 'test-results/**'];
+        /** A path that pattern matches — the three shapes hosting-ignore-parity allows the skip list. */
+        const sample = (/** @type {string} */ p) => p.endsWith('/**') ? `${p.slice(0, -2)}x.js` : p.startsWith('**/*') ? `x${p.slice(4)}` : p;
+        for (const p of Object.keys(STILL_BUMPS)) assert.ok(skips.includes(p), `${p} is no longer skipped by the deploy — drop it from the list here`);
+        for (const p of skips) {
+            if (NEVER_COMMITTED.includes(p)) continue;
+            assert.equal(needsBump(sample(p)), p in STILL_BUMPS, p in STILL_BUMPS
+                ? `${sample(p)} is exempt from the version guard, but ${STILL_BUMPS[p]}`
+                : `deploy-hosting.yml skips a deploy for ${p}, so a change to it alone cannot reach a device — but the version `
+                    + `guard still demands a bump for ${sample(p)}. Exempt it in e2e.yml's version job, or name it here with a reason.`);
         }
     });
 
@@ -802,6 +1318,117 @@ describe('the version guard exempts only what cannot go stale', () => {
         const job = e2eSrc.slice(e2eSrc.indexOf('  version:'), e2eSrc.indexOf('  unit:'));
         assert.match(job, /::error::/, 'the version job must annotate the failure');
         assert.match(job, /exit 1/, 'the version job must FAIL, not warn');
+    });
+
+    // RUN, NOT READ (10 Nov 2026 review). The landed check was asserted by regex and never run, and it
+    // handed its file list to git through an unquoted $( ): `new feature/app.js` became two paths that
+    // exist nowhere, the diff came back empty, and an unbumped served change passed as "landed". So the
+    // job's own script runs here, in a throwaway repository with a bare `origin`, on a branch off main.
+    describe('run against a real repository', () => {
+        const script = stepScript(e2eSrc, 'A runtime change must claim a version main has not');
+        const GIT_ENV = { GIT_AUTHOR_NAME: 'ci', GIT_AUTHOR_EMAIL: 'ci@example.invalid', GIT_COMMITTER_NAME: 'ci',
+            GIT_COMMITTER_EMAIL: 'ci@example.invalid', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+        const MAIN = { 'roster-data.js': "export const APP_VERSION = '25.64';\n", 'index.html': '<p>one</p>\n' };
+
+        /**
+         * Builds main, then a branch that writes `files` (with `bump` as its version), and — with
+         * `alsoOnMain` — gives main the same files, as a squash merge would. Runs the job's script there.
+         * @param {Record<string, string>} files
+         * @param {{ bump?: string, alsoOnMain?: boolean, failLandedDiff?: boolean }} [o]
+         */
+        const verdict = (files, o = {}) => {
+            const dir = realpathSync(mkdtempSync(join(tmpdir(), 'version-guard-')));
+            const work = join(dir, 'work');
+            const env = { ...process.env, ...GIT_ENV };
+            const git = (/** @type {string[]} */ ...args) => execFileSync('git', args, { cwd: work, env, stdio: 'pipe' });
+            const write = (/** @type {Record<string, string>} */ fs) => {
+                for (const [f, body] of Object.entries(fs)) {
+                    mkdirSync(dirname(join(work, f)), { recursive: true });
+                    writeFileSync(join(work, f), body);
+                }
+            };
+            try {
+                mkdirSync(work);
+                execFileSync('git', ['init', '-q', '--bare', '-b', 'main', join(dir, 'origin.git')], { env, stdio: 'pipe' });
+                git('init', '-q', '-b', 'main');
+                git('remote', 'add', 'origin', join(dir, 'origin.git'));
+                write(MAIN);
+                git('add', '-A');
+                git('commit', '-qm', 'main');
+                git('push', '-q', 'origin', 'main');
+                git('checkout', '-qb', 'feature');
+                const mine = o.bump ? { ...files, 'roster-data.js': `export const APP_VERSION = '${o.bump}';\n` } : files;
+                write(mine);
+                git('add', '-A');
+                git('commit', '-qm', 'feature');
+                if (o.alsoOnMain) {
+                    git('checkout', '-q', 'main');
+                    write(mine);
+                    git('add', '-A');
+                    git('commit', '-qm', 'the same change, squash-merged');
+                    git('push', '-q', 'origin', 'main');
+                    git('checkout', '-q', 'feature');
+                }
+                writeFileSync(join(dir, 'version.sh'), script);
+                const bin = join(dir, 'bin');
+                mkdirSync(bin);
+                // A git that fails the landed check's comparison and nothing else, for the one case
+                // that cannot be produced honestly: that comparison failing.
+                const real = execFileSync('bash', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+                writeFileSync(join(bin, 'git'), '#!/usr/bin/env bash\n'
+                    + 'if [ "$1" = diff ] && [[ " $* " == *" origin/main HEAD "* ]]; then echo "fatal: simulated" >&2; exit 128; fi\n'
+                    + `exec ${JSON.stringify(real)} "$@"\n`, { mode: 0o755 });
+                const PATH = o.failLandedDiff ? `${bin}:${process.env.PATH}` : process.env.PATH;
+                try {
+                    return { status: 0, out: execFileSync('bash', ['-e', join(dir, 'version.sh')],
+                        { cwd: work, env: { ...env, PATH, RUNNER_TEMP: dir }, encoding: 'utf8', stdio: 'pipe' }) };
+                } catch (/** @type {any} */ e) {
+                    return { status: e.status, out: `${e.stdout ?? ''}${e.stderr ?? ''}` };
+                }
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        };
+
+        test('tooling the app never fetches needs no bump', () => {
+            const r = verdict({ '.gitignore': 'x\n', '.prettierrc': '{}\n', '.firebaserc': '{}\n', '.nojekyll': '', 'generate-sri.mjs': '//\n' });
+            assert.equal(r.status, 0, `a change to tooling alone failed the guard:\n${r.out}`);
+            assert.match(r.out, /No served file changed/);
+        });
+
+        test('a served change without a bump is refused, and with one it passes', () => {
+            const refused = verdict({ 'index.html': '<p>two</p>\n' });
+            assert.equal(refused.status, 1, refused.out);
+            assert.match(refused.out, /::error::This branch changes served files but its version \(v25\.64\) does not exceed main/);
+            const bumped = verdict({ 'index.html': '<p>two</p>\n' }, { bump: '25.65' });
+            assert.equal(bumped.status, 0, bumped.out);
+            assert.match(bumped.out, /v25\.65 is above v25\.64/);
+        });
+
+        test('a served file whose name has a space in it is still checked, not waved through as landed', () => {
+            const r = verdict({ 'new feature/app.js': 'export {};\n' });
+            assert.equal(r.status, 1, `an unbumped served change passed:\n${r.out}`);
+            assert.doesNotMatch(r.out, /it has landed/);
+        });
+
+        test('a name git would read as a pattern is matched as a name', () => {
+            // `:(glob)z` is pathspec magic for "a file called z". Matched as a pattern it finds nothing to
+            // compare, which reads as "landed"; literally, it is the new file it is.
+            const r = verdict({ ':(glob)z': 'export {};\n' });
+            assert.equal(r.status, 1, `an unbumped served change passed:\n${r.out}`);
+        });
+
+        test('a branch main already carries is let through, by content', () => {
+            const r = verdict({ 'index.html': '<p>two</p>\n' }, { alsoOnMain: true });
+            assert.equal(r.status, 0, r.out);
+            assert.match(r.out, /it has landed/);
+        });
+
+        test('a comparison with main that fails is not taken for "landed"', () => {
+            const r = verdict({ 'index.html': '<p>two</p>\n' }, { failLandedDiff: true });
+            assert.equal(r.status, 1, `a failed comparison let an unbumped change through:\n${r.out}`);
+            assert.match(r.out, /does not exceed main/);
+        });
     });
 });
 
@@ -1201,8 +1828,10 @@ describe('the currency canary stands down for a deploy in flight', () => {
                 '  *contents/roster-data.js*) ver "$(pick "$START_V" "$MAIN_AT" "$MAIN_V" "${MAIN2_AT:-}" "${MAIN2_V:-}")" ;;',
                 '  https://myb-roster.web.app/roster-data.js) ver "$(pick "$WEB_V0" "$WEB_AT" "$WEB_V1")" ;;',
                 '  https://garethdavidmiller.github.io/roster-app/roster-data.js) ver "$(pick "$PAGES_V0" "$PAGES_AT" "$PAGES_V1")" ;;',
-                '  */actions/workflows/*/runs*) printf \'{"workflow_runs":[{"status":"%s","html_url":"https://example.invalid/run/1"}]}\\n\' "$RUN_STATUS" ;;',
-                '  */pages) echo \'{"build_type":"legacy"}\' ;;',
+                // One run of whichever workflow is asked about: by default a push here, and
+                // RUN_EVENT / RUN_REPO_ID make it somebody else's (10 Nov 2026 review).
+                '  */actions/workflows/*/runs*) printf \'{"workflow_runs":[{"status":"%s","event":"%s","head_repository":{"id":%s},"html_url":"https://example.invalid/run/1"}]}\\n\' "$RUN_STATUS" "${RUN_EVENT:-push}" "${RUN_REPO_ID:-1001}" ;;',
+                '  */pages) printf \'{"build_type":"%s"}\\n\' "${BUILD_TYPE:-legacy}" ;;',
                 '  *) exit 22 ;;',
                 'esac',
             ].join('\n') + '\n', { mode: 0o755 });
@@ -1213,7 +1842,7 @@ describe('the currency canary stands down for a deploy in flight', () => {
                 writeFileSync(join(dir, 'roster-data.js'), `export const APP_VERSION = '${c.START_V}';\n`);
                 writeFileSync(join(dir, 'out'), '');
                 const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, SIMCLOCK: join(dir, 'clock'),
-                    GITHUB_OUTPUT: join(dir, 'out'), GITHUB_TOKEN: 'stub', GITHUB_REPOSITORY: 'owner/repo',
+                    GITHUB_OUTPUT: join(dir, 'out'), GITHUB_TOKEN: 'stub', GITHUB_REPOSITORY: 'owner/repo', REPO_ID: '1001',
                     HOSTING_WORKFLOW: 'deploy-hosting.yml', PAGES_WORKFLOW: 'deploy-mirror.yml',
                     ...Object.fromEntries(Object.entries(c).map(([k, v]) => [k, String(v)])) };
                 try {
@@ -1252,6 +1881,34 @@ describe('the currency canary stands down for a deploy in flight', () => {
                 RUN_STATUS: 'in_progress' });
             assert.equal(twice.status, 0, `two merges in one wait were reported:\n${twice.out}`);
             assert.match(twice.out, /Standing down/);
+            // A STRANGER'S RUN IS NOT A DEPLOY IN FLIGHT (10 Nov 2026 review). A fork's pull request
+            // can keep a run named like the deploy going, on a branch it called main; asking by
+            // branch alone stood the alarm down for it while web.app really was stale.
+            const fork = run({ START_V: '25.40', MAIN_V: '25.40', MAIN_AT: NEVER, WEB_V0: '25.39', WEB_V1: '25.39', WEB_AT: NEVER,
+                PAGES_V0: '25.40', PAGES_V1: '25.40', PAGES_AT: NEVER, RUN_STATUS: 'in_progress', RUN_EVENT: 'pull_request', RUN_REPO_ID: '2002' });
+            assert.equal(fork.status, 1, `a stranger's pull-request run stood the stale-production alarm down:\n${fork.out}`);
+            assert.match(fork.out, /web\.app:v25\.39/);
+            // …nor one from this repository that a pull request started.
+            const ownPr = run({ START_V: '25.40', MAIN_V: '25.40', MAIN_AT: NEVER, WEB_V0: '25.39', WEB_V1: '25.39', WEB_AT: NEVER,
+                PAGES_V0: '25.40', PAGES_V1: '25.40', PAGES_AT: NEVER, RUN_STATUS: 'in_progress', RUN_EVENT: 'pull_request' });
+            assert.equal(ownPr.status, 1, `a pull-request run counted as a deploy in flight:\n${ownPr.out}`);
+            // …nor one whose head is another repository, whatever event it claims: each half of the
+            // test must hold on its own.
+            const foreign = run({ START_V: '25.40', MAIN_V: '25.40', MAIN_AT: NEVER, WEB_V0: '25.39', WEB_V1: '25.39', WEB_AT: NEVER,
+                PAGES_V0: '25.40', PAGES_V1: '25.40', PAGES_AT: NEVER, RUN_STATUS: 'in_progress', RUN_REPO_ID: '2002' });
+            assert.equal(foreign.status, 1, `another repository's run counted as a deploy in flight:\n${foreign.out}`);
+            // The gated mirror's stand-down asks the same question of the same runs.
+            const forkMirror = run({ START_V: '25.40', MAIN_V: '25.40', MAIN_AT: NEVER, WEB_V0: '25.40', WEB_V1: '25.40', WEB_AT: NEVER,
+                PAGES_V0: '25.39', PAGES_V1: '25.39', PAGES_AT: NEVER, BUILD_TYPE: 'workflow', RUN_STATUS: 'in_progress',
+                RUN_EVENT: 'pull_request', RUN_REPO_ID: '2002' });
+            assert.equal(forkMirror.status, 1, `a stranger's run stood the stale-mirror alarm down:\n${forkMirror.out}`);
+            assert.match(forkMirror.out, /pages:v25\.39/);
+            // And the mirror's OWN deploy — a workflow_run event — still is one: a query narrowed to
+            // pushes would have stopped this stand-down working at all.
+            const mirrorDeploying = run({ START_V: '25.40', MAIN_V: '25.40', MAIN_AT: NEVER, WEB_V0: '25.40', WEB_V1: '25.40', WEB_AT: NEVER,
+                PAGES_V0: '25.39', PAGES_V1: '25.39', PAGES_AT: NEVER, BUILD_TYPE: 'workflow', RUN_STATUS: 'in_progress', RUN_EVENT: 'workflow_run' });
+            assert.equal(mirrorDeploying.status, 0, `the mirror's own deploy in flight was reported:\n${mirrorDeploying.out}`);
+            assert.match(mirrorDeploying.out, /the gated mirror follows Hosting\. Standing down/);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -1724,6 +2381,223 @@ describe('every CI lane runs the command it is there for', () => {
             const esc = cmd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             assert.match(jobOf(file, job), new RegExp(`^\\s*(?:run:\\s*)?${esc}(?:\\s|$)`, 'm'),
                 `${file}'s ${job} job no longer runs \`${cmd}\` — the lane can go green having checked nothing`);
+        });
+    }
+});
+
+// ── THE RACE DETECTOR FILES WHAT IT FINDS, ONCE, AND COUNTS ONLY RACES (10 Nov 2026 review) ─────
+//
+// race-detector.yml found races and could not file them: it has no checkout, and gh's issue and
+// label commands look for one, so every call failed, a warning went to a green hourly log, and no
+// `ci-race` issue could appear — which reads as "no races", the very question DECISIONS.md is waiting
+// on. It also counted an ordinary double push as a "superseded" race, and would have re-posted each
+// instance every hour. Its step is run here with real Python and a `gh` that, like the real one with
+// no checkout, refuses issue and label commands unless GH_REPO names the repository.
+describe('the race detector files what it finds, once, and counts only races', () => {
+    const script = stepScript(readFileSync(join(WF_DIR, 'race-detector.yml'), 'utf8'),
+        'Find commits where the branch-head run beat the merge-result run');
+    const [R, S, D, E] = ['a', 'b', 'd', 'e'].map(c => c.repeat(40));
+    const at = (/** @type {string} */ hms) => `2026-11-09T${hms}Z`;
+    const tests = (/** @type {string} */ sha, /** @type {string} */ event, /** @type {string} */ conclusion, /** @type {string} */ queued) =>
+        ({ name: 'Tests', head_sha: sha, event, conclusion, created_at: at(queued), run_started_at: at(queued),
+            head_branch: 'claude/x', html_url: `https://example.invalid/${sha[0]}-${event}` });
+    const RUNS = [
+        // The race, consequential: the push run was queued 4 minutes AFTER the merge-result run, cancelled it, and passed.
+        tests(R, 'pull_request', 'cancelled', '11:49:00'), tests(R, 'push', 'success', '11:53:00'),
+        // The race, superseded: queued after it too, then cancelled by the next push to the branch.
+        tests(S, 'pull_request', 'cancelled', '12:00:00'), tests(S, 'push', 'cancelled', '12:03:00'),
+        // NOT a race — a double push: D's push run was queued first and cancelled by its own merge-result
+        // run, which E's push then cancelled; E's own pair then ran the designed way.
+        tests(D, 'push', 'cancelled', '13:00:00'), tests(D, 'pull_request', 'cancelled', '13:00:05'),
+        tests(E, 'push', 'cancelled', '13:05:00'), tests(E, 'pull_request', 'success', '13:05:04'),
+        // Another workflow's runs are not this one's business.
+        { ...tests(D, 'pull_request', 'cancelled', '13:00:05'), name: 'Deploy Firebase Hosting' },
+    ];
+    const ghStub = `#!/usr/bin/env node
+const { readFileSync, appendFileSync, writeFileSync } = require('node:fs');
+const a = process.argv.slice(2);
+appendFileSync(process.env.GH_LOG, a.slice(0, 2).join(' ') + '\\n');
+if (a[0] === 'api') { process.stdout.write(readFileSync(process.env.STUB_RUNS, 'utf8')); process.exit(0); }
+if (!process.env.GH_REPO) { console.error('failed to run git: fatal: not a git repository (or any of the parent directories): .git'); process.exit(1); }
+if (a[0] === 'issue' && a[1] === 'list') { process.stdout.write(process.env.STUB_EXISTING ? process.env.STUB_EXISTING + '\\n' : ''); process.exit(0); }
+if (a[0] === 'issue' && a[1] === 'view') { process.stdout.write(process.env.STUB_KNOWN || ''); process.exit(0); }
+if (a[0] === 'label' && a[1] === 'create') process.exit(0);
+if (a[0] === 'issue' && (a[1] === 'create' || a[1] === 'comment')) {
+    if (process.env.STUB_FAIL_FILE) { console.error('HTTP 502'); process.exit(1); }
+    writeFileSync(process.env.GH_BODY, a.slice(0, 3).join(' ') + '\\n' + a[a.indexOf('--body') + 1]);
+    process.exit(0);
+}
+console.error('stub gh: unexpected ' + a.join(' ')); process.exit(2);
+`;
+    /** @param {Record<string, string>} [env] */
+    const detect = (env = {}) => {
+        const dir = mkdtempSync(join(tmpdir(), 'race-'));
+        try {
+            const bin = join(dir, 'bin');
+            mkdirSync(bin);
+            writeFileSync(join(bin, 'gh'), ghStub, { mode: 0o755 });
+            writeFileSync(join(dir, 'detect.sh'), script);
+            writeFileSync(join(dir, 'runs-fixture.json'), JSON.stringify({ workflow_runs: RUNS }));
+            writeFileSync(join(dir, 'calls'), '');
+            writeFileSync(join(dir, 'body'), '');
+            /** @type {Record<string, string|undefined>} */
+            const vars = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_LOG: join(dir, 'calls'), GH_BODY: join(dir, 'body'),
+                STUB_RUNS: join(dir, 'runs-fixture.json'), GH_TOKEN: 'stub', REPO: 'owner/roster-app', ...env };
+            delete vars.GH_REPO;   // the workflow's env does not set it; the script must
+            let status = 0, out = '';
+            try {
+                out = execFileSync('bash', ['-e', 'detect.sh'], { cwd: dir, env: vars, encoding: 'utf8', stdio: 'pipe' });
+            } catch (/** @type {any} */ e) {
+                status = e.status;
+                out = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+            }
+            return { status, out, body: readFileSync(join(dir, 'body'), 'utf8'),
+                calls: readFileSync(join(dir, 'calls'), 'utf8').split('\n').filter(Boolean) };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+    const short = (/** @type {string} */ sha) => `\`${sha.slice(0, 9)}\``;
+
+    test('it files the two races in a new issue, and creates the label first', () => {
+        const r = detect();
+        assert.equal(r.status, 0, r.out);
+        assert.match(r.body, /^issue create /, `no issue was filed:\n${r.out}`);
+        assert.ok(r.body.includes(`**consequential** · ${short(R)}`), r.body);
+        assert.ok(r.body.includes(`**superseded** · ${short(S)}`), r.body);
+        assert.ok(r.calls.indexOf('label create') > -1 && r.calls.indexOf('label create') < r.calls.indexOf('issue create'),
+            `the label must exist before the issue that carries it:\n${r.calls.join('\n')}`);
+    });
+
+    test('a double push is not a race', () => {
+        const r = detect();
+        for (const sha of [D, E]) assert.ok(!r.body.includes(short(sha)), `${short(sha)} was counted as a race:\n${r.body}`);
+    });
+
+    test('an instance the open issue already records is not posted again', () => {
+        const r = detect({ STUB_EXISTING: '7', STUB_KNOWN: `- **consequential** · ${short(R)} on \`claude/x\` …` });
+        assert.match(r.body, /^issue comment 7\n/, `the open issue was not commented on:\n${r.out}`);
+        assert.ok(!r.body.includes(short(R)), 'an instance already on the issue was posted again');
+        assert.ok(r.body.includes(short(S)), 'the new instance must still be posted');
+    });
+
+    test('when every instance is already recorded, nothing is posted', () => {
+        const r = detect({ STUB_EXISTING: '7', STUB_KNOWN: `${short(R)}\n${short(S)}` });
+        assert.equal(r.status, 0, r.out);
+        assert.equal(r.body, '', 'a comment repeating what the issue already says was posted');
+        assert.match(r.out, /No new wrong-way races/);
+    });
+
+    test('an instance it cannot file fails the run instead of warning a green log', () => {
+        const r = detect({ STUB_FAIL_FILE: '1' });
+        assert.equal(r.status, 1, `a race that could not be filed left the run green:\n${r.out}`);
+        assert.match(r.out, /::error::could not create the tracking issue/);
+    });
+});
+
+// ── A LANE UPLOADS THE FOLDER ITS OWN PLAYWRIGHT CONFIG WRITES (10 Nov 2026 review) ──────────────
+//
+// live-health.yml and offline.yml uploaded `playwright-report/` on failure, and their configs report
+// to the log only — only the html reporter writes that folder — so a failure left no artefact and
+// the traces `retain-on-failure` keeps in `test-results/` went with the runner. The rule, for every
+// job and every upload of Playwright output: `test-results/` is always written, `playwright-report/`
+// only by a config with the html reporter. Each lane's config is read from the npm script it runs,
+// and a config without a reporter of its own inherits one from the base it spreads.
+describe('a lane uploads the folder its own Playwright config writes', () => {
+    const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts;
+    /** The config an npm script runs Playwright with, or null for a script that does not. @param {string} name */
+    const configOf = (name) => {
+        const cmd = scripts[name] ?? '';
+        if (!/\bplaywright test\b/.test(cmd)) return null;
+        return /--config[= ](\S+?\.mjs)/.exec(cmd)?.[1] ?? 'playwright.config.mjs';
+    };
+    /** Whether a config writes the html report, itself or through the base it spreads. @param {string} file @returns {boolean} */
+    const writesHtml = (file) => {
+        const src = readFileSync(file, 'utf8');
+        const reporter = /^\s*reporter:[^\n]*$/m.exec(src);
+        if (reporter) return /'html'/.test(reporter[0]);
+        const base = /^import base from '\.\/(playwright[\w.-]*\.mjs)';/m.exec(src);
+        return base ? writesHtml(base[1]) : false;
+    };
+
+    test('the reading itself works: the smoke config writes html, the live one does not', () => {
+        assert.equal(configOf('test:e2e'), 'playwright.config.mjs');
+        assert.equal(configOf('test:live'), 'playwright.live.mjs');
+        assert.equal(writesHtml('playwright.config.mjs'), true);
+        assert.equal(writesHtml('playwright.webkit.mjs'), true, 'the WebKit config inherits the smoke config\'s reporter');
+        assert.equal(writesHtml('playwright.live.mjs'), false);
+    });
+
+    let uploads = 0;
+    for (const wf of readdirSync(WF_DIR).filter(f => /\.ya?ml$/.test(f))) {
+        const src = readFileSync(join(WF_DIR, wf), 'utf8');
+        const body = src.slice(src.search(/^jobs:/m));
+        const starts = [...body.matchAll(/^ {2}([A-Za-z_][\w-]*):[ \t]*$/gm)];
+        starts.forEach((s, i) => {
+            const job = body.slice(s.index, starts[i + 1]?.index ?? body.length);
+            const configs = [...new Set([...job.matchAll(/npm run (test:[\w:]+)/g)].map(m => configOf(m[1])).filter(c => c !== null))];
+            const steps = job.split(/\n(?= {6}- )/).filter(st => /uses: actions\/upload-artifact@/.test(st)
+                && /(playwright-report|test-results)\//.test(st));
+            for (const step of steps) {
+                uploads++;
+                test(`${wf} → ${s[1]}: its upload holds what ${configs.join(', ') || 'its config'} writes`, () => {
+                    assert.ok(configs.length, `${wf} → ${s[1]} uploads Playwright output but runs no Playwright lane`);
+                    if (/test-results\//.test(step)) return;
+                    const silent = configs.filter(c => !writesHtml(c));
+                    assert.deepEqual(silent, [],
+                        `${wf} → ${s[1]} uploads only playwright-report/, which ${silent.join(', ')} never writes — `
+                        + 'a failure would leave no artefact. Upload test-results/, where retain-on-failure keeps the traces.');
+                });
+            }
+        });
+    }
+
+    test('the uploads were found', () => {
+        assert.ok(uploads >= 8, `only ${uploads} Playwright uploads found across the workflows — the scan has stopped matching`);
+    });
+});
+
+// ── THE LIVE-SITE ALERT DOES NOT SEND ITS READER AWAY FROM AN OUTAGE (10 Nov 2026 review) ─────────
+//
+// The direct-connection probe reads web.app's robots.txt, and anything but a 200 — web.app answering
+// 404 or 5xx for everything, the worst outage there is — failed every page on that assertion before
+// any page opened. The issue's first hint then said such a failure was "a TLS or DNS answer, not an
+// app one". The hint must leave the outage possible and say how to tell.
+describe('the live-site alert does not send its reader away from an outage', () => {
+    const src = readFileSync(join(WF_DIR, 'live-health.yml'), 'utf8');
+    const hint = src.slice(src.indexOf('"1. The run\'s log names the page'), src.indexOf('"2. A stuck splash'));
+
+    test('the hint was found', () => {
+        assert.ok(hint.length > 50, 'the first hint of the live-site issue was not found');
+    });
+
+    test('a failed direct probe is not ruled out as the outage, and the reader is told how to tell', () => {
+        assert.doesNotMatch(hint, /an app one/, 'the hint rules the app out for a failure the site itself can cause');
+        assert.match(hint, /web\.app itself is answering with an error/, 'the hint must name the site answering with an error as a cause');
+        assert.match(hint, /robots\.txt in a private window/, 'the hint must say how to tell the two apart');
+    });
+});
+
+// ── A DEPLOY JOB LEAVES NO GIT TOKEN ON DISK (10 Nov 2026 review) ────────────────────────────────
+//
+// The checkout's default keeps the job's token on disk for the whole job, where every dependency's
+// install script can read it — and nothing in a deploy job uses it: the Hosting upload check only
+// lists files, and the re-run check asks the API with the token it is handed. The mirror's deploy
+// job already said `persist-credentials: false`; the other three now do too.
+describe('a deploy job leaves no git token on disk', () => {
+    for (const wf of ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml', 'deploy-mirror.yml']) {
+        test(`${wf}: the deploy job's checkout keeps no credentials`, () => {
+            const src = readFileSync(join(WF_DIR, wf), 'utf8');
+            const from = src.search(/^ {2}deploy:[ \t]*$/m);
+            assert.ok(from > -1, `${wf} has no deploy job`);
+            const rest = src.slice(from + 1);
+            const job = rest.slice(0, rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m));
+            const at = job.indexOf('uses: actions/checkout@');
+            assert.ok(at > -1, `${wf}: the deploy job has no checkout`);
+            const tail = job.slice(at + 1);
+            const step = tail.slice(0, tail.search(/\n\s*- (name|uses):/));
+            assert.match(step, /^\s+persist-credentials: false[ \t]*$/m,
+                `${wf}: the deploy job's checkout leaves the token on disk for every install script in the job to read`);
         });
     }
 });

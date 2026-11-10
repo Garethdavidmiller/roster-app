@@ -62,10 +62,13 @@ jobs:
         env:
           CI: true
 
-      - name: Upload Playwright report on failure
+      # test-results/, NOT playwright-report/ (10 Nov 2026 review): playwright.offline.mjs reports to
+      # the log only, so no html report is ever written, and the upload found nothing. The trace
+      # `retain-on-failure` keeps for a failing test is in test-results/.
+      - name: Upload the failing tests' traces
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: offline-playwright-report
-          path: playwright-report/
+          name: offline-test-results
+          path: test-results/
           retention-days: 7

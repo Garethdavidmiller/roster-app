@@ -496,7 +496,8 @@ only removed deliberately.
    not fail just `unlockCalendarViewer`; it fails `ingestHuddle`, `parseRosterPDF` and everything
    else in the same run. The live functions keep serving their current revision, so nothing breaks
    for staff, but the push ships no function code and opens a deploy-failure issue. Recoverable —
-   set the secret and re-run the workflow — but the cheap move is to set it first.
+   set the secret and run the workflow again on `main` (Actions → Deploy Firebase Functions → Run
+   workflow) — but the cheap move is to set it first.
 2. **Merge, and the function goes live with it** — a dark deploy, with both brakes still on, whose job
    is to prove the *rest* of the release (session handling, the nav drawer, the calendar bootstrap)
    against real devices while the feature itself is invisible.
