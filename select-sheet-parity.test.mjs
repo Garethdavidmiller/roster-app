@@ -454,9 +454,11 @@ test('no module calls .focus() on a select that is enhanced', () => {
 // observe them — not the `change`/`input` listeners, not the MutationObserver — so the enhanced
 // trigger, which is the only thing a reader sees, keeps whatever it last painted.
 //
-// That is not a theoretical shape. Both pages carrying an optgroup'd select have a helper built on
-// it, because iOS Safari ignores `.value` there: `_setSelectPeriod` (paycalc-periods.js) and
-// `_setSelectValue` (admin-app.js). Measured at v23.41, before the fix: ←/→/a tax-year jump left
+// That is not a theoretical shape. Two pages set their selects through a helper built on it, which
+// leaves a select as it was when the value is not offered (`.value` would empty it): `_setSelectPeriod`
+// (paycalc-periods.js) and `_setSelectValue` (admin-app.js). They were written believing iOS Safari
+// ignores `.value` on a select with `<optgroup>`s; WebKit does not (measured 10 Nov 2026, desktop and
+// iPhone emulation — select-sheet.js has it). Measured at v23.41, before the fix: ←/→/a tax-year jump left
 // the pay-period picker naming "25 Sept 2026" over a page computing 11 Apr 2025, and switching
 // member on Change a Shift left the AL and Absence pickers naming the previous person.
 //

@@ -421,10 +421,13 @@ export function enhanceSelect(select, opts = {}) {
     // signal a PROGRAMMATIC selection can give us. `option.selected = true` and `selectedIndex = n`
     // change what the select holds while mutating NO attribute (`selected` is not reflected to the
     // content attribute) and firing NO event, so neither the listener above nor the observer below
-    // can see them. That is not a hypothetical shape: both pages that carry an optgroup'd select
-    // have a helper built on it — `_setSelectPeriod` (paycalc-periods.js) and `_setSelectValue`
-    // (admin-app.js) — because iOS Safari ignores `.value` on a select with `<optgroup>`s. Those
-    // helpers now say so by dispatching `input`; this is the ear for it.
+    // can see them. That is not a hypothetical shape: two pages set their selects through a helper
+    // built on it — `_setSelectPeriod` (paycalc-periods.js) and `_setSelectValue` (admin-app.js) —
+    // because there a value the select does not offer leaves it as it was, where `.value` would
+    // empty it. (They were written believing iOS Safari ignores `.value` with `<optgroup>`s. WebKit
+    // does not: measured 10 Nov 2026, desktop and iPhone emulation, `.value` selects an option inside
+    // an optgroup exactly as Chromium does — and `onPick` below has always relied on it.) Those
+    // helpers say so by dispatching `input`; this is the ear for it.
     // WHAT IT LOOKS LIKE WHEN THIS IS MISSING (v23.42, moved here from CLAUDE.md's row when that
     // row hit its length cap): the trigger keeps the label of the PREVIOUS value while the select
     // holds the new one. The pay-period picker named the wrong TAX YEAR, and the AL and Absence
