@@ -6,7 +6,7 @@
 // pre-save check, which boxes refresh) are passed in as config/hooks; admin-al.js and
 // admin-sick.js are thin wrappers over this factory (they keep their own public exports).
 //
-// Owns: element lookup by prefix, dropdown population (incl. the iOS optgroup fix),
+// Owns: element lookup by prefix, dropdown population (the remembered member set through its options),
 //   the shared preview guard chain (no member / no dates / bad range), rest-day counting
 //   via isWorkingDate, the change-listener wiring, and the whole save→feedback→refresh flow
 //   incl. the session-expired vs generic error split.
@@ -110,7 +110,7 @@ export function createRangeBookingSection(cfg) {
     let swapAnswersFor = '';
 
     cfg.populateMemberDropdown(cfg.memberSelect);
-    // iOS Safari ignores select.value on optgroup-nested options — set option.selected directly.
+    // Through the options, not `.value`: a remembered member no longer listed leaves the dropdown as it was, where `.value` would empty it. (WebKit honours `.value` with <optgroup>s — measured 10 Nov 2026.)
     if (cfg.lastMember) {
         for (const o of cfg.memberSelect.options) if (o.value === cfg.lastMember) { o.selected = true; break; }
     }
