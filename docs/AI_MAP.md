@@ -67,7 +67,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | CHRISTMAS LEAVE — who is shown on leave on 25/26 December, never counted, and the Boxing Day day in lieu | `christmas-leave.js` (pure; `christmas-leave.test.mjs`) · the whole allowance `entitlementFor` in `al-entitlement.js` |
 | WHICH YEAR'S ALLOWANCE a day of annual leave comes out of — a January day may be moved to the year before | `leave-year.js` (pure, no imports; `leave-year.test.mjs`) · Admin panel `admin-leave-year.js` · its save `admin-leave-year-save.js` |
 | WHICH YEAR the Admin AL figures describe, when four surfaces each imply one | `admin-al-year.js` (pure — no DOM/Firebase; tested by `admin-al-year.test.mjs`) |
-| The recorded-DATES list on Admin, and which year of it is shown | `admin-booked-periods.js` (imports nothing; tested by `admin-booked-periods.test.mjs`) |
+| The recorded-DATES list on Admin, and which year of it is shown | `admin-booked-periods.js` (imports only `leave-year.js`; tested by `admin-booked-periods.test.mjs`) |
 | Sick Days Recording section | `admin-sick.js` |
 | Huddle upload (admin-only, operations page) | `huddle.js` → `initHuddleUpload` |
 | Push notifications card (all staff, settings page) | `huddle.js` → `initHuddleNotifications` |
@@ -1365,11 +1365,13 @@ What a run of booked dates is, and what it reads as: the pure helpers the Record
 - `isRestGap(dateStr, memberObj)` — **a gap is not the same as a day off.** It decides whether bookings either side of a date are one period or two: a Sunday is always a gap, a base-roster rest day is a gap, and anything else is not — including a day whose base shift cannot be resolved. Merging wrongly claims leave across a worked day; splitting wrongly only shows two short rows (header). Tested by `admin-period-dates.test.mjs`.
 
 ### `admin-booked-periods.js`
-The **Recorded Annual Leave dates** and **Recorded Absence dates** sub-cards on `admin.html` — one renderer for two lists that differ only in the type they filter and the colour of their count pill — and which YEAR of the list is on screen. Imports nothing; every handle is injected, so the decisions are testable in Node. Why it left the coordinator, and the owner's year-end rule: the header.
+The **Recorded Annual Leave dates** and **Recorded Absence dates** sub-cards on `admin.html` — one renderer for two lists that differ only in the type they filter and the colour of their count pill — and which YEAR of the list is on screen. Imports only `leave-year.js` (which imports nothing); every other handle is injected, so the decisions are testable in Node. Why it left the coordinator, and the owner's year-end rule: the header.
 - `splitAtYearEnd(periods, dateList)` — cuts every merged booking at each year end so each date sits in its own year, recounting each segment from the booked dates (a bridged rest day is not leave); a piece of a longer booking carries `splitFrom` / `splitTo`, so its row can say it continues.
 - `bookedYears(segments)` → the years with bookings, ascending.
 - `pickBookedYear({ pinned, preferred, years })` → a tapped year, then the AL banner's year, then the latest year with data. It only ever returns a year IN `years`, or `null`: an empty list on this card reads as "nothing booked".
 - `createBookedPeriods(deps)` → `{ render(cfg), resetPinned(), pin(boxId, year) }`. On the AL card `cfg.consumes` is the entitlement rule, so the list and the banner count one way, and `cfg.christmas` / `cfg.christmasFor(year)` add a year's Christmas leave as an uncounted row for any year on screen. `resetPinned` runs on a member change; `pin` serves `?alYear=YYYY`, the Calendar leave panel's link.
+- A row's ✕ deletes from its first listed date to its last, widened to uncounted leave on rest days at either edge (never past a Sunday or the year end), and hands focus on after a delete. A January day moved to the previous year's allowance is marked on its row, and that year's list names it in a closing line.
+- `armConfirm(btn, armedText, idleText, armedName?)` / `disarmConfirm(btn, idleText)` — the two-tap destructive control, one disarm timer per control (never while it is `disabled`, i.e. in flight); `holdFeedback(el)` / `fadeFeedback(el, idleClass, ms)` — one fade per feedback line, cancelled by every later write. Shared with `admin-saved-changes.js` and `admin-range-booking.js`.
 - **It states no total**: the banner above owns the figures and this owns the dates.
 - Consumed by `admin-app.js` (`updateALBookedBox` / `updateSickBookedBox`), which passes `preferredYear` on the AL card only.
 
