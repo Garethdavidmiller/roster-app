@@ -1975,7 +1975,9 @@ test('links grid: each line carries its own totals, and they follow an edit', as
     // The generator's own completion signal, not the row count: the design open before it already
     // had every row, so the count was true BEFORE the generator ran, and the reads below could land
     // on the old design or mid-redraw (48-hour review, Nov 2026 — one intermittent red under load).
-    await expect(page.locator('#genStatus')).toBeVisible({ timeout: 10_000 });
+    // Its FINISHED line, not the mirror's visibility: since links-app-21 the mirror reads "Building the
+    // link…" for a frame before the search runs, and the old design is still on screen in that frame.
+    await expect(page.locator('#genStatus')).toContainText('Link generated', { timeout: 10_000 });
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
 
     // Three cells on every line, no exceptions — the renderer indexes rows by position, so a short
@@ -3220,7 +3222,10 @@ test('links: a generated design that repeats an earlier one says which design it
         await page.locator('#genApplyBtn').click();
         await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
         await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+        // Changed is not finished: since links-app-21 the line reads "Building the link…" from the
+        // press until the search has run, and a grid read in that frame is the PREVIOUS design's.
         await expect(status).not.toHaveText(before ?? '');
+        await expect(status).toContainText('Link generated');
         return {
             grid: await page.evaluate(() => /** @type {HTMLElement} */ (document.getElementById('linksGridBodyRows')).innerText),
             said: await status.textContent() ?? '',
@@ -4819,8 +4824,11 @@ test('links generator: pressing Generate leaves the button under your finger and
     await clickDialogConfirm(page);
     // Wait for the design to exist before measuring anything: a dialog resolves after its close
     // lands, so a check taken at the click would see the pre-generate page — a button that "did
-    // not move" because nothing had happened yet, and an empty status to mirror.
-    await expect(page.locator('#genStatus')).toBeVisible({ timeout: 10_000 });
+    // not move" because nothing had happened yet, and an empty status to mirror. The mirror being
+    // VISIBLE no longer says so: since links-app-21 it reads "Building the link…" for a frame before
+    // the search runs, and on WebKit that frame stalled long enough for every check below to run
+    // inside it (mobile-safari, CI run 42838201900: an 18-character status). The finished line does.
+    await expect(page.locator('#genStatus')).toContainText('Link generated', { timeout: 10_000 });
 
     // The button did not move — the first-generate reflow (empty state → 24-row grid above this
     // card) is compensated, so pressing again to explore needs no re-scroll.
