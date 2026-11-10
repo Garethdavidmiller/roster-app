@@ -180,6 +180,26 @@ describe('settings — the ? panel names the notifications the card lists', () =
     });
 });
 
+// ── THE PAY REMINDER SAYS WHO IT REACHES (whole-app check, 10 Nov 2026) ─────────────────────────
+// Since contracts-b-3 the server sends it only to the grades the Pay Calculator prices, and the panel
+// still promised it to everybody — a Dispatcher or a manager agreed to a reminder that never comes.
+// The grades are read from the server's own list, so the panel and the send cannot part.
+describe('settings — the ? panel says who the pay reminder is for', () => {
+    const server = readFileSync('functions/pay-reminder.js', 'utf8');
+    const list = /PAY_REMINDER_GRADES\s*=\s*Object\.freeze\(\[([^\]]*)\]\)/.exec(server)?.[1] ?? '';
+    const grades = [...list.matchAll(/'(\w+)'/g)].map(m => m[1].toUpperCase());
+    const got = readCardTips('settings-app.js').notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
+    const item = (got?.items ?? []).map((/** @type {any} */ i) => String(i.html)).find((/** @type {string} */ h) => h.startsWith('<strong>Pay reminder</strong>')) ?? '';
+
+    test('premise: the server\'s grades and the panel\'s item were found', () => {
+        assert.ok(grades.length > 0, 'functions/pay-reminder.js: PAY_REMINDER_GRADES was not found');
+        assert.ok(item, 'settings-app.js: no Pay reminder item in "What you\'ll get"');
+    });
+    test('the item names every grade the server sends it to', () => {
+        for (const g of grades) assert.match(item, new RegExp(`\\b${g}\\b`), `the panel promises the reminder without saying it is for ${g} colleagues: ${item}`);
+    });
+});
+
 // ── WHAT THE WORK EMAIL IS FOR (Nov 2026 review) ────────────────────────────────────────────────
 // CLAUDE.md's wording convention: the email is for "account recovery", and "Self-service recovery isn't
 // available yet. For now, ask the admin if you forget your password." The card says exactly that; its ?

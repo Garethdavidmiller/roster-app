@@ -892,6 +892,29 @@ test('admin: a right-click on the leave picker is not the start of a swipe', asy
 // Nothing bounded it — a run reached 2086 — so leave could be recorded in a year the Calendar cannot
 // show and that has no bank holidays to count against. Its arrows, its keys and its swipe stop at
 // CONFIG's years now; each is checked at both ends, and the way back from each end still works.
+// An arrow at a bound is `aria-disabled` and faded (admin-rangepicker.js) — never `disabled`, which drops
+// a keyboard user's focus — so to a mouse it still LOOKED pressable: the hand cursor and the hover fill,
+// on a control that does nothing there. It offers neither now; the live arrow beside it still does both.
+test('admin: a leave-picker arrow at its bound offers a mouse no hand and no hover fill', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse');
+    await page.clock.setFixedTime(new Date(`${CONFIG.MAX_YEAR}-12-10T09:00:00Z`));
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRpNext'), 'premise: the last month has no next').toHaveAttribute('aria-disabled', 'true');
+    const look = async (/** @type {string} */ id) => {
+        await page.locator(id).hover();
+        return page.locator(id).evaluate(el => ({ cursor: getComputedStyle(el).cursor, fill: getComputedStyle(el).backgroundColor }));
+    };
+    const live = await look('#alRpPrev');
+    expect(live.cursor, 'premise: a live arrow offers the hand').toBe('pointer');
+    expect(live.fill, 'premise: a live arrow fills under the mouse').not.toBe('rgba(0, 0, 0, 0)');
+    expect(await look('#alRpNext')).toEqual({ cursor: 'default', fill: 'rgba(0, 0, 0, 0)' });
+});
+
 test('admin: the leave picker stops at the first and last months the Calendar shows', async ({ page }, info) => {
     test.skip(isTouchProject(info), 'buttons, keys and a mouse');
     const label = page.locator('#alRpLabel');
@@ -1023,6 +1046,18 @@ test('admin: a member\'s locked member field reads as locked, not as broken', as
         return { opacity: cs.opacity, cursor: cs.cursor };
     });
     expect(style).toEqual({ opacity: '1', cursor: 'default' });
+});
+
+// shared-ui-5 — a search box is named by what its list holds. The member picker's title is a question,
+// which has no noun to weld onto "Search", so its box was called a bare "Search".
+test('admin: the member picker calls its search box "Search staff"', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMemberTrigger').click();
+    const box = page.locator('.picker-sheet .picker-search-input');
+    await expect(box, 'premise: the staff list earns a search box').toBeVisible();
+    await expect(box).toHaveAttribute('aria-label', 'Search staff');
 });
 
 test('admin: a member booking their own leave is not told whose leave it is', async ({ page }) => {
@@ -1774,6 +1809,40 @@ test('admin: a day before the start date takes no change — the pills say why, 
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
 });
 
+// The before-start line is the row's own explanation, as the Sunday and Christmas lines are, so it is set
+// as they are: on its own line under the pills, in the same quiet type. It shipped with no rule at all.
+test('admin: the before-start line is set like the Sunday line in the same week', async ({ page }) => {
+    await adminOnWeek(page, 'K. Jedlinski', '2026-06-01');   // starts Wed 3 Jun 2026
+    const look = (/** @type {import('@playwright/test').Locator} */ el) => el.evaluate(n => {
+        const s = getComputedStyle(n);
+        return { flexBasis: s.flexBasis, fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color, marginTop: s.marginTop };
+    });
+    const sunday = await look(page.locator('.day-row:visible .sunday-note').first());
+    expect(await look(page.locator('.day-row[data-date="2026-06-01"] .start-note'))).toEqual(sunday);
+});
+
+// …AND THE LEAVE CARD'S TWIN (whole-app check, 10 Nov 2026). Before the start date the base roster reads
+// as rest, so a range across it asked "Swapped — counts / Rest day — free" about days the member had not
+// joined for, and "Swapped" wrote leave the Calendar never shows and the allowance counted.
+test('admin: a leave range across a start date asks nothing about the days before it, and writes none', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-06-01T09:00:00Z'));
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('K. Jedlinski');   // starts Wed 3 Jun 2026
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-06-01"]').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-06-05"]').click();
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('3 days');
+    await expect(preview.locator('.swapday-row'), 'a question about a day before the start date').toHaveCount(0);
+    await clickInView(page.locator('#alSaveBtn'));
+    await expect(page.locator('#alFeedback')).toContainText('Recorded');
+    const written = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).map((/** @type {any} */ w) => w.date).sort());
+    expect(written).toEqual(['2026-06-03', '2026-06-04', '2026-06-05']);
+});
+
 // THE FIRST READ WAITS FOR THE SESSION (whole-app check, Nov 2026). On an iPhone Firebase can restore no
 // user behind a valid local session (AUTH_AND_SESSIONS.md), and Admin then signs in silently. The boot
 // read went out first — with no credential, which the overrides rule refuses — and nothing retried it once
@@ -2196,27 +2265,46 @@ test('admin: with reduce motion on, the over-limit bar and the save toast appear
     for (const [id, n] of moving) expect(n, `#${id} still animates its entrance with reduce motion on`).toBe(0);
 });
 
-// The save toast and the Unsaved bar share the foot of the screen, and an Apply that both stages days
-// and raises a toast ("Set 6 days — Sunday skipped …") drew the toast over the bar's label and both of
-// its buttons for four seconds, with taps passing through to buttons nobody could see.
-test('admin: the save toast rises clear of the Unsaved bar', async ({ page }) => {
-    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
-    await seedSession(page, 'G. Miller');
-    await page.setViewportSize({ width: 375, height: 800 });
-    await page.goto('/admin.html');
-    await page.waitForSelector('.day-row', { timeout: 10000 });
-    await page.locator('#bulkSelAll').click();
-    await page.locator('.bulk-type-group .type-pill-btn[data-type="annual_leave"]').click();
-    await page.locator('#bulkApplyBtn').click();
-    await expect(page.locator('#stagedBar')).toBeVisible();
-    await expect(page.locator('#saveToast'), 'premise: the toast is up with the bar').toHaveClass(/\bvisible\b/);
-    const g = await page.locator('#saveToast').evaluate(async el => {
-        await Promise.all(el.getAnimations().map(a => a.finished));   // it rises as it appears
-        return { toast: el.getBoundingClientRect().bottom,
-                 bar: /** @type {HTMLElement} */ (document.getElementById('stagedBar')).getBoundingClientRect().top };
+// The save toast and the Unsaved bar share the foot of the screen, and the toast was drawn over the bar's
+// label and both of its buttons for four seconds, with taps passing through to buttons nobody could see
+// (css-admin-ops-10). Apply no longer raises the toast (admin-1: it confirms a SAVE), so the case left is
+// a recorded booking deleted while week edits are staged; with nothing staged the toast keeps its place.
+for (const staged of [true, false]) {
+    test(`admin: a delete's toast ${staged ? 'rises clear of the Unsaved bar' : 'keeps its place at the foot with nothing staged'}`, async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+        await seedMemberSession(page, 'G. Miller');   // a real user, so the delete is not refused
+        await page.addInitScript(() => {
+            /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+                docs: [{ id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' }],
+            });
+        });
+        await page.setViewportSize({ width: 375, height: 800 });
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        await page.locator('#fieldMember').selectOption('G. Miller');
+        if (staged) {
+            const row = page.locator('.week-panel .day-row[data-date="2026-11-10"]');
+            await row.locator('.col-check input').click();
+            await row.locator('.type-pill-btn[data-type="annual_leave"]').click();
+        }
+        await expect(page.locator('#stagedBar'), 'premise: the Unsaved bar is up only with an edit staged')[staged ? 'toBeVisible' : 'toBeHidden']();
+        await page.locator('#alToggleHeader').click();
+        await page.locator('#alBookedToggle').click();
+        const del = page.locator('#alBookedBody .btn-period-delete').first();
+        await del.click();
+        await del.click();
+        const toast = page.locator('#saveToast');
+        await expect(toast, 'premise: the delete raised the toast').toHaveClass(/\bvisible\b/);
+        const g = await toast.evaluate(async el => {
+            await Promise.all(el.getAnimations().map(a => a.finished));   // it rises as it appears
+            const bar = /** @type {HTMLElement} */ (document.getElementById('stagedBar'));
+            return { toast: el.getBoundingClientRect().bottom, bar: bar.hidden ? null : bar.getBoundingClientRect().top,
+                     foot: window.innerHeight };
+        });
+        if (staged) expect(g.toast, 'the toast is drawn over the Unsaved bar').toBeLessThanOrEqual(/** @type {number} */ (g.bar));
+        else expect(g.foot - g.toast, 'with no bar to clear, the toast sits 24px from the foot').toBeCloseTo(24, 0);
     });
-    expect(g.toast, 'the toast is drawn over the Unsaved bar').toBeLessThanOrEqual(g.bar);
-});
+}
 
 // "Unsaved: 2 days, 1 to remove" was `nowrap` and could not shrink, so at 360px the bar's Save button
 // ran 22px off the screen — and with Android's large text, the plain "N days" state did the same.
@@ -2844,6 +2932,42 @@ test('admin: a Saved Changes ✕ pressed from the keyboard hands focus on, never
     await expect(dels).toHaveCount(0);
     await expect(page.locator('#listFeedback'), 'none left: the line that says what happened').toBeFocused();
 });
+
+// …AND THE LINE IT LANDS ON WEARS THE APP'S RING (whole-app check, 10 Nov 2026). With no rule of their
+// own, the three lines that take that focus drew the browser's default `outline: auto` instead of the
+// app's --focus-outline (measured in Chromium) — the one focus indicator outside the design system.
+for (const [line, list] of [['listFeedback', 'Saved Changes'], ['alFeedback', 'Recorded dates']]) {
+    test(`admin: the ${list} line a keyboard delete hands focus to wears the app's focus ring`, async ({ page }) => {
+        // 2025 for Recorded dates: no Christmas row yet, so the one delete empties and hides the list.
+        await page.clock.setFixedTime(new Date(line === 'alFeedback' ? '2025-11-05T09:00:00Z' : '2026-11-03T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+                authUser: true, docs: [{ id: 'k1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' }],
+            });
+        });
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        await page.locator('#fieldMember').selectOption('G. Miller');
+        if (line === 'alFeedback') { await page.locator('#alToggleHeader').click(); await page.locator('#alBookedToggle').click(); }
+        else await page.locator('#overridesToggleHeader').click();
+        const del = page.locator(line === 'alFeedback' ? '#alBookedBody .btn-period-delete' : '#overrideTableBody .btn-delete').first();
+        await del.focus();
+        await page.keyboard.press('Enter');
+        await page.keyboard.press('Enter');
+        await expect(page.locator(`#${line}`), 'premise: the delete handed focus to the line').toBeFocused();
+        const ring = await page.evaluate((id) => {
+            const read = (/** @type {Element} */ el) => { const s = getComputedStyle(el); return [s.outlineStyle, s.outlineWidth, s.outlineColor].join(' '); };
+            const token = document.createElement('div');
+            token.style.outline = 'var(--focus-outline)';
+            document.body.append(token);
+            const want = read(token);
+            token.remove();
+            return { got: read(/** @type {Element} */ (document.getElementById(id))), want };
+        }, line);
+        expect(ring.got).toBe(ring.want);
+    });
+}
 
 test('admin: a Saved Changes row is one row — controls side by side, under 64px', async ({ page }) => {
     await seedSession(page, 'G. Miller');

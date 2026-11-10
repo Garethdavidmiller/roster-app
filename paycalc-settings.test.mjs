@@ -875,3 +875,41 @@ describe('the pension controls keep a payslip\'s own figure (paycalc-3-3)', () =
         assert.equal(storedPension(V), null, 'the scheme default is stored as null, so it keeps following the table');
     });
 });
+
+// ── A REFUSED START IS NOT LEFT ON SCREEN (paycalc-1-10; whole-app check, 10 Nov 2026) ───────────
+// A start moved at or before an earlier rejoin is refused — a spell that has already ENDED is left
+// alone (`withOptOutStartAt`). The date's change handler saved, nothing moved, and the select went on
+// naming the payslip it had just refused, while every figure used the start on record until a reload.
+describe('the opt-out date shows the start on record after a refused correction (paycalc-1-10)', () => {
+    /** @type {any} */ let P = null;
+    /** @type {any} */ let S = null;
+    before(async () => { P = await import('./paycalc-periods.js'); S = await import('./paycalc-settings.js'); });
+    beforeEach(() => { beNobody(); _ls.clear(); _ls.set(SK.grade, 'cea'); _ls.set(SK.setup, '1'); });
+
+    /** Out from V−6, back in from V−4, out again from V−2: viewing V, with the controls wired. */
+    async function twoSpells() {
+        const V = P.todaysPeriodNum();
+        const timeline = JSON.stringify([{ from: V - 6, out: true }, { from: V - 4, out: false }, { from: V - 2, out: true }]);
+        _ls.set(SK.pensionTimeline, timeline);
+        await settingsCard(V);
+        S.loadSettings();
+        S.wirePensionControls({ autosave: () => {} });
+        return { V, timeline };
+    }
+
+    test('a start moved into the spell that already ended is refused, and the control shows the start on record', async () => {
+        const { V, timeline } = await twoSpells();
+        assert.equal(card.pensionOptOutFrom.value, String(V - 2), 'premise: the control opens on the current spell\'s start');
+        card.pensionOptOutFrom.value = String(V - 5); card.pensionOptOutFrom.fire('change');
+        assert.equal(_ls.get(SK.pensionTimeline), timeline, 'premise: the refused start moved nothing');
+        assert.equal(card.pensionOptOutFrom.value, String(V - 2), 'the control went on naming the payslip it had just refused');
+    });
+
+    test('CONTROL: a start moved later than the rejoin is kept, and shown', async () => {
+        const { V } = await twoSpells();
+        card.pensionOptOutFrom.value = String(V - 1); card.pensionOptOutFrom.fire('change');
+        assert.equal(_ls.get(SK.pensionTimeline),
+            JSON.stringify([{ from: V - 6, out: true }, { from: V - 4, out: false }, { from: V - 1, out: true }]));
+        assert.equal(card.pensionOptOutFrom.value, String(V - 1));
+    });
+});

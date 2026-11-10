@@ -682,16 +682,18 @@
       <div class="check-actual-verdict" id="actualVerdict" aria-live="polite"></div>
       <!-- The other payslip lines (v22.07): optional, behind a disclosure — the net check stays
            the one-field quick path. Labels are the result card's own row names, not the payslip's line
-           names (the payslip prints the pension as "Smart RPS CR Scheme"); each figure autosaves
-           into this period's blob like actualNet (null when blank — never a phantom £0). The
-           comparison table renders only when a line beyond the net is entered. -->
+           names (the payslip prints the pension as "Smart RPS CR Scheme") — except the pay line, which
+           is the payslip's own Taxable Pay, after the pension, set against the summary's Pay after
+           pension deduction (buildActualComparison). Each figure autosaves into this period's blob
+           like actualNet (null when blank — never a phantom £0). The comparison table renders only
+           when a line beyond the net is entered. -->
       <button type="button" class="check-more-btn" id="actualMoreBtn" aria-expanded="false" aria-controls="actualMoreWrap">
         Compare more payslip lines <span class="bd-arrow" aria-hidden="true">▼</span>
       </button>
       <div class="check-more" id="actualMoreWrap" hidden>
         <div class="check-more-grid">
-          <label class="check-more-field">Total pay
-            <span class="pfx"><span class="pfx-sym">£</span><input type="text" id="actualGrossInput" inputmode="decimal" autocomplete="off" placeholder="Gross"></span>
+          <label class="check-more-field">Taxable Pay
+            <span class="pfx"><span class="pfx-sym">£</span><input type="text" id="actualGrossInput" inputmode="decimal" autocomplete="off" placeholder="Taxable Pay"></span>
           </label>
           <label class="check-more-field">Pension contribution
             <span class="pfx"><span class="pfx-sym">£</span><input type="text" id="actualPensionInput" inputmode="decimal" autocomplete="off" placeholder="Pension"></span>

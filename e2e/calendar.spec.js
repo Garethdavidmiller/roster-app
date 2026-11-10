@@ -854,6 +854,8 @@ test('calendar: the name sheet offers a filter, and picking a filtered row still
     // …and this sheet's title is a QUESTION, which welded into "Search whose roster are you reading?"
     // (whole-app check, Nov 2026): a question has no noun to keep.
     expect(label, 'the sheet\'s question was welded onto "Search"').not.toMatch(/\?|roster are you reading/i);
+    // …and the page says what the list holds, so the box is not a bare "Search" (shared-ui-5).
+    expect(label).toBe('Search names');
 
     const shownNow = () => page.locator('.picker-opt[data-value]').count();
     const before = await shownNow();

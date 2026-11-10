@@ -78,8 +78,9 @@ export const PAGE_POLICIES = Object.freeze({
     // The new link (v25.06; the December link until v25.10): a preview of the admin's and the named previewers' until v25.60
     // (CONFIG.NEWLINK_PREVIEW: S. Silva, its contact, since v25.33). OPEN since v25.60 (owner, 9 Nov 2026: "send the new
     // links section live for everyone with a cea contract and the managers"): `newlinkAudience` — every colleague on a
-    // normal CEA contract, and the managers. newlink-config.js → PHASE says 'open' with it, and newlink-config.test.mjs
-    // fails if the two part. Never `staffPin` (owner, 2 Nov 2026: "No, signed-in only").
+    // normal CEA contract, and the managers. newlink-config.js → PHASE says 'open' — or 'decided', which follows
+    // CHOSEN — with it, and newlink-config.test.mjs fails if the two part. Never `staffPin` (owner, 2 Nov 2026:
+    // "No, signed-in only").
     newlink:    { requireNamed: true,  role: ['admin', 'newlinkPreview', 'newlinkAudience'] },
 });
 

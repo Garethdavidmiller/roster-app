@@ -48,7 +48,7 @@ import {
 import {
   updateRosterHint, updateJoinerNotice, toggleRosterDays,
   fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
-  clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS,
+  clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS, recordCalendarFigures,
 } from './paycalc-roster-hint.js';
 import { isDataEmpty, calcHPP, commitPriorHppActual, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
@@ -489,6 +489,7 @@ export function init() {
       });
       try {
         lsSet(periodKey(pNum), JSON.stringify(d));
+        recordCalendarFigures(pNum);   // the snapshot describes what was just saved: gold pairs at their saved values (paycalc-3-1)
         updateSaveStatus(pNum);
       } catch { /* storage unavailable */ }
       _runCalcBackPay();   // the lump accrues from SAVED hours, so it re-prices from what was just saved (paycalc-2-2)
@@ -1527,13 +1528,13 @@ export function init() {
     // title is also the control's accessible name, so it carries its field's visible label word for
     // word (paycalc-copy-parity.test.mjs) — and the loan stop never says "paid off" (paycalc.md).
     initSelectSheets([
-        { id: 'periodSelect',      title: 'Which pay period?' },
+        { id: 'periodSelect',      title: 'Which pay period?', searchLabel: 'Search pay periods' },
         { id: 'gradeSelect',       title: 'Your grade' },
         { id: 'studentLoan',       title: 'Student loan plan' },
-        { id: 'pensionOptOutFrom', title: 'Not in the scheme from which payslip?' },
-        { id: 'slPaidOffFrom',     title: 'Student loan stopped being deducted?' },
+        { id: 'pensionOptOutFrom', title: 'Not in the scheme from which payslip?', searchLabel: 'Search pay periods' },
+        { id: 'slPaidOffFrom',     title: 'Student loan stopped being deducted?', searchLabel: 'Search pay periods' },
         { id: 'ytdSrcSelect',      title: 'From which payslip?' },
-        { id: 'backPayPeriod',     title: 'Which payslip carries this lump sum?' },
+        { id: 'backPayPeriod',     title: 'Which payslip carries this lump sum?', searchLabel: 'Search pay periods' },
     ], { createLightbox });
 
     initTransferCard();   // late: the backup card reads the per-member namespace runMigrations() chose

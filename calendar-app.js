@@ -489,7 +489,7 @@ const _teamMemberSelect = /** @type {HTMLSelectElement} */ (document.getElementB
 // The member picker opens the app's OWN sheet rather than the OS dropdown (v23.33). ~50 names in
 // a Material radio list was the worst instance of the fault select-sheet.js exists for; the select
 // itself is untouched as the value holder, so the change handler below is unchanged.
-enhanceSelect(_teamMemberSelect, { title: 'Whose roster are you reading?', placeholder: 'Choose your name', createLightbox });
+enhanceSelect(_teamMemberSelect, { title: 'Whose roster are you reading?', placeholder: 'Choose your name', searchLabel: 'Search names', createLightbox });
 /** @type {ReturnType<typeof setTimeout>|null} */
 let _pendingMemberApply = null;
 /** Apply the dropdown's CURRENT selection (read live so a value change during the wait is honoured). */

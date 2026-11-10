@@ -6,8 +6,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { swapDecisionDates, replacedTypeForSwap, rangeWriteDates } from './al-swapped-days.js';
-import { teamMembers, getBaseShift, parseISODate } from './roster-data.js';
+import { teamMembers, getBaseShift, parseISODate, formatISO } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
+import { projectAlBooking } from './admin-al-projection.js';
 
 const MEMBER = teamMembers.find(m => m.name === 'C. Francisco-Charles');
 
@@ -130,4 +131,39 @@ test('Christmas Day and Boxing Day are never asked about from 2026 — the answe
     // Before 2026 they are rest days like any other, asked about exactly as they always were.
     assert.deepEqual(swapDecisionDates({ dates: ['2025-12-25', '2025-12-26'], memberObj: MEMBER, ovByDate: null }),
         ['2025-12-25', '2025-12-26']);
+});
+
+// ── NOTHING BEFORE THE START DATE (whole-app check, 10 Nov 2026 — the range card's twin of admin-1-11) ──
+// Before a member's start date the base roster reads as rest, so the AL card asked "swapped or free?"
+// about days they had not yet joined for, and "swapped" wrote leave the Calendar never shows and the
+// allowance counted. Such a day is never asked about and never written, and the booking's projection
+// skips it too, so the preview counts what the save writes.
+const JOINER = teamMembers.find(m => m.name === 'K. Jedlinski');
+const PRE  = ['2026-05-30', '2026-06-01', '2026-06-02'];
+const POST = ['2026-06-03', '2026-06-04', '2026-06-05'];
+/** A shift recorded before the start date — what a roster import could leave there. */
+const PRE_SHIFT = new Map([[PRE[2], { type: 'shift', value: '06:00-14:00' }]]);
+
+test('premise: the joiner starts on 3 Jun 2026, and the roster reads every day before it as rest', () => {
+    assert.ok(JOINER?.startDate, 'K. Jedlinski must be on the roster with a start date');
+    assert.equal(formatISO(JOINER.startDate), POST[0]);
+    for (const d of PRE) assert.ok(isRestShift(getBaseShift(JOINER, parseISODate(d))), `${d} must read as rest`);
+    for (const d of POST) assert.ok(!isRestShift(getBaseShift(JOINER, parseISODate(d))), `${d} must be a working day`);
+});
+
+test('a day before the start date is never asked about', () => {
+    assert.deepEqual(swapDecisionDates({ dates: [...PRE, ...POST], memberObj: JOINER, ovByDate: null }), []);
+});
+
+test('a day before the start date is never written — not on a "swapped" answer, nor over a shift recorded there', () => {
+    const args = { type: 'annual_leave', dates: [...PRE, ...POST], memberObj: JOINER, ovByDate: PRE_SHIFT, swappedDates: PRE };
+    assert.deepEqual(rangeWriteDates(args), POST);
+    assert.deepEqual(rangeWriteDates({ ...args, type: 'sick' }), POST, 'an absence range writes nothing there either');
+});
+
+test('the booking projection writes and counts exactly what the range writer writes', () => {
+    const dates = [...PRE, ...POST];
+    const p = projectAlBooking({ member: JOINER, dates, ovByDate: PRE_SHIFT, swapAnswers: new Map(PRE.map(d => [d, true])) });
+    assert.deepEqual(p.writing, rangeWriteDates({ type: 'annual_leave', dates, memberObj: JOINER, ovByDate: PRE_SHIFT, swappedDates: PRE }));
+    assert.deepEqual(p.consuming, POST, 'the preview and the allowance check count no day before the start');
 });

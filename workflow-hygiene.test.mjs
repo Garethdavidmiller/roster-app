@@ -1394,6 +1394,18 @@ describe('the live check looks twice before it reports', () => {
             `the site step must set LIVE_REQUIRE_DIRECT: '${wanted}' in its own env (found ${set === undefined ? 'nothing' : `'${set}'`}); anything else lets a relayed pass through on a schedule`);
     });
 
+    test('the direct probe takes any HTTP answer as a connection — the page checks judge the status', () => {
+        // workflows-9 (10 Nov 2026 review): anything but a 200 from web.app's robots.txt read as "could
+        // not reach the internet", so web.app answering 404 or 5xx for everything — the outage this check
+        // exists for — failed all six tests on that assertion before any page opened, the mirror among
+        // them. Only a navigation that THROWS is no connection; an HTTP error is an answer to judge.
+        const spec = readFileSync('e2e/live.spec.js', 'utf8');
+        const probe = spec.slice(spec.indexOf('async function canReachDirectly'), spec.indexOf('function curlFetch'));
+        assert.ok(probe.includes('probe.goto('), 'the direct probe was not found in e2e/live.spec.js');
+        assert.doesNotMatch(probe, /\.status\(\)/,
+            'the probe judges the answer\'s status, so an error page from web.app reads as "no connection"');
+    });
+
     test('only a failure of the site check itself reaches the issue', () => {
         // The whole-app review's fix (Oct 2026): a runner that could not install used to post "the
         // live site failed" about a site nobody had opened.

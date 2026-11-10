@@ -119,8 +119,8 @@ const NATIVE_BY_DECISION = {
 
     'admin.html#alMember':
         'NOT A CONTROL — a `hidden` value holder the save path reads. The member is chosen ONCE, in '
-        + 'the top bar; `.al-member-field` has been `display:none` since the member context bar '
-        + 'existed, for the same reason. It WAS enhanced, v23.33 to v23.74, and that built a second, '
+        + 'the top bar; `.al-member-field` was `display:none` from the member context bar\'s arrival, for '
+        + 'the same reason, and was removed on 10 Nov 2026. It WAS enhanced, v23.33 to v23.74, and that built a second, '
         + 'fully operable member picker inside the card: picking a name there moved the value the '
         + 'SAVE writes to while the top bar, "Recording for", the AL banner, the week grid and Saved '
         + 'Changes all stayed on the previous member, so the card would have recorded leave against '
@@ -631,6 +631,10 @@ const SAFE_BY_DECISION = {
     'admin-app.js': {
         why: 'the month filter is written and then renderTable() rebuilds its whole option list, '
             + 'restoring the value it just read — a childList mutation the observer watches',
+        // THE MONTH FILTER ONLY (whole-app check, 10 Nov 2026). Unscoped, the row excused every
+        // enhanced select in the file, so a silent `fieldMember.value = …` — the member picker, whose
+        // stale label is the v23.42 wrong-PERSON symptom — passed this contract. Measured before scoping.
+        handles: ['monthFilter'],
         // renderTable lives in another module, which is why this is a row rather than a resolver
         // hop. The condition is the thing that actually makes it safe, so that is what is checked.
         holds: () => {
@@ -730,8 +734,10 @@ test('a `.value =` on an enhanced select announces itself, or rebuilds, or repai
             }
             if (!writes.length) continue;
             const exempt = SAFE_BY_DECISION[f];
-            if (exempt && exempt.holds()) continue;
+            const excused = !!exempt && exempt.holds();
             for (const { line, handle } of writes) {
+                // A row that names its handles vouches for those writes only; any other is judged below.
+                if (excused && (!exempt.handles || exempt.handles.includes(String(handle)))) continue;
                 // BOTH ESCAPES ARE HANDLE-SPECIFIC, and that was learned by mutation. The first cut
                 // asked only whether the BODY dispatched or rebuilt ANYTHING, and deleting the
                 // grade's `dispatchEvent` from `login-overlay.js` sailed through it — the body also

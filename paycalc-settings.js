@@ -279,9 +279,12 @@ export function wirePensionControls({ autosave }) {
   // all repainted — not merely recalculated. `saveSettings` MOVES the spell's start rather than
   // recording a second change at the new payslip: re-picking a later one would otherwise be
   // swallowed by the earlier change still standing in front of it, leaving the select reading one
-  // payslip and every figure using another until the next reload quietly put it back.
+  // payslip and every figure using another until the next reload quietly put it back. The control is
+  // then rebuilt from the record, as the tick's is: a start moved at or before an earlier rejoin is
+  // refused (`withOptOutStartAt`), and the select must not go on naming it (paycalc-1-10).
   document.getElementById('pensionOptOutFrom')?.addEventListener('change', () => {
     saveSettings();
+    buildPensionFromSelect(getPensionTimeline());
     const p = _viewed();
     applyPensionOptOutUI(p);
     _repaint(p);
