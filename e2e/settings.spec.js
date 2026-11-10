@@ -154,6 +154,37 @@ for (const [label, payKeys, payStep] of [['with pay figures, the first step carr
     });
 }
 
+// ── THE PAGES MIRROR (Nov 2026 review) ──────────────────────────────────────────────────────────
+// The app is never installed FROM the mirror, so an iPhone there reported nothing to finish — and with
+// notifications "not available" the summary said "✓ You're all set" to a phone that can never receive
+// one. It is a to-do there too, and the steps start at the main address. The mirror is the host the
+// page tests for (`github.io`); this serves the page as if it were there, LOUD if that test moves.
+async function asMirror(page) {
+    for (const file of ['settings-app.js', 'huddle.js']) {
+        await page.route(`**/${file}`, async route => {
+            const res = await route.fetch();
+            const src = await res.text();
+            const host = '/github\\.io$/i.test(window.location.hostname)';
+            if (!src.includes(host)) throw new Error(`${file}: the mirror test moved — update asMirror`);
+            await route.fulfill({ response: res, contentType: 'text/javascript', body: src.replaceAll(host, 'true') });
+        });
+    }
+}
+
+test('settings: an iPhone on the Pages mirror is sent to the main address to install, not told it is all set', async ({ page }) => {
+    await asMirror(page);
+    await openSettings(page, { configured: true, iphone: true });
+    await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'todo');
+    await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the app to your Home Screen']);
+    await expect(page.locator('#deviceCard')).toBeVisible();
+    await expect(page.locator('#installBtn')).toBeHidden();
+    const main = page.locator('#installStepMain');
+    await expect(main).toBeVisible();
+    await expect(main.locator('a')).toHaveAttribute('href', 'https://myb-roster.web.app/');
+    await expect(page.locator('#installStepSafari'), 'the step for opening THIS address gives way to it').toBeHidden();
+    await expect(page.locator('#installSteps li:visible').last()).toContainText('sign in there once');
+});
+
 test('settings: a saved work email says so before it offers to remove it', async ({ page }) => {
     // Polish round 2 (owner-approved): "Remove saved email" sat ABOVE "✓ Saved — last updated", so
     // the card offered to undo the save before confirming it. The confirmation answers the Save

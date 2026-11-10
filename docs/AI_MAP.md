@@ -749,6 +749,10 @@ reassurance and false alarm); the wiring by `e2e/settings.spec.js`.
 - `CARD_ORDER` — password, work email, install, notifications: declared, so the to-do list does not
   reshuffle between loads. Pay data is deliberately absent; it has no wrong state.
 - `shouldOpen(state)` — `action`, `blocked` and `error` open their card; `ok`, `unknown` and `n/a` do not.
+- `installNeed({ ios, installed, onMirror })` → `{ state, from }` — installing is a to-do (`action`) only
+  for an iPhone in a browser, an offer (`n/a`) everywhere else. On the Pages mirror that iPhone is a to-do
+  too, with steps that start at the main address (`from: 'main-address'`), since the app is never added
+  from the mirror.
 - `summarise(states)` → `{ tone, headline, items, ids, cards }`. **Silence is not success:** a card that has not
   reported is `unknown`, which outranks every answer, and a failed read is `error` — never "all set".
   `ids`/`cards` say which card each to-do is about, and its element id: the strip's items link there.

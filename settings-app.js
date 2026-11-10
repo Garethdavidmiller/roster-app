@@ -18,7 +18,7 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
-import { summarise, shouldOpen } from './settings-status.js';
+import { summarise, shouldOpen, installNeed } from './settings-status.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
@@ -852,29 +852,29 @@ function initDeviceCard(/** @type {(state: import('./settings-status.js').CardSt
     // summary on "Checking…" for ever by never reporting at all.
     if (!row || !btn || !steps) { report('n/a'); return; }
 
-    // Already installed, or the Pages mirror — the same two populations the calendar's install
-    // strip refuses, for the same reasons: there is nothing to install, and installing FROM the
-    // mirror would pin a member to the address we are migrating off.
+    // Already installed, or the Pages mirror — the calendar's install strip refuses both, for the same
+    // reasons: there is nothing to install, and installing FROM the mirror would pin a member to the
+    // address we are migrating off. (An iPhone there is sent to the main address instead, below.)
     const installed = window.matchMedia?.('(display-mode: standalone)').matches
         || /** @type {any} */ (window.navigator).standalone === true;
     const onMirror  = /github\.io$/i.test(window.location.hostname);
 
     // **The report is synchronous and definite, and that is load-bearing.** The summary waits on
-    // every card it speaks for, so a state that only arrives when `beforeinstallprompt` fires
-    // would leave a member whose browser never fires it reading "Checking your settings…" for
-    // ever. There is exactly one case where installing is a THING TO FINISH rather than an offer:
-    // an iPhone in a browser, where WebKit gives the page no push until it is on the Home Screen.
-    // Everywhere else the card is an offer and reports 'n/a', so an Android member is never told
-    // to finish something they lose nothing by skipping.
-    const iosNeedsInstall = isIOS() && !installed && !onMirror;
-    report(iosNeedsInstall ? 'action' : 'n/a');
+    // every card it speaks for, so a state that only arrived with `beforeinstallprompt` would leave a
+    // browser that never fires it on "Checking your settings…" for ever. WHEN installing is a thing
+    // to finish rather than an offer, and where the app is added from, is `installNeed`.
+    const need = installNeed({ ios: isIOS(), installed, onMirror });
+    report(need.state);
 
-    if (iosNeedsInstall) {
+    if (need.from) {
         btn.hidden   = true;         // WebKit fires no event, so there is nothing to press
         steps.hidden = false;        // say what to tap instead
         // …starting with the figures, where there are any: the Home Screen app keeps its own storage.
         const payStep = document.getElementById('installStepPay');
         if (payStep) payStep.hidden = !holdsPayFigures;
+        const fromHere = document.getElementById('installStepSafari'), fromMain = document.getElementById('installStepMain');
+        if (fromHere) fromHere.hidden = need.from !== 'here';           // …and, on the mirror, at the
+        if (fromMain) fromMain.hidden = need.from !== 'main-address';   // address it is added from
         row.hidden   = false;
     }
 
