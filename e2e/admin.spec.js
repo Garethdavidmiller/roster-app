@@ -2339,7 +2339,9 @@ test('admin: the Unsaved bar keeps Discard and Save on a 360px screen, removals 
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
     await page.locator('#fieldMember').selectOption('G. Miller');
-    await page.locator('.week-panel .day-row[data-date="2026-11-12"] .col-check input').click();   // 1 to remove
+    // 1 to remove. Since the owner's 10 Nov 2026 decision a tick on a saved row only selects it; a saved
+    // change is removed by selecting its own type again (admin-week-editor.js, the checkbox handler).
+    await page.locator('.week-panel .day-row[data-date="2026-11-12"] .type-pill-btn[data-type="rdw"]').click();
     for (const d of ['2026-11-10', '2026-11-11']) {
         const row = page.locator(`.week-panel .day-row[data-date="${d}"]`);
         await row.locator('.col-check input').click();
