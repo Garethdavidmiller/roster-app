@@ -4005,6 +4005,24 @@ test('desktop: the Pay button keeps its label under the pointer', async ({ page 
     expect(ratio, `"Pay" is ${ratio.toFixed(2)}:1 on its hover fill`).toBeGreaterThanOrEqual(4.5);
 });
 
+// The Pay button opens the payslip PAID in the month on screen — the 💷 in its grid (owner, 10 Nov
+// 2026: "it defaults to December's payslip when we haven't had November's yet"). The calculator
+// read the month as the payslip whose SHIFTS covered the 15th, which from November 2026 is paid the
+// month after. The rule is `periodPaidInMonth` (unit-tested); this drives the button, because the
+// rule is only the answer if the page asks it.
+test('the Pay button opens the payslip paid in the month on screen, not the month after', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#payBtn').click();
+    await page.waitForURL(/paycalc\.html\?month=2026-11$/);
+    const picker = page.locator('#periodSelect');
+    await expect(picker.locator('option').first()).toBeAttached();
+    await expect.poll(() => picker.evaluate(s => /** @type {HTMLSelectElement} */ (s).selectedOptions[0]?.textContent),
+        'November\'s payslip, still to be paid — the ● one — not 18 Dec').toBe('● Paid 20 Nov 2026 · P36');
+});
+
 // CAL2 — the desktop controls are ONE centred row, and Team view used to remove the month's half of
 // it, so everything slid ~200px: the click after Team landed on 📝 Admin (a double-click on Team
 // opened Admin at every desktop width), the click after Month on Next →. The slot is now kept.

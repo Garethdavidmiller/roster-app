@@ -584,7 +584,8 @@ document.getElementById('nextMonth')?.addEventListener('click', (e) => {
     announceMonthChange();
 });
 
-// Pay button — opens the calculator on the month being viewed, for anyone.
+// Pay button — opens the calculator on the payslip PAID in the month being viewed (the 💷 in its
+// grid: `periodPaidInMonth`, paycalc-periods.js), for anyone.
 // DELIBERATELY NOT `navigateToPaycalc`, and not gated by `personalActionsAllowed`. That helper
 // guards the three routes that name a DAY and so read as a personal action (the day panel's
 // button, a desktop click on a pay-marked cell, keyboard Enter on one — CALENDAR_DATA.md

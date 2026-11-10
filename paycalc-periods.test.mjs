@@ -106,6 +106,7 @@ const {
     computeEarliestVisiblePNum, setEarliestVisiblePeriod, getEarliestVisiblePNum,
     visiblePeriods, isTaxYearVisible, ytdAutoSource, ytdSourceOffered, payslipMayBeInHand,
     periodLinkMissNote, ytdUpdateFrom, ytdAnchorStatus, ytdSourceToStamp, appendPayslipOptions,
+    periodPaidInMonth,
 } = await import('./paycalc-periods.js');
 
 const {
@@ -241,6 +242,49 @@ describe('periodLinkMissNote', () => {
     test('says nothing when the link matched, or when there is no list', () => {
         assert.equal(periodLinkMissNote('', periods), '');
         assert.equal(periodLinkMissNote('9 Apr 2027', []), '');
+    });
+});
+
+// Owner, 10 Nov 2026: "When you open the pay calculator at the moment, it defaults to December's
+// payslip when we haven't had November's yet." The Calendar's Pay button sends the month on screen
+// (?month=), and a month means the payslip PAID in it — the 💷 in that month's grid.
+describe('periodPaidInMonth — the payslip a month on the Calendar means', () => {
+    const periods = getPeriods();
+    const paidOn = (/** @type {any} */ p) => p && `${p.payday.getFullYear()}-${p.payday.getMonth() + 1}-${p.payday.getDate()}`;
+    test('November 2026 is the 20 Nov payslip, not the 18 Dec one whose shifts start on the 15th', () => {
+        // The old rule, for the record: the payslip whose shifts cover 15 Nov is paid in December.
+        const mid = new Date(2026, 10, 15, 12);
+        assert.equal(paidOn(periods.find((/** @type {any} */ p) => p.start <= mid && mid <= p.cutoff)), '2026-12-18',
+            'premise: the shifts covering 15 Nov are paid on 18 Dec');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 11, new Date(2026, 10, 10, 9))), '2026-11-20');
+        // And once it has been paid, the month still means it: a member checking the payslip in their hand.
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 11, new Date(2026, 10, 25, 9))), '2026-11-20');
+    });
+    test('every month in the range opens a payslip paid in that month', () => {
+        const now = new Date(2026, 10, 10, 9);
+        for (const p of periods) {
+            const y = p.payday.getFullYear(), m = p.payday.getMonth() + 1;
+            const got = periodPaidInMonth(periods, y, m, now);
+            assert.ok(got, `${y}-${m}: a month with a payday opens a payslip`);
+            assert.equal(got.payday.getFullYear() * 12 + got.payday.getMonth(), y * 12 + m - 1, `${y}-${m} opened ${paidOn(got)}`);
+        }
+    });
+    test('a month with two paydays opens the first still to be paid, or the later once both are', () => {
+        const july = periods.filter((/** @type {any} */ p) => p.payday.getFullYear() === 2026 && p.payday.getMonth() === 6).map(paidOn);
+        assert.deepEqual(july, ['2026-7-3', '2026-7-31'], 'premise: July 2026 has two paydays');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 7, new Date(2026, 6, 1, 9))), '2026-7-3', 'both to come: the first');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 7, new Date(2026, 6, 3, 13))), '2026-7-31', 'the 3rd paid at noon: the next');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 7, new Date(2026, 6, 10, 9))), '2026-7-31');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 7, new Date(2026, 10, 10, 9))), '2026-7-31', 'both paid: the later');
+    });
+    test('null for a month with no payslip on offer, so the page can say so', () => {
+        const now = new Date(2026, 10, 10, 9);
+        assert.equal(periodPaidInMonth(periods, 2025, 3, now), null, 'before the first tax year');
+        assert.equal(periodPaidInMonth(periods, 2027, 4, now), null, 'after the last payslip, 12 Mar 2027');
+        assert.equal(periodPaidInMonth(periods, 2027, 3, now)?.num, periods[periods.length - 1].num, 'March 2027 is the last one');
+        const fromJoinYear = periods.filter((/** @type {any} */ p) => p.num >= 48 + PC_CONFIG.TAX_YEARS[1].first);
+        assert.equal(periodPaidInMonth(fromJoinYear, 2025, 11, now), null, 'before a new starter\'s join year');
+        assert.equal(periodPaidInMonth([], 2026, 11, now), null);
     });
 });
 
