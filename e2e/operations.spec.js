@@ -1195,6 +1195,20 @@ test('operations: the date picker follows the clock across midnight', async ({ p
     await expect(trigger).toHaveText(/9 Sep 2026/);
 });
 
+// ── The week the roster form offers first (owner, 10 Nov 2026; import-client-3) ─────────────────
+// The rule is unit-tested (admin-roster-upload.test.mjs → defaultWeekEnding). This is the wiring: on
+// a Thursday — the day the final roster is released — the form offers the FOLLOWING week.
+test('operations: on a Thursday the roster form offers the following week', async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-11-12T10:00:00Z') });
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.clock.runFor(2000);
+    await expect(page.locator('#rosterWeekEnding')).toHaveValue('2026-11-21');
+    await page.evaluate(() => document.getElementById('rosterUploadBody')?.classList.add('open'));
+    await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText(/Sat 21 Nov 2026/);
+});
+
 // ── The app's own dropdown on Operations (v23.38) ──────────────────────────────────────────────
 // select-sheet-parity.test.mjs proves the RULE — that every select is enhanced or declared native.
 // It cannot prove the enhancement WORKS, and "the rule tested, the wiring not" is this repo's named

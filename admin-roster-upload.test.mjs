@@ -2322,3 +2322,62 @@ describe('a Christmas-week import (week ending Sat 26 Dec 2026)', async () => {
         assert.equal(old.christmas, false, '2025 predates the Christmas leave (CHRISTMAS_LEAVE_FROM_YEAR)');
     });
 });
+
+// ── THE WEEK THE FORM OFFERS FIRST (owner, 10 Nov 2026) ─────────────────────────────────────────
+// The roster is normally uploaded on a Thursday or a Friday for the FOLLOWING week. The field used to
+// default to the week in progress on every day but Saturday — a week early on exactly those days —
+// and nothing downstream can catch a whole week out: the drift detector compares ±1 day. The owner's
+// rule: from Thursday the following week; Sunday to Wednesday the week in progress; and a Saturday
+// keeps the next Saturday, as it always did — so Thursday to the next Wednesday all offer one week.
+describe('defaultWeekEnding — the week ending the upload form offers first', async () => {
+    const { defaultWeekEnding } = await import('./roster-alignment.js');
+    const { execFileSync } = await import('node:child_process');
+    /** A London wall-clock moment in winter, when London is UTC. */
+    const gmt = (/** @type {string} */ day, time = '10:00') => new Date(`${day}T${time}:00Z`);
+
+    test('every weekday of one week: Thursday to the following Wednesday offer the same Saturday', () => {
+        const expected = {
+            '2026-11-11': '2026-11-14',   // Wed — the week in progress
+            '2026-11-12': '2026-11-21',   // Thu — the release day: the FOLLOWING week
+            '2026-11-13': '2026-11-21',   // Fri
+            '2026-11-14': '2026-11-21',   // Sat — keeps the next Saturday, as it always did
+            '2026-11-15': '2026-11-21',   // Sun — the week in progress
+            '2026-11-16': '2026-11-21',   // Mon
+            '2026-11-17': '2026-11-21',   // Tue
+            '2026-11-18': '2026-11-21',   // Wed
+            '2026-11-19': '2026-11-28',   // Thu — the next release
+        };
+        for (const [day, saturday] of Object.entries(expected)) {
+            assert.equal(defaultWeekEnding(gmt(day)), saturday, day);
+            assert.equal(defaultWeekEnding(gmt(day, '00:05')), saturday, `${day}, just after midnight`);
+            assert.equal(defaultWeekEnding(gmt(day, '23:55')), saturday, `${day}, just before midnight`);
+        }
+    });
+
+    test('across a month end and the 2026→2027 year end', () => {
+        const expected = {
+            '2026-11-26': '2026-12-05', '2026-11-30': '2026-12-05', '2026-12-01': '2026-12-05', '2026-12-03': '2026-12-12',
+            '2026-12-23': '2026-12-26', '2026-12-24': '2027-01-02', '2026-12-25': '2027-01-02', '2026-12-26': '2027-01-02',
+            '2026-12-27': '2027-01-02', '2026-12-30': '2027-01-02', '2026-12-31': '2027-01-09', '2027-01-01': '2027-01-09',
+        };
+        for (const [day, saturday] of Object.entries(expected)) assert.equal(defaultWeekEnding(gmt(day)), saturday, day);
+    });
+
+    test('the day is LONDON\'s: in summer, half past midnight on a Thursday is already the release day', () => {
+        assert.equal(defaultWeekEnding(new Date('2026-06-17T22:30:00Z')), '2026-06-20', 'Wed 23:30 BST — the week in progress');
+        assert.equal(defaultWeekEnding(new Date('2026-06-17T23:30:00Z')), '2026-06-27', 'Thu 00:30 BST — the following week');
+        assert.equal(defaultWeekEnding(new Date('2026-10-25T12:00:00Z')), '2026-10-31', 'the Sunday the clocks go back');
+        assert.equal(defaultWeekEnding(new Date('2026-03-26T12:00:00Z')), '2026-04-04', 'a Thursday before the clocks go forward');
+    });
+
+    test('…whatever zone the device is set to', () => {
+        const src = new URL('./roster-alignment.js', import.meta.url).href;
+        const script = `const { defaultWeekEnding } = await import(${JSON.stringify(src)});
+            console.log([defaultWeekEnding(new Date('2026-11-18T20:00:00Z')), defaultWeekEnding(new Date('2026-11-19T03:00:00Z'))].join(','));`;
+        for (const TZ of ['Pacific/Auckland', 'America/Los_Angeles', 'UTC']) {
+            const out = execFileSync(process.execPath, ['--input-type=module', '-e', script], { env: { ...process.env, TZ }, encoding: 'utf8' }).trim();
+            // Wed 20:00 London is Thursday in Auckland; Thu 03:00 London is still Wednesday in Los Angeles.
+            assert.equal(out, '2026-11-21,2026-11-28', TZ);
+        }
+    });
+});

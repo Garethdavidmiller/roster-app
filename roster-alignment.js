@@ -3,10 +3,12 @@
  * roster-alignment.js — is a roster read trustworthy, or is it a day out?
  *
  * Owns: the ONE question "does this parsed week belong to the days it claims?", per member and
- *   across the whole read.
+ *   across the whole read — and the week the upload form offers before anybody picks one, the only
+ *   way a read lands a whole WEEK out (`defaultWeekEnding`).
  * Does NOT own: the parse (functions/roster-parse-helpers.js), the review states or the writes
- *   (admin-roster-upload.js), or the review markup.
- * Edit here for: the drift detector, the block threshold, or how a batch signature is judged.
+ *   (roster-review-states.js), or the review markup (admin-roster-upload.js).
+ * Edit here for: the drift detector, the block threshold, how a batch signature is judged, or the
+ *   default week ending.
  * Read first: `.claude/rules/roster-import.md` — the import's whole contract, including why this
  *   module is the only INDEPENDENT witness among the day-drift defences.
  *
@@ -32,7 +34,29 @@
  * real roster instead of hard-coding member names that go stale.
  */
 
-import { teamMembers, getBaseShift, parseISODate } from './roster-data.js';
+import { teamMembers, getBaseShift, parseISODate, formatISO } from './roster-data.js';
+import { londonDate } from './date-format.js';
+
+/**
+ * The week ending the upload form offers before anybody picks one (owner, 10 Nov 2026).
+ *
+ * The roster is normally uploaded on a Thursday or a Friday for the FOLLOWING week — the final
+ * roster for the week ending Sat 21 Nov is released on Thu 12 Nov. So from Thursday the default is
+ * the Saturday after next, Sunday to Wednesday it is the week in progress, and a Saturday keeps the
+ * next Saturday as it always did: Thursday to the following Wednesday all offer the same week. It
+ * offered the week in progress on the release days, and nothing downstream can catch that: a whole
+ * week out is not one of the ±1 offsets `detectShiftedRow` compares, so next week's sheet read
+ * against this week's dates landed every row seven days early (whole-app review, Nov 2026).
+ * The day of the week is LONDON's, whatever the device's own zone says.
+ * @param {number|Date} now
+ * @returns {string} ISO `YYYY-MM-DD`, always a Saturday
+ */
+export function defaultWeekEnding(now) {
+    const d = londonDate(now);                    // London's calendar day, as a local date at noon
+    const ahead = (6 - d.getDay() + 7) % 7;       // to the coming Saturday — 0 on a Saturday
+    d.setDate(d.getDate() + (ahead < 3 ? ahead + 7 : ahead));
+    return formatISO(d);
+}
 
 /** 'left' | 'right' from the base-roster detector; 'geometry' when the PDF's own grid refused a cell on the row. */
 /** @typedef {'left'|'right'|'geometry'} Drift */

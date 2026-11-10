@@ -24,7 +24,7 @@ import { computeCellStates, guardedRowHtml, unreadableTagClass, RDW_PREFIX, isRd
 export { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange, computeCellStates };
 import { setStatus } from './status-text.js';
 import { SIGNED_OUT_CODE, UNCONFIRMED_CODE, UNCONFIRMED_LINE, signedOutLine } from './claim-retry.js';
-import { assessRosterAlignment, driftCopy, stopCopy, geometryCopy } from './roster-alignment.js';
+import { assessRosterAlignment, driftCopy, stopCopy, geometryCopy, defaultWeekEnding } from './roster-alignment.js';
 import { withSlowSaveNotice } from './slow-save.js';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -282,16 +282,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         parseBtn.disabled = on || !fileInput.files?.length;
     };
 
-    // Default week ending to the next Saturday (roster PDFs always end on a Saturday).
-    // If today is already Saturday, jump to the one after so we default to the upcoming week.
-    {
-        const today = new Date();
-        const day   = today.getDay(); // 0=Sun … 6=Sat
-        const daysUntilNextSaturday = day === 6 ? 7 : 6 - day;
-        const nextSaturday = new Date(today);
-        nextSaturday.setDate(today.getDate() + daysUntilNextSaturday);
-        weekEndingEl.value = formatISO(nextSaturday);
-    }
+    // The week the form offers first: from Thursday the following week, which is the one a Thursday
+    // release covers (owner, 10 Nov 2026 — the rule and its reasoning are in roster-alignment.js).
+    weekEndingEl.value = defaultWeekEnding(Date.now());
 
     // ---- Snap any non-Saturday selection to the nearest Saturday ----
     // HTML date inputs have no built-in day-of-week restriction, so we enforce
