@@ -378,6 +378,10 @@
         </div>
         <div class="roster-rows" id="rosterRows"></div>
         <p class="roster-card-note" id="rosterHintText">Likely special-rate hours only — Saturday, Sunday, bank holidays, RDW, and Boxing Day. Standard contracted hours are already included in basic pay. Check against what you actually worked.</p>
+        <!-- What a fill did, for a screen reader (paycalc-3-14): the receipt above is a plain paragraph,
+             rewritten on every refresh, so it cannot be the live region without talking over the
+             member. paycalc-roster-hint.js writes the same words here, and clears them with it. -->
+        <p class="visually-hidden" id="rosterFillStatus" role="status" aria-live="polite"></p>
         <div class="roster-card-actions">
           <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill from calendar</button>
           <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show days ▼</button>

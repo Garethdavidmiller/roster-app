@@ -328,8 +328,13 @@ export function updateRosterHint() {
     }).join('');
     const body = html || (s.none ? '<p class="roster-none-note">Your calendar has no Saturday, Sunday or bank holiday shifts on this payslip.</p>' : '');
     if (body !== _lastRosterRowsHtml) {
+      // Rewriting the rows destroys the button that had focus — a row filled from the keyboard — and
+      // drops the keyboard on the page body; it goes back to that category's new row (paycalc-3-14).
+      const active = /** @type {Element|null} */ (document.activeElement ?? null);
+      const focusedCat = active && rows.contains?.(active) ? active.closest('[data-cat]')?.getAttribute('data-cat') : null;
       rows.innerHTML = body;
       _lastRosterRowsHtml = body;
+      if (focusedCat) /** @type {HTMLElement|null} */ (rows.querySelector(`[data-cat="${focusedCat}"]`))?.focus({ preventScroll: true });
     }
   }
 
@@ -622,13 +627,19 @@ export async function fillFromRoster(autosave) {
     const _gone = cleared.map(c => _CAT_LABELS[c] ?? c).join(' + ');
     // No undo is offered, because there is none: "Clear all entries" empties the WHOLE payslip, and
     // what a Replace overwrote does not come back (paycalc-3-11).
-    setStatus(hint, written.length > 0
+    const said = written.length > 0
       ? `✓ Filled ${_what}${cleared.length ? ` + cleared ${_gone}` : ''}`
       : cleared.length > 0
         ? `✓ Cleared ${_gone} — your calendar shows none`
         : (getOverridesFetchState() === 'loaded'
             ? 'Nothing to fill — no special-rate shifts on this payslip'
-            : 'Nothing to fill — and recorded shift changes could not be loaded (check signal)'));
-    setTimeout(() => { hint.textContent = prev; }, 4000);
+            : 'Nothing to fill — and recorded shift changes could not be loaded (check signal)');
+    setStatus(hint, said);
+    // …and to a screen reader, through a status region of its own (paycalc-3-14): the paragraph above
+    // is no live region, so a fill was silent, and "Nothing to fill" met a press with nothing at all.
+    // Cleared with the receipt, so the next fill is a change, and is announced.
+    const live = document.getElementById('rosterFillStatus');
+    setStatus(live, said);
+    setTimeout(() => { hint.textContent = prev; if (live) live.textContent = ''; }, 4000);
   }
 }

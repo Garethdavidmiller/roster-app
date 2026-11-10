@@ -62,7 +62,7 @@ mock.module('./paycalc-roster-suggestions.js', {
 });
 
 const { fillFromRoster, snapKey, _restoreRosterSuggested, _applyRosterSuggestion, _confBadge, updateRosterHint, recordCalendarFigures,
-    updateJoinerNotice } = await import('./paycalc-roster-hint.js');
+    updateJoinerNotice, fillCategoryFromRoster } = await import('./paycalc-roster-hint.js');
 // The REAL roster array and period grid, for the joiner-notice block (a synthetic joiner is pushed
 // for one case and popped straight after).
 const { teamMembers } = await import('./roster-data.js');
@@ -326,6 +326,66 @@ describe('the fill receipt says what happened, and nothing it cannot do', () => 
         const said = _els.rosterHintText.textContent;
         assert.match(said, /Filled Overtime/, 'premise: the receipt was written');
         assert.doesNotMatch(said, /Clear all entries|undo/i, 'the receipt offers an undo that wipes the whole payslip');
+    });
+
+    // paycalc-3-14. The receipt replaced the hint in a plain paragraph for four seconds, so a screen
+    // reader heard nothing of what a fill did — and "Nothing to fill" changed nothing else on the page,
+    // so that press met silence. It is also written to a status region of its own: the hint paragraph
+    // itself is rewritten on every refresh, and as a live region it would talk over the member.
+    test('…and says it to a screen reader too, through a status region of its own', async () => {
+        setupDom(A);
+        _els.rosterHintText = statusLine();
+        _els.rosterFillStatus = statusLine();
+        _fetchState = 'loaded';
+        await fillFromRoster(autosave);
+        assert.match(_els.rosterFillStatus.textContent, /Filled Overtime/, 'the fill was never announced');
+        mock.timers.tick(4000);
+        assert.equal(_els.rosterFillStatus.textContent, '', 'cleared with the receipt, so the next fill is news');
+    });
+
+    test('the status region is in the page, and the hint paragraph is not live', async () => {
+        const { readFileSync } = await import('node:fs');
+        const page = readFileSync(new URL('./paycalc.html', import.meta.url), 'utf8');
+        const region = /<[^>]*id="rosterFillStatus"[^>]*>/.exec(page);
+        assert.ok(region, '#rosterFillStatus is missing from paycalc.html');
+        assert.match(region[0], /role="status"/);
+        assert.doesNotMatch(/<[^>]*id="rosterHintText"[^>]*>/.exec(page)?.[0] ?? '', /aria-live|role="status"/,
+            'the hint is rewritten on every refresh — live, it would talk over the member');
+    });
+});
+
+// paycalc-3-14, the second half. A row fill re-renders the rows, and `innerHTML` destroys the
+// button that had focus — so a keyboard member who pressed Enter on a category was dropped on the
+// page body. Focus goes back to the same category's new row.
+describe('filling one row from the keyboard keeps the keyboard on that row', () => {
+    test('focus moves to the re-rendered row, not to the page', () => {
+        setupDom(A);
+        for (const id of HM_IDS) _els[id] = input();
+        _els.rosterHintBar = { style: {} };
+        /** @type {any} */ let focused = null;
+        /** A rows container that rebuilds its buttons on every innerHTML write, like the page's. */
+        const rows = {
+            _html: '', /** @type {any[]} */ buttons: [],
+            set innerHTML(/** @type {string} */ h) {
+                this._html = h;
+                this.buttons = [...h.matchAll(/data-cat="(\w+)"/g)].map(m => ({
+                    cat: m[1], getAttribute: (/** @type {string} */ a) => (a === 'data-cat' ? m[1] : null),
+                    closest() { return this; }, focus() { focused = this; },
+                }));
+            },
+            get innerHTML() { return this._html; },
+            contains: (/** @type {any} */ el) => rows.buttons.includes(el),
+            querySelector: (/** @type {string} */ sel) => rows.buttons.find(b => sel === `[data-cat="${b.cat}"]`) ?? null,
+        };
+        _els.rosterRows = rows;
+        _suggestion = () => ({ rdwH: 8, rdwM: 0, rdwCount: 1, satH: 7, satM: 30, satCount: 1, defaulted8h: {}, defaulted7h: {} });
+        updateRosterHint();
+        const before = rows.buttons.find(b => b.cat === 'rdw');
+        assert.ok(before, 'premise: the RDW row rendered');
+        /** @type {any} */ (global.document).activeElement = before;          // the keyboard is on it
+        fillCategoryFromRoster('rdw', autosave);                               // …and Enter fills it
+        assert.notEqual(rows.buttons.find(b => b.cat === 'rdw'), before, 'premise: the row was rebuilt');
+        assert.equal(focused?.cat, 'rdw', 'focus fell to the page body');
     });
 });
 
