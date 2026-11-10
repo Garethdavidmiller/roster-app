@@ -75,7 +75,7 @@ import { lockCardId, armSkeleton, showBootSkeleton } from './calendar-lock-slot.
 // the split is along the line this module's own header already stated. `initLockCards` below
 // hands them the four collaborators they cannot import back without a cycle.
 import { initLockCards, resetUnlockFailures, hideLockPanel, showLockPanel, showSignInPanel,
-         showMemberPanel, PIN_FIRST_HASH } from './calendar-lock-cards.js';
+         showMemberPanel, dismissSignInForm, PIN_FIRST_HASH } from './calendar-lock-cards.js';
 
 /** The exchange endpoint. Same region + project as every other MYB function. */
 const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCalendarViewer';
@@ -239,6 +239,7 @@ function grant(/** @type {'named'|'viewer'} */ type) {
     document.body.classList.remove('calendar-locked');
     document.body.classList.add('calendar-unlocked');
     hideLockPanel();
+    dismissSignInForm();   // the come-back card's full-screen form is not in the slot (cal-data-9)
     setWorkspaceHidden(false);
     // TWO hooks, because a grant is two different things (v20.41). Building the workspace must happen
     // ONCE — running it twice would re-wire the swipe handler and re-launch the initial fetch. But

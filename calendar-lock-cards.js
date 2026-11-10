@@ -113,6 +113,20 @@ export function hideLockPanel() {
 }
 
 /**
+ * Take the come-back card's FULL-SCREEN sign-in form down, for a grant (cal-data-9, 10 Nov 2026).
+ * The form is appended to <body>, not the slot, so a grant that landed while it was open — a slow
+ * identity restore, the silent sign-in — took the card away and left the form asking for a password
+ * over a Calendar already granted and built. The front door's INLINE card is in the slot and goes
+ * with it. A form whose OWN sign-in is in flight is left: its success reloads the page, and that
+ * reload is what runs the forced set-password step (its marker is written after the identity lands).
+ */
+export function dismissSignInForm() {
+    const form = document.getElementById('loginOverlay');
+    if (!form || form.classList.contains('login-overlay--inline') || form.querySelector('.login-back--busy')) return;
+    _signInForm?.dismissLoginOverlay();
+}
+
+/**
  * Build and show the staff-access panel.
  *
  * Deliberately NOT a lightbox. `createLightbox` is the app's modal grammar — backdrop, focus trap,
@@ -405,6 +419,7 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
             if (whyEl) whyEl.textContent = 'The sign-in form could not load. Check your connection and try again.';
             return;
         }
+        _signInForm = mod;   // so a grant can take the form down (`dismissSignInForm`)
         open(mod);
     });
 

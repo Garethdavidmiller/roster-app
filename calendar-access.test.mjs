@@ -121,13 +121,20 @@ function emitAuth(user) {
  *  where it was asked to mount and what alternative it was given, and paints a marker into the host
  *  so `lastPanelHtml` can tell the sign-in card from the PIN card. @type {any[]} */
 let loginMounts = [];
+let loginDismissals = 0;   // calls to dismissLoginOverlay (cal-data-9)
+let loginBusy = false;     // the form's OWN sign-in is in flight (its back link wears .login-back--busy)
 mock.module('./login-overlay.js', {
     namedExports: {
         initLoginOverlay: (opts) => {
             loginMounts.push(opts);
             if (opts.host) opts.host.innerHTML = '<div id="loginCard">SIGN-IN CARD</div>';
+            // The real form is one #loginOverlay either way: inside the slot when inline, on <body>
+            // as a full-screen dialog when not.
+            const form = domEl('loginOverlay');
+            if (opts.host) form.classList.add('login-overlay--inline');
+            form.querySelector = (/** @type {string} */ sel) => (sel === '.login-back--busy' && loginBusy ? {} : null);
         },
-        dismissLoginOverlay: () => {},
+        dismissLoginOverlay: () => { loginDismissals++; },
     },
 });
 
@@ -348,6 +355,8 @@ beforeEach(async () => {
     fetchQueue = [];
     lastFetchBody = null;
     loginMounts = [];
+    loginDismissals = 0;
+    loginBusy = false;
     ({ el: domEl } = fakeDom());
     // (`_accessType` is module-level — the whole app asks one module "may this browser see the
     // roster?" — so without the reset above a successful unlock in one test would leave every later
@@ -776,6 +785,43 @@ describe('initCalendarAccess', () => {
         assert.equal(loginMounts[0].presetName, 'G. Miller',
             'the overlay was opened without the name the card is already showing');
         assert.equal(loginMounts[0].host, undefined, 'the come-back sign-in is the modal, not inline');
+    });
+
+    // cal-data-9 (10 Nov 2026). A grant takes the SLOT down, and the come-back card's form is not in
+    // the slot — it is a full-screen dialog on <body>. A slow restore that landed while it was open
+    // granted and built the Calendar behind a form still asking for a password nobody needed.
+    describe('a grant that lands while the come-back card\'s sign-in form is open', () => {
+        async function openTheForm() {
+            sessionValue = { name: 'G. Miller' };
+            await initCalendarAccess({ onGranted: () => {} });
+            await new Promise(r => setTimeout(r, 0));   // let the silent attempt settle
+            await document.getElementById('calLockSubmit')._listeners.get('click')();
+            assert.equal(loginMounts.at(-1)?.host, undefined, 'premise: the full-screen form is up');
+        }
+
+        test('takes the form down with the card', async () => {
+            await openTheForm();
+            emitAuth({ uid: 'member-1', isAnonymous: false });   // the slow restore lands
+            assert.equal(getAccessType(), 'named', 'premise: granted');
+            assert.equal(loginDismissals, 1, 'the full-screen sign-in stayed over a Calendar already granted');
+        });
+
+        test('…but not while the form\'s OWN sign-in is in flight — its success reloads, and that runs the forced set-password step', async () => {
+            await openTheForm();
+            loginBusy = true;                                     // the member pressed Sign in; Firebase signs them in
+            emitAuth({ uid: 'member-1', isAnonymous: false });
+            assert.equal(getAccessType(), 'named');
+            assert.equal(loginDismissals, 0, 'the form went before the reload that runs the forced set-password step');
+        });
+
+        test('and never the front door\'s INLINE card — that one goes with the slot', async () => {
+            await initCalendarAccess({ onGranted: () => {} });    // nothing held: the inline sign-in card
+            assert.ok(loginMounts.at(-1)?.host, 'premise: the inline card is up');
+            await unlockWithPin('1234');                          // the PIN instead
+            assert.equal(getAccessType(), 'viewer');
+            assert.equal(loginDismissals, 0, 'the inline card was dismissed as though it were the dialog — '
+                + 'its scroll unlock is unpaired, and would release another overlay\'s lock');
+        });
     });
 
     test('"Use the staff PIN instead" SIGNS THE MEMBER OUT — it is not a panel swap (v21.23)', async () => {

@@ -305,6 +305,8 @@ things an edit can silently break.
   Its "use the staff PIN instead" is a sign-out (`releaseDevicePush`, `clearSession`, reload), never a
   panel swap, because the drawer still carries that member's name and role pills.
 - `hideLockPanel()` (takes whatever is up off the page, and the backoff timer with it) ·
+  `dismissSignInForm()` (on a grant: the come-back card's full-screen form, which is not in the slot —
+  never the inline card, nor a form whose own sign-in is in flight) ·
   `resetUnlockFailures()` (on a grant) · `PIN_FIRST_HASH` (re-exported from `calendar-access-core.js`).
 - Tested through `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
 
