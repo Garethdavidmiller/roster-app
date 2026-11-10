@@ -594,6 +594,19 @@ for (const width of [375, 1280]) {
     });
 }
 
+// A server stamp is AHEAD of a device whose clock runs slow, and the shared formatter printed the gap
+// as a negative age — "-90s ago" (Nov 2026 review). The Error Log's rows use the same formatter.
+test('operations reset requests: a request stamped ahead of this device\'s clock reads "just now"', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { docs: [{ id: 'A. Hared', requestedAt: Date.now() + 90_000, count: 1, provisioned: true }] };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const when = page.locator('.rr-row .rr-when');
+    await expect(when).toContainText('just now');
+    await expect(when).not.toContainText('-');
+});
+
 // ── OPERATIONS: the reset-request push deep link (v18.95) ──────────────────────────────────────
 // The admin's notification opens operations.html#reset-requests. Operations has nine collapsed
 // cards, so landing on the page alone would still leave them hunting for the one it was about.
