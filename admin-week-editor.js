@@ -48,7 +48,7 @@ import { initTimeInputs } from './admin-time-inputs.js';
 import { setStatus } from './status-text.js';
 
 // ── INJECTED ──────────────────────────────────────────────────────────────────
-let _currentIsAdmin = false;
+let _canPickMember = false;   // admin or manager: the member field is theirs to change
 /** @type {(msg: string) => void} */   let _showSuccess  = () => {};
 /** @type {() => void} */              let _markChanged  = () => {};
 /** @type {(m: string) => Map<string, any>} */ let buildMemberDateMap = () => new Map();
@@ -74,14 +74,14 @@ export function rosteredWords(baseShift) {
 
 /**
  * @param {object} deps
- * @param {boolean} deps.currentIsAdmin
+ * @param {boolean} deps.canPickMember  admin or manager
  * @param {(msg: string) => void} deps.showSuccess
  * @param {() => void} deps.markChanged
  * @param {(m: string) => Map<string, any>} deps.memberDateMap
  * @returns {void}
  */
 export function initWeekEditor(deps) {
-    _currentIsAdmin   = deps.currentIsAdmin;
+    _canPickMember    = deps.canPickMember;
     _showSuccess      = deps.showSuccess;
     _markChanged      = deps.markChanged;
     buildMemberDateMap = deps.memberDateMap;
@@ -242,6 +242,7 @@ export function buildWeekGridInto(container, dateStr) {
 
         const row = document.createElement('div');
         const isToday = dateISO === todayISO;
+        // The overwrite badge is drawn empty: `prefillRow` below writes its words before the row is painted.
         // Unique id linking each row's time inputs to their inline error message
         // (aria-describedby / aria-errormessage need a per-row target id).
         const timeErrId = `timeErr-${dateISO}`;
@@ -257,7 +258,7 @@ export function buildWeekGridInto(container, dateStr) {
             </div>
             <label class="col-day" for="day-cb-${dateISO}">
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
-                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${isToday ? '<span class="day-today-tag">Today</span>' : ''}${badgeHTML}${existing ? ` <span class="overwrite-badge"><span aria-hidden="true">⚠</span> ${escapeHtml(existing.value === 'SICK' ? 'Absent' : existing.value === 'SPARE' ? 'Spare' : (existing.value || existing.type))}</span>` : ''}</span>
+                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${isToday ? '<span class="day-today-tag">Today</span>' : ''}${badgeHTML}${existing ? ' <span class="overwrite-badge"></span>' : ''}</span>
             </label>
             <div class="col-base">${getShiftBadge(baseShift, { showTime: true })}</div>
             <div class="col-pills">
@@ -449,24 +450,24 @@ export function buildWeekGridInto(container, dateStr) {
 }
 
 /**
- * Re-renders the full week grid for the currently selected member and date.
- * Resets unsaved-changes state, shows the bulk bar, and refreshes the Save button.
+ * Re-renders the full week grid for the currently selected member and date — or the state that stands
+ * in for it (no member, loading, failed) — and refreshes the bulk bar and the Save button to match, on
+ * every branch: a bar left counting the previous week's rows has a Save that does nothing.
  */
 export function renderWeekGrid() {
     const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
     const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
     const weekGrid    = document.getElementById('weekGrid');
     const bulkBar     = document.getElementById('bulkBar');
-    const saveBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
     const memberName  = fieldMember?.value;
     const dateStr     = fieldDate?.value;
 
     updateWeekNavLabel(dateStr ?? '');
 
     if (!memberName || !dateStr) {
-        if (weekGrid) weekGrid.innerHTML = `<div class="week-empty">${_currentIsAdmin ? 'Select a staff member and date above to load the week.' : 'Select a date above to load the week.'}</div>`;
+        if (weekGrid) weekGrid.innerHTML = `<div class="week-empty">${_canPickMember ? 'Select a staff member and date above to load the week.' : 'Select a date above to load the week.'}</div>`;
         if (bulkBar)  bulkBar.style.display = 'none';
-        if (saveBtn)  saveBtn.disabled = true;
+        updateSaveBtn();
         return;
     }
 
@@ -497,7 +498,7 @@ export function renderWeekGrid() {
             }
         }
         if (bulkBar)  bulkBar.style.display = 'none';
-        if (saveBtn)  saveBtn.disabled = true;
+        updateSaveBtn();
         return;
     }
 
@@ -505,7 +506,7 @@ export function renderWeekGrid() {
 
     if (!teamMembers.find(m => m.name === memberName)) {
         if (bulkBar) bulkBar.style.display = 'none';
-        if (saveBtn) saveBtn.disabled = true;
+        updateSaveBtn();
         return;
     }
 

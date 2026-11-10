@@ -109,7 +109,7 @@ const { teamMembers, getBaseShift, formatISO } = await import('./roster-data.js'
 
 const _changed = [];
 initWeekEditor({
-    currentIsAdmin: true,
+    canPickMember: true,
     showSuccess: () => {},
     markChanged: () => { _changed.push(1); },
     memberDateMap: () => new Map(),   // no existing overrides — see the header
@@ -243,6 +243,23 @@ describe('a member whose saved changes have not arrived', () => {
     }
 
     const MEMBER = teamMembers.find(m => !m.hidden).name;
+
+    test('the Unsaved bar and the "about to change" line go with the rows they counted', () => {
+        // A member switch with Discard drew the loading (or, on a dropped read, the failed) state under
+        // a bar still reading "Unsaved: 1 day" — whose Save did nothing — and a line naming the member left.
+        for (const [label, failed, name] of [['loading', false, MEMBER], ['failed', true, MEMBER], ['no member', false, '']]) {
+            _authority = false;
+            _failed    = failed;
+            const bar = put('stagedBar'); bar.hidden = false;
+            put('stagedCount').textContent = '1 day';
+            const preview = put('gridPreview'); preview.hidden = false;
+            preview.textContent = "You're about to change 1 day for the previous member.";
+            put('saveBtnHint');
+            renderFor(name);
+            assert.equal(bar.hidden, true, `${label}: an Unsaved bar over a week with nothing staged`);
+            assert.equal(preview.hidden, true, `${label}: a line naming somebody else`);
+        }
+    });
 
     test('draws a LOADING state, never seven blank base-roster days', () => {
         _authority = false;
