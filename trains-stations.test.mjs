@@ -1,6 +1,6 @@
 /**
  * trains-stations.test.mjs — the Trains page seen from a station, and the words it shows.
- * Run with: node --test trains-stations.test.mjs   (no mocks; part of test:hygiene)
+ * Run with: node scripts/run-tests.mjs trains-stations.test.mjs   (no mocks; part of test:hygiene)
  *
  * The rule that matters most is the one that keeps the page honest when December's stops are
  * missing: a December figure is shown for a station only when it can be KNOWN without them. A short

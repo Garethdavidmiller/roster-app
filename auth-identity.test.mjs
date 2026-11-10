@@ -1,7 +1,7 @@
 /**
  * Unit tests for auth-identity.js — the account-identity derivations extracted from
  * firebase-client.js (v16.50) so they're directly testable in Node.
- * Run (no mocks): node --test auth-identity.test.mjs
+ * Run (no mocks): node scripts/run-tests.mjs auth-identity.test.mjs
  *
  * These are IDENTITY-CRITICAL: nameToEmail is the Firebase Auth account key, so a silent
  * change (e.g. two display names collapsing to one email → a shared account, or an

@@ -1,6 +1,6 @@
 /**
  * admin-al-week-save.test.mjs — what one week-grid save does about the leave in it.
- * Run: node --test admin-al-week-save.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs admin-al-week-save.test.mjs   (part of `npm run test:hygiene`)
  *
  * The sequence this pins used to live inside `admin-app.js`'s Save handler, where it could only be
  * reached through a browser. The decisions in it are not DOM decisions — they are about somebody's

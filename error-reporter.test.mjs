@@ -1,6 +1,6 @@
 /**
  * Tests for the Error Log noise filters in error-reporter.js.
- * Run: node --test error-reporter.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs error-reporter.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THIS FILE EXISTS — the filters shipped untested for six versions (v13.31 → v19.19), and this
  * is precisely the code where that is backwards. The two failure directions are not symmetric:

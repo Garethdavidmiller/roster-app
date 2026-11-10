@@ -1,6 +1,6 @@
 /**
  * overtime-sunday-release.test.mjs — asking to be taken off a rostered Sunday.
- * Run: node --test overtime-sunday-release.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs overtime-sunday-release.test.mjs   (part of `npm run test:hygiene`)
  *
  * Three conditions decide whether the control is offered at all, and the third — an unknown roster
  * — is the one that would do damage if it went the other way: offering there invites a member to

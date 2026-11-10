@@ -1,6 +1,6 @@
 /**
  * Unit tests for calendar-initial-fetch.js — initial 3-month fetch and sync-chip state machine.
- * Run: node --experimental-test-module-mocks --test calendar-initial-fetch.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-initial-fetch.test.mjs
  *
  * Covers: month pre-claiming, _initialFetchInProgress flag lifecycle, renderCalendar
  * callback paths, sync-chip appearance (800ms timer), timeout error state (10s),

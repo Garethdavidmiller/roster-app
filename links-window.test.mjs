@@ -1,6 +1,6 @@
 /**
  * links-window.test.mjs — the operating window of a link design (LINKS_DEC2026_PLAN package 1).
- * Run: node --test links-window.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-window.test.mjs   (part of `npm run test:hygiene`)
  *
  * The weight here is on the two things that decide whether the feature helps or misleads:
  *  · `normaliseWindow` is the trust boundary for a stored value, and its fallback must never

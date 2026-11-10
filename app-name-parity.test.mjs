@@ -1,6 +1,6 @@
 /**
  * app-name-parity.test.mjs — "MYB" may name the STATION. It may never name the SOFTWARE.
- * Run: node --test app-name-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs app-name-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY THIS IS A GATE AND NOT JUST A CONVENTION ────────────────────────────────────────────────
  *

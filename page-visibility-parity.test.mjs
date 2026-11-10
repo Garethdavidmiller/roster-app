@@ -1,6 +1,6 @@
 /**
  * page-visibility-parity.test.mjs — `hidden` must actually hide.
- * Run: node --test page-visibility-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs page-visibility-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── THE TRAP ────────────────────────────────────────────────────────────────────────────────────
  *

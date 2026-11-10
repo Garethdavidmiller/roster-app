@@ -18,7 +18,7 @@
  *      28-day grid (i.e. weeks with no bank-holiday payday shift, which isPayCutoffDay deliberately
  *      does not model — a documented, separate divergence).
  *
- * Pure — no Firebase, no network. Run: node --test payday-cutoff-parity.test.mjs
+ * Pure — no Firebase, no network. Run: node scripts/run-tests.mjs payday-cutoff-parity.test.mjs
  */
 
 import { test, describe } from 'node:test';

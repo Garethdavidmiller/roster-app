@@ -1,6 +1,6 @@
 /**
  * overtime-format.test.mjs — the client's words and its clock.
- * Run with: node --test overtime-format.test.mjs   (no mocks; part of test:hygiene)
+ * Run with: node scripts/run-tests.mjs overtime-format.test.mjs   (no mocks; part of test:hygiene)
  *
  * Two things are under test and only one of them looks important.
  *

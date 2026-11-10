@@ -1,6 +1,6 @@
 /**
  * calendar-viewer-auth.test.mjs — the server-side staff-PIN rules.
- * Run: node --test calendar-viewer-auth.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs calendar-viewer-auth.test.mjs   (part of `npm run test:hygiene`)
  *
  * These decide whether ten thousand guesses are practical, so they are the part of this feature
  * most worth testing and the part least reachable from any other test. Every interesting case is a

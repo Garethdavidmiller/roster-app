@@ -1,6 +1,6 @@
 /**
  * Unit tests for paycalc-form-data.js — the per-period form ↔ saved-data round trip.
- * Run: node --experimental-test-module-mocks --test paycalc-form-data.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-form-data.test.mjs
  *
  * WHY THIS FILE EXISTS. These ~70 lines produced FOUR money-affecting defects in four releases,
  * every one the same shape — a value the form could legitimately hold being persisted as something

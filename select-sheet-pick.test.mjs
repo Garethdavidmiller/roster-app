@@ -19,7 +19,7 @@
  * sheet fires neither. The lightbox is a fake with a hand-held promise, because the moment being
  * tested is the gap between two events, and a real fade would close it before an assertion ran.
  *
- * Part of test:hygiene. Run: node --test select-sheet-pick.test.mjs
+ * Part of test:hygiene. Run: node scripts/run-tests.mjs select-sheet-pick.test.mjs
  */
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';

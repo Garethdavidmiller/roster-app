@@ -1,5 +1,5 @@
 // run-tests-script.test.mjs — scripts/run-tests.mjs, tested by running it, and every npm script
-// that runs Node's test runner held to it.
+// that runs Node's test runner held to it, and every test file's own run line.
 //
 // The wrapper exists for the one failure `node --test` does not report: a `describe` whose body
 // THROWS while being built prints `not ok`, adds nothing to the counts, and the run exits 0. That
@@ -14,7 +14,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -117,5 +117,35 @@ describe('every npm script that runs Node\'s test runner goes through the wrappe
         for (const name of ['test:hygiene', 'test:parse', 'test:unit', 'test:functions', 'test:rules', 'test:payslip-local']) {
             assert.match(String(scripts[name]), /scripts\/run-tests\.mjs/, `${name} no longer runs through the wrapper`);
         }
+    });
+});
+
+describe('every test file\'s own run line goes through the wrapper', () => {
+    // A test file's header is where somebody copies the command to run that one file. Until
+    // 10 November 2026, 141 headers said `node --test <file>`: on Node 22, the runner that exits 0
+    // when a block fails to BUILD, so it was handed out for the exact file a reader was debugging.
+    const ROOT = fileURLToPath(new URL('.', import.meta.url));
+    const files = readdirSync(ROOT).filter((f) => f.endsWith('.test.mjs'));
+    const text = (f) => readFileSync(join(ROOT, f), 'utf8');
+    const bare = /node (?:--[a-z-]+ )*--test [\w.-]+\.test\.mjs/;
+
+    test('no header tells a reader to run its file with bare `node --test`', () => {
+        const offenders = files.filter((f) => bare.test(text(f)));
+        assert.deepEqual(offenders, [],
+            'these files name `node --test <file>` as the way to run them; name '
+            + '`node [flags] scripts/run-tests.mjs <file>` instead:\n  ' + offenders.join('\n  '));
+    });
+
+    test('guard the guard — the headers that name the wrapper were found', () => {
+        // On a clean tree the check above finds nothing, so it cannot tell a working pattern from a
+        // broken one: show it both shapes of run line. Assembled, or this file would be the offender.
+        const T = '--test';
+        assert.match(` * Run with: node --experimental-test-module-mocks ${T} some.test.mjs`, bare);
+        assert.match(` * Run: node ${T} some.test.mjs   (part of \`npm run test:hygiene\`)`, bare);
+        assert.doesNotMatch(' * Run: node --experimental-test-module-mocks scripts/run-tests.mjs some.test.mjs', bare);
+        const wrapped = files.filter((f) => /node (?:--[a-z-]+ )*scripts\/run-tests\.mjs [\w.-]+\.test\.mjs/.test(text(f)));
+        assert.ok(files.length > 100, `only ${files.length} test files found beside this one`);
+        assert.ok(wrapped.length * 2 > files.length,
+            `only ${wrapped.length} of ${files.length} test files name the wrapper — the scan is not reading them`);
     });
 });

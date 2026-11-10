@@ -1,6 +1,6 @@
 /**
  * paycalc-copy-parity.test.mjs — the copy that decides WHERE a member types a number.
- * Run: node --test paycalc-copy-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs paycalc-copy-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * @nodeps-safe — runs on a bare checkout with nothing installed.
  *

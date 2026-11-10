@@ -1,5 +1,5 @@
 // Tests for links-design.js — pure link-design maths (no DOM, no Firebase).
-// Run: node --test links-design.test.mjs
+// Run: node scripts/run-tests.mjs links-design.test.mjs
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';

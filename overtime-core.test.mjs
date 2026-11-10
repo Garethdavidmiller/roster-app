@@ -1,6 +1,6 @@
 /**
  * overtime-core.test.mjs — the rules behind Overtime Availability.
- * Run with: node --test overtime-core.test.mjs   (no mocks; part of test:hygiene)
+ * Run with: node scripts/run-tests.mjs overtime-core.test.mjs   (no mocks; part of test:hygiene)
  *
  * WHY THIS RUNS IN test:hygiene RATHER THAN test:functions, despite living under functions/:
  * `overtime-core.js` requires only `./london-clock`, which itself requires nothing, so the pair

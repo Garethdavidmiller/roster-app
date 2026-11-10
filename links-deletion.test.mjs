@@ -1,6 +1,6 @@
 /**
  * links-deletion.test.mjs — the "Recently deleted" rules for the Links workspace.
- * Run: node --test links-deletion.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-deletion.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THIS EXISTS. Soft delete replaced a permanent one (v19.41), so this module is what stands
  * between a designer's work and a real `deleteDoc`.

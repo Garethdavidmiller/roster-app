@@ -1,6 +1,6 @@
 /**
  * overtime-clock.test.mjs — WHAT THE EXTRACTION PUT AT RISK.
- * Run with: node --test overtime-clock.test.mjs
+ * Run with: node scripts/run-tests.mjs overtime-clock.test.mjs
  *
  * ── WHY THIS FILE IS SHORT, AND DELIBERATELY NOT A SECOND CLOCK SUITE ───────────────────────────
  *

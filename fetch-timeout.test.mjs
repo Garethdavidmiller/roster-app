@@ -1,6 +1,6 @@
 /**
  * Tests for fetch-timeout.js — the bound on every Cloud Function call.
- * Run with: node --test fetch-timeout.test.mjs   (no mocks; part of test:hygiene)
+ * Run with: node scripts/run-tests.mjs fetch-timeout.test.mjs   (no mocks; part of test:hygiene)
  *
  * The cases are chosen around the one thing a bound gets WRONG in practice: mistaking somebody
  * else's abort for its own, and so telling a caller "timed out" when the truth was a cancelled

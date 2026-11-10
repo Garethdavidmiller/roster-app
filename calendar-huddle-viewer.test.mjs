@@ -1,6 +1,6 @@
 /**
  * calendar-huddle-viewer.test.mjs — the Daily Huddle viewer obeys the document gate (CALENDAR_DATA.md 15).
- * Run: node --experimental-test-module-mocks --test calendar-huddle-viewer.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-huddle-viewer.test.mjs
  *
  * WHY THIS FILE EXISTS (test audit, 7 Nov 2026). The viewer is the one document surface that holds
  * a LIVE subscription, so it is the one that has to be taken down when access goes: the listener

@@ -1,6 +1,6 @@
 /**
  * overtime-review-controller.test.mjs — WHICH WEEK IS ON SCREEN, AND WHICH WEEK THE DATA IS FROM.
- * Run with: node --experimental-test-module-mocks --test overtime-review-controller.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs overtime-review-controller.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

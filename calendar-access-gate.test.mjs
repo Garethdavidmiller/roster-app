@@ -1,6 +1,6 @@
 /**
  * calendar-access-gate.test.mjs — no access, no override data. Ever.
- * Run: node --experimental-test-module-mocks --test calendar-access-gate.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-access-gate.test.mjs
  *
  * ── THE INVARIANT ───────────────────────────────────────────────────────────────────────────────
  *

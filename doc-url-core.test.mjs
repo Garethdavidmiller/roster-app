@@ -1,6 +1,6 @@
 /**
  * doc-url-core.test.mjs — the rules behind the short-lived document URL.
- * Run with: node --test doc-url-core.test.mjs   (no mocks; part of test:hygiene)
+ * Run with: node scripts/run-tests.mjs doc-url-core.test.mjs   (no mocks; part of test:hygiene)
  *
  * WHY THIS RUNS IN test:hygiene DESPITE LIVING UNDER functions/: `doc-url-core.js` requires
  * nothing, so it loads without `functions/node_modules` — the same reasoning as

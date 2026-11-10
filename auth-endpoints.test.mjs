@@ -1,7 +1,7 @@
 /**
  * auth-endpoints.test.mjs — the ACCOUNT-AND-CREDENTIAL handlers, driven for real (v21.83, v21.85).
  *
- * Run: node --test auth-endpoints.test.mjs   (part of `npm run test:functions`)
+ * Run: node scripts/run-tests.mjs auth-endpoints.test.mjs   (part of `npm run test:functions`)
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

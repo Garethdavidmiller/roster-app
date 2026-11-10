@@ -1,6 +1,6 @@
 /**
  * admin-period-dates.test.mjs — the four pure answers behind the Recorded-dates lists.
- * Run: node --test admin-period-dates.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs admin-period-dates.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── ORGANISED BY WHAT A WRONG ANSWER COSTS ─────────────────────────────────────────────────────
  *

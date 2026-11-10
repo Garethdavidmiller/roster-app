@@ -1,7 +1,7 @@
 /**
  * select-sheet-parity.test.mjs — EVERY `<select>` IN THE APP IS EITHER ENHANCED OR NATIVE BY
  * DECISION, and the page's CSS reaches the control that replaced it.
- * Run: node --test select-sheet-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs select-sheet-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *

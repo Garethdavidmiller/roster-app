@@ -1,6 +1,6 @@
 /**
  * Unit tests for calendar-state.js — display month/year state machine.
- * Run: node --experimental-test-module-mocks --test calendar-state.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-state.test.mjs
  *
  * calendar-state.js executes a restoreViewedMonth() IIFE at import time that
  * reads from localStorage. The store is seeded before the import so we can

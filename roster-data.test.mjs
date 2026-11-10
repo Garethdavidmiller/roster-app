@@ -1,6 +1,6 @@
 /**
  * Unit tests for roster-data.js utility functions.
- * Run with: node --test roster-data.test.mjs
+ * Run with: node scripts/run-tests.mjs roster-data.test.mjs
  *
  * Uses Node's built-in test runner (no dependencies required).
  * Covers: bank holidays, Easter, paydays, cutoffs, AL entitlement, validation, the START-DATE

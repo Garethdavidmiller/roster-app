@@ -1,6 +1,6 @@
 /**
  * links-default-targets.test.mjs — the table the generator starts from.
- * Run: node --test links-default-targets.test.mjs   (no mocks; part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-default-targets.test.mjs   (no mocks; part of `npm run test:hygiene`)
  *
  * ── WHY THIS IS TESTED AT ALL, GIVEN IT IS A LITERAL ────────────────────────────────────────────
  *

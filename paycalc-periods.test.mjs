@@ -4,7 +4,7 @@
  *   paycalc-settings.js — pure helpers: getEffectiveContr, getProRateFactor, settingsKey
  *   paycalc-backpay.js  — _bpAwardTaxYear
  *
- * Run: node --experimental-test-module-mocks --test paycalc-periods.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-periods.test.mjs
  *
  * DOM-dependent functions (buildPeriodSelect, saveSettings, loadSettings,
  * updateTyTabs, updateBhRows, confirmSettings) are not tested here; they belong

@@ -1,6 +1,6 @@
 /**
  * Unit tests for calendar-renderer.js — pure helpers and grid builder.
- * Run: node --experimental-test-module-mocks --test calendar-renderer.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-renderer.test.mjs
  *
  * Pure-function tests (createCalendarHeader, createDayCell, getSwipeDirection) need
  * no DOM. buildCalendarContainer tests use a minimal hand-rolled DOM factory so the

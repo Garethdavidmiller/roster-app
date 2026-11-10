@@ -10,7 +10,7 @@
  *
  * The pure bucketing maths lives in perf-stats.test.mjs.
  *
- * Run: node --experimental-test-module-mocks --test perf-reporter.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs perf-reporter.test.mjs
  */
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';

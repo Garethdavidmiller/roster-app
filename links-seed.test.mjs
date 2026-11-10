@@ -1,6 +1,6 @@
 /**
  * links-seed.test.mjs — the generator's target seed (v19.92).
- * Run: node --test links-seed.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-seed.test.mjs   (part of `npm run test:hygiene`)
  *
  * THIS SUITE IS THE POINT OF THE EXTRACTION. `buildRosterTargets` was already a pure function; it
  * simply was not exported, and both `.claude/rules/links-design.md` and `e2e/pages.spec.js` (now

@@ -1,7 +1,7 @@
 /**
  * firebase-client.test.mjs — the Firestore and Auth I/O layer, driven through the REAL module.
  *
- * Run: node --test firebase-client.test.mjs   (part of `npm run test:unit`)
+ * Run: node scripts/run-tests.mjs firebase-client.test.mjs   (part of `npm run test:unit`)
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

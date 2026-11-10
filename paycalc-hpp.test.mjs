@@ -3,7 +3,7 @@
  * and, against a fake `document`, the card itself — the prior-year block a member reads on the
  * January payslip, and the amount-source state.
  *
- * Run: node --experimental-test-module-mocks --test paycalc-hpp.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-hpp.test.mjs
  *
  * Mock strategy:
  *   paycalc-periods.js   — mocked: controllable hasBankHoliday/hasBoxingDay flags and the viewed

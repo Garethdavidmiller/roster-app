@@ -2,7 +2,7 @@
  * Unit tests for computeYearSoFar (paycalc-year-summary.js) — the "This tax year so far"
  * aggregation in the Year to Date card (v18.41, review item 11).
  *
- * Run: node --experimental-test-module-mocks --test paycalc-year-summary.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-year-summary.test.mjs
  *
  * Mock strategy (mirrors paycalc-hpp.test.mjs):
  *   paycalc-periods.js  — mocked with a controllable getPeriods()

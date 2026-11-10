@@ -1,6 +1,6 @@
 /**
  * links-target-sets-store.test.mjs — the Firestore half of the saved staffing sets.
- * Run: node --test links-target-sets-store.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-target-sets-store.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THIS FILE EXISTS. Until v22.57 this code lived inside `links-app.js` and could not be tested
  * at all: a transaction with a conflict window in it, inside a coordinator that imports the gstatic

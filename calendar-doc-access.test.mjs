@@ -1,6 +1,6 @@
 /**
  * calendar-doc-access.test.mjs — the DOCUMENT gate, by what a wrong answer costs.
- * Run: node --test calendar-doc-access.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs calendar-doc-access.test.mjs   (part of `npm run test:hygiene`)
  *
  * OPEN WHEN IT SHOULD BE SHUT is the expensive direction and it is silent: a Huddle the local cache
  * still holds paints for whoever picked up the phone, and no rule on the server can see the read.

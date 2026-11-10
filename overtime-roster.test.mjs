@@ -1,6 +1,6 @@
 /**
  * overtime-roster.test.mjs — WHOSE ROSTER ENDED UP ON THIS MEMBER'S PHONE, AND WHETHER IT WAS READ.
- * Run with: node --experimental-test-module-mocks --test overtime-roster.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs overtime-roster.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

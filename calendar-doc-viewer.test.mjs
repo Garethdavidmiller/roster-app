@@ -1,6 +1,6 @@
 /**
  * Unit tests for calendar-doc-viewer.js — the #circular / #newsletter notification viewer.
- * Run: node --experimental-test-module-mocks --test calendar-doc-viewer.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-doc-viewer.test.mjs
  *
  * WHY THIS FILE EXISTS. v19.01 gave this path a PLAIN `await authReady`, with a comment arguing the
  * visible "Loading…" made an unbounded wait acceptable. It does not: a loading state says something

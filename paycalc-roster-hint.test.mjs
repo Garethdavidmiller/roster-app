@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * paycalc-roster-hint.test.mjs — "Fill from calendar" across an await.
- * Run with: node --experimental-test-module-mocks --test paycalc-roster-hint.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-roster-hint.test.mjs
  *
  * WHAT A WRONG ANSWER COSTS. The single-period fill retries the recorded-changes fetch before it
  * writes (v21.67) — and then writes into WHATEVER FORM IS ON SCREEN and saves it under WHATEVER

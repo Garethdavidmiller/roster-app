@@ -1,6 +1,6 @@
 /**
  * Unit tests for calendar-overrides.js — Firestore override cache.
- * Run: node --experimental-test-module-mocks --test calendar-overrides.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-overrides.test.mjs
  *
  * Tests: monthKey formatting, addFetchedMonths/clearFetchedMonth guards,
  * duplicate override resolution (manual beats import; newer beats older),

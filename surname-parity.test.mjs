@@ -13,7 +13,7 @@
  *      (the most likely drift) breaks the build even though that file is not
  *      directly importable here (firebase-client.js pulls the Firebase CDN).
  *
- * Pure — no Firebase, no network. Run: node --test surname-parity.test.mjs
+ * Pure — no Firebase, no network. Run: node scripts/run-tests.mjs surname-parity.test.mjs
  */
 
 import { test, describe } from 'node:test';
