@@ -3615,6 +3615,26 @@ test('admin: the unsaved-changes banner closes on Escape and keeps the edit; the
         'the bar follows <main> in the document').toBe(true);
 });
 
+// THE QUESTION GETS THE FOCUS (shared-ui-4). A week picked in the jump with work staged raises the
+// unsaved-changes question, which focuses "Keep editing" — from inside the picker's `change`, while
+// the picker was still open, so its focus guard pulled focus back into the closing picker.
+test('admin: a week picked from the keyboard with work staged puts focus on the unsaved-changes question', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard');
+    await deskAdmin(page, { width: 1366, height: 768 });
+    const tue = page.locator('.day-row[data-date="2026-07-14"]');
+    await tue.locator('label.col-day').click();
+    await tue.locator('.pill-annual_leave').click();
+    await expect(page.locator('#stagedBar')).toBeVisible();
+    await page.locator('#weekNavLabel').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#dpGrid .dp-day:focus'), 'the picker opens on the chosen day').toHaveCount(1);
+    await page.keyboard.press('ArrowDown');   // a week on
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#datePickerLightbox')).toBeHidden();
+    await expect(page.locator('#unsavedBanner')).toBeVisible();
+    await expect(page.locator('#unsavedKeepBtn'), 'the member lands on the question, not where the picker opened').toBeFocused();
+});
+
 test('admin: on a desktop the staff member picker is two Tab presses from the burger, as on a phone — and still sits atop the right column', async ({ page }, info) => {
     // From 1024px the bar used to be MOVED into the right column, which put the page's one member
     // control behind the whole Change a Shift card: 23 Tab presses, against 2 on a phone. It now keeps

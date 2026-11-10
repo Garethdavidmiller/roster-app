@@ -235,13 +235,19 @@ function _ensurePicker() {
     /** @param {string} iso */
     function _select(iso) {
         if (!_input || _outOfBounds(iso)) return;
-        _input.value = iso;
+        const input = _input;
+        input.value = iso;
+        // CLOSE FIRST, THEN ANNOUNCE — both inside the tap. The close retires the open dialog's focus
+        // guard and hands focus back to the control that opened it, so a consumer that moves focus in
+        // its `change` handler keeps it: Team View focuses its rebuilt week label, Admin its
+        // unsaved-changes banner. Announced while the picker was still open, the guard pulled that
+        // focus back into the closing picker, and it fell to <body> when the picker hid.
+        lb.close();
         // input THEN change: doc-upload's "touched" guard listens to both; the roster card's
         // Saturday-snap listens to change and may REWRITE the value — the per-input change
         // listener below re-reads the final value into the trigger, so the snap shows through.
-        _input.dispatchEvent(new Event('input',  { bubbles: true }));
-        _input.dispatchEvent(new Event('change', { bubbles: true }));
-        lb.close();
+        input.dispatchEvent(new Event('input',  { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     /** Week mode: band the week the pointer or focus is on. '' clears it. @param {string} wk */
