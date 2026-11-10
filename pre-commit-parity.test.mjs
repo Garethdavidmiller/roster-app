@@ -1,6 +1,6 @@
 /**
  * pre-commit-parity.test.mjs — the enforced hook must be able to READ what it claims to check.
- * Run: node --test pre-commit-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs pre-commit-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *

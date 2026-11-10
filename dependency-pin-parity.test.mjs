@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * dependency-pin-parity.test.mjs — a library the app loads TWICE must be the same version twice.
- * Run: node --test dependency-pin-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs dependency-pin-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * Two libraries in this repo are pinned in more than one place, in files that cannot read one
  * another, and until the v24.28 review nothing made the copies agree:
